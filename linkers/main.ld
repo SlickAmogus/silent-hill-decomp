@@ -9,7 +9,7 @@ SECTIONS
         FILL(0x00000000);
         header_DATA_START = .;
         header = .;
-        build/main/asm/main/executable/header.o(.data);
+        build/asm/main/header.o(.data);
         header_DATA_END = .;
         header_DATA_SIZE = ABSOLUTE(header_DATA_END - header_DATA_START);
     }
@@ -23,23 +23,23 @@ SECTIONS
     {
         FILL(0x00000000);
         main_RODATA_START = .;
-        build/main/asm/main/executable/data/executable.rodata.o(.rodata);
+        build/asm/main/data/main.rodata.o(.rodata);
         . = ALIGN(., 16);
         main_RODATA_END = .;
         main_RODATA_SIZE = ABSOLUTE(main_RODATA_END - main_RODATA_START);
         main_TEXT_START = .;
-        build/main/src/main/executable.o(.text);
+        build/src/main.o(.text);
         . = ALIGN(., 16);
         main_TEXT_END = .;
         main_TEXT_SIZE = ABSOLUTE(main_TEXT_END - main_TEXT_START);
         main_DATA_START = .;
-        executable_data = .;
-        build/main/asm/main/executable/data/executable.data.o(.data);
+        main_data = .;
+        build/asm/main/data/main.data.o(.data);
         . = ALIGN(., 16);
         main_DATA_END = .;
         main_DATA_SIZE = ABSOLUTE(main_DATA_END - main_DATA_START);
         main_BSS_START = .;
-        build/main/src/main/executable.o(.bss);
+        build/src/main.o(.bss);
         . = ALIGN(., 16);
         main_BSS_END = .;
         main_BSS_SIZE = ABSOLUTE(main_BSS_END - main_BSS_START);
