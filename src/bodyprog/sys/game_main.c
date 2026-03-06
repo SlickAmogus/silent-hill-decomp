@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 extern void PsyX_EndScene(void);
+extern void PsyX_UpdateInput(void);
 #endif
 #include <psyq/libetc.h>
 
@@ -218,6 +219,11 @@ void MainLoop(void) // 0x80032EE0
     {
         g_TickCount++;
 
+#ifdef SH_PC_PORT
+        /* PsyCross requires explicit input polling — on PSX this happens
+         * via hardware interrupt during VBlank. */
+        PsyX_UpdateInput();
+#endif
         // Update input.
         Joy_ReadP1();
         Demo_ControllerDataUpdate();
