@@ -1,3 +1,79 @@
+## About this fork
+
+  This is an experimental PC port built on top of this decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude also with help from REDRIVER2's source code.<br/>
+  <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
+  REDRIVER2: https://github.com/OpenDriver2/REDRIVER2
+  
+  I am going to try to get the game in as playable of a state as possible but no guarantees. I'm hoping this will be of help to someone who can make a real pc port once it is fully decompiled.
+
+  <br/>Status: The game boots through all startup screens (Konami logo, KCET logo, intro) and reaches the main menu. Basic rendering is working but textures are not yet fully correct. This is very early stage.
+
+  Prerequisites
+
+  - MSYS2/MinGW64 (Windows) with the following packages:
+  pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
+  - PsyCross — Clone https://github.com/OpenDriver2/PsyCross as a sibling directory:
+  git clone https://github.com/OpenDriver2/PsyCross.git
+  - Your directory layout should look like:
+  parent/
+    silent-hill-decomp/
+    PsyCross/
+  - Game disc image — A BIN/CUE dump of Silent Hill (USA). Place the .bin file at:
+  silent-hill-decomp/pc_port/build/gamedata/Silent Hill (USA).bin
+
+  Building
+
+  From an MSYS2 MinGW64 shell:
+
+  cd silent-hill-decomp/pc_port
+  mkdir build && cd build
+  cmake .. -G Ninja
+  cmake --build .
+
+  Running
+
+  cd silent-hill-decomp/pc_port/build
+  ./SilentHillPC.exe
+
+  The game expects the disc image at ./gamedata/Silent Hill (USA).bin relative to the working directory.
+
+  Controls 
+
+  Uses PsyCross default keyboard mapping:
+
+  ┌────────────┬────────────┐
+  │ PSX Button │    Key     │
+  ├────────────┼────────────┤
+  │ D-Pad      │ Arrow Keys │
+  ├────────────┼────────────┤
+  │ Cross      │ C          │
+  ├────────────┼────────────┤
+  │ Circle     │ V          │
+  ├────────────┼────────────┤
+  │ Triangle   │ F          │
+  ├────────────┼────────────┤
+  │ Square     │ D          │
+  ├────────────┼────────────┤
+  │ Start      │ Enter      │
+  ├────────────┼────────────┤
+  │ Select     │ Space      │
+  ├────────────┼────────────┤
+  │ L1 / R1    │ A / S      │
+  ├────────────┼────────────┤
+  │ L2 / R2    │ Z / X      │
+  └────────────┴────────────┘
+
+  Known Limitations
+
+  - Textures render as flat colors (CLUT/indexed texture lookup not fully working yet)
+  - FMV playback is stubbed (movies are skipped)
+  - Sound is partially stubbed
+  - Memory card functionality is skipped
+  - Controller vibration is disabled
+  - Only tested on Windows with MSYS2/MinGW64
+
+
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Vatuu/silent-hill-decomp/blob/master/docs/SHDecompLogo.png?raw=true">
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/Vatuu/silent-hill-decomp/blob/master/docs/SHDecompLogo-NTSC.png?raw=true">
