@@ -15,10 +15,17 @@
 #define SLOT_ROW_OFFSET      20
 
 // TODO: Not sure if calling them "layers" is accurate. -- Sezz
+#ifdef SH_PC_PORT
+#define LAYER_24 PSX_OT_OFS(24)
+#define LAYER_28 PSX_OT_OFS(28)
+#define LAYER_32 PSX_OT_OFS(32)
+#define LAYER_36 PSX_OT_OFS(36)
+#else
 #define LAYER_24 24
 #define LAYER_28 28
 #define LAYER_32 32
 #define LAYER_36 36
+#endif
 
 const pad = 0;
 
@@ -1097,7 +1104,11 @@ void SaveScreen_NavigationDraw(s32 slotIdx, s32 saveCount, s32 selectedSaveIdx, 
                    (SCROLL_BAR_TRACK_QUADS[1].vertex0_0.vx + thumbOffsetX) - i, ((SCROLL_BAR_TRACK_QUADS[1].vertex0_0.vy + thumbOffsetY) + thumbOffsetBottomY) - (i + SCROLL_BAR_OFFSET_Y));
 
             // Ensure inner rectangle is on top.
+#ifdef SH_PC_PORT
+            addPrim(((u8*)ot->org + LAYER_28) - (i * (int)sizeof(GsOT_TAG)), thumbPoly);
+#else
             addPrim(((u8*)ot->org + LAYER_28) - (i * 4), thumbPoly);
+#endif
             GsOUT_PACKET_P = (u8*)thumbPoly + sizeof(POLY_F4);
         }
     }

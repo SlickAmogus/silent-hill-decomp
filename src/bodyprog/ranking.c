@@ -800,8 +800,12 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
                     0x42, (i * 6) - 0xC4,
                     0x42, ((i + 1) * 6) - 0xC4);
 
+#ifdef SH_PC_PORT
+            addPrim((u8*)ot->org + PSX_OT_OFS(0x1C), poly);
+#else
             addPrim((u8*)ot->org + 0x1C, poly);
-            GsOUT_PACKET_P = (u8*)poly + 0x24;
+#endif
+            GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
         }
     }
 }

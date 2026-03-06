@@ -17,6 +17,8 @@
 #define RECT_VERT_COUNT 4
 #define BOX_VERT_COUNT  8
 
+/* PSX_OT_OFS is defined in include/gpu.h (the decomp's header) */
+
 typedef enum _MaterialFlags
 {
     MaterialFlag_None = 0,

@@ -28,6 +28,16 @@
     ((p)->code[1] = _get_tw((RECT16 *)tw))
 #endif
 
+#ifdef SH_PC_PORT
+/*
+ * PSX OT byte offset conversion.
+ * On PSX, OT entries (GsOT_TAG) are 4 bytes. Game code uses raw byte offsets
+ * like (u8*)ot->org + 24 to reach entry 6. On 64-bit PC, entries are 12 bytes,
+ * so byte offsets must be scaled.
+ */
+#define PSX_OT_OFS(n) (((n) / 4) * (int)sizeof(GsOT_TAG))
+#endif
+
 #define LINE_VERT_COUNT 2
 #define RECT_VERT_COUNT 4
 #define BOX_VERT_COUNT  8
