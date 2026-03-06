@@ -15,6 +15,16 @@
 // otherwise they'll go into .sdata because they're small; can't wrap them in a struct either because
 // `main` accesses them individually and not with a common base.
 
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+/* PSX overlay addresses mapped to emulated RAM on PC */
+#if VERSION_IS(JAP0)
+    void* g_OvlDynamic = NULL; /* initialized in main to PSX_ADDR(0x000CBAA8) */
+#else
+    void* g_OvlDynamic = NULL; /* initialized in main to PSX_ADDR(0x000C9578) */
+#endif
+    void* g_OvlBodyprog = NULL; /* initialized in main to PSX_ADDR(0x00024B60) */
+#else
 #if VERSION_IS(JAP0)
     void* SECTION(".rodata") g_OvlDynamic = (void*)0x800CBAA8;
 #else
@@ -22,6 +32,7 @@
 #endif
 
 void* SECTION(".rodata") g_OvlBodyprog = (void*)0x80024B60;
+#endif
 
 s_FsImageDesc g_MainImg0 = {
     .tPage = { 1, 13 },
@@ -60,6 +71,16 @@ int main(void)
     s32 sprtX;
     s32 fade;
     u8* prim;
+
+#ifdef SH_PC_PORT
+    /* Initialize PSX overlay address pointers now that g_PsxRam is available */
+#if VERSION_IS(JAP0)
+    g_OvlDynamic  = PSX_ADDR(0x000CBAA8);
+#else
+    g_OvlDynamic  = PSX_ADDR(0x000C9578);
+#endif
+    g_OvlBodyprog = PSX_ADDR(0x00024B60);
+#endif
 
     ResetCallback();
     CdInit();

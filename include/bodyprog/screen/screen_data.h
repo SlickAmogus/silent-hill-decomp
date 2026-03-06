@@ -38,7 +38,11 @@ extern GsOT_TAG g_OtTags0[2][16];
  * */
 extern q19_12 g_DeltaTime; /** Possible original name: `_shDeltaTimePerFrame` */
 
+#ifdef SH_PC_PORT
+extern GsOT_TAG g_OtTags1[3][ORDERING_TABLE_SIZE]; /* 3rd sub-array used as scratch OT by background draw */
+#else
 extern GsOT_TAG g_OtTags1[2][ORDERING_TABLE_SIZE];
+#endif
 extern s32      pad_bss_800B9CC4;
 
 /** Gravity speed for this tick. */

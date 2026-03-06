@@ -1,4 +1,8 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#include "psx_memory.h"
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -13,6 +17,14 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
+
+#ifdef SH_PC_PORT
+/* Forward declarations for static functions used before definition */
+static void MainMenu_MainTextDraw(void);
+static void MainMenu_DifficultyTextDraw(s32 idx);
+static void MainMenu_BackgroundDraw(void);
+static void func_8003BCF4(void);
+#endif
 #include "main/rng.h"
 #include "screens/stream/stream.h"
 
@@ -46,6 +58,18 @@ s8* D_800BCDE0;
 
 void GameState_MainMenu_Update(void) // 0x8003AB28
 {
+#ifdef SH_PC_PORT
+    {
+        static s32 prevStep = -1, prevMenuState = -1;
+        if (g_GameWork.gameStateStep_598[0] != prevStep || g_MainMenuState != prevMenuState) {
+            printf("[SH] MainMenu: step=%d mainMenuState=%d\n",
+                g_GameWork.gameStateStep_598[0], g_MainMenuState);
+            fflush(stdout);
+            prevStep = g_GameWork.gameStateStep_598[0];
+            prevMenuState = g_MainMenuState;
+        }
+    }
+#endif
     #define MAIN_MENU_GAME_STATE_COUNT 5
 
     s32 NEXT_GAME_STATES[MAIN_MENU_GAME_STATE_COUNT] =
@@ -69,7 +93,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     // After staying idle in the title screen for some time, this checks if the intro FMV or a
     // demo gameplay segment should be played. If the next value from `g_Demo_ReproducedCount`
     // is a value divisible by 3, the intro FMV will play. Otherwise, it defaults to a gameplay demo.
+#ifdef SH_PC_PORT
+    playInGameDemo = false; /* Skip demo on PC - not fully functional */
+#else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
+#endif
 
     if (g_GameWork.gameStateStep_598[0] == 0)
     {
@@ -91,7 +119,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_GameWork.background2dColor_58C.r = 0;
             g_GameWork.background2dColor_58C.g = 0;
             g_GameWork.background2dColor_58C.b = 0;
-
             Screen_RectInterlacedClear(0, 32, SCREEN_WIDTH, FRAMEBUFFER_HEIGHT_INTERLACED, 0, 0, 0);
             Screen_Init(SCREEN_WIDTH, true);
 
@@ -101,6 +128,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenuState++;
 
         case MenuState_Main:
+#ifdef SH_PC_PORT
+            {
+                static int mainOnce = 0;
+                if (!mainOnce) {
+                    printf("[SH] MainMenu: MenuState_Main (first entry)\n"); fflush(stdout);
+                    mainOnce = 1;
+                }
+            }
+#endif
             if (playInGameDemo)
             {
                 GameBoot_GameStartup();
@@ -392,9 +428,18 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     }
     else
     {
+#ifdef SH_PC_PORT
+        {
+            RECT clearRect;
+            /* Original writes to PSX scratch: 0x200000 -> x=0,y=32; 0x01C00140 -> w=320,h=448 */
+            setRECT(&clearRect, 0, 32, 320, 448);
+            ClearImage2(&clearRect, 0u, 0u, 0u);
+        }
+#else
         *(s32*)0x1F800000 = 0x200000;
         *(s32*)0x1F800004 = 0x01C00140;
         ClearImage2((RECT*)0x1F800000, 0u, 0u, 0u);
+#endif
         Screen_Init(SCREEN_WIDTH, false);
         return;
     }
@@ -555,7 +600,11 @@ static u32 D_800A9AAC[256] = {
 static void func_8003B7BC(void) // 0x8003B7BC
 {
     // Can't be `s32*` since 462 doesn't divide by 4, so guessing `s8`.
+#ifdef SH_PC_PORT
+    s8* s0 = (s8*)PSX_ADDR(0x001E2432);
+#else
     s8* s0 = 0x801E2432;
+#endif
 
     memset(s0, 0, 462);
     D_800BCDE0 = s0;
@@ -706,6 +755,14 @@ static void MainMenu_FogScatter(void) // 0x8003BBF4
 void MainMenu_FogUpdate(void) // 0x8003BC8C
 {
     static s32 fogCount = 0;
+
+#ifdef SH_PC_PORT
+    if (D_800BCDE0 == NULL) {
+        /* Fog buffer not initialized - skip fog update to avoid NULL deref */
+        fogCount++;
+        return;
+    }
+#endif
 
     if (fogCount == ((fogCount / 5) * 5))
     {

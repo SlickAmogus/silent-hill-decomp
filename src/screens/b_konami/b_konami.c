@@ -1,4 +1,8 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+extern void PsyX_EndScene(void);
+#endif
 
 #include <psyq/libcd.h>
 #include <psyq/libetc.h>
@@ -21,6 +25,18 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
     {
         Joy_Update();
 
+#ifdef SH_PC_PORT
+        {
+            static s32 prevStep = -1;
+            static s32 loopIter = 0;
+            loopIter++;
+            if (loopIter <= 5 || (loopIter % 60 == 0)) {
+                printf("[SH] KonamiLogo: iter=%d step=%d counter0=%d fadeState=%d fadeNone=%d dtRaw=%d\n",
+                    loopIter, g_GameWork.gameStateStep_598[0], g_SysWork.counters_1C[0],
+                    g_Screen_FadeStatus, ScreenFade_IsNone(), g_DeltaTimeRaw);
+            }
+        }
+#endif
         switch (g_GameWork.gameStateStep_598[0])
         {
             case KonamiLogoStateStep_Init:
@@ -40,6 +56,10 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
                 Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
 
                 g_GameWork.gameStateStep_598[0]++;
+#ifdef SH_PC_PORT
+                printf("[SH] KonamiLogo step0 complete, advancing to step %d\n", g_GameWork.gameStateStep_598[0]);
+                fflush(stdout);
+#endif
                 break;
 
             case KonamiLogoStateStep_WaitForFade:
@@ -74,8 +94,17 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
         func_80033548();
         nullsub_800334C8();
         VSync(SyncMode_Wait);
+#ifdef SH_PC_PORT
+        /* Internal loops don't update delta time like the main loop does.
+         * Set a reasonable per-frame delta (~1/60s in Q12) for fades to work. */
+        g_DeltaTime = Q12(1.0f / 60.0f);
+        g_DeltaTimeRaw = Q12(1.0f / 60.0f);
+#endif
         GsSwapDispBuff();
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        PsyX_EndScene();
+#endif
 
         g_ActiveBufferIdx = GsGetActiveBuff();
         GsOUT_PACKET_P   = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 15));
@@ -153,10 +182,17 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                 break;
 
             case KcetLogoStateStep_CheckMemCards:
+#ifdef SH_PC_PORT
+                printf("[SH] KCET: CheckMemCards, fadeNone=%d\n", ScreenFade_IsNone());
+                fflush(stdout);
+#endif
                 if (ScreenFade_IsNone())
                 {
                     s32 curTime;
-
+#ifdef SH_PC_PORT
+                    printf("[SH] KCET: Waiting for queue empty...\n");
+                    fflush(stdout);
+#endif
                     Fs_QueueWaitForEmpty();
 
 #if VERSION_REGION_IS(NTSCJ)
@@ -195,12 +231,20 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                     sd_work_init();
 #endif
 
+#ifdef SH_PC_PORT
+                    /* Skip memory card check on PC - no hardware available.
+                     * Go directly to NoMemCard state. */
+                    printf("[SH] KCET: Skipping memcard check (PC)\n");
+                    fflush(stdout);
+                    g_GameWork.gameStateStep_598[0] = KcetLogoStateStep_NoMemCard;
+#else
                     while (g_GameWork.gameStateStep_598[0] < KcetLogoStateStep_NoMemCard)
                     {
                         g_GameWork.gameStateStep_598[0] = GameState_KcetLogo_MemCardCheck();
                         MemCard_Update();
                         VSync(SyncMode_Wait);
                     }
+#endif
                 }
                 break;
 
@@ -342,11 +386,18 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
         func_80033548();
         nullsub_800334C8();
         VSync(SyncMode_Wait);
+#ifdef SH_PC_PORT
+        g_DeltaTime = Q12(1.0f / 60.0f);
+        g_DeltaTimeRaw = Q12(1.0f / 60.0f);
+#endif
         GsSwapDispBuff();
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        PsyX_EndScene();
+#endif
 
         g_ActiveBufferIdx = GsGetActiveBuff();
-        GsOUT_PACKET_P   = (g_ActiveBufferIdx << 0xF) + (u32)TEMP_MEMORY_ADDR;
+        GsOUT_PACKET_P   = (PACKET*)((uintptr_t)TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 0xF));
 
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
@@ -358,7 +409,11 @@ void BootScreen_ImageSegmentDraw(s_FsImageDesc* image, s32 otz, s32 vramX, s32 v
     DR_TPAGE* tPage;
     SPRT*     prim     = (SPRT*)GsOUT_PACKET_P;
     u32       vramBase = image->tPage[1] + (u32)(vramX >> 8) + (((u32)(vramY >> 8)) << 4);
+#ifdef SH_PC_PORT
+    GsOT_TAG* addr     = &g_OtTags0[g_ActiveBufferIdx][otz];
+#else
     u32*      addr     = &g_OtTags0[g_ActiveBufferIdx][otz];
+#endif
 
     addPrimFast(addr, prim, 4);
     setCodeWord(prim, PRIM_RECT | RECT_TEXTURE, 0x808080);
@@ -376,12 +431,20 @@ void BootScreen_ImageSegmentDraw(s_FsImageDesc* image, s32 otz, s32 vramX, s32 v
     setDrawTPage(tPage, 0, 1, getTPage(image->tPage[0], 0, (vramBase << 6), (((vramBase >> 4) & (1 << 0)) << 8)));
     AddPrim(addr, tPage);
 
+#ifdef SH_PC_PORT
+    GsOUT_PACKET_P = (u8*)prim + sizeof(SPRT) + sizeof(DR_TPAGE);
+#else
     GsOUT_PACKET_P = (u8*)prim + 28;
+#endif
 }
 
 void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
 {
+#ifdef SH_PC_PORT
+    GsOT_TAG* ptr;
+#else
     s32* ptr;
+#endif
 
     // Draw Konami logo.
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 0, 0, 256, 256, -192, -192);
@@ -400,7 +463,11 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
 
 void BootScreen_KcetScreenDraw(void) // 0x800CA120
 {
+#ifdef SH_PC_PORT
+    GsOT_TAG* ptr;
+#else
     u32* ptr;
+#endif
 
     // Draw KCET logo.
     BootScreen_ImageSegmentDraw(&g_KcetLogoImg, 0xF, 0, 0, 256, 160, -208, -80);

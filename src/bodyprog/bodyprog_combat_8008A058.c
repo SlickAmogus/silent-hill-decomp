@@ -29,10 +29,17 @@ s16 D_800AFD1C[] = // Used by `func_8008A3E0`.
 
 u32 func_8008A058(s32 arg0) // 0x8008A058
 {
+#ifdef SH_PC_PORT
+    s32  temp_t0;
+    u32  var_t1;
+    u32  var_t2;
+    s16* ptr;
+#else
     register s32  temp_t0 asm("t0");
     register u32  var_t1 asm("t1");
     register u32  var_t2 asm("t2");
     register s16* ptr asm("t3");
+#endif
 
     var_t1 = 0;
 
@@ -1250,11 +1257,11 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     if (target == &g_SysWork.playerWork_4C.player_0)
     {
         sp10             = NO_VALUE;
-        target->field_40 = (((s32)((u32)((u8*)attacker - sizeof(s_PlayerWork)) - (u32)target) * -0x6EB3E453) >> 3);
+        target->field_40 = (((s32)((uintptr_t)((u8*)attacker - sizeof(s_PlayerWork)) - (uintptr_t)target) * -0x6EB3E453) >> 3);
     }
     else
     {
-        sp10 = 1 << (((s32)((u32)((u8*)target - sizeof(s_PlayerWork)) - (u32)&g_SysWork.playerWork_4C) * -0x6EB3E453) >> 3);
+        sp10 = 1 << (((s32)((uintptr_t)((u8*)target - sizeof(s_PlayerWork)) - (uintptr_t)&g_SysWork.playerWork_4C) * -0x6EB3E453) >> 3);
 
         if (sp14 & sp10)
         {

@@ -199,6 +199,45 @@ s32 func_80049530(VECTOR* arg0, DVECTOR* arg1) // 0x80049530
 
     ApplyRotMatrixLV(arg0, &sp10);
 
+#ifdef SH_PC_PORT
+    {
+        /* Save current GTE translation vector, add sp10, do rtps, restore */
+        VECTOR origTrans, newTrans;
+        s32 szotz;
+
+        origTrans.vx = CFC2(5);
+        origTrans.vy = CFC2(6);
+        origTrans.vz = CFC2(7);
+
+        /* Save originals to data regs 2-4 for later restore */
+        MTC2(origTrans.vx, 2);
+        MTC2(origTrans.vy, 3);
+        MTC2(origTrans.vz, 4);
+
+        newTrans.vx = origTrans.vx + sp10.vx;
+        newTrans.vy = origTrans.vy + sp10.vy;
+        newTrans.vz = origTrans.vz + sp10.vz;
+
+        CTC2(newTrans.vx, 5);
+        CTC2(newTrans.vy, 6);
+        CTC2(newTrans.vz, 7);
+
+        MTC2(0, 0);
+        MTC2(0, 1);
+
+        gte_rtps();
+        gte_stsxy(arg1);
+
+        /* Restore translation from data regs 2-4 */
+        CTC2(MFC2(2), 5);
+        CTC2(MFC2(3), 6);
+        CTC2(MFC2(4), 7);
+
+        /* Return SZ3 >> 2 */
+        szotz = MFC2(19) >> 2;
+        return szotz;
+    }
+#else
     // TODO: Make macros for these?
 
     __asm__ volatile(
@@ -233,6 +272,7 @@ s32 func_80049530(VECTOR* arg0, DVECTOR* arg1) // 0x80049530
         "mfc2    $v0, $19;"
         "nop;"
         "sra     $v0, $v0, 2;" ::: "$12", "$13", "$14");
+#endif
 }
 
 void vwMatrixToAngleYXZ(SVECTOR* ang, const MATRIX* mat) // 0x800495D4

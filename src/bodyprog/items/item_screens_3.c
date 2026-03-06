@@ -1284,11 +1284,11 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_Update2, ANIM_STATUS(HarryAnim_TransitionToStill,       false), false, ANIM_STATUS(HarryAnim_TransitionToStill,       true), { Q12(10.0f)    }, NO_VALUE, 0   },
     { Anim_Update1, ANIM_STATUS(HarryAnim_TransitionToStill,       true),  false, NO_VALUE,                                             { Q12(0.0f)     }, 0,        0   },
     { Anim_Update2, ANIM_STATUS(HarryAnim_WalkForward,             false), false, ANIM_STATUS(HarryAnim_WalkForward,             true), { Q12(50.0f)    }, NO_VALUE, 1   },
-    { Anim_Update1, ANIM_STATUS(HarryAnim_WalkForward,             true),  true,  NO_VALUE,                                             { func_800706E4 }, 1,        23  },
+    { Anim_Update1, ANIM_STATUS(HarryAnim_WalkForward,             true),  true,  NO_VALUE,                                             { .variableFunc = (q19_12 (*)(void))func_800706E4 }, 1,        23  },
     { Anim_Update2, ANIM_STATUS(HarryAnim_RunForward,              false), false, ANIM_STATUS(HarryAnim_RunForward,              true), { Q12(20.0f)    }, NO_VALUE, 26  },
-    { Anim_Update1, ANIM_STATUS(HarryAnim_RunForward,              true),  true,  NO_VALUE,                                             { func_800706E4 }, 26,       45  },
+    { Anim_Update1, ANIM_STATUS(HarryAnim_RunForward,              true),  true,  NO_VALUE,                                             { .variableFunc = (q19_12 (*)(void))func_800706E4 }, 26,       45  },
     { Anim_Update2, ANIM_STATUS(HarryAnim_WalkBackward,            false), false, ANIM_STATUS(HarryAnim_WalkBackward,            true), { Q12(20.0f)    }, NO_VALUE, 46  },
-    { Anim_Update1, ANIM_STATUS(HarryAnim_WalkBackward,            true),  true,  NO_VALUE,                                             { func_800706E4 }, 46,       69  },
+    { Anim_Update1, ANIM_STATUS(HarryAnim_WalkBackward,            true),  true,  NO_VALUE,                                             { .variableFunc = (q19_12 (*)(void))func_800706E4 }, 46,       69  },
     { Anim_Update2, ANIM_STATUS(HarryAnim_SidestepLeft,            false), false, ANIM_STATUS(HarryAnim_SidestepLeft,            true), { Q12(50.0f)    }, NO_VALUE, 70  },
     { Anim_Update1, ANIM_STATUS(HarryAnim_SidestepLeft,            true),  false, NO_VALUE,                                             { Q12(30.0f)    }, 70,       94  },
     { Anim_Update2, ANIM_STATUS(HarryAnim_SidestepRight,           false), false, ANIM_STATUS(HarryAnim_SidestepRight,           true), { Q12(50.0f)    }, NO_VALUE, 95  },
@@ -1334,7 +1334,7 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_Update2, ANIM_STATUS(HarryAnim_Idle,                    false), false, ANIM_STATUS(HarryAnim_Idle,                    true), { Q12(5.0f)     }, NO_VALUE, 503 },
     { Anim_Update1, ANIM_STATUS(HarryAnim_Idle,                    true),  false, NO_VALUE,                                             { Q12(10.0f)    }, 503,      542 },
     { Anim_Update2, ANIM_STATUS(HarryAnim_IdleExhausted,           false), false, ANIM_STATUS(HarryAnim_IdleExhausted,           true), { Q12(5.0f)     }, NO_VALUE, 543 },
-    { Anim_Update1, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             { func_800706E4 }, 543,      567 },
+    { Anim_Update1, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             { .variableFunc = (q19_12 (*)(void))func_800706E4 }, 543,      567 },
     {}
 };
 // TODO: `func_8007EBBC` indicates there should be more.
@@ -2693,7 +2693,11 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
     s32          temp3;
     s32          temp4;
     s32          temp5;
+#ifdef SH_PC_PORT
+    s32 v0; // @hack - was register asm("v0") on MIPS
+#else
     register s32 v0 asm("v0"); // @hack
+#endif
     s_GameWork*  ptr;
     s_GameWork*  ptr2;
     s32*         ptr3;

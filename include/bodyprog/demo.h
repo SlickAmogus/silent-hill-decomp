@@ -58,7 +58,12 @@ STATIC_ASSERT_SIZEOF(s_DemoFileInfo, 8);
 // GLOBALS
 // ========
 
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+#define DEMO_WORK() ((s_DemoWork*)PSX_ADDR(0x000FDE00))
+#else
 #define DEMO_WORK() ((s_DemoWork*)0x800FDE00)
+#endif
 
 /** `Demo_FrameCount` */
 extern s32 g_Demo_FrameCount;

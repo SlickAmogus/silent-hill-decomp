@@ -1,4 +1,7 @@
 #include "gpu.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/demo.h"
 #include "main/fsqueue.h"
@@ -40,6 +43,11 @@ void Fs_QueueWaitForEmpty(void)
     func_800892A4(0);
     func_80089128();
 
+#ifdef SH_PC_PORT
+    {
+        extern int g_TickCount;
+        int waitCount = 0;
+#endif
     while (true)
     {
         VSync(SyncMode_Wait);
@@ -48,9 +56,26 @@ void Fs_QueueWaitForEmpty(void)
             break;
         }
 
+#ifdef SH_PC_PORT
+        if (waitCount < 5 || waitCount % 100 == 0) {
+            printf("[SH] Fs_QueueWaitForEmpty: queueLen=%d state=%d waitCount=%d\n",
+                Fs_QueueGetLength(), g_FsQueue.state, waitCount);
+        }
+        waitCount++;
+        if (waitCount > 500) {
+            printf("[SH] Fs_QueueWaitForEmpty: timeout, forcing queue empty\n");
+            /* Force the queue empty to prevent infinite loop */
+            g_FsQueue.read.idx = g_FsQueue.last.idx + 1;
+            g_FsQueue.postLoad.idx = g_FsQueue.read.idx;
+            break;
+        }
+#endif
         Fs_QueueUpdate();
     }
 
+#ifdef SH_PC_PORT
+    }
+#endif
     func_800892A4(1);
     DrawSync(SyncMode_Wait);
     VSync(SyncMode_Wait);

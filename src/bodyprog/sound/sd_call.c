@@ -91,6 +91,11 @@ static u8               g_Sd_CurrentTask;
 
 void SD_Call(u32 cmd) // 0x80045A7C
 {
+#ifdef SH_PC_PORT
+    /* Sound system not functional on PC yet - skip all SD_Call commands
+     * to prevent stale CdRead queue entries from corrupting filesystem reads */
+    return;
+#endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
     {
@@ -137,6 +142,10 @@ void SD_Call(u32 cmd) // 0x80045A7C
 
 u8 Sd_AudioStreamingCheck(void) // 0x80045B28
 {
+#ifdef SH_PC_PORT
+    /* Audio system not implemented on PC - always report not streaming */
+    return 0;
+#endif
     u8 state;
 
     state = 1;

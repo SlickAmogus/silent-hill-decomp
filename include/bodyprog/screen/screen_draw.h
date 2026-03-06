@@ -8,7 +8,9 @@
 // GLOBALS
 // ========
 
+#ifndef SH_PC_PORT
 extern q19_12 g_PrevScreenFadeProgress;
+#endif
 
 extern s32 pad_bss_800B5C2C;
 

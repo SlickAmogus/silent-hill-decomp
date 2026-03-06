@@ -875,9 +875,14 @@ void func_801E3E18(s32 arg0, s32 arg1) // 0x801E3E18
                 if (var_s4 < 0)
                 {
                     poly = (POLY_G4*)packet;
+#ifdef SH_PC_PORT
+                    setlen(poly, 8);
+                    addPrim(addr, poly);
+#else
                     // addPrimFast(addr, poly, 8);
                     poly->tag = ((*addr & sp1C) | 0x08000000);
                     *addr     = (*addr & 0xFF000000) | ((u32)poly & sp1C);
+#endif
 
                     x0 = var_s4 + 0x200;
                     x1 = var_s4 + 0x220;
@@ -905,9 +910,14 @@ void func_801E3E18(s32 arg0, s32 arg1) // 0x801E3E18
             x3 = x0 + 48;
 
             poly = (POLY_G4*)packet;
+#ifdef SH_PC_PORT
+            setlen(poly, 8);
+            addPrim(addr, poly);
+#else
             // addPrimFast(addr, poly, 8);
             poly->tag = ((*addr & sp1C) | 0x08000000);
             *addr     = (*addr & 0xFF000000) | ((u32)poly & sp1C);
+#endif
 
             *(u32*)(&poly->x0) = (((x0) & 0xFFFF) + (sp24));
             *(u32*)(&poly->x1) = (((x1) & 0xFFFF) + (sp24));

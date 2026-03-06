@@ -27,7 +27,7 @@ void (*g_MapEventFuncs[])() = {
     func_800EB11C
 };
 
-const s_MapOverlayHeader g_MapOverlayHeader = {
+SH_MAP_OVERLAY_HEADER = {
     .mapInfo_0                        = &MAP_INFOS[MapType_RSU],
     .getMapRoomIdxFunc_4              = 0x800EAB10,
     .field_8                          = 19,

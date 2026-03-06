@@ -19,6 +19,60 @@
  * #define FS_BUFFER(idx) \
  *     (void*)(0x80100600 + ((idx) * 0x1000))
  */
+#ifdef SH_PC_PORT
+/* PC port: remap PSX addresses to offsets within g_PsxRam[] */
+#include "psx_memory.h"
+#define FS_BUFFER_0      PSX_ADDR(0x0010A600)
+#define FS_BUFFER_12     PSX_ADDR(0x001201B4)
+#define FS_BUFFER_4      PSX_ADDR(0x00124384)
+#define FS_BUFFER_11     PSX_ADDR(0x00169600)
+#define FS_BUFFER_17     PSX_ADDR(0x00169E00)
+#define FS_BUFFER_13     PSX_ADDR(0x0016AE00)
+#define FS_BUFFER_14     PSX_ADDR(0x000F9600)
+#define FS_BUFFER_15     PSX_ADDR(0x001F3600)
+#define FS_BUFFER_16     PSX_ADDR(0x001EBE00)
+#define FS_BUFFER_18     PSX_ADDR(0x00180600)
+#define FS_BUFFER_19     PSX_ADDR(0x001A1E00)
+#define FS_BUFFER_20     PSX_ADDR(0x00185600)
+#define GLOBAL_LM_BUFFER ((s_LmHeader*)PSX_ADDR(0x0016B600))
+#define IPD_BUFFER       ((s_IpdHeader*)PSX_ADDR(0x00175600))
+#define LM_BUFFER_2      ((s_LmHeader*)PSX_ADDR(0x0019E600))
+#define FS_BUFFER_3      PSX_ADDR(0x001B2600)
+#define FS_BUFFER_8      PSX_ADDR(0x001B5E80)
+#define FS_BUFFER_7      PSX_ADDR(0x001C2600)
+#define FS_BUFFER_2      PSX_ADDR(0x001CF600)
+#define FS_BUFFER_1      PSX_ADDR(0x001E2600)
+#define FS_BUFFER_5      PSX_ADDR(0x001E3600)
+#define FS_BUFFER_6      PSX_ADDR(0x001E4600)
+#define FS_BUFFER_21     PSX_ADDR(0x001E5600)
+#define FS_BUFFER_10     PSX_ADDR(0x001EA600)
+#define FS_BUFFER_9      PSX_ADDR(0x001EC600)
+#define FS_BUFFER_22     PSX_ADDR(0x0019F8F8)
+#define FS_BUFFER_24     PSX_ADDR(0x001A0600)
+#define FS_BUFFER_25     PSX_ADDR(0x00167600)
+#define FS_BUFFER_26     PSX_ADDR(0x0018C600)
+#define FS_BUFFER_27     PSX_ADDR(0x00196E00)
+#define FS_BUFFER_28     PSX_ADDR(0x001D6E00)
+#define FS_BUFFER_29     PSX_ADDR(0x00142A00)
+#define FS_BUFFER_30     PSX_ADDR(0x00156A00)
+#define FS_BUFFER_31     PSX_ADDR(0x00102E00)
+#define FS_BUFFER_32     PSX_ADDR(0x00106E00)
+#define FS_BUFFER_33     PSX_ADDR(0x00153A00)
+#define FS_BUFFER_34     PSX_ADDR(0x00163200)
+#define FS_BUFFER_35     PSX_ADDR(0x001950F0)
+#define IMAGE_BUFFER   ((u_long*)PSX_ADDR(0x001AFA00))
+#define IMAGE_BUFFER_0 ((u_long*)PSX_ADDR(0x001CFA00))
+#define IMAGE_BUFFER_1 ((u_long*)PSX_ADDR(0x001C8200))
+#define IMAGE_BUFFER_2 ((u_long*)PSX_ADDR(0x001ABE00))
+#define IMAGE_BUFFER_3 ((u_long*)PSX_ADDR(0x001EB600))
+#define IMAGE_BUFFER_4 ((u_long*)PSX_ADDR(0x001DCE00))
+#define IMAGE_BUFFER_5 ((u_long*)PSX_ADDR(0x001DE600))
+#define TEMP_MEMORY_ADDR ((s8*)PSX_ADDR(0x001A2600))
+#define CD_ADDR_0        ((u_long*)PSX_ADDR(0x001E2600))
+#define FONT24_BUFFER ((u_long*)PSX_ADDR(0x001F5600))
+#define HARRY_LM_BUFFER PSX_ADDR(0x000FE600)
+#define MAP_CHARA_BASE  PSX_ADDR(0x000FEE00)
+#else /* !SH_PC_PORT */
 #define FS_BUFFER_0      (void*)0x8010A600
 #define FS_BUFFER_12     (void*)0x801201B4 // Used for weapon anim.     } Sub-buffers within the 4096-byte buffers?
 #define FS_BUFFER_4      (void*)0x80124384 // Used for player map anim. }
@@ -74,6 +128,7 @@
 
 #define HARRY_LM_BUFFER (void*)0x800FE600 /** Harry character model. */
 #define MAP_CHARA_BASE  (void*)0x800FEE00
+#endif /* SH_PC_PORT */
 
 /** Model of an item held in the player's hand. */
 #define HELD_ITEM_LM_BUFFER \

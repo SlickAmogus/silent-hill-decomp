@@ -8593,6 +8593,7 @@ void func_8007FDE0(s8 arg0, e_SfxId* sfxId, s8* pitch0, s8* pitch1) // 0x8007FDE
             mapOverlayId = g_SavegamePtr->mapOverlayId_A4;
             *sfxId       = Sfx_Unk1330;
 
+#ifndef SH_PC_PORT
             // @hack Odd redundant load of `mapOverlayId_A4`, likely there was some optimized-out code above that left side-effects?
             // This just sets `mapOverlayId` to `g_SavegamePtr->mapOverlayId_A4` (again).
             asm volatile(
@@ -8603,6 +8604,7 @@ void func_8007FDE0(s8 arg0, e_SfxId* sfxId, s8* pitch0, s8* pitch1) // 0x8007FDE
                 :
                 :
                 : "memory");
+#endif
 
             if (mapOverlayId == MapOverlayId_MAP2_S00)
             {
@@ -8818,6 +8820,19 @@ q19_12 Rng_RandQ12(void) // 0x80080514
 
 s32 func_80080540(s32 arg0, s32 arg1, s32 arg2) // 0x80080540
 {
+#ifdef SH_PC_PORT
+    /* Each arg is squared, then the 64-bit result is shifted to extract a fixed-point value:
+       hi<<20 | lo>>12, equivalent to (arg*arg) >> 12 as a 32-bit fixed-point operation */
+    s64 sq0 = (s64)arg0 * (s64)arg0;
+    s64 sq1 = (s64)arg1 * (s64)arg1;
+    s64 sq2 = (s64)arg2 * (s64)arg2;
+
+    s32 r0 = (s32)(((u32)(sq0 >> 32) << 20) | ((u32)sq0 >> 12));
+    s32 r1 = (s32)(((u32)(sq1 >> 32) << 20) | ((u32)sq1 >> 12));
+    s32 r2 = (s32)(((u32)(sq2 >> 32) << 20) | ((u32)sq2 >> 12));
+
+    return r0 + r1 + r2;
+#else
     s32 v0;
 
     __asm__ volatile(
@@ -8846,6 +8861,7 @@ s32 func_80080540(s32 arg0, s32 arg1, s32 arg2) // 0x80080540
         : "r"(arg0), "r"(arg1), "r"(arg2));
 
     return v0 + arg1 + arg2;
+#endif
 }
 
 s32 Math_PreservedSignSubtract(s32 val, s32 subtractor) // 0x80080594
@@ -9012,6 +9028,12 @@ s32 func_800808AC(q19_12 posX, q19_12 posZ) // 0x800808AC
 
 s32 Math_MulFixed(s32 val0, s32 val1, s32 shift) // 0x800808D4
 {
+#ifdef SH_PC_PORT
+    s64 res = (s64)val0 * (s64)val1;
+    s32 hi  = (s32)(res >> 32);
+    u32 lo  = (u32)res;
+    return (hi << (32 - shift)) | (lo >> shift);
+#else
     u32 lo;
 
     // Use inline asm to fetch high/low parts of mult.
@@ -9031,6 +9053,7 @@ s32 Math_MulFixed(s32 val0, s32 val1, s32 shift) // 0x800808D4
 #endif
 
     return (val0 << (32 - shift)) | (lo >> shift);
+#endif
 }
 
 s32 Math_MagnitudeShiftGet(s32 mag) // 0x800808F8

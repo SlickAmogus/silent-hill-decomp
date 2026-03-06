@@ -1564,18 +1564,18 @@ void IpdHeader_FixHeaderOffsets(s_IpdHeader* ipdHdr) // 0x80043DA4
 {
     s_IpdModelBuffer* curModelBuf;
 
-    ipdHdr->lmHdr_4           = (u8*)ipdHdr->lmHdr_4 + (u32)ipdHdr;
-    ipdHdr->modelInfo_14      = (u8*)ipdHdr->modelInfo_14 + (u32)ipdHdr;
-    ipdHdr->modelBuffers_18   = (u8*)ipdHdr->modelBuffers_18 + (u32)ipdHdr;
-    ipdHdr->modelOrderList_50 = (u8*)ipdHdr->modelOrderList_50 + (u32)ipdHdr;
+    ipdHdr->lmHdr_4           = (u8*)ipdHdr->lmHdr_4 + (uintptr_t)ipdHdr;
+    ipdHdr->modelInfo_14      = (u8*)ipdHdr->modelInfo_14 + (uintptr_t)ipdHdr;
+    ipdHdr->modelBuffers_18   = (u8*)ipdHdr->modelBuffers_18 + (uintptr_t)ipdHdr;
+    ipdHdr->modelOrderList_50 = (u8*)ipdHdr->modelOrderList_50 + (uintptr_t)ipdHdr;
 
     for (curModelBuf = &ipdHdr->modelBuffers_18[0];
          curModelBuf < &ipdHdr->modelBuffers_18[ipdHdr->modelBufferCount_9];
          curModelBuf++)
     {
-        curModelBuf->field_C  = (u8*)curModelBuf->field_C + (u32)ipdHdr;
-        curModelBuf->field_10 = (u8*)curModelBuf->field_10 + (u32)ipdHdr;
-        curModelBuf->field_14 = (u8*)curModelBuf->field_14 + (u32)ipdHdr;
+        curModelBuf->field_C  = (u8*)curModelBuf->field_C + (uintptr_t)ipdHdr;
+        curModelBuf->field_10 = (u8*)curModelBuf->field_10 + (uintptr_t)ipdHdr;
+        curModelBuf->field_14 = (u8*)curModelBuf->field_14 + (uintptr_t)ipdHdr;
     }
 }
 

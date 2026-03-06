@@ -1,5 +1,9 @@
 #include "game.h"
 
+#ifdef SH_PC_PORT
+#include <stdio.h>
+extern void PsyX_EndScene(void);
+#endif
 #include <psyq/libetc.h>
 
 #include "bodyprog/bodyprog.h"
@@ -159,21 +163,56 @@ void MainLoop(void) // 0x80032EE0
     s32 interval;
 
     // Initialize engine.
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: GsInitVcount\n");
+#endif
     GsInitVcount();
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: MemCard_SysInit\n");
+#endif
     MemCard_SysInit();
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: MemCard_SysInit2\n");
+#endif
     MemCard_SysInit2();
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: MemCard_InitStatus\n");
+#endif
     MemCard_InitStatus();
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: Joy_Init\n");
+#endif
     Joy_Init();
     VSyncCallback(&Screen_VSyncCallback);
 
 #if VERSION_EQUAL_OR_NEWER(USA)
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: InitGeom\n");
+#endif
     InitGeom();
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: func_8004BB10\n");
+#endif
     func_8004BB10(); // Initializes something for graphics.
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: func_800890B8 (skipped - vibration init)\n");
+    /* Skip vibration init - requires PadInfoMode which may crash without real pad */
+#else
     func_800890B8();
 #endif
+#endif
 
+#ifdef SH_PC_PORT
+    printf("[SH] MainLoop: SD_Init\n");
+#endif
     SD_Init();
 
+#ifdef SH_PC_PORT
+    /* SD_Init -> SdInit -> SpuInit -> ResetCallback clears the VSync callback.
+     * Re-register it after SD_Init to ensure the callback stays active. */
+    VSyncCallback(&Screen_VSyncCallback);
+    printf("[SH] MainLoop: Entering game loop\n");
+#endif
     // Run game.
     while (true)
     {
@@ -212,6 +251,29 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.sysFlags_22A0 = SysFlag_None;
 
         // Call update function for current GameState.
+#ifdef SH_PC_PORT
+        {
+            static s32 prevState = -1;
+            static s32 prevStep = -1;
+            if (g_GameWork.gameState_594 != prevState || g_GameWork.gameStateStep_598[0] != prevStep) {
+                printf("[SH] Tick %d: gameState=%d step=%d\n",
+                       g_TickCount, g_GameWork.gameState_594, g_GameWork.gameStateStep_598[0]);
+                prevState = g_GameWork.gameState_594;
+                prevStep = g_GameWork.gameStateStep_598[0];
+            }
+        }
+#endif
+#ifdef SH_PC_PORT
+        {
+            static s32 prevState2 = -1;
+            if (g_GameWork.gameState_594 != prevState2) {
+                printf("[SH] MainLoop: calling update func for gameState=%d funcPtr=%p\n",
+                    g_GameWork.gameState_594, (void*)g_GameStateUpdateFuncs[g_GameWork.gameState_594]);
+                fflush(stdout);
+                prevState2 = g_GameWork.gameState_594;
+            }
+        }
+#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
 
         Demo_Update();
@@ -235,7 +297,6 @@ void MainLoop(void) // 0x80032EE0
         func_80089128();
         func_8008D78C(); // Camera update?
         DrawSync(SyncMode_Wait);
-
         // Handle V sync.
         if (g_SysWork.flags_22A4 & SysFlag2_1)
         {
@@ -313,6 +374,9 @@ void MainLoop(void) // 0x80032EE0
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        PsyX_EndScene();
+#endif
     }
 
     #undef TICKS_PER_SECOND_MIN

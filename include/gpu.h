@@ -7,6 +7,27 @@
 #include <psyq/libgpu.h>
 #include <psyq/libgs.h>
 
+#ifdef SH_PC_PORT
+/* PsyCross uses dfe (draw-to-framebuffer-enable) to decide on-screen vs off-screen
+ * rendering. On real PSX hardware, dfe only controls display during the draw phase
+ * (for interlace flicker reduction) — primitives always render to the framebuffer.
+ * Force dfe=1 so all primitives render on-screen. */
+#undef _get_mode
+#define _get_mode(dfe, dtd, tpage) \
+    ((0xe1000000)|((dtd)?0x0200:0)|0x0400|((tpage)&0x9ff))
+
+#undef setDrawTPage
+#define setDrawTPage(p, dfe, dtd, tpage) \
+    setlen(p, 1), \
+    ((p)->code[0] = _get_mode(1, dtd, tpage))
+
+#undef setDrawMode
+#define setDrawMode(p, dfe, dtd, tpage, tw) \
+    setlen(p, 3), \
+    ((p)->code[0] = _get_mode(1, dtd, tpage)), \
+    ((p)->code[1] = _get_tw((RECT16 *)tw))
+#endif
+
 #define LINE_VERT_COUNT 2
 #define RECT_VERT_COUNT 4
 #define BOX_VERT_COUNT  8
@@ -148,8 +169,15 @@ typedef struct
     *(u16*)(&(p)->u3) = ((u) + ((v) << 8))
 
 /** @brief Combines `setcode` and `setRGB0`. */
+#ifdef SH_PC_PORT
+/* PsyCross uses 12-byte P_TAG header, so offset +4 is wrong (writes into addr).
+ * Use struct field access instead. */
+#define setCodeWord(p, code, rgb24) \
+    *(u32*)(&(p)->r0) = (((code) << 24) | ((rgb24) & 0xFFFFFF))
+#else
 #define setCodeWord(p, code, rgb24) \
     *(u32*)(((u8*)(p)) + 4) = (((code) << 24) | ((rgb24) & 0xFFFFFF))
+#endif
 
 // TODO: Perhaps `setRGBC0`, `setRGBC1`, `setRGBC2`, and `setRGBC3` were one macro. Incidental value set to padding fields suggests it?
 /** @brief Combines `setRGB0` and `setcode`. */
@@ -182,8 +210,13 @@ typedef struct
     (*(u16*)&(p)->r3 = (r) + ((g) << 8), (p)->b3 = (b))
 
 /** @brief Combines `addPrim` and `setlen`. */
+#ifdef SH_PC_PORT
+#define addPrimFast(ot, p, _len) \
+    (setlen(p, _len), addPrim(ot, p))
+#else
 #define addPrimFast(ot, p, _len) \
     (((p)->tag = getaddr(ot) | ((_len) << 24)), setaddr(ot, p))
+#endif
 
 /** @brief Combines `setPolyFT4` with `tpage` setter.
   * @hack Needed to allow `tpage` and POLY_FT4 code `0x2C` to be merged in some cases.
@@ -202,6 +235,11 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, u_long* scratch);
 void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, u_long* scratch);
 void SetPriority(PACKET*, s32, s32);
+
+#ifdef SH_PC_PORT
+/* PC port: use PsyCross C-based GTE register access instead of MIPS asm */
+#include "gpu_gte_pc.h"
+#else
 
 /** @brief Sets the `DQA` register in the GTE. Not part of Psy-Q for some reason. */
 #define gte_lddqa(r0) __asm__ volatile( \
@@ -465,5 +503,7 @@ void SetPriority(PACKET*, s32, s32);
 #define gte_stlzcr(dst) __asm__ volatile( \
     "mfc2  %0, $31"                       \
     : "=r"(dst))
+
+#endif /* !SH_PC_PORT */
 
 #endif
