@@ -2126,7 +2126,11 @@ void Gfx_Inventory_HealthStatusDraw(void) // 0x80051020
                     break;
             }
 
+#ifdef SH_PC_PORT
+            addPrim((u8*)ot->org - PSX_OT_OFS(-8156 + (i * 4)), poly_ft4);
+#else
             addPrim((u8*)ot->org - (-8156 + (i * 4)), poly_ft4);
+#endif
             GsOUT_PACKET_P = (PACKET*)poly_ft4 + sizeof(POLY_FT4);
         }
     }

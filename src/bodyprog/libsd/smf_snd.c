@@ -1235,6 +1235,12 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
     sd_vh = vab_h[vabid].vh_addr_4;
 
+#ifdef SH_PC_PORT
+    if (!sd_vh) {
+        return -1;
+    }
+#endif
+
     sd_int_flag = true;
 
     c = 0;
@@ -1406,6 +1412,9 @@ s16 SdUtKeyOnV(s16 voice, s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16
     if (vo != -1)
     {
         sd_vh       = vab_h[vabid].vh_addr_4;
+#ifdef SH_PC_PORT
+        if (!sd_vh) { sd_int_flag = false; return -1; }
+#endif
         sd_vab_prog = &sd_vh->vab_prog[prog];
         note_base   = note << 8;
         note_value  = note_base + fine;

@@ -16,10 +16,17 @@
 
 #define LINE_CURSOR_TIMER_MAX 8
 
+#ifdef SH_PC_PORT
+#define LAYER_24   PSX_OT_OFS(24)
+#define LAYER_40   PSX_OT_OFS(40)
+#define LAYER_36   PSX_OT_OFS(36)
+#define LAYER_8148 PSX_OT_OFS(8148)
+#else
 #define LAYER_24   24
 #define LAYER_40   40
 #define LAYER_36   36
 #define LAYER_8148 8148
+#endif
 
 s32  g_MainOptionsMenu_SelectedEntry      = 0;
 s32  g_ExtraOptionsMenu_SelectedEntry     = 0;

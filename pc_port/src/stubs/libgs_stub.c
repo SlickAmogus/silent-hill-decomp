@@ -315,9 +315,9 @@ void GsInitGraph2(unsigned short x, unsigned short y, unsigned short intmode, un
 
 void GsDefDispBuff2(unsigned short x0, unsigned short y0, unsigned short x1, unsigned short y1)
 {
-    /* PC: Ignore PSX VRAM offsets. Use (0,0) with screen dimensions from
-     * GsInitGraph. Set draw offset to center so (0,0) = screen center. */
-    (void)x0; (void)y0; (void)x1; (void)y1;
+    /* PC: No VRAM double-buffering. Both buffers use (0,0) with offset at
+     * screen center. CLUT/texture data in VRAM is protected by skipping
+     * GR_ClearVRAM in ClearImage (via PSYX_SKIP_FRAMEBUFFER_STORE). */
     SetDefDispEnv(&gs_disp_env[0], 0, 0, gs_screen_w, gs_screen_h);
     SetDefDispEnv(&gs_disp_env[1], 0, 0, gs_screen_w, gs_screen_h);
     SetDefDrawEnv(&gs_draw_env[0], 0, 0, gs_screen_w, gs_screen_h);
