@@ -83,7 +83,17 @@ void GsInitGraph(int x, int y, int mode, int a, int b)
     gs_draw_env[0].isbg = 1;
     gs_draw_env[1].isbg = 1;
 
+    /* On PSX, dfe controls display-during-draw (interlace flicker).
+     * PsyCross uses dfe to decide on-screen vs off-screen FBO.
+     * Force dfe=1 so all rendering goes to the on-screen target. */
+    gs_draw_env[0].dfe = 1;
+    gs_draw_env[1].dfe = 1;
+
     gs_active_buff = 0;
+
+    /* Sync global env structs so game code modifications are seeded correctly */
+    GsDRAWENV = gs_draw_env[0];
+    GsDISPENV = gs_disp_env[0];
 }
 
 void GsInit3D(void)
@@ -114,6 +124,17 @@ void GsClearVcount(void)
 void GsSwapDispBuff(void)
 {
     gs_active_buff = gs_active_buff ? 0 : 1;
+
+    /* Sync background color from GsDRAWENV (game modifies this global).
+     * Do NOT sync clip or ofs — the game's clip.h=224 override is a PSX
+     * interlace optimization (one field at a time). On PC we render the
+     * full 448-line space with ofs at center. */
+    gs_draw_env[gs_active_buff].isbg = GsDRAWENV.isbg;
+    gs_draw_env[gs_active_buff].r0 = GsDRAWENV.r0;
+    gs_draw_env[gs_active_buff].g0 = GsDRAWENV.g0;
+    gs_draw_env[gs_active_buff].b0 = GsDRAWENV.b0;
+    gs_draw_env[gs_active_buff].dfe = 1; /* Always force on-screen */
+
     PutDispEnv(&gs_disp_env[gs_active_buff]);
     PutDrawEnv(&gs_draw_env[gs_active_buff]);
 }
@@ -307,6 +328,12 @@ void GsDefDispBuff2(unsigned short x0, unsigned short y0, unsigned short x1, uns
     gs_draw_env[1].ofs[1] = gs_screen_h / 2;
     gs_draw_env[0].isbg = 1;
     gs_draw_env[1].isbg = 1;
+    gs_draw_env[0].dfe = 1;
+    gs_draw_env[1].dfe = 1;
+
+    /* Sync global env structs */
+    GsDRAWENV = gs_draw_env[0];
+    GsDISPENV = gs_disp_env[0];
 }
 
 void GsInitCoordinate2(void *super, GsCOORDINATE2 *coord)
