@@ -99,6 +99,8 @@ int main(int argc, char* argv[])
 
     /* Initialize runtime data that depends on PSX memory addresses */
     PcPort_InitCharaAnimInfo();
+    extern void PcPort_InitSdBuffers(void);
+    PcPort_InitSdBuffers();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)

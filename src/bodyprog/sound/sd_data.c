@@ -1,6 +1,21 @@
 #include "common.h"
 #include "bodyprog/sound_system.h"
 
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+/* PSX addresses must map to emulated RAM on 64-bit */
+u8* g_Sd_VabBuffers[4] = { NULL, NULL, NULL, NULL };
+u8* g_Sd_KdtBuffer[1] = { NULL };
+
+void PcPort_InitSdBuffers(void)
+{
+    g_Sd_VabBuffers[0] = (u8*)PSX_ADDR(0x001FE460);
+    g_Sd_VabBuffers[1] = (u8*)PSX_ADDR(0x001FD840);
+    g_Sd_VabBuffers[2] = (u8*)PSX_ADDR(0x001FC220);
+    g_Sd_VabBuffers[3] = (u8*)PSX_ADDR(0x001FA600);
+    g_Sd_KdtBuffer[0]  = (u8*)PSX_ADDR(0x001F5600);
+}
+#else
 u8* g_Sd_VabBuffers[4] = {
     (u8*)0x801FE460,
     (u8*)0x801FD840,
@@ -11,6 +26,7 @@ u8* g_Sd_VabBuffers[4] = {
 u8* g_Sd_KdtBuffer[1] = {
     (u8*)0x801F5600
 };
+#endif
 
 s32 D_800A9FDC[4] = {
     0x00001010, 0x00021490, 0x00027630, 0x00058F50

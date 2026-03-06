@@ -1,5 +1,9 @@
 #include "game.h"
 
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
+
 #include <psyq/libcd.h>
 #include <psyq/libetc.h>
 #include <psyq/libspu.h>
@@ -92,9 +96,8 @@ static u8               g_Sd_CurrentTask;
 void SD_Call(u32 cmd) // 0x80045A7C
 {
 #ifdef SH_PC_PORT
-    /* Sound system not functional on PC yet - skip all SD_Call commands
-     * to prevent stale CdRead queue entries from corrupting filesystem reads */
-    return;
+    printf("[SH_AUDIO] SD_Call cmd=%u (cat=%u)\n", cmd, (cmd >> 8) & 0xFF);
+    fflush(stdout);
 #endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
@@ -136,16 +139,16 @@ void SD_Call(u32 cmd) // 0x80045A7C
         case 20:
         case 21:
         case 22:
+#ifdef SH_PC_PORT
+            /* XA streaming requires CD-XA hardware - skip on PC */
+            return;
+#endif
             Sd_XaAudioPlayTaskAdd(cmd);
     }
 }
 
 u8 Sd_AudioStreamingCheck(void) // 0x80045B28
 {
-#ifdef SH_PC_PORT
-    /* Audio system not implemented on PC - always report not streaming */
-    return 0;
-#endif
     u8 state;
 
     state = 1;
@@ -1275,6 +1278,17 @@ void Sd_VabLoad(void) // 0x80047B80
     u8 depth;
     u8 cmd;
 
+#ifdef SH_PC_PORT
+    {
+        static s32 prevState = -1;
+        if (g_Sd_AudioStreamingStates.audioLoadState_0 != prevState) {
+            printf("[SH_AUDIO] Sd_VabLoad state=%d task=%d\n",
+                   g_Sd_AudioStreamingStates.audioLoadState_0, g_Sd_TaskPool[0]);
+            fflush(stdout);
+            prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
+        }
+    }
+#endif
     switch (g_Sd_AudioStreamingStates.audioLoadState_0)
     {
         case 0:
@@ -1673,6 +1687,16 @@ void func_800485C0(s32 idx) // 0x800485C0
 void Sd_TaskPoolExecute(void) // 0x800485D8
 {
     g_Sd_CurrentTask = g_Sd_TaskPool[0];
+#ifdef SH_PC_PORT
+    {
+        static u8 prevTask = 255;
+        if (g_Sd_CurrentTask != prevTask) {
+            printf("[SH_AUDIO] TaskPoolExecute task=%d\n", g_Sd_CurrentTask);
+            fflush(stdout);
+            prevTask = g_Sd_CurrentTask;
+        }
+    }
+#endif
     switch (g_Sd_CurrentTask)
     {
         case 0:
