@@ -25,6 +25,11 @@ set(SH_VERSION "USA" CACHE STRING "Game version (USA, EUR, JAP0, JAP1, JAP2)")
 # USE_EXTENDED_PRIM_POINTERS stays ON for 64-bit pointer support in P_TAG.
 add_definitions(-DUSE_PGXP=0)
 
+# Silent Hill doesn't read rendered pixels back from VRAM. Disabling the
+# framebuffer-to-VRAM store prevents rendered pixel data from overwriting
+# CLUT / texture data that coexists at the same VRAM addresses.
+add_definitions(-DPSYX_SKIP_FRAMEBUFFER_STORE)
+
 set(PSYCROSS_DIR "${CMAKE_SOURCE_DIR}/../PsyCross" CACHE PATH "Path to PsyCross")
 
 if(NOT EXISTS "${PSYCROSS_DIR}/CMakeLists.txt")
