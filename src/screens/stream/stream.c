@@ -1,6 +1,7 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "fmv/fmv_player.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -133,8 +134,10 @@ MOVIE_STR* m;
 void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
 {
 #ifdef SH_PC_PORT
-    /* FMV playback not implemented on PC - skip movie */
-    printf("[SH] open_main: skipping movie (file=%d frames=%d)\n", file_idx, num_frames);
+    /* PC: Play pre-converted AVI file instead of PSX STR streaming */
+    printf("[SH] open_main: playing FMV (file=%d frames=%d)\n", file_idx, num_frames);
+    Fs_QueueWaitForEmpty();
+    FMV_Play(file_idx, num_frames);
     return;
 #endif
     Fs_QueueWaitForEmpty();

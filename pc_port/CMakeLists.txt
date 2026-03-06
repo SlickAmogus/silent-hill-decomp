@@ -106,7 +106,15 @@ target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}
     SH_PC_PORT
     SKIP_ASM
-    "static_assert=_Static_assert"
+)
+
+# static_assert -> _Static_assert only for C files (breaks C++ std headers)
+file(GLOB_RECURSE ALL_C_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/*.c"
+    "${DECOMP_DIR}/src/*.c"
+)
+set_source_files_properties(${ALL_C_SOURCES} PROPERTIES
+    COMPILE_DEFINITIONS "static_assert=_Static_assert"
 )
 if(SH_DEBUG)
     target_compile_definitions(SilentHillPC PRIVATE SH_DEBUG=1)
@@ -119,6 +127,8 @@ target_include_directories(SilentHillPC PRIVATE
     # PC port compatibility headers (searched FIRST to override psyq/)
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/include/psyq_compat"
+    # PC port source (for fmv/ includes)
+    "${CMAKE_SOURCE_DIR}/src"
     # Original decomp headers
     "${DECOMP_DIR}/include"
     "${DECOMP_DIR}/include/decomp"
@@ -126,6 +136,13 @@ target_include_directories(SilentHillPC PRIVATE
     "${PSYCROSS_DIR}/include/psx"
     "${PSYCROSS_DIR}/include"
 )
+
+# =============================================================================
+# libjpeg (for FMV playback - MJPG decoding)
+# =============================================================================
+find_package(PkgConfig QUIET)
+find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
+find_path(JPEG_INCLUDE_DIR jpeglib.h)
 
 # =============================================================================
 # Linking
@@ -139,6 +156,15 @@ if(SDL2_FOUND)
 elseif(SDL2_LIBRARIES)
     target_link_libraries(SilentHillPC PRIVATE ${SDL2_LIBRARIES})
     target_include_directories(SilentHillPC PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
+
+if(JPEG_LIBRARY)
+    target_link_libraries(SilentHillPC PRIVATE ${JPEG_LIBRARY})
+    if(JPEG_INCLUDE_DIR)
+        target_include_directories(SilentHillPC PRIVATE ${JPEG_INCLUDE_DIR})
+    endif()
+else()
+    target_link_libraries(SilentHillPC PRIVATE jpeg)
 endif()
 
 if(WIN32)
