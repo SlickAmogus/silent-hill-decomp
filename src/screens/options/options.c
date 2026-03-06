@@ -2408,11 +2408,19 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
      */
     static DR_MODE SELECTION_HIGHLIGHT_DRAW_MODES[2] = {
         {
+#ifdef SH_PC_PORT
+            .len  = 3,
+#else
             .tag  = 0x03000000,
+#endif
             .code = { 0xE1000200, 0 }
         },
         {
+#ifdef SH_PC_PORT
+            .len  = 3,
+#else
             .tag  = 0x03000000,
+#endif
             .code = { 0xE1000200, 0 }
         }
     };
@@ -2423,7 +2431,11 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
      */
     static POLY_G4 SELECTION_HIGHLIGHT_QUADS[2] = {
         {
+#ifdef SH_PC_PORT
+            .len  = 8,
+#else
             .tag  = 0x08000000,
+#endif
             .r0   = 255,
             .g0   = 255,
             .b0   = 255,
@@ -2433,7 +2445,11 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
             .b3   = 255
         },
         {
+#ifdef SH_PC_PORT
+            .len  = 8,
+#else
             .tag  = 0x08000000,
+#endif
             .code = 0x3A,
             .r1   = 255,
             .g1   = 255,

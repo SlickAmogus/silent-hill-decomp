@@ -1,5 +1,8 @@
 #include "game.h"
 
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 #include <memory.h>
 
 #include "bodyprog/bodyprog.h"
@@ -74,6 +77,10 @@ static inline s32 WrapIdx(s32 idx)
 
 bool func_80033548(void) // 0x80033548
 {
+#ifdef SH_PC_PORT
+    /* Memory card detection not yet implemented on PC - pretend cards are ready */
+    return true;
+#endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.
     u32                         prevStatusCpy;

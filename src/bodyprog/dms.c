@@ -27,8 +27,8 @@ void DmsHeader_FixOffsets(s_DmsHeader* dmsHdr) // 0x8008C9A0
     dmsHdr->isLoaded_0 = true;
 
     // Add memory address of DMS header to offsets in `dmsHdr`.
-    dmsHdr->intervalPtr_8 = (u8*)dmsHdr->intervalPtr_8 + (u32)dmsHdr;
-    dmsHdr->characters_18 = (u8*)dmsHdr->characters_18 + (u32)dmsHdr;
+    dmsHdr->intervalPtr_8 = (u8*)dmsHdr->intervalPtr_8 + (uintptr_t)dmsHdr;
+    dmsHdr->characters_18 = (u8*)dmsHdr->characters_18 + (uintptr_t)dmsHdr;
 
     DmsEntry_FixOffsets(&dmsHdr->camera_1C, dmsHdr);
 
@@ -42,8 +42,8 @@ void DmsHeader_FixOffsets(s_DmsHeader* dmsHdr) // 0x8008C9A0
 
 void DmsEntry_FixOffsets(s_DmsEntry* entry, s_DmsHeader* dmsHdr) // 0x8008CA44
 {
-    entry->keyframes_C.character = (u32)entry->keyframes_C.character + (u32)dmsHdr;
-    entry->svectorPtr_8          = (u32)entry->svectorPtr_8 + (u32)dmsHdr;
+    entry->keyframes_C.character = (u32)entry->keyframes_C.character + (uintptr_t)dmsHdr;
+    entry->svectorPtr_8          = (u32)entry->svectorPtr_8 + (uintptr_t)dmsHdr;
 }
 
 s_DmsInterval* func_8008CA60(volatile s32 unused, s32 idx, s_DmsHeader* dmsHdr) // 0x8008CA60

@@ -8,7 +8,7 @@ void Fs_InitializeMem(u8* start, u32 size)
 
     // This really wants the start and size to be aligned to 8,
     // but since they're already hardcoded elsewhere, it doesn't really matter.
-    if ((u32)start & 0x3)
+    if ((uintptr_t)start & 0x3)
     {
         size = 0;
     }

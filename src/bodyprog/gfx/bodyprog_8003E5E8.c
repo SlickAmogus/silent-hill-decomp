@@ -844,11 +844,19 @@ void func_8003FE04(const s_MapEffectsInfo* arg0, const s_MapEffectsInfo* arg1, c
     if ((arg0->field_19.r || arg0->field_19.g || arg0->field_19.b) ||
         (arg0->screenTint_1D.r || arg0->screenTint_1D.g || arg0->screenTint_1D.b))
     {
+#ifdef SH_PC_PORT
+        ((s_MapEffectsInfo*)arg0)->field_18 = 1;
+#else
         arg0->field_18 = 1;
+#endif
     }
     else
     {
+#ifdef SH_PC_PORT
+        ((s_MapEffectsInfo*)arg0)->field_18 = 0;
+#else
         arg0->field_18 = 0;
+#endif
     }
 }
 

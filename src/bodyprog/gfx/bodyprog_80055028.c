@@ -691,9 +691,9 @@ void LmHeader_FixOffsets(s_LmHeader* lmHdr) // 0x800560FC
     lmHdr->isLoaded_2 = true;
 
     // Add memory address of header to pointer fields.
-    lmHdr->materials_4   = (u8*)lmHdr->materials_4   + (u32)lmHdr;
-    lmHdr->modelHdrs_C   = (u8*)lmHdr->modelHdrs_C   + (u32)lmHdr;
-    lmHdr->modelOrder_10 = (u8*)lmHdr->modelOrder_10 + (u32)lmHdr;
+    lmHdr->materials_4   = (u8*)lmHdr->materials_4   + (uintptr_t)lmHdr;
+    lmHdr->modelHdrs_C   = (u8*)lmHdr->modelHdrs_C   + (uintptr_t)lmHdr;
+    lmHdr->modelOrder_10 = (u8*)lmHdr->modelOrder_10 + (uintptr_t)lmHdr;
 
     for (i = 0; i < lmHdr->modelCount_8; i++)
     {
@@ -708,15 +708,15 @@ void ModelHeader_FixOffsets(s_ModelHeader* modelHdr, s_LmHeader* lmHdr) // 0x800
 {
     s_MeshHeader* curMeshHdr;
 
-    modelHdr->meshHdrs_C = (u8*)modelHdr->meshHdrs_C + (u32)lmHdr;
+    modelHdr->meshHdrs_C = (u8*)modelHdr->meshHdrs_C + (uintptr_t)lmHdr;
 
     for (curMeshHdr = &modelHdr->meshHdrs_C[0]; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
     {
-        curMeshHdr->primitives_4 = (u8*)curMeshHdr->primitives_4 + (u32)lmHdr;
-        curMeshHdr->verticesXy_8 = (u8*)curMeshHdr->verticesXy_8 + (u32)lmHdr;
-        curMeshHdr->verticesZ_C  = (u8*)curMeshHdr->verticesZ_C  + (u32)lmHdr;
-        curMeshHdr->normals_10   = (u8*)curMeshHdr->normals_10   + (u32)lmHdr;
-        curMeshHdr->unkPtr_14    = (u8*)curMeshHdr->unkPtr_14    + (u32)lmHdr;
+        curMeshHdr->primitives_4 = (u8*)curMeshHdr->primitives_4 + (uintptr_t)lmHdr;
+        curMeshHdr->verticesXy_8 = (u8*)curMeshHdr->verticesXy_8 + (uintptr_t)lmHdr;
+        curMeshHdr->verticesZ_C  = (u8*)curMeshHdr->verticesZ_C  + (uintptr_t)lmHdr;
+        curMeshHdr->normals_10   = (u8*)curMeshHdr->normals_10   + (uintptr_t)lmHdr;
+        curMeshHdr->unkPtr_14    = (u8*)curMeshHdr->unkPtr_14    + (uintptr_t)lmHdr;
     }
 }
 
@@ -2907,6 +2907,13 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
 {
     // Same as `gte_strgb3`, but takes `VECTOR3` pointer to store results.
     // Not sure why this was needed, the func that uses it also ends up calling the normal `gte_strgb3` too.
+#ifdef SH_PC_PORT
+    #define gte_strgb3_vec( r0 ) do { \
+        *(u32*)((char*)(r0) + 0) = MFC2(20); \
+        *(u32*)((char*)(r0) + 4) = MFC2(21); \
+        *(u32*)((char*)(r0) + 8) = MFC2(22); \
+    } while(0)
+#else
     #define gte_strgb3_vec( r0 ) __asm__ volatile ( \
         "swc2    $20, 0( %0 );"                      \
         "swc2    $21, 4( %0 );"                      \
@@ -2914,6 +2921,7 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
         :                                           \
         : "r"( r0 )                                 \
         : "memory" )
+#endif
 
     CVECTOR   sp0;
     s_Normal* var_a3;

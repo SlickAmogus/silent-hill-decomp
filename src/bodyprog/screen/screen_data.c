@@ -9,7 +9,11 @@ GsOT_TAG g_OtTags0[2][16];
 
 q19_12   g_DeltaTime;
 
+#ifdef SH_PC_PORT
+GsOT_TAG g_OtTags1[3][ORDERING_TABLE_SIZE];
+#else
 GsOT_TAG g_OtTags1[2][ORDERING_TABLE_SIZE];
+#endif
 s32      pad_bss_800B9CC4;
 
 q19_12   g_GravitySpeed;

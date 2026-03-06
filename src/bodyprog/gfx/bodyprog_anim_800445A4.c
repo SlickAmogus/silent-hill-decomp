@@ -470,14 +470,14 @@ void Anim_Update3(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* coord, s_A
 
 void func_80044F14(GsCOORDINATE2* coord, q3_12 rotZ, q3_12 rotX, q19_12 rotY) // 0x80044F14
 {
-    *(q3_12*)0x1F800004 = rotZ;
-    *(q3_12*)0x1F800002 = rotY;
-    *(q3_12*)0x1F800000 = rotX;
+    *(q3_12*)PSX_SCRATCH_ADDR(4) = rotZ;
+    *(q3_12*)PSX_SCRATCH_ADDR(2) = rotY;
+    *(q3_12*)PSX_SCRATCH_ADDR(0) = rotX;
 
     // TODO: Make FS buffer constant for this.
 
-    Math_RotMatrixZxyNegGte((SVECTOR*)0x1F800000, (MATRIX*)0x1F800008);
-    MulMatrix(&coord->coord, (MATRIX*)0x1F800008);
+    Math_RotMatrixZxyNegGte((SVECTOR*)PSX_SCRATCH_ADDR(0), (MATRIX*)PSX_SCRATCH_ADDR(8));
+    MulMatrix(&coord->coord, (MATRIX*)PSX_SCRATCH_ADDR(8));
 }
 
 s8 Bone_ModelIdxGet(s8* ptr, bool reset) // 0x80044F6C

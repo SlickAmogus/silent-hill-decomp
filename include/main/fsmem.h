@@ -4,7 +4,12 @@
 #include "common.h"
 
 #define FS_MEM_BLOCK_COUNT 16       /** Number of FS memory blocks that can be allocated. */
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+#define FS_MEM_BASE        ((u8*)PSX_ADDR(0x1C0000)) /** FS heap base (0x801C0000). */
+#else
 #define FS_MEM_BASE        0x1C0000 /** FS heap base (0x801C0000). */
+#endif
 #define FS_MEM_SIZE        0x20000  /** FS heap size (128kb). */
 
 /** @brief FS memory block.

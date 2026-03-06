@@ -22,6 +22,10 @@
 #include "main/rng.h"
 #include "screens/stream/stream.h"
 
+#ifdef SH_PC_PORT
+static void GameBoot_LoadingScreen(void);
+#endif
+
 static inline void Game_StateStepIncrement(void) // TODO: Move to header?
 {
     s32 gameStateStep0 = g_GameWork.gameStateStep_598[0];

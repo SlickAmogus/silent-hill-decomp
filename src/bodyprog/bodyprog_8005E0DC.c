@@ -43,7 +43,7 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
     switch (mapIdx)
     {
         case NO_VALUE:
-            Fs_QueueStartReadTim(FILE_TIM_BLD_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_BLD_TIM), 0x800), &D_800A9084);
+            Fs_QueueStartReadTim(FILE_TIM_BLD_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_BLD_TIM), 0x800)), &D_800A9084);
             loadedEffectTextureFlags = EffectTextureFlag_None;
             break;
 
@@ -115,34 +115,34 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
         switch (1 << i)
         {
             case EffectTextureFlag_Glass:
-                Fs_QueueStartReadTim(FILE_TIM_GLASS_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_GLASS_TIM), 0x800), &D_800A908C);
+                Fs_QueueStartReadTim(FILE_TIM_GLASS_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_GLASS_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_WaterRefract:
-                Fs_QueueStartReadTim(FILE_TIM_DR_WAVE_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_DR_WAVE_TIM), 0x800), &D_800A908C);
+                Fs_QueueStartReadTim(FILE_TIM_DR_WAVE_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_DR_WAVE_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_Water:
-                Fs_QueueStartReadTim(FILE_TIM_WATER_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_WATER_TIM), 0x800), &D_800A908C);
+                Fs_QueueStartReadTim(FILE_TIM_WATER_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_WATER_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_Fire:
                 D_800A9094.v = 120;
-                Fs_QueueStartReadTim(FILE_TIM_FIRE_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_FIRE_TIM), 0x800), &D_800A9094);
+                Fs_QueueStartReadTim(FILE_TIM_FIRE_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_FIRE_TIM), 0x800)), &D_800A9094);
                 break;
 
             case EffectTextureFlag_Ef:
                 D_800A908C.v     = 64;
                 D_800A908C.clutY = 4;
-                Fs_QueueStartReadTim(FILE_TIM_EF_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_EF_TIM), 0x800), &D_800A908C);
+                Fs_QueueStartReadTim(FILE_TIM_EF_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_EF_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_Blood:
-                Fs_QueueStartReadTim(FILE_TIM_BLOOD_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_BLOOD_TIM), 0x800), &D_800A908C);
+                Fs_QueueStartReadTim(FILE_TIM_BLOOD_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_BLOOD_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_WarmTest: // @unused See `e_EffectTextureFlags`.
-                Fs_QueueStartReadTim(FILE_TEST_WARMTEST_TIM, (s32)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TEST_WARMTEST_TIM), 0x800), &D_800A9094);
+                Fs_QueueStartReadTim(FILE_TEST_WARMTEST_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TEST_WARMTEST_TIM), 0x800)), &D_800A9094);
                 break;
         }
     }

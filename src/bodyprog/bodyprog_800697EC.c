@@ -83,13 +83,13 @@ void func_80069860(s32 arg0, s32 arg1, s_func_8006F8FC* arg2) // 0x80069860
 
 void IpdCollData_FixOffsets(s_IpdCollisionData* collData) // 0x8006993C
 {
-    collData->ptr_C  = (u8*)collData->ptr_C + (u32)collData;
-    collData->ptr_10 = (u8*)collData->ptr_10 + (u32)collData;
-    collData->ptr_14 = (u8*)collData->ptr_14 + (u32)collData;
-    collData->ptr_18 = (u8*)collData->ptr_18 + (u32)collData;
-    collData->ptr_20 = (u8*)collData->ptr_20 + (u32)collData;
-    collData->ptr_28 = (u8*)collData->ptr_28 + (u32)collData;
-    collData->ptr_2C = (u8*)collData->ptr_2C + (u32)collData;
+    collData->ptr_C  = (u8*)collData->ptr_C + (uintptr_t)collData;
+    collData->ptr_10 = (u8*)collData->ptr_10 + (uintptr_t)collData;
+    collData->ptr_14 = (u8*)collData->ptr_14 + (uintptr_t)collData;
+    collData->ptr_18 = (u8*)collData->ptr_18 + (uintptr_t)collData;
+    collData->ptr_20 = (u8*)collData->ptr_20 + (uintptr_t)collData;
+    collData->ptr_28 = (u8*)collData->ptr_28 + (uintptr_t)collData;
+    collData->ptr_2C = (u8*)collData->ptr_2C + (uintptr_t)collData;
 }
 
 void func_80069994(s_IpdCollisionData* collData) // 0x80069994
@@ -168,7 +168,7 @@ s32 func_80069B24(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara) // 0
     s32 var0;
     s32 var1;
 
-    var0 = SetSp(0x1F8003D8);
+    var0 = SetSp((unsigned long)PSX_SCRATCH_ADDR(0x3D8));
     var1 = func_80069BA8(arg0, offset, chara, func_80069FFC(arg0, offset, chara));
     SetSp(var0);
     return var1;
@@ -462,7 +462,7 @@ s32 func_8006A3B4(s32 arg0, VECTOR* offset, s_func_8006AB50* arg2) // 0x8006A3B4
     s32 stackPtr;
     s32 var1;
 
-    stackPtr = SetSp(0x1F8003D8);
+    stackPtr = SetSp((unsigned long)PSX_SCRATCH_ADDR(0x3D8));
     var1 = func_8006A42C(arg0, offset, arg2);
     SetSp(stackPtr);
 
@@ -2349,7 +2349,7 @@ void func_8006D7EC(s_func_8006ABC0* arg0, SVECTOR* arg1, SVECTOR* arg2) // 0x800
 bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
 {
     s32     scratchPrev;
-    s32     scratchAddr;
+    uintptr_t scratchAddr;
     VECTOR3 dir; // Q19.12
 
     dir.vx = to->vx - from->vx;
@@ -2358,10 +2358,10 @@ bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
 
     ray->hasHit_0 = false;
 
-    if (Ray_TraceSetup((s32)PSX_SCRATCH, 0, 0, from, &dir, 0, 0, NULL, 0))
+    if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 0, 0, from, &dir, 0, 0, NULL, 0))
     {
-        scratchPrev   = SetSp((s32)PSX_SCRATCH_ADDR(984));
-        scratchAddr   = (s32)PSX_SCRATCH;
+        scratchPrev   = SetSp((unsigned long)PSX_SCRATCH_ADDR(984));
+        scratchAddr   = (uintptr_t)PSX_SCRATCH;
         ray->hasHit_0 = Ray_TraceRun(ray, PSX_SCRATCH_ADDR(0));
 
         SetSp(scratchPrev);
@@ -2379,16 +2379,16 @@ bool func_8006DA08(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 {
     s32              sp28;
     s32              scratchPrev;
-    s32              scratchAddr;
+    uintptr_t        scratchAddr;
     s_SubCharacter** charas;
 
     charas = func_8006A1A4(&sp28, chara, false);
 
     ray->hasHit_0 = false;
-    if (Ray_TraceSetup((s32)PSX_SCRATCH, 0, 0, from, dir, 0, 0, charas, sp28))
+    if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 0, 0, from, dir, 0, 0, charas, sp28))
     {
-        scratchPrev   = SetSp((s32)PSX_SCRATCH_ADDR(0x3D8));
-        scratchAddr   = (s32)PSX_SCRATCH;
+        scratchPrev   = SetSp((unsigned long)PSX_SCRATCH_ADDR(0x3D8));
+        scratchAddr   = (uintptr_t)PSX_SCRATCH;
         ray->hasHit_0 = Ray_TraceRun(ray, PSX_SCRATCH_ADDR(0));
 
         SetSp(scratchPrev);
@@ -2424,17 +2424,17 @@ bool func_8006DB3C(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 {
     s32              charaCount;
     s32              stackPtr;
-    s32              scratchAddr;
+    uintptr_t        scratchAddr;
     s_SubCharacter** charas;
 
     charas       = func_8006A1A4(&charaCount, chara, true);
     ray->hasHit_0 = false;
 
-    if (Ray_TraceSetup((s32)PSX_SCRATCH, 1, 0, from, dir, 0, 0, charas, charaCount))
+    if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 1, 0, from, dir, 0, 0, charas, charaCount))
     {
-        stackPtr      = SetSp((s32)PSX_SCRATCH_ADDR(984));
-        scratchAddr   = (s32)PSX_SCRATCH;
-        ray->hasHit_0 = Ray_TraceRun(ray, scratchAddr);
+        stackPtr      = SetSp((unsigned long)PSX_SCRATCH_ADDR(984));
+        scratchAddr   = (uintptr_t)PSX_SCRATCH;
+        ray->hasHit_0 = Ray_TraceRun(ray, (s_RayState*)scratchAddr);
 
         SetSp(stackPtr);
     }
@@ -2450,13 +2450,13 @@ bool func_8006DB3C(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 bool func_8006DC18(s_RayData* ray, VECTOR3* vec1, VECTOR3* vec2) // 0x8006DC18
 {
     s32 scratchPrev;
-    s32 scratchAddr;
+    uintptr_t scratchAddr;
 
     ray->hasHit_0 = false;
-    if (Ray_TraceSetup((s32)PSX_SCRATCH, 1, 76, vec1, vec2, 0, 0, NULL, 0))
+    if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 1, 76, vec1, vec2, 0, 0, NULL, 0))
     {
-        scratchPrev   = SetSp((s32)PSX_SCRATCH_ADDR(0x3D8));
-        scratchAddr   = (s32)PSX_SCRATCH;
+        scratchPrev   = SetSp((unsigned long)PSX_SCRATCH_ADDR(0x3D8));
+        scratchAddr   = (uintptr_t)PSX_SCRATCH;
         ray->hasHit_0 = Ray_TraceRun(ray, PSX_SCRATCH_ADDR(0));
 
         SetSp(scratchPrev);

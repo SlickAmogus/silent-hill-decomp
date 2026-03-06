@@ -310,6 +310,10 @@ bool MemCard_NoSavesDoneCheck(s32* outDeviceId, s32* outFileIdx, s32* outSaveIdx
 
 void MemCard_Update(void) // 0x8002EB88
 {
+#ifdef SH_PC_PORT
+    /* Memory card I/O not implemented on PC - skip to avoid blocking */
+    return;
+#endif
     s_MemCard_Process* statusPtr;
 
     if (g_MemCard_AvailibityStatus == false)

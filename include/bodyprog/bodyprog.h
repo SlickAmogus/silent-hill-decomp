@@ -2066,13 +2066,13 @@ extern const s_MapInfo MAP_INFOS[MapType_Count];
 
 extern char D_80028544[16];
 
-extern RECT D_80028A20;
+extern const RECT D_80028A20;
 
 extern const s_AnimInfo D_80028B94[];
 
 extern s_800C44F0 D_800294F4[];
 
-extern const s_AnimInfo* D_800297B8;
+extern const s_AnimInfo* const D_800297B8;
 
 extern u_Filename D_8002B2CC;
 
@@ -2145,16 +2145,20 @@ extern s_AnimInfo D_800A998C;
 extern u8 D_800A9990;
 
 // Likely declared as static inside the function that uses it.
+#ifndef SH_PC_PORT
 extern s32 D_800A99A0;
+#endif
 
 /** Relative file offset for map texture? */
 extern s8 D_800A99B5;
 
 extern char* D_800A99E4[];
 
+#ifndef SH_PC_PORT
 extern s32 g_MapMsg_CurrentIdx;
 
 extern s16 g_MapMsg_SelectFlashTimer;
+#endif
 
 extern s8 g_PaperMapFileIdxs[];
 
@@ -2171,7 +2175,9 @@ extern s32 g_MapEventLastUsedItem; /** `e_InventoryItemId` */
 /** Radio pitch state based on the distance from the player to an enemy. Range: `[0, 3]`. */
 extern s32 g_RadioPitchState;
 
+#ifndef SH_PC_PORT
 extern void (*g_SysStateFuncs[])(void);
+#endif
 
 extern s32 D_800A9A68;
 
@@ -2264,15 +2270,13 @@ extern s32 D_800A9F78;
 
 extern s32 D_800A9F7C;
 
+#ifndef SH_PC_PORT
 extern s_MapEffectsPresetIdxs D_800A9F80;
-
 extern s_MapEffectsPresetIdxs D_800A9F84;
-
 extern s_MapEffectsPresetIdxs D_800A9F88;
-
 extern s_MapEffectsPresetIdxs D_800A9F8C;
-
 extern s_MapEffectsPresetIdxs D_800A9F98;
+#endif
 
 extern u32 D_800A9FB0;
 
@@ -2286,7 +2290,9 @@ extern u8 D_800AE186;
 
 extern s8 pad_bss_800BCD81[3];
 
+#ifndef SH_PC_PORT
 extern s32 g_DeltaTimeCpy;
+#endif
 
 extern s32 pad_bss_800BCD88[2];
 
@@ -2384,7 +2390,9 @@ extern s32 D_800AFDEC;
 
 extern PACKET D_800BFBF0[2][0xA10];
 
+#ifndef SH_PC_PORT
 extern u8 g_Items_GunsMaxLoadAmmo[36]; // Max loaded ammo that a weapon can hold. 0x800AD4A0
+#endif
 
 extern const char* INVENTORY_ITEM_NAMES[];
 
@@ -2400,7 +2408,12 @@ extern u8 D_800BC74F;
 
 extern u16 D_800BCCB0;
 
+#ifdef SH_PC_PORT
+#include <stdint.h>
+extern uintptr_t D_800A999C;
+#else
 extern u32 D_800A999C;
+#endif
 
 extern u16 D_800BCCB2;
 
@@ -2419,7 +2432,9 @@ extern u16 D_800BCCB2;
  */
 extern s32 g_Screen_FadeStatus;
 
+#ifndef SH_PC_PORT
 extern s32 D_800BCD5C;
+#endif
 
 extern s_MapMsgSelect g_MapMsg_Select;
 
@@ -2538,7 +2553,13 @@ extern u8 D_800AD480[24];
 /** Weapon attacks. */
 extern s_800AD4C8 D_800AD4C8[70];
 
+#ifdef SH_PC_PORT
+extern s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C - not const on PC (overlay code writes to it)
+#define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader g_MapOverlayHeader
+#else
 extern const s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C
+#define SH_MAP_OVERLAY_HEADER const s_MapOverlayHeader g_MapOverlayHeader
+#endif
 
 extern s16 SQRT[100];
 

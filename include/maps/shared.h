@@ -487,7 +487,7 @@ extern u8  g_PuppetNurse_AnimStatus4[4];
 extern u8      sharedData_800D4CD4_3_s01[][2];
 extern DVECTOR sharedData_800D4D0C_3_s01;
 extern VECTOR3 sharedData_800CB088_3_s01;
-extern VECTOR3 sharedData_800CB094_3_s01;
+extern const VECTOR3 sharedData_800CB094_3_s01;
 extern VECTOR3 sharedData_800CB0A0_3_s01;
 extern s32     sharedData_800D4D10_3_s01;
 extern s32     sharedData_800D4D14_3_s01;

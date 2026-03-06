@@ -10,8 +10,14 @@
 // CONSTANTS
 // ==========
 
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+#define SAVEGAME_ENTRY_BUFFER_0 ((u8*)PSX_ADDR(0x001E09E0)) // Slot 1 savegame entry.
+#define SAVEGAME_ENTRY_BUFFER_1 ((u8*)PSX_ADDR(0x001E1430)) // Slot 2 savegame entry.
+#else
 #define SAVEGAME_ENTRY_BUFFER_0 ((u8*)0x801E09E0) // Slot 1 savegame entry.
 #define SAVEGAME_ENTRY_BUFFER_1 ((u8*)0x801E1430) // Slot 2 savegame entry.
+#endif
 
 #define MEMCARD_DEVICE_COUNT_MAX 8
 #define MEMCARD_SAVES_COUNT_MAX  11
@@ -388,11 +394,11 @@ extern s8 D_800BCD39; // Boolean.
 // This is done until a way to replicate `common`
 // segment behavior is found.
 
+#ifndef SH_PC_PORT
 extern s_MemCard_SaveHeader g_MemCard_BasicSaveInfo1[MEMCARD_FILE_COUNT_MAX];
-
 extern s_MemCard_SaveHeader g_MemCard_BasicSaveInfo2[MEMCARD_FILE_COUNT_MAX];
-
 extern s_MemCard_SaveHeader g_MemCard_BasicSaveInfo3[MEMCARD_FILE_COUNT_MAX];
+#endif
 
 /** @brief Defines if the game can use the memory card. */
 extern bool g_MemCard_AvailibityStatus;

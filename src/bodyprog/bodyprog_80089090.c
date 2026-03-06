@@ -35,6 +35,10 @@ void func_800890B8(void) // 0x800890B8
 
 s32 func_80089128(void) // 0x80089128
 {
+#ifdef SH_PC_PORT
+    /* Vibration/pad mode checking not yet working on PC - skip */
+    return 0;
+#endif
     s32              temp_s0;
     s32              var_s3;
     s32              var_s5;
@@ -139,7 +143,11 @@ const s_8002AC04 D_8002AC04[] = {
     { &D_8002AC04[27], { .func_8008973C_data = { 0, 32, 0, 8, 0 } } },
     { &D_8002AC04[23], { .func_8008973C_data = { 0, 32, 0, 9, 0 } } },
     { &D_8002AC04[24], { .func_8008973C_data = { 0, 32, 0, 10, 0 } } },
+#ifdef SH_PC_PORT
+    { &D_8002AC04[5], { .func_80089BB8_data = { 1, 0, 0, 0, &D_8002AC04[6], 0 } } },
+#else
     { &D_8002AC04[5], { .func_8008973C_data = { 1, 0, 0, &D_8002AC04[6], 0 } } },
+#endif
     { &D_8002AC04[31], { .func_8008973C_data = { 0, 32, 0, 12, 0 } } },
     { &D_8002AC04[34], { .func_8008973C_data = { 0, 32, 0, 12, 0 } } },
     { &D_8002AC04[37], { .func_8008973C_data = { 0, 32, 0, 12, 0 } } },

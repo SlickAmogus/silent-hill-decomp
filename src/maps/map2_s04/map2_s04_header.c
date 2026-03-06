@@ -27,7 +27,7 @@ void (*g_MapEventFuncs[])() = {
     MapEvent_ShotgunTake
 };
 
-const s_MapOverlayHeader g_MapOverlayHeader = {
+SH_MAP_OVERLAY_HEADER = {
     .mapInfo_0                        = &MAP_INFOS[MapType_ER],
     .getMapRoomIdxFunc_4              = Map_RoomIdxGet,
     .field_8                          = NO_VALUE,

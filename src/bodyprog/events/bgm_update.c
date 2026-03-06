@@ -36,7 +36,11 @@ extern const s8 D_80025234[];
 // GLOBAL VARIABLES
 // ========================================
 
+#ifdef SH_PC_PORT
+uintptr_t D_800A999C = (uintptr_t)&D_80025234;
+#else
 u32 D_800A999C = &D_80025234;
+#endif
 
 // ========================================
 // STATIC VARIABLES

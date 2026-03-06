@@ -29,7 +29,12 @@ bool D_800C489C;
 s32 g_Demo_DemoId = 0;
 u16 g_Demo_RandSeed = 0;
 // 2 bytes of padding.
+#ifdef SH_PC_PORT
+#include "psx_memory.h"
+s_DemoFrameData* g_Demo_PlayFileBufferPtr = NULL; /* Initialized at runtime via PSX_ADDR */
+#else
 s_DemoFrameData* g_Demo_PlayFileBufferPtr = (s_DemoFrameData*)0x800F5E00;
+#endif
 
 bool Demo_SequenceAdvance(s32 incrementAmt) // 0x8008EF20
 {
@@ -121,11 +126,19 @@ s32 Demo_PlayFileBufferSetup(void) // 0x8008F0BC
     playFileSize = ALIGN(Fs_GetFileSize(g_Demo_PlayFileIdx), 0x800);
 
     // Try placing play file buffer just before `DEMO_WORK` in memory.
+#ifdef SH_PC_PORT
+    g_Demo_PlayFileBufferPtr = (void*)((uintptr_t)DEMO_WORK() - playFileSize);
+#else
     g_Demo_PlayFileBufferPtr = (void*)((s32)DEMO_WORK() - playFileSize);
+#endif
 
     // If play file or map overlay is too large, buffer ptr may overlap with map.
     // Return 1 if buffer fits (no overlap with map overlay); otherwise, return 0.
+#ifdef SH_PC_PORT
+    return ((uintptr_t)g_Demo_PlayFileBufferPtr >= (uintptr_t)((u8*)g_OvlDynamic + mapOverlaySize));
+#else
     return ((u32)g_Demo_PlayFileBufferPtr >= (u32)(g_OvlDynamic + mapOverlaySize));
+#endif
 }
 
 void Demo_DemoFileSavegameUpdate(void) // 0x8008F13C

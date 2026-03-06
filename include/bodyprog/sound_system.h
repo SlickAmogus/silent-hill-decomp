@@ -224,7 +224,11 @@ extern s_AudioItemData g_AudioData[];
 extern u8 g_Sd_ReverbDepths[];
 
 // Odd access. See `Sd_BgmLayerVolumeSet` and `Sd_BgmLayerVolumeGet`.
+#ifdef SH_PC_PORT
+extern u8 D_800AA604[41][16];
+#else
 extern u8 D_800AA604[][];
+#endif
 
 extern s_XaItemData g_XaItemData[];
 
@@ -240,51 +244,31 @@ extern s_VabInfo g_Vab_InfoTable[420];
 // This is done until a way to replicate `common`
 // segment behavior is found.
 
+#ifndef SH_PC_PORT
 extern CdlLOC D_800C15E8;
-
 extern s32 pad_bss_800C15EC;
-
 extern s_800C15F0 D_800C15F0[4];
-
 extern u16 g_AudioPlayingIdxList[24];
-
 extern s16 g_AudioPlayingPitchList[24];
-
 extern s_Sd_AudioWork g_Sd_AudioWork;
-
 extern s_AudioStreamingStates g_Sd_AudioStreamingStates;
-
 extern s32 pad_bss_800C1674;
-
 extern s_ChannelsVolumeController gSDVolConfig;
-
 extern s_800C1688 D_800C1688;
-
 extern s32 pad_bss_800C1694;
-
 extern s_VabPlayingInfo g_Sd_VabPlayingInfo;
-
 extern u8 g_Sd_TaskPool[32];
-
 extern s32 D_800C16C8[0x840];
-
 extern u8 g_Sd_AudioType;
-
 extern char pad_bss_800C37C9[3];
-
 extern u32 g_Sd_DataMoved;
-
 extern u8 g_Sd_VabLoadAttemps;
-
 extern char pad_bss_800C37D1[3];
-
 extern s_AudioItemData* g_Sd_VabTargetLoad;
-
 extern s_AudioItemData* g_Sd_KdtTargetLoad;
-
 extern u8 D_800C37DC;
-
 extern u8 g_Sd_CurrentTask;
+#endif
 #endif
 #endif
 

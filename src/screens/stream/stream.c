@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libds.h>
@@ -129,6 +132,11 @@ MOVIE_STR* m;
 
 void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
 {
+#ifdef SH_PC_PORT
+    /* FMV playback not implemented on PC - skip movie */
+    printf("[SH] open_main: skipping movie (file=%d frames=%d)\n", file_idx, num_frames);
+    return;
+#endif
     Fs_QueueWaitForEmpty();
     if (!num_frames)
     {

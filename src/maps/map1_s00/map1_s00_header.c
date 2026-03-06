@@ -46,7 +46,7 @@ void (*g_MapEventFuncs[])() = {
     MapEvent_Boiler2
 };
 
-const s_MapOverlayHeader g_MapOverlayHeader = {
+SH_MAP_OVERLAY_HEADER = {
     .mapInfo_0                        = &MAP_INFOS[MapType_SC],
     .getMapRoomIdxFunc_4              = Map_RoomIdxGet,
     .field_8                          = 0,

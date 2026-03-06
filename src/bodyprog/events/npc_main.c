@@ -12,6 +12,10 @@
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+static s32 Camera_Distance2dGet(const VECTOR3* pos);
+#endif
+
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 {
     if (g_SavegamePtr->gameDifficulty_260 <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
@@ -267,7 +271,7 @@ void Game_NpcUpdate(void) // 0x80038354
                         field_0[m].field_8.vz = field_0[m - 1].field_8.vz;
                     }
 
-                    temp_t1 = (u32)npc - (u32)g_SysWork.npcs_1A0;
+                    temp_t1 = (uintptr_t)npc - (uintptr_t)g_SysWork.npcs_1A0;
                     temp2   = ((((temp_t1 * 0x7E8) - (temp_t1 * 0xFD)) * 4) + temp_t1) * -0x3FFFF;
 
                     field_0[j].bitIdx_0   = temp2 >> 3;
