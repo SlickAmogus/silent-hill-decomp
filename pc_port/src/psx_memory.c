@@ -19,8 +19,10 @@
 #define PSX_RAM_SIZE (3 * 1024 * 1024)
 uint8_t g_PsxRam[PSX_RAM_SIZE];
 
-/* PSX Scratchpad RAM emulation (1KB) */
-uint8_t g_PsxScratchpad[1024];
+/* PSX Scratchpad RAM emulation.
+ * Real PSX has 1KB, but s_GteScratchData is ~1028 bytes.
+ * Allocate 4KB to avoid overflow into adjacent globals. */
+uint8_t g_PsxScratchpad[4096];
 
 void PsxMemory_Init(void)
 {

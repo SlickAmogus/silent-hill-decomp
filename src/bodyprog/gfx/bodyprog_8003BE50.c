@@ -381,6 +381,12 @@ s32 Ipd_ChunkInitCheck(void) // 0x8003C850
 
 void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 {
+#ifdef SH_PC_PORT
+    /* Skip world object and IPD chunk rendering on PC — these produce invalid
+     * GPU primitives that crash DrawOTag. Character skeletons are rendered
+     * separately via func_8003DA9C → func_80045534. */
+    (void)arg0;
+#else
     Gfx_WorldObjectsDraw(&g_WorldGfx);
 
     while (func_80043830())
@@ -391,6 +397,7 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
     Gfx_2dEffectsDraw();
+#endif
 }
 
 // ========================================
