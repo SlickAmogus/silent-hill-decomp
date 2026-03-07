@@ -19,6 +19,12 @@ void DmsHeader_FixOffsets(s_DmsHeader* dmsHdr) // 0x8008C9A0
 {
     s_DmsEntry* curEntry;
 
+#ifdef SH_PC_PORT
+    /* DMS binary data uses PSX 32-bit struct layout with 4-byte pointers.
+     * On 64-bit PC, struct field offsets differ. Skip until we implement
+     * a DMS reformatter (like LmHeader_FixOffsets_PC). */
+    return;
+#endif
     if (dmsHdr->isLoaded_0)
     {
         return;

@@ -1369,6 +1369,11 @@ bool Ipd_AreChunksLoaded(void) // 0x80043740
     s32         i;
     s_IpdChunk* curChunk;
 
+#ifdef SH_PC_PORT
+    /* IPD chunk loading is skipped on PC (no reformatter yet).
+     * Always report loaded so Fs_QueueDoThingWhenEmpty can proceed. */
+    return true;
+#endif
     switch (LmHeader_LoadStateGet(&g_Map.globalLm_138))
     {
         case StaticModelLoadState_Invalid:

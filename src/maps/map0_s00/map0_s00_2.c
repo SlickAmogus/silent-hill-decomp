@@ -290,17 +290,19 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
             break;
     }
 
-    if (g_Timer0 >= Q12(0.0f)
 #ifdef SH_PC_PORT
-        && g_SysWork.sysStateStep_C[0] >= 3 /* DMS data not loaded/fixed until step 2 */
-#endif
-       )
+    /* DMS binary data isn't reformatted for 64-bit struct layout yet.
+     * Skip all DMS-based position/camera updates to avoid reading garbage. */
+    (void)0;
+#else
+    if (g_Timer0 >= Q12(0.0f))
     {
         Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
     }
+#endif
 }
 
 void func_800D9D98(void) // 0x800D9D98

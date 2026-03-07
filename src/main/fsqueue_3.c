@@ -28,13 +28,9 @@ bool Fs_QueueAllocEntryData(s_FsQueueEntry* entry)
 
 #ifdef SH_PC_PORT
     {
-        static int allocLog = 0;
-        if (allocLog < 3) {
-            printf("[SH] Fs_QueueAllocEntryData: alloc=%d data=%p extData=%p blocks=%d\n",
-                entry->allocate, (void*)entry->data, (void*)entry->externalData,
-                entry->info->blockCount_0_19);
-            allocLog++;
-        }
+        fprintf(stderr, "[SH] FsAlloc: alloc=%d data=%p extData=%p blocks=%d\n",
+            entry->allocate, (void*)entry->data, (void*)entry->externalData,
+            entry->info->blockCount_0_19);
     }
 #endif
     if (entry->data != 0)

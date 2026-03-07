@@ -88,6 +88,7 @@ bool Fs_QueueUpdateRead(s_FsQueueEntry* entry)
         case FsQueueReadState_Sync:
         {
 #ifdef SH_PC_PORT
+            fprintf(stderr, "[SH] FsQ_Sync: entry->data=%p\n", (void*)entry->data); fflush(stderr);
             int syncResult = CdReadSync(1, NULL);
             {
                 static int syncDbg = 0;

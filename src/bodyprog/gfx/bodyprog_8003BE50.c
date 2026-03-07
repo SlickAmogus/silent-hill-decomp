@@ -381,31 +381,16 @@ s32 Ipd_ChunkInitCheck(void) // 0x8003C850
 
 void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 {
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] Gfx_InGameDraw: WorldObjectsDraw\n"); fflush(stderr);
-#endif
     Gfx_WorldObjectsDraw(&g_WorldGfx);
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] Gfx_InGameDraw: func_80043830 loop\n"); fflush(stderr);
-#endif
     while (func_80043830())
     {
         Ipd_CloseRangeChunksInit();
         Fs_QueueWaitForEmpty();
     }
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] Gfx_InGameDraw: Ipd_ChunkCheckDraw\n"); fflush(stderr);
-#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] Gfx_InGameDraw: Gfx_2dEffectsDraw\n"); fflush(stderr);
-#endif
     Gfx_2dEffectsDraw();
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] Gfx_InGameDraw: done\n"); fflush(stderr);
-#endif
 }
 
 // ========================================

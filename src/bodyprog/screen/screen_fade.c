@@ -111,8 +111,9 @@ void Screen_FadeUpdate(void) // 0x8003260C
     {
         static int prevStatus = -1;
         if (g_Screen_FadeStatus != prevStatus) {
-            printf("[SH] Screen_FadeUpdate: status=%d->%d progress=%d dtRaw=%d timestep=%d\n",
+            fprintf(stderr, "[SH] Screen_FadeUpdate: status=%d->%d progress=%d dtRaw=%d timestep=%d\n",
                 prevStatus, g_Screen_FadeStatus, g_ScreenFadeProgress, g_DeltaTimeRaw, g_ScreenFadeTimestep);
+            fflush(stderr);
             prevStatus = g_Screen_FadeStatus;
         }
     }
@@ -170,6 +171,14 @@ void Screen_FadeUpdate(void) // 0x8003260C
 
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, false):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, true):
+#ifdef SH_PC_PORT
+            /* PsyCross doesn't handle semi-transparent TILE blending correctly,
+             * so the fade overlay renders as white instead of black. During InGame
+             * the background is already cleared to black via GsSortClear, so skip
+             * the TILE. Other states (logos, menus) still need the fade overlay. */
+            if (g_GameWork.gameState_594 == 11)
+                return;
+#endif
             Screen_FadeDrawModeSet(drMode);
             tile->r0 = Q12_TO_Q8(g_ScreenFadeProgress);
             tile->g0 = Q12_TO_Q8(g_ScreenFadeProgress);

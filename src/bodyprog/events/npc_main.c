@@ -307,6 +307,13 @@ void Game_NpcUpdate(void) // 0x80038354
             npc->model_0.anim_4.flags_2 |= AnimFlag_Unlocked;
 
             animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model_0.charaId_0];
+#ifdef SH_PC_PORT
+            /* Skip all NPC AI on PC — NPC animation info tables (e.g.
+             * CHERYL_ANIM_INFOS) are stubs with NULL function pointers.
+             * The AI update functions dereference these and crash. */
+            npc->model_0.charaId_0 = Chara_None;
+            continue;
+#endif
             coord           = g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14;
 
             Chara_Flag8Clear(npc);

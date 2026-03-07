@@ -1027,13 +1027,19 @@ typedef struct _CharaAnimDataInfo
     s8             charaId0_0;  /** `e_CharacterId` */
     s8             charaId1_1;  /** `e_CharacterId` */
     // 2 bytes of padding.
+#ifdef SH_PC_PORT
+    s_AnmHeader*   animFile0_4; // On PSX this is s32 (pointer fits in 32 bits).
+#else
     s32            animFile0_4; // s_AnmHeader* animFile0_4; // TODO: Needs to be a pointer.
+#endif
     s_AnmHeader*   animFile1_8;
     s32            animBufferSize1_C;
     s32            animBufferSize2_10;
     GsCOORDINATE2* npcCoords_14;
 } s_CharaAnimDataInfo;
+#ifndef SH_PC_PORT
 STATIC_ASSERT_SIZEOF(s_CharaAnimDataInfo, 24);
+#endif
 
 /** Related to weapon attacks. Stats, SFX IDs, damange values, etc.? */
 typedef struct
