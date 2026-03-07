@@ -1,7 +1,6 @@
 #include "game.h"
 
 #ifdef SH_PC_PORT
-#include <stdio.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 #endif
@@ -164,55 +163,29 @@ void MainLoop(void) // 0x80032EE0
     s32 interval;
 
     // Initialize engine.
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: GsInitVcount\n");
-#endif
     GsInitVcount();
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: MemCard_SysInit\n");
-#endif
     MemCard_SysInit();
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: MemCard_SysInit2\n");
-#endif
     MemCard_SysInit2();
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: MemCard_InitStatus\n");
-#endif
     MemCard_InitStatus();
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: Joy_Init\n");
-#endif
     Joy_Init();
     VSyncCallback(&Screen_VSyncCallback);
 
 #if VERSION_EQUAL_OR_NEWER(USA)
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: InitGeom\n");
-#endif
     InitGeom();
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: func_8004BB10\n");
-#endif
     func_8004BB10(); // Initializes something for graphics.
 #ifdef SH_PC_PORT
-    printf("[SH] MainLoop: func_800890B8 (skipped - vibration init)\n");
     /* Skip vibration init - requires PadInfoMode which may crash without real pad */
 #else
     func_800890B8();
 #endif
 #endif
 
-#ifdef SH_PC_PORT
-    printf("[SH] MainLoop: SD_Init\n");
-#endif
     SD_Init();
 
 #ifdef SH_PC_PORT
     /* SD_Init -> SdInit -> SpuInit -> ResetCallback clears the VSync callback.
      * Re-register it after SD_Init to ensure the callback stays active. */
     VSyncCallback(&Screen_VSyncCallback);
-    printf("[SH] MainLoop: Entering game loop\n");
 #endif
     // Run game.
     while (true)
@@ -257,34 +230,7 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.sysFlags_22A0 = SysFlag_None;
 
         // Call update function for current GameState.
-#ifdef SH_PC_PORT
-        {
-            static s32 prevState = -1;
-            static s32 prevStep = -1;
-            if (g_GameWork.gameState_594 != prevState || g_GameWork.gameStateStep_598[0] != prevStep) {
-                printf("[SH] Tick %d: gameState=%d step=%d\n",
-                       g_TickCount, g_GameWork.gameState_594, g_GameWork.gameStateStep_598[0]);
-                prevState = g_GameWork.gameState_594;
-                prevStep = g_GameWork.gameStateStep_598[0];
-            }
-        }
-#endif
-#ifdef SH_PC_PORT
-        {
-            static s32 prevState2 = -1;
-            if (g_GameWork.gameState_594 != prevState2) {
-                fprintf(stderr, "[SH] MainLoop: calling update func for gameState=%d funcPtr=%p\n",
-                    g_GameWork.gameState_594, (void*)g_GameStateUpdateFuncs[g_GameWork.gameState_594]);
-                fflush(stderr);
-                prevState2 = g_GameWork.gameState_594;
-            }
-        }
-#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH] MainLoop: update func returned (gameState=%d)\n", g_GameWork.gameState_594);
-        fflush(stderr);
-#endif
 
         Demo_Update();
         Demo_GameRandSeedSet();
@@ -295,38 +241,17 @@ void MainLoop(void) // 0x80032EE0
             continue;
         }
 
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Screen_FadeUpdate\n"); fflush(stderr); }
-#endif
         Screen_FadeUpdate();
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: MemCard_Update\n"); fflush(stderr); }
-#endif
         MemCard_Update();
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Sd_TaskPoolExecute\n"); fflush(stderr); }
-#endif
         Sd_TaskPoolExecute();
 
         if (!Sd_AudioStreamingCheck())
         {
-#ifdef SH_PC_PORT
-            if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Fs_QueueUpdate\n"); fflush(stderr); }
-#endif
             Fs_QueueUpdate();
         }
 
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: func_80089128\n"); fflush(stderr); }
-#endif
         func_80089128();
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: func_8008D78C\n"); fflush(stderr); }
-#endif
         func_8008D78C(); // Camera update?
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: DrawSync\n"); fflush(stderr); }
-#endif
         DrawSync(SyncMode_Wait);
         // Handle V sync.
         if (g_SysWork.flags_22A4 & SysFlag2_1)
@@ -401,29 +326,27 @@ void MainLoop(void) // 0x80032EE0
         GsClearVcount();
 
         // Draw objects?
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsSwapDispBuff\n"); fflush(stderr); }
-#endif
         GsSwapDispBuff();
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsSortClear\n"); fflush(stderr); }
-#endif
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsDrawOt0\n"); fflush(stderr); }
-        /* Skip OT draw during InGame — OT may contain bad primitives from
-         * unimplemented IPD/skeleton rendering. Re-clear instead. */
+        /* During InGame, OT0 contains bad primitives from unimplemented IPD/skeleton
+         * rendering. Re-initialize OT0 with just a black clear so the screen gets
+         * properly cleared each frame without drawing corrupt geometry. */
         if (g_GameWork.gameState_594 == 11) {
+            GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
             GsSortClear(0, 0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
-        } else
+        }
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsDrawOt2\n"); fflush(stderr); }
+        /* Sanitize OT2 before drawing during InGame: re-clear to remove any
+         * garbage primitives that may have been linked in by uninitialized code. */
+        if (g_GameWork.gameState_594 == 11) {
+            GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
+        }
 #endif
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: PsyX_EndScene\n"); fflush(stderr); }
         PsyX_EndScene();
 #endif
     }

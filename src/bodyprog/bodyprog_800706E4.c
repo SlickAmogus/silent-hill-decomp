@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libapi.h>
 #include <psyq/strings.h>
@@ -605,6 +608,9 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
     extra = &g_SysWork.playerWork_4C.extra_128;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] PlayerUpdate: dt=%d ctrl=%d\n", g_DeltaTime, g_Player_DisableControl); fflush(stderr);
+#endif
     if (g_DeltaTime != Q12(0.0f))
     {
         Player_ReceiveDamage(chara, extra);
@@ -634,7 +640,14 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
         else
         {
+#ifdef SH_PC_PORT
+            /* Map overlay player state functions access subsystems not yet
+             * working on PC (collision, animation data from disc, etc.).
+             * Skip during cutscenes to avoid crashes. */
+            (void)0;
+#else
             g_MapOverlayHeader.func_B8(chara, extra, coords);
+#endif
         }
 
         if (!g_Player_DisableControl)
@@ -643,7 +656,11 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
         else
         {
+#ifdef SH_PC_PORT
+            (void)0;
+#else
             g_MapOverlayHeader.func_BC(chara, extra, coords);
+#endif
         }
 
         Player_AnimUpdate(chara, extra, anmHdr, coords);

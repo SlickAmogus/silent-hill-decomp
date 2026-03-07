@@ -74,15 +74,20 @@ s_AnimInfo D_800A998C = {
 
 bool Fs_CharaAnimDataSizeCheck(s32 charaDataAnimInfoIdx0, s32 charaDataAnimInfoIdx1) // 0x8003528C
 {
+#ifdef SH_PC_PORT
+    uintptr_t            animBufferAddress1;
+    uintptr_t            animBufferAddress0;
+#else
     u32                  animBufferAddress1;
     u32                  animBufferAddress0;
+#endif
     s_CharaAnimDataInfo* animDataInfo0;
     s_CharaAnimDataInfo* animDataInfo1;
 
     animDataInfo0      = &g_CharaTypeAnimInfo[charaDataAnimInfoIdx0];
     animDataInfo1      = &g_CharaTypeAnimInfo[charaDataAnimInfoIdx1];
-    animBufferAddress0 = animDataInfo0->animFile0_4;
-    animBufferAddress1 = animDataInfo1->animFile1_8;
+    animBufferAddress0 = (uintptr_t)animDataInfo0->animFile0_4;
+    animBufferAddress1 = (uintptr_t)animDataInfo1->animFile1_8;
 
     if (animBufferAddress0 >= (animBufferAddress1 + animDataInfo1->animBufferSize2_10) ||
         animBufferAddress1 >= (animBufferAddress0 + animDataInfo0->animBufferSize1_C))
@@ -126,7 +131,13 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile
     // Estimates animation buffer data pointer by adding buffer size and current pointer position.
     for (npcAnimDataInfo = &initAnimDataInfo[-1]; localAnimFile == NULL; npcAnimDataInfo--)
     {
+#ifdef SH_PC_PORT
+        /* animBufferSize1_C is a byte count, not an element count.
+         * Cast through u8* to avoid s_AnmHeader* pointer arithmetic scaling. */
+        localAnimFile = (s_AnmHeader*)((u8*)npcAnimDataInfo->animFile0_4 + npcAnimDataInfo->animBufferSize1_C);
+#else
         localAnimFile = npcAnimDataInfo->animFile0_4 + npcAnimDataInfo->animBufferSize1_C;
+#endif
     }
 
     // If the target character ID matches with the selected element from `g_CharaTypeAnimInfo`

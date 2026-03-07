@@ -152,6 +152,11 @@ s32 Fs_QueueEnqueue(e_FsFile fileIdx, u8 op, u8 postLoad, u8 alloc, void* data, 
         newEntry->extra = *extra;
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] FsEnqueue: file=%d op=%d data=%p idx=%d\n",
+        fileIdx, op, data, g_FsQueue.last.idx);
+    fflush(stderr);
+#endif
     return g_FsQueue.last.idx;
 }
 
@@ -196,10 +201,19 @@ void Fs_QueueUpdate(void)
     s_FsQueueEntry* tick;
     s32             temp = 0;
 
+#ifdef SH_PC_PORT
+    static int _fsDbg = 0;
+    int _doDbg = (_fsDbg < 5 || _fsDbg % 500 == 0);
+#endif
+
     // Pending read/seek operations; tick them.
     tick = g_FsQueue.read.ptr;
     if (g_FsQueue.read.idx <= g_FsQueue.last.idx)
     {
+#ifdef SH_PC_PORT
+        if (_doDbg) { fprintf(stderr, "[SH] FsQ: read op=%d state=%d readIdx=%d lastIdx=%d ptr=%p\n",
+            tick->operation, g_FsQueue.state, g_FsQueue.read.idx, g_FsQueue.last.idx, (void*)tick); fflush(stderr); }
+#endif
         switch (tick->operation)
         {
             case FsQueueOp_Seek:
@@ -229,10 +243,18 @@ void Fs_QueueUpdate(void)
         g_FsQueue.state = 0; // `FsQueueReadState_Allocate` or `FSQS_SEEK_SETLOC`.
     }
 
+#ifdef SH_PC_PORT
+    if (_doDbg) { fprintf(stderr, "[SH] FsQ: post-read\n"); fflush(stderr); }
+#endif
+
     // Preparations to post-load in queue; tick them.
     tick = g_FsQueue.postLoad.ptr;
     if (g_FsQueue.postLoad.idx < g_FsQueue.read.idx)
     {
+#ifdef SH_PC_PORT
+        if (_doDbg) { fprintf(stderr, "[SH] FsQ: postLoad postLoadIdx=%d readIdx=%d postLoad=%d ptr=%p\n",
+            g_FsQueue.postLoad.idx, g_FsQueue.read.idx, tick->postLoad, (void*)tick); fflush(stderr); }
+#endif
         temp = Fs_QueueUpdatePostLoad(tick);
         if (temp == true)
         {
@@ -246,6 +268,10 @@ void Fs_QueueUpdate(void)
     {
         g_FsQueue.postLoadState = FsQueuePostLoadState_Init;
     }
+
+#ifdef SH_PC_PORT
+    _fsDbg++;
+#endif
 }
 
 bool Fs_QueueUpdateSeek(s_FsQueueEntry* entry)
