@@ -133,6 +133,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
         g_DeltaTime = 0;
         g_SysStateFuncs[g_SysWork.sysState_8]();
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] IG2: sysStateFuncs returned, sysState=%d\n", g_SysWork.sysState_8); fflush(stderr);
+#endif
         if (g_SysWork.sysState_8 == SysState_Gameplay)
         {
             Event_Update(true);
@@ -906,7 +909,14 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
     }
 
     g_DeltaTime = g_DeltaTimeCpy;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] EventCallFunc: calling mapEventFunc[%d]=%p\n",
+            g_MapEventParam, (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]); fflush(stderr);
+#endif
     g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] EventCallFunc: mapEventFunc returned\n"); fflush(stderr);
+#endif
 }
 
 void SysState_EventSetFlag_Update(void) // 0x8003A460
