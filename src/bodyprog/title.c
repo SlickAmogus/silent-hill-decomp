@@ -326,16 +326,56 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             // Select game difficulty.
             if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
             {
+
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] New Game selected, difficulty=%d\n", newGameSelectedDifficultyIdx - 1);
+                fflush(stderr);
+                fprintf(stderr, "[SH] Calling GameBoot_SavegameInitialize... harryModel=%p\n",
+                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                fflush(stderr);
+#endif
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] GameBoot_SavegameInitialize done harryModel=%p\n",
+                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                fflush(stderr);
+                fprintf(stderr, "[SH] Calling GameBoot_PlayerInit... harryModel=%p\n",
+                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                fflush(stderr);
+#endif
                 GameBoot_PlayerInit();
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] GameBoot_PlayerInit done harryModel=%p\n",
+                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                fflush(stderr);
+#endif
 
                 g_SysWork.processFlags_2298 = SysWorkProcessFlag_NewGame;
 
-                GameBoot_MapLoad(MapOverlayId_MAP0_S00);
-                GameFs_StreamBinLoad();
-                SD_Call(Sfx_MenuStartGame);
 
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] Before GameBoot_MapLoad: registeredCharaModels[Harry]=%p\n",
+                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                fflush(stderr);
+                fprintf(stderr, "[SH] Calling GameBoot_MapLoad + GameFs_StreamBinLoad\n");
+#endif
+                GameBoot_MapLoad(MapOverlayId_MAP0_S00);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] GameBoot_MapLoad done\n");
+#endif
+                GameFs_StreamBinLoad();
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] GameFs_StreamBinLoad done\n"); fflush(stderr);
+                fprintf(stderr, "[SH] SD_Call(Sfx_MenuStartGame)...\n"); fflush(stderr);
+#endif
+                SD_Call(Sfx_MenuStartGame);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] ScreenFade_Start...\n"); fflush(stderr);
+#endif
                 ScreenFade_Start(true, false, false);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] g_MainMenuState = 4\n"); fflush(stderr);
+#endif
                 g_MainMenuState     = 4;
             }
             // Cancel.
@@ -348,10 +388,27 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         case MenuState_LoadGame:
         case MenuState_NewGameStart:
+#ifdef SH_PC_PORT
+            {
+                static int fadeWaitCount = 0;
+                if (fadeWaitCount++ % 60 == 0)
+                    fprintf(stderr, "[SH] MenuState_NewGameStart: waiting for fade... ScreenFade_IsFinished=%d count=%d\n", ScreenFade_IsFinished(), fadeWaitCount);
+                fflush(stderr);
+            }
+#endif
             if (ScreenFade_IsFinished())
             {
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] MenuState_NewGameStart: FADE DONE!\n"); fflush(stderr);
+#endif
                 Screen_Refresh(SCREEN_WIDTH, 0);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] MenuState_NewGameStart: Fs_QueueWaitForEmpty\n"); fflush(stderr);
+#endif
                 Fs_QueueWaitForEmpty();
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] MenuState_NewGameStart: Chara_PositionSet check\n"); fflush(stderr);
+#endif
 
                 if (g_GameWork.autosave_90.playerHealth_240 > Q12(0.0f))
                 {
@@ -360,6 +417,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                 if (g_MainMenu_SelectedEntry == MainMenuEntry_Start)
                 {
+#ifdef SH_PC_PORT
+                    fprintf(stderr, "[SH] MenuState_NewGameStart: Chara_PositionSet mapPointsOfInterest=%p\n",
+                            (void*)&g_MapOverlayHeader.mapPointsOfInterest_1C[0]); fflush(stderr);
+#endif
                     Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
                 }
 
@@ -374,7 +435,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 g_SysWork.counters_1C[1]        = 0;
                 g_GameWork.gameStateStep_598[1] = 0;
                 g_GameWork.gameStateStep_598[2] = 0;
-
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[SH] MenuState_NewGameStart: SysWork_StateSetNext(Gameplay)\n"); fflush(stderr);
+#endif
                 SysWork_StateSetNext(SysState_Gameplay);
             }
             break;

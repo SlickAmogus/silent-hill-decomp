@@ -79,11 +79,22 @@ file(GLOB_RECURSE SCREEN_SOURCES
     "${DECOMP_DIR}/src/screens/*.c"
 )
 
-# Map overlay sources - DISABLED for now
+# Map overlay sources
 # On PSX, only one map overlay is loaded at a time. Statically linking all maps
 # causes 500+ symbol collisions (shared AI, particle, player code #included in each).
-# TODO: Build maps as separate shared libraries or use a map selection mechanism.
-# file(GLOB_RECURSE MAP_SOURCES "${DECOMP_DIR}/src/maps/*.c")
+# For now, compile only the starting map (map0_s00).
+set(MAP_SOURCES
+    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_2.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_anim_info.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_events_data.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_header.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/Chara_Cheryl.c"
+)
+# Each map overlay was compiled with its own define on PSX
+set_source_files_properties(${MAP_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-DMAP0_S00"
+)
 
 # PC port specific sources
 file(GLOB_RECURSE PC_PORT_SOURCES
@@ -94,11 +105,15 @@ file(GLOB_RECURSE PC_PORT_SOURCES
 # =============================================================================
 # Executable
 # =============================================================================
+# Exclude map overlay stub since we now compile map0_s00 which provides g_MapOverlayHeader
+list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
+
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
     ${MAIN_SOURCES}
     ${BODYPROG_SOURCES}
     ${SCREEN_SOURCES}
+    ${MAP_SOURCES}
 )
 
 # Game-specific defines (only on our target, NOT PsyCross)

@@ -786,7 +786,7 @@ u8 StSetRing[256] = {0};
 u8 StSetStream[256] = {0};
 u8 StUnSetRing[256] = {0};
 u8 TWINFEELER_ANIM_INFOS[256] = {0};
-u8 TransposeMatrix[256] = {0};
+/* TransposeMatrix: moved to libgs_stub.c as a proper function */
 u8 UNKKOWN_23_ANIM_INFOS[256] = {0};
 u8 VectorNormal[256] = {0};
 u8 erase[256] = {0};
@@ -843,7 +843,7 @@ u8 g_Particle_PrevRotationY[256] = {0};
 u8 g_Particle_RotationY[256] = {0};
 u8 g_Particle_SpeedX[256] = {0};
 u8 g_Particle_SpeedZ[256] = {0};
-u8 g_Particles[256] = {0};
+u8 g_Particles[16384] = {0};  // s_Particle[450] = 450*32 = 14400 bytes (max count)
 u8 g_PianoCursorX[256] = {0};
 u8 g_PianoCursorY[256] = {0};
 u8 g_PianoKeyCounter[256] = {0};
@@ -862,8 +862,8 @@ u8 g_Timer0[256] = {0};
 u8 g_Timer1[256] = {0};
 u8 g_Timer2[256] = {0};
 u8 g_WarpCamera[256] = {0};
-u8 g_WorldEnvWork[256] = {0};
-u8 g_WorldGfx[256] = {0};
+u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
+u8 g_WorldGfx[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
 u8 g_WorldObject0[256] = {0};
 u8 g_WorldObject1[256] = {0};
 u8 g_WorldObject2[256] = {0};
@@ -1168,8 +1168,8 @@ u8 sharedData_800E326C_0_s00[256] = {0};
 u8 sharedData_800E32CC_0_s00[256] = {0};
 u8 sharedData_800E32D0_0_s00[256] = {0};
 u8 sharedData_800E32D4_0_s00[256] = {0};
-u8 sharedData_800E330C_0_s00[256] = {0};
-u8 sharedData_800E34FC_0_s00[256] = {0};
+u8 sharedData_800E330C_0_s00[512] = {0};  // s_800E330C[20] = 20*24 = 480 bytes
+u8 sharedData_800E34FC_0_s00[1280] = {0};  // s_800E34FC[60] = 60*20 = 1200 bytes
 u8 sharedData_800E39BC_0_s00[256] = {0};
 u8 sharedData_800E39D8_0_s00[256] = {0};
 u8 sharedData_800E39E0_0_s00[256] = {0};
@@ -1253,5 +1253,5 @@ u8 sharedData_800F21CC_2_s00[256] = {0};
 u8 sharedData_800F21DC_2_s00[256] = {0};
 u8 sharedData_800F21EC_2_s00[256] = {0};
 u8 sharedData_800F21FC_2_s00[256] = {0};
-u8 vcRefPosSt[256] = {0};
-u8 vcWork[256] = {0};
+u8 vcRefPosSt[256] = {0};  // VECTOR3 = 12 bytes, 256 is plenty
+u8 vcWork[1024] = {0};    // VC_WORK = 744 bytes on PSX, may be larger on 64-bit

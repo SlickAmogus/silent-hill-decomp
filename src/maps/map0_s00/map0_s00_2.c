@@ -3,6 +3,9 @@
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/map0/map0_s00.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 #include "maps/particle.h"
 #include "maps/characters/cheryl.h"
 #include "inline_no_dmpsx.h"
@@ -137,6 +140,10 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 {
     bool skipCutscene;
     s32  time;
+
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] OpeningCutscene: step=%d\n", g_SysWork.sysStateStep_C[0]); fflush(stderr);
+#endif
 
     skipCutscene = false;
     if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&

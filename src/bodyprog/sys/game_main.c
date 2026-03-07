@@ -273,14 +273,18 @@ void MainLoop(void) // 0x80032EE0
         {
             static s32 prevState2 = -1;
             if (g_GameWork.gameState_594 != prevState2) {
-                printf("[SH] MainLoop: calling update func for gameState=%d funcPtr=%p\n",
+                fprintf(stderr, "[SH] MainLoop: calling update func for gameState=%d funcPtr=%p\n",
                     g_GameWork.gameState_594, (void*)g_GameStateUpdateFuncs[g_GameWork.gameState_594]);
-                fflush(stdout);
+                fflush(stderr);
                 prevState2 = g_GameWork.gameState_594;
             }
         }
 #endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] MainLoop: update func returned (gameState=%d)\n", g_GameWork.gameState_594);
+        fflush(stderr);
+#endif
 
         Demo_Update();
         Demo_GameRandSeedSet();
@@ -291,17 +295,38 @@ void MainLoop(void) // 0x80032EE0
             continue;
         }
 
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Screen_FadeUpdate\n"); fflush(stderr); }
+#endif
         Screen_FadeUpdate();
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: MemCard_Update\n"); fflush(stderr); }
+#endif
         MemCard_Update();
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Sd_TaskPoolExecute\n"); fflush(stderr); }
+#endif
         Sd_TaskPoolExecute();
 
         if (!Sd_AudioStreamingCheck())
         {
+#ifdef SH_PC_PORT
+            if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: Fs_QueueUpdate\n"); fflush(stderr); }
+#endif
             Fs_QueueUpdate();
         }
 
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: func_80089128\n"); fflush(stderr); }
+#endif
         func_80089128();
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: func_8008D78C\n"); fflush(stderr); }
+#endif
         func_8008D78C(); // Camera update?
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: DrawSync\n"); fflush(stderr); }
+#endif
         DrawSync(SyncMode_Wait);
         // Handle V sync.
         if (g_SysWork.flags_22A4 & SysFlag2_1)
@@ -376,11 +401,24 @@ void MainLoop(void) // 0x80032EE0
         GsClearVcount();
 
         // Draw objects?
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsSwapDispBuff\n"); fflush(stderr); }
+#endif
         GsSwapDispBuff();
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsSortClear\n"); fflush(stderr); }
+#endif
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsDrawOt0\n"); fflush(stderr); }
+#endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsDrawOt2\n"); fflush(stderr); }
+#endif
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: PsyX_EndScene\n"); fflush(stderr); }
         PsyX_EndScene();
 #endif
     }

@@ -467,8 +467,15 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
     }
     else
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn vab=%d note=%d\n",
+                g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100); fflush(stderr);
+#endif
         g_Sd_VabPlayingInfo.audioVabIdx_0 = SdVoKeyOn(g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100,
                                                       Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeLeft_C), Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeRight_E));
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn returned %d\n", g_Sd_VabPlayingInfo.audioVabIdx_0); fflush(stderr);
+#endif
     }
 
     for (i = 0; i < ARRAY_SIZE(g_AudioPlayingIdxList); i++)
@@ -481,6 +488,9 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
 
     if (g_Sd_VabPlayingInfo.audioVabIdx_0 < ARRAY_SIZE(g_AudioPlayingIdxList))
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr voice=%d\n", g_Sd_VabPlayingInfo.audioVabIdx_0); fflush(stderr);
+#endif
         g_AudioPlayingIdxList[g_Sd_VabPlayingInfo.audioVabIdx_0] = sfxId;
         attr.voice                                               = 1 << g_Sd_VabPlayingInfo.audioVabIdx_0;
 

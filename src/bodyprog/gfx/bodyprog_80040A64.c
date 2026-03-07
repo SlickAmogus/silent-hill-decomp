@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/strings.h>
 
@@ -75,7 +78,7 @@ bool func_80040B74(e_CharacterId charaId) // 0x80040B74
 // WORLD RENDERING
 // ========================================
 
-PACKET D_800BFBF0[2][0xA10];
+PACKET D_800BFBF0[2][D_800BFBF0_STRIDE];
 
 s_IpdCollisionData* D_800C1010[4];
 
@@ -433,7 +436,7 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         }
     }
 
-    AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][8]);
+    AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
     AddPrim(&arg0->org[1], &D_800BFBF0[g_ActiveBufferIdx]);
 }
 
@@ -507,7 +510,13 @@ u32 LmHeader_LoadStateGet(s_GlobalLm* globalLm) // 0x80041BA0
 
 void Map_Init(s_LmHeader* lmHdr, s_IpdHeader* ipdBuf, s32 ipdBufSize) // 0x80041C24
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: bzero g_Map (size=%zu)...\n", sizeof(s_Map)); fflush(stderr);
+#endif
     bzero(&g_Map, sizeof(s_Map));
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: Lm_Init (lmHdr=%p)...\n", (void*)lmHdr); fflush(stderr);
+#endif
     Lm_Init(&g_Map.globalLm_138, lmHdr);
 
     g_Map.ipdBuffer_150     = ipdBuf;
@@ -515,9 +524,21 @@ void Map_Init(s_LmHeader* lmHdr, s_IpdHeader* ipdBuf, s32 ipdBufSize) // 0x80041
     g_Map.ipdActiveSize_158 = 0;
     g_Map.isExterior_588    = true;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: Ipd_ActiveChunksQueueIdxClear...\n"); fflush(stderr);
+#endif
     Ipd_ActiveChunksQueueIdxClear(g_Map.ipdActive_15C, 4);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: Ipd_TexturesInit...\n"); fflush(stderr);
+#endif
     Ipd_TexturesInit();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: Map_IpdCollisionDataInit...\n"); fflush(stderr);
+#endif
     Map_IpdCollisionDataInit();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Map_Init: done\n"); fflush(stderr);
+#endif
 }
 
 void Lm_Init(s_GlobalLm* globalLm, s_LmHeader* lmHdr) // 0x80041CB4
@@ -1385,6 +1406,12 @@ bool func_80043830(void) // 0x80043830
     s32         loadState;
     s_IpdChunk* curChunk;
 
+#ifdef SH_PC_PORT
+    /* IPD chunk loading is skipped on PC (no reformatter yet).
+     * Return false to prevent infinite loop waiting for chunks. */
+    return false;
+#endif
+
     for (curChunk = &g_Map.ipdActive_15C[0]; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
         loadState = IpdHeader_LoadStateGet(curChunk);
@@ -1491,6 +1518,13 @@ s_IpdCollisionData* IpdHeader_CollisionDataGet(s_IpdHeader* ipdHdr) // 0x80043BA
 
 void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount, s_ActiveTextures* fullPageActiveTexs, s_ActiveTextures* halfPageActiveTexs, e_FsFile fileIdx) // 0x80043BC4
 {
+#ifdef SH_PC_PORT
+    /* IPD binary data uses PSX 32-bit struct layout. On 64-bit, all pointer
+     * fields and sub-struct strides are different. Skip until we implement
+     * a full IPD reformatter (like LmHeader_FixOffsets_PC).
+     * Leave isLoaded_1 = 0 so other code won't try to access garbage pointers. */
+    return;
+#endif
     if (ipdHdr->isLoaded_1)
     {
         return;
@@ -1649,6 +1683,16 @@ void func_80044044(s_IpdHeader* ipd, s32 cellX, s32 cellZ) // 0x80044044
 {
     s32 prevCellX;
     s32 prevCellZ;
+
+#ifdef SH_PC_PORT
+    /* On 64-bit, collisionData_54 is at a different struct offset than in the
+     * raw PSX binary. cellX_2/cellZ_3 (bytes 2-3) are safe, but skip collision
+     * data access until IPD reformatter is implemented. */
+    u8* raw = (u8*)ipd;
+    raw[2] = (s8)cellX;
+    raw[3] = (s8)cellZ;
+    return;
+#endif
 
     prevCellX = ipd->cellX_2;
     prevCellZ = ipd->cellZ_3;

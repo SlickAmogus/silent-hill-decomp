@@ -64,6 +64,15 @@ s_UnkStruct3_Mo g_MapHeaderTable_38[18] = {
     {},
 };
 
+/* Shared variables used by particle.c and player.c, defined per-overlay */
+u8  sharedData_800DD584_0_s00 = 0;
+s32 sharedData_800DD598_0_s00 = 0;
+u8  sharedData_800DD59C_0_s00 = 255;
+s32 g_ParticlesAddedCount[2] = {};
+s8  g_ParticleCameraMoved = 0;
+u8  sharedData_800DD591_0_s00 = 0;
+u8  sharedData_800DD592_0_s00 = 1;
+
 u8 LOADABLE_INVENTORY_ITEMS[8] = {
     InventoryItemId_HealthDrink,
     InventoryItemId_Chainsaw,

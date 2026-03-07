@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include "bodyprog/view/vw_main.h"
 #include "bodyprog/view/vw_system.h"
@@ -9,6 +12,9 @@ s32 pad_bss_800C3864;
 
 void vwInitViewInfo(void) // 0x80048A38
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwInitViewInfo: setting rview fields\n"); fflush(stderr);
+#endif
     vwViewPointInfo.rview.vp.vz = Q12(0.0f);
     vwViewPointInfo.rview.vp.vy = Q12(0.0f);
     vwViewPointInfo.rview.vp.vx = Q12(0.0f);
@@ -18,8 +24,19 @@ void vwInitViewInfo(void) // 0x80048A38
     vwViewPointInfo.rview.rz    = Q12(0.0f);
     vwViewPointInfo.rview.super = &vwViewPointInfo.vwcoord;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwInitViewInfo: GsInitCoordinate2\n"); fflush(stderr);
+#endif
     GsInitCoordinate2(NULL, &vwViewPointInfo.vwcoord);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwInitViewInfo: vwcoord.flg=%d super=%p\n",
+            vwViewPointInfo.vwcoord.flg, (void*)vwViewPointInfo.vwcoord.super); fflush(stderr);
+    fprintf(stderr, "[SH] vwInitViewInfo: calling vwSetViewInfo\n"); fflush(stderr);
+#endif
     vwSetViewInfo();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwInitViewInfo: done\n"); fflush(stderr);
+#endif
 }
 
 GsCOORDINATE2* vwGetViewCoord(void) // 0x80048A90
@@ -108,9 +125,21 @@ static inline void Math_MatrixToPosition(VECTOR3* pos, MATRIX* mat)
 
 void vwSetViewInfo(void) // 0x80048D48
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwSetViewInfo: vbSetRefView\n"); fflush(stderr);
+#endif
     vbSetRefView(&vwViewPointInfo.rview);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwSetViewInfo: Math_MatrixToPosition\n"); fflush(stderr);
+#endif
     Math_MatrixToPosition(&vwViewPointInfo.worldpos, &vwViewPointInfo.vwcoord.workm);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwSetViewInfo: vwMatrixToAngleYXZ\n"); fflush(stderr);
+#endif
     vwMatrixToAngleYXZ(&vwViewPointInfo.worldang, &vwViewPointInfo.vwcoord.workm);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vwSetViewInfo: done\n"); fflush(stderr);
+#endif
 }
 
 void Vw_ClampAngleRange(q3_12* angleMin, q3_12* angleMax, q3_12 angleConstraintMin, q3_12 angleConstraintMax) // 0x80048DA8

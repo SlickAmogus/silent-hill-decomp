@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -104,18 +107,36 @@ s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
 
 void WorldGfx_MapInit(void) // 0x8003C048
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: WorldEnv_Init harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
     WorldEnv_Init();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: after WorldEnv_Init harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
 
     g_WorldGfx.useStoredPoint_4 = false;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: Map_Init harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
     Map_Init(GLOBAL_LM_BUFFER, IPD_BUFFER, 0x2C000);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: after Map_Init harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
     func_800697EC();
 
     g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
 
     Game_FlashlightAttributesFix();
     func_8005B55C(vwGetViewCoord());
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: Gfx_WorldObjectsClear harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
     Gfx_WorldObjectsClear(&g_WorldGfx);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_MapInit: done harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+#endif
 }
 
 void Item_HeldItemModelFree(void) // 0x8003C0C0
@@ -360,16 +381,31 @@ s32 Ipd_ChunkInitCheck(void) // 0x8003C850
 
 void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Gfx_InGameDraw: WorldObjectsDraw\n"); fflush(stderr);
+#endif
     Gfx_WorldObjectsDraw(&g_WorldGfx);
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Gfx_InGameDraw: func_80043830 loop\n"); fflush(stderr);
+#endif
     while (func_80043830())
     {
         Ipd_CloseRangeChunksInit();
         Fs_QueueWaitForEmpty();
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Gfx_InGameDraw: Ipd_ChunkCheckDraw\n"); fflush(stderr);
+#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Gfx_InGameDraw: Gfx_2dEffectsDraw\n"); fflush(stderr);
+#endif
     Gfx_2dEffectsDraw();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] Gfx_InGameDraw: done\n"); fflush(stderr);
+#endif
 }
 
 // ========================================
@@ -779,6 +815,10 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
 
     // Check if held item is valid.
     heldItem = &g_WorldGfx.heldItem_1BAC;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] HeldItemDraw: itemId=%d (NO_VALUE=%d)\n", heldItem->itemId_0, NO_VALUE);
+    fflush(stderr);
+#endif
     if (heldItem->itemId_0 == NO_VALUE)
     {
         return;
@@ -1154,21 +1194,47 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 {
     s_Skeleton* skel;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] CharaModelProcessLoad: model=%p charaId=%d isLoaded=%d queueIdx=%d lmHdr=%p\n",
+            (void*)model, model->charaId_0, model->isLoaded_1, model->queueIdx_4, (void*)model->lmHdr_8);
+    fflush(stderr);
+#endif
+
     if (!model->isLoaded_1 && model->charaId_0 != Chara_None && Fs_QueueIsEntryLoaded(model->queueIdx_4))
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] CharaModelProcessLoad: entering load block\n"); fflush(stderr);
+#endif
         model->isLoaded_1 = true;
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] CharaModelProcessLoad: LmHeader_FixOffsets...\n"); fflush(stderr);
+#endif
         LmHeader_FixOffsets(model->lmHdr_8);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] CharaModelProcessLoad: Lm_MaterialFileIdxApply...\n"); fflush(stderr);
+#endif
         Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[model->charaId_0].textureFileIdx, &model->texture_C, CHARA_FILE_INFOS[model->charaId_0].materialBlendMode_6_10 % 4);
 
         skel = &model->skeleton_14;
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] CharaModelProcessLoad: Lm_MaterialFlagsApply...\n"); fflush(stderr);
+#endif
         Lm_MaterialFlagsApply(model->lmHdr_8);
         Skeleton_Init(skel, model->skeleton_14.bones_C, 56);
         func_8004506C(skel, model->lmHdr_8);
         func_800452EC(skel);
         func_800453E8(skel, true);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] CharaModelProcessLoad: done\n"); fflush(stderr);
+#endif
     }
+#ifdef SH_PC_PORT
+    else {
+        fprintf(stderr, "[SH] CharaModelProcessLoad: skipped (not ready)\n"); fflush(stderr);
+    }
+#endif
 }
 
 void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
@@ -1187,6 +1253,9 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
     // Something to do with items held by player.
     if (charaId == Chara_Harry)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] func_8003DA9C: WorldGfx_HeldItemDraw\n"); fflush(stderr);
+#endif
         WorldGfx_HeldItemDraw();
     }
 
@@ -1205,7 +1274,6 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
 
     func_80045534(&g_WorldGfx.registeredCharaModels_18[charaId]->skeleton_14, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   coord, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
-
     if (timer != Q12(0.0f))
     {
         func_80055330(g_WorldEnvWork.field_0, g_WorldEnvWork.field_20, g_WorldEnvWork.field_3, tintColor.r << 5, tintColor.g << 5, tintColor.b << 5, g_WorldEnvWork.screenBrightness_8);
@@ -1227,10 +1295,21 @@ void WorldGfx_HeldItemAttach(e_CharacterId charaId, s32 arg1) // 0x8003DD80
 
     model = g_WorldGfx.registeredCharaModels_18[charaId];
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] WorldGfx_HeldItemAttach: charaId=%d model=%p arg1=0x%x\n", charaId, (void*)model, arg1);
+    fflush(stderr);
+#endif
+
     switch (charaId)
     {
         case Chara_Harry:
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH] WorldGfx_HeldItemAttach: calling func_8003DE60\n"); fflush(stderr);
+#endif
             func_8003DE60(&model->skeleton_14, arg1);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH] WorldGfx_HeldItemAttach: func_8003DE60 done\n"); fflush(stderr);
+#endif
             break;
 
         case Chara_Stalker:

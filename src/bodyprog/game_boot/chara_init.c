@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -50,28 +53,72 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 
     mapOvlId = g_SavegamePtr->mapOverlayId_A4;
 
+#ifdef SH_PC_PORT
+#define HARRY_CHECK(label) fprintf(stderr, "[SH] InGameInit %s harry=%p\n", label, (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr)
+    HARRY_CHECK("start");
+#endif
     vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork_4C.player_0.position_18);
-
     vcSetCameraUseWarp(&g_SysWork.playerWork_4C.player_0.position_18, g_SysWork.cameraAngleY_237A);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after vcInit");
+#endif
     func_80040004(&g_MapOverlayHeader);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after func_80040004");
+#endif
     Gfx_MapEffectsSet(0);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after MapEffectsSet");
+#endif
     WorldGfx_CharaModelProcessAllLoads();
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after CharaModelProcessAllLoads");
+#endif
     Game_FlashlightAttributesFix();
-
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after FlashlightAttribsFix");
+    fprintf(stderr, "[SH]   &g_WorldGfx=%p &registeredCharaModels[1]=%p offset=%zu\n",
+            (void*)&g_WorldGfx, (void*)&g_WorldGfx.registeredCharaModels_18[1],
+            (size_t)((char*)&g_WorldGfx.registeredCharaModels_18[1] - (char*)&g_WorldGfx));
+    fflush(stderr);
+#endif
     g_MapOverlayHeader.particlesUpdate_168(0, mapOvlId, NO_VALUE);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after particlesUpdate");
+#endif
 
     GameBoot_NpcClear();
-
     g_SysWork.npcId_2280 = 5;
-
     func_8005E650(mapOvlId);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after func_8005E650");
+#endif
     func_80037124();
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after func_80037124");
+#endif
     func_8007E8C0();
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after func_8007E8C0");
+#endif
     Game_NpcRoomInitSpawn(false);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after NpcRoomInitSpawn");
+#endif
     Game_PlayerHeightUpdate();
     Fs_CharaAnimBoneInfoUpdate();
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after AnimBoneInfoUpdate");
+#endif
     GameFs_WeaponInfoUpdate();
+#ifdef SH_PC_PORT
+    HARRY_CHECK("after WeaponInfoUpdate");
+#endif
     GameFs_Tim00TIMLoad();
     Fs_QueueWaitForEmpty();
     GameFs_MapItemsModelLoad(mapOvlId);
+#ifdef SH_PC_PORT
+    HARRY_CHECK("COMPLETE");
+#undef HARRY_CHECK
+#endif
 }

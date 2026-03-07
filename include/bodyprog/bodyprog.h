@@ -2388,7 +2388,8 @@ extern SVECTOR D_800AFDB0;
 
 extern s32 D_800AFDEC;
 
-extern PACKET D_800BFBF0[2][0xA10];
+#define D_800BFBF0_STRIDE (sizeof(DR_TPAGE) * 2 + sizeof(POLY_G4) * 16 * 3 + sizeof(POLY_G3) * 16 + sizeof(POLY_F4) * 16)
+extern PACKET D_800BFBF0[2][D_800BFBF0_STRIDE];
 
 #ifndef SH_PC_PORT
 extern u8 g_Items_GunsMaxLoadAmmo[36]; // Max loaded ammo that a weapon can hold. 0x800AD4A0

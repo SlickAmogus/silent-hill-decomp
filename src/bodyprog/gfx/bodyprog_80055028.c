@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/gtemac.h>
 #include <psyq/libapi.h>
@@ -22,8 +25,17 @@ extern s_WorldEnvWork g_WorldEnvWork;
 
 void WorldEnv_Init(void) // 0x80055028
 {
+    fprintf(stderr, "[SH] WorldEnv_Init: sizeof(s_WorldGfxWork)=%zu sizeof(s_WorldEnvWork)=%zu\n",
+            sizeof(s_WorldGfxWork), sizeof(s_WorldEnvWork)); fflush(stderr);
+    fprintf(stderr, "[SH] WorldEnv_Init: &g_WorldGfx=%p &g_WorldEnvWork=%p harry=%p\n",
+            (void*)&g_WorldGfx, (void*)&g_WorldEnvWork,
+            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
     func_80040BAC();
+    fprintf(stderr, "[SH] WorldEnv_Init: after func_80040BAC harry=%p\n",
+            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
     func_8008D41C();
+    fprintf(stderr, "[SH] WorldEnv_Init: after func_8008D41C harry=%p\n",
+            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
 
     g_WorldEnvWork.field_0  = 0;
     g_WorldEnvWork.field_20 = Q12(1.0f);
@@ -680,6 +692,22 @@ u8 func_80055F08(SVECTOR3* arg0, SVECTOR3* arg1, MATRIX* mat) // 0x80055F08
 // WORLD INITIALIZATION 2
 // ========================================
 
+#ifdef SH_PC_PORT
+/* PC: use LmHeader_FixOffsets_PC from lm_reformat.c which handles 32→64-bit struct conversion */
+extern void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr);
+
+void LmHeader_FixOffsets(s_LmHeader* lmHdr) // 0x800560FC
+{
+    LmHeader_FixOffsets_PC(lmHdr);
+}
+
+void ModelHeader_FixOffsets(s_ModelHeader* modelHdr, s_LmHeader* lmHdr) // 0x800561A4
+{
+    /* On PC, model headers are already fully parsed by LmHeader_FixOffsets_PC */
+    (void)modelHdr;
+    (void)lmHdr;
+}
+#else
 void LmHeader_FixOffsets(s_LmHeader* lmHdr) // 0x800560FC
 {
     s32 i;
@@ -719,6 +747,7 @@ void ModelHeader_FixOffsets(s_ModelHeader* modelHdr, s_LmHeader* lmHdr) // 0x800
         curMeshHdr->unkPtr_14    = (u8*)curMeshHdr->unkPtr_14    + (uintptr_t)lmHdr;
     }
 }
+#endif
 
 void Lm_TransparentPrimSet(s_LmHeader* lmHdr, bool transparency) // 0x80056244
 {
@@ -1085,6 +1114,9 @@ void StringCopy(char* prevStr, char* newStr) // 0x80056D64
 {
     *(s32*)&prevStr[4] = 0;
     *(s32*)&prevStr[0] = 0;
+#ifdef SH_PC_PORT
+    if (newStr != NULL)
+#endif
     strncpy(prevStr, newStr, 8);
 }
 
