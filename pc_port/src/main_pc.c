@@ -19,6 +19,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "main/fsqueue.h"
+#include "bodyprog/bodyprog.h"
 
 #include <libgpu.h>
 #include <libgte.h>
@@ -81,12 +82,14 @@ int main(int argc, char* argv[])
     int windowWidth = 640;
     int windowHeight = 480;
 
-    /* Force unbuffered output so we see logs before crashes */
+    /* Redirect stdout to log file, keep stderr on console for visibility */
+    freopen("SilentHill.log", "w", stdout);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     fprintf(stderr, "[SH] main() entered\n");
 
     PrintBanner();
+    fprintf(stderr, "[SH] sizeof(s_WorldGfxWork) = %zu\n", sizeof(s_WorldGfxWork));
     ParseArgs(argc, argv);
 
     SH_LOG("Game data path: %s", g_GameDataPath);

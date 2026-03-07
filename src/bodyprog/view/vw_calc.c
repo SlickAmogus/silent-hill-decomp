@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 #include "inline_no_dmpsx.h"
 
 #include <psyq/gtemac.h>
@@ -323,9 +326,23 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     MATRIX work;
     VECTOR vec;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: coord=%p flg=%lu super=%p\n",
+            (void*)coord, coord->flg, (void*)coord->super);
+    fflush(stderr);
+#endif
     Vw_CoordHierarchyMatrixCompute(coord, &D_800C3868);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: TransposeMatrix\n"); fflush(stderr);
+#endif
     TransposeMatrix(&D_800C3868, &work);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: MulMatrix0\n"); fflush(stderr);
+#endif
     MulMatrix0(&work, &GsIDMATRIX2, &VbWvsMatrix);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: setting VbWvsMatrix.t\n"); fflush(stderr);
+#endif
 
     VbWvsMatrix.t[2] = Q8(0.0f);
     VbWvsMatrix.t[1] = Q8(0.0f);
@@ -344,7 +361,13 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     vec.vx = -D_800C3868.t[0];
     vec.vy = -D_800C3868.t[1];
     vec.vz = -D_800C3868.t[2];
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: ApplyMatrixLV\n"); fflush(stderr);
+#endif
     ApplyMatrixLV(&VbWvsMatrix, &vec, (VECTOR*)&GsWSMATRIX.t);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: done\n"); fflush(stderr);
+#endif
 }
 
 void vbSetRefView(VbRVIEW* rview) // 0x800498D8
@@ -353,18 +376,34 @@ void vbSetRefView(VbRVIEW* rview) // 0x800498D8
     SVECTOR       rot; // Q3.12
     SVECTOR       pos; // Q3.12
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetRefView: rview=%p super=%p\n", (void*)rview, (void*)rview->super);
+    fflush(stderr);
+#endif
     coord.flg   = false;
     coord.super = rview->super;
     pos.vx      = rview->vr.vx - rview->vp.vx;
     pos.vy      = rview->vr.vy - rview->vp.vy;
     pos.vz      = rview->vr.vz - rview->vp.vz;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetRefView: vwVectorToAngle\n"); fflush(stderr);
+#endif
     vwVectorToAngle(&rot, &pos);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetRefView: Math_RotMatrixZxyNegGte\n"); fflush(stderr);
+#endif
     Math_RotMatrixZxyNegGte(&rot, &coord.coord);
 
     coord.coord.t[0] = rview->vp.vx;
     coord.coord.t[1] = rview->vp.vy;
     coord.coord.t[2] = rview->vp.vz;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetRefView: vbSetWorldScreenMatrix\n"); fflush(stderr);
+#endif
     vbSetWorldScreenMatrix(&coord);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] vbSetRefView: done\n"); fflush(stderr);
+#endif
 }
 
 void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* outMat) // 0x80049984

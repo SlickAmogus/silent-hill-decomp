@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -106,13 +109,27 @@ void GameState_InGame_Update(void) // 0x80038BD4
         g_DeltaTimeCpy = g_DeltaTimeRaw;
     }
 
+
+#ifdef SH_PC_PORT
+#define IG_TRACE2(lbl) fprintf(stderr, "[SH] IG2: %s\n", lbl); fflush(stderr)
+#else
+#define IG_TRACE2(lbl)
+#endif
+    IG_TRACE2("sysStateFuncs");
     if (g_SysWork.sysState_8 == SysState_Gameplay)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] IG2: calling SysState_Gameplay_Update (idx=0)\n"); fflush(stderr);
+#endif
         g_SysWork.isMgsStringSet_18 = 0;
         g_SysStateFuncs[SysState_Gameplay]();
     }
     else
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH] IG2: calling sysState=%d funcPtr=%p\n",
+                g_SysWork.sysState_8, (void*)g_SysStateFuncs[g_SysWork.sysState_8]); fflush(stderr);
+#endif
         g_DeltaTime = 0;
         g_SysStateFuncs[g_SysWork.sysState_8]();
 
@@ -128,38 +145,54 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
     Demo_DemoRandSeedRestore();
 
+    IG_TRACE2("ScreenFade_IsFinished");
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueDoThingWhenEmpty();
 
+    IG_TRACE2("worldObjectsUpdate");
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
     {
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
 
+    IG_TRACE2("Screen_CutsceneCameraStateUpdate");
     Screen_CutsceneCameraStateUpdate();
+    IG_TRACE2("Bgm_TrackUpdate");
     Bgm_TrackUpdate(false);
+#undef IG_TRACE2
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();
 
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze))
     {
+#ifdef SH_PC_PORT
+#define IG_TRACE(lbl) fprintf(stderr, "[SH] IG: %s\n", lbl); fflush(stderr)
+#else
+#define IG_TRACE(lbl)
+#endif
+        IG_TRACE("func_80040014");
         func_80040014();
+        IG_TRACE("vcMoveAndSetCamera");
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
         if (g_MapOverlayHeader.func_44 != NULL)
         {
+            IG_TRACE("func_44");
             g_MapOverlayHeader.func_44();
         }
 
         Demo_DemoRandSeedRestore();
 
         player = &g_SysWork.playerWork_4C.player_0;
+        IG_TRACE("Player_Update");
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
 
         Demo_DemoRandSeedRestore();
+        IG_TRACE("Gfx_FlashlightUpdate");
         Gfx_FlashlightUpdate();
 
         if (g_SavegamePtr->mapOverlayId_A4 != MapOverlayId_MAP7_S03)
         {
+            IG_TRACE("particlesUpdate");
             g_MapOverlayHeader.particlesUpdate_168(0, g_SavegamePtr->mapOverlayId_A4, 1);
         }
 
@@ -167,19 +200,28 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
         {
+            IG_TRACE("func_8003DA9C");
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
             Chara_Flag8Clear(&g_SysWork.playerWork_4C.player_0);
+            IG_TRACE("Player_CombatUpdate");
             Player_CombatUpdate(&g_SysWork.playerWork_4C, g_SysWork.playerBoneCoords_890);
             func_8008A3AC(&g_SysWork.playerWork_4C.player_0);
         }
 
         Demo_DemoRandSeedRestore();
+        IG_TRACE("Game_NpcRoomInitSpawn");
         Game_NpcRoomInitSpawn(true);
+        IG_TRACE("Game_NpcUpdate");
         Game_NpcUpdate();
+        IG_TRACE("func_8005E89C");
         func_8005E89C();
+        IG_TRACE("Ipd_CloseRangeChunksInit");
         Ipd_CloseRangeChunksInit();
+        IG_TRACE("Gfx_InGameDraw");
         Gfx_InGameDraw(1);
+        IG_TRACE("done");
         Demo_DemoRandSeedAdvance();
+#undef IG_TRACE
     }
 }
 
@@ -189,7 +231,13 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 
     player = &g_SysWork.playerWork_4C.player_0;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] SysState_Gameplay: Event_Update\n"); fflush(stderr);
+#endif
     Event_Update(player->attackReceived_41 != NO_VALUE);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] SysState_Gameplay: Savegame_MapRoomIdxUpdate\n"); fflush(stderr);
+#endif
     Savegame_MapRoomIdxUpdate();
 
     switch (FP_ROUND_SCALED(player->health_B0, 10, Q12_SHIFT))
@@ -840,6 +888,18 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
 
 void SysState_EventCallFunc_Update(void) // 0x8003A3C8
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH] EventCallFunc: g_MapEventData=%p g_MapEventParam=%d\n",
+            (void*)g_MapEventData, g_MapEventParam); fflush(stderr);
+    if (g_MapEventData == NULL) {
+        fprintf(stderr, "[SH] EventCallFunc: g_MapEventData is NULL, skipping\n"); fflush(stderr);
+        g_SysWork.sysState_8 = SysState_Gameplay;
+        return;
+    }
+    fprintf(stderr, "[SH] EventCallFunc: flags_8_13=%d funcPtr=%p\n",
+            g_MapEventData->flags_8_13,
+            (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]); fflush(stderr);
+#endif
     if (g_MapEventData->flags_8_13 != EventParamUnkState_None)
     {
         Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);

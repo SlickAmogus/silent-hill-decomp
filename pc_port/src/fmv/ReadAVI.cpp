@@ -216,13 +216,12 @@ int ReadAVI::read_stream_format()
 
 int ReadAVI::read_stream_format_auds()
 {
-    stream_format_auds.format = read_word();
-    stream_format_auds.channels = read_word();
-    stream_format_auds.samples_per_second = read_int();
-    stream_format_auds.bytes_per_second = read_int();
-    /*block_align*/ read_word();
-    stream_format_auds.block_size_of_data = read_word();
-    stream_format_auds.bits_per_sample = read_word();
+    stream_format_auds.format = read_word();              /* wFormatTag */
+    stream_format_auds.channels = read_word();            /* nChannels */
+    stream_format_auds.samples_per_second = read_int();   /* nSamplesPerSec */
+    stream_format_auds.bytes_per_second = read_int();     /* nAvgBytesPerSec */
+    stream_format_auds.block_size_of_data = read_word();  /* nBlockAlign */
+    stream_format_auds.bits_per_sample = read_word();     /* wBitsPerSample */
     return 0;
 }
 

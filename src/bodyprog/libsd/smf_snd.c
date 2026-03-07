@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libspu.h>
 
@@ -1237,8 +1240,10 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
 #ifdef SH_PC_PORT
     if (!sd_vh) {
+        fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: vab_h[%d] is NULL, skip\n", vabid); fflush(stderr);
         return -1;
     }
+    fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: vabid=%d prog=%d note=%d sd_vh=%p\n", vabid, prog, note, (void*)sd_vh); fflush(stderr);
 #endif
 
     sd_int_flag = true;
@@ -1254,6 +1259,10 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
     sd_vab_prog = &sd_vh->vab_prog[prog];
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: tones=%d c=%d\n", sd_vab_prog->tones, c); fflush(stderr);
+#endif
+
     for (tone = 0; tone < sd_vab_prog->tones; tone++)
     {
         sd_vag_atr = &sd_vh->vag_atr[(c * 16) + tone];
@@ -1265,14 +1274,23 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
         vc = 0;
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: tone=%d, finding free voice...\n", tone); fflush(stderr);
+#endif
         while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
         {
+#ifdef SH_PC_PORT
+            if (vc == 0) { fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: voice %d busy (status=%d)\n", vc, SpuGetKeyStatus(spu_ch_tbl[vc])); fflush(stderr); }
+#endif
             if (++vc > (sd_reserved_voice - 1))
             {
                 vc = -1;
                 break;
             }
         }
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] SdVoKeyOn: found voice vc=%d\n", vc); fflush(stderr);
+#endif
 
         voice = vc << 16;
         if (vc == -1)
@@ -1432,6 +1450,9 @@ s16 SdUtKeyOnV(s16 voice, s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16
             {
                 SpuSetKey(0, spu_ch_tbl[vo]);
                 stat = SpuGetKeyStatus(spu_ch_tbl[vo]);
+#ifdef SH_PC_PORT
+                break; // On PC, SpuSetKey(OFF) is synchronous, no need to poll
+#endif
             }
             while (stat != 2 && stat != 0);
 
@@ -1524,6 +1545,9 @@ s16 SdUtKeyOnV(s16 voice, s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16
             do
             {
                 SpuSetKeyOnWithAttr(&s_attr);
+#ifdef SH_PC_PORT
+                break; // On PC, SpuSetKeyOnWithAttr is synchronous
+#endif
             }
             while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
 

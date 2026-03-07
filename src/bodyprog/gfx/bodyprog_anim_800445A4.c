@@ -736,6 +736,12 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
     s_FsImageDesc* curImage;
     s_LinkedBone*  curBone;
 
+#ifdef SH_PC_PORT
+    /* Skeleton rendering depends on valid LM model data loaded from disc.
+     * On PC, model file reads may produce invalid data — skip to avoid crashes. */
+    return;
+#endif
+
     var_s5 = SHRT_MAX;
     var_s6 = SHRT_MAX;
     var_s4 = SHRT_MAX;

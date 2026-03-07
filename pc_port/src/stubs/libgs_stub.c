@@ -336,11 +336,27 @@ void GsDefDispBuff2(unsigned short x0, unsigned short y0, unsigned short x1, uns
     GsDISPENV = gs_disp_env[0];
 }
 
+/* PSY-Q libgte TransposeMatrix - not implemented in PsyCross */
+MATRIX* TransposeMatrix(MATRIX *m0, MATRIX *m1)
+{
+    m1->m[0][0] = m0->m[0][0]; m1->m[0][1] = m0->m[1][0]; m1->m[0][2] = m0->m[2][0];
+    m1->m[1][0] = m0->m[0][1]; m1->m[1][1] = m0->m[1][1]; m1->m[1][2] = m0->m[2][1];
+    m1->m[2][0] = m0->m[0][2]; m1->m[2][1] = m0->m[1][2]; m1->m[2][2] = m0->m[2][2];
+    return m1;
+}
+
 void GsInitCoordinate2(void *super, GsCOORDINATE2 *coord)
 {
     if (coord) {
         memset(coord, 0, sizeof(GsCOORDINATE2));
-        coord->flg = 0;
+        /* Identity matrix: diagonal = 4096 (Q12 1.0) */
+        coord->coord.m[0][0] = 4096;
+        coord->coord.m[1][1] = 4096;
+        coord->coord.m[2][2] = 4096;
+        coord->super = (GsCOORDINATE2*)super;
+        /* If no parent (root of hierarchy), mark as pre-computed so
+         * Vw_CoordHierarchyMatrixCompute stops traversal here. */
+        coord->flg = (super == NULL) ? 1 : 0;
     }
 }
 

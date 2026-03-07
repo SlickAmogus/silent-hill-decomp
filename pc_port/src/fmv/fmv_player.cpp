@@ -2,6 +2,7 @@
  * fmv_player.cpp - PC FMV playback for Silent Hill
  *
  * Plays pre-converted AVI (MJPG) files using libjpeg + OpenGL.
+ * Audio streamed via SDL_QueueAudio (PCM).
  * Adapted from REDRIVER2's VideoPlayer (BSD licensed).
  */
 #ifdef _WIN32
@@ -27,6 +28,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* PsyCross internal - needed for direct buffer swap */
+extern SDL_Window* g_window;
 
 /* File ID to filename mapping.
  * The numbers after the prefix are PSX sector counts from the file table.
@@ -78,28 +82,10 @@ static const FmvFileEntry s_fmvFiles[] = {
 
 /* GL resources */
 static GLuint s_fmvTexture = 0;
-static GLuint s_fmvShader = 0;
 
 /* Decode buffer - large enough for 1080p RGB */
 #define DECODE_BUFFER_SIZE (1920 * 1080 * 3)
 static unsigned char* s_decodeBuffer = NULL;
-
-/* Simple fullscreen blit shader */
-static const char* s_fmvShaderSrc =
-    "varying vec4 v_texcoord;\n"
-    "#ifdef VERTEX\n"
-    "   attribute vec4 a_position;\n"
-    "   attribute vec4 a_texcoord;\n"
-    "   void main() {\n"
-    "       v_texcoord = a_texcoord;\n"
-    "       gl_Position = vec4(a_position.xy, 0.0, 1.0);\n"
-    "   }\n"
-    "#else\n"
-    "   uniform sampler2D s_texture;\n"
-    "   void main() {\n"
-    "       fragColor = texture2D(s_texture, v_texcoord.xy);\n"
-    "   }\n"
-    "#endif\n";
 
 static int UnpackJPEG(unsigned char* src, unsigned src_len, unsigned char* dst, int* out_w, int* out_h)
 {
@@ -132,18 +118,108 @@ static int UnpackJPEG(unsigned char* src, unsigned src_len, unsigned char* dst, 
     return 0;
 }
 
-static void SetupBlitQuad(int image_w, int image_h)
+/* Raw GL fullscreen quad - bypasses PsyCross vertex format */
+static GLuint s_fmvVAO = 0;
+static GLuint s_fmvVBO = 0;
+static GLuint s_fmvProgram = 0;
+
+static const char* s_fmvVertSrc =
+    "#version 140\n"
+    "in vec2 a_pos;\n"
+    "in vec2 a_uv;\n"
+    "out vec2 v_uv;\n"
+    "void main() {\n"
+    "    v_uv = a_uv;\n"
+    "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
+    "}\n";
+
+static const char* s_fmvFragSrc =
+    "#version 140\n"
+    "precision highp float;\n"
+    "in vec2 v_uv;\n"
+    "out vec4 fragColor;\n"
+    "uniform sampler2D s_texture;\n"
+    "void main() {\n"
+    "    fragColor = texture(s_texture, v_uv);\n"
+    "}\n";
+
+static void InitBlitResources(void)
+{
+    if (s_fmvProgram)
+        return;
+
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &s_fmvVertSrc, NULL);
+    glCompileShader(vs);
+
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &s_fmvFragSrc, NULL);
+    glCompileShader(fs);
+
+    s_fmvProgram = glCreateProgram();
+    glAttachShader(s_fmvProgram, vs);
+    glAttachShader(s_fmvProgram, fs);
+    glBindAttribLocation(s_fmvProgram, 0, "a_pos");
+    glBindAttribLocation(s_fmvProgram, 1, "a_uv");
+    glLinkProgram(s_fmvProgram);
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    glGenVertexArrays(1, &s_fmvVAO);
+    glGenBuffers(1, &s_fmvVBO);
+}
+
+/* Save/restore GL state so PsyCross is undisturbed */
+typedef struct {
+    GLboolean depth_test, stencil_test, blend, scissor_test;
+    GLint viewport[4];
+    GLfloat clear_color[4];
+    GLint active_texture;
+    GLint bound_texture;
+    GLint current_program;
+    GLint bound_vao;
+    GLint bound_vbo;
+} FmvGLState;
+
+static void SaveGLState(FmvGLState* s)
+{
+    s->depth_test = glIsEnabled(GL_DEPTH_TEST);
+    s->stencil_test = glIsEnabled(GL_STENCIL_TEST);
+    s->blend = glIsEnabled(GL_BLEND);
+    s->scissor_test = glIsEnabled(GL_SCISSOR_TEST);
+    glGetIntegerv(GL_VIEWPORT, s->viewport);
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, s->clear_color);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &s->active_texture);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &s->bound_texture);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &s->current_program);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &s->bound_vao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &s->bound_vbo);
+}
+
+static void RestoreGLState(const FmvGLState* s)
+{
+    if (s->depth_test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (s->stencil_test) glEnable(GL_STENCIL_TEST); else glDisable(GL_STENCIL_TEST);
+    if (s->blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (s->scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+    glViewport(s->viewport[0], s->viewport[1], s->viewport[2], s->viewport[3]);
+    glClearColor(s->clear_color[0], s->clear_color[1], s->clear_color[2], s->clear_color[3]);
+    glActiveTexture(s->active_texture);
+    glBindTexture(GL_TEXTURE_2D, s->bound_texture);
+    glUseProgram(s->current_program);
+    glBindVertexArray(s->bound_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, s->bound_vbo);
+}
+
+static void DrawVideoFrame(int image_w, int image_h)
 {
     int windowWidth, windowHeight;
     PsyX_GetScreenSize(&windowWidth, &windowHeight);
 
-    float psxScreenW = 320.0f;
-    float psxScreenH = 240.0f;
-
     float video_aspect = (float)image_w / (float)image_h;
     float window_aspect = (float)windowWidth / (float)windowHeight;
 
-    /* Fit video to window while maintaining aspect ratio */
     float scaleX, scaleY;
     if (video_aspect > window_aspect) {
         scaleX = 1.0f;
@@ -153,55 +229,53 @@ static void SetupBlitQuad(int image_w, int image_h)
         scaleY = 1.0f;
     }
 
-    GR_SetViewPort(0, 0, windowWidth, windowHeight);
-
-    GrVertex blit_vertices[] = {
-        {  (short)(scaleX * 32767),  (short)(scaleY * 32767),   0, 0,    1, 0,   0, 0,   0, 0,   0, 0 },
-        { (short)(-scaleX * 32767), (short)(-scaleY * 32767),   0, 0,    0, 1,   0, 0,   0, 0,   0, 0 },
-        { (short)(-scaleX * 32767),  (short)(scaleY * 32767),   0, 0,    0, 0,   0, 0,   0, 0,   0, 0 },
-
-        {  (short)(scaleX * 32767), (short)(-scaleY * 32767),   0, 0,    1, 1,   0, 0,   0, 0,   0, 0 },
-        { (short)(-scaleX * 32767), (short)(-scaleY * 32767),   0, 0,    0, 1,   0, 0,   0, 0,   0, 0 },
-        {  (short)(scaleX * 32767),  (short)(scaleY * 32767),   0, 0,    1, 0,   0, 0,   0, 0,   0, 0 },
+    /* pos.x, pos.y, uv.x, uv.y */
+    float quad[] = {
+        -scaleX,  scaleY,   0.0f, 0.0f,
+         scaleX,  scaleY,   1.0f, 0.0f,
+        -scaleX, -scaleY,   0.0f, 1.0f,
+         scaleX, -scaleY,   1.0f, 1.0f,
     };
 
-    GR_UpdateVertexBuffer(blit_vertices, 6);
-}
+    FmvGLState saved;
+    SaveGLState(&saved);
 
-static void DrawVideoFrame(int image_w, int image_h)
-{
-    int windowWidth, windowHeight;
-    PsyX_GetScreenSize(&windowWidth, &windowHeight);
+    glViewport(0, 0, windowWidth, windowHeight);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_SCISSOR_TEST);
 
-    PsyX_BeginScene();
-    GR_Clear(0, 0, windowWidth, windowHeight, 0, 0, 0);
-
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, s_fmvTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, image_w, image_h, 0, GL_RGB, GL_UNSIGNED_BYTE, s_decodeBuffer);
-    glBindTexture(GL_TEXTURE_2D, 0);
 
-    GR_SetShader(s_fmvShader);
-    GR_SetTexture(s_fmvTexture, (TexFormat)-1);
-    GR_SetScissorState(0);
-    GR_EnableDepth(0);
-    GR_SetStencilMode(0);
-    GR_SetBlendMode(BM_NONE);
+    glUseProgram(s_fmvProgram);
+    glUniform1i(glGetUniformLocation(s_fmvProgram, "s_texture"), 0);
 
-    SetupBlitQuad(image_w, image_h);
-    GR_DrawTriangles(0, 2);
+    glBindVertexArray(s_fmvVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, s_fmvVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
-    PsyX_EndScene();
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    RestoreGLState(&saved);
+
+    SDL_GL_SwapWindow(g_window);
 }
 
 /* Try to find AVI file in several locations */
 static int FindAviFile(const char* basename, char* out_path, int out_path_size)
 {
     const char* search_dirs[] = {
-        "data/FMV/",
-        "DATA/FMV/",
-        "../data/FMV/",
-        "../DATA/FMV/",
-        "FMV/",
+        "gamedata/fmv/",
+        "../gamedata/fmv/",
         "",
     };
     const char* extensions[] = { ".avi", ".AVI" };
@@ -236,8 +310,7 @@ extern "C" void FMV_Init(void)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (!s_fmvShader)
-        s_fmvShader = GR_Shader_Compile(s_fmvShaderSrc);
+    InitBlitResources();
 }
 
 extern "C" void FMV_Shutdown(void)
@@ -247,9 +320,61 @@ extern "C" void FMV_Shutdown(void)
         s_decodeBuffer = NULL;
     }
     if (s_fmvTexture) {
-        GR_DestroyTexture(s_fmvTexture);
+        glDeleteTextures(1, &s_fmvTexture);
         s_fmvTexture = 0;
     }
+    if (s_fmvVAO) {
+        glDeleteVertexArrays(1, &s_fmvVAO);
+        s_fmvVAO = 0;
+    }
+    if (s_fmvVBO) {
+        glDeleteBuffers(1, &s_fmvVBO);
+        s_fmvVBO = 0;
+    }
+    if (s_fmvProgram) {
+        glDeleteProgram(s_fmvProgram);
+        s_fmvProgram = 0;
+    }
+}
+
+/* Determine SDL audio format from AVI audio stream info */
+static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, SDL_AudioSpec* obtained)
+{
+    if (fmt->samples_per_second == 0 || fmt->channels == 0)
+        return 0;
+
+    if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO)) {
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            printf("[FMV] Failed to init SDL audio: %s\n", SDL_GetError());
+            return 0;
+        }
+    }
+
+    SDL_AudioSpec want;
+    SDL_memset(&want, 0, sizeof(want));
+    want.freq = fmt->samples_per_second;
+    want.channels = (Uint8)fmt->channels;
+    want.samples = 4096;
+
+    if (fmt->bits_per_sample == 16)
+        want.format = AUDIO_S16LSB;
+    else if (fmt->bits_per_sample == 8)
+        want.format = AUDIO_U8;
+    else {
+        printf("[FMV] Unsupported audio bits_per_sample: %d\n", fmt->bits_per_sample);
+        return 0;
+    }
+
+    SDL_AudioDeviceID dev = SDL_OpenAudioDevice(NULL, 0, &want, obtained, 0);
+    if (dev == 0) {
+        printf("[FMV] Failed to open audio device: %s\n", SDL_GetError());
+        return 0;
+    }
+
+    printf("[FMV] Audio: %d Hz, %d ch, %d bit\n",
+           fmt->samples_per_second, fmt->channels, fmt->bits_per_sample);
+
+    return dev;
 }
 
 extern "C" int FMV_Play(int file_idx, int max_frames)
@@ -292,19 +417,19 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
            avi_header.TotalNumberOfFrames,
            avi_header.TimeBetweenFrames > 0 ? 1000000.0 / avi_header.TimeBetweenFrames : 0);
 
-    /* Set up display environment for movie playback */
-    DISPENV movie_disp;
-    DRAWENV movie_draw;
+    /* Set up audio */
+    ReadAVI::stream_format_auds_t audio_fmt = readAVI.GetAudioFormat();
+    SDL_AudioSpec audioObtained;
+    SDL_AudioDeviceID audioDev = OpenFmvAudio(&audio_fmt, &audioObtained);
 
-    SetDefDispEnv(&movie_disp, 0, 0, 320, 240);
-    SetDefDrawEnv(&movie_draw, 0, 0, 320, 240);
-    movie_draw.dfe = 1;
+    if (audioDev)
+        SDL_PauseAudioDevice(audioDev, 0); /* Start playback */
 
-    PutDispEnv(&movie_disp);
-    PutDrawEnv(&movie_draw);
+    /* Use combined type mask to read both video and audio in one pass */
+    const int FRAME_TYPE_ALL = ReadAVI::ctype_video_data | ReadAVI::ctype_audio_data;
 
     ReadAVI::frame_entry_t frame_entry;
-    frame_entry.type = (ReadAVI::chunk_type_t)(ReadAVI::ctype_video_data);
+    frame_entry.type = (ReadAVI::chunk_type_t)FRAME_TYPE_ALL;
     frame_entry.pointer = 0;
 
     timerCtx_t fmvTimer;
@@ -315,6 +440,11 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
 
     Util_GetHPCTime(&fmvTimer, 1);
 
+    /* Flush any pending key events before playback */
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_KEYDOWN);
+    SDL_FlushEvent(SDL_KEYUP);
+
     /* Main playback loop */
     while (1)
     {
@@ -324,17 +454,46 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
 
         nextFrameDelay -= delta;
 
+        /* Check for skip using keyboard state (event-independent) */
+        SDL_PumpEvents();
+        const Uint8* keystate = SDL_GetKeyboardState(NULL);
+        if (keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
+            keystate[SDL_SCANCODE_SPACE])
+        {
+            printf("[FMV] Skipped at frame %d/%d\n", done_frames, avi_header.TotalNumberOfFrames);
+            break;
+        }
+
+        /* Drain event queue to keep window responsive */
+        SDL_Event evt;
+        while (SDL_PollEvent(&evt)) {
+            if (evt.type == SDL_QUIT) {
+                goto done;
+            }
+        }
+
         if (nextFrameDelay > 0) {
             SDL_Delay(1);
             continue;
         }
 
-        frame_entry.type = (ReadAVI::chunk_type_t)(ReadAVI::ctype_video_data);
+        /* Read next frame (video or audio) */
+        frame_entry.type = (ReadAVI::chunk_type_t)FRAME_TYPE_ALL;
         int frame_size = readAVI.GetFrameFromIndex(&frame_entry);
 
         if (frame_size < 0)
             break;
 
+        if (frame_entry.type == ReadAVI::ctype_audio_data) {
+            /* Queue audio data to SDL */
+            if (audioDev && frame_size > 0) {
+                SDL_QueueAudio(audioDev, frame_entry.buf, frame_size);
+            }
+            /* Don't apply video timing for audio frames - immediately read next */
+            continue;
+        }
+
+        /* Video frame */
         if (max_frames > 0 && done_frames >= max_frames)
             break;
 
@@ -355,27 +514,15 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
 
             done_frames++;
         }
-
-        /* Check for skip input */
-        PsyX_UpdateInput();
-        SDL_Event evt;
-        while (SDL_PollEvent(&evt)) {
-            if (evt.type == SDL_QUIT)
-                return 0;
-            if (evt.type == SDL_KEYDOWN) {
-                /* Skip on Enter, Escape, or Space */
-                if (evt.key.keysym.sym == SDLK_RETURN ||
-                    evt.key.keysym.sym == SDLK_ESCAPE ||
-                    evt.key.keysym.sym == SDLK_SPACE)
-                {
-                    printf("[FMV] Skipped at frame %d/%d\n", done_frames, avi_header.TotalNumberOfFrames);
-                    goto done;
-                }
-            }
-        }
     }
 
 done:
+    /* Clean up audio */
+    if (audioDev) {
+        SDL_PauseAudioDevice(audioDev, 1);
+        SDL_CloseAudioDevice(audioDev);
+    }
+
     printf("[FMV] Playback complete (%d frames)\n", done_frames);
     return 0;
 }

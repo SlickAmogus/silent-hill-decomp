@@ -978,6 +978,9 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                         {
                             SpuSetKey(0, spu_ch_tbl[vo]);
                             stat = SpuGetKeyStatus(spu_ch_tbl[vo]);
+#ifdef SH_PC_PORT
+                            break;
+#endif
                         }
                         while (stat != 2 && stat != 0);
                     }
@@ -1067,6 +1070,9 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 {
                     SpuSetKey(0, spu_ch_tbl[vo]);
                     stat = SpuGetKeyStatus(spu_ch_tbl[vo]);
+#ifdef SH_PC_PORT
+                    break;
+#endif
                 }
                 while (stat != 2 && stat != 0);
             }
@@ -1194,6 +1200,9 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 do
                 {
                     SpuSetKeyOnWithAttr(&s_attr);
+#ifdef SH_PC_PORT
+                    break;
+#endif
                 }
                 while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
             }
@@ -1202,32 +1211,48 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
             {
                 if (sd_vag_atr->mode & (1 << 2))
                 {
+#ifdef SH_PC_PORT
+                    SpuSetReverbVoice(true, spu_ch_tbl[vo]);
+#else
                     while (!(SpuGetReverbVoice() & spu_ch_tbl[vo]))
                     {
                         SpuSetReverbVoice(true, spu_ch_tbl[vo]);
                     }
+#endif
                 }
                 else
                 {
+#ifdef SH_PC_PORT
+                    SpuSetReverbVoice(false, spu_ch_tbl[vo]);
+#else
                     while (SpuGetReverbVoice() & spu_ch_tbl[vo])
                     {
                         SpuSetReverbVoice(false, spu_ch_tbl[vo]);
                     }
+#endif
                 }
             }
             else if (m->rev_depth_24 != 1)
             {
+#ifdef SH_PC_PORT
+                SpuSetReverbVoice(true, spu_ch_tbl[vo]);
+#else
                 while (!(SpuGetReverbVoice() & spu_ch_tbl[vo]))
                 {
                     SpuSetReverbVoice(true, spu_ch_tbl[vo]);
                 }
+#endif
             }
             else
             {
+#ifdef SH_PC_PORT
+                SpuSetReverbVoice(false, spu_ch_tbl[vo]);
+#else
                 while (SpuGetReverbVoice() & spu_ch_tbl[vo])
                 {
                     SpuSetReverbVoice(false, spu_ch_tbl[vo]);
                 }
+#endif
             }
         }
     }
