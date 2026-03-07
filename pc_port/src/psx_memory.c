@@ -11,8 +11,12 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Full PSX RAM emulation - 2MB */
-#define PSX_RAM_SIZE (2 * 1024 * 1024)
+/* Full PSX RAM emulation - 2MB + 1MB overflow guard.
+ * Some file reads target buffers near the end of PSX RAM (e.g. FS_BUFFER_16
+ * at 0x1EBE00) and the loaded file may exceed the remaining space.
+ * On PSX this wraps around; on PC it would corrupt adjacent memory.
+ * Extra 1MB prevents stack/heap corruption from these overflows. */
+#define PSX_RAM_SIZE (3 * 1024 * 1024)
 uint8_t g_PsxRam[PSX_RAM_SIZE];
 
 /* PSX Scratchpad RAM emulation (1KB) */

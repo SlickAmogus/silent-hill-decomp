@@ -411,6 +411,11 @@ void MainLoop(void) // 0x80032EE0
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == 11) { fprintf(stderr, "[SH] ML: GsDrawOt0\n"); fflush(stderr); }
+        /* Skip OT draw during InGame — OT may contain bad primitives from
+         * unimplemented IPD/skeleton rendering. Re-clear instead. */
+        if (g_GameWork.gameState_594 == 11) {
+            GsSortClear(0, 0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
+        } else
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
