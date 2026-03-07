@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
+#include <stdio.h>
 #endif
 #include <psyq/libetc.h>
 
@@ -329,16 +330,52 @@ void MainLoop(void) // 0x80032EE0
         GsSwapDispBuff();
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        /* During InGame, OT0 contains bad primitives from unimplemented IPD/skeleton
-         * rendering. Re-initialize OT0 with just a black clear so the screen gets
-         * properly cleared each frame without drawing corrupt geometry. */
         if (g_GameWork.gameState_594 == 11) {
+            /* OT0 contains bad primitives from uninitialized systems (world geo,
+             * NPCs, etc). Clear it and re-render just the player skeleton. The
+             * bone coords were properly set up by Player_Update earlier. */
             GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
             GsSortClear(0, 0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
+
+            {
+                extern MATRIX VbWvsMatrix;
+                if (VbWvsMatrix.m[0][0] == 0 && VbWvsMatrix.m[1][1] == 0) {
+                    /* Camera not yet initialized — skip render to avoid
+                     * garbage primitives from zero view-projection matrix */
+                    goto skip_skeleton_render;
+                }
+            }
+            if (g_SysWork.playerWork_4C.player_0.model_0.anim_4.flags_2 & AnimFlag_Visible &&
+                g_WorldGfx.registeredCharaModels_18[Chara_Harry] != NULL &&
+                g_WorldGfx.registeredCharaModels_18[Chara_Harry]->isLoaded_1) {
+                /* Disable fog/env — fogRamp_CC may be uninitialized */
+                extern s_WorldEnvWork g_WorldEnvWork;
+                u8 savedFog = g_WorldEnvWork.isFogEnabled_1;
+                u8 savedEnv = g_WorldEnvWork.field_0;
+                g_WorldEnvWork.isFogEnabled_1 = 0;
+                g_WorldEnvWork.field_0 = 0;
+
+                func_80045534(
+                    &g_WorldGfx.registeredCharaModels_18[Chara_Harry]->skeleton_14,
+                    &g_OrderingTable0[g_ActiveBufferIdx], 1,
+                    g_SysWork.playerBoneCoords_890,
+                    Q8_TO_Q12(CHARA_FILE_INFOS[Chara_Harry].field_6),
+                    0, CHARA_FILE_INFOS[Chara_Harry].field_8);
+
+                g_WorldEnvWork.isFogEnabled_1 = savedFog;
+                g_WorldEnvWork.field_0 = savedEnv;
+            }
+            skip_skeleton_render:
+
+            fprintf(stderr, "[SH] RENDER: pre-DrawOt0\n");
+            fflush(stderr);
         }
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) {
+            fprintf(stderr, "[SH] RENDER: post-DrawOt0\n"); fflush(stderr);
+        }
         /* Sanitize OT2 before drawing during InGame: re-clear to remove any
          * garbage primitives that may have been linked in by uninitialized code. */
         if (g_GameWork.gameState_594 == 11) {
@@ -347,7 +384,13 @@ void MainLoop(void) // 0x80032EE0
 #endif
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == 11) {
+            fprintf(stderr, "[SH] RENDER: post-DrawOt2, pre-EndScene\n"); fflush(stderr);
+        }
         PsyX_EndScene();
+        if (g_GameWork.gameState_594 == 11) {
+            fprintf(stderr, "[SH] RENDER: post-EndScene\n"); fflush(stderr);
+        }
 #endif
     }
 

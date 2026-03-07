@@ -366,6 +366,18 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
 #endif
     ApplyMatrixLV(&VbWvsMatrix, &vec, (VECTOR*)&GsWSMATRIX.t);
 #ifdef SH_PC_PORT
+    {
+        static int _vwt = 0;
+        if (_vwt < 3) {
+            fprintf(stderr, "[SH] vbSetWorldScreenMatrix: VbWvs m00=%d m11=%d m22=%d t=[%d,%d,%d]\n",
+                    VbWvsMatrix.m[0][0], VbWvsMatrix.m[1][1], VbWvsMatrix.m[2][2],
+                    VbWvsMatrix.t[0], VbWvsMatrix.t[1], VbWvsMatrix.t[2]);
+            fprintf(stderr, "[SH] vbSetWorldScreenMatrix: D_800C3868 m00=%d t=[%d,%d,%d]\n",
+                    D_800C3868.m[0][0], D_800C3868.t[0], D_800C3868.t[1], D_800C3868.t[2]);
+            fflush(stderr);
+            _vwt++;
+        }
+    }
     fprintf(stderr, "[SH] vbSetWorldScreenMatrix: done\n"); fflush(stderr);
 #endif
 }
@@ -489,6 +501,19 @@ void func_80049AF8(GsCOORDINATE2* rootCoord, MATRIX* outMat) // 0x80049AF8
 void func_80049B6C(GsCOORDINATE2* rootCoord, MATRIX* outMat0, MATRIX* outMat1) // 0x80049B6C
 {
     Vw_CoordHierarchyMatrixCompute(rootCoord, outMat0);
+#ifdef SH_PC_PORT
+    {
+        static int _t49 = 0;
+        if (_t49 < 3) {
+            fprintf(stderr, "[SH] 49B6C: hierResult m00=%d m11=%d t=[%d,%d,%d] VbWvs m00=%d m11=%d\n",
+                    outMat0->m[0][0], outMat0->m[1][1],
+                    outMat0->t[0], outMat0->t[1], outMat0->t[2],
+                    VbWvsMatrix.m[0][0], VbWvsMatrix.m[1][1]);
+            fflush(stderr);
+            _t49++;
+        }
+    }
+#endif
     outMat0->t[0] -= D_800C3868.t[0];
     outMat0->t[1] -= D_800C3868.t[1];
     outMat0->t[2] -= D_800C3868.t[2];

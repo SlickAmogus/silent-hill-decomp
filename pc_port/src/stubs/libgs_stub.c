@@ -298,8 +298,18 @@ _GsFCALL GsFCALL4;
 /* Global matrices */
 MATRIX GsWSMATRIX;
 MATRIX GsWSMATRIX_ORG;
-MATRIX GsIDMATRIX;
-MATRIX GsIDMATRIX2;
+/* Identity matrix (Q12 fixed-point: 4096 = 1.0) */
+MATRIX GsIDMATRIX = {
+    {{4096, 0, 0}, {0, 4096, 0}, {0, 0, 4096}},
+    {0, 0, 0}
+};
+/* Identity matrix with NTSC aspect ratio correction.
+ * PSX NTSC pixels are ~1.094x taller than wide (320x240 displayed as 4:3).
+ * Y scale = 4096 * 3/4 = 3072 (PSX libgs convention). */
+MATRIX GsIDMATRIX2 = {
+    {{4096, 0, 0}, {0, 3072, 0}, {0, 0, 4096}},
+    {0, 0, 0}
+};
 
 /* Global GS state */
 unsigned long GsLMODE, GsLIGNR, GsLIOFF, GsZOVER, GsBACKC, GsNDIV;

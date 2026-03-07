@@ -2,6 +2,9 @@
 #include "inline_no_dmpsx.h"
 
 #include <psyq/strings.h>
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
@@ -737,9 +740,14 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
     s_LinkedBone*  curBone;
 
 #ifdef SH_PC_PORT
-    /* Skeleton rendering depends on valid LM model data loaded from disc.
-     * On PC, model file reads may produce invalid data — skip to avoid crashes. */
-    return;
+    /* Validate skeleton data before rendering. On PC, LM data is reformatted
+     * from PSX binary format — skip if skeleton has no bones set up. */
+    if (skel->bones_4 == NULL) {
+        fprintf(stderr, "[SH] func_80045534: bones_4 NULL, skip\n"); fflush(stderr);
+        return;
+    }
+    fprintf(stderr, "[SH] func_80045534: enter, field2=%d images=%p\n", skel->field_2, (void*)images);
+    fflush(stderr);
 #endif
 
     var_s5 = SHRT_MAX;
@@ -805,11 +813,38 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
         }
     }
 
+#ifdef SH_PC_PORT
+    { int boneCount = 0; s_LinkedBone* b;
+      for (b = skel->bones_4; b != NULL; b = b->next_14) boneCount++;
+      fprintf(stderr, "[SH] func_80045534: bone loop, count=%d\n", boneCount); fflush(stderr);
+    }
+#endif
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next_14)
     {
         if (curBone->bone_0.modelInfo_0.field_0 >= 0)
         {
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH]   bone: field10=%d modelHdr=%p field0=0x%x\n",
+                    curBone->bone_0.field_10,
+                    (void*)curBone->bone_0.modelInfo_0.modelHdr_8,
+                    curBone->bone_0.modelInfo_0.field_0);
+            fflush(stderr);
+#endif
             func_80049B6C(&coord[(u8)curBone->bone_0.field_10], &mat1, &mat0);
+#ifdef SH_PC_PORT
+            {
+                static int _cchk = 0;
+                GsCOORDINATE2 *c = &coord[(u8)curBone->bone_0.field_10];
+                if (_cchk < 3) {
+                    fprintf(stderr, "[SH]   bone: coord[%d] flg=%d super=%p coord.m00=%d coord.t=[%d,%d,%d]\n",
+                            (u8)curBone->bone_0.field_10, c->flg, (void*)c->super,
+                            c->coord.m[0][0], c->coord.t[0], c->coord.t[1], c->coord.t[2]);
+                    fflush(stderr);
+                    _cchk++;
+                }
+            }
+            fprintf(stderr, "[SH]   bone: post-coordCalc\n"); fflush(stderr);
+#endif
 
             if (curBone->bone_0.modelInfo_0.field_0 & (1 << 0))
             {
@@ -820,7 +855,23 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
                 *(s32*)&mat0.m[0][0] = 0;
             }
 
+#ifdef SH_PC_PORT
+            {
+                static int _bmt = 0;
+                if (_bmt < 3) {
+                    fprintf(stderr, "[SH]   bone: mat0 t=[%d,%d,%d] m00=%d m11=%d m22=%d\n",
+                            mat0.t[0], mat0.t[1], mat0.t[2],
+                            mat0.m[0][0], mat0.m[1][1], mat0.m[2][2]);
+                    fflush(stderr);
+                    _bmt++;
+                }
+            }
+            fprintf(stderr, "[SH]   bone: pre-render\n"); fflush(stderr);
+#endif
             func_80057090(&curBone->bone_0.modelInfo_0, ot, arg2, &mat0, &mat1, arg5);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH]   bone: post-render\n"); fflush(stderr);
+#endif
 
             if (g_WorldEnvWork.isFogEnabled_1)
             {
