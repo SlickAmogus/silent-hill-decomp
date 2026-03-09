@@ -239,9 +239,22 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 9:
 #ifdef SH_PC_PORT
-            /* BGM timer not running - skip BGM init on PC */
-            g_GameWork.gameState_594 = GameState_MainLoadScreen;
-            Game_StateStepIncrement();
+            {
+                static int bgm_init_logged = 0;
+                if (!bgm_init_logged) {
+                    fprintf(stderr, "[SH] BGM_Init step9: calling Bgm_Init()\n");
+                    fflush(stderr);
+                    bgm_init_logged = 1;
+                }
+                s32 bgmResult = Bgm_Init();
+                if (bgmResult == 0)
+                {
+                    fprintf(stderr, "[SH] BGM_Init step9: Bgm_Init() returned 0 (done)\n");
+                    fflush(stderr);
+                    g_GameWork.gameState_594 = GameState_MainLoadScreen;
+                    Game_StateStepIncrement();
+                }
+            }
 #else
             if (Bgm_Init() == 0)
             {

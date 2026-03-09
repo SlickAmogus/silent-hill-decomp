@@ -96,8 +96,8 @@ static u8               g_Sd_CurrentTask;
 void SD_Call(u32 cmd) // 0x80045A7C
 {
 #ifdef SH_PC_PORT
-    printf("[SH_AUDIO] SD_Call cmd=%u (cat=%u)\n", cmd, (cmd >> 8) & 0xFF);
-    fflush(stdout);
+    fprintf(stderr, "[SH_AUDIO] SD_Call cmd=%u (cat=%u)\n", cmd, (cmd >> 8) & 0xFF);
+    fflush(stderr);
 #endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
@@ -724,6 +724,10 @@ static inline void func_80046A70_0(u16 temp)
 
 void func_80046A70(void) // 0x80046A70
 {
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] func_80046A70: field_10=%d -> SdSeqPlay(0,1,0)\n", g_Sd_AudioWork.field_10);
+    fflush(stderr);
+#endif
     func_80046A70_0(g_Sd_AudioWork.field_10);
 
     SdSeqPlay(0, 1, 0);
@@ -731,6 +735,10 @@ void func_80046A70(void) // 0x80046A70
     gSDVolConfig.volumeBgm_6 = 40;
     gSDVolConfig.volumeBgm_8 = 40;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] func_80046A70: volBgm set to 40, field_E=%d\n", g_Sd_AudioWork.field_E);
+    fflush(stderr);
+#endif
     Sd_SetVolBgm(gSDVolConfig.volumeBgm_6, gSDVolConfig.volumeBgm_6);
     Sd_TaskPoolUpdate();
 }
@@ -803,6 +811,19 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
     s16 volCpy;
     u8  var1;
     u8  idx;
+
+#ifdef SH_PC_PORT
+    {
+        static int vol_dbg = 0;
+        static int vol_nonzero = 0;
+        if (vol_dbg < 20 || (vol != 0 && vol_nonzero < 20)) {
+            fprintf(stderr, "[SH_BGM] Sd_BgmLayerVolumeSet: layer=%d vol=%d field_E=%d\n", layerIdx, vol, g_Sd_AudioWork.field_E);
+            fflush(stderr);
+            if (vol != 0) vol_nonzero++;
+            vol_dbg++;
+        }
+    }
+#endif
 
     if (layerIdx == 0)
     {
@@ -1292,9 +1313,9 @@ void Sd_VabLoad(void) // 0x80047B80
     {
         static s32 prevState = -1;
         if (g_Sd_AudioStreamingStates.audioLoadState_0 != prevState) {
-            printf("[SH_AUDIO] Sd_VabLoad state=%d task=%d\n",
+            fprintf(stderr, "[SH_AUDIO] Sd_VabLoad state=%d task=%d\n",
                    g_Sd_AudioStreamingStates.audioLoadState_0, g_Sd_TaskPool[0]);
-            fflush(stdout);
+            fflush(stderr);
             prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
         }
     }
@@ -1701,8 +1722,8 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
     {
         static u8 prevTask = 255;
         if (g_Sd_CurrentTask != prevTask) {
-            printf("[SH_AUDIO] TaskPoolExecute task=%d\n", g_Sd_CurrentTask);
-            fflush(stdout);
+            fprintf(stderr, "[SH_AUDIO] TaskPoolExecute task=%d\n", g_Sd_CurrentTask);
+            fflush(stderr);
             prevTask = g_Sd_CurrentTask;
         }
     }

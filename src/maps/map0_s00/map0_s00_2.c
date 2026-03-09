@@ -72,6 +72,10 @@ void Map_RoomBgmInit(bool arg0) // 0x800D94F8
         var1 = Q12(0.3f);
     }
 
+#ifdef SH_PC_PORT
+    // Force all BGM layers on - D_800DF300 event flag table is stubbed (all zeros)
+    flags |= 0x7E; // bits 1-6
+#endif
     Bgm_Update(flags, var1, &D_800DF2F8);
 }
 
