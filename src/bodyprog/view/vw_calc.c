@@ -1,7 +1,4 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 #include "inline_no_dmpsx.h"
 
 #include <psyq/gtemac.h>
@@ -326,23 +323,9 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     MATRIX work;
     VECTOR vec;
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: coord=%p flg=%lu super=%p\n",
-            (void*)coord, coord->flg, (void*)coord->super);
-    fflush(stderr);
-#endif
     Vw_CoordHierarchyMatrixCompute(coord, &D_800C3868);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: TransposeMatrix\n"); fflush(stderr);
-#endif
     TransposeMatrix(&D_800C3868, &work);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: MulMatrix0\n"); fflush(stderr);
-#endif
     MulMatrix0(&work, &GsIDMATRIX2, &VbWvsMatrix);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: setting VbWvsMatrix.t\n"); fflush(stderr);
-#endif
 
     VbWvsMatrix.t[2] = Q8(0.0f);
     VbWvsMatrix.t[1] = Q8(0.0f);
@@ -361,25 +344,7 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     vec.vx = -D_800C3868.t[0];
     vec.vy = -D_800C3868.t[1];
     vec.vz = -D_800C3868.t[2];
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: ApplyMatrixLV\n"); fflush(stderr);
-#endif
     ApplyMatrixLV(&VbWvsMatrix, &vec, (VECTOR*)&GsWSMATRIX.t);
-#ifdef SH_PC_PORT
-    {
-        static int _vwt = 0;
-        if (_vwt < 3) {
-            fprintf(stderr, "[SH] vbSetWorldScreenMatrix: VbWvs m00=%d m11=%d m22=%d t=[%d,%d,%d]\n",
-                    VbWvsMatrix.m[0][0], VbWvsMatrix.m[1][1], VbWvsMatrix.m[2][2],
-                    VbWvsMatrix.t[0], VbWvsMatrix.t[1], VbWvsMatrix.t[2]);
-            fprintf(stderr, "[SH] vbSetWorldScreenMatrix: D_800C3868 m00=%d t=[%d,%d,%d]\n",
-                    D_800C3868.m[0][0], D_800C3868.t[0], D_800C3868.t[1], D_800C3868.t[2]);
-            fflush(stderr);
-            _vwt++;
-        }
-    }
-    fprintf(stderr, "[SH] vbSetWorldScreenMatrix: done\n"); fflush(stderr);
-#endif
 }
 
 void vbSetRefView(VbRVIEW* rview) // 0x800498D8
@@ -388,34 +353,18 @@ void vbSetRefView(VbRVIEW* rview) // 0x800498D8
     SVECTOR       rot; // Q3.12
     SVECTOR       pos; // Q3.12
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetRefView: rview=%p super=%p\n", (void*)rview, (void*)rview->super);
-    fflush(stderr);
-#endif
     coord.flg   = false;
     coord.super = rview->super;
     pos.vx      = rview->vr.vx - rview->vp.vx;
     pos.vy      = rview->vr.vy - rview->vp.vy;
     pos.vz      = rview->vr.vz - rview->vp.vz;
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetRefView: vwVectorToAngle\n"); fflush(stderr);
-#endif
     vwVectorToAngle(&rot, &pos);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetRefView: Math_RotMatrixZxyNegGte\n"); fflush(stderr);
-#endif
     Math_RotMatrixZxyNegGte(&rot, &coord.coord);
 
     coord.coord.t[0] = rview->vp.vx;
     coord.coord.t[1] = rview->vp.vy;
     coord.coord.t[2] = rview->vp.vz;
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetRefView: vbSetWorldScreenMatrix\n"); fflush(stderr);
-#endif
     vbSetWorldScreenMatrix(&coord);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vbSetRefView: done\n"); fflush(stderr);
-#endif
 }
 
 void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* outMat) // 0x80049984
@@ -501,19 +450,6 @@ void func_80049AF8(GsCOORDINATE2* rootCoord, MATRIX* outMat) // 0x80049AF8
 void func_80049B6C(GsCOORDINATE2* rootCoord, MATRIX* outMat0, MATRIX* outMat1) // 0x80049B6C
 {
     Vw_CoordHierarchyMatrixCompute(rootCoord, outMat0);
-#ifdef SH_PC_PORT
-    {
-        static int _t49 = 0;
-        if (_t49 < 3) {
-            fprintf(stderr, "[SH] 49B6C: hierResult m00=%d m11=%d t=[%d,%d,%d] VbWvs m00=%d m11=%d\n",
-                    outMat0->m[0][0], outMat0->m[1][1],
-                    outMat0->t[0], outMat0->t[1], outMat0->t[2],
-                    VbWvsMatrix.m[0][0], VbWvsMatrix.m[1][1]);
-            fflush(stderr);
-            _t49++;
-        }
-    }
-#endif
     outMat0->t[0] -= D_800C3868.t[0];
     outMat0->t[1] -= D_800C3868.t[1];
     outMat0->t[2] -= D_800C3868.t[2];

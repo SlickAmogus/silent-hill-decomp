@@ -1,7 +1,4 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/view/vc_util.h"
@@ -14,40 +11,19 @@ extern s32 g_VBlanks;
 
 void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_pos) // 0x8004004C
 {
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: setting vcCameraInternalInfo\n"); fflush(stderr);
-#endif
     g_WorldGfx.vcCameraInternalInfo_1BDC.mv_smooth   = VC_MV_CHASE;
     g_WorldGfx.vcCameraInternalInfo_1BDC.ev_cam_rate = Q12(0.0f);
     g_WorldGfx.vcCameraInternalInfo_1BDC.mode        = 0;
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: vcSetCameraUseWarp\n"); fflush(stderr);
-#endif
     vcSetCameraUseWarp(chr_pos, g_SysWork.cameraAngleY_237A);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: SetGeomScreen\n"); fflush(stderr);
-#endif
     SetGeomScreen(g_GameWork.gsScreenHeight_58A);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: vwInitViewInfo\n"); fflush(stderr);
-#endif
     vwInitViewInfo();
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: vcInitVCSystem\n"); fflush(stderr);
-#endif
     vcInitVCSystem(map_overlay_ptr->roadDataList_3CC);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: vcStartCameraSystem\n"); fflush(stderr);
-#endif
     vcStartCameraSystem();
 
     g_SysWork.cameraAngleZ_237C   = Q12_ANGLE(0.0f);
     g_SysWork.cameraRadiusXz_2380 = Q12(3.0f);
     g_SysWork.cameraY_2384        = Q12(0.0f);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] vcInitCamera: done\n"); fflush(stderr);
-#endif
 }
 
 void vcSetCameraUseWarp(const VECTOR3* chr_pos, q3_12 chr_ang_y) // 0x800400D4
@@ -188,6 +164,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
     }
 
     vwSetViewInfo();
+
 }
 
 void vcMakeHeroHeadPos(VECTOR3* head_pos) // 0x8004047C

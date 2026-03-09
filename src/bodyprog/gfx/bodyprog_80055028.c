@@ -1,8 +1,5 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 
 #include <psyq/gtemac.h>
 #include <psyq/libapi.h>
@@ -16,6 +13,9 @@
 #include "bodyprog/player.h"
 #include "bodyprog/sound_system.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 // ========================================
 // ENVIRONMENT AND SCREEN GFX 1
@@ -25,17 +25,8 @@ extern s_WorldEnvWork g_WorldEnvWork;
 
 void WorldEnv_Init(void) // 0x80055028
 {
-    fprintf(stderr, "[SH] WorldEnv_Init: sizeof(s_WorldGfxWork)=%zu sizeof(s_WorldEnvWork)=%zu\n",
-            sizeof(s_WorldGfxWork), sizeof(s_WorldEnvWork)); fflush(stderr);
-    fprintf(stderr, "[SH] WorldEnv_Init: &g_WorldGfx=%p &g_WorldEnvWork=%p harry=%p\n",
-            (void*)&g_WorldGfx, (void*)&g_WorldEnvWork,
-            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
     func_80040BAC();
-    fprintf(stderr, "[SH] WorldEnv_Init: after func_80040BAC harry=%p\n",
-            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
     func_8008D41C();
-    fprintf(stderr, "[SH] WorldEnv_Init: after func_8008D41C harry=%p\n",
-            (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
 
     g_WorldEnvWork.field_0  = 0;
     g_WorldEnvWork.field_20 = Q12(1.0f);
@@ -108,6 +99,51 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         AddPrim(ot->org, mode);
     }
 
+#ifdef SH_PC_PORT
+    /* PC port: use proper sizeof instead of hardcoded PSX byte offsets.
+     * SetPriority is stubbed, so just allocate header space for it.
+     * Also set semi-transparency directly on the poly since DR_MODE
+     * prims get stripped from InGame OT0. */
+    {
+        #define SETPRIORITY_SIZE (sizeof(P_TAG) + 2 * sizeof(u_int)) /* P_TAG header + 2 data words */
+
+        packet2 = GsOUT_PACKET_P;
+        packet  = packet2;
+
+        SetPriority(packet2, 0, 0);
+        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], packet2);
+
+        poly           = (POLY_G4*)(packet + SETPRIORITY_SIZE);
+        GsOUT_PACKET_P = packet + SETPRIORITY_SIZE + sizeof(POLY_G4);
+
+        color2           = *(s32*)&g_WorldEnvWork.fogColor_1C;
+        *(s32*)&poly->r3 = color2;
+        *(s32*)&poly->r2 = color2;
+        *(s32*)&poly->r1 = color2;
+        *(s32*)&poly->r0 = color2;
+
+        SetPolyG4(poly);
+        setSemiTrans(poly, true);
+        setXY4(poly,
+               -180, -120,
+                180, -120,
+               -180,  120,
+                180,  120);
+
+        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
+        packet = GsOUT_PACKET_P;
+        SetPriority(packet, 0, 1);
+        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], packet);
+
+        GsOUT_PACKET_P = packet + SETPRIORITY_SIZE + sizeof(DR_MODE);
+        mode           = (DR_MODE*)((PACKET*)packet + SETPRIORITY_SIZE);
+
+        SetDrawMode(mode, 0, 1, 32, NULL);
+        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], mode);
+
+        #undef SETPRIORITY_SIZE
+    }
+#else
     packet2 = GsOUT_PACKET_P;
     packet  = packet2;
 
@@ -142,6 +178,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], mode);
 
     GsOUT_PACKET_P = packet + 24;
+#endif
 }
 
 void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, q23_8 brightness) // 0x80055330
@@ -1245,20 +1282,11 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
         return;
     }
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]     57090: B1=%d B4=%d B0=%d meshCnt=%d meshHdrs=%p name=%.8s\n",
-            modelHdr->field_B_1, modelHdr->field_B_4, modelHdr->field_B_0,
-            modelHdr->meshCount_8, (void*)modelHdr->meshHdrs_C, (char*)&modelHdr->name_0);
-    fflush(stderr);
-#endif
 
     otTag = &arg1->org[func_800571D0(modelHdr->field_B_1)];
     temp_a0 = modelHdr->field_B_4;
     if ((temp_a0 & 0xFF) && temp_a0 >= 0 && temp_a0 < 4) // TODO: `& 0xFF` needed for match.
     {
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]     57090: calling 59D50 (path A)\n"); fflush(stderr);
-#endif
         func_80059D50(temp_a0, modelInfo, mat0, arg2, otTag);
     }
     else
@@ -1272,7 +1300,6 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
         /* Force path C (func_80057344) for all bones on PC.
          * func_8005A21C (path B) crashes due to uninitialized
          * environment/scratch data during mesh processing. */
-        fprintf(stderr, "[SH]     57090: calling 57344 (forced path C)\n"); fflush(stderr);
         func_80057344(modelInfo, otTag, arg2, mat0);
 #else
         if (modelHdr->field_B_0)
@@ -1286,9 +1313,6 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
         }
 #endif
     }
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]     57090: done\n"); fflush(stderr);
-#endif
 }
 
 s32 func_800571D0(u32 arg0) // 0x800571D0
@@ -1355,9 +1379,6 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
         return;
     }
-    fprintf(stderr, "[SH]       57344: meshCnt=%d vertOfs=%d normOfs=%d\n",
-            modelHdr->meshCount_8, modelHdr->vertexOffset_9, modelHdr->normalOffset_A);
-    fflush(stderr);
 #endif
     vertOffset   = modelHdr->vertexOffset_9;
     normalOffset = modelHdr->normalOffset_A;
@@ -1367,24 +1388,6 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
     for (curMeshHdr = modelHdr->meshHdrs_C; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
     {
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]       57344: mesh primCnt=%d vertCnt=%d prims=%p verts=%p vertsZ=%p\n",
-                curMeshHdr->primitiveCount_0, curMeshHdr->vertexCount_1,
-                (void*)curMeshHdr->primitives_4, (void*)curMeshHdr->verticesXy_8,
-                (void*)curMeshHdr->verticesZ_C);
-        fflush(stderr);
-        /* Hex dump first 3 primitives (20 bytes each) */
-        {
-            int pi;
-            for (pi = 0; pi < 3 && pi < curMeshHdr->primitiveCount_0; pi++) {
-                u8* pb = (u8*)&curMeshHdr->primitives_4[pi];
-                fprintf(stderr, "[SH]       57344: prim[%d] hex: %02x%02x %02x%02x %02x%02x %02x%02x %02x%02x %02x%02x [%02x%02x%02x%02x] [%02x%02x%02x%02x] sizeof=%d\n",
-                        pi, pb[0],pb[1],pb[2],pb[3],pb[4],pb[5],pb[6],pb[7],pb[8],pb[9],pb[10],pb[11],
-                        pb[12],pb[13],pb[14],pb[15], pb[16],pb[17],pb[18],pb[19], (int)sizeof(s_Primitive));
-                fflush(stderr);
-            }
-        }
-#endif
         if (vertOffset != 0 || normalOffset != 0)
         {
             func_8005759C(curMeshHdr, scratchData, vertOffset, normalOffset);
@@ -1394,15 +1397,6 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
             func_800574D4(curMeshHdr, scratchData);
         }
 
-#ifdef SH_PC_PORT
-        if (curMeshHdr->vertexCount_1 > 10) {
-            fprintf(stderr, "[SH]       57344: after-vcopy scratch[0]=[%d,%d] scratch[1]=[%d,%d] scratchAddr=%p\n",
-                    scratchData->screenXy_0[0].vx, scratchData->screenXy_0[0].vy,
-                    scratchData->screenXy_0[1].vx, scratchData->screenXy_0[1].vy,
-                    (void*)scratchData);
-            fflush(stderr);
-        }
-#endif
         switch (g_WorldEnvWork.field_0)
         {
             case 0:
@@ -1417,17 +1411,8 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
                 break;
         }
 
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]       57344: post-vertcopy\n"); fflush(stderr);
-#endif
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]       57344: post-projection\n"); fflush(stderr);
-#endif
         func_8005801C(curMeshHdr, scratchData, otTag, arg2);
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]       57344: post-primsubmit\n"); fflush(stderr);
-#endif
     }
 }
 
@@ -1444,16 +1429,6 @@ void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x80
     var_a2   = &scratchData->field_18C[0]; // `screenZ`? There's already an earlier struct field though.
     vertexXy = &meshHdr->verticesXy_8[0];
     vertexZ  = &meshHdr->verticesZ_C[0];
-
-#ifdef SH_PC_PORT
-    if (meshHdr->vertexCount_1 > 10) {
-        fprintf(stderr, "[SH]       vertcopy: vertCnt=%d vertXy=%p vertZ=%p v0=[%d,%d] v1=[%d,%d] z0=%d z1=%d\n",
-                meshHdr->vertexCount_1, (void*)vertexXy, (void*)vertexZ,
-                vertexXy[0].vx, vertexXy[0].vy, vertexXy[1].vx, vertexXy[1].vy,
-                vertexZ[0], vertexZ[1]);
-        fflush(stderr);
-    }
-#endif
 
     while (var_a2 < &scratchData->field_18C[meshHdr->vertexCount_1])
     {
@@ -1695,21 +1670,6 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
 
     temp_s2 = g_WorldEnvWork.fogDepthShift_14;
 
-#ifdef SH_PC_PORT
-    {
-        static int _pchk = 0;
-        if (_pchk < 3) {
-            fprintf(stderr, "[SH]       57B7C: ENTRY scratch=%p xy0=[%d,%d] raw_bytes=%02x%02x%02x%02x\n",
-                    (void*)scratchData,
-                    scratchData->screenXy_0[offset].vx, scratchData->screenXy_0[offset].vy,
-                    ((u8*)&scratchData->screenXy_0[offset])[0], ((u8*)&scratchData->screenXy_0[offset])[1],
-                    ((u8*)&scratchData->screenXy_0[offset])[2], ((u8*)&scratchData->screenXy_0[offset])[3]);
-            fflush(stderr);
-            _pchk++;
-        }
-    }
-#endif
-
     SetRotMatrix(mat);
     SetTransMatrix(mat);
 
@@ -1727,59 +1687,11 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
 
     var_t1 = &scratchData->field_252[offset];
 
-#ifdef SH_PC_PORT
-    {
-        static int _pc_proj_trace = 0;
-        if (_pc_proj_trace < 3) {
-            /* Log input vertices before GTE transform */
-            fprintf(stderr, "[SH]       proj: v_in m00=%d m11=%d m22=%d (xy packed)\n",
-                    *(s32*)&scratchData->field_380.field_0.m[0][0],
-                    *(s32*)&scratchData->field_380.field_0.m[1][1],
-                    *(s32*)&scratchData->field_380.field_0.m[2][2]);
-            fprintf(stderr, "[SH]       proj: z_in m02=%d m20=%d t0=%d\n",
-                    scratchData->field_380.field_0.m[0][2],
-                    scratchData->field_380.field_0.m[2][0],
-                    scratchData->field_380.field_0.t[0]);
-            fflush(stderr);
-        }
-    }
-#endif
     gte_ldv3c(&scratchData->field_380.field_0);
     gte_rtpt();
-#ifdef SH_PC_PORT
-    {
-        static int _pc_rtpt_trace = 0;
-        if (_pc_rtpt_trace < 5) {
-            /* Check GTE registers directly after rtpt */
-            fprintf(stderr, "[SH]       rtpt: SZ1=%d SZ2=%d SZ3=%d SXY0=%d SXY1=%d SXY2=%d\n",
-                    MFC2(17), MFC2(18), MFC2(19), MFC2(12), MFC2(13), MFC2(14));
-            fprintf(stderr, "[SH]       rtpt: mat_t=[%d,%d,%d] mat_r00=%d r11=%d r22=%d\n",
-                    mat->t[0], mat->t[1], mat->t[2],
-                    mat->m[0][0], mat->m[1][1], mat->m[2][2]);
-            fflush(stderr);
-            _pc_rtpt_trace++;
-        }
-    }
-#endif
     gte_stsxy3c(screenXy);
     gte_stsz3(&scratchData->field_380.field_0.m[0][2], &scratchData->field_380.field_0.m[2][0], &scratchData->field_380.field_0.t[0]);
 
-#ifdef SH_PC_PORT
-    {
-        static int _pc_proj_trace = 0;
-        if (_pc_proj_trace < 5) {
-            fprintf(stderr, "[SH]       proj: out sxy=[%d,%d][%d,%d][%d,%d] sz=[%d,%d,%d] mat_t=[%d,%d,%d]\n",
-                    screenXy[0].vx, screenXy[0].vy, screenXy[1].vx, screenXy[1].vy,
-                    screenXy[2].vx, screenXy[2].vy,
-                    (s16)scratchData->field_380.field_0.m[0][2],
-                    (s16)scratchData->field_380.field_0.m[2][0],
-                    (s16)scratchData->field_380.field_0.t[0],
-                    mat->t[0], mat->t[1], mat->t[2]);
-            fflush(stderr);
-            _pc_proj_trace++;
-        }
-    }
-#endif
 
     temp_a2[0] = scratchData->field_380.field_0.m[0][2];
     temp_a2[1] = scratchData->field_380.field_0.m[2][0];
@@ -1901,12 +1813,6 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
     POLY_GT4*    poly3;
     POLY_FT4*    poly4;
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: enter, primCnt=%d arg3=%d field_0=%d fog=%d pkt=%p\n",
-            meshHdr->primitiveCount_0, arg3, g_WorldEnvWork.field_0, g_WorldEnvWork.isFogEnabled_1,
-            (void*)GsOUT_PACKET_P);
-    fflush(stderr);
-#endif
 
     temp_v1 = 0x79C << (arg3 + 2);
 
@@ -1929,45 +1835,21 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
     scratchData->field_380.s_0.field_8    = g_WorldEnvWork.worldTintColor_28;
     scratchData->field_380.s_0.field_8.cd = 0x3C;
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: pre-gte field_20=%d\n", g_WorldEnvWork.field_20);
-    fflush(stderr);
-#endif
 
     if (g_WorldEnvWork.field_0 == 0)
     {
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]         8005801C: gte_lddp val=%d\n", 0x1000 - g_WorldEnvWork.field_20);
-        fflush(stderr);
-#endif
         gte_lddp(0x1000 - g_WorldEnvWork.field_20);
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]         8005801C: post-lddp\n"); fflush(stderr);
-#endif
         gte_ldrgb(&scratchData->field_380.s_0.field_8);
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]         8005801C: post-ldrgb\n"); fflush(stderr);
-#endif
         gte_dpcs();
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH]         8005801C: post-dpcs\n"); fflush(stderr);
-#endif
         gte_strgb(&scratchData->field_380.s_0.field_8);
     }
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: post-gte\n"); fflush(stderr);
-#endif
 
     scratchData->field_380.s_0.field_C    = g_WorldEnvWork.fogColor_1C;
     scratchData->field_380.s_0.field_C.cd = 0x38;
 
     SetBackColor(0, 0, 0);
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: post-SetBackColor, prims=%p\n", (void*)meshHdr->primitives_4);
-    fflush(stderr);
-#endif
 
     prim = meshHdr->primitives_4;
 
@@ -2621,10 +2503,6 @@ __block19CC:
     poly4                       = GsOUT_PACKET_P;
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: __block19CC path, poly4=%p primCnt=%d field_1C=%d z0-3=[%d,%d,%d,%d]\n",
-            (void*)poly4, meshHdr->primitiveCount_0, scratchData->field_380.s_0.field_1C,
-            scratchData->field_18C[0], scratchData->field_18C[1], scratchData->field_18C[2], scratchData->field_18C[3]);
-    fflush(stderr);
     {
     s32 pc_primIdx = 0;
     s32 pc_emitted = 0;
@@ -2643,12 +2521,6 @@ __block19CC:
         /* Bounds-check vertex indices before using them as array indices */
         if (scratchData->field_380.s_0.field_10 >= 90 || scratchData->field_380.s_0.field_11 >= 90 ||
             scratchData->field_380.s_0.field_12 >= 90 || scratchData->field_380.s_0.field_13 >= 90) {
-            if (pc_primIdx < 3) {
-                fprintf(stderr, "[SH]         8005801C: OOB vtx idx [%d,%d,%d,%d] prim#%d, skip\n",
-                        scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
-                        scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13, pc_primIdx);
-                fflush(stderr);
-            }
             pc_primIdx++;
             continue;
         }
@@ -2696,9 +2568,6 @@ __block19CC:
         {
             s32 otIdx = (scratchData->field_380.s_0.field_18 >> arg3) >> 2;
             if (otIdx >= 2048 || otIdx < 0) {
-                fprintf(stderr, "[SH]         8005801C: OOB OT idx=%d field_18=%d prim#%d, skip\n",
-                        otIdx, scratchData->field_380.s_0.field_18, pc_primIdx);
-                fflush(stderr);
                 pc_primIdx++;
                 continue;
             }
@@ -2735,6 +2604,7 @@ __block19CC:
         temp_t0_5  = temp_a3_5 * 2;
         temp       = temp_a2_7;
 
+
         if ((s16)temp_a2_7 + temp_a3_5 < temp_t0_5 || (s16)temp_a1_5 + temp_a3_5 < temp_t0_5 ||
             (s16)temp_a0_13 + temp_a3_5 < temp_t0_5 || (s16)temp_v1_27 + temp_a3_5 < temp_t0_5)
         {
@@ -2765,8 +2635,6 @@ __block19CC:
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH]         8005801C: done, emitted=%d/%d\n", pc_emitted, pc_primIdx);
-    fflush(stderr);
     }
 #endif
 

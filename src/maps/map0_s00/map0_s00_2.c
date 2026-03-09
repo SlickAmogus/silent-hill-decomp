@@ -142,7 +142,20 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     s32  time;
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] OpeningCutscene: step=%d\n", g_SysWork.sysStateStep_C[0]); fflush(stderr);
+    /* On PC, DMS cutscene data can't be parsed (64-bit struct incompatibility).
+     * Skip the entire cutscene and go straight to gameplay. */
+    if (g_SysWork.sysStateStep_C[0] == 0) {
+        g_Timer0 = NO_VALUE;
+        Player_ControlUnfreeze(false);
+        SysWork_StateSetNext(SysState_Gameplay);
+        ScreenFade_Reset(); /* Clear any pending fade so screen isn't stuck black */
+        vcReturnPreAutoCamWork(true);
+        Vc_CameraElevationRateLockSet(true); /* ev_cam_rate=1.0 so watch target isn't underground */
+        Chara_ProcessLoads();
+        g_SysWork.sysStateStep_C[0] = 99; /* prevent re-entry */
+        return;
+    }
+    return; /* cutscene already skipped */
 #endif
 
     skipCutscene = false;
@@ -156,13 +169,7 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC0: Player_ControlFreeze\n"); fflush(stderr);
-#endif
             Player_ControlFreeze();
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC0: Fs_QueueStartRead\n"); fflush(stderr);
-#endif
             Fs_QueueStartRead(FILE_ANIM_OPEN_DMS, FS_BUFFER_16);
 
             g_SysWork.field_30 = 20;
@@ -170,26 +177,14 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 
             g_SysWork.flags_22A4 |= SysFlag2_3;
 
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC0: Sd_PlaySfx\n"); fflush(stderr);
-#endif
             Sd_PlaySfx(Sfx_Unk1361, 0, 0x90);
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC0: StateStepIncrement\n"); fflush(stderr);
-#endif
             SysWork_StateStepIncrement(0);
 
         case 1:
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC1: Fs_QueueDoThingWhenEmpty\n"); fflush(stderr);
-#endif
             if (Fs_QueueDoThingWhenEmpty())
             {
                 SysWork_StateStepIncrement(0);
             }
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] OC1: done\n"); fflush(stderr);
-#endif
             break;
 
         case 2:

@@ -4,6 +4,8 @@
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 #include <stdio.h>
+extern u8 g_WorldEnvWork[];
+#define PC_WorldEnvWork (*(s_WorldEnvWork*)g_WorldEnvWork)
 #endif
 #include <psyq/libetc.h>
 
@@ -328,69 +330,54 @@ void MainLoop(void) // 0x80032EE0
 
         // Draw objects?
         GsSwapDispBuff();
+#ifdef SH_PC_PORT
+        /* Override background color with fog color during InGame.
+         * fog params are set by Gfx_FlashlightUpdate from the previous frame's
+         * update, so they're valid by frame 2+. Use the normal GsSortClear path
+         * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
+        if (g_GameWork.gameState_594 == 11 && PC_WorldEnvWork.isFogEnabled_1) {
+            g_GameWork.background2dColor_58C.r = PC_WorldEnvWork.fogColor_1C.r;
+            g_GameWork.background2dColor_58C.g = PC_WorldEnvWork.fogColor_1C.g;
+            g_GameWork.background2dColor_58C.b = PC_WorldEnvWork.fogColor_1C.b;
+        }
+#endif
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == 11) {
-            /* OT0 contains bad primitives from uninitialized systems (world geo,
-             * NPCs, etc). Clear it and re-render just the player skeleton. The
-             * bone coords were properly set up by Player_Update earlier. */
-            GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
-            GsSortClear(0, 0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
-
+            /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
+             * Strip DR_MODE (0xE0) which crashes PsyCross ProcessDrawEnv,
+             * lines (0x40/0x50), and any unknown types. Texture page info is
+             * embedded in POLY_FT/GT prims so DR_MODE isn't needed for textures. */
+            GsOT* ot0 = &g_OrderingTable0[g_ActiveBufferIdx];
             {
-                extern MATRIX VbWvsMatrix;
-                if (VbWvsMatrix.m[0][0] == 0 && VbWvsMatrix.m[1][1] == 0) {
-                    /* Camera not yet initialized — skip render to avoid
-                     * garbage primitives from zero view-projection matrix */
-                    goto skip_skeleton_render;
+                OT_TAG* cur = (OT_TAG*)ot0->tag;
+                int w2 = 0;
+                while (cur && !isendprim(cur) && w2 < 8192) {
+                    int len = getlen(cur);
+                    if (len > 0) {
+                        u8 hi = ((P_TAG*)cur)->code & 0xF0;
+                        if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
+                            hi != 0x60 && hi != 0x70 && hi != 0xA0)) {
+                            setlen(cur, 0);
+                        }
+                    }
+                    cur = (OT_TAG*)nextPrim(cur);
+                    w2++;
                 }
             }
-            if (g_SysWork.playerWork_4C.player_0.model_0.anim_4.flags_2 & AnimFlag_Visible &&
-                g_WorldGfx.registeredCharaModels_18[Chara_Harry] != NULL &&
-                g_WorldGfx.registeredCharaModels_18[Chara_Harry]->isLoaded_1) {
-                /* Disable fog/env — fogRamp_CC may be uninitialized */
-                extern s_WorldEnvWork g_WorldEnvWork;
-                u8 savedFog = g_WorldEnvWork.isFogEnabled_1;
-                u8 savedEnv = g_WorldEnvWork.field_0;
-                g_WorldEnvWork.isFogEnabled_1 = 0;
-                g_WorldEnvWork.field_0 = 0;
-
-                func_80045534(
-                    &g_WorldGfx.registeredCharaModels_18[Chara_Harry]->skeleton_14,
-                    &g_OrderingTable0[g_ActiveBufferIdx], 1,
-                    g_SysWork.playerBoneCoords_890,
-                    Q8_TO_Q12(CHARA_FILE_INFOS[Chara_Harry].field_6),
-                    0, CHARA_FILE_INFOS[Chara_Harry].field_8);
-
-                g_WorldEnvWork.isFogEnabled_1 = savedFog;
-                g_WorldEnvWork.field_0 = savedEnv;
-            }
-            skip_skeleton_render:
-
-            fprintf(stderr, "[SH] RENDER: pre-DrawOt0\n");
-            fflush(stderr);
         }
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) {
-            fprintf(stderr, "[SH] RENDER: post-DrawOt0\n"); fflush(stderr);
-        }
-        /* Sanitize OT2 before drawing during InGame: re-clear to remove any
-         * garbage primitives that may have been linked in by uninitialized code. */
+        /* Always sanitize OT2 — subsystems like flashlight and particles
+         * may add garbage prims that crash PsyCross's primitive parser */
         if (g_GameWork.gameState_594 == 11) {
             GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
         }
 #endif
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) {
-            fprintf(stderr, "[SH] RENDER: post-DrawOt2, pre-EndScene\n"); fflush(stderr);
-        }
         PsyX_EndScene();
-        if (g_GameWork.gameState_594 == 11) {
-            fprintf(stderr, "[SH] RENDER: post-EndScene\n"); fflush(stderr);
-        }
 #endif
     }
 

@@ -1,7 +1,4 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libgs.h>
@@ -107,17 +104,6 @@ void Screen_FadeUpdate(void) // 0x8003260C
     tile                     = &D_800A8E74[g_ActiveBufferIdx];
     g_PrevScreenFadeProgress = g_ScreenFadeProgress;
 
-#ifdef SH_PC_PORT
-    {
-        static int prevStatus = -1;
-        if (g_Screen_FadeStatus != prevStatus) {
-            fprintf(stderr, "[SH] Screen_FadeUpdate: status=%d->%d progress=%d dtRaw=%d timestep=%d\n",
-                prevStatus, g_Screen_FadeStatus, g_ScreenFadeProgress, g_DeltaTimeRaw, g_ScreenFadeTimestep);
-            fflush(stderr);
-            prevStatus = g_Screen_FadeStatus;
-        }
-    }
-#endif
     switch (g_Screen_FadeStatus)
     {
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutStart, false):
@@ -171,14 +157,6 @@ void Screen_FadeUpdate(void) // 0x8003260C
 
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, false):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, true):
-#ifdef SH_PC_PORT
-            /* PsyCross doesn't handle semi-transparent TILE blending correctly,
-             * so the fade overlay renders as white instead of black. During InGame
-             * the background is already cleared to black via GsSortClear, so skip
-             * the TILE. Other states (logos, menus) still need the fade overlay. */
-            if (g_GameWork.gameState_594 == 11)
-                return;
-#endif
             Screen_FadeDrawModeSet(drMode);
             tile->r0 = Q12_TO_Q8(g_ScreenFadeProgress);
             tile->g0 = Q12_TO_Q8(g_ScreenFadeProgress);
@@ -203,14 +181,6 @@ void Screen_FadeUpdate(void) // 0x8003260C
                 s32 effectiveDt = g_DeltaTimeRaw > 0 ? g_DeltaTimeRaw : Q12(1.0f / 60.0f);
                 s32 decrement = Q12_MULT_PRECISE(timestep * 4, effectiveDt);
                 g_ScreenFadeProgress -= decrement;
-                {
-                    static int fadeInDbg = 0;
-                    if (fadeInDbg < 10) {
-                        printf("[SH] FadeIn: progress=%d dec=%d ts=%d dt=%d\n",
-                            g_ScreenFadeProgress, decrement, timestep, effectiveDt);
-                        fadeInDbg++;
-                    }
-                }
             }
 #else
             g_ScreenFadeProgress -= Q12_MULT_PRECISE(timestep, g_DeltaTimeRaw);

@@ -48,7 +48,16 @@ int SDL_main(int argc, char* argv[]) { return main(argc, argv); }
 void CdMix() { }
 void CdRead2() { }
 void CdReset() { }
-void LoadAverageCol() { }
+/* LoadAverageCol: GTE color interpolation — output = (v0*p0 + v1*p1) >> 12
+ * v0, v1, v2 are RGB byte triplets; p0, p1 are Q12 fixed-point weights. */
+void LoadAverageCol(unsigned char *v0, unsigned char *v1, long p0, long p1, unsigned char *v2) {
+    int r = (v0[0] * p0 + v1[0] * p1) >> 12;
+    int g = (v0[1] * p0 + v1[1] * p1) >> 12;
+    int b = (v0[2] * p0 + v1[2] * p1) >> 12;
+    v2[0] = r > 255 ? 255 : (r < 0 ? 0 : r);
+    v2[1] = g > 255 ? 255 : (g < 0 ? 0 : g);
+    v2[2] = b > 255 ? 255 : (b < 0 ? 0 : b);
+}
 void SpuGetVoiceAttr() { }
 void WorldObject_D_800D7FF0() { }
 void WorldObject_D_800D8020() { }
@@ -71,7 +80,12 @@ void SetDrawOffset(DR_OFFSET* p, u_short* ofs) { (void)p; (void)ofs; }
 void SetDrawStp(DR_STP* p, int pbw) { (void)p; (void)pbw; }
 void SetMulRotMatrix(MATRIX* m) { (void)m; }
 void SetPolyG3(POLY_G3* p) { (void)p; }
-void Square0() { }
+VECTOR* Square0(VECTOR* v0, VECTOR* v1) {
+    v1->vx = v0->vx * v0->vx;
+    v1->vy = v0->vy * v0->vy;
+    v1->vz = v0->vz * v0->vz;
+    return v1;
+}
 int Lzc(long val) {
     /* Leading zero count */
     int count = 0;
