@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdlib.h>
+#endif
 
 #include <psyq/strings.h>
 
@@ -712,7 +715,11 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
     {
         Ipd_ActiveChunksClear(&g_Map, activeIpdCount);
 
+#ifdef SH_PC_PORT
+        g_Map.ipdActiveSize_158 = 64;
+#else
         g_Map.ipdActiveSize_158 = activeIpdCount;
+#endif
         g_Map.ipdFileIdx_14C    = ipdFileIdx;
         strcpy(g_Map.mapTag_144, mapTag);
 
@@ -732,6 +739,41 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
     ipdHdr0 = map->ipdBuffer_150;
     step    = (map->ipdBufferSize_154 / arg1) & ~0x3;
 
+#ifdef SH_PC_PORT
+    /* On PC, initialize ALL 64 slots. First `arg1` slots get shared buffer,
+       extra slots get individually malloc'd buffers for debug mode. */
+    for (i = 0; i < 64; i++)
+    {
+        curChunk = &map->ipdActive_15C[i];
+
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        {
+            ipdHdr1 = curChunk->ipdHdr_0;
+            if (ipdHdr1 != NULL && ipdHdr1->isLoaded_1)
+            {
+                Lm_MaterialRefCountDec(ipdHdr1->lmHdr_4);
+            }
+        }
+
+        curChunk->queueIdx_4      = NO_VALUE;
+        curChunk->distance1_10    = INT_MAX;
+        curChunk->outsideCount_18 = 0;
+
+        if (i < arg1)
+        {
+            curChunk->ipdHdr_0 = ipdHdr0;
+            *(u8**)&ipdHdr0 += step;
+        }
+        else if (i < 64)
+        {
+            /* Allocate individual buffers for extra debug slots */
+            if (curChunk->ipdHdr_0 == NULL)
+            {
+                curChunk->ipdHdr_0 = (s_IpdHeader*)calloc(1, step > 0 ? step : 65536);
+            }
+        }
+    }
+#else
     for (i = 0; i < 4; i++, *(u8**)&ipdHdr0 += step)
     {
         curChunk = &map->ipdActive_15C[i];
@@ -758,6 +800,7 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
             curChunk->ipdHdr_0 = NULL;
         }
     }
+#endif
 }
 
 void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x800423F4
@@ -1123,18 +1166,34 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
     Ipd_ActiveChunksSample(map, posX0, posZ0, posX1, posZ1, map->isExterior_588);
     Ipd_ChunkMaterialsApply(map);
 
-    for (z = -1; z <= 1; z++)
     {
-        for (x = -1; x <= 1; x++)
+#ifdef SH_PC_PORT
+    s32 scanMin = g_DebugCamEnabled ? -8 : -1;
+    s32 scanMax = g_DebugCamEnabled ? 10 : 1;
+#else
+    s32 scanMin = -1;
+    s32 scanMax = 1;
+#endif
+    for (z = scanMin; z <= scanMax; z++)
+    {
+        for (x = scanMin; x <= scanMax; x++)
         {
+#ifdef SH_PC_PORT
+            if (g_DebugCamEnabled || map->isExterior_588 || (x == 0 && z == 0))
+#else
             if (map->isExterior_588 || (x == 0 && z == 0))
+#endif
             {
                 projCellZ = cellZ0 + z;
                 projCellX = cellX0 + x;
 
                 chunkIdx = Map_IpdIdxGet(projCellX, projCellZ);
                 if (chunkIdx != NO_VALUE &&
+#ifdef SH_PC_PORT
+                    (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f)) &&
+#else
                     Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f) &&
+#endif
                     !Map_IsIpdPresent(map->ipdActive_15C, projCellX, projCellZ))
                 {
                     chunk = Ipd_FreeChunkFind(map->ipdActive_15C, map->isExterior_588);
@@ -1157,6 +1216,7 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
             }
         }
     }
+    } /* close scanMin/scanMax block */
 
     return queueIdx;
 }
@@ -1166,7 +1226,7 @@ void Ipd_ActiveChunksSample(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1
     s_IpdChunk* curChunk;
 
     // Run through active chunks.
-    for (curChunk = map->ipdActive_15C; curChunk < &map->ipdActive_15C[4]; curChunk++)
+    for (curChunk = map->ipdActive_15C; curChunk < &map->ipdActive_15C[map->ipdActiveSize_158]; curChunk++)
     {
         if (curChunk->queueIdx_4 == NO_VALUE)
         {
@@ -1460,6 +1520,9 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 
 bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
 {
+#ifdef SH_PC_PORT
+    if (g_DebugCamEnabled) return true;
+#endif
     if (map->cellX_580 == chunk->cellX_8 &&
         map->cellZ_584 == chunk->cellZ_A)
     {
@@ -1714,6 +1777,46 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
     modelInfo.field_0 = 0;
     coord.super       = NULL;
 
+#ifdef SH_PC_PORT
+    if (g_DebugCamEnabled) {
+        /* Debug mode: render ALL model buffers, skip subcell culling */
+        s32 startI = 0, endI = ipdHdr->modelBufferCount_9;
+        temp_fp = NULL;
+        for (i = startI; i < endI; i++)
+        {
+            ipdModelBuf = &ipdHdr->modelBuffers_18[i];
+            /* Skip frustum check in debug mode - draw everything */
+            {
+                for (curBufC = ipdModelBuf->field_C; curBufC < &ipdModelBuf->field_C[ipdModelBuf->field_0]; curBufC++)
+                {
+                    modelInfo.modelHdr_8 = curBufC->modelHdr_0;
+                    if (modelInfo.modelHdr_8 != NULL)
+                    {
+                        coord.workm       = curBufC->field_4;
+                        coord.workm.t[0] += cellBoundX;
+                        coord.workm.t[2] += cellBoundZ;
+                        func_80049B6C(&coord, &sp98, &sp78);
+                        func_80057090(&modelInfo, ot, arg4, &sp78, &sp98, 0);
+                    }
+                }
+
+                for (curUnk = ipdModelBuf->field_10; curUnk < &ipdModelBuf->field_10[ipdModelBuf->field_1]; curUnk++)
+                {
+                    switch ((s8)curUnk->pad)
+                    {
+                        case 0:
+                            func_8005B62C(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                            break;
+                        case 1:
+                            func_8005B62C(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                            break;
+                    }
+                }
+            }
+        }
+    } else
+#endif
+    {
     temp_fp = &ipdHdr->textureCount_1C + (subcellZ * 10) + (subcellX * 2);
     for (i = temp_fp[0]; i < (temp_fp[1] + temp_fp[0]); i++)
     {
@@ -1750,6 +1853,9 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
             }
         }
     }
+#ifdef SH_PC_PORT
+    } /* close else block */
+#endif
 
     #undef CHUNK_SUBCELL_SIZE
 }

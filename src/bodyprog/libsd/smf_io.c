@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libspu.h>
 
@@ -350,6 +353,23 @@ void volume_calc(PORT* p, MIDI* mp) // 0x800A3F14
 
     p->l_vol_C = (l_vol * (p->velo_1A & 0x7F)) >> 7;
     p->r_vol_E = (r_vol * (p->velo_1A & 0x7F)) >> 7;
+
+#ifdef SH_PC_PORT
+    {
+        static int volcalc_count = 0;
+        if (volcalc_count < 10) {
+            fprintf(stderr, "[SH_BGM] volume_calc: mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d\n",
+                    (u8)vab_h[sd_seq_play_no].mvol_18,
+                    smf_song[p->midi_ch_3 >> 4].midi_master_vol_538,
+                    mp->express_5, mp->mvol_3,
+                    p->pvol_10, p->tvol_11,
+                    p->velo_1A & 0x7F, p->pan_14,
+                    p->l_vol_C, p->r_vol_E);
+            fflush(stderr);
+            volcalc_count++;
+        }
+    }
+#endif
 
     if (mp->vol_mode_11 >= 0x40u)
     {
@@ -710,6 +730,17 @@ void sound_seq_off(s32 access_num) // 0x800A4A34
         while (stat != SPU_OFF_ENV_ON && stat != SPU_OFF);
     }
 
+
+#ifdef SH_PC_PORT
+    {
+        static int seqoff_count = 0;
+        if (seqoff_count < 4) {
+            fprintf(stderr, "[SH_AUDIO] sound_seq_off(%d): reached MIDI init loop\n", access_num);
+            fflush(stderr);
+            seqoff_count++;
+        }
+    }
+#endif
     for (vo = 0; vo < 16; vo++)
     {
         m = &smf_midi[(access_num * 16) + vo];
@@ -905,6 +936,19 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
     ProgAtr*  sp40;
     s32       sp44;
     s32       sp48;
+#ifdef SH_PC_PORT
+    {
+        static int key_on_count = 0;
+        if (key_on_count < 10) {
+            MIDI* m_dbg = &smf_midi[chan];
+            s32 vab_dbg = (m_dbg->bank_change_5A > 0x10) ? smf_song[chan >> 4].sd_seq_vab_id_508 : m_dbg->bank_change_5A;
+            fprintf(stderr, "[SH_BGM] key_on: chan=%d note=%d vel=%d vab=%d vh_addr=%p prog=%d\n",
+                    chan, c1, c2, vab_dbg, (void*)vab_h[vab_dbg].vh_addr_4, m_dbg->prog_no_0);
+            fflush(stderr);
+            key_on_count++;
+        }
+    }
+#endif
     MIDI*     m;
     PORT*     p;
     VagAtr*   sd_vag_atr;
@@ -1195,8 +1239,31 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
 
             set_note_on(vo, c1, chan, s_attr.volume.left, s_attr.volume.right);
 
+#ifdef SH_PC_PORT
+            {
+                static int bgm_keyon_count = 0;
+                if (bgm_keyon_count < 10) {
+                    fprintf(stderr, "[SH_BGM] key_on final: vo=%d sp48=%d vol_l=%d vol_r=%d pitch=%u addr=0x%x vab=%d mvoll=%d mvolr=%d\n",
+                            vo, sp48, s_attr.volume.left, s_attr.volume.right, s_attr.pitch, s_attr.addr,
+                            sp44, smf_song[chan >> 4].sd_seq_mvoll_50C, smf_song[chan >> 4].sd_seq_mvolr_50E);
+                    fflush(stderr);
+                    bgm_keyon_count++;
+                }
+            }
+#endif
             if (sp48 == 0 && (s_attr.volume.right | s_attr.volume.left) != 0)
             {
+#ifdef SH_PC_PORT
+                {
+                    static int spukey_count = 0;
+                    if (spukey_count < 5) {
+                        fprintf(stderr, "[SH_BGM] SpuSetKeyOnWithAttr: voice=0x%x addr=0x%x pitch=%u vol=%d/%d\n",
+                                s_attr.voice, s_attr.addr, s_attr.pitch, s_attr.volume.left, s_attr.volume.right);
+                        fflush(stderr);
+                        spukey_count++;
+                    }
+                }
+#endif
                 do
                 {
                     SpuSetKeyOnWithAttr(&s_attr);
@@ -1206,6 +1273,17 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 }
                 while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
             }
+#ifdef SH_PC_PORT
+            else {
+                static int skipped = 0;
+                if (skipped < 5) {
+                    fprintf(stderr, "[SH_BGM] key_on SKIPPED (sp48=%d vol=%d/%d)\n",
+                            sp48, s_attr.volume.left, s_attr.volume.right);
+                    fflush(stderr);
+                    skipped++;
+                }
+            }
+#endif
 
             if (m->rev_depth_24 == 0)
             {
@@ -1588,6 +1666,18 @@ void control_change(u8 chan, u8 c1, u8 c2)
         case 0x7:
             p->mvol_3 = c2;
             vol_flag  = 1;
+#ifdef SH_PC_PORT
+            {
+                static int cc7_count = 0;
+                static int cc7_nonzero = 0;
+                if (cc7_count < 30 || (c2 != 0 && cc7_nonzero < 20)) {
+                    fprintf(stderr, "[SH_BGM] CC7 volume: chan=%d val=%d (count=%d)\n", chan, c2, cc7_count);
+                    fflush(stderr);
+                    if (c2 != 0) cc7_nonzero++;
+                }
+                cc7_count++;
+            }
+#endif
             set_midi_info(SD_MIDI_VOL, chan, p->mvol_3);
             break;
 

@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libapi.h>
 
@@ -759,6 +762,26 @@ u8 midi_file_out(s32 file_no) // 0x800A8674
 
     smf_song[file_no].smf_seq_flag_52C = SMF_MODE;
 
+#ifdef SH_PC_PORT
+    if (smf_song[file_no].mf_data_ptr_504) {
+        fprintf(stderr, "[SH_BGM] midi_file_out: file_no=%d magic='%c%c%c%c' (0x%02x%02x%02x%02x) data_ptr=%p\n",
+                file_no,
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[0],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[1],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[2],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[3],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[0],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[1],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[2],
+                ((u8*)smf_song[file_no].mf_data_ptr_504)[3],
+                (void*)smf_song[file_no].mf_data_ptr_504);
+        fflush(stderr);
+    } else {
+        fprintf(stderr, "[SH_BGM] midi_file_out: file_no=%d data_ptr=NULL!\n", file_no);
+        fflush(stderr);
+    }
+#endif
+
     if (smf_song[file_no].mf_data_ptr_504[0] == 'p')
     {
         smf_song[file_no].smf_seq_flag_52C = SEQ_MODE;
@@ -768,9 +791,21 @@ u8 midi_file_out(s32 file_no) // 0x800A8674
         smf_song[file_no].smf_seq_flag_52C = KDT_MODE;
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_BGM] midi_file_out: mode=%d\n", smf_song[file_no].smf_seq_flag_52C);
+    fflush(stderr);
+#endif
+
     smf_file_no = file_no;
 
     readheader(file_no);
+
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_BGM] midi_file_out post-readheader: tracks=%d division=%d format=%d datasize=%d\n",
+            smf_song[file_no].mf_tracks_526, smf_song[file_no].mf_division_528,
+            smf_song[file_no].mf_format_524, smf_song[file_no].mf_data_size_518);
+    fflush(stderr);
+#endif
 
     switch (smf_song[file_no].smf_seq_flag_52C)
     {
@@ -856,6 +891,22 @@ u8 midi_smf_main(void) // 0x800A8950
     SMF*      p;
     s32       wk;
     s32       tr;
+
+#ifdef SH_PC_PORT
+    {
+        static int call_count = 0;
+        static int was_playing = 0;
+        if (call_count < 3 || (!was_playing && smf_song[0].sd_seq_stat_50A == 1)) {
+            fprintf(stderr, "[SH_BGM] midi_smf_main: call #%d seq0_stat=%d seq1_stat=%d tracks0=%d vab0=%d flag=%d\n",
+                    call_count, smf_song[0].sd_seq_stat_50A, smf_song[1].sd_seq_stat_50A,
+                    smf_song[0].mf_tracks_526, smf_song[0].sd_seq_vab_id_508,
+                    smf_song[0].smf_seq_flag_52C);
+            fflush(stderr);
+            if (smf_song[0].sd_seq_stat_50A == 1) was_playing = 1;
+        }
+        call_count++;
+    }
+#endif
 
     wk = smf_file_no;
 

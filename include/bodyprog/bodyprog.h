@@ -1249,7 +1249,11 @@ typedef struct _Map
     s_IpdHeader*       ipdBuffer_150;
     s32                ipdBufferSize_154;
     s32                ipdActiveSize_158;
+#ifdef SH_PC_PORT
+    s_IpdChunk         ipdActive_15C[64];
+#else
     s_IpdChunk         ipdActive_15C[4];
+#endif
     s_IpdColumn        ipdGrid_1CC[18];
     s8                 unk_40C[32];     // Could be one extra row in table above.
     s_IpdColumn*       ipdGridCenter_42C;
@@ -1260,7 +1264,9 @@ typedef struct _Map
     s32                cellZ_584;
     bool               isExterior_588;
 } s_Map;
+#ifndef SH_PC_PORT
 STATIC_ASSERT_SIZEOF(s_Map, 1420);
+#endif
 
 typedef struct
 {
@@ -2561,6 +2567,7 @@ extern u8 D_800AD480[24];
 extern s_800AD4C8 D_800AD4C8[70];
 
 #ifdef SH_PC_PORT
+extern int g_DebugCamEnabled;
 extern s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C - not const on PC (overlay code writes to it)
 #define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader g_MapOverlayHeader
 #else

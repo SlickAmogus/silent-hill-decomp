@@ -4,8 +4,12 @@
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 #include <stdio.h>
+#include <SDL_scancode.h>
 extern u8 g_WorldEnvWork[];
 #define PC_WorldEnvWork (*(s_WorldEnvWork*)g_WorldEnvWork)
+#include "bodyprog/view/vw_main.h"
+extern void vcGetNowCamPos(VECTOR3* cam_pos);
+extern const unsigned char* g_sdlKeyboardState;
 #endif
 #include <psyq/libetc.h>
 
@@ -69,6 +73,133 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
     GameState_LoadMapScreen_Update,
     GameState_Unk15_Update
 };
+
+// ========================================
+// DEBUG CAMERA (PC PORT)
+// ========================================
+
+#ifdef SH_PC_PORT
+int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
+static int g_DebugCamInited = 0;
+static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
+static VECTOR3 g_DebugCamPos;
+static VECTOR3 g_DebugCamLookAt;
+static q3_12 g_DebugCamAngleY = 0;
+
+void DebugCamera_Update(void)
+{
+    #define DBG_CAM_MOVE_SPEED 2048  /* Q12(0.5) */
+    #define DBG_CAM_TURN_SPEED 64
+    #define DBG_CAM_VERT_SPEED 1228  /* Q12(0.3) */
+
+    if (!g_sdlKeyboardState) return;
+    if (g_GameWork.gameState_594 != GameState_InGame) return;
+
+    /* Numpad *: toggle debug camera on/off (edge-triggered) */
+    {
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_MULTIPLY];
+        if (cur && !g_DebugCamTogglePrev) {
+            g_DebugCamEnabled = !g_DebugCamEnabled;
+            if (g_DebugCamEnabled) {
+                /* Capture current camera as starting point */
+                vcGetNowCamPos(&g_DebugCamPos);
+                g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
+                g_DebugCamInited = 1;
+                fprintf(stderr, "[DBGCAM] ENABLED pos=(%ld,%ld,%ld)\n",
+                    (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz);
+            } else {
+                fprintf(stderr, "[DBGCAM] DISABLED — returning to game camera\n");
+            }
+            fflush(stderr);
+        }
+        g_DebugCamTogglePrev = cur;
+    }
+
+    /* If debug cam is off, let normal camera handle everything */
+    if (!g_DebugCamEnabled) return;
+
+    int moved = 0;
+    s32 sinY = Math_Sin(g_DebugCamAngleY);
+    s32 cosY = Math_Cos(g_DebugCamAngleY);
+
+    /* Numpad 8: forward */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
+        g_DebugCamPos.vx += (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        moved = 1;
+    }
+    /* Numpad 5: backward */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
+        g_DebugCamPos.vx -= (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        moved = 1;
+    }
+    /* Numpad 4: strafe left */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
+        g_DebugCamPos.vx -= (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        moved = 1;
+    }
+    /* Numpad 6: strafe right */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
+        g_DebugCamPos.vx += (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        moved = 1;
+    }
+    /* Numpad 7: turn left */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
+        g_DebugCamAngleY -= DBG_CAM_TURN_SPEED;
+        moved = 1;
+    }
+    /* Numpad 9: turn right */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
+        g_DebugCamAngleY += DBG_CAM_TURN_SPEED;
+        moved = 1;
+    }
+    /* Numpad +: move up (Y-, PSX Y is inverted) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
+        g_DebugCamPos.vy -= DBG_CAM_VERT_SPEED;
+        moved = 1;
+    }
+    /* Numpad -: move down (Y+) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+        g_DebugCamPos.vy += DBG_CAM_VERT_SPEED;
+        moved = 1;
+    }
+    /* Numpad /: teleport Harry to camera */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE]) {
+        g_SysWork.playerWork_4C.player_0.position_18.vx = g_DebugCamPos.vx;
+        g_SysWork.playerWork_4C.player_0.position_18.vy = g_DebugCamPos.vy;
+        g_SysWork.playerWork_4C.player_0.position_18.vz = g_DebugCamPos.vz;
+    }
+
+    /* Set look-at point ahead of camera */
+    g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleY) >> 12);
+    g_DebugCamLookAt.vy = g_DebugCamPos.vy;
+    g_DebugCamLookAt.vz = g_DebugCamPos.vz + (s32)((s64)20480 * Math_Cos(g_DebugCamAngleY) >> 12);
+
+    /* Override the camera view */
+    Vw_SetLookAtMatrix(&g_DebugCamPos, &g_DebugCamLookAt);
+    vwSetViewInfo();
+
+    if (moved) {
+        static int dbg_print_counter = 0;
+        if (++dbg_print_counter % 30 == 0) {
+            fprintf(stderr, "[DBGCAM] pos=(%ld,%ld,%ld) angleY=%d harry=(%ld,%ld,%ld)\n",
+                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                g_DebugCamAngleY,
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
+            fflush(stderr);
+        }
+    }
+
+    #undef DBG_CAM_MOVE_SPEED
+    #undef DBG_CAM_TURN_SPEED
+    #undef DBG_CAM_VERT_SPEED
+}
+#endif
 
 // ========================================
 // MAINLOOP

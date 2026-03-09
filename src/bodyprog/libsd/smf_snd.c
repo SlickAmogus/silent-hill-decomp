@@ -349,6 +349,11 @@ void SdInit(void) // 0x8009F490
     sound_off();
     SdWorkInit();
     SpuInitMalloc(16, &sd_vb_malloc_rec);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] SdInit complete: smf_midi[0].mvol_3=%d smf_midi[1].mvol_3=%d\n",
+            smf_midi[0].mvol_3, smf_midi[1].mvol_3);
+    fflush(stderr);
+#endif
 }
 
 void SdStart(void) // 0x8009F4D0
@@ -376,6 +381,17 @@ void SdSetTickMode(s32 tick_mode) // 0x8009F530
 
 void SdSeqCalledTbyT(void) // 0x8009F53C
 {
+#ifdef SH_PC_PORT
+    {
+        static int logged = 0;
+        if (!logged) {
+            fprintf(stderr, "[SH_BGM] SdSeqCalledTbyT: sd_interrupt_start_flag=%d smf_start_flag=%d\n",
+                    sd_interrupt_start_flag, smf_start_flag);
+            fflush(stderr);
+            logged = 1;
+        }
+    }
+#endif
     if (sd_interrupt_start_flag)
     {
         smf_vsync();
@@ -571,6 +587,11 @@ s16 SdVabOpenHead(u8* addr, s16 vabid) // 0x8009F79C
     }
 
     tone_adsr_mem(i);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] SdVabOpenHead: vabid=%d vh_addr=%p vh_size=%d vb_size=%d vb_start=0x%x\n",
+            i, (void*)p->vh_addr_4, p->vh_size_8, p->vb_size_14, p->vb_start_addr_10);
+    fflush(stderr);
+#endif
     return i;
 }
 
@@ -767,8 +788,16 @@ s16 SdVabTransBody(u8* addr, s16 vabid) // 0x8009FD38
         if (SpuWrite(addr, vab_h[vabid].vb_size_14) == vab_h[vabid].vb_size_14)
         {
             vab_h[vabid].vb_addr_C = addr;
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH_AUDIO] SdVabTransBody: vabid=%d size=%d spu_addr=0x%x OK\n",
+                    vabid, vab_h[vabid].vb_size_14, vab_h[vabid].vb_start_addr_10);
+            fflush(stderr);
+#endif
             return vab_h_id;
         }
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] SdVabTransBody: vabid=%d SpuWrite FAILED\n", vabid); fflush(stderr);
+#endif
     }
 
     return -1;
@@ -807,6 +836,10 @@ s16 SdVabTransBodyPartly(u8* addr, u32 bufsize, s16 vabid) // 0x8009FDDC
             return -2;
         }
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] SdVabTransBodyPartly: vabid=%d complete, total=%d\n", vabid, body_partly_size);
+        fflush(stderr);
+#endif
         return vab_h_id; // Maybe was meant to be return retval but devs just returned vab_h_id?
     }
     return retval;
@@ -885,8 +918,17 @@ s16 SdSeqOpen(s32* addr, s16 vab_id) // 0x800A00A4
 
     sd_int_flag = true;
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_AUDIO] SdSeqOpen: addr=%p magic=0x%08x vab_id=%d\n",
+            (void*)addr, addr ? *addr : 0, vab_id);
+    fflush(stderr);
+#endif
+
     if (*addr != SD_MAGIC_SEQp && *addr != SD_MAGIC_MThd && *addr != SD_MAGIC_KDT && *addr != SD_MAGIC_KDT1)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_AUDIO] SdSeqOpen: magic mismatch! returning -1\n"); fflush(stderr);
+#endif
         return -1;
     }
 
@@ -898,6 +940,9 @@ s16 SdSeqOpen(s32* addr, s16 vab_id) // 0x800A00A4
             smf_song[i].sd_seq_start_addr_514 = addr;
             smf_song[i].sd_seq_vab_id_508     = vab_id;
 
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SH_AUDIO] SdSeqOpen: opened slot %d, vab_id=%d\n", i, vab_id); fflush(stderr);
+#endif
             sd_int_flag = false;
             return i;
         }
@@ -934,6 +979,9 @@ void SdSeqPlay(s16 seq_access_num, u8 play_mode, s16 l_count) // 0x800A0210
 {
     if (seq_access_num == -1)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_BGM] SdSeqPlay: seq_access_num == -1, returning\n"); fflush(stderr);
+#endif
         return;
     }
 
@@ -941,9 +989,18 @@ void SdSeqPlay(s16 seq_access_num, u8 play_mode, s16 l_count) // 0x800A0210
 
     if (smf_song[seq_access_num].sd_seq_vab_id_508 == -1)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SH_BGM] SdSeqPlay: vab_id == -1 for seq %d, returning\n", seq_access_num); fflush(stderr);
+#endif
         sd_int_flag = false;
         return;
     }
+
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SH_BGM] SdSeqPlay: seq=%d play_mode=%d l_count=%d vab_id=%d\n",
+            seq_access_num, play_mode, l_count, smf_song[seq_access_num].sd_seq_vab_id_508);
+    fflush(stderr);
+#endif
 
     sd_seq_loop_mode = l_count;
 

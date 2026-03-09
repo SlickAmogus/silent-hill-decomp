@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libapi.h>
 
@@ -136,6 +139,18 @@ void smf_vsync(void) // 0x800A6F14
     }
 
     sd_int_flag2 = true;
+
+#ifdef SH_PC_PORT
+    {
+        static int logged_playing = 0;
+        if (smf_start_flag && !logged_playing) {
+            fprintf(stderr, "[SH_BGM] smf_vsync: smf_start_flag=1! seq0_stat=%d tracks=%d\n",
+                    smf_song[0].sd_seq_stat_50A, smf_song[0].mf_tracks_526);
+            fflush(stderr);
+            logged_playing = 1;
+        }
+    }
+#endif
 
     if (smf_start_flag)
     {
