@@ -1,8 +1,5 @@
 #include "game.h"
 
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
@@ -179,33 +176,18 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
         {
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GP: pre-func_8003DA9C\n"); fflush(stderr);
-#endif
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
-#ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GP: post-func_8003DA9C\n"); fflush(stderr);
-#endif
             Chara_Flag8Clear(&g_SysWork.playerWork_4C.player_0);
             Player_CombatUpdate(&g_SysWork.playerWork_4C, g_SysWork.playerBoneCoords_890);
             func_8008A3AC(&g_SysWork.playerWork_4C.player_0);
         }
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH] GP: post-player-block\n"); fflush(stderr);
-#endif
 
         Demo_DemoRandSeedRestore();
         Game_NpcRoomInitSpawn(true);
         Game_NpcUpdate();
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH] GP: post-npc\n"); fflush(stderr);
-#endif
         func_8005E89C();
         Ipd_CloseRangeChunksInit();
         Gfx_InGameDraw(1);
-#ifdef SH_PC_PORT
-        fprintf(stderr, "[SH] GP: post-draw\n"); fflush(stderr);
-#endif
         Demo_DemoRandSeedAdvance();
     }
 }

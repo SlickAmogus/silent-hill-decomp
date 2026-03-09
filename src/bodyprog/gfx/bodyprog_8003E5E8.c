@@ -1,7 +1,4 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -17,6 +14,9 @@
 #include "main/fsqueue.h"
 #include "main/rng.h"
 #include "screens/stream/stream.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 extern s_WorldEnvWork const g_WorldEnvWork;
 
@@ -493,30 +493,14 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
         }
     }
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FlashlightUpdate: func_8003FEC0\n"); fflush(stderr);
-#endif
     ptr->field_10 = func_8003FEC0(&ptr2->effectsInfo_0);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FlashlightUpdate: func_8003FF2C\n"); fflush(stderr);
-#endif
     func_8003FF2C(ptr2);
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FlashlightUpdate: func_8003F4DC\n"); fflush(stderr);
-#endif
     temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, func_80080A10(), &g_SysWork), g_SysWork.pointLightIntensity_2378);
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FlashlightUpdate: func_800554C4 mapInfo=%p waterZones=%p\n",
-            (void*)g_WorldGfx.mapInfo_0, (void*)(g_WorldGfx.mapInfo_0 ? g_WorldGfx.mapInfo_0->waterZones_8 : NULL)); fflush(stderr);
-#endif
     func_800554C4(temp, ptr2->flashlightLensFlareIntensity_2C, coord, g_SysWork.field_235C, &rot,
                   g_SysWork.pointLightPosition_2360.vx, g_SysWork.pointLightPosition_2360.vy, g_SysWork.pointLightPosition_2360.vz,
                   g_WorldGfx.mapInfo_0 ? g_WorldGfx.mapInfo_0->waterZones_8 : NULL);
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FlashlightUpdate: func_80055814\n"); fflush(stderr);
-#endif
     func_80055814(ptr2->field_30);
 
     if (ptr->field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 3))

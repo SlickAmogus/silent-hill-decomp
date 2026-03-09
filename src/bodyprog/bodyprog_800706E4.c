@@ -1,8 +1,5 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
-#ifdef SH_PC_PORT
-#include <stdio.h>
-#endif
 
 #include <psyq/libapi.h>
 #include <psyq/strings.h>
@@ -608,9 +605,6 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
     extra = &g_SysWork.playerWork_4C.extra_128;
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] PlayerUpdate: dt=%d ctrl=%d\n", g_DeltaTime, g_Player_DisableControl); fflush(stderr);
-#endif
     if (g_DeltaTime != Q12(0.0f))
     {
         Player_ReceiveDamage(chara, extra);
@@ -636,7 +630,14 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
         if (!g_Player_DisableControl)
         {
+#ifdef SH_PC_PORT
+            /* Player movement/collision logic crashes on PC — collision
+             * subsystems and map overlay data not fully working yet.
+             * Skip for now; player stands still but renders correctly. */
+            (void)0;
+#else
             Player_LogicUpdate(chara, extra, coords);
+#endif
         }
         else
         {
@@ -652,12 +653,23 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
         if (!g_Player_DisableControl)
         {
+#ifdef SH_PC_PORT
+            (void)0;
+#else
             func_8007C0D8(chara, extra, coords);
+#endif
         }
         else
         {
 #ifdef SH_PC_PORT
-            (void)0;
+            /* func_BC normally updates root bone transform for disabled-control
+             * states (cutscenes, etc.). Set position/rotation from player state
+             * so the bone hierarchy has a valid world-space root. */
+            coords->flg = false;
+            Math_RotMatrixZxyNegGte(&chara->rotation_24, &coords->coord);
+            coords->coord.t[0] = Q12_TO_Q8(chara->position_18.vx);
+            coords->coord.t[1] = Q12_TO_Q8(chara->position_18.vy);
+            coords->coord.t[2] = Q12_TO_Q8(chara->position_18.vz);
 #else
             g_MapOverlayHeader.func_BC(chara, extra, coords);
 #endif

@@ -3,6 +3,11 @@
 
 #include "inline_c.h"
 
+#ifdef SH_PC_PORT
+/* On PC, keep PsyCross's C implementations from inline_c.h.
+ * The MIPS coprocessor opcodes below are not valid x86 instructions
+ * and would corrupt memory/produce wrong results on PC. */
+#else
 /* Replace macros originally defined for dmpsx. */
 
 #undef gte_rtps
@@ -399,4 +404,6 @@
 #define gte_mvmva(sf, mx, v, cv, lm) \
     gte_mvmva_core(0x4A400012 | ((sf) << 25) | ((mx) << 23) | ((v) << 21) | ((cv) << 19) | ((lm) << 18))
 
-#endif
+#endif /* !SH_PC_PORT */
+
+#endif /* _INLINE_NO_DMPSX_H_ */

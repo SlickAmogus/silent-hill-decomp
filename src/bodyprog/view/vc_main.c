@@ -2561,7 +2561,14 @@ void vcRenewalCamMatAng(VC_WORK* w_p, VC_WATCH_MV_PARAM* watch_mv_prm_p, VC_CAM_
         vcMakeOfsCam2CharaBottomAndTopAngByBaseMatT(&ofs_cam2chara_btm_ang, &ofs_cam2chara_top_ang, &new_base_matT,
                                                     &w_p->cam_pos_50, &w_p->chara_pos_114, w_p->chara_bottom_y_120,
                                                     w_p->chara_top_y_124);
+        /* PC: Skip character-in-screen adjustment for now.
+         * With correct Square0, this over-corrects because camera is high
+         * and world geometry (IPD) is not yet rendering to provide context.
+         * Baseline behavior from commit 99bd3e20 had Square0 as no-op,
+         * so this function computed zero adjustment. */
+#ifndef SH_PC_PORT
         vcAdjCamOfsAngByCharaInScreen(&ofs_tgt_ang, &ofs_cam2chara_btm_ang, &ofs_cam2chara_top_ang, w_p);
+#endif
     }
 
     if (w_p->flags_8 & VC_WARP_WATCH_F)
@@ -2704,7 +2711,6 @@ void vcMakeOfsCamTgtAng(SVECTOR* ofs_tgt_ang, MATRIX* base_matT, VC_WORK* w_p) /
     vec.vx = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vx - w_p->cam_pos_50.vx);
     vec.vy = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vy - w_p->cam_pos_50.vy);
     vec.vz = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vz - w_p->cam_pos_50.vz);
-
     ApplyMatrixSV(base_matT, &vec, &vec);
     vwVectorToAngle(ofs_tgt_ang, &vec);
     ofs_tgt_ang->vz = w_p->watch_tgt_ang_z_8C;

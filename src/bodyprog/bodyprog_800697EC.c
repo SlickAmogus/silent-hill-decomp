@@ -121,6 +121,16 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     s_func_8006CC44     sp38;
     s_IpdCollisionData* ipdCollData;
 
+#ifdef SH_PC_PORT
+    /* No IPD collision data on PC — return flat ground at Y=0.
+     * Prevents crash from processing uninitialized collision structures. */
+    coll->groundHeight_0 = Q12(0.0f);
+    coll->field_4        = 0;
+    coll->field_6        = 0;
+    coll->field_8        = 0;
+    return;
+#endif
+
     pos.vx = Q12(0.0f);
     pos.vy = Q12(0.0f);
     pos.vz = Q12(0.0f);

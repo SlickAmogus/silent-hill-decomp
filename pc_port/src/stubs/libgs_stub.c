@@ -99,6 +99,12 @@ void GsInitGraph(int x, int y, int mode, int a, int b)
 void GsInit3D(void)
 {
     InitGeom();
+    /* On PSX, GsInit3D sets geom offset to screen center (160, 120).
+     * However, PsyCross adds activeDrawEnv.ofs to every vertex (PsyX_GPU.cpp),
+     * and draw env ofs is already set to screen center (160, 112).
+     * Setting geom offset to (0, 0) avoids double-centering. */
+    SetGeomOffset(0, 0);
+    SetGeomScreen(240);
 }
 
 void GsInitVcount(void)
@@ -121,9 +127,12 @@ void GsClearVcount(void)
     gs_vcount_start = SDL_GetPerformanceCounter();
 }
 
+void GsDrawOt_ResetFrameCount(void);
+
 void GsSwapDispBuff(void)
 {
     gs_active_buff = gs_active_buff ? 0 : 1;
+    GsDrawOt_ResetFrameCount();
 
     /* Sync background color from GsDRAWENV (game modifies this global).
      * Do NOT sync clip or ofs — the game's clip.h=224 override is a PSX
@@ -144,26 +153,26 @@ int GsGetActiveBuff(void)
     return gs_active_buff;
 }
 
+static int gs_drawot_call_count = 0;
+
 void GsDrawOt(GsOT *ot)
 {
-    static int drawDbg = 0;
     if (ot && ot->tag)
     {
-        if (drawDbg < 10) {
-            /* Walk the OT and count primitives */
-            int count = 0;
-            GsOT_TAG* p = ot->tag;
-            while (p && count < 200) {
-                if (p->len > 0) count++;
-                if (p->addr == 0 || p->addr == (uintptr_t)-1) break;
-                p = (GsOT_TAG*)(p->addr);
-            }
-            printf("[SH] GsDrawOt: tag=%p len=%lu primCount=%d\n",
-                (void*)ot->tag, ot->length, count);
-            drawDbg++;
-        }
+#ifdef SH_PC_PORT
+        /* PsyCross bug: PsyX_EndScene is never called (commented out in DrawSync),
+         * so GR_BeginScene only runs on the first frame. Clear depth/stencil each
+         * draw call so geometry renders correctly. */
+        glClearDepth(1.0f);
+        glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#endif
         DrawOTag((u_long*)ot->tag);
     }
+}
+
+void GsDrawOt_ResetFrameCount(void)
+{
+    gs_drawot_call_count = 0;
 }
 
 void GsClearOt(int offset, int point, GsOT *ot)
@@ -182,6 +191,8 @@ void GsSortClear(unsigned char r, unsigned char g, unsigned char b, GsOT *ot)
     gs_draw_env[gs_active_buff].g0 = g;
     gs_draw_env[gs_active_buff].b0 = b;
     gs_draw_env[gs_active_buff].isbg = 1;
+    /* Push updated clear color to PsyCross so PsyX_BeginScene uses it */
+    PutDrawEnv(&gs_draw_env[gs_active_buff]);
 }
 
 void GsSetAmbient(long r, long g, long b)
@@ -289,8 +300,14 @@ void GsGetLws(GsCOORDINATE2 *coord, MATRIX *lw, MATRIX *ls)
 
 void SetPriority(PACKET* p, int a, int b)
 {
-    /* TODO: Implement priority setting */
-    (void)p; (void)a; (void)b;
+    /* SetPriority creates a DR_MODE that sets the ABR (semi-transparency rate).
+     * We must set len=0 because SetDrawMode sets len=3, but DR_MODE only has
+     * code[2]. PsyCross's ProcessDrawEnv reads `len` words, so len=3 would
+     * read past the struct causing garbage GP0 commands and crashes.
+     * Setting len=0 makes this an OT pass-through node. The tpage/ABR is
+     * instead handled by the adjacent SetDrawMode calls in the game code. */
+    setlen(p, 0);
+    (void)a; (void)b;
 }
 
 _GsFCALL GsFCALL4;
