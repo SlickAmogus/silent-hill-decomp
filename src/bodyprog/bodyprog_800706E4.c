@@ -648,32 +648,7 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
         if (!g_Player_DisableControl)
         {
-#ifdef SH_PC_PORT
-            /* Guard Player_LogicUpdate with crash recovery — several subsystems
-             * (collision, NPC interaction, map overlay funcs) are not fully working
-             * on PC and can segfault. Recover gracefully instead of crashing. */
-            {
-                signal(SIGSEGV, Player_CrashHandler);
-                s_PlayerCrashGuardActive = 1;
-                if (setjmp(s_PlayerCrashJmp) == 0) {
-                    Player_LogicUpdate(chara, extra, coords);
-                } else {
-                    static int crashCount = 0;
-                    if (crashCount < 5) {
-                        fprintf(stderr, "[PLAYER] CRASH in LogicUpdate (state=%d lb=%d ub=%d) — recovered\n",
-                            g_SysWork.playerWork_4C.extra_128.state_1C,
-                            g_SysWork.playerWork_4C.extra_128.lowerBodyState_24,
-                            g_SysWork.playerWork_4C.extra_128.upperBodyState_20);
-                        fflush(stderr);
-                    }
-                    crashCount++;
-                }
-                s_PlayerCrashGuardActive = 0;
-                signal(SIGSEGV, SIG_DFL);
-            }
-#else
             Player_LogicUpdate(chara, extra, coords);
-#endif
         }
         else
         {
@@ -1168,12 +1143,74 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
         case PlayerState_None:
         case PlayerState_Combat:
+#ifdef SH_PC_PORT
+            /* Skip Player_LowerBodyUpdate and Player_UpperBodyUpdate on PC —
+             * they call collision (Ray_LineCheck) and NPC subsystems that crash.
+             * Instead, handle movement directly from controller input. */
+            {
+                q3_12 turnSpeed = Q12_ANGLE(2.0f);
+                q19_12 moveSpeed = Q12(0.08f);
+                q19_12 sinH, cosH;
+
+                /* Turn */
+                if (g_Player_IsTurningLeft) {
+                    chara->headingAngle_3C -= turnSpeed;
+                }
+                if (g_Player_IsTurningRight) {
+                    chara->headingAngle_3C += turnSpeed;
+                }
+                chara->headingAngle_3C = Q12_ANGLE_NORM_U(chara->headingAngle_3C + Q12_ANGLE(360.0f));
+
+                /* Move forward/backward */
+                sinH = Math_Sin(chara->headingAngle_3C);
+                cosH = Math_Cos(chara->headingAngle_3C);
+                if (g_Player_IsMovingForward) {
+                    chara->position_18.vx += Q12_MULT(sinH, moveSpeed);
+                    chara->position_18.vz += Q12_MULT(cosH, moveSpeed);
+                }
+                if (g_Player_IsMovingBackward) {
+                    chara->position_18.vx -= Q12_MULT(sinH, moveSpeed);
+                    chara->position_18.vz -= Q12_MULT(cosH, moveSpeed);
+                }
+
+                /* Sync rotation */
+                chara->rotation_24.vy = chara->headingAngle_3C;
+
+                /* Set walk animation */
+                if (g_Player_IsMovingForward || g_Player_IsMovingBackward) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkForward, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkForward, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkForward, false);
+                        chara->model_0.stateStep_3 = 0;
+                    }
+                } else if (g_Player_IsTurningLeft) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnLeft, false);
+                        chara->model_0.stateStep_3 = 0;
+                    }
+                } else if (g_Player_IsTurningRight) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnRight, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnRight, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnRight, false);
+                        chara->model_0.stateStep_3 = 0;
+                    }
+                } else {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Still, false);
+                        chara->model_0.stateStep_3 = 0;
+                    }
+                }
+            }
+#else
             Player_LowerBodyUpdate(chara, extra);
 
             if (g_SysWork.playerWork_4C.extra_128.state_1C < (u32)PlayerState_Idle)
             {
                 Player_UpperBodyUpdate(chara, extra);
             }
+#endif
             break;
 
         case PlayerState_Unk7:
