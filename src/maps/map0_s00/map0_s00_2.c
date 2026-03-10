@@ -147,19 +147,22 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 
 #ifdef SH_PC_PORT
     /* On PC, DMS cutscene data can't be parsed (64-bit struct incompatibility).
-     * Skip the entire cutscene and go straight to gameplay. */
+     * Skip the entire cutscene and go straight to gameplay.
+     * Mirror the original "default:" case but with setIdle=true. */
     if (g_SysWork.sysStateStep_C[0] == 0) {
         g_Timer0 = NO_VALUE;
-        Player_ControlUnfreeze(false);
+        Player_ControlUnfreeze(true); /* true = set idle animation + reset states */
         SysWork_StateSetNext(SysState_Gameplay);
-        ScreenFade_Reset(); /* Clear any pending fade so screen isn't stuck black */
+        ScreenFade_Reset();
+        SysWork_StateStepIncrementAfterFade(false, false, 2, Q12(0.0f), false);
         vcReturnPreAutoCamWork(true);
-        Vc_CameraElevationRateLockSet(true); /* ev_cam_rate=1.0 so watch target isn't underground */
+        Vc_CameraElevationRateLockSet(true);
         Chara_ProcessLoads();
-        g_SysWork.sysStateStep_C[0] = 99; /* prevent re-entry */
+        /* Don't spawn Cheryl — her anim info table is stubbed (NULL func ptrs) */
+        g_SysWork.sysStateStep_C[0] = 99;
         return;
     }
-    return; /* cutscene already skipped */
+    return;
 #endif
 
     skipCutscene = false;

@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -1191,6 +1194,25 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
     {
         return;
     }
+
+#ifdef SH_PC_PORT
+    {
+        static int render_dbg = 0;
+        if (charaId == Chara_Harry && render_dbg < 5) {
+            void* reg = (void*)g_WorldGfx.registeredCharaModels_18[charaId];
+            fprintf(stderr, "[RENDER] func_8003DA9C: charaId=%d timer=%d arg2=%d arg4=%d\n", charaId, timer, arg2, arg4);
+            fprintf(stderr, "[RENDER]   registeredModel=%p\n", reg);
+            fprintf(stderr, "[RENDER]   coord[0] pos=(%d,%d,%d)\n",
+                    coord[0].coord.t[0], coord[0].coord.t[1], coord[0].coord.t[2]);
+            fprintf(stderr, "[RENDER]   envWork: field_0=%d field_20=%d field_3=%d brightness=%d tint=(%d,%d,%d)\n",
+                    g_WorldEnvWork.field_0, g_WorldEnvWork.field_20, g_WorldEnvWork.field_3,
+                    g_WorldEnvWork.screenBrightness_8,
+                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b);
+            fflush(stderr);
+            render_dbg++;
+        }
+    }
+#endif
 
     timer = CLAMP(timer, Q12(0.0f), Q12(1.0f));
 

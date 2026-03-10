@@ -10,6 +10,7 @@ extern u8 g_WorldEnvWork[];
 #include "bodyprog/view/vw_main.h"
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern const unsigned char* g_sdlKeyboardState;
+#include "debug_console.h"
 #endif
 #include <psyq/libetc.h>
 
@@ -80,8 +81,10 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 
 #ifdef SH_PC_PORT
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
+int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
+static int g_DebugFogTogglePrev = 0;
 static VECTOR3 g_DebugCamPos;
 static VECTOR3 g_DebugCamLookAt;
 static q3_12 g_DebugCamAngleY = 0;
@@ -113,6 +116,27 @@ void DebugCamera_Update(void)
             fflush(stderr);
         }
         g_DebugCamTogglePrev = cur;
+    }
+
+    /* Numpad .: toggle fog on/off (edge-triggered) */
+    {
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
+        if (cur && !g_DebugFogTogglePrev) {
+            g_DebugFogDisabled = !g_DebugFogDisabled;
+            if (g_DebugFogDisabled) {
+                PC_WorldEnvWork.isFogEnabled_1 = 0;
+                fprintf(stderr, "[DEBUG] Fog DISABLED\n");
+            } else {
+                fprintf(stderr, "[DEBUG] Fog ENABLED\n");
+            }
+            fflush(stderr);
+        }
+        g_DebugFogTogglePrev = cur;
+    }
+
+    /* Keep fog off every frame if toggled (game re-enables it) */
+    if (g_DebugFogDisabled) {
+        PC_WorldEnvWork.isFogEnabled_1 = 0;
     }
 
     /* If debug cam is off, let normal camera handle everything */
@@ -166,11 +190,20 @@ void DebugCamera_Update(void)
         g_DebugCamPos.vy += DBG_CAM_VERT_SPEED;
         moved = 1;
     }
-    /* Numpad /: teleport Harry to camera */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE]) {
-        g_SysWork.playerWork_4C.player_0.position_18.vx = g_DebugCamPos.vx;
-        g_SysWork.playerWork_4C.player_0.position_18.vy = g_DebugCamPos.vy;
-        g_SysWork.playerWork_4C.player_0.position_18.vz = g_DebugCamPos.vz;
+    /* Numpad /: print debug camera coordinates to log */
+    {
+        static int dbg_slash_prev = 0;
+        int dbg_slash_cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
+        if (dbg_slash_cur && !dbg_slash_prev) {
+            fprintf(stderr, "[DBGCAM] COORDS: pos=(%ld,%ld,%ld) angleY=%d\n",
+                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                g_DebugCamAngleY);
+            fprintf(stderr, "[DBGCAM] HARRY:  pos=(%ld,%ld,%ld)\n",
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
+                (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
+        }
+        dbg_slash_prev = dbg_slash_cur;
     }
 
     /* Set look-at point ahead of camera */
@@ -330,6 +363,7 @@ void MainLoop(void) // 0x80032EE0
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
+        DebugConsole_Update();
 #endif
         // Update input.
         Joy_ReadP1();
@@ -497,6 +531,7 @@ void MainLoop(void) // 0x80032EE0
                 }
             }
         }
+
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
@@ -508,6 +543,7 @@ void MainLoop(void) // 0x80032EE0
 #endif
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
+        DebugConsole_Render();
         PsyX_EndScene();
 #endif
     }

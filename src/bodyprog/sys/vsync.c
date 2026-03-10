@@ -1,6 +1,7 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "bodyprog/libsd.h"
 #endif
 
 #include "bodyprog/demo.h"
@@ -9,19 +10,17 @@
 
 void Screen_VSyncCallback(void) // 0x80032B80
 {
-#ifdef SH_PC_PORT
-    {
-        static int cbDbg = 0;
-        if (cbDbg < 3) {
-            printf("[SH] VSyncCallback called! counter0=%d\n", g_SysWork.counters_1C[0]);
-            cbDbg++;
-        }
-    }
-#endif
     g_Demo_FrameCount++;
     g_WarmBootTimer++;
 
     g_SysWork.counters_1C[0]++;
     g_SysWork.counters_1C[1]++;
     g_SysWork.counters_1C[2]++;
+
+#ifdef SH_PC_PORT
+    /* On PSX, SsSetTickMode configures libsnd to call SsSeqCalledTbyT
+     * from the VSync interrupt. Since libsnd is stubbed, we call the
+     * Konami wrapper directly to pump the MIDI sequencer each frame. */
+    SdSeqCalledTbyT();
+#endif
 }

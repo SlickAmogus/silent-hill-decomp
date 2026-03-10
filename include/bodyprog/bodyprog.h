@@ -2568,6 +2568,7 @@ extern s_800AD4C8 D_800AD4C8[70];
 
 #ifdef SH_PC_PORT
 extern int g_DebugCamEnabled;
+extern int g_DebugFogDisabled;
 extern s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C - not const on PC (overlay code writes to it)
 #define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader g_MapOverlayHeader
 #else

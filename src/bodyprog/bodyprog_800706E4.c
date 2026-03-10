@@ -2,7 +2,12 @@
 #include "inline_no_dmpsx.h"
 
 #include <psyq/libapi.h>
+#include <psyq/libgte.h>
 #include <psyq/strings.h>
+
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
@@ -631,12 +636,18 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         if (!g_Player_DisableControl)
         {
 #ifdef SH_PC_PORT
-            /* Player movement/collision logic crashes on PC — collision
-             * subsystems and map overlay data not fully working yet.
-             * Skip for now; player stands still but renders correctly. */
-            (void)0;
-#else
+            fprintf(stderr, "[PLAYER] LogicUpdate state=%d lbState=%d ubState=%d\n",
+                g_SysWork.playerWork_4C.extra_128.state_1C,
+                g_SysWork.playerWork_4C.extra_128.lowerBodyState_24,
+                g_SysWork.playerWork_4C.extra_128.upperBodyState_20);
+            fflush(stderr);
+#endif
             Player_LogicUpdate(chara, extra, coords);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[PLAYER] LogicUpdate done charaStatus=%d extraStatus=%d pos=(%ld,%ld,%ld)\n",
+                chara->model_0.anim_4.status_0, extra->model_0.anim_4.status_0,
+                (long)chara->position_18.vx, (long)chara->position_18.vy, (long)chara->position_18.vz);
+            fflush(stderr);
 #endif
         }
         else
@@ -654,9 +665,13 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         if (!g_Player_DisableControl)
         {
 #ifdef SH_PC_PORT
-            (void)0;
-#else
+            fprintf(stderr, "[PLAYER] func_8007C0D8 enter\n"); fflush(stderr);
+#endif
             func_8007C0D8(chara, extra, coords);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[PLAYER] func_8007C0D8 done pos=(%ld,%ld,%ld)\n",
+                (long)chara->position_18.vx, (long)chara->position_18.vy, (long)chara->position_18.vz);
+            fflush(stderr);
 #endif
         }
         else
@@ -675,8 +690,20 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 #endif
         }
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[PLAYER] AnimUpdate enter charaStatus=%d extraStatus=%d state=%d\n",
+            chara->model_0.anim_4.status_0, extra->model_0.anim_4.status_0,
+            g_SysWork.playerWork_4C.extra_128.state_1C);
+        fflush(stderr);
+#endif
         Player_AnimUpdate(chara, extra, anmHdr, coords);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[PLAYER] AnimUpdate done\n"); fflush(stderr);
+#endif
         func_8007D090(chara, extra, coords);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[PLAYER] D090 done\n"); fflush(stderr);
+#endif
     }
 
     D_800C45B0.vx = 0;
@@ -1000,13 +1027,29 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
         g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_UPPER_BODY_BONE_MASK;
 
         animInfo = &HARRY_BASE_ANIM_INFOS[chara->model_0.anim_4.status_0];
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[ANIM] chara status=%d updateFunc=%p\n",
+            chara->model_0.anim_4.status_0, (void*)animInfo->updateFunc_0);
+        fflush(stderr);
+#endif
         animInfo->updateFunc_0(&chara->model_0, anmHdr, coords, animInfo);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[ANIM] chara done\n"); fflush(stderr);
+#endif
 
         // Re-enable upper body bones, disable lower body bones.
         g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_LOWER_BODY_BONE_MASK;
 
         animInfo = &HARRY_BASE_ANIM_INFOS[extra->model_0.anim_4.status_0];
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[ANIM] extra status=%d updateFunc=%p\n",
+            extra->model_0.anim_4.status_0, (void*)animInfo->updateFunc_0);
+        fflush(stderr);
+#endif
         animInfo->updateFunc_0(&extra->model_0, anmHdr, coords, animInfo);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[ANIM] extra done\n"); fflush(stderr);
+#endif
         return;
     }
 

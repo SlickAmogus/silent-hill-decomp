@@ -1170,6 +1170,8 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
 #ifdef SH_PC_PORT
     s32 scanMin = g_DebugCamEnabled ? -8 : -1;
     s32 scanMax = g_DebugCamEnabled ? 10 : 1;
+    s32 loadsThisFrame = 0;
+    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 4 : 9;
 #else
     s32 scanMin = -1;
     s32 scanMax = 1;
@@ -1196,7 +1198,20 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
 #endif
                     !Map_IsIpdPresent(map->ipdActive_15C, projCellX, projCellZ))
                 {
+#ifdef SH_PC_PORT
+                    if (loadsThisFrame >= maxLoadsPerFrame)
+                    {
+                        continue;
+                    }
+#endif
                     chunk = Ipd_FreeChunkFind(map->ipdActive_15C, map->isExterior_588);
+
+#ifdef SH_PC_PORT
+                    if (chunk == NULL)
+                    {
+                        continue;
+                    }
+#endif
 
                     if (Fs_QueueEntryLoadStatusGet(chunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
                     {
@@ -1207,10 +1222,20 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
                         }
                     }
 
+#ifdef SH_PC_PORT
+                    /* Reset material count so this chunk isn't re-evicted in
+                       the same frame (stale materialCount from pre-eviction
+                       would make it the top eviction candidate again). */
+                    chunk->materialCount_14 = 0;
+#endif
+
                     curQueueIdx = Ipd_LoadStart(chunk, chunkIdx, projCellX, projCellZ, posX0, posZ0, posX1, posZ1, map->isExterior_588);
                     if (curQueueIdx != NO_VALUE)
                     {
                         queueIdx = curQueueIdx;
+#ifdef SH_PC_PORT
+                        loadsThisFrame++;
+#endif
                     }
                 }
             }
@@ -1273,6 +1298,9 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
+#ifdef SH_PC_PORT
+                !g_DebugCamEnabled &&
+#endif
                 curChunk->distance0_C > Q12(0.0f) && curChunk->distance1_10 > Q12(0.0f))
             {
                 Lm_MaterialRefCountDec(curChunk->ipdHdr_0->lmHdr_4);
@@ -1285,7 +1313,12 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
+#ifdef SH_PC_PORT
+                (g_DebugCamEnabled ||
+                 (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f))))
+#else
                 (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f)))
+#endif
             {
                 Ipd_MaterialsLoad(curChunk->ipdHdr_0, &map->ipdTextures_430.fullPage_0, &map->ipdTextures_430.halfPage_2C, map->texFileIdx_134);
                 Lm_MaterialFlagsApply(curChunk->ipdHdr_0->lmHdr_4);
@@ -1353,6 +1386,13 @@ s_IpdChunk* Ipd_FreeChunkFind(s_IpdChunk* chunks, bool isExterior)
         {
             if (curChunk->queueIdx_4 == NO_VALUE)
             {
+#ifdef SH_PC_PORT
+                /* On PC with 64 slots, immediately return empty slots
+                   instead of competing with occupied chunks' materialCount.
+                   PSX never had empty slots (4 slots always full). */
+                activeChunk = curChunk;
+                break;
+#else
                 matCount = 0;
 
                 if (largestMatCount == 0)
@@ -1363,6 +1403,7 @@ s_IpdChunk* Ipd_FreeChunkFind(s_IpdChunk* chunks, bool isExterior)
                 {
                     continue;
                 }
+#endif
             }
             else
             {
@@ -1375,6 +1416,9 @@ s_IpdChunk* Ipd_FreeChunkFind(s_IpdChunk* chunks, bool isExterior)
                 }
             }
 
+#ifdef SH_PC_PORT
+            /* Only reach here for occupied chunks (empty slots break above) */
+#endif
             if (largestMatCount < matCount || (matCount == largestMatCount && farthestDist < dist))
             {
                 farthestDist    = dist;
@@ -1444,6 +1488,12 @@ bool func_80043830(void) // 0x80043830
 {
     s32         loadState;
     s_IpdChunk* curChunk;
+
+#ifdef SH_PC_PORT
+    /* On PC, IPD loading is synchronous (Fs_QueueStartRead completes immediately).
+       Never block the render loop waiting for chunks. */
+    return false;
+#endif
 
     for (curChunk = &g_Map.ipdActive_15C[0]; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
