@@ -167,14 +167,9 @@
 
   ### Known Limitations
 
-  - Only Harry's character model renders (no world geometry — IPD chunk loading not yet implemented)
-  - Fog/environment lighting disabled during character rendering
-  - FMV playback is stubbed (movies are skipped)
-  - XA audio streaming not implemented (BGM does not play)
   - SFX audio works via PsyCross SPU emulation (OpenAL)
   - Memory card save/load is stubbed
   - NPC AI is disabled (animation info tables are stubs)
-  - Menu/inventory screens may crash
   - Only tested on Windows with MSYS2/MinGW64
 
 <br/><br/>
