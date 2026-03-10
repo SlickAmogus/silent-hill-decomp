@@ -8,9 +8,27 @@
 
   ### Status
 
-  The game boots through all startup screens (Konami logo, KCET logo, intro movie) and reaches the main menu. Starting a new game enters the in-game state where Harry Mason's 3D character model renders with proper bone animation and shading. World geometry and fog are not yet implemented.
+  The game starts, loads the logos, and enters the main menu like normal. FMVs play if they are extracted (instructions below). You can change options or start a new game. The opening FMV plays. Once ingame, it skips 
+  the ingame opening cutscene for debugging purposes. You can control Harry, but it crashes almost immediately when doing so (use arrow keys). You can bring up the inventory with space. The most interesting thing you 
+  can do is use the debug camera. Press * on the number pad to toggle it. Controls below:
 
-  ![Harry's legs rendering in-game](docs/harrylegs.png)
+```
+  - : Lower the camera
+  + : Raise the camera
+  7 : Turn camera left
+  8 : Move camera forward
+  9 : Turn camera right
+  4 : Move camera left
+  5 : Move camera back
+  6 : Move camera right
+  . : Toggle fog
+```
+
+  Culling is disabled in debug mode, so you can see the entire loaded map. Next step is to be able to load more maps, will update with that asap. There is supposed to be a console with ~ that allows you to change
+  maps, but it is not fully implemented.
+
+  <img width="638" height="505" alt="github1" src="https://github.com/user-attachments/assets/c1a490af-ceb0-46c1-9553-eeaed32db605" />
+  <img width="631" height="498" alt="harry" src="https://github.com/user-attachments/assets/723b6874-5965-40b0-8db0-f6834c1a2d30" />
 
   ### Prerequisites
 
