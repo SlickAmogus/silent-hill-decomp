@@ -208,7 +208,19 @@ q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo) // 0x800449AC
         return animInfo->duration_8.constant;
     }
 
+#ifdef SH_PC_PORT
+    /* On PSX (MIPS), variableFunc is declared as (void) but the actual
+     * functions (e.g. func_800706E4) take s_Model* — extra args are harmless
+     * in the MIPS calling convention.  On x86-64 the mismatched signature
+     * causes a crash because the callee reads a garbage register.
+     * Cast to the real signature and pass the model pointer. */
+    {
+        typedef q19_12 (*variableFuncReal)(s_Model*);
+        return ((variableFuncReal)animInfo->duration_8.variableFunc)(unused);
+    }
+#else
     return animInfo->duration_8.variableFunc();
+#endif
 }
 
 /** @brief Computes the timestep of the target animation for the current tick.

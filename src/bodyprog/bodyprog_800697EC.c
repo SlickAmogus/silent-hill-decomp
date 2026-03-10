@@ -368,6 +368,18 @@ s32 func_80069FFC(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara) // 0
     s32             charaCount;
     s32             var_s1; // TODO: Maybe `bool`?
 
+#ifdef SH_PC_PORT
+    /* IPD collision data not available — return safe flat-ground defaults.
+     * Offset is passed through directly (no wall/collision adjustment). */
+    arg0->offset_0 = *offset;
+    arg0->field_12 = 0;
+    arg0->field_10 = 0;
+    arg0->field_14 = 0;
+    arg0->field_18 = 0xFFFF0000;
+    arg0->field_C  = Q12(0.0f); /* ground at Y=0 */
+    return 1;
+#endif
+
     sp28.position_0.vx = chara->position_18.vx + chara->field_D8.offsetX_4;
     sp28.position_0.vy = chara->position_18.vy - Q12(0.02f);
     sp28.position_0.vz = chara->position_18.vz + chara->field_D8.offsetZ_6;
@@ -2367,6 +2379,13 @@ bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
     dir.vz = to->vz - from->vz;
 
     ray->hasHit_0 = false;
+
+#ifdef SH_PC_PORT
+    /* IPD collision data not reformatted for 64-bit — Ray_TraceRun would
+     * dereference corrupt pointers. Return "no hit" safely. */
+    Ray_MissSet(ray, from, &dir, 0);
+    return false;
+#endif
 
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 0, 0, from, &dir, 0, 0, NULL, 0))
     {

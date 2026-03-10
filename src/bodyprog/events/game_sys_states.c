@@ -1,5 +1,9 @@
 #include "game.h"
 
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
+
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
@@ -13,10 +17,16 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/player.h"
+#include "bodyprog/view/vw_main.h"
 #include "bodyprog/ranking.h"
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+extern void vcGetNowCamPos(VECTOR3* cam_pos);
+extern void DebugCamera_Update(void);
+#endif
 
 #ifndef PAD_HACK_IGNORE
 // ========================================
@@ -154,6 +164,30 @@ void GameState_InGame_Update(void) // 0x80038BD4
         func_80040014();
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
+#ifdef SH_PC_PORT
+        /* Override game camera with a simple third-person follow camera.
+         * The VC camera system's Y placement is too high on PC — possibly due
+         * to camera road data or coordinate hierarchy issues.  Place the camera
+         * behind Harry at a fixed offset. */
+        if (!g_DebugCamEnabled)
+        {
+            VECTOR3 camPos, lookAt;
+            s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
+            s32 sinY = Math_Sin(hp->rotation_24.vy + Q12_ANGLE(180.0f));
+            s32 cosY = Math_Cos(hp->rotation_24.vy + Q12_ANGLE(180.0f));
+            /* Camera 3m behind, 1m above Harry */
+            camPos.vx = hp->position_18.vx + (s32)((s64)Q12(3.0f) * sinY >> 12);
+            camPos.vy = hp->position_18.vy - Q12(1.0f);
+            camPos.vz = hp->position_18.vz + (s32)((s64)Q12(3.0f) * cosY >> 12);
+            /* Look at Harry's chest height */
+            lookAt.vx = hp->position_18.vx;
+            lookAt.vy = hp->position_18.vy - Q12(0.8f);
+            lookAt.vz = hp->position_18.vz;
+            Vw_SetLookAtMatrix(&camPos, &lookAt);
+            vwSetViewInfo();
+        }
+#endif
+
         if (g_MapOverlayHeader.func_44 != NULL)
         {
             g_MapOverlayHeader.func_44();
@@ -174,9 +208,98 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
 
+#ifdef SH_PC_PORT
+        {
+            static int harry_dbg = 0;
+            if (harry_dbg < 10) {
+                VECTOR3 camPos;
+                extern MATRIX GsWSMATRIX;
+                vcGetNowCamPos(&camPos);
+                fprintf(stderr, "[HARRY] pos=(%d,%d,%d) flags=0x%x visible=%d health=%d\n",
+                    player->position_18.vx, player->position_18.vy, player->position_18.vz,
+                    player->model_0.anim_4.flags_2,
+                    !!(player->model_0.anim_4.flags_2 & AnimFlag_Visible),
+                    player->health_B0);
+                fprintf(stderr, "[HARRY] camPos=(%d,%d,%d) camAngleY=%d camRadiusXz=%d camY=%d\n",
+                    camPos.vx, camPos.vy, camPos.vz,
+                    g_SysWork.cameraAngleY_237A, g_SysWork.cameraRadiusXz_2380, g_SysWork.cameraY_2384);
+                fprintf(stderr, "[HARRY] sysState=%d gameState=%d sysFlags=0x%x deltaTime=%d\n",
+                    g_SysWork.sysState_8, g_GameWork.gameState_594,
+                    g_SysWork.sysFlags_22A0, g_DeltaTimeRaw);
+                fprintf(stderr, "[HARRY] GsWSMATRIX m=[[%d,%d,%d],[%d,%d,%d],[%d,%d,%d]] t=(%d,%d,%d)\n",
+                    GsWSMATRIX.m[0][0], GsWSMATRIX.m[0][1], GsWSMATRIX.m[0][2],
+                    GsWSMATRIX.m[1][0], GsWSMATRIX.m[1][1], GsWSMATRIX.m[1][2],
+                    GsWSMATRIX.m[2][0], GsWSMATRIX.m[2][1], GsWSMATRIX.m[2][2],
+                    GsWSMATRIX.t[0], GsWSMATRIX.t[1], GsWSMATRIX.t[2]);
+                fprintf(stderr, "[HARRY] playerBoneCoords[0] pos=(%d,%d,%d)\n",
+                    g_SysWork.playerBoneCoords_890[0].coord.t[0],
+                    g_SysWork.playerBoneCoords_890[0].coord.t[1],
+                    g_SysWork.playerBoneCoords_890[0].coord.t[2]);
+                fflush(stderr);
+                harry_dbg++;
+            }
+        }
+        /* Periodic status dump (every ~120 frames) */
+        {
+            static int frame_counter = 0;
+            if (frame_counter % 120 == 0) {
+                extern bool smf_start_flag;
+                extern bool sd_interrupt_start_flag;
+                fprintf(stderr, "[STATUS] frame=%d gameState=%d sysState=%d smf_start=%d sd_int_start=%d\n",
+                        frame_counter, g_GameWork.gameState_594, g_SysWork.sysState_8,
+                        smf_start_flag, sd_interrupt_start_flag);
+                fprintf(stderr, "[STATUS]   playerPos=(%d,%d,%d) health=%d animFlags=0x%x\n",
+                        player->position_18.vx, player->position_18.vy, player->position_18.vz,
+                        player->health_B0, player->model_0.anim_4.flags_2);
+                fflush(stderr);
+            }
+            frame_counter++;
+        }
+        /* Override camera with debug controls before rendering */
+        DebugCamera_Update();
+#endif
         if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
         {
+#ifdef SH_PC_PORT
+            /* Force all skeleton bones visible */
+            {
+                s_CharaModel* harryModel = g_WorldGfx.registeredCharaModels_18[Chara_Harry];
+                if (harryModel != NULL) {
+                    static int torso_dbg_cnt = 0;
+                    func_800453E8(&harryModel->skeleton_14, true);
+                    if (torso_dbg_cnt < 3) {
+                        s_LinkedBone* bone;
+                        int n = 0;
+                        fprintf(stderr, "[TORSO] boneCount=%d bones_4=%p bones_8=%p field_2=%d\n",
+                            harryModel->skeleton_14.boneCount_0,
+                            (void*)harryModel->skeleton_14.bones_4,
+                            (void*)harryModel->skeleton_14.bones_8,
+                            harryModel->skeleton_14.field_2);
+                        for (bone = harryModel->skeleton_14.bones_4; bone != NULL && n < 20; bone = bone->next_14) {
+                            fprintf(stderr, "[TORSO]  bone[%d] field_0=0x%x field_10=%d\n",
+                                n, bone->bone_0.modelInfo_0.field_0, bone->bone_0.field_10);
+                            n++;
+                        }
+                        fflush(stderr);
+                        torso_dbg_cnt++;
+                    }
+                }
+            }
+            /* Temporarily disable fog for Harry's render — fogRamp_CC lookup
+             * can produce out-of-range indices that corrupt vertex colors. */
+            {
+                extern u8 g_WorldEnvWork[];
+                u8 savedFog = g_WorldEnvWork[1]; /* isFogEnabled_1 */
+                u8 savedEnv = g_WorldEnvWork[0]; /* field_0 */
+                g_WorldEnvWork[1] = 0;
+                g_WorldEnvWork[0] = 0;
+#endif
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
+#ifdef SH_PC_PORT
+                g_WorldEnvWork[1] = savedFog;
+                g_WorldEnvWork[0] = savedEnv;
+            }
+#endif
             Chara_Flag8Clear(&g_SysWork.playerWork_4C.player_0);
             Player_CombatUpdate(&g_SysWork.playerWork_4C, g_SysWork.playerBoneCoords_890);
             func_8008A3AC(&g_SysWork.playerWork_4C.player_0);
