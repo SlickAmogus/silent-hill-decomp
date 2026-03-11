@@ -215,6 +215,16 @@ else()
 endif()
 
 # =============================================================================
+# Copy config.cfg to build dir (only if not already present)
+# =============================================================================
+add_custom_command(TARGET SilentHillPC POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/config.cfg"
+        "$<TARGET_FILE_DIR:SilentHillPC>/config.cfg"
+    COMMENT "Copying config.cfg to build directory"
+)
+
+# =============================================================================
 # Install
 # =============================================================================
 install(TARGETS SilentHillPC RUNTIME DESTINATION bin)

@@ -26,13 +26,6 @@ bool Fs_QueueAllocEntryData(s_FsQueueEntry* entry)
         entry->data = entry->externalData;
     }
 
-#ifdef SH_PC_PORT
-    {
-        fprintf(stderr, "[SH] FsAlloc: alloc=%d data=%p extData=%p blocks=%d\n",
-            entry->allocate, (void*)entry->data, (void*)entry->externalData,
-            entry->info->blockCount_0_19);
-    }
-#endif
     if (entry->data != 0)
     {
         result = true;
@@ -135,11 +128,6 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         static int readLogCount = 0;
 #endif
         result = CdRead(sectorCount >> FS_SECTOR_SHIFT, (u32*)entry->data, CdlModeSpeed);
-#ifdef SH_PC_PORT
-        printf("[SH] CdRead: sectors=%d data=%p mode=%d result=%d\n",
-            sectorCount >> FS_SECTOR_SHIFT, (void*)entry->data, CdlModeSpeed, result);
-        fflush(stdout);
-#endif
         return result;
     }
 }
@@ -278,25 +266,8 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     TIM_IMAGE tim;
     RECT      tempRect;
 
-#ifdef SH_PC_PORT
-    printf("[SH] Fs_QueuePostLoadTim: extData=%p data=%p\n",
-        (void*)entry->externalData, (void*)entry->data);
-    {
-        u8* p = (u8*)entry->externalData;
-        printf("[SH]   TIM header bytes: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-            p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-    }
-#endif
     OpenTIM((u64*)entry->externalData);
     ReadTIM(&tim);
-#ifdef SH_PC_PORT
-    printf("[SH]   TIM parsed: prect=%p paddr=%p crect=%p caddr=%p mode=0x%x\n",
-        (void*)tim.prect, (void*)tim.paddr, (void*)tim.crect, (void*)tim.caddr, tim.mode);
-    if (tim.prect) {
-        printf("[SH]   prect: x=%d y=%d w=%d h=%d\n",
-            tim.prect->x, tim.prect->y, tim.prect->w, tim.prect->h);
-    }
-#endif
 
     tempRect = *tim.prect;
     if (entry->extra.image.u != 0xFF)

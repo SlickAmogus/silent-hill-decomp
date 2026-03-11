@@ -1298,9 +1298,6 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
-#ifdef SH_PC_PORT
-                !g_DebugCamEnabled &&
-#endif
                 curChunk->distance0_C > Q12(0.0f) && curChunk->distance1_10 > Q12(0.0f))
             {
                 Lm_MaterialRefCountDec(curChunk->ipdHdr_0->lmHdr_4);
@@ -1313,12 +1310,7 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
-#ifdef SH_PC_PORT
-                (g_DebugCamEnabled ||
-                 (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f))))
-#else
                 (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f)))
-#endif
             {
                 Ipd_MaterialsLoad(curChunk->ipdHdr_0, &map->ipdTextures_430.fullPage_0, &map->ipdTextures_430.halfPage_2C, map->texFileIdx_134);
                 Lm_MaterialFlagsApply(curChunk->ipdHdr_0->lmHdr_4);

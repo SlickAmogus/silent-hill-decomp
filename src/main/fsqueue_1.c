@@ -57,13 +57,8 @@ void Fs_QueueWaitForEmpty(void)
         }
 
 #ifdef SH_PC_PORT
-        if (waitCount < 5 || waitCount % 100 == 0) {
-            printf("[SH] Fs_QueueWaitForEmpty: queueLen=%d state=%d waitCount=%d\n",
-                Fs_QueueGetLength(), g_FsQueue.state, waitCount);
-        }
         waitCount++;
         if (waitCount > 500) {
-            printf("[SH] Fs_QueueWaitForEmpty: timeout, forcing queue empty\n");
             /* Force the queue empty to prevent infinite loop */
             g_FsQueue.read.idx = g_FsQueue.last.idx + 1;
             g_FsQueue.postLoad.idx = g_FsQueue.read.idx;
@@ -152,11 +147,6 @@ s32 Fs_QueueEnqueue(e_FsFile fileIdx, u8 op, u8 postLoad, u8 alloc, void* data, 
         newEntry->extra = *extra;
     }
 
-#ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] FsEnqueue: file=%d op=%d data=%p idx=%d\n",
-        fileIdx, op, data, g_FsQueue.last.idx);
-    fflush(stderr);
-#endif
     return g_FsQueue.last.idx;
 }
 
