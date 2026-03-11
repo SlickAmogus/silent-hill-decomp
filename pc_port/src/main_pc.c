@@ -18,6 +18,7 @@
 #include "gpu.h"
 #include "sh_log.h"
 #include "psx_memory.h"
+#include "pc_config.h"
 #include "main/fsqueue.h"
 #include "bodyprog/bodyprog.h"
 
@@ -79,9 +80,6 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    int windowWidth = 640;
-    int windowHeight = 480;
-
     /* Redirect stdout to log file, keep stderr on console for visibility */
     freopen("SilentHill.log", "w", stdout);
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -91,6 +89,11 @@ int main(int argc, char* argv[])
     PrintBanner();
     fprintf(stderr, "[SH] sizeof(s_WorldGfxWork) = %zu\n", sizeof(s_WorldGfxWork));
     ParseArgs(argc, argv);
+
+    /* Load config file */
+    PcConfig_Load("config.cfg");
+    int windowWidth = g_PcConfig.windowWidth;
+    int windowHeight = g_PcConfig.windowHeight;
 
     SH_LOG("Game data path: %s", g_GameDataPath);
 
@@ -120,7 +123,7 @@ int main(int argc, char* argv[])
 
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
-    PsyX_Initialise("Silent Hill", windowWidth, windowHeight, 0);
+    PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
     /* Initialize PSY-Q subsystems via PsyCross */

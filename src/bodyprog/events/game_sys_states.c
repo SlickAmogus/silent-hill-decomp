@@ -196,6 +196,20 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Demo_DemoRandSeedRestore();
 
         player = &g_SysWork.playerWork_4C.player_0;
+
+#ifdef SH_PC_PORT
+        /* In debug camera mode, skip all player/NPC/flashlight updates
+         * to keep the same performance as before Harry movement was added.
+         * Just update the debug camera and draw the world. */
+        DebugCamera_Update();
+        if (g_DebugCamEnabled)
+        {
+            Ipd_CloseRangeChunksInit();
+            Gfx_InGameDraw(1);
+            goto ingame_done;
+        }
+#endif
+
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
 
         Demo_DemoRandSeedRestore();
@@ -208,56 +222,6 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
 
-#ifdef SH_PC_PORT
-        {
-            static int harry_dbg = 0;
-            if (harry_dbg < 10) {
-                VECTOR3 camPos;
-                extern MATRIX GsWSMATRIX;
-                vcGetNowCamPos(&camPos);
-                fprintf(stderr, "[HARRY] pos=(%d,%d,%d) flags=0x%x visible=%d health=%d\n",
-                    player->position_18.vx, player->position_18.vy, player->position_18.vz,
-                    player->model_0.anim_4.flags_2,
-                    !!(player->model_0.anim_4.flags_2 & AnimFlag_Visible),
-                    player->health_B0);
-                fprintf(stderr, "[HARRY] camPos=(%d,%d,%d) camAngleY=%d camRadiusXz=%d camY=%d\n",
-                    camPos.vx, camPos.vy, camPos.vz,
-                    g_SysWork.cameraAngleY_237A, g_SysWork.cameraRadiusXz_2380, g_SysWork.cameraY_2384);
-                fprintf(stderr, "[HARRY] sysState=%d gameState=%d sysFlags=0x%x deltaTime=%d\n",
-                    g_SysWork.sysState_8, g_GameWork.gameState_594,
-                    g_SysWork.sysFlags_22A0, g_DeltaTimeRaw);
-                fprintf(stderr, "[HARRY] GsWSMATRIX m=[[%d,%d,%d],[%d,%d,%d],[%d,%d,%d]] t=(%d,%d,%d)\n",
-                    GsWSMATRIX.m[0][0], GsWSMATRIX.m[0][1], GsWSMATRIX.m[0][2],
-                    GsWSMATRIX.m[1][0], GsWSMATRIX.m[1][1], GsWSMATRIX.m[1][2],
-                    GsWSMATRIX.m[2][0], GsWSMATRIX.m[2][1], GsWSMATRIX.m[2][2],
-                    GsWSMATRIX.t[0], GsWSMATRIX.t[1], GsWSMATRIX.t[2]);
-                fprintf(stderr, "[HARRY] playerBoneCoords[0] pos=(%d,%d,%d)\n",
-                    g_SysWork.playerBoneCoords_890[0].coord.t[0],
-                    g_SysWork.playerBoneCoords_890[0].coord.t[1],
-                    g_SysWork.playerBoneCoords_890[0].coord.t[2]);
-                fflush(stderr);
-                harry_dbg++;
-            }
-        }
-        /* Periodic status dump (every ~120 frames) */
-        {
-            static int frame_counter = 0;
-            if (frame_counter % 120 == 0) {
-                extern bool smf_start_flag;
-                extern bool sd_interrupt_start_flag;
-                fprintf(stderr, "[STATUS] frame=%d gameState=%d sysState=%d smf_start=%d sd_int_start=%d\n",
-                        frame_counter, g_GameWork.gameState_594, g_SysWork.sysState_8,
-                        smf_start_flag, sd_interrupt_start_flag);
-                fprintf(stderr, "[STATUS]   playerPos=(%d,%d,%d) health=%d animFlags=0x%x\n",
-                        player->position_18.vx, player->position_18.vy, player->position_18.vz,
-                        player->health_B0, player->model_0.anim_4.flags_2);
-                fflush(stderr);
-            }
-            frame_counter++;
-        }
-        /* Override camera with debug controls before rendering */
-        DebugCamera_Update();
-#endif
         if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
         {
 #ifdef SH_PC_PORT
@@ -265,24 +229,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
             {
                 s_CharaModel* harryModel = g_WorldGfx.registeredCharaModels_18[Chara_Harry];
                 if (harryModel != NULL) {
-                    static int torso_dbg_cnt = 0;
                     func_800453E8(&harryModel->skeleton_14, true);
-                    if (torso_dbg_cnt < 3) {
-                        s_LinkedBone* bone;
-                        int n = 0;
-                        fprintf(stderr, "[TORSO] boneCount=%d bones_4=%p bones_8=%p field_2=%d\n",
-                            harryModel->skeleton_14.boneCount_0,
-                            (void*)harryModel->skeleton_14.bones_4,
-                            (void*)harryModel->skeleton_14.bones_8,
-                            harryModel->skeleton_14.field_2);
-                        for (bone = harryModel->skeleton_14.bones_4; bone != NULL && n < 20; bone = bone->next_14) {
-                            fprintf(stderr, "[TORSO]  bone[%d] field_0=0x%x field_10=%d\n",
-                                n, bone->bone_0.modelInfo_0.field_0, bone->bone_0.field_10);
-                            n++;
-                        }
-                        fflush(stderr);
-                        torso_dbg_cnt++;
-                    }
                 }
             }
             /* Temporarily disable fog for Harry's render — fogRamp_CC lookup
@@ -312,6 +259,10 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Ipd_CloseRangeChunksInit();
         Gfx_InGameDraw(1);
         Demo_DemoRandSeedAdvance();
+#ifdef SH_PC_PORT
+    ingame_done:
+        (void)0;
+#endif
     }
 }
 
