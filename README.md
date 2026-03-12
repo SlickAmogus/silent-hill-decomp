@@ -174,8 +174,7 @@
 
 
   ### Support
-  Join The Chill Lounge discord for questions regarding any of my mods\projects (or feel free to message me):\
-  https://discord.gg/U29t39WR73
+  Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut.\
   
   I work with more than just AI. If you like what I do:\
   [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F3K8V3B)
