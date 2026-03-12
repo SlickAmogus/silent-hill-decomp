@@ -174,7 +174,7 @@
 
 
   ### Support
-  Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut.\
+  Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut.
   
   I work with more than just AI. If you like what I do:\
   [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F3K8V3B)
