@@ -1,0 +1,192 @@
+#include "map_registry.h"
+#include "pc_config.h"
+#include <string.h>
+#include <stdio.h>
+
+/* The global pointer that all game code uses via the macro:
+ *   #define g_MapOverlayHeader (*g_pMapOverlayHeader)
+ */
+s_MapOverlayHeader* g_pMapOverlayHeader = NULL;
+
+/* The fully-compiled map0_s00 header (renamed via -DSH_MAP_NAME=map0_s00). */
+extern s_MapOverlayHeader g_MapOverlayHeader_map0_s00;
+
+/* ========================================================================
+ * Stub headers for maps that aren't fully compiled.
+ * These provide correct metadata so geometry/chunks load properly,
+ * but all function pointers are NULL (zeroed by default).
+ * ======================================================================== */
+
+/* No-op loading screen function (avoids NULL calls). */
+static void MapStub_LoadScreenNoop(void) {}
+static void (*g_StubLoadScreenFuncs[])(void) = { MapStub_LoadScreenNoop, NULL };
+
+/* Map name table - maps overlay IDs to directory names. */
+static const char* const MAP_NAMES[] = {
+    [MapOverlayId_MAP0_S00] = "map0_s00",
+    [MapOverlayId_MAP0_S01] = "map0_s01",
+    [MapOverlayId_MAP0_S02] = "map0_s02",
+    [MapOverlayId_MAP1_S00] = "map1_s00",
+    [MapOverlayId_MAP1_S01] = "map1_s01",
+    [MapOverlayId_MAP1_S02] = "map1_s02",
+    [MapOverlayId_MAP1_S03] = "map1_s03",
+    [MapOverlayId_MAP1_S04] = "map1_s04",
+    [MapOverlayId_MAP1_S05] = "map1_s05",
+    [MapOverlayId_MAP1_S06] = "map1_s06",
+    [MapOverlayId_MAP2_S00] = "map2_s00",
+    [MapOverlayId_MAP2_S01] = "map2_s01",
+    [MapOverlayId_MAP2_S02] = "map2_s02",
+    [MapOverlayId_MAP2_S03] = "map2_s03",
+    [MapOverlayId_MAP2_S04] = "map2_s04",
+    [MapOverlayId_MAP3_S00] = "map3_s00",
+    [MapOverlayId_MAP3_S01] = "map3_s01",
+    [MapOverlayId_MAP3_S02] = "map3_s02",
+    [MapOverlayId_MAP3_S03] = "map3_s03",
+    [MapOverlayId_MAP3_S04] = "map3_s04",
+    [MapOverlayId_MAP3_S05] = "map3_s05",
+    [MapOverlayId_MAP3_S06] = "map3_s06",
+    [MapOverlayId_MAP4_S00] = "map4_s00",
+    [MapOverlayId_MAP4_S01] = "map4_s01",
+    [MapOverlayId_MAP4_S02] = "map4_s02",
+    [MapOverlayId_MAP4_S03] = "map4_s03",
+    [MapOverlayId_MAP4_S04] = "map4_s04",
+    [MapOverlayId_MAP4_S05] = "map4_s05",
+    [MapOverlayId_MAP4_S06] = "map4_s06",
+    [MapOverlayId_MAP5_S00] = "map5_s00",
+    [MapOverlayId_MAP5_S01] = "map5_s01",
+    [MapOverlayId_MAP5_S02] = "map5_s02",
+    [MapOverlayId_MAP5_S03] = "map5_s03",
+    [MapOverlayId_MAP6_S00] = "map6_s00",
+    [MapOverlayId_MAP6_S01] = "map6_s01",
+    [MapOverlayId_MAP6_S02] = "map6_s02",
+    [MapOverlayId_MAP6_S03] = "map6_s03",
+    [MapOverlayId_MAP6_S04] = "map6_s04",
+    [MapOverlayId_MAP6_S05] = "map6_s05",
+    [MapOverlayId_MAP7_S00] = "map7_s00",
+    [MapOverlayId_MAP7_S01] = "map7_s01",
+    [MapOverlayId_MAP7_S02] = "map7_s02",
+    [MapOverlayId_MAP7_S03] = "map7_s03",
+};
+
+/* Stub map headers - one per overlay.
+ * Metadata extracted from each map's original _header.c file.
+ * Zero-initialized fields: all function pointers, spawn data, road data, etc.
+ */
+static s_MapOverlayHeader g_StubHeaders[] = {
+    /* MapOverlayId_MAP0_S00 = 0 — fully compiled, not used as stub */
+    [MapOverlayId_MAP0_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 2, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP0_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 3, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP0_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+
+    [MapOverlayId_MAP1_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 5, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP1_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 6, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP1_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 7, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP1_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 8, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP1_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP1_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 26, .ambientAudioIdx_15 = 9, .field_16 = 3, .field_17 = 0 },
+    [MapOverlayId_MAP1_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 8, .ambientAudioIdx_15 = 10, .field_16 = 1, .field_17 = 2 },
+
+    [MapOverlayId_MAP2_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP2_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 27, .ambientAudioIdx_15 = 12, .field_16 = 1, .field_17 = 0 },
+    [MapOverlayId_MAP2_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 13, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP2_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP2_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 38, .ambientAudioIdx_15 = 14, .field_16 = 1, .field_17 = 0 },
+
+    [MapOverlayId_MAP3_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 15, .field_16 = 1, .field_17 = 1 },
+    [MapOverlayId_MAP3_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 16, .field_16 = 1, .field_17 = 1 },
+    [MapOverlayId_MAP3_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 17, .field_16 = 1, .field_17 = 0 },
+    [MapOverlayId_MAP3_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 18, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP3_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 19, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP3_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 19, .ambientAudioIdx_15 = 20, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP3_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 21, .field_16 = 1, .field_17 = 1 },
+
+    [MapOverlayId_MAP4_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapOverlayId_MAP4_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 24, .ambientAudioIdx_15 = 22, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP4_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 17, .ambientAudioIdx_15 = 23, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP4_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 33, .ambientAudioIdx_15 = 24, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP4_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 32, .ambientAudioIdx_15 = 25, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP4_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 13, .ambientAudioIdx_15 = 26, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP4_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+
+    [MapOverlayId_MAP5_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_DR],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 28, .ambientAudioIdx_15 = 27, .field_16 = 2, .field_17 = 5 },
+    [MapOverlayId_MAP5_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_RSR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 28, .field_16 = 2, .field_17 = 2 },
+    [MapOverlayId_MAP5_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 29, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP5_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 30, .field_16 = 2, .field_17 = 1 },
+
+    [MapOverlayId_MAP6_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 20, .ambientAudioIdx_15 = 31, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP6_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 32, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP6_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 21, .ambientAudioIdx_15 = 33, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP6_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_DRU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 12, .ambientAudioIdx_15 = 34, .field_16 = 2, .field_17 = 5 },
+    [MapOverlayId_MAP6_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 37, .ambientAudioIdx_15 = 35, .field_16 = 2, .field_17 = 0 },
+    [MapOverlayId_MAP6_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
+
+    [MapOverlayId_MAP7_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 10, .ambientAudioIdx_15 = 36, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP7_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 37, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP7_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 38, .field_16 = 2, .field_17 = 6 },
+    [MapOverlayId_MAP7_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .bgmIdx_14 = 35, .ambientAudioIdx_15 = 39, .field_16 = 3, .field_17 = 2 },
+};
+
+/* ========================================================================
+ * Registry API
+ * ======================================================================== */
+
+void MapRegistry_Init(void)
+{
+    /* Default to map0_s00 (the fully compiled map). */
+    g_pMapOverlayHeader = &g_MapOverlayHeader_map0_s00;
+
+    /* If config specifies a different map, try to load it. */
+    int id = MapRegistry_FindByName(g_PcConfig.mapName);
+    if (id >= 0)
+    {
+        MapRegistry_Load((e_MapOverlayId)id);
+    }
+}
+
+void MapRegistry_Load(e_MapOverlayId id)
+{
+    if (id < 0 || id > MapOverlayId_MAPX_S00)
+    {
+        fprintf(stderr, "[MapRegistry] Invalid overlay ID %d\n", id);
+        return;
+    }
+
+    /* For map0_s00, use the fully compiled header. */
+    if (id == MapOverlayId_MAP0_S00)
+    {
+        g_pMapOverlayHeader = &g_MapOverlayHeader_map0_s00;
+    }
+    else
+    {
+        /* Use stub header for other maps. */
+        g_pMapOverlayHeader = &g_StubHeaders[id];
+    }
+
+    fprintf(stderr, "[MapRegistry] Loaded map %s (overlay %d, mapType %d)\n",
+        MapRegistry_GetName(id), id,
+        (int)(g_pMapOverlayHeader->mapInfo_0 - MAP_INFOS));
+}
+
+int MapRegistry_FindByName(const char* name)
+{
+    if (name == NULL) return -1;
+
+    for (int i = 0; i <= MapOverlayId_MAP7_S03; i++)
+    {
+        if (MAP_NAMES[i] != NULL && strcmp(name, MAP_NAMES[i]) == 0)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+const char* MapRegistry_GetName(e_MapOverlayId id)
+{
+    if (id >= 0 && id <= MapOverlayId_MAP7_S03 && MAP_NAMES[id] != NULL)
+    {
+        return MAP_NAMES[id];
+    }
+    return "unknown";
+}

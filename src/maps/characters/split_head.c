@@ -149,12 +149,12 @@ void sharedFunc_800CF990_1_s05(s_SubCharacter* splitHead)
     {
         if (splitHeadProps.flags_E8 & SplitHeadFlag_8)
         {
-            func_8005DC1C(Sfx_Unk1422, &splitHead->position_18, Q8_CLAMPED(0.5f), 0);
+            func_8005DC1C(Sfx_Unk1422, &splitHead->position_18, Q8(0.5f), 0);
             splitHeadProps.field_10C = Rng_GenerateInt(Q12(3.0f), Q12(5.0f) - 1);
         }
         else if (splitHeadProps.flags_E8 & SplitHeadFlag_7)
         {
-            func_8005DC1C(Sfx_Unk1474, &splitHead->position_18, Q8_CLAMPED(0.5f), 0);
+            func_8005DC1C(Sfx_Unk1474, &splitHead->position_18, Q8(0.5f), 0);
             splitHeadProps.field_10C = Rng_GenerateInt(Q12(1.5f), Q12(2.5f) - 1);
         }
     }
@@ -962,7 +962,7 @@ void Ai_SplitHead_Control_6(s_SubCharacter* splitHead)
 
             if (!Savegame_EventFlagGet(EventFlag_131))
             {
-                func_8005DC1C(Sfx_Unk1479, &splitHead->position_18, Q8_CLAMPED(0.5f), 0);
+                func_8005DC1C(Sfx_Unk1479, &splitHead->position_18, Q8(0.5f), 0);
             }
 
             Savegame_EventFlagSet(EventFlag_131);
@@ -1200,7 +1200,7 @@ void sharedFunc_800D274C_1_s05(s_SubCharacter* splitHead, s_AnmHeader* anmHdr)
     Math_MatrixTransform(&splitHead->position_18, (SVECTOR*)&splitHead->rotation_24, sharedData_800D8610_1_s05);
 
     animInfo = &SPLIT_HEAD_ANIM_INFOS[splitHead->model_0.anim_4.status_0];
-    animInfo->updateFunc_0(&splitHead->model_0, anmHdr, sharedData_800D8610_1_s05, animInfo);
+    animInfo->playbackFunc_0(&splitHead->model_0, anmHdr, sharedData_800D8610_1_s05, animInfo);
 
     // TODO: Are the unconverted numbers angles or time values?
     if (splitHead->model_0.anim_4.status_0 == ANIM_STATUS(SplitHeadAnim_11, true) && (splitHead->rotation_24.vy != splitHeadProps.angle_EC))

@@ -45,7 +45,7 @@ void Ai_Cybil_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* animHdr, GsCOORDINA
     if (chara->properties_E4.player.field_F0 == 0)
     {
         animInfo = &CYBIL_ANIM_INFOS[chara->model_0.anim_4.status_0];
-        animInfo->updateFunc_0(&chara->model_0, animHdr, coords, animInfo);
+        animInfo->playbackFunc_0(&chara->model_0, animHdr, coords, animInfo);
     }
 }
 
@@ -497,7 +497,7 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
         case 22:
             if (sharedData_800E237C_0_s01 == 1)
             {
-                func_8005DC1C(Sfx_Unk1673, &g_SysWork.npcs_1A0[1].position_18, Q8_CLAMPED(0.75f), 0);
+                func_8005DC1C(Sfx_Unk1673, &g_SysWork.npcs_1A0[1].position_18, Q8(0.75f), 0);
                 sharedData_800E237C_0_s01 = 2;
             }
 
@@ -506,7 +506,7 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
                 if (sharedData_800E237C_0_s01 == 0)
                 {
                     func_8006342C(63, 1024, chara->rotation_24.vy, &g_SysWork.npcCoords_FC0[0]);
-                    func_8005DC1C(Sfx_Unk1622, &chara->position_18, Q8_CLAMPED(0.75f), 0);
+                    func_8005DC1C(Sfx_Unk1622, &chara->position_18, Q8(0.75f), 0);
                     sharedData_800E237C_0_s01 = 1;
                 }
             }

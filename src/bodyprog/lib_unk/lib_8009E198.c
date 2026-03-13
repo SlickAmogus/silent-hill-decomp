@@ -6,6 +6,9 @@
 
 #include "bodyprog/math/math.h"
 
+// Data passed to `PadSetActAlign`
+u8 D_800B2610[6] = { 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF }; 
+
 // TODO: Could be array?
 s_SysWork_2510 D_800B13EC = {
     .next_0  = NULL,
@@ -43,7 +46,11 @@ s_SysWork_2510 D_800B142C = {
     .next_0  = NULL,
     .key_4   = 1,
     .pad_5   = { 1, 2, 0 },
-    .field_8 = 0x800B2610, // TODO: Pointer to data? Pretty far from this files .data section.
+#ifdef SH_PC_PORT
+    .field_8 = 0, /* PSX stores (s32)D_800B2610 — pointer truncation on 64-bit */
+#else
+    .field_8 = D_800B2610,
+#endif
     .func_C  = func_8009E9D0,
 };
 

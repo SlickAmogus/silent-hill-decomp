@@ -10,11 +10,11 @@
 // GLOBAL VARIABLES
 // ========================================
 
-q0_8 g_Screen_BackgroundImgIntensity = Q8(0.5f);
+q0_8 g_Screen_BackgroundImgGamma = Q8(0.5f);
 s16  D_800A8E5A                      = 3; // @Unused.
 
 // ========================================
-// BACKGROUND (2D) DRAW
+// FUNCTIONS
 // ========================================
 
 void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
@@ -46,7 +46,7 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
             sprt = (SPRT*)packet;
 
             addPrimFast(ot, sprt, 4);
-            setRGBC0(sprt, g_Screen_BackgroundImgIntensity, g_Screen_BackgroundImgIntensity, g_Screen_BackgroundImgIntensity, 100);
+            setRGBC0(sprt, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, 100);
 
             if (y == 0)
             {
@@ -76,9 +76,9 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
         }
     }
 
-    GsOUT_PACKET_P           = packet;
-    g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
-    g_Screen_BackgroundImgIntensity        = 128;
+    GsOUT_PACKET_P                  = packet;
+    g_SysWork.sysFlags_22A0        |= SysFlag_Freeze;
+    g_Screen_BackgroundImgGamma = Q8(0.5f);
 }
 
 void Screen_BackgroundImgTransition(s_FsImageDesc* image0, s_FsImageDesc* image1, q3_12 alpha) // 0x800317CC
@@ -168,16 +168,16 @@ void Screen_BackgroundImgDrawAlt(s_FsImageDesc* image) // 0x80031AAC
 
         setSemiTrans(poly, false);
 
-        *((u16*)&poly->r0) = g_Screen_BackgroundImgIntensity + (g_Screen_BackgroundImgIntensity << 8);
-        poly->b0           = g_Screen_BackgroundImgIntensity;
+        *((u16*)&poly->r0) = g_Screen_BackgroundImgGamma + (g_Screen_BackgroundImgGamma << 8);
+        poly->b0           = g_Screen_BackgroundImgGamma;
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[2], poly);
         poly++;
     }
 
-    GsOUT_PACKET_P        = (PACKET*)poly;
-    g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
-    g_Screen_BackgroundImgIntensity     = 0x80;
+    GsOUT_PACKET_P                  = (PACKET*)poly;
+    g_SysWork.sysFlags_22A0        |= SysFlag_Freeze;
+    g_Screen_BackgroundImgGamma = Q8(0.5f);
 }
 
 bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC

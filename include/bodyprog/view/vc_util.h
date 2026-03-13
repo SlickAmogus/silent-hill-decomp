@@ -14,7 +14,7 @@ void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_
 
 /** @brief Warps the camera in relation to a character position.
  *
- * @param chr_pos Reference character position (Q12.12).
+ * @param chr_pos Reference character position (Q19.12).
  * @param chr_ang_y Y rotation.
  */
 void vcSetCameraUseWarp(const VECTOR3* chr_pos, q3_12 chr_ang_y);
@@ -26,17 +26,15 @@ void vcSetCameraUseWarp(const VECTOR3* chr_pos, q3_12 chr_ang_y);
  */
 s32 vcRetCamMvSmoothF(void);
 
-/** @brief Sets the camera's elevation(?) rate to normal or locked. So far @unused.
- * TODO: Is it elevation or something else?
+/** @brief Sets the camera's elevation rate to normal or locked. So far @unused.
  *
- * @param isUnlocked `true` to set the elevation(?) rate to normal, `false` to lock.
+ * @param isUnlocked `true` to set the elevation rate to normal, `false` to lock.
  */
 void Vc_CameraElevationRateLockSet(bool isUnlocked);
 
-/** @brief Sets the camera's active elevation(?) rate.
- * TODO: Is it elevation or something else?
+/** @brief Sets the camera's active elevation rate.
  *
- * @param ev_cam_rate New elevation(?) rate.
+ * @param ev_cam_rate New elevation rate.
  */
 void vcSetEvCamRate(q3_12 ev_cam_rate);
 
@@ -53,7 +51,7 @@ void vcSetEvCamRate(q3_12 ev_cam_rate);
  */
 void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, bool back_f, bool right_f, bool left_f, bool up_f, bool down_f);
 
-/** @brief Gets the head position of the player.
+/** @brief Gets the player's head position.
  *
  * @param head_pos Output player head position (Q19.12).
  */
@@ -69,7 +67,7 @@ void vcMakeHeroHeadPos(VECTOR3* head_pos);
  */
 void vcAddOfsToPos(VECTOR3* out_pos, const VECTOR3* in_pos, q3_12 ofs_xz_r, q3_12 ang_y, q19_12 ofs_y);
 
-/** @brief TODO
+/** @brief Translates a reference camera position.
  *
  * @param ref_pos Reference position.
  * @param sys_p System work.
@@ -83,7 +81,7 @@ void vcAddOfsToPos(VECTOR3* out_pos, const VECTOR3* in_pos, q3_12 ofs_xz_r, q3_1
 void vcSetRefPosAndSysRef2CamParam(VECTOR3* ref_pos, s_SysWork* sys_p,
                                    bool for_f, bool back_f, bool right_f, bool left_f, bool up_f, bool down_f);
 
-/** @brief Sets a reference position according to analog stick input.
+/** @brief Sets a reference camera position according to analog stick input.
  *
  * @param ref_pos Reference position.
  * @param sys_p System work.

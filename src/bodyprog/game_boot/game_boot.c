@@ -1,6 +1,7 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "map_registry.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -43,28 +44,28 @@ void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 void GameBoot_PlayerInit(void) // 0x80035178
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: WorldGfx_MapInit... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: WorldGfx_MapInit... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     WorldGfx_MapInit();
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: CharaModel_AllModelsFree... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: CharaModel_AllModelsFree... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     CharaModel_AllModelsFree();
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: Item_HeldItemModelFree... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: Item_HeldItemModelFree... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     Item_HeldItemModelFree();
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: Anim_BoneInit... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: Anim_BoneInit... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords_890); // Load player anim file?
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: WorldGfx_PlayerModelProcessLoad... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: WorldGfx_PlayerModelProcessLoad... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     WorldGfx_PlayerModelProcessLoad();
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_PlayerInit: setting field_229C... harry=%p\n", (void*)g_WorldGfx.registeredCharaModels_18[1]); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_PlayerInit: setting field_229C... harry=%p\n", (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr);
 #endif
     g_SysWork.field_229C = NO_VALUE;
 
@@ -91,7 +92,12 @@ void GameBoot_PlayerInit(void) // 0x80035178
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_MapLoad: Fs_QueueStartRead mapIdx=%d\n", mapIdx); fflush(stderr);
+    fprintf(stderr, "[SH] GameBoot_MapLoad: mapIdx=%d (%s)\n", mapIdx, MapRegistry_GetName(mapIdx));
+    fflush(stderr);
+    /* Switch the active map overlay header to the requested map. */
+    MapRegistry_Load(mapIdx);
+    /* Still read the overlay file — on PC this is a no-op but keeps the
+     * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
 #ifdef SH_PC_PORT

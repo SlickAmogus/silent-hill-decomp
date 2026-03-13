@@ -19,6 +19,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "pc_config.h"
+#include "map_registry.h"
 #include "main/fsqueue.h"
 #include "bodyprog/bodyprog.h"
 
@@ -160,6 +161,12 @@ int main(int argc, char* argv[])
     /* Initialize file system queue */
     SH_LOG("Initializing filesystem queue...");
     Fs_QueueInitialize();
+
+    /* Initialize map registry — sets g_pMapOverlayHeader based on config.cfg.
+     * Must happen after PcPort_InitCharaAnimInfo (anim stubs) but before MainLoop. */
+    SH_LOG("Initializing map registry...");
+    MapRegistry_Init();
+    SH_LOG("Active map: %s", g_PcConfig.mapName);
 
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 

@@ -25,18 +25,6 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
     {
         Joy_Update();
 
-#ifdef SH_PC_PORT
-        {
-            static s32 prevStep = -1;
-            static s32 loopIter = 0;
-            loopIter++;
-            if (loopIter <= 5 || (loopIter % 60 == 0)) {
-                printf("[SH] KonamiLogo: iter=%d step=%d counter0=%d fadeState=%d fadeNone=%d dtRaw=%d\n",
-                    loopIter, g_GameWork.gameStateStep_598[0], g_SysWork.counters_1C[0],
-                    g_Screen_FadeStatus, ScreenFade_IsNone(), g_DeltaTimeRaw);
-            }
-        }
-#endif
         switch (g_GameWork.gameStateStep_598[0])
         {
             case KonamiLogoStateStep_Init:
@@ -56,10 +44,6 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
                 Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
 
                 g_GameWork.gameStateStep_598[0]++;
-#ifdef SH_PC_PORT
-                printf("[SH] KonamiLogo step0 complete, advancing to step %d\n", g_GameWork.gameStateStep_598[0]);
-                fflush(stdout);
-#endif
                 break;
 
             case KonamiLogoStateStep_WaitForFade:
@@ -95,8 +79,6 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
         nullsub_800334C8();
         VSync(SyncMode_Wait);
 #ifdef SH_PC_PORT
-        /* Internal loops don't update delta time like the main loop does.
-         * Set a reasonable per-frame delta (~1/60s in Q12) for fades to work. */
         g_DeltaTime = Q12(1.0f / 60.0f);
         g_DeltaTimeRaw = Q12(1.0f / 60.0f);
 #endif
@@ -182,25 +164,33 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                 break;
 
             case KcetLogoStateStep_CheckMemCards:
-#ifdef SH_PC_PORT
-                printf("[SH] KCET: CheckMemCards, fadeNone=%d\n", ScreenFade_IsNone());
-                fflush(stdout);
-#endif
                 if (ScreenFade_IsNone())
                 {
                     s32 curTime;
-#ifdef SH_PC_PORT
-                    printf("[SH] KCET: Waiting for queue empty...\n");
-                    fflush(stdout);
-#endif
+
                     Fs_QueueWaitForEmpty();
 
+#ifdef SH_PC_PORT
+                    /* Skip memory card check on PC - no hardware available.
+                     * Go directly to NoMemCard state. */
+                    g_GameWork.gameStateStep_598[0] = KcetLogoStateStep_NoMemCard;
+                    break;
+#endif
+
 #if VERSION_REGION_IS(NTSCJ)
-                    // WIP: Anti-modchip code from NTSC-J releases, not checked if matching yet.
+                    // Anti-modchip code from NTSC-J releases, using Sony's `safechk.obj` code.
+                    // Decompresses/decrypts the `S__SAFE2` / `HP_SAFE1` overlays:
+                    // - `S__SAFE2`: runs `safechk.obj` to detect non-stealth modchips and halt game if found,
+                    //   then calls init code relocated from the start of `MainLoop`.
+                    // - `HP_SAFE1`: includes same `safechk.obj` and near-identical `AntiModchip_Check` code,
+                    //   only difference is branches jump to other `MainLoop` init code instead of actually invoking `safechk`.
+                    //
+                    // Init calls were likely moved here so skipping these overlays would break things.
+                    // `HP_SAFE1` being a near-copy of `S__SAFE2` may be just to slightly confuse pirates.
+                    //
                     // TODO:
                     // - `CdDiskReady` and `CdGetDiskType` are part of `libcd/type.o`, not included in US release, need conversion from SDK libs.
                     // - Add `FS_BUFFER_` constants for the addresses used here.
-                    // - Split `SAFEx.BIN` and make function symbol for `0x801E7EB4`
 
                     while (CdDiskReady(false) != CdlComplete || CdGetDiskType() == CdlStatShellOpen)
                     {
@@ -213,17 +203,18 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                     Lzss_Init(FS_BUFFER_6, (void*)0x801E6600, 3000);
                     Lzss_Decode(NO_VALUE);
 
-                    // Decrypt `S__SAFE2` and run `SafetyCheck`
+                    // Decrypt `S__SAFE2` and run `AntiModchip_Check`
                     Fs_DecryptOverlay((void*)0x801E7600, (void*)0x801E6600, 4096);
                     curTime = g_SysWork.counters_1C[0];
+                    AntiModchip_Check();
 
-                    // TODO: call 0x801E7EB4 here.
-
-                    // Decrypt `HP_SAFE1` and run `SafetyCheck` if enough time has passed.
+                    // Decrypt `HP_SAFE1` and run `AntiModchip_Check`
                     Fs_DecryptOverlay((void*)0x801E7600, FS_BUFFER_21, 4096);
-                    if ((g_SysWork.counters_1C[0] - curTime) > 100)
+                    
+                    // Only run `HP_SAFE1` if `S__SAFE2` took enough time to execute, cheap way of checking if the call above was skipped?
+                    if ((g_SysWork.counters_1C[0] - curTime) >= 100)
                     {
-                        // TODO: call 0x801E7EB4 here.
+                        AntiModchip_Check();
                     }
 
                     // Reset drive & sound driver
@@ -231,25 +222,21 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                     sd_work_init();
 #endif
 
-#ifdef SH_PC_PORT
-                    /* Skip memory card check on PC - no hardware available.
-                     * Go directly to NoMemCard state. */
-                    printf("[SH] KCET: Skipping memcard check (PC)\n");
-                    fflush(stdout);
-                    g_GameWork.gameStateStep_598[0] = KcetLogoStateStep_NoMemCard;
-#else
                     while (g_GameWork.gameStateStep_598[0] < KcetLogoStateStep_NoMemCard)
                     {
                         g_GameWork.gameStateStep_598[0] = GameState_KcetLogo_MemCardCheck();
                         MemCard_Update();
                         VSync(SyncMode_Wait);
                     }
-#endif
                 }
                 break;
 
             case KcetLogoStateStep_NoMemCard:
+#if VERSION_REGION_IS(NTSCJ)
+                Fs_QueueStartReadTim(FILE_1ST_NO_MEMCD_TIM, FS_BUFFER_1, &D_800A900C);
+#else
                 Fs_QueueStartReadTim(FILE_1ST_NO_MCD_E_TIM, FS_BUFFER_1, &D_800A900C);
+#endif
                 GameFs_StreamBinLoad();
                 nextGameState = GameState_MovieIntroFadeIn;
 
@@ -260,7 +247,11 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                 break;
 
             case KcetLogoStateStep_NoMemCardFreeSpace:
+#if VERSION_REGION_IS(NTSCJ)
+                Fs_QueueStartReadTim(FILE_1ST_NO_BLOCK_TIM, FS_BUFFER_1, &D_800A900C);
+#else
                 Fs_QueueStartReadTim(FILE_1ST_NO_BLK_E_TIM, FS_BUFFER_1, &D_800A900C);
+#endif
                 GameFs_StreamBinLoad();
                 nextGameState = GameState_MovieIntroFadeIn;
 
@@ -355,12 +346,20 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
 
                         case GameState_MovieIntroAlternate:
                         default:
+                            // USA moves `Demo_*` calls to after the switch.
+                            // TODO: Confirm whether the later JAP1 release also had them moved.
+#if VERSION_EQUAL_OR_OLDER(JAP0) 
+                            Demo_SequenceAdvance(0);
+                            Demo_DemoDataRead();
+#endif
                             GameFs_TitleGfxLoad();
                             break;
                     }
-
+                    
+#if VERSION_EQUAL_OR_NEWER(USA)
                     Demo_SequenceAdvance(0);
                     Demo_DemoDataRead();
+#endif
                     Fs_QueueWaitForEmpty();
 
                     g_SysWork.counters_1C[0] = 0;
@@ -397,7 +396,11 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
 #endif
 
         g_ActiveBufferIdx = GsGetActiveBuff();
-        GsOUT_PACKET_P   = (PACKET*)((uintptr_t)TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 0xF));
+#ifdef SH_PC_PORT
+        GsOUT_PACKET_P   = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 15));
+#else
+        GsOUT_PACKET_P   = (g_ActiveBufferIdx << 0xF) + (u32)TEMP_MEMORY_ADDR;
+#endif
 
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
@@ -443,8 +446,9 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
 #ifdef SH_PC_PORT
     GsOT_TAG* ptr;
 #else
-    s32* ptr;
+    s32*  ptr;
 #endif
+    TILE* tile;
 
     // Draw Konami logo.
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 0, 0, 256, 256, -192, -192);
@@ -452,13 +456,27 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 0, 256, 256, 128, -192, 64);
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 256, 256, 128, 128, 64, 64);
 
-    // Draw fading overlay tile.
     ptr = &g_OtTags0[g_ActiveBufferIdx][15];
-    addPrimFast(ptr, (TILE*)GsOUT_PACKET_P, 3);
-    setCodeWord((TILE*)GsOUT_PACKET_P, PRIM_RECT, 0xFFFFFF);
-    setXY0Fast((TILE*)GsOUT_PACKET_P, -SCREEN_WIDTH, -SCREEN_HEIGHT);
-    setWH((TILE*)GsOUT_PACKET_P, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
-    GsOUT_PACKET_P = (PACKET*)((u8*)GsOUT_PACKET_P + sizeof(TILE));
+    tile = (TILE*)GsOUT_PACKET_P;
+    
+    // Draw fading overlay tile.
+    addPrimFast(ptr, tile, 3);
+    setCodeWord(tile, PRIM_RECT, 0xFFFFFF);
+    setXY0Fast(tile, -SCREEN_WIDTH, -SCREEN_HEIGHT);
+    setWH(tile, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
+
+#if VERSION_REGION_IS(NTSCJ)
+    // Draw unknown JPN0 tile.
+    tile++;
+    ptr--;
+
+    addPrimFast(ptr, tile, 3);
+    setCodeWord(tile, PRIM_RECT, 0xFFFFFF);
+    setXY0Fast(tile, 136, 140);
+    setWH(tile, 13, 13);
+#endif
+
+    GsOUT_PACKET_P = (PACKET*)&tile[1];
 }
 
 void BootScreen_KcetScreenDraw(void) // 0x800CA120

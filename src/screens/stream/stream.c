@@ -25,6 +25,11 @@ void GameState_MovieIntroFadeIn_Update(void) // 0x801E2654
         case 0:
             VSync(SyncMode_Wait8);
             ScreenFade_Start(true, true, false);
+
+#if VERSION_REGION_IS(NTSCJ)
+            Fs_QueueStartRead(FILE_TIM_WATER_TIM, g_OvlDynamic);
+#endif
+
             GameFs_TitleGfxLoad();
 
             g_GameWork.gameStateStep_598[0]++;
@@ -52,14 +57,16 @@ void GameState_MovieIntroFadeIn_Update(void) // 0x801E2654
 
 void GameState_MovieIntro_Update(void) // 0x801E279C
 {
-    s32 fileIdx = FILE_XA_C1_20670;
-
-    if (g_GameWorkConst->config_0.optExtraOptionsEnabled_27 & (1 << 0))
+#if VERSION_REGION_IS(NTSCJ)
+    if (g_GameWork.gameStatePrev_590 == GameState_KcetLogo ||
+        g_GameWork.gameStatePrev_590 == GameState_AutoLoadSavegame)
     {
-        fileIdx = FILE_XA_C2_20670;
+        Fs_QueueStartRead(FILE_TIM_WATER_TIM, g_OvlDynamic);
+        Fs_QueueWaitForEmpty();
     }
+#endif
 
-    open_main(fileIdx, 0);
+    open_main((g_GameWorkConst->config_0.optExtraOptionsEnabled_27 & (1 << 0)) ? FILE_XA_C2_20670 : FILE_XA_C1_20670, 0);
     Game_StateSetNext(GameState_MainMenu);
 
     g_ScreenFadeTimestep = Q12(1.0f);
@@ -111,9 +118,10 @@ void GameState_DebugMoviePlayer_Update(void) // 0x801E2908
 
 void GameState_MovieIntroAlternate_Update(void) // 0x801E2A24
 {
-    open_main(FILE_XA_C1_20670, 2060); // Second param looks like file ID for `FILE_XA_M6_02112`, but is actually frame count?
-    Game_StateSetNext(GameState_MainMenu);
+    // 2060 is a frame offset to make this play the second video, which is a duplicate intro.
+    open_main(FILE_XA_C1_20670, 2060);
 
+    Game_StateSetNext(GameState_MainMenu);
     g_ScreenFadeTimestep = Q12(1.0f);
 }
 
@@ -141,7 +149,7 @@ void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
     return;
 #endif
     Fs_QueueWaitForEmpty();
-    if (!num_frames)
+    if (num_frames == 0)
     {
         num_frames = g_FileTable[file_idx].blockCount_0_19 - 7;
     }
