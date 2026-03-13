@@ -409,6 +409,13 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
                             mapCoordIdxZ = 50;
                             angle       += Q12_ANGLE(180.0f);
                             break;
+
+#if VERSION_EQUAL_OR_NEWER(JAP1) // @bugfix
+                        case 0x656:
+                            mapCoordIdxX = -58;
+                            mapCoordIdxZ = -28;
+                            break;
+#endif
                     }
                     break;
 

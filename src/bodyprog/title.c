@@ -2,6 +2,8 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "psx_memory.h"
+#include "pc_config.h"
+#include "map_registry.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -331,22 +333,30 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 fprintf(stderr, "[SH] New Game selected, difficulty=%d\n", newGameSelectedDifficultyIdx - 1);
                 fflush(stderr);
                 fprintf(stderr, "[SH] Calling GameBoot_SavegameInitialize... harryModel=%p\n",
-                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
                 fflush(stderr);
 #endif
+#ifdef SH_PC_PORT
+                {
+                    int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
+                    if (mapId < 0) mapId = 0;
+                    GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
+                }
+#else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
+#endif
 #ifdef SH_PC_PORT
                 fprintf(stderr, "[SH] GameBoot_SavegameInitialize done harryModel=%p\n",
-                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
                 fflush(stderr);
                 fprintf(stderr, "[SH] Calling GameBoot_PlayerInit... harryModel=%p\n",
-                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
                 fflush(stderr);
 #endif
                 GameBoot_PlayerInit();
 #ifdef SH_PC_PORT
                 fprintf(stderr, "[SH] GameBoot_PlayerInit done harryModel=%p\n",
-                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
                 fflush(stderr);
 #endif
 
@@ -355,7 +365,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
 #ifdef SH_PC_PORT
                 fprintf(stderr, "[SH] Before GameBoot_MapLoad: registeredCharaModels[Harry]=%p\n",
-                        (void*)g_WorldGfx.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
                 fflush(stderr);
                 fprintf(stderr, "[SH] Calling GameBoot_MapLoad + GameFs_StreamBinLoad\n");
 #endif
@@ -847,14 +857,5 @@ static void func_8003BCF4(void) // 0x8003BCF4
         MainMenu_FogScatter();
     }
 }
-
-// TODO: Garbage data, move to separate split?
-#if VERSION_IS(USA)
-static const s8  pad_rodata_8002551F = 0x4C;
-static const s32 pad_rodata_80025520 = 0x90AB9500;
-#elif VERSION_IS(JAP0)
-static const s8  pad_rodata_8002551F = 0x2C;
-static const s32 pad_rodata_80025520 = 0x202C3600;
-#endif
 
 #undef MAIN_MENU_FOG_COUNT

@@ -76,7 +76,7 @@ q19_12     g_Player_HeadingAngle;
 s32        pad_bss_800C460C;
 VECTOR3    D_800C4610;
 
-// Some kind of `Anim_UpdateX` function, included in some `s_AnimInfo` array which also had pointers to `Anim_Update1`/`Anim_Update2`.
+// Some kind of `Anim_UpdateX` function, included in some `s_AnimInfo` array which also had pointers to `Anim_PlaybackLoop`/`Anim_BlendLinear`.
 
 s32 func_800706E4(s_Model* model) // 0x800706E4
 {
@@ -489,14 +489,14 @@ bool Player_FootstepSfxPlay(s32 animStatus, s_SubCharacter* chara, s32 keyframe0
                         break;
 
                     default:
-                        func_8005DD44(sfx, &chara->position_18, Q8_CLAMPED(0.25f), pitch);
+                        func_8005DD44(sfx, &chara->position_18, Q8(0.25f), pitch);
                         chara->properties_E4.player.field_10C = pitch + 0x10;
                         break;
                 }
             }
             else
             {
-                func_8005DD44(sfx, &chara->position_18, Q8_CLAMPED(0.5f), pitch);
+                func_8005DD44(sfx, &chara->position_18, Q8(0.5f), pitch);
                 chara->properties_E4.player.field_10C = pitch + 0x40;
             }
 
@@ -526,14 +526,14 @@ bool Player_FootstepSfxPlay(s32 animStatus, s_SubCharacter* chara, s32 keyframe0
                         break;
 
                     default:
-                        func_8005DD44(sfx, &chara->position_18, Q8_CLAMPED(0.25f), pitch);
+                        func_8005DD44(sfx, &chara->position_18, Q8(0.25f), pitch);
                         chara->properties_E4.player.field_10C = pitch + 16;
                         break;
                 }
             }
             else
             {
-                func_8005DD44(sfx, &chara->position_18, Q8_CLAMPED(0.5f), pitch);
+                func_8005DD44(sfx, &chara->position_18, Q8(0.5f), pitch);
                 chara->properties_E4.player.field_10C = pitch + 64;
             }
 
@@ -1007,13 +1007,13 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
         g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_UPPER_BODY_BONE_MASK;
 
         animInfo = &HARRY_BASE_ANIM_INFOS[chara->model_0.anim_4.status_0];
-        animInfo->updateFunc_0(&chara->model_0, anmHdr, coords, animInfo);
+        animInfo->playbackFunc_0(&chara->model_0, anmHdr, coords, animInfo);
 
         // Re-enable upper body bones, disable lower body bones.
         g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_LOWER_BODY_BONE_MASK;
 
         animInfo = &HARRY_BASE_ANIM_INFOS[extra->model_0.anim_4.status_0];
-        animInfo->updateFunc_0(&extra->model_0, anmHdr, coords, animInfo);
+        animInfo->playbackFunc_0(&extra->model_0, anmHdr, coords, animInfo);
         return;
     }
 
@@ -1022,15 +1022,15 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
     chara->model_0.anim_4.status_0                     = ANIM_STATUS(HarryAnim_Still, false);
 
     animInfo = &HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)];
-    animInfo->updateFunc_0(&chara->model_0, anmHdr, coords, animInfo);
+    animInfo->playbackFunc_0(&chara->model_0, anmHdr, coords, animInfo);
 
     // Re-enable upper body bones, disable lower body bones.
     g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_LOWER_BODY_BONE_MASK;
 
     animInfo = &HARRY_BASE_ANIM_INFOS[extra->model_0.anim_4.status_0];
-    animInfo->updateFunc_0(&extra->model_0, anmHdr, coords, animInfo);
+    animInfo->playbackFunc_0(&extra->model_0, anmHdr, coords, animInfo);
 
-    if (chara->model_0.anim_4.status_0 == HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6)
+    if (chara->model_0.anim_4.status_0 == HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6)
     {
         g_Player_IsInWalkToRunTransition = false;
     }
@@ -2009,7 +2009,7 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     if (extra->model_0.controlState_2 == ModelState_Uninitialized && chara->position_18.vy >= chara->properties_E4.player.positionY_EC)
                     {
                         extra->model_0.controlState_2++;
-                        func_8005DC1C(Sfx_Unk1317, &chara->position_18, Q8_CLAMPED(0.125f), 0);
+                        func_8005DC1C(Sfx_Unk1317, &chara->position_18, Q8(1.0f / 8.0f), 0);
                         chara->properties_E4.player.field_10C = 128;
                         func_80089470();
                     }
@@ -2854,7 +2854,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 
                     {
                         chara->field_44.field_0 = 1;
 
-                        func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0, &chara->position_18, Q8_CLAMPED(0.5f), 0);
+                        func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0, &chara->position_18, Q8(0.5f), 0);
 
                         chara->properties_E4.player.field_10C                       = 0x40;
                         g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_Unk2;
@@ -2900,7 +2900,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 
                         g_SysWork.playerCombat_38.currentWeaponAmmo_10--;
                         g_SavegamePtr->items_0[g_SysWork.playerCombat_38.weaponInventoryIdx_12].count_1--;
 
-                        func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0, &chara->position_18, Q8_CLAMPED(0.5f), 0);
+                        func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0, &chara->position_18, Q8(0.5f), 0);
                     }
                     else
                     {
@@ -2911,7 +2911,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 
                 }
                 else
                 {
-                    func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx_4, &chara->position_18, Q8_CLAMPED(0.5f), 0);
+                    func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx_4, &chara->position_18, Q8(0.5f), 0);
 
                     chara->properties_E4.player.field_10C = 32;
                     extra->model_0.anim_4.keyframeIdx_8  = D_800C44F0[D_800AF220].field_6 - 3;
@@ -3955,7 +3955,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 
             if ((D_800AF624 + g_Player_EquippedWeaponInfo.field_9) <= extra->model_0.anim_4.keyframeIdx_8 &&
                 !(g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_Unk2))
             {
-                func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx_2, &chara->position_18, Q8_CLAMPED(0.5f), 0);
+                func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx_2, &chara->position_18, Q8(0.5f), 0);
 
                 chara->properties_E4.player.field_10C                       = 0x20;
                 g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_Unk2;
@@ -4898,14 +4898,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x80
                             {
                                 g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_RunForward;
                                 HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 36;
-                                HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_RunForward, true);
+                                HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_RunForward, true);
                                 g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_Unk5;
                             }
                             else if (chara->model_0.anim_4.keyframeIdx_8 >= 21 && chara->model_0.anim_4.keyframeIdx_8 <= 22)
                             {
                                 g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_RunForward;
                                 HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 26;
-                                HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_RunForward, true);
+                                HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_RunForward, true);
                             }
                         }
                     }
@@ -5057,14 +5057,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x80
                         {
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = temp_s3;
                             HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 8;
-                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                         }
                         else if (chara->model_0.anim_4.keyframeIdx_8 >= 41 &&
                                  chara->model_0.anim_4.keyframeIdx_8 <= 42)
                         {
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = temp_s3;
                             HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 20;
-                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                         }
                         break;
 
@@ -5078,14 +5078,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x80
                         {
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                             HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 8;
-                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                         }
                         else if (chara->model_0.anim_4.keyframeIdx_8 >= 41 &&
                                  chara->model_0.anim_4.keyframeIdx_8 <= 42)
                         {
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                             HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 20;
-                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                            HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                         }
                         break;
 
@@ -5100,14 +5100,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x80
                                 {
                                     g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                                     HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 8;
-                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                                 }
                                 else if (chara->model_0.anim_4.keyframeIdx_8 >= 41 &&
                                          chara->model_0.anim_4.keyframeIdx_8 <= 42)
                                 {
                                     g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                                     HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 20;
-                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                                 }
                             }
                             // Set stumble anim if crashed into a wall.
@@ -5137,14 +5137,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x80
                                 {
                                     g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                                     HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 8;
-                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                                 }
                                 else if (chara->model_0.anim_4.keyframeIdx_8 >= 41 &&
                                          chara->model_0.anim_4.keyframeIdx_8 <= 42)
                                 {
                                     g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
                                     HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].endKeyframeIdx_E = 20;
-                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].status_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
+                                    HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus_6         = ANIM_STATUS(HarryAnim_WalkForward, true);
                                 }
                             }
                         }
@@ -6456,7 +6456,7 @@ void func_8007B924(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x8007B924
             if (chara->model_0.anim_4.keyframeIdx_8 == 246 &&
                 !(g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_Unk5))
             {
-                func_8005DD44(sfx, &chara->position_18, Q8_CLAMPED(0.5f), pitch1);
+                func_8005DD44(sfx, &chara->position_18, Q8(0.5f), pitch1);
 
                 chara->properties_E4.player.field_10C                       = pitch1 + 0x20;
                 g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_Unk5;
@@ -6867,7 +6867,7 @@ void Player_ReceiveDamage(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x8007
             if (chara->damage_B4.amount_C != Q12(0.0f) && !(g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_DamageReceived))
             {
                 g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_DamageReceived;
-                func_8005DC1C(sfx, &chara->position_18, Q8_CLAMPED(0.125f), 0);
+                func_8005DC1C(sfx, &chara->position_18, Q8(1.0f / 8.0f), 0);
                 chara->properties_E4.player.field_10C = 64;
             }
 
@@ -7150,7 +7150,7 @@ void Player_ReceiveDamage(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x8007
         g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C &= ~PlayerFlag_Unk2;
         if (!(g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_DamageReceived))
         {
-            func_8005DC1C(sfx, &chara->position_18, Q8_CLAMPED(0.125f), 0);
+            func_8005DC1C(sfx, &chara->position_18, Q8(1.0f / 8.0f), 0);
             g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_DamageReceived;
             chara->properties_E4.player.field_10C = 0x40;
         }
@@ -7957,7 +7957,7 @@ void func_8007E8C0(void) // 0x8007E8C0
     chara     = &g_SysWork.playerWork_4C.player_0;
     animInfos = g_MapOverlayHeader.animInfos_34;
 
-    for (i = 76; animInfos->updateFunc_0 != NULL; i++, animInfos++)
+    for (i = 76; animInfos->playbackFunc_0 != NULL; i++, animInfos++)
     {
         HARRY_BASE_ANIM_INFOS[i] = g_MapOverlayHeader.animInfos_34[i - 76];
     }
@@ -9043,18 +9043,18 @@ void Collision_Fill(q19_12 posX, q19_12 posZ) // 0x8008076C
     q19_12       collZ;
     s_Collision* coll;
 
-    coll = &g_CollisionPoint.collision_C;
+    coll = &g_CollisionPointCache.collision_C;
 
-    collX = g_CollisionPoint.position_0.vx;
-    collZ = g_CollisionPoint.position_0.vz;
-    if (g_CollisionPoint.field_18 != NO_VALUE && collX == posX && collZ == posZ)
+    collX = g_CollisionPointCache.position_0.vx;
+    collZ = g_CollisionPointCache.position_0.vz;
+    if (g_CollisionPointCache.field_18 != NO_VALUE && collX == posX && collZ == posZ)
     {
         return;
     }
 
     Collision_Get(coll, posX, posZ);
-    g_CollisionPoint.position_0.vx = posX;
-    g_CollisionPoint.position_0.vz = posZ;
+    g_CollisionPointCache.position_0.vx = posX;
+    g_CollisionPointCache.position_0.vz = posZ;
 
     count = coll->field_8;
     switch (coll->field_8)
@@ -9108,20 +9108,20 @@ void Collision_Fill(q19_12 posX, q19_12 posZ) // 0x8008076C
             break;
     }
 
-    g_CollisionPoint.position_0.vy = groundHeight;
-    g_CollisionPoint.field_18      = count;
+    g_CollisionPointCache.position_0.vy = groundHeight;
+    g_CollisionPointCache.field_18      = count;
 }
 
 q19_12 Collision_GroundHeightGet(q19_12 posX, q19_12 posZ) // 0x80080884
 {
     Collision_Fill(posX, posZ);
-    return g_CollisionPoint.position_0.vy;
+    return g_CollisionPointCache.position_0.vy;
 }
 
 s32 func_800808AC(q19_12 posX, q19_12 posZ) // 0x800808AC
 {
     Collision_Fill(posX, posZ);
-    return g_CollisionPoint.field_18;
+    return g_CollisionPointCache.field_18;
 }
 
 s32 Math_MulFixed(s32 val0, s32 val1, s32 shift) // 0x800808D4

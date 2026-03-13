@@ -2166,12 +2166,6 @@ extern s8 D_800A99B5;
 
 extern char* D_800A99E4[];
 
-#ifndef SH_PC_PORT
-extern s32 g_MapMsg_CurrentIdx;
-
-extern s16 g_MapMsg_SelectFlashTimer;
-#endif
-
 extern s8 g_PaperMapFileIdxs[];
 
 extern s8 g_PaperMapMarkingFileIdxs[];
@@ -2380,7 +2374,7 @@ extern s16 D_800AF624;
 extern s16 D_800AF626;
 
 /** Generic collision global used by high-level getters. */
-extern s_CollisionPoint g_CollisionPoint;
+extern s_CollisionPoint g_CollisionPointCache;
 
 extern u8 D_800AFD04;
 
@@ -2465,8 +2459,7 @@ extern s16 D_800BCDE8[8];
 
 extern u16 D_800BCE14;
 
-// TODO: Rename to `g_WorldGfxWork`.
-extern s_WorldGfxWork g_WorldGfx;
+extern s_WorldGfxWork g_WorldGfxWork;
 
 extern s_IpdCollisionData* D_800C1010[4];
 
@@ -2569,8 +2562,15 @@ extern s_800AD4C8 D_800AD4C8[70];
 #ifdef SH_PC_PORT
 extern int g_DebugCamEnabled;
 extern int g_DebugFogDisabled;
-extern s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C - not const on PC (overlay code writes to it)
-#define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader g_MapOverlayHeader
+extern s_MapOverlayHeader* g_pMapOverlayHeader;
+#define g_MapOverlayHeader (*g_pMapOverlayHeader)
+#define SH_MAP_HDR_PASTE2(a, b) a ## b
+#define SH_MAP_HDR_PASTE(a, b) SH_MAP_HDR_PASTE2(a, b)
+#ifdef SH_MAP_NAME
+#define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader SH_MAP_HDR_PASTE(g_MapOverlayHeader_, SH_MAP_NAME)
+#else
+#define SH_MAP_OVERLAY_HEADER s_MapOverlayHeader g_MapOverlayHeader_default
+#endif
 #else
 extern const s_MapOverlayHeader g_MapOverlayHeader; // 0x800C957C
 #define SH_MAP_OVERLAY_HEADER const s_MapOverlayHeader g_MapOverlayHeader
@@ -2945,25 +2945,53 @@ void func_80044950(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
  */
 q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo);
 
-/** Updates a character's animation, variant 0. First param might be `s_SubCharacter` instead.
- * Used for anim init?
+/** * @brief Plays an animation once and clamps to the end keyframe, triggering a status transition to the linked
+ * animation upon completion.
+ *
+ * @note Used for one-shot actions such as stopping and attacking.
+ *
+ * @param model Character model to animate.
+ * @param anmHdr Active animation header.
+ * @param boneCoords Character model bone coords.
+ * @param animInfo Active character animation info.
  */
-void Anim_Update0(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* coords, s_AnimInfo* animInfo);
+void Anim_PlaybackOnce(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s_AnimInfo* animInfo);
 
-/** Updates a character's animation, variant 1.
- * Used for looped anims?
+/** * @brief Loops an animation continuously, wrapping the time around to the start and end keyframes without
+ * triggering a status transition.
+ *
+ * @note Used for looped actions such as running and walking.
+ *
+ * @param model Character model to animate.
+ * @param anmHdr Active animation header.
+ * @param boneCoords Character model bone coords.
+ * @param animInfo Character animation info.
  */
-void Anim_Update1(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* coord, s_AnimInfo* animInfo);
+void Anim_PlaybackLoop(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s_AnimInfo* animInfo);
 
-/** Updates a character's animation, variant 2.
- * The generic update func?
+/** * @brief Linearly interpolates between the current pose into a new target animation, triggering a status transition
+ * to the linked animation when complete.
+ *
+ * @note Used as the entry transition for almost every new animation status.
+ *
+ * @param model Character model to animate.
+ * @param anmHdr Active animation header.
+ * @param boneCoords Character model bone coords.
+ * @param animInfo Character animation info.
  */
-void Anim_Update2(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* coord, s_AnimInfo* animInfo);
+void Anim_BlendLinear(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s_AnimInfo* animInfo);
 
-/** Updates a character's animation, variant 3.
- * Same as `Anim_Update2` but sine-based?
+/** * @brief Smoothly blends between the current pose into a new target animation using a sine-based ease-out
+ * without triggering a status transition.
+ *
+ * @unused?
+ *
+ * @param model Character model to animate.
+ * @param anmHdr Active animation header.
+ * @param boneCoords Character model bone coords.
+ * @param animInfo Character animation info.
  */
-void Anim_Update3(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* coord, s_AnimInfo* animInfo);
+void Anim_BlendEaseOut(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s_AnimInfo* animInfo);
 
 /** Something related to player weapon position. Takes coords to arm bones. */
 void func_80044F14(GsCOORDINATE2* coord, q3_12 rotZ, q3_12 rotX, q19_12 rotY);
@@ -3716,7 +3744,7 @@ s32 func_80069B24(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara);
 
 s32 func_80069BA8(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara, s32 arg4);
 
-void func_80069DF0(s_800C4590* arg0, VECTOR3* pos, s32 arg2, s32 arg3);
+void func_80069DF0(s_800C4590* arg0, const VECTOR3* pos, s32 arg2, s32 arg3);
 
 s32 func_80069FFC(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara);
 
@@ -3942,15 +3970,19 @@ void Game_RadioSoundStop(void);
 /** Finds the ground hight and warps the player to it? */
 void Game_PlayerHeightUpdate(void);
 
+// ============ `bodyprog/events/events_main.c` =========================
+
+void Event_Update(bool disableButtonEvents);
+
 bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint);
 
 bool Event_CollideObbFacingCheck(s_MapPoint2d* mapPoint);
 
 bool Event_CollideObbCheck(s_MapPoint2d* mapPoint);
 
-void Savegame_EnemyStateUpdate(s_SubCharacter* chara);
+// =========================
 
-void Event_Update(bool disableButtonEvents);
+void Savegame_EnemyStateUpdate(s_SubCharacter* chara);
 
 /** @brief Updates character's damage flag to reflect if damage was taken.
  *
@@ -4328,7 +4360,7 @@ bool func_800806AC(s32 arg0, s32 arg1, s32 arg2, s32 arg3); // arg3 type assumed
 /** Probably returns `bool`. */
 bool func_8008074C(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 
-/** Fills `g_CollisionPoint` with collision data at a given 2D position.
+/** Fills `g_CollisionPointCache` with collision data at a given 2D position.
  *
  * @param posX X position.
  * @param posZ Z position.

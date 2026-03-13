@@ -62,7 +62,7 @@ static void (*g_SysStateFuncs[])(void) = {
 };
 
 /** Used to store the previous delta time state of the delta timer. There are some instances where 2D backgrounds
- * are drawn uses `g_DeltaTimeRaw` while `g_DeltaTime` is  stopped.
+ * are drawn using `g_DeltaTimeRaw` while `g_DeltaTime` is stopped.
  */
 static s32 g_DeltaTimeCpy;
 
@@ -119,7 +119,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     if (g_SysWork.sysState_8 == SysState_Gameplay)
     {
-        g_SysWork.isMgsStringSet_18 = 0;
+        g_SysWork.isMgsStringSet_18 = false;
         g_SysStateFuncs[SysState_Gameplay]();
     }
     else
@@ -131,7 +131,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * delta time so timer-based cutscene steps can progress. */
         g_DeltaTime = g_DeltaTimeRaw;
 #else
-        g_DeltaTime = 0;
+        g_DeltaTime = Q12(0.0f);
 #endif
         g_SysStateFuncs[g_SysWork.sysState_8]();
 
@@ -227,7 +227,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
 #ifdef SH_PC_PORT
             /* Force all skeleton bones visible */
             {
-                s_CharaModel* harryModel = g_WorldGfx.registeredCharaModels_18[Chara_Harry];
+                s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
                 if (harryModel != NULL) {
                     func_800453E8(&harryModel->skeleton_14, true);
                 }
@@ -333,7 +333,7 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.map_18)
     {
         SysWork_StateSetNext(SysState_MapScreen);
-        g_SysWork.isMgsStringSet_18 = 0;
+        g_SysWork.isMgsStringSet_18 = false;
     }
     else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.option_1A)
     {
@@ -359,7 +359,7 @@ void SysState_GamePaused_Update(void) // 0x800391E8
     D_800A9A68 += g_DeltaTimeRaw;
     if (!((D_800A9A68 >> 11) & (1 << 0)))
     {
-#if VERSION_IS(JAP0) // TODO: Check this string in other versions.
+#if VERSION_REGION_IS(NTSCJ)
         Gfx_StringSetPosition(SCREEN_POSITION_X(41.0f), SCREEN_POSITION_Y(43.5f));
         Gfx_StringDraw("\x07PAUSE", DEFAULT_MAP_MESSAGE_LENGTH);
 #else
@@ -641,6 +641,7 @@ void GameState_LoadMapScreen_Update(void) // 0x8003991C
 void SysState_Fmv_Update(void) // 0x80039A58
 {
     #define BASE_AUDIO_FILE_IDX FILE_XA_ZC_14392
+
     static RECT D_800A9A6C = { 320, 256, 160, 240 };
 
     switch (g_SysWork.sysStateStep_C[0])
@@ -698,7 +699,7 @@ void SysState_Fmv_Update(void) // 0x80039A58
 
 void SysState_LoadArea_Update(void) // 0x80039C40
 {
-    u32           var1;
+    u32           offsetZ;
     s_MapPoint2d* mapPoint;
 
     g_SysWork.field_229C            = 0;
@@ -719,9 +720,9 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     if (D_800BCDB0.triggerParam1_4_24 == 1)
     {
         mapPoint                = &g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->pointOfInterestIdx_5];
-        var1                    = g_SysWork.playerWork_4C.player_0.position_18.vz - mapPoint->positionZ_8;
+        offsetZ                 = g_SysWork.playerWork_4C.player_0.position_18.vz - mapPoint->positionZ_8;
         D_800BCDB0.positionX_0 += g_SysWork.playerWork_4C.player_0.position_18.vx - mapPoint->positionX_0;
-        D_800BCDB0.positionZ_8 += var1;
+        D_800BCDB0.positionZ_8 += offsetZ;
     }
 
     if (g_SysWork.sysState_8 == SysState_LoadOverlay)
@@ -808,7 +809,7 @@ void SysState_ReadMessage_Update(void) // 0x80039FB8
         g_DeltaTime = g_DeltaTimeCpy;
     }
 
-    if (g_SysWork.isMgsStringSet_18 == 0)
+    if (g_SysWork.isMgsStringSet_18 == false)
     {
         g_MapOverlayHeader.playerControlFreeze_C8();
     }
@@ -876,7 +877,8 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
         case 0:
             SysWork_SavegameUpdatePlayer();
 
-            if (Savegame_EventFlagGet(EventFlag_SeenSaveScreen) || g_SavegamePtr->locationId_A8 == SaveLocationId_NextFear || g_MapEventParam == 0)
+            if (Savegame_EventFlagGet(EventFlag_SeenSaveScreen) ||
+                g_SavegamePtr->locationId_A8 == SaveLocationId_NextFear || g_MapEventParam == 0)
             {
                 GameFs_SaveLoadBinLoad();
 
@@ -1125,6 +1127,8 @@ void SysState_GameOver_Update(void) // 0x8003A52C
     {
         g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
     }
+
+    #undef TIP_COUNT
 }
 
 void GameState_MapEvent_Update(void) // 0x8003AA4C

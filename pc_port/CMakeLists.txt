@@ -73,11 +73,15 @@ file(GLOB_RECURSE BODYPROG_SOURCES
 )
 # Remove duplicate: func_80032CE8 is defined in both bodyprog_80032D1C.c and sys/fs_screens.c
 list(FILTER BODYPROG_SOURCES EXCLUDE REGEX "bodyprog_80032D1C\\.c$")
+# Remove JPN-only text_draw_jp.c (conflicts with text_draw.c for USA build)
+list(FILTER BODYPROG_SOURCES EXCLUDE REGEX "text_draw_jp\\.c$")
 
 # Screen overlay sources
 file(GLOB_RECURSE SCREEN_SOURCES
     "${DECOMP_DIR}/src/screens/*.c"
 )
+# Remove JPN-only anti-modchip overlays (undefined symbols on USA)
+list(FILTER SCREEN_SOURCES EXCLUDE REGEX "(hp_safe1|s__safe2)\\.c$")
 
 # Map overlay sources
 # On PSX, only one map overlay is loaded at a time. Statically linking all maps
@@ -93,7 +97,7 @@ set(MAP_SOURCES
 )
 # Each map overlay was compiled with its own define on PSX
 set_source_files_properties(${MAP_SOURCES} PROPERTIES
-    COMPILE_FLAGS "-DMAP0_S00"
+    COMPILE_FLAGS "-DMAP0_S00 -DSH_MAP_NAME=map0_s00"
 )
 
 # PC port specific sources

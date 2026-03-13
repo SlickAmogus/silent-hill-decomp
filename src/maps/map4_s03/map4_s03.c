@@ -1718,7 +1718,7 @@ void func_800D3694(s_SubCharacter* twinfeeler, s_AnmHeader* anmHdr, GsCOORDINATE
     Math_MatrixTransform(&twinfeeler->position_18, (SVECTOR*)&twinfeeler->rotation_24, coords);
 
     anim = &TWINFEELER_ANIM_INFOS[twinfeeler->model_0.anim_4.status_0];
-    anim->updateFunc_0(&twinfeeler->model_0, anmHdr, coords, anim);
+    anim->playbackFunc_0(&twinfeeler->model_0, anmHdr, coords, anim);
 
     temp_s0 = D_800DB1D8[twinfeeler->model_0.stateStep_3];
     func_800705E4(coords, 0, temp_s0, temp_s0, temp_s0);
@@ -2971,7 +2971,7 @@ void func_800D5888(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(0, false))
     {
         animInfo = &TWINFEELER_ANIM_INFOS[chara->model_0.anim_4.status_0];
-        animInfo->updateFunc_0(&chara->model_0, anmHdr, coords, animInfo);
+        animInfo->playbackFunc_0(&chara->model_0, anmHdr, coords, animInfo);
     }
 }
 
@@ -3448,7 +3448,7 @@ void func_800D6774(void) // 0x800D6774
 
             g_SysWork.playerWork_4C.player_0.position_18.vy = coll.groundHeight_0;
 
-            func_8005DC1C(Sfx_Unk1556, &QVECTOR3(119.5f, 0.0f, 141.5f), Q8_CLAMPED(0.5f), 0);
+            func_8005DC1C(Sfx_Unk1556, &QVECTOR3(119.5f, 0.0f, 141.5f), Q8(0.5f), 0);
             func_80089470();
             SysWork_StateStepIncrement(0);
             break;
@@ -3605,7 +3605,7 @@ void func_800D6F24(void) // 0x800D6F24
             Camera_PositionSet(NULL, Q12(128.82f), Q12(-0.26f), Q12(139.1f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(125.24f), Q12(-0.8f), Q12(140.79f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_8005DC1C(Sfx_Unk1554, &QVECTOR3(132.0f, -0.75f, 140.0f), Q8_CLAMPED(0.5f), 0);
+            func_8005DC1C(Sfx_Unk1554, &QVECTOR3(132.0f, -0.75f, 140.0f), Q8(0.5f), 0);
 
             SysWork_StateStepIncrement(0);
 

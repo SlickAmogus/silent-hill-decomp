@@ -831,7 +831,7 @@ void sharedFunc_800D1524_1_s00(s_SubCharacter* larvalStalker, s_AnmHeader* anmHd
     }
 
     animInfo = &LARVAL_STALKER_ANIM_INFOS[larvalStalker->model_0.anim_4.status_0];
-    animInfo->updateFunc_0(&larvalStalker->model_0, anmHdr, coords, animInfo);
+    animInfo->playbackFunc_0(&larvalStalker->model_0, anmHdr, coords, animInfo);
 
     #undef activeAnimInfo
 }
@@ -874,7 +874,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
         return;
     }
 
-    func_8005DC1C(0, &larvalStalker->position_18, Q8_CLAMPED(0.5f), 0);
+    func_8005DC1C(0, &larvalStalker->position_18, Q8(0.5f), 0);
 
     larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_7;
 

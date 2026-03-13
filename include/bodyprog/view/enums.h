@@ -18,6 +18,7 @@ STATIC_ASSERT_SIZEOF(VC_ROAD_FLAGS, 4);
 
 typedef enum _VC_FLAGS
 {
+    VC_NOFLAG                = 0,
     VC_USER_CAM_F            = 1 << 0, /** User in control? */
     VC_USER_WATCH_F          = 1 << 1, /** Lock look-at on player? */
     VC_WARP_CAM_F            = 1 << 2, /** Warp position. */
@@ -50,13 +51,14 @@ typedef enum _DebugCameraMode
     DebugCameraMode_Init               = 4  // TODO: Name uncertain.
 } e_DebugCameraMode;
 
+/** @brief Camera move type. */
 typedef enum _VC_CAM_MV_TYPE
 {
     VC_MV_CHASE        = 0, /** Chase player. */
-    VC_MV_SETTLE       = 1,
+    VC_MV_SETTLE       = 1, /** Settle to rest. */
     VC_MV_FIX_ANG      = 2, /** Fixed angle. */
-    VC_MV_SELF_VIEW    = 3,
-    VC_MV_THROUGH_DOOR = 4,
+    VC_MV_SELF_VIEW    = 3, /** Third-person view. */
+    VC_MV_THROUGH_DOOR = 4, /** Along rail. */
 
     VC_MV_SUU          = 5  /** Count. */
 } VC_CAM_MV_TYPE;

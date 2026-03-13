@@ -337,9 +337,11 @@ void MainLoop(void) // 0x80032EE0
     Joy_Init();
     VSyncCallback(&Screen_VSyncCallback);
 
-#if VERSION_EQUAL_OR_NEWER(USA)
+    // NTSC-J moves these calls into the `HP_SAFE1` / `S__SAFE2` anti-modchip overlays.
+    // Likely to make sure those overlays aren't patched out by pirates.
+#if !VERSION_REGION_IS(NTSCJ)
     InitGeom();
-    func_8004BB10(); // Initializes something for graphics.
+    ItemScreen_TmdGsFCallInit();
 #ifdef SH_PC_PORT
     /* Skip vibration init - requires PadInfoMode which may crash without real pad */
 #else

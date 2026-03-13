@@ -263,8 +263,11 @@ void vcReturnPreAutoCamWork(bool warp_f) // 0x80080ED0
     vcWork.geom_screen_dist_30 = g_GameWork.gsScreenHeight_58A;
 }
 
-void vcSetSubjChara(VECTOR3* chara_pos, q19_12 chara_bottom_y, q19_12 chara_top_y, q19_12 chara_grnd_y, VECTOR3* chara_head_pos,
-                    q3_12 chara_mv_spd, q19_12 chara_mv_ang_y, q3_12 chara_ang_spd_y, q3_12 chara_eye_ang_y, q3_12 chara_eye_ang_wy, q19_12 chara_watch_xz_r) // 0x80080F14
+void vcSetSubjChara(VECTOR3* chara_pos,
+                    q19_12 chara_bottom_y, q19_12 chara_top_y, q19_12 chara_grnd_y,
+                    VECTOR3* chara_head_pos,
+                    q3_12 chara_mv_spd, q19_12 chara_mv_ang_y, q3_12 chara_ang_spd_y,
+                    q3_12 chara_eye_ang_y, q3_12 chara_eye_ang_wy, q19_12 chara_watch_xz_r) // 0x80080F14
 {
     vcWork.chara_pos_114        = *chara_pos;
     vcWork.chara_bottom_y_120   = chara_bottom_y;
@@ -334,7 +337,8 @@ s32 vcExecCamera(void) // 0x80080FBC
 
     if (!(vcWork.flags_8 & VC_USER_WATCH_F))
     {
-        vcAutoRenewalWatchTgtPosAndAngZ(&vcWork, cur_cam_mv_type, cur_rd_area_size, far_watch_rate, self_view_eff_rate);
+        vcAutoRenewalWatchTgtPosAndAngZ(&vcWork, cur_cam_mv_type, cur_rd_area_size,
+                                        far_watch_rate, self_view_eff_rate);
         if ((vcWork.cur_near_road_2B8.road_p_0->flags_10 & VC_RD_LIM_UP_FAR_VIEW_F) &&
             (vcWork.cur_near_road_2B8.road_p_0->cam_mv_type_14 == VC_MV_CHASE || cur_cam_mv_type == VC_MV_SELF_VIEW))
         {
@@ -342,7 +346,8 @@ s32 vcExecCamera(void) // 0x80080FBC
         }
     }
 
-    vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type, vcWork.flags_8 & VC_VISIBLE_CHARA_F);
+    vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
+                       vcWork.flags_8 & VC_VISIBLE_CHARA_F);
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
 
     vcWork.through_door_activate_init_f_C = false;
@@ -380,6 +385,8 @@ void vcSetAllNpcDeadTimer(void) // 0x8008123C
             curChara->deathTimer_C4 = DEATH_TIME_MAX;
         }
     }
+
+    #undef DEATH_TIME_MAX
 }
 
 s32 vcRetSmoothCamMvF(VECTOR3* old_pos, VECTOR3* now_pos, SVECTOR* old_ang, SVECTOR* now_ang) // 0x800812CC
@@ -422,6 +429,12 @@ s32 vcRetSmoothCamMvF(VECTOR3* old_pos, VECTOR3* now_pos, SVECTOR* old_ang, SVEC
 
     rot_y = Q12_MULT(rot_y, Math_Cos(now_ang->vx));
     return (rot_y <= ROT_Y_ANGLE_MAX) ? VC_MV_SETTLE : VC_MV_CHASE;
+
+    #undef MOVE_DIST_MAX
+    #undef ROT_X_ANGLE_MAX
+    #undef ROT_Y_ANGLE_MAX
+    #undef INTRPT_TIME_MIN
+    #undef INTRPT_TIME_MAX
 }
 
 VC_CAM_MV_TYPE vcRetCurCamMvType(VC_WORK* w_p) // 0x80081428
@@ -933,6 +946,9 @@ void vcSetNearestEnemyDataInVC_WORK(VC_WORK* w_p) // 0x80081D90
         w_p->nearest_enemy_2DC         = all_min_sc_p;
         w_p->nearest_enemy_xz_dist_2E0 = all_min_dist;
     }
+
+    #undef ENEMY_DEATH_TIME_MAX
+    #undef ENEMY_DIST_MAX
 }
 
 void vcSetNearRoadAryByCharaPos(VC_WORK* w_p, VC_ROAD_DATA* road_ary_list, s32 half_w, s32 unused, bool near_enemy_f) // 0x80081FBC
@@ -1284,7 +1300,9 @@ s32 vcGetBestNewCurNearRoad(VC_NEAR_ROAD_DATA** new_cur_pp, VC_CAM_CHK_TYPE chk_
     return new_cur_dist;
 }
 
-q19_12 vcGetNearestNEAR_ROAD_DATA(VC_NEAR_ROAD_DATA** out_nearest_p_addr, VC_CAM_CHK_TYPE chk_type, VC_ROAD_TYPE rd_type, VECTOR3* pos, VC_WORK* w_p, bool chk_only_set_marge_f) // 0x80082908
+q19_12 vcGetNearestNEAR_ROAD_DATA(VC_NEAR_ROAD_DATA** out_nearest_p_addr,
+                                  VC_CAM_CHK_TYPE chk_type, VC_ROAD_TYPE rd_type, VECTOR3* pos,
+                                  VC_WORK* w_p, bool chk_only_set_marge_f) // 0x80082908
 {
     s32                dummy;
     q19_12             min_x;
@@ -1352,15 +1370,18 @@ s32 vcAdvantageDistOfOldCurRoad(VC_NEAR_ROAD_DATA* old_cur_p) // 0x80082AD0
     }
 }
 
-void vcAutoRenewalWatchTgtPosAndAngZ(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, VC_AREA_SIZE_TYPE cur_rd_area_size, s32 far_watch_rate, s32 self_view_eff_rate) // 0x80082B10
+void vcAutoRenewalWatchTgtPosAndAngZ(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, VC_AREA_SIZE_TYPE cur_rd_area_size,
+                                     q19_12 far_watch_rate, s32 self_view_eff_rate) // 0x80082B10
 {
-    VECTOR3 far_watch_pos;
+    VECTOR3 far_watch_pos; // Q19.12
+
+    #define playerChara g_SysWork.playerWork_4C.player_0
 
     vcMakeFarWatchTgtPos(&far_watch_pos, w_p, cur_rd_area_size);
     if (cam_mv_type != VC_MV_SELF_VIEW)
     {
         vcMakeNormalWatchTgtPos(&w_p->watch_tgt_pos_7C, &w_p->watch_tgt_ang_z_8C, w_p, cam_mv_type, cur_rd_area_size);
-        if (far_watch_rate != 0)
+        if (far_watch_rate != Q12(0.0f))
         {
             w_p->watch_tgt_pos_7C.vx += Q12_MULT(far_watch_rate, far_watch_pos.vx - w_p->watch_tgt_pos_7C.vx);
             w_p->watch_tgt_pos_7C.vy += Q12_MULT(far_watch_rate, far_watch_pos.vy - w_p->watch_tgt_pos_7C.vy);
@@ -1373,23 +1394,26 @@ void vcAutoRenewalWatchTgtPosAndAngZ(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, V
     }
 
     vcMixSelfViewEffectToWatchTgtPos(&w_p->watch_tgt_pos_7C, &w_p->watch_tgt_ang_z_8C, self_view_eff_rate,
-                                     w_p, &g_SysWork.playerBoneCoords_890[HarryBone_Head].workm, g_SysWork.playerWork_4C.player_0.model_0.anim_4.status_0);
+                                     w_p, &g_SysWork.playerBoneCoords_890[HarryBone_Head].workm, playerChara.model_0.anim_4.status_0);
 
     if (w_p->watch_tgt_pos_7C.vy > w_p->watch_tgt_max_y_88)
     {
         w_p->watch_tgt_pos_7C.vy = w_p->watch_tgt_max_y_88;
     }
+
+    #undef playerChara
 }
 
-void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_WORK* w_p, enum _VC_CAM_MV_TYPE cam_mv_type, enum _VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x80082C58
+void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_WORK* w_p,
+                             enum _VC_CAM_MV_TYPE cam_mv_type, enum _VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x80082C58
 {
     SVECTOR ang;                      // Guessed name.
     SVECTOR vec;                      // Guessed name.
-    s32     chara_to_cam_dist;        // Guessed name.
-    s32     watch_y;                  // Guessed name.
-    s32     tgt_chara2watch_cir_dist; // Guessed name.
-    s32     tgt_watch_cir_r;          // Guessed name.
-    s32     tgt_watch_cir_r_ext;      // Guessed name.
+    q19_12  chara_to_cam_dist;        // Guessed name.
+    q19_12  watch_y;                  // Guessed name.
+    q19_12  tgt_chara2watch_cir_dist; // Guessed name.
+    q19_12  tgt_watch_cir_r;          // Guessed name.
+    q19_12  tgt_watch_cir_r_ext;      // Guessed name.
 
     *watch_tgt_ang_z_p = 0;
 
@@ -1398,13 +1422,11 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
         ang.vx = Math_AngleNormalize(Q12_ANGLE_FROM_Q8(w_p->cur_near_road_2B8.road_p_0->fix_ang_x_16));
         ang.vy = Math_AngleNormalize(Q12_ANGLE_FROM_Q8(w_p->cur_near_road_2B8.road_p_0->fix_ang_y_17));
         ang.vz = Q12_ANGLE(0.0f);
-
         vwAngleToVector(&vec, &ang, Q12(0.25f));
 
-        // TODO: `<< 4`?
-        watch_tgt_pos->vx = (vec.vx * 16) + w_p->cam_pos_50.vx;
-        watch_tgt_pos->vy = (vec.vy * 16) + w_p->cam_pos_50.vy;
-        watch_tgt_pos->vz = (vec.vz * 16) + w_p->cam_pos_50.vz;
+        watch_tgt_pos->vx = Q8_TO_Q12(vec.vx) + w_p->cam_pos_50.vx;
+        watch_tgt_pos->vy = Q8_TO_Q12(vec.vy) + w_p->cam_pos_50.vy;
+        watch_tgt_pos->vz = Q8_TO_Q12(vec.vz) + w_p->cam_pos_50.vz;
     }
     else
     {
@@ -1454,23 +1476,26 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
     }
 }
 
-void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, s16 effect_rate, VC_WORK* w_p, MATRIX* head_mat, s32 anim_status) // 0x80082DF8
+void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, s16 effect_rate,
+                                      VC_WORK* w_p, MATRIX* head_mat, s32 anim_status) // 0x80082DF8
 {
     // TODO: Most aren't original names. Try substituting with ones found in symbols.
     SVECTOR    cam_ang;       // Original name.
-    s32        angle_delta_y;
-    s32        delta_y;
-    s32        new_y;
-    s32        delta_z;
-    s32        new_x;
-    s32        delta_x;
-    s32        new_z;
-    s32        dist_to_target;
+    q19_12     angle_delta_y;
+    q19_12     delta_y;
+    q19_12     new_y;
+    q19_12     delta_z;
+    q19_12     new_x;
+    q19_12     delta_x;
+    q19_12     new_z;
+    q19_12     dist_to_target;
     s32        temp_dir;
-    s32        vertical_angle;
-    s32        abs_angle_delta_y;
-    s32        corrected_angle_y;
+    q19_12     vertical_angle;
+    q19_12     abs_angle_delta_y;
+    q19_12     corrected_angle_y;
     s_SysWork* sys_work;
+
+    #define playerChara g_SysWork.playerWork_4C.player_0
 
     delta_x = watch_tgt_pos->vx - w_p->cam_pos_50.vx;
     delta_y = watch_tgt_pos->vy - w_p->cam_pos_50.vy;
@@ -1518,14 +1543,14 @@ void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang
             break;
 
         default:
-            cam_ang.vy = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
+            cam_ang.vy = playerChara.rotation_24.vy;
             break;
 
         case ANIM_STATUS(HarryAnim_LookAround, false):
         case ANIM_STATUS(HarryAnim_LookAround, true):
             if (w_p->nearest_enemy_2DC != NULL)
             {
-                cam_ang.vy = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
+                cam_ang.vy = playerChara.rotation_24.vy;
             }
             else
             {
@@ -1554,7 +1579,7 @@ void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang
                 corrected_angle_y = angle_delta_y;
             }
 
-            cam_ang.vy = g_SysWork.playerWork_4C.player_0.rotation_24.vy + corrected_angle_y;
+            cam_ang.vy = playerChara.rotation_24.vy + corrected_angle_y;
             break;
 
         case ANIM_STATUS(HarryAnim_WalkForward, false):
@@ -1579,7 +1604,7 @@ void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang
                 corrected_angle_y = Q12_ANGLE(-10.0f);
             }
 
-            cam_ang.vy = g_SysWork.playerWork_4C.player_0.rotation_24.vy + corrected_angle_y;
+            cam_ang.vy = playerChara.rotation_24.vy + corrected_angle_y;
             break;
     }
 
@@ -1613,7 +1638,7 @@ void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang
         case ANIM_STATUS(HarryAnim_TurnLeft, true):
         case ANIM_STATUS(HarryAnim_TurnRight, false):
         case ANIM_STATUS(HarryAnim_TurnRight, true):
-            temp_dir = (g_SysWork.playerWork_4C.player_0.rotation_24.vy >> 7) & 0xF;
+            temp_dir = (playerChara.rotation_24.vy >> 7) & 0xF;
             if (temp_dir == 0 || temp_dir == 5)
             {
                 cam_ang.vx -= Q12_ANGLE(1.0f);
@@ -1656,6 +1681,8 @@ void vcMixSelfViewEffectToWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang
     watch_tgt_pos->vx += Math_MulFixed(new_x - watch_tgt_pos->vx, effect_rate, Q12_SHIFT);
     watch_tgt_pos->vy += Math_MulFixed(new_y - watch_tgt_pos->vy, effect_rate, Q12_SHIFT);
     watch_tgt_pos->vz += Math_MulFixed(new_z - watch_tgt_pos->vz, effect_rate, Q12_SHIFT);
+
+    #undef playerChara
 }
 
 void vcMakeFarWatchTgtPos(VECTOR3* watch_tgt_pos, VC_WORK* w_p, VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x800832B4
@@ -1689,7 +1716,6 @@ void vcMakeFarWatchTgtPos(VECTOR3* watch_tgt_pos, VC_WORK* w_p, VC_AREA_SIZE_TYP
         sc_p = w_p->nearest_enemy_2DC;
 
         dist = w_p->nearest_enemy_xz_dist_2E0;
-
         if (dist < Q12(1.7f))
         {
             adj_dist = (dist * Q12(-0.7f)) / Q12(1.7f);
@@ -1699,9 +1725,8 @@ void vcMakeFarWatchTgtPos(VECTOR3* watch_tgt_pos, VC_WORK* w_p, VC_AREA_SIZE_TYP
             adj_dist = Q12(-0.7f);
         }
 
-        dist += adj_dist;
-
         // TODO: `CLAMP` or `MIN`/`MAX`?
+        dist += adj_dist;
         if (dist < use_dist)
         {
             use_dist = dist;
@@ -1742,7 +1767,6 @@ void vcMakeFarWatchTgtPos(VECTOR3* watch_tgt_pos, VC_WORK* w_p, VC_AREA_SIZE_TYP
         }
 
         lim_y = (w_p->nearest_enemy_xz_dist_2E0 >> 1) - Q12(0.5f);
-
         if ((w_p->chara_pos_114.vy + lim_y) < watch_y)
         {
             watch_y = w_p->chara_pos_114.vy + lim_y;
@@ -1785,9 +1809,9 @@ void vcSetWatchTgtYParam(VECTOR3* watch_pos, VC_WORK* w_p, s32 cam_mv_type, q19_
 
 void vcAdjustWatchYLimitHighWhenFarView(VECTOR3* watch_pos, VECTOR3* cam_pos, s16 sy) // 0x800835E0
 {
-    s16 max_cam_ang_x;
-    s32 dist;
-    s16 cam_ang_x;
+    q3_12  max_cam_ang_x;
+    q19_12 dist;
+    q3_12  cam_ang_x;
 
     max_cam_ang_x = ratan2(cam_pos->vy + Q12(5.0f), Q12(13.0f)) - ratan2(g_GameWork.gsScreenHeight_58A / 2, sy);
     dist          = Vc_VectorMagnitudeCalc(watch_pos->vx - cam_pos->vx, 0, watch_pos->vz - cam_pos->vz);
@@ -1805,7 +1829,7 @@ void vcAutoRenewalCamTgtPos(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, VC_CAM_MV_
 {
     VECTOR3 tgt_vec;
     VECTOR3 ideal_pos;
-    s32     max_tgt_mv_xz_len;
+    q19_12  max_tgt_mv_xz_len;
 
     switch (cam_mv_type)
     {
@@ -1875,22 +1899,24 @@ void vcAutoRenewalCamTgtPos(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, VC_CAM_MV_
     w_p->cam_tgt_spd_110     = Q12(0.0f);
 }
 
-s32 vcRetMaxTgtMvXzLen(VC_WORK* w_p, VC_CAM_MV_PARAM* cam_mv_prm_p) // 0x8008395C
+q19_12 vcRetMaxTgtMvXzLen(VC_WORK* w_p, VC_CAM_MV_PARAM* cam_mv_prm_p) // 0x8008395C
 {
     #define SPEED_XZ_MIN Q12(2.2f)
 
-    s32 max_spd_xz;
+    q19_12 max_spd_xz;
 
     max_spd_xz = (w_p->chara_mv_spd_13C + Q12(1.0f)) + abs(w_p->chara_ang_spd_y_142 * 8);
     max_spd_xz = (max_spd_xz < SPEED_XZ_MIN) ? SPEED_XZ_MIN : max_spd_xz;
     max_spd_xz = (cam_mv_prm_p->max_spd_xz > max_spd_xz) ? max_spd_xz : cam_mv_prm_p->max_spd_xz;
 
     return Math_MulFixed(max_spd_xz, g_DeltaTime, Q12_SHIFT);
+
+    #undef SPEED_XZ_MIN
 }
 
 void vcMakeIdealCamPosByHeadPos(VECTOR3* ideal_pos, VC_WORK* w_p, VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x800839CC
 {
-    s32 chara2cam_ang_y;
+    q19_12 chara2cam_ang_y;
 
     if (w_p->flags_8 & VC_WARP_WATCH_F)
     {
@@ -1918,15 +1944,15 @@ void vcMakeIdealCamPosByHeadPos(VECTOR3* ideal_pos, VC_WORK* w_p, VC_AREA_SIZE_T
 void vcMakeIdealCamPosForFixAngCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083ADC
 {
     SVECTOR3       cam_angle_vec;
-    s32            dist_x_to_lim_area;
-    s32            dist_z_to_lim_area;
+    q19_12         dist_x_to_lim_area;
+    q19_12         dist_z_to_lim_area;
+    q19_12         offset_dist;
+    q19_12         chara_to_cam_dist;
+    q19_12         max_dist_to_lim_area;
+    q19_12         cam_offset_forward;
+    q19_12         abs_dist_z_to_lim_area;
+    q19_12         abs_dist_x_to_lim_area;
     VC_LIMIT_AREA* limit_area;
-    s32            offset_dist;
-    s32            chara_to_cam_dist;
-    s32            max_dist_to_lim_area;
-    s32            cam_offset_forward;
-    s32            abs_dist_z_to_lim_area;
-    s32            abs_dist_x_to_lim_area;
 
     cam_angle_vec.vx = Q12_ANGLE_FROM_Q8(w_p->cur_near_road_2B8.road_p_0->fix_ang_x_16);
     cam_angle_vec.vy = Q12_ANGLE_FROM_Q8(w_p->cur_near_road_2B8.road_p_0->fix_ang_y_17);
@@ -1991,12 +2017,12 @@ void vcMakeIdealCamPosForFixAngCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083A
 void vcMakeIdealCamPosForThroughDoorCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083D2C
 {
     VC_THROUGH_DOOR_CAM_PARAM* through_door_param;
-    s16                        delta_angle_clamped;
-    s32                        angle_threshold;
-    s32                        offset_lateral;
-    s32                        offset_forward;
-    s32                        offset_scale;
-    s16                        angle_diff_abs;
+    q3_12                      delta_angle_clamped;
+    q19_12                     angle_threshold;
+    q19_12                     offset_lateral;
+    q19_12                     offset_forward;
+    q19_12                     offset_scale;
+    q3_12                      angle_diff_abs;
 
     through_door_param = &w_p->through_door_10;
 
@@ -2054,7 +2080,7 @@ void vcMakeIdealCamPosForThroughDoorCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x8
                         Q12_MULT(offset_forward, Math_Sin(through_door_param->rail_ang_y_8)) +
                         Q12_MULT(offset_lateral, Math_Cos(through_door_param->rail_ang_y_8));
         ideal_pos->vz = through_door_param->rail_sta_pos_C.vz +
-                        Q12_MULT(offset_forward, Math_Cos(through_door_param->rail_ang_y_8)) +
+                        Q12_MULT(offset_forward,  Math_Cos(through_door_param->rail_ang_y_8)) +
                         Q12_MULT(offset_lateral, -Math_Sin(through_door_param->rail_ang_y_8));
         ideal_pos->vy = through_door_param->rail_sta_pos_C.vy;
     }
@@ -2183,9 +2209,11 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     ideal_pos->vz = w_p->chara_pos_114.vz + Math_MulFixed(final_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y_FE), Q12_SHIFT);
 
     vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, &near_road_data->rd_14);
+
+    #undef ANGLE_DELTA_RANGE
 }
 
-void vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(s32* x_p, s32* z_p, VC_LIMIT_AREA* lim_p) // 0x80084210
+void vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(q19_12* x_p, q19_12* z_p, VC_LIMIT_AREA* lim_p) // 0x80084210
 {
     q19_12 min_z;
     q19_12 min_x;
@@ -2217,18 +2245,18 @@ void vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(s32* x_p, s32* z_p, VC_LIMIT_AREA*
     *z_p = z;
 }
 
-void vcMakeBasicCamTgtMvVec(VECTOR3* tgt_mv_vec, VECTOR3* ideal_pos, VC_WORK* w_p, s32 max_tgt_mv_xz_len) // 0x800842C0
+void vcMakeBasicCamTgtMvVec(VECTOR3* tgt_mv_vec, VECTOR3* ideal_pos, VC_WORK* w_p, q19_12 max_tgt_mv_xz_len) // 0x800842C0
 {
-    s32 now2ideal_tgt_dist;
-    s16 now2ideal_tgt_ang_y;
-    s32 temp_s0; // SH2: `float xz_vec[4];`
-    s32 temp_s1;
+    q19_12 now2ideal_tgt_dist;
+    q3_12  now2ideal_tgt_ang_y;
+    q19_12 deltaZ; // SH2: `float xz_vec[4];`
+    q19_12 deltaX;
 
-    temp_s1 = ideal_pos->vx - w_p->cam_tgt_pos_44.vx;
-    temp_s0 = ideal_pos->vz - w_p->cam_tgt_pos_44.vz;
+    deltaX = ideal_pos->vx - w_p->cam_tgt_pos_44.vx;
+    deltaZ = ideal_pos->vz - w_p->cam_tgt_pos_44.vz;
 
-    now2ideal_tgt_dist  = Vc_VectorMagnitudeCalc(temp_s1, Q12(0.0f), temp_s0);
-    now2ideal_tgt_ang_y = ratan2(temp_s1, temp_s0);
+    now2ideal_tgt_dist  = Vc_VectorMagnitudeCalc(deltaX, Q12(0.0f), deltaZ);
+    now2ideal_tgt_ang_y = ratan2(deltaX, deltaZ);
 
     if (now2ideal_tgt_dist < max_tgt_mv_xz_len)
     {
@@ -2254,13 +2282,13 @@ void vcMakeBasicCamTgtMvVec(VECTOR3* tgt_mv_vec, VECTOR3* ideal_pos, VC_WORK* w_
 void vcAdjTgtMvVecYByCurNearRoad(VECTOR3* tgt_mv_vec, VC_WORK* w_p) // 0x800843F4
 {
     VC_ROAD_DATA* cur_rd_p;
-    s32           tgt_y;
-    s32           to_chara_dist;
-    s32           abs_ofs_y;
-    s32           max_tgt_y;
-    s32           min_tgt_y;
-    s32           dist;
-    s32           near_ratio;
+    q19_12        tgt_y;
+    q19_12        to_chara_dist;
+    q19_12        abs_ofs_y;
+    q19_12        max_tgt_y;
+    q19_12        min_tgt_y;
+    q19_12        dist;
+    q19_12        near_ratio;
 
     cur_rd_p = w_p->cur_near_road_2B8.road_p_0;
 
@@ -2320,25 +2348,27 @@ void vcAdjTgtMvVecYByCurNearRoad(VECTOR3* tgt_mv_vec, VC_WORK* w_p) // 0x800843F
     tgt_mv_vec->vy = tgt_y - w_p->cam_tgt_pos_44.vy;
 }
 
-void vcCamTgtMvVecIsFlipedFromCharaFront(VECTOR3* tgt_mv_vec, VC_WORK* w_p, s32 max_tgt_mv_xz_len, VC_AREA_SIZE_TYPE cur_rd_area_size)
+void vcCamTgtMvVecIsFlipedFromCharaFront(VECTOR3* tgt_mv_vec, VC_WORK* w_p, q19_12 max_tgt_mv_xz_len, VC_AREA_SIZE_TYPE cur_rd_area_size)
 {
-    VECTOR3            pre_tgt_pos;
-    VECTOR3            chk_pos;
-    VECTOR3            post_tgt_pos;
-    s16                flip_ang_y;
+    VECTOR3            pre_tgt_pos;  // Q19.12
+    VECTOR3            chk_pos;      // Q19.12
+    VECTOR3            post_tgt_pos; // Q19.12
+    q3_12              flip_ang_y;
     VC_NEAR_ROAD_DATA* use_nearest_p;
-    s16                ang_y;
-    s32                flip_dist; // TODO: Name maybe switched with `mv_len`.
-    s32                chk_near_dist;
-    s32                mv_len;
-    s32                min_z;
-    s32                min_x;
-    s32                max_z;
-    s32                max_x;
+    q3_12              ang_y;
+    q19_12             flip_dist; // TODO: Name maybe switched with `mv_len`.
+    q19_12             chk_near_dist;
+    q19_12             mv_len;
+    q19_12             min_z;
+    q19_12             min_x;
+    q19_12             max_z;
+    q19_12             max_x;
 
     pre_tgt_pos.vx = tgt_mv_vec->vx + w_p->cam_tgt_pos_44.vx;
     pre_tgt_pos.vz = tgt_mv_vec->vz + w_p->cam_tgt_pos_44.vz;
-    flip_dist      = vcFlipFromCamExclusionArea(&flip_ang_y, &w_p->old_cam_excl_area_r_6C, &pre_tgt_pos, &w_p->chara_pos_114, w_p->chara_eye_ang_y_144, cur_rd_area_size);
+    flip_dist      = vcFlipFromCamExclusionArea(&flip_ang_y, &w_p->old_cam_excl_area_r_6C,
+                                                &pre_tgt_pos, &w_p->chara_pos_114, w_p->chara_eye_ang_y_144,
+                                                cur_rd_area_size);
     if (flip_dist > Q12(0.0f))
     {
         mv_len = flip_dist;
@@ -2353,7 +2383,10 @@ void vcCamTgtMvVecIsFlipedFromCharaFront(VECTOR3* tgt_mv_vec, VC_WORK* w_p, s32 
 
         if (w_p->cur_near_road_2B8.road_p_0->flags_10 & VC_RD_MARGE_ROAD_F)
         {
-            chk_near_dist = vcGetNearestNEAR_ROAD_DATA(&use_nearest_p, VC_CHK_NEAREST_ROAD_TYPE, w_p->cur_near_road_2B8.road_p_0->rd_type_11, &pre_tgt_pos, w_p, true);
+            chk_near_dist = vcGetNearestNEAR_ROAD_DATA(&use_nearest_p,
+                                                       VC_CHK_NEAREST_ROAD_TYPE,
+                                                       w_p->cur_near_road_2B8.road_p_0->rd_type_11, &pre_tgt_pos,
+                                                       w_p, true);
             if (use_nearest_p == NULL)
             {
                 use_nearest_p = &vcNullNearRoad;
@@ -2402,17 +2435,19 @@ void vcCamTgtMvVecIsFlipedFromCharaFront(VECTOR3* tgt_mv_vec, VC_WORK* w_p, s32 
     }
 }
 
-s32 vcFlipFromCamExclusionArea(s16* flip_ang_y_p, s32* old_cam_excl_area_r_p, VECTOR3* in_pos, VECTOR3* chara_pos, s16 chara_eye_ang_y, VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x800848B0
+q19_12 vcFlipFromCamExclusionArea(q3_12* flip_ang_y_p, q19_12* old_cam_excl_area_r_p,
+                                  VECTOR3* in_pos, VECTOR3* chara_pos, s16 chara_eye_ang_y,
+                                  VC_AREA_SIZE_TYPE cur_rd_area_size) // 0x800848B0
 {
-    s16 target_angle_y;
-    s32 min_step;
-    s32 distance_to_chara;
-    s32 relative_angle_y;
-    s32 delta_radius;
-    s32 exclusion_overlap;
-    s16 abs_relative_angle_y;
-    s32 base_radius;
-    s32 desired_radius;
+    q3_12  target_angle_y;
+    q19_12 min_step;
+    q19_12 distance_to_chara;
+    q19_12 relative_angle_y;
+    q19_12 delta_radius;
+    q19_12 exclusion_overlap;
+    q3_12  abs_relative_angle_y;
+    q19_12 base_radius;
+    q19_12 desired_radius;
 
     target_angle_y   = ratan2(in_pos->vx - chara_pos->vx, in_pos->vz - chara_pos->vz);
     relative_angle_y = Math_AngleNormalize(target_angle_y - chara_eye_ang_y);
@@ -2470,9 +2505,9 @@ s32 vcFlipFromCamExclusionArea(s16* flip_ang_y_p, s32* old_cam_excl_area_r_p, VE
     return exclusion_overlap;
 }
 
-void vcGetUseWatchAndCamMvParam(VC_WATCH_MV_PARAM** watch_mv_prm_pp, VC_CAM_MV_PARAM** cam_mv_prm_pp, s32 self_view_eff_rate, VC_WORK* w_p) // 0x80084A34
+void vcGetUseWatchAndCamMvParam(VC_WATCH_MV_PARAM** watch_mv_prm_pp, VC_CAM_MV_PARAM** cam_mv_prm_pp, q19_12 self_view_eff_rate, VC_WORK* w_p) // 0x80084A34
 {
-    s32              add_ang_accel_y;
+    q19_12           add_ang_accel_y;
     VC_CAM_MV_PARAM* cam_mv_prm_stg_p;
 
     if (w_p->flags_8 & VC_USER_WATCH_F)
@@ -2507,8 +2542,8 @@ void vcGetUseWatchAndCamMvParam(VC_WATCH_MV_PARAM** watch_mv_prm_pp, VC_CAM_MV_P
 
 void vcRenewalCamData(VC_WORK* w_p, VC_CAM_MV_PARAM* cam_mv_prm_p) // 0x80084BD8
 {
-    s32 dec_spd_per_dist_xz;
-    s32 dec_spd_per_dist_y;
+    q19_12 dec_spd_per_dist_xz;
+    q19_12 dec_spd_per_dist_y;
 
     if (w_p->flags_8 & VC_WARP_CAM_F)
     {
@@ -2537,13 +2572,14 @@ void vcRenewalCamData(VC_WORK* w_p, VC_CAM_MV_PARAM* cam_mv_prm_p) // 0x80084BD8
     w_p->cam_pos_50.vz += Math_MulFixed(w_p->cam_velo_60.vz, g_DeltaTime, Q12_SHIFT);
 }
 
-void vcRenewalCamMatAng(VC_WORK* w_p, VC_WATCH_MV_PARAM* watch_mv_prm_p, VC_CAM_MV_TYPE cam_mv_type, bool visible_chara_f) // 0x80084D54
+void vcRenewalCamMatAng(VC_WORK* w_p, VC_WATCH_MV_PARAM* watch_mv_prm_p, VC_CAM_MV_TYPE cam_mv_type,
+                        bool visible_chara_f) // 0x80084D54
 {
-    SVECTOR ofs_tgt_ang;
-    SVECTOR new_base_cam_ang;
+    SVECTOR ofs_tgt_ang;           // Q3.12
+    SVECTOR new_base_cam_ang;      // Q3.12
     MATRIX  new_base_matT;
-    SVECTOR ofs_cam2chara_btm_ang;
-    SVECTOR ofs_cam2chara_top_ang;
+    SVECTOR ofs_cam2chara_btm_ang; // Q3.12
+    SVECTOR ofs_cam2chara_top_ang; // Q3.12
 
     vcMakeNewBaseCamAng(&new_base_cam_ang, cam_mv_type, w_p);
     if (new_base_cam_ang.vx != w_p->base_cam_ang_C8.vx ||
@@ -2580,31 +2616,42 @@ void vcRenewalCamMatAng(VC_WORK* w_p, VC_WATCH_MV_PARAM* watch_mv_prm_p, VC_CAM_
     }
     else
     {
-        vcAdjCamOfsAngByOfsAngSpd(&w_p->ofs_cam_ang_B8, &w_p->ofs_cam_ang_spd_C0, &ofs_tgt_ang, watch_mv_prm_p);
+        vcAdjCamOfsAngByOfsAngSpd(&w_p->ofs_cam_ang_B8, &w_p->ofs_cam_ang_spd_C0, &ofs_tgt_ang,
+                                  watch_mv_prm_p);
     }
 
-    vcMakeCamMatAndCamAngByBaseAngAndOfsAng(&w_p->cam_mat_ang_8E, &w_p->cam_mat_98, &new_base_cam_ang, &w_p->ofs_cam_ang_B8, &w_p->cam_pos_50);
+    vcMakeCamMatAndCamAngByBaseAngAndOfsAng(&w_p->cam_mat_ang_8E, &w_p->cam_mat_98,
+                                            &new_base_cam_ang, &w_p->ofs_cam_ang_B8, &w_p->cam_pos_50);
 }
 
 void vcMakeNewBaseCamAng(SVECTOR* new_base_ang, VC_CAM_MV_TYPE cam_mv_type, VC_WORK* w_p) // 0x80084EDC
 {
-    static const s32 D_8002AAE0[] = { 0, 170, 682, 1251, 1251, 0, 0 }; // Last 2 could be compiler-added padding, but are needed for match.
+    // Last 2 could be compiler-added padding, but are needed for match.
+    static const s32 ANGLES[] = {
+        Q12_ANGLE(0.0f),
+        Q12_ANGLE(15.0f),
+        Q12_ANGLE(60.0f),
+        Q12_ANGLE(110.0f),
+        Q12_ANGLE(110.0f),
+        Q12_ANGLE(0.0f),
+        Q12_ANGLE(0.0f)
+    };
 
-    s32 sp18[5];
-    s16 temp_a0_3;
-    s16 temp_v0;
-    s16 new_base_ang_x;
-    s16 new_base_ang_y;
-    s16 var_v1_2;
-    s16 temp_a0_2;
-    s16 angle;
-    s16 temp_t0;
-    s16 temp_v0_2;
-    s16 temp_v1;
-    s16 temp_v1_2;
-    s32 deltaZ;
-    s32 deltaY;
-    s32 deltaX;
+    s32   sp18[5];
+    q3_12 temp_a0_3;
+    q3_12 temp_v0;
+    q3_12 new_base_ang_x;
+    q3_12 new_base_ang_y;
+    q3_12 var_v1_2;
+    q3_12 temp_a0_2;
+    q3_12 angle;
+    q3_12 temp_t0;
+    q3_12 temp_v0_2;
+    q3_12 temp_v1;
+    q3_12 temp_v1_2;
+    q23_8 deltaZ;
+    q23_8 deltaY;
+    q23_8 deltaX;
 
     deltaX = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vx - w_p->cam_pos_50.vx);
     deltaY = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vy - w_p->cam_pos_50.vy);
@@ -2670,7 +2717,7 @@ void vcMakeNewBaseCamAng(SVECTOR* new_base_ang, VC_CAM_MV_TYPE cam_mv_type, VC_W
             new_base_ang_x = -new_base_ang_x;
         }
 
-        memcpy(sp18, D_8002AAE0, ARRAY_SIZE(sp18) * sizeof(s32));
+        memcpy(sp18, ANGLES, ARRAY_SIZE(sp18) * sizeof(s32));
         new_base_ang_x = vwOresenHokan(sp18, ARRAY_SIZE(sp18), new_base_ang_x, 0, Q12(0.25f));
         new_base_ang_x = CLAMP(new_base_ang_x, Q12_ANGLE(0.0f), Q12_ANGLE(90.0f));
 
@@ -2706,13 +2753,14 @@ void vcRenewalBaseCamAngAndAdjustOfsCamAng(VC_WORK* w_p, SVECTOR* new_base_cam_a
 
 void vcMakeOfsCamTgtAng(SVECTOR* ofs_tgt_ang, MATRIX* base_matT, VC_WORK* w_p) // 0x800852C8
 {
-    SVECTOR vec;
+    SVECTOR offset;
 
-    vec.vx = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vx - w_p->cam_pos_50.vx);
-    vec.vy = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vy - w_p->cam_pos_50.vy);
-    vec.vz = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vz - w_p->cam_pos_50.vz);
-    ApplyMatrixSV(base_matT, &vec, &vec);
-    vwVectorToAngle(ofs_tgt_ang, &vec);
+    offset.vx = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vx - w_p->cam_pos_50.vx);
+    offset.vy = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vy - w_p->cam_pos_50.vy);
+    offset.vz = Q12_TO_Q8(w_p->watch_tgt_pos_7C.vz - w_p->cam_pos_50.vz);
+
+    ApplyMatrixSV(base_matT, &offset, &offset);
+    vwVectorToAngle(ofs_tgt_ang, &offset);
     ofs_tgt_ang->vz = w_p->watch_tgt_ang_z_8C;
 }
 
@@ -2720,19 +2768,19 @@ void vcMakeOfsCam2CharaBottomAndTopAngByBaseMatT(SVECTOR* ofs_cam2chara_btm_ang,
                                                  MATRIX* base_matT, VECTOR3* cam_pos, VECTOR3* chara_pos,
                                                  s32 chara_bottom_y, s32 chara_top_y) // 0x80085358
 {
-    SVECTOR vec;
+    SVECTOR offset;
 
-    vec.vx = Q12_TO_Q8(chara_pos->vx  - cam_pos->vx);
-    vec.vy = Q12_TO_Q8(chara_bottom_y - cam_pos->vy);
-    vec.vz = Q12_TO_Q8(chara_pos->vz  - cam_pos->vz);
-    ApplyMatrixSV(base_matT, &vec, &vec);
-    vwVectorToAngle(ofs_cam2chara_btm_ang, &vec);
+    offset.vx = Q12_TO_Q8(chara_pos->vx  - cam_pos->vx);
+    offset.vy = Q12_TO_Q8(chara_bottom_y - cam_pos->vy);
+    offset.vz = Q12_TO_Q8(chara_pos->vz  - cam_pos->vz);
+    ApplyMatrixSV(base_matT, &offset, &offset);
+    vwVectorToAngle(ofs_cam2chara_btm_ang, &offset);
 
-    vec.vx = Q12_TO_Q8(chara_pos->vx - cam_pos->vx);
-    vec.vy = Q12_TO_Q8(chara_top_y   - cam_pos->vy);
-    vec.vz = Q12_TO_Q8(chara_pos->vz - cam_pos->vz);
-    ApplyMatrixSV(base_matT, &vec, &vec);
-    vwVectorToAngle(ofs_cam2chara_top_ang, &vec);
+    offset.vx = Q12_TO_Q8(chara_pos->vx - cam_pos->vx);
+    offset.vy = Q12_TO_Q8(chara_top_y   - cam_pos->vy);
+    offset.vz = Q12_TO_Q8(chara_pos->vz - cam_pos->vz);
+    ApplyMatrixSV(base_matT, &offset, &offset);
+    vwVectorToAngle(ofs_cam2chara_top_ang, &offset);
 }
 
 void vcAdjCamOfsAngByCharaInScreen(SVECTOR* cam_ang, SVECTOR* ofs_cam2chara_btm_ang, SVECTOR* ofs_cam2chara_top_ang, VC_WORK* w_p) // 0x80085460
@@ -2753,14 +2801,13 @@ void vcAdjCamOfsAngByCharaInScreen(SVECTOR* cam_ang, SVECTOR* ofs_cam2chara_btm_
                     (watch2chr_ofs_ang_y - w_p->scr_half_ang_wx_2E) :
                     ((-w_p->scr_half_ang_wx_2E > watch2chr_ofs_ang_y) ? (w_p->scr_half_ang_wx_2E + watch2chr_ofs_ang_y) : Q12_ANGLE(0.0f));
 
-    /*
-    var_a1 = watch2chr_bottom_ofs_ang_x + w_p->scr_half_ang_wy_2C;
+    /*var_a1 = watch2chr_bottom_ofs_ang_x + w_p->scr_half_ang_wy_2C;
     if (watch2chr_bottom_ofs_ang_x >= -w_p->scr_half_ang_wy_2C)
     {
         var_a1 = 0;
     }*/
 
-    // TODO: var_a1 should probably be merged into adj_cam_ang_x somehow.
+    // TODO: `var_a1` should probably be merged into `adj_cam_ang_x` somehow.
     var_a1 = (watch2chr_bottom_ofs_ang_x >= -w_p->scr_half_ang_wy_2C) ? Q12_ANGLE(0.0f) : (watch2chr_bottom_ofs_ang_x + w_p->scr_half_ang_wy_2C);
 
     if (w_p->scr_half_ang_wy_2C < (watch2chr_top_ofs_ang_x - var_a1))
@@ -2785,10 +2832,11 @@ void vcAdjCamOfsAngByCharaInScreen(SVECTOR* cam_ang, SVECTOR* ofs_cam2chara_btm_
     cam_ang->vx  = adj_cam_ang_x + cam_ang->vx;
 }
 
-void vcAdjCamOfsAngByOfsAngSpd(SVECTOR* ofs_ang, SVECTOR* ofs_ang_spd, SVECTOR* ofs_tgt_ang, VC_WATCH_MV_PARAM* prm_p) // 0x8008555C
+void vcAdjCamOfsAngByOfsAngSpd(SVECTOR* ofs_ang, SVECTOR* ofs_ang_spd, SVECTOR* ofs_tgt_ang,
+                               VC_WATCH_MV_PARAM* prm_p) // 0x8008555C
 {
     SVECTOR unused;
-    VECTOR3 max_spd_dec_per_dist;
+    VECTOR3 max_spd_dec_per_dist; // Q19.12
 
     unused.vx = Math_AngleNormalize(ofs_tgt_ang->vx - ofs_ang->vx);
     unused.vy = Math_AngleNormalize(ofs_tgt_ang->vy - ofs_ang->vy);
@@ -2798,16 +2846,20 @@ void vcAdjCamOfsAngByOfsAngSpd(SVECTOR* ofs_ang, SVECTOR* ofs_ang_spd, SVECTOR* 
     max_spd_dec_per_dist.vy = Math_MultiplyFloatPrecise(prm_p->ang_accel_y, 3.0f, Q12_SHIFT);
     max_spd_dec_per_dist.vz = Math_MultiplyFloatPrecise(prm_p->ang_accel_y, 3.3f, Q12_SHIFT);
 
-    ofs_ang_spd->vx = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vx, ofs_ang->vx, ofs_tgt_ang->vx, prm_p->ang_accel_x, prm_p->max_ang_spd_x, max_spd_dec_per_dist.vx);
-    ofs_ang_spd->vy = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vy, ofs_ang->vy, ofs_tgt_ang->vy, prm_p->ang_accel_y, prm_p->max_ang_spd_y, max_spd_dec_per_dist.vy);
-    ofs_ang_spd->vz = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vz, ofs_ang->vz, ofs_tgt_ang->vz, Q12(0.4f), Q12_ANGLE(144.0f), Q12(3.0f));
+    ofs_ang_spd->vx = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vx, ofs_ang->vx, ofs_tgt_ang->vx,
+                                                prm_p->ang_accel_x, prm_p->max_ang_spd_x, max_spd_dec_per_dist.vx);
+    ofs_ang_spd->vy = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vy, ofs_ang->vy, ofs_tgt_ang->vy,
+                                                prm_p->ang_accel_y, prm_p->max_ang_spd_y, max_spd_dec_per_dist.vy);
+    ofs_ang_spd->vz = vwRetNewAngSpdToTargetAng(ofs_ang_spd->vz, ofs_ang->vz, ofs_tgt_ang->vz,
+                                                Q12(0.4f), Q12_ANGLE(144.0f), Q12(3.0f));
 
     ofs_ang->vx += Q12_MULT_PRECISE(ofs_ang_spd->vx, g_DeltaTime);
     ofs_ang->vy += Q12_MULT_PRECISE(ofs_ang_spd->vy, g_DeltaTime);
     ofs_ang->vz += Q12_MULT_PRECISE(ofs_ang_spd->vz, g_DeltaTime);
 }
 
-void vcMakeCamMatAndCamAngByBaseAngAndOfsAng(SVECTOR* cam_mat_ang, MATRIX* cam_mat, SVECTOR* base_cam_ang, SVECTOR* ofs_cam_ang, VECTOR3* cam_pos) // 0x800857EC
+void vcMakeCamMatAndCamAngByBaseAngAndOfsAng(SVECTOR* cam_mat_ang, MATRIX* cam_mat,
+                                             SVECTOR* base_cam_ang, SVECTOR* ofs_cam_ang, VECTOR3* cam_pos) // 0x800857EC
 {
     MATRIX base_mat;
     MATRIX ofs_mat;
@@ -2878,7 +2930,7 @@ s32 vcCamMatNoise(s32 noise_w, s32 ang_spd1, s32 ang_spd2, q19_12 vcSelfViewTime
     return Q12_MULT(noise_w, noise);
 }
 
-s32 Vc_VectorMagnitudeCalc(q19_12 posX, q19_12 posY, q19_12 posZ) // 0x80085B1C
+q19_12 Vc_VectorMagnitudeCalc(q19_12 posX, q19_12 posY, q19_12 posZ) // 0x80085B1C
 {
     q19_12 mag;
     s32    shift;
@@ -2891,7 +2943,7 @@ s32 Vc_VectorMagnitudeCalc(q19_12 posX, q19_12 posY, q19_12 posZ) // 0x80085B1C
     return SquareRoot0(SQUARE(posX) + SQUARE(posY) + SQUARE(posZ)) << shift;
 }
 
-q19_12 vcGetXZSumDistFromLimArea(s32* out_vec_x_p, s32* out_vec_z_p, q19_12 chk_wld_x, q19_12 chk_wld_z,
+q19_12 vcGetXZSumDistFromLimArea(q19_12* out_vec_x_p, q19_12* out_vec_z_p, q19_12 chk_wld_x, q19_12 chk_wld_z,
                                  q19_12 lim_min_x, q19_12 lim_max_x, q19_12 lim_min_z, q19_12 lim_max_z, bool can_ret_minus_dist_f) // 0x80085C80
 {
     q19_12 cntr_x;
@@ -2972,3 +3024,5 @@ q19_12 vcGetXZSumDistFromLimArea(s32* out_vec_x_p, s32* out_vec_z_p, q19_12 chk_
 
     return ret_dist;
 }
+
+#undef MIN_IN_ROAD_DIST

@@ -1,0 +1,100 @@
+#include "pc_config.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+s_PcConfig g_PcConfig = {
+    .windowWidth  = 640,
+    .windowHeight = 480,
+    .fullscreen   = 0,
+    .mapName      = "map0_s00"
+};
+
+static void TrimWhitespace(char* s)
+{
+    /* trim trailing */
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' ||
+                       s[len - 1] == '\r' || s[len - 1] == '\n'))
+    {
+        s[--len] = '\0';
+    }
+    /* trim leading */
+    char* start = s;
+    while (*start == ' ' || *start == '\t') start++;
+    if (start != s) memmove(s, start, strlen(start) + 1);
+}
+
+void PcConfig_Load(const char* path)
+{
+    FILE* f = fopen(path, "r");
+    if (!f)
+    {
+        fprintf(stderr, "[CONFIG] %s not found, using defaults (%dx%d, fullscreen=%d, map=%s)\n",
+                path, g_PcConfig.windowWidth, g_PcConfig.windowHeight,
+                g_PcConfig.fullscreen, g_PcConfig.mapName);
+        return;
+    }
+
+    fprintf(stderr, "[CONFIG] Loading %s\n", path);
+
+    char line[256];
+    while (fgets(line, sizeof(line), f))
+    {
+        /* skip comments and empty lines */
+        char* p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == ';' || *p == '\n' || *p == '\r' || *p == '\0')
+            continue;
+
+        char key[64] = {0};
+        char value[128] = {0};
+
+        char* eq = strchr(p, '=');
+        if (!eq) continue;
+
+        size_t keyLen = (size_t)(eq - p);
+        if (keyLen >= sizeof(key)) keyLen = sizeof(key) - 1;
+        strncpy(key, p, keyLen);
+        key[keyLen] = '\0';
+        TrimWhitespace(key);
+
+        strncpy(value, eq + 1, sizeof(value) - 1);
+        value[sizeof(value) - 1] = '\0';
+        TrimWhitespace(value);
+
+        if (strcmp(key, "width") == 0)
+        {
+            int v = atoi(value);
+            if (v >= 320) g_PcConfig.windowWidth = v;
+        }
+        else if (strcmp(key, "height") == 0)
+        {
+            int v = atoi(value);
+            if (v >= 240) g_PcConfig.windowHeight = v;
+        }
+        else if (strcmp(key, "fullscreen") == 0)
+        {
+            g_PcConfig.fullscreen = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "map") == 0)
+        {
+            if (strlen(value) > 0 && strlen(value) < sizeof(g_PcConfig.mapName))
+            {
+                strncpy(g_PcConfig.mapName, value, sizeof(g_PcConfig.mapName) - 1);
+                g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+            }
+        }
+        else
+        {
+            fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
+        }
+    }
+
+    fclose(f);
+
+    fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, Map: %s\n",
+            g_PcConfig.windowWidth, g_PcConfig.windowHeight,
+            g_PcConfig.fullscreen, g_PcConfig.mapName);
+}
