@@ -1149,7 +1149,7 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
              * Instead, handle movement directly from controller input. */
             {
                 q3_12 turnSpeed = Q12_ANGLE(2.0f);
-                q19_12 moveSpeed = Q12(0.08f);
+                q19_12 moveSpeed = g_Player_IsRunning ? Q12(0.16f) : Q12(0.08f);
                 q19_12 sinH, cosH;
 
                 /* Turn */
@@ -1176,11 +1176,12 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                 /* Sync rotation */
                 chara->rotation_24.vy = chara->headingAngle_3C;
 
-                /* Set walk animation */
+                /* Set walk/run animation */
                 if (g_Player_IsMovingForward || g_Player_IsMovingBackward) {
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkForward, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkForward, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkForward, false);
+                    u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(targetWalk, false);
                         chara->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsTurningLeft) {

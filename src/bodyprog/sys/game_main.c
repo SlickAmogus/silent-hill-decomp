@@ -11,6 +11,7 @@ extern u8 g_WorldEnvWork[];
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern const unsigned char* g_sdlKeyboardState;
 #include "debug_console.h"
+#include "map_registry.h"
 #endif
 #include <psyq/libetc.h>
 
@@ -137,6 +138,25 @@ void DebugCamera_Update(void)
     /* Keep fog off every frame if toggled (game re-enables it) */
     if (g_DebugFogDisabled) {
         PC_WorldEnvWork.isFogEnabled_1 = 0;
+    }
+
+    /* Numpad 0: cycle to next map overlay (edge-triggered) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
+        if (cur && !prevKey) {
+            int curId = (int)g_SavegamePtr->mapOverlayId_A4;
+            int nextId = (curId + 1) % (MapOverlayId_MAPX_S00 + 1);
+            g_SavegamePtr->mapOverlayId_A4 = nextId;
+            MapRegistry_Load((e_MapOverlayId)nextId);
+            /* Trigger a map reload by re-entering GameBoot_MapLoad. */
+            extern void GameBoot_MapLoad(s32 mapIdx);
+            GameBoot_MapLoad(nextId);
+            fprintf(stderr, "[DEBUG] Switched to map %s (overlay %d)\n",
+                MapRegistry_GetName(nextId), nextId);
+            fflush(stderr);
+        }
+        prevKey = cur;
     }
 
     /* If debug cam is off, let normal camera handle everything */
