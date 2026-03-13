@@ -369,7 +369,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 fflush(stderr);
                 fprintf(stderr, "[SH] Calling GameBoot_MapLoad + GameFs_StreamBinLoad\n");
 #endif
+#ifdef SH_PC_PORT
+                GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+#else
                 GameBoot_MapLoad(MapOverlayId_MAP0_S00);
+#endif
 #ifdef SH_PC_PORT
                 fprintf(stderr, "[SH] GameBoot_MapLoad done\n");
 #endif
