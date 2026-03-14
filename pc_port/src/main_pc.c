@@ -45,6 +45,15 @@ extern void* g_OvlBodyprog;
 typedef struct s_DemoFrameData s_DemoFrameData;
 extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 
+/* Unified debug log — writes to stdout (SilentHill.log) */
+FILE* g_ShDebugLog = NULL;
+void SH_DebugLogInit(void)
+{
+    if (!g_ShDebugLog) {
+        g_ShDebugLog = stdout;
+    }
+}
+
 /* Game data path - where the extracted game files are located */
 static char g_GameDataPath[512] = "./gamedata";
 
@@ -125,6 +134,18 @@ int main(int argc, char* argv[])
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
+
+    /* Redirect PsyCross log into our SilentHill.log (stdout) instead of
+     * a separate "Silent Hill.log" file, and remove the empty file it created. */
+    {
+        extern FILE* g_logStream;
+        if (g_logStream && g_logStream != stdout) {
+            fclose(g_logStream);
+            g_logStream = stdout;
+            remove("Silent Hill.log");
+        }
+    }
+
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
     /* Initialize PSY-Q subsystems via PsyCross */

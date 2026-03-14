@@ -15,6 +15,7 @@
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "sh_log.h"
 #endif
 
 // ========================================
@@ -64,10 +65,17 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
 
+#ifdef SH_PC_PORT
+    /* Skip lens flare effect on PC — the ring geometry uses scratchpad-computed
+     * vertices and pre-allocated prim buffers that may produce artifacts.
+     * TODO: properly port func_80041074 lens flare rendering */
+    (void)0;
+#else
     if (g_WorldEnvWork.field_2 != 0)
     {
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
+#endif
 
     if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0)
     {
@@ -100,21 +108,12 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     }
 
 #ifdef SH_PC_PORT
-    /* PC port: use proper sizeof instead of hardcoded PSX byte offsets.
-     * SetPriority is stubbed, so just allocate header space for it.
-     * Also set semi-transparency directly on the poly since DR_MODE
-     * prims get stripped from InGame OT0. */
+    /* PC port: simplified fog color quad. SetPriority is a no-op on PC,
+     * and DR_MODE gets stripped by the OT0 sanitizer, so just draw the
+     * POLY_G4 directly. Semi-transparency is set on the poly itself. */
     {
-        #define SETPRIORITY_SIZE (sizeof(P_TAG) + 2 * sizeof(u_int)) /* P_TAG header + 2 data words */
-
-        packet2 = GsOUT_PACKET_P;
-        packet  = packet2;
-
-        SetPriority(packet2, 0, 0);
-        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], packet2);
-
-        poly           = (POLY_G4*)(packet + SETPRIORITY_SIZE);
-        GsOUT_PACKET_P = packet + SETPRIORITY_SIZE + sizeof(POLY_G4);
+        poly            = (POLY_G4*)GsOUT_PACKET_P;
+        GsOUT_PACKET_P += sizeof(POLY_G4);
 
         color2           = *(s32*)&g_WorldEnvWork.fogColor_1C;
         *(s32*)&poly->r3 = color2;
@@ -131,17 +130,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
                 180,  120);
 
         AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
-        packet = GsOUT_PACKET_P;
-        SetPriority(packet, 0, 1);
-        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], packet);
-
-        GsOUT_PACKET_P = packet + SETPRIORITY_SIZE + sizeof(DR_MODE);
-        mode           = (DR_MODE*)((PACKET*)packet + SETPRIORITY_SIZE);
-
-        SetDrawMode(mode, 0, 1, 32, NULL);
-        AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], mode);
-
-        #undef SETPRIORITY_SIZE
     }
 #else
     packet2 = GsOUT_PACKET_P;
@@ -1296,12 +1284,6 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
             func_80057228(mat1, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
         }
 
-#ifdef SH_PC_PORT
-        /* Force path C (func_80057344) for all bones on PC.
-         * func_8005A21C (path B) crashes due to uninitialized
-         * environment/scratch data during mesh processing. */
-        func_80057344(modelInfo, otTag, arg2, mat0);
-#else
         if (modelHdr->field_B_0)
         {
             g_WorldEnvWork.field_14C = arg5;
@@ -1311,7 +1293,6 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
         {
             func_80057344(modelInfo, otTag, arg2, mat0);
         }
-#endif
     }
 }
 
@@ -1383,6 +1364,25 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     vertOffset   = modelHdr->vertexOffset_9;
     normalOffset = modelHdr->normalOffset_A;
 
+#ifdef SH_PC_PORT
+    {
+        static int _logCnt3 = 0;
+        if (_logCnt3 < 50) {
+            fprintf(stderr, "[DRAW] modelIdx=%d meshCnt=%d vertOff=%u normOff=%u meshHdrs=%p\n",
+                modelInfo->modelIdx_C, modelHdr->meshCount_8,
+                vertOffset, normalOffset, (void*)modelHdr->meshHdrs_C);
+            for (int _mi = 0; _mi < modelHdr->meshCount_8; _mi++) {
+                s_MeshHeader* _mh = &modelHdr->meshHdrs_C[_mi];
+                fprintf(stderr, "  mesh[%d] vertsXy=%p vertCnt=%d prims=%p primCnt=%d\n",
+                    _mi, (void*)_mh->verticesXy_8, _mh->vertexCount_1,
+                    (void*)_mh->primitives_4, _mh->primitiveCount_0);
+            }
+            fflush(stderr);
+            _logCnt3++;
+        }
+    }
+#endif
+
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
 
@@ -1412,6 +1412,28 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
         }
 
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
+
+#ifdef SH_PC_PORT
+        {
+            static int _vtxLog = 0;
+            if (_vtxLog < 30) {
+                int _vc = curMeshHdr->vertexCount_1;
+                fprintf(stderr, "[VTX] vertCnt=%d after GTE transform, first 3 screenXy:\n", _vc);
+                for (int _vi = 0; _vi < 3 && _vi < _vc; _vi++) {
+                    fprintf(stderr, "  v[%d] xy=(%d,%d) z=%d\n",
+                        _vi,
+                        scratchData->screenXy_0[vertOffset + _vi].vx,
+                        scratchData->screenXy_0[vertOffset + _vi].vy,
+                        scratchData->field_18C[vertOffset + _vi]);
+                }
+                fprintf(stderr, "  mat t=(%d,%d,%d) m00=%d\n",
+                    mat->t[0], mat->t[1], mat->t[2], mat->m[0][0]);
+                fflush(stderr);
+                _vtxLog++;
+            }
+        }
+#endif
+
         func_8005801C(curMeshHdr, scratchData, otTag, arg2);
     }
 }
@@ -1842,6 +1864,20 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
         gte_ldrgb(&scratchData->field_380.s_0.field_8);
         gte_dpcs();
         gte_strgb(&scratchData->field_380.s_0.field_8);
+#ifdef SH_PC_PORT
+        {
+            static int _dpcsLog = 0;
+            if (_dpcsLog < 10) {
+                fprintf(stderr, "[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)\n",
+                    g_WorldEnvWork.field_20, 0x1000 - g_WorldEnvWork.field_20,
+                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
+                    scratchData->field_380.s_0.field_8.r, scratchData->field_380.s_0.field_8.g,
+                    scratchData->field_380.s_0.field_8.b, scratchData->field_380.s_0.field_8.cd);
+                fflush(stderr);
+                _dpcsLog++;
+            }
+        }
+#endif
     }
 
 
@@ -2635,6 +2671,23 @@ __block19CC:
     }
 
 #ifdef SH_PC_PORT
+    {
+        static int _primLog = 0;
+        if (_primLog < 40) {
+            fprintf(stderr, "[PRIM] __block19CC: total=%d emitted=%d depth_skip=? nclip_skip=? bounds_skip=?\n",
+                pc_primIdx, pc_emitted);
+            if (pc_emitted > 0) {
+                /* Log first emitted poly's screen coords */
+                POLY_FT4* _firstPoly = (POLY_FT4*)GsOUT_PACKET_P - pc_emitted;
+                fprintf(stderr, "  firstPoly xy0=(%d,%d) xy1=(%d,%d) xy2=(%d,%d) xy3=(%d,%d) rgb=(%d,%d,%d,0x%02X)\n",
+                    _firstPoly->x0, _firstPoly->y0, _firstPoly->x1, _firstPoly->y1,
+                    _firstPoly->x2, _firstPoly->y2, _firstPoly->x3, _firstPoly->y3,
+                    _firstPoly->r0, _firstPoly->g0, _firstPoly->b0, _firstPoly->code);
+            }
+            fflush(stderr);
+            _primLog++;
+        }
+    }
     }
 #endif
 
@@ -2803,11 +2856,26 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
     scratchData = PSX_SCRATCH_ADDR(0);
 
+#ifdef SH_PC_PORT
+    modelHdr = modelInfo->modelHdr_8;
+    if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
+        return;
+    }
+#endif
+
     if (g_WorldEnvWork.isFogEnabled_1)
     {
         if (mat->t[2] < (1 << g_WorldEnvWork.fogDepthShift_14))
         {
+#ifdef SH_PC_PORT
+            /* Bounds-check fogRamp index to prevent OOB on bad matrix data */
+            s32 fogIdx = (s32)(mat->t[2] << 7) >> g_WorldEnvWork.fogDepthShift_14;
+            if (fogIdx < 0) fogIdx = 0;
+            if (fogIdx > 127) fogIdx = 127;
+            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp_CC[fogIdx] << 4);
+#else
             var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp_CC[(s32)(mat->t[2] << 7) >> g_WorldEnvWork.fogDepthShift_14] << 4);
+#endif
         }
         else
         {
@@ -2840,7 +2908,9 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
             break;
     }
 
+#ifndef SH_PC_PORT
     modelHdr     = modelInfo->modelHdr_8;
+#endif
     vertOffset   = modelHdr->vertexOffset_9;
     normalOffset = modelHdr->normalOffset_A;
 
@@ -2850,10 +2920,29 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
         if (g_WorldEnvWork.field_0 != 0)
         {
-            func_8005AA08(curMeshHdr, normalOffset, scratchData);
+            func_8005AA08(curMeshHdr, normalOffset, (s_GteScratchData2*)scratchData);
         }
 
-        func_8005AC50(curMeshHdr, scratchData, otTag, arg2);
+#ifdef SH_PC_PORT
+        {
+            static int _meshLog = 0;
+            if (_meshLog < 25) {
+                s_GteScratchData2* sd2 = (s_GteScratchData2*)scratchData;
+                SH_DBG("[MESH] mdl=%d vOff=%d verts=%d prims=%d env0=%d sZ[off]=%d,%d sXY[off]=(%d,%d),(%d,%d) t2=%d fB1=%d",
+                    modelInfo->modelIdx_C, vertOffset,
+                    curMeshHdr->vertexCount_1,
+                    curMeshHdr->primitiveCount_0,
+                    g_WorldEnvWork.field_0,
+                    sd2->screenZ_168[vertOffset], sd2->screenZ_168[vertOffset+1],
+                    sd2->screenXy_0[vertOffset].vx, sd2->screenXy_0[vertOffset].vy,
+                    sd2->screenXy_0[vertOffset+1].vx, sd2->screenXy_0[vertOffset+1].vy,
+                    mat->t[2], modelHdr->field_B_1);
+                _meshLog++;
+            }
+        }
+#endif
+
+        func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
 }
 
@@ -3137,6 +3226,15 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
         PACKET*   packet;
     } u_poly;
 
+#ifdef SH_PC_PORT
+    /* PSX GPU clips huge polys to the drawing area; PsyCross does not.
+     * Skip any polygon where a vertex is extremely far off-screen. */
+    #define SCREEN_BOUND 1024
+    #define VERTEX_OOB(packed) \
+        ((s16)((packed) & 0xFFFF) < -SCREEN_BOUND || (s16)((packed) & 0xFFFF) > SCREEN_BOUND || \
+         (s16)(((packed) >> 16) & 0xFFFF) < -SCREEN_BOUND || (s16)(((packed) >> 16) & 0xFFFF) > SCREEN_BOUND)
+#endif
+
     s32          r4;
     s32          sp4;
     s16          temp_v1;
@@ -3160,10 +3258,18 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     temp_a0 = 0x79C << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_a0, g_WorldEnvWork.fogFarDistance_10) : temp_a0;
 
+#ifdef SH_PC_PORT
+    s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
+#endif
+
     for (prim = meshHdr->primitives_4, poly.packet = GsOUT_PACKET_P; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
     {
         *(s32*)&scratchData->u.s_1.field_0 = *(s32*)&prim->field_C;
         *(s32*)&scratchData->u.s_1.field_4 = *(s32*)&prim->field_10;
+
+#ifdef SH_PC_PORT
+        _dbgPrimTotal++;
+#endif
 
         if (scratchData->u.s_1.field_3 == 0xFF)
         {
@@ -3172,6 +3278,9 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
+#ifdef SH_PC_PORT
+                _dbgPrimDepthFail++;
+#endif
                 continue;
             }
 
@@ -3180,14 +3289,23 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                            *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_2],
                            &r4);
 
+#ifndef SH_PC_PORT
             if (r4 <= 0)
             {
                 continue;
             }
+#endif
 
             *(s32*)&poly.gt3->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt3->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
             *(s32*)&poly.gt3->x2 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_2];
+
+#ifdef SH_PC_PORT
+            if (VERTEX_OOB(*(s32*)&poly.gt3->x0) || VERTEX_OOB(*(s32*)&poly.gt3->x1) || VERTEX_OOB(*(s32*)&poly.gt3->x2)) {
+                _dbgPrimOobFail++;
+                continue;
+            }
+#endif
 
             if (var_a3 != 0)
             {
@@ -3206,10 +3324,37 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(s32*)&poly.gt3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
             *(u16*)&poly.gt3->u2 = prim->field_8;
 
+#ifdef SH_PC_PORT
+            /* PC: Use untextured POLY_G3 (gouraud tri) — character textures
+             * don't render correctly yet (VRAM texture pages not fully set up).
+             * This preserves per-vertex lighting while bypassing texture issues. */
+            {
+                s16 _x0 = poly.gt3->x0, _y0 = poly.gt3->y0;
+                s16 _x1 = poly.gt3->x1, _y1 = poly.gt3->y1;
+                s16 _x2 = poly.gt3->x2, _y2 = poly.gt3->y2;
+                u8 _r0 = poly.gt3->r0, _g0 = poly.gt3->g0, _b0 = poly.gt3->b0;
+                u8 _r1 = poly.gt3->r1, _g1 = poly.gt3->g1, _b1 = poly.gt3->b1;
+                u8 _r2 = poly.gt3->r2, _g2 = poly.gt3->g2, _b2 = poly.gt3->b2;
+                POLY_G3* _g3 = (POLY_G3*)poly.gt3;
+                setPolyG3(_g3);
+                setRGB0(_g3, _r0, _g0, _b0);
+                setRGB1(_g3, _r1, _g1, _b1);
+                setRGB2(_g3, _r2, _g2, _b2);
+                _g3->x0 = _x0; _g3->y0 = _y0;
+                _g3->x1 = _x1; _g3->y1 = _y1;
+                _g3->x2 = _x2; _g3->y2 = _y2;
+                addPrim(&ot[(temp_t4 >> arg3) >> 2], _g3);
+                poly.gt3++;
+                _dbgPrimPass++;
+                continue;
+            }
+#else
+
             setlen(poly.gt3, 9);
 
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
             poly.gt3++;
+#endif
         }
         else
         {
@@ -3218,6 +3363,9 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
+#ifdef SH_PC_PORT
+                _dbgPrimDepthFail++;
+#endif
                 continue;
             }
 
@@ -3227,6 +3375,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             gte_nclip();
             gte_stopz(&sp4);
 
+#ifndef SH_PC_PORT
             if (sp4 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
@@ -3238,11 +3387,20 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                     continue;
                 }
             }
+#endif
 
             *(s32*)&poly.gt4->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt4->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
             *(s32*)&poly.gt4->x2 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_2];
             *(s32*)&poly.gt4->x3 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3];
+
+#ifdef SH_PC_PORT
+            if (VERTEX_OOB(*(s32*)&poly.gt4->x0) || VERTEX_OOB(*(s32*)&poly.gt4->x1) ||
+                VERTEX_OOB(*(s32*)&poly.gt4->x2) || VERTEX_OOB(*(s32*)&poly.gt4->x3)) {
+                _dbgPrimOobFail++;
+                continue;
+            }
+#endif
 
             if (var_a3 != 0)
             {
@@ -3263,12 +3421,66 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u2 = prim->field_8;
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
+#ifdef SH_PC_PORT
+            /* PC: Use untextured POLY_G4 (gouraud quad) — same reason as G3 above */
+            {
+                s16 _x0 = poly.gt4->x0, _y0 = poly.gt4->y0;
+                s16 _x1 = poly.gt4->x1, _y1 = poly.gt4->y1;
+                s16 _x2 = poly.gt4->x2, _y2 = poly.gt4->y2;
+                s16 _x3 = poly.gt4->x3, _y3 = poly.gt4->y3;
+                u8 _r0 = poly.gt4->r0, _g0 = poly.gt4->g0, _b0 = poly.gt4->b0;
+                u8 _r1 = poly.gt4->r1, _g1 = poly.gt4->g1, _b1 = poly.gt4->b1;
+                u8 _r2 = poly.gt4->r2, _g2 = poly.gt4->g2, _b2 = poly.gt4->b2;
+                u8 _r3 = poly.gt4->r3, _g3 = poly.gt4->g3, _b3 = poly.gt4->b3;
+                POLY_G4* _g4 = (POLY_G4*)poly.gt4;
+                setPolyG4(_g4);
+                setRGB0(_g4, _r0, _g0, _b0);
+                setRGB1(_g4, _r1, _g1, _b1);
+                setRGB2(_g4, _r2, _g2, _b2);
+                setRGB3(_g4, _r3, _g3, _b3);
+                _g4->x0 = _x0; _g4->y0 = _y0;
+                _g4->x1 = _x1; _g4->y1 = _y1;
+                _g4->x2 = _x2; _g4->y2 = _y2;
+                _g4->x3 = _x3; _g4->y3 = _y3;
+                addPrim(&ot[(temp_t4 >> arg3) >> 2], _g4);
+                poly.gt4++;
+                _dbgPrimPass++;
+                continue;
+            }
+#else
+
             setlen(poly.gt4, 12);
 
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt4);
             poly.gt4++;
+#endif
         }
     }
+
+#ifdef SH_PC_PORT
+    {
+        static int _primSummaryLog = 0;
+        if (_primSummaryLog < 25) {
+            SH_DBG("[PRIM] prims=%d pass=%d depthFail=%d oobFail=%d other=%d maxZ=%d",
+                meshHdr->primitiveCount_0, _dbgPrimPass, _dbgPrimDepthFail, _dbgPrimOobFail,
+                _dbgPrimTotal - _dbgPrimPass - _dbgPrimDepthFail - _dbgPrimOobFail, var_t9);
+            /* Log first prim vertex indices for ALL models */
+            if (meshHdr->primitiveCount_0 > 0) {
+                s_Primitive* p0 = &meshHdr->primitives_4[0];
+                u8* fc = (u8*)&p0->field_C;
+                SH_DBG("[PRIM-FAIL] firstPrim vIdx=%d,%d,%d,%d nIdx=%d,%d,%d,%d sZ=%d,%d,%d,%d sXY=(%d,%d),(%d,%d),(%d,%d)",
+                    fc[0], fc[1], fc[2], fc[3],
+                    ((u8*)&p0->field_10)[0], ((u8*)&p0->field_10)[1], ((u8*)&p0->field_10)[2], ((u8*)&p0->field_10)[3],
+                    scratchData->screenZ_168[fc[0]], scratchData->screenZ_168[fc[1]],
+                    scratchData->screenZ_168[fc[2]], scratchData->screenZ_168[fc[3]],
+                    scratchData->screenXy_0[fc[0]].vx, scratchData->screenXy_0[fc[0]].vy,
+                    scratchData->screenXy_0[fc[1]].vx, scratchData->screenXy_0[fc[1]].vy,
+                    scratchData->screenXy_0[fc[2]].vx, scratchData->screenXy_0[fc[2]].vy);
+            }
+            _primSummaryLog++;
+        }
+    }
+#endif
 
     GsOUT_PACKET_P = poly.packet;
 }

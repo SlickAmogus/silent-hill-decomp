@@ -71,6 +71,26 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             prevMenuState = g_MainMenuState;
         }
     }
+
+    /* Debug auto-start: skip menus and jump straight to gameplay */
+    {
+        static int autoStartDone = 0;
+        if (!autoStartDone && g_GameWork.gameStateStep_598[0] == 1 && g_MainMenuState == 0) {
+            autoStartDone = 1;
+            fprintf(stderr, "[SH] AUTO-START: skipping menus\n"); fflush(stderr);
+
+            int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
+            if (mapId < 0) mapId = 0;
+            GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
+            GameBoot_PlayerInit();
+            g_SysWork.processFlags_2298 = SysWorkProcessFlag_NewGame;
+            GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+            GameFs_StreamBinLoad();
+            ScreenFade_Start(true, false, false);
+            g_MainMenuState = 4;
+            return;
+        }
+    }
 #endif
     #define MAIN_MENU_GAME_STATE_COUNT 5
 

@@ -198,12 +198,37 @@ void GameState_InGame_Update(void) // 0x80038BD4
         player = &g_SysWork.playerWork_4C.player_0;
 
 #ifdef SH_PC_PORT
-        /* In debug camera mode, skip all player/NPC/flashlight updates
-         * to keep the same performance as before Harry movement was added.
-         * Just update the debug camera and draw the world. */
+        /* In debug camera mode, skip player/NPC/flashlight updates
+         * but still render Harry's model for visual debugging. */
         DebugCamera_Update();
         if (g_DebugCamEnabled)
         {
+            /* Render Harry in debug mode */
+            if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
+            {
+                extern u8 g_WorldEnvWork[];
+                u8 savedFog = g_WorldEnvWork[1];
+                u8 savedEnv = g_WorldEnvWork[0];
+                s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
+                if (harryModel != NULL) {
+                    func_800453E8(&harryModel->skeleton_14, true);
+                }
+                g_WorldEnvWork[1] = 0;
+                g_WorldEnvWork[0] = 0;
+                /* Reset ALL bone flg values to force full hierarchy recomputation.
+                 * Prevents stale cached workm matrices from causing alternating-frame
+                 * shrinking of Harry's model. */
+                {
+                    int _bi;
+                    for (_bi = 0; _bi < HarryBone_Count; _bi++) {
+                        g_SysWork.playerBoneCoords_890[_bi].flg = 0;
+                    }
+                }
+                func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1,
+                    g_SysWork.playerWork_4C.player_0.timer_C6, 0);
+                g_WorldEnvWork[1] = savedFog;
+                g_WorldEnvWork[0] = savedEnv;
+            }
             Ipd_CloseRangeChunksInit();
             Gfx_InGameDraw(1);
             goto ingame_done;
@@ -233,13 +258,23 @@ void GameState_InGame_Update(void) // 0x80038BD4
                 }
             }
             /* Temporarily disable fog for Harry's render — fogRamp_CC lookup
-             * can produce out-of-range indices that corrupt vertex colors. */
+             * can produce out-of-range indices that corrupt vertex colors when
+             * using the full rendering pipeline. */
             {
                 extern u8 g_WorldEnvWork[];
                 u8 savedFog = g_WorldEnvWork[1]; /* isFogEnabled_1 */
                 u8 savedEnv = g_WorldEnvWork[0]; /* field_0 */
                 g_WorldEnvWork[1] = 0;
                 g_WorldEnvWork[0] = 0;
+                /* Reset ALL bone flg values to force full hierarchy recomputation.
+                 * Prevents stale cached workm matrices from causing alternating-frame
+                 * shrinking of Harry's model. */
+                {
+                    int _bi;
+                    for (_bi = 0; _bi < HarryBone_Count; _bi++) {
+                        g_SysWork.playerBoneCoords_890[_bi].flg = 0;
+                    }
+                }
 #endif
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
 #ifdef SH_PC_PORT
