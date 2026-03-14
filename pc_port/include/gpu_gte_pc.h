@@ -200,6 +200,22 @@ static inline unsigned int gte_stMAC2_func(void) { return MFC2(26); }
 #undef gte_stlzcr
 #define gte_stlzcr(dst) do { (dst) = CFC2(31); } while(0)
 
+/* gte_ldir_stbk - Copy background color (BK R/G/B) into IR1/IR2/IR3 */
+#undef gte_ldir_stbk
+#define gte_ldir_stbk() do { \
+    MTC2(CFC2(13), 9);  \
+    MTC2(CFC2(14), 10); \
+    MTC2(CFC2(15), 11); \
+} while(0)
+
+/* gte_ldmac_stir - Copy MAC1/MAC2/MAC3 into background color (BK R/G/B) */
+#undef gte_ldmac_stir
+#define gte_ldmac_stir() do { \
+    CTC2(MFC2(25), 13); \
+    CTC2(MFC2(26), 14); \
+    CTC2(MFC2(27), 15); \
+} while(0)
+
 #endif /* SH_PC_PORT */
 
 #endif /* _GPU_GTE_PC_H */

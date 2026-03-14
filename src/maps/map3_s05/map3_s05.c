@@ -214,7 +214,7 @@ void func_800D59D4(void) // 0x800D59D4
 
 void func_800D5A98(void) // 0x800D5A98
 {
-    g_Screen_BackgroundImgGamma = 80;
+    g_Screen_BackgroundImgGamma = Q8(10.0f / 32.0f);
 
     switch (g_SysWork.sysStateStep_C[0])
     {
@@ -1117,7 +1117,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D87AC
         D_800DD528 = 0;
     }
 
-    func_8006982C(flags);
+    Collision_FlagBitsSet(flags);
 
     if (projCellX == 4 && projCellZ == -2)
     {
