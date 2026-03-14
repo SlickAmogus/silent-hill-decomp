@@ -1,6 +1,7 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "sh_log.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -11,6 +12,8 @@
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/view/vc_main.h"
 #include "bodyprog/math/math.h"
+
+extern s_WorldEnvWork g_WorldEnvWork;
 
 /** @brief Updates the translation and rotation of a matrix in a coordinate.
  *
@@ -94,8 +97,66 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
         g_SysWork.sysState_8++;
     }
 
+#ifdef SH_PC_PORT
+    /* Ensure anim flags are set every frame — the sysState==Gameplay init block
+     * only runs once and may be skipped if sysState was already incremented.
+     * Without these flags, Anim_PlaybackLoop skips Anim_BoneUpdate entirely
+     * (line 359 check), leaving bone transforms stale. */
+    model->anim_4.flags_2 |= AnimFlag_Unlocked | AnimFlag_Visible;
+    g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = 0;
+    /* Reset root bone flg so hierarchy is recomputed from scratch */
+    boneCoords[0].flg = 0;
+#endif
+
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
     vcMoveAndSetCamera(true, false, false, false, false, false, false, false);
     Gfx_FlashlightUpdate();
+#ifdef SH_PC_PORT
+    {
+        static int ls_dbg = 0;
+        if (ls_dbg < 10) {
+            SH_DBG("[LOADSCR] timer_C6=%d env.field_0=%d env.field_20=%d tint=(%d,%d,%d) bone0.flg=%d bone0.t=(%d,%d,%d)",
+                    g_SysWork.playerWork_4C.player_0.timer_C6,
+                    g_WorldEnvWork.field_0, g_WorldEnvWork.field_20,
+                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
+                    boneCoords[0].flg, boneCoords[0].coord.t[0], boneCoords[0].coord.t[1], boneCoords[0].coord.t[2]);
+            SH_DBG("[LOADSCR] skel@FS_BUFFER_0=%p model.anim.status=%d model.anim.flags=%d",
+                    (void*)FS_BUFFER_0, model->anim_4.status_0, model->anim_4.flags_2);
+            ls_dbg++;
+        }
+        /* Ensure environment is set up for character rendering during loading.
+         * Force flat-lit, no-fog environment with neutral tint so Harry is visible
+         * on the black loading screen background. */
+        {
+            extern void func_80055330(u8, s32, u8, s32, s32, s32, q23_8);
+            func_80055330(0, Q12(1.0f), 0,
+                          128 << 5, 128 << 5, 128 << 5,  /* neutral tint */
+                          0);                              /* no brightness overlay */
+            g_WorldEnvWork.isFogEnabled_1 = 0;
+        }
+        /* Force all skeleton bones visible (same as InGame Harry render) */
+        {
+            s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
+            if (harryModel != NULL) {
+                func_800453E8(&harryModel->skeleton_14, true);
+            }
+        }
+        /* Reset ALL bone flg values to force full hierarchy recomputation.
+         * This eliminates stale cached workm matrices from previous frames. */
+        {
+            int _bi;
+            for (_bi = 0; _bi < HarryBone_Count; _bi++) {
+                boneCoords[_bi].flg = 0;
+            }
+        }
+    }
+#endif
+#ifdef SH_PC_PORT
+    /* Pass timer=0 so func_8003DA9C does not apply a fade-to-black tint.
+     * timer_C6 is often near Q12(1.0f) during loading, which scales the
+     * tint color to almost zero, making Harry nearly invisible. */
+    func_8003DA9C(Chara_Harry, boneCoords, 1, 0, 0);
+#else
     func_8003DA9C(Chara_Harry, boneCoords, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
+#endif
 }

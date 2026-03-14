@@ -146,7 +146,14 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         for (int i = 0; i < modelCount; i++)
         {
             ParseModelHeader(&models[i], raw + modelHdrsOff + i * PSX_SIZEOF_MODEL_HEADER, raw);
+            fprintf(stderr, "  model[%d] name=%c%c%c%c meshCnt=%d vertOff=%d normOff=%d fB0=%d fB1=%d fB4=%d meshHdrs=%p\n",
+                i, models[i].name_0.str[0], models[i].name_0.str[1],
+                models[i].name_0.str[2], models[i].name_0.str[3],
+                models[i].meshCount_8, models[i].vertexOffset_9, models[i].normalOffset_A,
+                models[i].field_B_0, models[i].field_B_1, models[i].field_B_4,
+                (void*)models[i].meshHdrs_C);
         }
+        fflush(stderr);
     }
 
     /*
@@ -163,6 +170,13 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     lmHdr->modelCount_8     = modelCount;
     lmHdr->modelHdrs_C      = models;
     lmHdr->modelOrder_10    = raw + modelOrderOff;
+
+    /* Log model order (rendering order) */
+    fprintf(stderr, "  modelOrder:");
+    for (int i = 0; i < modelCount; i++) {
+        fprintf(stderr, " %d", lmHdr->modelOrder_10[i]);
+    }
+    fprintf(stderr, "\n");
 
     fprintf(stderr, "[SH] LmFixOffsets_PC: done\n");
 }

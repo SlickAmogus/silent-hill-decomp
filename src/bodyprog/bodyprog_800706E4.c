@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <setjmp.h>
+#include "sh_log.h"
 
 static jmp_buf s_PlayerCrashJmp;
 static volatile sig_atomic_t s_PlayerCrashGuardActive = 0;
@@ -669,21 +670,18 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         else
         {
 #ifdef SH_PC_PORT
-            /* func_BC normally updates root bone transform for disabled-control
-             * states (cutscenes, etc.). Set position/rotation from player state
-             * so the bone hierarchy has a valid world-space root. */
-            coords->flg = false;
-            Math_RotMatrixZxyNegGte(&chara->rotation_24, &coords->coord);
-            coords->coord.t[0] = Q12_TO_Q8(chara->position_18.vx);
-            coords->coord.t[1] = Q12_TO_Q8(chara->position_18.vy);
-            coords->coord.t[2] = Q12_TO_Q8(chara->position_18.vz);
+            /* Map overlay func_BC accesses subsystems not yet working on PC.
+             * Rotation matrix and coords already set by our PC shim above. */
+            (void)0;
 #else
             g_MapOverlayHeader.func_BC(chara, extra, coords);
 #endif
         }
 
         Player_AnimUpdate(chara, extra, anmHdr, coords);
+#ifndef SH_PC_PORT
         func_8007D090(chara, extra, coords);
+#endif
     }
 
     D_800C45B0.vx = 0;
@@ -1114,6 +1112,23 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
         Player_Controller();
     }
 
+#ifdef SH_PC_PORT
+    {
+        static int _plu_dbg = 0;
+        if (g_Player_IsMovingForward || g_Player_IsMovingBackward ||
+            g_Player_IsTurningLeft || g_Player_IsTurningRight) {
+            if (_plu_dbg < 20) {
+                SH_DBG("[PLU] state=%d fwd=%d back=%d turnL=%d turnR=%d run=%d btnsHeld=0x%x",
+                        g_SysWork.playerWork_4C.extra_128.state_1C,
+                        g_Player_IsMovingForward, g_Player_IsMovingBackward,
+                        g_Player_IsTurningLeft, g_Player_IsTurningRight, g_Player_IsRunning,
+                        g_Controller0->btnsHeld_C);
+                _plu_dbg++;
+            }
+        }
+    }
+#endif
+
     switch (g_SysWork.playerWork_4C.extra_128.state_1C)
     {
         case PlayerState_Idle:
@@ -1146,35 +1161,31 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 #ifdef SH_PC_PORT
             /* Skip Player_LowerBodyUpdate and Player_UpperBodyUpdate on PC —
              * they call collision (Ray_LineCheck) and NPC subsystems that crash.
-             * Instead, handle movement directly from controller input. */
+             * Instead, set D_800C4550 and rotation from input. The post-switch
+             * code at the end of Player_LogicUpdate copies D_800C4550 to
+             * moveSpeed_38, applies gravity, and sets the rotation matrix. */
             {
                 q3_12 turnSpeed = Q12_ANGLE(2.0f);
-                q19_12 moveSpeed = g_Player_IsRunning ? Q12(0.16f) : Q12(0.08f);
-                q19_12 sinH, cosH;
 
                 /* Turn */
                 if (g_Player_IsTurningLeft) {
-                    chara->headingAngle_3C -= turnSpeed;
+                    chara->rotation_24.vy -= turnSpeed;
                 }
                 if (g_Player_IsTurningRight) {
-                    chara->headingAngle_3C += turnSpeed;
+                    chara->rotation_24.vy += turnSpeed;
                 }
-                chara->headingAngle_3C = Q12_ANGLE_NORM_U(chara->headingAngle_3C + Q12_ANGLE(360.0f));
+                chara->rotation_24.vy = Q12_ANGLE_NORM_U(chara->rotation_24.vy + Q12_ANGLE(360.0f));
 
-                /* Move forward/backward */
-                sinH = Math_Sin(chara->headingAngle_3C);
-                cosH = Math_Cos(chara->headingAngle_3C);
+                /* Set D_800C4550 — post-switch code copies this to moveSpeed_38.
+                 * func_8007C0D8 uses moveSpeed_38 with sin/cos(heading) to
+                 * compute position delta. Values match original game. */
                 if (g_Player_IsMovingForward) {
-                    chara->position_18.vx += Q12_MULT(sinH, moveSpeed);
-                    chara->position_18.vz += Q12_MULT(cosH, moveSpeed);
+                    D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
+                } else if (g_Player_IsMovingBackward) {
+                    D_800C4550 = g_Player_IsRunning ? Q12(-3.0f) : Q12(-1.5f);
+                } else {
+                    D_800C4550 = Q12(0.0f);
                 }
-                if (g_Player_IsMovingBackward) {
-                    chara->position_18.vx -= Q12_MULT(sinH, moveSpeed);
-                    chara->position_18.vz -= Q12_MULT(cosH, moveSpeed);
-                }
-
-                /* Sync rotation */
-                chara->rotation_24.vy = chara->headingAngle_3C;
 
                 /* Set walk/run animation */
                 if (g_Player_IsMovingForward || g_Player_IsMovingBackward) {
@@ -6709,7 +6720,23 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
         sp30.vz = offset.vz;
     }
 
+#ifdef SH_PC_PORT
+    {
+        static int _c0d8_dbg = 0;
+        if (chara->moveSpeed_38 != 0 && _c0d8_dbg < 20) {
+            SH_DBG("[C0D8] moveSpd=%d heading=%d offset=(%d,%d,%d) dt=%d",
+                    chara->moveSpeed_38, chara->headingAngle_3C,
+                    offset.vx, offset.vy, offset.vz, g_DeltaTime);
+            _c0d8_dbg++;
+        }
+    }
+#endif
+
     func_80069B24(&D_800C4590, &offset, chara);
+
+#ifdef SH_PC_PORT
+    /* (collision post-log removed — see moveSpd log above) */
+#endif
 
     if (g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP1_S05)
     {

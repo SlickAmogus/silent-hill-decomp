@@ -2,6 +2,10 @@
 #include "inline_no_dmpsx.h"
 
 #include <psyq/strings.h>
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#include "sh_log.h"
+#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
@@ -321,6 +325,17 @@ void Anim_PlaybackLoop(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
 
     startKeyframeIdx     = animInfo->startKeyframeIdx_C;
     endKeyframeIdx       = animInfo->endKeyframeIdx_E;
+#ifdef SH_PC_PORT
+    /* On PSX, NO_VALUE (-1) for startKeyframeIdx causes the loop to wrap
+     * to keyframe -1, reading bind-pose metadata as animation frame data.
+     * This produces garbage rotation matrices and causes Harry's model to
+     * shrink/collapse every other frame during idle.
+     * Fix: freeze on a single keyframe to avoid negative keyframe access
+     * and eliminate the 2-frame interpolation twitch. */
+    if (startKeyframeIdx < 0) {
+        startKeyframeIdx = endKeyframeIdx;
+    }
+#endif
     nextStartKeyframeIdx = endKeyframeIdx + 1;
     keyframeCount        = nextStartKeyframeIdx - startKeyframeIdx;
 
@@ -665,6 +680,19 @@ void func_800452EC(s_Skeleton* skel) // 0x800452EC
 
         curBone->bone_0.field_10 = var_v0;
 
+#ifdef SH_PC_PORT
+        {
+            static int _logCntBone = 0;
+            if (_logCntBone < 30) {
+                SH_DBG("[SKEL] coord=%d name=%c%c mdlIdx=%d mesh=%d fB0=%d",
+                    var_v0, modelHdr->name_0.str[0], modelHdr->name_0.str[1],
+                    curBone->bone_0.modelInfo_0.modelIdx_C,
+                    modelHdr->meshCount_8, modelHdr->field_B_0);
+                _logCntBone++;
+            }
+        }
+#endif
+
         curBone = curBone->next_14;
     }
 }
@@ -724,6 +752,10 @@ void func_80045468(s_Skeleton* skel, s32* arg1, bool cond) // 0x80045468
 }
 
 extern s_WorldEnvWork const g_WorldEnvWork;
+
+#ifdef SH_PC_PORT
+static int g_BoneLogFrames = 0;
+#endif
 
 void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q3_12 arg4, u16 arg5, s_FsImageDesc* images) // 0x80045534
 {
@@ -825,9 +857,28 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
 
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next_14)
     {
+#ifdef SH_PC_PORT
+        if (g_BoneLogFrames < 2) {
+            s_ModelHeader* _mh = curBone->bone_0.modelInfo_0.modelHdr_8;
+            SH_DBG("[BONE] idx=%d f0=0x%X coord=%d meshCnt=%d vis=%s",
+                curBone->bone_0.modelInfo_0.modelIdx_C,
+                curBone->bone_0.modelInfo_0.field_0,
+                (u8)curBone->bone_0.field_10,
+                _mh ? _mh->meshCount_8 : -1,
+                (curBone->bone_0.modelInfo_0.field_0 >= 0) ? "Y" : "N");
+        }
+#endif
         if (curBone->bone_0.modelInfo_0.field_0 >= 0)
         {
             func_80049B6C(&coord[(u8)curBone->bone_0.field_10], &mat1, &mat0);
+
+#ifdef SH_PC_PORT
+            if (g_BoneLogFrames < 2) {
+                SH_DBG("  mat0 t=(%d,%d,%d) m00=%d m11=%d m22=%d",
+                    mat0.t[0], mat0.t[1], mat0.t[2],
+                    mat0.m[0][0], mat0.m[1][1], mat0.m[2][2]);
+            }
+#endif
 
             if (curBone->bone_0.modelInfo_0.field_0 & (1 << 0))
             {
@@ -942,4 +993,8 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
 
         func_80056D8C(var_s5 - var_v0_5, var_s6 - var_v0_5, var_s7 + var_v0_5, var_fp + var_v0_5, var_s3_2 * 16, var_s2, ot, arg2);
     }
+
+#ifdef SH_PC_PORT
+    g_BoneLogFrames++;
+#endif
 }

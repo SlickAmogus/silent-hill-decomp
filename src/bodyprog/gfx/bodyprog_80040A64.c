@@ -1168,10 +1168,10 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
 
     {
 #ifdef SH_PC_PORT
-    s32 scanMin = g_DebugCamEnabled ? -8 : -1;
-    s32 scanMax = g_DebugCamEnabled ? 10 : 1;
+    s32 scanMin = g_DebugCamEnabled ? -4 : -1;
+    s32 scanMax = g_DebugCamEnabled ? 5 : 1;
     s32 loadsThisFrame = 0;
-    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 4 : 9;
+    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 2 : 9;
 #else
     s32 scanMin = -1;
     s32 scanMax = 1;
@@ -1551,13 +1551,24 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     }
 
     curChunk = &g_Map.ipdActive_15C[0];
+#ifdef SH_PC_PORT
+    {
+        int drawCount = 0;
+        int drawLimit = g_DebugCamEnabled ? 16 : 64;
+#endif
     for (; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
         if (IpdHeader_LoadStateGet(curChunk) >= StaticModelLoadState_Loaded && Ipd_CellPositionMatchCheck(curChunk, &g_Map))
         {
             Gfx_IpdChunkDraw(curChunk->ipdHdr_0, g_Map.positionX_578, g_Map.positionX_57C, ot, arg1);
+#ifdef SH_PC_PORT
+            if (++drawCount >= drawLimit) break;
+#endif
         }
     }
+#ifdef SH_PC_PORT
+    }
+#endif
 }
 
 bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)

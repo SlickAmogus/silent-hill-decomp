@@ -140,7 +140,10 @@ void DebugCamera_Update(void)
         PC_WorldEnvWork.isFogEnabled_1 = 0;
     }
 
-    /* Numpad 0: cycle to next map overlay (edge-triggered) */
+    /* Numpad 0: cycle to next map overlay (edge-triggered)
+     * DISABLED: runtime map switching crashes (map data not safely teardown-able).
+     * Use config.cfg map= setting instead. */
+#if 0
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
@@ -149,7 +152,6 @@ void DebugCamera_Update(void)
             int nextId = (curId + 1) % (MapOverlayId_MAPX_S00 + 1);
             g_SavegamePtr->mapOverlayId_A4 = nextId;
             MapRegistry_Load((e_MapOverlayId)nextId);
-            /* Trigger a map reload by re-entering GameBoot_MapLoad. */
             extern void GameBoot_MapLoad(s32 mapIdx);
             GameBoot_MapLoad(nextId);
             fprintf(stderr, "[DEBUG] Switched to map %s (overlay %d)\n",
@@ -158,6 +160,7 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
+#endif
 
     /* If debug cam is off, let normal camera handle everything */
     if (!g_DebugCamEnabled) return;
