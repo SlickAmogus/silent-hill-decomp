@@ -3838,8 +3838,11 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
         NormalColor(&D_800AE500[3], &sp58[3]);
     }
 
+#ifndef SH_PC_PORT
     // @hack Needed to get right reg order for `poly_gt4`.
     new_var2 = &g_WorldEnvWork;
+#endif
+
 
     SetRotMatrix(&matrix_sp18[0]);
     SetTransMatrix(&matrix_sp18[0]);
@@ -3883,6 +3886,35 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
                    field_1C.vx - temp_v1_4, field_1C.vy - temp_a0_2,
                    field_1C.vx, field_1C.vy);
 
+#ifdef SH_PC_PORT
+            /* PC: Bake fog into vertex colors instead of a separate overlay.
+             * PSX uses a POLY_G4 overlay + mask bits to blend fog on top of
+             * only the drawn texels. PsyCross doesn't implement mask bits,
+             * so we interpolate vertex colors toward fogColor based on distance. */
+            if (g_WorldEnvWork.isFogEnabled_1)
+            {
+                temp = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fogIntensity_18;
+                s32 fogFactor = MIN(temp, 0x1000); /* 0=no fog, 0x1000=full fog */
+                s32 keepFactor = 0x1000 - fogFactor;
+                u8 fogR = g_WorldEnvWork.fogColor_1C.r;
+                u8 fogG = g_WorldEnvWork.fogColor_1C.g;
+                u8 fogB = g_WorldEnvWork.fogColor_1C.b;
+                /* Blend each vertex: color = color * keepFactor/4096 + fogColor * fogFactor/4096 */
+                int vi;
+                for (vi = 0; vi < 4; vi++) {
+                    u8 *r, *g, *b;
+                    switch (vi) {
+                        case 0: r = &poly_gt4->r0; g = &poly_gt4->g0; b = &poly_gt4->b0; break;
+                        case 1: r = &poly_gt4->r1; g = &poly_gt4->g1; b = &poly_gt4->b1; break;
+                        case 2: r = &poly_gt4->r2; g = &poly_gt4->g2; b = &poly_gt4->b2; break;
+                        default: r = &poly_gt4->r3; g = &poly_gt4->g3; b = &poly_gt4->b3; break;
+                    }
+                    *r = (u8)((*r * keepFactor + fogR * fogFactor) >> 12);
+                    *g = (u8)((*g * keepFactor + fogG * fogFactor) >> 12);
+                    *b = (u8)((*b * keepFactor + fogB * fogFactor) >> 12);
+                }
+            }
+#else
             if (new_var2->isFogEnabled_1)
             {
                 packet = poly_gt4 + 1;
@@ -3917,6 +3949,8 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
                 poly_gt4 = poly_g4;
             }
             else
+#endif
+
             {
                 addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
                 poly_gt4++;

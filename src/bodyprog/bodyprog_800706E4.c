@@ -1187,31 +1187,41 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     D_800C4550 = Q12(0.0f);
                 }
 
-                /* Set walk/run animation */
+                /* Set walk/run animation on both lower body (chara) and upper body (extra).
+                 * Player_AnimUpdate plays chara->model_0 with lower-body bone mask
+                 * and extra->model_0 with upper-body bone mask. */
                 if (g_Player_IsMovingForward || g_Player_IsMovingBackward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, false)) {
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(targetWalk, false);
                         chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(targetWalk, false);
+                        extra->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsTurningLeft) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, false)) {
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnLeft, false);
                         chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnLeft, false);
+                        extra->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsTurningRight) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnRight, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnRight, false)) {
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnRight, false);
                         chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_TurnRight, false);
+                        extra->model_0.stateStep_3 = 0;
                     }
                 } else {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, false)) {
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Still, false);
                         chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Still, false);
+                        extra->model_0.stateStep_3 = 0;
                     }
                 }
             }

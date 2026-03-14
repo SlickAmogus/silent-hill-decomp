@@ -128,6 +128,7 @@ void DebugCamera_Update(void)
                 PC_WorldEnvWork.isFogEnabled_1 = 0;
                 fprintf(stderr, "[DEBUG] Fog DISABLED\n");
             } else {
+                PC_WorldEnvWork.isFogEnabled_1 = 1;
                 fprintf(stderr, "[DEBUG] Fog ENABLED\n");
             }
             fflush(stderr);
