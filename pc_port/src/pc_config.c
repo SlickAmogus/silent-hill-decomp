@@ -5,10 +5,11 @@
 #include <ctype.h>
 
 s_PcConfig g_PcConfig = {
-    .windowWidth  = 640,
-    .windowHeight = 480,
-    .fullscreen   = 0,
-    .mapName      = "map0_s00"
+    .windowWidth    = 640,
+    .windowHeight   = 480,
+    .fullscreen     = 0,
+    .disableCulling = 1,
+    .mapName        = "map0_s00"
 };
 
 static void TrimWhitespace(char* s)
@@ -78,6 +79,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.fullscreen = (atoi(value) != 0);
         }
+        else if (strcmp(key, "disable_culling") == 0)
+        {
+            g_PcConfig.disableCulling = (atoi(value) != 0);
+        }
         else if (strcmp(key, "map") == 0)
         {
             if (strlen(value) > 0 && strlen(value) < sizeof(g_PcConfig.mapName))
@@ -94,7 +99,7 @@ void PcConfig_Load(const char* path)
 
     fclose(f);
 
-    fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, Map: %s\n",
+    fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
-            g_PcConfig.fullscreen, g_PcConfig.mapName);
+            g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
 }

@@ -2,6 +2,7 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include <stdlib.h>
+#include "pc_config.h"
 #endif
 
 #include <psyq/strings.h>
@@ -1574,7 +1575,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
 {
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled) return true;
+    if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
 #endif
     if (map->cellX_580 == chunk->cellX_8 &&
         map->cellZ_584 == chunk->cellZ_A)
@@ -1831,8 +1832,8 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
     coord.super       = NULL;
 
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled) {
-        /* Debug mode: render ALL model buffers, skip subcell culling */
+    if (g_DebugCamEnabled || g_PcConfig.disableCulling) {
+        /* Render ALL model buffers, skip subcell/spatial culling */
         s32 startI = 0, endI = ipdHdr->modelBufferCount_9;
         temp_fp = NULL;
         for (i = startI; i < endI; i++)

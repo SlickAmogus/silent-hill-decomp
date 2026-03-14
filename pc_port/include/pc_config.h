@@ -5,7 +5,8 @@ typedef struct {
     int windowWidth;
     int windowHeight;
     int fullscreen;
-    char mapName[64];  /* e.g. "map0_s00" */
+    int disableCulling; /* 1 = render all objects regardless of view angle */
+    char mapName[64];   /* e.g. "map0_s00" */
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
