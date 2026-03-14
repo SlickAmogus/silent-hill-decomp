@@ -134,7 +134,7 @@ SH_MAP_OVERLAY_HEADER = {
     .roadDataList_3CC = {
 #include "vc_road_data.h"
     },
-    .field_D2C = {
+    .triggerZones_D2C = {
 #include "header_field_D2C.h"
     },
 };

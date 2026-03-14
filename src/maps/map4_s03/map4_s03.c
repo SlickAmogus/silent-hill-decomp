@@ -2896,7 +2896,7 @@ void func_800D54B4(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D54B4
 
 void func_800D55C8(s_SubCharacter* chara) // 0x800D55C8
 {
-    s_800C4590 sp10;
+    s_CollisionResult sp10;
     VECTOR     unkPos; // Q19.12
     VECTOR     sp40;
     VECTOR     sp50;
@@ -4986,7 +4986,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
         }
         else
         {
-            func_8006982C(2);
+            Collision_FlagBitsSet(2);
         }
 
         WorldGfx_ObjectAdd(&g_WorldObject_Fence.object_0, &g_WorldObject_Fence.position_1C, &g_WorldObject_Fence.rotation_28);
@@ -5001,7 +5001,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
 
         if (!Savegame_EventFlagGet(EventFlag_327))
         {
-            func_8006982C(2);
+            Collision_FlagBitsSet(2);
             WorldGfx_ObjectAdd(&g_WorldObject_Mal6[0], &g_WorldObject_UnkPos, &g_WorldObject_UnkRot);
         }
         else

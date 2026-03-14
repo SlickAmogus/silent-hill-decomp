@@ -611,7 +611,7 @@ typedef struct _GteScratchData
     CVECTOR  field_3D8; // Written by `func_8005A42C`.
     DVECTOR  screenPos_3DC;
     s32      depthP_3E0;
-    MATRIX   field_3E4;
+    s16      rotMatrix_3E4[3][3]; // Truncated `MATRIX` without the `long t[3];` transfer vector?
 } s_GteScratchData;
 
 typedef struct _Primitive
@@ -782,6 +782,7 @@ typedef struct _IpdCollisionData
     u8                     unk_31[3];
     u8                     field_34[256];
 } s_IpdCollisionData;
+STATIC_ASSERT_SIZEOF(s_IpdCollisionData, 308);
 
 typedef struct _IpdModelBuffer_C
 {
@@ -911,7 +912,7 @@ typedef struct
     s8                 field_0_9  : 1;
     s8                 field_0_10 : 1;
     s8                 field_0_11 : 5;
-    u16                field_2    : 16;
+    u16                field_2    : 16; // Collision flags.
     s_func_8006ABC0    field_4;
     s32                field_34;
     s16                field_38;
@@ -1045,7 +1046,7 @@ STATIC_ASSERT_SIZEOF(s_CharaAnimDataInfo, 24);
 typedef struct
 {
     q4_12 field_0;
-    s16   field_2;
+    q3_12 field_2;
     u16   field_4;  // Related to damage. Multiplier?
     s8    field_6;  // Accessed by `func_8008BF84` as `u16`
     s8    unk_7;
@@ -1053,7 +1054,7 @@ typedef struct
     u8    field_9;  /** `e_CharacterId` */
     u8    field_A;  // Accessed by `func_8008BF84` as `u16`
     u8    field_B;
-    u16   field_C;
+    q4_12 field_C;
     u8    field_E;  // Keyframe index offset?
     u8    field_F;  // Keyframe index offset?
     u8    field_10; // State.
@@ -1154,16 +1155,17 @@ typedef struct _WorldObject
 } s_WorldObject;
 STATIC_ASSERT_SIZEOF(s_WorldObject, 16);
 
-typedef struct
+/** @brief World space trigger zone. */
+typedef struct _TriggerZone
 {
-    u8  endOfArray_0_0 : 1;  // End of array marker.
-    s32 positionX_0_1  : 10; // X
-    s32 positionZ_0_11 : 10; // Z
-    u32 sizeX_0_21     : 4;  // X size
-    u32 sizeZ_0_25     : 4;  // Z size
-    u32 field_0_29     : 3;  // Related to ground height? Used to set `s_func_8006F338::field_2C` which then gets copied by `func_8006F250`, that func has only been seen called by AirScreamer?
-} s_func_8006F8FC;
-STATIC_ASSERT_SIZEOF(s_func_8006F8FC, 4);
+    u8  endOfArray_0_0 : 1; // End of array marker.
+    s32 positionX_0_1  : 10;
+    s32 positionZ_0_11 : 10;
+    u32 sizeX_0_21     : 4;
+    u32 sizeZ_0_25     : 4;
+    u32 field_0_29     : 3; // Related to ground height? Used to set `s_func_8006F338::field_2C` which then gets copied by `func_8006F250`, that func has only been seen called by AirScreamer?
+} s_TriggerZone;
+STATIC_ASSERT_SIZEOF(s_TriggerZone, 4);
 
 typedef struct _HeldItem
 {
@@ -1192,7 +1194,7 @@ typedef struct _WorldGfxWork
     s_CharaModel      charaModels_CC[GROUP_CHARA_COUNT];
     s_CharaModel      harryModel_164C;
     s_HeldItem        heldItem_1BAC;             /** The item held by the player. */
-    s_func_8006F8FC*  field_1BD8;
+    s_TriggerZone*  triggerZone_1BD8;
     VC_CAMERA_INTINFO vcCameraInternalInfo_1BDC; /** Debug camera info. */
     s_LmHeader        itemLmHdr_1BE4;
     u8                itemLmData_1BF4[4096 - sizeof(s_LmHeader)]; // Retail game uses 2.75kb file, but they allocate 4kb for it.
@@ -1313,10 +1315,10 @@ typedef struct _WorldEnvWork
 
 typedef struct
 {
-    u16              field_0; // Flags.
-    u8               field_2; // Size of `field_4`.
-    u8               unk_3;
-    s_func_8006F8FC* field_4[20]; // Guessed size.
+    u16            flags_0;
+    u8             triggerZoneCount_2;
+    u8             unk_3;
+    s_TriggerZone* triggerZones_4[20]; // Guessed size.
 } s_800C4478;
 
 typedef struct
@@ -1674,10 +1676,10 @@ typedef struct _MapOverlayHeader
     s32*                   data_18C;
     s32*                   data_190;
     void                   (*charaUpdateFuncs_194[Chara_Count])(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords); /** Guessed params. Funcptrs for each `e_CharacterId`, set to 0 for IDs not included in the map overlay. Called by `Game_NpcUpdate`. */
-    s8                     charaGroupIds_248[GROUP_CHARA_COUNT];                              /** `e_CharacterId` values where if `s_SpawnInfo::charaId_4 == Chara_None`, `charaGroupIds_248[0]` is used for `charaSpawns_24C[0]` and `charaGroupIds_248[1]` for `charaSpawns_24C[1]`. */
-    s_SpawnInfo            charaSpawns_24C[2][16];                                            /** Array of character type/position/flags. `flags_6 == 0` are unused slots? Read by `Game_NpcRoomInitSpawn`. */
+    s8                     charaGroupIds_248[GROUP_CHARA_COUNT]; /** `e_CharacterId` values where if `s_SpawnInfo::charaId_4 == Chara_None`, `charaGroupIds_248[0]` is used for `charaSpawns_24C[0]` and `charaGroupIds_248[1]` for `charaSpawns_24C[1]`. */
+    s_SpawnInfo            charaSpawns_24C[2][16];               /** Array of character type/position/flags. `flags_6 == 0` are unused slots? Read by `Game_NpcRoomInitSpawn`. */
     VC_ROAD_DATA           roadDataList_3CC[100];
-    s_func_8006F8FC        field_D2C[200];
+    s_TriggerZone          triggerZones_D2C[200];
 } s_MapOverlayHeader;
 STATIC_ASSERT_SIZEOF(s_MapOverlayHeader, 0x104C);
 
@@ -1715,7 +1717,7 @@ typedef struct
     s8      field_14;  // Count of something? 12 is significant.
     s8      unk_15[3]; // Probably padding.
     s32     field_18;
-} s_800C4590;
+} s_CollisionResult;
 
 typedef struct
 {
@@ -1740,7 +1742,7 @@ typedef struct
         {
             DVECTOR  screenPos_3DC;
             s32      depthP_3E0;
-            MATRIX   field_3E4;
+            s16      rotMatrix_3E4[3][3]; // Truncated `MATRIX` without the `long t[3];` transfer vector?
         } vertex;
 
         struct
@@ -1785,7 +1787,8 @@ typedef struct
 typedef struct
 {
     s_800AE204* ptr_0;
-    s16         count_4;
+    u8          count_4;
+    u8          unk_5;
     s16         unk_6;
     u8          unk_8;
     u8          unk_9;
@@ -2331,6 +2334,9 @@ extern s_800AE204 D_800AE204[26];
 extern s32 g_Items_PickupAnimState;
 
 extern q19_12 g_Items_PickupScale;
+
+extern s_800AE4DC D_800AE4DC[3];
+extern SVECTOR    D_800AE500[4];
 
 extern s16 D_800AE520[];
 
@@ -3219,13 +3225,15 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveTextures* activeTexs, void* fsBu
 
 void func_8005B55C(GsCOORDINATE2* coord);
 
+void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5);
+
 u32 func_8005C478(s16* arg0, s32 x0, s32 y0, s32 x1, s32 y1, s32 x2, s32 y2);
 
 s32 Chara_NpcIdxGet(s_SubCharacter* chara);
 
 void func_8005C814(s_SubCharacter_D8* arg0, s_SubCharacter* chara);
 
-s32 func_8005C944(s_SubCharacter* chara, s_800C4590* arg1);
+s32 func_8005C944(s_SubCharacter* chara, s_CollisionResult* collResult);
 
 s32 func_8005D86C(s32 arg0);
 
@@ -3675,7 +3683,7 @@ bool func_80064334(POLY_FT4** poly, s32 idx);
 /** Displays gun shooting effects. */
 void func_8006342C(s32 weaponAttack, q3_12 angle0, s16 angle1, GsCOORDINATE2* coord);
 
-s32 func_8005CB20(s_SubCharacter* chara, s_800C4590* arg1, q3_12 offsetX, q3_12 offsetZ);
+s32 func_8005CB20(s_SubCharacter* chara, s_CollisionResult* collResult, q3_12 offsetX, q3_12 offsetZ);
 
 /** Computes something for a targeted NPC. */
 bool func_8005D50C(s32* targetNpcIdx, q3_12* outAngle0, q3_12* outAngle1, VECTOR3* unkOffset, u32 npcIdx, q19_12 angleConstraint);
@@ -3711,20 +3719,36 @@ bool func_80068E0C(s32 arg0, s32 idx, s32 arg2, s32 shade, u16 arg4, u16 arg5, u
 
 void func_800692A4(u16 arg0, u16 arg1, u16 arg2);
 
-void func_800697EC(void);
+// ============= `bodyprog/collision.c` ===============
 
-/** Flags getter. */
-u16 func_80069810(void);
+/** @brief Initializes the collision subsystem, resetting flags and clearing the trigger zone count. */
+void Collision_Init(void);
 
-/** Flags sette. */
-void func_80069820(u16 flags);
+/** @brief Gets the active collision flags. */
+u16 Collision_FlagsGet(void);
 
-/** Flags setter. */
-void func_8006982C(u16 flags);
+/** @brief Sets the active collision flags.
+ *
+ * @param collFlags New collision flags.
+ */
+void Collision_FlagsSet(u16 collFlags);
 
-void func_80069844(s32 arg0);
+//Collision_FlagBitsSet
+/** @brief Sets additional active collision flags using OR.
+ *
+ * @param collFlags Collision flag bits to set.
+ */
+void Collision_FlagBitsSet(u16 collFlags);
 
-void func_80069860(s32 arg0, s32 arg1, s_func_8006F8FC* arg2);
+void func_80069844(s32 collFlags);
+
+/** @brief Scans trigger zones and collects those containing the given XZ position.
+ *
+ * @param posX Query X position.
+ * @param posZ Query Z position.
+ * @param zones Array of trigger zone definitions.
+ */
+void Collision_TriggerZonesUpdate(q19_12 posX, q19_12 posZ, s_TriggerZone* zones);
 
 void IpdCollData_FixOffsets(s_IpdCollisionData* collData);
 
@@ -3740,23 +3764,52 @@ void func_800699E4(s_IpdCollisionData* collData);
  */
 void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ);
 
-s32 func_80069B24(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara);
+/** @brief Detects a wall collision using the scratchpad for performance.
+ *
+ * @param result Output collision result.
+ * @param offset Movement offset.
+ * @param chara Character to check.
+ * @return Wall response code.
+ */
+s32 Collision_WallDetect(s_CollisionResult* collResult, VECTOR3* offset, s_SubCharacter* chara);
 
-s32 func_80069BA8(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara, s32 arg4);
+/** @brief Handles a wall collision response by sampling the ground at 9 points around a character.
+ *
+ * @param result Output collision result.
+ * @param offset Movement offset.
+ * @param chara Character to check.
+ * @param response Initial collision pass response.
+ * @return Wall response code.
+ */
+s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* offset, s_SubCharacter* chara, s32 response);
 
-void func_80069DF0(s_800C4590* arg0, const VECTOR3* pos, s32 arg2, s32 arg3);
+void func_80069DF0(s_CollisionResult* collResult, const VECTOR3* pos, s32 arg2, s32 arg3);
 
-s32 func_80069FFC(s_800C4590* arg0, VECTOR3* offset, s_SubCharacter* chara);
+/** @brief Applies collision detection for a character's movement offset.
+ *
+ * @param result Output collision result.
+ * @param offset Movement offset to test.
+ * @param chara Character performing movement.
+ * @return Collision result response.
+ */
+s32 Collision_OffsetApply(s_CollisionResult* collResult, VECTOR3* offset, s_SubCharacter* chara);
 
-void func_8006A178(s_800C4590* arg0, q19_12 posX, q19_12 posY, q19_12 posZ, q19_12 heightY);
+void func_8006A178(s_CollisionResult* collResult, q19_12 posX, q19_12 posY, q19_12 posZ, q19_12 heightY);
 
-s_SubCharacter** func_8006A1A4(s32* charaCount, s_SubCharacter* chara, bool arg2);
+/** @brief Gets an array of active characters for collision testing.
+ *
+ * @param charaCount Output number of characters found.
+ * @param excludeChara Character to exclude (typically the one being tested).
+ * @param includePlayer Filter out the player.
+ * @return Active characters.
+ */
+s_SubCharacter** Collision_ActiveCharactersGet(s32* charaCount, const s_SubCharacter* excludeChara, bool includePlayer);
 
 s32 func_8006A3B4(s32 arg0, VECTOR* offset, s_func_8006AB50* arg2);
 
 s32 func_8006A42C(s32 arg0, VECTOR3* offset, s_func_8006AB50* arg2);
 
-s32 func_8006A4A8(s_800C4590* arg0, VECTOR3* offset, s_func_8006AB50* arg2, s32 arg3,
+s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_func_8006AB50* arg2, s32 arg3,
                   s_IpdCollisionData** collDataPtrs, s32 collDataIdx, s_func_8006CF18* arg6, s32 arg7, s_SubCharacter** charas, s32 charaCount);
 
 void func_8006A940(VECTOR3* offset, s_func_8006AB50* arg1, s_SubCharacter** charas, s32 charaCount);
@@ -3868,12 +3921,12 @@ void func_8006F250(s32* arg0, q19_12 posX, q19_12 posZ, q19_12 posDeltaX, q19_12
 
 void func_8006F338(s_func_8006F338* arg0, q19_12 posX, q19_12 posZ, q19_12 posDeltaX, q19_12 posDeltaZ);
 
-bool func_8006F3C4(s_func_8006F338* arg0, s_func_8006F8FC* arg1);
+bool func_8006F3C4(s_func_8006F338* arg0, const s_TriggerZone* zone);
 
 /** Translates something. */
 s32 func_8006F620(VECTOR3* pos, s_func_8006AB50* arg1, s32 arg2, s32 arg3);
 
-void func_8006F8FC(q19_12* outX, q19_12* outZ, q19_12 posX, q19_12 posZ, const s_func_8006F8FC* arg4);
+void func_8006F8FC(q19_12* outX, q19_12* outZ, q19_12 posX, q19_12 posZ, const s_TriggerZone* zone);
 
 q19_12 func_8006F99C(s_SubCharacter* chara, q19_12 dist, q3_12 headingAngle);
 
@@ -3982,6 +4035,8 @@ bool Event_CollideObbCheck(s_MapPoint2d* mapPoint);
 
 // =========================
 
+// ==================== `bodyprog/events/npc_main.c` ==============
+
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara);
 
 /** @brief Updates character's damage flag to reflect if damage was taken.
@@ -3991,6 +4046,23 @@ void Savegame_EnemyStateUpdate(s_SubCharacter* chara);
 void Chara_DamagedFlagUpdate(s_SubCharacter* chara);
 
 void func_80037E78(s_SubCharacter* chara);
+
+/** Responsible for loading NPCs on the map. */
+void Game_NpcRoomInitSpawn(bool cond);
+
+/** @brief Main NPC update function. Runs through each NPC and calls `g_MapOverlayHeader.charaUpdateFuncs_194` for them. */
+void Game_NpcUpdate(void);
+
+/** @brief Performs a 2D distance check on the XZ plane between two positions.
+ *
+ * @param from First position (Q19.12).
+ * @param to Second position (Q19.12).
+ * @param radius Intersection radius.
+ * @return `true` if the 2D distance exceeds the radius, `false` otherwise.
+ */
+bool Math_Distance2dCheck(const VECTOR3* from, const VECTOR3* to, q19_12 radius);
+
+// ====================
 
 s32 func_800382B0(s32 arg0);
 
@@ -4014,21 +4086,6 @@ void func_800803FC(VECTOR3* pos, s32 idx);
 
 /** @brief Forces a clicked controller input status for `ControllerFlag_Select`. */
 void Input_SelectClickSet(void);
-
-/** @brief Performs a 2D distance check on the XZ plane between two positions.
- *
- * @param from First position (Q19.12).
- * @param to Second position (Q19.12).
- * @param radius Intersection radius.
- * @return `true` if the 2D distance exceeds the radius, `false` otherwise.
- */
-bool Math_Distance2dCheck(const VECTOR3* from, const VECTOR3* to, q19_12 radius);
-
-/** Responsible for loading NPCs on the map. */
-void Game_NpcRoomInitSpawn(bool cond);
-
-/** @brief Main NPC update function. Runs through each NPC and calls `g_MapOverlayHeader.charaUpdateFuncs_194` for them. */
-void Game_NpcUpdate(void);
 
 void SysState_Gameplay_Update(void);
 

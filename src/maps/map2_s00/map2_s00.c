@@ -725,7 +725,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             break;
 
         case 7:
-            g_Screen_BackgroundImgGamma = 48;
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
 
             func_800862F8(2, 0, false);
             Map_MessageWithAudio(19, &g_MapMsgSoundIdx, &g_MapMsgSounds); // "Isn't this Cheryl's sketchbook?"
@@ -736,7 +736,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             SysWork_StateStepIncrement(0);
 
         case 9:
-            g_Screen_BackgroundImgGamma = 48;
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
 
             func_800862F8(2, 0, false);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
@@ -2387,7 +2387,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
 
     func_800EE660();
     func_80069844(0xFFFF);
-    func_8006982C(flags);
+    Collision_FlagBitsSet(flags);
 
     if (PLAYER_IN_MAP_CHUNK(vx, 1, -2, -1, -2) && PLAYER_IN_MAP_CHUNK(vz, 1, -1, 0, 0))
     {

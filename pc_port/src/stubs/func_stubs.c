@@ -2,7 +2,19 @@
 
 #include <libgte.h>
 #include <libgpu.h>
+#include <inline_c.h>
 #include <string.h>
+
+/* ReadLightMatrix - read GTE light matrix (control regs 8-12) into MATRIX */
+void ReadLightMatrix(MATRIX *m)
+{
+    unsigned int r;
+    r = CFC2(8);  m->m[0][0] = (short)(r & 0xFFFF); m->m[0][1] = (short)(r >> 16);
+    r = CFC2(9);  m->m[0][2] = (short)(r & 0xFFFF); m->m[1][0] = (short)(r >> 16);
+    r = CFC2(10); m->m[1][1] = (short)(r & 0xFFFF); m->m[1][2] = (short)(r >> 16);
+    r = CFC2(11); m->m[2][0] = (short)(r & 0xFFFF); m->m[2][1] = (short)(r >> 16);
+    r = CFC2(12); m->m[2][2] = (short)(r & 0xFFFF);
+}
 
 /* PSX TIM image API - OpenTIM/ReadTIM */
 static u_long* g_timAddr = 0;
@@ -66,7 +78,7 @@ void WorldObject_D_800D8070() { }
 void WorldObject_D_800D8090() { }
 void WorldObject_D_800D80B0() { }
 void WorldObject_D_800D80E0() { }
-void func_8005B62C() { }
+/* func_8005B62C: removed — upstream now has real implementation */
 void func_8005CD38() { }
 void func_800692A4() { }
 void func_8009E198() { }

@@ -688,7 +688,7 @@ void func_800D3564(s_SubCharacter* floatstinger) // 0x800D3564
 
 void func_800D35F0(s_SubCharacter* floatstinger) // 0x800D35F0
 {
-    s_800C4590 sp10;
+    s_CollisionResult sp10;
     VECTOR3    sp30;
     q3_12      headingAngle;
     s32        temp_s0;
@@ -705,7 +705,7 @@ void func_800D35F0(s_SubCharacter* floatstinger) // 0x800D35F0
     sp30.vz = Q12_MULT_PRECISE(temp_s0 >> temp_s3, Math_Cos(headingAngle) >> temp_s3) << temp_s2;
     sp30.vy = Q12_MULT_PRECISE(g_DeltaTime, floatstinger->fallSpeed_34);
 
-    func_80069B24(&sp10, &sp30, floatstinger);
+    Collision_WallDetect(&sp10, &sp30, floatstinger);
 
     offsetY = sp10.offset_0.vy;
     floatstinger->position_18.vx += sp10.offset_0.vx;
@@ -717,7 +717,7 @@ void func_800D35F0(s_SubCharacter* floatstinger) // 0x800D35F0
     sp30.vx = D_800DB898;
     sp30.vz = D_800DB89C;
 
-    func_80069B24(&sp10, &sp30, floatstinger);
+    Collision_WallDetect(&sp10, &sp30, floatstinger);
     floatstinger->position_18.vx += sp10.offset_0.vx;
     floatstinger->position_18.vz += sp10.offset_0.vz;
 
@@ -1869,12 +1869,12 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
         if (Savegame_EventFlagGet(EventFlag_348))
         {
             WorldGfx_ObjectAdd(&g_WorldObject_Kidn05.object_0, &g_WorldObject_Kidn05.position_1C, &(SVECTOR3){ Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f) });
-            func_8006982C(4);
+            Collision_FlagBitsSet(4);
         }
         else
         {
             WorldGfx_ObjectAdd(&g_WorldObject_Kidn04.object_0, &g_WorldObject_Kidn04.position_1C, &(SVECTOR3){ Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f) });
-            func_8006982C(2);
+            Collision_FlagBitsSet(2);
         }
     }
 
@@ -1882,7 +1882,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
     {
         if (Savegame_EventFlagGet(EventFlag_346))
         {
-            func_8006982C(4);
+            Collision_FlagBitsSet(4);
 
             if (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(212.0f))
             {
@@ -1891,7 +1891,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
         }
         else
         {
-            func_8006982C(2);
+            Collision_FlagBitsSet(2);
         }
     }
     else
