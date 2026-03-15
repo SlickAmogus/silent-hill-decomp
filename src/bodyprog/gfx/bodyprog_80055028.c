@@ -22,6 +22,19 @@
  * what fog fully hides). On PC we want everything to render and let
  * fog visually obscure it instead of culling geometry. */
 #define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fogFarDistance_10)
+
+/* Compute per-face fog factor (0-127) from max vertex fog ramp.
+ * Uses the farthest vertex's fog amount + base intensity. */
+#define PC_FACE_FOG_FACTOR(sd) do { \
+    s32 _f0 = (sd)->field_252[(sd)->field_380.s_0.field_10]; \
+    s32 _f1 = (sd)->field_252[(sd)->field_380.s_0.field_11]; \
+    s32 _f2 = (sd)->field_252[(sd)->field_380.s_0.field_12]; \
+    s32 _f3 = (sd)->field_252[(sd)->field_380.s_0.field_13]; \
+    s32 _mx = _f0; if (_f1 > _mx) _mx = _f1; if (_f2 > _mx) _mx = _f2; if (_f3 > _mx) _mx = _f3; \
+    s32 _fa = _mx * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->p1 = (u8)((_fa * 127) >> 12); \
+} while(0)
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fogFarDistance_10)
 #endif
@@ -2103,11 +2116,16 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         }
                         else
                         {
+#ifdef SH_PC_PORT
+                            /* PC: Render opaque (no semi-trans), skip fog overlay,
+                             * encode fog in p1 for shader blending. */
+                            PC_FACE_FOG_FACTOR(scratchData);
+                            addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
+#else
                             setSemiTrans(poly3, 1);
-
                             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
                             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly1);
-
+#endif
                             poly3 = poly1 + 1;
                             poly1  = poly3 + 1;
                         }
@@ -2223,7 +2241,9 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                     *(u16*)&poly3->u3 = prim->field_A;
 
                     setlen(poly3, 12);
-
+#ifdef SH_PC_PORT
+                    PC_FACE_FOG_FACTOR(scratchData);
+#endif
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
                     poly3++;
                 }
@@ -2426,10 +2446,16 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 }
                 else
                 {
+#ifdef SH_PC_PORT
+                    /* PC: Render opaque (no semi-trans), skip fog overlay,
+                     * encode fog in p1 for shader blending. */
+                    PC_FACE_FOG_FACTOR(scratchData);
+                    addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
+#else
                     setSemiTrans(poly3, 1);
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly2);
-
+#endif
                     poly3  = poly2 + 1;
                     poly2 = poly3 + 1;
                 }
