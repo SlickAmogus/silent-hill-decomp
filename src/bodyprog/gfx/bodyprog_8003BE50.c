@@ -1179,6 +1179,34 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
         skel = &model->skeleton_14;
 
         Lm_MaterialFlagsApply(model->lmHdr_8);
+#ifdef SH_PC_PORT
+        {
+            s_LmHeader* lm = model->lmHdr_8;
+            fprintf(stderr, "[CHARA-TEX] charaId=%d matCount=%d modelCount=%d\n",
+                    model->charaId_0, lm->materialCount_3, lm->modelCount_8);
+            for (int _mi = 0; _mi < lm->materialCount_3; _mi++) {
+                s_Material* _m = &lm->materials_4[_mi];
+                fprintf(stderr, "[CHARA-TEX] mat[%d] name='%.8s' field_C=%d E=0x%02x F=0x%02x clut=0x%04x UV=0x%04x tex=%p\n",
+                        _mi, _m->name_0.str, _m->field_C, _m->field_E, _m->field_F,
+                        _m->field_10, _m->field_14.u16, (void*)_m->texture_8);
+            }
+            /* Log first prim's texture data from first model's first mesh */
+            if (lm->modelCount_8 > 0 && lm->modelHdrs_C[0].meshCount_8 > 0) {
+                s_MeshHeader* _mh = &lm->modelHdrs_C[0].meshHdrs_C[0];
+                if (_mh->primitiveCount_0 > 0) {
+                    s_Primitive* _p = &_mh->primitives_4[0];
+                    fprintf(stderr, "[CHARA-TEX] prim0: f0=0x%04x(UV0) f2=0x%04x(clut) f4=0x%04x(UV1) f6=0x%04x(tpage) f8=0x%04x(UV2) fA=0x%04x(UV3)\n",
+                            _p->field_0, _p->field_2, _p->field_4, _p->field_6.flags, _p->field_8, _p->field_A);
+                }
+            }
+            /* Check texture descriptor */
+            fprintf(stderr, "[CHARA-TEX] texDesc: tPage=[%d,%d] u=%d v=%d clutXY=(%d,%d)\n",
+                    model->texture_C.tPage[0], model->texture_C.tPage[1],
+                    model->texture_C.u, model->texture_C.v,
+                    model->texture_C.clutX, model->texture_C.clutY);
+            fflush(stderr);
+        }
+#endif
         Skeleton_Init(skel, model->skeleton_14.bones_C, 56);
         func_8004506C(skel, model->lmHdr_8);
         func_800452EC(skel);

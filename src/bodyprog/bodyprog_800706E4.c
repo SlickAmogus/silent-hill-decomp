@@ -1178,25 +1178,35 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
                 /* Set D_800C4550 — post-switch code copies this to moveSpeed_38.
                  * func_8007C0D8 uses moveSpeed_38 with sin/cos(heading) to
-                 * compute position delta. Values match original game. */
+                 * compute position delta. Values match original game.
+                 * Original game does NOT allow sprinting backward — only walk. */
                 if (g_Player_IsMovingForward) {
                     D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
                 } else if (g_Player_IsMovingBackward) {
-                    D_800C4550 = g_Player_IsRunning ? Q12(-3.0f) : Q12(-1.5f);
+                    D_800C4550 = Q12(-1.5f);
                 } else {
                     D_800C4550 = Q12(0.0f);
                 }
 
                 /* Set walk/run animation on both lower body (chara) and upper body (extra).
                  * Player_AnimUpdate plays chara->model_0 with lower-body bone mask
-                 * and extra->model_0 with upper-body bone mask. */
-                if (g_Player_IsMovingForward || g_Player_IsMovingBackward) {
+                 * and extra->model_0 with upper-body bone mask.
+                 * Backward uses HarryAnim_WalkBackward; no run backward in original. */
+                if (g_Player_IsMovingForward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, false)) {
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(targetWalk, false);
                         chara->model_0.stateStep_3 = 0;
                         extra->model_0.anim_4.status_0 = ANIM_STATUS(targetWalk, false);
+                        extra->model_0.stateStep_3 = 0;
+                    }
+                } else if (g_Player_IsMovingBackward) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
                         extra->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsTurningLeft) {
