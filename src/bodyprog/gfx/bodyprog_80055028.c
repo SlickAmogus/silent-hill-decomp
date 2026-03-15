@@ -23,20 +23,29 @@
  * fog visually obscure it instead of culling geometry. */
 #define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fogFarDistance_10)
 
-/* Compute per-face fog factor (0-127) from max vertex fog ramp.
- * Uses the farthest vertex's fog amount + base intensity. */
-#define PC_FACE_FOG_FACTOR(sd) do { \
-    s32 _f0 = (sd)->field_252[(sd)->field_380.s_0.field_10]; \
-    s32 _f1 = (sd)->field_252[(sd)->field_380.s_0.field_11]; \
-    s32 _f2 = (sd)->field_252[(sd)->field_380.s_0.field_12]; \
-    s32 _f3 = (sd)->field_252[(sd)->field_380.s_0.field_13]; \
-    s32 _mx = _f0; if (_f1 > _mx) _mx = _f1; if (_f2 > _mx) _mx = _f2; if (_f3 > _mx) _mx = _f3; \
-    s32 _fa = _mx * 16 + (sd)->field_380.s_0.field_4; \
+/* On PC, zero the fog depth parameter for dpcl/dpcs vertex color
+ * computation. Shader fog via p1/p2/p3 handles all distance fog.
+ * This prevents double-fogging and seam lines at face boundaries. */
+#define VTXCOL_LDDP(dp) gte_lddp(0)
+
+/* Compute per-vertex fog factors (0-127) from each vertex's fog ramp.
+ * p1=vertex1, p2=vertex2, p3=vertex3. Vertex 0 shares p1 in PsyCross
+ * (code byte prevents per-vertex storage for v0). */
+#define PC_FACE_FOG_VERTS(sd) do { \
+    s32 _fa; \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
     poly3->p1 = (u8)((_fa * 127) >> 12); \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_12] * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->p2 = (u8)((_fa * 127) >> 12); \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_13] * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->p3 = (u8)((_fa * 127) >> 12); \
 } while(0)
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fogFarDistance_10)
+#define VTXCOL_LDDP(dp) gte_lddp(dp)
 #endif
 
 // ========================================
@@ -2014,7 +2023,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
                         gte_strgb(&poly1->r0);
-                        gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_10] << 4);
+                        VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_10] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_14] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
@@ -2031,7 +2040,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
                         gte_strgb(&poly1->r1);
-                        gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
+                        VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
@@ -2048,7 +2057,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
                         gte_strgb(&poly1->r2);
-                        gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
+                        VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_16] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
@@ -2065,11 +2074,21 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
                         gte_strgb(&poly1->r3);
-                        gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
+                        VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_17] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
                         gte_strgb(&poly3->r3);
+
+#ifdef SH_PC_PORT
+                        /* Override: uniform vertex colors to eliminate per-face
+                         * normal lighting seams. Shader fog handles distance.
+                         * setlen + PC_FACE_FOG_VERTS restore code/p1/p2/p3. */
+                        *(s32*)&poly3->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
+                        *(s32*)&poly3->r1 = *(s32*)&scratchData->field_380.s_0.field_8;
+                        *(s32*)&poly3->r2 = *(s32*)&scratchData->field_380.s_0.field_8;
+                        *(s32*)&poly3->r3 = *(s32*)&scratchData->field_380.s_0.field_8;
+#endif
 
                         *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                         *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -2083,14 +2102,8 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         {
 #ifdef SH_PC_PORT
                             /* PC: Skip fog overlay + SetPriority packets.
-                             * Encode fog factor in p1 for shader fog blending. */
-                            {
-                                s32 fogRamp = scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
-                                s32 fogAmt = fogRamp + scratchData->field_380.s_0.field_4;
-                                if (fogAmt > 0x1000) fogAmt = 0x1000;
-                                if (fogAmt < 0) fogAmt = 0;
-                                poly3->p1 = (u8)((fogAmt * 127) >> 12);
-                            }
+                             * Encode fog factor for shader fog blending. */
+                            PC_FACE_FOG_VERTS(scratchData);
                             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 
                             poly3 = (PACKET*)(poly1 + 1) + 0xC + 0xC;
@@ -2119,7 +2132,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 #ifdef SH_PC_PORT
                             /* PC: Render opaque (no semi-trans), skip fog overlay,
                              * encode fog in p1 for shader blending. */
-                            PC_FACE_FOG_FACTOR(scratchData);
+                            PC_FACE_FOG_VERTS(scratchData);
                             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 #else
                             setSemiTrans(poly3, 1);
@@ -2211,29 +2224,39 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                     *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
-                    gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_10] << 4);
+                    VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_10] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_14] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r0);
 
-                    gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
+                    VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r1);
 
-                    gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
+                    VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_16] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r2);
 
-                    gte_lddp(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
+                    VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_17] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r3);
+
+#ifdef SH_PC_PORT
+                    /* Override: uniform vertex colors to eliminate per-face
+                     * normal lighting seams. Shader fog handles distance.
+                     * setlen + PC_FACE_FOG_VERTS restore code/p1/p2/p3. */
+                    *(s32*)&poly3->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
+                    *(s32*)&poly3->r1 = *(s32*)&scratchData->field_380.s_0.field_8;
+                    *(s32*)&poly3->r2 = *(s32*)&scratchData->field_380.s_0.field_8;
+                    *(s32*)&poly3->r3 = *(s32*)&scratchData->field_380.s_0.field_8;
+#endif
 
                     *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                     *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -2242,7 +2265,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                     setlen(poly3, 12);
 #ifdef SH_PC_PORT
-                    PC_FACE_FOG_FACTOR(scratchData);
+                    PC_FACE_FOG_VERTS(scratchData);
 #endif
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
                     poly3++;
@@ -2349,7 +2372,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
                 gte_strgb(&poly2->r0);
-                gte_lddp(0x1000 - var_t3_2);
+                VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
                 gte_strgb(&poly3->r0);
@@ -2365,7 +2388,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
                 gte_strgb(&poly2->r1);
-                gte_lddp(0x1000 - var_t3_2);
+                VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
                 gte_strgb(&poly3->r1);
@@ -2381,7 +2404,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
                 gte_strgb(&poly2->r2);
-                gte_lddp(0x1000 - var_t3_2);
+                VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
                 gte_strgb(&poly3->r2);
@@ -2397,7 +2420,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
                 gte_strgb(&poly2->r3);
-                gte_lddp(0x1000 - var_t3_2);
+                VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
                 gte_strgb(&poly3->r3);
@@ -2415,13 +2438,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 #ifdef SH_PC_PORT
                     /* PC: Skip fog overlay + SetPriority (no mask bit support).
                      * Encode fog factor in p1 for shader fog blending. */
-                    {
-                        s32 fogRamp = scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
-                        s32 fogAmt = fogRamp + scratchData->field_380.s_0.field_4;
-                        if (fogAmt > 0x1000) fogAmt = 0x1000;
-                        if (fogAmt < 0) fogAmt = 0;
-                        poly3->p1 = (u8)((fogAmt * 127) >> 12);
-                    }
+                    PC_FACE_FOG_VERTS(scratchData);
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 
                     poly3  = (PACKET*)(poly2 + 1) + 0xC + 0xC;
@@ -2449,7 +2466,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 #ifdef SH_PC_PORT
                     /* PC: Render opaque (no semi-trans), skip fog overlay,
                      * encode fog in p1 for shader blending. */
-                    PC_FACE_FOG_FACTOR(scratchData);
+                    PC_FACE_FOG_VERTS(scratchData);
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 #else
                     setSemiTrans(poly3, 1);
@@ -3977,10 +3994,14 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
                     s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fogIntensity_18;
                     if (fogAmt > 0x1000) fogAmt = 0x1000;
                     poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
+                    poly_gt4->p2 = poly_gt4->p1;
+                    poly_gt4->p3 = poly_gt4->p1;
                 }
                 else
                 {
                     poly_gt4->p1 = 0;
+                    poly_gt4->p2 = 0;
+                    poly_gt4->p3 = 0;
                 }
 
                 addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
