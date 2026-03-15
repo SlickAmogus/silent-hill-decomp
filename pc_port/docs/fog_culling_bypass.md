@@ -147,12 +147,6 @@ Instead of the PSX multi-pass overlay approach, the PC port encodes a per-vertex
 
 **2D fog overlay quad** (`func_80056D8C`): Skipped entirely on PC — the per-vertex shader fog replaces it.
 
-### Eliminating vertex color seam lines
-
-On PSX, `dpcl`/`dpcs` GTE instructions bake fog into vertex RGB colors during rendering. On PC this created visible square outlines at quad boundaries (per-face normal lighting + fog differences).
-
-**`VTXCOL_LDDP(dp)` macro**: Forces `gte_lddp(0)` on PC before all `dpcl`/`dpcs` calls that compute textured poly vertex colors. This zeros the fog depth parameter so vertex colors contain only lighting, no fog interpolation. Shader fog handles all distance blending.
-
 ### fog color sync (`game_main.c`)
 
 `g_PsyX_FogColor` is set from `WorldEnvWork.fogColor_1C` each frame during the GsSortClear section, alongside the background clear color override.
@@ -174,6 +168,8 @@ On PSX, `dpcl`/`dpcs` GTE instructions bake fog into vertex RGB colors during re
 } while(0)
 ```
 
-## Debug controls
+## Character Texture Fix
 
-- Numpad `.`: Cycle fog intensity (100% → 75% → 50% → 25% → OFF → 100%). Currently only the OFF toggle is functional; intensity scaling needs rework since `fogIntensity_18` is set by the game each frame after the debug override runs.
+`Lm_MaterialFileIdxApply` in `bodyprog_80055028.c` uses `sp10Ptr < sp18` to bounds-check copying between two local stack arrays. On PSX, `sp10` is at `$sp+0x10` and `sp18` at `$sp+0x18` (adjacent, deterministic layout). On PC x86-64, stack layout is compiler-dependent — the compiler may place `sp18` before `sp10`, making the condition immediately false. This caused zero characters to be copied from material filenames, so `Material_FsImageApply` was never called and character tpage/clut stayed at 0 (pointing at the framebuffer instead of texture data).
+
+Fix: `sp10Ptr < sp10 + 7` on PC (7 = size of the destination array minus null terminator).
