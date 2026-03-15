@@ -90,8 +90,9 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    /* Redirect stdout to log file, keep stderr on console for visibility */
+    /* Redirect both stdout and stderr to single log file */
     freopen("SilentHill.log", "w", stdout);
+    freopen("SilentHill.log", "a", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     fprintf(stderr, "[SH] main() entered\n");

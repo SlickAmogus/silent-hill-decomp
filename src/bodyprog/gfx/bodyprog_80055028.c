@@ -880,10 +880,21 @@ void Lm_MaterialFileIdxApply(s_LmHeader* lmHdr, e_FsFile fileIdx, s_FsImageDesc*
     sp10Ptr = sp10;
     sp18Ptr = sp18;
 
+#ifdef SH_PC_PORT
+    /* PSX relies on stack layout (sp10 at $sp+0x10, sp18 at $sp+0x18) for the
+     * bounds check `sp10Ptr < sp18`.  On PC this is undefined behavior — the
+     * compiler may place sp18 before sp10, making the condition immediately false
+     * and copying zero characters.  Use a simple counter instead. */
+    while (sp10Ptr < sp10 + 7 && *sp18Ptr != '.' && *sp18Ptr != '\0')
+    {
+        *sp10Ptr++ = *sp18Ptr++;
+    }
+#else
     while (sp10Ptr < sp18 && *sp18Ptr != '.')
     {
         *sp10Ptr++ = *sp18Ptr++;
     }
+#endif
 
     Lm_MaterialFsImageApply(lmHdr, sp10, image, blendMode);
 }
@@ -2080,16 +2091,6 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         gte_dpcl();
                         gte_strgb(&poly3->r3);
 
-#ifdef SH_PC_PORT
-                        /* Override: uniform vertex colors to eliminate per-face
-                         * normal lighting seams. Shader fog handles distance.
-                         * setlen + PC_FACE_FOG_VERTS restore code/p1/p2/p3. */
-                        *(s32*)&poly3->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
-                        *(s32*)&poly3->r1 = *(s32*)&scratchData->field_380.s_0.field_8;
-                        *(s32*)&poly3->r2 = *(s32*)&scratchData->field_380.s_0.field_8;
-                        *(s32*)&poly3->r3 = *(s32*)&scratchData->field_380.s_0.field_8;
-#endif
-
                         *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                         *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
                         *(u16*)&poly3->u2 = prim->field_8;
@@ -2130,8 +2131,8 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                         else
                         {
 #ifdef SH_PC_PORT
-                            /* PC: Render opaque (no semi-trans), skip fog overlay,
-                             * encode fog in p1 for shader blending. */
+                            /* PC: Render opaque, skip fog overlay.
+                             * Encode per-vertex fog for shader blending. */
                             PC_FACE_FOG_VERTS(scratchData);
                             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 #else
@@ -2247,16 +2248,6 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
                     gte_strgb(&poly3->r3);
-
-#ifdef SH_PC_PORT
-                    /* Override: uniform vertex colors to eliminate per-face
-                     * normal lighting seams. Shader fog handles distance.
-                     * setlen + PC_FACE_FOG_VERTS restore code/p1/p2/p3. */
-                    *(s32*)&poly3->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
-                    *(s32*)&poly3->r1 = *(s32*)&scratchData->field_380.s_0.field_8;
-                    *(s32*)&poly3->r2 = *(s32*)&scratchData->field_380.s_0.field_8;
-                    *(s32*)&poly3->r3 = *(s32*)&scratchData->field_380.s_0.field_8;
-#endif
 
                     *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                     *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -2464,8 +2455,8 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
                 else
                 {
 #ifdef SH_PC_PORT
-                    /* PC: Render opaque (no semi-trans), skip fog overlay,
-                     * encode fog in p1 for shader blending. */
+                    /* PC: Render opaque, skip fog overlay.
+                     * Encode per-vertex fog for shader blending. */
                     PC_FACE_FOG_VERTS(scratchData);
                     addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
 #else
@@ -3352,6 +3343,40 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
+    {
+        static int _charTexLog = 0;
+        if (_charTexLog < 3 && meshHdr->primitiveCount_0 > 0) {
+            s_Primitive* _p0 = &meshHdr->primitives_4[0];
+            u8 tpg = _p0->field_6.bits.field_6_0;
+            int pageX = (tpg & 0xF) * 64;
+            int pageY = ((tpg >> 4) & 1) * 256;
+            int fmt = (tpg >> 7) & 0x3;
+            u16 clut = _p0->field_2;
+            int clutX = (clut & 0x3F) << 4;
+            int clutY = (clut >> 6) & 0x1FF;
+            fprintf(stderr, "[CHAR-RENDER] primCnt=%d f0=0x%04x f2=0x%04x f6=0x%04x tpg=0x%02x pageXY=(%d,%d) fmt=%d clutXY=(%d,%d) field8=0x%08x\n",
+                    meshHdr->primitiveCount_0, _p0->field_0, _p0->field_2, _p0->field_6.flags,
+                    tpg, pageX, pageY, fmt, clutX, clutY, scratchData->u.s_1.field_8);
+            /* Check a few pixels of VRAM at the texture page location */
+            {
+                RECT16 _chk = { pageX, pageY, 4, 1 };
+                u16 _vramSample[4];
+                StoreImage(&_chk, (u_long*)_vramSample);
+                fprintf(stderr, "[CHAR-RENDER] VRAM@(%d,%d): %04x %04x %04x %04x\n",
+                        pageX, pageY, _vramSample[0], _vramSample[1], _vramSample[2], _vramSample[3]);
+            }
+            /* Also check CLUT */
+            {
+                RECT16 _chk2 = { clutX, clutY, 4, 1 };
+                u16 _clutSample[4];
+                StoreImage(&_chk2, (u_long*)_clutSample);
+                fprintf(stderr, "[CHAR-RENDER] CLUT@(%d,%d): %04x %04x %04x %04x\n",
+                        clutX, clutY, _clutSample[0], _clutSample[1], _clutSample[2], _clutSample[3]);
+            }
+            fflush(stderr);
+            _charTexLog++;
+        }
+    }
 #endif
 
     for (prim = meshHdr->primitives_4, poly.packet = GsOUT_PACKET_P; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
@@ -3416,36 +3441,12 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(s32*)&poly.gt3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
             *(u16*)&poly.gt3->u2 = prim->field_8;
 
-#ifdef SH_PC_PORT
-            /* PC: Use untextured POLY_G3 (gouraud tri) — character textures
-             * don't render correctly yet (VRAM texture pages not fully set up).
-             * This preserves per-vertex lighting while bypassing texture issues. */
-            {
-                s16 _x0 = poly.gt3->x0, _y0 = poly.gt3->y0;
-                s16 _x1 = poly.gt3->x1, _y1 = poly.gt3->y1;
-                s16 _x2 = poly.gt3->x2, _y2 = poly.gt3->y2;
-                u8 _r0 = poly.gt3->r0, _g0 = poly.gt3->g0, _b0 = poly.gt3->b0;
-                u8 _r1 = poly.gt3->r1, _g1 = poly.gt3->g1, _b1 = poly.gt3->b1;
-                u8 _r2 = poly.gt3->r2, _g2 = poly.gt3->g2, _b2 = poly.gt3->b2;
-                POLY_G3* _g3 = (POLY_G3*)poly.gt3;
-                setPolyG3(_g3);
-                setRGB0(_g3, _r0, _g0, _b0);
-                setRGB1(_g3, _r1, _g1, _b1);
-                setRGB2(_g3, _r2, _g2, _b2);
-                _g3->x0 = _x0; _g3->y0 = _y0;
-                _g3->x1 = _x1; _g3->y1 = _y1;
-                _g3->x2 = _x2; _g3->y2 = _y2;
-                addPrim(&ot[(temp_t4 >> arg3) >> 2], _g3);
-                poly.gt3++;
-                _dbgPrimPass++;
-                continue;
-            }
-#else
-
             setlen(poly.gt3, 9);
 
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
             poly.gt3++;
+#ifdef SH_PC_PORT
+            _dbgPrimPass++;
 #endif
         }
         else
@@ -3513,38 +3514,12 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u2 = prim->field_8;
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
-#ifdef SH_PC_PORT
-            /* PC: Use untextured POLY_G4 (gouraud quad) — same reason as G3 above */
-            {
-                s16 _x0 = poly.gt4->x0, _y0 = poly.gt4->y0;
-                s16 _x1 = poly.gt4->x1, _y1 = poly.gt4->y1;
-                s16 _x2 = poly.gt4->x2, _y2 = poly.gt4->y2;
-                s16 _x3 = poly.gt4->x3, _y3 = poly.gt4->y3;
-                u8 _r0 = poly.gt4->r0, _g0 = poly.gt4->g0, _b0 = poly.gt4->b0;
-                u8 _r1 = poly.gt4->r1, _g1 = poly.gt4->g1, _b1 = poly.gt4->b1;
-                u8 _r2 = poly.gt4->r2, _g2 = poly.gt4->g2, _b2 = poly.gt4->b2;
-                u8 _r3 = poly.gt4->r3, _g3 = poly.gt4->g3, _b3 = poly.gt4->b3;
-                POLY_G4* _g4 = (POLY_G4*)poly.gt4;
-                setPolyG4(_g4);
-                setRGB0(_g4, _r0, _g0, _b0);
-                setRGB1(_g4, _r1, _g1, _b1);
-                setRGB2(_g4, _r2, _g2, _b2);
-                setRGB3(_g4, _r3, _g3, _b3);
-                _g4->x0 = _x0; _g4->y0 = _y0;
-                _g4->x1 = _x1; _g4->y1 = _y1;
-                _g4->x2 = _x2; _g4->y2 = _y2;
-                _g4->x3 = _x3; _g4->y3 = _y3;
-                addPrim(&ot[(temp_t4 >> arg3) >> 2], _g4);
-                poly.gt4++;
-                _dbgPrimPass++;
-                continue;
-            }
-#else
-
             setlen(poly.gt4, 12);
 
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt4);
             poly.gt4++;
+#ifdef SH_PC_PORT
+            _dbgPrimPass++;
 #endif
         }
     }

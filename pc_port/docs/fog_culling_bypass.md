@@ -143,17 +143,15 @@ Instead of the PSX multi-pass overlay approach, the PC port encodes a per-vertex
 
 **Fences/barbed wire** (0x8000 flag in `func_8005801C`): Skip `SetPriority` + fog overlay. Compute per-vertex fog via `PC_FACE_FOG_VERTS` macro, storing in `poly3->p1`/`p2`/`p3`.
 
-**World geometry** (non-0x8000 in `func_8005801C`): Skip `setSemiTrans` + fog overlay (poly1/poly2). Render textured poly opaque. Compute per-vertex fog via `PC_FACE_FOG_VERTS` macro.
+**World geometry** (non-0x8000 in `func_8005801C`): Skip `setSemiTrans` + fog overlay (poly1/poly2). Render textured poly opaque. Compute per-vertex fog via `PC_FACE_FOG_VERTS` macro. Applied across all 3 rendering paths in `func_8005801C` (path 1 non-fence, path 2 unconditional, path 3 non-fence).
 
 **2D fog overlay quad** (`func_80056D8C`): Skipped entirely on PC — the per-vertex shader fog replaces it.
 
 ### Eliminating vertex color seam lines
 
-On PSX, `dpcl`/`dpcs` GTE instructions bake fog into vertex RGB colors during rendering. On PC this created visible square outlines at quad boundaries (per-face normal lighting + fog differences). Two fixes:
+On PSX, `dpcl`/`dpcs` GTE instructions bake fog into vertex RGB colors during rendering. On PC this created visible square outlines at quad boundaries (per-face normal lighting + fog differences).
 
-1. **`VTXCOL_LDDP(dp)` macro**: Forces `gte_lddp(0)` on PC before all `dpcl`/`dpcs` calls that compute textured poly vertex colors. This zeros the fog depth parameter so vertex colors contain only lighting, no fog interpolation. Shader fog handles all distance blending.
-
-2. **Uniform vertex color override**: After `dpcl` stores vertex colors, PC overrides them with the base `worldTintColor` (`field_8`). This eliminates per-face normal lighting seams — all vertices get identical base color. The texture provides surface detail and shader fog provides smooth distance blending.
+**`VTXCOL_LDDP(dp)` macro**: Forces `gte_lddp(0)` on PC before all `dpcl`/`dpcs` calls that compute textured poly vertex colors. This zeros the fog depth parameter so vertex colors contain only lighting, no fog interpolation. Shader fog handles all distance blending.
 
 ### fog color sync (`game_main.c`)
 
