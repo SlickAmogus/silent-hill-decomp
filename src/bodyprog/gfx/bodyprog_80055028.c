@@ -1185,6 +1185,15 @@ void func_80056D8C(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s32 arg5, G
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* PC: Skip the 2D fog overlay quad. PSX uses mask bits (SetPriority)
+     * so the overlay only affects geometry pixels. Without mask bits,
+     * the overlay renders over the background too, brightening the sky
+     * and causing double-fog on world geometry. Per-primitive fog
+     * (dpcs vertex colors + shader fog) handles fog correctly without this. */
+    return;
+#endif
+
     var_a3 = MAX(arg0, ~(g_GameWork.gsScreenWidth_588 >> 1));
     var_v1 = MAX(arg1, ~(g_GameWork.gsScreenHeight_58A >> 1));
 
@@ -2059,6 +2068,21 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                         if (prim->field_6.flags & 0x8000)
                         {
+#ifdef SH_PC_PORT
+                            /* PC: Skip fog overlay + SetPriority packets.
+                             * Encode fog factor in p1 for shader fog blending. */
+                            {
+                                s32 fogRamp = scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
+                                s32 fogAmt = fogRamp + scratchData->field_380.s_0.field_4;
+                                if (fogAmt > 0x1000) fogAmt = 0x1000;
+                                if (fogAmt < 0) fogAmt = 0;
+                                poly3->p1 = (u8)((fogAmt * 127) >> 12);
+                            }
+                            addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
+
+                            poly3 = (PACKET*)(poly1 + 1) + 0xC + 0xC;
+                            poly1  = poly3 + 1;
+#else
                             packet1 = poly1 + 1;
 
                             SetPriority(packet1, 0, 0);
@@ -2075,6 +2099,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                             poly3 = (PACKET*)(poly1 + 1) + 0xC + 0xC;
                             poly1  = poly3 + 1;
+#endif
                         }
                         else
                         {
@@ -2367,6 +2392,21 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                 if (prim->field_6.flags & 0x8000)
                 {
+#ifdef SH_PC_PORT
+                    /* PC: Skip fog overlay + SetPriority (no mask bit support).
+                     * Encode fog factor in p1 for shader fog blending. */
+                    {
+                        s32 fogRamp = scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
+                        s32 fogAmt = fogRamp + scratchData->field_380.s_0.field_4;
+                        if (fogAmt > 0x1000) fogAmt = 0x1000;
+                        if (fogAmt < 0) fogAmt = 0;
+                        poly3->p1 = (u8)((fogAmt * 127) >> 12);
+                    }
+                    addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly3);
+
+                    poly3  = (PACKET*)(poly2 + 1) + 0xC + 0xC;
+                    poly2 = poly3 + 1;
+#else
                     packet0 = poly2 + 1;
 
                     SetPriority(packet0, 0, 0);
@@ -2382,6 +2422,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
 
                     poly3  = (PACKET*)(poly2 + 1) + 0xC + 0xC;
                     poly2 = poly3 + 1;
+#endif
                 }
                 else
                 {
@@ -3738,7 +3779,14 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
     }
     else
     {
+#ifdef SH_PC_PORT
+        /* PC: skip group-level fog dimming here — per-billboard fog is
+         * applied separately after vertex colors are set. This avoids
+         * double-darkening (var_s1 + dp both reducing toward 0). */
+        var_s1 = Q12(1.0f);
+#else
         var_s1 = Q12(1.0f) - Q8_TO_Q12(MIN(func_80055A50(Q8_TO_Q12(matrix_sp18[0].t[2])), Q12(1.0f)));
+#endif
     }
 
     // @hack Make sure compiler doesn't optimize out `new_var` pointer.
@@ -3895,32 +3943,22 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
                    field_1C.vx, field_1C.vy);
 
 #ifdef SH_PC_PORT
-            /* PC: Bake fog into vertex colors instead of a separate overlay.
-             * PSX uses a POLY_G4 overlay + mask bits to blend fog on top of
-             * only the drawn texels. PsyCross doesn't implement mask bits,
-             * so we interpolate vertex colors toward fogColor based on distance. */
-            if (g_WorldEnvWork.isFogEnabled_1)
+            /* PC billboard fog: encode fog factor in p1 pad byte.
+             * Shader does mix(fragColor.rgb, u_fogColor, fogAmount). */
             {
-                temp = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fogIntensity_18;
-                s32 fogFactor = MIN(temp, 0x1000); /* 0=no fog, 0x1000=full fog */
-                s32 keepFactor = 0x1000 - fogFactor;
-                u8 fogR = g_WorldEnvWork.fogColor_1C.r;
-                u8 fogG = g_WorldEnvWork.fogColor_1C.g;
-                u8 fogB = g_WorldEnvWork.fogColor_1C.b;
-                /* Blend each vertex: color = color * keepFactor/4096 + fogColor * fogFactor/4096 */
-                int vi;
-                for (vi = 0; vi < 4; vi++) {
-                    u8 *r, *g, *b;
-                    switch (vi) {
-                        case 0: r = &poly_gt4->r0; g = &poly_gt4->g0; b = &poly_gt4->b0; break;
-                        case 1: r = &poly_gt4->r1; g = &poly_gt4->g1; b = &poly_gt4->b1; break;
-                        case 2: r = &poly_gt4->r2; g = &poly_gt4->g2; b = &poly_gt4->b2; break;
-                        default: r = &poly_gt4->r3; g = &poly_gt4->g3; b = &poly_gt4->b3; break;
-                    }
-                    *r = (u8)((*r * keepFactor + fogR * fogFactor) >> 12);
-                    *g = (u8)((*g * keepFactor + fogG * fogFactor) >> 12);
-                    *b = (u8)((*b * keepFactor + fogB * fogFactor) >> 12);
+                if (g_WorldEnvWork.isFogEnabled_1)
+                {
+                    s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fogIntensity_18;
+                    if (fogAmt > 0x1000) fogAmt = 0x1000;
+                    poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
                 }
+                else
+                {
+                    poly_gt4->p1 = 0;
+                }
+
+                addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
+                poly_gt4++;
             }
 #else
             if (new_var2->isFogEnabled_1)
@@ -3957,12 +3995,11 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
                 poly_gt4 = poly_g4;
             }
             else
-#endif
-
             {
                 addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
                 poly_gt4++;
             }
+#endif
         }
     }
 

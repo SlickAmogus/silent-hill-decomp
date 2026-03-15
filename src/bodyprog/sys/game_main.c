@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
+extern float g_PsyX_FogColor[3];
 #include <stdio.h>
 #include <SDL_scancode.h>
 extern u8 g_WorldEnvWork[];
@@ -83,6 +84,7 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 #ifdef SH_PC_PORT
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off */
+int g_DebugFogLevel = 0;   /* 0=100%, 1=75%, 2=50%, 3=25%, 4=off */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
 static int g_DebugFogTogglePrev = 0;
@@ -119,27 +121,7 @@ void DebugCamera_Update(void)
         g_DebugCamTogglePrev = cur;
     }
 
-    /* Numpad .: toggle fog on/off (edge-triggered) */
-    {
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
-        if (cur && !g_DebugFogTogglePrev) {
-            g_DebugFogDisabled = !g_DebugFogDisabled;
-            if (g_DebugFogDisabled) {
-                PC_WorldEnvWork.isFogEnabled_1 = 0;
-                fprintf(stderr, "[DEBUG] Fog DISABLED\n");
-            } else {
-                PC_WorldEnvWork.isFogEnabled_1 = 1;
-                fprintf(stderr, "[DEBUG] Fog ENABLED\n");
-            }
-            fflush(stderr);
-        }
-        g_DebugFogTogglePrev = cur;
-    }
-
-    /* Keep fog off every frame if toggled (game re-enables it) */
-    if (g_DebugFogDisabled) {
-        PC_WorldEnvWork.isFogEnabled_1 = 0;
-    }
+    /* Fog toggle moved to main loop (runs after game sets fog params) */
 
     /* Numpad 0: cycle to next map overlay (edge-triggered)
      * DISABLED: runtime map switching crashes (map data not safely teardown-able).
@@ -522,6 +504,29 @@ void MainLoop(void) // 0x80032EE0
         // Draw objects?
         GsSwapDispBuff();
 #ifdef SH_PC_PORT
+        /* Numpad .: cycle fog intensity (edge-triggered, works during gameplay)
+         * 100% → 75% → 50% → 25% → off → 100% */
+        if (g_sdlKeyboardState && g_GameWork.gameState_594 == 11) {
+            int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
+            if (cur && !g_DebugFogTogglePrev) {
+                static const char* labels[] = { "100%", "75%", "50%", "25%", "OFF" };
+                g_DebugFogLevel = (g_DebugFogLevel + 1) % 5;
+                g_DebugFogDisabled = (g_DebugFogLevel == 4);
+                fprintf(stderr, "[DEBUG] Fog: %s\n", labels[g_DebugFogLevel]);
+                fflush(stderr);
+            }
+            g_DebugFogTogglePrev = cur;
+
+            /* Apply fog level AFTER game has set fog params for this frame */
+            if (g_DebugFogLevel == 4) {
+                PC_WorldEnvWork.isFogEnabled_1 = 0;
+            } else if (g_DebugFogLevel > 0) {
+                static const s32 fogScale[] = { 0x1000, 0xC00, 0x800, 0x400 };
+                PC_WorldEnvWork.fogIntensity_18 =
+                    (PC_WorldEnvWork.fogIntensity_18 * fogScale[g_DebugFogLevel]) >> 12;
+            }
+        }
+
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
@@ -530,6 +535,9 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor_58C.r = PC_WorldEnvWork.fogColor_1C.r;
             g_GameWork.background2dColor_58C.g = PC_WorldEnvWork.fogColor_1C.g;
             g_GameWork.background2dColor_58C.b = PC_WorldEnvWork.fogColor_1C.b;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
         }
 #endif
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
