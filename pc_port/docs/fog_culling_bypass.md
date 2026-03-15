@@ -119,9 +119,9 @@ PsyCross doesn't support PSX mask bits (`SetPriority` is stubbed). Without them:
 - Fog overlays render over the background (brightens the sky beyond fogColor)
 - Normal geometry gets `setSemiTrans` + overlay = translucent + gray tint
 
-## Solution: Shader-Based Per-Primitive Fog
+## Solution: Shader-Based Per-Vertex Fog
 
-Instead of the PSX multi-pass overlay approach, the PC port encodes a fog factor per primitive and blends in the fragment shader.
+Instead of the PSX multi-pass overlay approach, the PC port encodes a per-vertex fog factor and blends in the fragment shader. This eliminates visible seam lines at quad boundaries that per-face fog would cause.
 
 ### PsyCross shader changes (`PsyX_render.cpp`)
 
@@ -132,36 +132,47 @@ Instead of the PSX multi-pass overlay approach, the PC port encodes a fog factor
 
 ### PsyCross GPU changes (`PsyX_GPU.cpp`, `libgpu.h`)
 
-- `setPolyGT4`/`setPolyGT3` macros zero `p1` (default: no fog)
+- `setPolyGT4`/`setPolyGT3` macros zero `p1`, `p2`, `p3` (default: no fog)
 - All `MakeColour*` functions initialize `_p0 = 0`
-- `ProcessGouraudPoly` copies `poly->p1` → `vertex._p0` for GT3/GT4
+- `ProcessGouraudPoly` GT4 reads per-vertex fog: `firstVertex[0]._p0 = poly->p1` (v0 shares v1's fog — code byte occupies v0's pad), `[1]=p1`, `[2]=p3`, `[3]=p2` (accounting for MakeColourQuad v2/v3 swap)
+- `ProcessGouraudPoly` GT3 reads: `[0]=p1`, `[1]=p1`, `[2]=p2`
 
 ### Game-side fog encoding (`bodyprog_80055028.c`)
 
-**Billboards** (`func_8005B62C`): Compute fog from `func_80055A50(depth)` + `fogIntensity_18`, store `(fogAmt * 127) >> 12` in `poly_gt4->p1`. The `var_s1` group-level fog dimming is forced to `Q12(1.0)` on PC to avoid double-darkening.
+**Billboards** (`func_8005B62C`): Compute fog from `func_80055A50(depth)` + `fogIntensity_18`, store `(fogAmt * 127) >> 12` in `poly_gt4->p1`, `p2`, `p3` (uniform fog for all vertices). The `var_s1` group-level fog dimming is forced to `Q12(1.0)` on PC to avoid double-darkening.
 
-**Fences/barbed wire** (0x8000 flag in `func_8005801C`): Skip `SetPriority` + fog overlay. Compute fog from `field_252` ramp + `field_4` intensity, store in `poly3->p1`.
+**Fences/barbed wire** (0x8000 flag in `func_8005801C`): Skip `SetPriority` + fog overlay. Compute per-vertex fog via `PC_FACE_FOG_VERTS` macro, storing in `poly3->p1`/`p2`/`p3`.
 
-**World geometry** (non-0x8000 in `func_8005801C`): Skip `setSemiTrans` + fog overlay (poly1/poly2). Render textured poly opaque. Compute fog via `PC_FACE_FOG_FACTOR` macro (max of 4 vertex fog ramps + base intensity), store in `poly3->p1`.
+**World geometry** (non-0x8000 in `func_8005801C`): Skip `setSemiTrans` + fog overlay (poly1/poly2). Render textured poly opaque. Compute per-vertex fog via `PC_FACE_FOG_VERTS` macro.
 
-**2D fog overlay quad** (`func_80056D8C`): Skipped entirely on PC — the per-primitive shader fog replaces it.
+**2D fog overlay quad** (`func_80056D8C`): Skipped entirely on PC — the per-vertex shader fog replaces it.
+
+### Eliminating vertex color seam lines
+
+On PSX, `dpcl`/`dpcs` GTE instructions bake fog into vertex RGB colors during rendering. On PC this created visible square outlines at quad boundaries (per-face normal lighting + fog differences). Two fixes:
+
+1. **`VTXCOL_LDDP(dp)` macro**: Forces `gte_lddp(0)` on PC before all `dpcl`/`dpcs` calls that compute textured poly vertex colors. This zeros the fog depth parameter so vertex colors contain only lighting, no fog interpolation. Shader fog handles all distance blending.
+
+2. **Uniform vertex color override**: After `dpcl` stores vertex colors, PC overrides them with the base `worldTintColor` (`field_8`). This eliminates per-face normal lighting seams — all vertices get identical base color. The texture provides surface detail and shader fog provides smooth distance blending.
 
 ### fog color sync (`game_main.c`)
 
 `g_PsyX_FogColor` is set from `WorldEnvWork.fogColor_1C` each frame during the GsSortClear section, alongside the background clear color override.
 
-### `PC_FACE_FOG_FACTOR` macro
+### `PC_FACE_FOG_VERTS` macro
 
 ```c
-#define PC_FACE_FOG_FACTOR(sd) do { \
-    s32 _f0 = (sd)->field_252[(sd)->field_380.s_0.field_10]; \
-    s32 _f1 = (sd)->field_252[(sd)->field_380.s_0.field_11]; \
-    s32 _f2 = (sd)->field_252[(sd)->field_380.s_0.field_12]; \
-    s32 _f3 = (sd)->field_252[(sd)->field_380.s_0.field_13]; \
-    s32 _mx = _f0; if (_f1>_mx) _mx=_f1; if (_f2>_mx) _mx=_f2; if (_f3>_mx) _mx=_f3; \
-    s32 _fa = _mx * 16 + (sd)->field_380.s_0.field_4; \
+#define PC_FACE_FOG_VERTS(sd) do { \
+    s32 _fa; \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
     poly3->p1 = (u8)((_fa * 127) >> 12); \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_12] * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->p2 = (u8)((_fa * 127) >> 12); \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_13] * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->p3 = (u8)((_fa * 127) >> 12); \
 } while(0)
 ```
 
