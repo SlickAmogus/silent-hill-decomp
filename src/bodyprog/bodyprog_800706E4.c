@@ -1226,11 +1226,11 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         extra->model_0.stateStep_3 = 0;
                     }
                 } else {
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Still, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Still, false);
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Idle, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_Idle, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Idle, false);
                         chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Still, false);
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Idle, false);
                         extra->model_0.stateStep_3 = 0;
                     }
                 }
