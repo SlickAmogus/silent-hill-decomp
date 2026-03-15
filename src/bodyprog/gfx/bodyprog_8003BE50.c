@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
+#include "pc_config.h"
 #endif
 
 #include <psyq/libetc.h>
@@ -290,7 +291,11 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         pos0.vz = Q12(200.0f);
     }
 
+#ifdef SH_PC_PORT
+    if (g_WorldEnvWork.isFogEnabled_1 && !g_PcConfig.disableCulling)
+#else
     if (g_WorldEnvWork.isFogEnabled_1)
+#endif
     {
         vwGetViewPosition(&pos1);
         vwGetViewAngle(&rot);

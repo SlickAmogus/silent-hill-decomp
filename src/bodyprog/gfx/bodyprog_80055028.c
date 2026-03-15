@@ -16,6 +16,14 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
+#include "pc_config.h"
+/* When culling is disabled, ignore fog-based draw distance clamp.
+ * PSX uses fogFarDistance as a draw distance optimization (don't render
+ * what fog fully hides). On PC we want everything to render and let
+ * fog visually obscure it instead of culling geometry. */
+#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fogFarDistance_10)
+#else
+#define FOG_FAR_DIST() (g_WorldEnvWork.fogFarDistance_10)
 #endif
 
 // ========================================
@@ -1190,7 +1198,7 @@ void func_80056D8C(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s32 arg5, G
 
     if (g_WorldEnvWork.isFogEnabled_1)
     {
-        var_v1_3 = MIN(temp_a0_2, g_WorldEnvWork.fogFarDistance_10);
+        var_v1_3 = MIN(temp_a0_2, FOG_FAR_DIST());
     }
     else
     {
@@ -1844,7 +1852,7 @@ void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TA
     }
     else
     {
-        scratchData->field_380.s_0.field_1C = g_WorldEnvWork.fogFarDistance_10;
+        scratchData->field_380.s_0.field_1C = FOG_FAR_DIST();
 
         if (temp_v1 < scratchData->field_380.s_0.field_1C)
         {
@@ -2753,7 +2761,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     }
 
     temp_v1 = 0x79C << (arg3 + 2);
-    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, g_WorldEnvWork.fogFarDistance_10) : temp_v1;
+    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
     scratchData->field_380.s_0.field_0 = g_GameWork.gsScreenWidth_588 >> 1;
@@ -3256,7 +3264,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     scratchData->u.s_1.field_8 = g_WorldEnvWork.field_14C << 16;
 
     temp_a0 = 0x79C << (arg3 + 2);
-    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_a0, g_WorldEnvWork.fogFarDistance_10) : temp_a0;
+    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
@@ -3718,7 +3726,7 @@ void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5) // 0x
     sp498   = ReadGeomScreen();
 
     temp_v1 = 0x79C << (arg5 + 2);
-    sp494   = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, g_WorldEnvWork.fogFarDistance_10) : temp_v1;
+    sp494   = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
     func_80049C2C(&matrix_sp18[0], x, y, z);
 
     // @hack Pointer needed for match, is there a way to remove this?
