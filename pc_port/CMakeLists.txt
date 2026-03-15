@@ -30,7 +30,11 @@ add_definitions(-DUSE_PGXP=0)
 # CLUT / texture data that coexists at the same VRAM addresses.
 add_definitions(-DPSYX_SKIP_FRAMEBUFFER_STORE)
 
-set(PSYCROSS_DIR "${CMAKE_SOURCE_DIR}/../PsyCross" CACHE PATH "Path to PsyCross")
+set(PSYCROSS_DIR "${CMAKE_SOURCE_DIR}/PsyCross" CACHE PATH "Path to PsyCross")
+
+if(NOT EXISTS "${PSYCROSS_DIR}/CMakeLists.txt")
+    set(PSYCROSS_DIR "${CMAKE_SOURCE_DIR}/../PsyCross")
+endif()
 
 if(NOT EXISTS "${PSYCROSS_DIR}/CMakeLists.txt")
     set(PSYCROSS_DIR "${CMAKE_SOURCE_DIR}/../../PsyCross")
