@@ -1618,7 +1618,7 @@ void func_800D35DC(SVECTOR* rot) // 0x800D35DC
 
     ot = g_OrderingTable0[idx].org;
 
-    func_80049C2C(&ptr->world_8, ptr->x_0, 0, ptr->z_4);
+    Vw_WorldScreenMatrixAtPositionGet(&ptr->world_8, ptr->x_0, 0, ptr->z_4);
     func_800D0C50(rot, &ptr->world_8);
     func_800D1604(ot, rot->vy);
     func_800D1FF4(ot);
@@ -3788,7 +3788,7 @@ void func_800D7718(void) // 0x800D7718
     s32         i;
     s_800E06A0* ptr;
 
-    func_80049C2C(&mat, Q12(160.0f), Q12(0.0f), Q12(40.0f));
+    Vw_WorldScreenMatrixAtPositionGet(&mat, Q12(160.0f), Q12(0.0f), Q12(40.0f));
     SetRotMatrix(&mat);
     SetTransMatrix(&mat);
 
@@ -4955,7 +4955,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
                 D_800E05AE += Q12(1.0f);
             }
 
-            func_80069844(2);
+            func_80069844(CollisionFlag_1);
             D_800E05A8 += g_DeltaTime;
 
             if (D_800E05AC) {} // @hack
@@ -5006,7 +5006,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
         }
         else
         {
-            func_80069844(2);
+            func_80069844(CollisionFlag_1);
             WorldGfx_ObjectAdd(&g_WorldObject_Mal6[1], &g_WorldObject_UnkPos, &g_WorldObject_UnkRot);
         }
     }

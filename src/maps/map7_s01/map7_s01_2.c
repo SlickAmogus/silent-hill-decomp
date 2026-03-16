@@ -2412,12 +2412,12 @@ void Map_WorldObjectsUpdate(void) // 0x800DDCD4
 
             if (Savegame_EventFlagGet(EventFlag_486) && !Savegame_EventFlagGet(EventFlag_549))
             {
-                if (D_800E2CE8)
+                if (D_800E2CE8 != Q12(0.0f))
                 {
                     D_800E2CE8 -= g_DeltaTime;
-                    if (D_800E2CE8 < 0)
+                    if (D_800E2CE8 < Q12(0.0f))
                     {
-                        D_800E2CE8 = 0;
+                        D_800E2CE8 = Q12(0.0f);
                     }
                     break;
                 }
@@ -2500,8 +2500,8 @@ void Map_WorldObjectsUpdate(void) // 0x800DDCD4
             break;
     }
 
-    func_80069844(0xFFFF);
-    Collision_FlagBitsSet(0);
+    func_80069844(CollisionFlag_All);
+    Collision_FlagBitsSet(CollisionFlag_None);
 
     if (PLAYER_IN_MAP_CHUNK(vx, 1, -5, -1, -5) && PLAYER_IN_MAP_CHUNK(vz, 1, -3, -1, -3))
     {

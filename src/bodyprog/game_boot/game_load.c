@@ -271,15 +271,10 @@ void GameBoot_GameStartup(void) // 0x80034964
                 g_SysWork.flags_22A4 |= SysFlag2_1;
             }
 
-#ifdef SH_PC_PORT
-            /* Ambient SFX init depends on audio streaming - skip on PC */
-            Game_StateStepIncrement();
-#else
             if (func_80039F90() & EventParamUnkState_2 || Sd_AmbientSfxInit() == 0)
             {
                 Game_StateStepIncrement();
             }
-#endif
             break;
 
         case 11:

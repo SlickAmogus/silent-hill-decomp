@@ -73,8 +73,13 @@ void Map_RoomBgmInit(bool arg0) // 0x800D94F8
     }
 
 #ifdef SH_PC_PORT
-    // Force all BGM layers on - D_800DF300 event flag table is stubbed (all zeros)
-    flags |= 0x7E; // bits 1-6
+    /* D_800DF300 event flag table is stubbed (all zeros) so the loop above
+     * never sets layer bits.  Without any layer bits, Bgm_Update's XOR logic
+     * would still enable layer 0 — force BgmFlag_Unk0 to trigger the "mute
+     * all layers" path instead.  The ambient sound (Sfx_Unk1361) provides
+     * the correct music for the opening area; the BGM track (bgmIdx=3)
+     * shouldn't play until later game events would set D_800DF300 flags. */
+    flags |= BgmFlag_Unk0;
 #endif
     Bgm_Update(flags, var1, &D_800DF2F8);
 }
@@ -145,26 +150,6 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     bool skipCutscene;
     s32  time;
 
-#ifdef SH_PC_PORT
-    /* On PC, DMS cutscene data can't be parsed (64-bit struct incompatibility).
-     * Skip the entire cutscene and go straight to gameplay.
-     * Mirror the original "default:" case but with setIdle=true. */
-    if (g_SysWork.sysStateStep_C[0] == 0) {
-        g_Timer0 = NO_VALUE;
-        Player_ControlUnfreeze(true); /* true = set idle animation + reset states */
-        SysWork_StateSetNext(SysState_Gameplay);
-        ScreenFade_Reset();
-        SysWork_StateStepIncrementAfterFade(false, false, 2, Q12(0.0f), false);
-        vcReturnPreAutoCamWork(true);
-        Vc_CameraElevationRateLockSet(true);
-        Chara_ProcessLoads();
-        /* Don't spawn Cheryl — her anim info table is stubbed (NULL func ptrs) */
-        g_SysWork.sysStateStep_C[0] = 99;
-        return;
-    }
-    return;
-#endif
-
     skipCutscene = false;
     if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
         g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 13)
@@ -173,9 +158,23 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
         SysWork_StateStepReset();
     }
 
+    #ifdef SH_PC_PORT
+    {
+        static s32 lastStep = -1;
+        if (g_SysWork.sysStateStep_C[0] != lastStep) {
+            fprintf(stderr, "[SH_DMS] OpeningCutscene step=%d\n", g_SysWork.sysStateStep_C[0]);
+            fflush(stderr);
+            lastStep = g_SysWork.sysStateStep_C[0];
+        }
+        fprintf(stderr, "[CS] step=%d t=%d\n", g_SysWork.sysStateStep_C[0], g_Timer0);
+        fflush(stderr);
+    }
+    #endif
+
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
+            g_Timer0 = NO_VALUE; /* Prevent DMS position update below from running before file is loaded */
             Player_ControlFreeze();
             Fs_QueueStartRead(FILE_ANIM_OPEN_DMS, FS_BUFFER_16);
 
@@ -206,6 +205,12 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 
         case 3:
             func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 0x35, false);
+            #ifdef SH_PC_PORT
+            /* Ensure Harry is visible during cutscene — on PSX this flag is set
+             * by the animation update chain, but PC bypasses that path */
+            g_SysWork.playerWork_4C.player_0.model_0.anim_4.flags_2 |= AnimFlag_Visible | AnimFlag_Unlocked;
+            g_SysWork.playerWork_4C.extra_128.model_0.anim_4.flags_2 |= AnimFlag_Visible | AnimFlag_Unlocked;
+            #endif
             SysWork_StateStepIncrement(0);
 
         case 4:
@@ -293,18 +298,36 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     }
 
 #ifdef SH_PC_PORT
-    /* DMS binary data isn't reformatted for 64-bit struct layout yet.
-     * Skip all DMS-based position/camera updates to avoid reading garbage. */
-    (void)0;
-#else
+    fprintf(stderr, "[CS] post-switch\n"); fflush(stderr);
+#endif
     if (g_Timer0 >= Q12(0.0f))
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[CS] DMS t=%d\n", g_Timer0); fflush(stderr);
+#endif
         Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[CS] DMS hero OK\n"); fflush(stderr);
+#endif
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
+        #ifdef SH_PC_PORT
+        {
+            static s32 _dmsDbg = 0;
+            if ((_dmsDbg++ % 60) == 0) {
+                printf("[DMS] t=%d cam=(%d,%d,%d) look=(%d,%d,%d) hero=(%d,%d,%d)\n",
+                       g_Timer0,
+                       g_CameraPositionTarget.vx, g_CameraPositionTarget.vy, g_CameraPositionTarget.vz,
+                       g_CameraLookAtTarget.vx, g_CameraLookAtTarget.vy, g_CameraLookAtTarget.vz,
+                       g_SysWork.playerWork_4C.player_0.position_18.vx,
+                       g_SysWork.playerWork_4C.player_0.position_18.vy,
+                       g_SysWork.playerWork_4C.player_0.position_18.vz);
+                fflush(stdout);
+            }
+        }
+        #endif
     }
-#endif
 }
 
 void func_800D9D98(void) // 0x800D9D98

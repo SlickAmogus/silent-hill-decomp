@@ -117,9 +117,15 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
 
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SS] sysState=%d\n", g_SysWork.sysState_8); fflush(stderr);
+#endif
     if (g_SysWork.sysState_8 == SysState_Gameplay)
     {
         g_SysWork.isMgsStringSet_18 = false;
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] SysStateFuncs[Gameplay]\n"); fflush(stderr);
+#endif
         g_SysStateFuncs[SysState_Gameplay]();
     }
     else
@@ -130,13 +136,20 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * On PC, this causes cutscene timers to never advance. Use the raw
          * delta time so timer-based cutscene steps can progress. */
         g_DeltaTime = g_DeltaTimeRaw;
+        fprintf(stderr, "[SS] SysStateFuncs[%d]\n", g_SysWork.sysState_8); fflush(stderr);
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
         g_SysStateFuncs[g_SysWork.sysState_8]();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] SysStateFuncs done\n"); fflush(stderr);
+#endif
 
         if (g_SysWork.sysState_8 == SysState_Gameplay)
         {
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[SS] Event_Update\n"); fflush(stderr);
+#endif
             Event_Update(true);
 
             if (g_MapEventSysState != SysState_Invalid)
@@ -151,9 +164,15 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] worldObjectsUpdate\n"); fflush(stderr);
+#endif
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SS] CutsceneCameraState\n"); fflush(stderr);
+#endif
     Screen_CutsceneCameraStateUpdate();
     Bgm_TrackUpdate(false);
     Demo_DemoRandSeedRestore();
@@ -161,25 +180,27 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze))
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] func_80040014\n"); fflush(stderr);
+#endif
         func_80040014();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] vcMoveAndSetCamera flags=0x%x\n", vcWork.flags_8); fflush(stderr);
+#endif
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
 #ifdef SH_PC_PORT
-        /* Override game camera with a simple third-person follow camera.
-         * The VC camera system's Y placement is too high on PC — possibly due
-         * to camera road data or coordinate hierarchy issues.  Place the camera
-         * behind Harry at a fixed offset. */
-        if (!g_DebugCamEnabled)
+        /* Fallback third-person camera for free-roam.  Skip when the DMS
+         * cutscene system has taken over the camera (VC_USER_CAM_F). */
+        if (!g_DebugCamEnabled && !(vcWork.flags_8 & (VC_USER_CAM_F | VC_USER_WATCH_F)))
         {
             VECTOR3 camPos, lookAt;
             s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
             s32 sinY = Math_Sin(hp->rotation_24.vy + Q12_ANGLE(180.0f));
             s32 cosY = Math_Cos(hp->rotation_24.vy + Q12_ANGLE(180.0f));
-            /* Camera 3m behind, 1m above Harry */
             camPos.vx = hp->position_18.vx + (s32)((s64)Q12(3.0f) * sinY >> 12);
             camPos.vy = hp->position_18.vy - Q12(1.0f);
             camPos.vz = hp->position_18.vz + (s32)((s64)Q12(3.0f) * cosY >> 12);
-            /* Look at Harry's chest height */
             lookAt.vx = hp->position_18.vx;
             lookAt.vy = hp->position_18.vy - Q12(0.8f);
             lookAt.vz = hp->position_18.vz;
@@ -247,6 +268,21 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
 
+        #ifdef SH_PC_PORT
+        {
+            static int _pDbg = 0;
+            if ((_pDbg++ % 120) == 0) {
+                printf("[PLAYER] flags_2=0x%x visible=%d charaModel=%p pos=(%d,%d,%d)\n",
+                       player->model_0.anim_4.flags_2,
+                       (player->model_0.anim_4.flags_2 & AnimFlag_Visible) != 0,
+                       (void*)g_WorldGfxWork.registeredCharaModels_18[Chara_Harry],
+                       g_SysWork.playerWork_4C.player_0.position_18.vx,
+                       g_SysWork.playerWork_4C.player_0.position_18.vy,
+                       g_SysWork.playerWork_4C.player_0.position_18.vz);
+                fflush(stdout);
+            }
+        }
+        #endif
         if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
         {
 #ifdef SH_PC_PORT
@@ -972,6 +1008,16 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
     }
 
     g_DeltaTime = g_DeltaTimeCpy;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[SS] EventCallFunc param=%d func=%p\n", g_MapEventParam,
+            (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]);
+    fflush(stderr);
+    if (g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
+        fprintf(stderr, "[SS] EventCallFunc NULL — skip\n"); fflush(stderr);
+        g_SysWork.sysState_8 = SysState_Gameplay;
+        return;
+    }
+#endif
     g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]();
 }
 

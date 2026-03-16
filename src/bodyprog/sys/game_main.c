@@ -406,7 +406,17 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.sysFlags_22A0 = SysFlag_None;
 
         // Call update function for current GameState.
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == GameState_InGame) {
+            fprintf(stderr, "[PC] InGame update ENTER\n"); fflush(stderr);
+        }
+#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState_594 == GameState_InGame) {
+            fprintf(stderr, "[PC] InGame update EXIT\n"); fflush(stderr);
+        }
+#endif
 
         Demo_Update();
         Demo_GameRandSeedSet();
@@ -417,21 +427,35 @@ void MainLoop(void) // 0x80032EE0
             continue;
         }
 
+#ifdef SH_PC_PORT
+#define ML_TRACE(tag) do { if (g_GameWork.gameState_594 == GameState_InGame) { fprintf(stderr, "[ML] " tag "\n"); fflush(stderr); } } while(0)
+#else
+#define ML_TRACE(tag) ((void)0)
+#endif
+        ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
+        ML_TRACE("MemCard_Update");
         MemCard_Update();
+        ML_TRACE("Sd_TaskPoolExecute");
         Sd_TaskPoolExecute();
 
         if (!Sd_AudioStreamingCheck())
         {
+            ML_TRACE("Fs_QueueUpdate");
             Fs_QueueUpdate();
         }
 
+        ML_TRACE("func_80089128");
         func_80089128();
+        ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
+        ML_TRACE("DrawSync");
         DrawSync(SyncMode_Wait);
+        ML_TRACE("VSync-begin");
         // Handle V sync.
         if (g_SysWork.flags_22A4 & SysFlag2_1)
         {
+            ML_TRACE("VSync-flag2_1-branch");
             vBlanks   = VSync(SyncMode_Count);
             g_VBlanks = vBlanks - g_PrevVBlanks;
 
@@ -464,12 +488,16 @@ void MainLoop(void) // 0x80032EE0
         {
             if (g_SysWork.sysState_8 != SysState_Gameplay)
             {
+                ML_TRACE("VSync-nonGameplay");
                 g_VBlanks     = VSync(SyncMode_Count) - g_PrevVBlanks;
                 g_PrevVBlanks = VSync(SyncMode_Count);
+                ML_TRACE("VSync-Wait");
                 VSync(SyncMode_Wait);
+                ML_TRACE("VSync-Wait-done");
             }
             else
             {
+                ML_TRACE("VSync-gameplay");
                 if (!ScreenFade_IsNone())
                 {
                     VSync(SyncMode_Wait);
@@ -495,14 +523,17 @@ void MainLoop(void) // 0x80032EE0
             vCountCopy = vCount;
         }
 
+        ML_TRACE("deltaTime");
         // Update delta time.
         g_DeltaTime    = Q12_MULT(vCount, H_BLANKS_Q12_TO_SEC_SCALE);
         g_DeltaTimeRaw = Q12_MULT(vCountCopy, H_BLANKS_Q12_TO_SEC_SCALE);
         g_GravitySpeed = Q12_MULT(vCount, H_BLANKS_GRAVITY_SCALE);
         GsClearVcount();
 
+        ML_TRACE("GsSwapDispBuff");
         // Draw objects?
         GsSwapDispBuff();
+        ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
         /* Numpad .: cycle fog intensity (edge-triggered, works during gameplay)
          * 100% → 75% → 50% → 25% → off → 100% */
@@ -540,7 +571,9 @@ void MainLoop(void) // 0x80032EE0
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
         }
 #endif
+        ML_TRACE("GsSortClear");
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
+        ML_TRACE("post-GsSortClear");
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == 11) {
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
@@ -567,18 +600,41 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #endif
+        ML_TRACE("OT0-draw");
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+        ML_TRACE("OT0-done");
 #ifdef SH_PC_PORT
-        /* Always sanitize OT2 — subsystems like flashlight and particles
-         * may add garbage prims that crash PsyCross's primitive parser */
+        /* Sanitize InGame OT2 — extended whitelist for 2D overlays.
+         * OT2 holds text, screen fade, cutscene borders via g_OtTags0 layers.
+         * Text uses SPRT (0x64) + DR_TPAGE (0xE1) per glyph, so allow 0xE0
+         * range here (DR_TPAGE is safe; the DR_MODE crashes are in OT0). */
         if (g_GameWork.gameState_594 == 11) {
-            GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
+            GsOT* ot2 = &g_OrderingTable2[g_ActiveBufferIdx];
+            OT_TAG* cur2 = (OT_TAG*)ot2->tag;
+            int w3 = 0;
+            while (cur2 && !isendprim(cur2) && w3 < 4096) {
+                int len2 = getlen(cur2);
+                if (len2 > 0) {
+                    u8 hi2 = ((P_TAG*)cur2)->code & 0xF0;
+                    if (len2 > 32 || (hi2 != 0x00 && hi2 != 0x20 && hi2 != 0x30 &&
+                        hi2 != 0x60 && hi2 != 0x70 && hi2 != 0xA0 && hi2 != 0xE0)) {
+                        setlen(cur2, 0);
+                    }
+                }
+                cur2 = (OT_TAG*)nextPrim(cur2);
+                w3++;
+            }
         }
 #endif
+        ML_TRACE("OT2-draw");
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+        ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
+        ML_TRACE("DebugConsole_Render");
         DebugConsole_Render();
+        ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
+        ML_TRACE("frame-done");
 #endif
     }
 

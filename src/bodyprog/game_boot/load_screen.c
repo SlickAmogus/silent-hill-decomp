@@ -21,7 +21,12 @@ extern s_WorldEnvWork g_WorldEnvWork;
  * @param rot Rotation to apply.
  * @param coord Coordinate to update.
  */
+#ifdef SH_PC_PORT
+/* Non-static on PC so map overlay code (compiled separately) can call it. */
+void Math_MatrixTransform(VECTOR3* pos, SVECTOR* rot, GsCOORDINATE2* coord) // 0x80035B04
+#else
 static void Math_MatrixTransform(VECTOR3* pos, SVECTOR* rot, GsCOORDINATE2* coord) // 0x80035B04
+#endif
 {
     coord->flg        = false;
     coord->coord.t[0] = Q12_TO_Q8(pos->vx);

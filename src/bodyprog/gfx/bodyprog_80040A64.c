@@ -245,7 +245,7 @@ void func_800410D8(VECTOR3* pos0, q19_12* azimuthAngle, q19_12* altitudeAngle, S
     coord.workm.t[2] = Q12_TO_Q8(pos1->vz);
     coord.flg        = true;
 
-    func_80049AF8(&coord, &transformMat);
+    Vw_CoordToViewSpaceMatrix(&coord, &transformMat);
     SetRotMatrix(&transformMat);
     SetTransMatrix(&transformMat);
     RotTrans(&vec0, &offset0, &flag);
@@ -1849,7 +1849,7 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                         coord.workm       = curBufC->field_4;
                         coord.workm.t[0] += cellBoundX;
                         coord.workm.t[2] += cellBoundZ;
-                        func_80049B6C(&coord, &sp98, &sp78);
+                        Vw_CoordToWorldAndViewMatrices(&coord, &sp98, &sp78);
                         func_80057090(&modelInfo, ot, arg4, &sp78, &sp98, 0);
                     }
                 }
@@ -1859,10 +1859,10 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                     switch ((s8)curUnk->pad)
                     {
                         case 0:
-                            func_8005B62C(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                            Gfx_BillboardDraw(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
                             break;
                         case 1:
-                            func_8005B62C(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                            Gfx_BillboardDraw(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
                             break;
                     }
                 }
@@ -1887,7 +1887,7 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                     coord.workm.t[0] += cellBoundX;
                     coord.workm.t[2] += cellBoundZ;
 
-                    func_80049B6C(&coord, &sp98, &sp78);
+                    Vw_CoordToWorldAndViewMatrices(&coord, &sp98, &sp78);
                     func_80057090(&modelInfo, ot, arg4, &sp78, &sp98, 0);
                 }
             }
@@ -1897,11 +1897,11 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                 switch ((s8)curUnk->pad) // TODO: Must be another field.
                 {
                     case 0:
-                        func_8005B62C(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                        Gfx_BillboardDraw(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
                         break;
 
                     case 1:
-                        func_8005B62C(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
+                        Gfx_BillboardDraw(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
                         break;
                 }
             }
@@ -1936,7 +1936,7 @@ bool func_80044420(s_IpdModelBuffer* modelBuf, s16 arg1, s16 arg2, q23_8 posX, q
                 coord.workm.t[1] = Q8(0.0f);
                 coord.workm.t[2] = posZ;
 
-                func_80049AF8(&coord, &mat);
+                Vw_CoordToViewSpaceMatrix(&coord, &mat);
                 return Vw_AabbVisibleInFrustumCheck(&mat, modelBuf->field_4, -0x800, modelBuf->field_8, modelBuf->field_6, 0x400, modelBuf->field_A, 0x1900, g_GameWork.gsScreenHeight_58A);
             }
         }

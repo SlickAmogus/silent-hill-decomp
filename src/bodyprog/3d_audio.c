@@ -150,6 +150,18 @@ void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, 
     q23_8 volCpy;
     q23_8 balance;
 
+#ifdef SH_PC_PORT
+    balance = 0;
+    if (vol > Q8_CLAMPED(1.0f)) vol = Q8_CLAMPED(1.0f);
+    else if (vol < Q8_CLAMPED(0.0f)) vol = Q8_CLAMPED(0.0f);
+    volCpy = vol;
+    if (soundType & (1 << 2))
+        Sd_SfxAttributesUpdate(sfxId, balance, ~volCpy, pitch);
+    else
+        Sd_PlaySfx(sfxId, balance, ~volCpy);
+    return;
+#endif
+
     // Get stereo balance.
     if (soundType & (1 << 0) || g_GameWork.config_0.optSoundType_1E)
     {
@@ -198,6 +210,17 @@ void func_8005DD44(e_SfxId sfxId, VECTOR3* pos, q23_8 vol, s8 pitch) // 0x8005DD
 {
     q23_8 volCpy;
     s32   balance;
+
+#ifdef SH_PC_PORT
+    /* 3D positional audio crashes — Sound_StereoBalanceGet uses camera
+       coord hierarchy that isn't fully set up on PC.  Play with center
+       balance for now. */
+    balance = 0;
+    volCpy = vol;
+    if (volCpy > Q8_CLAMPED(1.0f)) volCpy = Q8_CLAMPED(1.0f);
+    func_80046620(sfxId, balance, ~volCpy, pitch);
+    return;
+#endif
 
     // Get stereo balance.
     if (g_GameWork.config_0.optSoundType_1E)

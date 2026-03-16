@@ -20,6 +20,7 @@ u8 D_800A9945[256] = {0};
 u8 D_800A99B5[256] = {0};
 u8 D_800BCD39[256] = {0};
 u8 D_800BCE14[256] = {0};
+unsigned short g_CollisionFlags = 0; /* renamed from D_800BCE14 upstream */
 u8 D_800C15B4[256] = {0};
 u8 D_800C391E[256] = {0};
 u8 D_800C39A0[256] = {0};
