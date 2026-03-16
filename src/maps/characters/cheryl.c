@@ -3,6 +3,9 @@
 #include "bodyprog/player.h"
 #include "maps/shared.h"
 #include "maps/characters/cheryl.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 /** AI code for `Chara_Cheryl`
  *
@@ -55,7 +58,25 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
 
     if (dahliaProps.properties_F0.val32 == 0)
     {
+#ifdef SH_PC_PORT
+        {
+            s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model_0.anim_4.status_0];
+            static int _cDbg = 0;
+            if (_cDbg < 30) {
+                fprintf(stderr, "[CHERYL_ANIM] status=%d kf=%d func=%p dur=%d startKF=%d endKF=%d stateIdx0=%d\n",
+                        chara->model_0.anim_4.status_0, chara->model_0.anim_4.keyframeIdx_8,
+                        (void*)ai->playbackFunc_0, ai->duration_8.constant,
+                        ai->startKeyframeIdx_C, ai->endKeyframeIdx_E,
+                        dahliaProps.stateIdx0);
+                fflush(stderr);
+                _cDbg++;
+            }
+            if (ai->playbackFunc_0 != NULL)
+                ai->playbackFunc_0(&chara->model_0, anmHdr, coord, ai);
+        }
+#else
         CHERYL_ANIM_INFOS[chara->model_0.anim_4.status_0].playbackFunc_0(&chara->model_0, anmHdr, coord, &CHERYL_ANIM_INFOS[chara->model_0.anim_4.status_0]);
+#endif
     }
 }
 

@@ -1264,6 +1264,11 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
                       g_WorldEnvWork.screenBrightness_8);
     }
 
+#ifdef SH_PC_PORT
+    if (g_WorldGfxWork.registeredCharaModels_18[charaId] == NULL) {
+        return;
+    }
+#endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels_18[charaId]->skeleton_14, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   coord, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
     if (timer != Q12(0.0f))
