@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -308,11 +311,17 @@ void Game_NpcUpdate(void) // 0x80038354
 
             animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model_0.charaId_0];
 #ifdef SH_PC_PORT
-            /* Skip all NPC AI on PC — NPC animation info tables (e.g.
-             * CHERYL_ANIM_INFOS) are stubs with NULL function pointers.
-             * The AI update functions dereference these and crash. */
-            npc->model_0.charaId_0 = Chara_None;
-            continue;
+            /* Skip most NPC AI on PC — NPC animation info tables are stubs
+             * with NULL function pointers.  Allow Cheryl through since her
+             * anim info table is now populated (cheryl_anim_info.c). */
+            if (npc->model_0.charaId_0 != Chara_Cheryl)
+            {
+                npc->model_0.charaId_0 = Chara_None;
+                continue;
+            }
+            /* Ensure Model_AnimStatusSet can fire — stateStep_3 may be left
+             * non-zero from spawn/load, preventing anim status transitions. */
+            npc->model_0.stateStep_3 = 0;
 #endif
             coord           = g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14;
 
@@ -320,6 +329,17 @@ void Game_NpcUpdate(void) // 0x80038354
             Chara_DamagedFlagUpdate(npc);
             func_8003BD48(npc);
 
+#ifdef SH_PC_PORT
+            if (npc->model_0.charaId_0 == Chara_Cheryl) {
+                fprintf(stderr, "[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=%p coord=%p\n",
+                        animDataInfoIdx, (void*)g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, (void*)coord);
+                fflush(stderr);
+                if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
+                    fprintf(stderr, "[NPC_AI] Cheryl anmHdr is NULL! Skipping AI update\n"); fflush(stderr);
+                    continue;
+                }
+            }
+#endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);
 
             func_8003BE28();
@@ -328,7 +348,18 @@ void Game_NpcUpdate(void) // 0x80038354
 
             if (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)
             {
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[NPC] render charaId=%d status=%d kf=%d coord=(%d,%d,%d) timer_C6=%d palette=%d\n",
+                        npc->model_0.charaId_0, npc->model_0.anim_4.status_0,
+                        npc->model_0.anim_4.keyframeIdx_8,
+                        coord->coord.t[0], coord->coord.t[1], coord->coord.t[2],
+                        npc->timer_C6, npc->model_0.paletteIdx_1);
+                fflush(stderr);
+#endif
                 func_8003DA9C(npc->model_0.charaId_0, coord, 1, npc->timer_C6, (s8)npc->model_0.paletteIdx_1);
+#ifdef SH_PC_PORT
+                fprintf(stderr, "[NPC] render OK\n"); fflush(stderr);
+#endif
             }
         }
     }

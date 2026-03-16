@@ -670,14 +670,7 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
         else
         {
-#ifdef SH_PC_PORT
-            /* Sync DMS cutscene position to bone root coords. */
-            coords->coord.t[0] = Q12_TO_Q8(chara->position_18.vx);
-            coords->coord.t[1] = Q12_TO_Q8(chara->position_18.vy);
-            coords->coord.t[2] = Q12_TO_Q8(chara->position_18.vz);
-#else
             g_MapOverlayHeader.func_BC(chara, extra, coords);
-#endif
         }
 
 #ifdef SH_PC_PORT

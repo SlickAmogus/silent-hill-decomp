@@ -593,7 +593,13 @@ void MainLoop(void) // 0x80032EE0
                             setlen(cur, 0);
                         }
                     }
-                    cur = (OT_TAG*)nextPrim(cur);
+                    OT_TAG* next = (OT_TAG*)nextPrim(cur);
+                    /* Guard against wild pointers from corrupted OT entries */
+                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
+                        setlen(cur, 0);
+                        break;
+                    }
+                    cur = next;
                     w2++;
                 }
             }
