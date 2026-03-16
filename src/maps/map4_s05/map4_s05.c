@@ -946,7 +946,7 @@ void func_800D3F84(VECTOR3* floatstinger, s32 arg1, s32 arg2) // 0x800D3F84
     sp10.vy = Q12(FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vy, Q12_SHIFT));
     sp10.vz = Q12(FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vz, Q12_SHIFT));
 
-    func_80049C2C(&sp20, sp10.vx, sp10.vy, sp10.vz);
+    Vw_WorldScreenMatrixAtPositionGet(&sp20, sp10.vx, sp10.vy, sp10.vz);
 
     gte_SetRotMatrix(&sp20);
     gte_SetTransMatrix(&sp20);
@@ -1856,7 +1856,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
 {
     MAP_CHUNK_CHECK_VARIABLE_DECL();
 
-    func_80069844(0xFFFF);
+    func_80069844(CollisionFlag_All);
 
     if (PLAYER_IN_MAP_CHUNK(vz, 1, 3, -1, 3))
     {
@@ -1882,7 +1882,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
     {
         if (Savegame_EventFlagGet(EventFlag_346))
         {
-            Collision_FlagBitsSet(4);
+            Collision_FlagBitsSet(CollisionFlag_2);
 
             if (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(212.0f))
             {
@@ -1891,7 +1891,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
         }
         else
         {
-            Collision_FlagBitsSet(2);
+            Collision_FlagBitsSet(CollisionFlag_1);
         }
     }
     else
@@ -1902,7 +1902,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D7360
             Savegame_EventFlagSet(EventFlag_MapMark_AltCentralTown_CrichtonKoontzBigCross);
         }
 
-        func_80069844(0xFFFF);
+        func_80069844(CollisionFlag_All);
     }
 }
 

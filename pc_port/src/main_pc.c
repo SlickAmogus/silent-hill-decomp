@@ -54,6 +54,7 @@ void SH_DebugLogInit(void)
     }
 }
 
+
 /* Game data path - where the extracted game files are located */
 static char g_GameDataPath[512] = "./gamedata";
 
@@ -90,11 +91,22 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    /* Redirect both stdout and stderr to single log file */
+    /* Redirect both stdout and stderr to single log file.
+     * Hide the console window since all output goes to the log. */
     freopen("SilentHill.log", "w", stdout);
     freopen("SilentHill.log", "a", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+
+    /* Hide the console window — use raw Win32 to avoid windows.h conflicts */
+    {
+        typedef void* HWND;
+        extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
+        extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
+        HWND con = GetConsoleWindow();
+        if (con) ShowWindow(con, /*SW_HIDE*/ 0);
+    }
+
     fprintf(stderr, "[SH] main() entered\n");
 
     PrintBanner();
@@ -201,8 +213,11 @@ int main(int argc, char* argv[])
     MainLoop();
 
     /* Cleanup */
-    SH_LOG("MainLoop exited. Shutting down...");
+    fprintf(stderr, "[SH] MainLoop exited normally. Shutting down...\n");
+    fflush(stderr);
     PsyX_Shutdown();
+    fprintf(stderr, "[SH] Clean shutdown complete.\n");
+    fflush(stderr);
 
     return 0;
 }

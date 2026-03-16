@@ -62,6 +62,16 @@ typedef enum _BgmFlags
     BgmFlag_Unk9 = 1 << 9
 } e_BgmFlags;
 
+typedef enum _CollisionFlags
+{
+    CollisionFlag_None = 0,
+    CollisionFlag_0    = 1 << 0,
+    CollisionFlag_1    = 1 << 1,
+    CollisionFlag_2    = 1 << 2,
+    CollisionFlag_3    = 1 << 3,
+    CollisionFlag_All  = 0xFFFF
+} e_CollisionFlags;
+
 typedef enum _CollisionType
 {
     CollisionType_None = 0,
@@ -367,14 +377,14 @@ typedef struct
     VECTOR3  position_0; // Q19.12
     SVECTOR3 rotation_C; // Q3.12
     s8       field_12;
-} s_func_8006AB50;
+} s_CollisionQuery;
 
 typedef struct
 {
     s32        field_0;
     s32        field_4; // `bool`?
-    q19_12     field_8; // 2D distance.
-    SVECTOR    field_C; // Q23.8 | Position.
+    q19_12     distance_8;
+    SVECTOR    offset_C; // Q23.8
     DVECTOR_XZ direction_14;
     q23_8      positionX_18;
     q23_8      positionZ_1C;
@@ -399,25 +409,25 @@ typedef struct
     u8  field_1;
     s16 field_2;
     s32 field_4;
-} s_func_8006CC44_A8;
+} s_CollisionState_A8;
 
 typedef struct
 {
     s8      field_0;
     s8      unk_1;
     DVECTOR field_2; // Q3.12 | XY rotation.
-} s_func_8006CC44_44_0;
+} s_CollisionState_44_0;
 
 typedef struct
 {
-    s_func_8006CC44_44_0 field_0;
+    s_CollisionState_44_0 field_0;
     s16                  field_6;
-    s_func_8006CC44_44_0 field_8;
+    s_CollisionState_44_0 field_8;
     s16                  field_E;
     s8*                  field_10[8];
-    s_func_8006CC44_44_0 field_30;
+    s_CollisionState_44_0 field_30;
     s16                  field_36;
-} s_func_8006CC44_44;
+} s_CollisionState_44;
 
 typedef struct
 {
@@ -439,7 +449,7 @@ typedef struct
 typedef struct
 {
     s32              field_0;
-    s16              field_4;
+    s16              field_4; // Collision flags.
     s16              field_6;
     q7_8             field_8; // Distance X?
     s8               unk_A[2];
@@ -874,7 +884,7 @@ typedef union
         u8 field_0;
         u8 field_1;
     } s_field_0;
-} s_func_8006CC44_CC_C;
+} s_CollisionState_CC_C;
 
 typedef struct
 {
@@ -885,7 +895,7 @@ typedef struct
     s16        field_10;
     u8         unk_12[2];
     DVECTOR_XZ field_14;
-} s_func_8006CC44_CC_20;
+} s_CollisionState_CC_20;
 
 typedef struct
 {
@@ -893,7 +903,7 @@ typedef struct
     u8                    field_4; // Index.
     u8                    field_5;
     SVECTOR3              field_6;
-    s_func_8006CC44_CC_C  field_C;
+    s_CollisionState_CC_C  field_C;
     u8                    field_E;
     u8                    field_F;
     u8                    field_10;
@@ -901,14 +911,14 @@ typedef struct
     SVECTOR3              field_12;
     SVECTOR3              field_18;
     s8                    unk_1E[2];
-    s_func_8006CC44_CC_20 field_20;
-} s_func_8006CC44_CC;
-STATIC_ASSERT_SIZEOF(s_func_8006CC44_CC, 56);
+    s_CollisionState_CC_20 field_20;
+} s_CollisionState_CC;
+STATIC_ASSERT_SIZEOF(s_CollisionState_CC, 56);
 
 typedef struct
 {
     u8                 field_0_0  : 8;
-    s8                 field_0_8  : 1;
+    s8                 field_0_8  : 1; // Something to do with collision. `bool` flag that states if there's a displacement?
     s8                 field_0_9  : 1;
     s8                 field_0_10 : 1;
     s8                 field_0_11 : 5;
@@ -920,7 +930,7 @@ typedef struct
     s16                field_3C; // X?
     s16                field_3E; // Z?
     s8*                field_40;
-    s_func_8006CC44_44 field_44;
+    s_CollisionState_44 field_44;
     s32                field_7C;
     s32                field_80; // X
     s32                field_84; // Z
@@ -947,7 +957,7 @@ typedef struct
             u8                 field_2;
             u8                 field_3;
             s_func_8006CA18*   field_4;
-            s_func_8006CC44_A8 field_8[4];
+            s_CollisionState_A8 field_8[4];
         } s_0;
         struct
         {
@@ -962,9 +972,9 @@ typedef struct
     u8                 field_C8;
     u8                 unk_C9[1];
     s16                field_CA;
-    s_func_8006CC44_CC field_CC;
+    s_CollisionState_CC field_CC;
     // TODO: May be incomplete. Maybe not, added the final padding based on `Collision_Get`.
-} s_func_8006CC44;
+} s_CollisionState;
 
 typedef struct _GlobalLm
 {
@@ -1315,7 +1325,7 @@ typedef struct _WorldEnvWork
 
 typedef struct
 {
-    u16            flags_0;
+    u16            flags_0; // Collision flags.
     u8             triggerZoneCount_2;
     u8             unk_3;
     s_TriggerZone* triggerZones_4[20]; // Guessed size.
@@ -1771,8 +1781,8 @@ typedef struct
     s16   field_0;
     s16   field_2; // Move dist?
     q3_12 field_4; // Angle.
-    s16   unk_6;
-    s16   unk_8;
+    s16   field_6;
+    s16   field_8;
     s16   unk_A;
     s16   field_C;
     s16   field_E;
@@ -1789,11 +1799,11 @@ typedef struct
     s_800AE204* ptr_0;
     u8          count_4;
     u8          unk_5;
-    s16         unk_6;
-    u8          unk_8;
-    u8          unk_9;
-    u8          unk_A;
-    u8          unk_B;
+    s16         field_6;
+    u8          field_8;
+    u8          field_9;
+    u8          field_A;
+    u8          field_B;
 } s_800AE4DC;
 
 typedef struct
@@ -2463,7 +2473,7 @@ extern s8* D_800BCDE0; // Type assumed.
 /** Angles. */
 extern s16 D_800BCDE8[8];
 
-extern u16 D_800BCE14;
+extern u16 g_CollisionFlags;
 
 extern s_WorldGfxWork g_WorldGfxWork;
 
@@ -2611,6 +2621,8 @@ void func_8003943C(void);
 void SysState_Fmv_Update(void);
 
 s32 Map_TypeGet(void);
+
+void func_8003BD48(const s_SubCharacter* chara);
 
 void CharaModel_Free(s_CharaModel* model);
 
@@ -3161,7 +3173,7 @@ void Texture_RefClear(s_Texture* tex);
 
 void Material_TimFileNameGet(char* filename, s_Material* mat);
 
-void func_8005B424(VECTOR3* vec0, VECTOR3* vec1);
+void func_8005B424(VECTOR3* vec0, const VECTOR3* vec1);
 
 /** @unused No references. */
 void func_800563E8(s_LmHeader* lmHdr, s32 arg1, s32 arg2, s32 arg3);
@@ -3195,7 +3207,8 @@ bool Lm_ModelFind(s_WorldObjectModel* arg0, s_LmHeader* lmHdr, s_WorldObjectMeta
 
 void StringCopy(char* prevStr, char* newStr);
 
-void func_80056D8C(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s32 arg5, GsOT* arg6, s32 arg7);
+/** @brief Draws a 2D fog overlay quad. */
+void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s32 arg5, GsOT* ot, s32 arg7);
 
 /** Crucial 3D drawing function. */
 void func_80057090(s_ModelInfo* modelInfo, GsOT* otTag, s32 arg2, MATRIX* mat0, MATRIX* mat1, u16 arg5);
@@ -3218,14 +3231,14 @@ void func_80057A3C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
 void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchData, MATRIX* mat);
 
 /** Main quad drawing func? */
-void func_8005801C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG* tag, s32 arg3);
+void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG* tag, s32 arg3);
 
 /** `arg4` unused. */
 s_Texture* Texture_Get(s_Material* mat, s_ActiveTextures* activeTexs, void* fsBuf9, e_FsFile fileIdx, s32 arg4);
 
 void func_8005B55C(GsCOORDINATE2* coord);
 
-void func_8005B62C(s32 arg0, s32 x, s32 y, s32 z, GsOT* ot_arg4, s32 arg5);
+void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot_arg4, s32 arg5);
 
 u32 func_8005C478(s16* arg0, s32 x0, s32 y0, s32 x1, s32 y1, s32 x2, s32 y2);
 
@@ -3766,7 +3779,7 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ);
 
 /** @brief Detects a wall collision using the scratchpad for performance.
  *
- * @param result Output collision result.
+ * @param collResult Output collision result.
  * @param offset Movement offset.
  * @param chara Character to check.
  * @return Wall response code.
@@ -3775,7 +3788,7 @@ s32 Collision_WallDetect(s_CollisionResult* collResult, VECTOR3* offset, s_SubCh
 
 /** @brief Handles a wall collision response by sampling the ground at 9 points around a character.
  *
- * @param result Output collision result.
+ * @param collResult Output collision result.
  * @param offset Movement offset.
  * @param chara Character to check.
  * @param response Initial collision pass response.
@@ -3783,18 +3796,35 @@ s32 Collision_WallDetect(s_CollisionResult* collResult, VECTOR3* offset, s_SubCh
  */
 s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* offset, s_SubCharacter* chara, s32 response);
 
-void func_80069DF0(s_CollisionResult* collResult, const VECTOR3* pos, s32 arg2, s32 arg3);
+/** @brief Probes ground heights at 16 radial points to determine the terrain slope direction.
+ * Creates a terrain avoidance force to push away from illegal positions.
+ *
+ * @param collResult Output collision result with XZ offset vector pointing away from the highest terrain.
+ * @param pos Center position.
+ * @param startGroundHeight Starting character Y position.
+ * @param startHeadingAngle Starting heading angle on the XZ plane for the probe circle.
+ */
+void Collision_GroundProbeRadial(s_CollisionResult* collResult, const VECTOR3* pos,
+                                 q19_12 startGroundHeight, q19_12 startHeadingAngle);
 
 /** @brief Applies collision detection for a character's movement offset.
  *
- * @param result Output collision result.
+ * @param collResult Output collision result.
  * @param offset Movement offset to test.
  * @param chara Character performing movement.
  * @return Collision result response.
  */
-s32 Collision_OffsetApply(s_CollisionResult* collResult, VECTOR3* offset, s_SubCharacter* chara);
+s32 Collision_CharaCollisionSetup(s_CollisionResult* collResult, VECTOR3* offset, s_SubCharacter* chara);
 
-void func_8006A178(s_CollisionResult* collResult, q19_12 posX, q19_12 posY, q19_12 posZ, q19_12 heightY);
+/** @brief Initializes a default collision result with a position and ground height.
+ *
+ * @param result Collision result to initialize.
+ * @param offsetX X offset.
+ * @param offsetY Y offset.
+ * @param offsetZ Z offset.
+ * @param groundHeight Ground height.
+ */
+void Collision_DefaultResultSet(s_CollisionResult* collResult, q19_12 offsetX, q19_12 offsetY, q19_12 offsetZ, q19_12 groundHeight);
 
 /** @brief Gets an array of active characters for collision testing.
  *
@@ -3805,82 +3835,103 @@ void func_8006A178(s_CollisionResult* collResult, q19_12 posX, q19_12 posY, q19_
  */
 s_SubCharacter** Collision_ActiveCharactersGet(s32* charaCount, const s_SubCharacter* excludeChara, bool includePlayer);
 
-s32 func_8006A3B4(s32 arg0, VECTOR* offset, s_func_8006AB50* arg2);
+/** @brief Checks a movement offset against a collision result.
+ *
+ * @param collResult Collision result.
+ * @param offset Movement offset to test.
+ * @param query Collision query parameters.
+ * @return `true` if movement is possible, `false` otherwise.
+ */
+s32 Collision_OffsetCheck(s_CollisionResult* collResult, VECTOR* offset, s_CollisionQuery* collQuery);
 
-s32 func_8006A42C(s32 arg0, VECTOR3* offset, s_func_8006AB50* arg2);
+s32 func_8006A42C(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery);
 
-s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_func_8006AB50* arg2, s32 arg3,
+s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery, s32 arg3,
                   s_IpdCollisionData** collDataPtrs, s32 collDataIdx, s_func_8006CF18* arg6, s32 arg7, s_SubCharacter** charas, s32 charaCount);
 
-void func_8006A940(VECTOR3* offset, s_func_8006AB50* arg1, s_SubCharacter** charas, s32 charaCount);
+// Claude suggests `Collision_NpcMovementDampen`? Investigate.
+void func_8006A940(VECTOR3* offset, s_CollisionQuery* collQuery, s_SubCharacter** charas, s32 charaCount);
 
-void func_8006AB50(s_func_8006CC44* arg0, VECTOR3* pos, s_func_8006AB50* arg2, s32 arg3);
+/** @brief Initializes a collision state for a new pass.
+ *
+ * @param collState Collision state to initialize.
+ * @param offset Movement offset.
+ * @param collQuery Input collision query parameters.
+ * @param arg3 Configuration flag. @todo What is it?
+ */
+void Collision_QueryInit(s_CollisionState* collState, VECTOR3* offset, s_CollisionQuery* collQuery, s32 arg3);
 
-void func_8006ABC0(s_func_8006ABC0* result, VECTOR3* pos, s_func_8006AB50* arg2);
+/** @brief Calculates the movement direction vector and distance from a position offset.
+ *
+ * @param result Output movement direction and position data.
+ * @param offset Movement offset.
+ * @param collQuery Input collision query parameters.
+ */
+void Collision_QueryDirectionCalc(s_func_8006ABC0* result, const VECTOR3* offset, const s_CollisionQuery* collQuery);
 
-void func_8006AD44(s_func_8006CC44* arg0, s_IpdCollisionData* collData);
+void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData);
 
-bool func_8006AEAC(s_func_8006CC44* arg0, s_IpdCollisionData* collData);
+bool func_8006AEAC(s_CollisionState* collState, s_IpdCollisionData* collData);
 
-bool func_8006B004(s_func_8006CC44* arg0, s_IpdCollisionData* collData);
+bool func_8006B004(s_CollisionState* collState, s_IpdCollisionData* collData);
 
-void func_8006B1C8(s_func_8006CC44* arg0, s_IpdCollisionData* collData, s_IpdCollisionData_20* arg2);
+void func_8006B1C8(s_CollisionState* collState, s_IpdCollisionData* collData, s_IpdCollisionData_20* arg2);
 
-bool func_8006B318(s_func_8006CC44* arg0, s_IpdCollisionData* collData, s32 idx);
+bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s32 idx);
 
 /** `arg1` is unused, but `func_8006B1C8` passes second arg to this. */
-void func_8006B6E8(s_func_8006CC44* arg0, s_IpdCollisionData_20* arg1);
+void func_8006B6E8(s_CollisionState* collState, s_IpdCollisionData_20* arg1);
 
-bool func_8006B7E0(s_func_8006CC44_A8* arg0, s_func_8006CC44_CC_20* arg1);
+bool func_8006B7E0(s_CollisionState_A8* arg0, s_CollisionState_CC_20* arg1);
 
-void func_8006B8F8(s_func_8006CC44_CC* arg0);
+void func_8006B8F8(s_CollisionState_CC* arg0);
 
-void func_8006B9C8(s_func_8006CC44* arg0);
+void func_8006B9C8(s_CollisionState* collState);
 
-void func_8006BB50(s_func_8006CC44* arg0, s32 arg1);
+void func_8006BB50(s_CollisionState* collState, s32 arg1);
 
-s32 func_8006BC34(s_func_8006CC44* arg0);
+s32 func_8006BC34(s_CollisionState* collState);
 
 /** `arg3` and `arg4` might be XY or XZ position components. */
-void func_8006BCC4(s_func_8006CC44_44* arg0, s8* arg1, u32 arg2, q3_12 deltaX, q3_12 deltaZ, s16 arg5);
+void func_8006BCC4(s_CollisionState_44* arg0, s8* arg1, u32 arg2, q3_12 deltaX, q3_12 deltaZ, s16 arg5);
 
-void func_8006BDDC(s_func_8006CC44_44_0* arg0, q3_12 rotX, q3_12 rotY);
+void func_8006BDDC(s_CollisionState_44_0* arg0, q3_12 rotX, q3_12 rotY);
 
-void func_8006BE40(s_func_8006CC44* arg0);
+void func_8006BE40(s_CollisionState* collState);
 
-void func_8006BF88(s_func_8006CC44* arg0, SVECTOR3* arg1);
+void func_8006BF88(s_CollisionState* collState, SVECTOR3* arg1);
 
-void func_8006C0C8(s_func_8006CC44*, s16, s16);
+void func_8006C0C8(s_CollisionState* collState, s16 arg1, s16 arg2);
 
-bool func_8006C1B8(u32 arg0, s16 arg1, s_func_8006CC44* arg2);
+bool func_8006C1B8(u32 arg0, s16 arg1, s_CollisionState* collState);
 
 s16 func_8006C248(s32 arg0, s16 arg1, q3_12 deltaX, q3_12 deltaZ, s16 arg4);
 
-bool func_8006C3D4(s_func_8006CC44* arg0, s_IpdCollisionData* collData, s32 idx);
+bool func_8006C3D4(s_CollisionState* collState, s_IpdCollisionData* collData, s32 idx);
 
-void func_8006C45C(s_func_8006CC44* arg0);
+void func_8006C45C(s_CollisionState* collState);
 
-void func_8006C794(s_func_8006CC44* arg0, s32 arg1, s32 dist);
+void func_8006C794(s_CollisionState* collState, s32 arg1, s32 dist);
 
-void func_8006C838(s_func_8006CC44* arg0, s_IpdCollisionData* collData);
+void func_8006C838(s_CollisionState* collState, s_IpdCollisionData* collData);
 
-void func_8006CA18(s_func_8006CC44* arg0, s_IpdCollisionData* collData, s_func_8006CA18* arg2);
+void func_8006CA18(s_CollisionState* collState, s_IpdCollisionData* collData, s_func_8006CA18* arg2);
 
-s16 func_8006CB90(s_func_8006CC44* arg0);
+s16 func_8006CB90(s_CollisionState* collState);
 
-s32 func_8006CC44(q23_8 x, q23_8 z, s_func_8006CC44* arg2);
+s32 func_8006CC44(q23_8 x, q23_8 z, s_CollisionState* arg2);
 
-void func_8006CC9C(s_func_8006CC44* arg0);
+void func_8006CC9C(s_CollisionState* collState);
 
-void func_8006CF18(s_func_8006CC44* arg0, s_func_8006CF18* arg1, s32 idx);
+void func_8006CF18(s_CollisionState* collState, s_func_8006CF18* arg1, s32 idx);
 
-void func_8006D01C(VECTOR3* arg0, VECTOR3* arg1, s16 arg2, s_func_8006CC44* arg3);
+void func_8006D01C(VECTOR3* arg0, VECTOR3* arg1, s16 arg2, s_CollisionState* arg3);
 
-void func_8006D2B4(VECTOR3* arg0, s_func_8006CC44_44* arg1);
+void func_8006D2B4(VECTOR3* arg0, s_CollisionState_44* arg1);
 
 void func_8006D600(VECTOR3* pos, s32 arg1, s32 arg2, s32 arg3, s32 arg4);
 
-void func_8006D774(s_func_8006CC44* arg0, VECTOR3* arg1, VECTOR3* arg2);
+void func_8006D774(s_CollisionState* collState, VECTOR3* arg1, VECTOR3* arg2);
 
 /** `arg1` is likely Q23.8. */
 void func_8006D7EC(s_func_8006ABC0* arg0, SVECTOR* arg1, SVECTOR* arg2);
@@ -3924,7 +3975,7 @@ void func_8006F338(s_func_8006F338* arg0, q19_12 posX, q19_12 posZ, q19_12 posDe
 bool func_8006F3C4(s_func_8006F338* arg0, const s_TriggerZone* zone);
 
 /** Translates something. */
-s32 func_8006F620(VECTOR3* pos, s_func_8006AB50* arg1, s32 arg2, s32 arg3);
+s32 func_8006F620(VECTOR3* pos, s_CollisionQuery* collQuery, s32 arg2, s32 arg3);
 
 void func_8006F8FC(q19_12* outX, q19_12* outZ, q19_12 posX, q19_12 posZ, const s_TriggerZone* zone);
 

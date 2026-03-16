@@ -1,4 +1,7 @@
 #include "bodyprog/player.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 // TODO:
 // - Rename `sharedFunc_800CDAA8_0_s02` -> `sharedFunc_800D0E34_0_s00`, sharedData_800D32A0_0_s02` -> `sharedData_800E39DC_0_s00`
@@ -208,6 +211,11 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
     playerChara->properties_E4.player.afkTimer_E8        = Q12(0.0f);
     playerChara->properties_E4.player.exhaustionTimer_FC = Q12(0.0f);
+
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[B8] pre-switch1 kf=%d\n", playerChara->model_0.anim_4.keyframeIdx_8);
+    fflush(stderr);
+#endif
 
     switch (g_SysWork.playerWork_4C.extra_128.state_1C)
     {
@@ -2223,8 +2231,14 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[B8] post-switch1\n"); fflush(stderr);
+#endif
     Collision_Get(&coll, playerChara->position_18.vx, playerChara->position_18.vz);
     func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[B8] post-coll\n"); fflush(stderr);
+#endif
 
     switch (g_SysWork.playerWork_4C.extra_128.state_1C)
     {
@@ -2910,6 +2924,9 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             break;
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[B8] post-switch2\n"); fflush(stderr);
+#endif
     newMoveSpeed = sharedData_800D32A0_0_s02;
 
     playerChara->rotation_24.vy  = Q12_ANGLE_NORM_U((playerChara->rotation_24.vy + (sharedData_800E39D8_0_s00 >> 4)) + Q12_ANGLE(360.0f));
@@ -2919,4 +2936,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
     coord->flg = false;
     Math_RotMatrixZxyNegGte(&playerChara->rotation_24, &coord->coord);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[B8] done\n"); fflush(stderr);
+#endif
 }

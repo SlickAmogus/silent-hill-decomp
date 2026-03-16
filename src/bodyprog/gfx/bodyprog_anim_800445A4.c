@@ -813,7 +813,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
             if (var_s0 != curImage->clutY)
             {
                 var_s0 = curImage->clutY;
-                func_80049AF8(&coord[var_s0], &mat0);
+                Vw_CoordToViewSpaceMatrix(&coord[var_s0], &mat0);
                 SetRotMatrix(&mat0);
                 SetTransMatrix(&mat0);
             }
@@ -870,7 +870,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
 #endif
         if (curBone->bone_0.modelInfo_0.field_0 >= 0)
         {
-            func_80049B6C(&coord[(u8)curBone->bone_0.field_10], &mat1, &mat0);
+            Vw_CoordToWorldAndViewMatrices(&coord[(u8)curBone->bone_0.field_10], &mat1, &mat0);
 
 #ifdef SH_PC_PORT
             if (g_BoneLogFrames < 2) {
@@ -991,7 +991,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
             var_v0_5 = (var_v0_4 / 4) + 2;
         }
 
-        func_80056D8C(var_s5 - var_v0_5, var_s6 - var_v0_5, var_s7 + var_v0_5, var_fp + var_v0_5, var_s3_2 * 16, var_s2, ot, arg2);
+        Gfx_FogOverlayQuadDraw(var_s5 - var_v0_5, var_s6 - var_v0_5, var_s7 + var_v0_5, var_fp + var_v0_5, var_s3_2 * 16, var_s2, ot, arg2);
     }
 
 #ifdef SH_PC_PORT

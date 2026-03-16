@@ -501,11 +501,11 @@ Game_RadioSoundStop                          = 0x80037188; // type:func
 //---------------------------------------------------------------------------
 Chara_PositionSet                            = 0x800371E8; // type:func
 Game_PlayerHeightUpdate                      = 0x80037334; // type:func
-Event_ItemTriggersClear.0                    = 0x80037388; // filename:Event_ItemTriggersClear type:func - Compiler adds suffix to end of nested func names.
 
 //---------------------------------------------------------------------
-//--- PA: 0x01286C   VA: 0x800373CC   subsegment: c, events/events_main
+//--- PA: 0x012828   VA: 0x80037388   subsegment: c, events/events_main
 //---------------------------------------------------------------------
+Event_ItemTriggersClear.0                    = 0x80037388; // filename:Event_ItemTriggersClear type:func - Compiler adds suffix to end of nested func names.
 Event_Update                                 = 0x800373CC; // type:func
 Event_CollideFacingCheck                     = 0x800378D4; // type:func
 Event_CollideObbFacingCheck                  = 0x80037A4C; // type:func
@@ -788,6 +788,7 @@ vwSetCoordRefAndEntou                        = 0x80048BE0; // type:func
 vwSetViewInfoDirectMatrix                    = 0x80048CF0; // type:func
 vwSetViewInfo                                = 0x80048D48; // type:func
 Vw_ClampAngleRange                           = 0x80048DA8; // type:func
+Vw_LineSegmentIntersectionCheck              = 0x80048E3C; // type:func
 
 //---------------------------------------------------------------
 //--- PA: 0x0243C8   VA: 0x80048F28   subsegment: c, view/vw_calc
@@ -797,11 +798,16 @@ vwLimitOverLimVector                         = 0x8004914C; // type:func
 vwDecreaseSideOfVector                       = 0x80049228; // type:func
 vwRetNewVelocityToTargetVal                  = 0x80049388; // type:func
 vwRetNewAngSpdToTargetAng                    = 0x80049464; // type:func
+Vw_ClampedSpeedToTargetGet                   = 0x800494B0; // type:func
+Vw_TransformAndProjectPoint                  = 0x80049530; // type:func
 vwMatrixToAngleYXZ                           = 0x800495D4; // type:func
 Vw_MultiplyAndTransformMatrix                = 0x800496AC; // type:func
 vbSetWorldScreenMatrix                       = 0x800497E4; // type:func
 vbSetRefView                                 = 0x800498D8; // type:func
 Vw_CoordHierarchyMatrixCompute               = 0x80049984; // type:func
+Vw_CoordToViewSpaceMatrix                    = 0x80049AF8; // type:func
+Vw_CoordToWorldAndViewMatrices               = 0x80049B6C; // type:func
+Vw_WorldScreenMatrixAtPositionGet            = 0x80049C2C; // type:func
 Vw_AabbVisibleInScreenCheck                  = 0x80049D04; // type:func
 Vw_AabbVisibleInFrustumCheck                 = 0x80049F38; // type:func
 vwAngleToVector                              = 0x8004A66C; // type:func
@@ -900,7 +906,9 @@ LmHeader_ModelCountGet                       = 0x80056C80; // type:func
 Bone_ModelAssign                             = 0x80056C8C; // type:func
 Lm_ModelFind                                 = 0x80056CB4; // type:func
 StringCopy                                   = 0x80056D64; // type:func
+Gfx_FogOverlayQuadDraw                       = 0x80056D8C; // type:func
 func_800571D0                                = 0x800571D0; // type:func size:0x58 - Fix for truncated function.
+Gfx_MeshDraw                                 = 0x8005801C; // type:func
 Texture_Init                                 = 0x8005B1A0; // type:func
 Texture_Get                                  = 0x8005B1FC; // type:func
 Texture_RefCountReset                        = 0x8005B370; // type:func
@@ -909,6 +917,7 @@ Material_TimFileNameGet                      = 0x8005B3BC; // type:func
 Textures_ActiveTex_CountReset                = 0x8005B46C; // type:func
 Textures_ActiveTex_PutTextures               = 0x8005B474; // type:func
 Textures_ActiveTex_FindTexture               = 0x8005B4BC; // type:func
+Gfx_BillboardDraw                            = 0x8005B62C; // type:func
 Gfx_DebugStringPositionSet                   = 0x8005BF0C; // type:func
 
 //-------------------------------------------------------------------------
@@ -955,8 +964,13 @@ IpdCollData_FixOffsets                       = 0x8006993C; // type:func
 Collision_Get                                = 0x800699F8; // type:func
 Collision_WallDetect                         = 0x80069B24; // type:func
 Collision_WallResponse                       = 0x80069BA8; // type:func
-Collision_OffsetApply                        = 0x80069FFC; // type:func
+Collision_GroundProbeRadial                  = 0x80069DF0; // type:func
+Collision_CharaCollisionSetup                = 0x80069FFC; // type:func
+Collision_DefaultResultSet                   = 0x8006A178; // type:func
 Collision_ActiveCharactersGet                = 0x8006A1A4; // type:func
+Collision_OffsetCheck                        = 0x8006A3B4; // type:func
+Collision_QueryInit                          = 0x8006AB50; // type:func
+Collision_QueryDirectionCalc                 = 0x8006ABC0; // type:func
 Ray_LineCheck                                = 0x8006D90C; // type:func
 Ray_MissSet                                  = 0x8006DAE4; // type:func
 Ray_TraceSetup                               = 0x8006DCE0; // type:func
@@ -3091,6 +3105,7 @@ g_MapEventData                               = 0x800BCDD8; // type:u32 - pointer
 //--- PA: 0x098298   VA: 0x800BCDF8   subsegment: bss
 //---------------------------------------------------
 vcRefPosSt                                   = 0x800BCDF8; // type:VECTOR3 size:0xC
+g_CollisionFlags                             = 0x800BCE14;
 g_WorldGfxWork                               = 0x800BCE18; // type:u8 size:0x2DBC
 
 //---------------------------------------------------------------------------

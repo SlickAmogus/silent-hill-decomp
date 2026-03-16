@@ -654,12 +654,13 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         else
         {
 #ifdef SH_PC_PORT
-            /* Map overlay player state functions access subsystems not yet
-             * working on PC (collision, animation data from disc, etc.).
-             * Skip during cutscenes to avoid crashes. */
-            (void)0;
-#else
+            fprintf(stderr, "[PC] func_B8 ENTER state=%d\n", g_SysWork.playerWork_4C.extra_128.state_1C);
+            fflush(stderr);
+#endif
             g_MapOverlayHeader.func_B8(chara, extra, coords);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[PC] func_B8 EXIT OK\n");
+            fflush(stderr);
 #endif
         }
 
@@ -670,15 +671,24 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         else
         {
 #ifdef SH_PC_PORT
-            /* Map overlay func_BC accesses subsystems not yet working on PC.
-             * Rotation matrix and coords already set by our PC shim above. */
-            (void)0;
+            /* Sync DMS cutscene position to bone root coords. */
+            coords->coord.t[0] = Q12_TO_Q8(chara->position_18.vx);
+            coords->coord.t[1] = Q12_TO_Q8(chara->position_18.vy);
+            coords->coord.t[2] = Q12_TO_Q8(chara->position_18.vz);
 #else
             g_MapOverlayHeader.func_BC(chara, extra, coords);
 #endif
         }
 
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[PC] Player_AnimUpdate ENTER\n");
+        fflush(stderr);
+#endif
         Player_AnimUpdate(chara, extra, anmHdr, coords);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[PC] Player_AnimUpdate EXIT OK\n");
+        fflush(stderr);
+#endif
 #ifndef SH_PC_PORT
         func_8007D090(chara, extra, coords);
 #endif

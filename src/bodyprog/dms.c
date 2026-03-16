@@ -1,6 +1,10 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
 
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
+
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
 
@@ -15,14 +19,22 @@
 // DMS FILE HANDLING
 // ========================================
 
+#ifdef SH_PC_PORT
+/* Heap-backed DMS header that survives FS buffer overwrites (defined in dms_reformat.c) */
+extern s_DmsHeader* g_DmsHeapHeader;
+#define DMS_HDR_REDIRECT(p) do { if (g_DmsHeapHeader) (p) = g_DmsHeapHeader; } while(0)
+#else
+#define DMS_HDR_REDIRECT(p) ((void)0)
+#endif
+
 void DmsHeader_FixOffsets(s_DmsHeader* dmsHdr) // 0x8008C9A0
 {
     s_DmsEntry* curEntry;
 
 #ifdef SH_PC_PORT
-    /* DMS binary data uses PSX 32-bit struct layout with 4-byte pointers.
-     * On 64-bit PC, struct field offsets differ. Skip until we implement
-     * a DMS reformatter (like LmHeader_FixOffsets_PC). */
+    /* PC: use DmsHeader_FixOffsets_PC from dms_reformat.c which handles 32→64-bit struct conversion */
+    extern void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr);
+    DmsHeader_FixOffsets_PC(dmsHdr);
     return;
 #endif
     if (dmsHdr->isLoaded_0)
@@ -61,6 +73,7 @@ void Dms_CharacterGetPosRot(VECTOR3* pos, SVECTOR3* rot, const char* charaName, 
 {
     s32 charaIdx;
 
+    DMS_HDR_REDIRECT(dmsHdr);
     charaIdx = Dms_CharacterFindIdxByName(charaName, dmsHdr);
     if (charaIdx == NO_VALUE)
     {
@@ -150,6 +163,7 @@ s32 Dms_CameraGetTargetPos(VECTOR3* posTarget, VECTOR3* lookAtTarget, u16* arg2,
     s32                 camProjValue;
     s_DmsEntry*         camEntry;
 
+    DMS_HDR_REDIRECT(dmsHdr);
     camEntry = &dmsHdr->camera_1C;
 
     func_8008D1D0(&keyframePrev, &keyframeNext, &alpha, time, camEntry, dmsHdr);

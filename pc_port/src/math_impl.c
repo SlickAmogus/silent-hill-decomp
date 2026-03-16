@@ -178,7 +178,7 @@ MATRIX* Math_RotMatrixZ(s32 angle, MATRIX* mat)
  * Math_MatrixTransform - Transform a vector by a matrix
  * Multiplies mat * vec, result in Q19.12
  */
-void Math_MatrixTransform(MATRIX* mat, VECTOR3* in, VECTOR3* out)
+void Math_MatrixVectorMul(MATRIX* mat, VECTOR3* in, VECTOR3* out)
 {
     s32 x = in->vx, y = in->vy, z = in->vz;
 
