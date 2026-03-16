@@ -386,6 +386,19 @@ void MainLoop(void) // 0x80032EE0
 
         g_ActiveBufferIdx = GsGetActiveBuff();
 
+#ifdef SH_PC_PORT
+        /* PC primitives are larger than PSX (8-byte pointers, bigger structs).
+         * The original 128KB packet buffer overflows when rendering 2+ characters.
+         * Allocate 512KB per buffer from heap instead of fixed PSX temp memory. */
+        {
+            static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
+            if (!s_PcPacketBufs[0]) {
+                s_PcPacketBufs[0] = (PACKET*)calloc(1, 512 * 1024);
+                s_PcPacketBufs[1] = (PACKET*)calloc(1, 512 * 1024);
+            }
+            GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
+        }
+#else
         if (g_GameWork.gameState_594 == GameState_MainLoadScreen ||
             g_GameWork.gameState_594 == GameState_InGame)
         {
@@ -399,6 +412,7 @@ void MainLoop(void) // 0x80032EE0
         {
             GsOUT_PACKET_P = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 15));
         }
+#endif
 
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);

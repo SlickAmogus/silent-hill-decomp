@@ -154,6 +154,13 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
         g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 13)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x\n",
+                g_SysWork.sysStateStep_C[0],
+                g_Controller0->btnsClicked_10,
+                g_GameWorkPtr->config_0.controllerConfig_0.skip_4);
+        fflush(stderr);
+#endif
         skipCutscene = true;
         SysWork_StateStepReset();
     }
@@ -334,6 +341,16 @@ void func_800D9D98(void) // 0x800D9D98
 {
     func_800DA454();
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateStep_C[0] != _lastStep) {
+            fprintf(stderr, "[D9D98] step=%d\n", g_SysWork.sysStateStep_C[0]);
+            fflush(stderr);
+            _lastStep = g_SysWork.sysStateStep_C[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
@@ -384,6 +401,16 @@ void func_800DA028(void) // 0x800DA028
 {
     func_800DA454();
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateStep_C[0] != _lastStep) {
+            fprintf(stderr, "[DA028] step=%d\n", g_SysWork.sysStateStep_C[0]);
+            fflush(stderr);
+            _lastStep = g_SysWork.sysStateStep_C[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
