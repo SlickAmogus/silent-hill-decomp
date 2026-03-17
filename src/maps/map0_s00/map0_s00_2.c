@@ -536,6 +536,16 @@ void func_800DA5A0(void) // 0x800DA5A0
     s32 temp_s1_2;
     s32 temp_s2;
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateStep_C[0] != _lastStep) {
+            fprintf(stderr, "[DA5A0] step=%d\n", g_SysWork.sysStateStep_C[0]);
+            fflush(stderr);
+            _lastStep = g_SysWork.sysStateStep_C[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
@@ -609,10 +619,28 @@ void func_800DA5A0(void) // 0x800DA5A0
             break;
 
         case 3:
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[DA5A0] step3: npc0 charaId=%d pos=(%d,%d,%d) stateEC=%d\n",
+                    g_SysWork.npcs_1A0[0].model_0.charaId_0,
+                    g_SysWork.npcs_1A0[0].position_18.vx,
+                    g_SysWork.npcs_1A0[0].position_18.vy,
+                    g_SysWork.npcs_1A0[0].position_18.vz,
+                    g_SysWork.npcs_1A0[0].properties_E4.dummy.properties_E8[1].val32);
+            fflush(stderr);
+#endif
             g_SysWork.npcs_1A0[0].properties_E4.player.headingAngle_124 = Q12(1.8f);
 
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[DA5A0] step3: calling func_80086728\n"); fflush(stderr);
+#endif
             func_80086728(&g_SysWork.npcs_1A0[0], 2, 1, 0);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[DA5A0] step3: func_80086728 returned\n"); fflush(stderr);
+#endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[DA5A0] step3: done\n"); fflush(stderr);
+#endif
             break;
 
         case 4:

@@ -87,6 +87,20 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
     s_AnmBindPose* curBindPose;
 
     boneCount     = anmHdr->boneCount_6;
+#ifdef SH_PC_PORT
+    /* Guard against out-of-bounds keyframe access — NPC anim info tables
+     * may reference keyframes beyond the loaded animation data. */
+    if (anmHdr->keyframeDataSize_4 == 0) return;
+    {
+        s32 maxKF = anmHdr->keyframeCount_10;
+        if (maxKF > 0) {
+            if (keyframe0 >= maxKF) keyframe0 = maxKF - 1;
+            if (keyframe1 >= maxKF) keyframe1 = maxKF - 1;
+        }
+        if (keyframe0 < 0) keyframe0 = 0;
+        if (keyframe1 < 0) keyframe1 = 0;
+    }
+#endif
     frame0Data    = ((u8*)anmHdr + anmHdr->dataOffset_0) + (anmHdr->keyframeDataSize_4 * keyframe0);
     frame0RotData = frame0Data + (anmHdr->translationBoneCount_3 * 3);
     frame1Data    = ((u8*)anmHdr + anmHdr->dataOffset_0) + (anmHdr->keyframeDataSize_4 * keyframe1);

@@ -8,6 +8,13 @@ bool sharedFunc_800D8A00_0_s00(s_SubCharacter* chara, s32 arg1, VECTOR3* arg2In,
     q7_8     shortestAngle;
     q19_12   angleStep;
     q23_8    dist;
+
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[NPC_WP] ENTER chara=%p charaId=%d arg1=%d arg2=%p angleIn=%d arg4=%d stateEC=%d\n",
+            (void*)chara, chara->model_0.charaId_0, arg1, (void*)arg2In, angleIn, arg4,
+            chara->properties_E4.dummy.properties_E8[1].val32);
+    fflush(stderr);
+#endif
     VECTOR3* arg2; // Q19.12
 
     // TODO: This data is hard to keep track of and may not point to the right `properties_E4` struct.
