@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/gtemac.h>
 #include <psyq/libapi.h>
@@ -120,21 +123,31 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     s_CollisionState    state;
     s_IpdCollisionData* ipdCollData;
 
-#ifdef SH_PC_PORT
-    /* No IPD collision data on PC — return flat ground at Y=0.
-     * Prevents crash from processing uninitialized collision structures. */
-    coll->groundHeight_0 = Q12(0.0f);
-    coll->field_4        = 0;
-    coll->field_6        = 0;
-    coll->field_8        = 0;
-    return;
-#endif
-
     pos.vx = Q12(0.0f);
     pos.vy = Q12(0.0f);
     pos.vz = Q12(0.0f);
 
+#ifdef SH_PC_PORT
+    {
+        static int _collDbg = 0;
+        if (_collDbg < 10) {
+            fprintf(stderr, "[COLL] Collision_Get pos=(%d,%d)\n", posX, posZ);
+            fflush(stderr);
+        }
+        _collDbg++;
+    }
+#endif
     ipdCollData = func_800426E4(posX, posZ);
+#ifdef SH_PC_PORT
+    {
+        static int _collDbg2 = 0;
+        if (_collDbg2 < 10) {
+            fprintf(stderr, "[COLL] func_800426E4 returned %p\n", (void*)ipdCollData);
+            fflush(stderr);
+        }
+        _collDbg2++;
+    }
+#endif
     if (ipdCollData == NULL)
     {
         coll->groundHeight_0 = Q12(8.0f);

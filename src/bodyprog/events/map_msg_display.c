@@ -109,6 +109,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
         case true:
             if (g_SysWork.sysFlags_22A0 & SysFlag_5)
             {
+#ifdef SH_PC_PORT
+                /* XA audio streaming not implemented on PC — skip the wait
+                 * for streaming state 4 so text can proceed immediately. */
+                D_800BCD74 = 0;
+#else
                 if (Sd_AudioStreamingCheck() == 4)
                 {
                     D_800BCD74 = 0;
@@ -119,6 +124,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                 {
                     break;
                 }
+#endif
             }
             else
             {

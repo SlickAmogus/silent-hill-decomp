@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#endif
 
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
@@ -457,15 +460,36 @@ void func_800866D4(s32 arg0, s32 arg1, bool reset) // 0x800866D4
 
 void func_80086728(s_SubCharacter* chara, s32 arg1, s32 arg2, bool reset) // 0x80086728
 {
+#ifdef SH_PC_PORT
+    /* func_13C is declared as (s32, s32, void*, s16, s32) but the actual
+     * function (sharedFunc_800D8A00_0_s00) takes (s_SubCharacter*, s32, VECTOR3*, s32, s32).
+     * On MIPS, pointer/s32 are both 32-bit so this works. On x86-64, the
+     * pointer gets truncated to s32. Cast to the real signature. */
+    {
+        typedef bool (*NpcWaypointFunc)(s_SubCharacter*, s32, VECTOR3*, s32, s32);
+        NpcWaypointFunc realFunc = (NpcWaypointFunc)g_MapOverlayHeader.func_13C;
+        if (realFunc == NULL) return;
+        if (realFunc(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2) == 1)
+        {
+            func_80085D78(reset);
+        }
+    }
+#else
     if (g_MapOverlayHeader.func_13C(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2) == 1)
     {
         func_80085D78(reset);
     }
+#endif
 }
 
 void func_8008677C(s_SubCharacter* chara, s32 arg1, s32 arg2) // 0x8008677C
 {
+#ifdef SH_PC_PORT
+    typedef bool (*NpcWaypointFunc)(s_SubCharacter*, s32, VECTOR3*, s32, s32);
+    ((NpcWaypointFunc)g_MapOverlayHeader.func_13C)(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
+#else
     g_MapOverlayHeader.func_13C(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
+#endif
 }
 
 void func_800867B4(s32 state, s32 paperMapFileIdx) // 0x800867B4
