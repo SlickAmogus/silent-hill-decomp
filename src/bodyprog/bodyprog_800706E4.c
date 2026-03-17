@@ -1237,6 +1237,27 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         extra->model_0.stateStep_3 = 0;
                     }
                 }
+
+                /* Set lowerBodyState for footstep sound triggers */
+                if (g_Player_IsMovingForward && g_Player_IsRunning)
+                    extra->lowerBodyState_24 = PlayerLowerBodyState_RunForward;
+                else if (g_Player_IsMovingForward)
+                    extra->lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
+                else if (g_Player_IsMovingBackward)
+                    extra->lowerBodyState_24 = PlayerLowerBodyState_WalkBackward;
+                else if (g_Player_IsTurningLeft || g_Player_IsTurningRight)
+                    extra->lowerBodyState_24 = PlayerLowerBodyState_None;
+                else
+                    extra->lowerBodyState_24 = PlayerLowerBodyState_None;
+
+                /* Trigger footstep sounds based on animation keyframes.
+                 * Save/restore D_800C4550 because func_8007B924 overwrites it
+                 * with moveDistance_126 which isn't set on PC. */
+                {
+                    q19_12 savedSpeed = D_800C4550;
+                    func_8007B924(chara, extra);
+                    D_800C4550 = savedSpeed;
+                }
             }
 #else
             Player_LowerBodyUpdate(chara, extra);
