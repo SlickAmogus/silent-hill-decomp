@@ -319,9 +319,16 @@ void Game_NpcUpdate(void) // 0x80038354
                 npc->model_0.charaId_0 = Chara_None;
                 continue;
             }
-            /* Ensure Model_AnimStatusSet can fire — stateStep_3 may be left
-             * non-zero from spawn/load, preventing anim status transitions. */
-            npc->model_0.stateStep_3 = 0;
+            /* Reset stateStep_3 only on the first frame after spawn so
+             * Model_AnimStatusSet can fire once.  Don't reset every frame
+             * or anim status transitions (blend→playback) get stuck. */
+            {
+                static bool _cherylInitDone = false;
+                if (!_cherylInitDone) {
+                    npc->model_0.stateStep_3 = 0;
+                    _cherylInitDone = true;
+                }
+            }
 #endif
             coord           = g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14;
 

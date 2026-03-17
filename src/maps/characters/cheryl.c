@@ -62,12 +62,12 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
         {
             s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model_0.anim_4.status_0];
             static int _cDbg = 0;
-            if (_cDbg < 30) {
-                fprintf(stderr, "[CHERYL_ANIM] status=%d kf=%d func=%p dur=%d startKF=%d endKF=%d stateIdx0=%d\n",
+            if (_cDbg < 60 && (dahliaProps.stateIdx0 == 2 || chara->model_0.anim_4.status_0 >= 6)) {
+                fprintf(stderr, "[CHERYL_RUN] status=%d kf=%d startKF=%d endKF=%d stateIdx0=%d anmKfCount=%d anmBones=%d\n",
                         chara->model_0.anim_4.status_0, chara->model_0.anim_4.keyframeIdx_8,
-                        (void*)ai->playbackFunc_0, ai->duration_8.constant,
                         ai->startKeyframeIdx_C, ai->endKeyframeIdx_E,
-                        dahliaProps.stateIdx0);
+                        dahliaProps.stateIdx0,
+                        anmHdr->keyframeCount_10, anmHdr->boneCount_6);
                 fflush(stderr);
                 _cDbg++;
             }
