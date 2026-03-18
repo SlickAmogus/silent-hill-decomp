@@ -71,21 +71,44 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     VECTOR3*        pos;
 
     npcIdx             = 0;
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[NPC_SPAWN] charaSpawns_24C[0]=%p npcSpawnEvent=%p cond=%d\n",
+            (void*)g_MapOverlayHeader.charaSpawns_24C[0],
+            (void*)(uintptr_t)g_MapOverlayHeader.npcSpawnEvent_48, cond);
+    fflush(stderr);
+#endif
     curCharaSpawn      = g_MapOverlayHeader.charaSpawns_24C[0];
     ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapOverlayId_A4];
 
     if (cond == false)
     {
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[NPC_SPAWN] calling func_80037154...\n"); fflush(stderr);
+#endif
         func_80037154();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[NPC_SPAWN] func_80037154 done, checking npcSpawnEvent...\n"); fflush(stderr);
+#endif
 
         if (g_MapOverlayHeader.npcSpawnEvent_48 != NULL)
         {
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[NPC_SPAWN] calling npcSpawnEvent_48...\n"); fflush(stderr);
+#endif
             g_MapOverlayHeader.npcSpawnEvent_48();
+#ifdef SH_PC_PORT
+            fprintf(stderr, "[NPC_SPAWN] npcSpawnEvent_48 done\n"); fflush(stderr);
+#endif
         }
     }
 
     charaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
     charaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[NPC_SPAWN] loop start charaId0=%d charaId1=%d curCharaSpawn=%p vblanks=%d\n",
+            charaId0, charaId1, (void*)curCharaSpawn, g_VBlanks);
+    fflush(stderr);
+#endif
 
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
@@ -95,6 +118,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 
         pos = (VECTOR3*)curCharaSpawn;
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[NPC_SPAWN]  i=%d spawn=(%d,?,%d) flags=%d charaId=%d\n",
+                i, curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8,
+                curCharaSpawn->flags_6, curCharaSpawn->charaId_4);
+        fflush(stderr);
+#endif
 
         if (!(g_SysWork.flags_22A4 & SysFlag2_4) && HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
             curCharaSpawn->flags_6 != 0 && g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&

@@ -1,4 +1,5 @@
 #include "map_registry.h"
+#include "map_overlay_loader.h"
 #include "pc_config.h"
 #include <string.h>
 #include <stdio.h>
@@ -148,24 +149,34 @@ void MapRegistry_Init(void)
 
 void MapRegistry_Load(e_MapOverlayId id)
 {
+    s_MapOverlayHeader* header;
+
     if (id < 0 || id > MapOverlayId_MAPX_S00)
     {
         fprintf(stderr, "[MapRegistry] Invalid overlay ID %d\n", id);
         return;
     }
 
-    /* For map0_s00, use the fully compiled header. */
-    if (id == MapOverlayId_MAP0_S00)
+    /* Try loading the map overlay DLL first. */
+    header = MapOverlay_Load(id);
+    if (header != NULL)
     {
+        g_pMapOverlayHeader = header;
+    }
+    else if (id == MapOverlayId_MAP0_S00)
+    {
+        /* Fallback: map0_s00 is compiled into the main executable. */
         g_pMapOverlayHeader = &g_MapOverlayHeader_map0_s00;
     }
     else
     {
-        /* Use stub header for other maps. */
+        /* Fallback: use stub header for maps without DLLs. */
+        fprintf(stderr, "[MapRegistry] No DLL for %s, using stub header\n",
+                MapRegistry_GetName(id));
         g_pMapOverlayHeader = &g_StubHeaders[id];
     }
 
-    fprintf(stderr, "[MapRegistry] Loaded map %s (overlay %d, mapType %d)\n",
+    fprintf(stderr, "[MapRegistry] Active map: %s (overlay %d, mapType %d)\n",
         MapRegistry_GetName(id), id,
         (int)(g_pMapOverlayHeader->mapInfo_0 - MAP_INFOS));
 }

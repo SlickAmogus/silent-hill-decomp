@@ -94,11 +94,15 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     GsOT*    ot;
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d\n",
+            g_WorldEnvWork.field_0, g_WorldEnvWork.field_2,
+            g_WorldEnvWork.field_50, g_WorldEnvWork.screenBrightness_8);
+    fflush(stderr);
+#endif
 
 #ifdef SH_PC_PORT
-    /* Skip lens flare effect on PC — the ring geometry uses scratchpad-computed
-     * vertices and pre-allocated prim buffers that may produce artifacts.
-     * TODO: properly port func_80041074 lens flare rendering */
+    /* Skip lens flare effect on PC */
     (void)0;
 #else
     if (g_WorldEnvWork.field_2 != 0)
@@ -107,11 +111,21 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Skip water zone rendering on PC — func_8008D470 uses GTE screen-space
+     * transforms and packet buffer manipulation that crashes on non-map0_s00.
+     * TODO: port water zone rendering properly */
+    (void)0;
+#else
     if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0)
     {
         func_8008D470(g_WorldEnvWork.field_50, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60, g_WorldEnvWork.waterZones_4);
     }
+#endif
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[2D_FX] brightness check\n"); fflush(stderr);
+#endif
     if (g_WorldEnvWork.screenBrightness_8 > 0)
     {
         poly            = (POLY_G4*)GsOUT_PACKET_P;
@@ -161,6 +175,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
         AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
     }
+    fprintf(stderr, "[2D_FX] done\n"); fflush(stderr);
 #else
     packet2 = GsOUT_PACKET_P;
     packet  = packet2;

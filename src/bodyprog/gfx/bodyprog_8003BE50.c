@@ -382,8 +382,17 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
         Fs_QueueWaitForEmpty();
     }
 
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[GFX] Ipd_ChunkCheckDraw enter\n"); fflush(stderr);
+#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[GFX] Gfx_2dEffectsDraw enter\n"); fflush(stderr);
+#endif
     Gfx_2dEffectsDraw();
+#ifdef SH_PC_PORT
+    fprintf(stderr, "[GFX] Gfx_InGameDraw done\n"); fflush(stderr);
+#endif
 }
 
 // ========================================
