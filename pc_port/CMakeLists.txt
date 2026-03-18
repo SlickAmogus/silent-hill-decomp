@@ -124,6 +124,15 @@ add_executable(SilentHillPC
     ${MAP_SOURCES}
 )
 
+# Export symbols from the executable so map overlay DLLs can link against it.
+# On Linux, ENABLE_EXPORTS adds -rdynamic so dlopen'd libraries see exe symbols.
+# On Windows/MinGW, we additionally need --export-all-symbols because MinGW
+# only exports __declspec(dllexport)-marked symbols by default.
+set_target_properties(SilentHillPC PROPERTIES ENABLE_EXPORTS ON)
+if(MINGW)
+    target_link_options(SilentHillPC PRIVATE "-Wl,--export-all-symbols")
+endif()
+
 # Game-specific defines (only on our target, NOT PsyCross)
 target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}
@@ -225,12 +234,18 @@ endif()
 # =============================================================================
 # Copy config.cfg to build dir (only if not already present)
 # =============================================================================
-add_custom_command(TARGET SilentHillPC POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/config.cfg"
-        "$<TARGET_FILE_DIR:SilentHillPC>/config.cfg"
-    COMMENT "Copying config.cfg to build directory"
-)
+# Only copy config.cfg if it doesn't already exist (preserves user edits)
+if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.cfg")
+    file(COPY "${CMAKE_SOURCE_DIR}/config.cfg" DESTINATION "${CMAKE_BINARY_DIR}")
+endif()
+
+# =============================================================================
+# Map Overlay DLLs (optional — builds all maps as loadable modules)
+# =============================================================================
+option(SH_BUILD_MAP_DLLS "Build map overlays as DLLs for dynamic loading" OFF)
+if(SH_BUILD_MAP_DLLS)
+    add_subdirectory(maps)
+endif()
 
 # =============================================================================
 # Install

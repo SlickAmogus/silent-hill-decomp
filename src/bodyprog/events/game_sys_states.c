@@ -325,9 +325,21 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
         Game_NpcRoomInitSpawn(true);
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] after NpcRoomInitSpawn\n"); fflush(stderr);
+#endif
         Game_NpcUpdate();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] after NpcUpdate\n"); fflush(stderr);
+#endif
         func_8005E89C();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] after func_8005E89C\n"); fflush(stderr);
+#endif
         Ipd_CloseRangeChunksInit();
+#ifdef SH_PC_PORT
+        fprintf(stderr, "[SS] after Ipd_CloseRangeChunksInit\n"); fflush(stderr);
+#endif
         Gfx_InGameDraw(1);
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT

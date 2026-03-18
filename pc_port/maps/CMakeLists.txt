@@ -1,0 +1,145 @@
+# =============================================================================
+# Map Overlay DLL Build System
+# =============================================================================
+# Each map overlay is compiled as a shared library (.dll/.so) that exports
+# its g_MapOverlayHeader_<name> symbol. This mirrors PSX behavior where
+# each map is a separate overlay loaded at runtime.
+#
+# Maps can also be distributed as standalone DLLs for mod support.
+# =============================================================================
+
+set(DECOMP_DIR "${CMAKE_SOURCE_DIR}/..")
+set(MAP_SRC_DIR "${DECOMP_DIR}/src/maps")
+
+# Include paths (same as main executable)
+set(MAP_INCLUDE_DIRS
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/include/psyq_compat"
+    "${CMAKE_SOURCE_DIR}/src"
+    "${DECOMP_DIR}/include"
+    "${DECOMP_DIR}/include/decomp"
+    "${CMAKE_SOURCE_DIR}/PsyCross/include/psx"
+    "${CMAKE_SOURCE_DIR}/PsyCross/include"
+)
+
+# Common compile definitions for all map DLLs
+set(MAP_COMMON_DEFS
+    VER_USA
+    SH_PC_PORT
+    SKIP_ASM
+    SH_MAP_DLL          # Flag indicating this is built as a DLL
+)
+
+# =============================================================================
+# Function to create a map overlay DLL target
+# =============================================================================
+function(add_map_overlay MAP_NAME MAP_DEFINE)
+    set(MAP_DIR "${MAP_SRC_DIR}/${MAP_NAME}")
+
+    # Skip if directory doesn't exist
+    if(NOT EXISTS "${MAP_DIR}")
+        message(STATUS "Map ${MAP_NAME}: source directory not found, skipping")
+        return()
+    endif()
+
+    # Collect all .c files in the map directory
+    file(GLOB MAP_SOURCES "${MAP_DIR}/*.c")
+    if(NOT MAP_SOURCES)
+        message(STATUS "Map ${MAP_NAME}: no source files, skipping")
+        return()
+    endif()
+
+    # Create shared library target
+    add_library(${MAP_NAME} SHARED ${MAP_SOURCES})
+
+    target_compile_definitions(${MAP_NAME} PRIVATE
+        ${MAP_COMMON_DEFS}
+        ${MAP_DEFINE}
+        SH_MAP_NAME=${MAP_NAME}
+        "static_assert=_Static_assert"
+    )
+
+    target_include_directories(${MAP_NAME} PRIVATE ${MAP_INCLUDE_DIRS})
+
+    # Force-include the DLL fixup header (provides <stdio.h> for PC debug
+    # logging in shared map headers).
+    target_compile_options(${MAP_NAME} PRIVATE
+        -include "${CMAKE_SOURCE_DIR}/include/map_dll_fixups.h"
+    )
+
+    # Link against the main executable's import library.
+    # Map DLL functions call back into game code (g_SysWork, etc.),
+    # so they need the exe's exported symbols to resolve at load time.
+    target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
+
+    # Export the g_MapOverlayHeader_<name> symbol from the DLL.
+    # WINDOWS_EXPORT_ALL_SYMBOLS auto-generates a .def file on MinGW/MSVC.
+    set_target_properties(${MAP_NAME} PROPERTIES
+        PREFIX ""                        # No "lib" prefix
+        OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
+    message(STATUS "Map ${MAP_NAME}: DLL target created")
+endfunction()
+
+# =============================================================================
+# Register all map overlays
+# =============================================================================
+# map0_s00 is compiled into the main executable, not as a DLL.
+# All other maps are built as DLLs.
+#
+# SKIPPED — two categories of Windows DLL issues:
+#
+# 1. Non-constant initializer (func_800706E4 function pointer in union):
+#    map2_s00, map2_s02, map4_s02, map5_s01, map6_s00, map6_s02, map6_s04
+#    TODO: Runtime-patch these anim_info entries after DLL load.
+#
+# 2. Cross-map shared data (sharedData_800CB094_3_s01 extern across overlays):
+#    map3_s01, map3_s03, map3_s04, map3_s05
+#    TODO: Move shared data into a shared library or the main exe.
+
+add_map_overlay(map0_s01 MAP0_S01)
+add_map_overlay(map0_s02 MAP0_S02)
+add_map_overlay(map1_s00 MAP1_S00)
+add_map_overlay(map1_s01 MAP1_S01)
+add_map_overlay(map1_s02 MAP1_S02)
+add_map_overlay(map1_s03 MAP1_S03)
+add_map_overlay(map1_s04 MAP1_S04)
+add_map_overlay(map1_s05 MAP1_S05)
+add_map_overlay(map1_s06 MAP1_S06)
+# add_map_overlay(map2_s00 MAP2_S00)  # SKIPPED
+add_map_overlay(map2_s01 MAP2_S01)
+# add_map_overlay(map2_s02 MAP2_S02)  # SKIPPED
+add_map_overlay(map2_s03 MAP2_S03)
+add_map_overlay(map2_s04 MAP2_S04)
+add_map_overlay(map3_s00 MAP3_S00)
+# add_map_overlay(map3_s01 MAP3_S01)  # SKIPPED — shared data
+add_map_overlay(map3_s02 MAP3_S02)
+# add_map_overlay(map3_s03 MAP3_S03)  # SKIPPED — shared data
+# add_map_overlay(map3_s04 MAP3_S04)  # SKIPPED — shared data
+# add_map_overlay(map3_s05 MAP3_S05)  # SKIPPED — shared data
+add_map_overlay(map3_s06 MAP3_S06)
+add_map_overlay(map4_s00 MAP4_S00)
+add_map_overlay(map4_s01 MAP4_S01)
+# add_map_overlay(map4_s02 MAP4_S02)  # SKIPPED
+add_map_overlay(map4_s03 MAP4_S03)
+add_map_overlay(map4_s04 MAP4_S04)
+add_map_overlay(map4_s05 MAP4_S05)
+add_map_overlay(map4_s06 MAP4_S06)
+add_map_overlay(map5_s00 MAP5_S00)
+# add_map_overlay(map5_s01 MAP5_S01)  # SKIPPED
+add_map_overlay(map5_s02 MAP5_S02)
+add_map_overlay(map5_s03 MAP5_S03)
+# add_map_overlay(map6_s00 MAP6_S00)  # SKIPPED
+add_map_overlay(map6_s01 MAP6_S01)
+# add_map_overlay(map6_s02 MAP6_S02)  # SKIPPED
+add_map_overlay(map6_s03 MAP6_S03)
+# add_map_overlay(map6_s04 MAP6_S04)  # SKIPPED
+add_map_overlay(map6_s05 MAP6_S05)
+add_map_overlay(map7_s00 MAP7_S00)
+add_map_overlay(map7_s01 MAP7_S01)
+add_map_overlay(map7_s02 MAP7_S02)
+add_map_overlay(map7_s03 MAP7_S03)
