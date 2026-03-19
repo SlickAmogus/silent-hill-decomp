@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/view/vc_util.h"
@@ -119,7 +122,13 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             }
             else
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[CAM] Collision_Get enter");
+#endif
                 Collision_Get(&coll, hr_p->position_18.vx, hr_p->position_18.vz);
+#ifdef SH_PC_PORT
+                SH_DBG("[CAM] Collision_Get done groundH=%d", coll.groundHeight_0);
+#endif
                 grnd_y = coll.groundHeight_0;
 
                 vcMakeHeroHeadPos(&hr_head_pos);
@@ -137,12 +146,21 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                 vcWorkSetFlags(VC_NOFLAG, VC_INHIBIT_FAR_WATCH_F);
             }
 
+#ifdef SH_PC_PORT
+            SH_DBG("[CAM] vcSetSubjChara enter");
+#endif
             vcSetSubjChara(&hr_p->position_18, hero_bottom_y, hero_top_y, grnd_y,
                            &hr_head_pos,
                            hr_p->moveSpeed_38, hr_p->headingAngle_3C, hr_p->rotationSpeed_2C.vy,
                            hr_p->rotation_24.vy, Q12_ANGLE(120.0f), Q12(11.0f));
 
+#ifdef SH_PC_PORT
+            SH_DBG("[CAM] vcExecCamera enter");
+#endif
             g_WorldGfxWork.vcCameraInternalInfo_1BDC.mv_smooth = vcExecCamera();
+#ifdef SH_PC_PORT
+            SH_DBG("[CAM] vcExecCamera done");
+#endif
             break;
 
         case DebugCameraMode_SetReference:

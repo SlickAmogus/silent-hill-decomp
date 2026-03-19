@@ -13,6 +13,8 @@
 
 static jmp_buf s_PlayerCrashJmp;
 static volatile sig_atomic_t s_PlayerCrashGuardActive = 0;
+extern int g_DebugNoWallCollision;
+extern int g_DebugNoFloorCollision;
 
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
@@ -654,13 +656,11 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         else
         {
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[PC] func_B8 ENTER state=%d\n", g_SysWork.playerWork_4C.extra_128.state_1C);
-            fflush(stderr);
+            SH_DBG("[PC] func_B8 ENTER state=%d", g_SysWork.playerWork_4C.extra_128.state_1C);
 #endif
             g_MapOverlayHeader.func_B8(chara, extra, coords);
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[PC] func_B8 EXIT OK\n");
-            fflush(stderr);
+            SH_DBG("[PC] func_B8 EXIT OK");
 #endif
         }
 
@@ -674,13 +674,11 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
 
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[PC] Player_AnimUpdate ENTER\n");
-        fflush(stderr);
+        SH_DBG("[PC] Player_AnimUpdate ENTER");
 #endif
         Player_AnimUpdate(chara, extra, anmHdr, coords);
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[PC] Player_AnimUpdate EXIT OK\n");
-        fflush(stderr);
+        SH_DBG("[PC] Player_AnimUpdate EXIT OK");
 #endif
 #ifndef SH_PC_PORT
         func_8007D090(chara, extra, coords);
@@ -998,7 +996,19 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
         case PlayerState_Unk159:
         case PlayerState_Unk160:
         case PlayerState_Unk161:
+#ifdef SH_PC_PORT
+            /* func_80071968_Switch1 calls Player_LowerBodyUpdate which
+             * crashes on PC (uses Ray_LineCheck and NPC subsystems).
+             * For fall/damage/death states, recover to idle so the game
+             * doesn't get stuck or crash. Movement continues normally. */
+            if (g_SysWork.playerWork_4C.extra_128.state_1C >= PlayerState_FallForward) {
+                SH_DBG("[PLAYER] Recovering from state %d -> Idle", g_SysWork.playerWork_4C.extra_128.state_1C);
+                Player_ExtraStateSet(chara, extra, PlayerState_None);
+                D_800C4550 = Q12(0.0f);
+            }
+#else
             func_80071968_Switch1();
+#endif
             break;
     }
 
@@ -6776,10 +6786,49 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
     }
 #endif
 
-    Collision_WallDetect(&D_800C4590, &offset, chara);
-
 #ifdef SH_PC_PORT
-    /* (collision post-log removed — see moveSpd log above) */
+    {
+        static int _posDbg = 0;
+        if (_posDbg < 30) {
+            SH_DBG("[C0D8] PRE pos=(%d,%d,%d) offset=(%d,%d,%d) moveSpd=%d",
+                    chara->position_18.vx, chara->position_18.vy, chara->position_18.vz,
+                    offset.vx, offset.vy, offset.vz, chara->moveSpeed_38);
+        }
+        _posDbg++;
+    }
+    /* Wall collision with debug toggle. Ground height from Collision_Get
+     * (coll) is used instead of WallDetect's broken func_8006CC44. */
+    {
+        q19_12 _groundH = coll.groundHeight_0;
+
+        /* Pre-seed field_C so Collision_WallResponse makes correct wall
+         * height decisions (it reads field_C to classify wall vs ground). */
+        D_800C4590.field_C = _groundH;
+
+        if (!g_DebugNoWallCollision) {
+            Collision_WallDetect(&D_800C4590, &offset, chara);
+        } else {
+            D_800C4590.offset_0 = offset;
+            D_800C4590.field_14 = coll.field_8;
+            D_800C4590.field_12 = 0;
+            D_800C4590.field_10 = 0;
+            D_800C4590.field_18 = 0xFFFF0000;
+        }
+
+        /* Restore ground height from Collision_Get */
+        D_800C4590.field_C = _groundH;
+    }
+    {
+        static int _posDbg2 = 0;
+        if (_posDbg2 < 30) {
+            SH_DBG("[C0D8] POST collResult=(%d,%d,%d) groundH=%d field_14=%d",
+                    D_800C4590.offset_0.vx, D_800C4590.offset_0.vy, D_800C4590.offset_0.vz,
+                    D_800C4590.field_C, D_800C4590.field_14);
+        }
+        _posDbg2++;
+    }
+#else
+    Collision_WallDetect(&D_800C4590, &offset, chara);
 #endif
 
     if (g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP1_S05)
@@ -6832,17 +6881,58 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
         D_800C4590.field_C = chara->properties_E4.player.positionY_EC;
     }
 
+#ifdef SH_PC_PORT
+    /* Prevent sudden ground height changes on PC. The collision system can
+     * return wildly different ground heights between adjacent cells.
+     * - DOWNWARD (ground dropping away): limit to Q12(2.0) per frame so
+     *   Harry doesn't fall through the floor at cell boundaries.
+     * - UPWARD (ground rising): only allow if the new ground is still at
+     *   or below Harry's feet. Never teleport Harry up to a ceiling. */
+    {
+        q19_12 prevGround = chara->properties_E4.player.positionY_EC;
+        q19_12 newGround  = D_800C4590.field_C;
+        q19_12 maxDownDelta = Q12(2.0f);
+
+        if (prevGround != 0) {
+            s32 delta = newGround - prevGround;
+            if (delta > maxDownDelta) {
+                /* Ground dropped far — limit descent rate */
+                D_800C4590.field_C = prevGround + maxDownDelta;
+            } else if (delta < 0 && newGround < chara->position_18.vy) {
+                /* Ground rose above Harry's position — ignore it.
+                 * This prevents teleporting Harry to the ceiling when
+                 * clipping through a wall corner into a different cell. */
+                D_800C4590.field_C = prevGround;
+            }
+        }
+    }
+#endif
+
     if (chara->position_18.vy > D_800C4590.field_C)
     {
-        chara->position_18.vy = D_800C4590.field_C;
-        chara->fallSpeed_34   = Q12(0.0f);
+#ifdef SH_PC_PORT
+        if (!g_DebugNoFloorCollision) {
+#endif
+            chara->position_18.vy = D_800C4590.field_C;
+            chara->fallSpeed_34   = Q12(0.0f);
+#ifdef SH_PC_PORT
+        }
+#endif
     }
 
     someAngle = Q12_ANGLE_NORM_U(ratan2(chara->position_18.vx - g_Player_PrevPosition.vx, chara->position_18.vz - g_Player_PrevPosition.vz) + Q12_ANGLE(360.0f));
 
     if (!(g_SysWork.playerWork_4C.extra_128.state_1C >= PlayerState_FallForward && g_SysWork.playerWork_4C.extra_128.state_1C < PlayerState_KickEnemy))
     {
-        if (!g_Player_IsInWalkToRunTransition)
+        if (!g_Player_IsInWalkToRunTransition
+#ifdef SH_PC_PORT
+            /* Don't trigger fall detection when the collision system has no
+             * valid ground data (field_14==0). On PC, this happens frequently
+             * because IPD ground type isn't always resolved. Triggering a fall
+             * with unreliable data causes Harry to clip through the floor. */
+            && D_800C4590.field_14 != 0
+#endif
+        )
         {
             posY = chara->position_18.vy;
             if ((D_800C4590.field_C - posY) >= Q12(0.65f))

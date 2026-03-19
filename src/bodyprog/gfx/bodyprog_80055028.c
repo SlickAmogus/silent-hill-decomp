@@ -95,10 +95,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d\n",
+    SH_DBG("[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d",
             g_WorldEnvWork.field_0, g_WorldEnvWork.field_2,
             g_WorldEnvWork.field_50, g_WorldEnvWork.screenBrightness_8);
-    fflush(stderr);
 #endif
 
 #ifdef SH_PC_PORT
@@ -124,7 +123,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 #endif
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[2D_FX] brightness check\n"); fflush(stderr);
+    SH_DBG("[2D_FX] brightness check");
 #endif
     if (g_WorldEnvWork.screenBrightness_8 > 0)
     {
@@ -175,7 +174,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
         AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
     }
-    fprintf(stderr, "[2D_FX] done\n"); fflush(stderr);
+    SH_DBG("[2D_FX] done");
 #else
     packet2 = GsOUT_PACKET_P;
     packet  = packet2;
@@ -1421,16 +1420,15 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     {
         static int _logCnt3 = 0;
         if (_logCnt3 < 50) {
-            fprintf(stderr, "[DRAW] modelIdx=%d meshCnt=%d vertOff=%u normOff=%u meshHdrs=%p\n",
+            SH_DBG("[DRAW] modelIdx=%d meshCnt=%d vertOff=%u normOff=%u meshHdrs=%p",
                 modelInfo->modelIdx_C, modelHdr->meshCount_8,
                 vertOffset, normalOffset, (void*)modelHdr->meshHdrs_C);
             for (int _mi = 0; _mi < modelHdr->meshCount_8; _mi++) {
                 s_MeshHeader* _mh = &modelHdr->meshHdrs_C[_mi];
-                fprintf(stderr, "  mesh[%d] vertsXy=%p vertCnt=%d prims=%p primCnt=%d\n",
+                SH_DBG("  mesh[%d] vertsXy=%p vertCnt=%d prims=%p primCnt=%d",
                     _mi, (void*)_mh->verticesXy_8, _mh->vertexCount_1,
                     (void*)_mh->primitives_4, _mh->primitiveCount_0);
             }
-            fflush(stderr);
             _logCnt3++;
         }
     }
@@ -1471,17 +1469,16 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
             static int _vtxLog = 0;
             if (_vtxLog < 30) {
                 int _vc = curMeshHdr->vertexCount_1;
-                fprintf(stderr, "[VTX] vertCnt=%d after GTE transform, first 3 screenXy:\n", _vc);
+                SH_DBG("[VTX] vertCnt=%d after GTE transform, first 3 screenXy:", _vc);
                 for (int _vi = 0; _vi < 3 && _vi < _vc; _vi++) {
-                    fprintf(stderr, "  v[%d] xy=(%d,%d) z=%d\n",
+                    SH_DBG("  v[%d] xy=(%d,%d) z=%d",
                         _vi,
                         scratchData->screenXy_0[vertOffset + _vi].vx,
                         scratchData->screenXy_0[vertOffset + _vi].vy,
                         scratchData->field_18C[vertOffset + _vi]);
                 }
-                fprintf(stderr, "  mat t=(%d,%d,%d) m00=%d\n",
+                SH_DBG("  mat t=(%d,%d,%d) m00=%d",
                     mat->t[0], mat->t[1], mat->t[2], mat->m[0][0]);
-                fflush(stderr);
                 _vtxLog++;
             }
         }
@@ -1921,12 +1918,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         {
             static int _dpcsLog = 0;
             if (_dpcsLog < 10) {
-                fprintf(stderr, "[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)\n",
+                SH_DBG("[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)",
                     g_WorldEnvWork.field_20, 0x1000 - g_WorldEnvWork.field_20,
                     g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
                     scratchData->field_380.s_0.field_8.r, scratchData->field_380.s_0.field_8.g,
                     scratchData->field_380.s_0.field_8.b, scratchData->field_380.s_0.field_8.cd);
-                fflush(stderr);
                 _dpcsLog++;
             }
         }
@@ -2760,17 +2756,16 @@ __block19CC:
     {
         static int _primLog = 0;
         if (_primLog < 40) {
-            fprintf(stderr, "[PRIM] __block19CC: total=%d emitted=%d depth_skip=? nclip_skip=? bounds_skip=?\n",
+            SH_DBG("[PRIM] __block19CC: total=%d emitted=%d depth_skip=? nclip_skip=? bounds_skip=?",
                 pc_primIdx, pc_emitted);
             if (pc_emitted > 0) {
                 /* Log first emitted poly's screen coords */
                 POLY_FT4* _firstPoly = (POLY_FT4*)GsOUT_PACKET_P - pc_emitted;
-                fprintf(stderr, "  firstPoly xy0=(%d,%d) xy1=(%d,%d) xy2=(%d,%d) xy3=(%d,%d) rgb=(%d,%d,%d,0x%02X)\n",
+                SH_DBG("  firstPoly xy0=(%d,%d) xy1=(%d,%d) xy2=(%d,%d) xy3=(%d,%d) rgb=(%d,%d,%d,0x%02X)",
                     _firstPoly->x0, _firstPoly->y0, _firstPoly->x1, _firstPoly->y1,
                     _firstPoly->x2, _firstPoly->y2, _firstPoly->x3, _firstPoly->y3,
                     _firstPoly->r0, _firstPoly->g0, _firstPoly->b0, _firstPoly->code);
             }
-            fflush(stderr);
             _primLog++;
         }
     }
@@ -3357,7 +3352,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             u16 clut = _p0->field_2;
             int clutX = (clut & 0x3F) << 4;
             int clutY = (clut >> 6) & 0x1FF;
-            fprintf(stderr, "[CHAR-RENDER] primCnt=%d f0=0x%04x f2=0x%04x f6=0x%04x tpg=0x%02x pageXY=(%d,%d) fmt=%d clutXY=(%d,%d) field8=0x%08x\n",
+            SH_DBG("[CHAR-RENDER] primCnt=%d f0=0x%04x f2=0x%04x f6=0x%04x tpg=0x%02x pageXY=(%d,%d) fmt=%d clutXY=(%d,%d) field8=0x%08x",
                     meshHdr->primitiveCount_0, _p0->field_0, _p0->field_2, _p0->field_6.flags,
                     tpg, pageX, pageY, fmt, clutX, clutY, scratchData->u.s_1.field_8);
             /* Check a few pixels of VRAM at the texture page location */
@@ -3365,7 +3360,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 RECT16 _chk = { pageX, pageY, 4, 1 };
                 u16 _vramSample[4];
                 StoreImage(&_chk, (u_long*)_vramSample);
-                fprintf(stderr, "[CHAR-RENDER] VRAM@(%d,%d): %04x %04x %04x %04x\n",
+                SH_DBG("[CHAR-RENDER] VRAM@(%d,%d): %04x %04x %04x %04x",
                         pageX, pageY, _vramSample[0], _vramSample[1], _vramSample[2], _vramSample[3]);
             }
             /* Also check CLUT */
@@ -3373,10 +3368,9 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 RECT16 _chk2 = { clutX, clutY, 4, 1 };
                 u16 _clutSample[4];
                 StoreImage(&_chk2, (u_long*)_clutSample);
-                fprintf(stderr, "[CHAR-RENDER] CLUT@(%d,%d): %04x %04x %04x %04x\n",
+                SH_DBG("[CHAR-RENDER] CLUT@(%d,%d): %04x %04x %04x %04x",
                         clutX, clutY, _clutSample[0], _clutSample[1], _clutSample[2], _clutSample[3]);
             }
-            fflush(stderr);
             _charTexLog++;
         }
     }

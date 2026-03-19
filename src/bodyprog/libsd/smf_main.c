@@ -1,5 +1,6 @@
 #include "common.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -144,9 +145,8 @@ void smf_vsync(void) // 0x800A6F14
     {
         static int logged_playing = 0;
         if (smf_start_flag && !logged_playing) {
-            fprintf(stderr, "[SH_BGM] smf_vsync: smf_start_flag=1! seq0_stat=%d tracks=%d\n",
+            SH_DBG("[SH_BGM] smf_vsync: smf_start_flag=1! seq0_stat=%d tracks=%d",
                     smf_song[0].sd_seq_stat_50A, smf_song[0].mf_tracks_526);
-            fflush(stderr);
             logged_playing = 1;
         }
     }

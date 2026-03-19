@@ -1,5 +1,6 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -50,7 +51,7 @@ s32 Bgm_Init(void) // 0x80035780
 #ifdef SH_PC_PORT
         {
             static int logged = 0;
-            if (!logged) { fprintf(stderr, "[SH] Bgm_Init: Sd_AudioStreamingCheck != 0, returning NO_VALUE\n"); fflush(stderr); logged = 1; }
+            if (!logged) { SH_DBG("[SH] Bgm_Init: Sd_AudioStreamingCheck != 0, returning NO_VALUE"); logged = 1; }
         }
 #endif
         return NO_VALUE;
@@ -61,7 +62,7 @@ s32 Bgm_Init(void) // 0x80035780
 #ifdef SH_PC_PORT
         {
             static int logged = 0;
-            if (!logged) { fprintf(stderr, "[SH] Bgm_Init: Fs_QueueGetLength > 0, returning NO_VALUE\n"); fflush(stderr); logged = 1; }
+            if (!logged) { SH_DBG("[SH] Bgm_Init: Fs_QueueGetLength > 0, returning NO_VALUE"); logged = 1; }
         }
 #endif
         return NO_VALUE;
@@ -71,9 +72,8 @@ s32 Bgm_Init(void) // 0x80035780
     {
         static int lastStep = -1;
         if (g_GameWork.gameStateStep_598[1] != lastStep) {
-            fprintf(stderr, "[SH] Bgm_Init: step=%d bgmIdx=%d bgmIdx_5B2=%d\n",
+            SH_DBG("[SH] Bgm_Init: step=%d bgmIdx=%d bgmIdx_5B2=%d",
                     g_GameWork.gameStateStep_598[1], g_MapOverlayHeader.bgmIdx_14, g_GameWork.bgmIdx_5B2);
-            fflush(stderr);
             lastStep = g_GameWork.gameStateStep_598[1];
         }
     }
@@ -89,14 +89,14 @@ s32 Bgm_Init(void) // 0x80035780
             if (Bgm_IsCurrentBgmTargetCheck(g_MapOverlayHeader.bgmIdx_14) == false)
             {
 #ifdef SH_PC_PORT
-                fprintf(stderr, "[SH] Bgm_Init: bgm target matches, skip to step 3\n"); fflush(stderr);
+                SH_DBG("[SH] Bgm_Init: bgm target matches, skip to step 3");
 #endif
                 g_GameWork.gameStateStep_598[1] += 2;
             }
             else
             {
 #ifdef SH_PC_PORT
-                fprintf(stderr, "[SH] Bgm_Init: bgm target differs, calling SD_Call(18) + AllLayersMute\n"); fflush(stderr);
+                SH_DBG("[SH] Bgm_Init: bgm target differs, calling SD_Call(18) + AllLayersMute");
 #endif
                 SD_Call(18);
                 Bgm_AllLayersMute();
@@ -109,15 +109,14 @@ s32 Bgm_Init(void) // 0x80035780
 #ifdef SH_PC_PORT
             {
                 static int logged2 = 0;
-                if (!logged2) { fprintf(stderr, "[SH] Bgm_Init step2: func_80045BC8()=%d\n", func_80045BC8()); fflush(stderr); logged2 = 1; }
+                if (!logged2) { SH_DBG("[SH] Bgm_Init step2: func_80045BC8()=%d", func_80045BC8()); logged2 = 1; }
             }
 #endif
             if (func_80045BC8() == 0)
             {
 #ifdef SH_PC_PORT
-                fprintf(stderr, "[SH] Bgm_Init step2: calling Bgm_TrackSet(%d) -> SD_Call(%d)\n",
+                SH_DBG("[SH] Bgm_Init step2: calling Bgm_TrackSet(%d) -> SD_Call(%d)",
                         g_MapOverlayHeader.bgmIdx_14, g_BgmTaskLoadCmds[g_MapOverlayHeader.bgmIdx_14]);
-                fflush(stderr);
 #endif
                 Bgm_TrackSet(g_MapOverlayHeader.bgmIdx_14);
                 g_GameWork.gameStateStep_598[1]++;

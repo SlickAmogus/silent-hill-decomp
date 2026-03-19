@@ -4,6 +4,7 @@
 #include "maps/shared.h"
 #include "maps/characters/cheryl.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -63,12 +64,11 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
             s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model_0.anim_4.status_0];
             static int _cDbg = 0;
             if (_cDbg < 60 && (dahliaProps.stateIdx0 == 2 || chara->model_0.anim_4.status_0 >= 6)) {
-                fprintf(stderr, "[CHERYL_RUN] status=%d kf=%d startKF=%d endKF=%d stateIdx0=%d anmKfCount=%d anmBones=%d\n",
+                SH_DBG("[CHERYL_RUN] status=%d kf=%d startKF=%d endKF=%d stateIdx0=%d anmKfCount=%d anmBones=%d",
                         chara->model_0.anim_4.status_0, chara->model_0.anim_4.keyframeIdx_8,
                         ai->startKeyframeIdx_C, ai->endKeyframeIdx_E,
                         dahliaProps.stateIdx0,
                         anmHdr->keyframeCount_10, anmHdr->boneCount_6);
-                fflush(stderr);
                 _cDbg++;
             }
             if (ai->playbackFunc_0 != NULL)
