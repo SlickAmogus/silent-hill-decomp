@@ -1,6 +1,7 @@
 #include "game.h"
 
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -96,8 +97,7 @@ static u8               g_Sd_CurrentTask;
 void SD_Call(u32 cmd) // 0x80045A7C
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH_AUDIO] SD_Call cmd=%u (cat=%u)\n", cmd, (cmd >> 8) & 0xFF);
-    fflush(stderr);
+    SH_DBG("[SH_AUDIO] SD_Call cmd=%u (cat=%u)", cmd, (cmd >> 8) & 0xFF);
 #endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
@@ -468,13 +468,13 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
     else
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn vab=%d note=%d\n",
-                g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100); fflush(stderr);
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn vab=%d note=%d",
+                g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100);
 #endif
         g_Sd_VabPlayingInfo.audioVabIdx_0 = SdVoKeyOn(g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100,
                                                       Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeLeft_C), Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeRight_E));
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn returned %d\n", g_Sd_VabPlayingInfo.audioVabIdx_0); fflush(stderr);
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn returned %d", g_Sd_VabPlayingInfo.audioVabIdx_0);
 #endif
     }
 
@@ -489,14 +489,20 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
     if (g_Sd_VabPlayingInfo.audioVabIdx_0 < ARRAY_SIZE(g_AudioPlayingIdxList))
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr voice=%d\n", g_Sd_VabPlayingInfo.audioVabIdx_0); fflush(stderr);
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr voice=%d", g_Sd_VabPlayingInfo.audioVabIdx_0);
 #endif
         g_AudioPlayingIdxList[g_Sd_VabPlayingInfo.audioVabIdx_0] = sfxId;
         attr.voice                                               = 1 << g_Sd_VabPlayingInfo.audioVabIdx_0;
 
         SpuGetVoiceAttr(&attr);
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr done, pitch=%d", attr.pitch);
+#endif
 
         g_AudioPlayingPitchList[g_Sd_VabPlayingInfo.audioVabIdx_0] = attr.pitch;
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: returning voiceIdx=%d", g_Sd_VabPlayingInfo.audioVabIdx_0);
+#endif
         return g_Sd_VabPlayingInfo.audioVabIdx_0;
     }
 
@@ -725,8 +731,7 @@ static inline void func_80046A70_0(u16 temp)
 void func_80046A70(void) // 0x80046A70
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH_AUDIO] func_80046A70: field_10=%d -> SdSeqPlay(0,1,0)\n", g_Sd_AudioWork.field_10);
-    fflush(stderr);
+    SH_DBG("[SH_AUDIO] func_80046A70: field_10=%d -> SdSeqPlay(0,1,0)", g_Sd_AudioWork.field_10);
 #endif
     func_80046A70_0(g_Sd_AudioWork.field_10);
 
@@ -736,8 +741,7 @@ void func_80046A70(void) // 0x80046A70
     gSDVolConfig.volumeBgm_8 = 40;
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH_AUDIO] func_80046A70: volBgm set to 40, field_E=%d\n", g_Sd_AudioWork.field_E);
-    fflush(stderr);
+    SH_DBG("[SH_AUDIO] func_80046A70: volBgm set to 40, field_E=%d", g_Sd_AudioWork.field_E);
 #endif
     Sd_SetVolBgm(gSDVolConfig.volumeBgm_6, gSDVolConfig.volumeBgm_6);
     Sd_TaskPoolUpdate();
@@ -817,8 +821,7 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
         static int vol_dbg = 0;
         static int vol_nonzero = 0;
         if (vol_dbg < 20 || (vol != 0 && vol_nonzero < 20)) {
-            fprintf(stderr, "[SH_BGM] Sd_BgmLayerVolumeSet: layer=%d vol=%d field_E=%d\n", layerIdx, vol, g_Sd_AudioWork.field_E);
-            fflush(stderr);
+            SH_DBG("[SH_BGM] Sd_BgmLayerVolumeSet: layer=%d vol=%d field_E=%d", layerIdx, vol, g_Sd_AudioWork.field_E);
             if (vol != 0) vol_nonzero++;
             vol_dbg++;
         }
@@ -1313,9 +1316,8 @@ void Sd_VabLoad(void) // 0x80047B80
     {
         static s32 prevState = -1;
         if (g_Sd_AudioStreamingStates.audioLoadState_0 != prevState) {
-            fprintf(stderr, "[SH_AUDIO] Sd_VabLoad state=%d task=%d\n",
+            SH_DBG("[SH_AUDIO] Sd_VabLoad state=%d task=%d",
                    g_Sd_AudioStreamingStates.audioLoadState_0, g_Sd_TaskPool[0]);
-            fflush(stderr);
             prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
         }
     }
@@ -1722,8 +1724,7 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
     {
         static u8 prevTask = 255;
         if (g_Sd_CurrentTask != prevTask) {
-            fprintf(stderr, "[SH_AUDIO] TaskPoolExecute task=%d\n", g_Sd_CurrentTask);
-            fflush(stderr);
+            SH_DBG("[SH_AUDIO] TaskPoolExecute task=%d", g_Sd_CurrentTask);
             prevTask = g_Sd_CurrentTask;
         }
     }

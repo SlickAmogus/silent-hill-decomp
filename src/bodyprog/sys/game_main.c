@@ -1,6 +1,7 @@
 #include "game.h"
 
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -45,6 +46,15 @@ s32 g_WarmBootTimer = 0;
 
 static s32 g_PrevVBlanks = 0;
 
+#ifdef SH_PC_PORT
+/* Packet buffer corruption detection canaries */
+#define PC_PKTBUF_SIZE (512 * 1024)
+#define PC_CANARY_SIZE 64
+#define PC_CANARY_VAL  0xDE
+static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
+static PACKET* s_PcPacketBufEnds[2] = { NULL, NULL };
+#endif
+
 // Audio task for `SD_Call` meant to load base VAB audios.
 static u16 g_baseVabAudiosTaskId[] = {
    160,
@@ -85,6 +95,8 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off */
 int g_DebugFogLevel = 0;   /* 0=100%, 1=75%, 2=50%, 3=25%, 4=off */
+int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
+int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, 1 = no ground snap */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
 static int g_DebugFogTogglePrev = 0;
@@ -111,12 +123,11 @@ void DebugCamera_Update(void)
                 vcGetNowCamPos(&g_DebugCamPos);
                 g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
                 g_DebugCamInited = 1;
-                fprintf(stderr, "[DBGCAM] ENABLED pos=(%ld,%ld,%ld)\n",
+                SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld)",
                     (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz);
             } else {
-                fprintf(stderr, "[DBGCAM] DISABLED — returning to game camera\n");
+                SH_DBG("[DBGCAM] DISABLED — returning to game camera");
             }
-            fflush(stderr);
         }
         g_DebugCamTogglePrev = cur;
     }
@@ -137,13 +148,75 @@ void DebugCamera_Update(void)
             MapRegistry_Load((e_MapOverlayId)nextId);
             extern void GameBoot_MapLoad(s32 mapIdx);
             GameBoot_MapLoad(nextId);
-            fprintf(stderr, "[DEBUG] Switched to map %s (overlay %d)\n",
+            SH_DBG("[DEBUG] Switched to map %s (overlay %d)",
                 MapRegistry_GetName(nextId), nextId);
-            fflush(stderr);
         }
         prevKey = cur;
     }
 #endif
+
+    /* Numpad 1: toggle wall collision (edge-triggered) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_1];
+        if (cur && !prevKey) {
+            g_DebugNoWallCollision = !g_DebugNoWallCollision;
+            SH_DBG("[DEBUG] Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
+        }
+        prevKey = cur;
+    }
+    /* Numpad 2: toggle floor collision (edge-triggered) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_2];
+        if (cur && !prevKey) {
+            g_DebugNoFloorCollision = !g_DebugNoFloorCollision;
+            SH_DBG("[DEBUG] Floor collision: %s", g_DebugNoFloorCollision ? "OFF (fly)" : "ON");
+        }
+        prevKey = cur;
+    }
+
+    /* Numpad 3: rescue teleport — snap Harry back to room spawn position (edge-triggered) */
+    {
+        static int prevKey = 0;
+        s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
+
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
+        if (cur && !prevKey) {
+            /* Use the spawn position from the savegame data, then query
+             * Collision_Get at that position for the correct ground height. */
+            VECTOR3 spawnPos;
+            s_Collision _rescueColl;
+            spawnPos.vx = g_SavegamePtr->playerPositionX_244;
+            spawnPos.vz = g_SavegamePtr->playerPositionZ_24C;
+
+            /* If savegame position looks invalid (all zeros), use a known default */
+            if (spawnPos.vx == 0 && spawnPos.vz == 0) {
+                spawnPos.vx = 573440;  /* map0_s00 default spawn */
+                spawnPos.vz = 77824;
+            }
+
+            /* Query ground height at spawn position. If Collision_Get returns
+             * the default (Q12(8.0)=32768, meaning chunk not loaded), use 0
+             * which is the correct floor level for most maps. */
+            Collision_Get(&_rescueColl, spawnPos.vx, spawnPos.vz);
+            spawnPos.vy = _rescueColl.groundHeight_0;
+            if (spawnPos.vy == Q12(8.0f)) {
+                spawnPos.vy = 0;  /* default ground level */
+            }
+
+            SH_DBG("[DEBUG] Rescue teleport: (%d,%d,%d) -> spawn (%d,%d,%d)",
+                   hp->position_18.vx, hp->position_18.vy, hp->position_18.vz,
+                   spawnPos.vx, spawnPos.vy, spawnPos.vz);
+            hp->position_18 = spawnPos;
+            hp->fallSpeed_34 = Q12(0.0f);
+            hp->properties_E4.player.positionY_EC = spawnPos.vy;
+            g_SysWork.playerBoneCoords_890[0].coord.t[0] = Q12_TO_Q8(spawnPos.vx);
+            g_SysWork.playerBoneCoords_890[0].coord.t[1] = Q12_TO_Q8(spawnPos.vy);
+            g_SysWork.playerBoneCoords_890[0].coord.t[2] = Q12_TO_Q8(spawnPos.vz);
+        }
+        prevKey = cur;
+    }
 
     /* If debug cam is off, let normal camera handle everything */
     if (!g_DebugCamEnabled) return;
@@ -201,10 +274,10 @@ void DebugCamera_Update(void)
         static int dbg_slash_prev = 0;
         int dbg_slash_cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
         if (dbg_slash_cur && !dbg_slash_prev) {
-            fprintf(stderr, "[DBGCAM] COORDS: pos=(%ld,%ld,%ld) angleY=%d\n",
+            SH_DBG("[DBGCAM] COORDS: pos=(%ld,%ld,%ld) angleY=%d",
                 (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                 g_DebugCamAngleY);
-            fprintf(stderr, "[DBGCAM] HARRY:  pos=(%ld,%ld,%ld)\n",
+            SH_DBG("[DBGCAM] HARRY:  pos=(%ld,%ld,%ld)",
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
@@ -224,13 +297,12 @@ void DebugCamera_Update(void)
     if (moved) {
         static int dbg_print_counter = 0;
         if (++dbg_print_counter % 30 == 0) {
-            fprintf(stderr, "[DBGCAM] pos=(%ld,%ld,%ld) angleY=%d harry=(%ld,%ld,%ld)\n",
+            SH_DBG("[DBGCAM] pos=(%ld,%ld,%ld) angleY=%d harry=(%ld,%ld,%ld)",
                 (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                 g_DebugCamAngleY,
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
-            fflush(stderr);
         }
     }
 
@@ -389,15 +461,17 @@ void MainLoop(void) // 0x80032EE0
 #ifdef SH_PC_PORT
         /* PC primitives are larger than PSX (8-byte pointers, bigger structs).
          * The original 128KB packet buffer overflows when rendering 2+ characters.
-         * Allocate 512KB per buffer from heap instead of fixed PSX temp memory. */
-        {
-            static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
-            if (!s_PcPacketBufs[0]) {
-                s_PcPacketBufs[0] = (PACKET*)calloc(1, 512 * 1024);
-                s_PcPacketBufs[1] = (PACKET*)calloc(1, 512 * 1024);
-            }
-            GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
+         * Allocate 512KB per buffer from heap instead of fixed PSX temp memory.
+         * Extra 64 bytes of canary at the end for corruption detection. */
+        if (!s_PcPacketBufs[0]) {
+            s_PcPacketBufs[0] = (PACKET*)calloc(1, PC_PKTBUF_SIZE + PC_CANARY_SIZE);
+            s_PcPacketBufs[1] = (PACKET*)calloc(1, PC_PKTBUF_SIZE + PC_CANARY_SIZE);
+            s_PcPacketBufEnds[0] = s_PcPacketBufs[0] + PC_PKTBUF_SIZE;
+            s_PcPacketBufEnds[1] = s_PcPacketBufs[1] + PC_PKTBUF_SIZE;
+            memset(s_PcPacketBufEnds[0], PC_CANARY_VAL, PC_CANARY_SIZE);
+            memset(s_PcPacketBufEnds[1], PC_CANARY_VAL, PC_CANARY_SIZE);
         }
+        GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
 #else
         if (g_GameWork.gameState_594 == GameState_MainLoadScreen ||
             g_GameWork.gameState_594 == GameState_InGame)
@@ -422,13 +496,36 @@ void MainLoop(void) // 0x80032EE0
         // Call update function for current GameState.
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == GameState_InGame) {
-            fprintf(stderr, "[PC] InGame update ENTER\n"); fflush(stderr);
+            SH_DBG("[PC] InGame update ENTER");
         }
 #endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == GameState_InGame) {
-            fprintf(stderr, "[PC] InGame update EXIT\n"); fflush(stderr);
+            SH_DBG("[PC] InGame update EXIT");
+            /* --- Canary checks after game state update --- */
+            {
+                PACKET* pktEnd0 = s_PcPacketBufEnds[0];
+                PACKET* pktEnd1 = s_PcPacketBufEnds[1];
+                PACKET* pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
+                ptrdiff_t pktUsed = GsOUT_PACKET_P - pktStart;
+                int canaryOk = 1;
+                int i;
+                for (i = 0; i < PC_CANARY_SIZE; i++) {
+                    if (pktEnd0[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
+                }
+                if (!canaryOk) {
+                    SH_DBG("[CANARY] *** PACKET BUF 0 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd0[i], pktUsed, PC_PKTBUF_SIZE);
+                }
+                canaryOk = 1;
+                for (i = 0; i < PC_CANARY_SIZE; i++) {
+                    if (pktEnd1[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
+                }
+                if (!canaryOk) {
+                    SH_DBG("[CANARY] *** PACKET BUF 1 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd1[i], pktUsed, PC_PKTBUF_SIZE);
+                }
+                SH_DBG("[PKTBUF] used=%td/%d (%.1f%%)", pktUsed, PC_PKTBUF_SIZE, (double)pktUsed * 100.0 / PC_PKTBUF_SIZE);
+            }
         }
 #endif
 
@@ -442,7 +539,7 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #ifdef SH_PC_PORT
-#define ML_TRACE(tag) do { if (g_GameWork.gameState_594 == GameState_InGame) { fprintf(stderr, "[ML] " tag "\n"); fflush(stderr); } } while(0)
+#define ML_TRACE(tag) do { if (g_GameWork.gameState_594 == GameState_InGame) { SH_DBG("[ML] " tag); } } while(0)
 #else
 #define ML_TRACE(tag) ((void)0)
 #endif
@@ -557,8 +654,7 @@ void MainLoop(void) // 0x80032EE0
                 static const char* labels[] = { "100%", "75%", "50%", "25%", "OFF" };
                 g_DebugFogLevel = (g_DebugFogLevel + 1) % 5;
                 g_DebugFogDisabled = (g_DebugFogLevel == 4);
-                fprintf(stderr, "[DEBUG] Fog: %s\n", labels[g_DebugFogLevel]);
-                fflush(stderr);
+                SH_DBG("[DEBUG] Fog: %s", labels[g_DebugFogLevel]);
             }
             g_DebugFogTogglePrev = cur;
 
@@ -586,6 +682,11 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         ML_TRACE("GsSortClear");
+#ifdef SH_PC_PORT
+        /* Stack canary — detect if anything corrupted our stack frame */
+        {
+            volatile u32 _stackCanary = 0xDEADBEEF;
+#endif
         GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
         ML_TRACE("post-GsSortClear");
 #ifdef SH_PC_PORT
@@ -621,6 +722,18 @@ void MainLoop(void) // 0x80032EE0
 
 #endif
         ML_TRACE("OT0-draw");
+#ifdef SH_PC_PORT
+        /* Pre-draw canary check: detect if corruption happened during OT build */
+        if (g_GameWork.gameState_594 == GameState_InGame) {
+            int _ci; int _canaryOk = 1;
+            for (_ci = 0; _ci < PC_CANARY_SIZE; _ci++) {
+                if (s_PcPacketBufEnds[g_ActiveBufferIdx][_ci] != PC_CANARY_VAL) { _canaryOk = 0; break; }
+            }
+            if (!_canaryOk) {
+                SH_DBG("[CANARY] *** PRE-DRAW: buf %d overflow at byte %d (0x%02X)", g_ActiveBufferIdx, _ci, (unsigned char)s_PcPacketBufEnds[g_ActiveBufferIdx][_ci]);
+            }
+        }
+#endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
         ML_TRACE("OT0-done");
 #ifdef SH_PC_PORT
@@ -655,6 +768,11 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");
+        /* End stack canary check */
+        if (_stackCanary != 0xDEADBEEF) {
+            SH_DBG("[CANARY] *** STACK CORRUPTION! canary=0x%08X", _stackCanary);
+        }
+        } /* close _stackCanary scope */
 #endif
     }
 

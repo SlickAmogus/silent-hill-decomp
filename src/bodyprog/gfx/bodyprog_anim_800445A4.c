@@ -98,9 +98,8 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
                 static int _kfClampDbgH = 0, _kfClampDbgN = 0;
                 int* cnt = (boneCount == 18) ? &_kfClampDbgH : &_kfClampDbgN;
                 if (*cnt < 10) {
-                    fprintf(stderr, "[ANIM_KF] CLAMP kf0=%d kf1=%d maxKF=%d bones=%d kfSize=%d\n",
+                    SH_DBG("[ANIM_KF] CLAMP kf0=%d kf1=%d maxKF=%d bones=%d kfSize=%d",
                             keyframe0, keyframe1, maxKF, boneCount, anmHdr->keyframeDataSize_4);
-                    fflush(stderr);
                     (*cnt)++;
                 }
                 if (keyframe0 >= maxKF) keyframe0 = maxKF - 1;

@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "sh_log.h"
 
 #include "bodyprog/bodyprog.h"
 
@@ -121,6 +122,11 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     u32 ptr14_off = rd32(&collraw[0x14]);
     u32 ptr18_off = rd32(&collraw[0x18]);
 
+    SH_DBG("[IPD-COLL] raw ptrs: C=0x%x 10=0x%x 14=0x%x 18=0x%x",
+            ptrC_off, ptr10_off, ptr14_off, ptr18_off);
+    SH_DBG("[IPD-COLL] field_1C=%d field_1E=%d field_1F=%d",
+            rds16(&collraw[0x1C]), collraw[0x1E], collraw[0x1F]);
+
     dst->ptr_C  = (SVECTOR3*)(collbase + ptrC_off);
     dst->ptr_10 = (s_IpdCollisionData_10*)(collbase + ptr10_off);
     dst->ptr_14 = (s_IpdCollisionData_14*)(collbase + ptr14_off);
@@ -140,6 +146,16 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     u32 ptr2C_off = rd32(&collraw[0x2C]);
     dst->ptr_28 = (u8*)(collbase + ptr28_off);
     dst->ptr_2C = (void*)(collbase + ptr2C_off);
+
+    /* Dump first few ptr_10 entries to verify data alignment */
+    {
+        s_IpdCollisionData_10* p10 = dst->ptr_10;
+        SH_DBG("[IPD-COLL] ptr_10[0]: f0=%d f2=%d f4=%d f8=%d fA=%d",
+                p10[0].field_0, p10[0].field_2, p10[0].field_4, p10[0].field_8, p10[0].field_A);
+        if (dst->field_8_8 > 1)
+            SH_DBG("[IPD-COLL] ptr_10[1]: f0=%d f2=%d f4=%d f8=%d fA=%d",
+                    p10[1].field_0, p10[1].field_2, p10[1].field_4, p10[1].field_8, p10[1].field_A);
+    }
 
     dst->field_30 = collraw[0x30];
     dst->unk_31[0] = collraw[0x31];
@@ -261,6 +277,12 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 
     /* Parse collision data into the embedded struct */
     ParseIpdCollisionData(&ipdHdr->collisionData_54, collraw, collbase);
+
+    /* Register as valid collision data for stale-pointer detection */
+    {
+        extern void PC_CollRegisterValid(s_IpdCollisionData* cd);
+        PC_CollRegisterValid(&ipdHdr->collisionData_54);
+    }
 
     fprintf(stderr, "[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]\n",
             (void*)ipdHdr->lmHdr_4, (void*)ipdHdr->modelInfo_14, modelCount,

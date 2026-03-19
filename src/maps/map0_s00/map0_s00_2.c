@@ -4,6 +4,7 @@
 #include "main/rng.h"
 #include "maps/map0/map0_s00.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 #include "maps/particle.h"
@@ -155,11 +156,10 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
         g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 13)
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x\n",
+        SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
                 g_SysWork.sysStateStep_C[0],
                 g_Controller0->btnsClicked_10,
                 g_GameWorkPtr->config_0.controllerConfig_0.skip_4);
-        fflush(stderr);
 #endif
         skipCutscene = true;
         SysWork_StateStepReset();
@@ -169,12 +169,10 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     {
         static s32 lastStep = -1;
         if (g_SysWork.sysStateStep_C[0] != lastStep) {
-            fprintf(stderr, "[SH_DMS] OpeningCutscene step=%d\n", g_SysWork.sysStateStep_C[0]);
-            fflush(stderr);
+            SH_DBG("[SH_DMS] OpeningCutscene step=%d", g_SysWork.sysStateStep_C[0]);
             lastStep = g_SysWork.sysStateStep_C[0];
         }
-        fprintf(stderr, "[CS] step=%d t=%d\n", g_SysWork.sysStateStep_C[0], g_Timer0);
-        fflush(stderr);
+        SH_DBG("[CS] step=%d t=%d", g_SysWork.sysStateStep_C[0], g_Timer0);
     }
     #endif
 
@@ -305,16 +303,16 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[CS] post-switch\n"); fflush(stderr);
+    SH_DBG("[CS] post-switch");
 #endif
     if (g_Timer0 >= Q12(0.0f))
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[CS] DMS t=%d\n", g_Timer0); fflush(stderr);
+        SH_DBG("[CS] DMS t=%d", g_Timer0);
 #endif
         Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[CS] DMS hero OK\n"); fflush(stderr);
+        SH_DBG("[CS] DMS hero OK");
 #endif
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
@@ -345,8 +343,7 @@ void func_800D9D98(void) // 0x800D9D98
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateStep_C[0] != _lastStep) {
-            fprintf(stderr, "[D9D98] step=%d\n", g_SysWork.sysStateStep_C[0]);
-            fflush(stderr);
+            SH_DBG("[D9D98] step=%d", g_SysWork.sysStateStep_C[0]);
             _lastStep = g_SysWork.sysStateStep_C[0];
         }
     }
@@ -405,8 +402,7 @@ void func_800DA028(void) // 0x800DA028
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateStep_C[0] != _lastStep) {
-            fprintf(stderr, "[DA028] step=%d\n", g_SysWork.sysStateStep_C[0]);
-            fflush(stderr);
+            SH_DBG("[DA028] step=%d", g_SysWork.sysStateStep_C[0]);
             _lastStep = g_SysWork.sysStateStep_C[0];
         }
     }
@@ -540,8 +536,7 @@ void func_800DA5A0(void) // 0x800DA5A0
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateStep_C[0] != _lastStep) {
-            fprintf(stderr, "[DA5A0] step=%d\n", g_SysWork.sysStateStep_C[0]);
-            fflush(stderr);
+            SH_DBG("[DA5A0] step=%d", g_SysWork.sysStateStep_C[0]);
             _lastStep = g_SysWork.sysStateStep_C[0];
         }
     }
@@ -620,26 +615,25 @@ void func_800DA5A0(void) // 0x800DA5A0
 
         case 3:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[DA5A0] step3: npc0 charaId=%d pos=(%d,%d,%d) stateEC=%d\n",
+            SH_DBG("[DA5A0] step3: npc0 charaId=%d pos=(%d,%d,%d) stateEC=%d",
                     g_SysWork.npcs_1A0[0].model_0.charaId_0,
                     g_SysWork.npcs_1A0[0].position_18.vx,
                     g_SysWork.npcs_1A0[0].position_18.vy,
                     g_SysWork.npcs_1A0[0].position_18.vz,
                     g_SysWork.npcs_1A0[0].properties_E4.dummy.properties_E8[1].val32);
-            fflush(stderr);
 #endif
             g_SysWork.npcs_1A0[0].properties_E4.player.headingAngle_124 = Q12(1.8f);
 
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[DA5A0] step3: calling func_80086728\n"); fflush(stderr);
+            SH_DBG("[DA5A0] step3: calling func_80086728");
 #endif
             func_80086728(&g_SysWork.npcs_1A0[0], 2, 1, 0);
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[DA5A0] step3: func_80086728 returned\n"); fflush(stderr);
+            SH_DBG("[DA5A0] step3: func_80086728 returned");
 #endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[DA5A0] step3: done\n"); fflush(stderr);
+            SH_DBG("[DA5A0] step3: done");
 #endif
             break;
 

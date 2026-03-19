@@ -1,5 +1,6 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -47,18 +48,15 @@ void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
 void GameState_LoadScreen_Update(void) // 0x800348E8
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameState_LoadScreen_Update: entering (step=%d)\n", g_GameWork.gameStateStep_598[0]);
-    fflush(stderr);
+    SH_DBG("[SH] GameState_LoadScreen_Update: entering (step=%d)", g_GameWork.gameStateStep_598[0]);
 #endif
     GameBoot_LoadingScreen();
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameState_LoadScreen_Update: after LoadingScreen\n");
-    fflush(stderr);
+    SH_DBG("[SH] GameState_LoadScreen_Update: after LoadingScreen");
 #endif
     GameBoot_GameStartup();
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameState_LoadScreen_Update: after GameStartup\n");
-    fflush(stderr);
+    SH_DBG("[SH] GameState_LoadScreen_Update: after GameStartup");
 #endif
 
     if (g_SysWork.flags_22A4 & SysFlag2_10)
@@ -97,7 +95,7 @@ void GameBoot_GameStartup(void) // 0x80034964
     {
         case 0:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GameStartup step=0 sizeof(s_WorldGfxWork)=%zu\n", sizeof(s_WorldGfxWork));
+            SH_DBG("[SH] GameStartup step=0 sizeof(s_WorldGfxWork)=%zu", sizeof(s_WorldGfxWork));
 #endif
             g_IntervalVBlanks                  = 1;
             g_GameWork.background2dColor_58C.r = 0;
@@ -167,7 +165,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 3:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GameStartup step=3 queueLen=%d\n", Fs_QueueGetLength());
+            SH_DBG("[SH] GameStartup step=3 queueLen=%d", Fs_QueueGetLength());
 #endif
             if (Fs_QueueGetLength() == 0)
             {
@@ -191,7 +189,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 5:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GameStartup step=5\n");
+            SH_DBG("[SH] GameStartup step=5");
 #endif
             Fs_CharaAnimDataAlloc(1, g_MapOverlayHeader.charaGroupIds_248[0], NULL, 0);
             Fs_CharaAnimDataAlloc(2, g_MapOverlayHeader.charaGroupIds_248[1], NULL, 0);
@@ -209,7 +207,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 7:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GameStartup step=7\n");
+            SH_DBG("[SH] GameStartup step=7");
 #endif
             if (func_80039F90() & EventParamUnkState_0)
             {
@@ -226,7 +224,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 8:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] GameStartup step=8\n");
+            SH_DBG("[SH] GameStartup step=8");
             /* IPD chunk loading not fully working on PC yet — skip wait */
             Game_StateStepIncrement();
 #else
@@ -242,15 +240,13 @@ void GameBoot_GameStartup(void) // 0x80034964
             {
                 static int bgm_init_logged = 0;
                 if (!bgm_init_logged) {
-                    fprintf(stderr, "[SH] BGM_Init step9: calling Bgm_Init()\n");
-                    fflush(stderr);
+                    SH_DBG("[SH] BGM_Init step9: calling Bgm_Init()");
                     bgm_init_logged = 1;
                 }
                 s32 bgmResult = Bgm_Init();
                 if (bgmResult == 0)
                 {
-                    fprintf(stderr, "[SH] BGM_Init step9: Bgm_Init() returned 0 (done)\n");
-                    fflush(stderr);
+                    SH_DBG("[SH] BGM_Init step9: Bgm_Init() returned 0 (done)");
                     g_GameWork.gameState_594 = GameState_MainLoadScreen;
                     Game_StateStepIncrement();
                 }
@@ -279,7 +275,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 11:
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SH] step=11 c0=%d\n", g_SysWork.counters_1C[0]);
+            SH_DBG("[SH] step=11 c0=%d", g_SysWork.counters_1C[0]);
 #endif
             if (g_SysWork.counters_1C[0] >= 60)
             {
@@ -329,30 +325,26 @@ void GameBoot_GameStartup(void) // 0x80034964
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_LoadingScreen: loadingScreenIdx=%d step=%d\n",
+    SH_DBG("[SH] GameBoot_LoadingScreen: loadingScreenIdx=%d step=%d",
             g_SysWork.loadingScreenIdx_2281, g_GameWork.gameStateStep_598[0]);
-    fflush(stderr);
 #endif
     if (g_SysWork.loadingScreenIdx_2281 != LoadingScreenId_None && g_GameWork.gameStateStep_598[0] < 10)
     {
         ScreenFade_Start(false, true, false);
         g_ScreenFadeTimestep = Q12(0.8f);
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SH] GameBoot_LoadingScreen: calling func[%d]=%p\n",
+        SH_DBG("[SH] GameBoot_LoadingScreen: calling func[%d]=%p",
                 g_SysWork.loadingScreenIdx_2281,
                 (void*)g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx_2281]);
-        fflush(stderr);
 #endif
         g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx_2281]();
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_LoadingScreen: calling Screen_BackgroundMotionBlur\n");
-    fflush(stderr);
+    SH_DBG("[SH] GameBoot_LoadingScreen: calling Screen_BackgroundMotionBlur");
 #endif
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SH] GameBoot_LoadingScreen: done\n");
-    fflush(stderr);
+    SH_DBG("[SH] GameBoot_LoadingScreen: done");
 #endif
 }

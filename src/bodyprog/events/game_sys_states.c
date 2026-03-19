@@ -1,6 +1,7 @@
 #include "game.h"
 
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -118,13 +119,13 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SS] sysState=%d\n", g_SysWork.sysState_8); fflush(stderr);
+    SH_DBG("[SS] sysState=%d", g_SysWork.sysState_8);
 #endif
     if (g_SysWork.sysState_8 == SysState_Gameplay)
     {
         g_SysWork.isMgsStringSet_18 = false;
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] SysStateFuncs[Gameplay]\n"); fflush(stderr);
+        SH_DBG("[SS] SysStateFuncs[Gameplay]");
 #endif
         g_SysStateFuncs[SysState_Gameplay]();
     }
@@ -136,19 +137,19 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * On PC, this causes cutscene timers to never advance. Use the raw
          * delta time so timer-based cutscene steps can progress. */
         g_DeltaTime = g_DeltaTimeRaw;
-        fprintf(stderr, "[SS] SysStateFuncs[%d]\n", g_SysWork.sysState_8); fflush(stderr);
+        SH_DBG("[SS] SysStateFuncs[%d]", g_SysWork.sysState_8);
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
         g_SysStateFuncs[g_SysWork.sysState_8]();
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] SysStateFuncs done\n"); fflush(stderr);
+        SH_DBG("[SS] SysStateFuncs done");
 #endif
 
         if (g_SysWork.sysState_8 == SysState_Gameplay)
         {
 #ifdef SH_PC_PORT
-            fprintf(stderr, "[SS] Event_Update\n"); fflush(stderr);
+            SH_DBG("[SS] Event_Update");
 #endif
             Event_Update(true);
 
@@ -165,13 +166,13 @@ void GameState_InGame_Update(void) // 0x80038BD4
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] worldObjectsUpdate\n"); fflush(stderr);
+        SH_DBG("[SS] worldObjectsUpdate");
 #endif
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SS] CutsceneCameraState\n"); fflush(stderr);
+    SH_DBG("[SS] CutsceneCameraState");
 #endif
     Screen_CutsceneCameraStateUpdate();
     Bgm_TrackUpdate(false);
@@ -181,11 +182,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze))
     {
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] func_80040014\n"); fflush(stderr);
+        SH_DBG("[SS] func_80040014");
 #endif
         func_80040014();
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] vcMoveAndSetCamera flags=0x%x\n", vcWork.flags_8); fflush(stderr);
+        SH_DBG("[SS] vcMoveAndSetCamera flags=0x%x", vcWork.flags_8);
 #endif
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
@@ -209,6 +210,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 #endif
 
+#ifdef SH_PC_PORT
+        SH_DBG("[SS] func_44=%p", (void*)(uintptr_t)g_MapOverlayHeader.func_44);
+#endif
         if (g_MapOverlayHeader.func_44 != NULL)
         {
             g_MapOverlayHeader.func_44();
@@ -217,6 +221,10 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Demo_DemoRandSeedRestore();
 
         player = &g_SysWork.playerWork_4C.player_0;
+
+#ifdef SH_PC_PORT
+        SH_DBG("[SS] pre-PlayerUpdate");
+#endif
 
 #ifdef SH_PC_PORT
         /* In debug camera mode, skip player/NPC/flashlight updates
@@ -256,10 +264,20 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 #endif
 
+#ifdef SH_PC_PORT
+        SH_DBG("[SS] Player_Update enter");
+#endif
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
+#ifdef SH_PC_PORT
+        SH_DBG("[SS] Player_Update done");
+#endif
 
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
+#ifdef SH_PC_PORT
+        SH_DBG("[SS] Flashlight done, particlesUpdate=%p",
+                (void*)(uintptr_t)g_MapOverlayHeader.particlesUpdate_168);
+#endif
 
         if (g_SavegamePtr->mapOverlayId_A4 != MapOverlayId_MAP7_S03)
         {
@@ -326,19 +344,19 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Demo_DemoRandSeedRestore();
         Game_NpcRoomInitSpawn(true);
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] after NpcRoomInitSpawn\n"); fflush(stderr);
+        SH_DBG("[SS] after NpcRoomInitSpawn");
 #endif
         Game_NpcUpdate();
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] after NpcUpdate\n"); fflush(stderr);
+        SH_DBG("[SS] after NpcUpdate");
 #endif
         func_8005E89C();
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] after func_8005E89C\n"); fflush(stderr);
+        SH_DBG("[SS] after func_8005E89C");
 #endif
         Ipd_CloseRangeChunksInit();
 #ifdef SH_PC_PORT
-        fprintf(stderr, "[SS] after Ipd_CloseRangeChunksInit\n"); fflush(stderr);
+        SH_DBG("[SS] after Ipd_CloseRangeChunksInit");
 #endif
         Gfx_InGameDraw(1);
         Demo_DemoRandSeedAdvance();
@@ -1021,11 +1039,10 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
 
     g_DeltaTime = g_DeltaTimeCpy;
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[SS] EventCallFunc param=%d func=%p\n", g_MapEventParam,
+    SH_DBG("[SS] EventCallFunc param=%d func=%p", g_MapEventParam,
             (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]);
-    fflush(stderr);
     if (g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
-        fprintf(stderr, "[SS] EventCallFunc NULL — skip\n"); fflush(stderr);
+        SH_DBG("[SS] EventCallFunc NULL — skip");
         g_SysWork.sysState_8 = SysState_Gameplay;
         return;
     }

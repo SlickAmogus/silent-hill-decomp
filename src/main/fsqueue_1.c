@@ -1,5 +1,6 @@
 #include "gpu.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 #include "bodyprog/bodyprog.h"
@@ -201,8 +202,8 @@ void Fs_QueueUpdate(void)
     if (g_FsQueue.read.idx <= g_FsQueue.last.idx)
     {
 #ifdef SH_PC_PORT
-        if (_doDbg) { fprintf(stderr, "[SH] FsQ: read op=%d state=%d readIdx=%d lastIdx=%d ptr=%p\n",
-            tick->operation, g_FsQueue.state, g_FsQueue.read.idx, g_FsQueue.last.idx, (void*)tick); fflush(stderr); }
+        if (_doDbg) { SH_DBG("[SH] FsQ: read op=%d state=%d readIdx=%d lastIdx=%d ptr=%p",
+            tick->operation, g_FsQueue.state, g_FsQueue.read.idx, g_FsQueue.last.idx, (void*)tick); }
 #endif
         switch (tick->operation)
         {
@@ -234,7 +235,7 @@ void Fs_QueueUpdate(void)
     }
 
 #ifdef SH_PC_PORT
-    if (_doDbg) { fprintf(stderr, "[SH] FsQ: post-read\n"); fflush(stderr); }
+    if (_doDbg) { SH_DBG("[SH] FsQ: post-read"); }
 #endif
 
     // Preparations to post-load in queue; tick them.
@@ -242,8 +243,8 @@ void Fs_QueueUpdate(void)
     if (g_FsQueue.postLoad.idx < g_FsQueue.read.idx)
     {
 #ifdef SH_PC_PORT
-        if (_doDbg) { fprintf(stderr, "[SH] FsQ: postLoad postLoadIdx=%d readIdx=%d postLoad=%d ptr=%p\n",
-            g_FsQueue.postLoad.idx, g_FsQueue.read.idx, tick->postLoad, (void*)tick); fflush(stderr); }
+        if (_doDbg) { SH_DBG("[SH] FsQ: postLoad postLoadIdx=%d readIdx=%d postLoad=%d ptr=%p",
+            g_FsQueue.postLoad.idx, g_FsQueue.read.idx, tick->postLoad, (void*)tick); }
 #endif
         temp = Fs_QueueUpdatePostLoad(tick);
         if (temp == true)

@@ -1,5 +1,6 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -117,11 +118,10 @@ void vwSetViewInfo(void) // 0x80048D48
     {
         static int view_dbg = 0;
         if (view_dbg < 5) {
-            fprintf(stderr, "[CAMERA] vwSetViewInfo: vp=(%d,%d,%d) vr=(%d,%d,%d) rz=%d\n",
+            SH_DBG("[CAMERA] vwSetViewInfo: vp=(%d,%d,%d) vr=(%d,%d,%d) rz=%d",
                     vwViewPointInfo.rview.vp.vx, vwViewPointInfo.rview.vp.vy, vwViewPointInfo.rview.vp.vz,
                     vwViewPointInfo.rview.vr.vx, vwViewPointInfo.rview.vr.vy, vwViewPointInfo.rview.vr.vz,
                     vwViewPointInfo.rview.rz);
-            fflush(stderr);
         }
         view_dbg++;
     }
@@ -133,10 +133,9 @@ void vwSetViewInfo(void) // 0x80048D48
     {
         static int view_dbg2 = 0;
         if (view_dbg2 < 5) {
-            fprintf(stderr, "[CAMERA] vwSetViewInfo post: worldpos=(%d,%d,%d) worldang=(%d,%d,%d)\n",
+            SH_DBG("[CAMERA] vwSetViewInfo post: worldpos=(%d,%d,%d) worldang=(%d,%d,%d)",
                     vwViewPointInfo.worldpos.vx, vwViewPointInfo.worldpos.vy, vwViewPointInfo.worldpos.vz,
                     vwViewPointInfo.worldang.vx, vwViewPointInfo.worldang.vy, vwViewPointInfo.worldang.vz);
-            fflush(stderr);
         }
         view_dbg2++;
     }

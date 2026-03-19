@@ -1,6 +1,7 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -11,6 +12,57 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/item_screens.h"
+
+#ifdef SH_PC_PORT
+/* Cache the known-good collision data pointer and a fingerprint of its
+ * key fields. When IPD chunks get overwritten by new chunk loads, the
+ * pointer from func_800426E4 still looks valid but the data is garbage.
+ * We detect this by checking if the fingerprint still matches. */
+#define PC_COLL_MAX_PTRS 64
+static s_IpdCollisionData* s_ValidCollPtrs[PC_COLL_MAX_PTRS];
+static s32 s_ValidCollFingerprints[PC_COLL_MAX_PTRS];
+static int s_ValidCollCount = 0;
+
+static s32 PC_CollFingerprint(s_IpdCollisionData* cd) {
+    return cd->positionX_0 ^ cd->positionZ_4 ^ (cd->field_1C << 16) ^
+           (cd->field_1E << 8) ^ cd->field_1F;
+}
+
+void PC_CollRegisterValid(s_IpdCollisionData* cd) {
+    int i;
+    s32 fp = PC_CollFingerprint(cd);
+    /* Update if already registered (chunk reloaded in same slot) */
+    for (i = 0; i < s_ValidCollCount; i++) {
+        if (s_ValidCollPtrs[i] == cd) {
+            s_ValidCollFingerprints[i] = fp;
+            return;
+        }
+    }
+    /* Add new entry */
+    if (s_ValidCollCount < PC_COLL_MAX_PTRS) {
+        s_ValidCollPtrs[s_ValidCollCount] = cd;
+        s_ValidCollFingerprints[s_ValidCollCount] = fp;
+        s_ValidCollCount++;
+    }
+}
+
+static int PC_CollIsValid(s_IpdCollisionData* cd) {
+    int i;
+    if (!cd) return 0;
+    for (i = 0; i < s_ValidCollCount; i++) {
+        if (cd == s_ValidCollPtrs[i]) {
+            /* Verify data hasn't been overwritten since reformatting */
+            if (PC_CollFingerprint(cd) != s_ValidCollFingerprints[i]) {
+                /* Chunk was reloaded — update fingerprint after next reformat */
+                return 0;
+            }
+            return 1;
+        }
+    }
+    /* Unknown pointer — not reformatted by us */
+    return 0;
+}
+#endif
 #include "bodyprog/player.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -123,32 +175,31 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     s_CollisionState    state;
     s_IpdCollisionData* ipdCollData;
 
+#ifdef SH_PC_PORT
+    /* Zero-init collision state to prevent heisenbug from uninitialized
+     * stack memory. On PSX, stack contents are predictable; on x86-64,
+     * they vary with binary layout, causing sporadic crashes. */
+    memset(&state, 0, sizeof(state));
+    memset(&query, 0, sizeof(query));
+#endif
+
     pos.vx = Q12(0.0f);
     pos.vy = Q12(0.0f);
     pos.vz = Q12(0.0f);
 
 #ifdef SH_PC_PORT
-    {
-        static int _collDbg = 0;
-        if (_collDbg < 10) {
-            fprintf(stderr, "[COLL] Collision_Get pos=(%d,%d)\n", posX, posZ);
-            fflush(stderr);
-        }
-        _collDbg++;
-    }
+    SH_DBG("[COLL] Collision_Get pos=(%d,%d)", posX, posZ);
 #endif
     ipdCollData = func_800426E4(posX, posZ);
 #ifdef SH_PC_PORT
-    {
-        static int _collDbg2 = 0;
-        if (_collDbg2 < 10) {
-            fprintf(stderr, "[COLL] func_800426E4 returned %p\n", (void*)ipdCollData);
-            fflush(stderr);
-        }
-        _collDbg2++;
-    }
+    SH_DBG("[COLL] func_800426E4 returned %p valid=%d", (void*)ipdCollData,
+            ipdCollData ? PC_CollIsValid(ipdCollData) : -1);
 #endif
-    if (ipdCollData == NULL)
+    if (ipdCollData == NULL
+#ifdef SH_PC_PORT
+        || !PC_CollIsValid(ipdCollData)
+#endif
+    )
     {
         coll->groundHeight_0 = Q12(8.0f);
         coll->field_6        = 0;
@@ -180,6 +231,18 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
         coll->field_8        = state.field_94;
         coll->groundHeight_0 = Q8_TO_Q12(func_8006CC44(state.field_4.positionX_18, state.field_4.positionZ_1C, &state));
     }
+
+#ifdef SH_PC_PORT
+    {
+        static int _cgDbg = 0;
+        if (_cgDbg < 20) {
+            SH_DBG("[COLLGET] field_90=%d field_7C=0x%X field_80=%d field_84=%d field_88=%d field_8C=%d groundH=%d",
+                    state.field_90, state.field_7C, state.field_80, state.field_84,
+                    state.field_88, state.field_8C, coll->groundHeight_0);
+        }
+        _cgDbg++;
+    }
+#endif
 
     coll->field_4 = state.field_88;
     coll->field_6 = state.field_8C;
@@ -243,7 +306,15 @@ s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* offset,
                     break;
 
                 default:
+#ifdef SH_PC_PORT
+                    /* On PC, func_8006CC44 returns 0 for ground height, making
+                     * field_C == 0 always. This causes the wall classification
+                     * to always be CollisionType_None, skipping ALL wall probing.
+                     * Force wall probing to always run on PC. */
+                    collType = CollisionType_Wall;
+#else
                     collType = (collResult->field_C < wallHeightBound) ? CollisionType_Wall : CollisionType_None;
+#endif
                     break;
             }
 
@@ -394,26 +465,24 @@ s32 Collision_CharaCollisionSetup(s_CollisionResult* collResult, VECTOR3* offset
     s32             charaCount;
     s32             var_s1; // TODO: Maybe `bool`?
 
-#ifdef SH_PC_PORT
-    /* IPD collision data not available — return safe flat-ground defaults.
-     * Offset is passed through directly (no wall/collision adjustment). */
-    collResult->offset_0 = *offset;
-    collResult->field_12 = 0;
-    collResult->field_10 = 0;
-    collResult->field_14 = 0;
-    collResult->field_18 = 0xFFFF0000;
-    collResult->field_C  = Q12(0.0f); /* ground at Y=0 */
-    return 1;
-#endif
+    /* PC: IPD collision data is now reformatted for 64-bit by
+     * ParseIpdCollisionData in ipd_reformat.c. Enable real collision. */
 
     sp28.position_0.vx = chara->position_18.vx + chara->field_D8.offsetX_4;
     sp28.position_0.vy = chara->position_18.vy - Q12(0.02f);
     sp28.position_0.vz = chara->position_18.vz + chara->field_D8.offsetZ_6;
 
-    if (func_800426E4(chara->position_18.vx, chara->position_18.vz) == NULL)
     {
-        Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(8.0f));
-        return 1;
+        s_IpdCollisionData* _collCheck = func_800426E4(chara->position_18.vx, chara->position_18.vz);
+        if (_collCheck == NULL
+#ifdef SH_PC_PORT
+            || !PC_CollIsValid(_collCheck)
+#endif
+        )
+        {
+            Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(8.0f));
+            return 1;
+        }
     }
 
     sp28.rotation_C.vy = chara->field_C8.field_0;
@@ -437,9 +506,19 @@ s32 Collision_CharaCollisionSetup(s_CollisionResult* collResult, VECTOR3* offset
             break;
     }
 
-    return func_8006A4A8(collResult, &offsetCpy, &sp28, var_s1,
-                         func_800425D8(&collDataIdx), collDataIdx, NULL, 0,
-                         Collision_ActiveCharactersGet(&charaCount, chara, true), charaCount);
+    /* On PSX MIPS, function arguments are evaluated left-to-right, so
+     * func_800425D8(&collDataIdx) sets collDataIdx before it's read, and
+     * Collision_ActiveCharactersGet(&charaCount,...) sets charaCount before
+     * it's read.  On x86-64, evaluation order is unspecified — GCC may read
+     * collDataIdx/charaCount before the side-effect calls execute, giving
+     * garbage values (e.g. charaCount=32766).  Fix: evaluate first. */
+    {
+        s_IpdCollisionData** _collPtrs = func_800425D8(&collDataIdx);
+        s_SubCharacter**     _charas   = Collision_ActiveCharactersGet(&charaCount, chara, true);
+        return func_8006A4A8(collResult, &offsetCpy, &sp28, var_s1,
+                             _collPtrs, collDataIdx, NULL, 0,
+                             _charas, charaCount);
+    }
 }
 
 void Collision_DefaultResultSet(s_CollisionResult* collResult, q19_12 offsetX, q19_12 offsetY, q19_12 offsetZ, q19_12 groundHeight) // 0x8006A178
@@ -530,7 +609,11 @@ s32 func_8006A42C(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
 
     offsetCpy = *offset;
 
-    return func_8006A4A8(collResult, &offsetCpy, query, 0, func_800425D8(&collDataIdx), collDataIdx, NULL, 0, NULL, 0);
+    /* Same MIPS left-to-right eval order fix as Collision_CharaCollisionSetup */
+    {
+        s_IpdCollisionData** _collPtrs = func_800425D8(&collDataIdx);
+        return func_8006A4A8(collResult, &offsetCpy, query, 0, _collPtrs, collDataIdx, NULL, 0, NULL, 0);
+    }
 }
 
 s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* query, s32 arg3,
@@ -549,6 +632,9 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
     s_IpdCollisionData** curCollData;
     s_SubCharacter*      chara;
 
+#ifdef SH_PC_PORT
+    memset(&sp18, 0, sizeof(sp18));
+#endif
     cond = false;
 
     if (query->field_12 == 5)
@@ -557,13 +643,32 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
         return 0;
     }
 
+#ifdef SH_PC_PORT
+    { static int _a4dbg = 0; if (_a4dbg < 5) {
+        SH_DBG("[A4A8] ENTER query.f12=%d collDataIdx=%d charaCount=%d arg3=%d",
+               query->field_12, collDataIdx, charaCount, arg3);
+    } _a4dbg++; }
+#endif
+
     func_8006A940(offset, query, charas, charaCount);
+
+#ifdef SH_PC_PORT
+    { static int _a4dbg2 = 0; if (_a4dbg2 < 5) { SH_DBG("[A4A8] after func_8006A940"); } _a4dbg2++; }
+#endif
 
     offsetCpy = *offset;
 
     collResult->field_18 = func_8006F620(&offsetCpy, query, query->rotation_C.vz, query->rotation_C.vy);
 
+#ifdef SH_PC_PORT
+    { static int _a4dbg3 = 0; if (_a4dbg3 < 5) { SH_DBG("[A4A8] after func_8006F620"); } _a4dbg3++; }
+#endif
+
     Collision_QueryInit(&sp18, &offsetCpy, query, arg3);
+
+#ifdef SH_PC_PORT
+    { static int _a4dbg4 = 0; if (_a4dbg4 < 5) { SH_DBG("[A4A8] after QueryInit"); } _a4dbg4++; }
+#endif
 
     sp130 = offsetCpy;
 
@@ -586,11 +691,26 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
             sp18.field_0_10 = 1;
         }
 
+#ifdef SH_PC_PORT
+        { static int _loopDbg = 0; if (_loopDbg < 5) {
+            SH_DBG("[A4A8] loop iter: field_0_0=%d collDataIdx=%d", sp18.field_0_0, collDataIdx);
+        } _loopDbg++; }
+#endif
+
         // Run through collision data.
         for (curCollData = collDataPtrs; curCollData < &collDataPtrs[collDataIdx]; curCollData++)
         {
+#ifdef SH_PC_PORT
+            { static int _cdDbg = 0; if (_cdDbg < 5) {
+                SH_DBG("[A4A8] func_8006AD44 collData=%p", (void*)*curCollData);
+            } _cdDbg++; }
+#endif
             func_8006AD44(&sp18, *curCollData);
         }
+
+#ifdef SH_PC_PORT
+        { static int _postAd = 0; if (_postAd < 5) { SH_DBG("[A4A8] after AD44 loop"); } _postAd++; }
+#endif
 
         if (sp18.field_44.field_0.field_0 && sp18.field_44.field_0.field_2.vx == sp18.field_44.field_0.field_2.vy)
         {
@@ -598,6 +718,10 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
         }
 
         func_8006CF18(&sp18, arg6, arg7);
+
+#ifdef SH_PC_PORT
+        { static int _postCf = 0; if (_postCf < 5) { SH_DBG("[A4A8] after CF18, charaCount=%d", charaCount); } _postCf++; }
+#endif
 
         // Run through characters.
         for (curChara = charas; curChara < &charas[charaCount]; curChara++)
@@ -628,7 +752,15 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
             func_8006CF18(&sp18, chara->field_E4, chara->field_E1_4);
         }
 
+#ifdef SH_PC_PORT
+        { static int _postChara = 0; if (_postChara < 5) { SH_DBG("[A4A8] after chara loop"); } _postChara++; }
+#endif
+
         func_8006D01C(&sp120, &sp130, func_8006CB90(&sp18), &sp18);
+
+#ifdef SH_PC_PORT
+        { static int _postD01C = 0; if (_postD01C < 5) { SH_DBG("[A4A8] after D01C"); } _postD01C++; }
+#endif
 
         collResult->offset_0.vx += sp120.vx;
         collResult->offset_0.vz += sp120.vz;
@@ -829,6 +961,14 @@ void func_8006AD44(s_CollisionState* state, s_IpdCollisionData* collData) // 0x8
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* Guard against NULL ptr_20 or zero field_1E (cell width) which would
+     * cause out-of-bounds access or infinite loop */
+    if (collData->ptr_20 == NULL || collData->field_1E == 0) {
+        return;
+    }
+#endif
+
     if (state->field_0_0 == 0)
     {
         func_80069994(collData);
@@ -836,6 +976,21 @@ void func_8006AD44(s_CollisionState* state, s_IpdCollisionData* collData) // 0x8
 
     startIdx = state->field_A0.s_0.field_0;
     endIdx   = (state->field_A0.s_0.field_0 + state->field_A0.s_0.field_2) - 1;
+
+#ifdef SH_PC_PORT
+    /* Bounds check grid indices to prevent out-of-bounds access into ptr_20.
+     * The array has field_1E * field_1F entries. */
+    {
+        s32 maxIdx = (s32)collData->field_1E * (s32)collData->field_1F;
+        s32 loopEnd_i = state->field_A0.s_0.field_1 + state->field_A0.s_0.field_3;
+        if (startIdx < 0 || endIdx < 0 || startIdx >= collData->field_1E ||
+            endIdx >= collData->field_1E || state->field_A0.s_0.field_1 < 0 ||
+            loopEnd_i > collData->field_1F ||
+            (loopEnd_i * collData->field_1E + endIdx) >= maxIdx) {
+            goto ad44_skip_grid;
+        }
+    }
+#endif
 
     for (i = state->field_A0.s_0.field_1; i < (state->field_A0.s_0.field_1 + state->field_A0.s_0.field_3); i++)
     {
@@ -846,6 +1001,9 @@ void func_8006AD44(s_CollisionState* state, s_IpdCollisionData* collData) // 0x8
             func_8006B1C8(state, collData, curUnk);
         }
     }
+#ifdef SH_PC_PORT
+    ad44_skip_grid: ;
+#endif
 
     if (state->field_0_0 == 0)
     {
@@ -875,6 +1033,14 @@ bool func_8006AEAC(s_CollisionState* state, s_IpdCollisionData* collData) // 0x8
     state->field_98.vec_0.vz = state->field_4.positionZ_1C - collData->positionZ_4;
     state->field_9C.vec_0.vx = state->field_4.field_20 - collData->positionX_0;
     state->field_9C.vec_0.vz = state->field_4.field_24 - collData->positionZ_4;
+
+#ifdef SH_PC_PORT
+    /* Guard against divide-by-zero on collision cell size */
+    if (collData->field_1C == 0) {
+        state->field_A0.s_0.field_4 = NULL;
+        return true;
+    }
+#endif
 
     if ((state->field_98.vec_0.vx / collData->field_1C) < 0 || (state->field_98.vec_0.vx / collData->field_1C) >= collData->field_1E ||
         ((state->field_98.vec_0.vz / collData->field_1C) < 0) || (state->field_98.vec_0.vz / collData->field_1C) >= collData->field_1F)
@@ -2407,12 +2573,8 @@ bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
 
     ray->hasHit_0 = false;
 
-#ifdef SH_PC_PORT
-    /* IPD collision data not reformatted for 64-bit — Ray_TraceRun would
-     * dereference corrupt pointers. Return "no hit" safely. */
-    Ray_MissSet(ray, from, &dir, 0);
-    return false;
-#endif
+    /* PC: IPD collision data is now reformatted for 64-bit.
+     * Ray_TraceRun should work with correct pointers. */
 
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 0, 0, from, &dir, 0, 0, NULL, 0))
     {

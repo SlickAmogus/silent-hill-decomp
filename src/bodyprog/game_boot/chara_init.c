@@ -1,5 +1,6 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 #include <stdio.h>
 #endif
 
@@ -54,7 +55,7 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     mapOvlId = g_SavegamePtr->mapOverlayId_A4;
 
 #ifdef SH_PC_PORT
-#define HARRY_CHECK(label) fprintf(stderr, "[SH] InGameInit %s harry=%p\n", label, (void*)g_WorldGfxWork.registeredCharaModels_18[1]); fflush(stderr)
+#define HARRY_CHECK(label) SH_DBG("[SH] InGameInit %s harry=%p", label, (void*)g_WorldGfxWork.registeredCharaModels_18[1])
     HARRY_CHECK("start");
 #endif
     vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork_4C.player_0.position_18);
@@ -77,10 +78,9 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     Game_FlashlightAttributesFix();
 #ifdef SH_PC_PORT
     HARRY_CHECK("after FlashlightAttribsFix");
-    fprintf(stderr, "[SH]   &g_WorldGfxWork=%p &registeredCharaModels[1]=%p offset=%zu\n",
+    SH_DBG("[SH]   &g_WorldGfxWork=%p &registeredCharaModels[1]=%p offset=%zu",
             (void*)&g_WorldGfxWork, (void*)&g_WorldGfxWork.registeredCharaModels_18[1],
             (size_t)((char*)&g_WorldGfxWork.registeredCharaModels_18[1] - (char*)&g_WorldGfxWork));
-    fflush(stderr);
 #endif
     g_MapOverlayHeader.particlesUpdate_168(0, mapOvlId, NO_VALUE);
 #ifdef SH_PC_PORT

@@ -9,11 +9,21 @@ set(CMAKE_CXX_STANDARD 17)
 # =============================================================================
 option(SH_USE_OPENGL "Use OpenGL renderer (via PsyCross)" ON)
 option(SH_DEBUG "Enable debug output" OFF)
+option(SH_ASAN "Enable AddressSanitizer for memory corruption detection" OFF)
 
 # =============================================================================
 # Version defines - default to USA
 # =============================================================================
 set(SH_VERSION "USA" CACHE STRING "Game version (USA, EUR, JAP0, JAP1, JAP2)")
+
+# =============================================================================
+# AddressSanitizer (optional, for debugging memory corruption)
+# =============================================================================
+if(SH_ASAN)
+    message(STATUS "AddressSanitizer ENABLED")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
 
 # =============================================================================
 # PsyCross (PSY-Q Hardware Abstraction Layer)
