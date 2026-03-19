@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
+#include <stddef.h>
 #endif
 
 #include <psyq/gtemac.h>
@@ -68,6 +69,15 @@ static int PC_CollIsValid(s_IpdCollisionData* cd) {
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound_system.h"
 #include "main/rng.h"
+
+/* PSX hardcoded 52 = offsetof(s_IpdCollisionData, field_34) on 32-bit.
+ * On 64-bit, pointer fields expand and alignment padding shifts field_34
+ * to a different offset. Use offsetof() so it's correct on both. */
+#ifdef SH_PC_PORT
+#define IPD_COLL_FIELD34_OFS  offsetof(s_IpdCollisionData, field_34)
+#else
+#define IPD_COLL_FIELD34_OFS  52
+#endif
 
 s_800C4478 D_800C4478;
 
@@ -1490,7 +1500,7 @@ void func_8006BB50(s_CollisionState* state, s32 arg1) // 0x8006BB50
     }
 
     temp2 = state->field_4.field_28 - state->field_CC.field_20.field_C;
-    func_8006BCC4(&state->field_44, (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + 52), arg1, deltaX, deltaZ, temp2);
+    func_8006BCC4(&state->field_44, (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS), arg1, deltaX, deltaZ, temp2);
 }
 
 s32 func_8006BC34(s_CollisionState* state)
@@ -1686,7 +1696,7 @@ void func_8006BF88(s_CollisionState* state, SVECTOR3* arg1) // 0x8006BF88
         state->field_34 = 2;
         temp2          = state->field_98.vec_0.vx + Q12_MULT(state->field_4.offset_C.vx, temp_v0);
         state->field_3A = (state->field_4.distance_8 * temp_v0) >> 8;
-        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + 52);
+        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS);
 
         state->field_3C = temp2 - arg1->vx;
         temp3          = state->field_98.vec_0.vz + Q12_MULT(state->field_4.offset_C.vz, temp_v0);
@@ -1707,7 +1717,7 @@ void func_8006C0C8(s_CollisionState* state, s16 arg1, s16 arg2) // 0x8006C0C8
 
     if (temp + state->field_CC.field_12.vy < state->field_4.field_2C)
     {
-        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + 52);
+        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS);
         state->field_34 = 1;
         state->field_38 = arg1;
         state->field_3A = (state->field_4.distance_8 * arg1) >> 8;
@@ -1928,7 +1938,7 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
         state->field_34 = 1;
         temp           = state->field_98.vec_0.vx + Q12_MULT(state->field_4.offset_C.vx, var_s2);
         state->field_3A = (state->field_4.distance_8 * var_s2) >> 8;
-        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + 52);
+        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS);
         state->field_3C = temp - state->field_CC.field_6.vx;
         temp2          = state->field_98.vec_0.vz + Q12_MULT(state->field_4.offset_C.vz, var_s2);
         state->field_3E = temp2 - state->field_CC.field_6.vz;
@@ -1940,7 +1950,7 @@ void func_8006C794(s_CollisionState* state, s32 arg1, s32 dist) // 0x8006C794
     if (state->field_4.field_2C >= (state->field_CC.field_6.vy + (dist - state->field_CC.field_C.field_0)))
     {
         func_8006BCC4(&state->field_44,
-                      (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + 52),
+                      (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS),
                       arg1,
                       state->field_98.vec_0.vx - state->field_CC.field_6.vx,
                       state->field_98.vec_0.vz - state->field_CC.field_6.vz,
@@ -2587,7 +2597,7 @@ bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
 
     if (!ray->hasHit_0)
     {
-        Ray_MissSet(ray, from, &dir, (s16)*(u16*)(&((u8*)scratchAddr)[92]));
+        Ray_MissSet(ray, from, &dir, ((s_RayState*)scratchAddr)->field_5C);
     }
 
     return ray->hasHit_0;
@@ -2614,7 +2624,7 @@ bool func_8006DA08(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 
     if (!ray->hasHit_0)
     {
-        Ray_MissSet(ray, from, dir, (s16)*(u16*)(&((u8*)scratchAddr)[92]));
+        Ray_MissSet(ray, from, dir, ((s_RayState*)scratchAddr)->field_5C);
     }
 
     return ray->hasHit_0;
@@ -2659,7 +2669,7 @@ bool func_8006DB3C(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 
     if (!ray->hasHit_0)
     {
-        func_8006DB3C_Inline(ray, from, dir, &((u8*)scratchAddr)[92]);
+        func_8006DB3C_Inline(ray, from, dir, (u16*)&((s_RayState*)scratchAddr)->field_5C);
     }
 
     return ray->hasHit_0;
@@ -2682,7 +2692,7 @@ bool func_8006DC18(s_RayData* ray, VECTOR3* vec1, VECTOR3* vec2) // 0x8006DC18
 
     if (!ray->hasHit_0)
     {
-        Ray_MissSet(ray, vec1, vec2, (s16)*(u16*)(&((u8*)scratchAddr)[92]));
+        Ray_MissSet(ray, vec1, vec2, ((s_RayState*)scratchAddr)->field_5C);
     }
 
     return ray->hasHit_0;
