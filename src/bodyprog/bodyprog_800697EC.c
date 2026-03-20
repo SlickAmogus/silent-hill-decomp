@@ -316,15 +316,9 @@ s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* offset,
                     break;
 
                 default:
-#ifdef SH_PC_PORT
-                    /* On PC, func_8006CC44 returns 0 for ground height, making
-                     * field_C == 0 always. This causes the wall classification
-                     * to always be CollisionType_None, skipping ALL wall probing.
-                     * Force wall probing to always run on PC. */
-                    collType = CollisionType_Wall;
-#else
+                    /* With IPD_COLL_FIELD34_OFS fix, func_8006CC44 returns correct
+                     * ground heights. Use original wall classification logic. */
                     collType = (collResult->field_C < wallHeightBound) ? CollisionType_Wall : CollisionType_None;
-#endif
                     break;
             }
 
