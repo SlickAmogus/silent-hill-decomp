@@ -95,7 +95,14 @@ void GameBoot_GameStartup(void) // 0x80034964
     {
         case 0:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=0 sizeof(s_WorldGfxWork)=%zu", sizeof(s_WorldGfxWork));
+            SH_DBG("[TRANSITION] GameStartup step=0: processFlags_2298=0x%X (%s) sizeof(s_WorldGfxWork)=%zu",
+                   g_SysWork.processFlags_2298,
+                   (g_SysWork.processFlags_2298 == SysWorkProcessFlag_RoomTransition) ? "RoomTransition" :
+                   (g_SysWork.processFlags_2298 == SysWorkProcessFlag_OverlayTransition) ? "OverlayTransition" :
+                   (g_SysWork.processFlags_2298 == SysWorkProcessFlag_BootDemo) ? "BootDemo" :
+                   (g_SysWork.processFlags_2298 == SysWorkProcessFlag_LoadSave) ? "LoadSave" :
+                   (g_SysWork.processFlags_2298 == SysWorkProcessFlag_Continue) ? "Continue" : "Unknown",
+                   sizeof(s_WorldGfxWork));
 #endif
             g_IntervalVBlanks                  = 1;
             g_GameWork.background2dColor_58C.r = 0;
@@ -207,7 +214,12 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 7:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=7");
+            SH_DBG("[TRANSITION] GameStartup step=7: processFlags=0x%X playerPos=(%d,%d,%d) func_80039F90=0x%X",
+                   g_SysWork.processFlags_2298,
+                   g_SysWork.playerWork_4C.player_0.position_18.vx,
+                   g_SysWork.playerWork_4C.player_0.position_18.vy,
+                   g_SysWork.playerWork_4C.player_0.position_18.vz,
+                   func_80039F90());
 #endif
             if (func_80039F90() & EventParamUnkState_0)
             {
@@ -215,6 +227,13 @@ void GameBoot_GameStartup(void) // 0x80034964
             }
 
             Ipd_PlayerChunkInit(&g_MapOverlayHeader, g_SysWork.playerWork_4C.player_0.position_18.vx, g_SysWork.playerWork_4C.player_0.position_18.vz);
+#ifdef SH_PC_PORT
+            SH_DBG("[TRANSITION] GameStartup step=7 post-init: playerPos=(%d,%d,%d) mapTag='%.4s'",
+                   g_SysWork.playerWork_4C.player_0.position_18.vx,
+                   g_SysWork.playerWork_4C.player_0.position_18.vy,
+                   g_SysWork.playerWork_4C.player_0.position_18.vz,
+                   g_MapOverlayHeader.mapInfo_0 ? g_MapOverlayHeader.mapInfo_0->tag_2 : "NULL");
+#endif
             if (g_SysWork.processFlags_2298 == SysWorkProcessFlag_OverlayTransition)
             {
                 Game_RadioSoundStop();
@@ -224,13 +243,37 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 8:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=8");
-            /* IPD chunk loading not fully working on PC yet — skip wait */
-            Game_StateStepIncrement();
-#else
+            SH_DBG("[SH] GameStartup step=8: waiting for chunks...");
+            /* Flush the FS queue to complete pending reads. On PC, CdRead is
+             * synchronous via PsyCross so each Fs_QueueUpdate() call completes
+             * one state transition instantly. A few hundred iterations is enough
+             * to drain all pending chunk reads. */
+            {
+                int flushCount = 0;
+                while (Fs_QueueGetLength() > 0 && flushCount < 500)
+                {
+                    Fs_QueueUpdate();
+                    flushCount++;
+                }
+            }
+#endif
             if (Ipd_ChunkInitCheck() != false)
             {
                 Game_StateStepIncrement();
+            }
+#ifdef SH_PC_PORT
+            else
+            {
+                /* Safety: if chunks don't load after many frames, skip anyway
+                 * to avoid hanging on the loading screen forever. */
+                static int step8_frames = 0;
+                step8_frames++;
+                if (step8_frames > 120)
+                {
+                    SH_DBG("[SH] step=8: chunk wait timed out after %d frames, continuing", step8_frames);
+                    step8_frames = 0;
+                    Game_StateStepIncrement();
+                }
             }
 #endif
             break;

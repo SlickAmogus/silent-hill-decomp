@@ -196,6 +196,11 @@ void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerP
         activeIpdCount = 4;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[IPD-INIT] Ipd_PlayerChunkInit: flags=0x%02X activeIpdCount=%d playerPos=(%d,%d) mapTag='%.4s'",
+           flags, activeIpdCount, playerPosX, playerPosZ, mapHdr->mapInfo_0->tag_2);
+#endif
+
     mapInfo = mapHdr->mapInfo_0;
     Ipd_MapFileInfoSet(mapInfo->tag_2, mapInfo->plmFileIdx_0, activeIpdCount, CHECK_FLAG(mapInfo->flags_6, MapFlag_Interior, false), 0, 0);
 
@@ -219,10 +224,16 @@ void Map_WorldClear(void) // 0x8003C30C
     flags = g_WorldGfxWork.mapInfo_0->flags_6;
     if ((flags & MapFlag_Interior) && (flags & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[TRANSITION] Map_WorldClear: interior small room -> Map_WorldClearReset (flags=0x%02X)", flags);
+#endif
         Map_WorldClearReset();
         return;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[TRANSITION] Map_WorldClear: full clear -> Ipd_ActiveMapChunksClear + Ipd_TexturesRefClear (flags=0x%02X)", flags);
+#endif
     Ipd_ActiveMapChunksClear();
     Ipd_TexturesRefClear();
 }
@@ -358,6 +369,15 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         pos1.vz = CLAMP(pos1.vz, temp_a2 + 1, temp_a2 + (Q12(2.5f) - 1));
     }
 
+#ifdef SH_PC_PORT
+    {
+        static s32 closeRangeLogCD = 0;
+        if ((closeRangeLogCD++ % 300) == 0) {
+            SH_DBG("[IPD-INIT] Ipd_CloseRangeChunksInit: pos0=(%d,%d) pos1=(%d,%d) fogEnabled=%d useStored=%d",
+                   pos0.vx, pos0.vz, pos1.vx, pos1.vz, g_WorldEnvWork.isFogEnabled_1, g_WorldGfxWork.useStoredPoint_4);
+        }
+    }
+#endif
     Ipd_ChunkInit(pos0.vx, pos0.vz, pos1.vx, pos1.vz);
 }
 
@@ -369,30 +389,39 @@ s32 Ipd_ChunkInitCheck(void) // 0x8003C850
 
 void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 {
-#ifdef SH_PC_PORT
-    /* World objects (doors, furniture, etc.) depend on map overlay population.
-     * Skip for now — IPD chunk rendering provides the main environment geometry. */
-#else
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
-#endif
 
+#ifdef SH_PC_PORT
+    /* On PC, CdRead is synchronous via PsyCross. Flush all pending chunk
+     * reads from the FS queue so they're available before we draw.
+     * Then re-run Ipd_CloseRangeChunksInit to fix up newly-loaded chunks
+     * and queue any additional chunks that became visible. */
+    {
+        int flushLimit = 500;
+        int flushed = 0;
+        while (Fs_QueueGetLength() > 0 && --flushLimit > 0)
+        {
+            Fs_QueueUpdate();
+            flushed++;
+        }
+        {
+            static s32 drawLogCD = 0;
+            if ((drawLogCD++ % 300) == 0) {
+                SH_DBG("[LOADSCREEN] Gfx_InGameDraw: flushed %d FS queue entries (remaining=%d)", flushed, Fs_QueueGetLength());
+            }
+        }
+        Ipd_CloseRangeChunksInit();
+    }
+#else
     while (func_80043830())
     {
         Ipd_CloseRangeChunksInit();
         Fs_QueueWaitForEmpty();
     }
+#endif
 
-#ifdef SH_PC_PORT
-    SH_DBG("[GFX] Ipd_ChunkCheckDraw enter");
-#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
-#ifdef SH_PC_PORT
-    SH_DBG("[GFX] Gfx_2dEffectsDraw enter");
-#endif
     Gfx_2dEffectsDraw();
-#ifdef SH_PC_PORT
-    SH_DBG("[GFX] Gfx_InGameDraw done");
-#endif
 }
 
 // ========================================
