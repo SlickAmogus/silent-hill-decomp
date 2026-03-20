@@ -1325,6 +1325,21 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
 
     otTag = &arg1->org[func_800571D0(modelHdr->field_B_1)];
     temp_a0 = modelHdr->field_B_4;
+
+#ifdef SH_PC_PORT
+    {
+        static int f57090_logCD = 0;
+        if (++f57090_logCD >= 600) {
+            SH_DBG("[RENDER] func_80057090: field_B_0=%d field_B_1=%d field_B_4=%d meshCount=%d "
+                   "worldEnv_f0=%d worldEnv_f54=%d mat1=%p",
+                   modelHdr->field_B_0, modelHdr->field_B_1, temp_a0,
+                   modelHdr->meshCount_8,
+                   g_WorldEnvWork.field_0, g_WorldEnvWork.field_54, (void*)mat1);
+            f57090_logCD = 0;
+        }
+    }
+#endif
+
     if ((temp_a0 & 0xFF) && temp_a0 >= 0 && temp_a0 < 4) // TODO: `& 0xFF` needed for match.
     {
         func_80059D50(temp_a0, modelInfo, mat0, arg2, otTag);

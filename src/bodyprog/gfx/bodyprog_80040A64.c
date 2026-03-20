@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include <stdlib.h>
 #include "pc_config.h"
+#include "sh_log.h"
 #endif
 
 #include <psyq/strings.h>
@@ -694,6 +695,13 @@ s_Texture* Texture_InfoGet(char* texName) // 0x80042178
 
 void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool isExterior, e_FsFile ipdFileIdx, e_FsFile texFileIdx) // 0x800421D8
 {
+#ifdef SH_PC_PORT
+    {
+        bool willRebuild = (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0);
+        SH_DBG("[IPD-INIT] Ipd_MapFileInfoSet: mapTag='%s' activeIpdCount=%d isExterior=%d plmIdx=%d ipdFileIdx=%d texFileIdx=%d curSize=%d willRebuildGrid=%d",
+               mapTag, activeIpdCount, isExterior, plmIdx, ipdFileIdx, texFileIdx, g_Map.ipdActiveSize_158, willRebuild);
+    }
+#endif
     g_Map.isExterior_588 = isExterior;
     g_Map.texFileIdx_134 = texFileIdx;
 
@@ -736,6 +744,17 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
     s_IpdChunk*  curChunk;
     s_IpdHeader* ipdHdr0;
     s_IpdHeader* ipdHdr1;
+
+#ifdef SH_PC_PORT
+    {
+        s32 activeCount = 0;
+        for (i = 0; i < map->ipdActiveSize_158; i++) {
+            if (map->ipdActive_15C[i].queueIdx_4 != NO_VALUE) activeCount++;
+        }
+        SH_DBG("[IPD-CLEAR] Ipd_ActiveChunksClear: clearing %d active chunks (total slots=%d, newSize=%d)",
+               activeCount, map->ipdActiveSize_158, arg1);
+    }
+#endif
 
     ipdHdr0 = map->ipdBuffer_150;
     step    = (map->ipdBufferSize_154 / arg1) & ~0x3;
@@ -838,10 +857,25 @@ void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x80042
                 {
                     col         = &map->ipdGridCenter_42C[z];
                     col->idx[x] = i;
+#ifdef SH_PC_PORT
+                    SH_DBG("[IPD-GRID] cell(%d,%d) = fileIdx %d  file='%s'", x, z, i, sp10);
+#endif
                 }
             }
         }
     }
+#ifdef SH_PC_PORT
+    {
+        s32 gridCount = 0;
+        s32 gz, gx;
+        for (gz = -8; gz < 11; gz++) {
+            for (gx = -8; gx < 8; gx++) {
+                if (((s16*)&map->ipdGridCenter_42C[gz])[gx] != NO_VALUE) gridCount++;
+            }
+        }
+        SH_DBG("[IPD-GRID] Map_MakeIpdGrid complete: mapTag='%s' totalCells=%d", map->mapTag_144, gridCount);
+    }
+#endif
 }
 
 bool ConvertHexToS8(s32* out, char hex0, char hex1) // 0x8004255C
@@ -1069,6 +1103,18 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     s32         fullPageTexCount;
     s_IpdChunk* curChunk;
 
+#ifdef SH_PC_PORT
+    {
+        static s32 chunkInitCallCount = 0;
+        if (chunkInitCallCount < 20 || (chunkInitCallCount % 300) == 0) {
+            SH_DBG("[IPD-INIT] Ipd_ChunkInit #%d: pos0=(%d,%d) pos1=(%d,%d) globalLm.queueIdx=%d globalLm.fileIdx=%d",
+                   chunkInitCallCount, posX0, posZ0, posX1, posZ1,
+                   g_Map.globalLm_138.queueIdx_8, g_Map.globalLm_138.fileIdx_4);
+        }
+        chunkInitCallCount++;
+    }
+#endif
+
     g_Map.positionX_578 = posX1;
     g_Map.positionX_57C = posZ1;
 
@@ -1138,6 +1184,10 @@ q19_12 Ipd_DistanceToEdgeGet(q19_12 posX, q19_12 posZ, s32 cellX, s32 cellZ) // 
     return Vc_VectorMagnitudeCalc(x, 0, z);
 }
 
+#ifdef SH_PC_PORT
+static bool s_chunkScanShouldLog = false;
+#endif
+
 s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x80042EBC
 {
     s32          cellX0;
@@ -1163,6 +1213,38 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
 
     map->cellX_580 = cellX1;
     map->cellZ_584 = cellZ1;
+
+#ifdef SH_PC_PORT
+    {
+        static int chunkLoadCallsSinceCellChange = 0;
+        static int prevCellX = 999, prevCellZ = 999;
+        static int totalCalls = 0;
+        bool cellChanged = (cellX0 != prevCellX || cellZ0 != prevCellZ);
+        s_chunkScanShouldLog = cellChanged || (chunkLoadCallsSinceCellChange < 10) || ((totalCalls % 300) == 0);
+        totalCalls++;
+        if (cellChanged) {
+            chunkLoadCallsSinceCellChange = 0;
+            prevCellX = cellX0;
+            prevCellZ = cellZ0;
+        }
+        chunkLoadCallsSinceCellChange++;
+        if (s_chunkScanShouldLog) {
+            s32 cx, cz;
+            SH_DBG("[CHUNK-SCAN] Map_ChunkLoad #%d: playerCell=(%d,%d) ext=%d posQ12=(%d,%d) cellChanged=%d",
+                   totalCalls, cellX0, cellZ0, map->isExterior_588, posX0, posZ0, cellChanged);
+            for (cz = -4; cz <= 4; cz++) {
+                for (cx = -4; cx <= 4; cx++) {
+                    s32 idx = Map_IpdIdxGet(cellX0 + cx, cellZ0 + cz);
+                    if (idx != NO_VALUE) {
+                        SH_DBG("[CHUNK-SCAN]   grid[%d,%d] = fileIdx %d present=%d",
+                               cellX0+cx, cellZ0+cz, idx,
+                               Map_IsIpdPresent(map->ipdActive_15C, cellX0+cx, cellZ0+cz));
+                    }
+                }
+            }
+        }
+    }
+#endif
 
     Ipd_ActiveChunksSample(map, posX0, posZ0, posX1, posZ1, map->isExterior_588);
     Ipd_ChunkMaterialsApply(map);
@@ -1191,6 +1273,18 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
                 projCellX = cellX0 + x;
 
                 chunkIdx = Map_IpdIdxGet(projCellX, projCellZ);
+#ifdef SH_PC_PORT
+                if (s_chunkScanShouldLog) {
+                    bool hasIdx = (chunkIdx != NO_VALUE);
+                    bool distOk = hasIdx ? (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f)) : false;
+                    bool present = hasIdx ? Map_IsIpdPresent(map->ipdActive_15C, projCellX, projCellZ) : false;
+                    if (hasIdx) {
+                        SH_DBG("[CHUNK-SCAN]   scan(%d,%d): fileIdx=%d distOk=%d alreadyPresent=%d => %s",
+                               projCellX, projCellZ, chunkIdx, distOk, present,
+                               (hasIdx && distOk && !present) ? "LOAD" : "SKIP");
+                    }
+                }
+#endif
                 if (chunkIdx != NO_VALUE &&
 #ifdef SH_PC_PORT
                     (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f)) &&
@@ -1437,6 +1531,11 @@ s32 Ipd_LoadStart(s_IpdChunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[IPD-LOAD] Ipd_LoadStart: cell=(%d,%d) fileIdx=%d queueIdx=%d chunkSlot=%d",
+           cellX, cellZ, fileIdx, chunk->queueIdx_4, (s32)(chunk - g_Map.ipdActive_15C));
+#endif
+
     return chunk->queueIdx_4;
 }
 
@@ -1556,11 +1655,20 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     {
         int drawCount = 0;
         int drawLimit = g_DebugCamEnabled ? 16 : 64;
+        static int logCooldown = 0;
+        int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
 #endif
     for (; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
+#ifdef SH_PC_PORT
+        totalChunks++;
+        if (IpdHeader_LoadStateGet(curChunk) >= StaticModelLoadState_Loaded) loadedChunks++;
+#endif
         if (IpdHeader_LoadStateGet(curChunk) >= StaticModelLoadState_Loaded && Ipd_CellPositionMatchCheck(curChunk, &g_Map))
         {
+#ifdef SH_PC_PORT
+            cellMatchChunks++;
+#endif
             Gfx_IpdChunkDraw(curChunk->ipdHdr_0, g_Map.positionX_578, g_Map.positionX_57C, ot, arg1);
 #ifdef SH_PC_PORT
             if (++drawCount >= drawLimit) break;
@@ -1568,6 +1676,29 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
+        if (++logCooldown >= 60) {
+            SH_DBG("[IPD] ChunkCheckDraw: total=%d loaded=%d cellMatch=%d drawn=%d cellXZ=(%d,%d) ext=%d globalLmQ=%d globalLmLoaded=%d",
+                   totalChunks, loadedChunks, cellMatchChunks, drawCount,
+                   g_Map.cellX_580, g_Map.cellZ_584, g_Map.isExterior_588,
+                   Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8),
+                   (g_Map.globalLm_138.lmHdr_0 ? g_Map.globalLm_138.lmHdr_0->isLoaded_2 : -1));
+            /* Log first loaded chunk details */
+            if (drawCount > 0) {
+                s_IpdChunk* c = &g_Map.ipdActive_15C[0];
+                int i;
+                for (i = 0; i < g_Map.ipdActiveSize_158; i++, c++) {
+                    if (IpdHeader_LoadStateGet(c) >= StaticModelLoadState_Loaded) {
+                        SH_DBG("[IPD]   chunk[%d]: cell=(%d,%d) models=%d isLoaded=%d qIdx=%d",
+                               i, c->cellX_8, c->cellZ_A,
+                               c->ipdHdr_0 ? c->ipdHdr_0->modelCount_8 : -1,
+                               c->ipdHdr_0 ? c->ipdHdr_0->isLoaded_1 : -1,
+                               c->queueIdx_4);
+                        break;
+                    }
+                }
+            }
+            logCooldown = 0;
+        }
     }
 #endif
 }
@@ -1617,6 +1748,15 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
         ipdHdr->isLoaded_1 = true;
         /* LmHeader_FixOffsets now uses PC reformatter */
         LmHeader_FixOffsets(ipdHdr->lmHdr_4);
+        {
+            /* Find which chunk slot this belongs to for logging */
+            s32 slot = -1, si;
+            for (si = 0; si < g_Map.ipdActiveSize_158; si++) {
+                if (g_Map.ipdActive_15C[si].ipdHdr_0 == ipdHdr) { slot = si; break; }
+            }
+            SH_DBG("[IPD-FIXUP] IpdHeader_FixOffsets PC: slot=%d fileIdx=%d modelCount=%d lmHdr=%p",
+                   slot, fileIdx, ipdHdr->lmHdr_4 ? ipdHdr->lmHdr_4->modelCount_8 : -1, (void*)ipdHdr->lmHdr_4);
+        }
     }
 #else
     if (ipdHdr->isLoaded_1)
@@ -1733,6 +1873,16 @@ void IpdHeader_ModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
                 }
             }
         }
+#ifdef SH_PC_PORT
+        SH_DBG("[MODEL-LINK] model[%d]: name='%.4s%.4s' isGlobal=%d -> modelHdr=%p (lmHdr=%p lmModels=%d)",
+               i,
+               (char*)&curModelInfo->modelName_4.str[0],
+               (char*)&curModelInfo->modelName_4.str[4],
+               curModelInfo->isGlobalPlm_0,
+               (void*)curModelInfo->modelHdr_C,
+               (void*)(curModelInfo->isGlobalPlm_0 ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr_4),
+               curModelInfo->isGlobalPlm_0 ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount_8 : 0) : ipdHdr->lmHdr_4->modelCount_8);
+#endif
     }
 }
 
@@ -1768,7 +1918,18 @@ void IpdHeader_ModelBufferLinkObjectLists(s_IpdHeader* ipdHdr, s_IpdModelInfo* i
              unkData++)
         {
             // `unkData` originally stores model idx, replace that with pointer to the model's `modelHdr_C`.
-            s32 modelIdx        = (s32)unkData->modelHdr_0;
+            s32 modelIdx        = (s32)(uintptr_t)unkData->modelHdr_0;
+#ifdef SH_PC_PORT
+            SH_DBG("[BUF-LINK] buf[%d] entry: modelIdx=%d -> modelHdr=%p (modelCount=%d)",
+                   (int)(curModelBuffer - ipdHdr->modelBuffers_18), modelIdx,
+                   (modelIdx >= 0 && modelIdx < ipdHdr->modelCount_8) ? (void*)ipdModels[modelIdx].modelHdr_C : NULL,
+                   ipdHdr->modelCount_8);
+            if (modelIdx < 0 || modelIdx >= ipdHdr->modelCount_8) {
+                SH_DBG("[BUF-LINK] WARNING: modelIdx %d out of range [0,%d)!", modelIdx, ipdHdr->modelCount_8);
+                unkData->modelHdr_0 = NULL;
+                continue;
+            }
+#endif
             unkData->modelHdr_0 = ipdModels[modelIdx].modelHdr_C;
         }
     }
@@ -1872,6 +2033,17 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
 #endif
     {
     temp_fp = &ipdHdr->textureCount_1C + (subcellZ * 10) + (subcellX * 2);
+#ifdef SH_PC_PORT
+    {
+        static int subcellLogCD = 0;
+        if (++subcellLogCD >= 120) {
+            SH_DBG("[IPD-DRAW] subcell=(%d,%d) temp_fp[0]=%d temp_fp[1]=%d bufCount=%d orderCount=%d",
+                   subcellX, subcellZ, temp_fp[0], temp_fp[1],
+                   ipdHdr->modelBufferCount_9, ipdHdr->modelOrderCount_A);
+            subcellLogCD = 0;
+        }
+    }
+#endif
     for (i = temp_fp[0]; i < (temp_fp[1] + temp_fp[0]); i++)
     {
         ipdModelBuf = &ipdHdr->modelBuffers_18[ipdHdr->modelOrderList_50[i]];

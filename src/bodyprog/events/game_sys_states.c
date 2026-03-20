@@ -78,6 +78,14 @@ s32          g_ItemTriggerItemIds[5];
 u8           D_800BCDD4;
 s_EventData* g_MapEventData;
 
+#ifdef SH_PC_PORT
+/* Backup of D_800BCDB0 — the original gets zeroed between SysState_LoadArea_Update
+ * and AreaLoad_UpdatePlayerPosition (unknown cause, possibly BSS overlap or bzero).
+ * We save it right after assignment and restore before use. */
+static s_MapPoint2d s_PC_D_800BCDB0_Backup;
+static int s_PC_D_800BCDB0_Saved = 0;
+#endif
+
 void GameState_InGame_Update(void) // 0x80038BD4
 {
     s_SubCharacter* player;
@@ -818,6 +826,18 @@ void SysState_LoadArea_Update(void) // 0x80039C40
 
     D_800BCDB0 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam_8_5];
 
+#ifdef SH_PC_PORT
+    SH_DBG("[DOOR] SysState_LoadArea: eventParam_8_5=%d pointOfInterestIdx_5=%d sysState=%d",
+           g_MapEventData->eventParam_8_5, g_MapEventData->pointOfInterestIdx_5, g_SysWork.sysState_8);
+    SH_DBG("[DOOR]   D_800BCDB0: posX=%d posZ=%d triggerParam0=%d triggerParam1=%d",
+           D_800BCDB0.positionX_0, D_800BCDB0.positionZ_8,
+           D_800BCDB0.triggerParam0_4_16, D_800BCDB0.triggerParam1_4_24);
+    SH_DBG("[DOOR]   mapPointsOfInterest=%p playerPos=(%d,%d)",
+           (void*)g_MapOverlayHeader.mapPointsOfInterest_1C,
+           g_SysWork.playerWork_4C.player_0.position_18.vx,
+           g_SysWork.playerWork_4C.player_0.position_18.vz);
+#endif
+
     if (D_800BCDB0.triggerParam1_4_24 == 1)
     {
         mapPoint                = &g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->pointOfInterestIdx_5];
@@ -825,6 +845,15 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         D_800BCDB0.positionX_0 += g_SysWork.playerWork_4C.player_0.position_18.vx - mapPoint->positionX_0;
         D_800BCDB0.positionZ_8 += offsetZ;
     }
+
+#ifdef SH_PC_PORT
+    /* Save backup — D_800BCDB0 gets mysteriously zeroed before AreaLoad_UpdatePlayerPosition */
+    s_PC_D_800BCDB0_Backup = D_800BCDB0;
+    s_PC_D_800BCDB0_Saved = 1;
+    SH_DBG("[DOOR] Saved D_800BCDB0 backup: posX=%d posZ=%d tp0=%d tp1=%d",
+           s_PC_D_800BCDB0_Backup.positionX_0, s_PC_D_800BCDB0_Backup.positionZ_8,
+           s_PC_D_800BCDB0_Backup.triggerParam0_4_16, s_PC_D_800BCDB0_Backup.triggerParam1_4_24);
+#endif
 
     if (g_SysWork.sysState_8 == SysState_LoadOverlay)
     {
@@ -861,7 +890,31 @@ void SysState_LoadArea_Update(void) // 0x80039C40
 
 void AreaLoad_UpdatePlayerPosition(void) // 0x80039F30
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[TRANSITION] AreaLoad_UpdatePlayerPosition: BEFORE playerPos=(%d,%d,%d) targetPos=(%d,%d) loadScreen=%d",
+           g_SysWork.playerWork_4C.player_0.position_18.vx,
+           g_SysWork.playerWork_4C.player_0.position_18.vy,
+           g_SysWork.playerWork_4C.player_0.position_18.vz,
+           D_800BCDB0.positionX_0, D_800BCDB0.positionZ_8,
+           D_800BCDB0.loadingScreenId_4_9);
+    /* Restore backup if D_800BCDB0 was zeroed */
+    if (s_PC_D_800BCDB0_Saved && D_800BCDB0.positionX_0 == 0 && D_800BCDB0.positionZ_8 == 0 &&
+        (s_PC_D_800BCDB0_Backup.positionX_0 != 0 || s_PC_D_800BCDB0_Backup.positionZ_8 != 0))
+    {
+        SH_DBG("[TRANSITION] D_800BCDB0 was ZEROED! Restoring backup: posX=%d posZ=%d tp0=%d tp1=%d",
+               s_PC_D_800BCDB0_Backup.positionX_0, s_PC_D_800BCDB0_Backup.positionZ_8,
+               s_PC_D_800BCDB0_Backup.triggerParam0_4_16, s_PC_D_800BCDB0_Backup.triggerParam1_4_24);
+        D_800BCDB0 = s_PC_D_800BCDB0_Backup;
+    }
+    s_PC_D_800BCDB0_Saved = 0;
+#endif
     Chara_PositionSet(&D_800BCDB0);
+#ifdef SH_PC_PORT
+    SH_DBG("[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(%d,%d,%d)",
+           g_SysWork.playerWork_4C.player_0.position_18.vx,
+           g_SysWork.playerWork_4C.player_0.position_18.vy,
+           g_SysWork.playerWork_4C.player_0.position_18.vz);
+#endif
 }
 
 void AreaLoad_TransitionSound(void) // 0x80039F54
