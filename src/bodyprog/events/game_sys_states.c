@@ -199,23 +199,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
 #ifdef SH_PC_PORT
-        /* Fallback third-person camera for free-roam.  Skip when the DMS
-         * cutscene system has taken over the camera (VC_USER_CAM_F). */
-        if (!g_DebugCamEnabled && !(vcWork.flags_8 & (VC_USER_CAM_F | VC_USER_WATCH_F)))
-        {
-            VECTOR3 camPos, lookAt;
-            s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
-            s32 sinY = Math_Sin(hp->rotation_24.vy + Q12_ANGLE(180.0f));
-            s32 cosY = Math_Cos(hp->rotation_24.vy + Q12_ANGLE(180.0f));
-            camPos.vx = hp->position_18.vx + (s32)((s64)Q12(3.0f) * sinY >> 12);
-            camPos.vy = hp->position_18.vy - Q12(1.0f);
-            camPos.vz = hp->position_18.vz + (s32)((s64)Q12(3.0f) * cosY >> 12);
-            lookAt.vx = hp->position_18.vx;
-            lookAt.vy = hp->position_18.vy - Q12(0.8f);
-            lookAt.vz = hp->position_18.vz;
-            Vw_SetLookAtMatrix(&camPos, &lookAt);
-            vwSetViewInfo();
-        }
+        /* Original camera system (vcMoveAndSetCamera above) uses camera road
+         * data from the map overlay to position fixed-angle cameras like the
+         * PSX game. The fallback third-person chase cam was a placeholder
+         * before the road system worked. Now removed — original cameras active.
+         * Debug camera (numpad *) still works independently. */
 #endif
 
 #ifdef SH_PC_PORT
