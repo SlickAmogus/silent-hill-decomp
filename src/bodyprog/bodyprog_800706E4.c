@@ -655,13 +655,7 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
         else
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[PC] func_B8 ENTER state=%d", g_SysWork.playerWork_4C.extra_128.state_1C);
-#endif
             g_MapOverlayHeader.func_B8(chara, extra, coords);
-#ifdef SH_PC_PORT
-            SH_DBG("[PC] func_B8 EXIT OK");
-#endif
         }
 
         if (!g_Player_DisableControl)
@@ -674,11 +668,22 @@ void Player_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
         }
 
 #ifdef SH_PC_PORT
-        SH_DBG("[PC] Player_AnimUpdate ENTER");
+        {
+            static int _puLog = 0;
+            s32 s_pre = g_SysWork.playerWork_4C.extra_128.state_1C;
 #endif
         Player_AnimUpdate(chara, extra, anmHdr, coords);
 #ifdef SH_PC_PORT
-        SH_DBG("[PC] Player_AnimUpdate EXIT OK");
+            s32 s_post = g_SysWork.playerWork_4C.extra_128.state_1C;
+            if (g_Player_DisableControl && (++_puLog <= 120 || (_puLog % 300) == 0)) {
+                SH_DBG("[PSTATE] state_pre=%d state_post=%d ms=%d fs=%d pos=(%d,%d,%d) kf=%d anim=%d ctrl=%d",
+                       s_pre, s_post, chara->moveSpeed_38, chara->fallSpeed_34,
+                       chara->position_18.vx, chara->position_18.vy, chara->position_18.vz,
+                       chara->model_0.anim_4.keyframeIdx_8,
+                       chara->model_0.anim_4.status_0,
+                       chara->model_0.controlState_2);
+            }
+        }
 #endif
 #ifndef SH_PC_PORT
         func_8007D090(chara, extra, coords);
@@ -999,12 +1004,18 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
 #ifdef SH_PC_PORT
             /* func_80071968_Switch1 calls Player_LowerBodyUpdate which
              * crashes on PC (uses Ray_LineCheck and NPC subsystems).
-             * For fall/damage/death states, recover to idle so the game
-             * doesn't get stuck or crash. Movement continues normally. */
-            if (g_SysWork.playerWork_4C.extra_128.state_1C >= PlayerState_FallForward) {
-                SH_DBG("[PLAYER] Recovering from state %d -> Idle", g_SysWork.playerWork_4C.extra_128.state_1C);
-                Player_ExtraStateSet(chara, extra, PlayerState_None);
-                D_800C4550 = Q12(0.0f);
+             * Only reset for actual damage/fall/death states where the game
+             * would get stuck. Do NOT reset cutscene movement states (52-58)
+             * or waypoint states — those need to persist for cutscenes. */
+            {
+                s32 _cs = g_SysWork.playerWork_4C.extra_128.state_1C;
+                if (_cs >= PlayerState_FallForward && _cs <= PlayerState_GetUpBack) {
+                    SH_DBG("[PLAYER] Recovering from damage state %d -> None", _cs);
+                    Player_ExtraStateSet(chara, extra, PlayerState_None);
+                    D_800C4550 = Q12(0.0f);
+                }
+                /* For all other states (including cutscene states 51-58),
+                 * skip func_80071968_Switch1 but don't reset the state. */
             }
 #else
             func_80071968_Switch1();

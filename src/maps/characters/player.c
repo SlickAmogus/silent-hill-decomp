@@ -154,6 +154,17 @@ void sharedFunc_800D1C38_0_s00(s_SubCharacter* chara, s_PlayerExtra* extra, GsCO
      * never gets synced from rotation_24.vy.  The waypoint system updates
      * rotation_24.vy to face the target — use it directly for movement. */
     chara->headingAngle_3C = chara->rotation_24.vy;
+    {
+        static int bcLogCD = 0;
+        if (++bcLogCD >= 30) {
+            SH_DBG("[FUNC_BC] moveSpeed=%d heading=%d rot.vy=%d state=%d pos=(%d,%d,%d) cond=%d deltaTime=%d",
+                   chara->moveSpeed_38, chara->headingAngle_3C, chara->rotation_24.vy,
+                   g_SysWork.playerWork_4C.extra_128.state_1C,
+                   chara->position_18.vx, chara->position_18.vy, chara->position_18.vz,
+                   cond, g_DeltaTime);
+            bcLogCD = 0;
+        }
+    }
 #endif
     headingAngle = chara->headingAngle_3C;
     moveAmt      = Q12_MULT_PRECISE(moveSpeed, g_DeltaTime);
