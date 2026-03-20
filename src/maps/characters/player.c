@@ -187,6 +187,18 @@ void sharedFunc_800D1C38_0_s00(s_SubCharacter* chara, s_PlayerExtra* extra, GsCO
     #define UnkStruct D_800C4590
 #endif
         Collision_WallDetect(&UnkStruct, &offset, chara);
+#ifdef SH_PC_PORT
+        {
+            static int _cwdLog = 0;
+            if (++_cwdLog <= 60 || (_cwdLog % 60) == 0) {
+                SH_DBG("[STAIR] CWD: offset=(%d,%d,%d) field_C=%d field_14=%d posY_EC=%d curY=%d fallSpd=%d",
+                       UnkStruct.offset_0.vx, UnkStruct.offset_0.vy, UnkStruct.offset_0.vz,
+                       UnkStruct.field_C, UnkStruct.field_14,
+                       chara->properties_E4.player.positionY_EC,
+                       chara->position_18.vy, chara->fallSpeed_34);
+            }
+        }
+#endif
         chara->position_18.vx += UnkStruct.offset_0.vx;
         chara->position_18.vy += UnkStruct.offset_0.vy;
         chara->position_18.vz += UnkStruct.offset_0.vz;

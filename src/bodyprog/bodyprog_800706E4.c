@@ -6807,27 +6807,20 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
         }
         _posDbg++;
     }
-    /* Wall collision with debug toggle. Ground height from Collision_Get
-     * (coll) is used instead of WallDetect's broken func_8006CC44. */
+    /* Wall collision with debug toggle. With the IPD_COLL_FIELD34_OFS fix,
+     * func_8006CC44 inside Collision_WallDetect should now return correct
+     * ground heights. Let WallDetect compute its own field_C. */
     {
-        q19_12 _groundH = coll.groundHeight_0;
-
-        /* Pre-seed field_C so Collision_WallResponse makes correct wall
-         * height decisions (it reads field_C to classify wall vs ground). */
-        D_800C4590.field_C = _groundH;
-
         if (!g_DebugNoWallCollision) {
             Collision_WallDetect(&D_800C4590, &offset, chara);
         } else {
             D_800C4590.offset_0 = offset;
+            D_800C4590.field_C  = coll.groundHeight_0;
             D_800C4590.field_14 = coll.field_8;
             D_800C4590.field_12 = 0;
             D_800C4590.field_10 = 0;
             D_800C4590.field_18 = 0xFFFF0000;
         }
-
-        /* Restore ground height from Collision_Get */
-        D_800C4590.field_C = _groundH;
     }
     {
         static int _posDbg2 = 0;
@@ -6897,23 +6890,23 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
      * return wildly different ground heights between adjacent cells.
      * - DOWNWARD (ground dropping away): limit to Q12(2.0) per frame so
      *   Harry doesn't fall through the floor at cell boundaries.
-     * - UPWARD (ground rising): only allow if the new ground is still at
-     *   or below Harry's feet. Never teleport Harry up to a ceiling. */
+     * - UPWARD (ground rising): allow gradual rises (stairs, slopes) but
+     *   reject sudden large jumps (ceiling teleport from cell clipping). */
     {
         q19_12 prevGround = chara->properties_E4.player.positionY_EC;
         q19_12 newGround  = D_800C4590.field_C;
         q19_12 maxDownDelta = Q12(2.0f);
+        q19_12 maxUpDelta   = Q12(1.5f); /* Allow stair-height rises per frame */
 
         if (prevGround != 0) {
             s32 delta = newGround - prevGround;
             if (delta > maxDownDelta) {
                 /* Ground dropped far — limit descent rate */
                 D_800C4590.field_C = prevGround + maxDownDelta;
-            } else if (delta < 0 && newGround < chara->position_18.vy) {
-                /* Ground rose above Harry's position — ignore it.
-                 * This prevents teleporting Harry to the ceiling when
-                 * clipping through a wall corner into a different cell. */
-                D_800C4590.field_C = prevGround;
+            } else if (delta < -maxUpDelta) {
+                /* Ground rose too much in one frame (likely cell boundary
+                 * clip, not stairs). Limit the rise rate. */
+                D_800C4590.field_C = prevGround - maxUpDelta;
             }
         }
     }
