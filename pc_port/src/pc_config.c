@@ -9,6 +9,7 @@ s_PcConfig g_PcConfig = {
     .windowHeight   = 480,
     .fullscreen     = 0,
     .disableCulling = 1,
+    .preloadChunks  = 1,
     .mapName        = "map0_s00"
 };
 
@@ -83,6 +84,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.disableCulling = (atoi(value) != 0);
         }
+        else if (strcmp(key, "preload_chunks") == 0)
+        {
+            g_PcConfig.preloadChunks = (atoi(value) != 0);
+        }
         else if (strcmp(key, "map") == 0)
         {
             if (strlen(value) > 0 && strlen(value) < sizeof(g_PcConfig.mapName))
@@ -103,3 +108,4 @@ void PcConfig_Load(const char* path)
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
 }
+
