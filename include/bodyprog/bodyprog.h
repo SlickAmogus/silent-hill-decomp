@@ -1262,7 +1262,7 @@ typedef struct _Map
     s32                ipdBufferSize_154;
     s32                ipdActiveSize_158;
 #ifdef SH_PC_PORT
-    s_IpdChunk         ipdActive_15C[64];
+    s_IpdChunk         ipdActive_15C[256];
 #else
     s_IpdChunk         ipdActive_15C[4];
 #endif
@@ -2477,7 +2477,11 @@ extern u16 g_CollisionFlags;
 
 extern s_WorldGfxWork g_WorldGfxWork;
 
+#ifdef SH_PC_PORT
+extern s_IpdCollisionData* D_800C1010[256];
+#else
 extern s_IpdCollisionData* D_800C1010[4];
+#endif
 
 extern s_Map g_Map;
 
@@ -4532,3 +4536,4 @@ void func_80089034(e_CharacterId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ
 void Map_BoxOutlineDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s16 arg6, s16 arg7, s16 arg8);
 
 #endif
+

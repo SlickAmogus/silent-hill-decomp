@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include "pc_config.h"
 #include "sh_log.h"
+/* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
+ * PSX uses 1-4 slots with streaming. PC can hold all chunks in memory. */
+#define PC_MAX_IPD_CHUNKS 256
 #endif
 
 #include <psyq/strings.h>
@@ -82,7 +85,11 @@ bool func_80040B74(e_CharacterId charaId) // 0x80040B74
 
 PACKET D_800BFBF0[2][D_800BFBF0_STRIDE];
 
+#ifdef SH_PC_PORT
+s_IpdCollisionData* D_800C1010[256];
+#else
 s_IpdCollisionData* D_800C1010[4];
+#endif
 
 s_Map g_Map;
 
@@ -720,12 +727,20 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
         }
     }
 
+#ifdef SH_PC_PORT
+    /* On PC with preloading, only clear+rebuild when the map TAG changes
+     * (actual map transition). Don't clear on same-map calls — our
+     * ipdActiveSize (256) != PSX activeIpdCount (2-4) would always trigger. */
+    if ((g_PcConfig.preloadChunks && strcmp(mapTag, g_Map.mapTag_144) != 0) ||
+        (!g_PcConfig.preloadChunks && (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0)))
+#else
     if (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0)
+#endif
     {
         Ipd_ActiveChunksClear(&g_Map, activeIpdCount);
 
 #ifdef SH_PC_PORT
-        g_Map.ipdActiveSize_158 = 64;
+        g_Map.ipdActiveSize_158 = PC_MAX_IPD_CHUNKS;
 #else
         g_Map.ipdActiveSize_158 = activeIpdCount;
 #endif
@@ -762,7 +777,7 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
 #ifdef SH_PC_PORT
     /* On PC, initialize ALL 64 slots. First `arg1` slots get shared buffer,
        extra slots get individually malloc'd buffers for debug mode. */
-    for (i = 0; i < 64; i++)
+    for (i = 0; i < PC_MAX_IPD_CHUNKS; i++)
     {
         curChunk = &map->ipdActive_15C[i];
 
@@ -784,7 +799,7 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
             curChunk->ipdHdr_0 = ipdHdr0;
             *(u8**)&ipdHdr0 += step;
         }
-        else if (i < 64)
+        else if (i < PC_MAX_IPD_CHUNKS)
         {
             /* Allocate individual buffers for extra debug slots */
             if (curChunk->ipdHdr_0 == NULL)
@@ -1123,7 +1138,129 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         g_Map.globalLm_138.queueIdx_8 = Fs_QueueStartRead(g_Map.globalLm_138.fileIdx_4, g_Map.globalLm_138.lmHdr_0);
     }
 
-    Map_ChunkLoad(&g_Map, posX0, posZ0, posX1, posZ1);
+#ifdef SH_PC_PORT
+    if (g_PcConfig.preloadChunks)
+    {
+        /* PC: Load ALL IPD chunks for the entire map at once.
+         * Scan the full grid (-8..+10 in Z, -8..+7 in X) and load every
+         * IPD file that exists. This eliminates PSX CD streaming entirely. */
+        static int _preloaded = 0;
+        s32 px, pz, pFileIdx;
+        s_IpdChunk* pChunk;
+
+        /* First, flush the FS queue to load the global LM */
+        {
+            int flushCount = 0;
+            while (Fs_QueueGetLength() > 0 && flushCount < 500)
+            {
+                Fs_QueueUpdate();
+                flushCount++;
+            }
+        }
+
+        /* Fix up global LM if just loaded */
+        if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
+            !g_Map.globalLm_138.lmHdr_0->isLoaded_2)
+        {
+            fullPageTexCount                         = g_Map.ipdTextures_430.fullPage_0.count_0;
+            g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
+
+            LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+            Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+            Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
+
+            g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
+        }
+
+        /* Scan entire grid and load all IPD files into sequential slots */
+        {
+            s32 nextSlot = 0;
+            for (pz = -8; pz < 11; pz++)
+            {
+                for (px = -8; px < 8; px++)
+                {
+                    pFileIdx = Map_IpdIdxGet(px, pz);
+                    if (pFileIdx == NO_VALUE)
+                        continue;
+
+                    /* Check if already loaded */
+                    if (Map_IsIpdPresent(g_Map.ipdActive_15C, px, pz))
+                        continue;
+
+                    /* Find next unused slot */
+                    while (nextSlot < PC_MAX_IPD_CHUNKS &&
+                           Fs_QueueEntryLoadStatusGet(g_Map.ipdActive_15C[nextSlot].queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                    {
+                        nextSlot++;
+                    }
+
+                    if (nextSlot >= PC_MAX_IPD_CHUNKS)
+                    {
+                        SH_DBG("[PRELOAD] Ran out of chunk slots at cell (%d,%d)!", px, pz);
+                        break;
+                    }
+
+                    pChunk = &g_Map.ipdActive_15C[nextSlot];
+                    pChunk->materialCount_14 = 0;
+
+                    /* Start loading */
+                    Ipd_LoadStart(pChunk, pFileIdx, px, pz, posX0, posZ0, posX1, posZ1, g_Map.isExterior_588);
+
+                    /* Immediately flush the read */
+                    {
+                        int flushCount = 0;
+                        while (Fs_QueueGetLength() > 0 && flushCount < 500)
+                        {
+                            Fs_QueueUpdate();
+                            flushCount++;
+                        }
+                    }
+
+                    /* Fix up the chunk if loaded */
+                    if (Fs_QueueEntryLoadStatusGet(pChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                    {
+                        IpdHeader_FixOffsets(pChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr_0, 1,
+                                            &g_Map.ipdTextures_430.fullPage_0,
+                                            &g_Map.ipdTextures_430.halfPage_2C,
+                                            g_Map.texFileIdx_134);
+                        func_80044044(pChunk->ipdHdr_0, pChunk->cellX_8, pChunk->cellZ_A);
+                    }
+
+                    nextSlot++;
+                }
+                if (nextSlot >= PC_MAX_IPD_CHUNKS) break;
+            }
+        }
+
+        if (!_preloaded) {
+            /* Count loaded chunks */
+            s32 loadedCount = 0;
+            for (curChunk = g_Map.ipdActive_15C; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
+            {
+                if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                    loadedCount++;
+            }
+            SH_DBG("[PRELOAD] Loaded %d chunks for map '%s'", loadedCount, g_Map.mapTag_144);
+            _preloaded = 1;
+        }
+
+        /* Update cell position for rendering */
+        {
+            s32 cellX1 = FLOOR_TO_STEP(Q12_TO_Q8(posX1), Q12_TO_Q8(CHUNK_CELL_SIZE));
+            s32 cellZ1 = FLOOR_TO_STEP(Q12_TO_Q8(posZ1), Q12_TO_Q8(CHUNK_CELL_SIZE));
+            g_Map.cellX_580 = cellX1;
+            g_Map.cellZ_584 = cellZ1;
+        }
+
+        /* Update distance samples for all chunks */
+        Ipd_ActiveChunksSample(&g_Map, posX0, posZ0, posX1, posZ1, g_Map.isExterior_588);
+        Ipd_ChunkMaterialsApply(&g_Map);
+    }
+    else
+#endif
+    {
+        Map_ChunkLoad(&g_Map, posX0, posZ0, posX1, posZ1);
+    }
 
     if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
         !g_Map.globalLm_138.lmHdr_0->isLoaded_2)
@@ -1388,12 +1525,21 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
 {
     s_IpdChunk* curChunk;
 
+#ifdef SH_PC_PORT
+    /* With preloading + debug camera, expand texture radius to ±1 cell (3x3 = 9 chunks)
+     * so you can see further when flying around. Normal gameplay uses PSX default (own cell only).
+     * Distance: 0 = inside cell, positive = outside. CHUNK_CELL_SIZE = Q12(40). */
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled) ? Q12(40.0f) : Q12(0.0f);
+#else
+    #define _matDist Q12(0.0f)
+#endif
+
     for (curChunk = &map->ipdActive_15C[0]; curChunk < &map->ipdActive_15C[map->ipdActiveSize_158]; curChunk++)
     {
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
-                curChunk->distance0_C > Q12(0.0f) && curChunk->distance1_10 > Q12(0.0f))
+                curChunk->distance0_C > _matDist && curChunk->distance1_10 > _matDist)
             {
                 Lm_MaterialRefCountDec(curChunk->ipdHdr_0->lmHdr_4);
             }
@@ -1405,7 +1551,7 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
             if (curChunk->ipdHdr_0->isLoaded_1 &&
-                (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f)))
+                (curChunk->distance0_C <= _matDist || curChunk->distance1_10 <= _matDist))
             {
                 Ipd_MaterialsLoad(curChunk->ipdHdr_0, &map->ipdTextures_430.fullPage_0, &map->ipdTextures_430.halfPage_2C, map->texFileIdx_134);
                 Lm_MaterialFlagsApply(curChunk->ipdHdr_0->lmHdr_4);
@@ -1654,7 +1800,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #ifdef SH_PC_PORT
     {
         int drawCount = 0;
-        int drawLimit = g_DebugCamEnabled ? 16 : 64;
+        int drawLimit = g_DebugCamEnabled ? 16 : PC_MAX_IPD_CHUNKS;
         static int logCooldown = 0;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
 #endif
@@ -1770,8 +1916,17 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
     LmHeader_FixOffsets(ipdHdr->lmHdr_4);
 #endif
     func_8008E4EC(ipdHdr->lmHdr_4);
-    Ipd_MaterialsLoad(ipdHdr, fullPageActiveTexs, halfPageActiveTexs, fileIdx);
-    Lm_MaterialFlagsApply(ipdHdr->lmHdr_4);
+#ifdef SH_PC_PORT
+    /* When preloading, skip material loading here — loading 129 chunks'
+     * textures at once overwhelms the PSX VRAM texture system.
+     * Let Ipd_ChunkMaterialsApply handle per-frame texture streaming
+     * for nearby chunks (Harry follows debug camera for this). */
+    if (!g_PcConfig.preloadChunks)
+#endif
+    {
+        Ipd_MaterialsLoad(ipdHdr, fullPageActiveTexs, halfPageActiveTexs, fileIdx);
+        Lm_MaterialFlagsApply(ipdHdr->lmHdr_4);
+    }
     IpdHeader_ModelLinkObjectLists(ipdHdr, lmHdrs, lmHdrCount);
     IpdHeader_ModelBufferLinkObjectLists(ipdHdr, ipdHdr->modelInfo_14);
 }
@@ -2116,3 +2271,4 @@ bool func_80044420(s_IpdModelBuffer* modelBuf, s16 arg1, s16 arg2, q23_8 posX, q
 
     return false;
 }
+

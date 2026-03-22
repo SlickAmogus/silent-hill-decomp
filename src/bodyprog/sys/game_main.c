@@ -48,7 +48,9 @@ static s32 g_PrevVBlanks = 0;
 
 #ifdef SH_PC_PORT
 /* Packet buffer corruption detection canaries */
-#define PC_PKTBUF_SIZE (512 * 1024)
+/* With preloading, up to ~25 chunks render (5x5 grid around player).
+ * Each chunk uses ~40KB of primitives. 25 * 40 = 1MB. 2MB gives headroom. */
+#define PC_PKTBUF_SIZE (2 * 1024 * 1024)
 #define PC_CANARY_SIZE 64
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
@@ -93,8 +95,7 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 
 #ifdef SH_PC_PORT
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
-int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off */
-int g_DebugFogLevel = 0;   /* 0=100%, 1=75%, 2=50%, 3=25%, 4=off */
+int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, 1 = no ground snap */
 static int g_DebugCamInited = 0;
@@ -103,6 +104,8 @@ static int g_DebugFogTogglePrev = 0;
 static VECTOR3 g_DebugCamPos;
 static VECTOR3 g_DebugCamLookAt;
 static q3_12 g_DebugCamAngleY = 0;
+static VECTOR3 g_DebugCamSavedHarryPos; /* Harry's position when debug cam was enabled */
+static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
 
 void DebugCamera_Update(void)
 {
@@ -123,10 +126,18 @@ void DebugCamera_Update(void)
                 vcGetNowCamPos(&g_DebugCamPos);
                 g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
                 g_DebugCamInited = 1;
-                SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld)",
-                    (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz);
+                /* Save Harry's position to restore when debug cam is disabled */
+                g_DebugCamSavedHarryPos = g_SysWork.playerWork_4C.player_0.position_18;
+                g_DebugCamSavedHarryPosY = g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC;
+                SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
+                    (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                    (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             } else {
-                SH_DBG("[DBGCAM] DISABLED — returning to game camera");
+                /* Restore Harry's original position */
+                g_SysWork.playerWork_4C.player_0.position_18 = g_DebugCamSavedHarryPos;
+                g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC = g_DebugCamSavedHarryPosY;
+                SH_DBG("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
+                    (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             }
         }
         g_DebugCamTogglePrev = cur;
@@ -283,6 +294,16 @@ void DebugCamera_Update(void)
                 (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
         }
         dbg_slash_prev = dbg_slash_cur;
+    }
+
+    /* Move Harry to follow behind the debug camera. This ensures that the
+     * material/texture system (which loads textures near Harry's position)
+     * textures chunks around wherever the debug camera is exploring. */
+    {
+        s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
+        hp->position_18.vx = g_DebugCamPos.vx;
+        hp->position_18.vz = g_DebugCamPos.vz;
+        /* Keep Harry at ground level (don't follow camera Y) */
     }
 
     /* Set look-at point ahead of camera */
@@ -646,25 +667,22 @@ void MainLoop(void) // 0x80032EE0
         GsSwapDispBuff();
         ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
-        /* Numpad .: cycle fog intensity (edge-triggered, works during gameplay)
-         * 100% → 75% → 50% → 25% → off → 100% */
+        /* Numpad .: toggle fog on/off (only active during debug camera) */
         if (g_sdlKeyboardState && g_GameWork.gameState_594 == 11) {
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
-            if (cur && !g_DebugFogTogglePrev) {
-                static const char* labels[] = { "100%", "75%", "50%", "25%", "OFF" };
-                g_DebugFogLevel = (g_DebugFogLevel + 1) % 5;
-                g_DebugFogDisabled = (g_DebugFogLevel == 4);
-                SH_DBG("[DEBUG] Fog: %s", labels[g_DebugFogLevel]);
+            if (cur && !g_DebugFogTogglePrev && g_DebugCamEnabled) {
+                g_DebugFogDisabled = !g_DebugFogDisabled;
+                SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
             }
             g_DebugFogTogglePrev = cur;
 
-            /* Apply fog level AFTER game has set fog params for this frame */
-            if (g_DebugFogLevel == 4) {
+            /* When debug camera is off, fog is always normal */
+            if (!g_DebugCamEnabled) {
+                g_DebugFogDisabled = 0;
+            }
+
+            if (g_DebugFogDisabled) {
                 PC_WorldEnvWork.isFogEnabled_1 = 0;
-            } else if (g_DebugFogLevel > 0) {
-                static const s32 fogScale[] = { 0x1000, 0xC00, 0x800, 0x400 };
-                PC_WorldEnvWork.fogIntensity_18 =
-                    (PC_WorldEnvWork.fogIntensity_18 * fogScale[g_DebugFogLevel]) >> 12;
             }
         }
 

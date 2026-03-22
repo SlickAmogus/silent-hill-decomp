@@ -5,8 +5,9 @@ typedef struct {
     int windowWidth;
     int windowHeight;
     int fullscreen;
-    int disableCulling; /* 1 = render all objects regardless of view angle */
-    char mapName[64];   /* e.g. "map0_s00" */
+    int disableCulling;  /* 1 = render all objects regardless of view angle */
+    int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
+    char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;
@@ -15,3 +16,4 @@ extern s_PcConfig g_PcConfig;
 void PcConfig_Load(const char* path);
 
 #endif /* PC_CONFIG_H */
+

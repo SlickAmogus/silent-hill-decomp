@@ -19,7 +19,7 @@
  * key fields. When IPD chunks get overwritten by new chunk loads, the
  * pointer from func_800426E4 still looks valid but the data is garbage.
  * We detect this by checking if the fingerprint still matches. */
-#define PC_COLL_MAX_PTRS 64
+#define PC_COLL_MAX_PTRS 256
 static s_IpdCollisionData* s_ValidCollPtrs[PC_COLL_MAX_PTRS];
 static s32 s_ValidCollFingerprints[PC_COLL_MAX_PTRS];
 static int s_ValidCollCount = 0;

@@ -167,10 +167,11 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             {
                 static int _camLog2 = 0;
                 if (++_camLog2 <= 10 || (_camLog2 % 120) == 0) {
-                    SH_DBG("[CAM] POST camPos=(%d,%d,%d) watchTgt=(%d,%d,%d) flags=0x%x",
+                    SH_DBG("[CAM] POST camPos=(%d,%d,%d) watchTgt=(%d,%d,%d) ang=(%d,%d,%d) watchAngZ=%d flags=0x%x",
                            vcWork.cam_pos_50.vx, vcWork.cam_pos_50.vy, vcWork.cam_pos_50.vz,
                            vcWork.watch_tgt_pos_7C.vx, vcWork.watch_tgt_pos_7C.vy, vcWork.watch_tgt_pos_7C.vz,
-                           vcWork.flags_8);
+                           vcWork.cam_mat_ang_8E.vx, vcWork.cam_mat_ang_8E.vy, vcWork.cam_mat_ang_8E.vz,
+                           vcWork.watch_tgt_ang_z_8C, vcWork.flags_8);
                 }
             }
 #endif
