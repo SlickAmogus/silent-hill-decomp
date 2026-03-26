@@ -1529,7 +1529,10 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
     /* With preloading + debug camera, expand texture radius to ±1 cell (3x3 = 9 chunks)
      * so you can see further when flying around. Normal gameplay uses PSX default (own cell only).
      * Distance: 0 = inside cell, positive = outside. CHUNK_CELL_SIZE = Q12(40). */
-    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled) ? Q12(40.0f) : Q12(0.0f);
+    /* Expand texture radius in debug cam, but not when fog is disabled
+     * (toggling fog changes the lighting pipeline which crashes with
+     * multiple chunks' worth of stale GTE state). */
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
 #else
     #define _matDist Q12(0.0f)
 #endif

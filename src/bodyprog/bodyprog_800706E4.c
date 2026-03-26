@@ -6743,6 +6743,17 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
     g_Player_PrevPosition = chara->position_18;
 
     Collision_Get(&coll, chara->position_18.vx, chara->position_18.vz);
+#ifdef SH_PC_PORT
+    {
+        static int _collGetLog = 0;
+        if (_collGetLog < 10) {
+            SH_DBG("[C0D8] Collision_Get at (%d,%d) => groundH=%d field_8=%d",
+                   chara->position_18.vx, chara->position_18.vz,
+                   coll.groundHeight_0, coll.field_8);
+            _collGetLog++;
+        }
+    }
+#endif
 
     temp_s3 = Q12_MULT(chara->moveSpeed_38, Math_Sin(chara->headingAngle_3C));
     temp_s2 = Q12_MULT(chara->moveSpeed_38, Math_Cos(chara->headingAngle_3C));
@@ -6884,6 +6895,19 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
     {
         D_800C4590.field_C = chara->properties_E4.player.positionY_EC;
     }
+
+#ifdef SH_PC_PORT
+    /* Collision_WallDetect may leave field_C=0 on PC because IPD
+     * sub-collision data isn't always resolved inside WallDetect.
+     * Collision_Get (called above) already found the correct floor height.
+     * Use it as the authoritative ground when WallDetect+fallback left
+     * field_C=0 but Collision_Get found a non-zero ground. */
+    if (D_800C4590.field_C == 0 && coll.groundHeight_0 != 0)
+    {
+        D_800C4590.field_C = coll.groundHeight_0;
+        SH_DBG("[C0D8] field_C override: WallDetect=0, using Collision_Get=%d", coll.groundHeight_0);
+    }
+#endif
 
 #ifdef SH_PC_PORT
     /* Prevent sudden ground height changes on PC. The collision system can

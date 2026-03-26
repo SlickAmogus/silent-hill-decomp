@@ -12,6 +12,7 @@
 
 extern s32 g_VBlanks;
 
+
 void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_pos) // 0x8004004C
 {
     g_WorldGfxWork.vcCameraInternalInfo_1BDC.mv_smooth   = VC_MV_CHASE;
@@ -122,15 +123,17 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             }
             else
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[CAM] Collision_Get enter");
-#endif
                 Collision_Get(&coll, hr_p->position_18.vx, hr_p->position_18.vz);
-#ifdef SH_PC_PORT
-                SH_DBG("[CAM] Collision_Get done groundH=%d", coll.groundHeight_0);
-#endif
                 grnd_y = coll.groundHeight_0;
-
+#ifdef SH_PC_PORT
+                /* Q12(8.0f) is the sentinel returned by Collision_Get when no IPD cell
+                 * exists at Harry's position (level boundary / not yet streamed).
+                 * Treat it as 0 so the camera formula uses ground = world origin. */
+                if (grnd_y == Q12(8.0f))
+                {
+                    grnd_y = Q12(0.0f);
+                }
+#endif
                 vcMakeHeroHeadPos(&hr_head_pos);
             }
 
@@ -149,7 +152,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
 #ifdef SH_PC_PORT
             {
                 static int _camLog = 0;
-                if (++_camLog <= 10 || (_camLog % 120) == 0) {
+                if (++_camLog <= 300) {
                     SH_DBG("[CAM] heroPos=(%d,%d,%d) headPos=(%d,%d,%d) grndY=%d topY=%d botY=%d",
                            hr_p->position_18.vx, hr_p->position_18.vy, hr_p->position_18.vz,
                            hr_head_pos.vx, hr_head_pos.vy, hr_head_pos.vz,
@@ -166,7 +169,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
 #ifdef SH_PC_PORT
             {
                 static int _camLog2 = 0;
-                if (++_camLog2 <= 10 || (_camLog2 % 120) == 0) {
+                if (++_camLog2 <= 300) {
                     SH_DBG("[CAM] POST camPos=(%d,%d,%d) watchTgt=(%d,%d,%d) ang=(%d,%d,%d) watchAngZ=%d flags=0x%x",
                            vcWork.cam_pos_50.vx, vcWork.cam_pos_50.vy, vcWork.cam_pos_50.vz,
                            vcWork.watch_tgt_pos_7C.vx, vcWork.watch_tgt_pos_7C.vy, vcWork.watch_tgt_pos_7C.vz,
