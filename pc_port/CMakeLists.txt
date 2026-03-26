@@ -102,12 +102,14 @@ list(FILTER SCREEN_SOURCES EXCLUDE REGEX "(hp_safe1|s__safe2)\\.c$")
 # causes 500+ symbol collisions (shared AI, particle, player code #included in each).
 # For now, compile only the starting map (map0_s00).
 set(MAP_SOURCES
-    "${DECOMP_DIR}/src/maps/map0_s00/map0_s00.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/player.c"
     "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_2.c"
     "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_anim_info.c"
     "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_events_data.c"
     "${DECOMP_DIR}/src/maps/map0_s00/map0_s00_header.c"
     "${DECOMP_DIR}/src/maps/map0_s00/Chara_Cheryl.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/Chara_Stalker.c"
+    "${DECOMP_DIR}/src/maps/map0_s00/particle.c"
 )
 # Each map overlay was compiled with its own define on PSX
 set_source_files_properties(${MAP_SOURCES} PROPERTIES
