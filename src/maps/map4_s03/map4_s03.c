@@ -17,6 +17,12 @@
 
 #include "maps/shared/sharedFunc_800CD940_3_s03.h" // 0x800D074C
 
+#ifdef SH_PC_PORT
+/* This string is defined in a separate TU on PSX (for alignment matching),
+ * but that TU is not yet decompiled. Provide the definition here for PC builds. */
+const char D_800CA77C[] = "SPUM602F";
+#endif
+
 void func_800D078C(void) // 0x800D078C
 {
     // @hack string needs to be in separate TU for the alignment in this TU to match properly.
