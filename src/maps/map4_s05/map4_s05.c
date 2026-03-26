@@ -1,3 +1,7 @@
+#include "inline_no_dmpsx.h"
+
+#include <psyq/gtemac.h>
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -9,22 +13,6 @@
 #include "maps/characters/player.h"
 
 #define floatstingerProps floatstinger->properties_E4.floatstinger
-
-#include "maps/shared/sharedFunc_800CB0A4_4_s03.h" // 0x800CACA4
-
-#include "maps/shared/sharedFunc_800CB1B0_4_s03.h" // 0x800CADB0
-
-#include "maps/shared/sharedFunc_800CBE54_4_s03.h" // 0x800CBA54
-
-#include "maps/shared/sharedFunc_800CC004_4_s03.h" // 0x800CBC04
-
-#include "maps/shared/sharedFunc_800CE5D4_1_s03.h" // 0x800CC300
-
-#include "maps/shared/sharedFunc_800CE688_1_s03.h" // 0x800CC3B4
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
 
 void Ai_Floatstinger_Update(s_SubCharacter* floatstinger, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800D16FC
 {
@@ -415,7 +403,7 @@ void func_800D1BF8(s_SubCharacter* floatstinger) // 0x800D1BF8
                 floatstingerProps.field_104++;
             }
 
-            func_8008A0E4(1, 59, floatstinger, &sp20[0], &g_SysWork.playerWork_4C.player_0, ratan2(sp20[1].vx - sp20[0].vx, sp20[1].vz - sp20[0].vz),
+            func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk59, AttackInputType_Tap), floatstinger, &sp20[0], &g_SysWork.playerWork_4C.player_0, ratan2(sp20[1].vx - sp20[0].vx, sp20[1].vz - sp20[0].vz),
                           ratan2(Math_Vector2MagCalc(sp20[1].vx - sp20[0].vx, sp20[1].vz - sp20[0].vz), sp20[1].vy - sp20[0].vy));
 
             if (g_SavegamePtr->gameDifficulty_260 != 1 && floatstingerProps.field_100 == 0)

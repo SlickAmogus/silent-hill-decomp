@@ -7,13 +7,6 @@
 #include "maps/characters/creeper.h"
 #include "maps/characters/player.h"
 
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-// TODO: Move this line into separate `Chara_Creeper` split.
-#include "../src/maps/characters/creeper.c" // 0x800CEE4C
-
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D10C0
 
 #include "maps/shared/Map_RoomIdxGet.h" // 0x800D10D0

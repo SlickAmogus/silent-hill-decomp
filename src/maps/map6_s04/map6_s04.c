@@ -1,30 +1,15 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
+#include "inline_no_dmpsx.h"
 #include "main/rng.h"
 #include "maps/map6/map6_s04.h"
 #include "maps/particle.h"
+
+#include <psyq/gtemac.h>
 #include "maps/characters/larval_stalker.h"
 #include "maps/characters/player.h"
 #include "maps/characters/stalker.h"
-
-#include "maps/shared/sharedFunc_800CB7F4_1_s01.h" // 0x800CC7E0
-
-#include "maps/shared/sharedFunc_800CB8A0_1_s01.h" // 0x800CC88C
-
-#include "maps/shared/sharedFunc_800CBA38_1_s01.h" // 0x800CCA24
-
-#include "maps/shared/sharedFunc_800CBB30_1_s01.h" // 0x800CCB1C
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-// TODO: Move this line into separate `Chara_LarvalStalker` split.
-#include "../src/maps/characters/larval_stalker.c" // 0x800D00B8
-
-// TODO: Move this line into separate `Chara_Stalker` split.
-#include "../src/maps/characters/stalker.c" // 0x800D3560
 
 void func_800D87B0(s_SubCharacter* chara) // 0x800D87B0
 {
@@ -505,7 +490,7 @@ void func_800D8D7C(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coords)
         case 11:
             if (chara->model_0.anim_4.keyframeIdx_8 == 38)
             {
-                func_8006342C(63, Q12_ANGLE(90.0f), chara->rotation_24.vy, g_SysWork.npcCoords_FC0);
+                func_8006342C(EquippedWeaponId_Unk63, Q12_ANGLE(90.0f), chara->rotation_24.vy, g_SysWork.npcCoords_FC0);
             }
 
             sharedFunc_800D9188_0_s00(39, chara, 38, Sfx_Unk1622);
@@ -1011,11 +996,11 @@ void func_800D9AB4(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coords)
                 chara->model_0.anim_4.animInfo_C = MONSTER_CYBIL_ANIM_INFOS;
                 chara->field_44.field_0          = 1;
 
-                // TODO: Whats' weapon attack 63?
-                func_8006342C(63, g_SysWork.npcs_1A0[0].properties_E4.monsterCybil.field_11A, chara->rotation_24.vy, g_SysWork.npcCoords_FC0);
+                // TODO: What's weapon attack 63?
+                func_8006342C(EquippedWeaponId_Unk63, g_SysWork.npcs_1A0[0].properties_E4.monsterCybil.field_11A, chara->rotation_24.vy, g_SysWork.npcCoords_FC0);
 
                 if (func_8008A0E4(chara->field_44.field_0,
-                                  63,
+                                  WEAPON_ATTACK(EquippedWeaponId_Unk63, AttackInputType_Tap),
                                   chara,
                                   &D_800ED570,
                                   &g_SysWork.playerWork_4C.player_0,

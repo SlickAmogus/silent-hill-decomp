@@ -561,7 +561,7 @@ bool func_80071620(u32 animStatus, s_SubCharacter* chara, s32 keyframeIdx, e_Sfx
 
     if (chara->model_0.anim_4.keyframeIdx_8 >= keyframeIdx)
     {
-        if (g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_Unk13)
+        if (g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C & PlayerFlag_SfxActive)
         {
             return false;
         }
@@ -602,12 +602,12 @@ bool func_80071620(u32 animStatus, s_SubCharacter* chara, s32 keyframeIdx, e_Sfx
                 break;
         }
 
-        g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_Unk13;
+        g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C |= PlayerFlag_SfxActive;
         return true;
     }
     else
     {
-        g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C &= ~PlayerFlag_Unk13;
+        g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C &= ~PlayerFlag_SfxActive;
 
         do {} while (false); // @hack Required for match.
 
@@ -735,14 +735,14 @@ static inline void func_80071968_Switch0(void)
                 break;
 
             case WEAPON_ATTACK(EquippedWeaponId_Unk3, AttackInputType_Tap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8, AttackInputType_Tap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9, AttackInputType_Tap):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick, AttackInputType_Tap):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp, AttackInputType_Tap):
             case WEAPON_ATTACK(EquippedWeaponId_Unk3, AttackInputType_Hold):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8, AttackInputType_Hold):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9, AttackInputType_Hold):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick, AttackInputType_Hold):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp, AttackInputType_Hold):
             case WEAPON_ATTACK(EquippedWeaponId_Unk3, AttackInputType_Multitap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8, AttackInputType_Multitap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9, AttackInputType_Multitap):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick, AttackInputType_Multitap):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp, AttackInputType_Multitap):
             case WEAPON_ATTACK(EquippedWeaponId_Unk31,AttackInputType_Tap):
                 break;
         }
@@ -794,14 +794,14 @@ static inline void func_80071968_Switch1(void)
                 break;
 
             case WEAPON_ATTACK(EquippedWeaponId_Unk3,  AttackInputType_Tap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8,  AttackInputType_Tap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9,  AttackInputType_Tap):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick,  AttackInputType_Tap):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp,  AttackInputType_Tap):
             case WEAPON_ATTACK(EquippedWeaponId_Unk3,  AttackInputType_Hold):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8,  AttackInputType_Hold):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9,  AttackInputType_Hold):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick,  AttackInputType_Hold):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp,  AttackInputType_Hold):
             case WEAPON_ATTACK(EquippedWeaponId_Unk3,  AttackInputType_Multitap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk8,  AttackInputType_Multitap):
-            case WEAPON_ATTACK(EquippedWeaponId_Unk9,  AttackInputType_Multitap):
+            case WEAPON_ATTACK(EquippedWeaponId_Kick,  AttackInputType_Multitap):
+            case WEAPON_ATTACK(EquippedWeaponId_Stomp,  AttackInputType_Multitap):
             case WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Tap):
                 break;
         }
@@ -2409,11 +2409,11 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
             break;
 
         case PlayerState_KickEnemy:
-            func_80070DF0(extra, chara, WEAPON_ATTACK(EquippedWeaponId_Unk8, AttackInputType_Tap), ANIM_STATUS(24, true));
+            func_80070DF0(extra, chara, WEAPON_ATTACK(EquippedWeaponId_Kick, AttackInputType_Tap), ANIM_STATUS(24, true));
             break;
 
         case PlayerState_StompEnemy:
-            func_80070DF0(extra, chara, WEAPON_ATTACK(EquippedWeaponId_Unk9, AttackInputType_Tap), ANIM_STATUS(25, true));
+            func_80070DF0(extra, chara, WEAPON_ATTACK(EquippedWeaponId_Stomp, AttackInputType_Tap), ANIM_STATUS(25, true));
             break;
     }
 
@@ -4402,18 +4402,18 @@ void Player_CombatStateUpdate(s_SubCharacter* chara, s_PlayerExtra* extra) // 0x
                 if (g_SysWork.playerCombat_38.weaponAttack_F >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
                     if (g_SysWork.playerCombat_38.currentWeaponAmmo_10 == 0 &&
-                        (g_SavegamePtr->equippedWeapon_AA >> 5) == 5 &&
+                        INVENTORY_ITEM_GROUP(g_SavegamePtr->equippedWeapon_AA) == InventoryItemGroup_GunWeapons &&
                         g_SysWork.playerCombat_38.totalWeaponAmmo_11 != 0)
                     {
-                        g_SysWork.playerWork_4C.extra_128.upperBodyState_20             = PlayerUpperBodyState_Reload;
+                        g_SysWork.playerWork_4C.extra_128.upperBodyState_20              = PlayerUpperBodyState_Reload;
                         g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C &= ~PlayerFlag_Unk9;
 
                         if (g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 == PlayerLowerBodyState_Aim ||
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 == PlayerLowerBodyState_Attack)
                         {
                             g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 = PlayerLowerBodyState_Reload;
-                            chara->model_0.stateStep_3                      = 0;
-                            chara->model_0.controlState_2                          = ModelState_Uninitialized;
+                            chara->model_0.stateStep_3                          = 0;
+                            chara->model_0.controlState_2                       = ModelState_Uninitialized;
                         }
                     }
                 }
@@ -7832,8 +7832,8 @@ void Player_CombatUpdate(s_SubCharacter* chara, GsCOORDINATE2* coord) // 0x8007D
             switch (g_SysWork.playerCombat_38.weaponAttack_F)
             {
                 case NO_VALUE:
-                case EquippedWeaponId_Unk8:
-                case EquippedWeaponId_Unk9:
+                case EquippedWeaponId_Kick:
+                case EquippedWeaponId_Stomp:
                     Math_SetSVectorFast(&sp90, 0, 60, 134);
                     Vw_CoordHierarchyMatrixCompute(&coord[17], &sp50);
                     break;
@@ -8034,7 +8034,7 @@ void Game_SavegameResetPlayer(void) // 0x8007E530
 void Game_PlayerInfoInit(void) // 0x8007E5AC
 {
     s32      i;
-    u32      temp_t0;
+    u32      itemGroupId;
     s_Model* model;
     s_Model* extraModel;
 
@@ -8056,13 +8056,10 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
     g_SysWork.playerWork_4C.player_0.field_E1_0 = 3;
     g_Inventory_EquippedItem                    = g_SavegamePtr->equippedWeapon_AA;
 
-    // Should be `g_SavegamePtr->equippedWeapon_AA / 32`, but causes swap register missmatch.
-    temp_t0 = g_SavegamePtr->equippedWeapon_AA >> 5;
+    itemGroupId = INVENTORY_ITEM_GROUP(g_SavegamePtr->equippedWeapon_AA);
 
-    // Assign weapon which the player was holding when saving.
-    // `temp_t0` == 4 means melee weapon, 5 means gun weapon.
-    // Other values are non-equipable items.
-    if (temp_t0 >= 4 && temp_t0 < 6)
+    // Assign weapon that the player was holding when saving.
+    if (itemGroupId == InventoryItemGroup_MeleeWeapons || itemGroupId == InventoryItemGroup_GunWeapons)
     {
         for (i = 0; g_SavegamePtr->items_0[i].id_0 != g_SavegamePtr->equippedWeapon_AA && i < INVENTORY_ITEM_COUNT_MAX; i++);
 
@@ -8070,7 +8067,7 @@ void Game_PlayerInfoInit(void) // 0x8007E5AC
         g_SysWork.playerCombat_38.currentWeaponAmmo_10  = g_SavegamePtr->items_0[i].count_1;
         g_SysWork.playerCombat_38.weaponInventoryIdx_12 = i;
 
-        if (temp_t0 == 4)
+        if (itemGroupId == InventoryItemGroup_MeleeWeapons)
         {
             g_SysWork.playerCombat_38.totalWeaponAmmo_11 = 0;
         }

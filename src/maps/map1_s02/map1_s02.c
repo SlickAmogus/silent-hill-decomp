@@ -1,3 +1,7 @@
+#include "inline_no_dmpsx.h"
+
+#include <psyq/gtemac.h>
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -7,26 +11,6 @@
 #include "maps/characters/creeper.h"
 #include "maps/characters/player.h"
 #include "maps/characters/stalker.h"
-
-#include "maps/shared/sharedFunc_800CBA4C_1_s02.h" // 0x800CBA4C
-
-#include "maps/shared/sharedFunc_800CBC98_1_s02.h" // 0x800CBC98
-
-#include "maps/shared/sharedFunc_800CBD58_1_s02.h" // 0x800CBD58
-
-#include "maps/shared/sharedFunc_800CBDA8_1_s02.h" // 0x800CBDA8
-
-#include "maps/shared/sharedFunc_800CCE60_1_s02.h" // 0x800CCE60
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-// TODO: Move this line into separate `Chara_Stalker` split.
-#include "../src/maps/characters/stalker.c" // 0x800D2948
-
-// TODO: Move this line into separate `Chara_Creeper` split.
-#include "../src/maps/characters/creeper.c" // 0x800D7B98
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D9E0C
 
