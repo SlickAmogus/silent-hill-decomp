@@ -2,47 +2,12 @@
 
 
 //================================================
-//=== .rodata section
-//================================================
-
-
-//------------------------------------------------------
-//--- PA: 0x000000   VA: 0x800C9578   subsegment: rodata
-//------------------------------------------------------
-
-//------------------------------------------------------------------------
-//--- PA: 0x000004   VA: 0x800C957C   subsegment: .rodata, map3_s06_header
-//------------------------------------------------------------------------
-
-//-----------------------------------------------------------------
-//--- PA: 0x001050   VA: 0x800CA5C8   subsegment: .rodata, map3_s06
-//-----------------------------------------------------------------
-
-//---------------------------------------------------------------------
-//--- PA: 0x0012D8   VA: 0x800CA850   subsegment: .rodata, Chara_Dahlia
-//---------------------------------------------------------------------
-
-//------------------------------------------------------
-//--- PA: 0x00139C   VA: 0x800CA914   subsegment: rodata
-//------------------------------------------------------
-
-//-------------------------------------------------------------------
-//--- PA: 0x0013A0   VA: 0x800CA918   subsegment: .rodata, map3_s06_2
-//-------------------------------------------------------------------
-
-//------------------------------------------------------
-//--- PA: 0x001D65   VA: 0x800CB2DD   subsegment: rodata
-//------------------------------------------------------
-
-
-
-//================================================
 //=== .text section
 //================================================
 
 
 //-----------------------------------------------------------
-//--- PA: 0x001D68   VA: 0x800CB2E0   subsegment: c, map3_s06
+//--- PA: 0x001D68   VA: 0x800CB2E0   subsegment: c, particle
 //-----------------------------------------------------------
 Particle_SystemUpdate               = 0x800CB2E0; // type:func
 Particle_CameraMovedCheck           = 0x800CB8AC; // type:func
@@ -62,6 +27,10 @@ sharedFunc_800D0B18_0_s00           = 0x800CD298; // type:func
 Particle_SoundStop                  = 0x800CD430; // type:func
 Particle_HyperBlasterBeamDraw       = 0x800CD450; // type:func
 Particle_BeamDraw                   = 0x800CDCC8; // type:func
+
+//---------------------------------------------------------
+//--- PA: 0x004B3C   VA: 0x800CE0B4   subsegment: c, player
+//---------------------------------------------------------
 sharedFunc_800CDAA8_0_s02           = 0x800CE0B4; // type:func
 sharedFunc_800D1C38_0_s00           = 0x800CE6B8; // type:func
 sharedFunc_800D209C_0_s00           = 0x800CEAE4; // type:func
@@ -103,17 +72,17 @@ Ai_Dahlia_Init                      = 0x800CFC9C; // type:func
 sharedFunc_800D88AC_0_s00           = 0x800CFCD8; // type:func
 sharedFunc_800D88C0_0_s00           = 0x800CFCEC; // type:func
 sharedFunc_800D8904_0_s00           = 0x800CFD30; // type:func
-sharedFunc_800D891C_0_s00           = 0x800CFD48; // type:func
-sharedFunc_800D8928_0_s00           = 0x800CFD54; // type:func
-sharedFunc_800D893C_0_s00           = 0x800CFD68; // type:func
-sharedFunc_800D8950_0_s00           = 0x800CFD7C; // type:func
-sharedFunc_800D8964_0_s00           = 0x800CFD90; // type:func
+Player_RunTimerReset                = 0x800CFD48; // type:func
+Chara_Lock                          = 0x800CFD54; // type:func
+Chara_IsLockedCheck                 = 0x800CFD68; // type:func
+Chara_Unlock                        = 0x800CFD7C; // type:func
+Chara_AnimPlaybackStateGet          = 0x800CFD90; // type:func
 sharedFunc_800D8A00_0_s00           = 0x800CFE2C; // type:func
-sharedFunc_800D9064_0_s00           = 0x800D0490; // type:func
-sharedFunc_800D9078_0_s00           = 0x800D04A4; // type:func
+Chara_VisibleSet                    = 0x800D0490; // type:func
+Chara_InvisibleSet                  = 0x800D04A4; // type:func
 sharedFunc_800D908C_0_s00           = 0x800D04B8; // type:func
 sharedFunc_800D9188_0_s00           = 0x800D05B4; // type:func
-Anim_StartKeyframeIdxGet            = 0x800D0668; // type:func
+Chara_AnimStartKeyframeIdxGet       = 0x800D0668; // type:func
 sharedFunc_800D923C_0_s00           = 0x800D0688; // type:func
 sharedFunc_800D929C_0_s00           = 0x800D06E8; // type:func
 Map_RoomIdxGet                      = 0x800D06F8; // type:func

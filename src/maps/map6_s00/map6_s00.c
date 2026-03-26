@@ -1,3 +1,5 @@
+#include "inline_no_dmpsx.h"
+#include <psyq/gtemac.h>
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -9,30 +11,6 @@
 #include "maps/characters/groaner.h"
 #include "maps/characters/player.h"
 #include "maps/characters/romper.h"
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA854);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA858);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA864);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA87C);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA894);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", D_800CA8AC);
-
-INCLUDE_RODATA("maps/map6_s00/nonmatchings/map6_s00", sharedData_800CAA98_0_s01);
-
-// TODO: Move this line into separate `Chara_AirScreamer` split.
-#include "../src/maps/characters/air_screamer.c" // 0x800D18FC
-
-// TODO: Move this line into separate `Chara_Groaner` split.
-#include "../src/maps/characters/groaner.c" // 0x800E2934
 
 // TODO: Move this line into separate `Chara_Romper` split.
 #include "../src/maps/characters/romper.c" // 0x800E6F0C

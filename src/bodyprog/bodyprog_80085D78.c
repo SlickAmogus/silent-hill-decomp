@@ -107,7 +107,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
-                keyframeState = g_MapOverlayHeader.func_138(chara);
+                keyframeState = g_MapOverlayHeader.charaAnimPlaybackStateGet_138(chara);
                 if (keyframeState == 1)
                 {
                     func_80085D78(reset);
@@ -122,7 +122,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
-                g_MapOverlayHeader.func_12C(chara);
+                g_MapOverlayHeader.charaLock_12C(chara);
             }
             break;
 
@@ -133,7 +133,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
-                g_MapOverlayHeader.func_134(chara);
+                g_MapOverlayHeader.charaUnlock_134(chara);
             }
             break;
 
@@ -145,7 +145,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
-                g_MapOverlayHeader.func_128(chara);
+                g_MapOverlayHeader.playerRunTimerReset_128(chara);
             }
             break;
     }

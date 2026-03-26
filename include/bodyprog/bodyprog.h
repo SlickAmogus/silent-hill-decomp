@@ -47,6 +47,15 @@
 // ENUMS
 // ======
 
+// @brief Animation playback states. Returned by `Chara_AnimPlaybackStateGet`.
+typedef enum _AnimPlaybackState
+{
+    AnimPlaybackState_Blend   = -2,
+    AnimPlaybackState_Invalid = -1, // Unsure.
+    AnimPlaybackState_Active  = 0,
+    AnimPlaybackState_End     = 1
+} e_AnimPlaybackState;
+
 /** @brief Background music flags. */
 typedef enum _BgmFlags
 {
@@ -1624,7 +1633,7 @@ typedef struct _MapOverlayHeader
     s_MapOverlayHeader_94* field_94;                    // only map1_s02, map1_s03.
     s32                    (*func_98)(POLY_FT4** poly, s32); // only map1_s02, map1_s03.
     void                   (*func_9C)();                // only map1_s02, map1_s03.
-    s32*                   func_A0; // only map1_s03.
+    void*                  ptr_A0; // M1S03 only, pointer to `s_800E3A40` array.
     s32                    (*func_A4)(POLY_FT4** poly, s32); // func(?) only map1_s03.
     void                   (*func_A8)(); // func(?) only map6_s02.
     s32                    (*func_AC)(POLY_FT4** poly, s32); // func(?) only map4_s03, map4_s05.
@@ -1658,18 +1667,18 @@ typedef struct _MapOverlayHeader
     void                   (*func_11C)(); // func(?).
     void                   (*func_120)(); // func(?).
     void                   (*func_124)(s_SubCharacter*); // Assumed return type.
-    s32                    (*func_128)(s_SubCharacter*); // Assumed return type.
-    s32                    (*func_12C)(s_SubCharacter*); // Assumed return type.
-    void                   (*func_130)(); // func(?).
-    s32                    (*func_134)(s_SubCharacter*); // Assumed return type.
-    s32                    (*func_138)(s_SubCharacter*); // Keyframe state getter. Return value depends on the anim update function being used.
-    s32                    (*func_13C)(s32, s32, void*, s16, s32); // `arg0` is `s_SubCharacter*`.
-    void                   (*func_140)(); // func(?).
-    void                   (*func_144)(); // func(?).
-    void                   (*func_148)(); // func(?).
-    void                   (*func_14C)(); // func(?).
-    void                   (*animStartKeyframeIdxGet_150)();
-    void                   (*func_154)(); // func(?).
+    s32                   (*playerRunTimerReset_128)(s_SubCharacter* player);
+    s32                   (*charaLock_12C)(s_SubCharacter* chara);
+    void                   (*charaIsLockedCheck)(s_SubCharacter* chara);
+    s32                   (*charaUnlock_134)(s_SubCharacter* chara);
+    s32                    (*charaAnimPlaybackStateGet_138)(s_SubCharacter* chara);
+    bool                   (*func_13C)(s_SubCharacter* chara, s32 arg1, VECTOR3* arg2In, s32 angleIn, s32 arg4); // `arg0` is `s_SubCharacter*`.
+    void                   (*charaVisibleSet_140)(s_SubCharacter* chara);
+    void                   (*charaInvisibleSet_144)(s_SubCharacter* chara);
+    bool                   (*func_148)(s32 animStatus, s_SubCharacter* chara, s32 keyframeIdx0, s32 keyframeIdx1, s32 sfxId, s32 pitch);
+    bool                   (*func_14C)(s32 animStatus, s_SubCharacter* chara, s32 keyframeIdx, s32 sfxId);
+    s32                    (*charaAnimStartKeyframeIdxGet_150)(s_SubCharacter* chara);
+    void                   (*func_154)(s_SubCharacter* chara);
     void                   (*func_158)(q19_12 x, q19_12 z); // only map1_s05, map1_s06.
     void                   (*func_15C)(); // func(?) only map5_s01.
     void                   (*func_160)(); // func(?) only map5_s01.
@@ -2177,7 +2186,7 @@ extern s32 D_800A99A0;
 /** Relative file offset for map texture? */
 extern s8 D_800A99B5;
 
-extern char* D_800A99E4[];
+extern char* D_800A99E4[8];
 
 extern s8 g_PaperMapFileIdxs[];
 
@@ -2301,7 +2310,7 @@ extern u32 D_800A9FB0;
 
 extern s32 D_800A9FB4[];
 
-extern u8 D_800AA604[][16];
+extern u8 D_800AA604[41][16];
 
 extern u8 D_800AE185;
 

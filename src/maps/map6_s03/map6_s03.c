@@ -1,3 +1,7 @@
+#include "inline_no_dmpsx.h"
+
+#include <psyq/gtemac.h>
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -7,16 +11,6 @@
 #include "maps/characters/hanged_scratcher.h"
 #include "maps/characters/player.h"
 #include "maps/characters/stalker.h"
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-// TODO: Move this line into separate `Chara_Stalker` split.
-#include "../src/maps/characters/stalker.c" // 0x800CEFCC
-
-// TODO: Move this line into separate `Chara_HangedScratcher` split.
-#include "../src/maps/characters/hanged_scratcher.c" // 0x800D4264
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D7F14
 

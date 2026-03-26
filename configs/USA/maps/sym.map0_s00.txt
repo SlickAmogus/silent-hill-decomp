@@ -6,30 +6,10 @@
 //================================================
 
 
-//------------------------------------------------------
-//--- PA: 0x000000   VA: 0x800C9578   subsegment: rodata
-//------------------------------------------------------
-
-//------------------------------------------------------------------------
-//--- PA: 0x000004   VA: 0x800C957C   subsegment: .rodata, map0_s00_header
-//------------------------------------------------------------------------
-
-//-----------------------------------------------------------------
-//--- PA: 0x001050   VA: 0x800CA5C8   subsegment: .rodata, map0_s00
-//-----------------------------------------------------------------
+//----------------------------------------------------------------------
+//--- PA: 0x001568   VA: 0x800CAAE0   subsegment: .rodata, Chara_Stalker
+//----------------------------------------------------------------------
 sharedData_800CAB70_0_s00       = 0x800CAB70; // type:s32
-
-//---------------------------------------------------------------------
-//--- PA: 0x0018C8   VA: 0x800CAE40   subsegment: .rodata, Chara_Cheryl
-//---------------------------------------------------------------------
-
-//------------------------------------------------------
-//--- PA: 0x0018DC   VA: 0x800CAE54   subsegment: rodata
-//------------------------------------------------------
-
-//-------------------------------------------------------------------
-//--- PA: 0x0018E0   VA: 0x800CAE58   subsegment: .rodata, map0_s00_2
-//-------------------------------------------------------------------
 
 
 
@@ -39,7 +19,7 @@ sharedData_800CAB70_0_s00       = 0x800CAB70; // type:s32
 
 
 //-----------------------------------------------------------
-//--- PA: 0x002138   VA: 0x800CB6B0   subsegment: c, map0_s00
+//--- PA: 0x002138   VA: 0x800CB6B0   subsegment: c, particle
 //-----------------------------------------------------------
 Particle_SystemUpdate           = 0x800CB6B0; // type:func
 Particle_CameraMovedCheck       = 0x800CBBBC; // type:func
@@ -61,6 +41,10 @@ Particle_SoundUpdate            = 0x800D0CB8; // type:func
 Particle_SoundStop              = 0x800D0E04; // type:func
 Particle_HyperBlasterBeamDraw   = 0x800D0E24; // type:func
 Particle_BeamDraw               = 0x800D0E2C; // type:func
+
+//---------------------------------------------------------
+//--- PA: 0x0078BC   VA: 0x800D0E34   subsegment: c, player
+//---------------------------------------------------------
 sharedFunc_800CDAA8_0_s02       = 0x800D0E34; // type:func
 sharedFunc_800D1C38_0_s00       = 0x800D1C38; // type:func
 sharedFunc_800D209C_0_s00       = 0x800D209C; // type:func
@@ -86,6 +70,10 @@ sharedFunc_800D2E9C_0_s00       = 0x800D2E9C; // type:func
 sharedFunc_800D2EA4_0_s00       = 0x800D2EA4; // type:func
 sharedFunc_800D2EB4_0_s00       = 0x800D2EB4; // type:func
 sharedFunc_800D2EF4_0_s00       = 0x800D2EF4; // type:func
+
+//----------------------------------------------------------------
+//--- PA: 0x009990   VA: 0x800D2F08   subsegment: c, Chara_Stalker
+//----------------------------------------------------------------
 Ai_Stalker_Update               = 0x800D2F08; // type:func
 Ai_Stalker_Init                 = 0x800D309C; // type:func
 sharedFunc_800D3308_0_s00       = 0x800D3308; // type:func
@@ -124,17 +112,17 @@ Ai_Cheryl_Init                  = 0x800D8888; // type:func
 sharedFunc_800D88AC_0_s00       = 0x800D88AC; // type:func
 sharedFunc_800D88C0_0_s00       = 0x800D88C0; // type:func
 sharedFunc_800D8904_0_s00       = 0x800D8904; // type:func
-sharedFunc_800D891C_0_s00       = 0x800D891C; // type:func
-sharedFunc_800D8928_0_s00       = 0x800D8928; // type:func
-sharedFunc_800D893C_0_s00       = 0x800D893C; // type:func
-sharedFunc_800D8950_0_s00       = 0x800D8950; // type:func
-sharedFunc_800D8964_0_s00       = 0x800D8964; // type:func
+Player_RunTimerReset            = 0x800D891C; // type:func
+Chara_Lock                      = 0x800D8928; // type:func
+Chara_IsLockedCheck             = 0x800D893C; // type:func
+Chara_Unlock                    = 0x800D8950; // type:func
+Chara_AnimPlaybackStateGet      = 0x800D8964; // type:func
 sharedFunc_800D8A00_0_s00       = 0x800D8A00; // type:func
-sharedFunc_800D9064_0_s00       = 0x800D9064; // type:func
-sharedFunc_800D9078_0_s00       = 0x800D9078; // type:func
+Chara_VisibleSet                = 0x800D9064; // type:func
+Chara_InvisibleSet              = 0x800D9078; // type:func
 sharedFunc_800D908C_0_s00       = 0x800D908C; // type:func
 sharedFunc_800D9188_0_s00       = 0x800D9188; // type:func
-Anim_StartKeyframeIdxGet        = 0x800D921C; // type:func
+Chara_AnimStartKeyframeIdxGet   = 0x800D921C; // type:func
 sharedFunc_800D923C_0_s00       = 0x800D923C; // type:func
 sharedFunc_800D929C_0_s00       = 0x800D929C; // type:func
 Map_RoomIdxGet                  = 0x800D92AC; // type:func

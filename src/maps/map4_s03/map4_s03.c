@@ -1,3 +1,5 @@
+#include "inline_no_dmpsx.h"
+#include <psyq/gtemac.h>
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -6,18 +8,6 @@
 #include "maps/particle.h"
 #include "maps/characters/player.h"
 #include "maps/characters/twinfeeler.h"
-
-#include "maps/shared/sharedFunc_800CB0A4_4_s03.h" // 0x800CB0A4
-
-#include "maps/shared/sharedFunc_800CB1B0_4_s03.h" // 0x800CB1B0
-
-#include "maps/shared/sharedFunc_800CBE54_4_s03.h" // 0x800CBE54
-
-#include "maps/shared/sharedFunc_800CC004_4_s03.h" // 0x800CC004
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
 
 #include "maps/shared/sharedFunc_800CD6B0_3_s03.h" // 0x800D04BC
 
@@ -29,12 +19,15 @@
 
 void func_800D078C(void) // 0x800D078C
 {
+    // @hack string needs to be in separate TU for the alignment in this TU to match properly.
+    // Might need to move this func + related ones to new split?
+    extern const char D_800CA77C[]; // "SPUM602F".
     u32        tpage1;
     u16        x;
     u16        y;
     s_Texture* tex;
 
-    tex    = Texture_InfoGet("SPUM602F");
+    tex    = Texture_InfoGet(D_800CA77C);
     tpage1 = tex->imageDesc_0.tPage[1];
     x      = tex->imageDesc_0.clutX;
     y      = tex->imageDesc_0.clutY;
@@ -2842,7 +2835,7 @@ void func_800D54B4(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D54B4
 {
     VECTOR3         pos; // Q19.12
     MATRIX          sp30;
-    s32             var_s0;
+    s32             var_s0; // `e_EquippedWeaponId`
     s32             var_v0;
     q19_12          posX;
     q19_12          posY;
@@ -2857,7 +2850,7 @@ void func_800D54B4(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D54B4
         case 5:
         case 6:
         case 8:
-            var_s0 = 61;
+            var_s0 = EquippedWeaponId_Unk61;
             var_v0 = 14;
             break;
 
@@ -2868,12 +2861,12 @@ void func_800D54B4(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D54B4
         case 7:
         case 9:
         case 10:
-            var_s0 = 0;
+            var_s0 = 0; // Skips code below.
             var_v0 = 0;
             break;
     }
 
-    if (var_s0 != 0)
+    if (var_s0)
     {
         Vw_CoordHierarchyMatrixCompute(&coords[var_v0], &sp30);
 

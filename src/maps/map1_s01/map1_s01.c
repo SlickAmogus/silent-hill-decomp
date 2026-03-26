@@ -13,24 +13,6 @@
 #include "maps/characters/player.h"
 #include "maps/characters/stalker.h"
 
-#include "maps/shared/sharedFunc_800CB7F4_1_s01.h" // 0x800CB7F4
-
-#include "maps/shared/sharedFunc_800CB8A0_1_s01.h" // 0x800CB8A0
-
-#include "maps/shared/sharedFunc_800CBA38_1_s01.h" // 0x800CBA38
-
-#include "maps/shared/sharedFunc_800CBB30_1_s01.h" // 0x800CBB30
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
-
-// TODO: Move this line into separate `Chara_LarvalStalker` split.
-#include "../src/maps/characters/larval_stalker.c" // 0x800CE648
-
-// TODO: Move this line into separate `Chara_Stalker` split.
-#include "../src/maps/characters/stalker.c" // 0x800D1AF0
-
 void Ai_Cat_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800D6D40
 {
     s_AnimInfo* animInfo;

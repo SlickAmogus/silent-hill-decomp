@@ -2,31 +2,12 @@
 
 
 //================================================
-//=== .rodata section
-//================================================
-
-
-//------------------------------------------------------
-//--- PA: 0x000000   VA: 0x800C9578   subsegment: rodata
-//------------------------------------------------------
-
-//------------------------------------------------------------------------
-//--- PA: 0x000004   VA: 0x800C957C   subsegment: .rodata, map2_s03_header
-//------------------------------------------------------------------------
-
-//-----------------------------------------------------------------
-//--- PA: 0x001050   VA: 0x800CA5C8   subsegment: .rodata, map2_s03
-//-----------------------------------------------------------------
-
-
-
-//================================================
 //=== .text section
 //================================================
 
 
 //-----------------------------------------------------------
-//--- PA: 0x00138C   VA: 0x800CA904   subsegment: c, map2_s03
+//--- PA: 0x00138C   VA: 0x800CA904   subsegment: c, particle
 //-----------------------------------------------------------
 Particle_SystemUpdate           = 0x800CA904; // type:func
 sharedFunc_800D08B8_0_s00       = 0x800CAA6C; // type:func
@@ -35,6 +16,10 @@ sharedFunc_800D0B18_0_s00       = 0x800CACA4; // type:func
 Particle_SoundStop              = 0x800CAE08; // type:func
 Particle_HyperBlasterBeamDraw   = 0x800CAE28; // type:func
 Particle_BeamDraw               = 0x800CB6A0; // type:func
+
+//---------------------------------------------------------
+//--- PA: 0x002514   VA: 0x800CBA8C   subsegment: c, player
+//---------------------------------------------------------
 sharedFunc_800CDAA8_0_s02       = 0x800CBA8C; // type:func
 sharedFunc_800D1C38_0_s00       = 0x800CBD80; // type:func
 sharedFunc_800D209C_0_s00       = 0x800CC1AC; // type:func
@@ -60,6 +45,10 @@ sharedFunc_800D2E9C_0_s00       = 0x800CC754; // type:func
 sharedFunc_800D2EA4_0_s00       = 0x800CC75C; // type:func
 sharedFunc_800D2EB4_0_s00       = 0x800CC76C; // type:func
 sharedFunc_800D2EF4_0_s00       = 0x800CC7AC; // type:func
+
+//-----------------------------------------------------------
+//--- PA: 0x003248   VA: 0x800CC7C0   subsegment: c, map2_s03
+//-----------------------------------------------------------
 sharedFunc_800D929C_0_s00       = 0x800CC7C0; // type:func
 Map_RoomIdxGet                  = 0x800CC7D0; // type:func
 Map_RoomBgmInit                 = 0x800CCA1C; // type:func

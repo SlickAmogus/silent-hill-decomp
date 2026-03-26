@@ -1518,7 +1518,7 @@ void Ai_Stalker_Control_6(s_SubCharacter* stalker)
         vec0.vz = stalker->position_18.vz;
 
         // TODO: What's weapon attack 49?
-        if (func_8008A0E4(1, 49, stalker, &vec0, &g_SysWork.playerWork_4C, stalker->rotation_24.vy, Q12_ANGLE(90.0f)) != NO_VALUE)
+        if (func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk49, AttackInputType_Tap), stalker, &vec0, &g_SysWork.playerWork_4C, stalker->rotation_24.vy, Q12_ANGLE(90.0f)) != NO_VALUE)
         {
             stalkerProps.flags_E8 |= StalkerFlag_5;
             g_SysWork.field_2284[3] &= ~(1 << 1);
@@ -2098,10 +2098,17 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
             {
                 STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0].duration_8.constant = Q12(24.0f);
             }
+#if VERSION_EQUAL_OR_NEWER(USA) // TODO: Check which versions have this.
             else if (ANIM_TIME_RANGE_CHECK(stalker->model_0.anim_4.time_4, 59, 65))
             {
                 STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0].duration_8.constant = Q12(32.0f);
             }
+#else // JAP0
+            else if (ANIM_TIME_RANGE_CHECK(stalker->model_0.anim_4.time_4, 59, 64))
+            {
+                STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0].duration_8.constant = Q12(36.0f);
+            }
+#endif
             else
             {
                 STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0].duration_8.constant = Q12_MULT_PRECISE(MAX(stalker->moveSpeed_38, Q12(0.1f)), Q12(30.67f));
@@ -2168,7 +2175,11 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
 
     ptr = PSX_SCRATCH;
 
+#if VERSION_EQUAL_OR_NEWER(USA)
     if (ANIM_TIME_RANGE_CHECK(stalker->model_0.anim_4.time_4, 60, 65))
+#else // JAP0
+    if (ANIM_TIME_RANGE_CHECK(stalker->model_0.anim_4.time_4, 60, 66))
+#endif
     {
         // TODO: Use macro?
         *(s32*)&ptr->field_30.vx = 0x21FFFB;
@@ -2191,7 +2202,7 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
         ptr->position_38.vz = stalker->position_18.vz;
 
         // TODO: What's weapon attack 48?
-        func_8008A0E4(1, 48, stalker, &ptr->position_38, &g_SysWork.playerWork_4C.player_0,
+        func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk48, AttackInputType_Tap), stalker, &ptr->position_38, &g_SysWork.playerWork_4C.player_0,
                       ratan2(ptr->field_20.vx - stalker->position_18.vx, ptr->field_20.vz - stalker->position_18.vz),
                       ratan2(Math_Vector2MagCalc(stalker->position_18.vx - ptr->field_20.vx,
                                                  stalker->position_18.vz - ptr->field_20.vz),
@@ -2255,7 +2266,6 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
 
     stalkerProps.angle_114 = ptr->angle_44;
 }
-
 
 // TODO: Size of arrays may be incorrect. One big array doesn't match.
 extern s_Keyframe sharedData_800DDBA8_0_s00;

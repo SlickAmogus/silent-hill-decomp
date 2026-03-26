@@ -1,3 +1,7 @@
+#include "inline_no_dmpsx.h"
+
+#include <psyq/gtemac.h>
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -6,22 +10,6 @@
 #include "maps/particle.h"
 #include "maps/characters/player.h"
 #include "maps/characters/split_head.h"
-
-#include "maps/shared/sharedFunc_800CBE7C_1_s05.h" // 0x800CAFC4
-
-#include "maps/shared/sharedFunc_800CBF74_1_s05.h" // 0x800CB0BC
-
-#include "maps/shared/sharedFunc_800CC618_1_s05.h" // 0x800CB760
-
-#include "maps/shared/sharedFunc_800CCDD4_1_s05.h" // 0x800CBF1C
-
-#include "maps/shared/sharedFunc_800CCE2C_1_s05.h" // 0x800CBF74
-
-#include "maps/shared/sharedFunc_800CCF30_1_s05.h" // 0x800CC078
-
-#include "../src/maps/particle.c"
-
-#include "../src/maps/characters/player.c"
 
 // TODO: Move this line into separate `Chara_SplitHead` split.
 #include "../src/maps/characters/split_head.c" // 0x800D02CC

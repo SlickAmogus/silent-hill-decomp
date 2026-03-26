@@ -1,3 +1,4 @@
+#include <psyq/libapi.h>
 
 #include "game.h"
 
@@ -10,25 +11,6 @@
 // JPN releases seem to use much different text draw functions.
 // Some functions from USA are still included, but in a different order to USA.
 // Unsure if these can be merged into same .c, might need to be kept seperate.
-
-#define MAP_MSG_CODE_MARKER        '~' /** Message code start. */
-#define MAP_MSG_CODE_COLOR         'C' /** Set color. */
-#define MAP_MSG_CODE_DISPLAY_ALL   'D' /** Display message instantly without roll. */
-#define MAP_MSG_CODE_END           'E' /** End message. */
-#define MAP_MSG_CODE_HIGH_RES      'H' /** High-resolution glyph drawing. */
-#define MAP_MSG_CODE_JUMP          'J' /** Jump timer. */
-#define MAP_MSG_CODE_LINE_POSITION 'L' /** Set next line position. */
-#define MAP_MSG_CODE_MIDDLE        'M' /** Align center. */
-#define MAP_MSG_CODE_NEWLINE       'N' /** Newline. */
-#define MAP_MSG_CODE_SELECT        'S' /** Display dialog prompt with selectable entries. */
-#define MAP_MSG_CODE_TAB           'T' /** Inset line. */
-
-#define FONT_12X16_GLYPH_COUNT        84
-#define FONT_12X16_GLYPH_SIZE_X       12
-#define FONT_12X16_GLYPH_SIZE_Y       16
-#define FONT_12X16_SPACE_SIZE         6
-#define FONT_12X16_LINE_COUNT_MAX     9
-#define FONT_12X16_ATLAS_COLUMN_COUNT (FONT_12X16_GLYPH_COUNT / 4)
 
 extern s_800C38B0 D_800C38B0; // 0x800C5E18 in JPN
 
@@ -51,8 +33,8 @@ static s32 g_Strings2dLayerIdx = 6;
 extern s16 D_800AF83C; // Set by `Gfx_StringSetColor_JP`
 extern s16 D_800C5DEC;
 extern s16 D_800C5DEE;
-extern s16 D_800C5E0C;
-extern s16 D_800C5E0E;
+extern s16 D_800C391C; // 0x800C5E0C;
+extern s16 D_800C391E; // 0x800C5E0E;
 extern DVECTOR D_800C5E10;
 extern s32 D_800C5E14;
 extern s32 D_800C5E1C;
@@ -302,12 +284,13 @@ void func_8004AA28(void) // 0x8004AA28
     func_8003652C();
 }
 
+// TODO: Matches USA `func_8004B6D4`, rename symbols to match.
 void func_8004AA6C(s16 x, s16 y) // 0x8004AA6C
 {
     if (x != NO_VALUE)
     {
         D_800C5DEC = x + (-g_GameWork.gsScreenWidth_588 / 2);
-        D_800C5E0C = D_800C5DEC;
+        D_800C391C = D_800C5DEC;
     }
 
     if (y != NO_VALUE)
@@ -316,19 +299,101 @@ void func_8004AA6C(s16 x, s16 y) // 0x8004AA6C
     }
 }
 
+// TODO: Matches USA `func_8004B74C`, rename symbols to match.
 void func_8004AAE4(s16 arg0) // 0x8004AAE4
 {
     if (arg0 < 0 || arg0 >= 5)
     {
-        D_800C5E0E = 0;
+        D_800C391E = 0;
     }
     else
     {
-        D_800C5E0E = arg0;
+        D_800C391E = arg0;
     }
 }
 
-INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004AB04);
+void func_8004B76C(char* str, bool useFixedWidth) // 0x8004AB04
+{
+    #define GLYPH_SIZE_X       11
+    #define GLYPH_SIZE_Y       12
+    #define SPACE_SIZE         12
+    #define LINE_SPACE_SIZE    16
+    #define ATLAS_COLUMN_COUNT 21
+
+    s32       tileRow;
+    s32       glyphIdx;
+    GsOT*     ot;
+    GsSPRITE* glyphSprt;
+
+    glyphSprt  = (GsSPRITE*)PSX_SCRATCH_ADDR(0x30);
+    *glyphSprt = D_800C38F8;
+    ot         = &g_OrderingTable2[g_ActiveBufferIdx];
+
+    // Parse string.
+    while (*str != '\0')
+    {
+        switch (*str)
+        {
+            // Draw glyph sprite.
+            default:
+                glyphIdx     = *str - GLYPH_TABLE_ASCII_OFFSET;
+                tileRow      = glyphIdx / ATLAS_COLUMN_COUNT;
+                glyphSprt->u = (glyphIdx % ATLAS_COLUMN_COUNT) * GLYPH_SIZE_Y;
+
+                if (useFixedWidth)
+                {
+                    glyphSprt->w = GLYPH_SIZE_X;
+                }
+                else
+                {
+                    glyphSprt->w = FONT_12X16_GLYPH_WIDTHS[glyphIdx];
+                }
+
+                glyphSprt->tpage = (tileRow & 0xF) | 0x10;
+                glyphSprt->cx    = 304;
+                glyphSprt->cy    = D_800C391E + 506;
+
+                GsSortFastSprite(glyphSprt, ot, 4);
+
+                glyphSprt->x += glyphSprt->w;
+                break;
+
+            // Space.
+            case ' ':
+            case '\t':
+                glyphSprt->x += SPACE_SIZE;
+                break;
+
+            // Backspace.
+            case '~':
+            case '\b':
+                glyphSprt->x -= SPACE_SIZE;
+                break;
+
+            // Newline.
+            case '\n':
+                glyphSprt->x  = D_800C391C;
+                glyphSprt->y += LINE_SPACE_SIZE;
+                break;
+
+            // Carriage return.
+            case '\r':
+                glyphSprt->x  = D_800C391C;
+                glyphSprt->y -= LINE_SPACE_SIZE;
+                break;
+        }
+
+        str++;
+    }
+
+    D_800C38F8 = *glyphSprt;
+
+    #undef GLYPH_SIZE_X
+    #undef GLYPH_SIZE_Y
+    #undef SPACE_SIZE
+    #undef LINE_SPACE_SIZE
+    #undef ATLAS_COLUMN_COUNT
+}
 
 void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004AD90
 {
@@ -434,11 +499,35 @@ INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", Gfx_StringDraw_JP);
 
 INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004C394);
 
-INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004C7E4);
+void func_8004C7E4(void) // 0x8004C7E4
+{
+    // TODO: .rodata? `u8` used as placeholder, likely some kind of struct.
+    extern u8      D_80025EB4;
+    extern u8      D_80025EE0;
+    extern u8      D_80025F0C;
+    extern VECTOR3 D_80025F38;
 
-INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004C870);
+    VECTOR3 unused = D_80025F38;
 
-INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004C8AC);
+    D_800C3920 = 0x14;
+
+    func_8004C918(&D_80025EB4, 1, 1, 5);
+    func_8004C918(&D_80025EE0, 1, 1, 6);
+    func_8004C918(&D_80025F0C, 1, 1, 7);
+}
+
+void func_8004C870(void)  // 0x8004C870
+{
+    extern u8 D_80025F44; // TODO: .rodata? `u8` used as placeholder, likely some kind of struct.
+
+    D_800C3920 = 0x14;
+    func_8004C918(&D_80025F44, 1, 1, 5);
+}
+
+void func_8004C8AC(u8* arg0) // 0x8004C8AC
+{
+    Krom2RawAdd2(arg0[1] | (arg0[0] << 8));
+}
 
 INCLUDE_ASM("bodyprog/nonmatchings/text/text_draw_jp", func_8004C8D8);
 
