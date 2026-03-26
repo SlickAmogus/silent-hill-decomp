@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #include <abs.h>
 
@@ -1032,6 +1035,16 @@ void vcSetNearRoadAryByCharaPos(VC_WORK* w_p, VC_ROAD_DATA* road_ary_list, s32 h
 
         road_data_ptr++;
     }
+#ifdef SH_PC_PORT
+    {
+        static int _roadLog = 0;
+        if (++_roadLog <= 5 || (_roadLog % 300) == 0) {
+            SH_DBG("[ROAD] vcSetNearRoadAry: charaPos=(%d,%d) found=%d roads",
+                   (int)w_p->chara_pos_114.vx, (int)w_p->chara_pos_114.vz,
+                   (int)w_p->near_road_suu_2B4);
+        }
+    }
+#endif
 }
 
 s32 vcRetRoadUsePriority(VC_ROAD_TYPE rd_type, s32 unused) // 0x8008227C
@@ -1089,7 +1102,21 @@ bool vcSetCurNearRoadInVC_WORK(VC_WORK* w_p) // 0x800822B8
         }
 
         w_p->cur_near_road_2B8 = *new_cur_p;
-
+#ifdef SH_PC_PORT
+        {
+            static int _selLog = 0;
+            if (++_selLog <= 5 || (_selLog % 300) == 0) {
+                VC_ROAD_DATA* rd = w_p->cur_near_road_2B8.road_p_0;
+                SH_DBG("[ROAD] CurRoad(new): rd=[%d,%d x %d,%d] sw=[%d,%d x %d,%d] flags=0x%x camMv=%d mvY=%d minHy=%d maxHy=%d watchOfsHy=%d",
+                       (int)Q4_TO_Q12(rd->lim_rd_8.min_hx)/4096, (int)Q4_TO_Q12(rd->lim_rd_8.max_hx)/4096,
+                       (int)Q4_TO_Q12(rd->lim_rd_8.min_hz)/4096, (int)Q4_TO_Q12(rd->lim_rd_8.max_hz)/4096,
+                       (int)Q4_TO_Q12(rd->lim_sw_0.min_hx)/4096, (int)Q4_TO_Q12(rd->lim_sw_0.max_hx)/4096,
+                       (int)Q4_TO_Q12(rd->lim_sw_0.min_hz)/4096, (int)Q4_TO_Q12(rd->lim_sw_0.max_hz)/4096,
+                       (int)rd->flags_10, (int)rd->cam_mv_type_14, (int)rd->mv_y_type_11,
+                       (int)rd->lim_rd_min_hy_13, (int)rd->lim_rd_max_hy_12, (int)rd->ofs_watch_hy_14);
+            }
+        }
+#endif
         return ret_warp_f;
     }
 
@@ -1471,6 +1498,17 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
         }
 
         watch_y = Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14) + w_p->chara_bottom_y_120;
+#ifdef SH_PC_PORT
+        {
+            static int _watchLog = 0;
+            if (++_watchLog <= 60) {
+                SH_DBG("[WATCH] watch_y=%d botY=%d topY=%d grndY=%d camY=%d ofsWhy=%d",
+                       watch_y, w_p->chara_bottom_y_120, w_p->chara_top_y_124,
+                       w_p->chara_grnd_y_12C, w_p->cam_pos_50.vy,
+                       Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14));
+            }
+        }
+#endif
         vcSetWatchTgtXzPos(watch_tgt_pos, &w_p->chara_pos_114, &w_p->cam_pos_50, tgt_chara2watch_cir_dist, tgt_watch_cir_r, w_p->chara_eye_ang_y_144);
         vcSetWatchTgtYParam(watch_tgt_pos, w_p, cam_mv_type, watch_y);
     }
@@ -2597,14 +2635,7 @@ void vcRenewalCamMatAng(VC_WORK* w_p, VC_WATCH_MV_PARAM* watch_mv_prm_p, VC_CAM_
         vcMakeOfsCam2CharaBottomAndTopAngByBaseMatT(&ofs_cam2chara_btm_ang, &ofs_cam2chara_top_ang, &new_base_matT,
                                                     &w_p->cam_pos_50, &w_p->chara_pos_114, w_p->chara_bottom_y_120,
                                                     w_p->chara_top_y_124);
-        /* PC: Skip character-in-screen adjustment for now.
-         * With correct Square0, this over-corrects because camera is high
-         * and world geometry (IPD) is not yet rendering to provide context.
-         * Baseline behavior from commit 99bd3e20 had Square0 as no-op,
-         * so this function computed zero adjustment. */
-#ifndef SH_PC_PORT
         vcAdjCamOfsAngByCharaInScreen(&ofs_tgt_ang, &ofs_cam2chara_btm_ang, &ofs_cam2chara_top_ang, w_p);
-#endif
     }
 
     if (w_p->flags_8 & VC_WARP_WATCH_F)
