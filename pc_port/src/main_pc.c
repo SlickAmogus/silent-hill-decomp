@@ -161,6 +161,27 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
+    /* Apply refresh rate and vsync from config.
+     * PsyCross defaults to vsync=off; we override via SDL directly. */
+    if (g_PcConfig.refreshRate > 0 && g_PcConfig.fullscreen)
+    {
+        extern SDL_Window* g_window;
+        SDL_DisplayMode mode;
+        if (SDL_GetWindowDisplayMode(g_window, &mode) == 0)
+        {
+            mode.refresh_rate = g_PcConfig.refreshRate;
+            if (SDL_SetWindowDisplayMode(g_window, &mode) == 0)
+                SH_LOG("Display mode set to %d hz", g_PcConfig.refreshRate);
+            else
+                SH_LOG("Failed to set %d hz display mode: %s", g_PcConfig.refreshRate, SDL_GetError());
+        }
+    }
+    if (g_PcConfig.vsync != 0)
+    {
+        SDL_GL_SetSwapInterval(g_PcConfig.vsync);
+        SH_LOG("VSync set to %d", g_PcConfig.vsync);
+    }
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();

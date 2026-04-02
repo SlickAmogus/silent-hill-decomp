@@ -10,6 +10,8 @@ s_PcConfig g_PcConfig = {
     .fullscreen     = 0,
     .disableCulling = 1,
     .preloadChunks  = 1,
+    .vsync          = 0,
+    .refreshRate    = 0,
     .mapName        = "map0_s00"
 };
 
@@ -87,6 +89,15 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "preload_chunks") == 0)
         {
             g_PcConfig.preloadChunks = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "vsync") == 0)
+        {
+            g_PcConfig.vsync = atoi(value);
+        }
+        else if (strcmp(key, "refresh_rate") == 0)
+        {
+            int v = atoi(value);
+            if (v >= 0) g_PcConfig.refreshRate = v;
         }
         else if (strcmp(key, "map") == 0)
         {
