@@ -7,6 +7,8 @@ typedef struct {
     int fullscreen;
     int disableCulling;  /* 1 = render all objects regardless of view angle */
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
+    int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
+    int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
