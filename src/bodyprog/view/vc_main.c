@@ -1501,7 +1501,7 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
 #ifdef SH_PC_PORT
         {
             static int _watchLog = 0;
-            if (++_watchLog <= 60) {
+            if (++_watchLog <= 3600) {
                 SH_DBG("[WATCH] watch_y=%d botY=%d topY=%d grndY=%d camY=%d ofsWhy=%d",
                        watch_y, w_p->chara_bottom_y_120, w_p->chara_top_y_124,
                        w_p->chara_grnd_y_12C, w_p->cam_pos_50.vy,
@@ -2177,7 +2177,7 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     near_road_data = &w_p->cur_near_road_2B8;
 
     ideal_pos->vx = w_p->chara_pos_114.vx + Q12_MULT(default_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y_FE));
-    ideal_pos->vy = w_p->chara_top_y_124  - Q12(0.4f);
+    ideal_pos->vy = w_p->chara_top_y_124  + Q12(0.65f); /* PC patch: lower camera to ~half height above ground (~1.05 vs ~2.1 world units) */
     ideal_pos->vz = w_p->chara_pos_114.vz + Q12_MULT(default_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y_FE));
 
     cam_pos_y   = w_p->cam_pos_50.vy;
@@ -2200,7 +2200,27 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
 
     road_data = w_p->cur_near_road_2B8.road_p_0;
 
+/* On the PC port, all maps return Y=0 from Collision_Get because the IPD collision
+ * mesh stores heights relative to world origin. The road-node lim_rd_max_hy (camera
+ * height floor) was authored assuming Harry stands at a negative Y (e.g. the opening
+ * road has maxHy=-40 Q4 = -10240 Q12, intending a 2.5-unit-high camera floor for a
+ * ~2-unit-below-origin ground). With Harry at Y=0 the character-relative ideal
+ * (chara_top - 0.4 ≈ -8601) exceeds -10240 in the CLAMP and the camera is pushed
+ * 0.4 units too high, creating a steeper-than-intended downward pitch.
+ *
+ * Fix: keep only the ceiling clamp (lim_rd_min_hy, prevents extreme altitude) and
+ * let the camera always reach its character-relative ideal on the Y axis.  The floor
+ * clamp (lim_rd_max_hy) is skipped because it is calibrated for a world-Y baseline
+ * that differs from the PC port's ground-at-zero convention. */
+#ifdef SH_PC_PORT
+    {
+        s32 _camMinHy = Q4_TO_Q12(road_data->lim_rd_min_hy_13);
+        if (ideal_pos->vy < _camMinHy)
+            ideal_pos->vy = _camMinHy;
+    }
+#else
     ideal_pos->vy = CLAMP(ideal_pos->vy, Q4_TO_Q12(road_data->lim_rd_min_hy_13), Q4_TO_Q12(road_data->lim_rd_max_hy_12));
+#endif
 
     temp_x = w_p->chara_pos_114.vx;
     temp_z = w_p->chara_pos_114.vz;

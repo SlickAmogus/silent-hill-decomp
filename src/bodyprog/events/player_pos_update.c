@@ -55,5 +55,15 @@ void Game_PlayerHeightUpdate(void) // 0x80037334
     }
 
     Collision_Get(&coll, g_SysWork.playerWork_4C.player_0.position_18.vx, g_SysWork.playerWork_4C.player_0.position_18.vz);
-    g_SysWork.playerWork_4C.player_0.position_18.vy = coll.groundHeight_0;
+    /* Only apply if collision data is valid (sentinel = Q12(8.0f) means no chunk loaded) */
+    if (coll.groundHeight_0 != Q12(8.0f)) {
+        g_SysWork.playerWork_4C.player_0.position_18.vy = coll.groundHeight_0;
+#ifdef SH_PC_PORT
+        /* Also initialize positionY_EC — the floor collision system uses this as
+         * the "previous ground target" on frames where collision data is missing
+         * (field_14 == 0). Without this, the first movement tick can wrongly snap
+         * Harry to Y=0 if positionY_EC was never set (stays at 0 from bzero). */
+        g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC = coll.groundHeight_0;
+#endif
+    }
 }
