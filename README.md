@@ -8,27 +8,43 @@
 
   ### Status
 
-  The game starts, loads the logos, and enters the main menu like normal. FMVs play if they are extracted (instructions below). You can change options or start a new game. The opening FMV plays. Once ingame, it skips 
-  the ingame opening cutscene for debugging purposes. You can control Harry, but it crashes almost immediately when doing so (use arrow keys). You can bring up the inventory with space. The most interesting thing you 
-  can do is use the debug camera. Press * on the number pad to toggle it. Controls below:
+  - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly
+  - **New Game**: loading screen plays (Harry running animation), transitions into gameplay
+  - **Opening cutscene**: fully working — DMS camera, text, Harry visible with animations, ambient audio
+  - **Second cutscene** (Harry chases Cheryl): plays without crash; Harry runs in place (movement/collision issue)
+  - **In-game 3D world**: rendering working — textured environment, fog, snow particles, trees, buildings, lamp posts, ground geometry
+  - **Harry**: fully visible with all 23 bones, gouraud shading; character textures partially working
+  - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height working
+  - **Camera**: PSX fixed-camera system functional; controllable with debug mode
+  - **Audio**: SFX working via OpenAL; BGM loads; XA streaming not yet implemented
+  - **Map overlays**: 31 of 42 maps compile and load as DLLs; map1_s00 (Midwich Elementary) confirmed working
+  - **NPC AI**: disabled (stubs)
+  - **Memory card**: save/load stubbed
 
-```
-  - : Lower the camera
-  + : Raise the camera
-  7 : Turn camera left
-  8 : Move camera forward
-  9 : Turn camera right
-  4 : Move camera left
-  5 : Move camera back
-  6 : Move camera right
-  . : Toggle fog
-```
+  *(Screenshots below)*
 
-  Culling is disabled in debug mode, so you can see the entire loaded map. Next step is to be able to load more maps, will update with that asap. There is supposed to be a console with ~ that allows you to change
-  maps, but it is not fully implemented.
+  <!-- Main menu screenshot -->
+  *[Screenshot: Main menu]*
 
-  <img width="638" height="505" alt="github1" src="https://github.com/user-attachments/assets/c1a490af-ceb0-46c1-9553-eeaed32db605" />
-  <img width="631" height="498" alt="harry" src="https://github.com/user-attachments/assets/723b6874-5965-40b0-8db0-f6834c1a2d30" />
+  <!-- In-game world screenshot -->
+  *[Screenshot: In-game 3D world with fog and Harry visible]*
+
+  ### Debug Controls
+
+  Press `*` (numpad) to toggle debug camera mode. In debug mode, culling is disabled so you can see the full loaded map.
+
+  | Key | Action |
+  |-----|--------|
+  | Numpad 8 / 5 | Move forward / back |
+  | Numpad 4 / 6 | Strafe left / right |
+  | Numpad 7 / 9 | Turn left / right |
+  | Numpad + / - | Move up / down |
+  | Numpad / | Print current coordinates |
+  | Numpad . | Toggle fog |
+  | Numpad 1 | Toggle wall collision |
+  | Numpad 2 | Toggle third-person follow camera |
+  | Numpad 3 | Teleport Harry to spawn point |
+  | ~ (tilde) | Debug console (type `HELP` for commands) |
 
   ### Prerequisites
 
@@ -50,19 +66,26 @@
 
   ### Building
 
-  From an **MSYS2 MinGW64** shell:
+  From an **MSYS2 MinGW64** shell (first time):
 
   ```bash
   cd silent-hill-decomp/pc_port
   mkdir build && cd build
-  cmake .. -G Ninja
+  cmake .. -G Ninja -DSH_BUILD_MAP_DLLS=ON
   cmake --build .
   ```
 
-  Or from PowerShell/cmd:
+  Subsequent builds (incremental):
+  ```bash
+  cmake --build .
   ```
-  "C:\msys64\usr\bin\bash.exe" -lc "cd /c/path/to/silent-hill-decomp/pc_port/build && cmake --build ."
+
+  From PowerShell (adjust path as needed):
+  ```powershell
+  & "C:\msys64\usr\bin\bash.exe" -lc "export PATH=/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH && cd /c/path/to/silent-hill-decomp/pc_port/build && cmake --build ."
   ```
+
+  `-DSH_BUILD_MAP_DLLS=ON` builds 31 maps as DLLs loaded at runtime. Without it only the starting area is available.
 
   ### Setting Up Game Data
 
@@ -167,9 +190,12 @@
 
   ### Known Limitations
 
-  - SFX audio works via PsyCross SPU emulation (OpenAL)
-  - Memory card save/load is stubbed
-  - NPC AI is disabled (animation info tables are stubs)
+  - NPC AI disabled — all NPCs skipped
+  - Memory card save/load stubbed
+  - XA audio streaming not implemented
+  - Character textures partially working (untextured gouraud on Harry's model)
+  - Level streaming not yet implemented — only the initially loaded area is available
+  - 11 of 42 maps cannot compile as DLLs (non-constant initializers / cross-map shared data)
   - Only tested on Windows with MSYS2/MinGW64
 
 

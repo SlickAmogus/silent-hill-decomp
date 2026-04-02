@@ -97,7 +97,8 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
-int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, 1 = no ground snap */
+int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
+int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
 static int g_DebugFogTogglePrev = 0;
@@ -176,13 +177,13 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Numpad 2: toggle floor collision (edge-triggered) */
+    /* Numpad 2: toggle third-person follow camera (edge-triggered) */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_2];
         if (cur && !prevKey) {
-            g_DebugNoFloorCollision = !g_DebugNoFloorCollision;
-            SH_DBG("[DEBUG] Floor collision: %s", g_DebugNoFloorCollision ? "OFF (fly)" : "ON");
+            g_DebugThirdPersonCam = !g_DebugThirdPersonCam;
+            SH_DBG("[DEBUG] Third-person camera: %s", g_DebugThirdPersonCam ? "ON" : "OFF");
         }
         prevKey = cur;
     }
@@ -216,21 +217,58 @@ void DebugCamera_Update(void)
                 spawnPos.vy = 0;  /* default ground level */
             }
 
-            SH_DBG("[DEBUG] Rescue teleport: (%d,%d,%d) -> spawn (%d,%d,%d)",
-                   hp->position_18.vx, hp->position_18.vy, hp->position_18.vz,
-                   spawnPos.vx, spawnPos.vy, spawnPos.vz);
-            hp->position_18 = spawnPos;
-            hp->fallSpeed_34 = Q12(0.0f);
-            hp->properties_E4.player.positionY_EC = spawnPos.vy;
-            g_SysWork.playerBoneCoords_890[0].coord.t[0] = Q12_TO_Q8(spawnPos.vx);
-            g_SysWork.playerBoneCoords_890[0].coord.t[1] = Q12_TO_Q8(spawnPos.vy);
-            g_SysWork.playerBoneCoords_890[0].coord.t[2] = Q12_TO_Q8(spawnPos.vz);
+            /* Skip teleport during cutscenes (ev_cam_rate > 0 = border active).
+             * Updating Harry's position while DMS is running would conflict with
+             * bone animation and corrupt the skeleton for the rest of the scene. */
+            if (g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate > 0) {
+                SH_DBG("[DEBUG] Rescue teleport: skipped (cutscene active)");
+            } else {
+                SH_DBG("[DEBUG] Rescue teleport: (%ld,%ld,%ld) -> spawn (%ld,%ld,%ld)",
+                       (long)hp->position_18.vx, (long)hp->position_18.vy, (long)hp->position_18.vz,
+                       (long)spawnPos.vx, (long)spawnPos.vy, (long)spawnPos.vz);
+                hp->position_18 = spawnPos;
+                hp->fallSpeed_34 = Q12(0.0f);
+                hp->properties_E4.player.positionY_EC = spawnPos.vy;
+                /* Do NOT touch playerBoneCoords_890 — the normal skeleton update will
+                 * sync root bone coords from position_18 on the next frame. Updating
+                 * them here during a cutscene conflicts with DMS bone animation. */
+            }
         }
         prevKey = cur;
     }
 
-    /* If debug cam is off, let normal camera handle everything */
-    if (!g_DebugCamEnabled) return;
+    /* If free-fly debug cam is off */
+    if (!g_DebugCamEnabled) {
+        /* Third-person follow camera: static overhead-behind view, no input handling */
+        if (g_DebugThirdPersonCam) {
+            #define TP_DIST         Q12(2.5f)    /* world units behind Harry */
+            #define TP_HEIGHT       Q12(-1.4f)   /* world units above Harry (Y-up = negative) */
+            #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
+
+            s_SubCharacter* tp_hr = &g_SysWork.playerWork_4C.player_0;
+            s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
+            s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
+
+            VECTOR3 tpCamPos, tpLookAt;
+            /* Place camera behind Harry at elevated position */
+            tpCamPos.vx = tp_hr->position_18.vx - (s32)((s64)TP_DIST * tpSinY >> 12);
+            tpCamPos.vz = tp_hr->position_18.vz - (s32)((s64)TP_DIST * tpCosY >> 12);
+            tpCamPos.vy = tp_hr->position_18.vy + TP_HEIGHT;
+
+            /* Look at Harry's upper body */
+            tpLookAt.vx = tp_hr->position_18.vx;
+            tpLookAt.vz = tp_hr->position_18.vz;
+            tpLookAt.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
+
+            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
+            vwSetViewInfo();
+
+            #undef TP_DIST
+            #undef TP_HEIGHT
+            #undef TP_LOOKAT_OFS
+        }
+        return;
+    }
 
     int moved = 0;
     s32 sinY = Math_Sin(g_DebugCamAngleY);

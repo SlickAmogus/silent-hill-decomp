@@ -105,6 +105,31 @@ void GameState_InGame_Update(void) // 0x80038BD4
             Savegame_MapRoomIdxUpdate();
             func_800892A4(1);
 
+#ifdef SH_PC_PORT
+            /* Snap Harry's Y to the actual ground height at his current position.
+             * Chara_PositionSet (used by door triggers and spawn points) zeros Y,
+             * and Game_PlayerHeightUpdate (called in GameBoot_InGameInit/NpcInit)
+             * may run before Harry is at his final spawn position. This one-shot
+             * call ensures Y and positionY_EC are in sync with collision data at
+             * the moment InGame actually starts, preventing the first movement tick
+             * from wrongly snapping Harry via a stale positionY_EC=0. */
+            {
+                s_Collision snapColl;
+                s_SubCharacter* snapHp = &g_SysWork.playerWork_4C.player_0;
+                Collision_Get(&snapColl, snapHp->position_18.vx, snapHp->position_18.vz);
+                if (snapColl.groundHeight_0 != Q12(8.0f)) {
+                    snapHp->position_18.vy = snapColl.groundHeight_0;
+                    snapHp->properties_E4.player.positionY_EC = snapColl.groundHeight_0;
+                    SH_DBG("[INIT] InGame Y snap: vy=%ld positionY_EC=%ld at (%ld,%ld)",
+                           (long)snapColl.groundHeight_0, (long)snapColl.groundHeight_0,
+                           (long)snapHp->position_18.vx, (long)snapHp->position_18.vz);
+                } else {
+                    SH_DBG("[INIT] InGame Y snap: no collision data at (%ld,%ld), keeping vy=%ld",
+                           (long)snapHp->position_18.vx, (long)snapHp->position_18.vz, (long)snapHp->position_18.vy);
+                }
+            }
+#endif
+
             g_IntervalVBlanks = 2;
             g_GameWork.gameStateStep_598[0]++;
             g_SysWork.sysFlags_22A0 |= SysFlag_6;
