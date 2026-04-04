@@ -12,6 +12,7 @@ s_PcConfig g_PcConfig = {
     .preloadChunks  = 1,
     .vsync          = 0,
     .refreshRate    = 0,
+    .fpsCap         = 30,
     .mapName        = "map0_s00"
 };
 
@@ -98,6 +99,10 @@ void PcConfig_Load(const char* path)
         {
             int v = atoi(value);
             if (v >= 0) g_PcConfig.refreshRate = v;
+        }
+        else if (strcmp(key, "fps_cap") == 0)
+        {
+            g_PcConfig.fpsCap = atoi(value);
         }
         else if (strcmp(key, "map") == 0)
         {
