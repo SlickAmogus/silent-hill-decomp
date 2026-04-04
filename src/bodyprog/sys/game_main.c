@@ -2,6 +2,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_config.h"
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -99,6 +100,7 @@ int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam onl
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
+int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
 static int g_DebugFogTogglePrev = 0;
@@ -233,6 +235,16 @@ void DebugCamera_Update(void)
                  * sync root bone coords from position_18 on the next frame. Updating
                  * them here during a cutscene conflicts with DMS bone animation. */
             }
+        }
+        prevKey = cur;
+    }
+    /* Numpad 0: toggle FPS cap on/off (edge-triggered) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
+        if (cur && !prevKey) {
+            g_DebugUnlockFps = !g_DebugUnlockFps;
+            SH_DBG("[DEBUG] FPS cap: %s", g_DebugUnlockFps ? "UNLOCKED" : "config value");
         }
         prevKey = cur;
     }
@@ -676,12 +688,39 @@ void MainLoop(void) // 0x80032EE0
                 g_VBlanks     = VSync(SyncMode_Count) - g_PrevVBlanks;
                 g_PrevVBlanks = VSync(SyncMode_Count);
 
+#ifdef SH_PC_PORT
+                /* Compute effective vblank interval from fps_cap config and debug toggle.
+                 * g_IntervalVBlanks is the game's own target (typically 2 = 30fps on PSX).
+                 * fps_cap=0 or debug unlock: skip all waiting (fully uncapped).
+                 * fps_cap=N: convert to vblanks (60/N), use as minimum instead of g_IntervalVBlanks.
+                 * fps_cap<0 or fps_cap>=60: follow game's own g_IntervalVBlanks (PSX-accurate). */
+                {
+                    int effectiveMin = g_IntervalVBlanks;
+                    if (!g_DebugUnlockFps && g_PcConfig.fpsCap > 0 && g_PcConfig.fpsCap < 60)
+                    {
+                        /* e.g. fps_cap=30 → 60/30=2 vblanks, fps_cap=20 → 60/20=3 vblanks */
+                        effectiveMin = 60 / g_PcConfig.fpsCap;
+                    }
+                    else if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
+                    {
+                        effectiveMin = 0; /* uncapped: don't wait */
+                    }
+
+                    while (g_VBlanks < effectiveMin)
+                    {
+                        VSync(SyncMode_Wait);
+                        g_VBlanks++;
+                        g_PrevVBlanks++;
+                    }
+                }
+#else
                 while (g_VBlanks < g_IntervalVBlanks)
                 {
                     VSync(SyncMode_Wait);
                     g_VBlanks++;
                     g_PrevVBlanks++;
                 }
+#endif
             }
 
             // Update V blanks.
