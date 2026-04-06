@@ -71,9 +71,21 @@ void func_8003BED0(void) // 0x8003BED0
     }
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr_1BE4);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] LmHeader_FixOffsets done, matCnt=%d", g_WorldGfxWork.itemLmHdr_1BE4.materialCount_3);
+#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "TIM00", &IMAGE_TIM, 1);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] TIM00 apply done");
+#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "BG_ETC", &IMAGE_ETC, 1);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] BG_ETC apply done");
+#endif
     Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr_1BE4);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] MaterialFlagsApply done");
+#endif
 }
 
 s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
@@ -456,12 +468,23 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
         if (arg0->metadata_10.lmIdx_9 == 0)
         {
             func_8003BED0();
-
+#ifdef SH_PC_PORT
+            SH_DBG("[WOBJ] func_8003BED0 done, name=%.8s calling func_8004287C...", arg0->metadata_10.name_0.str);
+#endif
             lmIdx = func_8004287C(arg0, &arg0->metadata_10, g_SysWork.playerWork_4C.player_0.position_18.vx, g_SysWork.playerWork_4C.player_0.position_18.vz);
+#ifdef SH_PC_PORT
+            SH_DBG("[WOBJ] func_8004287C returned lmIdx=%d", lmIdx);
+#endif
             if (lmIdx == 0)
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[WOBJ] lmIdx==0, calling Lm_ModelFind on itemLmHdr...");
+#endif
                 if (!Lm_ModelFind(arg0, &g_WorldGfxWork.itemLmHdr_1BE4, &arg0->metadata_10))
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[WOBJ] Lm_ModelFind returned false, returning");
+#endif
                     return;
                 }
                 else
@@ -471,6 +494,9 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
             }
 
             arg0->metadata_10.lmIdx_9 = lmIdx;
+#ifdef SH_PC_PORT
+            SH_DBG("[WOBJ] lmIdx_9 set to %d", lmIdx);
+#endif
         }
 
         // Compute geometry position and rotation.
@@ -851,10 +877,25 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         lmHdr = heldItem->lmHdr_14;
         if (!lmHdr->isLoaded_2)
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] FixOffsets begin: lmHdr=%p itemId=%d tex=%s", (void*)lmHdr, heldItem->itemId_0, heldItem->textureName_8 ? heldItem->textureName_8 : "(null)");
+#endif
             LmHeader_FixOffsets(lmHdr);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] FixOffsets done: matCnt=%d modelCnt=%d", lmHdr->materialCount_3, lmHdr->modelCount_8);
+#endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName_8, &heldItem->imageDesc_C, BlendMode_Additive);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] MaterialFsImageApply1 done");
+#endif
             Lm_MaterialFlagsApply(lmHdr);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] MaterialFlagsApply done");
+#endif
             Bone_ModelAssign(&heldItem->bone_18, heldItem->lmHdr_14, 0);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] Bone_ModelAssign done");
+#endif
         }
 
         Vw_CoordToWorldAndViewMatrices(coord, &mat1, &mat0);
@@ -1211,8 +1252,17 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
     {
         model->isLoaded_1 = true;
 
+#ifdef SH_PC_PORT
+        SH_DBG("[CHARA-LOAD] charaId=%d lmHdr=%p fixing offsets...", model->charaId_0, (void*)model->lmHdr_8);
+#endif
         LmHeader_FixOffsets(model->lmHdr_8);
+#ifdef SH_PC_PORT
+        SH_DBG("[CHARA-LOAD] FixOffsets done, applying material fileIdx=%d", CHARA_FILE_INFOS[model->charaId_0].textureFileIdx);
+#endif
         Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[model->charaId_0].textureFileIdx, &model->texture_C, CHARA_FILE_INFOS[model->charaId_0].materialBlendMode_6_10 % 4);
+#ifdef SH_PC_PORT
+        SH_DBG("[CHARA-LOAD] MaterialFileIdxApply done");
+#endif
 
         skel = &model->skeleton_14;
 

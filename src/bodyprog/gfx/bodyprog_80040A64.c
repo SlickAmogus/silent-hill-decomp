@@ -1036,7 +1036,13 @@ s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19
     geomX = Q12_TO_Q8(posX);
     geomZ = Q12_TO_Q8(posZ);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[4287C] globalLm lmHdr_0=%p queueIdx=%d", (void*)globalLm->lmHdr_0, globalLm->queueIdx_8);
+#endif
     if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
+#ifdef SH_PC_PORT
+        globalLm->lmHdr_0 != NULL &&
+#endif
         globalLm->lmHdr_0->isLoaded_2 &&
         Lm_ModelFind(arg0, g_Map.globalLm_138.lmHdr_0, metadata))
     {
@@ -1099,6 +1105,15 @@ s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19
     for (k = 0; k < chunkIdx; k++)
     {
         curChunk = chunks[k];
+#ifdef SH_PC_PORT
+        SH_DBG("[4287C] IPD chunk k=%d ipdHdr_0=%p lmHdr_4=%p",
+               k, (void*)curChunk->ipdHdr_0, (void*)(curChunk->ipdHdr_0 ? curChunk->ipdHdr_0->lmHdr_4 : NULL));
+        if (curChunk->ipdHdr_0 == NULL || curChunk->ipdHdr_0->lmHdr_4 == NULL)
+        {
+            SH_DBG("[4287C] NULL lmHdr_4, skipping chunk k=%d", k);
+            continue;
+        }
+#endif
         if (Lm_ModelFind(arg0, curChunk->ipdHdr_0->lmHdr_4, metadata))
         {
             return (curChunk - g_Map.ipdActive_15C) + 3;
@@ -1166,7 +1181,13 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
             g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
             LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+#ifdef SH_PC_PORT
+            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount_3, g_Map.globalLm_138.lmHdr_0->modelCount_8, g_Map.ipdTextures_430.fullPage_0.count_0);
+#endif
             Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+#ifdef SH_PC_PORT
+            SH_DBG("[GLOBAL-LM-A] MaterialsLoadWithFilter done");
+#endif
             Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
 
             g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
@@ -1269,7 +1290,13 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
         LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+#ifdef SH_PC_PORT
+        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount_3, g_Map.globalLm_138.lmHdr_0->modelCount_8, g_Map.ipdTextures_430.fullPage_0.count_0);
+#endif
         Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+#ifdef SH_PC_PORT
+        SH_DBG("[GLOBAL-LM-B] MaterialsLoadWithFilter done");
+#endif
         Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
 
         g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;

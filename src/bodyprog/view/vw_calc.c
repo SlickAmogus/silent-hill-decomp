@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include "pc_config.h"
+#endif
 
 #include <psyq/gtemac.h>
 
@@ -507,53 +510,85 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
     screenMaxX = INT_MAX + 1;
     screenMinY = INT_MAX;
     screenMinX = INT_MAX;
+	
+	#ifdef SH_PC_PORT
+    const float psxW = (float)g_GameWork.gsScreenWidth_588;
+    const float winW = (float)g_PcConfig.windowWidth;
+    const float horScale = winW / psxW;
+	#endif
 
-    for (i = 0; i < BOX_VERT_COUNT; i++)
-    {
-        vertOffset.vx = (i & (1 << 0)) ? Q12_TO_Q8(maxX - minX) : Q8(0.0f);
-        vertOffset.vy = (i & (1 << 1)) ? Q12_TO_Q8(maxY - minY) : Q8(0.0f);
-        vertOffset.vz = (i & (1 << 2)) ? Q12_TO_Q8(maxZ - minZ) : Q8(0.0f);
+	for (i = 0; i < BOX_VERT_COUNT; i++)
+	{
+		vertOffset.vx = (i & (1 << 0)) ? Q12_TO_Q8(maxX - minX) : Q8(0.0f);
+		vertOffset.vy = (i & (1 << 1)) ? Q12_TO_Q8(maxY - minY) : Q8(0.0f);
+		vertOffset.vz = (i & (1 << 2)) ? Q12_TO_Q8(maxZ - minZ) : Q8(0.0f);
 
-        screenDepth = RotTransPers(&vertOffset, &screenPos, &depthDmy, &depthDmy) - 1;
+		screenDepth = RotTransPers(&vertOffset, &screenPos, &depthDmy, &depthDmy) - 1;
 
-        if (screenDepth < 0x3FFE)
-        {
-            temp = screenPos.vx;
-            if (temp < screenMaxX)
-            {
-                temp = screenMaxX;
-            }
-            screenMaxX = temp;
+		if (screenDepth < 0x3FFE)
+		{
+		#ifdef SH_PC_PORT
+				s32 scaledX = (s32)(screenPos.vx * horScale);
+		#else
+				s32 scaledX = screenPos.vx;
+		#endif
 
-            temp = screenMinX;
-            if (screenPos.vx < temp)
-            {
-                temp = screenPos.vx;
-            }
-            screenMinX = temp;
+			// --- X MAX ---
+			temp = scaledX;
+			if (temp < screenMaxX)
+			{
+				temp = screenMaxX;
+			}
+			screenMaxX = temp;
 
-            temp = screenPos.vy;
-            if (temp < screenMaxY)
-            {
-                temp = screenMaxY;
-            }
-            screenMaxY = temp;
+			// --- X MIN ---
+			temp = screenMinX;
+			if (scaledX < temp)
+			{
+				temp = scaledX;
+			}
+			screenMinX = temp;
 
-            temp = screenMinY;
-            if (screenPos.vy < temp)
-            {
-                temp = screenPos.vy;
-            }
-            screenMinY = temp;
-        }
-    }
+			// --- Y (unchanged) ---
+			temp = screenPos.vy;
+			if (temp < screenMaxY)
+			{
+				temp = screenMaxY;
+			}
+			screenMaxY = temp;
+
+			temp = screenMinY;
+			if (screenPos.vy < temp)
+			{
+				temp = screenPos.vy;
+			}
+			screenMinY = temp;
+		}
+	}
 
     if (screenMaxX == INT_MAX)
     {
         return false;
     }
 
+#ifdef SH_PC_PORT
+    {
+        /* Hor+ widescreen: the visible GTE half-width is psxHalfW * (winAspect/psxAspect).
+         * scaledX = GTE_SX2 * horScale, so the correct cull bound in scaledX space is
+         * psxHalfW * horScale * (winAspect/psxAspect).
+         * e.g. 1920x1080: 160 * 6 * (4/3) = 1280, not 960. */
+        const float psxHalfW  = (float)(g_GameWork.gsScreenWidth_588 >> 1);
+        const float psxAspect = (g_GameWork.gsScreenHeight_58A > 0)
+            ? ((float)g_GameWork.gsScreenWidth_588 / (float)g_GameWork.gsScreenHeight_58A)
+            : (4.0f / 3.0f);
+        const float winAspect = (g_PcConfig.windowHeight > 0)
+            ? ((float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight)
+            : psxAspect;
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) + 0.5f);
+    }
+#else
     screenCenterX = (g_GameWork.gsScreenWidth_588  / 2) + 2;
+#endif
     screenCenterY = (g_GameWork.gsScreenHeight_58A / 2) + 2;
 
     if (screenMaxX < -screenCenterX || screenCenterX < screenMinX ||
@@ -589,6 +624,20 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
     SVECTOR*                        temp_a2;
     SVECTOR*                        temp_a3;
     s_Vw_AabbVisibleInFrustumCheck* cullData;
+	
+	#ifdef SH_PC_PORT
+    const float psxW     = (float)g_GameWork.gsScreenWidth_588;
+    const float winW     = (float)g_PcConfig.windowWidth;
+    const float horScale = winW / psxW;
+    /* Hor+ widescreen: visible GTE half-width = psxHalfW * (winAspect/psxAspect).
+     * In scaledX space (GTE_SX2 * horScale) the correct cull bound is:
+     * (psxW/2) * horScale * (winAspect/psxAspect). e.g. 1920x1080 -> 1280. */
+    const float fr_psxAspect = (g_GameWork.gsScreenHeight_58A > 0)
+        ? (psxW / (float)g_GameWork.gsScreenHeight_58A) : (4.0f / 3.0f);
+    const float fr_winAspect = (g_PcConfig.windowHeight > 0)
+        ? (winW / (float)g_PcConfig.windowHeight) : fr_psxAspect;
+    const s32 cullHalfW = (s32)((psxW * 0.5f) * horScale * (fr_winAspect / fr_psxAspect) + 0.5f);
+	#endif
 
     static u8 D_800AD480[24] = {
         0, 1, 1, 2, 2, 3, 3, 0,
@@ -668,21 +717,29 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
         {
             cullData->field_118[cullData->field_114++] = screenPos;
 
-            if (screenPos.vx >= -(g_GameWork.gsScreenWidth_588 >> 1))
-            {
-                if ((g_GameWork.gsScreenWidth_588 >> 1) < screenPos.vx)
-                {
-                    flag0Idx = 2;
-                }
-                else
-                {
-                    flag0Idx = 1;
-                }
-            }
-            else
-            {
-                flag0Idx = 0;
-            }
+			#ifdef SH_PC_PORT
+				s32 scaledX = (s32)(screenPos.vx * horScale);
+				s32 halfW = cullHalfW;
+			#else
+				s32 scaledX = screenPos.vx;
+				s32 halfW = (g_GameWork.gsScreenWidth_588 >> 1);
+			#endif
+
+			if (scaledX >= -halfW)
+			{
+				if (halfW < scaledX)
+				{
+					flag0Idx = 2;
+				}
+				else
+				{
+					flag0Idx = 1;
+				}
+			}
+			else
+			{
+				flag0Idx = 0;
+			}
 
             if (screenPos.vy >= -(g_GameWork.gsScreenHeight_58A >> 1))
             {
@@ -764,47 +821,57 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
             }
         }
 
-        for (screenPoints = &cullData->field_118[cullData->field_114], i = 0; i < cullData->field_C0; i++, screenPoints++)
-        {
-            RotTransPers(&cullData->field_C4[i], screenPoints, &cullData->field_178, &cullData->field_178);
+		for (screenPoints = &cullData->field_118[cullData->field_114], i = 0; i < cullData->field_C0; i++, screenPoints++)
+		{
+			RotTransPers(&cullData->field_C4[i], screenPoints, &cullData->field_178, &cullData->field_178);
 
-            if (screenPoints->vx >= -(g_GameWork.gsScreenWidth_588 >> 1))
-            {
-                if ((g_GameWork.gsScreenWidth_588 >> 1) < screenPoints->vx)
-                {
-                    flag0Idx = 2;
-                }
-                else
-                {
-                    flag0Idx = 1;
-                }
-            }
-            else
-            {
-                flag0Idx = 0;
-            }
+		#ifdef SH_PC_PORT
+			s32 scaledX = (s32)(screenPoints->vx * horScale);
+			s32 halfW   = cullHalfW;
+		#else
+			s32 scaledX = screenPoints->vx;
+			s32 halfW   = (g_GameWork.gsScreenWidth_588 >> 1);
+		#endif
 
-            if (screenPoints->vy >= -(g_GameWork.gsScreenHeight_58A >> 1))
-            {
-                if ((g_GameWork.gsScreenHeight_58A >> 1) < screenPoints->vy)
-                {
-                    flag1Idx = 2;
-                }
-                else
-                {
-                    flag1Idx = 1;
-                }
-            }
-            else
-            {
-                flag1Idx = 0;
-            }
+			// --- X ---
+			if (scaledX >= -halfW)
+			{
+				if (halfW < scaledX)
+				{
+					flag0Idx = 2;
+				}
+				else
+				{
+					flag0Idx = 1;
+				}
+			}
+			else
+			{
+				flag0Idx = 0;
+			}
 
-            flags0[flag0Idx] |= 1 << 0;
-            flags1[flag1Idx] |= 1 << 0;
+			// --- Y (unchanged) ---
+			if (screenPoints->vy >= -(g_GameWork.gsScreenHeight_58A >> 1))
+			{
+				if ((g_GameWork.gsScreenHeight_58A >> 1) < screenPoints->vy)
+				{
+					flag1Idx = 2;
+				}
+				else
+				{
+					flag1Idx = 1;
+				}
+			}
+			else
+			{
+				flag1Idx = 0;
+			}
 
-            cullData->field_114++;
-        }
+			flags0[flag0Idx] |= 1 << 0;
+			flags1[flag1Idx] |= 1 << 0;
+
+			cullData->field_114++;
+		}
 
         if (flags0[0] == 0 && flags0[1] == 0)
         {
