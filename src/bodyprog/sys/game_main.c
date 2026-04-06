@@ -6,6 +6,7 @@
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
+extern int g_PcHorPlusEnabled;
 #include <stdio.h>
 #include <SDL_scancode.h>
 extern u8 g_WorldEnvWork[];
@@ -690,20 +691,22 @@ void MainLoop(void) // 0x80032EE0
 
 #ifdef SH_PC_PORT
                 /* Compute effective vblank interval from fps_cap config and debug toggle.
-                 * g_IntervalVBlanks is the game's own target (typically 2 = 30fps on PSX).
-                 * fps_cap=0 or debug unlock: skip all waiting (fully uncapped).
-                 * fps_cap=N: convert to vblanks (60/N), use as minimum instead of g_IntervalVBlanks.
-                 * fps_cap<0 or fps_cap>=60: follow game's own g_IntervalVBlanks (PSX-accurate). */
+                 * Only override the game's own g_IntervalVBlanks when fully in gameplay —
+                 * menu sub-states (map, items, pause text) set g_IntervalVBlanks=1 themselves
+                 * and must not be overridden, or they drop to 30fps while overlays are open. */
                 {
                     int effectiveMin = g_IntervalVBlanks;
-                    if (!g_DebugUnlockFps && g_PcConfig.fpsCap > 0 && g_PcConfig.fpsCap < 60)
+                    if (g_GameWork.gameState_594 == GameState_InGame)
                     {
-                        /* e.g. fps_cap=30 → 60/30=2 vblanks, fps_cap=20 → 60/20=3 vblanks */
-                        effectiveMin = 60 / g_PcConfig.fpsCap;
-                    }
-                    else if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
-                    {
-                        effectiveMin = 0; /* uncapped: don't wait */
+                        if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
+                        {
+                            effectiveMin = 0; /* uncapped: don't wait */
+                        }
+                        else if (g_PcConfig.fpsCap > 0 && g_PcConfig.fpsCap < 60)
+                        {
+                            /* e.g. fps_cap=30 → 60/30=2 vblanks, fps_cap=20 → 60/20=3 vblanks */
+                            effectiveMin = 60 / g_PcConfig.fpsCap;
+                        }
                     }
 
                     while (g_VBlanks < effectiveMin)
@@ -762,6 +765,11 @@ void MainLoop(void) // 0x80032EE0
                 PC_WorldEnvWork.isFogEnabled_1 = 0;
             }
         }
+
+        /* Enable hor+ widescreen only during 3D world states; 2D UI screens
+         * (menus, loading screen, memory card warning, etc.) use 4:3 ortho. */
+        g_PcHorPlusEnabled = (g_GameWork.gameState_594 == GameState_InGame ||
+                              g_GameWork.gameState_594 == GameState_MapEvent) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's

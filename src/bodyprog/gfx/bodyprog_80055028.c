@@ -1917,7 +1917,20 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         }
     }
 
+#ifdef SH_PC_PORT
+    {
+        // Hor+ widescreen: visible GTE half-width = psxH * winW / (2 * winH).
+        // For 1920x1080 with PSX 240h: 240*1920/(2*1080) = 213.33 vs 4:3's 160.
+        // Polygons with ALL vertices in GTE_SX2 >= oldHalfW but < newHalfW would
+        // otherwise be silently culled even with disable_culling=1.
+        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+            ? ((float)g_GameWork.gsScreenHeight_58A * (float)g_PcConfig.windowWidth / (2.0f * (float)g_PcConfig.windowHeight))
+            : (float)(g_GameWork.gsScreenWidth_588 >> 1);
+        scratchData->field_380.s_0.field_0 = (s32)(visibleHalfW + 0.5f);
+    }
+#else
     scratchData->field_380.s_0.field_0    = g_GameWork.gsScreenWidth_588 >> 1;
+#endif
     scratchData->field_380.s_0.field_4    = g_WorldEnvWork.fogIntensity_18;
     scratchData->field_380.s_0.field_8    = g_WorldEnvWork.worldTintColor_28;
     scratchData->field_380.s_0.field_8.cd = 0x3C;
