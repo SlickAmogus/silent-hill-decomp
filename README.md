@@ -21,13 +21,13 @@
   - **NPC AI**: disabled (stubs)
   - **Memory card**: save/load stubbed
 
-  *(Screenshots below)*
-
   <!-- Main menu screenshot -->
-  *[Screenshot: Main menu]*
+  <img width="636" height="503" alt="image" src="https://github.com/user-attachments/assets/48f597c2-e629-463d-a516-998ed646dc88" />
+
 
   <!-- In-game world screenshot -->
-  *[Screenshot: In-game 3D world with fog and Harry visible]*
+  <img width="631" height="475" alt="image" src="https://github.com/user-attachments/assets/45c7d367-bb16-4e61-b220-94d115aaefe6" />
+
 
   ### Debug Controls
 
