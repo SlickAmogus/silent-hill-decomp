@@ -197,14 +197,7 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     pos.vy = Q12(0.0f);
     pos.vz = Q12(0.0f);
 
-#ifdef SH_PC_PORT
-    SH_DBG("[COLL] Collision_Get pos=(%d,%d)", posX, posZ);
-#endif
     ipdCollData = func_800426E4(posX, posZ);
-#ifdef SH_PC_PORT
-    SH_DBG("[COLL] func_800426E4 returned %p valid=%d", (void*)ipdCollData,
-            ipdCollData ? PC_CollIsValid(ipdCollData) : -1);
-#endif
     if (ipdCollData == NULL
 #ifdef SH_PC_PORT
         || !PC_CollIsValid(ipdCollData)
