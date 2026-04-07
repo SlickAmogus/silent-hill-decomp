@@ -1015,11 +1015,13 @@ void func_800DB514(void) // 0x800DB514
              * below the break is unreachable on both PSX and PC.  The original
              * source had it BEFORE the "if (D_800DFB60)" check so the CD-stream
              * start and the readiness check were both in one case execution.
-             * On PC there is no CD streaming; just set D_800DFB60 so the state
-             * machine advances next frame.  Grey children are spawned in the
-             * default case, so skipping the Chara_Load pre-load is harmless. */
+             * On PC there is no CD streaming, so kick off Chara_Load directly
+             * here. Chara_ProcessLoads() in the default case will wait for the
+             * ANM/ILM/TIM reads to complete before Chara_Spawn is called, so
+             * g_CharaAnimInfoIdxs[ENEMY_CHARA_ID] will be valid by then. */
             else
             {
+                Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcCoords_FC0[0], 0, NULL, NULL);
                 D_800DFB60 = 1;
             }
 #endif
