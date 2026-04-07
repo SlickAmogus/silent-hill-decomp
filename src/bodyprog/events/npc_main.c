@@ -338,17 +338,24 @@ void Game_NpcUpdate(void) // 0x80038354
 
             animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model_0.charaId_0];
 #ifdef SH_PC_PORT
-            /* Skip most NPC AI on PC — NPC animation info tables are stubs
-             * with NULL function pointers.  Allow Cheryl through since her
-             * anim info table is now populated (cheryl_anim_info.c). */
-            if (npc->model_0.charaId_0 != Chara_Cheryl)
+            /* Skip NPCs whose anim data hasn't been loaded yet (idx still 0xFF)
+             * or that have no update function — calling either would crash.
+             * Cheryl always passes; other NPCs (e.g. grey children) are allowed
+             * through once their anim data is loaded and an update func exists. */
             {
-                npc->model_0.charaId_0 = Chara_None;
-                continue;
+                bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
+                bool hasUpdateFn = (npc->model_0.charaId_0 < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
+                                    g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0] != NULL);
+                if (!animLoaded || !hasUpdateFn)
+                {
+                    npc->model_0.charaId_0 = Chara_None;
+                    continue;
+                }
             }
             /* Reset stateStep_3 only on the first frame after spawn so
              * Model_AnimStatusSet can fire once.  Don't reset every frame
              * or anim status transitions (blend→playback) get stuck. */
+            if (npc->model_0.charaId_0 == Chara_Cheryl)
             {
                 static bool _cherylInitDone = false;
                 if (!_cherylInitDone) {

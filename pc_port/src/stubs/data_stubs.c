@@ -2,6 +2,7 @@
 #include <string.h>
 
 typedef unsigned char u8;
+typedef signed int s32;
 
 u8 ALESSA_ANIM_INFOS[256] = {0};
 u8 BLOODSUCKER_ANIM_INFOS[256] = {0};
@@ -362,10 +363,31 @@ u8 D_800DFAC8[256] = {0};
 u8 D_800DFACC[256] = {0};
 u8 D_800DFAD0[256] = {0};
 u8 D_800DFAD4[256] = {0};
-u8 D_800DFADC[256] = {0};
-u8 D_800DFAE0[256] = {0};
-u8 D_800DFB28[256] = {0};
-u8 D_800DFB40[256] = {0};
+/* D_800DFADC / D_800DFB40: alley progress counters, init to NO_VALUE (-1).
+ * func_800DCC54 / func_800DD0CC use the -1 sentinel as a one-shot init guard. */
+s32 D_800DFADC = -1;
+/* D_800DFAE0: 6 VECTOR3 waypoints defining the lit alley path.
+ * Each entry: { vx=worldX*4096, vy=worldZ*4096, vz=progress*4096 }.
+ * Progress ranges 0..50 (Q12).  Data extracted from USA MAP0_S00.BIN
+ * at overlay offset 0x16568 (sector 0x092AF+11, sub-offset 0xD68). */
+s32 D_800DFAE0[] = {
+    /* [0] X=-91  Z=243  prog= 0.00 */ -372736, 995328,   0,
+    /* [1] X=-91  Z=231  prog=18.62 */ -372736, 946176,  76250,
+    /* [2] X=-94  Z=229  prog=24.22 */ -385024, 937984,  99200,
+    /* [3] X=-100 Z=229  prog=35.08 */ -409600, 937984, 143700,
+    /* [4] X=-103 Z=227  prog=40.67 */ -421888, 929792, 166600,
+    /* [5] X=-109 Z=227  prog=50.00 */ -446464, 929792, 204800,
+};
+/* D_800DFB28: 2 VECTOR3 waypoints for the deeper alley (post-EF14) path.
+ * func_800DCF38 only accesses indices [0] and [1].
+ * Data from overlay offset 0x165B0.  The vz "progress" delta (20.0 * 4096)
+ * is added to the Q12(60.0) baseline → max = Q12(80.0) → EF15 fires. */
+s32 D_800DFB28[] = {
+    /* [0] X=-270 Z=256  prog= 0 */ -1105920, 1048576,     0,
+    /* [1] X=-270 Z=255  prog=20 */ -1105920, 1044480, 81920,
+    /* [2] padding/unused */                0,       0,     0,
+};
+s32 D_800DFB40 = -1;
 u8 D_800DFB44[256] = {0};
 u8 D_800DFB48[256] = {0};
 u8 D_800DFB54[256] = {0};

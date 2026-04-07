@@ -1883,12 +1883,21 @@ bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
 {
 #ifdef SH_PC_PORT
     if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
-#endif
+    /* Expand match to ±1 cell in X and Z so adjacent geometry isn't clipped
+     * at screen edges. On PSX exact-cell match was fine; on PC the viewport
+     * can show a sliver of the next cell before the cell boundary is reached. */
+    {
+        s32 dx = (s32)chunk->cellX_8 - map->cellX_580;
+        s32 dz = (s32)chunk->cellZ_A - map->cellZ_584;
+        if (dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1) return true;
+    }
+#else
     if (map->cellX_580 == chunk->cellX_8 &&
         map->cellZ_584 == chunk->cellZ_A)
     {
         return true;
     }
+#endif
 
     return map->isExterior_588 != false;
 }

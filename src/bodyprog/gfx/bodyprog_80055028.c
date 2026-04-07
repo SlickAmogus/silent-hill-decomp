@@ -139,11 +139,23 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
         setPolyG4(poly);
         setSemiTrans(poly, true);
+#ifdef SH_PC_PORT
+        {
+            const float psxAspect = 320.0f / 240.0f;
+            const float winAspect = g_PcConfig.windowHeight > 0
+                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
+                : psxAspect;
+            const float horScale  = winAspect / psxAspect;
+            const s16 halfW = (s16)(160.0f * horScale + 10.0f);
+            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+        }
+#else
         setXY4(poly,
                -180, -120,
                 180, -120,
                -180,  120,
                 180,  120);
+#endif
 
         AddPrim(ot->org, poly);
         SetDrawMode(mode, 0, 1, 0x20, NULL);
@@ -166,11 +178,26 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
         SetPolyG4(poly);
         setSemiTrans(poly, true);
+#ifdef SH_PC_PORT
+        /* Extend fog quad to cover widescreen margins so the overlay is
+         * uniform across the full window.  At 1920x1080 margin ≈ 53 PSX
+         * units, requiring halfW ≈ 213 instead of the original 180. */
+        {
+            const float psxAspect = 320.0f / 240.0f;
+            const float winAspect = g_PcConfig.windowHeight > 0
+                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
+                : psxAspect;
+            const float horScale  = winAspect / psxAspect;
+            const s16 halfW = (s16)(160.0f * horScale + 10.0f); /* +10 = PSX edge pad */
+            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+        }
+#else
         setXY4(poly,
                -180, -120,
                 180, -120,
                -180,  120,
                 180,  120);
+#endif
 
         AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
     }
