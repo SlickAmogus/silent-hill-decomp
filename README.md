@@ -1,10 +1,10 @@
 ## About this fork
 
-  This is an experimental PC port built on top of the PSX decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude also with help from REDRIVER2's source code.<br/>
+  This is an experimental PC port built on top of the PSX decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude and with help from REDRIVER2's source code.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
   REDRIVER2: https://github.com/OpenDriver2/REDRIVER2
 
-  I am going to try to get the game in as playable of a state as possible but no guarantees. I'm hoping this will be of help to other efforts like Silent Engine (https://github.com/Sezzary/SilentEngine), which is another, non-AI multiplatform port in the works.
+  I'm going to get it playable as possible, but I'm not sure yet how fleshed out it will be and there are no guarantees. I'm hoping this will be of help to other efforts like Silent Engine (https://github.com/Sezzary/SilentEngine), which is a non-AI multiplatform port in the works.
 
   ### Status
 
