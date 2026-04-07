@@ -53,15 +53,15 @@ void Map_RoomBgmInit(bool arg0) // 0x800D94F8
     }
 
 #ifdef SH_PC_PORT
-    /* D_800DF300 event flag table is stubbed (all zeros) so the loop above
-     * never sets layer bits.  Without any layer bits, Bgm_Update's XOR logic
-     * would still enable layer 0 — force BgmFlag_Unk0 to trigger the "mute
-     * all layers" path instead.  The ambient sound (Sfx_Unk1361) provides
-     * the correct music for the opening area; the BGM track (bgmIdx=3)
-     * shouldn't play until later game events would set D_800DF300 flags. */
-    flags |= BgmFlag_Unk0;
-#endif
+    /* D_800DF300 is stubbed (zeroed), so no layer bits beyond Unk8 are set.
+     * Do NOT add BgmFlag_Unk0 — that is the mute flag; setting it forces
+     * Bgm_Update to strip all layer bits, keeping volume at zero.
+     * Without Unk0, Bgm_Update XORs bit-0 in, enabling layer 0 always.
+     * Pass NULL so g_Bgm_LayerLimits (all 128 = unity gain) is used. */
+    Bgm_Update(flags, var1, NULL);
+#else
     Bgm_Update(flags, var1, &D_800DF2F8);
+#endif
 }
 
 void GameBoot_LoadScreen_StageString(void) // 0x800D95D4
@@ -963,6 +963,18 @@ void func_800DB26C(void) // 0x800DB26C
 
 void func_800DB514(void) // 0x800DB514
 {
+#ifdef SH_PC_PORT
+    {
+        static s32 s_lastStep = -1;
+        s32 curStep = g_SysWork.sysStateStep_C[0];
+        if (curStep != s_lastStep) {
+            SH_DBG("[DB514] step=%d EF16=%d EF17=%d DFB60=%d", curStep,
+                    Savegame_EventFlagGet(EventFlag_16), Savegame_EventFlagGet(EventFlag_17),
+                    D_800DFB60);
+            s_lastStep = curStep;
+        }
+    }
+#endif
     switch (g_SysWork.sysStateStep_C[0])
     {
         case 0:
@@ -998,6 +1010,19 @@ void func_800DB514(void) // 0x800DB514
             {
                 SysWork_StateStepIncrement(0);
             }
+#ifdef SH_PC_PORT
+            /* Dead-code decompilation bug: the Chara_Load/D_800DFB60++ block
+             * below the break is unreachable on both PSX and PC.  The original
+             * source had it BEFORE the "if (D_800DFB60)" check so the CD-stream
+             * start and the readiness check were both in one case execution.
+             * On PC there is no CD streaming; just set D_800DFB60 so the state
+             * machine advances next frame.  Grey children are spawned in the
+             * default case, so skipping the Chara_Load pre-load is harmless. */
+            else
+            {
+                D_800DFB60 = 1;
+            }
+#endif
             break;
 
             if (Fs_QueueDoThingWhenEmpty())
@@ -1012,6 +1037,15 @@ void func_800DB514(void) // 0x800DB514
 
         case 8:
             func_80085EB8(1, &g_SysWork.playerWork_4C.player_0, 0, false);
+#ifdef SH_PC_PORT
+            /* Safety: if the pickup animation doesn't report state==1 within
+             * 2 seconds on PC, advance anyway. */
+            g_SysWork.timer_2C += g_DeltaTimeRaw;
+            if (g_SysWork.timer_2C > Q12(2.0f))
+            {
+                SysWork_StateStepIncrement(0);
+            }
+#endif
             break;
 
         case 9:
@@ -1234,6 +1268,37 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
 
     vwGetViewPosition(&viewPos);
 
+#ifdef SH_PC_PORT
+    {
+        static s32 s_lastFlags = -1;
+        s32 curFlags = (Savegame_EventFlagGet(EventFlag_4) ? 1 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_6) ? 2 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_9) ? 4 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_11) ? 8 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_12) ? 16 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_13) ? 32 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_15) ? 64 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_16) ? 128 : 0) |
+                       (Savegame_EventFlagGet(EventFlag_17) ? 256 : 0);
+        if (curFlags != s_lastFlags) {
+            SH_DBG("[WOU] flags EF4=%d EF6=%d EF9=%d EF11=%d EF12=%d EF13=%d EF15=%d EF16=%d EF17=%d DFADC=%d pos=(%d,%d)",
+                    Savegame_EventFlagGet(EventFlag_4),
+                    Savegame_EventFlagGet(EventFlag_6),
+                    Savegame_EventFlagGet(EventFlag_9),
+                    Savegame_EventFlagGet(EventFlag_11),
+                    Savegame_EventFlagGet(EventFlag_12),
+                    Savegame_EventFlagGet(EventFlag_13),
+                    Savegame_EventFlagGet(EventFlag_15),
+                    Savegame_EventFlagGet(EventFlag_16),
+                    Savegame_EventFlagGet(EventFlag_17),
+                    D_800DFADC,
+                    g_SysWork.playerWork_4C.player_0.position_18.vx >> 12,
+                    g_SysWork.playerWork_4C.player_0.position_18.vz >> 12);
+            s_lastFlags = curFlags;
+        }
+    }
+#endif
+
     if (Savegame_EventFlagGet(EventFlag_4) && !Savegame_EventFlagGet(EventFlag_13))
     {
         if (!Savegame_EventFlagGet(EventFlag_6))
@@ -1254,6 +1319,20 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
 
     if (Savegame_EventFlagGet(EventFlag_13) && !Savegame_EventFlagGet(EventFlag_16))
     {
+#ifdef SH_PC_PORT
+        {
+            static s32 s_loggedDFADC = -9999;
+            s32 v = D_800DFADC;
+            if (v / 4096 != s_loggedDFADC / 4096) {
+                SH_DBG("[DCC54] D_800DFADC=%d (%d%%) EF14=%d EF15=%d EF16=%d",
+                        v, v >> 12,
+                        Savegame_EventFlagGet(EventFlag_14),
+                        Savegame_EventFlagGet(EventFlag_15),
+                        Savegame_EventFlagGet(EventFlag_16));
+                s_loggedDFADC = v;
+            }
+        }
+#endif
         func_800DCC54();
     }
 
@@ -1704,4 +1783,19 @@ void func_800DD0CC(void) // 0x800DD0CC
     }
 
     D_800DFB40 = MAX(Q12(0.0f), Q12_MULT((FP_MULTIPLY(vecs[0], Q12(4.5f), 6) + Q12(2.5f)), Math_Sin(vecs[1])) + Q12(4.0f));
+
+#ifdef SH_PC_PORT
+    /* Road-node camera clips into narrow alley walls on PC.
+     * Use a simple follow camera: 2.5u behind Harry, 1.4u above, chest lookat. */
+    {
+        q3_12  rotY = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
+        q19_12 camX = g_SysWork.playerWork_4C.player_0.position_18.vx + Q12_MULT(Math_Sin(rotY), Q12(2.5f));
+        q19_12 camY = g_SysWork.playerWork_4C.player_0.position_18.vy - Q12(1.4f);
+        q19_12 camZ = g_SysWork.playerWork_4C.player_0.position_18.vz + Q12_MULT(Math_Cos(rotY), Q12(2.5f));
+        Camera_PositionSet(NULL, camX, camY, camZ, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
+        Camera_LookAtSet(&g_SysWork.playerWork_4C.player_0.position_18,
+                         Q12(0.0f), Q12(-0.7f), Q12(0.0f),
+                         Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
+    }
+#endif
 }
