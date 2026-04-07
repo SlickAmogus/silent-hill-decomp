@@ -1,6 +1,6 @@
 ## About this fork
 
-  This is an experimental AI PC port built with Claude on top of the PSX decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude also with help from REDRIVER2's source code.<br/>
+  This is an experimental PC port built on top of the PSX decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude also with help from REDRIVER2's source code.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
   REDRIVER2: https://github.com/OpenDriver2/REDRIVER2
 
