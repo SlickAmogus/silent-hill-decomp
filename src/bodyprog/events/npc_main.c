@@ -72,42 +72,21 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     VECTOR3*        pos;
 
     npcIdx             = 0;
-#ifdef SH_PC_PORT
-    SH_DBG("[NPC_SPAWN] charaSpawns_24C[0]=%p npcSpawnEvent=%p cond=%d",
-            (void*)g_MapOverlayHeader.charaSpawns_24C[0],
-            (void*)(uintptr_t)g_MapOverlayHeader.npcSpawnEvent_48, cond);
-#endif
     curCharaSpawn      = g_MapOverlayHeader.charaSpawns_24C[0];
     ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapOverlayId_A4];
 
     if (cond == false)
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[NPC_SPAWN] calling func_80037154...");
-#endif
         func_80037154();
-#ifdef SH_PC_PORT
-        SH_DBG("[NPC_SPAWN] func_80037154 done, checking npcSpawnEvent...");
-#endif
 
         if (g_MapOverlayHeader.npcSpawnEvent_48 != NULL)
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC_SPAWN] calling npcSpawnEvent_48...");
-#endif
             g_MapOverlayHeader.npcSpawnEvent_48();
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC_SPAWN] npcSpawnEvent_48 done");
-#endif
         }
     }
 
     charaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
     charaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
-#ifdef SH_PC_PORT
-    SH_DBG("[NPC_SPAWN] loop start charaId0=%d charaId1=%d curCharaSpawn=%p vblanks=%d",
-            charaId0, charaId1, (void*)curCharaSpawn, g_VBlanks);
-#endif
 
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
@@ -117,11 +96,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 
         pos = (VECTOR3*)curCharaSpawn;
-#ifdef SH_PC_PORT
-        SH_DBG("[NPC_SPAWN]  i=%d spawn=(%d,?,%d) flags=%d charaId=%d",
-                i, curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8,
-                curCharaSpawn->flags_6, curCharaSpawn->charaId_4);
-#endif
 
         if (!(g_SysWork.flags_22A4 & SysFlag2_4) && HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
             curCharaSpawn->flags_6 != 0 && g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&
@@ -386,25 +360,32 @@ void Game_NpcUpdate(void) // 0x80038354
                 continue;
             }
 #endif
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] ai-enter charaId=%d status=%d kf=%d",
+                    npc->model_0.charaId_0, npc->model_0.anim_4.status_0,
+                    npc->model_0.anim_4.keyframeIdx_8);
+#endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] ai-done charaId=%d status=%d", npc->model_0.charaId_0, npc->model_0.anim_4.status_0);
+#endif
 
             func_8003BE28();
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] post-BE28 charaId=%d", npc->model_0.charaId_0);
+#endif
             func_80037E78(npc);
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] post-7E78 charaId=%d", npc->model_0.charaId_0);
+#endif
             func_8008A3AC(npc);
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] post-A3AC charaId=%d", npc->model_0.charaId_0);
+#endif
 
             if (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[NPC] render charaId=%d status=%d kf=%d coord=(%d,%d,%d) timer_C6=%d palette=%d",
-                        npc->model_0.charaId_0, npc->model_0.anim_4.status_0,
-                        npc->model_0.anim_4.keyframeIdx_8,
-                        coord->coord.t[0], coord->coord.t[1], coord->coord.t[2],
-                        npc->timer_C6, npc->model_0.paletteIdx_1);
-#endif
                 func_8003DA9C(npc->model_0.charaId_0, coord, 1, npc->timer_C6, (s8)npc->model_0.paletteIdx_1);
-#ifdef SH_PC_PORT
-                SH_DBG("[NPC] render OK");
-#endif
             }
         }
     }

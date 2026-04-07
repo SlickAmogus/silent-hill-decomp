@@ -566,15 +566,10 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.sysFlags_22A0 = SysFlag_None;
 
         // Call update function for current GameState.
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == GameState_InGame) {
-            SH_DBG("[PC] InGame update ENTER");
-        }
-#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState_594 == GameState_InGame) {
-            SH_DBG("[PC] InGame update EXIT");
+            /* Canary checks after InGame state update */
             /* --- Canary checks after game state update --- */
             {
                 PACKET* pktEnd0 = s_PcPacketBufEnds[0];
@@ -611,7 +606,7 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #ifdef SH_PC_PORT
-#define ML_TRACE(tag) do { if (g_GameWork.gameState_594 == GameState_InGame) { SH_DBG("[ML] " tag); } } while(0)
+#define ML_TRACE(tag) ((void)0)
 #else
 #define ML_TRACE(tag) ((void)0)
 #endif
