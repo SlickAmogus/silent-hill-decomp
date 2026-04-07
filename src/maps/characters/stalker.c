@@ -4,6 +4,9 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/stalker.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #define stalkerProps stalker->properties_E4.stalker
 
@@ -2171,6 +2174,12 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     Math_MatrixTransform(&stalker->position_18, &stalker->rotation_24, coord);
 
     animInfo = &STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0];
+#ifdef SH_PC_PORT
+    if (animInfo->playbackFunc_0 == NULL) {
+        SH_DBG("[STALKER] status=%d has NULL playbackFunc — skipping anim update", stalker->model_0.anim_4.status_0);
+        return;
+    }
+#endif
     animInfo->playbackFunc_0(&stalker->model_0, animHdr, coord, animInfo);
 
     ptr = PSX_SCRATCH;

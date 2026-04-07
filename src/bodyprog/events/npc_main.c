@@ -371,13 +371,19 @@ void Game_NpcUpdate(void) // 0x80038354
             func_8003BD48(npc);
 
 #ifdef SH_PC_PORT
-            if (npc->model_0.charaId_0 == Chara_Cheryl) {
-                SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=%p coord=%p",
-                        animDataInfoIdx, (void*)g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, (void*)coord);
-                if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
-                    SH_DBG("[NPC_AI] Cheryl anmHdr is NULL! Skipping AI update");
-                    continue;
+            /* Guard against NULL animFile for any NPC: the playback function
+             * always dereferences animHdr for bone data, so NULL crashes.
+             * Cheryl logs details; other NPCs (e.g. grey children) just wait
+             * until Chara_ProcessLoads() completes their ANM read. */
+            if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
+                if (npc->model_0.charaId_0 == Chara_Cheryl) {
+                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=NULL coord=%p — skipping",
+                            animDataInfoIdx, (void*)coord);
+                } else {
+                    SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d animFile1_8=NULL — waiting for load",
+                            npc->model_0.charaId_0, animDataInfoIdx);
                 }
+                continue;
             }
 #endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);

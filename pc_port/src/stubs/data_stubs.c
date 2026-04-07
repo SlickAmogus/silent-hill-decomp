@@ -794,7 +794,7 @@ u8 ROPMER_ANIM_INFOS[256] = {0};
 /* ReadTIM - implemented in libgpu_stub.c */
 /* SDL_main - defined in main.c via SDL's macro or explicitly */
 u8 SPLIT_HEAD_ANIM_INFOS[256] = {0};
-u8 STALKER_ANIM_INFOS[256] = {0};
+/* STALKER_ANIM_INFOS defined in map0_s00_anim_info.c with real PC function pointers */
 /* SetDrawOffset - implemented in func_stubs.c */
 /* SetDrawStp - implemented in func_stubs.c */
 /* SetMulRotMatrix - implemented in func_stubs.c */
