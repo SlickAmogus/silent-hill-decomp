@@ -452,8 +452,8 @@ void GameState_Boot_Update(void) // 0x80032D1C
 
                 g_GameWork.gameStateStep_598[0] = gameState;
 #ifdef SH_PC_PORT
-                /* Skip logos/movie for non-default maps — jump straight to MainMenu */
-                if (strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+                /* Skip logos/movie when skip_intros=1 or when a non-default map is set */
+                if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0)
                     g_GameWork.gameState_594 = GameState_MainMenu;
                 else
 #endif
