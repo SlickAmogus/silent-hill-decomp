@@ -847,12 +847,16 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                 func_8008B1DC(chara, temp_s0_14->vx, temp_s0_14->vy);
 #ifdef SH_PC_PORT
                 SH_DBG("[COMBAT] pre-BF84 iter=%d ang=%d sp1C=%p sp5C=%d", temp_s1_3, temp_s0_14->vx, (void*)sp1C, sp5C);
+                { extern int g_RayLineCombat; g_RayLineCombat = 1; }
 #endif
                 if (func_8008BF84(chara, temp_s0_14->vx, sp1C, sp5C) != 0)
                 {
                     var_s2 = sp58;
                     sp18  |= var_s2;
                 }
+#ifdef SH_PC_PORT
+                { extern int g_RayLineCombat; g_RayLineCombat = 0; }
+#endif
             }
 
             i     = sp28;

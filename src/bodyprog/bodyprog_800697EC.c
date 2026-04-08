@@ -15,6 +15,8 @@
 #include "bodyprog/item_screens.h"
 
 #ifdef SH_PC_PORT
+int g_RayLineCombat = 0; /* Set to 1 around combat Ray_LineCheck calls to enable targeted probes */
+
 /* Cache the known-good collision data pointer and a fingerprint of its
  * key fields. When IPD chunks get overwritten by new chunk loads, the
  * pointer from func_800426E4 still looks valid but the data is garbage.
