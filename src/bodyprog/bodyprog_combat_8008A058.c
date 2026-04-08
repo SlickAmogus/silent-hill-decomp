@@ -1836,6 +1836,9 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         SH_DBG("[COMBAT] BF84 Ray_LineCheck i=%d pos=(%d,%d,%d)", i, (int)D_800C47C8[0].vx, (int)D_800C47C8[0].vy, (int)D_800C47C8[0].vz);
 #endif
         var_v1           = Ray_LineCheck(&D_800C47F8, &D_800C47C8[0], &D_800C47C8[1]);
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] BF84 Ray_LineCheck returned var_v1=%d", var_v1);
+#endif
 
         if (var_v1 != false)
         {
@@ -1846,6 +1849,9 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         {
             continue;
         }
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] BF84 no hit path: reading chara1 fields");
+#endif
 
         temp_t4_2  = chara1->position_18.vx;
         temp_t4_2 += chara1->field_D8.offsetX_0;
