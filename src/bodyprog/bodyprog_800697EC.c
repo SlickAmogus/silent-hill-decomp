@@ -2752,6 +2752,9 @@ bool Ray_TraceRun(s_RayData* ray, s_RayState* state) // 0x8006DEB0
 
     // Run through IPD collision data.
     collDataPtrs = func_800425D8(&collDataIdx);
+#ifdef SH_PC_PORT
+    if (g_RayLineCombat) SH_DBG("[RAY-RUN] collDataIdx=%d collDataPtrs=%p", collDataIdx, (void*)collDataPtrs);
+#endif
     for (curCollData = collDataPtrs; curCollData < &collDataPtrs[collDataIdx]; curCollData++)
     {
         collData = *curCollData;
@@ -2759,11 +2762,17 @@ bool Ray_TraceRun(s_RayData* ray, s_RayState* state) // 0x8006DEB0
         if (collData->field_8_8 || collData->field_8_16 || collData->field_8_24)
         {
             func_8006E0AC(state, collData);
+#ifdef SH_PC_PORT
+            if (g_RayLineCombat) SH_DBG("[RAY-RUN] after E0AC: field_88=%d field_7C=%d field_84=%d", state->field_88, state->field_7C, (int)state->field_84);
+#endif
             func_80069994(collData);
 
             for (curUnk = &state->field_8C; curUnk < &state->field_8C[state->field_88]; curUnk++)
             {
                 temp_lo = curUnk->field_2 * state->field_7C;
+#ifdef SH_PC_PORT
+                if (g_RayLineCombat) SH_DBG("[RAY-RUN] inner: curUnk=%p f0=%d f2=%d temp_lo=%d ptr_20=%p idx=%d", (void*)curUnk, (int)curUnk->field_0, (int)curUnk->field_2, temp_lo, (void*)collData->ptr_20, temp_lo + curUnk->field_0);
+#endif
                 func_8006E53C(state, &collData->ptr_20[temp_lo + curUnk->field_0], collData);
             }
         }
