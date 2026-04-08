@@ -3,7 +3,6 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
-#include <string.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -431,9 +430,14 @@ void GameState_Boot_Update(void) // 0x80032D1C
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
 #ifdef SH_PC_PORT
-            /* When skipping intros, load the title TIM here so it's ready for the main menu */
-            if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+            if (g_PcConfig.skipIntros) {
+                /* Replicate all loads that b_konami.c normally handles during logo display */
+                WorldGfx_HarryCharaLoad();
+                GameFs_BgItemLoad();
+                Map_EffectTexturesLoad(NO_VALUE);
+                Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
                 GameFs_TitleGfxLoad();
+            }
 #endif
             ScreenFade_Start(true, false, false);
             g_GameWork.gameStateStep_598[0]++;
@@ -456,8 +460,7 @@ void GameState_Boot_Update(void) // 0x80032D1C
 
                 g_GameWork.gameStateStep_598[0] = gameState;
 #ifdef SH_PC_PORT
-                /* Skip logos/movie when skip_intros=1 or when a non-default map is set */
-                if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0) {
+                if (g_PcConfig.skipIntros) {
                     /* Normally called by b_konami.c; must happen before MainMenu */
                     Settings_RestoreDefaults();
                     g_GameWork.gameState_594 = GameState_MainMenu;
