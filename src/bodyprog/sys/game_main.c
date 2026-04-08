@@ -457,9 +457,11 @@ void GameState_Boot_Update(void) // 0x80032D1C
                 g_GameWork.gameStateStep_598[0] = gameState;
 #ifdef SH_PC_PORT
                 /* Skip logos/movie when skip_intros=1 or when a non-default map is set */
-                if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+                if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0) {
+                    /* Normally called by b_konami.c; must happen before MainMenu */
+                    Settings_RestoreDefaults();
                     g_GameWork.gameState_594 = GameState_MainMenu;
-                else
+                } else
 #endif
                 g_GameWork.gameState_594        = gameState + 1;
                 g_GameWork.gameStatePrev_590    = gameState;
