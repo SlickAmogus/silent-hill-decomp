@@ -2561,7 +2561,7 @@ void func_8006D7EC(s_func_8006ABC0* arg0, SVECTOR* arg1, SVECTOR* arg2) // 0x800
 bool Ray_LineCheck(s_RayData* ray, VECTOR3* from, VECTOR3* to) // 0x8006D90C
 {
     s32     scratchPrev;
-    uintptr_t scratchAddr;
+    uintptr_t scratchAddr = (uintptr_t)PSX_SCRATCH; // PC: init so Ray_MissSet is safe if TraceSetup returns false
     VECTOR3 dir; // Q19.12
 
     dir.vx = to->vx - from->vx;
@@ -2594,7 +2594,7 @@ bool func_8006DA08(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 {
     s32              sp28;
     s32              scratchPrev;
-    uintptr_t        scratchAddr;
+    uintptr_t        scratchAddr = (uintptr_t)PSX_SCRATCH; // PC: init so Ray_MissSet is safe if TraceSetup returns false
     s_SubCharacter** charas;
 
     charas = Collision_ActiveCharactersGet(&sp28, chara, false);
@@ -2639,7 +2639,7 @@ bool func_8006DB3C(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 {
     s32              charaCount;
     s32              stackPtr;
-    uintptr_t        scratchAddr;
+    uintptr_t        scratchAddr = (uintptr_t)PSX_SCRATCH; // PC: init so Ray_MissSet is safe if TraceSetup returns false
     s_SubCharacter** charas;
 
     charas       = Collision_ActiveCharactersGet(&charaCount, chara, true);
@@ -2665,7 +2665,7 @@ bool func_8006DB3C(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
 bool func_8006DC18(s_RayData* ray, VECTOR3* vec1, VECTOR3* vec2) // 0x8006DC18
 {
     s32 scratchPrev;
-    uintptr_t scratchAddr;
+    uintptr_t scratchAddr = (uintptr_t)PSX_SCRATCH; // PC: init so Ray_MissSet is safe if TraceSetup returns false
 
     ray->hasHit_0 = false;
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, 1, 76, vec1, vec2, 0, 0, NULL, 0))
@@ -3786,8 +3786,9 @@ q19_12 Chara_HeadingAngleGet(s_SubCharacter* chara, q19_12 dist, q19_12 targetPo
 
 bool func_8006FD90(s_SubCharacter* chara, s32 count, q19_12 baseDistMax, q19_12 distStep) // 0x8006FD90
 {
-    VECTOR3 sp10;
-    VECTOR3 sp20;
+    // PC: sp10 is really s_RayData (decomp named it VECTOR3 from PSX sp offsets).
+    // On PSX sp+0x10=s_RayData (32B), sp+0x20=&ray.chara_10, so sp20.vx==ray.chara_10.
+    s_RayData ray;
     VECTOR3 pos;    // Q19.12
     VECTOR3 offset; // Q19.12
     s32     i;
@@ -3841,8 +3842,9 @@ bool func_8006FD90(s_SubCharacter* chara, s32 count, q19_12 baseDistMax, q19_12 
                     (chara->position_18.vy - chara->field_C8.field_6);
     }
 
-    // Maybe `sp10` is not `VECTOR3`. Might need to rewrite this whole function if its `s_RayData`?
-    return func_8006DA08(&sp10, &pos, &offset, chara) == 0 || sp20.vx != 0;
+    // PSX: sp20.vx overlapped ray.chara_10 (pointer at offset 0x10 in s_RayData).
+    // PC: check ray.chara_10 directly.
+    return func_8006DA08(&ray, &pos, &offset, chara) == 0 || ray.chara_10 != NULL;
 }
 
 bool func_80070030(s_SubCharacter* chara, q19_12 posX, q19_12 posY, q19_12 posZ)

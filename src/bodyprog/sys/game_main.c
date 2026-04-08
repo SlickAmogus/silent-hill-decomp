@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
+#include <string.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -450,6 +451,12 @@ void GameState_Boot_Update(void) // 0x80032D1C
                 SysWork_StateSetNext(SysState_Gameplay);
 
                 g_GameWork.gameStateStep_598[0] = gameState;
+#ifdef SH_PC_PORT
+                /* Skip logos/movie for non-default maps — jump straight to MainMenu */
+                if (strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+                    g_GameWork.gameState_594 = GameState_MainMenu;
+                else
+#endif
                 g_GameWork.gameState_594        = gameState + 1;
                 g_GameWork.gameStatePrev_590    = gameState;
                 g_GameWork.gameStateStep_598[0] = 0;
