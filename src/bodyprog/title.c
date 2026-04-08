@@ -73,12 +73,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         }
     }
 
-    /* Debug auto-start: skip menus and jump straight to gameplay */
+    /* Auto-start: for non-default maps, skip the menu and go directly to gameplay.
+     * map0_s00 always shows the main menu so the user can navigate it normally.
+     * skip_intros only skips logos; the menu itself is still shown for map0_s00. */
     {
         static int autoStartDone = 0;
-        if (!autoStartDone && g_GameWork.gameStateStep_598[0] == 1 && g_MainMenuState == 0) {
+        if (!autoStartDone && g_GameWork.gameStateStep_598[0] == 1 &&
+            strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+        {
             autoStartDone = 1;
-            SH_DBG("[SH] AUTO-START: skipping menus, map=%s", g_PcConfig.mapName);
+            SH_DBG("[SH] AUTO-START: non-default map=%s, going directly to gameplay", g_PcConfig.mapName);
 
             int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
             if (mapId < 0) mapId = 0;
@@ -88,23 +92,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
             GameFs_StreamBinLoad();
 
-            if (strcmp(g_PcConfig.mapName, "map0_s00") != 0) {
-                /* Non-starting map: skip loading screen, go directly to gameplay */
-                SH_DBG("[SH] AUTO-START: non-default map, skipping new-game screen");
-                Fs_QueueWaitForEmpty();
-                Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
-                MemCard_Disable();
-                g_SysWork.counters_1C[0]        = 0;
-                g_SysWork.counters_1C[1]        = 0;
-                g_GameWork.gameStateStep_598[0]  = 0;
-                g_GameWork.gameStateStep_598[1]  = 0;
-                g_GameWork.gameStateStep_598[2]  = 0;
-                SysWork_StateSetNext(SysState_Gameplay);
-            } else {
-                /* map0_s00: use normal new-game flow (loading screen with Harry running) */
-                ScreenFade_Start(true, false, false);
-                g_MainMenuState = 4;
-            }
+            Fs_QueueWaitForEmpty();
+            Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
+            MemCard_Disable();
+            g_SysWork.counters_1C[0]        = 0;
+            g_SysWork.counters_1C[1]        = 0;
+            g_GameWork.gameStateStep_598[0]  = 0;
+            g_GameWork.gameStateStep_598[1]  = 0;
+            g_GameWork.gameStateStep_598[2]  = 0;
+            SysWork_StateSetNext(SysState_Gameplay);
             return;
         }
     }

@@ -428,13 +428,19 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 #endif
     anim  = func_80044918(var_s0);
 #ifdef SH_PC_PORT
-    SH_DBG("[COMBAT] anim=%p startKf=%d", (void*)anim, anim ? anim->startKeyframeIdx_C : -1);
+    SH_DBG("[COMBAT] anim=%p startKf=%d time4=%d", (void*)anim, anim ? anim->startKeyframeIdx_C : -1, var_s0->time_4);
 #endif
     sp28  = var_s0->time_4;
     sp28 -= Q12(anim->startKeyframeIdx_C);
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] sp28=%d sp14=%d sp10=%d", sp28, sp14, sp10);
+#endif
 
     var_s0_2 = func_8008A270(sp14);
     var_a0   = func_8008A2E0(sp14);
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] var_s0_2=%d var_a0=%d", var_s0_2, var_a0);
+#endif
 
     i   = chara->field_44.field_14;
     sp2C     = Q12(var_s0_2 + var_a0);
@@ -479,6 +485,9 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
         sp20 = chara->field_44.field_C;
         sp24 = chara->field_44.field_E;
 
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] temp_s1=%d sp10=%d sp28=%d sp2C=%d", temp_s1, sp10, sp28, sp2C);
+#endif
         if (temp_s1 == 3)
         {
             sp3C = chara->field_44.field_3;
@@ -836,7 +845,9 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                 chara->field_44.field_18.vz = temp_v0_11->vz;
 
                 func_8008B1DC(chara, temp_s0_14->vx, temp_s0_14->vy);
-
+#ifdef SH_PC_PORT
+                SH_DBG("[COMBAT] pre-BF84 iter=%d ang=%d sp1C=%p sp5C=%d", temp_s1_3, temp_s0_14->vx, (void*)sp1C, sp5C);
+#endif
                 if (func_8008BF84(chara, temp_s0_14->vx, sp1C, sp5C) != 0)
                 {
                     var_s2 = sp58;
@@ -1817,6 +1828,9 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         posZ             = temp_s2 - Q12_MULT_PRECISE(temp_s3, var_s1);
 
         D_800C47C8[1].vz = posZ;
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] BF84 Ray_LineCheck i=%d pos=(%d,%d,%d)", i, (int)D_800C47C8[0].vx, (int)D_800C47C8[0].vy, (int)D_800C47C8[0].vz);
+#endif
         var_v1           = Ray_LineCheck(&D_800C47F8, &D_800C47C8[0], &D_800C47C8[1]);
 
         if (var_v1 != false)
