@@ -2768,6 +2768,9 @@ bool Ray_TraceRun(s_RayData* ray, s_RayState* state) // 0x8006DEB0
             if (g_RayLineCombat) SH_DBG("[RAY-RUN] after E0AC: field_88=%d field_7C=%d field_84=%d", state->field_88, state->field_7C, (int)state->field_84);
 #endif
             func_80069994(collData);
+#ifdef SH_PC_PORT
+            if (g_RayLineCombat) SH_DBG("[RAY-RUN] after 69994");
+#endif
 
             for (curUnk = &state->field_8C; curUnk < &state->field_8C[state->field_88]; curUnk++)
             {
@@ -2776,9 +2779,15 @@ bool Ray_TraceRun(s_RayData* ray, s_RayState* state) // 0x8006DEB0
                 if (g_RayLineCombat) SH_DBG("[RAY-RUN] inner: curUnk=%p f0=%d f2=%d temp_lo=%d ptr_20=%p idx=%d", (void*)curUnk, (int)curUnk->field_0, (int)curUnk->field_2, temp_lo, (void*)collData->ptr_20, temp_lo + curUnk->field_0);
 #endif
                 func_8006E53C(state, &collData->ptr_20[temp_lo + curUnk->field_0], collData);
+#ifdef SH_PC_PORT
+                if (g_RayLineCombat) SH_DBG("[RAY-RUN] after E53C");
+#endif
             }
         }
     }
+#ifdef SH_PC_PORT
+    if (g_RayLineCombat) SH_DBG("[RAY-RUN] collData loop done, state->field_8=%d", (int)state->field_8);
+#endif
 
     // Run through characters.
     for (curChara = state->characters_64; curChara < &state->characters_64[state->characterCount_68]; curChara++)
