@@ -1,0 +1,230 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+public partial class Form1 : Form
+{
+    private ConfigManager config;
+
+    public Form1()
+    {
+        InitializeComponent();
+        this.Icon = SilentHillPC_Launcher.Properties.Resources.launchericon;
+        PopulateDisplayOptions();
+        LoadConfig();
+    }
+
+    private void PopulateDisplayOptions()
+    {
+        var modes = DisplayModes.GetModes();
+
+        // Unique resolutions
+        var resolutions = new HashSet<string>();
+        foreach (var m in modes)
+            resolutions.Add($"{m.width}x{m.height}");
+
+        comboResolution.Items.AddRange(resolutions.ToArray());
+
+        // Unique refresh rates
+        var refreshRates = new HashSet<int>();
+        foreach (var m in modes)
+            refreshRates.Add(m.hz);
+
+        foreach (var hz in refreshRates)
+            comboRefresh.Items.Add(hz.ToString());
+    }
+
+
+    private void LoadConfig()
+    {
+        string cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.cfg");
+        config = new ConfigManager(cfgPath);
+
+        // fullscreen
+        radioFullscreenYes.Checked = config.Get("fullscreen", "0") == "1";
+        radioFullscreenNo.Checked = config.Get("fullscreen", "0") == "0";
+
+        // vsync
+        radioVsyncYes.Checked = config.Get("vsync", "0") == "1";
+        radioVsyncNo.Checked = config.Get("vsync", "0") == "0";
+
+        // skip intro
+        introYes.Checked = config.Get("skip_intros", "0") == "1";
+        introNo.Checked = !introYes.Checked;
+
+        comboFps.SelectedItem = config.Get("fps_cap", "30");
+        string fps = config.Get("fps_cap", "30");
+        if (comboFps.Items.Contains(fps))
+            comboFps.SelectedItem = fps;
+        else
+            comboFps.SelectedItem = "30";
+
+        // map dropdown
+        comboMap.Items.AddRange(new string[]
+        {
+            "map0_s00","map0_s01","map0_s02",
+            "map1_s00","map1_s01","map1_s02","map1_s03","map1_s04","map1_s05","map1_s06",
+            "map2_s00","map2_s01","map2_s02","map2_s03","map2_s04",
+            "map3_s00","map3_s01","map3_s02","map3_s03","map3_s04","map3_s05","map3_s06",
+            "map4_s00","map4_s01","map4_s02","map4_s03","map4_s04","map4_s05","map4_s06",
+            "map5_s00","map5_s01","map5_s02","map5_s03",
+            "map6_s00","map6_s01","map6_s02","map6_s03","map6_s04","map6_s05",
+            "map7_s00","map7_s01","map7_s02","map7_s03"
+        });
+
+        comboMap.SelectedItem = config.Get("map", "map0_s00");
+
+        // resolution
+        string w = config.Get("width", "640");
+        string h = config.Get("height", "480");
+        comboResolution.SelectedItem = $"{w}x{h}";
+
+        // refresh rate
+        comboRefresh.SelectedItem = config.Get("refresh_rate", "0");
+
+        // disable_culling
+        radioCullingYes.Checked = config.Get("disable_culling", "0") == "1";
+        radioCullingNo.Checked = !radioCullingYes.Checked;
+
+        // preload_chunks
+        radioPreloadYes.Checked = config.Get("preload_chunks", "0") == "1";
+        radioPreloadNo.Checked = !radioPreloadYes.Checked;
+
+    }
+
+    private void SaveConfig()
+    {
+        config.Set("fullscreen", radioFullscreenYes.Checked ? "1" : "0");
+        config.Set("vsync", radioVsyncYes.Checked ? "1" : "0");
+        config.Set("map", comboMap.SelectedItem.ToString());
+        // resolution
+        if (comboResolution.SelectedItem != null)
+        {
+            var parts = comboResolution.SelectedItem.ToString().Split('x');
+            config.Set("width", parts[0]);
+            config.Set("height", parts[1]);
+        }
+
+        // refresh rate
+        if (comboRefresh.SelectedItem != null)
+            config.Set("refresh_rate", comboRefresh.SelectedItem.ToString());
+
+        // disable_culling
+        config.Set("disable_culling", radioCullingYes.Checked ? "1" : "0");
+
+        // preload_chunks
+        config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
+
+        // skip intros
+        config.Set("skip_intros", introYes.Checked ? "1" : "0");
+
+        if (comboFps.SelectedItem != null)
+            config.Set("fps_cap", comboFps.SelectedItem.ToString());
+
+        config.Save();
+    }
+
+    private void btnPlay_Click(object sender, EventArgs e)
+    {
+        SaveConfig();
+
+        string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SilentHillPC.exe");
+
+        if (!File.Exists(exePath))
+        {
+            MessageBox.Show("SilentHillPC.exe not found.");
+            return;
+        }
+
+        Process.Start(exePath);
+        Close();
+    }
+
+    private void ApplyDarkMode()
+    {
+        Color back = Color.FromArgb(30, 30, 30);
+        Color panelBack = Color.FromArgb(45, 45, 45);
+        Color text = Color.White;
+
+        this.BackColor = back;
+        this.ForeColor = text;
+
+        foreach (Control c in this.Controls)
+            ApplyDarkToControl(c, back, panelBack, text);
+    }
+
+    private void ApplyDarkToControl(Control c, Color back, Color panelBack, Color text)
+    {
+        if (c is Panel)
+            c.BackColor = panelBack;
+        else if (c is ComboBox)
+            c.BackColor = panelBack;
+        else if (c is Button)
+            c.BackColor = panelBack;
+        else
+            c.BackColor = back;
+
+        c.ForeColor = text;
+
+        // Recursively apply to children
+        foreach (Control child in c.Controls)
+            ApplyDarkToControl(child, back, panelBack, text);
+    }
+
+
+    private void banner_Click(object sender, EventArgs e)
+    {
+
+    }
+
+    private void comboResolution_SelectedIndexChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void comboMap_SelectedIndexChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void comboRefresh_SelectedIndexChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void radioCullingYes_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void Form1_Load(object sender, EventArgs e)
+    {
+
+        //ApplyDarkMode();
+        LoadConfig();
+    }
+
+    private void introYes_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void introPanel_Paint(object sender, PaintEventArgs e)
+    {
+
+    }
+
+    private void preloadPanel_Paint(object sender, PaintEventArgs e)
+    {
+
+    }
+}
