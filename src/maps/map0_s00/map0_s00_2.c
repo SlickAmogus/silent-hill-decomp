@@ -1190,15 +1190,7 @@ void MapEvent_CutsceneAlleyNightmare(void) // 0x800DB94C
             Player_ControlFreeze();
             Map_PlaceIpdAtCell(FILE_BG_THRF908_IPD, -7, 6);
             Sd_SfxStop(Sfx_Unk1358);
-#ifdef SH_PC_PORT
-            /* On PC, Sfx_Unk1359 (alley atmosphere) must NOT start here —
-             * it plays too early while Sfx_Unk1361 is still active.
-             * The correct trigger is func_800DCC54 (entering dark alley /
-             * pulling out lighter), by which point Sfx_Unk1361 has already
-             * stopped naturally. */
-#else
             Sd_PlaySfx(Sfx_Unk1359, 0, 208);
-#endif
             func_800865FC(true, 0, 0, Q12_ANGLE(180.0f), Q12(-252.0f), Q12(219.0f));
             func_800865FC(true, 0, 1, Q12_ANGLE(112.5f), Q12(-251.0f), Q12(218.5f));
 
