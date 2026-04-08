@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "inline_no_dmpsx.h"
 
 #include <psyq/libpad.h>
@@ -418,7 +421,15 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
         var_s0 = &chara->model_0.anim_4;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] A3E0 animInfo_C=%p animInfo_10=%p status=%d state1=%d",
+           (void*)var_s0->animInfo_C, (void*)var_s0->animInfo_10,
+           var_s0->status_0, var_s0->maybeSomeState_1);
+#endif
     anim  = func_80044918(var_s0);
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] anim=%p startKf=%d", (void*)anim, anim ? anim->startKeyframeIdx_C : -1);
+#endif
     sp28  = var_s0->time_4;
     sp28 -= Q12(anim->startKeyframeIdx_C);
 
