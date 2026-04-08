@@ -13,6 +13,7 @@ s_PcConfig g_PcConfig = {
     .vsync          = 0,
     .refreshRate    = 0,
     .fpsCap         = 30,
+    .skipIntros     = 0,
     .mapName        = "map0_s00"
 };
 
@@ -103,6 +104,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "fps_cap") == 0)
         {
             g_PcConfig.fpsCap = atoi(value);
+        }
+        else if (strcmp(key, "skip_intros") == 0)
+        {
+            g_PcConfig.skipIntros = (atoi(value) != 0);
         }
         else if (strcmp(key, "map") == 0)
         {

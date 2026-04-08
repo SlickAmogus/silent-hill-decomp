@@ -10,6 +10,7 @@ typedef struct {
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
+    int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
