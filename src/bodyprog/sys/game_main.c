@@ -430,7 +430,11 @@ void GameState_Boot_Update(void) // 0x80032D1C
         case 2:
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
-
+#ifdef SH_PC_PORT
+            /* When skipping intros, load the title TIM here so it's ready for the main menu */
+            if (g_PcConfig.skipIntros || strcmp(g_PcConfig.mapName, "map0_s00") != 0)
+                GameFs_TitleGfxLoad();
+#endif
             ScreenFade_Start(true, false, false);
             g_GameWork.gameStateStep_598[0]++;
             break;
