@@ -1379,6 +1379,11 @@ void WorldGfx_HeldItemAttach(e_CharacterId charaId, s32 arg1) // 0x8003DD80
 
     model = g_WorldGfxWork.registeredCharaModels_18[charaId];
 
+#ifdef SH_PC_PORT
+    /* Model may not be loaded yet (async CD read pending). Skip attachment — it
+     * will be re-invoked once the model is resident. */
+    if (model == NULL) return;
+#endif
 
     switch (charaId)
     {
