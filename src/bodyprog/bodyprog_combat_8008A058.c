@@ -400,19 +400,11 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
     sp10 = chara->field_44.field_0;
     sp14 = (u8)chara->field_44.field_2;
 
-#ifdef SH_PC_PORT
-    SH_DBG("[COMBAT] A3E0 entry: chara=%p(id=%d) field_0=%d weaponAttack=%d",
-           (void*)chara, chara->model_0.charaId_0, sp10, sp14);
-#endif
-
     if (sp10 == 0)
     {
         chara->field_44.field_4  = 0;
         chara->field_44.field_8  = 0;
         chara->field_44.field_14 = 0;
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] A3E0 early ret: field_0==0");
-#endif
         return 0;
     }
 
@@ -420,9 +412,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
     {
         chara->field_44.field_8  = 0;
         chara->field_44.field_14 = 0;
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] A3E0 early ret: field_0==-1");
-#endif
         return 0;
     }
 

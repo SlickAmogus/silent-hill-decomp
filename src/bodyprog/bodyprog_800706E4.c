@@ -1001,57 +1001,7 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
         case PlayerState_Unk159:
         case PlayerState_Unk160:
         case PlayerState_Unk161:
-#ifdef SH_PC_PORT
-            /* func_80071968_Switch1 calls Player_LowerBodyUpdate which
-             * crashes on PC (uses Ray_LineCheck and NPC subsystems).
-             * Reset transient damage/fall states to None so Harry doesn't get
-             * stuck mid-animation.  For death states, immediately trigger the
-             * death outcome (skip the animation since it never advances on PC). */
-            {
-                s32 _cs = g_SysWork.playerWork_4C.extra_128.state_1C;
-                if (_cs >= PlayerState_FallForward && _cs <= PlayerState_GetUpBack
-                    && _cs != PlayerState_Death
-                    && _cs != PlayerState_InstantDeath
-                    && _cs != PlayerState_Unk36) {
-                    SH_DBG("[PLAYER] Recovering from damage state %d -> None", _cs);
-                    Player_ExtraStateSet(chara, extra, PlayerState_None);
-                    D_800C4550 = Q12(0.0f);
-                } else if (_cs == PlayerState_Death || _cs == PlayerState_InstantDeath) {
-                    /* Death animation never advances on PC — trigger completion
-                     * immediately, mirroring the PSX keyframe-end branch.
-                     * stateStep_3 guards against re-entry before func_8007E9C4
-                     * resets state_1C to None. */
-                    if (extra->model_0.stateStep_3 == 0) {
-                        extra->model_0.stateStep_3 = 1;
-                        SH_DBG("[PLAYER] Death state %d on PC — triggering outcome immediately", _cs);
-                        g_MapOverlayHeader.playerAnimLock_DC();
-                        if (_cs == PlayerState_Death
-                            && g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP0_S00) {
-                            /* map0_s00 special path: Cybil transition (no Game Over). */
-                            Savegame_EventFlagSet(EventFlag_25);
-                            func_8007E9C4();
-                            extra->model_0.controlState_2++;
-                            chara->health_B0 = Q12(100.0f);
-                            chara->model_0.controlState_2++;
-                            g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
-                        } else {
-                            /* All other maps / InstantDeath: trigger Game Over. */
-                            SysWork_StateSetNext(SysState_GameOver);
-                            func_8007E9C4();
-                            extra->model_0.controlState_2++;
-                            chara->health_B0 = Q12(100.0f);
-                            chara->model_0.controlState_2++;
-                            if (_cs == PlayerState_Death) {
-                                g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
-                            }
-                        }
-                    }
-                }
-                /* PlayerState_Unk36 / cutscene states: skip crash, keep state. */
-            }
-#else
             func_80071968_Switch1();
-#endif
             break;
     }
 
@@ -2240,7 +2190,52 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
         case PlayerState_Death:
             chara->attackReceived_41 = NO_VALUE;
+#ifdef SH_PC_PORT
+            /* On PC, controlState_2 (ctrl) and stateStep_3 carry over from the
+             * previous animation state.  func_8007FB94 returns immediately if
+             * ctrl != 0, so the death animation is never initialized.
+             * Detect first-entry by stateStep_3 != 2 (2 is set by the kf-reset
+             * guard below after the animation is properly initialized), then
+             * force-reset ctrl and both stateStep_3 so func_8007FB94 runs. */
+            if (chara->model_0.controlState_2 != 0 && chara->model_0.stateStep_3 != 2) {
+                SH_DBG("[DEATH] first entry: resetting ctrl=%d step=%d extra_step=%d",
+                       (s32)chara->model_0.controlState_2,
+                       (s32)chara->model_0.stateStep_3,
+                       (s32)extra->model_0.stateStep_3);
+                chara->model_0.controlState_2 = 0;
+                chara->model_0.stateStep_3    = 0;
+                extra->model_0.controlState_2 = 0;
+                extra->model_0.stateStep_3    = 0;
+            }
+            SH_DBG("[DEATH] LogicUpdate: kf=%d kf6=%d D_800AF220=%d ctrl=%d step=%d",
+                   (s32)chara->model_0.anim_4.keyframeIdx_8,
+                   (s32)g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6,
+                   (s32)D_800AF220,
+                   (s32)extra->model_0.controlState_2,
+                   (s32)chara->model_0.stateStep_3);
+#endif
             func_8007FB94(chara, extra, ANIM_STATUS(101, false));
+#ifdef SH_PC_PORT
+            SH_DBG("[DEATH] after FB94: kf=%d kf6=%d ctrl=%d step=%d active=%d",
+                   (s32)chara->model_0.anim_4.keyframeIdx_8,
+                   (s32)g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6,
+                   (s32)extra->model_0.controlState_2,
+                   (s32)chara->model_0.stateStep_3,
+                   (s32)ANIM_STATUS_IS_ACTIVE(chara->model_0.anim_4.status_0));
+            /* func_8007FB94 increments stateStep_3 from 0→1 on first call.
+             * Detect that moment to reset keyframeIdx_8 to time_4 (start of
+             * death anim), since the stale kf from the previous anim may land
+             * near the end of the 35-frame window and skip it entirely.
+             * Set both stateStep_3 to 2 so this guard fires only once. */
+            if (chara->model_0.stateStep_3 == 1 && extra->model_0.stateStep_3 == 1) {
+                SH_DBG("[DEATH] frame-1 kf reset: kf %d -> time_4=%d",
+                       (s32)chara->model_0.anim_4.keyframeIdx_8,
+                       (s32)g_MapOverlayHeader.field_38[D_800AF220].time_4);
+                chara->model_0.anim_4.keyframeIdx_8 = g_MapOverlayHeader.field_38[D_800AF220].time_4;
+                chara->model_0.stateStep_3 = 2; /* prevent re-reset next frame */
+                extra->model_0.stateStep_3 = 2; /* prevent re-entry */
+            }
+#endif
             chara->field_D4.field_2 = Q12(0.0f);
 
             if (ANIM_STATUS_IS_ACTIVE(chara->model_0.anim_4.status_0))
@@ -2275,6 +2270,12 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
             if (chara->model_0.anim_4.keyframeIdx_8 == g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6)
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[DEATH] keyframe done: kf=%d kf6=%d step=%d — triggering",
+                       (s32)chara->model_0.anim_4.keyframeIdx_8,
+                       (s32)g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6,
+                       (s32)chara->model_0.stateStep_3);
+#endif
                 if (g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP0_S00)
                 {
                     g_MapOverlayHeader.playerAnimLock_DC();
