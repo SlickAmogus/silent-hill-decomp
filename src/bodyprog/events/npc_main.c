@@ -321,7 +321,8 @@ void Game_NpcUpdate(void) // 0x80038354
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model_0.charaId_0 < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
                                     g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0] != NULL);
-                bool isSafeNpc   = (npc->model_0.charaId_0 == Chara_Cheryl);
+                bool isSafeNpc   = (npc->model_0.charaId_0 == Chara_Cheryl ||
+                                    npc->model_0.charaId_0 == Chara_GreyChild);
                 if (!animLoaded || !hasUpdateFn || !isSafeNpc)
                 {
                     npc->model_0.charaId_0 = Chara_None;
