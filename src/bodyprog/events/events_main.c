@@ -7,6 +7,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/math/math.h"
+#include "sh_log.h"
 
 void Event_Update(bool disableButtonEvents) // 0x800373CC
 {
@@ -35,7 +36,26 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
     // (Multi-item events likely repopulate the trigger IDs below based on whichever events are still active?)
     if (g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != InventoryItemId_Unequipped)
     {
-        for (i = 0; g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++);
+        for (i = 0; g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++)
+        {
+#ifdef SH_PC_PORT
+            /* On PSX the item ID is guaranteed to be in the array (it was set
+             * from Inventory_ItemUse only when a matching trigger existed).
+             * On PC, stale state can leave lastUsedItem_28 set after the
+             * trigger slots were cleared, causing unbounded iteration. */
+            if (i >= 5) {
+                SH_DBG("[EVENT] lastUsedItem_28=%d not in trigger list — clearing", g_SysWork.playerWork_4C.extra_128.lastUsedItem_28);
+                g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 = InventoryItemId_Unequipped;
+                break;
+            }
+#endif
+        }
+#ifdef SH_PC_PORT
+        if (g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 == InventoryItemId_Unequipped) {
+            Event_ItemTriggersClear();
+            return;
+        }
+#endif
 
         g_MapEventData         = g_ItemTriggerEvents[i];
         g_MapEventLastUsedItem = g_SysWork.playerWork_4C.extra_128.lastUsedItem_28;

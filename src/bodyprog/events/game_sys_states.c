@@ -1051,6 +1051,13 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
 
     g_DeltaTime = g_DeltaTimeCpy;
 #ifdef SH_PC_PORT
+    /* Guard OOB: mapEventFuncs_20 arrays vary per map (e.g. map0_s02 has 7).
+     * A stale lastUsedItem_28 can produce a garbage param well past the end. */
+    if (g_MapEventParam < 0 || g_MapEventParam >= 64) {
+        SH_DBG("[SS] EventCallFunc param=%d OOB — skip", g_MapEventParam);
+        g_SysWork.sysState_8 = SysState_Gameplay;
+        return;
+    }
     SH_DBG("[SS] EventCallFunc param=%d func=%p", g_MapEventParam,
             (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]);
     if (g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
@@ -1266,6 +1273,14 @@ void GameState_MapEvent_Update(void) // 0x8003AA4C
 
     Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
 
+#ifdef SH_PC_PORT
+    if (g_MapEventParam < 0 || g_MapEventParam >= 64
+        || g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
+        SH_DBG("[SS] MapEvent param=%d OOB/NULL — skip", g_MapEventParam);
+        Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+        return;
+    }
+#endif
     g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]();
 
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);

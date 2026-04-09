@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
+#include <SDL_timer.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -431,9 +432,10 @@ void GameState_Boot_Update(void) // 0x80032D1C
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
 #ifdef SH_PC_PORT
             if (g_PcConfig.skipIntros) {
-                /* Replicate all loads that b_konami.c normally handles during logo display */
+                /* Replicate all loads that b_konami.c/b_kcet.c normally handle during logo display */
                 WorldGfx_HarryCharaLoad();
                 GameFs_BgItemLoad();
+                GameFs_BgEtcGfxLoad(); /* snow/rain/particle textures (BG_ETC.TIM → VRAM tPage 12) */
                 Map_EffectTexturesLoad(NO_VALUE);
                 Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
                 GameFs_TitleGfxLoad();
@@ -704,21 +706,56 @@ void MainLoop(void) // 0x80032EE0
                 /* Compute effective vblank interval from fps_cap config and debug toggle.
                  * Only override the game's own g_IntervalVBlanks when fully in gameplay —
                  * menu sub-states (map, items, pause text) set g_IntervalVBlanks=1 themselves
-                 * and must not be overridden, or they drop to 30fps while overlays are open. */
+                 * and must not be overridden, or they drop to 30fps while overlays are open.
+                 *
+                 * Priority: vsync+refresh_rate > debug unlock > fps_cap > game default.
+                 * VBlank timer ticks at 60Hz; for <= 60fps use vblank waits (effectiveMin).
+                 * For > 60fps (120, 240) use SDL high-precision timer since vblank
+                 * granularity is 16.67ms and can't express sub-frame intervals. */
                 {
+                    static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
                     if (g_GameWork.gameState_594 == GameState_InGame)
                     {
-                        if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
+                        int effectiveFps;
+
+                        /* vsync + explicit refresh rate: let the display pacing be the cap */
+                        if (g_PcConfig.vsync != 0 && g_PcConfig.refreshRate > 0)
+                            effectiveFps = g_PcConfig.refreshRate;
+                        else if (g_DebugUnlockFps || g_PcConfig.fpsCap == 0)
+                            effectiveFps = 0; /* uncapped */
+                        else
+                            effectiveFps = g_PcConfig.fpsCap;
+
+                        if (effectiveFps <= 0)
                         {
                             effectiveMin = 0; /* uncapped: don't wait */
                         }
-                        else if (g_PcConfig.fpsCap > 0 && g_PcConfig.fpsCap < 60)
+                        else if (effectiveFps > 60)
                         {
-                            /* e.g. fps_cap=30 → 60/30=2 vblanks, fps_cap=20 → 60/20=3 vblanks */
-                            effectiveMin = 60 / g_PcConfig.fpsCap;
+                            /* High fps (120, 240): SDL timer — vblank loop can't express <16ms */
+                            Uint64 freq = SDL_GetPerformanceFrequency();
+                            Uint64 targetTicks = freq / (Uint64)effectiveFps;
+                            if (s_lastFrameTime == 0)
+                                s_lastFrameTime = SDL_GetPerformanceCounter();
+                            Uint64 elapsed = SDL_GetPerformanceCounter() - s_lastFrameTime;
+                            if (elapsed < targetTicks)
+                            {
+                                Uint64 remainMs = ((targetTicks - elapsed) * 1000) / freq;
+                                if (remainMs > 2) SDL_Delay((Uint32)(remainMs - 1));
+                                while (SDL_GetPerformanceCounter() - s_lastFrameTime < targetTicks) {}
+                            }
+                            s_lastFrameTime = SDL_GetPerformanceCounter();
+                            effectiveMin = 0; /* SDL timing handled it */
                         }
+                        else if (effectiveFps >= 60)
+                            effectiveMin = 1; /* 60fps: 1 vblank per frame */
+                        else
+                            effectiveMin = 60 / effectiveFps; /* e.g. 30→2, 20→3 */
                     }
+
+                    if (effectiveMin > 0 || s_lastFrameTime == 0)
+                        s_lastFrameTime = 0; /* reset SDL timer when not in use */
 
                     while (g_VBlanks < effectiveMin)
                     {

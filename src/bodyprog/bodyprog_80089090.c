@@ -209,6 +209,12 @@ void func_800892A4(s32 idx) // 0x800892A4
 
 void func_800892DC(s32 idx, u8 arg1) // 0x800892DC
 {
+#ifdef SH_PC_PORT
+    /* Vibration linked-list not initialized on PC (func_800890B8 never runs
+     * because func_80089128 is stubbed). Calling func_800895E4 dereferences
+     * NULL head→next/prev in func_8009ECCC and crashes. Skip on PC. */
+    return;
+#endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], arg1);
 }
 

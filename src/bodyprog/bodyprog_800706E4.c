@@ -1004,18 +1004,50 @@ void Player_AnimUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, s_AnmHeader*
 #ifdef SH_PC_PORT
             /* func_80071968_Switch1 calls Player_LowerBodyUpdate which
              * crashes on PC (uses Ray_LineCheck and NPC subsystems).
-             * Only reset for actual damage/fall/death states where the game
-             * would get stuck. Do NOT reset cutscene movement states (52-58)
-             * or waypoint states — those need to persist for cutscenes. */
+             * Reset transient damage/fall states to None so Harry doesn't get
+             * stuck mid-animation.  For death states, immediately trigger the
+             * death outcome (skip the animation since it never advances on PC). */
             {
                 s32 _cs = g_SysWork.playerWork_4C.extra_128.state_1C;
-                if (_cs >= PlayerState_FallForward && _cs <= PlayerState_GetUpBack) {
+                if (_cs >= PlayerState_FallForward && _cs <= PlayerState_GetUpBack
+                    && _cs != PlayerState_Death
+                    && _cs != PlayerState_InstantDeath
+                    && _cs != PlayerState_Unk36) {
                     SH_DBG("[PLAYER] Recovering from damage state %d -> None", _cs);
                     Player_ExtraStateSet(chara, extra, PlayerState_None);
                     D_800C4550 = Q12(0.0f);
+                } else if (_cs == PlayerState_Death || _cs == PlayerState_InstantDeath) {
+                    /* Death animation never advances on PC — trigger completion
+                     * immediately, mirroring the PSX keyframe-end branch.
+                     * stateStep_3 guards against re-entry before func_8007E9C4
+                     * resets state_1C to None. */
+                    if (extra->model_0.stateStep_3 == 0) {
+                        extra->model_0.stateStep_3 = 1;
+                        SH_DBG("[PLAYER] Death state %d on PC — triggering outcome immediately", _cs);
+                        g_MapOverlayHeader.playerAnimLock_DC();
+                        if (_cs == PlayerState_Death
+                            && g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP0_S00) {
+                            /* map0_s00 special path: Cybil transition (no Game Over). */
+                            Savegame_EventFlagSet(EventFlag_25);
+                            func_8007E9C4();
+                            extra->model_0.controlState_2++;
+                            chara->health_B0 = Q12(100.0f);
+                            chara->model_0.controlState_2++;
+                            g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+                        } else {
+                            /* All other maps / InstantDeath: trigger Game Over. */
+                            SysWork_StateSetNext(SysState_GameOver);
+                            func_8007E9C4();
+                            extra->model_0.controlState_2++;
+                            chara->health_B0 = Q12(100.0f);
+                            chara->model_0.controlState_2++;
+                            if (_cs == PlayerState_Death) {
+                                g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+                            }
+                        }
+                    }
                 }
-                /* For all other states (including cutscene states 51-58),
-                 * skip func_80071968_Switch1 but don't reset the state. */
+                /* PlayerState_Unk36 / cutscene states: skip crash, keep state. */
             }
 #else
             func_80071968_Switch1();
