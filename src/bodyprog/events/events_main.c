@@ -36,25 +36,22 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
     // (Multi-item events likely repopulate the trigger IDs below based on whichever events are still active?)
     if (g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != InventoryItemId_Unequipped)
     {
-        for (i = 0; g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++)
-        {
 #ifdef SH_PC_PORT
-            /* On PSX the item ID is guaranteed to be in the array (it was set
-             * from Inventory_ItemUse only when a matching trigger existed).
-             * On PC, stale state can leave lastUsedItem_28 set after the
-             * trigger slots were cleared, causing unbounded iteration. */
-            if (i >= 5) {
-                SH_DBG("[EVENT] lastUsedItem_28=%d not in trigger list — clearing", g_SysWork.playerWork_4C.extra_128.lastUsedItem_28);
-                g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 = InventoryItemId_Unequipped;
-                break;
-            }
-#endif
-        }
-#ifdef SH_PC_PORT
-        if (g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 == InventoryItemId_Unequipped) {
+        /* On PSX the item ID is guaranteed to be in g_ItemTriggerItemIds[] (it
+         * was set by Inventory_ItemUse only when a matching trigger existed).
+         * On PC, stale state can leave lastUsedItem_28 set after the trigger
+         * slots were cleared, causing an unbounded scan into adjacent memory.
+         * The bounds check must be in the loop CONDITION to prevent the OOB
+         * read from happening in the first place. */
+        for (i = 0; i < 5 && g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++);
+        if (i >= 5) {
+            SH_DBG("[EVENT] lastUsedItem_28=%d not in trigger list — clearing", g_SysWork.playerWork_4C.extra_128.lastUsedItem_28);
+            g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 = InventoryItemId_Unequipped;
             Event_ItemTriggersClear();
             return;
         }
+#else
+        for (i = 0; g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++);
 #endif
 
         g_MapEventData         = g_ItemTriggerEvents[i];
