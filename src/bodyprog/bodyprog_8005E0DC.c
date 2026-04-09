@@ -13,6 +13,10 @@
 #include "bodyprog/player.h"
 #include "bodyprog/sound_system.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include <stdio.h>
+#include "sh_log.h"
+#endif
 
 s_800C42E8     D_800C42E8[24];
 s16            D_800C4408;
@@ -566,6 +570,7 @@ void func_8005E89C(void) // 0x8005E89C
 
     GsOUT_PACKET_P = (PACKET*)poly;
 
+#ifndef SH_PC_PORT
     for (i = 0; i < g_MapOverlayHeader.bloodSplatCount_58; i++)
     {
         if (g_MapOverlayHeader.bloodSplats_54[i].field_0 != NO_VALUE &&
@@ -574,6 +579,7 @@ void func_8005E89C(void) // 0x8005E89C
             g_MapOverlayHeader.bloodSplats_54[i].field_0 = NO_VALUE;
         }
     }
+#endif
 
     if (D_800C4414 & (1 << 5))
     {

@@ -432,8 +432,17 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
     }
 #endif
 
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] pre-ChunkCheckDraw");
+#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] pre-2dEffectsDraw");
+#endif
     Gfx_2dEffectsDraw();
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] done");
+#endif
 }
 
 // ========================================
@@ -548,6 +557,10 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[WOD] enter count=%d sizeof_obj=%d", worldGfxWork->objectCount_2BE8, (int)sizeof(s_WorldObject));
+#endif
+
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects_2BEC[0]; curObj < &worldGfxWork->objects_2BEC[worldGfxWork->objectCount_2BE8]; curObj++)
     {
@@ -587,11 +600,18 @@ void func_8003CC7C(s_WorldObjectModel* arg0, MATRIX* arg1, MATRIX* arg2) // 0x80
     s_WorldObjectMetadata* objMetaCpy;
     s_ModelHeader*         modelHdr;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] arg0=%p", (void*)arg0);
+    if (arg0 == NULL) return;
+#endif
     lmIdx = arg0->metadata_10.lmIdx_9;
     if (lmIdx == 0)
     {
         return;
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] lmIdx=%d", (int)lmIdx);
+#endif
 
     modelHdr   = arg0->modelInfo_0.modelHdr_8;
     objMetaCpy = &arg0->metadata_10;
@@ -604,11 +624,27 @@ void func_8003CC7C(s_WorldObjectModel* arg0, MATRIX* arg1, MATRIX* arg2) // 0x80
         }
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] modelHdr=%p read_from=%p offsetof_modelHdr8=%d",
+           (void*)modelHdr,
+           (void*)&arg0->modelInfo_0.modelHdr_8,
+           (int)((char*)&arg0->modelInfo_0.modelHdr_8 - (char*)arg0));
+    if (modelHdr == NULL)
+    {
+        arg0->metadata_10.lmIdx_9 = 0;
+        return;
+    }
+    SH_DBG("[CC7C] pre-COMPARE");
+#endif
+
     if (COMPARE_FILENAMES(&objMetaCpy->name_0, &modelHdr->name_0))
     {
         arg0->metadata_10.lmIdx_9 = 0;
         return;
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] pre-57090");
+#endif
 
     func_80057090(&arg0->modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, arg1, arg2, 0);
 }
