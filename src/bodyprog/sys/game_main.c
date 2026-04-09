@@ -109,14 +109,15 @@ static int g_DebugFogTogglePrev = 0;
 static VECTOR3 g_DebugCamPos;
 static VECTOR3 g_DebugCamLookAt;
 static q3_12 g_DebugCamAngleY = 0;
+static q3_12 g_DebugCamAngleX = 0; /* pitch/tilt: positive = look down, negative = look up */
 static VECTOR3 g_DebugCamSavedHarryPos; /* Harry's position when debug cam was enabled */
 static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
 
 void DebugCamera_Update(void)
 {
-    #define DBG_CAM_MOVE_SPEED 2048  /* Q12(0.5) */
-    #define DBG_CAM_TURN_SPEED 64
-    #define DBG_CAM_VERT_SPEED 1228  /* Q12(0.3) */
+    #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
+    #define DBG_CAM_TURN_SPEED 16
+    #define DBG_CAM_VERT_SPEED 256
 
     if (!g_sdlKeyboardState) return;
     if (g_GameWork.gameState_594 != GameState_InGame) return;
@@ -130,6 +131,7 @@ void DebugCamera_Update(void)
                 /* Capture current camera as starting point */
                 vcGetNowCamPos(&g_DebugCamPos);
                 g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
+                g_DebugCamAngleX = 0;
                 g_DebugCamInited = 1;
                 /* Save Harry's position to restore when debug cam is disabled */
                 g_DebugCamSavedHarryPos = g_SysWork.playerWork_4C.player_0.position_18;
@@ -251,6 +253,53 @@ void DebugCamera_Update(void)
         prevKey = cur;
     }
 
+    /* Number key 1: kill Harry (triggers death animation) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_1];
+        if (cur && !prevKey) {
+            g_SysWork.playerWork_4C.player_0.health_B0 = -Q12(1.0f);
+            SH_DBG("[DEBUG] Key 1: KILL HARRY — health set to -Q12(1.0)");
+        }
+        prevKey = cur;
+    }
+    /* Number key 2: SFX checkpoint marker */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_2];
+        if (cur && !prevKey) { SH_DBG("CHECK SFX HERE"); }
+        prevKey = cur;
+    }
+    /* Number key 3: BGM checkpoint marker */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_3];
+        if (cur && !prevKey) { SH_DBG("CHECK BGM HERE"); }
+        prevKey = cur;
+    }
+    /* Number key 4: mark incorrect camera position */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_4];
+        if (cur && !prevKey) {
+            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d angleX=%d",
+                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
+        }
+        prevKey = cur;
+    }
+    /* Number key 5: mark corrected camera position + log full debug cam state */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_5];
+        if (cur && !prevKey) {
+            SH_DBG("CORRECTED CAMERA POSITION pos=(%ld,%ld,%ld) angleY=%d angleX=%d",
+                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
+        }
+        prevKey = cur;
+    }
+
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
         /* Third-person follow camera: static overhead-behind view, no input handling */
@@ -322,14 +371,24 @@ void DebugCamera_Update(void)
         g_DebugCamAngleY += DBG_CAM_TURN_SPEED;
         moved = 1;
     }
-    /* Numpad +: move up (Y-, PSX Y is inverted) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
+    /* Page Up: move up (Y-, PSX Y is inverted) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
         g_DebugCamPos.vy -= DBG_CAM_VERT_SPEED;
         moved = 1;
     }
-    /* Numpad -: move down (Y+) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+    /* Page Down: move down (Y+) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
         g_DebugCamPos.vy += DBG_CAM_VERT_SPEED;
+        moved = 1;
+    }
+    /* Numpad +: tilt up (look upward) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
+        g_DebugCamAngleX -= DBG_CAM_TURN_SPEED;
+        moved = 1;
+    }
+    /* Numpad -: tilt down (look downward) */
+    if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+        g_DebugCamAngleX += DBG_CAM_TURN_SPEED;
         moved = 1;
     }
     /* Numpad /: print debug camera coordinates to log */
@@ -358,10 +417,15 @@ void DebugCamera_Update(void)
         /* Keep Harry at ground level (don't follow camera Y) */
     }
 
-    /* Set look-at point ahead of camera */
-    g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleY) >> 12);
-    g_DebugCamLookAt.vy = g_DebugCamPos.vy;
-    g_DebugCamLookAt.vz = g_DebugCamPos.vz + (s32)((s64)20480 * Math_Cos(g_DebugCamAngleY) >> 12);
+    /* Set look-at point ahead of camera, incorporating pitch (AngleX).
+     * forward = distance projected onto XZ plane (cos(pitch) * 20480)
+     * Y offset = sin(pitch) * 20480 (positive = down in PSX Y-down coords) */
+    {
+        s32 forward = (s32)((s64)20480 * Math_Cos(g_DebugCamAngleX) >> 12);
+        g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)forward * sinY >> 12);
+        g_DebugCamLookAt.vy = g_DebugCamPos.vy + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleX) >> 12);
+        g_DebugCamLookAt.vz = g_DebugCamPos.vz + (s32)((s64)forward * cosY >> 12);
+    }
 
     /* Override the camera view */
     Vw_SetLookAtMatrix(&g_DebugCamPos, &g_DebugCamLookAt);
