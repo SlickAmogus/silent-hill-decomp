@@ -312,15 +312,17 @@ void Game_NpcUpdate(void) // 0x80038354
 
             animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model_0.charaId_0];
 #ifdef SH_PC_PORT
-            /* Skip NPCs whose anim data hasn't been loaded yet (idx still 0xFF)
-             * or that have no update function — calling either would crash.
-             * Cheryl always passes; other NPCs (e.g. grey children) are allowed
-             * through once their anim data is loaded and an update func exists. */
+            /* On PC only Cheryl's NPC AI is safe to run. All other NPCs
+             * (Cybil, monsters, grey children) have AI that crashes due to
+             * unsupported subsystems (collision, PSX-specific state).
+             * Also skip if anim data not loaded yet (idx==0xFF) or update
+             * function pointer is NULL (sanitized out by map overlay loader). */
             {
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model_0.charaId_0 < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
                                     g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0] != NULL);
-                if (!animLoaded || !hasUpdateFn)
+                bool isSafeNpc   = (npc->model_0.charaId_0 == Chara_Cheryl);
+                if (!animLoaded || !hasUpdateFn || !isSafeNpc)
                 {
                     npc->model_0.charaId_0 = Chara_None;
                     continue;
