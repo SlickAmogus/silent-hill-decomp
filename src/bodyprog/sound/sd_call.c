@@ -415,6 +415,10 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         return NO_VALUE;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) bal=%d vol=%d", sfxId, sfxId - Sfx_Base, balance, vol);
+#endif
+
     audioIdx = sfxId - Sfx_Base;
     volCpy   = vol;
 
@@ -668,6 +672,9 @@ void Sd_LastSfxStop(void) // 0x800468EC
 
 void Sd_SfxStop(u16 sfxId) // 0x8004690C
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[SFX] Sd_SfxStop: sfxId=%d (Sfx_Base+%d)", sfxId, sfxId - Sfx_Base);
+#endif
     Sd_SfxStopStep(sfxId);
 }
 

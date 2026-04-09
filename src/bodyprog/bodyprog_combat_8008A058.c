@@ -14,6 +14,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include <math.h>
+#endif
 
 s16 D_800AFD1C[] = // Used by `func_8008A3E0`.
 {
@@ -33,16 +36,16 @@ s16 D_800AFD1C[] = // Used by `func_8008A3E0`.
 u32 func_8008A058(s32 arg0) // 0x8008A058
 {
 #ifdef SH_PC_PORT
-    s32  temp_t0;
-    u32  var_t1;
-    u32  var_t2;
-    s16* ptr;
+    /* On PC, gte_ldlzc(arg0) would dereference arg0 as a pointer (broken macro).
+     * func_80080540 returns (x^2+y^2+z^2)>>12; multiply by 4096 restores the square,
+     * and sqrtf gives the Q12 magnitude. Result matches the GTE LZCS/LZCR table lookup. */
+    if (!arg0) return 0;
+    return (u32)sqrtf((float)arg0 * 4096.0f);
 #else
     register s32  temp_t0 asm("t0");
     register u32  var_t1 asm("t1");
     register u32  var_t2 asm("t2");
     register s16* ptr asm("t3");
-#endif
 
     var_t1 = 0;
 
@@ -96,6 +99,7 @@ u32 func_8008A058(s32 arg0) // 0x8008A058
     }
 
     return var_t1;
+#endif
 }
 
 s32 func_8008A0CC(void) // 0x8008A0CC
@@ -127,6 +131,11 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     {
         return NO_VALUE;
     }
+
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] A0E4 entry: chara=%p(id=%d) arg0=%d weaponAttack=%d field_0=%d",
+           (void*)chara, chara->model_0.charaId_0, arg0, weaponAttack, chara->field_44.field_0);
+#endif
 
     if (chara == &g_SysWork.playerWork_4C.player_0)
     {
@@ -391,11 +400,19 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
     sp10 = chara->field_44.field_0;
     sp14 = (u8)chara->field_44.field_2;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] A3E0 entry: chara=%p(id=%d) field_0=%d weaponAttack=%d",
+           (void*)chara, chara->model_0.charaId_0, sp10, sp14);
+#endif
+
     if (sp10 == 0)
     {
         chara->field_44.field_4  = 0;
         chara->field_44.field_8  = 0;
         chara->field_44.field_14 = 0;
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] A3E0 early ret: field_0==0");
+#endif
         return 0;
     }
 
@@ -403,6 +420,9 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
     {
         chara->field_44.field_8  = 0;
         chara->field_44.field_14 = 0;
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] A3E0 early ret: field_0==-1");
+#endif
         return 0;
     }
 
@@ -679,12 +699,20 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 
                     temp = func_8006DA08(&D_800C4728, &chara->field_44.field_18, &chara->field_44.field_48[0], chara);
                     ptr  = D_800C4728.chara_10;
+#ifdef SH_PC_PORT
+                    SH_DBG("[COMBAT] A3E0 DA08: temp=%d ptr=%p(id=%d)", temp, (void*)ptr, ptr ? ptr->model_0.charaId_0 : -1);
+#endif
 
                     if (temp && ptr != NULL)
                     {
                         chara->field_44.field_48[1].vx = temp_s1_4;
                         chara->field_44.field_48[1].vy = temp2;
                         chara->field_44.field_48[1].vz = temp_s0_9;
+#ifdef SH_PC_PORT
+                        SH_DBG("[COMBAT] A3E0 DA08 hit: calling B714 chara=%p ptr=%p pos=(%d,%d,%d)",
+                               (void*)chara, (void*)ptr,
+                               D_800C4728.field_4.vx, D_800C4728.field_4.vy, D_800C4728.field_4.vz);
+#endif
                         func_8008B714(chara, ptr, &D_800C4728.field_4, 0);
                     }
                 }
@@ -1279,15 +1307,37 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     offsetY       = temp_fp->field_10;
     sp14         = attacker->field_44.field_8;
     offsetZ       = arg3;
+#ifdef SH_PC_PORT
+    SH_DBG("[B714] entry: attacker=%p(id=%d) target=%p(id=%d) weaponAttack=%d offsetY=%d sp14=0x%x arg3=%d",
+           (void*)attacker, attacker->model_0.charaId_0,
+           (void*)target, target->model_0.charaId_0,
+           weaponAttack, offsetY, sp14, arg3);
+    SH_DBG("[B714] attacker pos=(%d,%d,%d) target pos=(%d,%d,%d)",
+           attacker->position_18.vx, attacker->position_18.vy, attacker->position_18.vz,
+           target->position_18.vx, target->position_18.vy, target->position_18.vz);
+#endif
 
     if (target == &g_SysWork.playerWork_4C.player_0)
     {
         sp10             = NO_VALUE;
+#ifdef SH_PC_PORT
+        SH_DBG("[B714] target=Harry path: computing field_40");
+#endif
         target->field_40 = (((s32)((uintptr_t)((u8*)attacker - sizeof(s_PlayerWork)) - (uintptr_t)target) * -0x6EB3E453) >> 3);
+#ifdef SH_PC_PORT
+        SH_DBG("[B714] field_40=%d sp10=%d", target->field_40, sp10);
+#endif
     }
     else
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[B714] target=NPC path");
+#endif
         sp10 = 1 << (((s32)((uintptr_t)((u8*)target - sizeof(s_PlayerWork)) - (uintptr_t)&g_SysWork.playerWork_4C) * -0x6EB3E453) >> 3);
+
+#ifdef SH_PC_PORT
+        SH_DBG("[B714] NPC target: sp10=%d sp14=0x%x sp14&sp10=%d", sp10, sp14, sp14 & sp10);
+#endif
 
         if (sp14 & sp10)
         {
@@ -1332,6 +1382,10 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 
     var_s0 = Q12(temp_fp->field_4);
+
+#ifdef SH_PC_PORT
+    SH_DBG("[B714] damage switch: weaponAttack=%d var_s0=%d sp10=%d sp14=0x%x", weaponAttack, var_s0, sp10, sp14);
+#endif
 
     switch (weaponAttack)
     {
@@ -1487,6 +1541,10 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             break;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[B714] pre-damage: damageAmt=%d var_s7=%d offsetXYZ=(%d,%d,%d)",
+           damageAmt, var_s7, offsetX, offsetY, offsetZ);
+#endif
     if (damageAmt != Q12(0.0f))
     {
         target->damage_B4.amount_C += damageAmt;
@@ -1505,10 +1563,18 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     target->attackReceived_41 = weaponAttack;
     sp14                     |= sp10;
     attacker->field_44.field_8 = sp14;
+#ifdef SH_PC_PORT
+    SH_DBG("[B714] post-damage: target->health=%d attackReceived=%d", target->health_B0, target->attackReceived_41);
+#endif
 
     if (damageAmt | var_s7)
     {
         var_a2 = temp_fp->field_12;
+
+#ifdef SH_PC_PORT
+        SH_DBG("[B714] effects: var_a2=%d target_charaId=%d damageAmt=%d var_s7=%d",
+               var_a2, target->model_0.charaId_0, damageAmt, var_s7);
+#endif
 
         if (var_a2 > 0 && var_a2 < 8)
         {
@@ -1600,11 +1666,21 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
 
             if (var_a3 >= 0)
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[B714] calling F6B0: target=%p(id=%d) var_a2=%d var_a3=%d",
+                       (void*)target, target->model_0.charaId_0, var_a2, var_a3);
+#endif
                 func_8005F6B0(target, arg2, var_a2, var_a3);
+#ifdef SH_PC_PORT
+                SH_DBG("[B714] F6B0 returned");
+#endif
             }
         }
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[B714] return sp10=%d", sp10);
+#endif
     return sp10;
 }
 
@@ -1676,6 +1752,12 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
     countX = chara->field_44.field_24[0].vx;
     countY = chara->field_44.field_24[0].vy;
     coundZ = chara->field_44.field_24[0].vz;
+
+#ifdef SH_PC_PORT
+    SH_DBG("[COMBAT] BF84 entry: chara=%p(id=%d) angle=%d arg3=%d pos=(%d,%d,%d)",
+           (void*)chara, chara->model_0.charaId_0, angle, arg3,
+           chara->position_18.vx, chara->position_18.vy, chara->position_18.vz);
+#endif
 
     sinAngle = Math_Sin(angle);
     cosAngle = Math_Cos(angle);
@@ -1794,8 +1876,19 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             chara1->health_B0 < Q12(0.0f) ||
             !chara1->field_E1_0)
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[COMBAT] BF84 loop i=%d chara1=%p(id=%d) skip (sysState=%d hp=%d active=%d)",
+                   i, (void*)chara1, chara1->model_0.charaId_0,
+                   g_SysWork.sysState_8, chara1->health_B0, chara1->field_E1_0);
+#endif
             continue;
         }
+
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] BF84 loop i=%d chara1=%p(id=%d) candidate hp=%d pos=(%d,%d,%d)",
+               i, (void*)chara1, chara1->model_0.charaId_0,
+               chara1->health_B0, chara1->position_18.vx, chara1->position_18.vy, chara1->position_18.vz);
+#endif
 
         D_800C47E8.vx = chara1->position_18.vx + chara1->field_D8.offsetX_0;
         D_800C47E8.vy = chara1->position_18.vy;
@@ -1877,6 +1970,10 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
         temp_s3  = chara1->field_D4.field_2;
         var_a1_2 = 0;
+#ifdef SH_PC_PORT
+        SH_DBG("[BF84-NHP] A: j=%d sp48=%d sp3C=%d temp_s6=%d temp_s5=%d temp_s3=%d temp_t2=%d temp_a0_3=%d sp44=%d sp38=%d sp4C=%d sp40=%d",
+               j, sp48, sp3C, temp_s6, temp_s5, temp_s3, temp_t2, temp_a0_3, sp44, sp38, sp4C, sp40);
+#endif
 
         if (temp_t2 < sp44)
         {
@@ -1927,6 +2024,10 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             }
         }
 
+#ifdef SH_PC_PORT
+        SH_DBG("[BF84-NHP] B: passed bbox filter var_a1_2=%d var_v1=%d sp34=%d var_s7=%d var_fp=%d countXYZ=(%d,%d,%d)",
+               var_a1_2, var_v1, sp34, var_s7, var_fp, countX, countY, coundZ);
+#endif
         var_v0 = sp34;
         if (var_v0 < 0)
         {
@@ -1966,8 +2067,16 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             var_t2 = 0;
         }
 
+#ifdef SH_PC_PORT
+        SH_DBG("[BF84-NHP] C: temp_s2=%d var_s1=%d temp_s0=%d var_t1=%d var_t2=%d temp_s3=%d",
+               temp_s2, var_s1, temp_s0, var_t1, var_t2, temp_s3);
+#endif
+
         for (j = 2; (var_t2 < temp_s0 || temp_s0 < -var_t2 || temp_s3 < var_t1) && j > 0; j--)
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[BF84-NHP] D loop j=%d: var_t1=%d temp_s0=%d var_t2=%d temp_s3=%d", j, var_t1, temp_s0, var_t2, temp_s3);
+#endif
             if (temp_s3 < var_t1)
             {
                 temp_lo_5 = Q12(temp_s3) / var_t1;
@@ -1997,7 +2106,10 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         D_800C47B8.vx = temp_t4_2 + temp_s2;
         D_800C47B8.vy = (sp58 + sp5C) + temp_s0;
         D_800C47B8.vz = temp_t5 + var_s1;
-
+#ifdef SH_PC_PORT
+        SH_DBG("[COMBAT] BF84 calling B714: chara=%p chara1=%p pos=(%d,%d,%d) arg3=%d",
+               (void*)chara, (void*)chara1, D_800C47B8.vx, D_800C47B8.vy, D_800C47B8.vz, arg3);
+#endif
         if (func_8008B714(chara, chara1, &D_800C47B8, arg3))
         {
             sp14 |= sp18;
