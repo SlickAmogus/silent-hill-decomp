@@ -204,6 +204,10 @@ const u32 D_8002AF70[] = { 0xC4E0E0A8, 0x54A8, 0};
 
 void func_800892A4(s32 idx) // 0x800892A4
 {
+#ifdef SH_PC_PORT
+    /* Same vibration linked-list crash as func_800892DC — skip on PC. */
+    return;
+#endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], 0x80);
 }
 
