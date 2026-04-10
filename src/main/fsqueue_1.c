@@ -33,7 +33,15 @@ bool Fs_QueueDoThingWhenEmpty(void)
     result = false;
     if (Fs_QueueGetLength() == 0)
     {
+#ifdef SH_PC_PORT
+        /* On PC, CD reads are synchronous: if the queue is empty, the file
+         * is already loaded. Don't gate on Ipd_ChunkInitCheck() which can
+         * return false if LM hasn't fully processed chunks yet — this would
+         * permanently block the item pickup state machine. */
+        result = true;
+#else
         result = Ipd_ChunkInitCheck() != 0;
+#endif
     }
 
     return result;

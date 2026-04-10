@@ -180,7 +180,14 @@ void func_8003596C(void) // 0x8003596C
 {
     if (g_MapOverlayHeader.bgmIdx_14 == 1)
     {
+#ifdef SH_PC_PORT
+        /* On PC, do not force-start the alley BGM during map load. On PSX the CD load
+         * delay meant this happened mid-gameplay; on PC it fires during the loading screen.
+         * The per-frame Bgm_TrackUpdate(false) in game_sys_states.c handles BGM correctly
+         * once gameplay begins, keeping it muted for the indoor area. */
+#else
         Bgm_TrackUpdate(true);
+#endif
     }
 }
 
