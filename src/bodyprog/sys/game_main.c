@@ -10,6 +10,7 @@ extern float g_PsyX_FogColor[3];
 extern int g_PcHorPlusEnabled;
 #include <stdio.h>
 #include <SDL_scancode.h>
+#include <SDL_mouse.h>
 extern u8 g_WorldEnvWork[];
 #define PC_WorldEnvWork (*(s_WorldEnvWork*)g_WorldEnvWork)
 #include "bodyprog/view/vw_main.h"
@@ -189,7 +190,10 @@ void DebugCamera_Update(void)
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_2];
         if (cur && !prevKey) {
             g_DebugThirdPersonCam = !g_DebugThirdPersonCam;
-            SH_DBG("[DEBUG] Third-person camera: %s", g_DebugThirdPersonCam ? "ON" : "OFF");
+            /* Capture/release mouse for TPS mode */
+            SDL_SetRelativeMouseMode(g_DebugThirdPersonCam ? SDL_TRUE : SDL_FALSE);
+            SH_DBG("[DEBUG] Third-person camera: %s (mouse %s)", g_DebugThirdPersonCam ? "ON" : "OFF",
+                   g_DebugThirdPersonCam ? "captured" : "released");
         }
         prevKey = cur;
     }
@@ -304,13 +308,38 @@ void DebugCamera_Update(void)
 
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
-        /* Third-person follow camera: static overhead-behind view, no input handling */
+        /* Third-person follow camera with WASD + mouse controls */
         if (g_DebugThirdPersonCam) {
             #define TP_DIST         Q12(2.5f)    /* world units behind Harry */
             #define TP_HEIGHT       Q12(-1.4f)   /* world units above Harry (Y-up = negative) */
             #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
+            #define TP_MOUSE_SENS   6            /* Q12 units per pixel of mouse movement */
+            #define TP_STRAFE_SPD   Q12(1.5f)    /* strafe speed (same as walk) */
 
             s_SubCharacter* tp_hr = &g_SysWork.playerWork_4C.player_0;
+
+            /* Mouse look: rotate Harry's yaw */
+            {
+                int mdx = 0, mdy = 0;
+                SDL_GetRelativeMouseState(&mdx, &mdy);
+                tp_hr->rotation_24.vy += (q3_12)(mdx * TP_MOUSE_SENS);
+                tp_hr->rotation_24.vy = Q12_ANGLE_NORM_U(tp_hr->rotation_24.vy + Q12_ANGLE(360.0f));
+            }
+
+            /* A/D strafe: move perpendicular to Harry's facing, applied before Player_Update */
+            {
+                int strafeDir = g_sdlKeyboardState[SDL_SCANCODE_D] ? 1 :
+                                (g_sdlKeyboardState[SDL_SCANCODE_A] ? -1 : 0);
+                if (strafeDir) {
+                    s32 strafeDist = Q12_MULT_PRECISE(TP_STRAFE_SPD, g_DeltaTime);
+                    s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
+                    s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
+                    /* Right direction is perpendicular to facing: (cosY, 0, -sinY) */
+                    tp_hr->position_18.vx += strafeDir * Q12_MULT_PRECISE(strafeDist, tpCosY);
+                    tp_hr->position_18.vz -= strafeDir * Q12_MULT_PRECISE(strafeDist, tpSinY);
+                }
+            }
+
             s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
             s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
 
@@ -331,6 +360,8 @@ void DebugCamera_Update(void)
             #undef TP_DIST
             #undef TP_HEIGHT
             #undef TP_LOOKAT_OFS
+            #undef TP_MOUSE_SENS
+            #undef TP_STRAFE_SPD
         }
         return;
     }

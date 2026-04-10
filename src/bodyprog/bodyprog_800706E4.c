@@ -15,6 +15,9 @@ static jmp_buf s_PlayerCrashJmp;
 static volatile sig_atomic_t s_PlayerCrashGuardActive = 0;
 extern int g_DebugNoWallCollision;
 extern int g_DebugNoFloorCollision;
+extern int g_DebugThirdPersonCam;
+extern const unsigned char* g_sdlKeyboardState;
+#include <SDL_scancode.h>
 
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
@@ -1173,12 +1176,24 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
             {
                 q3_12 turnSpeed = Q12_ANGLE(2.0f);
 
-                /* Turn */
-                if (g_Player_IsTurningLeft) {
-                    chara->rotation_24.vy -= turnSpeed;
+                /* TPS mode: override movement flags from WASD; mouse yaw applied in DebugCamera_Update */
+                if (g_DebugThirdPersonCam) {
+                    g_Player_IsMovingForward  = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
+                    g_Player_IsMovingBackward = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
+                    g_Player_IsRunning        = g_Player_IsMovingForward && (g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0);
+                    g_Player_IsTurningLeft    = 0;
+                    g_Player_IsTurningRight   = 0;
+                    g_Player_HasMoveInput     = g_Player_IsMovingForward || g_Player_IsMovingBackward;
                 }
-                if (g_Player_IsTurningRight) {
-                    chara->rotation_24.vy += turnSpeed;
+
+                /* Turn (PSX pad or A/D in non-TPS mode; skipped in TPS mode since mouse handles yaw) */
+                if (!g_DebugThirdPersonCam) {
+                    if (g_Player_IsTurningLeft) {
+                        chara->rotation_24.vy -= turnSpeed;
+                    }
+                    if (g_Player_IsTurningRight) {
+                        chara->rotation_24.vy += turnSpeed;
+                    }
                 }
                 chara->rotation_24.vy = Q12_ANGLE_NORM_U(chara->rotation_24.vy + Q12_ANGLE(360.0f));
 
@@ -2232,6 +2247,10 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                        (s32)chara->model_0.anim_4.keyframeIdx_8,
                        (s32)g_MapOverlayHeader.field_38[D_800AF220].time_4);
                 chara->model_0.anim_4.keyframeIdx_8 = g_MapOverlayHeader.field_38[D_800AF220].time_4;
+                chara->model_0.anim_4.time_4 = Q12(g_MapOverlayHeader.field_38[D_800AF220].time_4);
+                extra->model_0.anim_4.keyframeIdx_8 = g_MapOverlayHeader.field_38[D_800AF220].time_4;
+                extra->model_0.anim_4.time_4 = Q12(g_MapOverlayHeader.field_38[D_800AF220].time_4);
+                Player_AnimFlagsSet(AnimFlag_Unlocked | AnimFlag_Visible);
                 chara->model_0.stateStep_3 = 2; /* prevent re-reset next frame */
                 extra->model_0.stateStep_3 = 2; /* prevent re-entry */
             }

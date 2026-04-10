@@ -1,0 +1,83 @@
+# Silent Hill PC Port Configuration
+# Lines starting with # are comments
+
+# Rendering resolution
+width = 640
+height = 480
+
+# Fullscreen mode (0 = windowed, 1 = fullscreen)
+fullscreen = 0
+
+# VSync (0 = off/uncapped, 1 = on, -1 = adaptive vsync)
+vsync = 0
+
+# Target refresh rate in hz (0 = display default). Only applies in fullscreen mode.
+# Set to your monitor's refresh rate (e.g. 60, 144, 240) combined with vsync = 1.
+refresh_rate = 0
+
+# Gameplay FPS cap (0 = uncapped, 30 = PSX-accurate, 60 = smooth).
+# The PSX ran at 30fps (2 vblanks/frame). Set to 0 for uncapped or 60 for 60fps.
+# Toggle at runtime with numpad 0. Game physics use real elapsed time so any cap is safe.
+fps_cap = 30
+
+# Disable aggressive PSX view culling (0 = original culling, 1 = render all objects)
+# The original game aggressively culls objects based on view angle and position.
+# Disabling culling prevents objects like fences and trees from popping in/out.
+disable_culling = 1
+
+# Preload all IPD chunks at map init (0 = PSX streaming, 1 = load all at once)
+# The PSX streams 2-4 chunks from CD as the player moves. On PC, we can load
+# all chunks for the entire map at once, eliminating streaming delays and
+# ensuring all geometry is always available.
+preload_chunks = 1
+
+# Map overlay to load on New Game.
+# With DLL map overlays built (-DSH_BUILD_MAP_DLLS=ON), 31 maps have
+# full event/AI/NPC code. Without DLLs, only map0_s00 is fully compiled;
+# other maps load geometry (IPD chunks, fog, ambient) but use stub headers.
+#
+# Available maps:
+#   map0_s00  Old Silent Hill - streets (start area)
+#   map0_s01  Old Silent Hill - streets (Cybil encounter)
+#   map0_s02  Old Silent Hill - streets (alley)
+#   map1_s00  Midwich Elementary - exterior
+#   map1_s01  Midwich Elementary - 1F
+#   map1_s02  Midwich Elementary - 2F
+#   map1_s03  Midwich Elementary - 3F
+#   map1_s04  Midwich Elementary - courtyard
+#   map1_s05  Midwich Elementary - otherworld
+#   map1_s06  Midwich Elementary - exterior (after)
+#   map2_s00  Old Silent Hill - streets (after school)
+#   map2_s01  Old Silent Hill - sewers
+#   map2_s02  Old Silent Hill - streets (shopping district)
+#   map2_s03  Old Silent Hill - streets (residential)
+#   map2_s04  Old Silent Hill - Balkan Church
+#   map3_s00  Alchemilla Hospital - 1F
+#   map3_s01  Alchemilla Hospital - 2F/3F
+#   map3_s02  Alchemilla Hospital - otherworld 1F
+#   map3_s03  Alchemilla Hospital - otherworld 2F
+#   map3_s04  Alchemilla Hospital - otherworld 3F
+#   map3_s05  Alchemilla Hospital - otherworld basement
+#   map3_s06  Alchemilla Hospital - 1F (Lisa)
+#   map4_s00  Central Silent Hill - streets
+#   map4_s01  Central Silent Hill - antique shop
+#   map4_s02  Central Silent Hill - otherworld streets
+#   map4_s03  Central Silent Hill - otherworld (sewers)
+#   map4_s04  Central Silent Hill - otherworld (apartment)
+#   map4_s05  Central Silent Hill - otherworld
+#   map4_s06  Central Silent Hill - streets (return)
+#   map5_s00  Nowhere - otherworld streets
+#   map5_s01  Resort area - streets
+#   map5_s02  Resort area - Annie's Bar
+#   map5_s03  Resort area - lighthouse
+#   map6_s00  Resort area - otherworld streets
+#   map6_s01  Resort area - resort building
+#   map6_s02  Resort area - otherworld
+#   map6_s03  Nowhere - void
+#   map6_s04  Nowhere - otherworld (Alessa)
+#   map6_s05  Nowhere - otherworld
+#   map7_s00  Nowhere - final
+#   map7_s01  Nowhere - final (2)
+#   map7_s02  Nowhere - final (3)
+#   map7_s03  Nowhere - ending
+map = map0_s00

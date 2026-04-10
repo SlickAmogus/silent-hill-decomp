@@ -1595,8 +1595,8 @@
       .ofs_watch_hy_14 = Q4(-1.0f),
       .field_15 = 0,
       .cam_mv_type_14 = VC_MV_FIX_ANG,
-      .fix_ang_x_16 = Q8_ANGLE(297.0f), /* PC corrected: debug cam angleX=720 → pitch down ~63° */
-      .fix_ang_y_17 = Q8_ANGLE(28.0f),  /* PC corrected: debug cam angleY=320 → yaw ~28° */
+      .fix_ang_x_16 = Q8_ANGLE(305.0f), /* PC corrected: debug cam angleX=624 Q12 → pitch ~55° down */
+      .fix_ang_y_17 = Q8_ANGLE(45.0f),  /* PC corrected: debug cam angleY=512 Q12 → yaw ~45° */
     },
     {
       .lim_sw_0 = {

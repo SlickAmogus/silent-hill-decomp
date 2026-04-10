@@ -92,18 +92,41 @@ void Anim_BoneUpdate(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords, s32 keyfram
      * may reference keyframes beyond the loaded animation data. */
     if (anmHdr->keyframeDataSize_4 == 0) return;
     {
-        s32 maxKF = anmHdr->keyframeCount_10;
-        if (maxKF > 0) {
-            if (keyframe0 >= maxKF || keyframe1 >= maxKF) {
-                static int _kfClampDbgH = 0, _kfClampDbgN = 0;
-                int* cnt = (boneCount == 18) ? &_kfClampDbgH : &_kfClampDbgN;
-                if (*cnt < 10) {
-                    SH_DBG("[ANIM_KF] CLAMP kf0=%d kf1=%d maxKF=%d bones=%d kfSize=%d",
-                            keyframe0, keyframe1, maxKF, boneCount, anmHdr->keyframeDataSize_4);
-                    (*cnt)++;
+        /* Log Harry anim header stats once to diagnose death-anim kf range. */
+        static int _hdrLogged = 0;
+        if (!_hdrLogged && boneCount == 18) {
+            s32 _maxFS = (anmHdr->fileSize_C > (u32)anmHdr->dataOffset_0)
+                         ? (s32)((anmHdr->fileSize_C - anmHdr->dataOffset_0) / anmHdr->keyframeDataSize_4)
+                         : 0;
+            SH_DBG("[ANIM_HDR] Harry: kfSize=%d kfCount=%d fileSize=%u dataOfs=%u maxKF(file)=%d",
+                   anmHdr->keyframeDataSize_4, anmHdr->keyframeCount_10,
+                   anmHdr->fileSize_C, (unsigned)anmHdr->dataOffset_0, _maxFS);
+            /* Peek at what bytes exist at kf=710 vs kf=567 */
+            {
+                u8* d710 = ((u8*)anmHdr + anmHdr->dataOffset_0) + (anmHdr->keyframeDataSize_4 * 710);
+                u8* d567 = ((u8*)anmHdr + anmHdr->dataOffset_0) + (anmHdr->keyframeDataSize_4 * 567);
+                SH_DBG("[ANIM_HDR] kf567[0..3]=%02x %02x %02x %02x kf710[0..3]=%02x %02x %02x %02x",
+                       d567[0],d567[1],d567[2],d567[3], d710[0],d710[1],d710[2],d710[3]);
+            }
+            _hdrLogged = 1;
+        }
+        /* On PSX there was no bounds check — the anim data for high-numbered
+         * keyframes (like death anim kf=710-713) lived in PSX RAM past the
+         * declared keyframeCount_10 of 568. For Harry only (18 bones), skip
+         * clamping to match PSX behaviour; NPC anims still get clamped. */
+        if (boneCount != 18) {
+            s32 maxKF = (s32)anmHdr->keyframeCount_10;
+            if (maxKF > 0) {
+                if (keyframe0 >= maxKF || keyframe1 >= maxKF) {
+                    static int _kfClampDbgN = 0;
+                    if (_kfClampDbgN < 10) {
+                        SH_DBG("[ANIM_KF] CLAMP kf0=%d kf1=%d maxKF=%d bones=%d kfSize=%d",
+                                keyframe0, keyframe1, maxKF, boneCount, anmHdr->keyframeDataSize_4);
+                        _kfClampDbgN++;
+                    }
+                    if (keyframe0 >= maxKF) keyframe0 = maxKF - 1;
+                    if (keyframe1 >= maxKF) keyframe1 = maxKF - 1;
                 }
-                if (keyframe0 >= maxKF) keyframe0 = maxKF - 1;
-                if (keyframe1 >= maxKF) keyframe1 = maxKF - 1;
             }
         }
         if (keyframe0 < 0) keyframe0 = 0;

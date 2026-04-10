@@ -2049,7 +2049,9 @@ void vcMakeIdealCamPosForFixAngCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083A
                     Q12_MULT(offset_dist, Math_Cos(cam_angle_vec.vy + Q12_ANGLE(180.0f)));
     ideal_pos->vy = w_p->chara_pos_114.vy;
 
+#ifndef SH_PC_PORT
     vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, limit_area);
+#endif
 }
 
 void vcMakeIdealCamPosForThroughDoorCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083D2C
@@ -2225,7 +2227,9 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     temp_x = w_p->chara_pos_114.vx;
     temp_z = w_p->chara_pos_114.vz;
 
+#ifndef SH_PC_PORT
     vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&temp_x, &temp_z, &near_road_data->rd_14);
+#endif
 
     horizontal_distance_fp = Q12_TO_Q8(Vc_VectorMagnitudeCalc(temp_x - w_p->chara_pos_114.vx,
                                                                     delta_y_clamped,
@@ -2266,7 +2270,9 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     ideal_pos->vx = w_p->chara_pos_114.vx + Math_MulFixed(final_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y_FE), Q12_SHIFT);
     ideal_pos->vz = w_p->chara_pos_114.vz + Math_MulFixed(final_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y_FE), Q12_SHIFT);
 
+#ifndef SH_PC_PORT
     vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, &near_road_data->rd_14);
+#endif
 
     #undef ANGLE_DELTA_RANGE
 }
