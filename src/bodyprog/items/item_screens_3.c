@@ -4200,6 +4200,9 @@ void Gfx_PlayerHeldItemAttach(u8 weaponAttack) // 0x800546A8
 
 void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
 {
+#ifdef SH_PC_PORT
+    return; /* tmd->models_c is a PSX pointer; GsLinkObject4 crashes on 64-bit */
+#endif
     u8                 itemId;
     GsDOBJ2*           ptr;
     struct TMD_STRUCT* models;
@@ -4309,6 +4312,9 @@ void func_800549A0(void) // 0x800549A0
 
 void func_80054A04(u8 itemId) // 0x80054A04
 {
+#ifdef SH_PC_PORT
+    return; /* TMD data uses PSX pointers; Gfx_Items_Display crashes on 64-bit */
+#endif
     D_800AE187              = itemId;
     g_Items_DisplayedCount  = 0;
     g_Items_PickupAnimState = 0;
@@ -4339,6 +4345,9 @@ void func_80054A04(u8 itemId) // 0x80054A04
 
 bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
 {
+#ifdef SH_PC_PORT
+    return true; /* func_80054A04 is stubbed on PC; skip item pickup animation */
+#endif
     q19_12         scale;
     s16            rotX;
     s16            rotZ;
