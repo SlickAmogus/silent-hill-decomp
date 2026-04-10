@@ -277,14 +277,16 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) { SH_DBG("CHECK BGM HERE"); }
         prevKey = cur;
     }
-    /* Number key 4: mark incorrect camera position */
+    /* Number key 4: mark incorrect camera position (logs GAME camera, not debug cam) */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_4];
         if (cur && !prevKey) {
-            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d angleX=%d",
-                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
+            VECTOR3 gameCamPos;
+            vcGetNowCamPos(&gameCamPos);
+            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d",
+                (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
+                (int)g_SysWork.cameraAngleY_237A);
         }
         prevKey = cur;
     }
