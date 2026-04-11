@@ -2270,9 +2270,12 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     ideal_pos->vx = w_p->chara_pos_114.vx + Math_MulFixed(final_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y_FE), Q12_SHIFT);
     ideal_pos->vz = w_p->chara_pos_114.vz + Math_MulFixed(final_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y_FE), Q12_SHIFT);
 
-#ifndef SH_PC_PORT
+    /* On PC: re-enable XZ constraint so the camera doesn't clip into walls or
+     * into void through narrow alley geometry. Without this, the chase-cam goes
+     * through walls whenever the road lim_rd_8 Z-range is small (e.g. the town
+     * alley has Z=[112,128], only 16 world units).  The PSX road node data was
+     * authored assuming this constraint is always active. */
     vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, &near_road_data->rd_14);
-#endif
 
     #undef ANGLE_DELTA_RANGE
 }

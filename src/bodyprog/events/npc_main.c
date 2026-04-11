@@ -321,9 +321,35 @@ void Game_NpcUpdate(void) // 0x80038354
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model_0.charaId_0 < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
                                     g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0] != NULL);
-                bool isSafeNpc   = (npc->model_0.charaId_0 == Chara_Cheryl ||
+                /* NPCs whose AI we fully run (collision + anim safe) */
+                bool isFullAiNpc = (npc->model_0.charaId_0 == Chara_Cheryl ||
                                     npc->model_0.charaId_0 == Chara_GreyChild);
-                if (!animLoaded || !hasUpdateFn || !isSafeNpc)
+                /* NPCs we let EXIST (model renders, DMS can move them) but skip AI.
+                 * Cybil: needed for post-alley cutscene. AirScreamer: loads but AI crashes. */
+                bool isRenderOnlyNpc = (npc->model_0.charaId_0 == Chara_Cybil ||
+                                        npc->model_0.charaId_0 == Chara_AirScreamer);
+
+                if (!animLoaded || !isFullAiNpc)
+                {
+                    if (isRenderOnlyNpc && animLoaded)
+                    {
+                        /* Let render-only NPCs stay present; call rendering but skip AI.
+                         * func_8003DA9C draws the NPC model using the coord hierarchy. */
+                        if (npc->model_0.anim_4.flags_2 & AnimFlag_Visible) {
+                            func_8003DA9C(npc->model_0.charaId_0,
+                                          g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                          1, npc->timer_C6,
+                                          (s8)npc->model_0.paletteIdx_1);
+                        }
+                    }
+                    else
+                    {
+                        /* Fully unsafe NPC — remove so it doesn't keep firing. */
+                        npc->model_0.charaId_0 = Chara_None;
+                    }
+                    continue;
+                }
+                if (!hasUpdateFn)
                 {
                     npc->model_0.charaId_0 = Chara_None;
                     continue;

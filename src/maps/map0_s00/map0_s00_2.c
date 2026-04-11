@@ -1788,15 +1788,16 @@ void func_800DD0CC(void) // 0x800DD0CC
 
 #ifdef SH_PC_PORT
     /* Road-node camera clips into narrow alley walls on PC.
-     * Use a simple follow camera: 2.5u behind Harry, 1.4u above, chest lookat. */
+     * Use a simple follow camera: 2.5u BEHIND Harry, 1.4u above, chest lookat. */
     {
         q3_12  rotY = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
-        q19_12 camX = g_SysWork.playerWork_4C.player_0.position_18.vx + Q12_MULT(Math_Sin(rotY), Q12(2.5f));
+        /* Subtract sin/cos to place camera BEHIND Harry (opposite facing direction) */
+        q19_12 camX = g_SysWork.playerWork_4C.player_0.position_18.vx - Q12_MULT(Math_Sin(rotY), Q12(2.5f));
         q19_12 camY = g_SysWork.playerWork_4C.player_0.position_18.vy - Q12(1.4f);
-        q19_12 camZ = g_SysWork.playerWork_4C.player_0.position_18.vz + Q12_MULT(Math_Cos(rotY), Q12(2.5f));
+        q19_12 camZ = g_SysWork.playerWork_4C.player_0.position_18.vz - Q12_MULT(Math_Cos(rotY), Q12(2.5f));
         Camera_PositionSet(NULL, camX, camY, camZ, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
         Camera_LookAtSet(&g_SysWork.playerWork_4C.player_0.position_18,
-                         Q12(0.0f), Q12(-0.7f), Q12(0.0f),
+                         Q12(0.0f), Q12(-0.85f), Q12(0.0f),
                          Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
     }
 #endif
