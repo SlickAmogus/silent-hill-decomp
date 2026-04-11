@@ -14,6 +14,7 @@
 #include "bodyprog/player.h"
 #include "bodyprog/ranking.h"
 #include "bodyprog/sound_system.h"
+#include "sh_log.h"
 
 // ========================================
 // GLOBAL VARIABLES
@@ -211,9 +212,22 @@ void Fs_CharaAnimInfoUpdate(s32 idx, e_CharacterId charaId, s_AnmHeader* animFil
         }
         else if (idx >= 2)
         {
+#ifdef SH_PC_PORT
+            /* Guard: previous slot's animFile may be NULL if that NPC never
+             * completed loading (e.g. Air Screamer async ANM read arriving
+             * before the previous slot is initialised).  Fall back to the
+             * start of the NPC coord area to avoid a NULL deref crash. */
+            if (g_CharaTypeAnimInfo[idx - 1].animFile1_8 == NULL) {
+                SH_DBG("[ANIM_ALLOC] Fs_CharaAnimInfoUpdate idx=%d: prev slot animFile=NULL, using npcCoords_FC0[0]", idx);
+                localCoord = &g_SysWork.npcCoords_FC0[0];
+            } else {
+#endif
             idx0        = g_CharaTypeAnimInfo[idx - 1].animFile1_8->boneCount_6;
             localCoord  = g_CharaTypeAnimInfo[idx - 1].npcCoords_14;
             localCoord += idx0 + 1;
+#ifdef SH_PC_PORT
+            }
+#endif
 
             // Check for end of `g_SysWork.npcCoords_FC0` array.
             if ((&localCoord[animFile->boneCount_6] + 1) >= &g_SysWork.npcCoords_FC0[NPC_BONE_COUNT_MAX])

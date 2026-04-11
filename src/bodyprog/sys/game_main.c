@@ -317,13 +317,18 @@ void DebugCamera_Update(void)
             #define TP_STRAFE_SPD   Q12(1.5f)    /* strafe speed (same as walk) */
 
             s_SubCharacter* tp_hr = &g_SysWork.playerWork_4C.player_0;
+            static s32 s_TpsPitch = 0;  /* vertical camera orbit angle (Q12): + = camera rises above Harry */
 
-            /* Mouse look: rotate Harry's yaw */
+            /* Mouse look: rotate Harry's yaw and pitch the camera */
             {
                 int mdx = 0, mdy = 0;
                 SDL_GetRelativeMouseState(&mdx, &mdy);
                 tp_hr->rotation_24.vy += (q3_12)(mdx * TP_MOUSE_SENS);
                 tp_hr->rotation_24.vy = Q12_ANGLE_NORM_U(tp_hr->rotation_24.vy + Q12_ANGLE(360.0f));
+                /* mdy > 0 = mouse moved down; subtract so mouse-up raises camera */
+                s_TpsPitch -= (s32)(mdy * TP_MOUSE_SENS);
+                if (s_TpsPitch < -Q12_ANGLE(30.0f)) s_TpsPitch = -Q12_ANGLE(30.0f);
+                if (s_TpsPitch >  Q12_ANGLE(80.0f)) s_TpsPitch =  Q12_ANGLE(80.0f);
             }
 
             /* A/D strafe: move perpendicular to Harry's facing, applied before Player_Update */
@@ -343,19 +348,52 @@ void DebugCamera_Update(void)
             s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
             s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
 
-            VECTOR3 tpCamPos, tpLookAt;
-            /* Place camera behind Harry at elevated position */
-            tpCamPos.vx = tp_hr->position_18.vx - (s32)((s64)TP_DIST * tpSinY >> 12);
-            tpCamPos.vz = tp_hr->position_18.vz - (s32)((s64)TP_DIST * tpCosY >> 12);
-            tpCamPos.vy = tp_hr->position_18.vy + TP_HEIGHT;
+            /* Orbit the camera around Harry using both yaw and pitch */
+            s32 tpSinPitch  = Math_Sin(s_TpsPitch);
+            s32 tpCosPitch  = Math_Cos(s_TpsPitch);
+            /* Horizontal dist shrinks as camera pitches up/down */
+            s32 tpHorizDist = (s32)((s64)TP_DIST * tpCosPitch >> 12);
+            /* Vertical lift above the base height from pitching */
+            s32 tpVertLift  = (s32)((s64)TP_DIST * tpSinPitch >> 12);
 
-            /* Look at Harry's upper body */
+            VECTOR3 tpCamPos, tpLookAt;
+            /* Place camera behind and above Harry, orbiting on pitch axis */
+            tpCamPos.vx = tp_hr->position_18.vx - (s32)((s64)tpHorizDist * tpSinY >> 12);
+            tpCamPos.vz = tp_hr->position_18.vz - (s32)((s64)tpHorizDist * tpCosY >> 12);
+            /* TP_HEIGHT is negative (up); subtracting tpVertLift raises camera further when pitch > 0 */
+            tpCamPos.vy = tp_hr->position_18.vy + TP_HEIGHT - tpVertLift;
+
+            /* Look at Harry's chest */
             tpLookAt.vx = tp_hr->position_18.vx;
             tpLookAt.vz = tp_hr->position_18.vz;
             tpLookAt.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
 
             Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
+
+            /* Key 6 (top row): snapshot TPS camera state to log for tuning */
+            {
+                static int s_tpLogPrev = 0;
+                int s_tpLogCur = g_sdlKeyboardState[SDL_SCANCODE_6];
+                if (s_tpLogCur && !s_tpLogPrev) {
+                    SH_DBG("[TPS-SNAP] harry  pos=(%d,%d,%d)  yaw=%d  (%.2f,%.2f,%.2f deg=%.1f)",
+                        tp_hr->position_18.vx, tp_hr->position_18.vy, tp_hr->position_18.vz,
+                        (int)tp_hr->rotation_24.vy,
+                        tp_hr->position_18.vx / 4096.0f, tp_hr->position_18.vy / 4096.0f, tp_hr->position_18.vz / 4096.0f,
+                        tp_hr->rotation_24.vy * 360.0f / 4096.0f);
+                    SH_DBG("[TPS-SNAP] camPos=(%d,%d,%d)  (%.2f,%.2f,%.2f)",
+                        tpCamPos.vx, tpCamPos.vy, tpCamPos.vz,
+                        tpCamPos.vx / 4096.0f, tpCamPos.vy / 4096.0f, tpCamPos.vz / 4096.0f);
+                    SH_DBG("[TPS-SNAP] lookAt=(%d,%d,%d)  (%.2f,%.2f,%.2f)",
+                        tpLookAt.vx, tpLookAt.vy, tpLookAt.vz,
+                        tpLookAt.vx / 4096.0f, tpLookAt.vy / 4096.0f, tpLookAt.vz / 4096.0f);
+                    SH_DBG("[TPS-SNAP] pitch=%d (%.1f deg)  horizDist=%d vertLift=%d  sinPitch=%d cosPitch=%d",
+                        s_TpsPitch, s_TpsPitch * 360.0f / 4096.0f,
+                        tpHorizDist, tpVertLift, tpSinPitch, tpCosPitch);
+                    SH_DBG("[TPS-SNAP] sinY=%d cosY=%d", tpSinY, tpCosY);
+                }
+                s_tpLogPrev = s_tpLogCur;
+            }
 
             #undef TP_DIST
             #undef TP_HEIGHT
