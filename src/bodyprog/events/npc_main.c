@@ -331,16 +331,22 @@ void Game_NpcUpdate(void) // 0x80038354
 
                 if (!animLoaded || !isFullAiNpc)
                 {
-                    if (isRenderOnlyNpc && animLoaded)
+                    if (isRenderOnlyNpc)
                     {
-                        /* Let render-only NPCs stay present; call rendering but skip AI.
-                         * func_8003DA9C draws the NPC model using the coord hierarchy. */
-                        if (npc->model_0.anim_4.flags_2 & AnimFlag_Visible) {
+                        /* Keep render-only NPCs alive even while ANM is still loading.
+                         * Without this, the NPC gets set to None before the async ANM
+                         * read completes, and the model never renders. */
+                        if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
+                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
+                                   npc->model_0.charaId_0, animDataInfoIdx,
+                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14);
                             func_8003DA9C(npc->model_0.charaId_0,
                                           g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
                                           1, npc->timer_C6,
                                           (s8)npc->model_0.paletteIdx_1);
+                            SH_DBG("[NPC_RENDER] done charaId=%d", npc->model_0.charaId_0);
                         }
+                        /* If ANM not yet loaded or not visible, just skip — don't remove the NPC. */
                     }
                     else
                     {
