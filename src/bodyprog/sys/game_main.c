@@ -313,7 +313,8 @@ void DebugCamera_Update(void)
             #define TP_DIST         Q12(2.5f)    /* world units behind Harry */
             #define TP_HEIGHT       Q12(-1.4f)   /* world units above Harry (Y-up = negative) */
             #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
-            #define TP_MOUSE_SENS   6            /* Q12 units per pixel of mouse movement */
+            #define TP_MOUSE_SENS   6            /* Q12 units per pixel for horizontal yaw */
+            #define TP_PITCH_SENS   2            /* Q12 units per pixel for vertical pitch (lower = less sensitive) */
             #define TP_STRAFE_SPD   Q12(1.5f)    /* strafe speed (same as walk) */
 
             s_SubCharacter* tp_hr = &g_SysWork.playerWork_4C.player_0;
@@ -326,7 +327,7 @@ void DebugCamera_Update(void)
                 tp_hr->rotation_24.vy += (q3_12)(mdx * TP_MOUSE_SENS);
                 tp_hr->rotation_24.vy = Q12_ANGLE_NORM_U(tp_hr->rotation_24.vy + Q12_ANGLE(360.0f));
                 /* mdy > 0 = mouse moved down; subtract so mouse-up raises camera */
-                s_TpsPitch -= (s32)(mdy * TP_MOUSE_SENS);
+                s_TpsPitch -= (s32)(mdy * TP_PITCH_SENS);
                 if (s_TpsPitch < -Q12_ANGLE(30.0f)) s_TpsPitch = -Q12_ANGLE(30.0f);
                 if (s_TpsPitch >  Q12_ANGLE(80.0f)) s_TpsPitch =  Q12_ANGLE(80.0f);
             }
@@ -368,7 +369,28 @@ void DebugCamera_Update(void)
             tpLookAt.vz = tp_hr->position_18.vz;
             tpLookAt.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
 
-            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
+            /* Build view matrix directly instead of using Vw_SetLookAtMatrix.
+             * Vw_SetLookAtMatrix re-derives yaw via ratan2(sinY*k, cosY*k) — the
+             * Q12 sin/cos tables have rounding errors so sqrt(sinY²+cosY²) ≠ 1,
+             * making the computed pitch vary with Harry's yaw → camera tilts on
+             * left/right mouse movement.  Using Harry's exact yaw fixes this. */
+            {
+                SVECTOR camRot;
+                MATRIX  viewMat;
+                /* Pitch: delta from camPos to lookAt, horizontal dist already yaw-independent */
+                s32 deltaY_q8    = (s32)Q12_TO_Q8(tpLookAt.vy - tpCamPos.vy);
+                s32 horizDist_q8 = (s32)Q12_TO_Q8(tpHorizDist > 0 ? tpHorizDist : 1);
+                camRot.vz = (s16)Q12_ANGLE(0.0f);
+                /* Exact yaw: no sin/cos→ratan2 rounding from horizontal mouse movement */
+                camRot.vy = (s16)tp_hr->rotation_24.vy;
+                /* Pitch: stable because tpHorizDist only depends on s_TpsPitch, not Harry's yaw */
+                camRot.vx = (s16)ratan2(-(q23_8)deltaY_q8, (q23_8)horizDist_q8);
+                Math_RotMatrixZxyNeg(&camRot, &viewMat);
+                viewMat.t[0] = Q12_TO_Q8(tpCamPos.vx);
+                viewMat.t[1] = Q12_TO_Q8(tpCamPos.vy);
+                viewMat.t[2] = Q12_TO_Q8(tpCamPos.vz);
+                vwSetViewInfoDirectMatrix(NULL, &viewMat);
+            }
             vwSetViewInfo();
 
             /* Key 6 (top row): snapshot TPS camera state to log for tuning */
@@ -399,6 +421,7 @@ void DebugCamera_Update(void)
             #undef TP_HEIGHT
             #undef TP_LOOKAT_OFS
             #undef TP_MOUSE_SENS
+            #undef TP_PITCH_SENS
             #undef TP_STRAFE_SPD
         }
         return;
