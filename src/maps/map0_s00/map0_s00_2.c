@@ -1268,7 +1268,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
     VECTOR3 viewPos;
     MAP_CHUNK_CHECK_VARIABLE_DECL();
 
+    SH_DBG("[WOU] enter");
     vwGetViewPosition(&viewPos);
+    SH_DBG("[WOU] post-viewPos");
 
 #ifdef SH_PC_PORT
     {
@@ -1301,24 +1303,35 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
     }
 #endif
 
+    SH_DBG("[WOU] EF4=%d EF13=%d", Savegame_EventFlagGet(EventFlag_4), Savegame_EventFlagGet(EventFlag_13));
     if (Savegame_EventFlagGet(EventFlag_4) && !Savegame_EventFlagGet(EventFlag_13))
     {
+        SH_DBG("[WOU] EF6=%d EF9=%d EF11=%d", Savegame_EventFlagGet(EventFlag_6), Savegame_EventFlagGet(EventFlag_9), Savegame_EventFlagGet(EventFlag_11));
         if (!Savegame_EventFlagGet(EventFlag_6))
         {
+            SH_DBG("[WOU] pre-DC33C");
             func_800DC33C();
+            SH_DBG("[WOU] post-DC33C");
         }
         else if (!Savegame_EventFlagGet(EventFlag_9))
         {
+            SH_DBG("[WOU] pre-DC694");
             func_800DC694();
+            SH_DBG("[WOU] post-DC694");
         }
         else if (!Savegame_EventFlagGet(EventFlag_11))
         {
+            SH_DBG("[WOU] pre-DC8D8");
             func_800DC8D8();
+            SH_DBG("[WOU] post-DC8D8");
         }
 
+        SH_DBG("[WOU] pre-DCA30");
         func_800DCA30();
+        SH_DBG("[WOU] post-DCA30");
     }
 
+    SH_DBG("[WOU] pre-EF13-block");
     if (Savegame_EventFlagGet(EventFlag_13) && !Savegame_EventFlagGet(EventFlag_16))
     {
 #ifdef SH_PC_PORT
@@ -1335,14 +1348,20 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
             }
         }
 #endif
+        SH_DBG("[WOU] pre-DCC54");
         func_800DCC54();
+        SH_DBG("[WOU] post-DCC54");
     }
 
+    SH_DBG("[WOU] pre-EF17");
     if (Savegame_EventFlagGet(EventFlag_17))
     {
+        SH_DBG("[WOU] pre-DD0CC");
         func_800DD0CC();
+        SH_DBG("[WOU] post-DD0CC");
     }
 
+    SH_DBG("[WOU] pre-EF24");
     if (!Savegame_EventFlagGet(EventFlag_24))
     {
         if (PLAYER_IN_MAP_CHUNK(vx, 1, -7, -1, -7) &&
