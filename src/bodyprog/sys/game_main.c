@@ -313,8 +313,7 @@ void DebugCamera_Update(void)
         static s32 s_TpsPitch = 0;
         static int s_TpsInited = 0;
 
-        if (g_DebugThirdPersonCam &&
-            g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate == 0) {
+        if (g_DebugThirdPersonCam) {
             #define TP_DIST         Q12(2.5f)    /* world units behind Harry */
             #define TP_HEIGHT       Q12(-1.4f)   /* world units above Harry (Y-up = negative) */
             #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
@@ -332,21 +331,23 @@ void DebugCamera_Update(void)
                 s_TpsInited = 1;
             }
 
-            /* Mouse look: rotate the orbit angles */
+            /* Mouse look: rotate the orbit angles.
+             * Freeze during cutscenes so TPS doesn't fight the event camera. */
+            if (g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate == 0)
             {
                 int mdx = 0, mdy = 0;
                 SDL_GetRelativeMouseState(&mdx, &mdy);
                 s_TpsYaw += (s32)(mdx * TP_MOUSE_SENS);
                 s_TpsYaw = Q12_ANGLE_NORM_U(s_TpsYaw);
-                
+
                 s_TpsPitch -= (s32)(mdy * TP_PITCH_SENS);
                 /* Range: -30 deg to 80 deg (910 in Q12, matching your 3.png) */
                 if (s_TpsPitch < -Q12_ANGLE(30.0f)) s_TpsPitch = -Q12_ANGLE(30.0f);
                 if (s_TpsPitch > 910) s_TpsPitch = 910;
-            }
 
-            /* Sync Harry's rotation to the camera orbit */
-            tp_hr->rotation_24.vy = (q3_12)s_TpsYaw;
+                /* Sync Harry's rotation to the camera orbit */
+                tp_hr->rotation_24.vy = (q3_12)s_TpsYaw;
+            }
 
             /* A/D strafe: move perpendicular to Harry's facing */
             {
