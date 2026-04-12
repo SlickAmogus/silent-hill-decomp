@@ -324,47 +324,43 @@ void Game_NpcUpdate(void) // 0x80038354
                 /* NPCs whose AI we fully run (collision + anim safe) */
                 bool isFullAiNpc = (npc->model_0.charaId_0 == Chara_Cheryl ||
                                     npc->model_0.charaId_0 == Chara_GreyChild);
-                /* NPCs we let EXIST (model renders, DMS can move them) but skip AI.
-                 * Cybil: needed for post-alley cutscene. AirScreamer: loads but AI crashes. */
-                bool isRenderOnlyNpc = (npc->model_0.charaId_0 == Chara_Cybil ||
-                                        npc->model_0.charaId_0 == Chara_AirScreamer);
 
-                /* Render-only NPCs with charaId > Chara_MonsterCybil never
-                 * enter the distance-check block that sets AnimFlag_Visible.
-                 * Force it on so they can actually render. */
-                if (isRenderOnlyNpc && npc->model_0.charaId_0 > Chara_MonsterCybil) {
+                /* All other NPCs are render-only: model renders + DMS can
+                 * move them, but AI update is skipped (collision/PSX state
+                 * dependencies crash on PC). */
+
+                /* NPCs with charaId > Chara_MonsterCybil (e.g. Cybil=26,
+                 * EndingCybil=27, Cheryl=28) never enter the distance-check
+                 * block that sets AnimFlag_Visible. Force it on. */
+                if (npc->model_0.charaId_0 > Chara_MonsterCybil) {
                     npc->model_0.anim_4.flags_2 |= AnimFlag_Visible;
                 }
 
                 if (!animLoaded || !isFullAiNpc)
                 {
-                    if (isRenderOnlyNpc)
-                    {
-                        /* Keep render-only NPCs alive even while ANM is still loading.
-                         * Without this, the NPC gets set to None before the async ANM
-                         * read completes, and the model never renders. */
-                        if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
-                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
-                                   npc->model_0.charaId_0, animDataInfoIdx,
-                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14);
-                            func_8003DA9C(npc->model_0.charaId_0,
-                                          g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
-                                          1, npc->timer_C6,
-                                          (s8)npc->model_0.paletteIdx_1);
-                            SH_DBG("[NPC_RENDER] done charaId=%d", npc->model_0.charaId_0);
-                        }
-                        /* If ANM not yet loaded or not visible, just skip — don't remove the NPC. */
+                    /* Keep NPC alive while ANM loads or if render-only.
+                     * Render model if anim loaded + visible. */
+                    if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
+                        SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
+                               npc->model_0.charaId_0, animDataInfoIdx,
+                               (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14);
+                        func_8003DA9C(npc->model_0.charaId_0,
+                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                      1, npc->timer_C6,
+                                      (s8)npc->model_0.paletteIdx_1);
                     }
-                    else
-                    {
-                        /* Fully unsafe NPC — remove so it doesn't keep firing. */
-                        npc->model_0.charaId_0 = Chara_None;
-                    }
+                    /* Don't remove — NPC stays alive for rendering + event system. */
                     continue;
                 }
                 if (!hasUpdateFn)
                 {
-                    npc->model_0.charaId_0 = Chara_None;
+                    /* No AI function but keep alive for rendering */
+                    if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
+                        func_8003DA9C(npc->model_0.charaId_0,
+                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                      1, npc->timer_C6,
+                                      (s8)npc->model_0.paletteIdx_1);
+                    }
                     continue;
                 }
             }
