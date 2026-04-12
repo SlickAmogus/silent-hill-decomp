@@ -47,7 +47,7 @@
   | Numpad 1 | Toggle wall collision |
   | Numpad 2 | Toggle third-person follow camera |
   | Numpad 3 | Teleport Harry to spawn point |
-  | ~ (tilde) | Debug console (type `HELP` for commands) |
+
 
   ### Prerequisites
 
