@@ -151,6 +151,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
 
 
+    SH_DBG("[IGUPD] sysState=%d", g_SysWork.sysState_8);
     if (g_SysWork.sysState_8 == SysState_Gameplay)
     {
         g_SysWork.isMgsStringSet_18 = false;
@@ -183,19 +184,24 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueDoThingWhenEmpty();
 
+    SH_DBG("[IGUPD] pre-worldObj freeze=%d func=%p", (g_SysWork.sysFlags_22A0 & SysFlag_Freeze), (void*)g_MapOverlayHeader.worldObjectsUpdate_40);
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
     {
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
 
+    SH_DBG("[IGUPD] pre-CutsceneCam");
     Screen_CutsceneCameraStateUpdate();
     Bgm_TrackUpdate(false);
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();
 
+    SH_DBG("[IGUPD] pre-freeze-block");
     if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze))
     {
+        SH_DBG("[IGUPD] pre-func_80040014");
         func_80040014();
+        SH_DBG("[IGUPD] pre-vcMoveAndSetCamera");
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
 
 #ifdef SH_PC_PORT
@@ -253,7 +259,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 #endif
 
+        SH_DBG("[IGUPD] pre-PlayerUpdate");
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
+        SH_DBG("[IGUPD] post-PlayerUpdate");
 
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
@@ -321,10 +329,15 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 
         Demo_DemoRandSeedRestore();
+        SH_DBG("[IGUPD] pre-NpcRoomInitSpawn");
         Game_NpcRoomInitSpawn(true);
+        SH_DBG("[IGUPD] pre-NpcUpdate");
         Game_NpcUpdate();
+        SH_DBG("[IGUPD] pre-5E89C");
         func_8005E89C();
+        SH_DBG("[IGUPD] pre-ChunksInit");
         Ipd_CloseRangeChunksInit();
+        SH_DBG("[IGUPD] pre-InGameDraw");
         Gfx_InGameDraw(1);
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT
