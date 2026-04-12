@@ -1512,6 +1512,9 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
             func_800548D8(i);
             GsSetFlatLight(0, &g_Items_Lights[i][0]);
             GsSetFlatLight(1, &g_Items_Lights[i][1]);
+#ifdef SH_PC_PORT
+            if (obj->coord2 != NULL)
+#endif
             func_8004BD74(i, obj, 0);
         }
 
@@ -1526,6 +1529,9 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
             func_800548D8(7);
             GsSetFlatLight(0, &D_800C3A88[0]);
             GsSetFlatLight(1, &D_800C3A88[1]);
+#ifdef SH_PC_PORT
+            if (obj->coord2 != NULL)
+#endif
             func_8004BD74(7, obj, 0);
         }
 

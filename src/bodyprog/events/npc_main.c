@@ -329,6 +329,13 @@ void Game_NpcUpdate(void) // 0x80038354
                 bool isRenderOnlyNpc = (npc->model_0.charaId_0 == Chara_Cybil ||
                                         npc->model_0.charaId_0 == Chara_AirScreamer);
 
+                /* Render-only NPCs with charaId > Chara_MonsterCybil never
+                 * enter the distance-check block that sets AnimFlag_Visible.
+                 * Force it on so they can actually render. */
+                if (isRenderOnlyNpc && npc->model_0.charaId_0 > Chara_MonsterCybil) {
+                    npc->model_0.anim_4.flags_2 |= AnimFlag_Visible;
+                }
+
                 if (!animLoaded || !isFullAiNpc)
                 {
                     if (isRenderOnlyNpc)
