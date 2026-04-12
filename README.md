@@ -11,9 +11,7 @@
   - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly
   - **New Game**: loading screen plays (Harry running animation), transitions into gameplay
   - **Opening cutscene**: fully working — DMS camera, text, Harry visible with animations, ambient audio. Camera just needs adjustment.
-  - **Second cutscene** (Harry chases Cheryl): Plays successfully, but Cheryl model is dark.
   - **In-game 3D world**: rendering working — textured environment, fog, snow particles, trees, buildings, lamp posts, ground geometry
-  - **Harry**: fully visible with all 23 bones, gouraud shading; character textures working.
   - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height working, stairs working.
   - **Camera**: PSX fixed-camera system functional but still needs adjustment; controllable with debug mode
   - **Audio**: SFX working via OpenAL; BGM loads; some sound effects working
@@ -31,25 +29,31 @@
   <img width="631" height="475" alt="image" src="https://github.com/user-attachments/assets/45c7d367-bb16-4e61-b220-94d115aaefe6" />
 
 
-  ### Debug Controls
+ ### Short Instructions
+-Extract somewhere on your PC<br>
+-Put your game data inside the gamedata folder and name it Silent Hill (USA).bin<br>
+-(Optional) Use jpsxdec (https://github.com/m35/jpsxdec/releases/tag/v2.0) to extract the FMVs from the game image. The files will be listed as "HILL" but should be in order according to the table at the github link.<br>
+-Run SilentHillPC_Launcher to configure the game, or just run SIlentHillPC. You may need to run the game once before the launcher will work because of smartscreen.<br>
 
-  Press `*` (numpad) to toggle debug camera mode. In debug mode, culling is disabled so you can see the full loaded map.
 
-  | Key | Action |
-  |-----|--------|
-  | Numpad 8 / 5 | Move forward / back |
-  | Numpad 4 / 6 | Strafe left / right |
-  | Numpad 7 / 9 | Turn left / right |
-  | Numpad + / - | Move up / down |
-  | Numpad / | Print current coordinates |
-  | Numpad . | Toggle fog |
-  | Numpad 0 | Toggle FPS cap |
-  | Numpad 1 | Toggle wall collision |
-  | Numpad 2 | Toggle third-person follow camera |
-  | Numpad 3 | Teleport Harry to spawn point |
-  | ~ (tilde) | Debug console (type `HELP` for commands) |
+  ### Controls (PsyCross defaults)
 
-  ### Prerequisites
+  | PSX Button | Keyboard |
+  |------------|----------|
+  | Cross | C |
+  | Circle | V |
+  | Triangle | F |
+  | Square | D |
+  | Start | Enter |
+  | Select | Space |
+  | D-Pad | Arrow keys |
+  | L1 | A |
+  | R1 | S |
+  | L2 | Q |
+  | R2 | W |
+
+
+  ### Building Prerequisites
 
   - **MSYS2/MinGW64** (Windows) with the following packages:
     ```
@@ -174,22 +178,23 @@
   ```
 
   The game expects the disc image at `./gamedata/Silent Hill (USA).bin` relative to the working directory.
+  
+  ### Debug Controls
 
-  ### Controls (PsyCross defaults)
-
-  | PSX Button | Keyboard |
-  |------------|----------|
-  | Cross | C |
-  | Circle | V |
-  | Triangle | F |
-  | Square | D |
-  | Start | Enter |
-  | Select | Space |
-  | D-Pad | Arrow keys |
-  | L1 | A |
-  | R1 | S |
-  | L2 | Q |
-  | R2 | W |
+  Press `*` (numpad) to toggle debug camera mode. 
+  
+  | Key | Action |
+  |-----|--------|
+  | Numpad 8 / 5 | Move forward / back |
+  | Numpad 4 / 6 | Strafe left / right |
+  | Numpad 7 / 9 | Turn left / right |
+  | Numpad + / - | Move up / down |
+  | Numpad / | Print current coordinates |
+  | Numpad . | Toggle fog |
+  | Numpad 0 | Toggle FPS cap |
+  | Numpad 1 | Toggle wall collision |
+  | Numpad 2 | Toggle third-person follow camera |
+  | Numpad 3 | Teleport Harry to spawn point |
 
   ### Known Limitations
 
