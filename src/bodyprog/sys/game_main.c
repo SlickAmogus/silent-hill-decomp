@@ -375,40 +375,25 @@ void DebugCamera_Update(void)
             tpCamPos.vz = tp_hr->position_18.vz - (s32)((s64)tpHorizDist * tpCosY >> 12);
             tpCamPos.vy = tp_hr->position_18.vy + TP_HEIGHT - tpVertLift;
 
-            /* Build view matrix manually using Ry*Rx order to guarantee zero roll. 
-             * This ensures horizontal mouse movement never induces tilt. */
+            /* Use engine's standard look-at helper. The hand-built matrix
+             * approach produced a black void because `vwSetViewInfoDirectMatrix`
+             * expects the engine's specific matrix convention that the ad-hoc
+             * Ry*Rx build didn't match.  Vw_SetLookAtMatrix is the same path
+             * all in-game cameras use, so it's guaranteed to render.  There is
+             * a minor known pitch wobble from Q12 sin/cos rounding, tolerable
+             * as a debug camera. */
             {
-                MATRIX viewMat;
-                s32 sy = Math_Sin(-s_TpsYaw);
-                s32 cy = Math_Cos(-s_TpsYaw);
-                s32 sp = Math_Sin(-s_TpsPitch);
-                s32 cp = Math_Cos(-s_TpsPitch);
-                
-                /* Row 0: Camera Right (guaranteed horizontal) */
-                viewMat.m[0][0] = (s16)cy;
-                viewMat.m[0][1] = 0;
-                viewMat.m[0][2] = (s16)sy;
-                
-                /* Row 1: Camera Up */
-                viewMat.m[1][0] = (s16)((s64)sp * sy >> 12);
-                viewMat.m[1][1] = (s16)cp;
-                viewMat.m[1][2] = (s16)(-(s64)sp * cy >> 12);
-                
-                /* Row 2: Camera Forward (looking at target) */
-                viewMat.m[2][0] = (s16)(-(s64)cp * sy >> 12);
-                viewMat.m[2][1] = (s16)sp;
-                viewMat.m[2][2] = (s16)((s64)cp * cy >> 12);
+                VECTOR3 tpLookAt;
+                tpLookAt.vx = tp_hr->position_18.vx;
+                tpLookAt.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
+                tpLookAt.vz = tp_hr->position_18.vz;
 
-                viewMat.t[0] = Q12_TO_Q8(tpCamPos.vx);
-                viewMat.t[1] = Q12_TO_Q8(tpCamPos.vy);
-                viewMat.t[2] = Q12_TO_Q8(tpCamPos.vz);
-                vwSetViewInfoDirectMatrix(NULL, &viewMat);
+                Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
 
-                /* Synchronize engine view work to prevent rolling and sporadic drift */
+                /* Mirror the look-at state into rview so any downstream code
+                 * reading vwViewPointInfo.rview sees the TPS camera too. */
                 vwViewPointInfo.rview.vp = tpCamPos;
-                vwViewPointInfo.rview.vr.vx = tp_hr->position_18.vx;
-                vwViewPointInfo.rview.vr.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
-                vwViewPointInfo.rview.vr.vz = tp_hr->position_18.vz;
+                vwViewPointInfo.rview.vr = tpLookAt;
                 vwViewPointInfo.rview.rz = 0;
             }
             vwSetViewInfo();

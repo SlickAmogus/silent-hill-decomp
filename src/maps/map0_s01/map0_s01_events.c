@@ -3,6 +3,9 @@
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/map0/map0_s01.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
@@ -956,6 +959,14 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     s32  var_a2;
     s32* ptr;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[M0S01_WOU] enter PickupMap=%d EF41=%d EF42=%d EF47=%d AirScreamerIntro=%d",
+           Savegame_EventFlagGet(EventFlag_M0S01_PickupMap),
+           Savegame_EventFlagGet(EventFlag_41),
+           Savegame_EventFlagGet(EventFlag_42),
+           Savegame_EventFlagGet(EventFlag_47),
+           Savegame_EventFlagGet(EventFlag_M0S01_AirScreamerIntroCutsceneStarted));
+#endif
     if (!Savegame_EventFlagGet(EventFlag_M0S01_PickupMap))
     {
         WorldGfx_ObjectAdd(&g_EventThing_Map.object_0, &g_EventThing_Map.position_1C, &g_EventThing_Map.rotation_28);
@@ -985,6 +996,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         Savegame_EventFlagClear(EventFlag_M0S01_PickedUpKnifeAndMap);
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[M0S01_WOU] pre-CutsceneObjects_Add");
+#endif
     if (Savegame_EventFlagGet(EventFlag_47))
     {
         CutsceneObjects_Add(2);
@@ -997,12 +1011,27 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     {
         CutsceneObjects_Add(0);
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[M0S01_WOU] post-CutsceneObjects_Add");
+#endif
 
     if (Savegame_EventFlagGet(EventFlag_M0S01_PickupMap) && !Savegame_EventFlagGet(EventFlag_42))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[M0S01_WOU] BIRD block enter EF41=%d npc0.charaId=%d npc0.animStatus=%d",
+               Savegame_EventFlagGet(EventFlag_41),
+               g_SysWork.npcs_1A0[0].model_0.charaId_0,
+               g_SysWork.npcs_1A0[0].model_0.anim_4.status_0);
+#endif
         if (Savegame_EventFlagGet(EventFlag_41))
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] BIRD-EF41 pre-AnimDuration");
+#endif
             temp_a1 = g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&g_SysWork.npcs_1A0[0].model_0));
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] BIRD-EF41 post-AnimDuration temp_a1=%d", temp_a1);
+#endif
 
             ptr = &g_Timer0;
             if (temp_a1 < Q12(25.0f))
@@ -1015,8 +1044,14 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
             *ptr = var_a2;
 
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] pre-Dms_CharacterGetPosRot BIRD FS_BUFFER_11=%p", (void*)FS_BUFFER_11);
+#endif
             Dms_CharacterGetPosRot(&g_SysWork.npcs_1A0[0].position_18, &g_SysWork.npcs_1A0[0].rotation_24, "BIRD",
                                    g_Timer0, (s_DmsHeader*)FS_BUFFER_11);
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] post-Dms_CharacterGetPosRot");
+#endif
 
             if (g_Timer0 >= Q12(25.0f) ||
                 ABS(g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(4.586f)) > Q12(0.7f) ||
@@ -1034,8 +1069,16 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
                  g_SysWork.playerWork_4C.player_0.rotation_24.vy != Q12_ANGLE(90.0f) ||
                  D_800E2560 > Q12(7.5f))
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] setting EF41 + func_800D3AC0 npc0.charaId=%d",
+                   g_SysWork.npcs_1A0[0].model_0.charaId_0);
+#endif
             Savegame_EventFlagSet(EventFlag_41);
             func_800D3AC0(&g_SysWork.npcs_1A0[0]);
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] post-func_800D3AC0 npc0.charaId=%d",
+                   g_SysWork.npcs_1A0[0].model_0.charaId_0);
+#endif
         }
         else
         {
@@ -1082,6 +1125,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DE140.position_0, &D_800DE140.rotation_C);
         }
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[M0S01_WOU] exit");
+#endif
 }
 
 void CutsceneObjects_Add(s32 arg0) // 0x800DD2EC
