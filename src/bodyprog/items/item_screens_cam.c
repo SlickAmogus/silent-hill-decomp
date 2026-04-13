@@ -142,6 +142,9 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     s32 j;
     s32 i;
 
+#ifdef SH_PC_PORT
+    if (arg1->coord2 == NULL) return;
+#endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &sp50, &sp10);
 
     sp30 = sp10;

@@ -2,6 +2,7 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include "sh_log.h"
 #endif
 
 #include <psyq/libpad.h>
@@ -92,7 +93,37 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
+#ifdef SH_PC_PORT
+                /* On PSX MIPS, func_124 reads the chara ptr plus the arg2
+                 * that was already in a2 register from the caller — the
+                 * decomp signature `(s_SubCharacter*)` drops the extra arg
+                 * because it doesn't know the function reads a2. The
+                 * intended semantics is "start animation <arg2> on this
+                 * NPC": set anim status, unlock state so Model_AnimStatusSet
+                 * in the chara's AI can fire, and seed keyframe 0.
+                 * Without this, NPCs driven by cutscene scripts (Cybil in
+                 * the cafe cutscene) stay frozen on their idle anim because
+                 * the scripted func_80085EB8(0, chara, animId, false) calls
+                 * are no-ops on PC.
+                 *
+                 * NOTE: we keep the original func_124(chara) call too so the
+                 * player-property reset side-effects still happen — they are
+                 * harmless for NPCs because properties_E4 is a union and the
+                 * fields written overlap unused NPC fields, but matching the
+                 * PSX behavior is safer than skipping. */
                 g_MapOverlayHeader.func_124(chara);
+                /* arg2 is a raw anim index — encode as ANIM_STATUS(idx, false). */
+                chara->model_0.anim_4.status_0 = (u8)ANIM_STATUS(arg2, false);
+                chara->model_0.stateStep_3     = 0;
+                chara->model_0.anim_4.time_4        = Q12(0.0f);
+                chara->model_0.anim_4.keyframeIdx_8 = 0;
+                chara->model_0.anim_4.flags_2 |= AnimFlag_Unlocked;
+                SH_DBG("[ANIM_SET] charaId=%d anim=%d status=%d",
+                       chara->model_0.charaId_0, (int)arg2,
+                       (int)chara->model_0.anim_4.status_0);
+#else
+                g_MapOverlayHeader.func_124(chara);
+#endif
             }
             break;
 

@@ -61,6 +61,9 @@ s16 func_800CD20C(void) // 0x800CD20C
 
     for (itemModel = g_Items_ItemsModelData, i = 0; i < 6; i++, itemModel++)
     {
+#ifdef SH_PC_PORT
+        if (g_Items_Coords[i].param == NULL) continue;
+#endif
         g_Items_Transforms[i].rotate.vx = Q12_ANGLE(90.0f);
         g_Items_Transforms[i].rotate.vz = Q12_ANGLE(0.0f);
 
