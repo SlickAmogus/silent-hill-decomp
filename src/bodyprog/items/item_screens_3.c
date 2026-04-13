@@ -4222,16 +4222,21 @@ void Gfx_PlayerHeldItemAttach(u8 weaponAttack) // 0x800546A8
 
 void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
 {
-#ifdef SH_PC_PORT
-    return; /* tmd->models_c is a PSX pointer; GsLinkObject4 crashes on 64-bit */
-#endif
     u8                 itemId;
     GsDOBJ2*           ptr;
     struct TMD_STRUCT* models;
 
+#ifdef SH_PC_PORT
+    /* Skip GsLinkObject4 — tmd->models_c contains a PSX pointer that
+     * cannot be dereferenced on 64-bit.  Still set up coord2, attribute,
+     * and displayedCount so the inventory system works correctly. */
+    (void)tmd;
+    (void)models;
+#else
     models = tmd->models_c;
 
     GsLinkObject4((u32)&models[loadableItemIdx], &g_Items_ItemsModelData[displayItemIdx], 0);
+#endif
 
     ptr         = &g_Items_ItemsModelData[displayItemIdx];
     ptr->coord2 = &g_Items_Coords[displayItemIdx];
@@ -4296,7 +4301,13 @@ void Gfx_Items_SetAmbientLighting(void) // 0x80054928
 {
     s32 i;
 
+#ifdef SH_PC_PORT
+    /* g_Items_Lights is only [7][2]. On PSX, indices 7-9 alias
+     * D_800C3A88[0..3] and D_800C3AC8[0..1] via BSS layout. */
+    for (i = 0; i < 7; i++)
+#else
     for (i = 0; i < 10; i++)
+#endif
     {
         g_Items_Lights[i][0].r  = NO_VALUE;
         g_Items_Lights[i][0].g  = NO_VALUE;
@@ -4309,6 +4320,25 @@ void Gfx_Items_SetAmbientLighting(void) // 0x80054928
         g_Items_Lights[i][1].b  = NO_VALUE;
     }
 
+#ifdef SH_PC_PORT
+    /* Init the aliased regions explicitly on PC.
+     * PSX i=7 → D_800C3A88[0..1], i=8 → D_800C3A88[2..3], i=9 → D_800C3AC8[0..1] */
+    for (i = 0; i < 4; i++)
+    {
+        D_800C3A88[i].r  = NO_VALUE;
+        D_800C3A88[i].g  = NO_VALUE;
+        D_800C3A88[i].b  = NO_VALUE;
+        if (i & 1) { D_800C3A88[i].vx = Q12(1.0f); D_800C3A88[i].vy = Q12(0.0f); D_800C3A88[i].vz = Q12(0.0f); }
+    }
+    for (i = 0; i < 2; i++)
+    {
+        D_800C3AC8[i].r  = NO_VALUE;
+        D_800C3AC8[i].g  = NO_VALUE;
+        D_800C3AC8[i].b  = NO_VALUE;
+        if (i & 1) { D_800C3AC8[i].vx = Q12(1.0f); D_800C3AC8[i].vy = Q12(0.0f); D_800C3AC8[i].vz = Q12(0.0f); }
+    }
+#endif
+
     GsSetAmbient(1024, 1024, 1024);
     GsSetLightMode(1);
 }
@@ -4318,6 +4348,19 @@ void func_800549A0(void) // 0x800549A0
 {
     #define IDX 9
 
+#ifdef SH_PC_PORT
+    /* On PSX, g_Items_Lights[9] aliases D_800C3AC8 in BSS.
+     * Array is only [7][2], so index 9 is out of bounds on PC. */
+    D_800C3AC8[0].r  = NO_VALUE;
+    D_800C3AC8[1].vx = Q12(1.0f);
+    D_800C3AC8[0].g  = NO_VALUE;
+    D_800C3AC8[0].b  = NO_VALUE;
+    D_800C3AC8[1].r  = NO_VALUE;
+    D_800C3AC8[1].g  = NO_VALUE;
+    D_800C3AC8[1].b  = NO_VALUE;
+    D_800C3AC8[1].vy = Q12(0.0f);
+    D_800C3AC8[1].vz = Q12(0.0f);
+#else
     g_Items_Lights[IDX][0].r  = NO_VALUE;
     g_Items_Lights[IDX][1].vx = Q12(1.0f);
     g_Items_Lights[IDX][0].g  = NO_VALUE;
@@ -4327,6 +4370,7 @@ void func_800549A0(void) // 0x800549A0
     g_Items_Lights[IDX][1].b  = NO_VALUE;
     g_Items_Lights[IDX][1].vy = Q12(0.0f);
     g_Items_Lights[IDX][1].vz = Q12(0.0f);
+#endif
 
     GsSetAmbient(2048, 2048, 2048);
     GsSetLightMode(1);
@@ -4334,15 +4378,14 @@ void func_800549A0(void) // 0x800549A0
 
 void func_80054A04(u8 itemId) // 0x80054A04
 {
-#ifdef SH_PC_PORT
-    return; /* TMD data uses PSX pointers; Gfx_Items_Display crashes on 64-bit */
-#endif
     D_800AE187              = itemId;
     g_Items_DisplayedCount  = 0;
     g_Items_PickupAnimState = 0;
     g_Items_PickupScale     = Q12(0.0f);
 
-    D_800C3E18[9]                   = NO_VALUE;
+#ifndef SH_PC_PORT
+    D_800C3E18[9]                   = NO_VALUE; /* PSX BSS aliasing; out of bounds on PC */
+#endif
     g_Items_Transforms[9].rotate.vz = Q12_ANGLE(0.0f);
     g_Items_Transforms[9].rotate.vy = Q12_ANGLE(0.0f);
     g_Items_Transforms[9].rotate.vx = Q12_ANGLE(0.0f);
@@ -4352,9 +4395,18 @@ void func_80054A04(u8 itemId) // 0x80054A04
 
     GameFs_TmdDataAlloc(FS_BUFFER_5);
 
-    D_800C3E18[9] = 0;
+#ifndef SH_PC_PORT
+    D_800C3E18[9] = 0; /* PSX BSS aliasing; out of bounds on PC */
+#endif
 
+#ifdef SH_PC_PORT
+    /* On PSX, g_Items_ItemsModelData[9] aliases D_800C3E08 in BSS.  On
+     * 64-bit PC the struct sizes differ, so index 9 is out of bounds.
+     * Set coord2 directly on D_800C3E08 instead. */
+    D_800C3E08.coord2 = &g_Items_Coords[9];
+#else
     Gfx_Items_Display(FS_BUFFER_5, 9, 0);
+#endif
     func_8005487C(9);
 
     g_Items_Transforms[9].scale.vz = Q12(1.0f);
@@ -4367,9 +4419,6 @@ void func_80054A04(u8 itemId) // 0x80054A04
 
 bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
 {
-#ifdef SH_PC_PORT
-    return true; /* func_80054A04 is stubbed on PC; skip item pickup animation */
-#endif
     q19_12         scale;
     s16            rotX;
     s16            rotZ;
@@ -4426,7 +4475,15 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
     // Rotate 180 degrees per second.
     g_Items_Transforms[9].rotate.vy += g_DeltaTimeRaw >> 1;
 
+#ifdef SH_PC_PORT
+    /* func_800548D8(9) writes g_Items_Lights[9][0] which is out of bounds.
+     * On PSX it aliases D_800C3AC8[0]. Write directly on PC. */
+    D_800C3AC8[0].vx = g_Items_Coords[9].coord.t[0];
+    D_800C3AC8[0].vy = g_Items_Coords[9].coord.t[1];
+    D_800C3AC8[0].vz = g_Items_Coords[9].coord.t[2] + 20000;
+#else
     func_800548D8(9);
+#endif
     GsSetFlatLight(0, &D_800C3AC8[0]);
     GsSetFlatLight(1, &D_800C3AC8[1]);
     func_8004BD74(9, obj, 2);
