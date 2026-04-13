@@ -1505,6 +1505,12 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
                     continue;
                 }
 
+#ifdef SH_PC_PORT
+            if (g_Items_Coords[i].param == NULL)
+            {
+                continue;
+            }
+#endif
             g_Items_Transforms[i].rotate.vx = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[D_800C3E18[i]].id_0 - 32].vx;
             g_Items_Transforms[i].rotate.vz = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[D_800C3E18[i]].id_0 - 32].vy;
 
@@ -1512,13 +1518,20 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
             func_800548D8(i);
             GsSetFlatLight(0, &g_Items_Lights[i][0]);
             GsSetFlatLight(1, &g_Items_Lights[i][1]);
+#ifdef SH_PC_PORT
+            if (obj->coord2 != NULL)
+#endif
             func_8004BD74(i, obj, 0);
         }
 
         // Equipped item.
-        if (g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 != (u8)InventoryItemId_Empty && 
-            g_Inventory_EquippedItemIdx != NO_VALUE)
+        if (g_Inventory_EquippedItemIdx != NO_VALUE &&
+            g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 != (u8)InventoryItemId_Empty)
         {
+#ifdef SH_PC_PORT
+            if (g_Items_Coords[7].param != NULL)
+            {
+#endif
             g_Items_Transforms[7].rotate.vx = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 - 32].vx;
             g_Items_Transforms[7].rotate.vz = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 - 32].vy;
 
@@ -1526,7 +1539,13 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
             func_800548D8(7);
             GsSetFlatLight(0, &D_800C3A88[0]);
             GsSetFlatLight(1, &D_800C3A88[1]);
+#ifdef SH_PC_PORT
+            if (obj->coord2 != NULL)
+#endif
             func_8004BD74(7, obj, 0);
+#ifdef SH_PC_PORT
+            }
+#endif
         }
 
         Gfx_Inventory_ItemDescriptionDraw(selectedItemId);
@@ -2659,6 +2678,9 @@ void Gfx_Results_ItemsDisplay() // 0x800521A8
     {
         if ((D_800C3E40 >> i) & (1 << 0))
         {
+#ifdef SH_PC_PORT
+            if (g_Items_Coords[i].param == NULL) continue;
+#endif
             ItemScreen_ItemRotate(&g_Items_Coords[i].param->rotate, &g_Items_Coords[i]);
             func_800548D8(i);
             GsSetFlatLight(0, &g_Items_Lights[i][0]);
