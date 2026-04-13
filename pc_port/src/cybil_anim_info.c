@@ -15,6 +15,8 @@
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/math/math.h"
+#include "bodyprog/math/fixed_point.h"
 #include "maps/characters/cybil.h"
 
 s_AnimInfo CYBIL_ANIM_INFOS[] = {
