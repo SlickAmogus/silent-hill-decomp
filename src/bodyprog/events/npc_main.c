@@ -404,6 +404,21 @@ void Game_NpcUpdate(void) // 0x80038354
                     _cherylInitDone = true;
                 }
             }
+            /* Same spawn-init pattern for Cybil/AirScreamer/GreyChild: reset
+             * stateStep_3 once on first AI tick so Model_AnimStatusSet fires
+             * and the NPC actually enters its state machine. Without this the
+             * NPC appears loaded but never animates. Per-slot guard keyed on
+             * charaId so a second spawn after the first dies re-inits. */
+            else if (npc->model_0.charaId_0 == Chara_Cybil ||
+                     npc->model_0.charaId_0 == Chara_AirScreamer ||
+                     npc->model_0.charaId_0 == Chara_GreyChild)
+            {
+                if (npc->model_0.controlState_2 == ModelState_Uninitialized) {
+                    npc->model_0.stateStep_3 = 0;
+                    SH_DBG("[NPC_AI] init reset charaId=%d slot=%d stateStep=0",
+                           npc->model_0.charaId_0, (int)k);
+                }
+            }
 #endif
             coord           = g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14;
 
