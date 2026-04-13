@@ -1021,6 +1021,25 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     if (Savegame_EventFlagGet(EventFlag_M0S01_PickupMap) && !Savegame_EventFlagGet(EventFlag_42))
     {
 #ifdef SH_PC_PORT
+        /* On PSX, MapEvent_MapItemTake case 10 spawns AirScreamer into npcs_1A0[0]
+         * right before setting EventFlag_M0S01_PickupMap. On PC (save reload, or
+         * any path where case 10 didn't run this session), slot 0 may be empty
+         * (charaId=Chara_None). Entering the EF41 branch dereferences
+         * anim->animInfo_C inside func_80044918 and crashes. Skip the whole
+         * post-pickup "bird fly-by" mini-cutscene when the bird isn't spawned,
+         * and set EF_42 so we don't re-enter every frame. */
+        if (g_SysWork.npcs_1A0[0].model_0.charaId_0 != Chara_AirScreamer)
+        {
+            static u32 _wouBirdSkipLogged = 0;
+            if (!_wouBirdSkipLogged) {
+                SH_DBG("[M0S01_WOU] npcs_1A0[0] not AirScreamer (charaId=%d) — skipping BIRD cutscene, setting EF_42",
+                       (int)g_SysWork.npcs_1A0[0].model_0.charaId_0);
+                _wouBirdSkipLogged = 1;
+            }
+            Savegame_EventFlagSet(EventFlag_42);
+        }
+        else
+        {
         SH_DBG("[M0S01_WOU] post-pickup branch entered EF41=%d",
                (int)Savegame_EventFlagGet(EventFlag_41));
 #endif
@@ -1086,6 +1105,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         {
             D_800E2560 += g_DeltaTime;
         }
+#ifdef SH_PC_PORT
+        } /* end PC AirScreamer-present guard */
+#endif
     }
 
     if (Savegame_EventFlagGet(EventFlag_47))

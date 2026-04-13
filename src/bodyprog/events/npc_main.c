@@ -336,11 +336,24 @@ void Game_NpcUpdate(void) // 0x80038354
 
                 if (!animLoaded || !isFullAiNpc)
                 {
-                    if (isRenderOnlyNpc)
+                    if (isFullAiNpc && !animLoaded)
                     {
-                        /* Keep render-only NPCs alive even while ANM is still loading.
-                         * Without this, the NPC gets set to None before the async ANM
-                         * read completes, and the model never renders. */
+                        /* Anim data not loaded yet (Chara_Spawn just happened this
+                         * frame, async ANM read still pending). Do NOT kill the
+                         * NPC — the slot would get wiped and game code expecting
+                         * npcs_1A0[slot] to hold this chara (e.g. map0_s01 BIRD
+                         * fly-by) would dereference an empty slot and crash.
+                         * Just skip AI this tick and wait for load to complete. */
+                        static u32 _animWaitLogged = 0;
+                        if (!(_animWaitLogged & (1u << (npc->model_0.charaId_0 & 31)))) {
+                            SH_DBG("[NPC_AI] charaId=%d anim not loaded yet (idx=%d) — waiting",
+                                   npc->model_0.charaId_0, (int)(s8)animDataInfoIdx);
+                            _animWaitLogged |= (1u << (npc->model_0.charaId_0 & 31));
+                        }
+                    }
+                    else if (isRenderOnlyNpc)
+                    {
+                        /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
                             SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
                                    npc->model_0.charaId_0, animDataInfoIdx,
@@ -351,7 +364,6 @@ void Game_NpcUpdate(void) // 0x80038354
                                           (s8)npc->model_0.paletteIdx_1);
                             SH_DBG("[NPC_RENDER] done charaId=%d", npc->model_0.charaId_0);
                         }
-                        /* If ANM not yet loaded or not visible, just skip — don't remove the NPC. */
                     }
                     else
                     {
