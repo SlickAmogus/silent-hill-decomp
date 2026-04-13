@@ -1204,7 +1204,18 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                 if (g_Player_IsMovingForward) {
                     D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
                 } else if (g_Player_IsMovingBackward) {
-                    D_800C4550 = Q12(-1.5f);
+                    /* Sprint + back → jump back (burst speed, short duration) */
+                    if (g_Player_IsRunning && extra->model_0.stateStep_3 == 0 &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_JumpBackward, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_JumpBackward, false)) {
+                        D_800C4550 = Q12(-3.5f);
+                    } else {
+                        D_800C4550 = Q12(-1.5f);
+                    }
+                } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
+                    D_800C4550 = Q12(0.0f); /* strafe uses offset vectors in anim */
+                } else if (g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
+                    D_800C4550 = Q12(0.0f);
                 } else {
                     D_800C4550 = Q12(0.0f);
                 }
@@ -1223,12 +1234,40 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         extra->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsMovingBackward) {
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                    u8 backAnim = g_Player_IsRunning ? HarryAnim_JumpBackward : HarryAnim_WalkBackward;
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(backAnim, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(backAnim, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(backAnim, false);
                         chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(backAnim, false);
                         extra->model_0.stateStep_3 = 0;
+                    }
+                } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepLeft, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepLeft, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepLeft, false);
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepLeft, false);
+                        extra->model_0.stateStep_3 = 0;
+                    }
+                    /* Perpendicular position delta: left = -cos(yaw)*v, +sin(yaw)*v */
+                    {
+                        q19_12 stepV = Q12(0.9f);
+                        chara->position_18.vx -= Q12_MULT(stepV, Math_Cos(chara->rotation_24.vy));
+                        chara->position_18.vz += Q12_MULT(stepV, Math_Sin(chara->rotation_24.vy));
+                    }
+                } else if (g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepRight, true) &&
+                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepRight, false)) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepRight, false);
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepRight, false);
+                        extra->model_0.stateStep_3 = 0;
+                    }
+                    {
+                        q19_12 stepV = Q12(0.9f);
+                        chara->position_18.vx += Q12_MULT(stepV, Math_Cos(chara->rotation_24.vy));
+                        chara->position_18.vz -= Q12_MULT(stepV, Math_Sin(chara->rotation_24.vy));
                     }
                 } else if (g_Player_IsTurningLeft) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, true) &&
@@ -1253,6 +1292,24 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         chara->model_0.stateStep_3 = 0;
                         extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Idle, false);
                         extra->model_0.stateStep_3 = 0;
+                    }
+                }
+
+                /* Aim/shoot overlay — override idle/movement animation when equipped+aiming.
+                 * Only the upper body (extra->model_0) gets weapon anim so legs can still move. */
+                if (g_SysWork.playerCombat_38.weaponAttack_F != 0) {
+                    if (g_Player_IsShooting) {
+                        if (extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, true) &&
+                            extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, false)) {
+                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                            extra->model_0.stateStep_3 = 0;
+                        }
+                    } else if (g_Player_IsAiming) {
+                        if (extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
+                            extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, false)) {
+                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                            extra->model_0.stateStep_3 = 0;
+                        }
                     }
                 }
 
