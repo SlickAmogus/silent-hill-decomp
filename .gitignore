@@ -5,6 +5,7 @@ rom/
 linkers/
 .vscode/
 .idea/
+.vs/
 __pycache__/
 permuter/
 expected/
