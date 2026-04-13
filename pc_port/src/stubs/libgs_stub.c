@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include "sh_log.h"
 
 /* Screenshot helper - captures back buffer (call before EndScene/swap) */
 void SH_TakeScreenshot(const char* filename)
@@ -96,6 +97,19 @@ void GsInitGraph(int x, int y, int mode, int a, int b)
     GsDISPENV = gs_disp_env[0];
 }
 
+/* Forward decls — bodies live further down this file */
+void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+
 void GsInit3D(void)
 {
     InitGeom();
@@ -105,6 +119,33 @@ void GsInit3D(void)
      * Setting geom offset to (0, 0) avoids double-centering. */
     SetGeomOffset(0, 0);
     SetGeomScreen(240);
+
+    /* Populate GsFCALL4 dispatch table used by GsSortObject4J.
+     * PC has no DIV variants and no separate NORMAL/FOG/LOFF paths — all
+     * LMODE slots and both DIV slots point at the same implementation.
+     * Textured no-light variants (nt*) intentionally left NULL; the
+     * dispatcher null-checks before calling and just skips unknown prim
+     * types — items and weapons we need for the inventory are all lit. */
+    memset(&GsFCALL4, 0, sizeof(GsFCALL4));
+    {
+        int d, l;
+        for (d = 0; d < 2; d++) {
+            for (l = 0; l < 3; l++) {
+                GsFCALL4.f3[d][l]  = (void(*)())GsTMDfastF3LFG;
+                GsFCALL4.g3[d][l]  = (void(*)())GsTMDfastG3LFG;
+                GsFCALL4.f4[d][l]  = (void(*)())GsTMDfastF4LFG;
+                GsFCALL4.g4[d][l]  = (void(*)())GsTMDfastG4LFG;
+                GsFCALL4.tf3[d][l] = (void(*)())GsTMDfastTF3LFG;
+                GsFCALL4.tg3[d][l] = (void(*)())GsTMDfastTG3LFG;
+                /* tf4 (textured flat quad) has no impl; dispatcher skips NULL */
+                GsFCALL4.tg4[d][l] = (void(*)())GsTMDfastTG4LFG;
+            }
+            GsFCALL4.nf3[d] = (void(*)())GsTMDfastNF3;
+            GsFCALL4.ng3[d] = (void(*)())GsTMDfastNG3;
+            GsFCALL4.nf4[d] = (void(*)())GsTMDfastNF4;
+            GsFCALL4.ng4[d] = (void(*)())GsTMDfastNG4;
+        }
+    }
 }
 
 void GsInitVcount(void)
@@ -263,10 +304,17 @@ static int gs_tmd_cache_count = 0;
 struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
 {
     int i;
+    SH_DBG("[GSGET] base=%p idx=%d cache_count=%d", (void*)base, index, gs_tmd_cache_count);
     for (i = 0; i < gs_tmd_cache_count; i++) {
-        if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj)
-            return &gs_tmd_cache[i].objs[index];
+        if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj) {
+            struct TMD_STRUCT *o = &gs_tmd_cache[i].objs[index];
+            SH_DBG("[GSGET] hit slot=%d nobj=%d vertop=%p vern=%lu primtop=%p primn=%lu",
+                   i, gs_tmd_cache[i].nobj, (void*)o->vertop, (unsigned long)o->vern,
+                   (void*)o->primtop, (unsigned long)o->primn);
+            return o;
+        }
     }
+    SH_DBG("[GSGET] miss");
     return NULL;
 }
  
@@ -384,10 +432,8 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
     }
 }
  
-/* Gouraud-shaded quad — lit + fog */
-
-
-void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+/* Gouraud-shaded quad — lit + fog (untextured) */
+void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
     TMD_P_G4 *prim = (TMD_P_G4*)op;
     SVECTOR  *vtx  = (SVECTOR*)vp;
@@ -446,12 +492,14 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (nclip <= 0) continue;
  
-        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        /* Textured prims have no base color; use neutral 0x80 (half-bright
+         * so NormalColorCol output stays in-range after lighting). */
+        col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
- 
+
         otz = p >> shift;
         if (otz <= 0 || otz >= (1 << ot->length)) continue;
- 
+
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
@@ -483,13 +531,13 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (nclip <= 0) continue;
  
-        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
- 
+
         otz = p >> shift;
         if (otz <= 0 || otz >= (1 << ot->length)) continue;
- 
+
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
         setRGB0(poly, c0.r, c0.g, c0.b);
@@ -504,8 +552,11 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
     }
 }
  
-/* Textured flat-shaded quad — lit + fog */
-void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+/* Textured Gouraud-shaded quad — lit + fog.
+ * NOTE: agent originally named this TF4LFG but the body parses TMD_P_TG4
+ * (per-vertex normals + gouraud). Renamed to match its actual behavior;
+ * the tf4 dispatch slot stays NULL (no real textured-flat-quad impl). */
+void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
     TMD_P_TG4 *prim = (TMD_P_TG4*)op;
     SVECTOR   *vtx  = (SVECTOR*)vp;
@@ -524,13 +575,13 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (nclip <= 0) continue;
  
-        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
- 
+
         otz = p >> shift;
         if (otz <= 0 || otz >= (1 << ot->length)) continue;
- 
+
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
         setRGB0(poly, c0.r, c0.g, c0.b);
@@ -801,6 +852,7 @@ void GsLinkObject4(unsigned long tmd_base, GsDOBJ2 *objp, int n)
  
 void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj)
 {
+    SH_DBG("[GSLINK] tmd=%p obj=%p", (void*)tmd, (void*)obj);
     if (tmd && obj) {
         obj->tmd = (u_long*)tmd;
     }
@@ -808,6 +860,8 @@ void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj)
  
 void GsMapModelingData(unsigned long *p)
 {
+    SH_DBG("[GSMAP] p=%p p[0]=0x%lx p[1]=0x%lx", (void*)p,
+           p ? (unsigned long)p[0] : 0UL, p ? (unsigned long)p[1] : 0UL);
     u_long nobj;
     u8    *obj_table;
     int    i, slot;
@@ -874,8 +928,10 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     int      divmode = 0; /* always NDIV for now */
     int      lmode   = gs_light_mode;
     PACKET  *pk;
- 
-    if (!obj || !obj->tmd || !ot) return;
+
+    SH_DBG("[GSSORT] obj=%p tmd=%p ot=%p shift=%d",
+           (void*)obj, obj ? (void*)obj->tmd : NULL, (void*)ot, shift);
+    if (!obj || !obj->tmd || !ot) { SH_DBG("[GSSORT] early-out NULL"); return; }
  
     tmd = (struct TMD_STRUCT*)obj->tmd;
     vp  = (SVECTOR*)tmd->vertop;
@@ -883,8 +939,10 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     pp  = (u8*)tmd->primtop;
     primn = (int)tmd->primn;
     pk  = GsOUT_PACKET_P;
- 
-    if (!vp || !pp) return;
+
+    SH_DBG("[GSSORT] vp=%p np=%p pp=%p primn=%d lmode=%d",
+           (void*)vp, (void*)np, (void*)pp, primn, gs_light_mode);
+    if (!vp || !pp) { SH_DBG("[GSSORT] null vp/pp"); return; }
     if (lmode < 0 || lmode > 2) lmode = 0;
  
     while (primn > 0) {

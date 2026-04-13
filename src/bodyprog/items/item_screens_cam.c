@@ -8,6 +8,10 @@
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 
 GsCOORD2PARAM D_800C3928;
 s8 g_Player_WeaponAttack;
@@ -143,7 +147,12 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     s32 i;
 
 #ifdef SH_PC_PORT
-    if (arg1->coord2 == NULL) return;
+    SH_DBG("[BD74] enter idx=%d obj=%p coord2=%p tmd=%p arg2=%d",
+           (int)displayItemIdx, (void*)arg1,
+           arg1 ? (void*)arg1->coord2 : NULL,
+           arg1 ? (void*)arg1->tmd : NULL, (int)arg2);
+    if (arg1->coord2 == NULL) { SH_DBG("[BD74] null coord2"); return; }
+    if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd — skip"); return; }
 #endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &sp50, &sp10);
 

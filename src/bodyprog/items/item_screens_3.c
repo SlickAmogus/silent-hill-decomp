@@ -10,6 +10,9 @@
 #include "bodyprog/sys/joy.h"
 #include "bodyprog/text/text_draw.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 const s32 pad_rodata_800262F8 = 0;
 
@@ -4227,11 +4230,25 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
     struct TMD_STRUCT* models;
 
 #ifdef SH_PC_PORT
-    /* Skip GsLinkObject4 — tmd->models_c contains a PSX pointer that
-     * cannot be dereferenced on 64-bit.  Still set up coord2, attribute,
-     * and displayedCount so the inventory system works correctly. */
-    (void)tmd;
+    /* s_TmdFile is a raw TMD file image: id/flags/nobj followed by
+     * object table (each object 28 bytes on disk, 7×u32). PSX code
+     * passed &models[loadableItemIdx] because TMD_STRUCT matched the
+     * on-disk layout there; on 64-bit it doesn't. Parse through the
+     * file-layout helper, then resolve the real TMD_STRUCT and link. */
     (void)models;
+    if (tmd != NULL) {
+        /* Match GameFs_TmdDataAlloc: it passes &buf[1], i.e. skips the
+         * TMD id field and points at (flags, nobj, objects…). s_TmdFile
+         * maps that as (id_0, flags_4, modelCount_8, models_c), so the
+         * cache key is &flags_4. */
+        unsigned long*     tmd_hdr = (unsigned long*)&tmd->flags_4;
+        struct TMD_STRUCT* obj;
+        GsMapModelingData(tmd_hdr);
+        obj = GsGetTMDObject(tmd_hdr, loadableItemIdx);
+        if (obj != NULL) {
+            GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
+        }
+    }
 #else
     models = tmd->models_c;
 
@@ -4378,6 +4395,9 @@ void func_800549A0(void) // 0x800549A0
 
 void func_80054A04(u8 itemId) // 0x80054A04
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] func_80054A04 enter itemId=%d", (int)itemId);
+#endif
     D_800AE187              = itemId;
     g_Items_DisplayedCount  = 0;
     g_Items_PickupAnimState = 0;
@@ -4393,7 +4413,13 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].trans.vy  = 0;
     g_Items_Transforms[9].trans.vx  = 0;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] pre TmdDataAlloc FS_BUFFER_5=%p", (void*)FS_BUFFER_5);
+#endif
     GameFs_TmdDataAlloc(FS_BUFFER_5);
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] post TmdDataAlloc");
+#endif
 
 #ifndef SH_PC_PORT
     D_800C3E18[9] = 0; /* PSX BSS aliasing; out of bounds on PC */
@@ -4413,12 +4439,29 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].scale.vy = Q12(1.0f);
     g_Items_Transforms[9].scale.vx = Q12(1.0f);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] pre func_800549A0");
+#endif
     func_800549A0();
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] pre ItemScreen_CamSet");
+#endif
     ItemScreen_CamSet(&D_800C3B48, &D_800C3AE8, &D_800C3B38, 0);
+#ifdef SH_PC_PORT
+    SH_DBG("[PICKUP] func_80054A04 done");
+#endif
 }
 
 bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
 {
+#ifdef SH_PC_PORT
+    static int _pickAnimLogCount = 0;
+    if (_pickAnimLogCount < 3) {
+        SH_DBG("[PICKUP] Gfx_PickupItemAnimate itemId=%d state=%d scale=%d",
+               (int)itemId, (int)g_Items_PickupAnimState, (int)g_Items_PickupScale);
+        _pickAnimLogCount++;
+    }
+#endif
     q19_12         scale;
     s16            rotX;
     s16            rotZ;
