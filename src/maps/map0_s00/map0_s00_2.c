@@ -1268,13 +1268,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
     VECTOR3 viewPos;
     MAP_CHUNK_CHECK_VARIABLE_DECL();
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] enter");
-#endif
     vwGetViewPosition(&viewPos);
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] post-viewPos");
-#endif
 
 #ifdef SH_PC_PORT
     {
@@ -1307,45 +1301,24 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
     }
 #endif
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] EF4=%d EF13=%d", Savegame_EventFlagGet(EventFlag_4), Savegame_EventFlagGet(EventFlag_13));
-#endif
     if (Savegame_EventFlagGet(EventFlag_4) && !Savegame_EventFlagGet(EventFlag_13))
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[WOU] EF4+!EF13: EF6=%d EF9=%d EF11=%d", Savegame_EventFlagGet(EventFlag_6), Savegame_EventFlagGet(EventFlag_9), Savegame_EventFlagGet(EventFlag_11));
-#endif
         if (!Savegame_EventFlagGet(EventFlag_6))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[WOU] pre-DC33C");
-#endif
             func_800DC33C();
         }
         else if (!Savegame_EventFlagGet(EventFlag_9))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[WOU] pre-DC694");
-#endif
             func_800DC694();
         }
         else if (!Savegame_EventFlagGet(EventFlag_11))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[WOU] pre-DC8D8");
-#endif
             func_800DC8D8();
         }
 
-#ifdef SH_PC_PORT
-        SH_DBG("[WOU] pre-DCA30");
-#endif
         func_800DCA30();
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] pre-EF13-block EF13=%d EF16=%d", Savegame_EventFlagGet(EventFlag_13), Savegame_EventFlagGet(EventFlag_16));
-#endif
     if (Savegame_EventFlagGet(EventFlag_13) && !Savegame_EventFlagGet(EventFlag_16))
     {
 #ifdef SH_PC_PORT
@@ -1361,25 +1334,15 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
                 s_loggedDFADC = v;
             }
         }
-        SH_DBG("[WOU] pre-DCC54");
 #endif
         func_800DCC54();
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] pre-EF17 EF17=%d", Savegame_EventFlagGet(EventFlag_17));
-#endif
     if (Savegame_EventFlagGet(EventFlag_17))
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[WOU] pre-DD0CC");
-#endif
         func_800DD0CC();
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOU] pre-EF24 EF24=%d", Savegame_EventFlagGet(EventFlag_24));
-#endif
     if (!Savegame_EventFlagGet(EventFlag_24))
     {
         if (PLAYER_IN_MAP_CHUNK(vx, 1, -7, -1, -7) &&
