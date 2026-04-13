@@ -222,11 +222,29 @@ extern void GsSetFlatLight(int id, GsF_LIGHT *lt);
 extern void GsSetLightMode(int mode);
 extern void GsSetLightMatrix(MATRIX *m);
 
-/* TMD rendering functions */
+/* TMD cache — 64-bit compatible TMD parsing */
+extern void GsMapModelingData(unsigned long *p);
+extern struct TMD_STRUCT* GsGetTMDObject(unsigned long *base, int index);
+extern void GsLinkObject4(unsigned long tmd_base, GsDOBJ2 *objp, int n);
+extern void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj);
+extern void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch);
+ 
+/* TMD rendering functions — lit + fog */
+extern void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
-extern void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+
+/* TMD rendering functions — no light */
+extern void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+ 
 
 /* View */
 extern void GsSetView2(GsVIEW2 *v);

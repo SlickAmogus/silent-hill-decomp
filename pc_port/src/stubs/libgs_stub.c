@@ -245,29 +245,433 @@ void GsSetProjection(long h)
     SetGeomScreen(h);
 }
 
-/* TMD rendering stubs - these need full implementation for 3D rendering */
+/* =====================================================================
+ * TMD cache — resolves 32-bit PSX TMD layout to 64-bit TMD_STRUCT
+ * ===================================================================== */
+#define GS_TMD_CACHE_SLOTS  8
+#define GS_TMD_MAX_OBJS    48
+ 
+typedef struct {
+    u_long          *base;  /* key: pointer passed to GsMapModelingData */
+    int              nobj;
+    struct TMD_STRUCT objs[GS_TMD_MAX_OBJS];
+} GsTmdCacheEntry;
+ 
+static GsTmdCacheEntry gs_tmd_cache[GS_TMD_CACHE_SLOTS];
+static int gs_tmd_cache_count = 0;
+ 
+struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
+{
+    int i;
+    for (i = 0; i < gs_tmd_cache_count; i++) {
+        if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj)
+            return &gs_tmd_cache[i].objs[index];
+    }
+    return NULL;
+}
+ 
+/* =====================================================================
+ * TMD primitive rendering helpers
+ * ===================================================================== */
+ 
+/* Clamp s32 to u8 */
+static inline unsigned char clamp8(int v) { return (unsigned char)(v < 0 ? 0 : (v > 255 ? 255 : v)); }
+ 
+/* Flat-shaded triangle — lit + fog */
+void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_F3 *prim = (TMD_P_F3*)op;
+    SVECTOR  *vtx  = (SVECTOR*)vp;
+    SVECTOR  *nrm  = (SVECTOR*)np;
+    int i;
+    (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        CVECTOR col_in, col_out;
+        POLY_F3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_F3*)GsOUT_PACKET_P;
+        setPolyF3(poly);
+        setRGB0(poly, col_out.r, col_out.g, col_out.b);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
+    }
+}
+ 
+/* Gouraud-shaded triangle — lit + fog */
 void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
-    /* TODO: Implement Gouraud-shaded triangle rendering */
-    (void)op; (void)vp; (void)np; (void)pk; (void)n; (void)shift; (void)ot; (void)scratch;
+    TMD_P_G3 *prim = (TMD_P_G3*)op;
+    SVECTOR  *vtx  = (SVECTOR*)vp;
+    SVECTOR  *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        CVECTOR col_in, c0, c1, c2;
+        POLY_G3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
+                        &col_in, &c0, &c1, &c2);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_G3*)GsOUT_PACKET_P;
+        setPolyG3(poly);
+        setRGB0(poly, c0.r, c0.g, c0.b);
+        setRGB1(poly, c1.r, c1.g, c1.b);
+        setRGB2(poly, c2.r, c2.g, c2.b);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
+    }
 }
-
-void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+ 
+/* Flat-shaded quad — lit + fog */
+void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
-    /* TODO: Implement textured Gouraud-shaded triangle rendering */
-    (void)op; (void)vp; (void)np; (void)pk; (void)n; (void)shift; (void)ot; (void)scratch;
+    TMD_P_F4 *prim = (TMD_P_F4*)op;
+    SVECTOR  *vtx  = (SVECTOR*)vp;
+    SVECTOR  *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        CVECTOR col_in, col_out;
+        POLY_F4 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_F4*)GsOUT_PACKET_P;
+        setPolyF4(poly);
+        setRGB0(poly, col_out.r, col_out.g, col_out.b);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
+    }
 }
+ 
+/* Gouraud-shaded quad — lit + fog */
 
-void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
-{
-    /* TODO: Implement Gouraud-shaded quad rendering */
-    (void)op; (void)vp; (void)np; (void)pk; (void)n; (void)shift; (void)ot; (void)scratch;
-}
 
 void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
-    /* TODO: Implement textured Gouraud-shaded quad rendering */
-    (void)op; (void)vp; (void)np; (void)pk; (void)n; (void)shift; (void)ot; (void)scratch;
+    TMD_P_G4 *prim = (TMD_P_G4*)op;
+    SVECTOR  *vtx  = (SVECTOR*)vp;
+    SVECTOR  *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        CVECTOR col_in, c0, c1, c2;
+        POLY_G4 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
+                        &col_in, &c0, &c1, &c2);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_G4*)GsOUT_PACKET_P;
+        setPolyG4(poly);
+        setRGB0(poly, c0.r, c0.g, c0.b);
+        setRGB1(poly, c1.r, c1.g, c1.b);
+        setRGB2(poly, c2.r, c2.g, c2.b);
+        /* v3 gets c2 color (PSX convention for quads) */
+        setRGB3(poly, c2.r, c2.g, c2.b);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
+    }
+}
+ 
+/* Textured flat-shaded triangle — lit + fog */
+void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_TF3 *prim = (TMD_P_TF3*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    SVECTOR   *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        CVECTOR col_in, col_out;
+        POLY_FT3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_FT3*)GsOUT_PACKET_P;
+        setPolyFT3(poly);
+        setRGB0(poly, col_out.r, col_out.g, col_out.b);
+        setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
+        poly->tpage = prim->tpage;
+        poly->clut  = prim->clut;
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
+    }
+}
+ 
+/* Textured Gouraud-shaded triangle — lit + fog */
+void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_TG3 *prim = (TMD_P_TG3*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    SVECTOR   *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        CVECTOR col_in, c0, c1, c2;
+        POLY_GT3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
+                        &col_in, &c0, &c1, &c2);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_GT3*)GsOUT_PACKET_P;
+        setPolyGT3(poly);
+        setRGB0(poly, c0.r, c0.g, c0.b);
+        setRGB1(poly, c1.r, c1.g, c1.b);
+        setRGB2(poly, c2.r, c2.g, c2.b);
+        setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
+        poly->tpage = prim->tpage;
+        poly->clut  = prim->clut;
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
+    }
+}
+ 
+/* Textured flat-shaded quad — lit + fog */
+void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_TG4 *prim = (TMD_P_TG4*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    SVECTOR   *nrm  = (SVECTOR*)np;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        CVECTOR col_in, c0, c1, c2;
+        POLY_GT4 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
+        NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
+                        &col_in, &c0, &c1, &c2);
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_GT4*)GsOUT_PACKET_P;
+        setPolyGT4(poly);
+        setRGB0(poly, c0.r, c0.g, c0.b);
+        setRGB1(poly, c1.r, c1.g, c1.b);
+        setRGB2(poly, c2.r, c2.g, c2.b);
+        setRGB3(poly, c2.r, c2.g, c2.b);
+        setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
+                     prim->tu2, prim->tv2, prim->tu3, prim->tv3);
+        poly->tpage = prim->tpage;
+        poly->clut  = prim->clut;
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
+    }
+}
+ 
+/* No-light flat tri */
+void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NF3 *prim = (TMD_P_NF3*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        POLY_F3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_F3*)GsOUT_PACKET_P;
+        setPolyF3(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
+    }
+}
+ 
+/* No-light gouraud tri */
+void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NG3 *prim = (TMD_P_NG3*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+        POLY_G3 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_G3*)GsOUT_PACKET_P;
+        setPolyG3(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB1(poly, prim->r1, prim->g1, prim->b1);
+        setRGB2(poly, prim->r2, prim->g2, prim->b2);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
+    }
+}
+ 
+/* No-light flat quad */
+void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NF4 *prim = (TMD_P_NF4*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        POLY_F4 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_F4*)GsOUT_PACKET_P;
+        setPolyF4(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
+    }
+}
+ 
+/* No-light gouraud quad */
+void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NG4 *prim = (TMD_P_NG4*)op;
+    SVECTOR   *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+ 
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        POLY_G4 *poly;
+ 
+        RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                      &sxy0, &sxy1, &sxy2, &p, &flg);
+        RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
+        nclip = NormalClip(sxy0, sxy1, sxy2);
+        if (nclip <= 0) continue;
+ 
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+ 
+        poly = (POLY_G4*)GsOUT_PACKET_P;
+        setPolyG4(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB1(poly, prim->r1, prim->g1, prim->b1);
+        setRGB2(poly, prim->r2, prim->g2, prim->b2);
+        setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
+    }
+
 }
 
 void GsSortObject4(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
@@ -387,14 +791,65 @@ void GsInitCoordinate2(void *super, GsCOORDINATE2 *coord)
     }
 }
 
-void GsLinkObject4(GsDOBJ2 *obj, void *data)
+void GsLinkObject4(unsigned long tmd_base, GsDOBJ2 *objp, int n)
 {
-    (void)obj; (void)data;
+    /* On PC, tmd_base is a TMD_STRUCT* cast to unsigned long.
+     * Since unsigned long is 32 bits on Windows, the caller must use
+     * the PC-specific GsLinkObject4_PC wrapper for 64-bit pointers. */
+    (void)tmd_base; (void)objp; (void)n;
 }
-
-void GsMapModelingData(void *data)
+ 
+void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj)
 {
-    (void)data;
+    if (tmd && obj) {
+        obj->tmd = (u_long*)tmd;
+    }
+}
+ 
+void GsMapModelingData(unsigned long *p)
+{
+    u_long nobj;
+    u8    *obj_table;
+    int    i, slot;
+    GsTmdCacheEntry *entry;
+ 
+    if (!p) return;
+    /* p[0] = flags, p[1] = nobj */
+    nobj = p[1];
+    if (nobj == 0 || nobj > GS_TMD_MAX_OBJS) return;
+ 
+    /* Object table starts right after flags + nobj (2 u_longs = 8 bytes) */
+    obj_table = (u8*)&p[2];
+ 
+    /* Find existing slot or allocate new one */
+    slot = -1;
+    for (i = 0; i < gs_tmd_cache_count; i++) {
+        if (gs_tmd_cache[i].base == p) { slot = i; break; }
+    }
+    if (slot < 0) {
+        if (gs_tmd_cache_count >= GS_TMD_CACHE_SLOTS) slot = 0;
+        else slot = gs_tmd_cache_count++;
+    }
+ 
+    entry = &gs_tmd_cache[slot];
+    entry->base = p;
+    entry->nobj = (int)nobj;
+ 
+    /* Parse raw 28-byte TMD objects (7 × u32).
+     * On PSX, TMD_STRUCT has 32-bit pointer fields matching the file layout.
+     * On 64-bit PC, pointer fields are 8 bytes, so we parse manually. */
+    for (i = 0; i < (int)nobj; i++) {
+        u32 *raw = (u32*)(obj_table + i * 28);
+        /* raw[0..6] = vertop_off, vern, nortop_off, norn, primtop_off, primn, scale
+         * Offsets are relative to the object table start. */
+        entry->objs[i].vertop  = (u_long*)(obj_table + raw[0]);
+        entry->objs[i].vern    = raw[1];
+        entry->objs[i].nortop  = (u_long*)(obj_table + raw[2]);
+        entry->objs[i].norn    = raw[3];
+        entry->objs[i].primtop = (u_long*)(obj_table + raw[4]);
+        entry->objs[i].primn   = raw[5];
+        entry->objs[i].scale   = raw[6];
+    }
 }
 
 void GsSetLsMatrix(MATRIX *m)
@@ -412,7 +867,88 @@ void GsSortFastSprite(GsSPRITE *spr, GsOT *ot, int shift)
 
 void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
 {
-    (void)obj; (void)ot; (void)shift; (void)scratch;
+    struct TMD_STRUCT *tmd;
+    SVECTOR *vp, *np;
+    u8      *pp;
+    int      primn;
+    int      divmode = 0; /* always NDIV for now */
+    int      lmode   = gs_light_mode;
+    PACKET  *pk;
+ 
+    if (!obj || !obj->tmd || !ot) return;
+ 
+    tmd = (struct TMD_STRUCT*)obj->tmd;
+    vp  = (SVECTOR*)tmd->vertop;
+    np  = (SVECTOR*)tmd->nortop;
+    pp  = (u8*)tmd->primtop;
+    primn = (int)tmd->primn;
+    pk  = GsOUT_PACKET_P;
+ 
+    if (!vp || !pp) return;
+    if (lmode < 0 || lmode > 2) lmode = 0;
+ 
+    while (primn > 0) {
+        u8 olen = pp[0];
+        u8 ilen = pp[1];
+        u8 flag = pp[2];
+        u8 mode = pp[3];
+        int batch, lsc, iip, qd, tme;
+        u8 *next;
+        typedef PACKET* (*tmd_func_lit)(void*, VERT*, VERT*, PACKET*, int, int, GsOT*, u_long*);
+        typedef PACKET* (*tmd_func_nl)(void*, VERT*, PACKET*, int, int, GsOT*, u_long*);
+ 
+        if (ilen == 0) break;
+ 
+        /* Count consecutive same-type primitives */
+        batch = 1;
+        next  = pp + ilen * 4;
+        while (batch < primn) {
+            if (next[1] != ilen || next[3] != mode || next[2] != flag) break;
+            batch++;
+            next += ilen * 4;
+        }
+ 
+        lsc = flag & 1;         /* light source calculation */
+        iip = mode & 1;         /* gouraud */
+        qd  = (mode >> 1) & 1;  /* quad */
+        tme = (mode >> 2) & 1;  /* textured */
+ 
+        if (lsc) {
+            /* Lit primitives — dispatch through GsFCALL4 */
+            tmd_func_lit fn = NULL;
+            if (!tme) {
+                if (!qd)
+                    fn = (tmd_func_lit)(iip ? GsFCALL4.g3[divmode][lmode] : GsFCALL4.f3[divmode][lmode]);
+                else
+                    fn = (tmd_func_lit)(iip ? GsFCALL4.g4[divmode][lmode] : GsFCALL4.f4[divmode][lmode]);
+            } else {
+                if (!qd)
+                    fn = (tmd_func_lit)(iip ? GsFCALL4.tg3[divmode][lmode] : GsFCALL4.tf3[divmode][lmode]);
+                else
+                    fn = (tmd_func_lit)(iip ? GsFCALL4.tg4[divmode][lmode] : GsFCALL4.tf4[divmode][lmode]);
+            }
+            if (fn) fn(pp, (VERT*)vp, (VERT*)np, pk, batch, shift, ot, scratch);
+        } else {
+            /* No-light primitives */
+            tmd_func_nl fn = NULL;
+            if (!tme) {
+                if (!qd)
+                    fn = (tmd_func_nl)(iip ? GsFCALL4.ng3[divmode] : GsFCALL4.nf3[divmode]);
+                else
+                    fn = (tmd_func_nl)(iip ? GsFCALL4.ng4[divmode] : GsFCALL4.nf4[divmode]);
+            } else {
+                if (!qd)
+                    fn = (tmd_func_nl)(iip ? GsFCALL4.ntg3[divmode] : GsFCALL4.ntf3[divmode]);
+                else
+                    fn = (tmd_func_nl)(iip ? GsFCALL4.ntg4[divmode] : GsFCALL4.ntf4[divmode]);
+            }
+            if (fn) fn(pp, (VERT*)vp, pk, batch, shift, ot, scratch);
+        }
+ 
+        pk = GsOUT_PACKET_P;
+        pp = next;
+        primn -= batch;
+    }
 }
 
 void GsSortOt(GsOT *src, GsOT *dst)

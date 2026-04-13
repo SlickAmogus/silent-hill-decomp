@@ -278,6 +278,14 @@ bool Fs_QueueUpdateSeek(s_FsQueueEntry* entry)
     bool result = false;
     s32  state  = g_FsQueue.state;
 
+#ifdef SH_PC_PORT
+    /* No CD drive on PC — seeks are meaningless. Complete immediately so
+     * subsequent reads in the queue are not blocked. */
+    (void)entry;
+    (void)state;
+    return true;
+#endif
+
     switch (state)
     {
         case FsQueueSeekState_SetLoc:
