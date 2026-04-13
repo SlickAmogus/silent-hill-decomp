@@ -3256,6 +3256,13 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             break;
 
         case 9:
+#ifdef SH_PC_PORT
+            SH_DBG("[USEHEAL] case9 timer=%d selIdx=%d id=%d count=%d",
+                   (int)g_Inventory_ScrollTransitionTimer,
+                   (int)g_SysWork.inventoryItemSelectedIdx_2351,
+                   (int)g_SavegamePtr->items_0[g_SysWork.inventoryItemSelectedIdx_2351].id_0,
+                   (int)g_SavegamePtr->items_0[g_SysWork.inventoryItemSelectedIdx_2351].count_1);
+#endif
             if (g_Inventory_ScrollTransitionTimer == 0)
             {
                 switch (g_SavegamePtr->items_0[g_SysWork.inventoryItemSelectedIdx_2351].id_0)
@@ -3292,6 +3299,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[USEHEAL] count0 exit: clearing item, calling func_8004EF48");
+#endif
                     g_SavegamePtr->items_0[g_SysWork.inventoryItemSelectedIdx_2351].id_0 = InventoryItemId_Empty;
 
                     g_Inventory_ScrollTransitionTimer = 0;
@@ -3303,6 +3313,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                     D_800C3BA8                      = temp4;
 
                     func_8004EF48();
+#ifdef SH_PC_PORT
+                    SH_DBG("[USEHEAL] count0 exit: func_8004EF48 returned");
+#endif
                 }
                 else
                 {
@@ -3323,6 +3336,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[USEHEAL] countN exit: state->1");
+#endif
                     g_Inventory_ScrollTransitionTimer = 0;
                     *selectedItemId                   = 0;
                     D_800AE188                        = 0;
