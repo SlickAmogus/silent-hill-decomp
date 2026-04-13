@@ -321,13 +321,18 @@ void Game_NpcUpdate(void) // 0x80038354
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model_0.charaId_0 < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
                                     g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0] != NULL);
-                /* NPCs whose AI we fully run (collision + anim safe) */
+                /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
+                 * baseline working set; Cybil + AirScreamer added because
+                 * render-only path never produced a visible model — they need
+                 * AI updates to drive the model state.  When new NPCs crash,
+                 * narrow this list rather than going back to a blanket skip. */
                 bool isFullAiNpc = (npc->model_0.charaId_0 == Chara_Cheryl ||
-                                    npc->model_0.charaId_0 == Chara_GreyChild);
-                /* NPCs we let EXIST (model renders, DMS can move them) but skip AI.
-                 * Cybil: needed for post-alley cutscene. AirScreamer: loads but AI crashes. */
-                bool isRenderOnlyNpc = (npc->model_0.charaId_0 == Chara_Cybil ||
-                                        npc->model_0.charaId_0 == Chara_AirScreamer);
+                                    npc->model_0.charaId_0 == Chara_GreyChild ||
+                                    npc->model_0.charaId_0 == Chara_Cybil ||
+                                    npc->model_0.charaId_0 == Chara_AirScreamer);
+                /* No render-only set — kept as opt-out for any future NPC that
+                 * really only needs the model and not the full AI dispatch. */
+                bool isRenderOnlyNpc = false;
 
                 if (!animLoaded || !isFullAiNpc)
                 {
@@ -357,7 +362,22 @@ void Game_NpcUpdate(void) // 0x80038354
                 }
                 if (!hasUpdateFn)
                 {
-                    npc->model_0.charaId_0 = Chara_None;
+                    /* Map overlay's charaUpdateFunc was NULL (likely sanitized
+                     * out by map_overlay_loader for an un-decompiled stub).
+                     * Don't kill the NPC — keep it alive so the model can
+                     * render even without AI driving it. */
+                    static u32 _noUpdateFnLogged = 0;
+                    if (!(_noUpdateFnLogged & (1u << (npc->model_0.charaId_0 & 31)))) {
+                        SH_DBG("[NPC_AI] charaId=%d has NULL charaUpdateFunc — skipping AI, keeping for render",
+                               npc->model_0.charaId_0);
+                        _noUpdateFnLogged |= (1u << (npc->model_0.charaId_0 & 31));
+                    }
+                    if (animLoaded && (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)) {
+                        func_8003DA9C(npc->model_0.charaId_0,
+                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                      1, npc->timer_C6,
+                                      (s8)npc->model_0.paletteIdx_1);
+                    }
                     continue;
                 }
             }

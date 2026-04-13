@@ -11,7 +11,7 @@ u8 BLOODY_LISA_ANIM_INFOS[256] = {0};
 u8 CAT_ANIM_INFOS[256] = {0};
 /* CHERYL_ANIM_INFOS provided by cheryl_anim_info.c */
 u8 CREEPER_ANIM_INFOS[256] = {0};
-u8 CYBIL_ANIM_INFOS[256] = {0};
+/* CYBIL_ANIM_INFOS provided by cybil_anim_info.c */
 u8 DAHLIA_ANIM_INFOS[256] = {0};
 u8 D_80028544[256] = {0};
 u8 D_800294F4[256] = {0};
