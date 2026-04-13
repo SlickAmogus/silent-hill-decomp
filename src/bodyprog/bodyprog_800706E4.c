@@ -1176,14 +1176,18 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
             {
                 q3_12 turnSpeed = Q12_ANGLE(2.0f);
 
-                /* TPS mode: override movement flags from WASD; mouse yaw applied in DebugCamera_Update */
+                /* TPS mode: override movement flags from WASD; mouse yaw applied in DebugCamera_Update.
+                 * A/D = sidestep (strafe), W/S = forward/back, Shift = run. */
                 if (g_DebugThirdPersonCam) {
-                    g_Player_IsMovingForward  = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
-                    g_Player_IsMovingBackward = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
-                    g_Player_IsRunning        = g_Player_IsMovingForward && (g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0);
-                    g_Player_IsTurningLeft    = 0;
-                    g_Player_IsTurningRight   = 0;
-                    g_Player_HasMoveInput     = g_Player_IsMovingForward || g_Player_IsMovingBackward;
+                    g_Player_IsMovingForward     = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
+                    g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
+                    g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
+                    g_Player_IsTurningLeft       = 0;
+                    g_Player_IsTurningRight      = 0;
+                    g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
+                    g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
+                    g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
+                                                    g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
                 }
 
                 /* Turn (PSX pad or A/D in non-TPS mode; skipped in TPS mode since mouse handles yaw) */
@@ -1197,27 +1201,38 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                 }
                 chara->rotation_24.vy = Q12_ANGLE_NORM_U(chara->rotation_24.vy + Q12_ANGLE(360.0f));
 
-                /* Set D_800C4550 — post-switch code copies this to moveSpeed_38.
-                 * func_8007C0D8 uses moveSpeed_38 with sin/cos(heading) to
-                 * compute position delta. Values match original game.
-                 * Original game does NOT allow sprinting backward — only walk. */
-                if (g_Player_IsMovingForward) {
-                    D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
-                } else if (g_Player_IsMovingBackward) {
-                    /* Sprint + back → jump back (burst speed, short duration) */
-                    if (g_Player_IsRunning && extra->model_0.stateStep_3 == 0 &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_JumpBackward, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_JumpBackward, false)) {
-                        D_800C4550 = Q12(-3.5f);
-                    } else {
-                        D_800C4550 = Q12(-1.5f);
+                /* Jump back edge detection — only fire on press, not hold.
+                 * After jump-back anim finishes, transition to walk-back (if
+                 * still held) or idle (if released). Must release+press to
+                 * jump again. */
+                {
+                    static u16 s_prevBack = 0;
+                    static u8  s_jumpBackActive = 0;
+                    bool backEdge = g_Player_IsMovingBackward && !s_prevBack;
+                    s_prevBack = g_Player_IsMovingBackward;
+
+                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive) {
+                        s_jumpBackActive = 1;
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_JumpBackward, false);
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_JumpBackward, false);
+                        extra->model_0.stateStep_3 = 0;
                     }
-                } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
-                    D_800C4550 = Q12(0.0f); /* strafe uses offset vectors in anim */
-                } else if (g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
-                    D_800C4550 = Q12(0.0f);
-                } else {
-                    D_800C4550 = Q12(0.0f);
+                    /* Jump back ends when anim plays out (status flips to ,true) */
+                    if (s_jumpBackActive &&
+                        chara->model_0.anim_4.status_0 == ANIM_STATUS(HarryAnim_JumpBackward, true)) {
+                        s_jumpBackActive = 0;
+                    }
+
+                    if (s_jumpBackActive) {
+                        D_800C4550 = Q12(-3.5f);
+                    } else if (g_Player_IsMovingForward) {
+                        D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
+                    } else if (g_Player_IsMovingBackward) {
+                        D_800C4550 = Q12(-1.5f);
+                    } else {
+                        D_800C4550 = Q12(0.0f);
+                    }
                 }
 
                 /* Set walk/run animation on both lower body (chara) and upper body (extra).
@@ -1234,13 +1249,15 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         extra->model_0.stateStep_3 = 0;
                     }
                 } else if (g_Player_IsMovingBackward) {
-                    u8 backAnim = g_Player_IsRunning ? HarryAnim_JumpBackward : HarryAnim_WalkBackward;
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(backAnim, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(backAnim, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(backAnim, false);
-                        chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(backAnim, false);
-                        extra->model_0.stateStep_3 = 0;
+                    /* Don't override jump-back while it's still playing */
+                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_JumpBackward, false)) {
+                        if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, true) &&
+                            chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_WalkBackward, false)) {
+                            chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                            chara->model_0.stateStep_3 = 0;
+                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                            extra->model_0.stateStep_3 = 0;
+                        }
                     }
                 } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepLeft, true) &&
@@ -1295,18 +1312,28 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     }
                 }
 
-                /* Aim/shoot overlay — override idle/movement animation when equipped+aiming.
-                 * Only the upper body (extra->model_0) gets weapon anim so legs can still move. */
-                if (g_SysWork.playerCombat_38.weaponAttack_F != 0) {
-                    if (g_Player_IsShooting) {
-                        if (extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, true) &&
-                            extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, false)) {
-                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
-                            extra->model_0.stateStep_3 = 0;
-                        }
-                    } else if (g_Player_IsAiming) {
-                        if (extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
-                            extra->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, false)) {
+                /* Aim/shoot overlay — when weapon equipped.
+                 * Shows on BOTH chara (lower) and extra (upper) since the lower
+                 * body cross-fade would otherwise override the upper body. */
+                {
+                    bool hasWeapon = g_SavegamePtr->equippedWeapon_AA != 0;
+                    /* Fire edge-trigger: g_Player_IsShooting can stay 1 across frames */
+                    static u16 s_prevShoot = 0;
+                    bool shootEdge = g_Player_IsShooting && !s_prevShoot;
+                    s_prevShoot = g_Player_IsShooting;
+
+                    if (hasWeapon && shootEdge) {
+                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                        extra->model_0.stateStep_3 = 0;
+                    } else if (hasWeapon && g_Player_IsAiming &&
+                               chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, false)) {
+                        if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
+                            chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, false) &&
+                            chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, true)) {
+                            chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                            chara->model_0.stateStep_3 = 0;
                             extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
                             extra->model_0.stateStep_3 = 0;
                         }
