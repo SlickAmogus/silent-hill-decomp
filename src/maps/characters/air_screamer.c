@@ -414,6 +414,19 @@ bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer)
             break;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[AIRSCR-INIT] enter");
+    sharedFunc_800D2BF4_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2BF4");
+    Ai_AirScreamer_Control_0(airScreamer);  SH_DBG("[AIRSCR-INIT] post-Ctrl0");
+    sharedFunc_800D2390_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2390a");
+    sharedFunc_800D2390_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2390b");
+    sharedFunc_800D2B00_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B00");
+    sharedFunc_800D2B10_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B10");
+    sharedFunc_800D2B28_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B28");
+    sharedFunc_800D2B4C_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B4C");
+    Ai_AirScreamer_GroundWarp(airScreamer); SH_DBG("[AIRSCR-INIT] post-GndWarp");
+    sharedFunc_800D2BE4_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2BE4");
+#else
     sharedFunc_800D2BF4_0_s01(airScreamer);
     Ai_AirScreamer_Control_0(airScreamer);
     sharedFunc_800D2390_0_s01(airScreamer);
@@ -424,6 +437,7 @@ bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer)
     sharedFunc_800D2B4C_0_s01(airScreamer);
     Ai_AirScreamer_GroundWarp(airScreamer);
     sharedFunc_800D2BE4_0_s01(airScreamer);
+#endif
 
     return true;
 

@@ -1273,31 +1273,21 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                         }
                     }
                 } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepLeft, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepLeft, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepLeft, false);
-                        chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepLeft, false);
-                        extra->model_0.stateStep_3 = 0;
-                    }
-                    /* Perpendicular position delta: left = -cos(yaw)*v, +sin(yaw)*v */
+                    /* Sidestep anims (5/6) aren't safely loaded in every
+                     * area — forcing them corrupts the model. Keep idle
+                     * anim; shift position perpendicular to yaw. */
                     {
-                        q19_12 stepV = Q12(0.9f);
-                        chara->position_18.vx -= Q12_MULT(stepV, Math_Cos(chara->rotation_24.vy));
-                        chara->position_18.vz += Q12_MULT(stepV, Math_Sin(chara->rotation_24.vy));
+                        q19_12 dt = g_DeltaTime;
+                        q19_12 step = Q12_MULT(Q12(1.5f), dt);
+                        chara->position_18.vx -= Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
+                        chara->position_18.vz += Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
                     }
                 } else if (g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
-                    if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepRight, true) &&
-                        chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_SidestepRight, false)) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepRight, false);
-                        chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_SidestepRight, false);
-                        extra->model_0.stateStep_3 = 0;
-                    }
                     {
-                        q19_12 stepV = Q12(0.9f);
-                        chara->position_18.vx += Q12_MULT(stepV, Math_Cos(chara->rotation_24.vy));
-                        chara->position_18.vz -= Q12_MULT(stepV, Math_Sin(chara->rotation_24.vy));
+                        q19_12 dt = g_DeltaTime;
+                        q19_12 step = Q12_MULT(Q12(1.5f), dt);
+                        chara->position_18.vx += Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
+                        chara->position_18.vz -= Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
                     }
                 } else if (g_Player_IsTurningLeft) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, true) &&
@@ -1325,33 +1315,9 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     }
                 }
 
-                /* Aim/shoot overlay — when weapon equipped.
-                 * Shows on BOTH chara (lower) and extra (upper) since the lower
-                 * body cross-fade would otherwise override the upper body. */
-                {
-                    bool hasWeapon = g_SavegamePtr->equippedWeapon_AA != 0;
-                    /* Fire edge-trigger: g_Player_IsShooting can stay 1 across frames */
-                    static u16 s_prevShoot = 0;
-                    bool shootEdge = g_Player_IsShooting && !s_prevShoot;
-                    s_prevShoot = g_Player_IsShooting;
-
-                    if (hasWeapon && shootEdge) {
-                        chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
-                        chara->model_0.stateStep_3 = 0;
-                        extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
-                        extra->model_0.stateStep_3 = 0;
-                    } else if (hasWeapon && g_Player_IsAiming &&
-                               chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, false)) {
-                        if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
-                            chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, false) &&
-                            chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, true)) {
-                            chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                            chara->model_0.stateStep_3 = 0;
-                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                            extra->model_0.stateStep_3 = 0;
-                        }
-                    }
-                }
+                /* Aim/shoot overlay DISABLED — HandgunAim/Recoil anims (28/31)
+                 * cause garbled model when not loaded for area. Needs proper
+                 * anim-availability check before re-enabling. */
 
                 /* Set lowerBodyState for footstep sound triggers */
                 if (g_Player_IsMovingForward && g_Player_IsRunning)
