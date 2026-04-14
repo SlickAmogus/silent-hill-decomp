@@ -1272,22 +1272,54 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                             extra->model_0.stateStep_3 = 0;
                         }
                     }
-                } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap) {
-                    /* Sidestep anims (5/6) aren't safely loaded in every
-                     * area — forcing them corrupts the model. Keep idle
-                     * anim; shift position perpendicular to yaw. */
-                    {
-                        q19_12 dt = g_DeltaTime;
-                        q19_12 step = Q12_MULT(Q12(1.5f), dt);
-                        chara->position_18.vx -= Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
-                        chara->position_18.vz += Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
+                } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap ||
+                           g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
+                    /* Sidestep: anim-driven position so Harry only slides
+                     * while the step is actually in progress. We advance
+                     * position proportional to keyframeIdx_8 delta, not
+                     * real-time — mirrors how PSX original ties movement
+                     * to anim keyframes. */
+                    bool isLeft = (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap);
+                    s32 wantActive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  true)
+                                            : ANIM_STATUS(HarryAnim_SidestepRight, true);
+                    s32 wantInactive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  false)
+                                              : ANIM_STATUS(HarryAnim_SidestepRight, false);
+                    static s16 s_prevSidestepKF = -1;
+                    static s32 s_prevSidestepStatus = -1;
+
+                    if (chara->model_0.anim_4.status_0 != wantActive &&
+                        chara->model_0.anim_4.status_0 != wantInactive) {
+                        chara->model_0.anim_4.status_0 = wantInactive;
+                        chara->model_0.stateStep_3 = 0;
+                        extra->model_0.anim_4.status_0 = wantInactive;
+                        extra->model_0.stateStep_3 = 0;
+                        s_prevSidestepKF = -1;
+                        s_prevSidestepStatus = wantInactive;
                     }
-                } else if (g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) {
+
                     {
-                        q19_12 dt = g_DeltaTime;
-                        q19_12 step = Q12_MULT(Q12(1.5f), dt);
-                        chara->position_18.vx += Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
-                        chara->position_18.vz -= Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
+                        s16 curKF = chara->model_0.anim_4.keyframeIdx_8;
+                        s16 dKF = 0;
+                        if (s_prevSidestepKF >= 0 &&
+                            s_prevSidestepStatus == chara->model_0.anim_4.status_0 &&
+                            curKF >= s_prevSidestepKF) {
+                            dKF = curKF - s_prevSidestepKF;
+                        }
+                        s_prevSidestepKF = curKF;
+                        s_prevSidestepStatus = chara->model_0.anim_4.status_0;
+
+                        if (dKF > 0) {
+                            /* ~0.024 world units per keyframe → ~0.6u per
+                             * 25-keyframe step cycle. Tune to taste. */
+                            q19_12 step = Q12(0.024f) * dKF;
+                            if (isLeft) {
+                                chara->position_18.vx -= Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
+                                chara->position_18.vz += Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
+                            } else {
+                                chara->position_18.vx += Q12_MULT(step, Math_Cos(chara->rotation_24.vy));
+                                chara->position_18.vz -= Q12_MULT(step, Math_Sin(chara->rotation_24.vy));
+                            }
+                        }
                     }
                 } else if (g_Player_IsTurningLeft) {
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_TurnLeft, true) &&
