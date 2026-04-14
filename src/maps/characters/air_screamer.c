@@ -487,11 +487,19 @@ void sharedFunc_800D2B4C_0_s01(s_SubCharacter* airScreamer)
     coords = sharedData_800E21D0_0_s01.coords_8;
 
     g_DeltaTime = Q12(0.0f);
+#ifdef SH_PC_PORT
+    SH_DBG("[2B4C] anmHdr=%p coords=%p airscr=%p", (void*)anmHdr, (void*)coords, (void*)airScreamer);
+    func_80044950(airScreamer, anmHdr, coords);  SH_DBG("[2B4C] post-44950");
+    g_DeltaTime = deltaTime;
+    sharedFunc_800D7560_0_s01(airScreamer);       SH_DBG("[2B4C] post-7560");
+    sharedFunc_800D82B8_0_s01(airScreamer);       SH_DBG("[2B4C] post-82B8");
+#else
     func_80044950(airScreamer, anmHdr, coords);
     g_DeltaTime = deltaTime;
 
     sharedFunc_800D7560_0_s01(airScreamer);
     sharedFunc_800D82B8_0_s01(airScreamer);
+#endif
 }
 
 void Ai_AirScreamer_GroundWarp(s_SubCharacter* airScreamer)

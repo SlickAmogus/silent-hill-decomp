@@ -1,4 +1,7 @@
 #include "bodyprog/bodyprog.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -22,6 +25,23 @@
  */
 void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[CYBIL] enter chara=%p anm=%p coord=%p ctrl=%d step=%d status=%d",
+           (void*)chara, (void*)anmHdr, (void*)coords,
+           chara ? chara->model_0.controlState_2 : -1,
+           chara ? chara->model_0.stateStep_3 : -1,
+           chara ? chara->model_0.anim_4.status_0 : -1);
+    if (chara->model_0.controlState_2 == ModelState_Uninitialized)
+    {
+        SH_DBG("[CYBIL] pre-Init");
+        Ai_Cybil_Init(chara);
+        SH_DBG("[CYBIL] post-Init");
+    }
+    Ai_Cybil_AnimStateUpdate(chara, coords);   SH_DBG("[CYBIL] post-AnimStateUpdate");
+    Ai_Cybil_MovementUpdate(chara, coords);    SH_DBG("[CYBIL] post-MovementUpdate");
+    Ai_Cybil_AnimUpdate(chara, anmHdr, coords);SH_DBG("[CYBIL] post-AnimUpdate status=%d",
+                                                      chara->model_0.anim_4.status_0);
+#else
     if (chara->model_0.controlState_2 == ModelState_Uninitialized)
     {
         Ai_Cybil_Init(chara);
@@ -30,6 +50,7 @@ void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* 
     Ai_Cybil_AnimStateUpdate(chara, coords);
     Ai_Cybil_MovementUpdate(chara, coords);
     Ai_Cybil_AnimUpdate(chara, anmHdr, coords);
+#endif
 }
 
 /** Addresses
@@ -538,6 +559,19 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
  */
 void Ai_Cybil_Init(s_SubCharacter* chara)
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[CYBIL-INIT] enter chara=%p", (void*)chara);
+    sharedFunc_800D923C_0_s00(chara);   SH_DBG("[CYBIL-INIT] post-923C");
+    sharedData_800E2378_0_s01 = 0;
+    sharedData_800E237C_0_s01 = 0;
+    SH_DBG("[CYBIL-INIT] pre-HeldItemAttach");
+#ifdef MAP7_S03
+    WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(1, 1));
+#else
+    WorldGfx_HeldItemAttach(Chara_Cybil, MODEL_BONE(1, 1));
+#endif
+    SH_DBG("[CYBIL-INIT] post-HeldItemAttach");
+#else
     sharedFunc_800D923C_0_s00(chara);
     sharedData_800E2378_0_s01 = 0;
     sharedData_800E237C_0_s01 = 0;
@@ -546,5 +580,6 @@ void Ai_Cybil_Init(s_SubCharacter* chara)
     WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(1, 1));
 #else
     WorldGfx_HeldItemAttach(Chara_Cybil, MODEL_BONE(1, 1));
+#endif
 #endif
 }
