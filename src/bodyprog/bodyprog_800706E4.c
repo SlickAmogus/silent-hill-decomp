@@ -1208,20 +1208,33 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                 {
                     static u16 s_prevBack = 0;
                     static u8  s_jumpBackActive = 0;
-                    bool backEdge = g_Player_IsMovingBackward && !s_prevBack;
-                    s_prevBack = g_Player_IsMovingBackward;
+                    static u16 s_jumpBackFrames = 0;
+                    /* Require pure-backward input to start a jumpback: if
+                     * forward is also held, other branches will stomp the
+                     * anim and active would stick forever. */
+                    bool pureBack = g_Player_IsMovingBackward && !g_Player_IsMovingForward;
+                    bool backEdge = pureBack && !s_prevBack;
+                    s_prevBack = pureBack;
 
                     if (backEdge && g_Player_IsRunning && !s_jumpBackActive) {
                         s_jumpBackActive = 1;
+                        s_jumpBackFrames = 0;
                         chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         chara->model_0.stateStep_3 = 0;
                         extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         extra->model_0.stateStep_3 = 0;
                     }
-                    /* Jump back ends when anim plays out (status flips to ,true) */
-                    if (s_jumpBackActive &&
-                        chara->model_0.anim_4.status_0 == ANIM_STATUS(HarryAnim_JumpBackward, true)) {
-                        s_jumpBackActive = 0;
+                    /* Jump back ends when anim plays out OR on hard timeout
+                     * (~45 frames) so a stomped anim can never freeze the
+                     * flag and slide Harry forever. */
+                    if (s_jumpBackActive) {
+                        s_jumpBackFrames++;
+                        if (chara->model_0.anim_4.status_0 == ANIM_STATUS(HarryAnim_JumpBackward, true) ||
+                            s_jumpBackFrames > 45 ||
+                            !g_Player_IsMovingBackward) {
+                            s_jumpBackActive = 0;
+                            s_jumpBackFrames = 0;
+                        }
                     }
 
                     if (s_jumpBackActive) {

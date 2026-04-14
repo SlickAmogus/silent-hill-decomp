@@ -1,4 +1,7 @@
 #include "bodyprog/bodyprog.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -18,6 +21,19 @@
 
 void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[AIRSCR] enter chara=%p anm=%p coord=%p", (void*)airScreamer, (void*)anmHdr, (void*)coords);
+    sharedFunc_800D21E4_0_s01(anmHdr, coords);           SH_DBG("[AIRSCR] post-21E4");
+    sharedFunc_800D2200_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2200");
+    Ai_AirScreamer_Init(airScreamer);                    SH_DBG("[AIRSCR] post-Init");
+    sharedFunc_800D2274_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2274");
+    sharedFunc_800D2390_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2390");
+    Ai_AirScreamer_Control(airScreamer);                 SH_DBG("[AIRSCR] post-Control");
+    sharedFunc_800D62D8_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-62D8");
+    sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0");
+    sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC");
+    sharedFunc_800D81B0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-81B0");
+#else
     sharedFunc_800D21E4_0_s01(anmHdr, coords);
     sharedFunc_800D2200_0_s01(airScreamer);
 
@@ -30,6 +46,7 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
     sharedFunc_800D7AB0_0_s01(airScreamer);
     sharedFunc_800D7EBC_0_s01(airScreamer);
     sharedFunc_800D81B0_0_s01(airScreamer);
+#endif
 }
 
 bool sharedFunc_800D21E4_0_s01(s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
