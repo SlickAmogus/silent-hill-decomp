@@ -7,7 +7,7 @@
 #include "map_overlay_loader.h"
 #include "map_registry.h"
 #include "dll_loader.h"
-#include <stdio.h>
+#include "sh_log.h"
 #include <string.h>
 
 #ifdef _WIN32
@@ -33,7 +33,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
     mapName = MapRegistry_GetName(id);
     if (mapName == NULL || strcmp(mapName, "unknown") == 0)
     {
-        fprintf(stderr, "[MapOverlay] Unknown overlay ID %d\n", id);
+        SH_DBG("[MapOverlay] Unknown overlay ID %d", id);
         return NULL;
     }
 
@@ -42,7 +42,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
     {
         MapOverlay_Unload();
         snprintf(s_currentName, sizeof(s_currentName), "%s", mapName);
-        fprintf(stderr, "[MapOverlay] Using built-in %s\n", mapName);
+        SH_DBG("[MapOverlay] Using built-in %s", mapName);
         return &g_MapOverlayHeader_map0_s00;
     }
 
@@ -59,7 +59,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
     s_currentDll = DllLoader_Open(dllPath);
     if (!s_currentDll)
     {
-        fprintf(stderr, "[MapOverlay] Failed to load %s (%s)\n", dllPath, DllLoader_GetError());
+        SH_DBG("[MapOverlay] Failed to load %s (%s)", dllPath, DllLoader_GetError());
         return NULL;
     }
 
@@ -67,7 +67,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
     header = (s_MapOverlayHeader*)DllLoader_GetSymbol(s_currentDll, symbolName);
     if (!header)
     {
-        fprintf(stderr, "[MapOverlay] Symbol '%s' not found in %s (%s)\n",
+        SH_DBG("[MapOverlay] Symbol '%s' not found in %s (%s)",
                 symbolName, dllPath, DllLoader_GetError());
         DllLoader_Close(s_currentDll);
         s_currentDll = NULL;
@@ -87,18 +87,18 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
             /* Detect PSX address: fits in 32 bits and starts with 0x80 */
             if (val != 0 && val <= 0xFFFFFFFF && (val & 0xFF000000) == 0x80000000)
             {
-                fprintf(stderr, "[MapOverlay]   Nulling PSX addr 0x%08X at offset 0x%zX\n",
+                SH_DBG("[MapOverlay]   Nulling PSX addr 0x%08X at offset 0x%zX",
                         (unsigned)val, i * sizeof(uintptr_t));
                 fields[i] = 0;
                 nulled++;
             }
         }
         if (nulled > 0)
-            fprintf(stderr, "[MapOverlay]   Nulled %zu raw PSX addresses\n", nulled);
+            SH_DBG("[MapOverlay]   Nulled %zu raw PSX addresses", nulled);
     }
 
     snprintf(s_currentName, sizeof(s_currentName), "%s", mapName);
-    fprintf(stderr, "[MapOverlay] Loaded %s from %s\n", symbolName, dllPath);
+    SH_DBG("[MapOverlay] Loaded %s from %s", symbolName, dllPath);
     return header;
 }
 
@@ -106,7 +106,7 @@ void MapOverlay_Unload(void)
 {
     if (s_currentDll)
     {
-        fprintf(stderr, "[MapOverlay] Unloading %s\n", s_currentName);
+        SH_DBG("[MapOverlay] Unloading %s", s_currentName);
         DllLoader_Close(s_currentDll);
         s_currentDll = NULL;
     }

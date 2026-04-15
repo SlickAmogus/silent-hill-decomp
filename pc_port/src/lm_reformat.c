@@ -120,15 +120,13 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     u32 modelHdrsOff  = rd32(&raw[12]);
     u32 modelOrderOff = rd32(&raw[16]);
 
-    fprintf(stderr, "[SH] LmFixOffsets_PC: magic=0x%x ver=%d mats=%d models=%d matOff=0x%x mdlOff=0x%x ordOff=0x%x\n",
+    SH_DBG("[SH] LmFixOffsets_PC: magic=0x%x ver=%d mats=%d models=%d matOff=0x%x mdlOff=0x%x ordOff=0x%x",
             magic, version, matCount, modelCount, matOff, modelHdrsOff, modelOrderOff);
-    fflush(stderr);
 
     /* Reject invalid LM headers (garbage data from unloaded IPD chunks etc.) */
     if (magic != LM_HEADER_MAGIC)
     {
-        fprintf(stderr, "[SH] LmFixOffsets_PC: invalid magic 0x%x, skipping\n", magic);
-        fflush(stderr);
+        SH_DBG("[SH] LmFixOffsets_PC: invalid magic 0x%x, skipping", magic);
         lmHdr->isLoaded_2 = 1; /* prevent re-entry */
         return;
     }
@@ -152,14 +150,13 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         for (int i = 0; i < modelCount; i++)
         {
             ParseModelHeader(&models[i], raw + modelHdrsOff + i * PSX_SIZEOF_MODEL_HEADER, raw);
-            fprintf(stderr, "  model[%d] name=%c%c%c%c meshCnt=%d vertOff=%d normOff=%d fB0=%d fB1=%d fB4=%d meshHdrs=%p\n",
+            SH_DBG("  model[%d] name=%c%c%c%c meshCnt=%d vertOff=%d normOff=%d fB0=%d fB1=%d fB4=%d meshHdrs=%p",
                 i, models[i].name_0.str[0], models[i].name_0.str[1],
                 models[i].name_0.str[2], models[i].name_0.str[3],
                 models[i].meshCount_8, models[i].vertexOffset_9, models[i].normalOffset_A,
                 models[i].field_B_0, models[i].field_B_1, models[i].field_B_4,
                 (void*)models[i].meshHdrs_C);
         }
-        fflush(stderr);
     }
 
     /*
@@ -178,11 +175,14 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     lmHdr->modelOrder_10    = raw + modelOrderOff;
 
     /* Log model order (rendering order) */
-    fprintf(stderr, "  modelOrder:");
-    for (int i = 0; i < modelCount; i++) {
-        fprintf(stderr, " %d", lmHdr->modelOrder_10[i]);
+    {
+        char _ordBuf[256] = {0};
+        int _ordPos = 0;
+        for (int i = 0; i < modelCount && _ordPos < 250; i++) {
+            _ordPos += snprintf(_ordBuf + _ordPos, sizeof(_ordBuf) - _ordPos, " %d", lmHdr->modelOrder_10[i]);
+        }
+        SH_DBG("  modelOrder:%s", _ordBuf);
     }
-    fprintf(stderr, "\n");
 
-    fprintf(stderr, "[SH] LmFixOffsets_PC: done\n");
+    SH_DBG("[SH] LmFixOffsets_PC: done");
 }

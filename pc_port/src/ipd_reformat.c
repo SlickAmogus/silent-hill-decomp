@@ -188,9 +188,8 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     /* Validate magic */
     if (raw[0] != IPD_HEADER_MAGIC)
     {
-        fprintf(stderr, "[SH] IpdFixOffsets_PC: invalid magic %d (expected %d), skipping\n",
+        SH_DBG("[SH] IpdFixOffsets_PC: invalid magic %d (expected %d), skipping",
                 raw[0], IPD_HEADER_MAGIC);
-        fflush(stderr);
         return;
     }
 
@@ -207,11 +206,10 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     u32 modelBuffersOff  = rd32(&raw[0x18]);
     u32 modelOrderOff    = rd32(&raw[0x50]);
 
-    fprintf(stderr, "[SH] IpdFixOffsets_PC: magic=%d cell=[%d,%d] models=%d bufs=%d orders=%d\n",
+    SH_DBG("[SH] IpdFixOffsets_PC: magic=%d cell=[%d,%d] models=%d bufs=%d orders=%d",
             magic, (s8)cellX, (s8)cellZ, modelCount, modelBufferCount, modelOrderCount);
-    fprintf(stderr, "[SH]   lmOff=0x%x miOff=0x%x mbOff=0x%x moOff=0x%x\n",
+    SH_DBG("[SH]   lmOff=0x%x miOff=0x%x mbOff=0x%x moOff=0x%x",
             lmHdrOff, modelInfoOff, modelBuffersOff, modelOrderOff);
-    fflush(stderr);
 
     /* Save subcell table (52 bytes from PSX offset 0x1C to 0x4F) */
     u8 subcellTable[52];
@@ -284,8 +282,7 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
         PC_CollRegisterValid(&ipdHdr->collisionData_54);
     }
 
-    fprintf(stderr, "[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]\n",
+    SH_DBG("[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]",
             (void*)ipdHdr->lmHdr_4, (void*)ipdHdr->modelInfo_14, modelCount,
             (void*)ipdHdr->modelBuffers_18, modelBufferCount);
-    fflush(stderr);
 }

@@ -107,10 +107,10 @@ int main(int argc, char* argv[])
         if (con) ShowWindow(con, /*SW_HIDE*/ 0);
     }
 
-    fprintf(stderr, "[SH] main() entered\n");
+    SH_DBG("[SH] main() entered");
 
     PrintBanner();
-    fprintf(stderr, "[SH] sizeof(s_WorldGfxWork) = %zu\n", sizeof(s_WorldGfxWork));
+    SH_DBG("[SH] sizeof(s_WorldGfxWork) = %zu", sizeof(s_WorldGfxWork));
     ParseArgs(argc, argv);
 
     /* Load config file */
@@ -234,11 +234,9 @@ int main(int argc, char* argv[])
     MainLoop();
 
     /* Cleanup */
-    fprintf(stderr, "[SH] MainLoop exited normally. Shutting down...\n");
-    fflush(stderr);
+    SH_DBG("[SH] MainLoop exited normally. Shutting down...");
     PsyX_Shutdown();
-    fprintf(stderr, "[SH] Clean shutdown complete.\n");
-    fflush(stderr);
+    SH_DBG("[SH] Clean shutdown complete.");
 
     return 0;
 }

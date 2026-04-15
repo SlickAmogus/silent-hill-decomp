@@ -923,7 +923,7 @@ bool sharedFunc_800D3508_0_s01(s_SubCharacter* airScreamer, q19_12* dist);
 bool sharedFunc_800D3630_0_s01(s_SubCharacter* airScreamer, q19_12* dist);
 
 /** Returns flags? Specific to Air Screamer? */
-s32 sharedFunc_800D3758_0_s01(s_SubCharacter* airScreamer, q19_12* outDist, q19_12* outAngle, q19_12 dist, s32* arg4);
+s32 sharedFunc_800D3758_0_s01(s_SubCharacter* airScreamer, q19_12* outDist, q19_12* outAngle, q19_12* dist, s32* arg4);
 
 void Ai_Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
 

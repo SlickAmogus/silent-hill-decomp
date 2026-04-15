@@ -350,7 +350,19 @@ void Anim_PlaybackOnce(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     // Link to new anim status.
     if (setNewAnimStatus)
     {
+#ifdef SH_PC_PORT
+        /* Guard against terminal NO_VALUE links corrupting status_0.
+         * NPCs with undecompiled AI (stubbed control funcs = NULL) never
+         * advance control state, so anim runs to end and linkStatus_6 = 0xFF
+         * becomes status_0 = 255 → OOB into animInfo_C[] next frame → crash
+         * in func_80044950 via garbage playbackFunc. Hold current status
+         * instead. */
+        if ((u8)animInfo->linkStatus_6 != (u8)NO_VALUE) {
+            model->anim_4.status_0 = animInfo->linkStatus_6;
+        }
+#else
         model->anim_4.status_0 = animInfo->linkStatus_6;
+#endif
     }
 }
 
@@ -479,7 +491,13 @@ void Anim_BlendLinear(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCo
     // Link to new anim status.
     if (setNewAnimStatus)
     {
+#ifdef SH_PC_PORT
+        if ((u8)animInfo->linkStatus_6 != (u8)NO_VALUE) {
+            model->anim_4.status_0 = animInfo->linkStatus_6;
+        }
+#else
         model->anim_4.status_0 = animInfo->linkStatus_6;
+#endif
     }
 }
 

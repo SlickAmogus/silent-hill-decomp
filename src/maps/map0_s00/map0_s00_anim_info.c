@@ -185,3 +185,4 @@ u8 LOADABLE_INVENTORY_ITEMS[8] = {
     InventoryItemId_Katana,
     InventoryItemId_Unequipped
 };
+

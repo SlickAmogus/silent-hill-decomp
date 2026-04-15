@@ -30,9 +30,9 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
     sharedFunc_800D2390_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2390");
     Ai_AirScreamer_Control(airScreamer);                 SH_DBG("[AIRSCR] post-Control");
     sharedFunc_800D62D8_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-62D8");
-    sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0");
-    sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC");
-    sharedFunc_800D81B0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-81B0");
+    sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0 status=%d kf=%d", (int)airScreamer->model_0.anim_4.status_0, (int)airScreamer->model_0.anim_4.keyframeIdx_8);
+    sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC status=%d kf=%d", (int)airScreamer->model_0.anim_4.status_0, (int)airScreamer->model_0.anim_4.keyframeIdx_8);
+    sharedFunc_800D81B0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-81B0 status=%d kf=%d", (int)airScreamer->model_0.anim_4.status_0, (int)airScreamer->model_0.anim_4.keyframeIdx_8);
 #else
     sharedFunc_800D21E4_0_s01(anmHdr, coords);
     sharedFunc_800D2200_0_s01(airScreamer);
@@ -516,7 +516,12 @@ void sharedFunc_800D2BE4_0_s01(s_SubCharacter* airScreamer)
 
 void sharedFunc_800D2BF4_0_s01(s_SubCharacter* airScreamer)
 {
+#ifdef SH_PC_PORT
+    extern s_AnimInfo AIR_SCREAMER_ANIM_INFOS[];
+    ModelAnim_AnimInfoSet(&airScreamer->model_0.anim_4, AIR_SCREAMER_ANIM_INFOS);
+#else
     ModelAnim_AnimInfoSet(&airScreamer->model_0.anim_4, &sharedData_800CAA98_0_s01.animInfo_0);
+#endif
 }
 
 s32 Ai_AirScreamer_DamageTake(s_SubCharacter* airScreamer, q19_12 mult)
@@ -898,7 +903,7 @@ bool sharedFunc_800D3630_0_s01(s_SubCharacter* airScreamer, q19_12* dist)
     return cond;
 }
 
-s32 sharedFunc_800D3758_0_s01(s_SubCharacter* airScreamer, q19_12* outDist, q19_12* outAngle, q19_12 dist, s32* arg4)
+s32 sharedFunc_800D3758_0_s01(s_SubCharacter* airScreamer, q19_12* outDist, q19_12* outAngle, q19_12* dist, s32* arg4)
 {
     s32  cond1;
     s32  cond0;
@@ -912,7 +917,7 @@ s32 sharedFunc_800D3758_0_s01(s_SubCharacter* airScreamer, q19_12* outDist, q19_
     }
 
     cond0 = sharedFunc_800D3630_0_s01(airScreamer, dist);
-    cond1 = sharedFunc_800D3508_0_s01(airScreamer, arg4);
+    cond1 = sharedFunc_800D3508_0_s01(airScreamer, (q19_12*)arg4);
 
     if (cond)
     {
@@ -1007,6 +1012,32 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
         airScreamerProps.timer_120 = someTime - deltaTime;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[ASCTL] pre-3758");
+    sharedData_800E21D0_0_s01.field_14C.flags = sharedFunc_800D3758_0_s01(airScreamer,
+                                                                          &sharedData_800E21D0_0_s01.distance_150,
+                                                                          &sharedData_800E21D0_0_s01.angle_154,
+                                                                          &sharedData_800E21D0_0_s01.field_158,
+                                                                          &sharedData_800E21D0_0_s01.field_15C);
+    SH_DBG("[ASCTL] post-3758 ctrlState=%d", airScreamer->model_0.controlState_2);
+
+    if (airScreamerProps.field_E8_0 == 3)
+    {
+        airScreamerProps.field_E8_8 = 0;
+    }
+
+    {
+        s32 cs = airScreamer->model_0.controlState_2;
+        controlFunc = g_Ai_AirScreamer_ControlFuncs[cs];
+        SH_DBG("[ASCTL] dispatch cs=%d func=%p", cs, (void*)controlFunc);
+        if (controlFunc)
+        {
+            controlFunc(airScreamer);
+            SH_DBG("[ASCTL] post-dispatch cs=%d", cs);
+        }
+    }
+    return true;
+#else
     sharedData_800E21D0_0_s01.field_14C.flags = sharedFunc_800D3758_0_s01(airScreamer,
                                                                           &sharedData_800E21D0_0_s01.distance_150,
                                                                           &sharedData_800E21D0_0_s01.angle_154,
@@ -1026,6 +1057,7 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
     }
 
     return true;
+#endif
 }
 
 #ifdef MAP0_S01
@@ -12953,10 +12985,28 @@ bool sharedFunc_800D7AB0_0_s01(s_SubCharacter* airScreamer)
     animHdr = sharedData_800E21D0_0_s01.anmHdr_4;
     coords  = sharedData_800E21D0_0_s01.coords_8;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[7AB0] animHdr=%p coords=%p flags=0x%x status=%d kf=%d animInfoC=%p animInfo10=%p",
+           (void*)animHdr, (void*)coords,
+           airScreamer->model_0.anim_4.flags_2,
+           (int)airScreamer->model_0.anim_4.status_0,
+           (int)airScreamer->model_0.anim_4.keyframeIdx_8,
+           (void*)airScreamer->model_0.anim_4.animInfo_C,
+           (void*)airScreamer->model_0.anim_4.animInfo_10);
+    sharedFunc_800D76A0_0_s01(airScreamer);          SH_DBG("[7AB0] post-76A0 status=%d",
+                                                            (int)airScreamer->model_0.anim_4.status_0);
+    {
+        s_AnimInfo* _ai = func_80044918(&airScreamer->model_0.anim_4);
+        SH_DBG("[7AB0] pre-44950 animInfo=%p playbackFunc=%p",
+               (void*)_ai, _ai ? (void*)_ai->playbackFunc_0 : NULL);
+    }
+    func_80044950(airScreamer, animHdr, coords);     SH_DBG("[7AB0] post-44950 status=%d kf=%d", (int)airScreamer->model_0.anim_4.status_0, (int)airScreamer->model_0.anim_4.keyframeIdx_8);
+    sharedFunc_800D7B14_0_s01(airScreamer, coords);  SH_DBG("[7AB0] post-7B14 status=%d kf=%d", (int)airScreamer->model_0.anim_4.status_0, (int)airScreamer->model_0.anim_4.keyframeIdx_8);
+#else
     sharedFunc_800D76A0_0_s01(airScreamer);
     func_80044950(airScreamer, animHdr, coords);
     sharedFunc_800D7B14_0_s01(airScreamer, coords);
-
+#endif
     return true;
 }
 
@@ -13103,6 +13153,9 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                     temp_s1->field_0 = 1;
                 }
 
+#ifdef SH_PC_PORT
+                if (sharedData_800CAA98_0_s01.ptr_D48[1] == NULL) break;
+#endif
                 func_800805BC(&vec[0], sharedData_800CAA98_0_s01.ptr_D48[1], &coords[sharedData_800CAA98_0_s01.ptr_D48[1]->pad], 2);
 
                 temp_v0           = func_80080478(&vec[0], &vec[1]);
@@ -13124,6 +13177,9 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                     temp_s1->field_0 = 1;
                 }
 
+#ifdef SH_PC_PORT
+                if (sharedData_800CAA98_0_s01.ptr_D48[2] == NULL || sharedData_800CAA98_0_s01.ptr_D48[3] == NULL) break;
+#endif
                 func_800805BC(vec, sharedData_800CAA98_0_s01.ptr_D48[2], &coords[sharedData_800CAA98_0_s01.ptr_D48[2]->pad], 2);
                 func_800805BC(&vec[2], sharedData_800CAA98_0_s01.ptr_D48[3], &coords[sharedData_800CAA98_0_s01.ptr_D48[3]->pad], 2);
 
@@ -13200,6 +13256,9 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
     sp10 = sharedFunc_800D4A80_0_s01(airScreamer);
     if (sp10 != 0)
     {
+#ifdef SH_PC_PORT
+        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) return;
+#endif
         idx0 = 0;
         idx1 = 1;
 
@@ -13364,5 +13423,74 @@ void sharedFunc_800D8804_0_s01(void)
 {
     u8 unknown[16];
 }
+
+#ifdef SH_PC_PORT
+/* Air Screamer / Night Flutter animation state machine for PC port.
+ * Replaces the zeroed-out sharedData_800CAA98_0_s01.animInfo_0 stub.
+ * Entries using variable-duration callbacks have hasVariableDuration_5 = true. */
+
+#define VARFUNC(fn) { .variableFunc = (q19_12(*)(void))(fn) }
+
+s_AnimInfo AIR_SCREAMER_ANIM_INFOS[] = {
+    /*  0 */ { Anim_BlendLinear,  ANIM_STATUS(0, false),  false, NO_VALUE,               { Q12(10)   }, NO_VALUE, NO_VALUE },
+    /*  1 */ { Anim_PlaybackLoop, ANIM_STATUS(0, true),   false, NO_VALUE,               { Q12(10)   }, NO_VALUE, NO_VALUE },
+    /*  2 */ { Anim_BlendLinear,  ANIM_STATUS(1, false),  false, ANIM_STATUS(1, true),   { Q12(10)   }, NO_VALUE, 0   },
+    /*  3 */ { Anim_PlaybackOnce, ANIM_STATUS(1, true),   false, ANIM_STATUS(23, false), { Q12(20)   }, 0,        11  },
+    /*  4 */ { Anim_BlendLinear,  ANIM_STATUS(2, false),  false, ANIM_STATUS(2, true),   { Q12(15)   }, NO_VALUE, 12  },
+    /*  5 */ { Anim_PlaybackOnce, ANIM_STATUS(2, true),   false, ANIM_STATUS(19, false), { Q12(15)   }, 12,       25  },
+    /*  6 */ { Anim_BlendLinear,  ANIM_STATUS(3, false),  false, ANIM_STATUS(3, true),   { Q12(30)   }, NO_VALUE, 26  },
+    /*  7 */ { Anim_PlaybackOnce, ANIM_STATUS(3, true),   false, ANIM_STATUS(17, false), { Q12(25)   }, 26,       55  },
+    /*  8 */ { Anim_BlendLinear,  ANIM_STATUS(4, false),  false, ANIM_STATUS(4, true),   { Q12(15)   }, NO_VALUE, 56  },
+    /*  9 */ { Anim_PlaybackOnce, ANIM_STATUS(4, true),   false, ANIM_STATUS(26, false), { Q12(15)   }, 56,       80  },
+    /* 10 */ { Anim_BlendLinear,  ANIM_STATUS(5, false),  false, ANIM_STATUS(5, true),   { Q12(10)   }, NO_VALUE, 81  },
+    /* 11 */ { Anim_PlaybackOnce, ANIM_STATUS(5, true),   false, ANIM_STATUS(26, false), { Q12(10)   }, 81,       99  },
+    /* 12 */ { Anim_BlendLinear,  ANIM_STATUS(6, false),  false, ANIM_STATUS(6, true),   { Q12(30)   }, NO_VALUE, 100 },
+    /* 13 */ { Anim_PlaybackOnce, ANIM_STATUS(6, true),   false, ANIM_STATUS(23, false), { Q12(20)   }, 100,      114 },
+    /* 14 */ { Anim_BlendLinear,  ANIM_STATUS(7, false),  false, ANIM_STATUS(7, true),   { Q12(30)   }, NO_VALUE, 115 },
+    /* 15 */ { Anim_PlaybackOnce, ANIM_STATUS(7, true),   false, ANIM_STATUS(19, false), { Q12(20)   }, 115,      129 },
+    /* 16 */ { Anim_BlendLinear,  ANIM_STATUS(8, false),  false, ANIM_STATUS(8, true),   { Q12(30)   }, NO_VALUE, 130 },
+    /* 17 */ { Anim_PlaybackOnce, ANIM_STATUS(8, true),   false, ANIM_STATUS(17, false), { Q12(25)   }, 130,      153 },
+    /* 18 */ { Anim_BlendLinear,  ANIM_STATUS(9, false),  false, ANIM_STATUS(9, true),   { Q12(30)   }, NO_VALUE, 154 },
+    /* 19 */ { Anim_PlaybackOnce, ANIM_STATUS(9, true),   false, ANIM_STATUS(21, false), { Q12(24)   }, 154,      171 },
+    /* 20 */ { Anim_BlendLinear,  ANIM_STATUS(10, false), false, ANIM_STATUS(10, true),  { Q12(10)   }, NO_VALUE, 172 },
+    /* 21 */ { Anim_PlaybackOnce, ANIM_STATUS(10, true),  true,  ANIM_STATUS(26, false), VARFUNC(sharedFunc_800D77D0_0_s01), 172, 189 },
+    /* 22 */ { Anim_BlendLinear,  ANIM_STATUS(11, false), false, ANIM_STATUS(11, true),  { Q12(10)   }, NO_VALUE, 190 },
+    /* 23 */ { Anim_PlaybackOnce, ANIM_STATUS(11, true),  true,  ANIM_STATUS(26, false), VARFUNC(sharedFunc_800D77D0_0_s01), 190, 230 },
+    /* 24 */ { Anim_BlendLinear,  ANIM_STATUS(12, false), false, ANIM_STATUS(12, true),  { Q12(10)   }, NO_VALUE, 231 },
+    /* 25 */ { Anim_PlaybackOnce, ANIM_STATUS(12, true),  false, ANIM_STATUS(26, false), { Q12(10)   }, 231,      242 },
+    /* 26 */ { Anim_BlendLinear,  ANIM_STATUS(13, false), false, ANIM_STATUS(13, true),  { Q12(5)    }, NO_VALUE, 243 },
+    /* 27 */ { Anim_PlaybackOnce, ANIM_STATUS(13, true),  false, ANIM_STATUS(14, false), { Q12(10)   }, 243,      272 },
+    /* 28 */ { Anim_BlendLinear,  ANIM_STATUS(14, false), false, ANIM_STATUS(14, true),  { Q12(1.5f) }, NO_VALUE, 273 },
+    /* 29 */ { Anim_PlaybackLoop, ANIM_STATUS(14, true),  false, NO_VALUE,               { Q12(10)   }, 273,      302 },
+    /* 30 */ { Anim_BlendLinear,  ANIM_STATUS(15, false), true,  ANIM_STATUS(15, true),  VARFUNC(sharedFunc_800D7714_0_s01), NO_VALUE, 303 },
+    /* 31 */ { Anim_PlaybackOnce, ANIM_STATUS(15, true),  true,  ANIM_STATUS(19, false), VARFUNC(sharedFunc_800D7714_0_s01), 303, 314 },
+    /* 32 */ { Anim_BlendLinear,  ANIM_STATUS(16, false), false, ANIM_STATUS(16, true),  { Q12(30)   }, NO_VALUE, 315 },
+    /* 33 */ { Anim_PlaybackOnce, ANIM_STATUS(16, true),  true,  ANIM_STATUS(25, false), VARFUNC(sharedFunc_800D77D0_0_s01), 315, 339 },
+    /* 34 */ { Anim_BlendLinear,  ANIM_STATUS(17, false), true,  ANIM_STATUS(17, true),  VARFUNC(sharedFunc_800D7714_0_s01), NO_VALUE, 340 },
+    /* 35 */ { Anim_PlaybackLoop, ANIM_STATUS(17, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 340, 352 },
+    /* 36 */ { Anim_BlendLinear,  ANIM_STATUS(18, false), false, ANIM_STATUS(18, true),  { Q12(30)   }, NO_VALUE, 353 },
+    /* 37 */ { Anim_PlaybackOnce, ANIM_STATUS(18, true),  false, ANIM_STATUS(17, false), { Q12(20)   }, 353,      364 },
+    /* 38 */ { Anim_BlendLinear,  ANIM_STATUS(19, false), true,  ANIM_STATUS(19, true),  VARFUNC(sharedFunc_800D7714_0_s01), NO_VALUE, 365 },
+    /* 39 */ { Anim_PlaybackLoop, ANIM_STATUS(19, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 365, 376 },
+    /* 40 */ { Anim_BlendLinear,  ANIM_STATUS(20, false), false, ANIM_STATUS(20, true),  { Q12(10)   }, NO_VALUE, 377 },
+    /* 41 */ { Anim_PlaybackOnce, ANIM_STATUS(20, true),  false, ANIM_STATUS(26, false), { Q12(10)   }, 377,      383 },
+    /* 42 */ { Anim_BlendLinear,  ANIM_STATUS(21, false), false, ANIM_STATUS(21, true),  { Q12(15)   }, NO_VALUE, 384 },
+    /* 43 */ { Anim_PlaybackLoop, ANIM_STATUS(21, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 384, 407 },
+    /* 44 */ { Anim_BlendLinear,  ANIM_STATUS(22, false), false, ANIM_STATUS(22, true),  { Q12(30)   }, NO_VALUE, 408 },
+    /* 45 */ { Anim_PlaybackOnce, ANIM_STATUS(22, true),  false, ANIM_STATUS(19, false), { Q12(20)   }, 408,      432 },
+    /* 46 */ { Anim_BlendLinear,  ANIM_STATUS(23, false), false, ANIM_STATUS(23, true),  { Q12(10)   }, NO_VALUE, 433 },
+    /* 47 */ { Anim_PlaybackLoop, ANIM_STATUS(23, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D7714_0_s01), 433, 447 },
+    /* 48 */ { Anim_BlendLinear,  ANIM_STATUS(24, false), true,  ANIM_STATUS(24, true),  VARFUNC(sharedFunc_800D7714_0_s01), NO_VALUE, 448 },
+    /* 49 */ { Anim_PlaybackOnce, ANIM_STATUS(24, true),  true,  ANIM_STATUS(17, false), VARFUNC(sharedFunc_800D7714_0_s01), 448, 482 },
+    /* 50 */ { Anim_BlendLinear,  ANIM_STATUS(25, false), false, ANIM_STATUS(25, true),  { Q12(30)   }, NO_VALUE, 483 },
+    /* 51 */ { Anim_PlaybackLoop, ANIM_STATUS(25, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 483, 523 },
+    /* 52 */ { Anim_BlendLinear,  ANIM_STATUS(26, false), false, ANIM_STATUS(26, true),  { Q12(1.5f) }, NO_VALUE, 96  },
+    /* 53 */ { Anim_PlaybackLoop, ANIM_STATUS(26, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 96,  99  },
+    /* 54 */ { Anim_BlendLinear,  ANIM_STATUS(27, false), false, ANIM_STATUS(27, true),  { Q12(30)   }, NO_VALUE, 365 },
+    /* 55 */ { Anim_PlaybackLoop, ANIM_STATUS(27, true),  true,  NO_VALUE,               VARFUNC(sharedFunc_800D77D0_0_s01), 365, 376 },
+};
+
+#undef VARFUNC
+#endif /* SH_PC_PORT */
 
 #undef airScreamerProps
