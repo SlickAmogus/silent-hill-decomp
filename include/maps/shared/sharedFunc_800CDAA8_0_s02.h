@@ -1,6 +1,6 @@
 #include "bodyprog/player.h"
 #ifdef SH_PC_PORT
-#include <stdio.h>
+#include "sh_log.h"
 #endif
 
 // TODO:
@@ -213,8 +213,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     playerChara->properties_E4.player.exhaustionTimer_FC = Q12(0.0f);
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[B8] pre-switch1 kf=%d\n", playerChara->model_0.anim_4.keyframeIdx_8);
-    fflush(stderr);
+    SH_DBG("[B8] pre-switch1 kf=%d", playerChara->model_0.anim_4.keyframeIdx_8);
 #endif
 
     switch (g_SysWork.playerWork_4C.extra_128.state_1C)
@@ -2232,12 +2231,12 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[B8] post-switch1\n"); fflush(stderr);
+    SH_DBG("[B8] post-switch1");
 #endif
     Collision_Get(&coll, playerChara->position_18.vx, playerChara->position_18.vz);
     func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[B8] post-coll\n"); fflush(stderr);
+    SH_DBG("[B8] post-coll");
 #endif
 
     switch (g_SysWork.playerWork_4C.extra_128.state_1C)
@@ -2925,7 +2924,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     }
 
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[B8] post-switch2\n"); fflush(stderr);
+    SH_DBG("[B8] post-switch2");
 #endif
     newMoveSpeed = sharedData_800D32A0_0_s02;
 
@@ -2937,6 +2936,6 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     coord->flg = false;
     Math_RotMatrixZxyNegGte(&playerChara->rotation_24, &coord->coord);
 #ifdef SH_PC_PORT
-    fprintf(stderr, "[B8] done\n"); fflush(stderr);
+    SH_DBG("[B8] done");
 #endif
 }

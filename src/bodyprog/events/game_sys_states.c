@@ -253,7 +253,13 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 #endif
 
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-PlayerUpdate disableCtrl=%d", (int)g_Player_DisableControl);
+#endif
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] post-PlayerUpdate");
+#endif
 
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
@@ -321,11 +327,29 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 
         Demo_DemoRandSeedRestore();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-NpcRoomInitSpawn");
+#endif
         Game_NpcRoomInitSpawn(true);
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-NpcUpdate");
+#endif
         Game_NpcUpdate();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-5E89C");
+#endif
         func_8005E89C();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-IpdCloseRange");
+#endif
         Ipd_CloseRangeChunksInit();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-InGameDraw");
+#endif
         Gfx_InGameDraw(1);
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] post-InGameDraw");
+#endif
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT
     ingame_done:
