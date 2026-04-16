@@ -6,6 +6,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "maps/characters/air_screamer.h"
 #endif
 
 const char* MAP_MESSAGES[] = {
@@ -1049,6 +1050,19 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             SH_DBG("[M0S01_WOU] EF41 path: calling Model_AnimDurationGet npcs_1A0[0]=%p charaId=%d",
                    (void*)&g_SysWork.npcs_1A0[0],
                    (int)g_SysWork.npcs_1A0[0].model_0.charaId_0);
+            /* Flyby is DMS-driven (position/rotation come from Dms_CharacterGetPosRot),
+             * so the AI state machine isn't running and wings never animate. Force
+             * FlyIdle playback once so wings flap during the flyby pass. */
+            {
+                s_SubCharacter* _bird = &g_SysWork.npcs_1A0[0];
+                u8 _wantStatus = ANIM_STATUS(AirScreamerAnim_19, true);
+                if (_bird->model_0.anim_4.status_0 != _wantStatus) {
+                    _bird->model_0.anim_4.status_0 = _wantStatus;
+                    _bird->model_0.anim_4.keyframeIdx_8 = 0;
+                    _bird->model_0.anim_4.time_4 = 0;
+                    _bird->model_0.stateStep_3 = 0;
+                }
+            }
 #endif
             temp_a1 = g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&g_SysWork.npcs_1A0[0].model_0));
 #ifdef SH_PC_PORT

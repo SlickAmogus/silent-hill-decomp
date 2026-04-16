@@ -1304,7 +1304,16 @@ s32    g_Player_LastWeaponSelected        = NO_VALUE;
 #else
 #define ANIM_DURATION_FUNC(fn) { fn }
 #endif
+#ifdef SH_PC_PORT
+/* PC: upstream decomp only has 57 entries (up to HarryAnim_IdleExhausted).
+ * HarryAnim_HandgunAim=28 and HarryAnim_HandgunRecoil=31 index at 56/57/62/63
+ * → OOB → crash. Extend to 64 and fill 28–31 with placeholder entries pointing
+ * at existing Idle keyframes so aim/fire play SOMETHING without crashing.
+ * Once real anim data is recovered from the PSX binary, replace these. */
+s_AnimInfo HARRY_BASE_ANIM_INFOS[64] = {
+#else
 s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
+#endif
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Still,                   false), false, ANIM_STATUS(HarryAnim_Still,                   true), { Q12(10.0f)    }, NO_VALUE, 0   },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Still,                   true),  false, NO_VALUE,                                             { Q12(30.0f)    }, NO_VALUE, 1   },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_TransitionToStill,       false), false, ANIM_STATUS(HarryAnim_TransitionToStill,       true), { Q12(10.0f)    }, NO_VALUE, 0   },
@@ -1361,7 +1370,18 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Idle,                    true),  false, NO_VALUE,                                             { Q12(10.0f)    }, 503,      542 },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_IdleExhausted,           false), false, ANIM_STATUS(HarryAnim_IdleExhausted,           true), { Q12(5.0f)     }, NO_VALUE, 543 },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(func_800706E4), 543,      567 },
+#ifdef SH_PC_PORT
+    /* 56 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunAim,    false), false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(10.0f) }, NO_VALUE, 503 },
+    /* 57 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_HandgunAim,    true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
+    /* 58 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk29,         false), false, ANIM_STATUS(HarryAnim_Unk29,         true), { Q12(10.0f) }, NO_VALUE, 503 },
+    /* 59 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk29,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
+    /* 60 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk30,         false), false, ANIM_STATUS(HarryAnim_Unk30,         true), { Q12(10.0f) }, NO_VALUE, 503 },
+    /* 61 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk30,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
+    /* 62 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunRecoil, false), false, ANIM_STATUS(HarryAnim_HandgunRecoil, true), { Q12(5.0f)  }, NO_VALUE, 485 },
+    /* 63 */ { Anim_PlaybackOnce, ANIM_STATUS(HarryAnim_HandgunRecoil, true),  false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(15.0f) }, 485,      502 },
+#else
     {}
+#endif
 };
 // TODO: `func_8007EBBC` indicates there should be more.
 

@@ -1188,6 +1188,21 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
                     g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
                                                     g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
+                } else {
+                    /* Non-TPS: after cutscenes, Player_Controller's `*2 & 0x3` shift
+                     * register can leave stale bits in g_Player_IsMovingForward that
+                     * appear swapped with backward. Force a clean snapshot from the
+                     * PSX pad buttons (which the PC joy bridge maps from arrow keys/
+                     * D-pad) so forward/back are deterministic every frame. */
+                    g_Player_IsMovingForward  = (g_Controller0->btnsHeld_C & ControllerFlag_LStickUp)   ? 1 : 0;
+                    g_Player_IsMovingBackward = (g_Controller0->btnsHeld_C & ControllerFlag_LStickDown) ? 1 : 0;
+                    /* Reset heading offset. PlayerLowerBodyState_WalkBackward sets
+                     * g_Player_HeadingAngle = 180° for the backward-walk case, but
+                     * after the AirScreamer window cutscene it can get stuck non-zero,
+                     * causing headingAngle_3C = rotation + 180 → movement flipped.
+                     * Force 0 so headingAngle_3C follows chara rotation directly. */
+                    g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    g_SysWork.playerWork_4C.player_0.properties_E4.player.headingAngle_124 = Q12_ANGLE(0.0f);
                 }
 
                 /* Turn (PSX pad or A/D in non-TPS mode; skipped in TPS mode since mouse handles yaw) */
