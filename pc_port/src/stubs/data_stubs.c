@@ -818,9 +818,7 @@ u8 format[256] = {0};
 u8 fst_max[256] = {0};
 u8 fst_min[256] = {0};
 u8 g_ActiveBufferIdx[256] = {0};
-/* 52 * 8 bytes on x86-64; stub-NULL so dispatch is skipped when a map
- * doesn't define its own table. Was u8[256] which is too small for 52 * 8. */
-void (*g_Ai_AirScreamer_ControlFuncs[52])(void*) = {0};
+/* g_Ai_AirScreamer_ControlFuncs now defined in src/maps/characters/air_screamer.c */
 u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
 u8 g_Ai_SplitHead_ControlFuncs[256] = {0};
 u8 g_CameraLookAtTarget[256] = {0};

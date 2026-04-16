@@ -13491,6 +13491,26 @@ s_AnimInfo AIR_SCREAMER_ANIM_INFOS[] = {
 };
 
 #undef VARFUNC
+
+/* PC-port: assemble the control-func dispatch table that's missing from
+ * the upstream decomp's .data section. All 52 handlers ARE decomped; only
+ * the table wiring them to controlState_2 indices was never extracted. */
+void (*g_Ai_AirScreamer_ControlFuncs[52])(s_SubCharacter* airScreamer) = {
+    Ai_AirScreamer_Control_0,  Ai_AirScreamer_Control_1,  Ai_AirScreamer_Control_2,  Ai_AirScreamer_Control_3,
+    Ai_AirScreamer_Control_4,  Ai_AirScreamer_Control_5,  Ai_AirScreamer_Control_6,  Ai_AirScreamer_Control_7,
+    Ai_AirScreamer_Control_8,  Ai_AirScreamer_Control_9,  Ai_AirScreamer_Control_10, Ai_AirScreamer_Control_11,
+    Ai_AirScreamer_Control_12, Ai_AirScreamer_Control_13, Ai_AirScreamer_Control_14, Ai_AirScreamer_Control_15,
+    Ai_AirScreamer_Control_16, Ai_AirScreamer_Control_17, Ai_AirScreamer_Control_18, Ai_AirScreamer_Control_19,
+    Ai_AirScreamer_Control_20, Ai_AirScreamer_Control_21, Ai_AirScreamer_Control_22, Ai_AirScreamer_Control_23,
+    Ai_AirScreamer_Control_24, Ai_AirScreamer_Control_25, Ai_AirScreamer_Control_26, Ai_AirScreamer_Control_27,
+    Ai_AirScreamer_Control_28, Ai_AirScreamer_Control_29, Ai_AirScreamer_Control_30, Ai_AirScreamer_Control_31,
+    Ai_AirScreamer_Control_32, Ai_AirScreamer_Control_33, Ai_AirScreamer_Control_34, Ai_AirScreamer_Control_35,
+    Ai_AirScreamer_Control_36, Ai_AirScreamer_Control_37, Ai_AirScreamer_Control_38, Ai_AirScreamer_Control_39,
+    Ai_AirScreamer_Control_40, Ai_AirScreamer_Control_41, Ai_AirScreamer_Control_42, Ai_AirScreamer_Control_43,
+    Ai_AirScreamer_Control_44, Ai_AirScreamer_Control_45, Ai_AirScreamer_Control_46, Ai_AirScreamer_Control_47,
+    Ai_AirScreamer_Control_48, Ai_AirScreamer_Control_49, Ai_AirScreamer_Control_50, Ai_AirScreamer_Control_51,
+};
+
 #endif /* SH_PC_PORT */
 
 #undef airScreamerProps
