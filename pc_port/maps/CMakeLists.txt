@@ -97,9 +97,12 @@ endfunction()
 # Maps re-enabled: map2_s00, map2_s02, map4_s02, map5_s01, map6_s00,
 # map6_s02, map6_s04.
 #
-# Issue 2 (cross-map shared data sharedData_800CB094_3_s01): STILL SKIPPED.
-#    map3_s01, map3_s03, map3_s04, map3_s05
-#    TODO: Move shared data into a shared library or the main exe.
+# Issue 2 (cross-map shared data sharedData_800CB094_3_s01): FIXED.
+# Symbol now defined once in pc_port/src/stubs/data_stubs.c and exported
+# from main exe; map7_s01/02 local definitions are #ifndef'd out for PC.
+# Maps re-enabled: map3_s01, map3_s03, map3_s04, map3_s05.
+#
+# All 42 maps now build as DLLs.
 
 add_map_overlay(map0_s01 MAP0_S01)
 add_map_overlay(map0_s02 MAP0_S02)
@@ -116,11 +119,11 @@ add_map_overlay(map2_s02 MAP2_S02)
 add_map_overlay(map2_s03 MAP2_S03)
 add_map_overlay(map2_s04 MAP2_S04)
 add_map_overlay(map3_s00 MAP3_S00)
-# add_map_overlay(map3_s01 MAP3_S01)  # SKIPPED — shared data
+add_map_overlay(map3_s01 MAP3_S01)
 add_map_overlay(map3_s02 MAP3_S02)
-# add_map_overlay(map3_s03 MAP3_S03)  # SKIPPED — shared data
-# add_map_overlay(map3_s04 MAP3_S04)  # SKIPPED — shared data
-# add_map_overlay(map3_s05 MAP3_S05)  # SKIPPED — shared data
+add_map_overlay(map3_s03 MAP3_S03)
+add_map_overlay(map3_s04 MAP3_S04)
+add_map_overlay(map3_s05 MAP3_S05)
 add_map_overlay(map3_s06 MAP3_S06)
 add_map_overlay(map4_s00 MAP4_S00)
 add_map_overlay(map4_s01 MAP4_S01)

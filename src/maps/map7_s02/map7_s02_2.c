@@ -2970,7 +2970,11 @@ void func_800E1FF4(void) // 0x800E1FF4
     MapMsg_DisplayWithTexture1(FILE_TIM_PLANTBK_TIM, Q12(0.0f), Q12(0.0f), 22, 23);
 }
 
+#ifndef SH_PC_PORT
 const VECTOR3 sharedData_800CB094_3_s01 = { 0xFFF9B19A, 0xFFFFE000, 0xFFFC319A };
+#else
+/* PC port: provided by main exe (pc_port/src/stubs/data_stubs.c). */
+#endif
 
 #include "maps/shared/sharedFunc_800D15F0_3_s01.h" // 0x800E204C
 

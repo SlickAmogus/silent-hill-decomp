@@ -1930,7 +1930,12 @@ void func_800DC080(void) // 0x800DC080
     Event_ItemTake(InventoryItemId_BirdCageKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M7S01_PickupBirdCageKey, 54);
 }
 
+#ifndef SH_PC_PORT
 const VECTOR3 sharedData_800CB094_3_s01 = { 0xFFF9B19A, 0xFFFFE000, 0xFFFC319A };
+#else
+/* PC port: provided by main exe (pc_port/src/stubs/data_stubs.c) so all
+ * map DLLs share one definition. Avoids multi-def link error. */
+#endif
 
 #include "maps/shared/sharedFunc_800D15F0_3_s01.h" // 0x800DC0AC
 
