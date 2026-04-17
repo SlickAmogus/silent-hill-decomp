@@ -1291,3 +1291,11 @@ u8 vcWork[1024] = {0};    // VC_WORK = 744 bytes on PSX, may be larger on 64-bit
 const s32 sharedData_800CB094_3_s01[3] = {
     (s32)0xFFF9B19A, (s32)0xFFFFE000, (s32)0xFFFC319A
 };
+
+/* Cross-map shared symbol: defined in map3_s05.c, used by map3_s04.c.
+ * On PSX both maps share the address; on PC each is a separate DLL so
+ * we promote the definition to the main exe and #ifndef the original.
+ * Value from map3_s05.c. */
+const struct { int vx, vy, vz; } D_800CB35C = {
+    (int)0x00015199, (int)0x00000000, (int)0xFFFEC000
+};
