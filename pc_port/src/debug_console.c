@@ -209,6 +209,8 @@ static void con_execute(const char* cmd)
         con_print("COMMANDS:");
         con_print("  MAP LIST  - LIST AVAILABLE MAPS");
         con_print("  MAP <TAG> - LOAD MAP BY TAG");
+        con_print("  GIVE HANDGUN - EQUIP HANDGUN");
+        con_print("  GIVE PIPE    - EQUIP STEEL PIPE");
         con_print("  HELP      - SHOW THIS");
         con_print("  CLEAR     - CLEAR OUTPUT");
     }
@@ -266,6 +268,16 @@ static void con_execute(const char* cmd)
             con_print(line);
             con_print("USE 'MAP LIST' TO SEE AVAILABLE");
         }
+    }
+    else if (strcmp(upper, "GIVE HANDGUN") == 0) {
+        g_SavegamePtr->equippedWeapon_AA = InventoryItemId_Handgun;
+        g_SysWork.playerCombat_38.weaponAttack_F = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+        con_print("EQUIPPED HANDGUN (R_CTRL=AIM, C=FIRE)");
+    }
+    else if (strcmp(upper, "GIVE PIPE") == 0) {
+        g_SavegamePtr->equippedWeapon_AA = InventoryItemId_SteelPipe;
+        g_SysWork.playerCombat_38.weaponAttack_F = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
+        con_print("EQUIPPED STEEL PIPE");
     }
     else if (upper[0] != '\0') {
         con_print("UNKNOWN COMMAND. TYPE 'HELP'");
