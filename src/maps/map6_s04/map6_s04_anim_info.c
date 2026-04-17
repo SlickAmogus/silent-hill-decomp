@@ -1,6 +1,10 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+#define func_800706E4 0
+#endif
+
 s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
     { Anim_BlendLinear, ANIM_STATUS(38, false), false, ANIM_STATUS(38, true), { Q12(10) }, NO_VALUE, 676 },
     { Anim_PlaybackOnce, ANIM_STATUS(38, true), false, ANIM_STATUS(38, true), { Q12(10) }, 676, 677 },
@@ -80,3 +84,14 @@ s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
     { Anim_PlaybackOnce, ANIM_STATUS(75, true), false, ANIM_STATUS(75, true), { Q12(10) }, 889, 918 },
     {}
 };
+
+#ifdef SH_PC_PORT
+#undef func_800706E4
+extern q19_12 func_800706E4(void);
+
+__attribute__((constructor))
+static void map6_s04_anim_info_patch(void) {
+    HARRY_M6S04_ANIM_INFOS[35].duration_8.variableFunc = func_800706E4;
+    HARRY_M6S04_ANIM_INFOS[37].duration_8.variableFunc = func_800706E4;
+}
+#endif
