@@ -1,6 +1,13 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+/* Windows DLL: imported function pointers (func_800706E4 lives in main exe)
+ * are not compile-time constants. Shim to 0 for the static initializer,
+ * then patch via constructor below after DLL is loaded. */
+#define func_800706E4 0
+#endif
+
 s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
     { Anim_BlendLinear, ANIM_STATUS(38, false), false, ANIM_STATUS(38, true), { Q12(10) }, NO_VALUE, 676 },
     { Anim_PlaybackOnce, ANIM_STATUS(38, true), false, ANIM_STATUS(38, true), { Q12(10) }, 676, 677 },
@@ -42,3 +49,16 @@ s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
     { Anim_PlaybackOnce, ANIM_STATUS(56, true), false, ANIM_STATUS(56, true), { Q12(20) }, 485, 502 },
     {}
 };
+
+#ifdef SH_PC_PORT
+#undef func_800706E4
+extern q19_12 func_800706E4(void);
+
+/* Patch in real func_800706E4 pointer for entries that needed
+ * variable-duration callback. Runs once on DLL load. */
+__attribute__((constructor))
+static void map2_s00_anim_info_patch(void) {
+    HARRY_M2S00_ANIM_INFOS[19].duration_8.variableFunc = func_800706E4;
+    HARRY_M2S00_ANIM_INFOS[23].duration_8.variableFunc = func_800706E4;
+}
+#endif

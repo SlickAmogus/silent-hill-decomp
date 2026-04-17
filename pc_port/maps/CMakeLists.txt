@@ -91,13 +91,13 @@ endfunction()
 # map0_s00 is compiled into the main executable, not as a DLL.
 # All other maps are built as DLLs.
 #
-# SKIPPED — two categories of Windows DLL issues:
+# Issue 1 (non-constant initializer with func_800706E4): FIXED.
+# The 7 affected anim_info.c files now use a #define-shim + constructor
+# patch under SH_PC_PORT to bind func_800706E4 at DLL load time.
+# Maps re-enabled: map2_s00, map2_s02, map4_s02, map5_s01, map6_s00,
+# map6_s02, map6_s04.
 #
-# 1. Non-constant initializer (func_800706E4 function pointer in union):
-#    map2_s00, map2_s02, map4_s02, map5_s01, map6_s00, map6_s02, map6_s04
-#    TODO: Runtime-patch these anim_info entries after DLL load.
-#
-# 2. Cross-map shared data (sharedData_800CB094_3_s01 extern across overlays):
+# Issue 2 (cross-map shared data sharedData_800CB094_3_s01): STILL SKIPPED.
 #    map3_s01, map3_s03, map3_s04, map3_s05
 #    TODO: Move shared data into a shared library or the main exe.
 
@@ -110,9 +110,9 @@ add_map_overlay(map1_s03 MAP1_S03)
 add_map_overlay(map1_s04 MAP1_S04)
 add_map_overlay(map1_s05 MAP1_S05)
 add_map_overlay(map1_s06 MAP1_S06)
-# add_map_overlay(map2_s00 MAP2_S00)  # SKIPPED
+add_map_overlay(map2_s00 MAP2_S00)
 add_map_overlay(map2_s01 MAP2_S01)
-# add_map_overlay(map2_s02 MAP2_S02)  # SKIPPED
+add_map_overlay(map2_s02 MAP2_S02)
 add_map_overlay(map2_s03 MAP2_S03)
 add_map_overlay(map2_s04 MAP2_S04)
 add_map_overlay(map3_s00 MAP3_S00)
@@ -124,20 +124,20 @@ add_map_overlay(map3_s02 MAP3_S02)
 add_map_overlay(map3_s06 MAP3_S06)
 add_map_overlay(map4_s00 MAP4_S00)
 add_map_overlay(map4_s01 MAP4_S01)
-# add_map_overlay(map4_s02 MAP4_S02)  # SKIPPED
+add_map_overlay(map4_s02 MAP4_S02)
 add_map_overlay(map4_s03 MAP4_S03)
 add_map_overlay(map4_s04 MAP4_S04)
 add_map_overlay(map4_s05 MAP4_S05)
 add_map_overlay(map4_s06 MAP4_S06)
 add_map_overlay(map5_s00 MAP5_S00)
-# add_map_overlay(map5_s01 MAP5_S01)  # SKIPPED
+add_map_overlay(map5_s01 MAP5_S01)
 add_map_overlay(map5_s02 MAP5_S02)
 add_map_overlay(map5_s03 MAP5_S03)
-# add_map_overlay(map6_s00 MAP6_S00)  # SKIPPED
+add_map_overlay(map6_s00 MAP6_S00)
 add_map_overlay(map6_s01 MAP6_S01)
-# add_map_overlay(map6_s02 MAP6_S02)  # SKIPPED
+add_map_overlay(map6_s02 MAP6_S02)
 add_map_overlay(map6_s03 MAP6_S03)
-# add_map_overlay(map6_s04 MAP6_S04)  # SKIPPED
+add_map_overlay(map6_s04 MAP6_S04)
 add_map_overlay(map6_s05 MAP6_S05)
 add_map_overlay(map7_s00 MAP7_S00)
 add_map_overlay(map7_s01 MAP7_S01)
