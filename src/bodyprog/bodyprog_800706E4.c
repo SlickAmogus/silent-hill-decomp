@@ -1264,10 +1264,14 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                 }
 
                 /* Set walk/run animation on both lower body (chara) and upper body (extra).
+                 * Skip when aiming — aim block below handles its own animation.
                  * Player_AnimUpdate plays chara->model_0 with lower-body bone mask
                  * and extra->model_0 with upper-body bone mask.
                  * Backward uses HarryAnim_WalkBackward; no run backward in original. */
-                if (g_Player_IsMovingForward) {
+                if (((g_Controller0->btnsHeld_C & g_GameWorkPtr->config_0.controllerConfig_0.aim_8) != 0) &&
+                    (g_SysWork.playerCombat_38.weaponAttack_F != (s8)NO_VALUE)) {
+                    /* Aiming — movement anims handled by aim block below */
+                } else if (g_Player_IsMovingForward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, true) &&
                         chara->model_0.anim_4.status_0 != ANIM_STATUS(targetWalk, false)) {
@@ -1362,21 +1366,80 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
                     }
                 }
 
-                /* Aim/shoot overlay DISABLED — HandgunAim/Recoil anims (28/31)
-                 * cause garbled model when not loaded for area. Needs proper
-                 * anim-availability check before re-enabling. */
+                /* ── Aim / Fire ──
+                 * Read R2 (aim) and Cross (fire) from controller state.
+                 * Player_Controller is bypassed by the PC shim, so we
+                 * populate g_Player_IsAiming / IsShooting manually. */
+                {
+                    static u8 s_aimActive = 0;
+                    static u8 s_fireFrames = 0;
+                    u16 aimBtn  = g_GameWorkPtr->config_0.controllerConfig_0.aim_8;
+                    u16 fireBtn = g_GameWorkPtr->config_0.controllerConfig_0.action_6;
+                    bool hasWeapon = (g_SysWork.playerCombat_38.weaponAttack_F != (s8)NO_VALUE);
+                    bool aimHeld  = (g_Controller0->btnsHeld_C & aimBtn) != 0;
+                    bool fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
 
-                /* Set lowerBodyState for footstep sound triggers */
-                if (g_Player_IsMovingForward && g_Player_IsRunning)
-                    extra->lowerBodyState_24 = PlayerLowerBodyState_RunForward;
-                else if (g_Player_IsMovingForward)
-                    extra->lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
-                else if (g_Player_IsMovingBackward)
-                    extra->lowerBodyState_24 = PlayerLowerBodyState_WalkBackward;
-                else if (g_Player_IsTurningLeft || g_Player_IsTurningRight)
-                    extra->lowerBodyState_24 = PlayerLowerBodyState_None;
-                else
-                    extra->lowerBodyState_24 = PlayerLowerBodyState_None;
+                    g_Player_IsAiming = aimHeld && hasWeapon;
+
+                    if (g_Player_IsAiming) {
+                        D_800C4550 = Q12(0.0f);
+                        g_SysWork.playerCombat_38.isAiming_13 = true;
+                        s_aimActive = 1;
+
+                        if (fireHeld && s_fireFrames == 0) {
+                            /* Fire: recoil anim + flag attack so
+                             * Player_CombatUpdate dispatches damage */
+                            chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                            chara->model_0.stateStep_3 = 0;
+                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                            extra->model_0.stateStep_3 = 0;
+                            extra->lowerBodyState_24 = PlayerLowerBodyState_Aim;
+                            chara->field_44.field_0 = 1;
+                            g_Player_IsShooting = 1;
+                            s_fireFrames = 20;
+                            SH_DBG("[AIM] FIRE weaponAttack=%d rot=%d",
+                                   (int)g_SysWork.playerCombat_38.weaponAttack_F,
+                                   (int)chara->rotation_24.vy);
+                        } else {
+                            /* Aim idle: hold pose */
+                            if (chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
+                                chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunAim, false) &&
+                                chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, false) &&
+                                chara->model_0.anim_4.status_0 != ANIM_STATUS(HarryAnim_HandgunRecoil, true)) {
+                                chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                                chara->model_0.stateStep_3 = 0;
+                                extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                                extra->model_0.stateStep_3 = 0;
+                            }
+                            extra->lowerBodyState_24 = PlayerLowerBodyState_Aim;
+                        }
+                        if (s_fireFrames > 0) s_fireFrames--;
+                    } else {
+                        g_Player_IsShooting = 0;
+                        s_fireFrames = 0;
+                        if (s_aimActive) {
+                            s_aimActive = 0;
+                            g_SysWork.playerCombat_38.isAiming_13 = false;
+                            chara->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Idle, false);
+                            chara->model_0.stateStep_3 = 0;
+                            extra->model_0.anim_4.status_0 = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model_0.stateStep_3 = 0;
+                        }
+                    }
+                }
+
+                /* Set lowerBodyState for footstep sound triggers
+                 * (aim state already set above if aiming) */
+                if (!g_Player_IsAiming) {
+                    if (g_Player_IsMovingForward && g_Player_IsRunning)
+                        extra->lowerBodyState_24 = PlayerLowerBodyState_RunForward;
+                    else if (g_Player_IsMovingForward)
+                        extra->lowerBodyState_24 = PlayerLowerBodyState_WalkForward;
+                    else if (g_Player_IsMovingBackward)
+                        extra->lowerBodyState_24 = PlayerLowerBodyState_WalkBackward;
+                    else
+                        extra->lowerBodyState_24 = PlayerLowerBodyState_None;
+                }
 
                 /* Trigger footstep sounds based on animation keyframes.
                  * Save/restore D_800C4550 because func_8007B924 overwrites it
