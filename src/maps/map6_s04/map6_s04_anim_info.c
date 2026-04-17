@@ -87,11 +87,10 @@ s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
 
 #ifdef SH_PC_PORT
 #undef func_800706E4
-extern q19_12 func_800706E4(void);
 
 __attribute__((constructor))
 static void map6_s04_anim_info_patch(void) {
-    HARRY_M6S04_ANIM_INFOS[35].duration_8.variableFunc = func_800706E4;
-    HARRY_M6S04_ANIM_INFOS[37].duration_8.variableFunc = func_800706E4;
+    HARRY_M6S04_ANIM_INFOS[35].duration_8.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M6S04_ANIM_INFOS[37].duration_8.variableFunc = (q19_12 (*)(void))func_800706E4;
 }
 #endif
