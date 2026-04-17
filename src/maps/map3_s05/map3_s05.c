@@ -180,7 +180,11 @@ void func_800D5A98(void) // 0x800D5A98
     }
 }
 
+#ifdef SH_PC_PORT
+extern const VECTOR3 D_800CB35C; /* defined in pc_port/src/stubs/data_stubs.c */
+#else
 const VECTOR3 D_800CB35C = { 0x00015199, 0x00000000, 0xFFFEC000 };
+#endif
 
 void func_800D5C98(void) // 0x800D5C98
 {
