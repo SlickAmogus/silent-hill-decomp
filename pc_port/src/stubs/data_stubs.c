@@ -1278,3 +1278,16 @@ u8 sharedData_800F21EC_2_s00[256] = {0};
 u8 sharedData_800F21FC_2_s00[256] = {0};
 u8 vcRefPosSt[256] = {0};  // VECTOR3 = 12 bytes, 256 is plenty
 u8 vcWork[1024] = {0};    // VC_WORK = 744 bytes on PSX, may be larger on 64-bit
+
+/* Cross-map shared sound emit position (VECTOR3 = 3 x s32 = 12 bytes).
+ * Originally defined per-map via INCLUDE_RODATA (no-op on PC). PC DLL
+ * builds need a single resolved symbol -- defined once here so map3_s01/
+ * 03/04/05 + map7_s01/02 DLLs all import it.
+ *
+ * Value taken from map7_s01_2.c:1933 (only decoded copy in the decomp).
+ * Used by sharedFunc_800D15F0_3_s01 as a sound source position; wrong
+ * value just shifts where the sound appears to emit from -- no crash.
+ * TODO: extract real per-map values from PSX binary if audio mix is off. */
+const s32 sharedData_800CB094_3_s01[3] = {
+    (s32)0xFFF9B19A, (s32)0xFFFFE000, (s32)0xFFFC319A
+};
