@@ -90,7 +90,14 @@ bool Fs_QueueTickSetLoc(s_FsQueueEntry* entry)
 {
     CdlLOC cdloc;
     CdIntToPos(entry->info->startSector, &cdloc);
+#ifdef SH_PC_PORT
+    /* PsyCross CdControl returns 0 for CdlSetloc even on success.
+     * Call it for the side effect (seeking the file), then return true. */
+    CdControl(CdlSetloc, (u_char*)&cdloc, NULL);
+    return true;
+#else
     return CdControl(CdlSetloc, (u_char*)&cdloc, NULL);
+#endif
 }
 
 bool Fs_QueueTickRead(s_FsQueueEntry* entry)
