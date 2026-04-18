@@ -47,13 +47,11 @@ static inline s32 rds32(const u8* p) { return (s32)rd32(p); }
 
 static void ParseIpdModelInfo(s_IpdModelInfo* dst, const u8* src)
 {
-    dst->isGlobalPlm_0 = src[0];
-    dst->unk_1[0]      = src[1];
-    dst->unk_1[1]      = src[2];
-    dst->unk_1[2]      = src[3];
-    memcpy(&dst->modelName_4, &src[4], 8);
-    /* modelHdr_C is initially NULL - will be resolved by ModelLinkObjectLists */
-    dst->modelHdr_C = NULL;
+    dst->isGlobalPlm = src[0];
+    /* src[1..3] are padding in s_IpdModelInfo (no named field). */
+    memcpy(&dst->modelName, &src[4], 8);
+    /* modelHdr is initially NULL - will be resolved by ModelLinkObjectLists */
+    dst->modelHdr = NULL;
 }
 
 static void ParseIpdModelBufferC(s_IpdModelBuffer_C* dst, const u8* src)
@@ -253,12 +251,12 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
      * This clobbers raw bytes but we've already parsed everything above. */
     memset(ipdHdr, 0, sizeof(s_IpdHeader));
 
-    ipdHdr->magic_0            = magic;
+    ipdHdr->magic            = magic;
     ipdHdr->isLoaded_1         = 0; /* Will be set to 1 by caller after all fixups */
     ipdHdr->cellX_2            = (s8)cellX;
     ipdHdr->cellZ_3            = (s8)cellZ;
     ipdHdr->lmHdr_4            = (s_LmHeader*)(raw + lmHdrOff);
-    ipdHdr->modelCount_8       = modelCount;
+    ipdHdr->modelCount       = modelCount;
     ipdHdr->modelBufferCount_9 = modelBufferCount;
     ipdHdr->modelOrderCount_A  = modelOrderCount;
     ipdHdr->unk_B[0]           = unkB;

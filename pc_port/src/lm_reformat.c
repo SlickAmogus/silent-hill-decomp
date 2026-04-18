@@ -94,7 +94,7 @@ static void ParseMaterial(s_Material* dst, const u8* src)
  * properly formatted 64-bit structs (heap-allocated for sub-structures),
  * then overwrites the s_LmHeader at lmHdr with the correct 64-bit values.
  *
- * After this call, lmHdr->materials_4 etc. are valid 64-bit pointers.
+ * After this call, lmHdr->materials etc. are valid 64-bit pointers.
  */
 void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
 {
@@ -127,7 +127,7 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     if (magic != LM_HEADER_MAGIC)
     {
         SH_DBG("[SH] LmFixOffsets_PC: invalid magic 0x%x, skipping", magic);
-        lmHdr->isLoaded_2 = 1; /* prevent re-entry */
+        lmHdr->isLoaded = 1; /* prevent re-entry */
         return;
     }
 
@@ -165,21 +165,21 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
      * contained material/model data, but we already parsed those above.
      */
     memset(lmHdr, 0, sizeof(s_LmHeader));
-    lmHdr->magic_0          = magic;
-    lmHdr->version_1        = version;
-    lmHdr->isLoaded_2       = 1;
-    lmHdr->materialCount_3  = matCount;
-    lmHdr->materials_4      = mats;
-    lmHdr->modelCount_8     = modelCount;
-    lmHdr->modelHdrs_C      = models;
-    lmHdr->modelOrder_10    = raw + modelOrderOff;
+    lmHdr->magic          = magic;
+    lmHdr->version        = version;
+    lmHdr->isLoaded       = 1;
+    lmHdr->materialCount  = matCount;
+    lmHdr->materials      = mats;
+    lmHdr->modelCount     = modelCount;
+    lmHdr->modelHdrs      = models;
+    lmHdr->modelOrder    = raw + modelOrderOff;
 
     /* Log model order (rendering order) */
     {
         char _ordBuf[256] = {0};
         int _ordPos = 0;
         for (int i = 0; i < modelCount && _ordPos < 250; i++) {
-            _ordPos += snprintf(_ordBuf + _ordPos, sizeof(_ordBuf) - _ordPos, " %d", lmHdr->modelOrder_10[i]);
+            _ordPos += snprintf(_ordBuf + _ordPos, sizeof(_ordBuf) - _ordPos, " %d", lmHdr->modelOrder[i]);
         }
         SH_DBG("  modelOrder:%s", _ordBuf);
     }
