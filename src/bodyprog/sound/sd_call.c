@@ -36,7 +36,7 @@
 // STATIC VARIABLES
 // ========================================
 
-static CdlLOC     XaCdLocation;
+CdlLOC     XaCdLocation;
 static s_800C15F0 D_800C15F0[4];
 
 /** @brief `e_SfxId` | Stores the index of the currently playing SFX. */
@@ -74,18 +74,18 @@ static s_800C1688                 D_800C1688;
 static s_VabPlayingInfo g_Sd_VabPlayingInfo;
 static u8               g_Sd_TaskPool[32];
 /** Dead code. */
-static s32              D_800C16C8[0x840];
+s32              D_800C16C8[0x840];
 /** @brief The type of audio file being loaded. See `e_AudioType`. */
-static u8               g_Sd_AudioType;
+u8               g_Sd_AudioType;
 
 /** @brief Amount of data moved when loading KDT/VAB files. */
-static u32              g_Sd_DataMoved;
-static u8               g_Sd_VabLoadAttemps;
+u32              g_Sd_DataMoved;
+u8               g_Sd_VabLoadAttemps;
 /* @brief Pointer to the data of the VAB loading to be used for music. */
-static s_AudioItemData* g_Sd_VabTargetLoad;
-static s_AudioItemData* g_Sd_KdtTargetLoad;
-static u8               D_800C37DC; // Boolean.
-static u8               g_Sd_CurrentTask;
+s_AudioItemData* g_Sd_VabTargetLoad;
+s_AudioItemData* g_Sd_KdtTargetLoad;
+u8               D_800C37DC; // Boolean.
+u8               g_Sd_CurrentTask;
 
 // ========================================
 // GENERAL AUDIO SYSTEM CORE
@@ -93,6 +93,9 @@ static u8               g_Sd_CurrentTask;
 
 void SD_Call(u32 cmd) // 0x80045A7C
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] SD_Call cmd=%u (cat=%u)", cmd, (cmd >> 8) & 0xFF);
+#endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
     {
@@ -409,6 +412,9 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         return NO_VALUE;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) bal=%d vol=%d", sfxId, sfxId - Sfx_Base, balance, vol);
+#endif
 
     audioIdx = sfxId - Sfx_Base;
     volCpy   = vol;
@@ -462,8 +468,15 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
     }
     else
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn vab=%d note=%d",
+                g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100);
+#endif
         g_Sd_VabPlayingInfo.audioVabIdx_0 = SdVoKeyOn(g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx_8 * 0x100,
                                                       Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeLeft_C), Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeRight_E));
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn returned %d", g_Sd_VabPlayingInfo.audioVabIdx_0);
+#endif
     }
 
     for (i = 0; i < ARRAY_SIZE(g_AudioPlayingIdxList); i++)
@@ -476,12 +489,21 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
 
     if (g_Sd_VabPlayingInfo.audioVabIdx_0 < ARRAY_SIZE(g_AudioPlayingIdxList))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr voice=%d", g_Sd_VabPlayingInfo.audioVabIdx_0);
+#endif
         g_AudioPlayingIdxList[g_Sd_VabPlayingInfo.audioVabIdx_0] = sfxId;
         attr.voice                                               = 1 << g_Sd_VabPlayingInfo.audioVabIdx_0;
 
         SpuGetVoiceAttr(&attr);
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr done, pitch=%d", attr.pitch);
+#endif
 
         g_AudioPlayingPitchList[g_Sd_VabPlayingInfo.audioVabIdx_0] = attr.pitch;
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] Sd_PlaySfx: returning voiceIdx=%d", g_Sd_VabPlayingInfo.audioVabIdx_0);
+#endif
         return g_Sd_VabPlayingInfo.audioVabIdx_0;
     }
 
@@ -647,6 +669,9 @@ void Sd_LastSfxStop(void) // 0x800468EC
 
 void Sd_SfxStop(u16 sfxId) // 0x8004690C
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[SFX] Sd_SfxStop: sfxId=%d (Sfx_Base+%d)", sfxId, sfxId - Sfx_Base);
+#endif
     Sd_SfxStopStep(sfxId);
 }
 
@@ -709,6 +734,9 @@ static inline void func_80046A70_0(u16 temp)
 
 void func_80046A70(void) // 0x80046A70
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] func_80046A70: field_10=%d -> SdSeqPlay(0,1,0)", g_Sd_AudioWork.field_10);
+#endif
     func_80046A70_0(g_Sd_AudioWork.field_10);
 
     SdSeqPlay(0, 1, 0);
@@ -716,6 +744,9 @@ void func_80046A70(void) // 0x80046A70
     gSDVolConfig.volumeBgm_6 = 40;
     gSDVolConfig.volumeBgm_8 = 40;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] func_80046A70: volBgm set to 40, field_E=%d", g_Sd_AudioWork.field_E);
+#endif
     Sd_SetVolBgm(gSDVolConfig.volumeBgm_6, gSDVolConfig.volumeBgm_6);
     Sd_TaskPoolUpdate();
 }
