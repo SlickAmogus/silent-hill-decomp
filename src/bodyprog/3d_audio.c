@@ -270,11 +270,6 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     u8  att1;
     s32 att2;
 
-#ifdef SH_PC_PORT
-    /* Sound_StereoBalanceGet uses camera coord hierarchy that isn't fully
-       set up on PC (same issue as func_8005DD44). Use center balance. */
-    balance = 0;
-#else
     if (g_GameWork.config.optSoundType_1E)
     {
         balance = 0;
@@ -283,7 +278,6 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     {
         balance = Sound_StereoBalanceGet(pos);
     }
-#endif
 
     if (vol > 0xFF)
     {

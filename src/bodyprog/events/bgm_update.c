@@ -286,6 +286,17 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
     cond0 = temp_s2;
     cond0 = temp_s2 != 0 && cond0 != 0xFFFF;
 
+#ifdef SH_PC_PORT
+    {
+        static int bgm_upd_count = 0;
+        if (bgm_upd_count < 30) {
+            SH_DBG("[SH_BGM] Bgm_Update #%d: active=%d st=%d fE=%d c0=%d fl=0x%x lv0=%d outV0=%d isMp=%d",
+                    bgm_upd_count, isBgmLayerActive, D_800A99A0, temp_s2, cond0, flagsCpy,
+                    bgmLayerVols[0], g_SysWork.bgmLayerVolumes[0], 0);
+            bgm_upd_count++;
+        }
+    }
+#endif
 
     if (isBgmLayerActive)
     {
