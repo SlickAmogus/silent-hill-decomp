@@ -23,7 +23,7 @@ static char s_currentName[64] = { 0 };
 /* The compiled-in map0_s00 (always available as fallback) */
 extern s_MapOverlayHeader g_MapOverlayHeader_map0_s00;
 
-s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id)
+s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id)
 {
     char dllPath[256];
     char symbolName[64];
