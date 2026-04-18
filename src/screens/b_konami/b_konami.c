@@ -173,7 +173,7 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
 #ifdef SH_PC_PORT
                     /* Skip memory card check on PC - no hardware available.
                      * Go directly to NoMemCard state. */
-                    g_GameWork.gameStateStep_598[0] = KcetLogoStateStep_NoMemCard;
+                    g_GameWork.gameStateSteps[0] = KcetLogoStateStep_NoMemCard;
                     break;
 #endif
 
