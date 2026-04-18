@@ -38,7 +38,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id)
     }
 
     /* map0_s00 is compiled into the main executable — no DLL needed */
-    if (id == MapOverlayId_MAP0_S00)
+    if (id == MapIdx_MAP0_S00)
     {
         MapOverlay_Unload();
         snprintf(s_currentName, sizeof(s_currentName), "%s", mapName);
