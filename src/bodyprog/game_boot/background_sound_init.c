@@ -88,16 +88,10 @@ s32 Bgm_Init(void) // 0x80035780
         case 1:
             if (Bgm_IsCurrentBgmTargetCheck(g_MapOverlayHeader.bgmIdx_14) == false)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init: bgm target matches, skip to step 3");
-#endif
                 g_GameWork.gameStateStep_598[1] += 2;
             }
             else
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init: bgm target differs, calling SD_Call(18) + AllLayersMute");
-#endif
                 SD_Call(18);
                 Bgm_AllLayersMute();
 
@@ -114,10 +108,6 @@ s32 Bgm_Init(void) // 0x80035780
 #endif
             if (func_80045BC8() == 0)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init step2: calling Bgm_TrackSet(%d) -> SD_Call(%d)",
-                        g_MapOverlayHeader.bgmIdx_14, g_BgmTaskLoadCmds[g_MapOverlayHeader.bgmIdx_14]);
-#endif
                 Bgm_TrackSet(g_MapOverlayHeader.bgmIdx_14);
                 g_GameWork.gameStateStep_598[1]++;
             }

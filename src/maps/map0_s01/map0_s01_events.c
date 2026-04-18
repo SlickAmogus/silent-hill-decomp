@@ -1003,21 +1003,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         CutsceneObjects_Add(0);
     }
 
-#ifdef SH_PC_PORT
-    {
-        static u32 _wouTickLogged = 0;
-        if (_wouTickLogged < 5) {
-            SH_DBG("[M0S01_WOU] tick: pickupMap=%d EF41=%d EF42=%d EF47=%d AirIntro=%d npc0.charaId=%d",
-                   (int)Savegame_EventFlagGet(EventFlag_M0S01_PickupMap),
-                   (int)Savegame_EventFlagGet(EventFlag_41),
-                   (int)Savegame_EventFlagGet(EventFlag_42),
-                   (int)Savegame_EventFlagGet(EventFlag_47),
-                   (int)Savegame_EventFlagGet(EventFlag_M0S01_AirScreamerIntroCutsceneStarted),
-                   (int)g_SysWork.npcs_1A0[0].model_0.charaId_0);
-            _wouTickLogged++;
-        }
-    }
-#endif
 
     if (Savegame_EventFlagGet(EventFlag_M0S01_PickupMap) && !Savegame_EventFlagGet(EventFlag_42))
     {
@@ -1065,9 +1050,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
 #endif
             temp_a1 = g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&g_SysWork.npcs_1A0[0].model_0));
-#ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] Model_AnimDurationGet OK temp_a1=%d", (int)temp_a1);
-#endif
 
             ptr = &g_Timer0;
             if (temp_a1 < Q12(25.0f))
@@ -1080,14 +1062,8 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
             *ptr = var_a2;
 
-#ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] calling Dms_CharacterGetPosRot BIRD t=%d", (int)g_Timer0);
-#endif
             Dms_CharacterGetPosRot(&g_SysWork.npcs_1A0[0].position_18, &g_SysWork.npcs_1A0[0].rotation_24, "BIRD",
                                    g_Timer0, (s_DmsHeader*)FS_BUFFER_11);
-#ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] Dms_CharacterGetPosRot OK");
-#endif
 
             if (g_Timer0 >= Q12(25.0f) ||
                 ABS(g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(4.586f)) > Q12(0.7f) ||
@@ -1106,14 +1082,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
                  D_800E2560 > Q12(7.5f))
         {
             Savegame_EventFlagSet(EventFlag_41);
-#ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] calling func_800D3AC0 (air screamer init) npcs_1A0[0]=%p",
-                   (void*)&g_SysWork.npcs_1A0[0]);
-#endif
             func_800D3AC0(&g_SysWork.npcs_1A0[0]);
-#ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] func_800D3AC0 OK");
-#endif
         }
         else
         {

@@ -790,19 +790,11 @@ u8 midi_file_out(s32 file_no) // 0x800A8674
         smf_song[file_no].smf_seq_flag_52C = KDT_MODE;
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH_BGM] midi_file_out: mode=%d", smf_song[file_no].smf_seq_flag_52C);
-#endif
 
     smf_file_no = file_no;
 
     readheader(file_no);
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH_BGM] midi_file_out post-readheader: tracks=%d division=%d format=%d datasize=%d",
-            smf_song[file_no].mf_tracks_526, smf_song[file_no].mf_division_528,
-            smf_song[file_no].mf_format_524, smf_song[file_no].mf_data_size_518);
-#endif
 
     switch (smf_song[file_no].smf_seq_flag_52C)
     {

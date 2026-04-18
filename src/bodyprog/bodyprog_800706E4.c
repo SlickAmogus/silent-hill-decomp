@@ -2462,12 +2462,6 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
             if (chara->model_0.anim_4.keyframeIdx_8 == g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[DEATH] keyframe done: kf=%d kf6=%d step=%d — triggering",
-                       (s32)chara->model_0.anim_4.keyframeIdx_8,
-                       (s32)g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6,
-                       (s32)chara->model_0.stateStep_3);
-#endif
                 if (g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP0_S00)
                 {
                     g_MapOverlayHeader.playerAnimLock_DC();
@@ -6968,17 +6962,6 @@ void func_8007C0D8(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINATE2* c
     g_Player_PrevPosition = chara->position_18;
 
     Collision_Get(&coll, chara->position_18.vx, chara->position_18.vz);
-#ifdef SH_PC_PORT
-    {
-        static int _collGetLog = 0;
-        if (_collGetLog < 10) {
-            SH_DBG("[C0D8] Collision_Get at (%d,%d) => groundH=%d field_8=%d",
-                   chara->position_18.vx, chara->position_18.vz,
-                   coll.groundHeight_0, coll.field_8);
-            _collGetLog++;
-        }
-    }
-#endif
 
     temp_s3 = Q12_MULT(chara->moveSpeed_38, Math_Sin(chara->headingAngle_3C));
     temp_s2 = Q12_MULT(chara->moveSpeed_38, Math_Cos(chara->headingAngle_3C));

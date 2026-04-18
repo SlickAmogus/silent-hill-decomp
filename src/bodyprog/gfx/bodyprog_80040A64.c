@@ -872,9 +872,6 @@ void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x80042
                 {
                     col         = &map->ipdGridCenter_42C[z];
                     col->idx[x] = i;
-#ifdef SH_PC_PORT
-                    SH_DBG("[IPD-GRID] cell(%d,%d) = fileIdx %d  file='%s'", x, z, i, sp10);
-#endif
                 }
             }
         }
@@ -1036,9 +1033,6 @@ s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19
     geomX = Q12_TO_Q8(posX);
     geomZ = Q12_TO_Q8(posZ);
 
-#ifdef SH_PC_PORT
-    SH_DBG("[4287C] globalLm lmHdr_0=%p queueIdx=%d", (void*)globalLm->lmHdr_0, globalLm->queueIdx_8);
-#endif
     if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
 #ifdef SH_PC_PORT
         globalLm->lmHdr_0 != NULL &&
@@ -1290,13 +1284,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
         LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
-#ifdef SH_PC_PORT
-        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount_3, g_Map.globalLm_138.lmHdr_0->modelCount_8, g_Map.ipdTextures_430.fullPage_0.count_0);
-#endif
         Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
-#ifdef SH_PC_PORT
-        SH_DBG("[GLOBAL-LM-B] MaterialsLoadWithFilter done");
-#endif
         Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
 
         g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
@@ -1707,10 +1695,6 @@ s32 Ipd_LoadStart(s_IpdChunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
-#ifdef SH_PC_PORT
-    SH_DBG("[IPD-LOAD] Ipd_LoadStart: cell=(%d,%d) fileIdx=%d queueIdx=%d chunkSlot=%d",
-           cellX, cellZ, fileIdx, chunk->queueIdx_4, (s32)(chunk - g_Map.ipdActive_15C));
-#endif
 
     return chunk->queueIdx_4;
 }
@@ -2067,16 +2051,6 @@ void IpdHeader_ModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
                 }
             }
         }
-#ifdef SH_PC_PORT
-        SH_DBG("[MODEL-LINK] model[%d]: name='%.4s%.4s' isGlobal=%d -> modelHdr=%p (lmHdr=%p lmModels=%d)",
-               i,
-               (char*)&curModelInfo->modelName_4.str[0],
-               (char*)&curModelInfo->modelName_4.str[4],
-               curModelInfo->isGlobalPlm_0,
-               (void*)curModelInfo->modelHdr_C,
-               (void*)(curModelInfo->isGlobalPlm_0 ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr_4),
-               curModelInfo->isGlobalPlm_0 ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount_8 : 0) : ipdHdr->lmHdr_4->modelCount_8);
-#endif
     }
 }
 

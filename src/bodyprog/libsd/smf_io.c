@@ -355,21 +355,6 @@ void volume_calc(PORT* p, MIDI* mp) // 0x800A3F14
     p->l_vol_C = (l_vol * (p->velo_1A & 0x7F)) >> 7;
     p->r_vol_E = (r_vol * (p->velo_1A & 0x7F)) >> 7;
 
-#ifdef SH_PC_PORT
-    {
-        static int volcalc_count = 0;
-        if (volcalc_count < 10) {
-            SH_DBG("[SH_BGM] volume_calc: mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
-                    (u8)vab_h[sd_seq_play_no].mvol_18,
-                    smf_song[p->midi_ch_3 >> 4].midi_master_vol_538,
-                    mp->express_5, mp->mvol_3,
-                    p->pvol_10, p->tvol_11,
-                    p->velo_1A & 0x7F, p->pan_14,
-                    p->l_vol_C, p->r_vol_E);
-            volcalc_count++;
-        }
-    }
-#endif
 
     if (mp->vol_mode_11 >= 0x40u)
     {
@@ -731,15 +716,6 @@ void sound_seq_off(s32 access_num) // 0x800A4A34
     }
 
 
-#ifdef SH_PC_PORT
-    {
-        static int seqoff_count = 0;
-        if (seqoff_count < 4) {
-            SH_DBG("[SH_AUDIO] sound_seq_off(%d): reached MIDI init loop", access_num);
-            seqoff_count++;
-        }
-    }
-#endif
     for (vo = 0; vo < 16; vo++)
     {
         m = &smf_midi[(access_num * 16) + vo];
@@ -1237,29 +1213,8 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
 
             set_note_on(vo, c1, chan, s_attr.volume.left, s_attr.volume.right);
 
-#ifdef SH_PC_PORT
-            {
-                static int bgm_keyon_count = 0;
-                if (bgm_keyon_count < 10) {
-                    SH_DBG("[SH_BGM] key_on final: vo=%d sp48=%d vol_l=%d vol_r=%d pitch=%u addr=0x%x vab=%d mvoll=%d mvolr=%d",
-                            vo, sp48, s_attr.volume.left, s_attr.volume.right, s_attr.pitch, s_attr.addr,
-                            sp44, smf_song[chan >> 4].sd_seq_mvoll_50C, smf_song[chan >> 4].sd_seq_mvolr_50E);
-                    bgm_keyon_count++;
-                }
-            }
-#endif
             if (sp48 == 0 && (s_attr.volume.right | s_attr.volume.left) != 0)
             {
-#ifdef SH_PC_PORT
-                {
-                    static int spukey_count = 0;
-                    if (spukey_count < 5) {
-                        SH_DBG("[SH_BGM] SpuSetKeyOnWithAttr: voice=0x%x addr=0x%x pitch=%u vol=%d/%d",
-                                s_attr.voice, s_attr.addr, s_attr.pitch, s_attr.volume.left, s_attr.volume.right);
-                        spukey_count++;
-                    }
-                }
-#endif
                 do
                 {
                     SpuSetKeyOnWithAttr(&s_attr);
@@ -1269,16 +1224,6 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 }
                 while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
             }
-#ifdef SH_PC_PORT
-            else {
-                static int skipped = 0;
-                if (skipped < 5) {
-                    SH_DBG("[SH_BGM] key_on SKIPPED (sp48=%d vol=%d/%d)",
-                            sp48, s_attr.volume.left, s_attr.volume.right);
-                    skipped++;
-                }
-            }
-#endif
 
             if (m->rev_depth_24 == 0)
             {
