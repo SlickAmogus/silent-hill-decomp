@@ -594,13 +594,23 @@ void GameState_Boot_Update(void) // 0x80032D1C
         case 2:
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
-            /* Don't preload Title/HarryChara/BgItem/etc. here even when
-             * skipIntros is on -- the Konami/Kcet states still display, and
-             * those preloads write to overlapping VRAM pages, leaving the
-             * Konami logo sampling garbage texture data. b_konami.c's Init
-             * step does the loads on its own at the right time; the actual
-             * "skip" happens in title.c MainMenu auto-start, which jumps
-             * straight to gameplay once the menu would normally appear. */
+#ifdef SH_PC_PORT
+            /* When skip_intros is on, queue Konami's normal loads HERE so the
+             * async file reads have many Fs_QueueUpdate cycles to complete
+             * before MainMenu auto-starts.  Doing them only at the post-fade
+             * MainMenu jump (below) leaves no time for the queue to drain --
+             * particle textures are queued but not in VRAM by the time
+             * gameplay starts, causing untextured square/triangle particles.
+             * Safe to do here unconditionally when skipping because the
+             * Konami/Kcet displays are bypassed -- no VRAM page contention. */
+            if (g_PcConfig.skipIntros) {
+                WorldGfx_HarryCharaLoad();
+                GameFs_BgItemLoad();
+                Map_EffectTexturesLoad(NO_VALUE);
+                Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
+                GameFs_TitleGfxLoad();
+            }
+#endif
             ScreenFade_Start(true, false, false);
             g_GameWork.gameStateSteps[0]++;
             break;
@@ -623,21 +633,12 @@ void GameState_Boot_Update(void) // 0x80032D1C
                 g_GameWork.gameStateSteps[0] = gameState;
 #ifdef SH_PC_PORT
                 if (g_PcConfig.skipIntros) {
-                    /* Skip Konami/Kcet/MovieIntro -- jump straight to
-                     * MainMenu. Settings_RestoreDefaults runs during
-                     * Kcet normally; GameFs_TitleGfxLoad runs during
-                     * stream.c movie_main. Konami state loads Harry
-                     * model, bg items, effect textures, and Harry base
-                     * anim -- without these, particles render as
-                     * untextured squares/triangles and Harry is
-                     * missing animation data. Do all of them here so
-                     * gameplay has everything it needs on first frame. */
-                    WorldGfx_HarryCharaLoad();
-                    GameFs_BgItemLoad();
-                    Map_EffectTexturesLoad(NO_VALUE);
-                    Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
+                    /* Skip Konami/Kcet/MovieIntro -- jump straight to MainMenu.
+                     * The asset loads (Harry/bg/particles/anim/title) were
+                     * queued in case 2 above so the queue had time to drain.
+                     * Drain anything still pending and run Konami's
+                     * Settings_RestoreDefaults equivalent. */
                     Settings_RestoreDefaults();
-                    GameFs_TitleGfxLoad();
                     Fs_QueueWaitForEmpty();
                     g_GameWork.gameState = GameState_MainMenu;
                 } else
