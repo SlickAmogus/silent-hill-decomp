@@ -151,14 +151,14 @@ static const struct {
     const char* name;
     int         overlayId;
 } CON_MAP_TABLE[] = {
-    { "THR",  0 },   /* MapOverlayId_MAP0_S00 = streets */
-    { "SC",   3 },   /* MapOverlayId_MAP1_S00 = school interior */
-    { "SU",  10 },   /* MapOverlayId_MAP2_S00 = school upper */
-    { "SPR", 15 },   /* MapOverlayId_MAP3_S00 */
-    { "SPU", 22 },   /* MapOverlayId_MAP4_S00 */
-    { "RSR", 29 },   /* MapOverlayId_MAP5_S00 */
-    { "RSU", 33 },   /* MapOverlayId_MAP6_S00 */
-    { "APR", 39 },   /* MapOverlayId_MAP7_S00 */
+    { "THR",  0 },   /* MapIdx_MAP0_S00 = streets */
+    { "SC",   3 },   /* MapIdx_MAP1_S00 = school interior */
+    { "SU",  10 },   /* MapIdx_MAP2_S00 = school upper */
+    { "SPR", 15 },   /* MapIdx_MAP3_S00 */
+    { "SPU", 22 },   /* MapIdx_MAP4_S00 */
+    { "RSR", 29 },   /* MapIdx_MAP5_S00 */
+    { "RSU", 33 },   /* MapIdx_MAP6_S00 */
+    { "APR", 39 },   /* MapIdx_MAP7_S00 */
     { NULL,   0 }
 };
 
