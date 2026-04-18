@@ -270,13 +270,13 @@ static void con_execute(const char* cmd)
         }
     }
     else if (strcmp(upper, "GIVE HANDGUN") == 0) {
-        g_SavegamePtr->equippedWeapon_AA = InventoryItemId_Handgun;
-        g_SysWork.playerCombat_38.weaponAttack_F = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+        g_SavegamePtr->equippedWeapon_AA = InvItemId_Handgun;
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
         con_print("EQUIPPED HANDGUN (R_CTRL=AIM, C=FIRE)");
     }
     else if (strcmp(upper, "GIVE PIPE") == 0) {
-        g_SavegamePtr->equippedWeapon_AA = InventoryItemId_SteelPipe;
-        g_SysWork.playerCombat_38.weaponAttack_F = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
+        g_SavegamePtr->equippedWeapon_AA = InvItemId_SteelPipe;
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
         con_print("EQUIPPED STEEL PIPE");
     }
     else if (upper[0] != '\0') {
