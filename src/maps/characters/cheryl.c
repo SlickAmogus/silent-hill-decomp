@@ -59,7 +59,15 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
 
     if (dahliaProps.properties_F0.val32 == 0)
     {
+#ifdef SH_PC_PORT
+        /* Guard against NULL playbackFunc -- some CHERYL_ANIM_INFOS entries may
+         * have unmerged playback function pointers on PC. */
+        s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model.anim.status];
+        if (ai->playbackFunc != NULL)
+            ai->playbackFunc(&chara->model, anmHdr, coord, ai);
+#else
         CHERYL_ANIM_INFOS[chara->model.anim.status].playbackFunc(&chara->model, anmHdr, coord, &CHERYL_ANIM_INFOS[chara->model.anim.status]);
+#endif
     }
 }
 
