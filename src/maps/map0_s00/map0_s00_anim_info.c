@@ -141,7 +141,7 @@ s_AnimInfo HARRY_M0S00_ANIM_INFOS[] = {
     {}
 };
 
-// Not sure if the `time_4 field` (3rd) is actually time.
+// Not sure if the `time field` (3rd) is actually time.
 // These numbers produce very small and non-round values.
 // I also seen some code read this field and add very small numbers like 4 or 32.
 // This is why FP macros aren't used.
@@ -176,13 +176,13 @@ u8  sharedData_800DD591_0_s00 = 0;
 u8  sharedData_800DD592_0_s00 = 1;
 
 u8 LOADABLE_INVENTORY_ITEMS[8] = {
-    InventoryItemId_HealthDrink,
-    InventoryItemId_Chainsaw,
-    InventoryItemId_HyperBlaster,
-    InventoryItemId_RockDrill,
-    InventoryItemId_GasolineTank,
-    InventoryItemId_ChannelingStone,
-    InventoryItemId_Katana,
-    InventoryItemId_Unequipped
+    InvItemId_HealthDrink,
+    InvItemId_Chainsaw,
+    InvItemId_HyperBlaster,
+    InvItemId_RockDrill,
+    InvItemId_GasolineTank,
+    InvItemId_ChannelingStone,
+    InvItemId_Katana,
+    InvItemId_Unequipped
 };
 

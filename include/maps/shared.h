@@ -3,11 +3,11 @@
 
 #include "game.h"
 
+#include "bodyprog/events/bgm_update.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
-#include "bodyprog/sound_background.h"
 
 // BIG TODO: Move tables below to wherever they belong when data migration is performed. I've split these into alphabetised player and NPC sections
 // to make them easier to sort through. -- Sezz
@@ -274,7 +274,7 @@ extern s16 sharedData_800D5A8C_1_s05;
 extern u8 sharedData_800D5AAE_1_s05;
 extern u8 sharedData_800D5AAF_1_s05;
 
-extern u8      sharedData_800D5CF8_1_s05[];
+extern u8      sharedData_800D5CF8_1_s05[9];
 extern u8      sharedData_800D5D08_1_s05[];
 extern VECTOR3 sharedData_800D8618_1_s05[];
 extern SVECTOR3 sharedData_800D5A90_1_s05[]; // Q7.8
@@ -313,6 +313,7 @@ extern CVECTOR sharedData_800E325C_0_s00;
 extern s32 sharedData_800E2370_0_s01[2];
 
 // Each of these holds 8 bytes, passed to `Bgm_Update` which loops through each byte.
+// TODO: Should use `s_BgmLayerLimits`?
 extern u8 sharedData_800CFB14_0_s02[8];
 extern u8 sharedData_800CFB1C_0_s02[8];
 extern u8 sharedData_800CFB24_0_s02[8];
@@ -343,8 +344,8 @@ extern s16 sharedData_800DD5A4_0_s00; // Used as index into array of vectors.
 extern s16 sharedData_800E39E0_0_s00;
 extern s16 sharedData_800E39E2_0_s00;
 
-extern s32 sharedData_800D8684_1_s05;
-extern s32 sharedData_800D8688_1_s05;
+extern q19_12 sharedData_800D8684_1_s05; // Offset X. Used by Split Head.
+extern q19_12 sharedData_800D8688_1_s05; // Offset Z. Used by Split Head.
 
 extern u8      sharedData_800EB738_6_s04;
 extern u8      sharedData_800EB740_6_s04[2];
@@ -523,19 +524,19 @@ extern u16 sharedData_800EFD34_6_s00[];
 
 
 extern u8 sharedData_800ED418_4_s02[8];
-extern s32 sharedData_800ED420_4_s02;
+extern s32 sharedData_800ED420_4_s02;   // `e_BgmFlags`
 extern u8 sharedData_800ED424_4_s02[8];
-extern u16 sharedData_800ED42C_4_s02[];
+extern u16 sharedData_800ED42C_4_s02[]; // `e_BgmFlags` | Map room index used for access.
 extern u8 sharedData_800ED458_4_s02[8];
 
 extern void (*g_Romper_ControlFuncs[])(s_SubCharacter* romper);
 
-extern s_Bgm_Update sharedData_800D2F18_7_s00;
-extern s_Bgm_Update sharedData_800D2F20_7_s00;
+extern s_BgmLayerLimits sharedData_800D2F18_7_s00;
+extern s_BgmLayerLimits sharedData_800D2F20_7_s00;
 extern u16          sharedData_800D2F28_7_s00[38]; // Flags array.
-extern s_Bgm_Update sharedData_800D2F74_7_s00;
-extern s_Bgm_Update sharedData_800D2F7C_7_s00;
-extern s_Bgm_Update sharedData_800D2F84_7_s00;
+extern s_BgmLayerLimits sharedData_800D2F74_7_s00;
+extern s_BgmLayerLimits sharedData_800D2F7C_7_s00;
+extern s_BgmLayerLimits sharedData_800D2F84_7_s00;
 
 extern s32 sharedData_800E1570_7_s01;
 extern s32 sharedData_800E1574_7_s01;
@@ -902,15 +903,15 @@ void sharedFunc_800D7EE8_1_s02(s_SubCharacter* creeper);
 
 void Ai_Creeper_ControlUpdate(s_SubCharacter* creeper);
 
-void Ai_Creeper_Control_1(s_SubCharacter* creeper);
+void Creeper_ControlIdle(s_SubCharacter* creeper);
 
-void Ai_Creeper_Control_2(s_SubCharacter* creeper);
+void Creeper_ControlWalkForward(s_SubCharacter* creeper);
 
-void Ai_Creeper_Control_3(s_SubCharacter* creeper);
+void Creeper_ControlAttack(s_SubCharacter* creeper);
 
-void Ai_Creeper_Control_4(s_SubCharacter* creeper);
+void Creeper_ControlStun(s_SubCharacter* creeper);
 
-void Ai_Creeper_Control_5(s_SubCharacter* creeper);
+void Creeper_ControlDamage(s_SubCharacter* creeper);
 
 void sharedFunc_800D983C_1_s02(s_SubCharacter* creeper);
 
@@ -1109,8 +1110,8 @@ void sharedFunc_800D0110_7_s00(void);
 
 static inline void ModelAnim_AnimInfoSet(s_ModelAnim* anim, s_AnimInfo* animInfo)
 {
-    anim->animInfo_C  = animInfo;
-    anim->animInfo_10 = NULL;
+    anim->baseAnimInfos  = animInfo;
+    anim->mapAnimInfos = NULL;
 }
 
 // TODO: Could also call this a "transform"? "Pose" is a less common term for a position+rotation struct.
@@ -1179,7 +1180,7 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
  * @param speed Move speed (Q*.12).
  */
 #define Chara_MoveSpeedUpdate(chara, speed) \
-    chara->moveSpeed_38 = APPROACH(chara->moveSpeed_38, Q12(0.0f), Q12_MULT_PRECISE(g_DeltaTime, speed))
+    chara->moveSpeed = APPROACH(chara->moveSpeed, Q12(0.0f), Q12_MULT_PRECISE(g_DeltaTime, speed))
 
 // TODO: Is it possible to merge these macros?
 #define Chara_MoveSpeedUpdate2(chara, speed, limit)                       \
@@ -1188,7 +1189,7 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
     q19_12 newSpeed;                                                      \
     q19_12 newMoveSpeed;                                                  \
                                                                           \
-    moveSpeed = chara->moveSpeed_38;                                      \
+    moveSpeed = chara->moveSpeed;                                      \
     if (moveSpeed > limit)                                                \
     {                                                                     \
         newMoveSpeed = limit;                                             \
@@ -1208,13 +1209,13 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
             newMoveSpeed = newSpeed;                                      \
         }                                                                 \
     }                                                                     \
-    chara->moveSpeed_38 = newMoveSpeed;                                   \
+    chara->moveSpeed = newMoveSpeed;                                   \
 }
 
 #define Chara_MoveSpeedUpdate3(chara, speed, limit) \
-    chara->moveSpeed_38 = APPROACH(chara->moveSpeed_38, limit, Q12_MULT_PRECISE(g_DeltaTime, speed))
+    chara->moveSpeed = APPROACH(chara->moveSpeed, limit, Q12_MULT_PRECISE(g_DeltaTime, speed))
 
 #define Chara_MoveSpeedUpdate4(chara, speed, limit) \
-    chara->moveSpeed_38 = APPROACH_ALT(chara->moveSpeed_38, limit, Q12_MULT_PRECISE(g_DeltaTime, speed))
+    chara->moveSpeed = APPROACH_ALT(chara->moveSpeed, limit, Q12_MULT_PRECISE(g_DeltaTime, speed))
 
 #endif

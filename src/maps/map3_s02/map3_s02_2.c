@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -44,7 +45,7 @@ void func_800D02B4(void) // 0x800D02B4
         EventState_End = 5
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case EventState_0:
             Player_ControlFreeze();
@@ -76,7 +77,7 @@ void func_800D02B4(void) // 0x800D02B4
 
 void func_800D03FC(void) // 0x800D03FC
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -235,13 +236,13 @@ void func_800D0608(void) // 0x800D0608
         GsOUT_PACKET_P = (PACKET*)scratch->stp_8;
     }
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 4)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 4)
     {
         SysWork_StateStepSet(0, 4);
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -249,7 +250,7 @@ void func_800D0608(void) // 0x800D0608
             ScreenFade_ResetTimestep();
 
             g_SysWork.field_30    = 20;
-            g_SysWork.flags_22A4 |= SysFlag2_3;
+            g_SysWork.flags_22A4 |= UnkSysFlag_3;
 
             Fs_QueueStartRead(FILE_ANIM_DWSTWY_DMS, FS_BUFFER_24);
             Fs_QueueWaitForEmpty();
@@ -259,9 +260,9 @@ void func_800D0608(void) // 0x800D0608
 
             g_SysWork.field_235C = NULL;
             g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightIntensity_2378 = Q12(0.7f);
+            g_SysWork.pointLightIntensity = Q12(0.7f);
 
-            Model_AnimFlagsClear(&g_SysWork.playerWork_4C.player_0.model_0, 2);
+            Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, 2);
 
             func_8008D438();
             Gfx_MapInitMapEffectsUpdate(16, 16);
@@ -271,7 +272,7 @@ void func_800D0608(void) // 0x800D0608
             break;
 
         case 1:
-            func_80085EB8(0, &g_SysWork.npcs_1A0[0], 2, false);
+            func_80085EB8(0, &g_SysWork.npcs[0], 2, false);
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.0f), false);
             SysWork_StateStepIncrement(0);
 
@@ -293,12 +294,12 @@ void func_800D0608(void) // 0x800D0608
 
             SysWork_StateSetNext(SysState_Gameplay);
 
-            Model_AnimFlagsSet(&g_SysWork.playerWork_4C.player_0.model_0, 2);
+            Model_AnimFlagsSet(&g_SysWork.playerWork.player.model, 2);
 
             func_8008D448();
             Game_FlashlightAttributesFix();
 
-            g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+            g_SysWork.pointLightIntensity = Q12(1.0f);
             g_SysWork.field_30   = 0;
 
             Savegame_EventFlagSet(EventFlag_237);
@@ -312,16 +313,16 @@ void func_800D0608(void) // 0x800D0608
 
     if (D_800D1FEC >= 0)
     {
-        Dms_CharacterGetPosRot(&g_SysWork.npcs_1A0[0].position_18, &g_SysWork.npcs_1A0[0].rotation_24, "ARISA", D_800D1FEC, FS_BUFFER_24);
+        Dms_CharacterGetPosRot(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "ARISA", D_800D1FEC, FS_BUFFER_24);
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&cameraPos, &cameraTarget, NULL, D_800D1FEC, FS_BUFFER_24));
         vcUserCamTarget(&cameraPos, NULL, true);
         vcUserWatchTarget(&cameraTarget, NULL, true);
-        Dms_CharacterGetPosRot(&g_SysWork.pointLightPosition_2360, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
+        Dms_CharacterGetPosRot(&g_SysWork.pointLightPosition, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
         Dms_CharacterGetPosRot(&lightIntPos, &unused, "L_INT", D_800D1FEC, FS_BUFFER_24);
 
-        g_SysWork.pointLightRot_2370.vx = -ratan2(lightIntPos.vy - g_SysWork.pointLightPosition_2360.vy, Math_Vector2MagCalc(lightIntPos.vx - g_SysWork.pointLightPosition_2360.vx, lightIntPos.vz - g_SysWork.pointLightPosition_2360.vz));
-        g_SysWork.pointLightRot_2370.vy = ratan2(lightIntPos.vx - g_SysWork.pointLightPosition_2360.vx, lightIntPos.vz - g_SysWork.pointLightPosition_2360.vz);
-        g_SysWork.pointLightRot_2370.vz = Q12_ANGLE(0.0f);
+        g_SysWork.pointLightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.pointLightPosition.vy, Math_Vector2MagCalc(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz));
+        g_SysWork.pointLightRotation.vy = ratan2(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz);
+        g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
     }
 }
 
@@ -349,7 +350,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D0F9C
             D_800D1FBC = MAX(D_800D1FBC, Q12_MULT_PRECISE(func_800D1354(), Q12(24.0f)) + Q12(25.0f));
         }
 
-        if (!Savegame_EventFlagGet(EventFlag_233) && g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-129.0f))
+        if (!Savegame_EventFlagGet(EventFlag_233) && g_SysWork.playerWork.player.position.vz < Q12(-129.0f))
         {
             Savegame_EventFlagSet(EventFlag_233);
             func_8005DC1C(Sfx_Unk1523, &D_800CAAF8, Q8(0.5f), 0);
@@ -359,7 +360,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D0F9C
     if (PLAYER_IN_MAP_CHUNK(vx, 1, 2, -1, 2) && PLAYER_IN_MAP_CHUNK(vz, 1, -4, -1, -4))
     {
 
-        if (!Savegame_EventFlagGet(EventFlag_234) && g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(67.0f))
+        if (!Savegame_EventFlagGet(EventFlag_234) && g_SysWork.playerWork.player.position.vx < Q12(67.0f))
         {
             Savegame_EventFlagSet(EventFlag_234);
             func_8005DC1C(Sfx_Unk1523, &QVECTOR3(69.6f, -1.2f, -138.4f), Q8(0.5f), 0);
@@ -379,12 +380,12 @@ s16 func_800D1354(void) // 0x800D1354
     s32 z6;
 
     // TODO: Use `Math_Vector2MagCalc`.
-    x = g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(95.2f);
-    z = g_SysWork.playerWork_4C.player_0.position_18.vz + Q12(140.0f);
-    cos0 = Math_Cos(func_8005BF38((ratan2(x, z) - ratan2(Q12(4.8f) + 1, Q12(12.8f) + 1))));
+    x = g_SysWork.playerWork.player.position.vx - Q12(95.2f);
+    z = g_SysWork.playerWork.player.position.vz + Q12(140.0f);
+    cos0 = Math_Cos(Math_AngleNormalizeSigned((ratan2(x, z) - ratan2(Q12(4.8f) + 1, Q12(12.8f) + 1))));
 
-    x6 = Q12_TO_Q6(g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(95.2f));
-    z6 = Q12_TO_Q6(g_SysWork.playerWork_4C.player_0.position_18.vz + Q12(140.0f));
+    x6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vx - Q12(95.2f));
+    z6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vz + Q12(140.0f));
 
     tmp0 = FP_FROM((cos0 * Q6_TO_Q12((SquareRoot0(SQUARE(x6) + SQUARE(z6))))), Q12_SHIFT);
     var1 = FP_TO(tmp0, Q12_SHIFT) / Q6_TO_Q12(SquareRoot0(0xBAC52));

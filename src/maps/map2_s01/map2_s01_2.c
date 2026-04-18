@@ -1,6 +1,8 @@
 #include <libapi.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -23,22 +25,22 @@ void GameBoot_LoadScreen_StageString(void) {} // 0x800CEB94
 
 void func_800CEB9C(void) // 0x800CEB9C
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
     Map_MessageWithSfx(MapMsgIdx_DoorJammed, Sfx_DoorJammed, &sfxPos);
 }
 
 void func_800CEC30(void) // 0x800CEC30
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    if (g_MapEventData->pointOfInterestIdx_5 == 2)
+    if (g_MapEventData->pointOfInterestIdx == 2)
     {
         if (Savegame_EventFlagGet(EventFlag_180))
         {
             Map_MessageWithSfx(38, Sfx_Unk1486, &sfxPos);
 
-            if (g_SysWork.sysState_8 == SysState_Gameplay)
+            if (g_SysWork.sysState == SysState_Gameplay)
             {
                 Savegame_EventFlagSet(EventFlag_180);
             }
@@ -95,7 +97,7 @@ void func_800CED44(void) // 0x800CED44
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 25:
             pickupType   = CommonPickupItemId_HealthDrink;
@@ -116,16 +118,16 @@ void func_800CED88(void) // 0x800CED88
     s32             step;
     s_SubCharacter* dahlia;
 
-    #define dahliaChara (&g_SysWork.npcs_1A0[0])
-    #define playerChara (&g_SysWork.playerWork_4C.player_0)
+    #define dahliaChara (&g_SysWork.npcs[0])
+    #define playerChara (&g_SysWork.playerWork.player)
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < EventState_Skip)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < EventState_Skip)
     {
         SysWork_StateStepSet(0, EventState_Skip);
     }
 
-    step = g_SysWork.sysStateStep_C[0];
+    step = g_SysWork.sysStateSteps[0];
     switch (step)
     {
         case 0:
@@ -133,14 +135,14 @@ void func_800CED88(void) // 0x800CED88
             Fs_QueueStartRead(FILE_ANIM_CHRC_DMS, FS_BUFFER_15);
             Fs_QueueWaitForEmpty();
             DmsHeader_FixOffsets((s_DmsHeader*)FS_BUFFER_15);
-            Chara_Load(0, Chara_Dahlia, &g_SysWork.npcCoords_FC0[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
+            Chara_Load(0, Chara_Dahlia, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
             Chara_ProcessLoads();
             Chara_Spawn(Chara_Dahlia, 0, Q12(20.0f), Q12(23.5f), 0, 3);
             sharedFunc_800D88AC_0_s00(dahliaChara);
 
             g_Timer0 = Q12(0.0f);
             g_SysWork.field_30 = 20;
-            g_SysWork.flags_22A4 |= SysFlag2_3;
+            g_SysWork.flags_22A4 |= UnkSysFlag_3;
 
             func_80085EB8(0, playerChara, 51, false);
             func_80085EB8(0, dahliaChara, 0, false);
@@ -363,7 +365,7 @@ void func_800CED88(void) // 0x800CED88
         case EventState_Skip:
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
 
-            if (g_SysWork.sysStateStep_C[0] != EventState_Skip)
+            if (g_SysWork.sysStateSteps[0] != EventState_Skip)
             {
                 g_Timer0 = Q12(253.0f);
             }
@@ -410,8 +412,8 @@ void func_800CED88(void) // 0x800CED88
             if (step > 13)
             {
                 dahlia = dahliaChara;
-                if ((dahlia->model_0.anim_4.time_4 - Q12(Chara_AnimStartKeyframeIdxGet(dahlia))) <= Q12(30.0f) &&
-                    (dahlia->model_0.anim_4.time_4 - Q12(Chara_AnimStartKeyframeIdxGet(dahlia))) >= Q12(21.0f))
+                if ((dahlia->model.anim.time - Q12(Chara_AnimStartKeyframeIdxGet(dahlia))) <= Q12(30.0f) &&
+                    (dahlia->model.anim.time - Q12(Chara_AnimStartKeyframeIdxGet(dahlia))) >= Q12(21.0f))
                 {
                     Savegame_EventFlagSet(EventFlag_176);
                 }
@@ -421,8 +423,8 @@ void func_800CED88(void) // 0x800CED88
 
     if (g_Timer0 >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&playerChara->position_18, (SVECTOR3*)&playerChara->rotation_24, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_15);
-        Dms_CharacterGetPosRot(&dahliaChara->position_18, (SVECTOR3*)&dahliaChara->rotation_24, "DAHLIA", g_Timer0, (s_DmsHeader*)FS_BUFFER_15);
+        Dms_CharacterGetPosRot(&playerChara->position, (SVECTOR3*)&playerChara->rotation, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_15);
+        Dms_CharacterGetPosRot(&dahliaChara->position, (SVECTOR3*)&dahliaChara->rotation, "DAHLIA", g_Timer0, (s_DmsHeader*)FS_BUFFER_15);
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_15));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
@@ -431,12 +433,12 @@ void func_800CED88(void) // 0x800CED88
 
 void func_800CF798(void) // 0x800CF798
 {
-    Event_ItemTake(InventoryItemId_Flauros, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S01_PickupFlauros, 35);
+    Event_ItemTake(InvItemId_Flauros, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S01_PickupFlauros, 35);
 }
 
 void func_800CF7C4(void) // 0x800CF7C4
 {
-    Event_ItemTake(InventoryItemId_DrawbridgeKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S01_PickupDrawbridgeKey, 36);
+    Event_ItemTake(InvItemId_DrawbridgeKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S01_PickupDrawbridgeKey, 36);
 }
 
 extern u8 D_800D177C;

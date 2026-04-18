@@ -19,14 +19,14 @@ void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_
     g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate = Q12(0.0f);
     g_WorldGfxWork.vcCameraInternalInfo_1BDC.mode        = 0;
 
-    vcSetCameraUseWarp(chr_pos, g_SysWork.cameraAngleY_237A);
-    SetGeomScreen(g_GameWork.gsScreenHeight_58A);
+    vcSetCameraUseWarp(chr_pos, g_SysWork.cameraAngleY);
+    SetGeomScreen(g_GameWork.gsScreenHeight);
     vwInitViewInfo();
     vcInitVCSystem(map_overlay_ptr->roadDataList_3CC);
     vcStartCameraSystem();
 
-    g_SysWork.cameraAngleZ_237C   = Q12_ANGLE(0.0f);
-    g_SysWork.cameraRadiusXz_2380 = Q12(3.0f);
+    g_SysWork.cameraAngleZ   = Q12_ANGLE(0.0f);
+    g_SysWork.cameraRadiusXz = Q12(3.0f);
     g_SysWork.cameraY_2384        = Q12(0.0f);
 }
 
@@ -48,8 +48,8 @@ void vcSetCameraUseWarp(const VECTOR3* chr_pos, q3_12 chr_ang_y) // 0x800400D4
     cam_pos.vy = chr_pos->vy - HEIGHT;
     cam_pos.vz = chr_pos->vz - Q12_MULT(Math_Cos(chr_ang_y), RADIUS);
 
-    vcSetFirstCamWork(&cam_pos, chr_ang_y, g_SysWork.flags_22A4 & SysFlag2_6);
-    g_SysWork.flags_22A4 &= ~SysFlag2_6;
+    vcSetFirstCamWork(&cam_pos, chr_ang_y, g_SysWork.flags_22A4 & UnkSysFlag_6);
+    g_SysWork.flags_22A4 &= ~UnkSysFlag_6;
 
     #undef RADIUS
     #undef HEIGHT
@@ -77,9 +77,9 @@ void vcSetEvCamRate(q3_12 ev_cam_rate) // 0x800401C0
     g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate = ev_cam_rate;
 }
 
-void func_800401CC(void) // 0x800401CC
+void Vc_UpdateLookAtPointSetAlt(void) // 0x800401CC
 {
-    func_80080D68();
+    Vc_UpdateLookAtPointSet();
 }
 
 void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, bool back_f, bool right_f, bool left_f, bool up_f, bool down_f) // 0x800401EC
@@ -105,25 +105,25 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             g_WorldGfxWork.vcCameraInternalInfo_1BDC.mode = 0;
 
             first_cam_pos.vy = Q12(-2.2f);
-            first_cam_pos.vx = g_SysWork.playerWork_4C.player_0.position_18.vx + Q12(7.0f);
-            first_cam_pos.vz = g_SysWork.playerWork_4C.player_0.position_18.vz;
+            first_cam_pos.vx = g_SysWork.playerWork.player.position.vx + Q12(7.0f);
+            first_cam_pos.vz = g_SysWork.playerWork.player.position.vz;
 
-            vcSetFirstCamWork(&first_cam_pos, g_SysWork.playerWork_4C.player_0.rotation_24.vy, false);
+            vcSetFirstCamWork(&first_cam_pos, g_SysWork.playerWork.player.rotation.vy, false);
 
-        case DebugCameraMode_Collision:
-            hr_p = &g_SysWork.playerWork_4C.player_0;
+        case DebugCameraMode_Collide:
+            hr_p = &g_SysWork.playerWork.player;
 
             if (in_connect_f)
             {
                 grnd_y = Q12(-2.0f);
 
-                hr_head_pos.vx = hr_p->position_18.vx;
-                hr_head_pos.vy = hr_p->position_18.vy - Q12(1.9f);
-                hr_head_pos.vz = hr_p->position_18.vz;
+                hr_head_pos.vx = hr_p->position.vx;
+                hr_head_pos.vy = hr_p->position.vy - Q12(1.9f);
+                hr_head_pos.vz = hr_p->position.vz;
             }
             else
             {
-                Collision_Get(&coll, hr_p->position_18.vx, hr_p->position_18.vz);
+                Collision_Get(&coll, hr_p->position.vx, hr_p->position.vz);
                 grnd_y = coll.groundHeight_0;
 #ifdef SH_PC_PORT
                 /* Q12(8.0f) is the sentinel returned by Collision_Get when no IPD cell
@@ -137,8 +137,8 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                 vcMakeHeroHeadPos(&hr_head_pos);
             }
 
-            hero_top_y    = hr_p->position_18.vy + Q12(-1.7f);
-            hero_bottom_y = hr_p->position_18.vy + Q12_MULT(g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate, Q12(-0.5f));
+            hero_top_y    = hr_p->position.vy + Q12(-1.7f);
+            hero_bottom_y = hr_p->position.vy + Q12_MULT(g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate, Q12(-0.5f));
 
             if (g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate > Q12(0.0f))
             {
@@ -149,10 +149,10 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                 vcWorkSetFlags(VC_NOFLAG, VC_INHIBIT_FAR_WATCH_F);
             }
 
-            vcSetSubjChara(&hr_p->position_18, hero_bottom_y, hero_top_y, grnd_y,
+            vcSetSubjChara(&hr_p->position, hero_bottom_y, hero_top_y, grnd_y,
                            &hr_head_pos,
-                           hr_p->moveSpeed_38, hr_p->headingAngle_3C, hr_p->rotationSpeed_2C.vy,
-                           hr_p->rotation_24.vy, Q12_ANGLE(120.0f), Q12(11.0f));
+                           hr_p->moveSpeed, hr_p->headingAngle, hr_p->rotationSpeed.vy,
+                           hr_p->rotation.vy, Q12_ANGLE(120.0f), Q12(11.0f));
 
             g_WorldGfxWork.vcCameraInternalInfo_1BDC.mv_smooth = vcExecCamera();
             break;
@@ -161,7 +161,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             vcSetRefPosAndSysRef2CamParam(&vcRefPosSt, &g_SysWork, for_f, back_f, right_f, left_f, up_f, down_f);
             vwSetCoordRefAndEntou(NULL,
                                   vcRefPosSt.vx, vcRefPosSt.vy, vcRefPosSt.vz,
-                                  g_SysWork.cameraAngleY_237A, g_SysWork.cameraAngleZ_237C, g_SysWork.cameraY_2384, g_SysWork.cameraRadiusXz_2380);
+                                  g_SysWork.cameraAngleY, g_SysWork.cameraAngleZ, g_SysWork.cameraY_2384, g_SysWork.cameraRadiusXz);
             break;
 
         case DebugCameraMode_AnalogStickControl:
@@ -170,7 +170,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
 
         case DebugCameraMode_ResetReference:
             vcSetRefPosAndSysRef2CamParam(&vcRefPosSt, &g_SysWork, for_f, back_f, right_f, left_f, up_f, down_f);
-            vwSetCoordRefAndEntou(&g_SysWork.playerBoneCoords_890[HarryBone_Head],
+            vwSetCoordRefAndEntou(&g_SysWork.playerBoneCoords[HarryBone_Head],
                                   Q12(0.0f), Q12(-0.15f), Q12(1.0f),
                                   Q12_ANGLE(165.0f), Q12_ANGLE(0.0f), Q12(-0.2f), Q12(1.0f));
             break;
@@ -188,7 +188,7 @@ void vcMakeHeroHeadPos(VECTOR3* head_pos) // 0x8004047C
     SVECTOR fpos;     // Q23.8
     VECTOR  vec;
 
-    Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords_890[HarryBone_Head], &neck_lwm);
+    Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords[HarryBone_Head], &neck_lwm);
 
     fpos.vx = Q8(0.0f);
     fpos.vy = Q8(-0.1f);
@@ -217,19 +217,19 @@ void vcSetRefPosAndSysRef2CamParam(VECTOR3* ref_pos, s_SysWork* sys_p,
 
     if (for_f)
     {
-        sys_p->cameraRadiusXz_2380 -= POS_OFFSET;
+        sys_p->cameraRadiusXz -= POS_OFFSET;
     }
     if (back_f)
     {
-        sys_p->cameraRadiusXz_2380 += POS_OFFSET;
+        sys_p->cameraRadiusXz += POS_OFFSET;
     }
     if (right_f)
     {
-        sys_p->cameraAngleY_237A -= g_VBlanks * V_BLANKS_MULT;
+        sys_p->cameraAngleY -= g_VBlanks * V_BLANKS_MULT;
     }
     if (left_f)
     {
-        sys_p->cameraAngleY_237A += g_VBlanks * V_BLANKS_MULT;
+        sys_p->cameraAngleY += g_VBlanks * V_BLANKS_MULT;
     }
     if (up_f)
     {
@@ -239,13 +239,13 @@ void vcSetRefPosAndSysRef2CamParam(VECTOR3* ref_pos, s_SysWork* sys_p,
     {
         sys_p->cameraY_2384 += POS_OFFSET;
     }
-    if (sys_p->cameraRadiusXz_2380 < RADIUS_MIN)
+    if (sys_p->cameraRadiusXz < RADIUS_MIN)
     {
-        sys_p->cameraRadiusXz_2380 = RADIUS_MIN;
+        sys_p->cameraRadiusXz = RADIUS_MIN;
     }
 
-    vcAddOfsToPos(ref_pos, &g_SysWork.playerWork_4C.player_0.position_18,
-                  Q12(0.5f), g_SysWork.playerWork_4C.player_0.rotation_24.vy, Q12(-1.0f));
+    vcAddOfsToPos(ref_pos, &g_SysWork.playerWork.player.position,
+                  Q12(0.5f), g_SysWork.playerWork.player.rotation.vy, Q12(-1.0f));
 
     #undef POS_OFFSET
     #undef RADIUS_MIN
@@ -361,9 +361,9 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
         ref_pos->vy = Q8_TO_Q12(newCamPos.vy + refOffset.vy);
         ref_pos->vz = Q8_TO_Q12(newCamPos.vz + refOffset.vz);
 
-        sys_p->cameraAngleY_237A   = Math_AngleNormalize(cam_ang.vy + Q12_ANGLE(180.0f));
+        sys_p->cameraAngleY   = Math_AngleNormalize(cam_ang.vy + Q12_ANGLE(180.0f));
         sys_p->cameraY_2384        = Q8_TO_Q12(-refOffset.vy);
-        sys_p->cameraRadiusXz_2380 = Q8_TO_Q12(SquareRoot0(SQUARE(refOffset.vx) + SQUARE(refOffset.vz)));
+        sys_p->cameraRadiusXz = Q8_TO_Q12(SquareRoot0(SQUARE(refOffset.vx) + SQUARE(refOffset.vz)));
     }
 
     #undef MOVE_DIST

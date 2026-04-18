@@ -1,6 +1,10 @@
 #include "inline_no_dmpsx.h"
+
 #include <psyq/gtemac.h>
+
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "bodyprog/sound_system.h"
@@ -49,7 +53,7 @@ void MapEvent_CommonItemTake(void) // 0x800EB090
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 22:
             pickupType   = CommonPickupItemId_HealthDrink;
@@ -92,13 +96,13 @@ void func_800EB11C(void) // 0x800EB11C
     s32 vol;
 
     // Skip.
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4 &&
-        g_SysWork.sysStateStep_C[0] >= 2 && g_SysWork.sysStateStep_C[0] < EventState_Skip)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4 &&
+        g_SysWork.sysStateSteps[0] >= 2 && g_SysWork.sysStateSteps[0] < EventState_Skip)
     {
         SysWork_StateStepSet(0, EventState_Skip);
     }
 
-    if (g_SysWork.sysStateStep_C[0] >= 5 && g_SysWork.sysStateStep_C[0] < 13)
+    if (g_SysWork.sysStateSteps[0] >= 5 && g_SysWork.sysStateSteps[0] < 13)
     {
         scratchData                     = PSX_SCRATCH_ADDR(0);
         scratchData->activeBufferIdx_14 = g_ActiveBufferIdx;
@@ -131,13 +135,13 @@ void func_800EB11C(void) // 0x800EB11C
         GsOUT_PACKET_P = (PACKET*)scratchData->stp_8;
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
             ScreenFade_ResetTimestep();
             g_SysWork.field_30    = 20;
-            g_SysWork.flags_22A4 |= SysFlag2_3;
+            g_SysWork.flags_22A4 |= UnkSysFlag_3;
 
             Fs_QueueStartRead(FILE_ANIM_RSU_DMS, FS_BUFFER_15);
             Fs_QueueWaitForEmpty();
@@ -150,7 +154,7 @@ void func_800EB11C(void) // 0x800EB11C
             D_800F0044 = 0;
             D_800F0040 = 0;
 
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 53, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 53, false);
             Game_TurnFlashlightOn();
 
             sharedFunc_800D08B8_0_s00(2, 127);
@@ -173,7 +177,7 @@ void func_800EB11C(void) // 0x800EB11C
 
         case 3:
             D_800F0040 = Q12(23.0f);
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 52, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 52, false);
             SysWork_StateStepIncrement(0);
 
         case 4:
@@ -181,7 +185,7 @@ void func_800EB11C(void) // 0x800EB11C
             break;
 
         case 5:
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 126, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 126, false);
             Savegame_EventFlagSet(EventFlag_413);
             SysWork_StateStepIncrement(0);
 
@@ -195,7 +199,7 @@ void func_800EB11C(void) // 0x800EB11C
             break;
 
         case 8:
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 133, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 133, false);
             SysWork_StateStepIncrement(0);
 
         case 9:
@@ -203,7 +207,7 @@ void func_800EB11C(void) // 0x800EB11C
             break;
 
         case 10:
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 114, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 114, false);
             Savegame_EventFlagSet(EventFlag_402);
             sharedFunc_800D08B8_0_s00(6, 127);
             Particle_SystemUpdate(0, g_SavegamePtr->mapOverlayId_A4, 0);
@@ -237,7 +241,7 @@ void func_800EB11C(void) // 0x800EB11C
             break;
 
         case 17:
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 127, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 127, false);
             Savegame_EventFlagSet(EventFlag_415);
             SysWork_StateStepIncrement(0);
 
@@ -279,9 +283,9 @@ void func_800EB11C(void) // 0x800EB11C
 
     func_800EC4B4(D_800F0044);
 
-    if (g_SysWork.sysStateStep_C[0] >= 1 && g_SysWork.sysStateStep_C[0] < 17)
+    if (g_SysWork.sysStateSteps[0] >= 1 && g_SysWork.sysStateSteps[0] < 17)
     {
-        if (g_SysWork.sysStateStep_C[0] >= 2)
+        if (g_SysWork.sysStateSteps[0] >= 2)
         {
             D_800F0686 += g_DeltaTime >> 3;
         }
@@ -305,7 +309,7 @@ void func_800EB11C(void) // 0x800EB11C
         }
         Sd_SfxAttributesUpdate(Sfx_Unk1599, 0, ~vol, 0);
     }
-    else if (g_SysWork.sysStateStep_C[0] >= 17 && g_SysWork.sysStateStep_C[0] < 20)
+    else if (g_SysWork.sysStateSteps[0] >= 17 && g_SysWork.sysStateSteps[0] < 20)
     {
         D_800F0686 -= g_DeltaTime >> 3;
         if (D_800F0686 < 0)
@@ -328,14 +332,14 @@ void func_800EB11C(void) // 0x800EB11C
         Sd_SfxAttributesUpdate(Sfx_Unk1599, 0, ~vol, 0);
     }
 
-    if (g_SysWork.sysStateStep_C[0] >= 5 && g_SysWork.sysStateStep_C[0] < 10)
+    if (g_SysWork.sysStateSteps[0] >= 5 && g_SysWork.sysStateSteps[0] < 10)
     {
         func_800894DC();
     }
 
     if (D_800F0040 >= 0)
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", D_800F0040, FS_BUFFER_15);
+        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800F0040, FS_BUFFER_15);
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800F0668, &D_800F0678, NULL, D_800F0040, FS_BUFFER_15));
         vcUserCamTarget(&D_800F0668, NULL, true);
         vcUserWatchTarget(&D_800F0678, NULL, true);
@@ -358,20 +362,20 @@ void Map_WorldObjectsInit(void) // 0x800EBCE8
     func_8008D448();
     Game_FlashlightAttributesFix();
 
-    g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+    g_SysWork.pointLightIntensity = Q12(1.0f);
 
     switch (g_SavegamePtr->gameDifficulty_260)
     {
         case GameDifficulty_Normal:
-            g_SysWork.npcId_2280 = 4;
+            g_SysWork.npcFlagsId = 4;
             break;
 
         case GameDifficulty_Easy:
-            g_SysWork.npcId_2280 = 3;
+            g_SysWork.npcFlagsId = 3;
             break;
 
         default:
-            g_SysWork.npcId_2280 = 5;
+            g_SysWork.npcFlagsId = 5;
             break;
     }
 
@@ -493,9 +497,9 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
     ptr2 = FS_BUFFER_1;
     ptr  = PSX_SCRATCH;
 
-    posX = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vx, Q12_SHIFT);
-    posY = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vy, Q12_SHIFT);
-    posZ = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vz, Q12_SHIFT);
+    posX = FP_FROM(g_SysWork.playerWork.player.position.vx, Q12_SHIFT);
+    posY = FP_FROM(g_SysWork.playerWork.player.position.vy, Q12_SHIFT);
+    posZ = FP_FROM(g_SysWork.playerWork.player.position.vz, Q12_SHIFT);
 
     ptr->field_5C.vx = posX << 8;
     ptr->field_5C.vy = posY << 8;

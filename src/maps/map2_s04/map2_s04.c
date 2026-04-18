@@ -1,4 +1,6 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "main/rng.h"
 #include "maps/map2/map2_s04.h"
@@ -45,7 +47,7 @@ void func_800CCF9C(void) // 0x800CCF9C
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 24:
             pickupType   = CommonPickupItemId_ShotgunShells;
@@ -105,7 +107,7 @@ void MapEvent_MapTake(void) // 0x800CD0D0
 
 void MapEvent_ShotgunTake(void) // 0x800CD0F8
 {
-    Event_ItemTake(InventoryItemId_Shotgun, SHOTGUN_AMMO_PICKUP_ITEM_COUNT, EventFlag_M1S02_PickupShotgun, 26);
+    Event_ItemTake(InvItemId_Shotgun, SHOTGUN_AMMO_PICKUP_ITEM_COUNT, EventFlag_M1S02_PickupShotgun, 26);
 }
 
 extern u8 D_800CF280;

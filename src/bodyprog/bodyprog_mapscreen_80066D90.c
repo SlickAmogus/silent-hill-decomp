@@ -6,6 +6,8 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/events/radio.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -40,7 +42,7 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
     func_800363D0();
     Game_TimerUpdate();
 
-    switch (g_GameWork.gameStateStep_598[0])
+    switch (g_GameWork.gameStateSteps[0])
     {
         case 0:
             Screen_Refresh(SCREEN_WIDTH, true);
@@ -60,10 +62,10 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
             g_IntervalVBlanks = 1;
             ScreenFade_Start(true, true, false);
 
-            g_GameWork.gameStateStep_598[0] = 2;
+            g_GameWork.gameStateSteps[0] = 2;
             g_SysWork.counters_1C[1]              = 0;
-            g_GameWork.gameStateStep_598[1] = 0;
-            g_GameWork.gameStateStep_598[2] = 0;
+            g_GameWork.gameStateSteps[1] = 0;
+            g_GameWork.gameStateSteps[2] = 0;
             break;
 
         case 2:
@@ -96,13 +98,13 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
 
             func_800692A4(var_s6, var_s5, temp_s4);
 
-            if ((g_GameWork.gameStatePrev_590 == GameState_InventoryScreen && g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2) ||
-                (g_GameWork.gameStatePrev_590 != GameState_InventoryScreen && g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.cancel_2 |
-                                                                                                               g_GameWorkPtr->config_0.controllerConfig_0.map_18)))
+            if ((g_GameWork.gameStatePrev == GameState_InventoryScreen && g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2) ||
+                (g_GameWork.gameStatePrev != GameState_InventoryScreen && g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.cancel_2 |
+                                                                                                               g_GameWorkPtr->config.controllerConfig.map_18)))
             {
                 SD_Call(Sfx_MenuMap);
 
-                if (g_GameWork.gameStatePrev_590 == GameState_InventoryScreen)
+                if (g_GameWork.gameStatePrev == GameState_InventoryScreen)
                 {
                     GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
                     VSync(SyncMode_Wait);
@@ -117,14 +119,14 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
                     ScreenFade_Start(true, false, false);
                 }
 
-                g_GameWork.gameStateStep_598[0] = 4;
+                g_GameWork.gameStateSteps[0] = 4;
                 g_SysWork.counters_1C[1]              = 0;
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
             {
                 if (D_800AE770 != 0)
                 {
@@ -156,10 +158,10 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
                             ScreenFade_Start(true, false, false);
 
                             D_800C444C                      = NO_VALUE;
-                            g_GameWork.gameStateStep_598[0] = 3;
+                            g_GameWork.gameStateSteps[0] = 3;
                             g_SysWork.counters_1C[1]              = 0;
-                            g_GameWork.gameStateStep_598[1] = 0;
-                            g_GameWork.gameStateStep_598[2] = 0;
+                            g_GameWork.gameStateSteps[1] = 0;
+                            g_GameWork.gameStateSteps[2] = 0;
                             break;
                         }
                     }
@@ -174,10 +176,10 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
                             ScreenFade_Start(true, false, false);
 
                             D_800C444C = NO_VALUE;
-                            g_GameWork.gameStateStep_598[0] = 3;
+                            g_GameWork.gameStateSteps[0] = 3;
                             g_SysWork.counters_1C[1]              = 0;
-                            g_GameWork.gameStateStep_598[1] = 0;
-                            g_GameWork.gameStateStep_598[2] = 0;
+                            g_GameWork.gameStateSteps[1] = 0;
+                            g_GameWork.gameStateSteps[2] = 0;
                             break;
                         }
                     }
@@ -202,10 +204,10 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
 
                 SD_Call(Sfx_MenuMap);
 
-                g_GameWork.gameStateStep_598[0] = 1;
+                g_GameWork.gameStateSteps[0] = 1;
                 g_SysWork.counters_1C[1]              = 0;
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
                 break;
             }
 
@@ -227,10 +229,10 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
             Fs_QueueWaitForEmpty();
             ScreenFade_Start(true, true, false);
 
-            g_GameWork.gameStateStep_598[0] = 2;
+            g_GameWork.gameStateSteps[0] = 2;
             g_SysWork.counters_1C[1]              = 0;
-            g_GameWork.gameStateStep_598[1] = 0;
-            g_GameWork.gameStateStep_598[2] = 0;
+            g_GameWork.gameStateSteps[1] = 0;
+            g_GameWork.gameStateSteps[2] = 0;
             break;
 
         case 4:
@@ -246,11 +248,11 @@ void GameState_MapScreen_Update(void) // 0x80066EB0
 
             if (ScreenFade_IsFinished())
             {
-                if (g_GameWork.gameStatePrev_590 == GameState_InGame || g_GameWork.gameStatePrev_590 == GameState_LoadMapScreen)
+                if (g_GameWork.gameStatePrev == GameState_InGame || g_GameWork.gameStatePrev == GameState_LoadMapScreen)
                 {
                     func_80066E7C();
                     Screen_Init(SCREEN_WIDTH, false);
-                    g_GameWork.gameStatePrev_590 = GameState_InGame;
+                    g_GameWork.gameStatePrev = GameState_InGame;
                 }
 
                 Game_StateSetPrevious();
@@ -306,26 +308,26 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
         return 0;
     }
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vx <= Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vx <= Q12(0.0f))
     {
-        cellX = (g_SysWork.playerWork_4C.player_0.position_18.vx - CHUNK_CELL_SIZE) / CHUNK_CELL_SIZE;
+        cellX = (g_SysWork.playerWork.player.position.vx - CHUNK_CELL_SIZE) / CHUNK_CELL_SIZE;
     }
     else
     {
-        cellX = (g_SysWork.playerWork_4C.player_0.position_18.vx / CHUNK_CELL_SIZE);
+        cellX = (g_SysWork.playerWork.player.position.vx / CHUNK_CELL_SIZE);
     }
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vz <= Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vz <= Q12(0.0f))
     {
-        cellZ = (g_SysWork.playerWork_4C.player_0.position_18.vz - CHUNK_CELL_SIZE) / CHUNK_CELL_SIZE;
+        cellZ = (g_SysWork.playerWork.player.position.vz - CHUNK_CELL_SIZE) / CHUNK_CELL_SIZE;
     }
     else
     {
-        cellZ = g_SysWork.playerWork_4C.player_0.position_18.vz / CHUNK_CELL_SIZE;
+        cellZ = g_SysWork.playerWork.player.position.vz / CHUNK_CELL_SIZE;
     }
 
     mapCoordIdxX = SHRT_MAX;
-    angle = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
+    angle = g_SysWork.playerWork.player.rotation.vy;
     mapCoordIdxZ = SHRT_MAX;
 
     switch (paperMapIdx)
@@ -336,8 +338,8 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
                 case 10:
                     if (cellZ < 4 || (cellZ < 6 && (cellX >= -1 && cellX < 1)))
                     {
-                        mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vx, 0x1FFF, 13, 19);
-                        mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0x1FFF, 13, 1);
+                        mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork.player.position.vx, 0x1FFF, 13, 19);
+                        mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0x1FFF, 13, 1);
                         break;
                     }
 
@@ -449,13 +451,13 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
             if (cellX == -2 && cellZ == 0)
             {
                 angle       += Q12_ANGLE(180.0f);
-                mapCoordIdxX = D_800AE774[2][2][0] + (((g_SysWork.playerWork_4C.player_0.position_18.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(-0.2f));
-                mapCoordIdxZ = D_800AE774[2][2][1] + (((g_SysWork.playerWork_4C.player_0.position_18.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(0.2f));
+                mapCoordIdxX = D_800AE774[2][2][0] + (((g_SysWork.playerWork.player.position.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(-0.2f));
+                mapCoordIdxZ = D_800AE774[2][2][1] + (((g_SysWork.playerWork.player.position.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(0.2f));
             }
             else
             {
-                mapCoordIdxX = D_800AE774[cellX + 4][cellZ + 2][0] + (((g_SysWork.playerWork_4C.player_0.position_18.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(0.2f));
-                mapCoordIdxZ = D_800AE774[cellX + 4][cellZ + 2][1] + (((g_SysWork.playerWork_4C.player_0.position_18.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(-0.2f));
+                mapCoordIdxX = D_800AE774[cellX + 4][cellZ + 2][0] + (((g_SysWork.playerWork.player.position.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(0.2f));
+                mapCoordIdxZ = D_800AE774[cellX + 4][cellZ + 2][1] + (((g_SysWork.playerWork.player.position.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / Q12(-0.2f));
             }
             break;
 
@@ -463,28 +465,28 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
         case 17:
         case 18:
         case 19:
-            mapCoordIdxX = D_800AE7E4[cellX + 1][cellZ + 2][0] + (((g_SysWork.playerWork_4C.player_0.position_18.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / 0x222); // TODO: Demagic into clean float.
-            mapCoordIdxZ = D_800AE7E4[cellX + 1][cellZ + 2][1] + ((((g_SysWork.playerWork_4C.player_0.position_18.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) * 6) / Q12(-0.8f));
+            mapCoordIdxX = D_800AE7E4[cellX + 1][cellZ + 2][0] + (((g_SysWork.playerWork.player.position.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / 0x222); // TODO: Demagic into clean float.
+            mapCoordIdxZ = D_800AE7E4[cellX + 1][cellZ + 2][1] + ((((g_SysWork.playerWork.player.position.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) * 6) / Q12(-0.8f));
             break;
 
         case 20:
         case 21:
         case 22:
         case 23:
-            mapCoordIdxX = D_800AE820[cellX + 4][cellZ + 4][0] + (((g_SysWork.playerWork_4C.player_0.position_18.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / 0x222);
-            mapCoordIdxZ = D_800AE820[cellX + 4][cellZ + 4][1] + ((((g_SysWork.playerWork_4C.player_0.position_18.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) * 6) / Q12(-0.8f));
+            mapCoordIdxX = D_800AE820[cellX + 4][cellZ + 4][0] + (((g_SysWork.playerWork.player.position.vx - (cellX * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) / 0x222);
+            mapCoordIdxZ = D_800AE820[cellX + 4][cellZ + 4][1] + ((((g_SysWork.playerWork.player.position.vz - (cellZ * CHUNK_CELL_SIZE)) - (CHUNK_CELL_SIZE / 2)) * 6) / Q12(-0.8f));
             break;
 
         case 4:
             switch (g_SavegamePtr->mapOverlayId_A4)
             {
                 case 30:
-                    mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vx, 0x1FFF, 13, 0x3C);
-                    mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0x1FFF, 13, -0x55);
+                    mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork.player.position.vx, 0x1FFF, 13, 0x3C);
+                    mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0x1FFF, 13, -0x55);
 
-                    temp_v1_7 = g_SysWork.playerWork_4C.player_0.position_18.vx / 163840;
-                    if ((g_SysWork.playerWork_4C.player_0.position_18.vx > 0 && (temp_v1_7 + 1) == -4) ||
-                        (g_SysWork.playerWork_4C.player_0.position_18.vx <= 0 && (temp_v1_7 - 1) == -4))
+                    temp_v1_7 = g_SysWork.playerWork.player.position.vx / 163840;
+                    if ((g_SysWork.playerWork.player.position.vx > 0 && (temp_v1_7 + 1) == -4) ||
+                        (g_SysWork.playerWork.player.position.vx <= 0 && (temp_v1_7 - 1) == -4))
                     // if (PLAYER_IN_MAP_CHUNK(vx, 1, -4, -1, -4)) // TODO: Causing mismatch.
                     {
                         if (PLAYER_IN_MAP_CHUNK(vz, 1, -1, -1, -1))
@@ -545,8 +547,8 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
                     break;
 
                 case 33:
-                    mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vx, 0x1FFF, 13, 0);
-                    mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0x1FFF, 13, 55);
+                    mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork.player.position.vx, 0x1FFF, 13, 0);
+                    mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0x1FFF, 13, 55);
                     break;
 
                 case 34:
@@ -605,13 +607,13 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
 
                         case 0x6BD:
                         case 0x6BE:
-                            mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vx, 0xFFF, 12, 80);
-                            mapCoordIdxZ = MapCoordIdxGet(Q12(280.0f) - g_SysWork.playerWork_4C.player_0.position_18.vz, 0xFFF, 12, 0);
+                            mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork.player.position.vx, 0xFFF, 12, 80);
+                            mapCoordIdxZ = MapCoordIdxGet(Q12(280.0f) - g_SysWork.playerWork.player.position.vz, 0xFFF, 12, 0);
                             break;
 
                         default:
-                            mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vx, 0xFFF, 12, 80);
-                            mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0xFFF, 12, 0);
+                            mapCoordIdxX = MapCoordIdxGet(g_SysWork.playerWork.player.position.vx, 0xFFF, 12, 80);
+                            mapCoordIdxZ = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0xFFF, 12, 0);
                             break;
                     }
                     break;
@@ -690,20 +692,20 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
             break;
 
         case 13:
-            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0x7FF, 11, 0);
-            mapCoordIdxZ  = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vx, 0x7FF, 11, 40);
+            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0x7FF, 11, 0);
+            mapCoordIdxZ  = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vx, 0x7FF, 11, 40);
             angle -= Q12_ANGLE(90.0f);
             break;
 
         case 14:
-            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vz, 0x7FF, 11, -80);
-            mapCoordIdxZ  = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vx, 0x7FF, 11, -140);
+            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vz, 0x7FF, 11, -80);
+            mapCoordIdxZ  = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vx, 0x7FF, 11, -140);
             angle -= Q12_ANGLE(90.0f);
             break;
 
         case 15:
-            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork_4C.player_0.position_18.vx, 0x7FF, 11, 55);
-            mapCoordIdxZ  = MapCoordIdxGet(g_SysWork.playerWork_4C.player_0.position_18.vz, 0x7FF, 11, -80);
+            mapCoordIdxX  = MapCoordIdxGet(-g_SysWork.playerWork.player.position.vx, 0x7FF, 11, 55);
+            mapCoordIdxZ  = MapCoordIdxGet(g_SysWork.playerWork.player.position.vz, 0x7FF, 11, -80);
             angle += Q12_ANGLE(180.0f);
             break;
 
@@ -735,7 +737,7 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     temp2   = Q12_MULT_PRECISE(arg3, SCREEN_HEIGHT);
     temp_s1 = (temp4 / temp2) - (SCREEN_HEIGHT / 2);
 
-    temp_v0_7 = func_8005BF38(angle);
+    temp_v0_7 = Math_AngleNormalizeSigned(angle);
 
     sp10[0] = temp_s2 + FP_FROM(Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
     sp10[1] = (temp_s1 + FP_FROM(Math_Cos(temp_v0_7) * -6, Q12_SHIFT)) * 2;

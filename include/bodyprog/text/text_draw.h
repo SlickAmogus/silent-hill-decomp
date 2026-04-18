@@ -45,8 +45,8 @@ typedef enum _StringColorId
 /** Used in string parsing. */
 typedef struct
 {
-    s8 field_0;
-    s8 positionIdx_1;
+    /* 0x0 */ s8 unused;
+    /* 0x1 */ u8 positionIdx;
 } s_800C38B0;
 
 // ========
@@ -63,14 +63,14 @@ extern s_800C38B0 D_800C38B0;
 
 extern s8 pad_bss_800C38B2[2];
 
-extern s32 D_800C38B4;
+extern s32 g_MapMsg_WidthIdx;
 
 extern s32 pad_bss_800C38B8[4];
 
-extern s32 g_MapMsg_WidthTable[12];
+extern s32 g_MapMsg_Widths[12];
 
 /** String glyph sprite. */
-extern GsSPRITE D_800C38F8;
+extern GsSPRITE g_MapMsg_GlyphSprite;
 
 extern s16 D_800C391C;
 
@@ -122,6 +122,12 @@ void func_8004B76C(char* str, bool useFixedWidth);
 
 /** Draws an integer string in screen space. */
 void Gfx_StringDrawInt(s32 widthMin, s32 strLength);
+
+#if VERSION_REGION_IS(NTSCJ)
+    void func_8004B45C(s32 mapMsgBaseIdx, s32 arg1);
+    void func_8004C8D8(u16*, s32*, s32);
+    s32 func_8004C8AC(u8*);
+#endif
 
 // TODO: Move following funcs to item_screens_cam header.
 #if VERSION_REGION_IS(NTSCJ)

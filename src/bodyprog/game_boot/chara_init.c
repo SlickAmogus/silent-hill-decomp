@@ -9,7 +9,10 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/npc_main.h"
+#include "bodyprog/events/player_pos_update.h"
 #include "bodyprog/game_boot/game_boot.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/view/vc_util.h"
 #include "main/fsqueue.h"
 
@@ -22,19 +25,19 @@ static void GameBoot_NpcClear(void) // 0x80034EC8
     s32 i;
 
     g_SysWork.field_228C[0] = 0;
-    g_SysWork.npcFlags_2290 = 0;
+    g_SysWork.npcFlags = 0;
 
-    bzero(g_SysWork.npcs_1A0, ARRAY_SIZE(g_SysWork.npcs_1A0) * sizeof(s_SubCharacter));
+    bzero(g_SysWork.npcs, ARRAY_SIZE(g_SysWork.npcs) * sizeof(s_SubCharacter));
 
-    for (i = 0; i < GROUP_CHARA_COUNT; i++)
+    for (i = 0; i < CHARA_GROUP_COUNT; i++)
     {
-        g_SysWork.field_2284[i] = 0;
+        g_SysWork.charaGroupFlags[i] = 0;
     }
 }
 
 void GameBoot_NpcInit(void) // 0x80034F18
 {
-    vcSetCameraUseWarp(&g_SysWork.playerWork_4C.player_0.position_18, g_SysWork.cameraAngleY_237A);
+    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
     func_8005E70C();
 
     if (g_SysWork.field_234A)
@@ -54,15 +57,9 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 
     mapOvlId = g_SavegamePtr->mapOverlayId_A4;
 
-#ifdef SH_PC_PORT
-#define HARRY_CHECK(label) SH_DBG("[SH] InGameInit %s harry=%p", label, (void*)g_WorldGfxWork.registeredCharaModels_18[1])
-    HARRY_CHECK("start");
-#endif
-    vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork_4C.player_0.position_18);
-    vcSetCameraUseWarp(&g_SysWork.playerWork_4C.player_0.position_18, g_SysWork.cameraAngleY_237A);
-#ifdef SH_PC_PORT
-    HARRY_CHECK("after vcInit");
-#endif
+    vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork.player.position);
+
+    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
     func_80040004(&g_MapOverlayHeader);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after func_80040004");
@@ -88,7 +85,9 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 #endif
 
     GameBoot_NpcClear();
-    g_SysWork.npcId_2280 = 5;
+
+    g_SysWork.npcFlagsId = 5;
+
     func_8005E650(mapOvlId);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after func_8005E650");

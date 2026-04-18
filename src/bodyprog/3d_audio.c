@@ -97,7 +97,7 @@ s32 func_8005D9B8(VECTOR3* pos, q23_8 vol) // 0x8005D9B8
     s32 var_v0;
 
     vwGetViewPosition(&D_800C42C0);
-    D_800C42CC = &g_SysWork.playerWork_4C.player_0.position_18;
+    D_800C42CC = &g_SysWork.playerWork.player.position;
 
     deltaX = D_800C42C0.vx - D_800C42CC->vx;
     deltaY = D_800C42C0.vy - D_800C42CC->vy;
@@ -163,7 +163,7 @@ void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, 
 #endif
 
     // Get stereo balance.
-    if (soundType & (1 << 0) || g_GameWork.config_0.optSoundType_1E)
+    if (soundType & (1 << 0) || g_GameWork.config.optSoundType_1E)
     {
         balance = 0;
     }
@@ -223,7 +223,7 @@ void func_8005DD44(e_SfxId sfxId, VECTOR3* pos, q23_8 vol, s8 pitch) // 0x8005DD
 #endif
 
     // Get stereo balance.
-    if (g_GameWork.config_0.optSoundType_1E)
+    if (g_GameWork.config.optSoundType_1E)
     {
         balance = 0;
     }
@@ -255,9 +255,9 @@ static inline s32 AttenuationCalc(s32 volume, VECTOR3* pos, q19_12 falloff)
 {
     q19_12 dist;
 
-    dist = Math_Vector3MagCalc(g_SysWork.playerWork_4C.player_0.position_18.vx - pos->vx,
-                               g_SysWork.playerWork_4C.player_0.position_18.vy - pos->vy,
-                               g_SysWork.playerWork_4C.player_0.position_18.vz - pos->vz);
+    dist = Math_Vector3MagCalc(g_SysWork.playerWork.player.position.vx - pos->vx,
+                               g_SysWork.playerWork.player.position.vy - pos->vy,
+                               g_SysWork.playerWork.player.position.vz - pos->vz);
     return (volume * dist) / falloff;
 }
 
@@ -270,12 +270,7 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     u8  att1;
     s32 att2;
 
-#ifdef SH_PC_PORT
-    /* Sound_StereoBalanceGet uses camera coord hierarchy that isn't fully
-       set up on PC (same issue as func_8005DD44). Use center balance. */
-    balance = 0;
-#else
-    if (g_GameWork.config_0.optSoundType_1E)
+    if (g_GameWork.config.optSoundType_1E)
     {
         balance = 0;
     }
@@ -283,7 +278,6 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     {
         balance = Sound_StereoBalanceGet(pos);
     }
-#endif
 
     if (vol > 0xFF)
     {

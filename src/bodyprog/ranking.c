@@ -152,14 +152,14 @@ void func_8008F94C() // 0x8008F94C
 
     D_800C48B3 = g_SavegamePtr->locationId_A8;
     D_800C3E40 = 7;
-    temp_a0_2  = g_GameWork.config_0.optExtraOptionsEnabled_27;
+    temp_a0_2  = g_GameWork.config.optExtraOptionsEnabled_27;
 
     if ((temp_a0_2 & 0x3) && (temp_a0_2 & 0xC))
     {
         D_800C3E40 = 0xF;
     }
 
-    if (g_GameWork.config_0.optExtraOptionsEnabled_27 & 1)
+    if (g_GameWork.config.optExtraOptionsEnabled_27 & 1)
     {
         D_800C3E40 |= 0x10;
     }
@@ -415,7 +415,7 @@ void func_800904F4() // 0x800904F4
     g_SavegamePtr->clearGameEndings_24B = D_800C48B1;
     g_SavegamePtr->field_27A            = ((D_800C48B2 & 0x10) * 8) + 64;
     g_SavegamePtr->isNextFearMode_25C   = 1;
-    g_SavegamePtr->mapOverlayId_A4      = MapOverlayId_MAP0_S01;
+    g_SavegamePtr->mapOverlayId_A4      = MapIdx_MAP0_S01;
 
     if (D_800C48B6 != 0)
     {
@@ -429,14 +429,14 @@ void func_800904F4() // 0x800904F4
 
     Savegame_EventFlagSet(EventFlag_62);
 
-    extraOptions = g_GameWork.config_0.optExtraOptionsEnabled_27;
+    extraOptions = g_GameWork.config.optExtraOptionsEnabled_27;
 
     if ((extraOptions & 0x3) && (extraOptions & 0xC))
     {
         Savegame_EventFlagSet(EventFlag_57);
     }
 
-    if (g_GameWork.config_0.optExtraOptionsEnabled_27 & (1 << 0))
+    if (g_GameWork.config.optExtraOptionsEnabled_27 & (1 << 0))
     {
         Savegame_EventFlagSet(EventFlag_58);
     }
@@ -501,7 +501,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
 
     Gfx_StringSetColor(StringColorId_White);
 
-    if (g_GameWork.gameStateStep_598[1] < 0x17)
+    if (g_GameWork.gameStateSteps[1] < 0x17)
     {
         Gfx_StringSetPosition(0x64, -0x54);
         Gfx_StringDraw(D_8002B4C0[0], 20);
@@ -729,20 +729,20 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         {
             Gfx_StringSetPosition(0xA0, 0xC6);
 
-            g_SysWork.enableHighResGlyphs_2350_0 = true;
+            g_SysWork.enableHighResGlyphs = true;
 
             for (i = 0; i < temp_v1; i++)
             {
                 Gfx_StringDraw(D_8002B4C0[26], 1);
             }
 
-            g_SysWork.enableHighResGlyphs_2350_0 = false;
+            g_SysWork.enableHighResGlyphs = false;
         }
         else if (temp_v1 == 0 && temp_a0 != 0)
         {
             Gfx_StringSetPosition(0xA0, 0x124);
 
-            g_SysWork.enableHighResGlyphs_2350_0 = false;
+            g_SysWork.enableHighResGlyphs = false;
 
             for (i = 0; i < temp_a0; i++)
             {
@@ -751,7 +751,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         }
         else
         {
-            g_SysWork.enableHighResGlyphs_2350_0 = true;
+            g_SysWork.enableHighResGlyphs = true;
             Gfx_StringSetPosition(160, 194);
 
             for (i = 0; i < temp_v1; i++)
@@ -759,7 +759,7 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
                 Gfx_StringDraw(D_8002B4C0[26], 20);
             }
 
-            g_SysWork.enableHighResGlyphs_2350_0 = false;
+            g_SysWork.enableHighResGlyphs = false;
             Gfx_StringSetPosition(160, 300);
 
             for (i = 0; i < temp_a0; i++)

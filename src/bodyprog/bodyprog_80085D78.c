@@ -9,6 +9,7 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/screen/background_draw.h"
@@ -87,7 +88,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
     switch (arg0)
     {
         case 0:
-            if (chara == &g_SysWork.playerWork_4C.player_0)
+            if (chara == &g_SysWork.playerWork.player)
             {
                 g_MapOverlayHeader.func_D4(arg2);
             }
@@ -128,7 +129,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             break;
 
         case 1:
-            if (chara == &g_SysWork.playerWork_4C.player_0)
+            if (chara == &g_SysWork.playerWork.player)
             {
                 keyframeState = g_MapOverlayHeader.func_E8(chara);
                 if (keyframeState == 1)
@@ -147,7 +148,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             break;
 
         case 2:
-            if (chara == &g_SysWork.playerWork_4C.player_0)
+            if (chara == &g_SysWork.playerWork.player)
             {
                 g_MapOverlayHeader.playerAnimLock_DC();
             }
@@ -158,7 +159,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             break;
 
         case 3:
-            if (chara == &g_SysWork.playerWork_4C.player_0)
+            if (chara == &g_SysWork.playerWork.player)
             {
                 g_MapOverlayHeader.playerAnimUnlock_E4(chara, arg2);
             }
@@ -169,7 +170,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             break;
 
         case 4:
-            if (chara == &g_SysWork.playerWork_4C.player_0)
+            if (chara == &g_SysWork.playerWork.player)
             {
                 g_MapOverlayHeader.playerAnimUnlock_E4(chara, arg2);
                 g_MapOverlayHeader.func_D8();
@@ -243,7 +244,7 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
     }
     else
     {
-        activeStateStep = g_SysWork.sysStateStep_C[2];
+        activeStateStep = g_SysWork.sysStateSteps[2];
     }
 
     switch (activeStateStep)
@@ -270,7 +271,7 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
 
                     if (fadeType == FadeType_Unk3)
                     {
-                        g_SysWork.flags_22A4 |= SysFlag2_3;
+                        g_SysWork.flags_22A4 |= UnkSysFlag_3;
                     }
                 }
             }
@@ -327,7 +328,7 @@ void func_800862F8(s32 stateStep, e_FsFile fileIdx, bool reset) // 0x800862F8
 
     if (stateStep == 7)
     {
-        activeStateStep = g_SysWork.sysStateStep_C[2];
+        activeStateStep = g_SysWork.sysStateSteps[2];
     }
     else
     {
@@ -335,7 +336,7 @@ void func_800862F8(s32 stateStep, e_FsFile fileIdx, bool reset) // 0x800862F8
         if (activeStateStep == 8)
         {
             activeStateStep = 1;
-            if (g_SysWork.sysStateStep_C[2] == 0)
+            if (g_SysWork.sysStateSteps[2] == 0)
             {
                 activeStateStep = 4;
             }
@@ -395,11 +396,11 @@ void func_800862F8(s32 stateStep, e_FsFile fileIdx, bool reset) // 0x800862F8
     }
 }
 
-void func_80086470(u32 stateStep, e_InventoryItemId itemId, s32 itemCount, bool reset) // 0x80086470
+void func_80086470(u32 stateStep, e_InvItemId itemId, s32 itemCount, bool reset) // 0x80086470
 {
     s32 activeStateStep;
 
-    if (stateStep == 6 && g_SysWork.sysStateStep_C[2] == 0)
+    if (stateStep == 6 && g_SysWork.sysStateSteps[2] == 0)
     {
         SysWork_StateStepSet(2, 2);
     }
@@ -417,7 +418,7 @@ void func_80086470(u32 stateStep, e_InventoryItemId itemId, s32 itemCount, bool 
         }
         else
         {
-            activeStateStep = g_SysWork.sysStateStep_C[2];
+            activeStateStep = g_SysWork.sysStateSteps[2];
         }
     }
 
@@ -429,7 +430,7 @@ void func_80086470(u32 stateStep, e_InventoryItemId itemId, s32 itemCount, bool 
             if (stateStep == 0)
             {
                 SysWork_StateStepIncrement(1);
-                g_SysWork.sysStateStep_C[1]--;
+                g_SysWork.sysStateSteps[1]--;
             }
 
             SysWork_StateStepIncrement(2);
@@ -465,16 +466,16 @@ void func_800865FC(bool isPos, s32 idx0, s32 idx1, q3_12 angleY, q19_12 offsetOr
 {
     if (!isPos)
     {
-        D_800C4640[idx0][idx1].vx = g_SysWork.playerWork_4C.player_0.position_18.vx + offsetOrPosX;
-        D_800C4640[idx0][idx1].vy = g_SysWork.playerWork_4C.player_0.position_18.vy;
-        D_800C4640[idx0][idx1].vz = g_SysWork.playerWork_4C.player_0.position_18.vz + offsetOrPosZ;
+        D_800C4640[idx0][idx1].vx = g_SysWork.playerWork.player.position.vx + offsetOrPosX;
+        D_800C4640[idx0][idx1].vy = g_SysWork.playerWork.player.position.vy;
+        D_800C4640[idx0][idx1].vz = g_SysWork.playerWork.player.position.vz + offsetOrPosZ;
 
         D_800C4700[idx0] = angleY;
     }
     else if (isPos == true)
     {
         D_800C4640[idx0][idx1].vx = offsetOrPosX;
-        D_800C4640[idx0][idx1].vy = g_SysWork.playerWork_4C.player_0.position_18.vy;
+        D_800C4640[idx0][idx1].vy = g_SysWork.playerWork.player.position.vy;
         D_800C4640[idx0][idx1].vz = offsetOrPosZ;
 
         D_800C4700[idx0] = angleY;
@@ -576,7 +577,7 @@ void Map_MessageWithAudio(s32 mapMsgIdx, u8* soundIdx, u16* soundsIdxs) // 0x800
 {
     s32 mapMsgState;
 
-    g_SysWork.sysFlags_22A0 |= SysFlag_5;
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_VoiceDialog;
 
     mapMsgState = Gfx_MapMsg_Draw(mapMsgIdx);
     if (mapMsgState == MapMsgState_SelectEntry0)
@@ -721,7 +722,7 @@ void Camera_LookAtSet(VECTOR3* lookAt, q19_12 lookAtOffsetOrPosX, q19_12 lookAtO
 
 void func_80086C58(s_SubCharacter* chara, s32 arg1) // 0x80086C58
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             func_80085EB8(0, chara, arg1, false);
@@ -740,7 +741,7 @@ void func_80086C58(s_SubCharacter* chara, s32 arg1) // 0x80086C58
 
 void func_80086D04(s_SubCharacter* chara) // 0x80086D04
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             func_80085EB8(3, chara, 0, false);
@@ -759,7 +760,7 @@ void func_80086D04(s_SubCharacter* chara) // 0x80086D04
 
 void func_80086DA8(e_FsFile fileIdx, q19_12 fadeTimestep) // 0x80086DA8
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             SysWork_StateStepIncrementAfterFade(0, true, 0, fadeTimestep, false);
@@ -777,7 +778,7 @@ void func_80086DA8(e_FsFile fileIdx, q19_12 fadeTimestep) // 0x80086DA8
 
 void func_80086E50(e_FsFile fileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1) // 0x80086E50
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             SysWork_StateStepIncrementAfterFade(0, true, 0, fadeTimestep0, false);
@@ -799,7 +800,7 @@ void func_80086E50(e_FsFile fileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1)
 
 void func_80086F44(q19_12 fadeTimestep0, q19_12 fadeTimestep1) // 0x80086F44
 {
-    if (g_SysWork.sysStateStep_C[1] == 0)
+    if (g_SysWork.sysStateSteps[1] == 0)
     {
         func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
         SysWork_StateStepIncrementAfterFade(2, true, 0, fadeTimestep1, true);
@@ -814,26 +815,26 @@ void Map_MessageWithSfx(s32 mapMsgIdx, e_SfxId sfxId, VECTOR3* sfxPos) // 0x8008
 {
     s32 i;
 
-    if (!(g_SysWork.flags_22A4 & SysFlag2_5))
+    if (!(g_SysWork.flags_22A4 & UnkSysFlag_5))
     {
         // Run through NPCs.
-        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs_1A0); i++)
+        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
         {
-            if (g_SysWork.npcs_1A0[i].model_0.charaId_0 >= Chara_Harry &&
-                g_SysWork.npcs_1A0[i].model_0.charaId_0 <= Chara_MonsterCybil &&
-                g_SysWork.npcs_1A0[i].health_B0 > Q12(0.0f))
+            if (g_SysWork.npcs[i].model.charaId >= Chara_Harry &&
+                g_SysWork.npcs[i].model.charaId <= Chara_MonsterCybil &&
+                g_SysWork.npcs[i].health > Q12(0.0f))
             {
                 break;
             }
         }
 
-        if (i != ARRAY_SIZE(g_SysWork.npcs_1A0))
+        if (i != ARRAY_SIZE(g_SysWork.npcs))
         {
             g_DeltaTime = Q12(0.0f);
         }
     }
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();
@@ -857,7 +858,7 @@ void Map_MessageWithSfx(s32 mapMsgIdx, e_SfxId sfxId, VECTOR3* sfxPos) // 0x8008
 
 void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1) // 0x8008716C
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();
@@ -880,8 +881,8 @@ void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimeste
         case 4:
             func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                 g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
                 SysWork_StateStepIncrement(1);
             }
@@ -902,7 +903,7 @@ void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimeste
 
 void MapMsg_DisplayWithTexture(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx) // 0x80087360
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();
@@ -942,7 +943,7 @@ void MapMsg_DisplayWithTexture(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12
 
 void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx0, s32 mapMsgIdx1) // 0x80087540
 {
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();
@@ -971,8 +972,8 @@ void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_1
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                 g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
                 SysWork_StateStepIncrement(1);
             }
@@ -999,30 +1000,30 @@ void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_1
     }
 }
 
-void Event_ItemTake(e_InventoryItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x800877B8
+void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x800877B8
 {
     s32 i            = itemId;
     s32 mapMsgIdxCpy = mapMsgIdx;
 
-    if (!(g_SysWork.flags_22A4 & SysFlag2_5))
+    if (!(g_SysWork.flags_22A4 & UnkSysFlag_5))
     {
         // Run through NPCs.
-        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs_1A0); i++)
+        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
         {
-            if (g_SysWork.npcs_1A0[i].model_0.charaId_0 >= Chara_Harry && g_SysWork.npcs_1A0[i].model_0.charaId_0 <= Chara_MonsterCybil &&
-                g_SysWork.npcs_1A0[i].health_B0 > Q12(0.0f))
+            if (g_SysWork.npcs[i].model.charaId >= Chara_Harry && g_SysWork.npcs[i].model.charaId <= Chara_MonsterCybil &&
+                g_SysWork.npcs[i].health > Q12(0.0f))
             {
                 break;
             }
         }
 
-        if (i != ARRAY_SIZE(g_SysWork.npcs_1A0))
+        if (i != ARRAY_SIZE(g_SysWork.npcs))
         {
             g_DeltaTime = Q12(0.0f);
         }
     }
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0: // Freeze player and start loading item model.
             g_MapOverlayHeader.playerControlFreeze_C8();
@@ -1051,7 +1052,7 @@ void Event_ItemTake(e_InventoryItemId itemId, s32 itemCount, e_EventFlag eventFl
 
         default:
             // Flag pickup item as uncollected. Selecting 'No' sets `field_10` to `NO_VALUE`.
-            if (g_SysWork.sysStateStep_C[1] == NO_VALUE)
+            if (g_SysWork.sysStateSteps[1] == NO_VALUE)
             {
                 Savegame_EventFlagClear(eventFlagIdx);
             }
@@ -1069,7 +1070,7 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
     s32 ammoCountMult;
 
     // Compute ammo count multiplier.
-    ammoCountMult = g_GameWork.config_0.optExtraBulletAdjust_2D + 1;
+    ammoCountMult = g_GameWork.config.optExtraBulletAdjust_2D + 1;
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
         ammoCountMult = CLAMP(ammoCountMult, EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN, ammoCountMult);
@@ -1079,27 +1080,27 @@ void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879F
     switch (pickupType)
     {
         case CommonPickupItemId_FirstAidKit:
-            Event_ItemTake(InventoryItemId_FirstAidKit, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_FirstAidSelect);
+            Event_ItemTake(InvItemId_FirstAidKit, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_FirstAidSelect);
             break;
 
         case CommonPickupItemId_HealthDrink:
-            Event_ItemTake(InventoryItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HealthDrinkSelect);
+            Event_ItemTake(InvItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HealthDrinkSelect);
             break;
 
         case CommonPickupItemId_Ampoule:
-            Event_ItemTake(InventoryItemId_Ampoule, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_AmpouleSelect);
+            Event_ItemTake(InvItemId_Ampoule, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_AmpouleSelect);
             break;
 
         case CommonPickupItemId_HandgunBullets:
-            Event_ItemTake(InventoryItemId_HandgunBullets, ammoCountMult * HANDGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HandgunAmmoSelect);
+            Event_ItemTake(InvItemId_HandgunBullets, ammoCountMult * HANDGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HandgunAmmoSelect);
             break;
 
         case CommonPickupItemId_ShotgunShells:
-            Event_ItemTake(InventoryItemId_ShotgunShells, ammoCountMult * SHOTGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_ShotgunAmmoSelect);
+            Event_ItemTake(InvItemId_ShotgunShells, ammoCountMult * SHOTGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_ShotgunAmmoSelect);
             break;
 
         case CommonPickupItemId_RifleShells:
-            Event_ItemTake(InventoryItemId_RifleShells, ammoCountMult * RIFLE_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_RifleAmmoSelect);
+            Event_ItemTake(InvItemId_RifleShells, ammoCountMult * RIFLE_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_RifleAmmoSelect);
             break;
     }
 }
@@ -1116,7 +1117,7 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
     g_DeltaTime   = Q12(0.0f);
     mapFlagIdxCpy = mapFlagIdx;
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();

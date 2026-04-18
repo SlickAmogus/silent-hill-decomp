@@ -1,4 +1,6 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -94,7 +96,7 @@ void func_800E7B74(void) // 0x800E7B74
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 139:
             pickupType   = CommonPickupItemId_FirstAidKit;
@@ -263,23 +265,23 @@ void func_800E7D54(void) // 0x800E7D54
 {
     s32 i;
 
-    for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs_1A0); i++)
+    for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
     {
         // Breaks if there are any characters with IDs in range `[Chara_Harry, Chara_MonsterCybil]` with health above `Q12(0.0f)`.
-        if (g_SysWork.npcs_1A0[i].model_0.charaId_0 >= Chara_Harry &&
-            g_SysWork.npcs_1A0[i].model_0.charaId_0 <= Chara_MonsterCybil &&
-            g_SysWork.npcs_1A0[i].health_B0 > Q12(0.0f))
+        if (g_SysWork.npcs[i].model.charaId >= Chara_Harry &&
+            g_SysWork.npcs[i].model.charaId <= Chara_MonsterCybil &&
+            g_SysWork.npcs[i].health > Q12(0.0f))
         {
             break;
         }
     }
 
-    if (i != ARRAY_SIZE(g_SysWork.npcs_1A0))
+    if (i != ARRAY_SIZE(g_SysWork.npcs))
     {
         g_DeltaTime = Q12(0.0f);
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -290,7 +292,7 @@ void func_800E7D54(void) // 0x800E7D54
             break;
 
         case 2:
-            Event_ItemTake(InventoryItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupHealthDrink, 6);
+            Event_ItemTake(InvItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupHealthDrink, 6);
             break;
     }
 }
@@ -299,14 +301,14 @@ void MapEvent_AtWaterWorks(void) // 0x800E7E60
 {
     s32 sysState0;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
 
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-255.78f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-107.46f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-45.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-255.78f);
+            g_SysWork.playerWork.player.position.vz = Q12(-107.46f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-45.0f);
 
             ScreenFade_ResetTimestep();
             func_800867B4(0, 1);
@@ -320,15 +322,15 @@ void MapEvent_AtWaterWorks(void) // 0x800E7E60
             func_80068E0C(1, 1, 0, 0, 0, 120, Q12(0.5f));
             func_80067914(1, 0, 120, Q12(0.5f));
 
-            sysState0 = g_SysWork.sysStateStep_C[0];
+            sysState0 = g_SysWork.sysStateSteps[0];
             switch (sysState0)
             {
                 case 2:
                     SysWork_StateStepIncrementDelayed(Q12(3.5f), false);
 
-                    if (g_SysWork.sysStateStep_C[0] == sysState0 &&
-                        (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                          g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)))
+                    if (g_SysWork.sysStateSteps[0] == sysState0 &&
+                        (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                          g_GameWorkPtr->config.controllerConfig.cancel_2)))
                     {
                         SysWork_StateStepSet(0, 3);
                     }
@@ -367,19 +369,19 @@ void MapEvent_AtWaterWorks(void) // 0x800E7E60
             SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
             Savegame_EventFlagSet(EventFlag_M2S00_WaterWorksCutscene);
 
-            g_SysWork.flags_22A4 &= ~SysFlag2_4;
+            g_SysWork.flags_22A4 &= ~UnkSysFlag_4;
             break;
     }
 }
 
 void func_800E816C(void) // 0x800E816C
 {
-    Event_ItemTake(InventoryItemId_RockDrill, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupRockDrill, 73);
+    Event_ItemTake(InvItemId_RockDrill, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupRockDrill, 73);
 }
 
 void func_800E8198(void) // 0x800E8198
 {
-    Event_ItemTake(InventoryItemId_Chainsaw, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupChainsaw, 76);
+    Event_ItemTake(InvItemId_Chainsaw, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupChainsaw, 76);
 }
 
 void MapEvent_MapTake(void) // 0x800E81C4
@@ -395,11 +397,11 @@ void MapEvent_SteelPipeTake(void) // 0x800E81EC
         EventState_DontTakeSteelPipe = 6
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
-            func_80086470(0u, InventoryItemId_SteelPipe, 0, false);
+            func_80086470(0u, InvItemId_SteelPipe, 0, false);
             SysWork_StateStepIncrement(0);
 
         case 1:
@@ -407,24 +409,24 @@ void MapEvent_SteelPipeTake(void) // 0x800E81EC
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
-            func_80086470(1, InventoryItemId_SteelPipe, 0, false);
+            func_80086470(1, InvItemId_SteelPipe, 0, false);
             break;
 
         case 4:
             Savegame_EventFlagSet(EventFlag_M2S00_PickupSteelPipe);
 
-            if (Gfx_PickupItemAnimate(InventoryItemId_SteelPipe))
+            if (Gfx_PickupItemAnimate(InvItemId_SteelPipe))
             {
                 MapMsg_DisplayAndHandleSelection(true, 15, EventState_TakeSteelPipe, EventState_DontTakeSteelPipe, 0, false);
             }
             break;
 
         case EventState_TakeSteelPipe:
-            func_80086470(3, InventoryItemId_SteelPipe, 1, false);
+            func_80086470(3, InvItemId_SteelPipe, 1, false);
             SysWork_StateStepSet(0, 7);
             break;
 
@@ -433,7 +435,7 @@ void MapEvent_SteelPipeTake(void) // 0x800E81EC
             SysWork_StateStepIncrement(0);
 
         case 7:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -450,15 +452,15 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
     s32 zoomHuh;
     s16 curve;
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4)
     {
-        if (g_SysWork.sysStateStep_C[0] == 2)
+        if (g_SysWork.sysStateSteps[0] == 2)
         {
             SysWork_StateStepSet(0, 13);
         }
         else
         {
-            if (!D_800F228E && g_SysWork.sysStateStep_C[0] > 5 && g_SysWork.sysStateStep_C[0] < 11)
+            if (!D_800F228E && g_SysWork.sysStateSteps[0] > 5 && g_SysWork.sysStateSteps[0] < 11)
             {
                 SysWork_StateStepIncrementAfterFade(0, true, 0, Q12(0.0f), false);
                 D_800F228E = 1;
@@ -475,7 +477,7 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
         }
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -569,17 +571,17 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
             g_Gfx_PaperMapMarkingAlpha++;
             if (g_Gfx_PaperMapMarkingAlpha >= 128)
             {
-                if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                     g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+                if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                     g_GameWorkPtr->config.controllerConfig.cancel_2))
                 {
                     SysWork_StateStepIncrement(0);
                 }
 
                 SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
 
-                if (g_SysWork.sysStateStep_C[0] > 11)
+                if (g_SysWork.sysStateSteps[0] > 11)
                 {
-                    g_SysWork.sysStateStep_C[0] = 11;
+                    g_SysWork.sysStateSteps[0] = 11;
                 }
 
                 // Clamp map marking fade.
@@ -614,7 +616,7 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
             vcReturnPreAutoCamWork(false);
             SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
 
-            g_SysWork.flags_22A4 &= ~SysFlag2_4;
+            g_SysWork.flags_22A4 &= ~UnkSysFlag_4;
 
             func_8003A16C();
             break;
@@ -625,16 +627,16 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
 {
     s16 curve;
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4)
     {
         if (!D_800F2295)
         {
-            if (g_SysWork.sysStateStep_C[0] > 1 && g_SysWork.sysStateStep_C[0] < 10)
+            if (g_SysWork.sysStateSteps[0] > 1 && g_SysWork.sysStateSteps[0] < 10)
             {
                 SysWork_StateStepIncrementAfterFade(0, true, 0, Q12(0.0f), false);
                 D_800F2295 = 1;
             }
-            else if (g_SysWork.sysStateStep_C[0] > 10 && g_SysWork.sysStateStep_C[0] < 16)
+            else if (g_SysWork.sysStateSteps[0] > 10 && g_SysWork.sysStateSteps[0] < 16)
             {
                 SysWork_StateStepIncrementAfterFade(0, true, 0, Q12(0.0f), false);
                 D_800F2295 = 2;
@@ -659,7 +661,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
         }
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -677,7 +679,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -776,16 +778,16 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             D_800F2298++;
             if (D_800F2298 >= 0x80)
             {
-                if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 | g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+                if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 | g_GameWorkPtr->config.controllerConfig.cancel_2))
                 {
                     SysWork_StateStepIncrement(0);
                 }
 
                 SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
 
-                if (g_SysWork.sysStateStep_C[0] > 16)
+                if (g_SysWork.sysStateSteps[0] > 16)
                 {
-                    g_SysWork.sysStateStep_C[0] = 16;
+                    g_SysWork.sysStateSteps[0] = 16;
                 }
 
                 D_800F2298 = 0x80;
@@ -812,7 +814,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             break;
 
         case 19:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         case 22:
@@ -828,7 +830,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
         default:
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            func_80086470(3, InventoryItemId_NoteToSchool, 1, false);
+            func_80086470(3, InvItemId_NoteToSchool, 1, false);
             func_8003A16C();
             break;
     }
@@ -836,7 +838,7 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
 
 void func_800E9470(void) // 0x800E9470
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -848,7 +850,7 @@ void func_800E9470(void) // 0x800E9470
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -874,7 +876,7 @@ void func_800E9470(void) // 0x800E9470
             break;
 
         case 8:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -886,7 +888,7 @@ void func_800E9470(void) // 0x800E9470
 
 void MapEvent_DoghouseNote(void) // 0x800E95F8
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -898,7 +900,7 @@ void MapEvent_DoghouseNote(void) // 0x800E95F8
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -930,13 +932,13 @@ void MapEvent_DoghouseNote(void) // 0x800E95F8
             break;
 
         case 9:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            func_80086470(3, InventoryItemId_NoteDoghouse, 1, false);
+            func_80086470(3, InvItemId_NoteDoghouse, 1, false);
             break;
     }
 }
@@ -949,7 +951,7 @@ void MapEvent_DoghouseKeyTake(void) // 0x800E97E4
         EventState_DontTakeKey = 9
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -961,7 +963,7 @@ void MapEvent_DoghouseKeyTake(void) // 0x800E97E4
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -986,9 +988,9 @@ void MapEvent_DoghouseKeyTake(void) // 0x800E97E4
             break;
 
         case EventState_TakeKey:
-            func_80086470(3, InventoryItemId_HouseKey, 1, false);
+            func_80086470(3, InvItemId_HouseKey, 1, false);
             Savegame_EventFlagSet(EventFlag_M2S00_PickupDogHouseKey);
-            Player_ItemRemove(InventoryItemId_NoteDoghouse, 1);
+            Player_ItemRemove(InvItemId_NoteDoghouse, 1);
             SysWork_StateStepIncrement(0);
 
         case EventState_DontTakeKey:
@@ -1001,7 +1003,7 @@ void MapEvent_DoghouseKeyTake(void) // 0x800E97E4
             break;
 
         case 11:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -1013,7 +1015,7 @@ void MapEvent_DoghouseKeyTake(void) // 0x800E97E4
 
 void func_800E9A0C(void) // 0x800E9A0C
 {
-    Event_ItemTake(InventoryItemId_KeyOfLion, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupKeyOfLion, 28);
+    Event_ItemTake(InvItemId_KeyOfLion, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupKeyOfLion, 28);
 
     if (Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfLion))
     {
@@ -1032,11 +1034,11 @@ void func_800E9A74(void) // 0x800E9A74
         EventState_DontTakeKey = 7
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
-            func_80086470(0, InventoryItemId_KeyOfWoodman, 0, false);
+            func_80086470(0, InvItemId_KeyOfWoodman, 0, false);
             SysWork_StateStepIncrement(0);
 
         case 1:
@@ -1044,19 +1046,19 @@ void func_800E9A74(void) // 0x800E9A74
             break;
 
         case 2:
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 59, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 59, false);
             SysWork_StateStepIncrement(0);
 
         case 3:
-            func_80086470(1, InventoryItemId_KeyOfWoodman, 0, false);
+            func_80086470(1, InvItemId_KeyOfWoodman, 0, false);
             break;
 
         case 4:
-            func_80085EB8(1, &g_SysWork.playerWork_4C.player_0, 0, false);
+            func_80085EB8(1, &g_SysWork.playerWork.player, 0, false);
             break;
 
         case 5:
-            if (Gfx_PickupItemAnimate(InventoryItemId_KeyOfWoodman))
+            if (Gfx_PickupItemAnimate(InvItemId_KeyOfWoodman))
             {
                 MapMsg_DisplayAndHandleSelection(true, 29, EventState_TakeKey, EventState_DontTakeKey, 0, false); // "Key of Woodman. Take it?"
             }
@@ -1065,7 +1067,7 @@ void func_800E9A74(void) // 0x800E9A74
             break;
 
         case EventState_TakeKey:
-            func_80086470(3, InventoryItemId_KeyOfWoodman, 1, false);
+            func_80086470(3, InvItemId_KeyOfWoodman, 1, false);
 
             if (Savegame_EventFlagGet(EventFlag_MapMark_OldTown_DogYardKeyLine))
             {
@@ -1080,7 +1082,7 @@ void func_800E9A74(void) // 0x800E9A74
             SysWork_StateStepIncrement(0);
 
         case 8:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -1092,7 +1094,7 @@ void func_800E9A74(void) // 0x800E9A74
 
 void func_800E9CB4(void) // 0x800E9CB4
 {
-    Event_ItemTake(InventoryItemId_KeyOfScarecrow, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupKeyOfScarecrow, 30);
+    Event_ItemTake(InvItemId_KeyOfScarecrow, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M2S00_PickupKeyOfScarecrow, 30);
 
     if (Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfScarecrow))
     {
@@ -1105,9 +1107,9 @@ void func_800E9CB4(void) // 0x800E9CB4
 
 void MapEvent_HouseKeyUse(void) // 0x800E9D1C
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_HouseKey, 1);
+    Player_ItemRemove(InvItemId_HouseKey, 1);
     Map_MessageWithSfx(31, Sfx_UseKey, &sfxPos); // "Used the House Key."
     Savegame_EventFlagSet(EventFlag_MapMark_OldTown_DoghouseDotOnly);
 }
@@ -1121,7 +1123,7 @@ void func_800E9DD8(void) // 0x800E9DD8
     s32  locksLeft;
     s16 *timPtr;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1161,7 +1163,7 @@ void func_800E9DD8(void) // 0x800E9DD8
             {
                 Savegame_EventFlagSet(EventFlag_M2S00_LockOfLionOpen);
                 g_DoorOfEclypse_MapMsgIdx = 32;
-                Player_ItemRemove(InventoryItemId_KeyOfLion, 1);
+                Player_ItemRemove(InvItemId_KeyOfLion, 1);
                 SysWork_StateStepSet(0, 5);
             }
             else if (Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfWoodman) && !Savegame_EventFlagGet(EventFlag_M2S00_LockOfWoodmanOpen))
@@ -1169,7 +1171,7 @@ void func_800E9DD8(void) // 0x800E9DD8
                 Savegame_EventFlagSet(EventFlag_M2S00_LockOfWoodmanOpen);
                 g_DoorOfEclypse_MapMsgIdx = 33;
 
-                Player_ItemRemove(InventoryItemId_KeyOfWoodman, 1);
+                Player_ItemRemove(InvItemId_KeyOfWoodman, 1);
                 SysWork_StateStepSet(0, 5);
             }
             else if (Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfScarecrow) && !Savegame_EventFlagGet(EventFlag_M2S00_LockOfScarecrowOpen))
@@ -1177,7 +1179,7 @@ void func_800E9DD8(void) // 0x800E9DD8
                 Savegame_EventFlagSet(EventFlag_M2S00_LockOfScarecrowOpen);
                 g_DoorOfEclypse_MapMsgIdx = 34;
 
-                Player_ItemRemove(InventoryItemId_KeyOfScarecrow, 1);
+                Player_ItemRemove(InvItemId_KeyOfScarecrow, 1);
                 SysWork_StateStepSet(0, 5);
             }
             else
@@ -1265,13 +1267,13 @@ void func_800E9DD8(void) // 0x800E9DD8
             Screen_BackgroundImgDrawAlt(D_800F22A0);
             SysWork_StateStepIncrementDelayed(Q12(1.0f), false);
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                 g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
                 SysWork_StateStepIncrement(0);
             }
 
-            if (g_SysWork.sysStateStep_C[0] != 10)
+            if (g_SysWork.sysStateSteps[0] != 10)
             {
                 SysWork_StateStepSet(0, 4);
             }
@@ -1300,18 +1302,18 @@ void MapEvent_DoorOfEclipseEnter(void) // 0x800EA444
 {
     s32 tmp;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
             Gfx_MapInitMapEffectsUpdate(1, 1);
             Gfx_MapEffectsUpdate(6, 6, PrimitiveType_S32, &D_800F1A24, 0, Q12(100.0f));
 
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(147.7f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(376.5f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12(-0.25f);
+            g_SysWork.playerWork.player.position.vx = Q12(147.7f);
+            g_SysWork.playerWork.player.position.vz = Q12(376.5f);
+            g_SysWork.playerWork.player.rotation.vy = Q12(-0.25f);
             g_SysWork.field_30 = 20;
-            g_SysWork.flags_22A4 |= SysFlag2_3;
+            g_SysWork.flags_22A4 |= UnkSysFlag_3;
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
             SysWork_StateStepIncrement(0);
@@ -1376,7 +1378,7 @@ void func_800EA6E0(void) // 0x800EA6E0
 
     g_Screen_BackgroundImgGamma = Q8(9.0f / 32.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case EventState_Setup:
             Player_ControlFreeze();
@@ -1429,12 +1431,12 @@ void func_800EA6E0(void) // 0x800EA6E0
 void MapEvent_KGordonKeyUse(void) // 0x800EA894
 {
     VECTOR3 sfxPos = {
-        MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0,
+        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0,
         Q12(-1.2f),
-        MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8
+        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8
     };
 
-    Player_ItemRemove(InventoryItemId_KGordonKey, 1);
+    Player_ItemRemove(InvItemId_KGordonKey, 1);
     Map_MessageWithSfx(39, Sfx_UseKey, &sfxPos); // "Used the K. Gordon key."
 
     Savegame_EventFlagSet(EventFlag_M2S00_KGordonDoorOpen);
@@ -1453,7 +1455,7 @@ void func_800EA960(void) // 0x800EA960
     s32 balance;
     s16 time;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1478,7 +1480,7 @@ void func_800EA960(void) // 0x800EA960
             break;
 
         case 4:
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
 
             // "The machinery is running. Do you want to press the switch?"
             MapMsg_DisplayAndHandleSelection(true, 44, EventState_PressSwitch, EventState_DontPressSwitch, 0, false);
@@ -1547,7 +1549,7 @@ void func_800EA960(void) // 0x800EA960
 
     if (Savegame_EventFlagGet(EventFlag_164))
     {
-        if (g_SysWork.sysStateStep_C[0] > 4)
+        if (g_SysWork.sysStateSteps[0] > 4)
         {
             func_800894B8(0x90);
         }
@@ -1569,7 +1571,7 @@ void func_800EAD2C(void) // 0x800EAD2C
     s32 vol;
     s32 balance;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1580,7 +1582,7 @@ void func_800EAD2C(void) // 0x800EAD2C
             break;
 
         case 2:
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
 
             // "The machinery is running. Do you want to press the switch?"
             MapMsg_DisplayAndHandleSelection(true, 44, EventState_PressSwitch, EventState_DontPressSwitch, 0, false);
@@ -1651,7 +1653,7 @@ void func_800EAD2C(void) // 0x800EAD2C
             break;
     }
 
-    if (g_SysWork.sysStateStep_C[0] > 3)
+    if (g_SysWork.sysStateSteps[0] > 3)
     {
         func_800894B8(0x90);
     }
@@ -1663,7 +1665,7 @@ void func_800EAD2C(void) // 0x800EAD2C
 
 void func_800EB090(void) // 0x800EB090
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1690,13 +1692,13 @@ void func_800EB174(void) // 0x800EB174
 {
     VECTOR3 sfxPos;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
-            sfxPos.vx = MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0;
+            sfxPos.vx = MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0;
             sfxPos.vy = Q12(-1.2f);
-            sfxPos.vz = MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8;
+            sfxPos.vz = MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8;
 
             func_8005DC1C(Sfx_Unk1349, &sfxPos, Q8(0.5f), 0);
             SysWork_StateStepIncrement(0);
@@ -1717,9 +1719,9 @@ void func_800EB174(void) // 0x800EB174
             Camera_PositionSet(NULL, Q12(-261.27f), Q12(-2.11f), Q12(-105.46f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-262.74f), Q12(0.07f), Q12(-102.45f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-262.39f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-104.33f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(45.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-262.39f);
+            g_SysWork.playerWork.player.position.vz = Q12(-104.33f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(45.0f);
 
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
@@ -1759,7 +1761,7 @@ void func_800EB3F4(void) // 0x800EB3F4
     const static VECTOR3 D_800CD45C = { Q12(-261.977f), Q12(-0.1f),  Q12(-104.286f) };
     const static VECTOR3 D_800CD468 = { Q12(-263.0f),   Q12(-1.25f), Q12(-104.0f)   };
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1783,7 +1785,7 @@ void func_800EB3F4(void) // 0x800EB3F4
             Savegame_EventFlagSet(EventFlag_169);
 
             g_SysWork.field_30 = 20;
-            Model_AnimFlagsClear(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
             SysWork_StateStepIncrement(0);
 
         case 4:
@@ -1816,11 +1818,11 @@ void func_800EB3F4(void) // 0x800EB3F4
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
-            Model_AnimFlagsSet(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsSet(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
 
-            if (g_SysWork.playerCombat_38.weaponAttack_F < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+            if (g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
-                g_SysWork.playerCombat_38.weaponAttack_F = WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat_38.weaponAttack_F);
+                g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack);
             }
 
             vcReturnPreAutoCamWork(true);
@@ -1943,7 +1945,7 @@ void Map_WorldObjectsInit(void) // 0x800EB908
     if (!Savegame_EventFlagGet(EventFlag_146) ||
         (Savegame_EventFlagGet(EventFlag_193) &&  !Savegame_EventFlagGet(EventFlag_M2S00_WaterWorksCutscene)))
     {
-        g_SysWork.flags_22A4 |= SysFlag2_4;
+        g_SysWork.flags_22A4 |= UnkSysFlag_4;
     }
 
     if (Savegame_EventFlagGet(EventFlag_159))
@@ -1970,19 +1972,19 @@ void Map_WorldObjectsInit(void) // 0x800EB908
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        g_SysWork.npcId_2280 = 2;
+        g_SysWork.npcFlagsId = 2;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
     {
-        g_SysWork.npcId_2280 = 3;
+        g_SysWork.npcFlagsId = 3;
     }
     else
     {
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
 
-    g_SysWork.npcId_2280++;
-    SysWork_NpcFlagSet(g_SysWork.npcId_2280 - 1);
+    g_SysWork.npcFlagsId++;
+    SysWork_NpcFlagSet(g_SysWork.npcFlagsId - 1);
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[1], D_800A99E4[3]);
@@ -2011,10 +2013,10 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
 
     flags = 0;
 
-    cellZ0 = g_SysWork.playerWork_4C.player_0.position_18.vz / CHUNK_CELL_SIZE;
-    cellX0 = g_SysWork.playerWork_4C.player_0.position_18.vx / CHUNK_CELL_SIZE;
+    cellZ0 = g_SysWork.playerWork.player.position.vz / CHUNK_CELL_SIZE;
+    cellX0 = g_SysWork.playerWork.player.position.vx / CHUNK_CELL_SIZE;
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vx > Q12(0.0f))
     {
         projCellX0 = cellX0 + 17;
     }
@@ -2023,7 +2025,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellX0 = cellX0 + 15;
     }
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vz > Q12(0.0f))
     {
         projCellZ0 = cellZ0 + 17;
     }
@@ -2032,9 +2034,9 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellZ0 = cellZ0 + 15;
     }
 
-    switch (PACKED_CELL_XZ(projCellX0, projCellZ0))
+    switch (CELL_XZ(projCellX0, projCellZ0))
     {
-        case PACKED_CELL_XZ(11, 24):
+        case CELL_XZ(11, 24):
             if (!Savegame_EventFlagGet(EventFlag_147))
             {
                 WorldGfx_ObjectAdd(&g_WorldObject1.object_0, &g_WorldObject1.position_1C, &g_WorldObject1.rotation_28);
@@ -2046,8 +2048,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(12, 17):
-        case PACKED_CELL_XZ(12, 15):
+        case CELL_XZ(12, 17):
+        case CELL_XZ(12, 15):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_DogHouseNoteFound))
             {
                 WorldGfx_ObjectAdd(&g_WorldObject2.object_0, &g_WorldObject2.position_1C, &g_WorldObject2.rotation_28);
@@ -2055,7 +2057,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(14, 25):
+        case CELL_XZ(14, 25):
             WorldGfx_ObjectAdd(&g_WorldObject5[2], &D_800F55DC[1], &D_800F5344);
             WorldGfx_ObjectAdd(&g_WorldObject5[3], &D_800F55DC[1], &D_800F5344);
 
@@ -2067,11 +2069,11 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             WorldGfx_ObjectAdd(&D_800F56EC, &D_800F574C.position_0, &D_800F574C.rotation_C);
             break;
 
-        case PACKED_CELL_XZ(21, 13):
+        case CELL_XZ(21, 13):
             if (Savegame_EventFlagGet(EventFlag_163))
             {
                 flags |= 1 << 2;
-                if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(198.0f))
+                if (g_SysWork.playerWork.player.position.vx > Q12(198.0f))
                 {
                     Savegame_EventFlagClear(EventFlag_163);
                 }
@@ -2081,9 +2083,9 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
                 flags |= 1 << 1;
             }
 
-        case PACKED_CELL_XZ(21, 14):
-        case PACKED_CELL_XZ(22, 14):
-        case PACKED_CELL_XZ(22, 13):
+        case CELL_XZ(21, 14):
+        case CELL_XZ(22, 14):
+        case CELL_XZ(22, 13):
             WorldGfx_ObjectAdd(&g_WorldObject5[0], &D_800F55DC[0], &D_800F5344);
             WorldGfx_ObjectAdd(&g_WorldObject5[1], &D_800F55DC[0], &D_800F5344);
 
@@ -2102,7 +2104,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(9, 13):
+        case CELL_XZ(9, 13):
             WorldGfx_ObjectAdd(&D_800F535C, &D_800F537C, &D_800F538C);
 
             if (!Savegame_EventFlagGet(EventFlag_170))
@@ -2123,8 +2125,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(19, 22):
-        case PACKED_CELL_XZ(20, 22):
+        case CELL_XZ(19, 22):
+        case CELL_XZ(20, 22):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_LockOfLionOpen))
             {
                 WorldGfx_ObjectAdd(&g_WorldObjectB->object_0, &g_WorldObjectB->position_1C, &(SVECTOR3){ 0, 0, 0 });
@@ -2143,29 +2145,29 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             WorldGfx_ObjectAdd(&D_800F56EC, &D_800F570C.position_0, &D_800F570C.rotation_C);
             break;
 
-        case PACKED_CELL_XZ(21, 19):
+        case CELL_XZ(21, 19):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfLion))
             {
                 WorldGfx_ObjectAdd(&g_WorldObject4[0].object_0, &g_WorldObject4[0].position_1C, &g_WorldObject4[0].rotation_28);
             }
             break;
 
-        case PACKED_CELL_XZ(11, 26):
+        case CELL_XZ(11, 26):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfWoodman))
             {
                 WorldGfx_ObjectAdd(&g_WorldObject4[1].object_0, &g_WorldObject4[1].position_1C, &g_WorldObject4[1].rotation_28);
             }
             break;
 
-        case PACKED_CELL_XZ(19, 15):
+        case CELL_XZ(19, 15):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_PickupKeyOfScarecrow))
             {
                 WorldGfx_ObjectAdd(&g_WorldObject4[2].object_0, &g_WorldObject4[2].position_1C, &g_WorldObject4[2].rotation_28);
             }
             break;
 
-        case PACKED_CELL_XZ(19, 24):
-        case PACKED_CELL_XZ(20, 24):
+        case CELL_XZ(19, 24):
+        case CELL_XZ(20, 24):
             WorldGfx_ObjectAdd(&D_800F56EC, &D_800F572C.position_0, &D_800F572C.rotation_C);
             break;
 
@@ -2173,10 +2175,10 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             break;
     }
 
-    cellZ1 = g_SysWork.playerWork_4C.player_0.position_18.vz / CHUNK_CELL_SIZE;
-    cellX1 = g_SysWork.playerWork_4C.player_0.position_18.vx / CHUNK_CELL_SIZE;
+    cellZ1 = g_SysWork.playerWork.player.position.vz / CHUNK_CELL_SIZE;
+    cellX1 = g_SysWork.playerWork.player.position.vx / CHUNK_CELL_SIZE;
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vx > Q12(0.0f))
     {
         projCellX1 = cellX1 + 17;
     }
@@ -2185,7 +2187,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellX1 = cellX1 + 15;
     }
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vz > Q12(0.0f))
     {
         projCellZ1 = cellZ1 + 17;
     }
@@ -2194,9 +2196,9 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellZ1 = cellZ1 + 15;
     }
 
-    switch (PACKED_CELL_XZ(projCellX1, projCellZ1))
+    switch (CELL_XZ(projCellX1, projCellZ1))
     {
-        case PACKED_CELL_XZ(14, 25):
+        case CELL_XZ(14, 25):
             if (Savegame_EventFlagGet(EventFlag_164))
             {
                 if (D_800F534C == 0)
@@ -2219,7 +2221,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(22, 25):
+        case CELL_XZ(22, 25):
             if (Savegame_EventFlagGet(EventFlag_164))
             {
                 if (D_800F534C == 0)
@@ -2251,10 +2253,10 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             break;
     }
 
-    cellZ2 = g_SysWork.playerWork_4C.player_0.position_18.vz / CHUNK_CELL_SIZE;
-    cellX2 = g_SysWork.playerWork_4C.player_0.position_18.vx / CHUNK_CELL_SIZE;
+    cellZ2 = g_SysWork.playerWork.player.position.vz / CHUNK_CELL_SIZE;
+    cellX2 = g_SysWork.playerWork.player.position.vx / CHUNK_CELL_SIZE;
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vx > Q12(0.0f))
     {
         projCellX2 = cellX2 + 17;
     }
@@ -2263,7 +2265,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellX2 = cellX2 + 15;
     }
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(0.0f))
+    if (g_SysWork.playerWork.player.position.vz > Q12(0.0f))
     {
         projCellZ2 = cellZ2 + 17;
     }
@@ -2272,9 +2274,9 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
         projCellZ2 = cellZ2 + 15;
     }
 
-    switch (PACKED_CELL_XZ(projCellX2, projCellZ2))
+    switch (CELL_XZ(projCellX2, projCellZ2))
     {
-        case PACKED_CELL_XZ(22, 25):
+        case CELL_XZ(22, 25):
             if (D_800F56E4 != 2)
             {
                 Gfx_MapInitMapEffectsUpdate(6, 3);
@@ -2283,8 +2285,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(19, 22):
-        case PACKED_CELL_XZ(20, 22):
+        case CELL_XZ(19, 22):
+        case CELL_XZ(20, 22):
             if (!Savegame_EventFlagGet(EventFlag_134) && Savegame_EventFlagGet(EventFlag_159))
             {
                 if (D_800F56E4 != 1)
@@ -2303,8 +2305,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(19, 24):
-        case PACKED_CELL_XZ(20, 24):
+        case CELL_XZ(19, 24):
+        case CELL_XZ(20, 24):
             if (D_800F56E4 != 3)
             {
                 Gfx_MapInitMapEffectsUpdate(13, 13);
@@ -2312,8 +2314,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EC080
             }
             break;
 
-        case PACKED_CELL_XZ(13, 13):
-        case PACKED_CELL_XZ(14, 13):
+        case CELL_XZ(13, 13):
+        case CELL_XZ(14, 13):
             if (!Savegame_EventFlagGet(EventFlag_M2S00_PickupChainsaw))
             {
                 WorldGfx_ObjectAdd(&g_WorldObjectA.object_0, &g_WorldObjectA.position_1C, &g_WorldObjectA.rotation_28);

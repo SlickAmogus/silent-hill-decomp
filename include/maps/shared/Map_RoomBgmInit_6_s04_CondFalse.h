@@ -8,7 +8,7 @@ void Map_RoomBgmInit_CondFalse(void)
     u8*    dataPtr;
 
     fArg1    = Q12(0.2f);
-    soundCmd = g_GameWork.bgmIdx_5B2;
+    soundCmd = g_GameWork.bgmIdx;
     if (soundCmd == 36)
     {
         dataPtr = &sharedData_800EB738_6_s04;
@@ -113,7 +113,7 @@ void Map_RoomBgmInit_CondFalse(void)
             case 3:
                 flags = 4;
 
-                dist = Math_Distance2dGet(&g_SysWork.playerWork_4C.player_0.position_18, &sharedData_800EB750_6_s04);
+                dist = Math_Distance2dGet(&g_SysWork.playerWork.player.position, &sharedData_800EB750_6_s04);
                 if (dist < Q12(10.0f))
                 {
                     dist = Q12(0.03125f);

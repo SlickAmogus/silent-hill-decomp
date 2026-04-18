@@ -7,7 +7,7 @@ void Map_RoomBgmInit_CondFalse(void)
     mapRoomIdx = g_SavegamePtr->mapRoomIdx_A5;
     var        = Q12(0.15f);
 
-    switch (g_GameWork.bgmIdx_5B2)
+    switch (g_GameWork.bgmIdx)
     {
         case 16:
             flags = sharedData_800D21E8_3_s00[mapRoomIdx];
@@ -19,7 +19,7 @@ void Map_RoomBgmInit_CondFalse(void)
                     if (!Savegame_EventFlagGet(EventFlag_197))
                     {
                         // Test player Z position against specific value.
-                        if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(143.2f))
+                        if (g_SysWork.playerWork.player.position.vz > Q12(143.2f))
                         {
                             flags = 0x6;
                         }

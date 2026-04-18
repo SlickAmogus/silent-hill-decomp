@@ -6,6 +6,7 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -51,43 +52,43 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
             loadedEffectTextureFlags = EffectTextureFlag_None;
             break;
 
-        case MapOverlayId_MAP0_S01:
+        case MapIdx_MAP0_S01:
             if (!Savegame_EventFlagGet(EventFlag_47))
             {
                 effectTexFlags = EffectTextureFlag_Glass;
             }
             break;
 
-        case MapOverlayId_MAP1_S02:
-        case MapOverlayId_MAP1_S03:
+        case MapIdx_MAP1_S02:
+        case MapIdx_MAP1_S03:
             effectTexFlags = EffectTextureFlag_Water;
             break;
 
-        case MapOverlayId_MAP1_S05:
+        case MapIdx_MAP1_S05:
             effectTexFlags = EffectTextureFlag_Fire | EffectTextureFlag_Ef;
             break;
 
-        case MapOverlayId_MAP3_S05:
+        case MapIdx_MAP3_S05:
             if (!Savegame_EventFlagGet(EventFlag_284))
             {
                 effectTexFlags = EffectTextureFlag_Fire;
             }
             break;
 
-        case MapOverlayId_MAP4_S01:
+        case MapIdx_MAP4_S01:
             if (!Savegame_EventFlagGet(EventFlag_306))
             {
                 effectTexFlags = EffectTextureFlag_Fire;
             }
             break;
 
-        case MapOverlayId_MAP4_S05:
+        case MapIdx_MAP4_S05:
             effectTexFlags = EffectTextureFlag_Blood;
             break;
 
-        case MapOverlayId_MAP5_S00:
-        case MapOverlayId_MAP6_S03:
-        case MapOverlayId_MAPX_S00: // @unused
+        case MapIdx_MAP5_S00:
+        case MapIdx_MAP6_S03:
+        case MapIdx_MAPX_S00: // @unused
             effectTexFlags = EffectTextureFlag_WaterRefract;
             break;
     }
@@ -311,9 +312,9 @@ void func_8005E89C(void) // 0x8005E89C
 
     ptr = PSX_SCRATCH;
 
-    posX            = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vx, Q12_SHIFT);
-    posY            = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vy, Q12_SHIFT);
-    posZ            = FP_FROM(g_SysWork.playerWork_4C.player_0.position_18.vz, Q12_SHIFT);
+    posX            = FP_FROM(g_SysWork.playerWork.player.position.vx, Q12_SHIFT);
+    posY            = FP_FROM(g_SysWork.playerWork.player.position.vy, Q12_SHIFT);
+    posZ            = FP_FROM(g_SysWork.playerWork.player.position.vz, Q12_SHIFT);
     ptr->field_0.vx = Q8(posX);
     ptr->field_0.vy = Q8(posY);
     ptr->field_0.vz = Q8(posZ);
@@ -408,12 +409,12 @@ void func_8005E89C(void) // 0x8005E89C
         {
             if (g_MapOverlayHeader.field_94->field_30[i] == 0)
             {
-                ptr->field_DC[i]            = Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
-                ptr->field_E4[i]            = Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
-                ptr->u_field_EC.raw_0[i]    = (g_MapOverlayHeader.field_94->field_5C[i] >> 1) * Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
-                ptr->u_field_FC.raw_0[i]    = (g_MapOverlayHeader.field_94->field_5C[i] >> 1) * Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
-                ptr->field_10C[i]           = g_MapOverlayHeader.field_94->field_64[i] * Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
-                ptr->field_11C[i]           = g_MapOverlayHeader.field_94->field_64[i] * Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->field_DC[i]         = Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->field_E4[i]         = Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->u_field_EC.raw_0[i] = (g_MapOverlayHeader.field_94->field_5C[i] >> 1) * Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->u_field_FC.raw_0[i] = (g_MapOverlayHeader.field_94->field_5C[i] >> 1) * Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->field_10C[i]        = g_MapOverlayHeader.field_94->field_64[i] * Math_Sin(g_MapOverlayHeader.field_94->field_34[i]);
+                ptr->field_11C[i]        = g_MapOverlayHeader.field_94->field_64[i] * Math_Cos(g_MapOverlayHeader.field_94->field_34[i]);
             }
             else
             {
@@ -435,25 +436,25 @@ void func_8005E89C(void) // 0x8005E89C
         {
             if (D_800C42E8[i].field_1 == 6)
             {
-                chara = &g_SysWork.playerWork_4C.player_0;
+                chara = &g_SysWork.playerWork.player;
             }
             else
             {
-                chara = &g_SysWork.npcs_1A0[D_800C42E8[i].field_1];
+                chara = &g_SysWork.npcs[D_800C42E8[i].field_1];
             }
 
-            ptr->field_34[i] = CLAMP_CUSTOM((chara->position_18.vx + chara->field_D8.offsetX_0) - D_800C42E8[i].field_4,
-                                            (chara->position_18.vx + chara->field_D8.offsetX_0) - curPtr->field_4,
+            ptr->field_34[i] = CLAMP_CUSTOM((chara->position.vx + chara->field_D8.offsetX_0) - D_800C42E8[i].field_4,
+                                            (chara->position.vx + chara->field_D8.offsetX_0) - curPtr->field_4,
                                             -Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)),
                                              Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)));
 
-            ptr->field_64[i] = CLAMP_CUSTOM((chara->position_18.vy + chara->field_C8.field_6) - D_800C42E8[i].field_2,
-                                            (chara->position_18.vy + chara->field_C8.field_6) - curPtr->field_2,
+            ptr->field_64[i] = CLAMP_CUSTOM((chara->position.vy + chara->field_C8.field_6) - D_800C42E8[i].field_2,
+                                            (chara->position.vy + chara->field_C8.field_6) - curPtr->field_2,
                                             -Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)) >> 4,
                                             Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)));
 
-            ptr->field_94[i] = CLAMP_CUSTOM((chara->position_18.vz + chara->field_D8.offsetZ_2) - D_800C42E8[i].field_8,
-                                            (chara->position_18.vz + chara->field_D8.offsetZ_2) - curPtr->field_8,
+            ptr->field_94[i] = CLAMP_CUSTOM((chara->position.vz + chara->field_D8.offsetZ_2) - D_800C42E8[i].field_8,
+                                            (chara->position.vz + chara->field_D8.offsetZ_2) - curPtr->field_8,
                                             -Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)),
                                              Q12_MULT_PRECISE(g_DeltaTime, Q12(1.25f)));
 
@@ -586,7 +587,7 @@ void func_8005E89C(void) // 0x8005E89C
         g_MapOverlayHeader.func_A8();
     }
 
-    if (g_SysWork.field_2388.isFlashlightUnavailable_16 != false && g_SysWork.sysState_8 == 0)
+    if (g_SysWork.field_2388.isFlashlightUnavailable_16 != false && g_SysWork.sysState == 0)
     {
         Game_TurnFlashlightOff();
     }
@@ -600,7 +601,7 @@ s32 func_8005F55C(s32 arg0) // 0x8005F55C
     }
 
     // TODO: Use available enums.
-    switch (g_GameWork.config_0.optExtraBloodColor_24)
+    switch (g_GameWork.config.optExtraBloodColor_24)
     {
         case 3:
             return 6;
@@ -627,7 +628,7 @@ s32 func_8005F55C(s32 arg0) // 0x8005F55C
         case 14:
         {
             // TODO: Use available enums. Some values appear unused.
-            switch (g_GameWork.config_0.optExtraBloodColor_24)
+            switch (g_GameWork.config.optExtraBloodColor_24)
             {
                 case 5:
                     return 7;
@@ -656,7 +657,7 @@ s32 func_8005F55C(s32 arg0) // 0x8005F55C
     }
 
     // TODO: Use available enums. Some values appear unused.
-    switch (g_GameWork.config_0.optExtraBloodColor_24)
+    switch (g_GameWork.config.optExtraBloodColor_24)
     {
         case 1:
         case 2:
@@ -710,7 +711,7 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     s32            curDist;
     GsCOORDINATE2* camCoord;
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
+    if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
     {
         arg3 = 5;
     }
@@ -783,7 +784,7 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
             break;
     }
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 14)
+    if (g_GameWork.config.optExtraBloodColor_24 == 14)
     {
         count = 0;
     }
@@ -798,7 +799,7 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
             }
         }
 
-        if (chara->model_0.charaId_0 == Chara_SplitHead)
+        if (chara->model.charaId == Chara_SplitHead)
         {
             i = 24;
         }
@@ -807,9 +808,9 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
         {
             D_800C42E8[i].field_0 = 1;
             D_800C42E8[i].field_1 = Chara_NpcIdxGet(chara);
-            D_800C42E8[i].field_4 = chara->position_18.vx + chara->field_D8.offsetX_0;
-            D_800C42E8[i].field_2 = chara->position_18.vy + chara->field_C8.field_6;
-            D_800C42E8[i].field_8 = chara->position_18.vz + chara->field_D8.offsetZ_2;
+            D_800C42E8[i].field_4 = chara->position.vx + chara->field_D8.offsetX_0;
+            D_800C42E8[i].field_2 = chara->position.vy + chara->field_C8.field_6;
+            D_800C42E8[i].field_8 = chara->position.vz + chara->field_D8.offsetZ_2;
         }
     }
     else
@@ -850,7 +851,7 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
             g_MapOverlayHeader.unkTable1_4C[idx].field_B              = i * 4;
             g_MapOverlayHeader.unkTable1_4C[idx].field_10.s_0.field_0 = Rng_GenerateUInt(0, 255);
 
-            if (chara->model_0.charaId_0 == Chara_Floatstinger)
+            if (chara->model.charaId == Chara_Floatstinger)
             {
                 g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3 = 96;
             }
@@ -1022,7 +1023,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
     ptr->field_148 = g_MapOverlayHeader.unkTable1_4C[idx].field_10.s_0.field_0;
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 14)
+    if (g_GameWork.config.optExtraBloodColor_24 == 14)
     {
         g_MapOverlayHeader.unkTable1_4C[idx].field_10.s_0.field_0 += (u16)g_DeltaTime * 4;
     }
@@ -1204,7 +1205,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
     setSemiTrans(*poly, true);
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 0xE)
+    if (g_GameWork.config.optExtraBloodColor_24 == 0xE)
     {
         *(s32*)&(*poly)->u1 = (((ptr->field_164 << 5) + ptr->field_16C) << 8) + 0x2B0000 + ((ptr->field_150 << 5) + ptr->field_158);
         *(s32*)&(*poly)->u2 = (((ptr->field_164 << 5) + ptr->field_170) << 8) + ((ptr->field_150 << 5) + ptr->field_15C);
@@ -1219,7 +1220,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
     if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
     {
-        if (g_GameWork.config_0.optExtraBloodColor_24 == 14)
+        if (g_GameWork.config.optExtraBloodColor_24 == 14)
         {
             func_80055A90(&ptr->field_130, &ptr->field_134, 0x40, ptr->field_140 * 16);
 
@@ -1277,7 +1278,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
         return true;
     }
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 14)
+    if (g_GameWork.config.optExtraBloodColor_24 == 14)
     {
         temp_s0             = func_80055D78(g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHeader.unkTable1_4C[idx].vy_8, g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4);
         *(u16*)&(*poly)->r0 = temp_s0 + (func_80055D78(g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHeader.unkTable1_4C[idx].vy_8, g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4) << 8);
@@ -1686,7 +1687,7 @@ void func_800622B8(s32 unused, s_SubCharacter* chara, s32 animStatus, s32 arg3) 
     s32         idx;
     s32         i;
 
-    if (g_GameWork.config_0.optExtraBloodColor_24 == 14)
+    if (g_GameWork.config.optExtraBloodColor_24 == 14)
     {
         return;
     }
@@ -1708,17 +1709,17 @@ void func_800622B8(s32 unused, s_SubCharacter* chara, s32 animStatus, s32 arg3) 
         temp_s3 = Rng_Rand16() % D_800AE5F0[temp_s0 * 4]       + D_800AE5F0[(temp_s0 * 4) + 1];
         temp_s2 = Rng_Rand16() % D_800AE5F0[(temp_s0 * 4) + 2] + D_800AE5F0[(temp_s0 * 4) + 3];
 
-        g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0 = chara->position_18.vx +
-                                                            Q12_MULT(temp_s3, Math_Sin(chara->rotation_24.vy)) -
-                                                            Q12_MULT(temp_s2, Math_Cos(chara->rotation_24.vy));
-        g_MapOverlayHeader.unkTable1_4C[idx].vy_8 = chara->position_18.vy;
-        g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4 = chara->position_18.vz +
-                                                            Q12_MULT(temp_s3, Math_Cos(chara->rotation_24.vy)) +
-                                                            Q12_MULT(temp_s2, Math_Sin(chara->rotation_24.vy));
+        g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0 = chara->position.vx +
+                                                            Q12_MULT(temp_s3, Math_Sin(chara->rotation.vy)) -
+                                                            Q12_MULT(temp_s2, Math_Cos(chara->rotation.vy));
+        g_MapOverlayHeader.unkTable1_4C[idx].vy_8 = chara->position.vy;
+        g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4 = chara->position.vz +
+                                                            Q12_MULT(temp_s3, Math_Cos(chara->rotation.vy)) +
+                                                            Q12_MULT(temp_s2, Math_Sin(chara->rotation.vy));
 
         Collision_Get(&coll, g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0, g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4);
 
-        if (ABS_DIFF(coll.groundHeight_0, chara->position_18.vy) > Q12(0.15f))
+        if (ABS_DIFF(coll.groundHeight_0, chara->position.vy) > Q12(0.15f))
         {
             g_MapOverlayHeader.unkTable1_4C[(idx)].field_A = 0;
         }
@@ -1735,7 +1736,7 @@ void func_800622B8(s32 unused, s_SubCharacter* chara, s32 animStatus, s32 arg3) 
     }
 }
 
-void func_800625F4(VECTOR3* arg0, s16 arg1, s32 arg2, s32 arg3) // 0x800625F4
+void func_800625F4(VECTOR3* arg0, q3_12 angle, s32 arg2, s32 arg3) // 0x800625F4
 {
     s32 idx;
     s8  var;
@@ -1751,7 +1752,7 @@ void func_800625F4(VECTOR3* arg0, s16 arg1, s32 arg2, s32 arg3) // 0x800625F4
     g_MapOverlayHeader.unkTable1_4C[idx].field_0.vx_0        = arg0->vx;
     g_MapOverlayHeader.unkTable1_4C[idx].vy_8                = arg0->vy;
     g_MapOverlayHeader.unkTable1_4C[idx].field_4.vz_4        = arg0->vz;
-    g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_0.field_2 = arg1;
+    g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_0.field_2 = angle;
     g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_1 = var;
     g_MapOverlayHeader.unkTable1_4C[idx].field_B             = Rng_GenerateUInt(0, 3);
     g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_0 = 6;
@@ -1775,7 +1776,7 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
     if (g_MapOverlayHeader.unkTable1_4C[idx].field_A == 3)
     {
         var_s7 = 0xC;
-        if (g_SysWork.npcs_1A0[g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_0].model_0.charaId_0 == Chara_None)
+        if (g_SysWork.npcs[g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_0].model.charaId == Chara_None)
         {
             g_MapOverlayHeader.unkTable1_4C[idx].field_A = 0;
             return false;
@@ -1789,12 +1790,12 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
     if (g_MapOverlayHeader.unkTable1_4C[idx].field_B & (1 << 2))
     {
         g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 += g_DeltaTime;
-
         if (g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 > Q12(2.5f))
         {
             g_MapOverlayHeader.unkTable1_4C[idx].field_B         -= 4;
             g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 = 0;
         }
+
         return false;
     }
 
@@ -1803,7 +1804,6 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
     if (*g_MapOverlayHeader.data_190 != 0)
     {
         g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 += g_DeltaTime;
-
         if (g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 > Q12(45.0f))
         {
             g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 = Q12(45.0f);
@@ -1852,13 +1852,13 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
         }
 
         if (func_8005F680(&colls[0]) || func_8005F680(&colls[1]) || func_8005F680(&colls[2]) || func_8005F680(&colls[3]) ||
-            ABS(colls[0].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) >= 0x267 ||
-            ABS(colls[1].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) >= 0x267 ||
-            ABS(colls[2].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) >= 0x267 ||
-            ABS(colls[3].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) >= 0x267)
+            ABS(colls[0].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) > Q12(0.15f) ||
+            ABS(colls[1].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) > Q12(0.15f) ||
+            ABS(colls[2].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) > Q12(0.15f) ||
+            ABS(colls[3].groundHeight_0 - g_MapOverlayHeader.unkTable1_4C[idx].vy_8) > Q12(0.15f))
         {
             g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_0.field_2  = ptr->field_2DC;
-            g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 = 0x5000;
+            g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 = Q12(5.0f);
         }
 
         *ptr = sp10;
@@ -1867,7 +1867,7 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
         gte_SetTransMatrix(&ptr->field_0.field_C);
     }
 
-    ptr->field_210 = (g_MapOverlayHeader.unkTable1_4C[idx].field_B << 0xD) + 0xE0;
+    ptr->field_210 = (g_MapOverlayHeader.unkTable1_4C[idx].field_B << 13) + 224;
 
     for (i = 0; i < 5; i++)
     {
@@ -1899,12 +1899,12 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
         {
             temp_a1_3 = i * 4 + i + j;
 
-            if (ABS(ptr->field_278[temp_a1_3].vx) >= 0xC9)
+            if (ABS(ptr->field_278[temp_a1_3].vx) > 200)
             {
                 continue;
             }
 
-            if (ABS(ptr->field_278[temp_a1_3].vy) >= 0xA1)
+            if (ABS(ptr->field_278[temp_a1_3].vy) > 160)
             {
                 continue;
             }
@@ -1923,7 +1923,7 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             *(s32*)&(*poly)->x2 = *(s32*)&ptr->field_278[temp_a1_3 + 5];
             *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_278[temp_a1_3 + 6];
 
-            temp_s2             = (j * 8) + (i << 0xB) + ptr->field_210;
+            temp_s2             = (j * 8) + (i << 11) + ptr->field_210;
             *(s32*)&(*poly)->u0 = (((g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_1 << 6) | 0x13) << 16) + temp_s2;
             *(s32*)&(*poly)->u1 = temp_s2 + 0x4B0007;
 
@@ -1932,21 +1932,21 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             *(s32*)&(*poly)->u2 = temp_s2 + 0x700;
             *(s32*)&(*poly)->u3 = temp_s2 + 0x707;
 
-            if (ptr->field_208 > 0x5000)
+            if (ptr->field_208 > Q12(5.0f))
             {
-                temp_v1_6 = 0xA0 - ((ptr->field_208 - 0x5000) >> 0xA);
-                if (temp_v1_6 >= 0x20)
+                temp_v1_6 = 160 - ((ptr->field_208 - Q12(5.0f)) >> 10);
+                if (temp_v1_6 >= 32)
                 {
                     temp_s2 = temp_v1_6;
                 }
                 else
                 {
-                    temp_s2 = 0x20;
+                    temp_s2 = 32;
                 }
             }
             else
             {
-                temp_s2 = 0xA0;
+                temp_s2 = 160;
             }
 
             if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
@@ -1957,8 +1957,8 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
 
                 *(*poly + 2) = *(*poly + 1) = **poly;
 
-                (*poly)->tpage = 0x2B;
-                (*poly)->clut = (*poly + 2)->clut = 0x93;
+                (*poly)->tpage = 43;
+                (*poly)->clut = (*poly + 2)->clut = 147;
                 *(u16*)&(*poly + 1)->r0           = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0                   = ptr->field_130.b;
 
@@ -1983,7 +1983,7 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
     return true;
 }
 
-void func_8006342C(s32 weaponAttack, q3_12 angle0, q3_12 angle1, GsCOORDINATE2* coord) // 0x8006342C
+void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coord) // 0x8006342C
 {
     s32              i;
     s_func_8006342C* ptr;
@@ -2118,13 +2118,13 @@ void func_8006342C(s32 weaponAttack, q3_12 angle0, q3_12 angle1, GsCOORDINATE2* 
             }
             else
             {
-                g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_C.s_0.field_0 = angle0;
-                g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_C.s_0.field_2 = angle1;
+                g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_C.s_0.field_0 = rotY;
+                g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_C.s_0.field_2 = rotX;
             }
 
             g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_B              = Rng_GenerateUInt(0, 1);
             g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_10.s_0.field_0 = Rng_GenerateUInt(0, 1023);
-            g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_10.s_0.field_2 = 0;
+            g_MapOverlayHeader.unkTable1_4C[ptr->field_38].field_10.s_0.field_2 = Q12_ANGLE(0.0f);
         }
         else
         {

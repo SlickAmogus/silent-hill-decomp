@@ -1,6 +1,8 @@
 #include "inline_no_dmpsx.h"
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "main/rng.h"
 #include "maps/shared.h"
@@ -50,7 +52,7 @@
 #if !MAP_USE_PARTICLES
 
 /** Barebones version of `Particle_SystemUpdate`, missing calls to `Particle_Update` and other particle-related code. */
-void Particle_SystemUpdate(s32 unused, e_MapOverlayId mapOverlayId, s32 arg3)
+void Particle_SystemUpdate(s32 unused, e_MapIdx mapOverlayId, s32 arg3)
 {
     s32 temp_s0;
 
@@ -72,7 +74,7 @@ void Particle_SystemUpdate(s32 unused, e_MapOverlayId mapOverlayId, s32 arg3)
 
             sharedData_800DD598_0_s00 = 0;
             g_SysWork.field_234A      = true;
-            g_ParticleMapOverlayId0 = mapOverlayId;
+            g_ParticleMapIdx0 = mapOverlayId;
 
             sharedData_800E0CB8_0_s00 = FP_FROM(sharedData_800E0CB0_0_s00, Q12_SHIFT);
             sharedData_800E0CB6_0_s00 = sharedData_800E0CB0_0_s00;
@@ -85,7 +87,7 @@ void Particle_SystemUpdate(s32 unused, e_MapOverlayId mapOverlayId, s32 arg3)
         default:
             sharedData_800DD584_0_s00 = g_DeltaTime == Q12(0.0f);
 
-            g_ParticleMapOverlayId1 = mapOverlayId;
+            g_ParticleMapIdx1 = mapOverlayId;
 
             temp_s0 = SetSp(PSX_SCRATCH_ADDR(0x3D8));
             SetSp(temp_s0);
@@ -98,7 +100,7 @@ void Particle_SystemUpdate(s32 unused, e_MapOverlayId mapOverlayId, s32 arg3)
 #else /* MAP_USE_PARTICLES */
 
 /** Full version of `Particle_SystemUpdate` used by most maps. */
-void Particle_SystemUpdate(s32 arg1, e_MapOverlayId mapOverlayId, s32 arg3)
+void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
 {
     s32 temp_a2;
     s32 temp_s0;
@@ -113,7 +115,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapOverlayId mapOverlayId, s32 arg3)
     u16 temp_v1_3;
 
 #if defined(MAP5_S01)
-    if (g_MapEventParam == 7 && g_SysWork.sysStateStep_C[0] == 8)
+    if (g_MapEventParam == 7 && g_SysWork.sysStateSteps[0] == 8)
     {
         return;
     }
@@ -357,7 +359,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapOverlayId mapOverlayId, s32 arg3)
             g_Particle_PrevPosition.vx = Q12(0.0f);
 
             g_SysWork.field_234A = true;
-            g_ParticleMapOverlayId0 = mapOverlayId;
+            g_ParticleMapIdx0 = mapOverlayId;
 
             sharedData_800E0CB8_0_s00 = FP_FROM(sharedData_800E0CB0_0_s00, Q12_SHIFT);
             sharedData_800E0CB6_0_s00 = sharedData_800E0CB0_0_s00;
@@ -367,7 +369,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapOverlayId mapOverlayId, s32 arg3)
 
             Particle_SnowInitialize(g_Particles);
 #if defined(MAP0_S00)
-            func_800CBFB0(&sharedData_800E34FC_0_s00, &sharedData_800E330C_0_s00, g_ParticleMapOverlayId0);
+            func_800CBFB0(&sharedData_800E34FC_0_s00, &sharedData_800E330C_0_s00, g_ParticleMapIdx0);
 #endif
             SetSp(temp_s0);
             break;
@@ -569,12 +571,12 @@ void Particle_SystemUpdate(s32 arg1, e_MapOverlayId mapOverlayId, s32 arg3)
                 }
             }
 
-            g_ParticleMapOverlayId1 = mapOverlayId;
+            g_ParticleMapIdx1 = mapOverlayId;
             temp_s0_3 = SetSp(PSX_SCRATCH_ADDR(0x3D8));
 
             Particle_Update(g_Particles);
 #if defined(MAP0_S00)
-            func_800CC6E8(&sharedData_800E34FC_0_s00, &sharedData_800E330C_0_s00, g_ParticleMapOverlayId1);
+            func_800CC6E8(&sharedData_800E34FC_0_s00, &sharedData_800E330C_0_s00, g_ParticleMapIdx1);
 #endif
             SetSp(temp_s0_3);
 
@@ -802,8 +804,8 @@ bool Particle_Update(s_Particle* partHead)
 #if MAP_PARTICLE_HAS_RAIN
     s32 sp64;
 #endif
-    MATRIX      mat0;
-    MATRIX      mat1;
+    MATRIX      viewMat;
+    MATRIX      worldMat;
     VECTOR3     prevPos;
     s16         rand;
     s32         pass;
@@ -858,9 +860,9 @@ bool Particle_Update(s_Particle* partHead)
     g_SysWork.coord_22A8.coord.t[2] = Q12_TO_Q8(g_Particle_Position.vz);
 
     g_SysWork.coord_22A8.flg = false;
-    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22A8, &mat1, &mat0);
-    gte_SetRotMatrix(&mat0);
-    gte_SetTransMatrix(&mat0);
+    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22A8, &worldMat, &viewMat);
+    gte_SetRotMatrix(&viewMat);
+    gte_SetTransMatrix(&viewMat);
 
     // Get starting random value to use later.
     rand = Rng_Rand16();
@@ -916,7 +918,7 @@ bool Particle_Update(s_Particle* partHead)
     g_ParticleSpawnCount = 0;
 
 #if defined(MAP0_S00)
-    if (g_SavegamePtr->mapRoomIdx_A5 == 3 && g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(200.0f))
+    if (g_SavegamePtr->mapRoomIdx_A5 == 3 && g_SysWork.playerWork.player.position.vz > Q12(200.0f))
     {
         sharedData_800DD591_0_s00 = 1;
     }
@@ -981,7 +983,7 @@ bool Particle_Update(s_Particle* partHead)
     switch (g_SavegamePtr->mapRoomIdx_A5)
     {
         case 3:
-            if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(200.0f))
+            if (g_SysWork.playerWork.player.position.vz > Q12(200.0f))
             {
                 sharedData_800DD591_0_s00 = 1;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-5.0f);
@@ -998,10 +1000,10 @@ bool Particle_Update(s_Particle* partHead)
             break;
 
         case 7:
-            if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-55.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-33.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(-14.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(0.0f))
+            if (g_SysWork.playerWork.player.position.vx > Q12(-55.0f) &&
+                g_SysWork.playerWork.player.position.vx < Q12(-33.0f) &&
+                g_SysWork.playerWork.player.position.vz > Q12(-14.0f) &&
+                g_SysWork.playerWork.player.position.vz < Q12(0.0f))
             {
                     sharedData_800DD591_0_s00 = 10;
                     sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-44.5f);
@@ -1017,10 +1019,10 @@ bool Particle_Update(s_Particle* partHead)
                     sharedData_800E326C_0_s00.corners_0[5].vx = Q12(-44.5f);
                     sharedData_800E326C_0_s00.corners_0[5].vz = Q12(-11.2f);
             }
-            else if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-90.0f) &&
-                     g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-56.0f) &&
-                     g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(-14.0f) &&
-                     g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(0.0f))
+            else if (g_SysWork.playerWork.player.position.vx > Q12(-90.0f) &&
+                     g_SysWork.playerWork.player.position.vx < Q12(-56.0f) &&
+                     g_SysWork.playerWork.player.position.vz > Q12(-14.0f) &&
+                     g_SysWork.playerWork.player.position.vz < Q12(0.0f))
             {
                     sharedData_800DD591_0_s00 = 10;
                     sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-79.0f);
@@ -1043,9 +1045,9 @@ bool Particle_Update(s_Particle* partHead)
             break;
 
         case 1:
-            if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-240.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-226.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(136.0f))
+            if (g_SysWork.playerWork.player.position.vx > Q12(-240.0f) &&
+                g_SysWork.playerWork.player.position.vx < Q12(-226.0f) &&
+                g_SysWork.playerWork.player.position.vz > Q12(136.0f))
             {
                 sharedData_800DD591_0_s00 = 10;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-232.0f);
@@ -1061,8 +1063,8 @@ bool Particle_Update(s_Particle* partHead)
                 sharedData_800E326C_0_s00.corners_0[5].vx = Q12(-228.0f);
                 sharedData_800E326C_0_s00.corners_0[5].vz = Q12(158.0f);
             }
-            else if (g_SysWork.playerWork_4C.player_0.position_18.vx <= Q12(-240.0f) &&
-                     g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(133.0f))
+            else if (g_SysWork.playerWork.player.position.vx <= Q12(-240.0f) &&
+                     g_SysWork.playerWork.player.position.vz > Q12(133.0f))
             {
                 sharedData_800DD591_0_s00 = 9;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-251.0f);
@@ -1081,10 +1083,10 @@ bool Particle_Update(s_Particle* partHead)
             break;
 
         case 6:
-            if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-225.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-195.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(-100.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-72.0f))
+            if (g_SysWork.playerWork.player.position.vx > Q12(-225.0f) &&
+                g_SysWork.playerWork.player.position.vx < Q12(-195.0f) &&
+                g_SysWork.playerWork.player.position.vz > Q12(-100.0f) &&
+                g_SysWork.playerWork.player.position.vz < Q12(-72.0f))
             {
                 sharedData_800DD591_0_s00 = 10;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-208.0f);
@@ -1107,8 +1109,8 @@ bool Particle_Update(s_Particle* partHead)
             break;
 
         case 27:
-            if (g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-275.0f) &&
-                g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-175.0f))
+            if (g_SysWork.playerWork.player.position.vx < Q12(-275.0f) &&
+                g_SysWork.playerWork.player.position.vz < Q12(-175.0f))
             {
                 sharedData_800DD591_0_s00 = 10;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-287.0f);
@@ -1196,10 +1198,10 @@ bool Particle_Update(s_Particle* partHead)
 #elif defined(MAP5_S01)
     sharedData_800DD591_0_s00 = 1;
 
-    if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(-33.0f) &&
-        g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-20.0f) &&
-        g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(13.0f) &&
-        g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(44.0f))
+    if (g_SysWork.playerWork.player.position.vz > Q12(-33.0f) &&
+        g_SysWork.playerWork.player.position.vz < Q12(-20.0f) &&
+        g_SysWork.playerWork.player.position.vx > Q12(13.0f) &&
+        g_SysWork.playerWork.player.position.vx < Q12(44.0f))
     {
         sharedData_800E326C_0_s00.corners_0[0].vx = Q12(24.0f);
         sharedData_800E326C_0_s00.corners_0[0].vz = Q12(-19.0f);
@@ -1214,10 +1216,10 @@ bool Particle_Update(s_Particle* partHead)
         sharedData_800E326C_0_s00.corners_0[5].vx = Q12(31.5f);
         sharedData_800E326C_0_s00.corners_0[5].vz = Q12(-21.5f);
     }
-    else if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(-82.0f) &&
-             g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-56.0f) &&
-             g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(43.0f) &&
-             g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(70.0f))
+    else if (g_SysWork.playerWork.player.position.vz > Q12(-82.0f) &&
+             g_SysWork.playerWork.player.position.vz < Q12(-56.0f) &&
+             g_SysWork.playerWork.player.position.vx > Q12(43.0f) &&
+             g_SysWork.playerWork.player.position.vx < Q12(70.0f))
     {
         sharedData_800E326C_0_s00.corners_0[0].vx = Q12(58.7f);
         sharedData_800E326C_0_s00.corners_0[0].vz = Q12(-70.5f);
@@ -1410,8 +1412,8 @@ bool Particle_Update(s_Particle* partHead)
 #if defined(MAP0_S00)
 bool func_800CC6E8(s_800E34FC* arg0, s_800E330C* arg1, s32 mapId) // 0x800CC6E8
 {
-    MATRIX      sp10;
-    MATRIX      sp30;
+    MATRIX      worldMat;
+    MATRIX      viewMat;
     s_func_800CC8FC sp50;
     VECTOR3         sp90[12];
     s32         sp120[32]; // @hack Unknown type, it's passed to `func_800CC8FC` but it's an unused parameter.
@@ -1446,9 +1448,9 @@ bool func_800CC6E8(s_800E34FC* arg0, s_800E330C* arg1, s32 mapId) // 0x800CC6E8
     g_SysWork.coord_22F8.coord.t[0] = Q8(0.0f);
     g_SysWork.coord_22F8.flg        = false;
 
-    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &sp10, &sp30);
-    gte_SetRotMatrix(&sp30);
-    gte_SetTransMatrix(&sp30);
+    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &worldMat, &viewMat);
+    gte_SetRotMatrix(&viewMat);
+    gte_SetTransMatrix(&viewMat);
 
     if (D_800DD593)
     {
@@ -1542,13 +1544,13 @@ s32 func_800CC8FC(VECTOR3* arg0, s32* arg1, s_func_800CC8FC* arg2) // 0x800CC8FC
 
         unkPos = &arg0[D_800CA7CC[j][0]];
 
-        unkPos->vx = Q8_TO_Q12(offset0.vx) + (g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        unkPos->vy = Q8_TO_Q12(offset0.vy) + (g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        unkPos->vz = Q8_TO_Q12(offset0.vz) + (g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        unkPos->vx = Q8_TO_Q12(offset0.vx) + (g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork.player.position.vx);
+        unkPos->vy = Q8_TO_Q12(offset0.vy) + (g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork.player.position.vy);
+        unkPos->vz = Q8_TO_Q12(offset0.vz) + (g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork.player.position.vz);
 
-        offset0.vx += Q12_TO_Q8(g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        offset0.vy += Q12_TO_Q8(g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        offset0.vz += Q12_TO_Q8(g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        offset0.vx += Q12_TO_Q8(g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork.player.position.vx);
+        offset0.vy += Q12_TO_Q8(g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork.player.position.vy);
+        offset0.vz += Q12_TO_Q8(g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork.player.position.vz);
 
         gte_ldv0(&offset0);
         gte_rtps();
@@ -1561,13 +1563,13 @@ s32 func_800CC8FC(VECTOR3* arg0, s32* arg1, s_func_800CC8FC* arg2) // 0x800CC8FC
 
         unkPos = &arg0[D_800CA7CC[j][1]];
 
-        unkPos->vx = Q8_TO_Q12(offset1.vx) + (g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        unkPos->vy = Q8_TO_Q12(offset1.vy) + (g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        unkPos->vz = Q8_TO_Q12(offset1.vz) + (g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        unkPos->vx = Q8_TO_Q12(offset1.vx) + (g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork.player.position.vx);
+        unkPos->vy = Q8_TO_Q12(offset1.vy) + (g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork.player.position.vy);
+        unkPos->vz = Q8_TO_Q12(offset1.vz) + (g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork.player.position.vz);
 
-        offset1.vx += Q12_TO_Q8(g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        offset1.vy += Q12_TO_Q8(g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        offset1.vz += Q12_TO_Q8(g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        offset1.vx += Q12_TO_Q8(g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork.player.position.vx);
+        offset1.vy += Q12_TO_Q8(g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork.player.position.vy);
+        offset1.vz += Q12_TO_Q8(g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork.player.position.vz);
 
         if ((offset0.vy >= Q8(0.0f) && offset1.vy <  Q8(0.0f)) ||
             (offset0.vy <  Q8(0.0f) && offset1.vy >= Q8(0.0f)))
@@ -1772,7 +1774,7 @@ void func_800CD1F4(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD1F4
             break;
 
         case 5:
-            if (arg0 < Rng_GenerateInt(10, 19) || g_SysWork.enablePlayerMatchAnim_2358 == 0)
+            if (arg0 < Rng_GenerateInt(10, 19) || g_SysWork.enablePlayerMatchAnim == 0)
             {
                 pos.vx = Q12_TO_Q8(D_800E32DC->vx - arg2->field_0.vx);
                 pos.vy = Q12_TO_Q8(D_800E32DC->vy - arg2->field_0.vy);
@@ -1780,9 +1782,9 @@ void func_800CD1F4(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD1F4
             }
             else
             {
-                pos.vx = g_SysWork.playerBoneCoords_890[HarryBone_RightHand].workm.t[0] - Q12_TO_Q8(arg2->field_0.vx);
-                pos.vy = g_SysWork.playerBoneCoords_890[HarryBone_RightHand].workm.t[1] - Q12_TO_Q8(arg2->field_0.vy);
-                pos.vz = g_SysWork.playerBoneCoords_890[HarryBone_RightHand].workm.t[2] - Q12_TO_Q8(arg2->field_0.vz);
+                pos.vx = g_SysWork.playerBoneCoords[HarryBone_RightHand].workm.t[0] - Q12_TO_Q8(arg2->field_0.vx);
+                pos.vy = g_SysWork.playerBoneCoords[HarryBone_RightHand].workm.t[1] - Q12_TO_Q8(arg2->field_0.vy);
+                pos.vz = g_SysWork.playerBoneCoords[HarryBone_RightHand].workm.t[2] - Q12_TO_Q8(arg2->field_0.vz);
             }
 
             temp_s0_3 = SquareRoot0(SQUARE(pos.vx) + SQUARE(pos.vz));
@@ -1941,9 +1943,9 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
 
     if (Game_FlashlightIsOn())
     {
-        temp_v0 = func_80055D78(g_SysWork.playerWork_4C.player_0.position_18.vx + arg2->field_0.vx,
-                                g_SysWork.playerWork_4C.player_0.position_18.vy + arg2->field_0.vy,
-                                g_SysWork.playerWork_4C.player_0.position_18.vz + arg2->field_0.vz);
+        temp_v0 = func_80055D78(g_SysWork.playerWork.player.position.vx + arg2->field_0.vx,
+                                g_SysWork.playerWork.player.position.vy + arg2->field_0.vy,
+                                g_SysWork.playerWork.player.position.vz + arg2->field_0.vz);
 
         temp_v0 = (temp_v0 != 0) ? ((temp_v0 >= 0 && temp_v0 <= 176) ? temp_v0 : 176) : 1;
 
@@ -1958,9 +1960,9 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
                 break;
 
             default:
-                temp_v0 = func_80055D78(g_SysWork.playerWork_4C.player_0.position_18.vx + arg2->field_0.vx,
-                                        g_SysWork.playerWork_4C.player_0.position_18.vy + arg2->field_0.vy,
-                                        g_SysWork.playerWork_4C.player_0.position_18.vz + arg2->field_0.vz);
+                temp_v0 = func_80055D78(g_SysWork.playerWork.player.position.vx + arg2->field_0.vx,
+                                        g_SysWork.playerWork.player.position.vy + arg2->field_0.vy,
+                                        g_SysWork.playerWork.player.position.vz + arg2->field_0.vz);
                 temp_v0 = (temp_v0 != 0) ? ((temp_v0 >= 0 && temp_v0 <= 176) ? temp_v0 : 176) : 1;
 
                 temp_v0 >>= 3;
@@ -1985,9 +1987,9 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
             case 1:
             case 4:
             case 10:
-                temp_v0 = func_80055D78(g_SysWork.playerWork_4C.player_0.position_18.vx + arg2->field_0.vx,
-                                        g_SysWork.playerWork_4C.player_0.position_18.vy + arg2->field_0.vy,
-                                        g_SysWork.playerWork_4C.player_0.position_18.vz + arg2->field_0.vz);
+                temp_v0 = func_80055D78(g_SysWork.playerWork.player.position.vx + arg2->field_0.vx,
+                                        g_SysWork.playerWork.player.position.vy + arg2->field_0.vy,
+                                        g_SysWork.playerWork.player.position.vz + arg2->field_0.vz);
                 temp_v0 = (temp_v0 != 0) ? ((temp_v0 >= 0 && temp_v0 <= 176) ? temp_v0 : 176) : 1;
 
                 poly->r0 = temp_v0 + sharedData_800E3258_0_s00.r;
@@ -2338,8 +2340,8 @@ void func_800CE544(s32 idx0, s32 arg1, s_800E34FC* arg2) // 0x800CE544
             case 5:
                 if (arg2->field_12 == 0)
                 {
-                    vecCpy.vx = (arg2->field_0.vx - g_SysWork.playerWork_4C.player_0.position_18.vx) >> 4;
-                    vecCpy.vz = (arg2->field_0.vz - g_SysWork.playerWork_4C.player_0.position_18.vz) >> 4;
+                    vecCpy.vx = (arg2->field_0.vx - g_SysWork.playerWork.player.position.vx) >> 4;
+                    vecCpy.vz = (arg2->field_0.vz - g_SysWork.playerWork.player.position.vz) >> 4;
                     angle = ratan2(vecCpy.vx, vecCpy.vz);
                     arg2->field_C = (u32)(Math_Sin(angle) * 3) / 0x10;
                     arg2->field_E = (u32)(Math_Cos(angle) * 3) / 0x10;
@@ -2510,7 +2512,7 @@ void Particle_SnowDraw(s_Particle* part)
 #ifdef HAS_PARTICLE_CASE_11
                 PARTICLE_CASE(11):
 #if defined(MAP0_S02) // TODO: MAP0_S02 uses value 2 instead of 11, code used in MAP0_S02 should probably be merged to case 2 above.
-                    if (g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-120.0f))
+                    if (g_SysWork.playerWork.player.position.vx < Q12(-120.0f))
                     {
                         Particle_BoundaryClamp(&particlePos, &sharedData_800E326C_0_s00.corners_0[0], &sharedData_800E326C_0_s00.corners_0[1], 0);
                         break;
@@ -2800,7 +2802,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 #endif
 
 #if defined(MAP0_S00)
-                if (g_SysWork.enablePlayerMatchAnim_2358 != 0)
+                if (g_SysWork.enablePlayerMatchAnim != 0)
                 {
                     setRGB0(poly, 0x12, 8, 8);
                 }
@@ -2987,7 +2989,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 #endif
 
 #if defined(MAP0_S00)
-                if (g_SysWork.enablePlayerMatchAnim_2358 != 0)
+                if (g_SysWork.enablePlayerMatchAnim != 0)
                 {
                     setRGB0(poly, r + 0xA, g, b);
                 }
@@ -3453,8 +3455,8 @@ bool func_800D012C(VECTOR3* pos, s_func_800CC8FC* unused0, s32* unused1) // 0x80
             return true;
 
         case 2:
-            deltaX = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vx - pos->vx);
-            deltaZ = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vz - pos->vz);
+            deltaX = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx - pos->vx);
+            deltaZ = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz - pos->vz);
             return SquareRoot0(SQUARE(deltaX) + SQUARE(deltaZ)) < Q8(1.0f);
     }
 
@@ -3610,10 +3612,10 @@ bool func_800D0600(void) // 0x800D0600
 {
     #define DIST_MAX Q12(40.0f)
 
-    if (ABS(g_SysWork.playerWork_4C.player_0.position_18.vx - D_800E32DC[0].vx) +
-        ABS(g_SysWork.playerWork_4C.player_0.position_18.vz - D_800E32DC[0].vz) < DIST_MAX ||
-        ABS(g_SysWork.playerWork_4C.player_0.position_18.vx - D_800E32DC[1].vx) +
-        ABS(g_SysWork.playerWork_4C.player_0.position_18.vz - D_800E32DC[1].vz) < DIST_MAX)
+    if (ABS(g_SysWork.playerWork.player.position.vx - D_800E32DC[0].vx) +
+        ABS(g_SysWork.playerWork.player.position.vz - D_800E32DC[0].vz) < DIST_MAX ||
+        ABS(g_SysWork.playerWork.player.position.vx - D_800E32DC[1].vx) +
+        ABS(g_SysWork.playerWork.player.position.vz - D_800E32DC[1].vz) < DIST_MAX)
     {
         return true;
     }
@@ -3949,11 +3951,11 @@ void Particle_SoundUpdate(void)
 
     switch (g_SavegamePtr->mapOverlayId_A4)
     {
-        case MapOverlayId_MAP0_S00:
-        case MapOverlayId_MAP0_S01: // @unused Checks for `MAP0_S01`, but map itself doesn't contain this func?
-        case MapOverlayId_MAP1_S02:
-        case MapOverlayId_MAP1_S03:
-        case MapOverlayId_MAP4_S02:
+        case MapIdx_MAP0_S00:
+        case MapIdx_MAP0_S01: // @unused Checks for `MAP0_S01`, but map itself doesn't contain this func?
+        case MapIdx_MAP1_S02:
+        case MapIdx_MAP1_S03:
+        case MapIdx_MAP4_S02:
             unkValDiv4 = sharedData_800E32CC_0_s00 >> 2; // `sharedData_800E32CC_0_s00 / 4`
 
             if ((sharedData_800E32CC_0_s00 - sharedData_800DD58C_0_s00) > 15)
@@ -3967,18 +3969,18 @@ void Particle_SoundUpdate(void)
 
             if (sharedData_800E32CC_0_s00 == 0)
             {
-                g_SysWork.field_234B_0 = 0;
+                g_SysWork.field_234B_0 = false;
                 Sd_SfxStop(Sfx_Unk1360);
             }
 
-            if (g_SysWork.field_234B_0 != 0)
+            if (g_SysWork.field_234B_0)
             {
-                func_8005DE0C(Sfx_Unk1360, &g_SysWork.playerWork_4C.player_0.position_18, unkValDiv4, Q12(0.0f), 0);
+                func_8005DE0C(Sfx_Unk1360, &g_SysWork.playerWork.player.position, unkValDiv4, Q12(0.0f), 0);
             }
             else if (sharedData_800E32CC_0_s00 != 0)
             {
                 SD_Call(Sfx_Unk1360);
-                g_SysWork.field_234B_0 = 1;
+                g_SysWork.field_234B_0 = true;
             }
     }
 }
@@ -3994,8 +3996,8 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
 #if !defined(MAP0_S00)
     SVECTOR           startRelPos;
     SVECTOR           endRelPos;
-    MATRIX            matUnused;
-    MATRIX            worldMat;
+    MATRIX            worldMat; // @unused
+    MATRIX            viewMat;
     s_RayData         ray;
     VECTOR3           beamStart;
     VECTOR3           beamOffset;
@@ -4017,18 +4019,18 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
     GsInitCoordinate2(NULL, &g_SysWork.coord_22F8);
 
     g_SysWork.coord_22F8.flg        = false;
-    g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vx);
-    g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vy);
-    g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vz);
+    g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
+    g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
+    g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
 
-    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &matUnused, &worldMat);
+    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &worldMat, &viewMat);
 
-    gte_SetRotMatrix(&worldMat);
-    gte_SetTransMatrix(&worldMat);
+    gte_SetRotMatrix(&viewMat);
+    gte_SetTransMatrix(&viewMat);
 
-    beamDirY      = Q12_MULT(D_800AD4C8[g_SysWork.playerCombat_38.weaponAttack_F].field_0, Math_Cos(*rotY));
-    beamDirX      = Q12_MULT(Q12_MULT(D_800AD4C8[g_SysWork.playerCombat_38.weaponAttack_F].field_0, Math_Sin(*rotY)), Math_Sin(*rotX));
-    beamDirZ      = Q12_MULT(Q12_MULT(D_800AD4C8[g_SysWork.playerCombat_38.weaponAttack_F].field_0, Math_Sin(*rotY)), Math_Cos(*rotX));
+    beamDirY      = Q12_MULT(D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_0, Math_Cos(*rotY));
+    beamDirX      = Q12_MULT(Q12_MULT(D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_0, Math_Sin(*rotY)), Math_Sin(*rotX));
+    beamDirZ      = Q12_MULT(Q12_MULT(D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_0, Math_Sin(*rotY)), Math_Cos(*rotX));
     beamStart.vx  = vec0->vx;
     beamStart.vy  = vec0->vy;
     beamStart.vz  = vec0->vz;
@@ -4037,7 +4039,7 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
     beamOffset.vz = beamDirZ;
 
     PushMatrix();
-    cond = func_8006DA08(&ray, &beamStart, &beamOffset, &g_SysWork.playerWork_4C.player_0);
+    cond = func_8006DA08(&ray, &beamStart, &beamOffset, &g_SysWork.playerWork.player);
     PopMatrix();
 
     primCount = cond ? (FP_FROM(ray.field_14, Q12_SHIFT) + 1) : 16;
@@ -4048,9 +4050,9 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
         beamStart.vy = vec0->vy + FP_MULTIPLY(beamDirY, i, 4);
         beamStart.vz = vec0->vz + FP_MULTIPLY(beamDirZ, i, 4);
 
-        startRelPos.vx = Q12_TO_Q8(beamStart.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        startRelPos.vy = Q12_TO_Q8(beamStart.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        startRelPos.vz = Q12_TO_Q8(beamStart.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        startRelPos.vx = Q12_TO_Q8(beamStart.vx - g_SysWork.playerWork.player.position.vx);
+        startRelPos.vy = Q12_TO_Q8(beamStart.vy - g_SysWork.playerWork.player.position.vy);
+        startRelPos.vz = Q12_TO_Q8(beamStart.vz - g_SysWork.playerWork.player.position.vz);
         gte_ldv0(&startRelPos);
         gte_rtps();
 
@@ -4059,9 +4061,9 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
         beamOffset.vx = vec0->vx + FP_MULTIPLY(beamDirX, i + 1, 4);
         beamOffset.vy = vec0->vy + FP_MULTIPLY(beamDirY, i + 1, 4);
         beamOffset.vz = vec0->vz + FP_MULTIPLY(beamDirZ, i + 1, 4);
-        endRelPos.vx  = Q12_TO_Q8(beamOffset.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-        endRelPos.vy  = Q12_TO_Q8(beamOffset.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-        endRelPos.vz  = Q12_TO_Q8(beamOffset.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+        endRelPos.vx  = Q12_TO_Q8(beamOffset.vx - g_SysWork.playerWork.player.position.vx);
+        endRelPos.vy  = Q12_TO_Q8(beamOffset.vy - g_SysWork.playerWork.player.position.vy);
+        endRelPos.vz  = Q12_TO_Q8(beamOffset.vz - g_SysWork.playerWork.player.position.vz);
 
         gte_stsxy(&polyGt4->x0);
         gte_stszotz(&zScreenStart);
@@ -4073,9 +4075,9 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
 
         if (i == (primCount - 1))
         {
-            endRelPos.vx = Q12_TO_Q8(ray.field_4.vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-            endRelPos.vy = Q12_TO_Q8(ray.field_4.vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-            endRelPos.vz = Q12_TO_Q8(ray.field_4.vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+            endRelPos.vx = Q12_TO_Q8(ray.field_4.vx - g_SysWork.playerWork.player.position.vx);
+            endRelPos.vy = Q12_TO_Q8(ray.field_4.vy - g_SysWork.playerWork.player.position.vy);
+            endRelPos.vz = Q12_TO_Q8(ray.field_4.vz - g_SysWork.playerWork.player.position.vz);
         }
 
         gte_ldv0(&endRelPos);
@@ -4227,8 +4229,8 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
 #if !defined(MAP0_S00)
     SVECTOR   fromDelta; // Q23.8
     SVECTOR   toDelta;   // Q23.8
-    MATRIX    matUnused0;
-    MATRIX    worldMat;
+    MATRIX    worldMat;  // @unused
+    MATRIX    viewMat;
     s32       depth;
     s32       clutBase;
     GsOT*     ot;
@@ -4238,27 +4240,26 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
 
     GsInitCoordinate2(NULL, &g_SysWork.coord_22F8);
     g_SysWork.coord_22F8.flg        = false;
-    g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vx);
-    g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vy);
-    g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork_4C.player_0.position_18.vz);
+    g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
+    g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
+    g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
 
-    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &matUnused0, &worldMat);
-
-    gte_SetRotMatrix(&worldMat);
-    gte_SetTransMatrix(&worldMat);
+    Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &worldMat, &viewMat);
+    gte_SetRotMatrix(&viewMat);
+    gte_SetTransMatrix(&viewMat);
 
     prim = (POLY_FT4*)GsOUT_PACKET_P;
 
-    fromDelta.vx = Q12_TO_Q8(from->vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-    fromDelta.vy = Q12_TO_Q8(from->vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-    fromDelta.vz = Q12_TO_Q8(from->vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+    fromDelta.vx = Q12_TO_Q8(from->vx - g_SysWork.playerWork.player.position.vx);
+    fromDelta.vy = Q12_TO_Q8(from->vy - g_SysWork.playerWork.player.position.vy);
+    fromDelta.vz = Q12_TO_Q8(from->vz - g_SysWork.playerWork.player.position.vz);
 
     gte_ldv0(&fromDelta);
     gte_rtps();
 
-    toDelta.vx = Q12_TO_Q8(to->vx - g_SysWork.playerWork_4C.player_0.position_18.vx);
-    toDelta.vy = Q12_TO_Q8(to->vy - g_SysWork.playerWork_4C.player_0.position_18.vy);
-    toDelta.vz = Q12_TO_Q8(to->vz - g_SysWork.playerWork_4C.player_0.position_18.vz);
+    toDelta.vx = Q12_TO_Q8(to->vx - g_SysWork.playerWork.player.position.vx);
+    toDelta.vy = Q12_TO_Q8(to->vy - g_SysWork.playerWork.player.position.vy);
+    toDelta.vz = Q12_TO_Q8(to->vz - g_SysWork.playerWork.player.position.vz);
 
     gte_stsxy(&prim->x0);
     gte_stszotz(&depth);

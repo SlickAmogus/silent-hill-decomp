@@ -6,26 +6,26 @@ void sharedFunc_800D0110_7_s00(void)
     q19_12        var_s2;
     s32           mapRoomIdx;
     s32           flags;
-    s_Bgm_Update* bgmLayerLimit;
+    s_BgmLayerLimits* bgmLayerLimit;
 
     flags            = 1 << 0;
     var_s2           = Q12(0.1f);
     mapRoomIdx       = g_SavegamePtr->mapRoomIdx_A5;
     bgmLayerLimit = NULL;
 
-    switch (g_GameWork.bgmIdx_5B2)
+    switch (g_GameWork.bgmIdx)
     {
         case 5:
-            g_SysWork.sysFlags_22A0 &= ~SysFlag_3;
+            g_SysWork.bgmStatusFlags &= ~BgmStatusFlag_Duck;
 
-            switch (g_GameWork.gameState_594)
+            switch (g_GameWork.gameState)
             {
                 case GameState_InventoryScreen:
                 case GameState_LoadStatusScreen:
-                    if (g_GameWork.gameState_594 != GameState_InventoryScreen || g_GameWork.gameStateStep_598[1] != 25)
+                    if (g_GameWork.gameState != GameState_InventoryScreen || g_GameWork.gameStateSteps[1] != 25)
                     {
                         flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-                        if (g_GameWork.gameStatePrev_590 != GameState_SaveScreen)
+                        if (g_GameWork.gameStatePrev != GameState_SaveScreen)
                         {
                             var_s2 = Q12(240.0f);
                         }
@@ -243,7 +243,7 @@ void sharedFunc_800D0110_7_s00(void)
                 case 29:
                     if (Savegame_EventFlagGet(EventFlag_555))
                     {
-                        if (g_GameWork.bgmIdx_5B2 == 22)
+                        if (g_GameWork.bgmIdx == 22)
                         {
                             flags = 1 << 2;
                         }
@@ -256,7 +256,7 @@ void sharedFunc_800D0110_7_s00(void)
                     {
                         if (Savegame_EventFlagGet(EventFlag_552))
                         {
-                            if (g_GameWork.bgmIdx_5B2 == 22)
+                            if (g_GameWork.bgmIdx == 22)
                             {
                                 flags = 1 << 3;
                             }
@@ -267,7 +267,7 @@ void sharedFunc_800D0110_7_s00(void)
                         }
                         else
                         {
-                            if (g_GameWork.bgmIdx_5B2 == 22)
+                            if (g_GameWork.bgmIdx == 22)
                             {
                                 flags = (1 << 3) | (1 << 4);
                             }
@@ -327,7 +327,7 @@ void sharedFunc_800D0110_7_s00(void)
                     break;
             }
 
-            if (g_GameWork.bgmIdx_5B2 == 22)
+            if (g_GameWork.bgmIdx == 22)
             {
                 temp_v0_2 = flags & (1 << 1);
                 temp_v1_5 = flags & (1 << 2);
@@ -360,7 +360,7 @@ void sharedFunc_800D0110_7_s00(void)
 
             if (Savegame_EventFlagGet(EventFlag_577))
             {
-                if (g_SysWork.npcs_1A0[0].health_B0 < Q12(500.0f))
+                if (g_SysWork.npcs[0].health < Q12(500.0f))
                 {
                     flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 8);
                 }
@@ -418,7 +418,7 @@ void sharedFunc_800D0110_7_s00(void)
             {
                 if (Savegame_EventFlagGet(EventFlag_591))
                 {
-                    g_SysWork.sysFlags_22A0 |= SysFlag_2;
+                    g_SysWork.bgmStatusFlags |= BgmStatusFlag_RadioActive;
                 }
                 flags = 1 << 8;
             }
@@ -468,13 +468,13 @@ void sharedFunc_800D0110_7_s00(void)
 
             if (Savegame_EventFlagGet(EventFlag_577) || Savegame_EventFlagGet(EventFlag_591))
             {
-                if (g_SysWork.bgmLayerVolumes_2748[1] == Q12(1.0f))
+                if (g_SysWork.bgmLayerVolumes[1] == Q12(1.0f))
                 {
                     if (Savegame_EventFlagGet(EventFlag_577))
                     {
                         var_s2 = Q12(1.0f);
 
-                        if (!(g_SysWork.npcs_1A0[2].flags_3E & 4))
+                        if (!(g_SysWork.npcs[2].flags & 4))
                         {
                             flags = (1 << 1) | (1 << 8);
                         }
@@ -487,9 +487,9 @@ void sharedFunc_800D0110_7_s00(void)
                     {
                         var_s2 = Q12(0.12f);
 
-                        if (g_SysWork.bgmLayerVolumes_2748[2] == Q12(1.0f))
+                        if (g_SysWork.bgmLayerVolumes[2] == Q12(1.0f))
                         {
-                            if (g_SysWork.bgmLayerVolumes_2748[3] == Q12(1.0f))
+                            if (g_SysWork.bgmLayerVolumes[3] == Q12(1.0f))
                             {
                                 flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 8);
                             }
@@ -520,19 +520,19 @@ void sharedFunc_800D0110_7_s00(void)
 
                 flags = (1 << 1) | (1 << 8);
 
-                if (g_SysWork.bgmLayerVolumes_2748[0] != Q12(1.0f))
+                if (g_SysWork.bgmLayerVolumes[0] != Q12(1.0f))
                 {
                     if (!func_80045BC8())
                     {
-                        Bgm_BgmChannelSet();
+                        Bgm_ChannelSet();
                     }
                     else
                     {
                         Sd_BgmLayerVolumeSet(0, 0x7F);
                         Sd_BgmLayerVolumeSet(1, 1);
 
-                        g_SysWork.bgmLayerVolumes_2748[0] = Q12(1.0f);
-                        g_SysWork.bgmLayerVolumes_2748[1] = 32;
+                        g_SysWork.bgmLayerVolumes[0] = Q12(1.0f);
+                        g_SysWork.bgmLayerVolumes[1] = 32;
                     }
                 }
             }

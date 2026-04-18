@@ -1,4 +1,6 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "main/rng.h"
 #include "maps/map0/map0_s02.h"
@@ -21,7 +23,7 @@ void MapEvent_CommonItemTake(void) // 0x800CEBC8
 
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 29:
             pickupType   = CommonPickupItemId_FirstAidKit;
@@ -66,17 +68,17 @@ void MapEvent_EmptyFunction(void) {}
 
 void MapEvent_GasolineTankItemTake(void) // 0x800CEC84
 {
-    Event_ItemTake(InventoryItemId_GasolineTank, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupGasolineTank, 19);
+    Event_ItemTake(InvItemId_GasolineTank, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupGasolineTank, 19);
 }
 
 void MapEvent_KatanaItemTake(void) // 0x800CECB0
 {
-    Event_ItemTake(InventoryItemId_Katana, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupKatana, 20);
+    Event_ItemTake(InvItemId_Katana, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupKatana, 20);
 }
 
 void MapEvent_ChannelingStoneItemTake(void) // 0x800CECDC
 {
-    Event_ItemTake(InventoryItemId_ChannelingStone, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupChannelingStone, 21);
+    Event_ItemTake(InvItemId_ChannelingStone, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S02_PickupChannelingStone, 21);
 }
 
 extern s_WorldObjectModel g_WorldObject_Winr[4][2];

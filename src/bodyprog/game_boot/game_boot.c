@@ -9,11 +9,12 @@
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
 
-#include "main/fsqueue.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
+#include "main/fsqueue.h"
 
 void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 {
@@ -44,12 +45,24 @@ void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 
 void GameBoot_PlayerInit(void) // 0x80035178
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: WorldGfx_MapInit... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
     WorldGfx_MapInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: CharaModel_AllModelsFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
     CharaModel_AllModelsFree();
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: Item_HeldItemModelFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
     Item_HeldItemModelFree();
-    Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords_890); // Load player anim file?
+    Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords); // Load player anim file?
     WorldGfx_PlayerModelProcessLoad();
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: setting field_229C... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
     g_SysWork.field_229C = NO_VALUE;
 
     if ((g_SavegamePtr->itemToggleFlags_AC >> 1) & (1 << 0)) // `& ItemToggleFlag_FlashlightOff`
@@ -63,7 +76,13 @@ void GameBoot_PlayerInit(void) // 0x80035178
 
     g_CharaTypeAnimInfo[0].animBufferSize2_10 = 0x2E630;
     g_CharaTypeAnimInfo[0].animBufferSize1_C  = 0x2E630;
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: Game_PlayerInfoInit...");
+#endif
     Game_PlayerInfoInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_PlayerInit: done");
+#endif
 }
 
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
@@ -76,14 +95,24 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_MapLoad: Map_EffectTexturesLoad");
+#endif
     Map_EffectTexturesLoad(mapIdx);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_MapLoad: GameFs_PlayerMapAnimLoad");
+#endif
     GameFs_PlayerMapAnimLoad(mapIdx);
 
-    if (g_SysWork.processFlags_2298 & (SysWorkProcessFlag_NewGame | SysWorkProcessFlag_LoadSave |
-                                       SysWorkProcessFlag_Continue | SysWorkProcessFlag_BootDemo))
+    // If the player spawns in the map with a weapon equipped (either because it's a demo
+    // or because the player saved the game with a weapon equipped), this and the next function
+    // make it appear and allocate its data.
+    // @note This code has some special functionallity if the player spawns without an equipped weapon.
+    if (g_SysWork.processFlags & (ProcessFlag_NewGame | ProcessFlag_LoadSave |
+                                       ProcessFlag_Continue | ProcessFlag_BootDemo))
     {
-        WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat_38);
+        WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
     }
 
-    Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat_38.weaponAttack_F);
+    Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
 }

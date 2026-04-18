@@ -355,6 +355,21 @@ void volume_calc(PORT* p, MIDI* mp) // 0x800A3F14
     p->l_vol_C = (l_vol * (p->velo_1A & 0x7F)) >> 7;
     p->r_vol_E = (r_vol * (p->velo_1A & 0x7F)) >> 7;
 
+#ifdef SH_PC_PORT
+    {
+        static int volcalc_count = 0;
+        if (volcalc_count < 10) {
+            SH_DBG("[SH_BGM] volume_calc: mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
+                    (u8)vab_h[sd_seq_play_no].mvol_18,
+                    smf_song[p->midi_ch_3 >> 4].midi_master_vol_538,
+                    mp->express_5, mp->mvol_3,
+                    p->pvol_10, p->tvol_11,
+                    p->velo_1A & 0x7F, p->pan_14,
+                    p->l_vol_C, p->r_vol_E);
+            volcalc_count++;
+        }
+    }
+#endif
 
     if (mp->vol_mode_11 >= 0x40u)
     {
@@ -716,6 +731,15 @@ void sound_seq_off(s32 access_num) // 0x800A4A34
     }
 
 
+#ifdef SH_PC_PORT
+    {
+        static int seqoff_count = 0;
+        if (seqoff_count < 4) {
+            SH_DBG("[SH_AUDIO] sound_seq_off(%d): reached MIDI init loop", access_num);
+            seqoff_count++;
+        }
+    }
+#endif
     for (vo = 0; vo < 16; vo++)
     {
         m = &smf_midi[(access_num * 16) + vo];
@@ -905,26 +929,14 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
 {
     u16       tone;
     s32       sp28;
-    u16       sp30;
-    SD_VAB_H* sp38;
-    SD_VAB_H* sp3C;
-    ProgAtr*  sp40;
-    s32       sp44;
+    u16       progNo;
+    SD_VAB_H* vab1;
+    SD_VAB_H* vab0;
+    ProgAtr*  prog;
+    s32       vabId;
     s32       sp48;
-#ifdef SH_PC_PORT
-    {
-        static int key_on_count = 0;
-        if (key_on_count < 10) {
-            MIDI* m_dbg = &smf_midi[chan];
-            s32 vab_dbg = (m_dbg->bank_change_5A > 0x10) ? smf_song[chan >> 4].sd_seq_vab_id_508 : m_dbg->bank_change_5A;
-            SH_DBG("[SH_BGM] key_on: chan=%d note=%d vel=%d vab=%d vh_addr=%p prog=%d",
-                    chan, c1, c2, vab_dbg, (void*)vab_h[vab_dbg].vh_addr_4, m_dbg->prog_no_0);
-            key_on_count++;
-        }
-    }
-#endif
-    MIDI*     m;
-    PORT*     p;
+    MIDI*     midi;
+    PORT*     port;
     VagAtr*   sd_vag_atr;
     s16       vo;
     s16       temp_s0_5;
@@ -934,41 +946,41 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
     u16       note;
     u16*      addr_p;
 
-    m    = &smf_midi[chan];
-    sp30 = m->prog_no_0;
+    midi   = &smf_midi[chan];
+    progNo = midi->prog_no_0;
 
-    if (m->bank_change_5A > 0x10)
+    if (midi->bank_change_5A > 16)
     {
-        sp44 = smf_song[chan >> 4].sd_seq_vab_id_508;
+        vabId = smf_song[chan >> 4].sd_seq_vab_id_508;
     }
     else
     {
-        sp44 = m->bank_change_5A;
+        vabId = midi->bank_change_5A;
     }
 
-    sp3C = vab_h[sp44].vh_addr_4;
-    sp38 = vab_h[sp44].vh_addr_4;
+    vab0 = vab_h[vabId].vh_addr_4;
+    vab1 = vab_h[vabId].vh_addr_4;
     sp28 = 0;
 
-    for (i = 0; i < sp30; i++)
+    for (i = 0; i < progNo; i++)
     {
-        if (sp3C->vab_prog[i].tones != 0)
+        if (vab0->vab_prog[i].tones != 0)
         {
             sp28++;
         }
     }
-    sp40 = &sp38->vab_prog[sp30];
+    prog = &vab1->vab_prog[progNo];
     note = c1;
 
-    for (tone = 0; tone < sp40->tones; tone++)
+    for (tone = 0; tone < prog->tones; tone++)
     {
-        sd_vag_atr = &sp38->vag_atr[(sp28 * 16) + tone];
+        sd_vag_atr = &vab1->vag_atr[(sp28 * 16) + tone];
         sp48       = 0;
 
         if (sd_vag_atr->vag != 0 && c1 >= sd_vag_atr->min && sd_vag_atr->max >= c1)
         {
             vo = NO_VALUE;
-            if (m->mode_12 != 0)
+            if (midi->mode_12 != 0)
             {
                 vo = 0;
                 while (true)
@@ -1012,62 +1024,62 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                     vo = voice_check(chan, c1, true);
                 }
 
-                if (m->porta_28 != 0)
+                if (midi->porta_28 != 0)
                 {
-                    note              = (m->before_note_13 & 0x7F);
-                    m->porta_depth_2A = 0;
+                    note              = (midi->before_note_13 & 0x7F);
+                    midi->porta_depth_2A = 0;
 
-                    if (m->before_note_13 < c1)
+                    if (midi->before_note_13 < c1)
                     {
-                        m->porta_wk_30    = 1;
-                        m->porta_limit_2E = (c1 - m->before_note_13) << 7;
-                        m->porta_add_2C   = (m->porta_limit_2E * 4) / m->porta_28;
+                        midi->porta_wk_30    = 1;
+                        midi->porta_limit_2E = (c1 - midi->before_note_13) << 7;
+                        midi->porta_add_2C   = (midi->porta_limit_2E * 4) / midi->porta_28;
                     }
-                    else if (m->before_note_13 == c1)
+                    else if (midi->before_note_13 == c1)
                     {
-                        m->porta_add_2C = 0;
+                        midi->porta_add_2C = 0;
                         note            = c1;
                     }
                     else
                     {
-                        m->porta_wk_30    = 0;
-                        m->porta_limit_2E = (m->before_note_13 - c1) << 7;
-                        m->porta_add_2C   = (m->porta_limit_2E * 4) / m->porta_28;
+                        midi->porta_wk_30    = 0;
+                        midi->porta_limit_2E = (midi->before_note_13 - c1) << 7;
+                        midi->porta_add_2C   = (midi->porta_limit_2E * 4) / midi->porta_28;
                     }
                 }
                 else
                 {
-                    m->porta_depth_2A = 0;
+                    midi->porta_depth_2A = 0;
                 }
             }
             else
             {
-                if (m->porta_28 != 0)
+                if (midi->porta_28 != 0)
                 {
-                    note              = m->before_note_13 & 0x7F;
-                    m->porta_depth_2A = 0;
+                    note              = midi->before_note_13 & 0x7F;
+                    midi->porta_depth_2A = 0;
 
-                    if (m->before_note_13 < c1)
+                    if (midi->before_note_13 < c1)
                     {
-                        m->porta_wk_30    = 1;
-                        m->porta_limit_2E = (c1 - m->before_note_13) << 7;
-                        m->porta_add_2C   = ((m->porta_limit_2E * 4) / m->porta_28);
+                        midi->porta_wk_30    = 1;
+                        midi->porta_limit_2E = (c1 - midi->before_note_13) << 7;
+                        midi->porta_add_2C   = ((midi->porta_limit_2E * 4) / midi->porta_28);
                     }
-                    else if (m->before_note_13 == c1)
+                    else if (midi->before_note_13 == c1)
                     {
-                        m->porta_add_2C = 0;
+                        midi->porta_add_2C = 0;
                         note            = c1;
                     }
                     else
                     {
-                        m->porta_wk_30    = 0;
-                        m->porta_limit_2E = (m->before_note_13 - c1) << 7;
-                        m->porta_add_2C   = (m->porta_limit_2E * 4) / m->porta_28;
+                        midi->porta_wk_30    = 0;
+                        midi->porta_limit_2E = (midi->before_note_13 - c1) << 7;
+                        midi->porta_add_2C   = (midi->porta_limit_2E * 4) / midi->porta_28;
                     }
                 }
                 else
                 {
-                    m->porta_depth_2A = 0;
+                    midi->porta_depth_2A = 0;
                 }
             }
 
@@ -1080,8 +1092,8 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 }
             }
 
-            p = &smf_port[vo];
-            if (m->mode_12 == 0)
+            port = &smf_port[vo];
+            if (midi->mode_12 == 0)
             {
                 rr_off(vo);
                 do
@@ -1095,7 +1107,9 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 while (stat != 2 && stat != 0);
             }
 
-            for (i = 0, vag_addr = 0, addr_p = (u8*)vab_h[sp44].vh_addr_4 + (sp3C->vab_h.ps * 0x200) + 0x820; i < sd_vag_atr->vag; addr_p++, i++)
+            for (i = 0, vag_addr = 0, addr_p = (u8*)vab_h[vabId].vh_addr_4 + (vab0->vab_h.ps * 512) + 2080;
+                i < sd_vag_atr->vag;
+                addr_p++, i++)
             {
                 vag_addr += *addr_p;
             }
@@ -1105,11 +1119,11 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
             s_attr.volmode.right = 0;
             s_attr.voice         = spu_ch_tbl[vo];
             vag_addr             = vag_addr * 8;
-            s_attr.addr          = vab_h[sp44].vb_start_addr_10 + vag_addr;
+            s_attr.addr          = vab_h[vabId].vb_start_addr_10 + vag_addr;
             s_attr.adsr1         = sd_vag_atr->adsr1;
-            p->adsr1_46          = s_attr.adsr1;
+            port->adsr1_46          = s_attr.adsr1;
             s_attr.adsr2         = sd_vag_atr->adsr2;
-            p->adsr2_48          = s_attr.adsr2;
+            port->adsr2_48          = s_attr.adsr2;
 
             if (!(sd_vag_atr->adsr1 & 0x80))
             {
@@ -1120,101 +1134,122 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 s_attr.a_mode = 5;
             }
 
-            p->a_mode_4A      = s_attr.a_mode;
-            m->before_note_13 = c1;
-            m->velo_4         = c2;
-            p->center_1E      = sd_vag_atr->center;
-            p->shift_1F       = sd_vag_atr->shift;
-            p->bend_min_1D    = sd_vag_atr->pbmin;
-            p->bend_max_1C    = sd_vag_atr->pbmax;
-            p->vc_0           = vo;
-            p->prog_2         = sp30;
-            p->tone_4         = tone;
-            p->note_6         = note & 0x7F;
-            p->note_wk_8      = note & 0x7F;
-            p->midi_ch_3      = chan;
-            p->stat_16        = 1;
-            m->mod_depth_1C   = 0;
-            p->pvol_10        = sp40->mvol;
-            p->ppan_12        = sp40->mpan;
-            p->tvol_11        = sd_vag_atr->vol;
-            p->tpan_13        = sd_vag_atr->pan;
-            p->velo_1A        = c2;
-            p->vibdm_26       = 0;
+            port->a_mode_4A      = s_attr.a_mode;
+            midi->before_note_13 = c1;
+            midi->velo_4         = c2;
+            port->center_1E      = sd_vag_atr->center;
+            port->shift_1F       = sd_vag_atr->shift;
+            port->bend_min_1D    = sd_vag_atr->pbmin;
+            port->bend_max_1C    = sd_vag_atr->pbmax;
+            port->vc_0           = vo;
+            port->prog_2         = progNo;
+            port->tone_4         = tone;
+            port->note_6         = note & 0x7F;
+            port->note_wk_8      = note & 0x7F;
+            port->midi_ch_3      = chan;
+            port->stat_16        = 1;
+            midi->mod_depth_1C   = 0;
+            port->pvol_10        = prog->mvol;
+            port->ppan_12        = prog->mpan;
+            port->tvol_11        = sd_vag_atr->vol;
+            port->tpan_13        = sd_vag_atr->pan;
+            port->velo_1A        = c2;
+            port->vibdm_26       = 0;
 
-            if (m->vibdm_3E != 0)
+            if (midi->vibdm_3E != 0)
             {
-                p->vibc_23    = 0;
-                p->vibhc_22   = 0;
-                p->vibcc_28   = 0;
-                p->vibhs_29   = m->vibhs_39;
-                p->vibcad_2B  = m->vibcad_3B;
-                p->vibad_2C   = m->vibad_40;
-                p->vibdm_26   = m->vibdm_3E;
-                p->vibcs_2A   = m->vibcs_3A;
-                p->vibcadw_20 = m->vibcadw_34;
+                port->vibc_23    = 0;
+                port->vibhc_22   = 0;
+                port->vibcc_28   = 0;
+                port->vibhs_29   = midi->vibhs_39;
+                port->vibcad_2B  = midi->vibcad_3B;
+                port->vibad_2C   = midi->vibad_40;
+                port->vibdm_26   = midi->vibdm_3E;
+                port->vibcs_2A   = midi->vibcs_3A;
+                port->vibcadw_20 = midi->vibcadw_34;
             }
 
-            p->vibd_24     = 0;
-            p->vib_data_2E = 0;
-            p->tredm_36    = 0;
+            port->vibd_24     = 0;
+            port->vib_data_2E = 0;
+            port->tredm_36    = 0;
 
-            if (m->tredm_4A != 0)
+            if (midi->tredm_4A != 0)
             {
-                p->trec_33    = 0;
-                p->trehc_32   = 0;
-                p->trecc_38   = 0;
-                p->trehs_39   = m->trehs_51;
-                p->trecad_3B  = m->trecad_53;
-                p->tread_3C   = m->tread_4C;
-                p->tredm_36   = m->tredm_4A;
-                p->trecs_3A   = m->trecs_52;
-                p->trecadw_30 = m->trecadw_44;
+                port->trec_33    = 0;
+                port->trehc_32   = 0;
+                port->trecc_38   = 0;
+                port->trehs_39   = midi->trehs_51;
+                port->trecad_3B  = midi->trecad_53;
+                port->tread_3C   = midi->tread_4C;
+                port->tredm_36   = midi->tredm_4A;
+                port->trecs_3A   = midi->trecs_52;
+                port->trecadw_30 = midi->trecadw_44;
             }
 
-            p->tred_34     = 0;
-            p->tre_data_3E = 0;
-            p->rdmdm_45    = 0;
+            port->tred_34     = 0;
+            port->tre_data_3E = 0;
+            port->rdmdm_45    = 0;
 
-            if (m->rdms_57 != 0)
+            if (midi->rdms_57 != 0)
             {
-                p->rdmd_40  = m->rdmd_54;
-                p->rdms_43  = m->rdms_57;
-                p->rdmc_44  = m->rdmc_58;
-                p->rdmdm_45 = m->rdmdm_59;
+                port->rdmd_40  = midi->rdmd_54;
+                port->rdms_43  = midi->rdms_57;
+                port->rdmc_44  = midi->rdmc_58;
+                port->rdmdm_45 = midi->rdmdm_59;
             }
 
             volume_calc(&smf_port[vo], &smf_midi[chan]);
 
-            s_attr.volume.left  = (p->l_vol_C * smf_song[chan >> 4].sd_seq_mvoll_50C) >> 7;
-            s_attr.volume.right = (p->r_vol_E * smf_song[chan >> 4].sd_seq_mvolr_50E) >> 7;
+            s_attr.volume.left  = (port->l_vol_C * smf_song[chan >> 4].sd_seq_mvoll_50C) >> 7;
+            s_attr.volume.right = (port->r_vol_E * smf_song[chan >> 4].sd_seq_mvolr_50E) >> 7;
 
-            if (m->wide_flag_21 != 0 || smf_song[chan >> 4].seq_wide_flag_534 != 0)
+            if (midi->wide_flag_21 != 0 || smf_song[chan >> 4].seq_wide_flag_534 != 0)
             {
                 s_attr.volume.right = -s_attr.volume.right;
             }
 
-            p->pedal_1B    = m->pedal_6;
-            p->note_6      = c1 & 0x7F;
-            p->pbend_50    = (u16)m->pbend_7;
-            p->pbend_wk_4E = 0xFFFF;
+            port->pedal_1B    = midi->pedal_6;
+            port->note_6      = c1 & 0x7F;
+            port->pbend_50    = (u16)midi->pbend_7;
+            port->pbend_wk_4E = 0xFFFF;
 
-            if (m->bend_mode_10 < 0x40u)
+            if (midi->bend_mode_10 < 0x40u)
             {
-                temp_s0_5 = p->vib_data_2E + (m->mod_depth_1C + m->porta_depth_2A);
-                temp_s0_5 += (p->note_wk_8 << 7) + pitch_bend_calc(p, m->pbend_7);
+                temp_s0_5 = port->vib_data_2E + (midi->mod_depth_1C + midi->porta_depth_2A);
+                temp_s0_5 += (port->note_wk_8 << 7) + pitch_bend_calc(port, midi->pbend_7);
                 s_attr.pitch = Note2Pitch(temp_s0_5 >> 7, temp_s0_5 & 0x7F, sd_vag_atr->center, sd_vag_atr->shift);
             }
             else
             {
-                m->pbend_7   = 0x40;
+                midi->pbend_7   = 0x40;
                 s_attr.pitch = Note2Pitch(note, 0, sd_vag_atr->center, sd_vag_atr->shift);
             }
 
             set_note_on(vo, c1, chan, s_attr.volume.left, s_attr.volume.right);
 
+#ifdef SH_PC_PORT
+            {
+                static int bgm_keyon_count = 0;
+                if (bgm_keyon_count < 10) {
+                    SH_DBG("[SH_BGM] key_on final: vo=%d sp48=%d vol_l=%d vol_r=%d pitch=%u addr=0x%x vab=%d mvoll=%d mvolr=%d",
+                            vo, sp48, s_attr.volume.left, s_attr.volume.right, s_attr.pitch, s_attr.addr,
+                            vabId, smf_song[chan >> 4].sd_seq_mvoll_50C, smf_song[chan >> 4].sd_seq_mvolr_50E);
+                    bgm_keyon_count++;
+                }
+            }
+#endif
             if (sp48 == 0 && (s_attr.volume.right | s_attr.volume.left) != 0)
             {
+#ifdef SH_PC_PORT
+                {
+                    static int spukey_count = 0;
+                    if (spukey_count < 5) {
+                        SH_DBG("[SH_BGM] SpuSetKeyOnWithAttr: voice=0x%x addr=0x%x pitch=%u vol=%d/%d",
+                                s_attr.voice, s_attr.addr, s_attr.pitch, s_attr.volume.left, s_attr.volume.right);
+                        spukey_count++;
+                    }
+                }
+#endif
                 do
                 {
                     SpuSetKeyOnWithAttr(&s_attr);
@@ -1224,8 +1259,18 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 }
                 while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
             }
+#ifdef SH_PC_PORT
+            else {
+                static int skipped = 0;
+                if (skipped < 5) {
+                    SH_DBG("[SH_BGM] key_on SKIPPED (sp48=%d vol=%d/%d)",
+                            sp48, s_attr.volume.left, s_attr.volume.right);
+                    skipped++;
+                }
+            }
+#endif
 
-            if (m->rev_depth_24 == 0)
+            if (midi->rev_depth_24 == 0)
             {
                 if (sd_vag_atr->mode & (1 << 2))
                 {
@@ -1250,7 +1295,7 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
 #endif
                 }
             }
-            else if (m->rev_depth_24 != 1)
+            else if (midi->rev_depth_24 != 1)
             {
 #ifdef SH_PC_PORT
                 SpuSetReverbVoice(true, spu_ch_tbl[vo]);

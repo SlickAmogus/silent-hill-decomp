@@ -36,15 +36,15 @@ void Map_WorldObjectsInit(void) // 0x800EA340
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        g_SysWork.npcId_2280 = 3;
+        g_SysWork.npcFlagsId = 3;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
     {
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
     else
     {
-        g_SysWork.npcId_2280 = 5;
+        g_SysWork.npcFlagsId = 5;
     }
 }
 
@@ -77,7 +77,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA3F0
         {
             Collision_FlagBitsSet(4);
 
-            if (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-68.0f))
+            if (g_SysWork.playerWork.player.position.vz < Q12(-68.0f))
             {
                 Savegame_EventFlagClear(EventFlag_346);
             }
@@ -132,7 +132,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA3F0
         }
 
         // @hack
-        tmp1 = (g_SysWork.playerWork_4C.player_0.position_18.vx / ((s32)(40.0f * Q12(1.0f))));
+        tmp1 = (g_SysWork.playerWork.player.position.vx / ((s32)(40.0f * Q12(1.0f))));
 
         objRot.vx = D_800ED8B0[i];
 
@@ -151,8 +151,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EA3F0
     }
     else
     {
-        dist0 = Math_Vector2MagCalc(g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(61.0f), g_SysWork.playerWork_4C.player_0.position_18.vz - Q12(27.5f));
-        dist1 = Math_Vector2MagCalc(g_SysWork.playerWork_4C.player_0.position_18.vx - Q12(61.0f), g_SysWork.playerWork_4C.player_0.position_18.vz - Q12(17.5f));
+        dist0 = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(27.5f));
+        dist1 = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(17.5f));
         if (dist1 >= dist0)
         {
             tmp0 = dist0;

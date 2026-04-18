@@ -1,4 +1,7 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/events/radio.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound_system.h"
@@ -25,8 +28,8 @@ void func_800EB6B0(void) // 0x800EB6B0
     s32    var_v1;
     s32    temp_s1;
 
-    posX  = g_SysWork.playerWork_4C.player_0.position_18.vx;
-    posZ  = g_SysWork.playerWork_4C.player_0.position_18.vz;
+    posX  = g_SysWork.playerWork.player.position.vx;
+    posZ  = g_SysWork.playerWork.player.position.vz;
     temp_s1 = D_800EFC80[g_SavegamePtr->mapRoomIdx_A5];
 
     if (g_SavegamePtr->mapRoomIdx_A5 == 10)
@@ -96,7 +99,7 @@ void func_800EB6B0(void) // 0x800EB6B0
     temp_v0 = (Math_Sin(D_800EFC7C / 12) + Q12(2.0f)) / 2;
     var_v1  = Q12_MULT_PRECISE(newPosComp, temp_v0);
 
-    D_800EFC74.field_0[4] = var_v1 / Q12(0.5f);
+    D_800EFC74.limits[4] = var_v1 / Q12(0.5f);
     Bgm_Update(temp_s1, Q12(0.2f), &D_800EFC74);
 }
 
@@ -123,7 +126,7 @@ void MapEvent_CommonItemTake(void) // 0x800EB9A4
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 40:
             pickupType   = CommonPickupItemId_RifleShells;
@@ -161,7 +164,7 @@ void func_800EBA40(void) // 0x800EBA40
 
     Game_RadioSoundStop();
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -201,13 +204,13 @@ void func_800EBA40(void) // 0x800EBA40
             Game_TimerUpdate();
             Gfx_CursorDraw((s16)(FP_FROM(D_800F0354, Q12_SHIFT) + 8), FP_FROM(D_800F0358, Q12_SHIFT) + 8, 8, 8, 0, 64, 32, 32, 128, 192, 0, 12);
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
             {
                 SysWork_StateStepSet(0, 7);
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
             {
                 for (i = 0; i < ARRAY_SIZE(D_800F0158); i++)
                 {
@@ -299,12 +302,12 @@ void func_800EBF70(void) // 0x800EBF70
 
     temp = 0x1D9;
 
-    if (g_SysWork.sysStateStep_C[0] > 2)
+    if (g_SysWork.sysStateSteps[0] > 2)
     {
         Game_RadioSoundStop();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -314,9 +317,9 @@ void func_800EBF70(void) // 0x800EBF70
 
             SysWork_StateStepIncrementAfterFade(0, true, 2, 0, false);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(52.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-57.8f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(107.6f);
+            g_SysWork.playerWork.player.position.vx = Q12(52.0f);
+            g_SysWork.playerWork.player.position.vz = Q12(-57.8f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(107.6f);
 
             camPos.vx = Q12(49.8f);
             camPos.vy = Q12(-1.5f);
@@ -341,23 +344,23 @@ void func_800EBF70(void) // 0x800EBF70
         case 3:
             if (Fs_QueueDoThingWhenEmpty())
             {
-                g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+                g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
                 func_800CD860();
                 SysWork_StateStepIncrement(0);
             }
 
         case 4:
-            g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
             SysWork_StateStepIncrementAfterFade(2, false, 0, 0, false);
             break;
 
         case 5:
             Game_TimerUpdate();
-            g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
             temp_v0 = func_800CD20C();
-            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
                 if (temp != temp_v0)
                 {
@@ -372,7 +375,7 @@ void func_800EBF70(void) // 0x800EBF70
             break;
 
         case 6:
-            g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
             func_800CD20C();
             SysWork_StateStepIncrementAfterFade(2, true, 0, 0, false);
@@ -394,9 +397,9 @@ void func_800EBF70(void) // 0x800EBF70
 
 void func_800EC2D8(void) // 0x800EC2D8
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_KaufmannKey, 1);
+    Player_ItemRemove(InvItemId_KaufmannKey, 1);
     Map_MessageWithSfx(17, Sfx_UseKey, &sfxPos); // "Used the Kaufmann key."
     Savegame_EventFlagSet(EventFlag_M5S01_KaufmannKeyUsed);
 }
@@ -420,7 +423,7 @@ void func_800EC42C(void) // 0x800EC42C
     pitch = tmp1 >> 8;
     D_800F0360 += g_DeltaTime;
 
-    if (g_SysWork.sysStateStep_C[0] >= 10)
+    if (g_SysWork.sysStateSteps[0] >= 10)
     {
         D_800F035E -= Q12_MULT_PRECISE(g_DeltaTime, Q12(0.5f));
         if (D_800F035E < 0)
@@ -430,7 +433,7 @@ void func_800EC42C(void) // 0x800EC42C
 
         Sd_SfxAttributesUpdate(Sfx_Unk1467, 0, ~(D_800F035E >> 4), pitch);
     }
-    else if (g_SysWork.sysStateStep_C[0] > 0)
+    else if (g_SysWork.sysStateSteps[0] > 0)
     {
         D_800F035E += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.25f));
         if (D_800F035E > Q12(0.9961f))
@@ -441,7 +444,7 @@ void func_800EC42C(void) // 0x800EC42C
         Sd_SfxAttributesUpdate(Sfx_Unk1467, 0, ~(D_800F035E >> 4), pitch);
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -504,7 +507,7 @@ void func_800EC42C(void) // 0x800EC42C
             break;
 
         case 8:
-            func_80080B58(&g_SysWork.playerBoneCoords_890[2], &(SVECTOR3){ 0, 0, 0 }, &QVECTOR3(-196.53f, -14.25f, -9.73f));
+            func_80080B58(&g_SysWork.playerBoneCoords[HarryBone_Head], &(SVECTOR3){ 0, 0, 0 }, &QVECTOR3(-196.53f, -14.25f, -9.73f));
             sharedFunc_800CE5D4_1_s03(&D_800F0180, Q12(1.0f), Q12(0.1f), 1);
             SysWork_StateStepIncrementDelayed(Q12(2.5f), false);
             break;
@@ -645,7 +648,7 @@ void func_800EC42C(void) // 0x800EC42C
 
             vcReturnPreAutoCamWork(true);
             Savegame_EventFlagSet(EventFlag_458);
-            func_80086470(3, InventoryItemId_ChannelingStone, 1, false);
+            func_80086470(3, InvItemId_ChannelingStone, 1, false);
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
 
@@ -657,9 +660,9 @@ void func_800EC42C(void) // 0x800EC42C
 
     if (D_800F3E0C >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", D_800F3E0C, (s_DmsHeader*)FS_BUFFER_13);
+        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800F3E0C, (s_DmsHeader*)FS_BUFFER_13);
 
-        g_SysWork.playerWork_4C.player_0.position_18.vx -= Q12(20.0f);
+        g_SysWork.playerWork.player.position.vx -= Q12(20.0f);
 
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800F3DF0, &D_800F3E00, NULL, D_800F3E0C, (s_DmsHeader*)FS_BUFFER_13));
 
@@ -679,15 +682,15 @@ void Map_WorldObjectsInit(void) // 0x800ECB58
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        g_SysWork.npcId_2280 = 3;
+        g_SysWork.npcFlagsId = 3;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
     {
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
     else
     {
-        g_SysWork.npcId_2280 = 5;
+        g_SysWork.npcFlagsId = 5;
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);

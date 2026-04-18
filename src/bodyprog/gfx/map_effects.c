@@ -5,6 +5,7 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/memcard.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -22,10 +23,27 @@ extern s_WorldEnvWork const g_WorldEnvWork;
 
 s16 D_800BCDE8[8];
 
+static s_MapEffectsPresetIdxs D_800A9F80 = { 1, 1  };
+static s_MapEffectsPresetIdxs D_800A9F84 = { 2, 2  };
+static s_MapEffectsPresetIdxs D_800A9F88 = { 6, 3  };
+static s_MapEffectsPresetIdxs D_800A9F8C = { 7, 4  };
+static s_MapEffectsPresetIdxs D_800A9F90 = { 6, 10 };
+static s_MapEffectsPresetIdxs D_800A9F94 = { 6, 5  };
+static s_MapEffectsPresetIdxs D_800A9F98 = { 9, 9  };
+static s_MapEffectsPresetIdxs D_800A9F9C = { 6, 6  };
+static s_MapEffectsPresetIdxs D_800A9FA0 = { 3, 3  };
+static s_MapEffectsPresetIdxs D_800A9FA4 = { 5, 5  };
+
 // ========================================
 // OPTIONS
 // ========================================
 // Possibly the options overlay was at some point part of the engine like `SAVELOAD.BIN` was.
+// Jan 16 Demo (demo where the option overlay is mixed inside engine [bodyprog.bin]) doesn't
+// tells that, this function remains between `GameFs_FlameGfxLoad` and `func_8003E544`.
+// With this in mind there are two possible variables for this function:
+// - It is inside a unique split
+// - It is part of this split
+// 0x80036c48 is the memory address for this function in the Jan 16 Demo.
 
 void Options_BrightnessMenu_LinesDraw(s32 arg0) // 0x8003E5E8
 {
@@ -43,11 +61,11 @@ void Options_BrightnessMenu_LinesDraw(s32 arg0) // 0x8003E5E8
         line = (LINE_G2*)packet;
         setLineG2(line);
 
-        line->x1 = ((g_GameWork.gsScreenWidth_588 - 64) / 20) * i;
+        line->x1 = ((g_GameWork.gsScreenWidth - 64) / 20) * i;
         line->x0 = line->x1;
 
         line->y0 = -16;
-        line->y1 = (g_GameWork.gsScreenHeight_58A / 2) - 45;
+        line->y1 = (g_GameWork.gsScreenHeight / 2) - 45;
 
         color = (arg0 * 8) + 4;
 
@@ -67,19 +85,8 @@ void Options_BrightnessMenu_LinesDraw(s32 arg0) // 0x8003E5E8
 }
 
 // ========================================
-// EFFECTS (FOG AND LIGHTING)
+// EFFECTS (FOG AND LIGHT)
 // ========================================
-
-static s_MapEffectsPresetIdxs D_800A9F80 = { 1, 1  };
-static s_MapEffectsPresetIdxs D_800A9F84 = { 2, 2  };
-static s_MapEffectsPresetIdxs D_800A9F88 = { 6, 3  };
-static s_MapEffectsPresetIdxs D_800A9F8C = { 7, 4  };
-static s_MapEffectsPresetIdxs D_800A9F90 = { 6, 10 };
-static s_MapEffectsPresetIdxs D_800A9F94 = { 6, 5  };
-static s_MapEffectsPresetIdxs D_800A9F98 = { 9, 9  };
-static s_MapEffectsPresetIdxs D_800A9F9C = { 6, 6  };
-static s_MapEffectsPresetIdxs D_800A9FA0 = { 3, 3  };
-static s_MapEffectsPresetIdxs D_800A9FA4 = { 5, 5  };
 
 void GameFs_FlameGfxLoad(void) // 0x8003E710
 {
@@ -130,7 +137,7 @@ void func_8003E740(void) // 0x8003E740
 
     poly = (POLY_FT4*)GsOUT_PACKET_P;
 
-    Vw_CoordToViewSpaceMatrix(&g_SysWork.playerBoneCoords_890[HarryBone_RightHand], &sp18);
+    Vw_CoordToViewSpaceMatrix(&g_SysWork.playerBoneCoords[HarryBone_RightHand], &sp18);
     SetRotMatrix(&sp18);
     SetTransMatrix(&sp18);
 
@@ -151,7 +158,6 @@ void func_8003E740(void) // 0x8003E740
         setSemiTrans(poly, true);
 
         temp_a0 = D_800BCDE8[idx++];
-
         if ((temp_a0 & 0xFFF) >= 3482) // TODO: `> Q12(0.85f)` also matches, but this gets used for `setRGB0` color?
         {
             D_800A9FB0 -= 16 + (temp_a0 & 0xF);
@@ -223,24 +229,24 @@ void func_8003E740(void) // 0x8003E740
 
 void Game_SpotlightLoadScreenAttribsFix(void) // 0x8003EB54
 {
-    g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+    g_SysWork.pointLightIntensity = Q12(1.0f);
 
-    g_SysWork.field_235C = &g_SysWork.playerBoneCoords_890[HarryBone_Root];
-    g_SysWork.field_236C = &g_SysWork.playerBoneCoords_890[HarryBone_Root];
+    g_SysWork.field_235C = &g_SysWork.playerBoneCoords[HarryBone_Root];
+    g_SysWork.field_236C = &g_SysWork.playerBoneCoords[HarryBone_Root];
 
-    Math_Vector3Set(&g_SysWork.pointLightPosition_2360, Q12(0.0f), Q12(-0.2f), Q12(-2.0f));
-    Math_SVectorSet(&g_SysWork.pointLightRot_2370, Q12_ANGLE(10.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+    Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(0.0f), Q12(-0.2f), Q12(-2.0f));
+    Math_SVectorSet(&g_SysWork.pointLightRotation, Q12_ANGLE(10.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
 }
 
 void Game_FlashlightAttributesFix(void) // 0x8003EBA0
 {
-    g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+    g_SysWork.pointLightIntensity = Q12(1.0f);
 
-    g_SysWork.field_235C = &g_SysWork.playerBoneCoords_890[HarryBone_Torso];
-    g_SysWork.field_236C = &g_SysWork.playerBoneCoords_890[HarryBone_Root];
+    g_SysWork.field_235C = &g_SysWork.playerBoneCoords[HarryBone_Torso];
+    g_SysWork.field_236C = &g_SysWork.playerBoneCoords[HarryBone_Root];
 
-    Math_Vector3Set(&g_SysWork.pointLightPosition_2360, Q12(-0.08f), Q12(-0.28f), Q12(0.12f));
-    Math_SVectorSet(&g_SysWork.pointLightRot_2370, Q12_ANGLE(-15.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+    Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(-0.08f), Q12(-0.28f), Q12(0.12f));
+    Math_SVectorSet(&g_SysWork.pointLightRotation, Q12_ANGLE(-15.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
 }
 
 void Gfx_MapEffectsAssign(s_MapOverlayHeader* mapHdr) // 0x8003EBF4
@@ -362,7 +368,8 @@ void Gfx_MapEffectsUpdate(s32 idx0, s32 idx1, e_PrimitiveType primType, void* pr
     Gfx_MapEffectsStepUpdate(&MAP_EFFECTS_INFOS[idx0], &MAP_EFFECTS_INFOS[idx1], primType, primData, arg4, arg5);
 }
 
-void Gfx_MapEffectsStepUpdate(const s_MapEffectsInfo* preset0, const s_MapEffectsInfo* preset1, e_PrimitiveType primType, void* primData, s32 arg4, s32 arg5) // 0x8003EF74
+void Gfx_MapEffectsStepUpdate(const s_MapEffectsInfo* preset0, const s_MapEffectsInfo* preset1,
+                              e_PrimitiveType primType, void* primData, s32 arg4, s32 arg5) // 0x8003EF74
 {
     if (preset0 == preset1)
     {
@@ -429,7 +436,7 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     MATRIX          mat;
     VECTOR          sp48;
     SVECTOR         rot;
-    s32             temp_v0;
+    q19_12          weight;
     u8              flags;
     s32             temp;
     GsCOORDINATE2*  coord;
@@ -452,7 +459,7 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     if (g_SysWork.field_2388.field_84[g_SysWork.field_2388.flashlightIntensity_18 != 0].effectsInfo_0.field_E == 3)
     {
         Vw_CoordToViewSpaceMatrix(g_SysWork.field_235C, &mat);
-        ApplyMatrixLV(&mat, (VECTOR*)&g_SysWork.pointLightPosition_2360, &sp48); // Bug? `g_SysWork.pointLightPosition_2360` is `VECTOR3`.
+        ApplyMatrixLV(&mat, (VECTOR*)&g_SysWork.pointLightPosition, &sp48); // Bug? `g_SysWork.pointLightPosition` is `VECTOR3`.
         ptr->field_84[g_SysWork.field_2388.flashlightIntensity_18 != 0].field_30 = sp48.vz + (mat.t[2] * 16);
     }
 
@@ -463,12 +470,12 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     }
     else
     {
-        temp_v0 = func_8003F6F0(func_8003F654(ptr), ptr->field_8, ptr->field_C);
+        weight = Gfx_ProgressAlphaGet(func_8003F654(ptr), ptr->field_8, ptr->field_C);
 
-        func_8003F838(&ptr->field_1C[0], &ptr->field_EC[0], &ptr->field_84[0], temp_v0);
-        func_8003F838(&ptr->field_1C[1], &ptr->field_EC[1], &ptr->field_84[1], temp_v0);
+        func_8003F838(&ptr->field_1C[0], &ptr->field_EC[0], &ptr->field_84[0], weight);
+        func_8003F838(&ptr->field_1C[1], &ptr->field_EC[1], &ptr->field_84[1], weight);
 
-        if (temp_v0 >= Q12(1.0f))
+        if (weight >= Q12(1.0f))
         {
             ptr->primType_0 = PrimitiveType_None;
         }
@@ -496,10 +503,10 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     ptr->field_10 = func_8003FEC0(&ptr2->effectsInfo_0);
     func_8003FF2C(ptr2);
 
-    temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, func_80080A10(), &g_SysWork), g_SysWork.pointLightIntensity_2378);
+    temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, func_80080A10(), &g_SysWork), g_SysWork.pointLightIntensity);
 
     func_800554C4(temp, ptr2->flashlightLensFlareIntensity_2C, coord, g_SysWork.field_235C, &rot,
-                  g_SysWork.pointLightPosition_2360.vx, g_SysWork.pointLightPosition_2360.vy, g_SysWork.pointLightPosition_2360.vz,
+                  g_SysWork.pointLightPosition.vx, g_SysWork.pointLightPosition.vy, g_SysWork.pointLightPosition.vz,
 #ifdef SH_PC_PORT
                   g_WorldGfxWork.mapInfo_0 ? g_WorldGfxWork.mapInfo_0->waterZones_8 : NULL);
 #else
@@ -550,7 +557,7 @@ q19_12 func_8003F4DC(GsCOORDINATE2** coords, SVECTOR* rot, q19_12 alpha, s32 arg
     {
         default:
         case 1:
-            rot0 = sysWork->pointLightRot_2370;
+            rot0 = sysWork->pointLightRotation;
             break;
 
         case 0:
@@ -618,35 +625,42 @@ u32 func_8003F654(s_SysWork_2388* arg0)
     return 0;
 }
 
-s32 func_8003F6F0(s32 arg0, s32 arg1, s32 arg2) // 0x8003F6F0
+q19_12 Gfx_ProgressAlphaGet(s32 val, s32 min, s32 max) // 0x8003F6F0
 {
+    #define Q12_BITS     32
+    #define Q12_VAL_BITS 31
+    #define Q12_INT_BITS 19
+
     s32 leadingZeros;
     s32 shift;
 
-    if (arg1 < arg2)
+    if (min < max)
     {
-        arg0 = CLAMP(arg0, arg1, arg2);
+        val = CLAMP(val, min, max);
     }
-    else if (arg2 < arg1)
+    else if (max < min)
     {
-        arg0 = CLAMP(arg0, arg2, arg1);
+        val = CLAMP(val, max, min);
     }
     else
     {
         return Q12(1.0f);
     }
 
-    leadingZeros = 32 - Lzc(arg2 - arg1);
+    leadingZeros = Q12_BITS - Lzc(max - min);
     shift        = 0;
 
-    if ((leadingZeros + 12) >= 31)
+    if ((leadingZeros + Q12_SHIFT) >= Q12_VAL_BITS)
     {
-        shift = leadingZeros - 19;
+        shift = leadingZeros - Q12_INT_BITS;
     }
-
     shift = CLAMP(shift, 0, Q12_SHIFT);
 
-    return ((arg0 - arg1) << (Q12_SHIFT - shift)) / ((arg2 - arg1) >> shift);
+    return ((val - min) << (Q12_SHIFT - shift)) / ((max - min) >> shift);
+
+    #undef Q12_BITS
+    #undef Q12_VAL_BITS
+    #undef Q12_INT_BITS
 }
 
 q19_12 Math_WeightedAverageGet(s32 a, s32 b, q19_12 weight) // 0x8003F7E4
@@ -896,7 +910,7 @@ void func_8003FF2C(s_StructUnk3* arg0) // 0x8003FF2C
     s32   temp_v1;
     q23_8 brightness;
 
-    temp_v1    = Q12_MULT(arg0->field_2E, (g_GameWork.config_0.optBrightness_22 * 8) + 4);
+    temp_v1    = Q12_MULT(arg0->field_2E, (g_GameWork.config.optBrightness_22 * 8) + 4);
     brightness = CLAMP(temp_v1, Q8_CLAMPED(0.0f), Q8_CLAMPED(1.0f));
 
     func_80055330(arg0->effectsInfo_0.field_0.s_field_0.field_2, arg0->effectsInfo_0.field_6, arg0->effectsInfo_0.field_0.s_field_0.field_1, arg0->effectsInfo_0.worldTintR_8, arg0->effectsInfo_0.worldTintG_A, arg0->effectsInfo_0.worldTintB_C, brightness);

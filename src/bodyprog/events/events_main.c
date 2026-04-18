@@ -5,6 +5,8 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/events/events_main.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/math/math.h"
 #include "sh_log.h"
@@ -30,43 +32,43 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         }
     }
 
-    // `lastUsedItem_28` is set by `Inventory_ItemUse` when player uses an item that matches one of the item trigger events.
+    // `lastUsedItem` is set by `Inventory_ItemUse` when player uses an item that matches one of the item trigger events.
     // If it's set, find its index in `g_ItemTriggerItemIds` and use that to get the corresponding `s_EventData` from `g_ItemTriggerEvents`.
     // After processing, the field is cleared and item trigger IDs are reset.
     // (Multi-item events likely repopulate the trigger IDs below based on whichever events are still active?)
-    if (g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != InventoryItemId_Unequipped)
+    if (g_SysWork.playerWork.extra.lastUsedItem != InvItemId_Unequipped)
     {
 #ifdef SH_PC_PORT
         /* On PSX the item ID is guaranteed to be in g_ItemTriggerItemIds[] (it
          * was set by Inventory_ItemUse only when a matching trigger existed).
-         * On PC, stale state can leave lastUsedItem_28 set after the trigger
+         * On PC, stale state can leave lastUsedItem set after the trigger
          * slots were cleared, causing an unbounded scan into adjacent memory.
          * The bounds check must be in the loop CONDITION to prevent the OOB
          * read from happening in the first place. */
-        for (i = 0; i < 5 && g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++);
+        for (i = 0; i < 5 && g_SysWork.playerWork.extra.lastUsedItem != g_ItemTriggerItemIds[i]; i++);
         if (i >= 5) {
-            SH_DBG("[EVENT] lastUsedItem_28=%d not in trigger list — clearing", g_SysWork.playerWork_4C.extra_128.lastUsedItem_28);
-            g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 = InventoryItemId_Unequipped;
+            SH_DBG("[EVENT] lastUsedItem=%d not in trigger list -- clearing", g_SysWork.playerWork.extra.lastUsedItem);
+            g_SysWork.playerWork.extra.lastUsedItem = InvItemId_Unequipped;
             Event_ItemTriggersClear();
             return;
         }
 #else
-        for (i = 0; g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 != g_ItemTriggerItemIds[i]; i++);
+        for (i = 0; g_SysWork.playerWork.extra.lastUsedItem != g_ItemTriggerItemIds[i]; i++);
 #endif
 
         g_MapEventData         = g_ItemTriggerEvents[i];
-        g_MapEventLastUsedItem = g_SysWork.playerWork_4C.extra_128.lastUsedItem_28;
-        g_MapEventSysState     = g_MapEventData->sysState_8_0;
-        g_MapEventParam        = g_MapEventData->eventParam_8_5;
+        g_MapEventLastUsedItem = g_SysWork.playerWork.extra.lastUsedItem;
+        g_MapEventSysState     = g_MapEventData->sysState;
+        g_MapEventParam        = g_MapEventData->eventParam;
 
-        g_SysWork.playerWork_4C.extra_128.lastUsedItem_28 = InventoryItemId_Unequipped;
+        g_SysWork.playerWork.extra.lastUsedItem = InvItemId_Unequipped;
         Event_ItemTriggersClear();
         return;
     }
 
     Event_ItemTriggersClear();
 
-    g_MapEventLastUsedItem = InventoryItemId_Unequipped;
+    g_MapEventLastUsedItem = InvItemId_Unequipped;
 
     mapEvent = &g_MapOverlayHeader.mapEvents_24[-1];
 
@@ -78,7 +80,7 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 
         mapEvent++;
 
-        if (mapEvent->triggerType_4_0 == NO_VALUE)
+        if (mapEvent->triggerType == NO_VALUE)
         {
             break;
         }
@@ -86,8 +88,8 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         // `requiredEventFlag`: if set, EventFlag that must be set for event to trigger?
         // `disabledEventFlag`: if set, EventFlag that must not be set for event to trigger?
         // TODO: Can this s32 temp be removed? Trying to set `disabledEventFlag` directly results in `lhu` instead?
-        requiredEventFlag      = mapEvent->requiredEventFlag_0;
-        disabledEventFlag_temp = mapEvent->disabledEventFlag_2;
+        requiredEventFlag      = mapEvent->requiredEventFlag;
+        disabledEventFlag_temp = mapEvent->disabledEventFlag;
         disabledEventFlag      = disabledEventFlag_temp;
 
         if (requiredEventFlag != EventFlag_None && !Savegame_EventFlagGet(requiredEventFlag))
@@ -96,8 +98,8 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         }
 
         if (disabledEventFlag != EventFlag_None && Savegame_EventFlagGet(disabledEventFlag) &&
-            (disabledEventFlag < 867 || mapEvent->activationType_4_4 == TriggerActivationType_Exclusive ||
-             mapEvent->sysState_8_0 == SysState_EventSetFlag))
+            (disabledEventFlag < 867 || mapEvent->activationType == TriggerActivationType_Exclusive ||
+             mapEvent->sysState == SysState_EventSetFlag))
         {
             continue;
         }
@@ -105,26 +107,26 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         // `TriggerType_None` skips any trigger/activation check and always executes.
         // Maybe used for map-load events, and events that should run every frame?
         // Returns before processing other events until flag checks above disable it.
-        if (mapEvent->triggerType_4_0 == TriggerType_None)
+        if (mapEvent->triggerType == TriggerType_None)
         {
             g_MapEventData     = mapEvent;
-            g_MapEventSysState = mapEvent->sysState_8_0;
-            g_MapEventParam    = mapEvent->eventParam_8_5;
+            g_MapEventSysState = mapEvent->sysState;
+            g_MapEventParam    = mapEvent->eventParam;
             return;
         }
 
         // `TriggerActivationType_Button`: Only continue processing event when action button is pressed and
         // `Player_IsBusy` returns `false`.
-        if (mapEvent->activationType_4_4 == TriggerActivationType_Button &&
-            (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.action_6) ||
+        if (mapEvent->activationType == TriggerActivationType_Button &&
+            (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.action_6) ||
             disableButtonEvents || Player_IsBusy()))
         {
             continue;
         }
 
-        mapPoint = &g_MapOverlayHeader.mapPointsOfInterest_1C[mapEvent->pointOfInterestIdx_5];
+        mapPoint = &g_MapOverlayHeader.mapPointsOfInterest_1C[mapEvent->pointOfInterestIdx];
 
-        switch (mapEvent->triggerType_4_0)
+        switch (mapEvent->triggerType)
         {
             case TriggerType_TouchAabb:
                 pointPosX    = mapPoint->positionX_0;
@@ -132,12 +134,12 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
                 pointRadiusX = mapPoint->triggerParam0_4_16 * Q12(0.25f);
                 pointRadiusZ = mapPoint->triggerParam1_4_24 * Q12(0.25f);
 
-                if (ABS(g_SysWork.playerWork_4C.player_0.position_18.vx - pointPosX) > pointRadiusX)
+                if (ABS(g_SysWork.playerWork.player.position.vx - pointPosX) > pointRadiusX)
                 {
                     continue;
                 }
 
-                if (ABS(g_SysWork.playerWork_4C.player_0.position_18.vz - pointPosZ) > pointRadiusZ)
+                if (ABS(g_SysWork.playerWork.player.position.vz - pointPosZ) > pointRadiusZ)
                 {
                     continue;
                 }
@@ -168,7 +170,7 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         // Trigger checks have passed. Check activation type.
 
         // `TriggerActivationType_Exclusive`: Skip processing any other events if this event is active.
-        if (mapEvent->activationType_4_4 == TriggerActivationType_Exclusive && mapEvent == g_MapEventData)
+        if (mapEvent->activationType == TriggerActivationType_Exclusive && mapEvent == g_MapEventData)
         {
             g_MapEventSysState = SysState_Invalid;
             return;
@@ -177,25 +179,25 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         // `TriggerActivationType_Item`: When trigger check has passed (player is in the trigger area).
         // Required item ID for event is stored into `g_ItemTriggerItemIds` and event pointer at `g_ItemTriggerEvents`
         // Once player uses an item in the inventory screen, it compares the ID against the ones stored at `g_ItemTriggerItemIds`.
-        // If used item ID matches one that event has requested, `extra_128.lastUsedItem_28` gets set to the item ID.
-        // At the start of this function, if `extra_128.lastUsedItem_28` is set, it will locate the `s_EventData` for it from `g_ItemTriggerEvents` and run the event.
-        if (mapEvent->activationType_4_4 == TriggerActivationType_Item)
+        // If used item ID matches one that event has requested, `extra.lastUsedItem` gets set to the item ID.
+        // At the start of this function, if `extra.lastUsedItem` is set, it will locate the `s_EventData` for it from `g_ItemTriggerEvents` and run the event.
+        if (mapEvent->activationType == TriggerActivationType_Item)
         {
             for (i = 0; g_ItemTriggerItemIds[i] != NO_VALUE; i++);
 
             g_ItemTriggerEvents[i]  = mapEvent;
-            g_ItemTriggerItemIds[i] = mapEvent->requiredItemId_6;
+            g_ItemTriggerItemIds[i] = mapEvent->requiredItemId;
             continue;
         }
 
         // `TriggerActivationType_Button`: Only allow button activated events when area is lit up?
-        if (mapEvent->activationType_4_4 == TriggerActivationType_Button)
+        if (mapEvent->activationType == TriggerActivationType_Button)
         {
             if ((g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & 2) && !g_SysWork.field_2388.isFlashlightOn_15 &&
                 ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & 1) || (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & 1)))
             {
-                if (mapEvent->sysState_8_0 != SysState_LoadOverlay &&
-                    (mapEvent->sysState_8_0 != SysState_LoadRoom && mapEvent->eventParam_8_5 > 1))
+                if (mapEvent->sysState != SysState_LoadOverlay &&
+                    (mapEvent->sysState != SysState_LoadRoom && mapEvent->eventParam > 1))
                 {
                     continue;
                 }
@@ -206,16 +208,16 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 
         // If this is `EventSetFlag`, handle setting the flag here and skip running it.
         // (Same as `SysState_EventSetFlag_Update`.)
-        if (mapEvent->sysState_8_0 == SysState_EventSetFlag)
+        if (mapEvent->sysState == SysState_EventSetFlag)
         {
-            Savegame_EventFlagSetAlt(mapEvent->disabledEventFlag_2);
+            Savegame_EventFlagSetAlt(mapEvent->disabledEventFlag);
             break;
         }
 
         // Set `g_MapEventSysState` to the SysState needed for the event to be ran on next tick (`SysState_ReadMessage`/`SaveMenu`/`EventCallFunc`/etc.).
         g_MapEventData     = mapEvent;
-        g_MapEventSysState = mapEvent->sysState_8_0;
-        g_MapEventParam    = mapEvent->eventParam_8_5;
+        g_MapEventSysState = mapEvent->sysState;
+        g_MapEventParam    = mapEvent->eventParam;
         return;
     }
 
@@ -236,9 +238,9 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
 
     if (g_TickCount > D_800A9A20)
     {
-        rotY       = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
-        D_800A9A24 = g_SysWork.playerWork_4C.player_0.position_18.vx - (Math_Sin(rotY) >> 3); // `/ 8`.
-        D_800A9A28 = g_SysWork.playerWork_4C.player_0.position_18.vz - (Math_Cos(rotY) >> 3); // `/ 8`.
+        rotY       = g_SysWork.playerWork.player.rotation.vy;
+        D_800A9A24 = g_SysWork.playerWork.player.position.vx - (Math_Sin(rotY) >> 3); // `/ 8`.
+        D_800A9A28 = g_SysWork.playerWork.player.position.vz - (Math_Cos(rotY) >> 3); // `/ 8`.
         D_800A9A20 = g_TickCount;
     }
 
@@ -259,7 +261,7 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
         return false;
     }
 
-    deltaRotY = g_SysWork.playerWork_4C.player_0.rotation_24.vy - ratan2(deltaX, deltaZ);
+    deltaRotY = g_SysWork.playerWork.player.rotation.vy - ratan2(deltaX, deltaZ);
     if (deltaRotY >= Q12_ANGLE(180.0f))
     {
         deltaRotY -= Q12_ANGLE(360.0f);
@@ -291,13 +293,13 @@ bool Event_CollideObbFacingCheck(s_MapPoint2d* mapPoint) // 0x80037A4C
     s32    scaledSinPlayerRotY;
     s32    scaledCosRotY;
 
-    halfSinRotY   = Math_Sin(g_SysWork.playerWork_4C.player_0.rotation_24.vy) >> 1; // `/ 2`.
+    halfSinRotY   = Math_Sin(g_SysWork.playerWork.player.rotation.vy) >> 1; // `/ 2`.
     scaledCosRotY = -Math_Cos(Q12_ANGLE_FROM_Q8(mapPoint->triggerParam0_4_16)) * mapPoint->triggerParam1_4_24;
 
     clampedHalfCosPlayerRotY = halfSinRotY;
 
     temp_a0_2 = scaledCosRotY >> 4; // `/ 16`.
-    deltaX    = mapPoint->positionX_0 - g_SysWork.playerWork_4C.player_0.position_18.vx;
+    deltaX    = mapPoint->positionX_0 - g_SysWork.playerWork.player.position.vx;
     temp_s2   = deltaX - temp_a0_2;
     temp_s4   = deltaX + temp_a0_2;
 
@@ -316,14 +318,14 @@ bool Event_CollideObbFacingCheck(s_MapPoint2d* mapPoint) // 0x80037A4C
     {
         if (MIN(halfSinRotY, 0) <= MAX(temp_s2, temp_s4))
         {
-            halfCosPlayerRotY   = Math_Cos(g_SysWork.playerWork_4C.player_0.rotation_24.vy) >> 1; // `/ 2`.
+            halfCosPlayerRotY   = Math_Cos(g_SysWork.playerWork.player.rotation.vy) >> 1; // `/ 2`.
             scaledSinPlayerRotY = Math_Sin(Q12_ANGLE_FROM_Q8(mapPoint->triggerParam0_4_16)) *
                                   mapPoint->triggerParam1_4_24;
 
             clampedHalfCosPlayerRotY = halfCosPlayerRotY;
 
             temp_a0_2 = scaledSinPlayerRotY >> 4; // `/ 16`.
-            deltaZ    = mapPoint->positionZ_8 - g_SysWork.playerWork_4C.player_0.position_18.vz;
+            deltaZ    = mapPoint->positionZ_8 - g_SysWork.playerWork.player.position.vz;
             temp_v1   = deltaZ - temp_a0_2;
             temp_a2   = deltaZ + temp_a0_2;
 
@@ -368,13 +370,13 @@ bool Event_CollideObbCheck(s_MapPoint2d* mapPoint) // 0x80037C5C
 
     shift8Field_7 = mapPoint->triggerParam1_4_24 << 8;
 
-    deltaX = g_SysWork.playerWork_4C.player_0.position_18.vx - mapPoint->positionX_0;
+    deltaX = g_SysWork.playerWork.player.position.vx - mapPoint->positionX_0;
     if (mapPoint->triggerParam1_4_24 << 9 < ABS(deltaX))
     {
         return false;
     }
 
-    deltaZ = g_SysWork.playerWork_4C.player_0.position_18.vz - mapPoint->positionZ_8;
+    deltaZ = g_SysWork.playerWork.player.position.vz - mapPoint->positionZ_8;
     scale  = 2;
     if ((shift8Field_7 * scale) < ABS(deltaZ))
     {

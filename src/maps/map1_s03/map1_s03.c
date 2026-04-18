@@ -3,6 +3,8 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "bodyprog/item_screens.h"
@@ -20,28 +22,28 @@ void Ai_LockerDeadBody_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOOR
 {
     s_AnimInfo* animInfo;
 
-    if (chara->model_0.controlState_2 == ModelState_Uninitialized)
+    if (chara->model.controlState == ModelState_Uninitialized)
     {
-        chara->model_0.anim_4.alpha_A = Q12(0.0f);
+        chara->model.anim.alpha = Q12(0.0f);
         Character_AnimSet(chara, ANIM_STATUS(LockerDeadBodyAnim_2, true), 0);
-        chara->model_0.controlState_2++;
-        chara->position_18.vy = Q12(0.0f);
+        chara->model.controlState++;
+        chara->position.vy = Q12(0.0f);
     }
 
     if (!Savegame_EventFlagGet(EventFlag_105))
     {
-        chara->model_0.anim_4.flags_2 &= ~AnimFlag_Visible;
+        chara->model.anim.flags &= ~AnimFlag_Visible;
         chara->field_E1_0              = 0;
         return;
     }
 
-    chara->model_0.anim_4.flags_2 |= AnimFlag_Visible;
+    chara->model.anim.flags |= AnimFlag_Visible;
 
     if (!Savegame_EventFlagGet(EventFlag_106))
     {
-        if (chara->model_0.anim_4.status_0 == ANIM_STATUS(LockerDeadBodyAnim_2, true))
+        if (chara->model.anim.status == ANIM_STATUS(LockerDeadBodyAnim_2, true))
         {
-            chara->model_0.anim_4.status_0 = ANIM_STATUS(LockerDeadBodyAnim_1, true);
+            chara->model.anim.status = ANIM_STATUS(LockerDeadBodyAnim_1, true);
         }
 
         chara->field_E1_0 = 0;
@@ -52,10 +54,10 @@ void Ai_LockerDeadBody_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOOR
         chara->field_E1_0 = 3;
     }
 
-    Math_MatrixTransform(&chara->position_18, &chara->rotation_24, coords);
+    Math_MatrixTransform(&chara->position, &chara->rotation, coords);
 
-    animInfo = &LOCKER_DEAD_BODY_ANIM_INFOS[chara->model_0.anim_4.status_0];
-    animInfo->playbackFunc_0(&chara->model_0, anmHdr, coords, animInfo);
+    animInfo = &LOCKER_DEAD_BODY_ANIM_INFOS[chara->model.anim.status];
+    animInfo->playbackFunc(&chara->model, anmHdr, coords, animInfo);
 
     chara->field_C8.field_0   = Q12(-0.3f);
     chara->field_D8.offsetX_4 = Q12(0.06f);
@@ -87,18 +89,18 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 void func_800DA7F4(void) // 0x800DA7F4
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_LibraryReserveKey, 1);
+    Player_ItemRemove(InvItemId_LibraryReserveKey, 1);
     Map_MessageWithSfx(37, Sfx_UseKey, &sfxPos); // "Used the Library reverse key."
     Savegame_EventFlagSet(EventFlag_MapMark_AltSchool2F_LibraryReserveArrows);
 }
 
 void func_800DA8B0(void) // 0x800DA8B0
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_ClassroomKey, 1);
+    Player_ItemRemove(InvItemId_ClassroomKey, 1);
     Map_MessageWithSfx(38, Sfx_UseKey, &sfxPos); // "Used classroom key."
 }
 
@@ -147,7 +149,7 @@ void func_800DA950(void) // 0x800DA950
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 84:
             pickupType   = CommonPickupItemId_ShotgunShells;
@@ -205,7 +207,7 @@ void func_800DA950(void) // 0x800DA950
 
 void func_800DAA28(void) // 0x800DAA28
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -216,13 +218,13 @@ void func_800DAA28(void) // 0x800DAA28
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
-            if (g_MapEventData->pointOfInterestIdx_5 == 19 || g_MapEventData->pointOfInterestIdx_5 == 20)
+            if (g_MapEventData->pointOfInterestIdx == 19 || g_MapEventData->pointOfInterestIdx == 20)
             {
-                if (g_MapEventData->activationType_4_4 == TriggerActivationType_Item)
+                if (g_MapEventData->activationType == TriggerActivationType_Item)
                 {
                     Savegame_EventFlagSet(EventFlag_M1S02_UsedRubberBall);
                     MapMsg_DisplayAndHandleSelection(false, 36, false, false, 0, false); // "Used rubber ball."
@@ -232,7 +234,7 @@ void func_800DAA28(void) // 0x800DAA28
                     MapMsg_DisplayAndHandleSelection(false, 35, false, false, 0, false); // "Nothing special."
                 }
             }
-            else if (g_MapEventData->pointOfInterestIdx_5 == 17 || g_MapEventData->pointOfInterestIdx_5 == 18)
+            else if (g_MapEventData->pointOfInterestIdx == 17 || g_MapEventData->pointOfInterestIdx == 18)
             {
                 if (Savegame_EventFlagGet(EventFlag_M1S02_PickupClassroomKey))
                 {
@@ -247,7 +249,7 @@ void func_800DAA28(void) // 0x800DAA28
             break;
 
         case 4:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -259,12 +261,12 @@ void func_800DAA28(void) // 0x800DAA28
 
 void func_800DABC4(void) // 0x800DABC4
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
 
-            if (g_MapEventData->pointOfInterestIdx_5 == 17 || g_MapEventData->pointOfInterestIdx_5 == 18)
+            if (g_MapEventData->pointOfInterestIdx == 17 || g_MapEventData->pointOfInterestIdx == 18)
             {
                 if (Savegame_EventFlagGet(EventFlag_M1S03_KeyDownTheDrain))
                 {
@@ -276,9 +278,9 @@ void func_800DABC4(void) // 0x800DABC4
                     Savegame_EventFlagSet(EventFlag_112);
                 }
             }
-            else if (g_MapEventData->pointOfInterestIdx_5 == 19 || g_MapEventData->pointOfInterestIdx_5 == 20)
+            else if (g_MapEventData->pointOfInterestIdx == 19 || g_MapEventData->pointOfInterestIdx == 20)
             {
-                if (g_MapEventData->activationType_4_4 == TriggerActivationType_Item || Savegame_EventFlagGet(EventFlag_M1S02_UsedRubberBall))
+                if (g_MapEventData->activationType == TriggerActivationType_Item || Savegame_EventFlagGet(EventFlag_M1S02_UsedRubberBall))
                 {
                     func_800862F8(false, FILE_TIM_BALLHOLE_TIM, false);
                 }
@@ -295,7 +297,7 @@ void func_800DABC4(void) // 0x800DABC4
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -317,9 +319,9 @@ void func_800DABC4(void) // 0x800DABC4
 
         case 7:
             func_800862F8(2, 0, false);
-            if (g_MapEventData->pointOfInterestIdx_5 == 19 || g_MapEventData->pointOfInterestIdx_5 == 20)
+            if (g_MapEventData->pointOfInterestIdx == 19 || g_MapEventData->pointOfInterestIdx == 20)
             {
-                if (g_MapEventData->activationType_4_4 == TriggerActivationType_Item)
+                if (g_MapEventData->activationType == TriggerActivationType_Item)
                 {
                     Savegame_EventFlagSet(EventFlag_M1S02_UsedRubberBall);
                     MapMsg_DisplayAndHandleSelection(false, 36, false, false, 0, false);
@@ -366,7 +368,7 @@ void func_800DABC4(void) // 0x800DABC4
             break;
 
         case 10:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -395,7 +397,7 @@ void func_800DAF18(void) // 0x800DAF18
     s32           var_v0_2;
     s32           var_v1;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -407,10 +409,10 @@ void func_800DAF18(void) // 0x800DAF18
 
             D_800E2101                  = 0;
             g_SysWork.field_28          = 0;
-            g_SysWork.sysStateStep_C[1] = 0;
+            g_SysWork.sysStateSteps[1] = 0;
             g_SysWork.timer_2C          = 0;
-            g_SysWork.sysStateStep_C[2] = 0;
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[2] = 0;
+            g_SysWork.sysStateSteps[0]++;
 
         case 1:
             func_80085DF0();
@@ -515,9 +517,9 @@ void func_800DAF18(void) // 0x800DAF18
             sharedData_800E30C8_1_s02.field_64[sharedData_800E30C8_1_s02.field_78] = 0x4CC;
 
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = -0xB733;
-            g_SysWork.playerWork_4C.player_0.position_18.vz = -0xCF33;
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = 0x400;
+            g_SysWork.playerWork.player.position.vx = -0xB733;
+            g_SysWork.playerWork.player.position.vz = -0xCF33;
+            g_SysWork.playerWork.player.rotation.vy = 0x400;
 
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
@@ -525,10 +527,10 @@ void func_800DAF18(void) // 0x800DAF18
             Camera_LookAtSet(NULL, -0x93D7, -0xC28, -0xBA14, 0, 0, 0, 0, true);
 
             g_SysWork.field_28          = 0;
-            g_SysWork.sysStateStep_C[1] = 0;
+            g_SysWork.sysStateSteps[1] = 0;
             g_SysWork.timer_2C          = 0;
-            g_SysWork.sysStateStep_C[2] = 0;
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[2] = 0;
+            g_SysWork.sysStateSteps[0]++;
 
         case 5:
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
@@ -537,14 +539,14 @@ void func_800DAF18(void) // 0x800DAF18
         case 6:
             D_800E20FE                  = 0;
             g_SysWork.field_28          = 0;
-            g_SysWork.sysStateStep_C[1] = 0;
+            g_SysWork.sysStateSteps[1] = 0;
             g_SysWork.timer_2C          = 0;
-            g_SysWork.sysStateStep_C[2] = 0;
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[2] = 0;
+            g_SysWork.sysStateSteps[0]++;
 
         case 7:
             D_800E20FE++;
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 107);
+            func_80086C58(&g_SysWork.playerWork.player, 107);
             break;
 
         case 8:
@@ -557,7 +559,7 @@ void func_800DAF18(void) // 0x800DAF18
                 func_800CE0CC(2);
             }
 
-            Model_AnimFlagsClear(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
 
             func_8008D438();
             Camera_PositionSet(NULL, D_800E1F88[0].vx, D_800E1F88[0].vy, D_800E1F88[0].vz, 0, 0, 0, 0, true);
@@ -565,10 +567,10 @@ void func_800DAF18(void) // 0x800DAF18
 
             D_800E20FA                  = 0;
             g_SysWork.field_28          = 0;
-            g_SysWork.sysStateStep_C[1] = 0;
+            g_SysWork.sysStateSteps[1] = 0;
             g_SysWork.timer_2C          = 0;
-            g_SysWork.sysStateStep_C[2] = 0;
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[2] = 0;
+            g_SysWork.sysStateSteps[0]++;
 
         case 9:
             D_800E20FA += g_DeltaTime;
@@ -584,10 +586,10 @@ void func_800DAF18(void) // 0x800DAF18
             if (i == 6 || (!Savegame_EventFlagGet(EventFlag_M1S02_UsedRubberBall) && i > 3))
             {
                 g_SysWork.field_28          = 0;
-                g_SysWork.sysStateStep_C[1] = 0;
+                g_SysWork.sysStateSteps[1] = 0;
                 g_SysWork.timer_2C          = 0;
-                g_SysWork.sysStateStep_C[2] = 0;
-                g_SysWork.sysStateStep_C[0]++;
+                g_SysWork.sysStateSteps[2] = 0;
+                g_SysWork.sysStateSteps[0]++;
             }
             else
             {
@@ -624,15 +626,15 @@ void func_800DAF18(void) // 0x800DAF18
                 Camera_LookAtSet(&sp38, 0, 0, 0, 0, 0, 0, 0, true);
 
                 g_SysWork.field_236C               = NULL;
-                g_SysWork.pointLightRot_2370.vx = -ratan2(sp38.vy - sp28.vy,
+                g_SysWork.pointLightRotation.vx = -ratan2(sp38.vy - sp28.vy,
                                                              SquareRoot0(SQUARE((sp38.vx - sp28.vx) >> 6) + SQUARE((sp38.vz - sp28.vz) >> 6)) << 6);
 
-                g_SysWork.pointLightRot_2370.vy = ratan2(sp38.vx - sp28.vx, sp38.vz - sp28.vz);
-                g_SysWork.pointLightRot_2370.vz = 0;
+                g_SysWork.pointLightRotation.vy = ratan2(sp38.vx - sp28.vx, sp38.vz - sp28.vz);
+                g_SysWork.pointLightRotation.vz = 0;
                 g_SysWork.field_235C               = NULL;
-                g_SysWork.pointLightPosition_2360.vx = sp28.vx;
-                g_SysWork.pointLightPosition_2360.vy = MAX(-0x1800, sp28.vy);
-                g_SysWork.pointLightPosition_2360.vz = sp28.vz;
+                g_SysWork.pointLightPosition.vx = sp28.vx;
+                g_SysWork.pointLightPosition.vy = MAX(-0x1800, sp28.vy);
+                g_SysWork.pointLightPosition.vz = sp28.vz;
             }
             break;
 
@@ -640,10 +642,10 @@ void func_800DAF18(void) // 0x800DAF18
             if (Savegame_EventFlagGet(EventFlag_M1S02_UsedRubberBall))
             {
                 g_SysWork.field_28          = 0;
-                g_SysWork.sysStateStep_C[1] = 0;
+                g_SysWork.sysStateSteps[1] = 0;
                 g_SysWork.timer_2C          = 0;
-                g_SysWork.sysStateStep_C[2] = 0;
-                g_SysWork.sysStateStep_C[0]++;
+                g_SysWork.sysStateSteps[2] = 0;
+                g_SysWork.sysStateSteps[0]++;
             }
             else
             {
@@ -652,7 +654,7 @@ void func_800DAF18(void) // 0x800DAF18
             break;
 
         case 11:
-            Model_AnimFlagsSet(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsSet(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
 
             func_8008D448();
             Game_FlashlightAttributesFix();
@@ -668,14 +670,14 @@ void func_800DAF18(void) // 0x800DAF18
             D_800E2101                  = 0;
             D_800E20FE                  = 0;
             g_SysWork.field_28          = 0;
-            g_SysWork.sysStateStep_C[1] = 0;
+            g_SysWork.sysStateSteps[1] = 0;
             g_SysWork.timer_2C          = 0;
-            g_SysWork.sysStateStep_C[2] = 0;
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[2] = 0;
+            g_SysWork.sysStateSteps[0]++;
 
         case 12:
             D_800E20FE++;
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 108);
+            func_80086C58(&g_SysWork.playerWork.player, 108);
             break;
 
         default:
@@ -687,9 +689,9 @@ void func_800DAF18(void) // 0x800DAF18
             break;
     }
 
-    if (g_SysWork.sysStateStep_C[0] == 7 || g_SysWork.sysStateStep_C[0] == 12)
+    if (g_SysWork.sysStateSteps[0] == 7 || g_SysWork.sysStateSteps[0] == 12)
     {
-        Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords_890[10], &sp58);
+        Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords[HarryBone_RightHand], &sp58);
 
         gte_SetRotMatrix(&sp58);
         gte_SetTransMatrix(&sp58);
@@ -700,7 +702,7 @@ void func_800DAF18(void) // 0x800DAF18
         temp_s2 = ratan2((sp78.vy * 0x10) + 0xB33, (sp78.vz * 0x10) + 0xCEB8);
         if (D_800E20FE > 2)
         {
-            var_v0 = FP_FROM(g_SysWork.playerWork_4C.player_0.model_0.anim_4.time_4, Q12_SHIFT) - Player_AnimGetSomething();
+            var_v0 = FP_FROM(g_SysWork.playerWork.player.model.anim.time, Q12_SHIFT) - Player_AnimGetSomething();
         }
         else
         {
@@ -709,8 +711,8 @@ void func_800DAF18(void) // 0x800DAF18
 
         if (var_v0 >= 6 && var_v0 < 0x25)
         {
-            if ((g_SysWork.sysStateStep_C[0] == 7 && func_8005BF38(D_800E20F8 - temp_s2) < 0) ||
-                (g_SysWork.sysStateStep_C[0] == 12 && func_8005BF38(D_800E20F8 - temp_s2) > 0))
+            if ((g_SysWork.sysStateSteps[0] == 7 && Math_AngleNormalizeSigned(D_800E20F8 - temp_s2) < 0) ||
+                (g_SysWork.sysStateSteps[0] == 12 && Math_AngleNormalizeSigned(D_800E20F8 - temp_s2) > 0))
             {
                 if (D_800E2101 == 0)
                 {
@@ -723,12 +725,12 @@ void func_800DAF18(void) // 0x800DAF18
 
                     if (D_800E2101 == 2)
                     {
-                        if (g_SysWork.sysStateStep_C[0] == 0xC)
+                        if (g_SysWork.sysStateSteps[0] == 0xC)
                         {
                             Sd_SfxStop(0x5B9);
                             D_800E2100 = 0;
                         }
-                        else if (g_SysWork.sysStateStep_C[0] == 7)
+                        else if (g_SysWork.sysStateSteps[0] == 7)
                         {
                             SD_Call(0x5B9);
                             D_800E2100 = 1;
@@ -738,11 +740,11 @@ void func_800DAF18(void) // 0x800DAF18
                     D_800E2101++;
                 }
 
-                g_WorldObject5.rotation_28.vx += func_8005BF38(D_800E20F8 - temp_s2);
+                g_WorldObject5.rotation_28.vx += Math_AngleNormalizeSigned(D_800E20F8 - temp_s2);
 
                 if (D_800E2100 != 0)
                 {
-                    D_800E20FC -= func_8005BF38(D_800E20F8 - temp_s2);
+                    D_800E20FC -= Math_AngleNormalizeSigned(D_800E20F8 - temp_s2);
 
                     if (D_800E20FC < 0)
                     {
@@ -769,9 +771,9 @@ void func_800DAF18(void) // 0x800DAF18
         temp_s0_2 = Sound_StereoBalanceGet(&D_800CBAB0) >> 1;
         vwGetViewPosition(&sp48);
 
-        temp_v1_9 = Math_Vector3MagCalc((((g_SysWork.playerWork_4C.player_0.position_18.vx + sp48.vx) >> 1) + 0xA333),
-                                        ((g_SysWork.playerWork_4C.player_0.position_18.vy + sp48.vy) >> 1),
-                                        (((g_SysWork.playerWork_4C.player_0.position_18.vz + sp48.vz) >> 1) + 0xD599));
+        temp_v1_9 = Math_Vector3MagCalc((((g_SysWork.playerWork.player.position.vx + sp48.vx) >> 1) + 0xA333),
+                                        ((g_SysWork.playerWork.player.position.vy + sp48.vy) >> 1),
+                                        (((g_SysWork.playerWork.player.position.vz + sp48.vz) >> 1) + 0xD599));
 
         if (temp_v1_9 < 0x1000)
         {
@@ -803,7 +805,7 @@ void func_800DBEC8(void) // 0x800DBEC8
         EventState_BookAgain     = 6
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -874,7 +876,7 @@ void func_800DC0F8(void) // 0x800DC0F8
         EventState_Flag117False = 8,
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -944,8 +946,8 @@ void func_800DC310(void) // 0x800DC310
         EventState_Skip           = 13
     } e_EventState;
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 11)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 11)
     {
         ScreenFade_ResetTimestep();
         Savegame_EventFlagSet(EventFlag_101);
@@ -954,7 +956,7 @@ void func_800DC310(void) // 0x800DC310
         SysWork_StateStepSet(0, EventState_Skip);
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -967,10 +969,10 @@ void func_800DC310(void) // 0x800DC310
 
         case 2:
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-59.36f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(18.37f);
-            g_SysWork.playerWork_4C.player_0.moveSpeed_38 = Q12(0.0f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-59.36f);
+            g_SysWork.playerWork.player.position.vz = Q12(18.37f);
+            g_SysWork.playerWork.player.moveSpeed = Q12(0.0f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(90.0f);
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(-60.16f), Q12(-2.7f), Q12(19.76f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
@@ -993,12 +995,12 @@ void func_800DC310(void) // 0x800DC310
             SysWork_StateStepIncrement(0);
 
         case 6:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 85);
+            func_80086C58(&g_SysWork.playerWork.player, 85);
             break;
 
         case 7:
             Savegame_EventFlagSet(EventFlag_102);
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 86, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 86, false);
             SysWork_StateStepIncrement(0);
 
         case 8:
@@ -1023,7 +1025,7 @@ void func_800DC310(void) // 0x800DC310
             break;
 
         case EventState_Skip:
-            func_80085EB8(4, &g_SysWork.playerWork_4C.player_0, 0, false);
+            func_80085EB8(4, &g_SysWork.playerWork.player, 0, false);
             Savegame_EventFlagSet(EventFlag_104);
 
             // Warp camera.
@@ -1056,7 +1058,7 @@ void func_800DC780(void) // 0x800DC780
         EventState_Flag106True  = 5
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1070,11 +1072,11 @@ void func_800DC780(void) // 0x800DC780
             Camera_LookAtSet(NULL, Q12(-62.99f), Q12(-2.29f), Q12(21.37f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = ratan2(Q12(-61.4f) - g_SysWork.playerWork_4C.player_0.position_18.vx,
-                                                                Q12(20.8f)  - g_SysWork.playerWork_4C.player_0.position_18.vz);
+            g_SysWork.playerWork.player.rotation.vy = ratan2(Q12(-61.4f) - g_SysWork.playerWork.player.position.vx,
+                                                                Q12(20.8f)  - g_SysWork.playerWork.player.position.vz);
 
             func_8008D438();
-            Model_AnimFlagsClear(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
             SysWork_StateStepIncrement(0);
 
         case 2:
@@ -1097,7 +1099,7 @@ void func_800DC780(void) // 0x800DC780
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             Savegame_EventFlagSet(EventFlag_107);
-            Model_AnimFlagsSet(&g_SysWork.playerWork_4C.player_0.model_0, AnimFlag_Visible);
+            Model_AnimFlagsSet(&g_SysWork.playerWork.player.model, AnimFlag_Visible);
             func_8008D448();
             break;
     }
@@ -1105,11 +1107,11 @@ void func_800DC780(void) // 0x800DC780
 
 void func_800DC9A0(void) // 0x800DC9A0
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
-            func_80086470(0, InventoryItemId_LibraryReserveKey, 0, false);
+            func_80086470(0, InvItemId_LibraryReserveKey, 0, false);
             SysWork_StateStepIncrement(0);
 
         case 1:
@@ -1117,31 +1119,31 @@ void func_800DC9A0(void) // 0x800DC9A0
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
-            func_80086470(1, InventoryItemId_LibraryReserveKey, 0, false);
+            func_80086470(1, InvItemId_LibraryReserveKey, 0, false);
             break;
 
         case 4:
             Savegame_EventFlagSet(EventFlag_M1S03_PickupLibraryReserveKey);
-            if (Gfx_PickupItemAnimate(InventoryItemId_LibraryReserveKey))
+            if (Gfx_PickupItemAnimate(InvItemId_LibraryReserveKey))
             {
                 MapMsg_DisplayAndHandleSelection(true, 44, 5, 6, 0, false);
             }
-            if (g_SysWork.sysStateStep_C[0] == 6)
+            if (g_SysWork.sysStateSteps[0] == 6)
             {
                 Savegame_EventFlagClear(EventFlag_M1S03_PickupLibraryReserveKey);
             }
             break;
 
         case 5:
-            func_80086470(3, InventoryItemId_LibraryReserveKey, 1, false);
+            func_80086470(3, InvItemId_LibraryReserveKey, 1, false);
             SysWork_StateStepIncrement(0);
 
         case 6:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -1153,7 +1155,7 @@ void func_800DC9A0(void) // 0x800DC9A0
 
 void func_800DCB54(void) // 0x800DCB54
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1165,7 +1167,7 @@ void func_800DCB54(void) // 0x800DCB54
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -1201,7 +1203,7 @@ void func_800DCB54(void) // 0x800DCB54
             break;
 
         case 10:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -1227,7 +1229,7 @@ void func_800DCDDC(void) // 0x800DCDDC
     cos0 = Math_Cos(tmp0 >> 4);
     pitch = ((sin0 * 2) + cos0 + Math_Cos(Math_Sin(tmp1 * 2))) >> 9;
 
-    if (g_SysWork.sysStateStep_C[0] >= 10)
+    if (g_SysWork.sysStateSteps[0] >= 10)
     {
         D_800E2018 -= Q12_MULT_PRECISE(g_DeltaTime, Q12(0.5f));
         if (D_800E2018 < 0)
@@ -1237,7 +1239,7 @@ void func_800DCDDC(void) // 0x800DCDDC
 
         Sd_SfxAttributesUpdate(Sfx_Unk1467, 0, ~(D_800E2018 >> 4), pitch);
     }
-    else if (g_SysWork.sysStateStep_C[0] > 0)
+    else if (g_SysWork.sysStateSteps[0] > 0)
     {
         D_800E2018 += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.25f));
         if (D_800E2018 > Q12(0.9961f))
@@ -1247,7 +1249,7 @@ void func_800DCDDC(void) // 0x800DCDDC
 
         Sd_SfxAttributesUpdate(Sfx_Unk1467, 0, ~(D_800E2018 >> 4), pitch);
     }
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -1307,7 +1309,7 @@ void func_800DCDDC(void) // 0x800DCDDC
             break;
 
         case 8:
-            func_80080B58(&g_SysWork.playerBoneCoords_890[2], &(SVECTOR3){ 0, 0, 0 }, &QVECTOR3(-13.91f, -11.5f, 22.11f));
+            func_80080B58(&g_SysWork.playerBoneCoords[HarryBone_Head], &(SVECTOR3){ 0, 0, 0 }, &QVECTOR3(-13.91f, -11.5f, 22.11f));
             sharedFunc_800CE5D4_1_s03(&D_800E200C, Q12(0.5f), Q12(0.05f), 0);
             SysWork_StateStepIncrementDelayed(0x2800, false);
             break;
@@ -1339,7 +1341,7 @@ void func_800DCDDC(void) // 0x800DCDDC
             vcReturnPreAutoCamWork(true);
 
             Savegame_EventFlagSet(EventFlag_456);
-            func_80086470(3, InventoryItemId_ChannelingStone, 1, false);
+            func_80086470(3, InvItemId_ChannelingStone, 1, false);
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
 
@@ -1352,7 +1354,7 @@ void func_800DCDDC(void) // 0x800DCDDC
     D_800E201C += g_DeltaTime;
     if (D_800E617C >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", D_800E617C, (s_DmsHeader*)FS_BUFFER_13);
+        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800E617C, (s_DmsHeader*)FS_BUFFER_13);
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800E6160, &D_800E6170, NULL, D_800E617C, (s_DmsHeader*)FS_BUFFER_13));
         vcUserCamTarget(&D_800E6160, NULL, true);
         vcUserWatchTarget(&D_800E6170, NULL, true);
@@ -1422,11 +1424,11 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
                 WorldGfx_ObjectAdd(&g_WorldObject7.object_0, &g_WorldObject7.position_1C, &g_WorldObject7.rotation_28);
             }
 
-            if ((g_SysWork.playerWork_4C.player_0.position_18.vx < Q12(-57.5f)) && (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(21.6f)))
+            if ((g_SysWork.playerWork.player.position.vx < Q12(-57.5f)) && (g_SysWork.playerWork.player.position.vz < Q12(21.6f)))
             {
                 if (!Savegame_EventFlagGet(EventFlag_100))
                 {
-                    if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-60.0f))
+                    if (g_SysWork.playerWork.player.position.vx > Q12(-60.0f))
                     {
                         if (D_800E62D0 == 2)
                         {
@@ -1434,9 +1436,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
                         }
 
                         // Warp camera.
-                        Camera_PositionSet(NULL, Q12(-61.18f), Q12(-3.0f), g_SysWork.playerWork_4C.player_0.position_18.vz + Q12(0.49f),
+                        Camera_PositionSet(NULL, Q12(-61.18f), Q12(-3.0f), g_SysWork.playerWork.player.position.vz + Q12(0.49f),
                                            Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), D_800E62D0 == 0);
-                        Camera_LookAtSet(NULL, Q12(-58.48f), Q12(-0.31f), g_SysWork.playerWork_4C.player_0.position_18.vz - Q12(0.72f),
+                        Camera_LookAtSet(NULL, Q12(-58.48f), Q12(-0.31f), g_SysWork.playerWork.player.position.vz - Q12(0.72f),
                                          Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), D_800E62D0 == 0);
 
                         D_800E62D0 = 1;
@@ -1450,12 +1452,12 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
                 }
                 else if (Savegame_EventFlagGet(EventFlag_107))
                 {
-                    if (g_SysWork.playerWork_4C.player_0.position_18.vz > Q12(18.6f))
+                    if (g_SysWork.playerWork.player.position.vz > Q12(18.6f))
                     {
                         // Warp camera.
-                        Camera_PositionSet(NULL, Q12(-60.27f), Q12(-0.41f), g_SysWork.playerWork_4C.player_0.position_18.vz - Q12(2.25f),
+                        Camera_PositionSet(NULL, Q12(-60.27f), Q12(-0.41f), g_SysWork.playerWork.player.position.vz - Q12(2.25f),
                                            Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), D_800E62D0 == 0);
-                        Camera_LookAtSet(NULL, Q12(-59.75f), Q12(-1.09f), g_SysWork.playerWork_4C.player_0.position_18.vz + Q12(1.65f),
+                        Camera_LookAtSet(NULL, Q12(-59.75f), Q12(-1.09f), g_SysWork.playerWork.player.position.vz + Q12(1.65f),
                                          Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), D_800E62D0 == 0);
 
                         D_800E62D0 = 1;
@@ -1486,14 +1488,14 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         // Warp camera.
         Camera_PositionSet(NULL, Q12(-60.63f), Q12(-4.14f), Q12(17.42f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
-        if (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(18.5f))
+        if (g_SysWork.playerWork.player.position.vz < Q12(18.5f))
         {
             Camera_LookAtSet(NULL, Q12(-60.0f), Q12(0.0f), Q12(18.5f),
                              Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
         }
         else
         {
-            Camera_LookAtSet(NULL, Q12(-60.0f), Q12(0.0f), g_SysWork.playerWork_4C.player_0.position_18.vz,
+            Camera_LookAtSet(NULL, Q12(-60.0f), Q12(0.0f), g_SysWork.playerWork.player.position.vz,
                              Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
         }
 
@@ -1503,7 +1505,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     if (!Savegame_EventFlagGet(EventFlag_53) &&
         PLAYER_IN_MAP_CHUNK(vx, 1, -3, -1, -3) && PLAYER_IN_MAP_CHUNK(vz, 1, 4, -1, 4))
     {
-        x = g_SysWork.playerWork_4C.player_0.position_18.vx;
+        x = g_SysWork.playerWork.player.position.vx;
         if (x < Q12(-100.0f))
         {
             D_800E638C += g_DeltaTime;
@@ -1637,7 +1639,7 @@ void func_800DE624(void) // 0x800DE624
         func_80088FF4(Chara_GreyChild, 15, 3);
     }
 
-    playerHealth = g_SysWork.playerWork_4C.player_0.health_B0;
+    playerHealth = g_SysWork.playerWork.player.health;
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
         playerHealth -= Q12(50.0f);

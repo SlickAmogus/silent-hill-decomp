@@ -1,5 +1,8 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include "pc_config.h"
+#endif
 
 #include <psyq/gtemac.h>
 #include <psyq/libapi.h>
@@ -94,6 +97,11 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     GsOT*    ot;
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
+#ifdef SH_PC_PORT
+    SH_DBG("[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d",
+            g_WorldEnvWork.field_0, g_WorldEnvWork.field_2,
+            g_WorldEnvWork.field_50, g_WorldEnvWork.screenBrightness_8);
+#endif
 
 #ifdef SH_PC_PORT
     /* Skip lens flare effect on PC */
@@ -117,6 +125,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    SH_DBG("[2D_FX] brightness check");
+#endif
     if (g_WorldEnvWork.screenBrightness_8 > 0)
     {
         poly            = (POLY_G4*)GsOUT_PACKET_P;
@@ -800,22 +811,22 @@ void LmHeader_FixOffsets(s_LmHeader* lmHdr) // 0x800560FC
 {
     s32 i;
 
-    if (lmHdr->isLoaded_2 == true)
+    if (lmHdr->isLoaded == true)
     {
         return;
     }
-    lmHdr->isLoaded_2 = true;
+    lmHdr->isLoaded = true;
 
     // Add memory address of header to pointer fields.
-    lmHdr->materials_4   = (u8*)lmHdr->materials_4   + (uintptr_t)lmHdr;
-    lmHdr->modelHdrs_C   = (u8*)lmHdr->modelHdrs_C   + (uintptr_t)lmHdr;
-    lmHdr->modelOrder_10 = (u8*)lmHdr->modelOrder_10 + (uintptr_t)lmHdr;
+    lmHdr->materials   = (u8*)lmHdr->materials   + (u32)lmHdr;
+    lmHdr->modelHdrs   = (u8*)lmHdr->modelHdrs   + (u32)lmHdr;
+    lmHdr->modelOrder = (u8*)lmHdr->modelOrder + (u32)lmHdr;
 
-    for (i = 0; i < lmHdr->modelCount_8; i++)
+    for (i = 0; i < lmHdr->modelCount; i++)
     {
-        if (lmHdr->magic_0 == LM_HEADER_MAGIC)
+        if (lmHdr->magic == LM_HEADER_MAGIC)
         {
-            ModelHeader_FixOffsets(&lmHdr->modelHdrs_C[i], lmHdr);
+            ModelHeader_FixOffsets(&lmHdr->modelHdrs[i], lmHdr);
         }
     }
 }
@@ -844,9 +855,9 @@ void Lm_TransparentPrimSet(s_LmHeader* lmHdr, bool transparency) // 0x80056244
     s_MeshHeader*  curMeshHdr;
     s_Primitive*   prim;
 
-    modelHdrs = lmHdr->modelHdrs_C;
+    modelHdrs = lmHdr->modelHdrs;
 
-    for (curModelHdr = &modelHdrs[0]; curModelHdr < &modelHdrs[lmHdr->modelCount_8]; curModelHdr++)
+    for (curModelHdr = &modelHdrs[0]; curModelHdr < &modelHdrs[lmHdr->modelCount]; curModelHdr++)
     {
         for (curMeshHdr = &curModelHdr->meshHdrs_C[0]; curMeshHdr < &curModelHdr->meshHdrs_C[curModelHdr->meshCount_8]; curMeshHdr++)
         {
@@ -864,7 +875,7 @@ s32 Lm_MaterialCountGet(bool (*filterFunc)(s_Material* mat), s_LmHeader* lmHdr) 
     s_Material* curMat;
 
     count = 0;
-    for (curMat = lmHdr->materials_4; curMat < (lmHdr->materials_4 + lmHdr->materialCount_3); curMat++)
+    for (curMat = lmHdr->materials; curMat < (lmHdr->materials + lmHdr->materialCount); curMat++)
     {
         if (filterFunc(curMat))
         {
@@ -885,8 +896,8 @@ void func_800563E8(s_LmHeader* lmHdr, s32 arg1, s32 arg2, s32 arg3) // 0x800563E
         arg2 += 15;
     }
 
-    for (i = 0, curMat = &lmHdr->materials_4[0];
-         i < lmHdr->materialCount_3;
+    for (i = 0, curMat = &lmHdr->materials[0];
+         i < lmHdr->materialCount;
          i++, curMat++)
     {
         // TODO: Bitfield stuff? Doesn't seem to match other uses of `field_E`/`field_10` we've seen though.
@@ -933,8 +944,8 @@ bool Lm_MaterialFsImageApply(s_LmHeader* lmHdr, char* fileName, s_FsImageDesc* i
 {
     s_Material* curMat;
 
-    for (curMat = &lmHdr->materials_4[0];
-         curMat < &lmHdr->materials_4[lmHdr->materialCount_3];
+    for (curMat = &lmHdr->materials[0];
+         curMat < &lmHdr->materials[lmHdr->materialCount];
          curMat++)
     {
         if (!COMPARE_FILENAMES(&curMat->name_0, fileName))
@@ -988,8 +999,8 @@ void func_800566B4(s_LmHeader* lmHdr, s_FsImageDesc* images, s8 unused, s32 star
     s_FsImageDesc* curImage;
 
     // Loop could be using `&image[i]`/`&arg0->field_4[i]` instead? Wasn't able to make that match though.
-    for (i = 0, curImage = images, curMat = lmHdr->materials_4;
-         i < lmHdr->materialCount_3;
+    for (i = 0, curImage = images, curMat = lmHdr->materials;
+         i < lmHdr->materialCount;
          i++, curMat++, curImage++)
     {
         Material_TimFileNameGet(filename, curMat);
@@ -1002,7 +1013,7 @@ void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveTextures* activeTexs,
 {
     s_Material* curMat;
 
-    for (curMat = &lmHdr->materials_4[0]; curMat < &lmHdr->materials_4[lmHdr->materialCount_3]; curMat++)
+    for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         if (curMat->field_C == 0 && curMat->texture_8 == NULL &&
             (filterFunc == NULL || filterFunc(curMat)))
@@ -1020,12 +1031,12 @@ bool LmHeader_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
 {
     s_Material* curMat;
 
-    if (!lmHdr->isLoaded_2)
+    if (!lmHdr->isLoaded)
     {
         return false;
     }
 
-    for (curMat = &lmHdr->materials_4[0]; curMat < &lmHdr->materials_4[lmHdr->materialCount_3]; curMat++)
+    for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         if (curMat->field_C != 0)
         {
@@ -1053,7 +1064,7 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
     s32         matFlags;
     s_Material* curMat;
 
-    for (i = 0, curMat = lmHdr->materials_4; i < lmHdr->materialCount_3; i++, curMat++)
+    for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
         matFlags = (curMat->field_E != curMat->field_F) ? MaterialFlag_0 : MaterialFlag_None;
 
@@ -1068,11 +1079,11 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
 
         if (matFlags != 0)
         {
-            for (j = 0; j < lmHdr->modelCount_8; j++)
+            for (j = 0; j < lmHdr->modelCount; j++)
             {
-                if (lmHdr->magic_0 == LM_HEADER_MAGIC)
+                if (lmHdr->magic == LM_HEADER_MAGIC)
                 {
-                    Model_MaterialFlagsApply(&lmHdr->modelHdrs_C[j], i, curMat, matFlags);
+                    Model_MaterialFlagsApply(&lmHdr->modelHdrs[j], i, curMat, matFlags);
                 }
             }
 
@@ -1134,7 +1145,7 @@ void Lm_MaterialRefCountDec(s_LmHeader* lmHdr) // 0x80056BF8
     s_Texture*  tex;
 
     // Run through materials.
-    for (curMat = &lmHdr->materials_4[0]; curMat < &lmHdr->materials_4[lmHdr->materialCount_3]; curMat++)
+    for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         tex = curMat->texture_8;
         if (tex != NULL)
@@ -1152,23 +1163,23 @@ void Lm_MaterialRefCountDec(s_LmHeader* lmHdr) // 0x80056BF8
 
 s32 LmHeader_ModelCountGet(s_LmHeader* lmHdr) // 0x80056C80
 {
-    return lmHdr->modelCount_8;
+    return lmHdr->modelCount;
 }
 
 void Bone_ModelAssign(s_Bone* bone, s_LmHeader* lmHdr, s32 modelHdrIdx)
 {
     s_ModelHeader* modelHdr;
 
-    modelHdr = lmHdr->modelHdrs_C;
+    modelHdr = lmHdr->modelHdrs;
     bone->modelInfo_0.modelIdx_C = modelHdrIdx;
 
-    if (lmHdr->magic_0 == LM_HEADER_MAGIC)
+    if (lmHdr->magic == LM_HEADER_MAGIC)
     {
         bone->modelInfo_0.modelHdr_8 = &modelHdr[modelHdrIdx];
     }
 }
 
-bool Lm_ModelFind(s_WorldObjectModel* arg0, s_LmHeader* lmHdr, s_WorldObjectMetadata* metadata) // 0x80056CB4
+bool Lm_ModelFind(s_WorldObjectModel* model, s_LmHeader* lmHdr, s_WorldObjectMetadata* metadata) // 0x80056CB4
 {
     u_Filename     sp10;
     s32            modelHdrCount;
@@ -1180,17 +1191,17 @@ bool Lm_ModelFind(s_WorldObjectModel* arg0, s_LmHeader* lmHdr, s_WorldObjectMeta
 
     StringCopy(sp10.str, metadata->name_0.str);
 
-    modelHdrCount = lmHdr->modelCount_8;
+    modelHdrCount = lmHdr->modelCount;
 
-    if (lmHdr->magic_0 == LM_HEADER_MAGIC)
+    if (lmHdr->magic == LM_HEADER_MAGIC)
     {
-        for (i = 0, modelHdr = &lmHdr->modelHdrs_C[i]; i < modelHdrCount; i++, modelHdr++)
+        for (i = 0, modelHdr = &lmHdr->modelHdrs[i]; i < modelHdrCount; i++, modelHdr++)
         {
             if (!COMPARE_FILENAMES(&modelHdr->name_0, &sp10))
             {
                 result                       = true;
-                arg0->modelInfo_0.modelIdx_C = i;
-                arg0->modelInfo_0.modelHdr_8 = modelHdr;
+                model->modelInfo_0.modelIdx_C = i;
+                model->modelInfo_0.modelHdr_8 = modelHdr;
             }
         }
     }
@@ -1241,21 +1252,22 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
     }
 
 #ifdef SH_PC_PORT
-    /* PC: Skip the 2D fog overlay quad. PSX uses mask bits (SetPriority)
-     * so the overlay only affects geometry pixels. Without mask bits,
-     * the overlay renders over the background too, brightening the sky
-     * and causing double-fog on world geometry. Per-primitive fog
-     * (dpcs vertex colors + shader fog) handles fog correctly without this. */
+    /* Skip the 2D fog overlay quad on PC. PSX uses GPU mask bits
+     * (SetPriority) so the overlay only affects geometry pixels.
+     * Without mask bits, the overlay renders over the background
+     * too, brightening the sky and double-fogging world geometry.
+     * Per-vertex shader fog (dpcs vertex colors) handles fog
+     * correctly without needing the overlay. */
     return;
 #endif
 
-    var_a3 = MAX(arg0, ~(g_GameWork.gsScreenWidth_588 >> 1));
-    var_v1 = MAX(arg1, ~(g_GameWork.gsScreenHeight_58A >> 1));
+    var_a3 = MAX(arg0, ~(g_GameWork.gsScreenWidth >> 1));
+    var_v1 = MAX(arg1, ~(g_GameWork.gsScreenHeight >> 1));
 
-    var_v1_2 = CLAMP_HIGH(arg2, (g_GameWork.gsScreenWidth_588 >> 1) + 1);
+    var_v1_2 = CLAMP_HIGH(arg2, (g_GameWork.gsScreenWidth >> 1) + 1);
     temp_s6  = var_v1_2;
 
-    var_a3_2 = CLAMP_HIGH(temp_s5, (g_GameWork.gsScreenHeight_58A >> 1) + 1);
+    var_a3_2 = CLAMP_HIGH(temp_s5, (g_GameWork.gsScreenHeight >> 1) + 1);
     temp_s5  = var_a3_2;
 
     temp_a0_2 = 0x79C << (arg7 + 2);
@@ -1322,7 +1334,7 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
     }
 }
 
-void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, MATRIX* mat1, u16 arg5) // 0x80057090
+void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
 {
     s32            temp_a0;
     GsOT_TAG*      otTag;
@@ -1353,7 +1365,7 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
                    "worldEnv_f0=%d worldEnv_f54=%d mat1=%p",
                    modelHdr->field_B_0, modelHdr->field_B_1, temp_a0,
                    modelHdr->meshCount_8,
-                   g_WorldEnvWork.field_0, g_WorldEnvWork.field_54, (void*)mat1);
+                   g_WorldEnvWork.field_0, g_WorldEnvWork.field_54, (void*)viewMat);
             f57090_logCD = 0;
         }
     }
@@ -1361,23 +1373,23 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* mat0, M
 
     if ((temp_a0 & 0xFF) && temp_a0 >= 0 && temp_a0 < 4) // TODO: `& 0xFF` needed for match.
     {
-        func_80059D50(temp_a0, modelInfo, mat0, arg2, otTag);
+        func_80059D50(temp_a0, modelInfo, viewMat, arg2, otTag);
     }
     else
     {
-        if (mat1 != NULL && g_WorldEnvWork.field_0 != 0)
+        if (worldMat != NULL && g_WorldEnvWork.field_0 != 0)
         {
-            func_80057228(mat1, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
+            func_80057228(worldMat, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
         }
 
         if (modelHdr->field_B_0)
         {
             g_WorldEnvWork.field_14C = arg5;
-            func_8005A21C(modelInfo, otTag, arg2, mat0);
+            func_8005A21C(modelInfo, otTag, arg2, viewMat);
         }
         else
         {
-            func_80057344(modelInfo, otTag, arg2, mat0);
+            func_80057344(modelInfo, otTag, arg2, viewMat);
         }
     }
 }
@@ -1937,18 +1949,20 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     }
 
 #ifdef SH_PC_PORT
+    /* Hor+ widescreen: per-polygon visibility bound. PSX uses raw
+     * screenWidth/2 (=160 in 4:3); 16:9 windows need a wider bound
+     * (psxH * winW / (2 * winH)) so polygons in the extension band
+     * don't get silently culled (gives 213 for 1920x1080). Without
+     * this hor+ shows holes in geometry near the screen edges. */
     {
-        // Hor+ widescreen: visible GTE half-width = psxH * winW / (2 * winH).
-        // For 1920x1080 with PSX 240h: 240*1920/(2*1080) = 213.33 vs 4:3's 160.
-        // Polygons with ALL vertices in GTE_SX2 >= oldHalfW but < newHalfW would
-        // otherwise be silently culled even with disable_culling=1.
         const float visibleHalfW = (g_PcConfig.windowHeight > 0)
-            ? ((float)g_GameWork.gsScreenHeight_58A * (float)g_PcConfig.windowWidth / (2.0f * (float)g_PcConfig.windowHeight))
-            : (float)(g_GameWork.gsScreenWidth_588 >> 1);
+            ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+               (2.0f * (float)g_PcConfig.windowHeight))
+            : (float)(g_GameWork.gsScreenWidth >> 1);
         scratchData->field_380.s_0.field_0 = (s32)(visibleHalfW + 0.5f);
     }
 #else
-    scratchData->field_380.s_0.field_0    = g_GameWork.gsScreenWidth_588 >> 1;
+    scratchData->field_380.s_0.field_0    = g_GameWork.gsScreenWidth >> 1;
 #endif
     scratchData->field_380.s_0.field_4    = g_WorldEnvWork.fogIntensity_18;
     scratchData->field_380.s_0.field_8    = g_WorldEnvWork.worldTintColor_28;
@@ -1961,6 +1975,19 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         gte_ldrgb(&scratchData->field_380.s_0.field_8);
         gte_dpcs();
         gte_strgb(&scratchData->field_380.s_0.field_8);
+#ifdef SH_PC_PORT
+        {
+            static int _dpcsLog = 0;
+            if (_dpcsLog < 10) {
+                SH_DBG("[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)",
+                    g_WorldEnvWork.field_20, 0x1000 - g_WorldEnvWork.field_20,
+                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
+                    scratchData->field_380.s_0.field_8.r, scratchData->field_380.s_0.field_8.g,
+                    scratchData->field_380.s_0.field_8.b, scratchData->field_380.s_0.field_8.cd);
+                _dpcsLog++;
+            }
+        }
+#endif
     }
 
 
@@ -2871,7 +2898,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
-    scratchData->field_380.s_0.field_0 = g_GameWork.gsScreenWidth_588 >> 1;
+    scratchData->field_380.s_0.field_0 = g_GameWork.gsScreenWidth >> 1;
 
     for (prim = meshHdr->primitives_4; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
     {

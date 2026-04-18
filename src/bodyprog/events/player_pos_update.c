@@ -5,28 +5,29 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/player_pos_update.h"
 #include "bodyprog/math/math.h"
 
 void Chara_PositionSet(s_MapPoint2d* mapPoint) // 0x800371E8
 {
     q19_12 rotY;
 
-    #define playerChara g_SysWork.playerWork_4C.player_0
+    #define playerChara g_SysWork.playerWork.player
 
     rotY = Q12_ANGLE_FROM_Q8(mapPoint->triggerParam0_4_16);
-    Math_SVectorSet(&playerChara.rotation_24, Q12_ANGLE(0.0f), rotY, Q12_ANGLE(0.0f));
+    Math_SVectorSet(&playerChara.rotation, Q12_ANGLE(0.0f), rotY, Q12_ANGLE(0.0f));
 
-    playerChara.position_18.vy = Q12(0.0f);
-    playerChara.position_18.vx = mapPoint->positionX_0;
-    playerChara.position_18.vz = mapPoint->positionZ_8;
+    playerChara.position.vy = Q12(0.0f);
+    playerChara.position.vx = mapPoint->positionX_0;
+    playerChara.position.vz = mapPoint->positionZ_8;
 
     if (mapPoint->triggerParam1_4_24 >= 2)
     {
-        playerChara.position_18.vx += Q12_MULT_FLOAT_PRECISE(Math_Sin(rotY), 0.4f);
-        playerChara.position_18.vz += Q12_MULT_FLOAT_PRECISE(Math_Cos(rotY), 0.4f);
+        playerChara.position.vx += Q12_MULT_FLOAT_PRECISE(Math_Sin(rotY), 0.4f);
+        playerChara.position.vz += Q12_MULT_FLOAT_PRECISE(Math_Cos(rotY), 0.4f);
     }
 
-    g_SysWork.loadingScreenIdx_2281 = mapPoint->loadingScreenId_4_9;
+    g_SysWork.loadingScreenIdx = mapPoint->loadingScreenId_4_9;
 
     if (mapPoint->mapIdx_4_0 == 24) // TODO: Demagic 24.
     {
@@ -37,7 +38,7 @@ void Chara_PositionSet(s_MapPoint2d* mapPoint) // 0x800371E8
         g_SavegamePtr->paperMapIdx_A9 = mapPoint->mapIdx_4_0;
     }
 
-    g_SysWork.cameraAngleY_237A = rotY;
+    g_SysWork.cameraAngleY = rotY;
 
     func_8007E9C4();
     Savegame_MapRoomIdxUpdate();
@@ -54,16 +55,18 @@ void Game_PlayerHeightUpdate(void) // 0x80037334
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
 
-    Collision_Get(&coll, g_SysWork.playerWork_4C.player_0.position_18.vx, g_SysWork.playerWork_4C.player_0.position_18.vz);
+    Collision_Get(&coll, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
     /* Only apply if collision data is valid (sentinel = Q12(8.0f) means no chunk loaded) */
     if (coll.groundHeight_0 != Q12(8.0f)) {
-        g_SysWork.playerWork_4C.player_0.position_18.vy = coll.groundHeight_0;
-#ifdef SH_PC_PORT
-        /* Also initialize positionY_EC — the floor collision system uses this as
+        g_SysWork.playerWork.player.position.vy = coll.groundHeight_0;
+        /* Also initialize positionY_EC -- the floor collision system uses this as
          * the "previous ground target" on frames where collision data is missing
          * (field_14 == 0). Without this, the first movement tick can wrongly snap
          * Harry to Y=0 if positionY_EC was never set (stays at 0 from bzero). */
-        g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC = coll.groundHeight_0;
-#endif
+        g_SysWork.playerWork.player.properties.player.positionY_EC = coll.groundHeight_0;
     }
+#else
+    g_SysWork.playerWork.player.position.vy = coll.groundHeight_0;
+#endif
 }

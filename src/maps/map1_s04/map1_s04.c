@@ -84,7 +84,7 @@ void func_800CCA2C(void) // 0x800CCA2C
 {
     s32 temp_s0;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -178,7 +178,7 @@ void func_800CCA2C(void) // 0x800CCA2C
             }
 #endif
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4)
             {
                 SysWork_StateStepIncrement(0);
             }
