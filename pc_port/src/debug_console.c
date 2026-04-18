@@ -260,7 +260,7 @@ static void con_execute(const char* cmd)
             fflush(stderr);
 
             g_SavegamePtr->mapOverlayId_A4 = CON_MAP_TABLE[found].overlayId;
-            g_SysWork.processFlags_2298 = SysWorkProcessFlag_OverlayTransition;
+            g_SysWork.processFlags = ProcessFlag_OverlayTransition;
             GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
         } else {
             char line[CON_MAX_LINE];
