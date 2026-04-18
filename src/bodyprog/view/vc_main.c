@@ -1498,17 +1498,6 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
         }
 
         watch_y = Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14) + w_p->chara_bottom_y_120;
-#ifdef SH_PC_PORT
-        {
-            static int _watchLog = 0;
-            if (++_watchLog <= 3600) {
-                SH_DBG("[WATCH] watch_y=%d botY=%d topY=%d grndY=%d camY=%d ofsWhy=%d",
-                       watch_y, w_p->chara_bottom_y_120, w_p->chara_top_y_124,
-                       w_p->chara_grnd_y_12C, w_p->cam_pos_50.vy,
-                       Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14));
-            }
-        }
-#endif
         vcSetWatchTgtXzPos(watch_tgt_pos, &w_p->chara_pos_114, &w_p->cam_pos_50, tgt_chara2watch_cir_dist, tgt_watch_cir_r, w_p->chara_eye_ang_y_144);
         vcSetWatchTgtYParam(watch_tgt_pos, w_p, cam_mv_type, watch_y);
     }

@@ -94,11 +94,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     GsOT*    ot;
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
-#ifdef SH_PC_PORT
-    SH_DBG("[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d",
-            g_WorldEnvWork.field_0, g_WorldEnvWork.field_2,
-            g_WorldEnvWork.field_50, g_WorldEnvWork.screenBrightness_8);
-#endif
 
 #ifdef SH_PC_PORT
     /* Skip lens flare effect on PC */
@@ -122,9 +117,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     }
 #endif
 
-#ifdef SH_PC_PORT
-    SH_DBG("[2D_FX] brightness check");
-#endif
     if (g_WorldEnvWork.screenBrightness_8 > 0)
     {
         poly            = (POLY_G4*)GsOUT_PACKET_P;
@@ -1969,19 +1961,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         gte_ldrgb(&scratchData->field_380.s_0.field_8);
         gte_dpcs();
         gte_strgb(&scratchData->field_380.s_0.field_8);
-#ifdef SH_PC_PORT
-        {
-            static int _dpcsLog = 0;
-            if (_dpcsLog < 10) {
-                SH_DBG("[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)",
-                    g_WorldEnvWork.field_20, 0x1000 - g_WorldEnvWork.field_20,
-                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
-                    scratchData->field_380.s_0.field_8.r, scratchData->field_380.s_0.field_8.g,
-                    scratchData->field_380.s_0.field_8.b, scratchData->field_380.s_0.field_8.cd);
-                _dpcsLog++;
-            }
-        }
-#endif
     }
 
 

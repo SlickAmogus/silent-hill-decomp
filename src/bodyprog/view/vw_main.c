@@ -114,32 +114,9 @@ static inline void Math_MatrixToPosition(VECTOR3* pos, MATRIX* mat)
 
 void vwSetViewInfo(void) // 0x80048D48
 {
-#ifdef SH_PC_PORT
-    {
-        static int view_dbg = 0;
-        if (view_dbg < 5) {
-            SH_DBG("[CAMERA] vwSetViewInfo: vp=(%d,%d,%d) vr=(%d,%d,%d) rz=%d",
-                    vwViewPointInfo.rview.vp.vx, vwViewPointInfo.rview.vp.vy, vwViewPointInfo.rview.vp.vz,
-                    vwViewPointInfo.rview.vr.vx, vwViewPointInfo.rview.vr.vy, vwViewPointInfo.rview.vr.vz,
-                    vwViewPointInfo.rview.rz);
-        }
-        view_dbg++;
-    }
-#endif
     vbSetRefView(&vwViewPointInfo.rview);
     Math_MatrixToPosition(&vwViewPointInfo.worldpos, &vwViewPointInfo.vwcoord.workm);
     vwMatrixToAngleYXZ(&vwViewPointInfo.worldang, &vwViewPointInfo.vwcoord.workm);
-#ifdef SH_PC_PORT
-    {
-        static int view_dbg2 = 0;
-        if (view_dbg2 < 5) {
-            SH_DBG("[CAMERA] vwSetViewInfo post: worldpos=(%d,%d,%d) worldang=(%d,%d,%d)",
-                    vwViewPointInfo.worldpos.vx, vwViewPointInfo.worldpos.vy, vwViewPointInfo.worldpos.vz,
-                    vwViewPointInfo.worldang.vx, vwViewPointInfo.worldang.vy, vwViewPointInfo.worldang.vz);
-        }
-        view_dbg2++;
-    }
-#endif
 }
 
 void Vw_ClampAngleRange(q3_12* angleMin, q3_12* angleMax, q3_12 angleConstraintMin, q3_12 angleConstraintMax) // 0x80048DA8

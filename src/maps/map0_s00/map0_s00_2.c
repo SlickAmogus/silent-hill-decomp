@@ -161,12 +161,6 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
         g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 13)
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
-                g_SysWork.sysStateStep_C[0],
-                g_Controller0->btnsClicked_10,
-                g_GameWorkPtr->config_0.controllerConfig_0.skip_4);
-#endif
         skipCutscene = true;
         SysWork_StateStepReset();
     }
@@ -308,18 +302,9 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
             break;
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[CS] post-switch");
-#endif
     if (g_Timer0 >= Q12(0.0f))
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[CS] DMS t=%d", g_Timer0);
-#endif
         Dms_CharacterGetPosRot(&g_SysWork.playerWork_4C.player_0.position_18, &g_SysWork.playerWork_4C.player_0.rotation_24, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
-#ifdef SH_PC_PORT
-        SH_DBG("[CS] DMS hero OK");
-#endif
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
@@ -620,27 +605,10 @@ void func_800DA5A0(void) // 0x800DA5A0
             break;
 
         case 3:
-#ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: npc0 charaId=%d pos=(%d,%d,%d) stateEC=%d",
-                    g_SysWork.npcs_1A0[0].model_0.charaId_0,
-                    g_SysWork.npcs_1A0[0].position_18.vx,
-                    g_SysWork.npcs_1A0[0].position_18.vy,
-                    g_SysWork.npcs_1A0[0].position_18.vz,
-                    g_SysWork.npcs_1A0[0].properties_E4.dummy.properties_E8[1].val32);
-#endif
             g_SysWork.npcs_1A0[0].properties_E4.player.headingAngle_124 = Q12(1.8f);
 
-#ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: calling func_80086728");
-#endif
             func_80086728(&g_SysWork.npcs_1A0[0], 2, 1, 0);
-#ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: func_80086728 returned");
-#endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
-#ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: done");
-#endif
             break;
 
         case 4:

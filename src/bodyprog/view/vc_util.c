@@ -149,35 +149,12 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                 vcWorkSetFlags(VC_NOFLAG, VC_INHIBIT_FAR_WATCH_F);
             }
 
-#ifdef SH_PC_PORT
-            {
-                static int _camLog = 0;
-                if (++_camLog <= 3600) {
-                    SH_DBG("[CAM] heroPos=(%d,%d,%d) headPos=(%d,%d,%d) grndY=%d topY=%d botY=%d",
-                           hr_p->position_18.vx, hr_p->position_18.vy, hr_p->position_18.vz,
-                           hr_head_pos.vx, hr_head_pos.vy, hr_head_pos.vz,
-                           grnd_y, hero_top_y, hero_bottom_y);
-                }
-            }
-#endif
             vcSetSubjChara(&hr_p->position_18, hero_bottom_y, hero_top_y, grnd_y,
                            &hr_head_pos,
                            hr_p->moveSpeed_38, hr_p->headingAngle_3C, hr_p->rotationSpeed_2C.vy,
                            hr_p->rotation_24.vy, Q12_ANGLE(120.0f), Q12(11.0f));
 
             g_WorldGfxWork.vcCameraInternalInfo_1BDC.mv_smooth = vcExecCamera();
-#ifdef SH_PC_PORT
-            {
-                static int _camLog2 = 0;
-                if (++_camLog2 <= 3600) {
-                    SH_DBG("[CAM] POST camPos=(%d,%d,%d) watchTgt=(%d,%d,%d) ang=(%d,%d,%d) watchAngZ=%d flags=0x%x",
-                           vcWork.cam_pos_50.vx, vcWork.cam_pos_50.vy, vcWork.cam_pos_50.vz,
-                           vcWork.watch_tgt_pos_7C.vx, vcWork.watch_tgt_pos_7C.vy, vcWork.watch_tgt_pos_7C.vz,
-                           vcWork.cam_mat_ang_8E.vx, vcWork.cam_mat_ang_8E.vy, vcWork.cam_mat_ang_8E.vz,
-                           vcWork.watch_tgt_ang_z_8C, vcWork.flags_8);
-                }
-            }
-#endif
             break;
 
         case DebugCameraMode_SetReference:

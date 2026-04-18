@@ -44,30 +44,12 @@ void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 
 void GameBoot_PlayerInit(void) // 0x80035178
 {
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: WorldGfx_MapInit... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     WorldGfx_MapInit();
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: CharaModel_AllModelsFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     CharaModel_AllModelsFree();
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: Item_HeldItemModelFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     Item_HeldItemModelFree();
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: Anim_BoneInit... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords_890); // Load player anim file?
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: WorldGfx_PlayerModelProcessLoad... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     WorldGfx_PlayerModelProcessLoad();
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: setting field_229C... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
-#endif
     g_SysWork.field_229C = NO_VALUE;
 
     if ((g_SavegamePtr->itemToggleFlags_AC >> 1) & (1 << 0)) // `& ItemToggleFlag_FlashlightOff`
@@ -81,13 +63,7 @@ void GameBoot_PlayerInit(void) // 0x80035178
 
     g_CharaTypeAnimInfo[0].animBufferSize2_10 = 0x2E630;
     g_CharaTypeAnimInfo[0].animBufferSize1_C  = 0x2E630;
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: Game_PlayerInfoInit...");
-#endif
     Game_PlayerInfoInit();
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: done");
-#endif
 }
 
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
@@ -100,29 +76,14 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: Map_EffectTexturesLoad");
-#endif
     Map_EffectTexturesLoad(mapIdx);
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: GameFs_PlayerMapAnimLoad");
-#endif
     GameFs_PlayerMapAnimLoad(mapIdx);
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: WorldGfx_PlayerPrevHeldItem check");
-#endif
     if (g_SysWork.processFlags_2298 & (SysWorkProcessFlag_NewGame | SysWorkProcessFlag_LoadSave |
                                        SysWorkProcessFlag_Continue | SysWorkProcessFlag_BootDemo))
     {
         WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat_38);
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: Gfx_PlayerHeldItemAttach weaponAttack=%d", g_SysWork.playerCombat_38.weaponAttack_F);
-#endif
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat_38.weaponAttack_F);
-#ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: done");
-#endif
 }

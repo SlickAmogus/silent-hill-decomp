@@ -44,41 +44,17 @@ void Ai_Stalker_Update(s_SubCharacter* stalker, s_AnmHeader* anmHdr, GsCOORDINAT
     {
         if (g_DeltaTime != Q12(0.0f))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] pre-D3308 ctrl=%d status=%d kf=%d", stalker->model_0.controlState_2, stalker->model_0.anim_4.status_0, stalker->model_0.anim_4.keyframeIdx_8);
-#endif
             sharedFunc_800D3308_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] pre-CtrlUpdate ctrl=%d", stalker->model_0.controlState_2);
-#endif
             Ai_Stalker_ControlUpdate(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-CtrlUpdate ctrl=%d status=%d", stalker->model_0.controlState_2, stalker->model_0.anim_4.status_0);
-#endif
             sharedFunc_800D67FC_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-D67FC");
-#endif
         }
 
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] pre-D6970 status=%d kf=%d time=%d", stalker->model_0.anim_4.status_0, stalker->model_0.anim_4.keyframeIdx_8, stalker->model_0.anim_4.time_4);
-#endif
         sharedFunc_800D6970_0_s00(stalker, anmHdr, coords);
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] post-D6970");
-#endif
         sharedFunc_800D70C4_0_s00(stalker);
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] post-D70C4");
-#endif
 
         if (g_DeltaTime != Q12(0.0f))
         {
             sharedFunc_800D7BE8_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-D7BE8");
-#endif
         }
 
         stalkerProps.flags_E8 &= ~StalkerFlag_WarpRotation;
@@ -2110,13 +2086,7 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     s_AnimInfo*                  animInfo;
     s_sharedFunc_800D6970_0_s00* ptr;
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SHARED] enter status=%d kf=%d time=%d ctrl=%d", stalker->model_0.anim_4.status_0, stalker->model_0.anim_4.keyframeIdx_8, stalker->model_0.anim_4.time_4, stalker->model_0.controlState_2);
-#endif
     WorldGfx_HeldItemAttach(stalker->model_0.charaId_0, 2);
-#ifdef SH_PC_PORT
-    SH_DBG("[SHARED] post-HeldItem");
-#endif
 
     switch (stalker->model_0.anim_4.status_0)
     {
@@ -2202,9 +2172,6 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     }
 
     Math_MatrixTransform(&stalker->position_18, &stalker->rotation_24, coord);
-#ifdef SH_PC_PORT
-    SH_DBG("[SHARED] post-MatTransform status=%d", stalker->model_0.anim_4.status_0);
-#endif
 
     animInfo = &STALKER_ANIM_INFOS[stalker->model_0.anim_4.status_0];
 #ifdef SH_PC_PORT
@@ -2214,9 +2181,6 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     }
 #endif
     animInfo->playbackFunc_0(&stalker->model_0, animHdr, coord, animInfo);
-#ifdef SH_PC_PORT
-    SH_DBG("[SHARED] post-playback status=%d kf=%d time=%d", stalker->model_0.anim_4.status_0, stalker->model_0.anim_4.keyframeIdx_8, stalker->model_0.anim_4.time_4);
-#endif
 
     ptr = PSX_SCRATCH;
 
@@ -2226,16 +2190,10 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     if (ANIM_TIME_RANGE_CHECK(stalker->model_0.anim_4.time_4, 60, 66))
 #endif
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[SHARED] GTE-block enter time=%d coord6=%p", stalker->model_0.anim_4.time_4, (void*)&coord[6]);
-#endif
         // TODO: Use macro?
         *(s32*)&ptr->field_30.vx = 0x21FFFB;
         ptr->field_30.vz         = 0x25;
         Vw_CoordHierarchyMatrixCompute(&coord[6], &ptr->field_0);
-#ifdef SH_PC_PORT
-        SH_DBG("[SHARED] post-CoordHierarchy");
-#endif
 
         gte_SetRotMatrix(&ptr->field_0);
         gte_SetTransMatrix(&ptr->field_0);

@@ -237,17 +237,6 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
         coll->groundHeight_0 = Q8_TO_Q12(func_8006CC44(state.field_4.positionX_18, state.field_4.positionZ_1C, &state));
     }
 
-#ifdef SH_PC_PORT
-    {
-        static int _cgDbg = 0;
-        if (_cgDbg < 20) {
-            SH_DBG("[COLLGET] field_90=%d field_7C=0x%X field_80=%d field_84=%d field_88=%d field_8C=%d groundH=%d",
-                    state.field_90, state.field_7C, state.field_80, state.field_84,
-                    state.field_88, state.field_8C, coll->groundHeight_0);
-        }
-        _cgDbg++;
-    }
-#endif
 
     coll->field_4 = state.field_88;
     coll->field_6 = state.field_8C;

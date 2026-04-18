@@ -135,12 +135,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             chara                          = &g_SysWork.npcs_1A0[npcIdx];
             chara->model_0.anim_4.flags_2 |= AnimFlag_Visible;
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC_SPAWN] slot=%d charaId=%d spawnIdx=%d pos=(%d,%d,%d) rotY=%d",
-                   (int)npcIdx, (int)chara->model_0.charaId_0, (int)i,
-                   (int)chara->position_18.vx, (int)chara->position_18.vy,
-                   (int)chara->position_18.vz, (int)chara->rotation_24.vy);
-#endif
         }
     }
 }
@@ -448,28 +442,11 @@ void Game_NpcUpdate(void) // 0x80038354
                 continue;
             }
 #endif
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] ai-enter charaId=%d status=%d kf=%d",
-                    npc->model_0.charaId_0, npc->model_0.anim_4.status_0,
-                    npc->model_0.anim_4.keyframeIdx_8);
-#endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model_0.charaId_0](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] ai-done charaId=%d status=%d", npc->model_0.charaId_0, npc->model_0.anim_4.status_0);
-#endif
 
             func_8003BE28();
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-BE28 charaId=%d", npc->model_0.charaId_0);
-#endif
             func_80037E78(npc);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-7E78 charaId=%d", npc->model_0.charaId_0);
-#endif
             func_8008A3AC(npc);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-A3AC charaId=%d", npc->model_0.charaId_0);
-#endif
 
             if (npc->model_0.anim_4.flags_2 & AnimFlag_Visible)
             {

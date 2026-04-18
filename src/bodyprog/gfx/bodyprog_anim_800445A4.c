@@ -744,18 +744,6 @@ void func_800452EC(s_Skeleton* skel) // 0x800452EC
 
         curBone->bone_0.field_10 = var_v0;
 
-#ifdef SH_PC_PORT
-        {
-            static int _logCntBone = 0;
-            if (_logCntBone < 30) {
-                SH_DBG("[SKEL] coord=%d name=%c%c mdlIdx=%d mesh=%d fB0=%d",
-                    var_v0, modelHdr->name_0.str[0], modelHdr->name_0.str[1],
-                    curBone->bone_0.modelInfo_0.modelIdx_C,
-                    modelHdr->meshCount_8, modelHdr->field_B_0);
-                _logCntBone++;
-            }
-        }
-#endif
 
         curBone = curBone->next_14;
     }
@@ -936,13 +924,6 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q
         {
             Vw_CoordToWorldAndViewMatrices(&coord[(u8)curBone->bone_0.field_10], &mat1, &mat0);
 
-#ifdef SH_PC_PORT
-            if (g_BoneLogFrames < 2) {
-                SH_DBG("  mat0 t=(%d,%d,%d) m00=%d m11=%d m22=%d",
-                    mat0.t[0], mat0.t[1], mat0.t[2],
-                    mat0.m[0][0], mat0.m[1][1], mat0.m[2][2]);
-            }
-#endif
 
             if (curBone->bone_0.modelInfo_0.field_0 & (1 << 0))
             {

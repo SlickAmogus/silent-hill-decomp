@@ -253,13 +253,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 #endif
 
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-PlayerUpdate disableCtrl=%d", (int)g_Player_DisableControl);
-#endif
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] post-PlayerUpdate");
-#endif
 
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
@@ -327,29 +321,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 
         Demo_DemoRandSeedRestore();
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-NpcRoomInitSpawn");
-#endif
         Game_NpcRoomInitSpawn(true);
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-NpcUpdate");
-#endif
         Game_NpcUpdate();
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-5E89C");
-#endif
         func_8005E89C();
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-IpdCloseRange");
-#endif
         Ipd_CloseRangeChunksInit();
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] pre-InGameDraw");
-#endif
         Gfx_InGameDraw(1);
-#ifdef SH_PC_PORT
-        SH_DBG("[FRAME] post-InGameDraw");
-#endif
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT
     ingame_done:
@@ -809,17 +785,6 @@ void SysState_LoadArea_Update(void) // 0x80039C40
 
     D_800BCDB0 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam_8_5];
 
-#ifdef SH_PC_PORT
-    SH_DBG("[DOOR] SysState_LoadArea: eventParam_8_5=%d pointOfInterestIdx_5=%d sysState=%d",
-           g_MapEventData->eventParam_8_5, g_MapEventData->pointOfInterestIdx_5, g_SysWork.sysState_8);
-    SH_DBG("[DOOR]   D_800BCDB0: posX=%d posZ=%d triggerParam0=%d triggerParam1=%d",
-           D_800BCDB0.positionX_0, D_800BCDB0.positionZ_8,
-           D_800BCDB0.triggerParam0_4_16, D_800BCDB0.triggerParam1_4_24);
-    SH_DBG("[DOOR]   mapPointsOfInterest=%p playerPos=(%d,%d)",
-           (void*)g_MapOverlayHeader.mapPointsOfInterest_1C,
-           g_SysWork.playerWork_4C.player_0.position_18.vx,
-           g_SysWork.playerWork_4C.player_0.position_18.vz);
-#endif
 
     if (D_800BCDB0.triggerParam1_4_24 == 1)
     {
@@ -892,12 +857,6 @@ void AreaLoad_UpdatePlayerPosition(void) // 0x80039F30
     s_PC_D_800BCDB0_Saved = 0;
 #endif
     Chara_PositionSet(&D_800BCDB0);
-#ifdef SH_PC_PORT
-    SH_DBG("[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(%d,%d,%d)",
-           g_SysWork.playerWork_4C.player_0.position_18.vx,
-           g_SysWork.playerWork_4C.player_0.position_18.vy,
-           g_SysWork.playerWork_4C.player_0.position_18.vz);
-#endif
 }
 
 void AreaLoad_TransitionSound(void) // 0x80039F54

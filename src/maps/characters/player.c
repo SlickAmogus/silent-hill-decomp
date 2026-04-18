@@ -411,19 +411,6 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
 
     g_Player_FlexRotationY = Q12_ANGLE(0.0f);
 
-#ifdef SH_PC_PORT
-    {
-        static int _wpDbg = 0;
-        if (_wpDbg < 300) {
-            SH_DBG("[WP] D_800C4588=%d state=%d pos=(%d,%d) target=(%d,%d) moveSpd=%d heading=%d",
-                    D_800C4588, playerExtraState,
-                    playerChara->position_18.vx, playerChara->position_18.vz,
-                    localVec->vx, localVec->vz,
-                    playerChara->moveSpeed_38, playerChara->headingAngle_3C);
-            _wpDbg++;
-        }
-    }
-#endif
     switch (D_800C4588)
     {
         case 0:
