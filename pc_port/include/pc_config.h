@@ -11,7 +11,6 @@ typedef struct {
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
-    int enableDebugLog;  /* 1 = SH_DBG fires (writes to SilentHill.log); 0 = no-op (default) */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

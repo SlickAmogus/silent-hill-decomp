@@ -6,7 +6,7 @@
  * map (MAP0_S01, MAP4_S01, MAP6_S01, MAP7_S03) lives in non-decomp'd
  * .s files that the PC port doesn't ingest.  Without a real definition
  * the previous stub (`u8 CYBIL_ANIM_INFOS[256] = {0}`) left every
- * playbackFunc == NULL, so the first call from Ai_Cybil_AnimUpdate
+ * playbackFunc_0 == NULL, so the first call from Ai_Cybil_AnimUpdate
  * crashed.
  *
  * For map0_s01 we pick the MAP6_S01 entries for the CybilAnim_16/17

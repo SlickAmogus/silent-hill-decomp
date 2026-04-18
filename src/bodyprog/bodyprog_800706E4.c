@@ -2373,6 +2373,20 @@ void Player_LogicUpdate(s_SubCharacter* chara, s_PlayerExtra* extra, GsCOORDINAT
 
         case PlayerState_Death:
             chara->attackReceived = NO_VALUE;
+#ifdef SH_PC_PORT
+            /* On PC, controlState (ctrl) and stateStep carry over from the
+             * previous animation state.  func_8007FB94 returns immediately if
+             * ctrl != 0, so the death animation is never initialized.
+             * Detect first-entry by stateStep != 2 (2 is set by the kf-reset
+             * guard below after the animation is properly initialized), then
+             * force-reset ctrl and both stateStep so func_8007FB94 runs. */
+            if (chara->model.controlState != 0 && chara->model.stateStep != 2) {
+                chara->model.controlState = 0;
+                chara->model.stateStep    = 0;
+                extra->model.controlState = 0;
+                extra->model.stateStep    = 0;
+            }
+#endif
             func_8007FB94(chara, extra, ANIM_STATUS(101, false));
 #ifdef SH_PC_PORT
             SH_DBG("[DEATH] after FB94: kf=%d kf6=%d ctrl=%d step=%d active=%d",

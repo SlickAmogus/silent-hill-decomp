@@ -56,10 +56,6 @@ public partial class Form1 : Form
         introYes.Checked = config.Get("skip_intros", "0") == "1";
         introNo.Checked = !introYes.Checked;
 
-        // logging
-        loggingYes.Checked = config.Get("enable_debug_log", "0") == "1";
-        loggingNo.Checked = !loggingYes.Checked;
-
         comboFps.SelectedItem = config.Get("fps_cap", "30");
         string fps = config.Get("fps_cap", "30");
         if (comboFps.Items.Contains(fps))
@@ -125,9 +121,6 @@ public partial class Form1 : Form
 
         // skip intros
         config.Set("skip_intros", introYes.Checked ? "1" : "0");
-
-        // logging (gates SH_DBG output to SilentHill.log)
-        config.Set("enable_debug_log", loggingYes.Checked ? "1" : "0");
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());
