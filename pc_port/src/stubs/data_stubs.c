@@ -1305,8 +1305,3 @@ e_MapIdx g_ParticleMapIdx1 = 0;
 const struct { int vx, vy, vz; } D_800CB35C = {
     (int)0x00015199, (int)0x00000000, (int)0xFFFEC000
 };
-
-/* PC port chara anim info init: original PC port did runtime FS_BUFFER_0
- * patching here.  Current g_CharaTypeAnimInfo[] static-inits with FS_BUFFER_0
- * (constant on PC since g_PsxRam[] address is const), so this is now a no-op. */
-void PcPort_InitCharaAnimInfo(void) {}

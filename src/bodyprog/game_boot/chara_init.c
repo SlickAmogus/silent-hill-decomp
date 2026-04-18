@@ -62,26 +62,21 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
     func_80040004(&g_MapOverlayHeader);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after func_80040004");
 #endif
     Gfx_MapEffectsSet(0);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after MapEffectsSet");
 #endif
     WorldGfx_CharaModelProcessAllLoads();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after CharaModelProcessAllLoads");
 #endif
     Game_FlashlightAttributesFix();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after FlashlightAttribsFix");
     SH_DBG("[SH]   &g_WorldGfxWork=%p &registeredCharaModels[1]=%p offset=%zu",
             (void*)&g_WorldGfxWork, (void*)&g_WorldGfxWork.registeredCharaModels_18[1],
             (size_t)((char*)&g_WorldGfxWork.registeredCharaModels_18[1] - (char*)&g_WorldGfxWork));
 #endif
     g_MapOverlayHeader.particlesUpdate_168(0, mapOvlId, NO_VALUE);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after particlesUpdate");
 #endif
 
     GameBoot_NpcClear();
@@ -90,34 +85,24 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 
     func_8005E650(mapOvlId);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after func_8005E650");
 #endif
     func_80037124();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after func_80037124");
 #endif
     func_8007E8C0();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after func_8007E8C0");
 #endif
     Game_NpcRoomInitSpawn(false);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after NpcRoomInitSpawn");
 #endif
     Game_PlayerHeightUpdate();
     Fs_CharaAnimBoneInfoUpdate();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after AnimBoneInfoUpdate");
 #endif
     GameFs_WeaponInfoUpdate();
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after WeaponInfoUpdate");
 #endif
     GameFs_Tim00TIMLoad();
     Fs_QueueWaitForEmpty();
     GameFs_MapItemsModelLoad(mapOvlId);
-#ifdef SH_PC_PORT
-    HARRY_CHECK("COMPLETE");
-#undef HARRY_CHECK
-#endif
 }

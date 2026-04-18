@@ -14,7 +14,6 @@ s_PcConfig g_PcConfig = {
     .refreshRate    = 0,
     .fpsCap         = 30,
     .skipIntros     = 0,
-    .enableDebugLog = 0,
     .mapName        = "map0_s00"
 };
 
@@ -109,10 +108,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "skip_intros") == 0)
         {
             g_PcConfig.skipIntros = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "enable_debug_log") == 0)
-        {
-            g_PcConfig.enableDebugLog = (atoi(value) != 0);
         }
         else if (strcmp(key, "map") == 0)
         {

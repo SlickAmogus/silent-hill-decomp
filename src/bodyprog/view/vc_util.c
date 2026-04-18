@@ -155,18 +155,6 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                            hr_p->rotation.vy, Q12_ANGLE(120.0f), Q12(11.0f));
 
             g_WorldGfxWork.vcCameraInternalInfo_1BDC.mv_smooth = vcExecCamera();
-#ifdef SH_PC_PORT
-            {
-                static int _camLog2 = 0;
-                if (++_camLog2 <= 3600) {
-                    SH_DBG("[CAM] POST camPos=(%d,%d,%d) watchTgt=(%d,%d,%d) ang=(%d,%d,%d) watchAngZ=%d flags=0x%x",
-                           vcWork.cam_pos.vx, vcWork.cam_pos.vy, vcWork.cam_pos.vz,
-                           vcWork.watch_tgt_pos.vx, vcWork.watch_tgt_pos.vy, vcWork.watch_tgt_pos.vz,
-                           vcWork.cam_mat_ang.vx, vcWork.cam_mat_ang.vy, vcWork.cam_mat_ang.vz,
-                           vcWork.watch_tgt_ang_z, vcWork.flags);
-                }
-            }
-#endif
             break;
 
         case DebugCameraMode_SetReference:
