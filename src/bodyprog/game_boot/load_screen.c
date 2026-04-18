@@ -109,43 +109,10 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
     g_SysWork.playerWork.extra.disabledAnimBones = 0;
     /* Reset root bone flg so hierarchy is recomputed from scratch */
     boneCoords[0].flg = 0;
-
-    /* Ensure environment is set up for character rendering during loading.
-     * Force flat-lit, no-fog environment with neutral tint so Harry is visible
-     * on the black loading screen background. */
-    {
-        extern void func_80055330(u8, s32, u8, s32, s32, s32, q23_8);
-        func_80055330(0, Q12(1.0f), 0,
-                      128 << 5, 128 << 5, 128 << 5,  /* neutral tint */
-                      0);                              /* no brightness overlay */
-        g_WorldEnvWork.isFogEnabled_1 = 0;
-    }
-    /* Force all skeleton bones visible (same as InGame Harry render) */
-    {
-        s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
-        if (harryModel != NULL) {
-            func_800453E8(&harryModel->skeleton_14, true);
-        }
-    }
-    /* Reset ALL bone flg values to force full hierarchy recomputation.
-     * This eliminates stale cached workm matrices from previous frames. */
-    {
-        int _bi;
-        for (_bi = 0; _bi < HarryBone_Count; _bi++) {
-            boneCoords[_bi].flg = 0;
-        }
-    }
 #endif
 
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
     vcMoveAndSetCamera(true, false, false, false, false, false, false, false);
     Gfx_FlashlightUpdate();
-#ifdef SH_PC_PORT
-    /* Pass timer=0 so func_8003DA9C does not apply a fade-to-black tint.
-     * timer_C6 is often near Q12(1.0f) during loading, which scales the
-     * tint color to almost zero, making Harry nearly invisible. */
-    func_8003DA9C(Chara_Harry, boneCoords, 1, 0, 0);
-#else
     func_8003DA9C(Chara_Harry, boneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
-#endif
 }

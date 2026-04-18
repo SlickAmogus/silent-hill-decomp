@@ -350,6 +350,10 @@ void SdInit(void) // 0x8009F490
     sound_off();
     SdWorkInit();
     SpuInitMalloc(16, &sd_vb_malloc_rec);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] SdInit complete: smf_midi[0].mvol_3=%d smf_midi[1].mvol_3=%d",
+            smf_midi[0].mvol_3, smf_midi[1].mvol_3);
+#endif
 }
 
 void SdStart(void) // 0x8009F4D0
@@ -582,6 +586,10 @@ s16 SdVabOpenHead(u8* addr, s16 vabid) // 0x8009F79C
     }
 
     tone_adsr_mem(i);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] SdVabOpenHead: vabid=%d vh_addr=%p vh_size=%d vb_size=%d vb_start=0x%x",
+            i, (void*)p->vh_addr_4, p->vh_size_8, p->vb_size_14, p->vb_start_addr_10);
+#endif
     return i;
 }
 
@@ -778,8 +786,15 @@ s16 SdVabTransBody(u8* addr, s16 vabid) // 0x8009FD38
         if (SpuWrite(addr, vab_h[vabid].vb_size_14) == vab_h[vabid].vb_size_14)
         {
             vab_h[vabid].vb_addr_C = addr;
+#ifdef SH_PC_PORT
+            SH_DBG("[SH_AUDIO] SdVabTransBody: vabid=%d size=%d spu_addr=0x%x OK",
+                    vabid, vab_h[vabid].vb_size_14, vab_h[vabid].vb_start_addr_10);
+#endif
             return vab_h_id;
         }
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] SdVabTransBody: vabid=%d SpuWrite FAILED", vabid);
+#endif
     }
 
     return -1;
@@ -818,6 +833,9 @@ s16 SdVabTransBodyPartly(u8* addr, u32 bufsize, s16 vabid) // 0x8009FDDC
             return -2;
         }
 
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] SdVabTransBodyPartly: vabid=%d complete, total=%d", vabid, body_partly_size);
+#endif
         return vab_h_id; // Maybe was meant to be return retval but devs just returned vab_h_id?
     }
     return retval;
@@ -896,9 +914,16 @@ s16 SdSeqOpen(s32* addr, s16 vab_id) // 0x800A00A4
 
     sd_int_flag = true;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] SdSeqOpen: addr=%p magic=0x%08x vab_id=%d",
+            (void*)addr, addr ? *addr : 0, vab_id);
+#endif
 
     if (*addr != SD_MAGIC_SEQp && *addr != SD_MAGIC_MThd && *addr != SD_MAGIC_KDT && *addr != SD_MAGIC_KDT1)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] SdSeqOpen: magic mismatch! returning -1");
+#endif
         return -1;
     }
 
@@ -910,6 +935,9 @@ s16 SdSeqOpen(s32* addr, s16 vab_id) // 0x800A00A4
             smf_song[i].sd_seq_start_addr_514 = addr;
             smf_song[i].sd_seq_vab_id_508     = vab_id;
 
+#ifdef SH_PC_PORT
+            SH_DBG("[SH_AUDIO] SdSeqOpen: opened slot %d, vab_id=%d", i, vab_id);
+#endif
             sd_int_flag = false;
             return i;
         }
@@ -946,6 +974,9 @@ void SdSeqPlay(s16 seq_access_num, u8 play_mode, s16 l_count) // 0x800A0210
 {
     if (seq_access_num == -1)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_BGM] SdSeqPlay: seq_access_num == -1, returning");
+#endif
         return;
     }
 
@@ -953,10 +984,17 @@ void SdSeqPlay(s16 seq_access_num, u8 play_mode, s16 l_count) // 0x800A0210
 
     if (smf_song[seq_access_num].sd_seq_vab_id_508 == -1)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_BGM] SdSeqPlay: vab_id == -1 for seq %d, returning", seq_access_num);
+#endif
         sd_int_flag = false;
         return;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_BGM] SdSeqPlay: seq=%d play_mode=%d l_count=%d vab_id=%d",
+            seq_access_num, play_mode, l_count, smf_song[seq_access_num].sd_seq_vab_id_508);
+#endif
 
     sd_seq_loop_mode = l_count;
 
@@ -1272,6 +1310,9 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
     sd_vab_prog = &sd_vh->vab_prog[prog];
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] SdVoKeyOn: tones=%d c=%d", sd_vab_prog->tones, c);
+#endif
 
     for (tone = 0; tone < sd_vab_prog->tones; tone++)
     {
@@ -1284,6 +1325,9 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
         vc = 0;
 
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] SdVoKeyOn: tone=%d, finding free voice...", tone);
+#endif
         while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
         {
 #ifdef SH_PC_PORT
@@ -1295,6 +1339,9 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
                 break;
             }
         }
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] SdVoKeyOn: found voice vc=%d", vc);
+#endif
 
         voice = vc << 16;
         if (vc == -1)

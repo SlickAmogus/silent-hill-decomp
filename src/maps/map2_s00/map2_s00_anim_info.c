@@ -51,10 +51,9 @@ s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
 };
 
 #ifdef SH_PC_PORT
-#undef func_800706E4
-
 /* Patch in real func_800706E4 pointer for entries that needed
  * variable-duration callback. Runs once on DLL load. */
+#undef func_800706E4
 __attribute__((constructor))
 static void map2_s00_anim_info_patch(void) {
     HARRY_M2S00_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))func_800706E4;

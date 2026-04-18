@@ -45,8 +45,12 @@ extern void* g_OvlBodyprog;
 typedef struct s_DemoFrameData s_DemoFrameData;
 extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 
-/* Unified debug log — writes to stdout (SilentHill.log) */
+/* Unified debug log — writes to stdout (SilentHill.log).
+ * Gated by g_ShDebugLogEnabled (mirrored from g_PcConfig.enableDebugLog
+ * after config is parsed). Default off so SH_DBG calls left in tree
+ * don't spam the log during normal play. */
 FILE* g_ShDebugLog = NULL;
+int   g_ShDebugLogEnabled = 0;
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
@@ -115,6 +119,7 @@ int main(int argc, char* argv[])
 
     /* Load config file */
     PcConfig_Load("config.cfg");
+    g_ShDebugLogEnabled = g_PcConfig.enableDebugLog;
     int windowWidth = g_PcConfig.windowWidth;
     int windowHeight = g_PcConfig.windowHeight;
 

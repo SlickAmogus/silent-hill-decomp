@@ -929,14 +929,6 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
         return;
     }
 
-#ifdef SH_PC_PORT
-    /* Guard against NULL ptr_20 or zero field_1E (cell width) which would
-     * cause out-of-bounds access or infinite loop */
-    if (collData->ptr_20 == NULL || collData->field_1E == 0) {
-        return;
-    }
-#endif
-
     if (collState->field_0_0 == 0)
     {
         func_80069994(collData);
@@ -944,21 +936,6 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
 
     startIdx = collState->field_A0.s_0.field_0;
     endIdx   = (collState->field_A0.s_0.field_0 + collState->field_A0.s_0.field_2) - 1;
-
-#ifdef SH_PC_PORT
-    /* Bounds check grid indices to prevent out-of-bounds access into ptr_20.
-     * The array has field_1E * field_1F entries. */
-    {
-        s32 maxIdx = (s32)collData->field_1E * (s32)collData->field_1F;
-        s32 loopEnd_i = collState->field_A0.s_0.field_1 + collState->field_A0.s_0.field_3;
-        if (startIdx < 0 || endIdx < 0 || startIdx >= collData->field_1E ||
-            endIdx >= collData->field_1E || collState->field_A0.s_0.field_1 < 0 ||
-            loopEnd_i > collData->field_1F ||
-            (loopEnd_i * collData->field_1E + endIdx) >= maxIdx) {
-            goto ad44_skip_grid;
-        }
-    }
-#endif
 
     for (i = collState->field_A0.s_0.field_1; i < (collState->field_A0.s_0.field_1 + collState->field_A0.s_0.field_3); i++)
     {
@@ -1001,14 +978,6 @@ bool func_8006AEAC(s_CollisionState* collState, s_IpdCollisionData* collData) //
     collState->field_98.vec_0.vz = collState->field_4.positionZ_1C - collData->positionZ_4;
     collState->field_9C.vec_0.vx = collState->field_4.newPositionX_20 - collData->positionX_0;
     collState->field_9C.vec_0.vz = collState->field_4.newPositionZ_24 - collData->positionZ_4;
-
-#ifdef SH_PC_PORT
-    /* Guard against divide-by-zero on collision cell size */
-    if (collData->field_1C == 0) {
-        collState->field_A0.s_0.field_4 = NULL;
-        return true;
-    }
-#endif
 
     if ((collState->field_98.vec_0.vx / collData->field_1C) < 0 || (collState->field_98.vec_0.vx / collData->field_1C) >= collData->field_1E ||
         ((collState->field_98.vec_0.vz / collData->field_1C) < 0) || (collState->field_98.vec_0.vz / collData->field_1C) >= collData->field_1F)

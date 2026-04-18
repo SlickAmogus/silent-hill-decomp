@@ -29,27 +29,6 @@ s8 g_CharaAnimInfoIdxs[Chara_Count] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 3 0x00 padding.
 };
 
-#ifdef SH_PC_PORT
-/* On PC, FS_BUFFER_0 is not a compile-time constant (points into g_PsxRam[]).
- * Initialize at runtime instead. See also: Fs_QueueInitialize or GameState_Boot. */
-s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
-    {
-        .charaId0_0         = Chara_Harry,
-        .charaId1_1         = Chara_Harry,
-        .animFile0_4        = NULL,
-        .animFile1_8        = NULL,
-        .animBufferSize1_C  = 0x2E630,
-        .animBufferSize2_10 = 0x2E630,
-        .npcCoords_14       = NULL
-    }, {}, {}, {}
-};
-/* Called from main_pc.c after PsxMemory_Init */
-void PcPort_InitCharaAnimInfo(void)
-{
-    g_CharaTypeAnimInfo[0].animFile0_4 = FS_BUFFER_0;
-    g_CharaTypeAnimInfo[0].animFile1_8 = (s_AnmHeader*)FS_BUFFER_0;
-}
-#else
 s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
     {
         .charaId0_0         = Chara_Harry,
@@ -61,7 +40,6 @@ s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
         .npcCoords_14       = NULL
     }, {}, {}, {}
 };
-#endif
 
 s_AnimInfo D_800A998C = {
     .playbackFunc           = Anim_PlaybackLoop,
