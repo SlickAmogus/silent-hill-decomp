@@ -57,7 +57,7 @@ s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
  * variable-duration callback. Runs once on DLL load. */
 __attribute__((constructor))
 static void map2_s00_anim_info_patch(void) {
-    HARRY_M2S00_ANIM_INFOS[19].duration_8.variableFunc = (q19_12 (*)(void))func_800706E4;
-    HARRY_M2S00_ANIM_INFOS[23].duration_8.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M2S00_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M2S00_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
 }
 #endif
