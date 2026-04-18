@@ -143,11 +143,11 @@ void MapRegistry_Init(void)
     int id = MapRegistry_FindByName(g_PcConfig.mapName);
     if (id >= 0)
     {
-        MapRegistry_Load((e_MapOverlayId)id);
+        MapRegistry_Load((e_MapIdx)id);
     }
 }
 
-void MapRegistry_Load(e_MapOverlayId id)
+void MapRegistry_Load(e_MapIdx id)
 {
     s_MapOverlayHeader* header;
 
@@ -196,7 +196,7 @@ int MapRegistry_FindByName(const char* name)
     return -1;
 }
 
-const char* MapRegistry_GetName(e_MapOverlayId id)
+const char* MapRegistry_GetName(e_MapIdx id)
 {
     if (id >= 0 && id <= MapOverlayId_MAP7_S03 && MAP_NAMES[id] != NULL)
     {

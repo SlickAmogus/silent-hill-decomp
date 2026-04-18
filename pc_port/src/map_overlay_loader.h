@@ -19,7 +19,7 @@
 /* Load a map overlay DLL by overlay ID.
  * Returns pointer to the map's s_MapOverlayHeader, or NULL on failure.
  * The previous overlay is unloaded automatically. */
-s_MapOverlayHeader* MapOverlay_Load(e_MapOverlayId id);
+s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id);
 
 /* Unload the currently loaded map overlay DLL. */
 void MapOverlay_Unload(void);

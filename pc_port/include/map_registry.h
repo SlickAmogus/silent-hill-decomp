@@ -20,13 +20,13 @@
 void MapRegistry_Init(void);
 
 /* Load a map by overlay ID. Sets g_pMapOverlayHeader. */
-void MapRegistry_Load(e_MapOverlayId id);
+void MapRegistry_Load(e_MapIdx id);
 
 /* Look up overlay ID from a map name string (e.g. "map0_s00").
  * Returns -1 if not found. */
 int MapRegistry_FindByName(const char* name);
 
 /* Get the name string for an overlay ID. */
-const char* MapRegistry_GetName(e_MapOverlayId id);
+const char* MapRegistry_GetName(e_MapIdx id);
 
 #endif /* MAP_REGISTRY_H */
