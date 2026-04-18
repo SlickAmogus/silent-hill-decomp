@@ -109,19 +109,19 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                  *
                  * NOTE: we keep the original func_124(chara) call too so the
                  * player-property reset side-effects still happen — they are
-                 * harmless for NPCs because properties_E4 is a union and the
+                 * harmless for NPCs because properties is a union and the
                  * fields written overlap unused NPC fields, but matching the
                  * PSX behavior is safer than skipping. */
                 g_MapOverlayHeader.func_124(chara);
                 /* arg2 is a raw anim index — encode as ANIM_STATUS(idx, false). */
-                chara->model_0.anim_4.status_0 = (u8)ANIM_STATUS(arg2, false);
-                chara->model_0.stateStep_3     = 0;
-                chara->model_0.anim_4.time_4        = Q12(0.0f);
-                chara->model_0.anim_4.keyframeIdx_8 = 0;
-                chara->model_0.anim_4.flags_2 |= AnimFlag_Unlocked;
+                chara->model.anim.status = (u8)ANIM_STATUS(arg2, false);
+                chara->model.stateStep     = 0;
+                chara->model.anim.time        = Q12(0.0f);
+                chara->model.anim.keyframeIdx = 0;
+                chara->model.anim.flags |= AnimFlag_Unlocked;
                 SH_DBG("[ANIM_SET] charaId=%d anim=%d status=%d",
-                       chara->model_0.charaId_0, (int)arg2,
-                       (int)chara->model_0.anim_4.status_0);
+                       chara->model.charaId, (int)arg2,
+                       (int)chara->model.anim.status);
 #else
                 g_MapOverlayHeader.func_124(chara);
 #endif
