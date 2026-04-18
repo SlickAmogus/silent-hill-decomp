@@ -182,7 +182,7 @@ typedef enum _MemCardResult
 // https://github.com/Sparagas/Silent-Hill/blob/1f24eb097a4b99129bc7c9793d23c82244848a27/010%20Editor%20-%20Binary%20Templates/ps1_memory_card.bt#L122C8-L122C17
 typedef struct
 {
-    char magic_0[2];
+    char magic[2];
     u8   iconDisplayFlag_2;
     u8   blockCount_3;
     u16  titleNameShiftJis_4[32];
@@ -296,7 +296,7 @@ STATIC_ASSERT_SIZEOF(s_Savegame_Container, 640);
 /** @brief Contains `s_SaveUserConfig` data padded to 128 bytes with a footer at the end containing checksum + magic. */
 typedef struct _SaveUserConfigContainer
 {
-    s_SaveUserConfig config_0;
+    s_SaveUserConfig config;
     u8                pad_38[68];
     s_Savegame_Footer footer_7C;
 } s_Savegame_UserConfigs;
@@ -319,7 +319,7 @@ STATIC_ASSERT_SIZEOF(s_MemCard_SaveHeader, 256);
 
 typedef struct
 {
-    s32                   status_0;
+    s32                   status;
     s8                    fileState_4[MEMCARD_FILE_COUNT_MAX];
     s_MemCard_SaveHeader* saveHeader_14; /** Slots saves information. */
     s32                   fileLimit_18;  /** Max count of files allowed in the memory card. */

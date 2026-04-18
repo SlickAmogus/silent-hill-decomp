@@ -1,4 +1,6 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "main/rng.h"
 #include "maps/map2/map2_s02.h"
@@ -23,9 +25,9 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 void func_800E9D54(void) // 0x800E9D54
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_AntiqueShopKey, 1);
+    Player_ItemRemove(InvItemId_AntiqueShopKey, 1);
     Map_MessageWithSfx(15, Sfx_UseKey, &sfxPos);
     Savegame_EventFlagSet(EventFlag_M2S02_AntiqueShopOpen);
 }
@@ -45,7 +47,7 @@ void func_800E9E10(void) // 0x800E9E10
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 41:
             pickupType   = CommonPickupItemId_HealthDrink;
@@ -78,7 +80,7 @@ void func_800E9E10(void) // 0x800E9E10
 
 void func_800E9EAC(void) // 0x800E9EAC
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -109,7 +111,7 @@ void func_800E9FDC(void) // 0xfunc_800E9FDC
 {
     g_DeltaTime = Q12(0.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -144,15 +146,15 @@ void Map_WorldObjectsInit(void) // 0x800EA0E0
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        g_SysWork.npcId_2280 = 2;
+        g_SysWork.npcFlagsId = 2;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
     {
-        g_SysWork.npcId_2280 = 3;
+        g_SysWork.npcFlagsId = 3;
     }
     else
     {
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
@@ -176,7 +178,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
             Collision_FlagBitsSet(CollisionFlag_2);
             func_80069844(CollisionFlag_1);
 
-            if (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-68.0f))
+            if (g_SysWork.playerWork.player.position.vz < Q12(-68.0f))
             {
                 Savegame_EventFlagClear(EventFlag_346);
             }
@@ -192,9 +194,9 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (PLAYER_IN_MAP_CHUNK(vx, 1, -3, -1, -3) && PLAYER_IN_MAP_CHUNK(vz, 1, 3, -1, 3))
         {
-                if (g_SysWork.playerWork_4C.player_0.position_18.vx > Q12(-116.0f))
+                if (g_SysWork.playerWork.player.position.vx > Q12(-116.0f))
                 {
-                    if (g_SysWork.playerWork_4C.player_0.position_18.vy > Q12(0.0f))
+                    if (g_SysWork.playerWork.player.position.vy > Q12(0.0f))
                     {
                         if (g_ScreenFadeTimestep > Q12(0.0f))
                         {
@@ -216,8 +218,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
         {
             if (D_800F0B2C == Q12(0.0f))
             {
-                if (Math_Vector2MagCalc(g_SysWork.playerWork_4C.player_0.position_18.vx + Q12(96.0f),
-                                        g_SysWork.playerWork_4C.player_0.position_18.vz + Q12(89.0f)) < Q12(4.0f))
+                if (Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx + Q12(96.0f),
+                                        g_SysWork.playerWork.player.position.vz + Q12(89.0f)) < Q12(4.0f))
                 {
                     func_8005DC1C(Sfx_Unk1492, &D_800ED938, Q8_CLAMPED(0.766f), 2);
                     D_800F0B2C = Q12(0.3f);

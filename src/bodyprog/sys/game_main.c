@@ -9,6 +9,8 @@ extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
 extern int g_PcHorPlusEnabled;
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
 extern u8 g_WorldEnvWork[];
@@ -23,6 +25,7 @@ extern const unsigned char* g_sdlKeyboardState;
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/demo.h"
+#include "bodyprog/events/events_main.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/screen/vsync.h"
@@ -121,7 +124,7 @@ void DebugCamera_Update(void)
     #define DBG_CAM_VERT_SPEED 256
 
     if (!g_sdlKeyboardState) return;
-    if (g_GameWork.gameState_594 != GameState_InGame) return;
+    if (g_GameWork.gameState != GameState_InGame) return;
 
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
     {
@@ -131,19 +134,19 @@ void DebugCamera_Update(void)
             if (g_DebugCamEnabled) {
                 /* Capture current camera as starting point */
                 vcGetNowCamPos(&g_DebugCamPos);
-                g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
+                g_DebugCamAngleY = g_SysWork.cameraAngleY;
                 g_DebugCamAngleX = 0;
                 g_DebugCamInited = 1;
                 /* Save Harry's position to restore when debug cam is disabled */
-                g_DebugCamSavedHarryPos = g_SysWork.playerWork_4C.player_0.position_18;
-                g_DebugCamSavedHarryPosY = g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC;
+                g_DebugCamSavedHarryPos = g_SysWork.playerWork.player.position;
+                g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.positionY_EC;
                 SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
                     (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             } else {
                 /* Restore Harry's original position */
-                g_SysWork.playerWork_4C.player_0.position_18 = g_DebugCamSavedHarryPos;
-                g_SysWork.playerWork_4C.player_0.properties_E4.player.positionY_EC = g_DebugCamSavedHarryPosY;
+                g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+                g_SysWork.playerWork.player.properties.player.positionY_EC = g_DebugCamSavedHarryPosY;
                 SH_DBG("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             }
@@ -201,7 +204,7 @@ void DebugCamera_Update(void)
     /* Numpad 3: rescue teleport — snap Harry back to room spawn position (edge-triggered) */
     {
         static int prevKey = 0;
-        s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
+        s_SubCharacter* hp = &g_SysWork.playerWork.player;
 
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
         if (cur && !prevKey) {
@@ -234,13 +237,13 @@ void DebugCamera_Update(void)
                 SH_DBG("[DEBUG] Rescue teleport: skipped (cutscene active)");
             } else {
                 SH_DBG("[DEBUG] Rescue teleport: (%ld,%ld,%ld) -> spawn (%ld,%ld,%ld)",
-                       (long)hp->position_18.vx, (long)hp->position_18.vy, (long)hp->position_18.vz,
+                       (long)hp->position.vx, (long)hp->position.vy, (long)hp->position.vz,
                        (long)spawnPos.vx, (long)spawnPos.vy, (long)spawnPos.vz);
-                hp->position_18 = spawnPos;
-                hp->fallSpeed_34 = Q12(0.0f);
-                hp->properties_E4.player.positionY_EC = spawnPos.vy;
-                /* Do NOT touch playerBoneCoords_890 — the normal skeleton update will
-                 * sync root bone coords from position_18 on the next frame. Updating
+                hp->position = spawnPos;
+                hp->fallSpeed = Q12(0.0f);
+                hp->properties.player.positionY_EC = spawnPos.vy;
+                /* Do NOT touch playerBoneCoords — the normal skeleton update will
+                 * sync root bone coords from position on the next frame. Updating
                  * them here during a cutscene conflicts with DMS bone animation. */
             }
         }
@@ -262,7 +265,7 @@ void DebugCamera_Update(void)
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_1];
         if (cur && !prevKey) {
-            g_SysWork.playerWork_4C.player_0.health_B0 = -Q12(1.0f);
+            g_SysWork.playerWork.player.health = -Q12(1.0f);
             SH_DBG("[DEBUG] Key 1: KILL HARRY — health set to -Q12(1.0)");
         }
         prevKey = cur;
@@ -290,7 +293,7 @@ void DebugCamera_Update(void)
             vcGetNowCamPos(&gameCamPos);
             SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d",
                 (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
-                (int)g_SysWork.cameraAngleY_237A);
+                (int)g_SysWork.cameraAngleY);
         }
         prevKey = cur;
     }
@@ -317,15 +320,18 @@ void DebugCamera_Update(void)
             #define TP_PITCH_SENS   2            /* Q12 units per pixel for vertical pitch (lower = less sensitive) */
             #define TP_STRAFE_SPD   Q12(1.5f)    /* strafe speed (same as walk) */
 
-            s_SubCharacter* tp_hr = &g_SysWork.playerWork_4C.player_0;
+            s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
             static s32 s_TpsPitch = 0;  /* vertical camera orbit angle (Q12): + = camera rises above Harry */
 
-            /* Mouse look: rotate Harry's yaw and pitch the camera */
+            /* Mouse look: rotate Harry's yaw and pitch the camera.
+             * Freeze during cutscenes (ev_cam_rate > 0) so TPS doesn't
+             * fight the event camera or rotate Harry while DMS controls him. */
+            if (g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate == 0)
             {
                 int mdx = 0, mdy = 0;
                 SDL_GetRelativeMouseState(&mdx, &mdy);
-                tp_hr->rotation_24.vy += (q3_12)(mdx * TP_MOUSE_SENS);
-                tp_hr->rotation_24.vy = Q12_ANGLE_NORM_U(tp_hr->rotation_24.vy + Q12_ANGLE(360.0f));
+                tp_hr->rotation.vy += (q3_12)(mdx * TP_MOUSE_SENS);
+                tp_hr->rotation.vy = Q12_ANGLE_NORM_U(tp_hr->rotation.vy + Q12_ANGLE(360.0f));
                 /* mdy > 0 = mouse moved down; subtract so mouse-up raises camera */
                 s_TpsPitch -= (s32)(mdy * TP_PITCH_SENS);
                 if (s_TpsPitch < -Q12_ANGLE(30.0f)) s_TpsPitch = -Q12_ANGLE(30.0f);
@@ -338,16 +344,16 @@ void DebugCamera_Update(void)
                                 (g_sdlKeyboardState[SDL_SCANCODE_A] ? -1 : 0);
                 if (strafeDir) {
                     s32 strafeDist = Q12_MULT_PRECISE(TP_STRAFE_SPD, g_DeltaTime);
-                    s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
-                    s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
+                    s32 tpSinY = Math_Sin(tp_hr->rotation.vy);
+                    s32 tpCosY = Math_Cos(tp_hr->rotation.vy);
                     /* Right direction is perpendicular to facing: (cosY, 0, -sinY) */
-                    tp_hr->position_18.vx += strafeDir * Q12_MULT_PRECISE(strafeDist, tpCosY);
-                    tp_hr->position_18.vz -= strafeDir * Q12_MULT_PRECISE(strafeDist, tpSinY);
+                    tp_hr->position.vx += strafeDir * Q12_MULT_PRECISE(strafeDist, tpCosY);
+                    tp_hr->position.vz -= strafeDir * Q12_MULT_PRECISE(strafeDist, tpSinY);
                 }
             }
 
-            s32 tpSinY = Math_Sin(tp_hr->rotation_24.vy);
-            s32 tpCosY = Math_Cos(tp_hr->rotation_24.vy);
+            s32 tpSinY = Math_Sin(tp_hr->rotation.vy);
+            s32 tpCosY = Math_Cos(tp_hr->rotation.vy);
 
             /* Orbit the camera around Harry using both yaw and pitch */
             s32 tpSinPitch  = Math_Sin(s_TpsPitch);
@@ -359,15 +365,15 @@ void DebugCamera_Update(void)
 
             VECTOR3 tpCamPos, tpLookAt;
             /* Place camera behind and above Harry, orbiting on pitch axis */
-            tpCamPos.vx = tp_hr->position_18.vx - (s32)((s64)tpHorizDist * tpSinY >> 12);
-            tpCamPos.vz = tp_hr->position_18.vz - (s32)((s64)tpHorizDist * tpCosY >> 12);
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)tpHorizDist * tpSinY >> 12);
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)tpHorizDist * tpCosY >> 12);
             /* TP_HEIGHT is negative (up); subtracting tpVertLift raises camera further when pitch > 0 */
-            tpCamPos.vy = tp_hr->position_18.vy + TP_HEIGHT - tpVertLift;
+            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT - tpVertLift;
 
             /* Look at Harry's chest */
-            tpLookAt.vx = tp_hr->position_18.vx;
-            tpLookAt.vz = tp_hr->position_18.vz;
-            tpLookAt.vy = tp_hr->position_18.vy + TP_LOOKAT_OFS;
+            tpLookAt.vx = tp_hr->position.vx;
+            tpLookAt.vz = tp_hr->position.vz;
+            tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS;
 
             /* Build view matrix directly instead of using Vw_SetLookAtMatrix.
              * Vw_SetLookAtMatrix re-derives yaw via ratan2(sinY*k, cosY*k) — the
@@ -382,7 +388,7 @@ void DebugCamera_Update(void)
                 s32 horizDist_q8 = (s32)Q12_TO_Q8(tpHorizDist > 0 ? tpHorizDist : 1);
                 camRot.vz = (s16)Q12_ANGLE(0.0f);
                 /* Exact yaw: no sin/cos→ratan2 rounding from horizontal mouse movement */
-                camRot.vy = (s16)tp_hr->rotation_24.vy;
+                camRot.vy = (s16)tp_hr->rotation.vy;
                 /* Pitch: stable because tpHorizDist only depends on s_TpsPitch, not Harry's yaw */
                 camRot.vx = (s16)ratan2(-(q23_8)deltaY_q8, (q23_8)horizDist_q8);
                 Math_RotMatrixZxyNeg(&camRot, &viewMat);
@@ -399,10 +405,10 @@ void DebugCamera_Update(void)
                 int s_tpLogCur = g_sdlKeyboardState[SDL_SCANCODE_6];
                 if (s_tpLogCur && !s_tpLogPrev) {
                     SH_DBG("[TPS-SNAP] harry  pos=(%d,%d,%d)  yaw=%d  (%.2f,%.2f,%.2f deg=%.1f)",
-                        tp_hr->position_18.vx, tp_hr->position_18.vy, tp_hr->position_18.vz,
-                        (int)tp_hr->rotation_24.vy,
-                        tp_hr->position_18.vx / 4096.0f, tp_hr->position_18.vy / 4096.0f, tp_hr->position_18.vz / 4096.0f,
-                        tp_hr->rotation_24.vy * 360.0f / 4096.0f);
+                        tp_hr->position.vx, tp_hr->position.vy, tp_hr->position.vz,
+                        (int)tp_hr->rotation.vy,
+                        tp_hr->position.vx / 4096.0f, tp_hr->position.vy / 4096.0f, tp_hr->position.vz / 4096.0f,
+                        tp_hr->rotation.vy * 360.0f / 4096.0f);
                     SH_DBG("[TPS-SNAP] camPos=(%d,%d,%d)  (%.2f,%.2f,%.2f)",
                         tpCamPos.vx, tpCamPos.vy, tpCamPos.vz,
                         tpCamPos.vx / 4096.0f, tpCamPos.vy / 4096.0f, tpCamPos.vz / 4096.0f);
@@ -494,9 +500,9 @@ void DebugCamera_Update(void)
                 (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                 g_DebugCamAngleY);
             SH_DBG("[DBGCAM] HARRY:  pos=(%ld,%ld,%ld)",
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
+                (long)g_SysWork.playerWork.player.position.vx,
+                (long)g_SysWork.playerWork.player.position.vy,
+                (long)g_SysWork.playerWork.player.position.vz);
         }
         dbg_slash_prev = dbg_slash_cur;
     }
@@ -505,9 +511,9 @@ void DebugCamera_Update(void)
      * material/texture system (which loads textures near Harry's position)
      * textures chunks around wherever the debug camera is exploring. */
     {
-        s_SubCharacter* hp = &g_SysWork.playerWork_4C.player_0;
-        hp->position_18.vx = g_DebugCamPos.vx;
-        hp->position_18.vz = g_DebugCamPos.vz;
+        s_SubCharacter* hp = &g_SysWork.playerWork.player;
+        hp->position.vx = g_DebugCamPos.vx;
+        hp->position.vz = g_DebugCamPos.vz;
         /* Keep Harry at ground level (don't follow camera Y) */
     }
 
@@ -531,9 +537,9 @@ void DebugCamera_Update(void)
             SH_DBG("[DBGCAM] pos=(%ld,%ld,%ld) angleY=%d harry=(%ld,%ld,%ld)",
                 (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                 g_DebugCamAngleY,
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vx,
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vy,
-                (long)g_SysWork.playerWork_4C.player_0.position_18.vz);
+                (long)g_SysWork.playerWork.player.position.vx,
+                (long)g_SysWork.playerWork.player.position.vy,
+                (long)g_SysWork.playerWork.player.position.vz);
         }
     }
 
@@ -552,35 +558,35 @@ void GameState_Boot_Update(void) // 0x80032D1C
     s32 gameState;
     s32 VabAudioTaskId;
 
-    switch (g_GameWork.gameStateStep_598[0])
+    switch (g_GameWork.gameStateSteps[0])
     {
         case 0:
-            g_GameWork.background2dColor_58C.r = 0;
-            g_GameWork.background2dColor_58C.g = 0;
-            g_GameWork.background2dColor_58C.b = 0;
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
 
             Screen_Init(SCREEN_WIDTH, false);
             g_SysWork.counters_1C[1]              = 0;
-            g_GameWork.gameStateStep_598[1] = 0;
-            g_GameWork.gameStateStep_598[2] = 0;
-            g_GameWork.gameStateStep_598[0]++;
+            g_GameWork.gameStateSteps[1] = 0;
+            g_GameWork.gameStateSteps[2] = 0;
+            g_GameWork.gameStateSteps[0]++;
             break;
 
         case 1:
             if (!Sd_AudioStreamingCheck())
             {
-                VabAudioTaskId = g_baseVabAudiosTaskId[g_GameWork.gameStateStep_598[1]];
+                VabAudioTaskId = g_baseVabAudiosTaskId[g_GameWork.gameStateSteps[1]];
                 if (VabAudioTaskId != 0)
                 {
                     SD_Call(VabAudioTaskId);
-                    g_GameWork.gameStateStep_598[1]++;
+                    g_GameWork.gameStateSteps[1]++;
                 }
                 else
                 {
                     g_SysWork.counters_1C[1]              = 0;
-                    g_GameWork.gameStateStep_598[1] = 0;
-                    g_GameWork.gameStateStep_598[2] = 0;
-                    g_GameWork.gameStateStep_598[0]++;
+                    g_GameWork.gameStateSteps[1] = 0;
+                    g_GameWork.gameStateSteps[2] = 0;
+                    g_GameWork.gameStateSteps[0]++;
                 }
             }
             break;
@@ -588,19 +594,15 @@ void GameState_Boot_Update(void) // 0x80032D1C
         case 2:
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
-#ifdef SH_PC_PORT
-            if (g_PcConfig.skipIntros) {
-                /* Replicate all loads that b_konami.c/b_kcet.c normally handle during logo display */
-                WorldGfx_HarryCharaLoad();
-                GameFs_BgItemLoad();
-                GameFs_BgEtcGfxLoad(); /* snow/rain/particle textures (BG_ETC.TIM → VRAM tPage 12) */
-                Map_EffectTexturesLoad(NO_VALUE);
-                Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
-                GameFs_TitleGfxLoad();
-            }
-#endif
+            /* Don't preload Title/HarryChara/BgItem/etc. here even when
+             * skipIntros is on -- the Konami/Kcet states still display, and
+             * those preloads write to overlapping VRAM pages, leaving the
+             * Konami logo sampling garbage texture data. b_konami.c's Init
+             * step does the loads on its own at the right time; the actual
+             * "skip" happens in title.c MainMenu auto-start, which jumps
+             * straight to gameplay once the menu would normally appear. */
             ScreenFade_Start(true, false, false);
-            g_GameWork.gameStateStep_598[0]++;
+            g_GameWork.gameStateSteps[0]++;
             break;
 
         case 3:
@@ -608,27 +610,41 @@ void GameState_Boot_Update(void) // 0x80032D1C
             {
                 Fs_QueueWaitForEmpty();
 
-                gameState = g_GameWork.gameState_594;
+                gameState = g_GameWork.gameState;
 
                 g_SysWork.counters_1C[0] = 0;
                 g_SysWork.counters_1C[1] = 0;
 
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
 
                 SysWork_StateSetNext(SysState_Gameplay);
 
-                g_GameWork.gameStateStep_598[0] = gameState;
+                g_GameWork.gameStateSteps[0] = gameState;
 #ifdef SH_PC_PORT
                 if (g_PcConfig.skipIntros) {
-                    /* Normally called by b_konami.c; must happen before MainMenu */
+                    /* Skip Konami/Kcet/MovieIntro -- jump straight to
+                     * MainMenu. Settings_RestoreDefaults runs during
+                     * Kcet normally; GameFs_TitleGfxLoad runs during
+                     * stream.c movie_main. Konami state loads Harry
+                     * model, bg items, effect textures, and Harry base
+                     * anim -- without these, particles render as
+                     * untextured squares/triangles and Harry is
+                     * missing animation data. Do all of them here so
+                     * gameplay has everything it needs on first frame. */
+                    WorldGfx_HarryCharaLoad();
+                    GameFs_BgItemLoad();
+                    Map_EffectTexturesLoad(NO_VALUE);
+                    Fs_QueueStartRead(FILE_ANIM_HB_BASE_ANM, FS_BUFFER_0);
                     Settings_RestoreDefaults();
-                    g_GameWork.gameState_594 = GameState_MainMenu;
+                    GameFs_TitleGfxLoad();
+                    Fs_QueueWaitForEmpty();
+                    g_GameWork.gameState = GameState_MainMenu;
                 } else
 #endif
-                g_GameWork.gameState_594        = gameState + 1;
-                g_GameWork.gameStatePrev_590    = gameState;
-                g_GameWork.gameStateStep_598[0] = 0;
+                g_GameWork.gameState        = gameState + 1;
+                g_GameWork.gameStatePrev    = gameState;
+                g_GameWork.gameStateSteps[0] = 0;
             }
             break;
     }
@@ -663,8 +679,8 @@ void MainLoop(void) // 0x80032EE0
     Joy_Init();
     VSyncCallback(&Screen_VSyncCallback);
 
-    // NTSC-J moves these calls into the `HP_SAFE1` / `S__SAFE2` anti-modchip overlays.
-    // Likely to make sure those overlays aren't patched out by pirates.
+    // NTSC-J moves these calls into the `HP_SAFE1`/`S__SAFE2` anti-modchip overlays,
+    // likely to make sure those overlays wouldn't be patched out by pirates.
 #if !VERSION_REGION_IS(NTSCJ)
     InitGeom();
     ItemScreen_TmdGsFCallInit();
@@ -707,10 +723,17 @@ void MainLoop(void) // 0x80032EE0
         g_ActiveBufferIdx = GsGetActiveBuff();
 
 #ifdef SH_PC_PORT
-        /* PC primitives are larger than PSX (8-byte pointers, bigger structs).
-         * The original 128KB packet buffer overflows when rendering 2+ characters.
-         * Allocate 512KB per buffer from heap instead of fixed PSX temp memory.
-         * Extra 64 bytes of canary at the end for corruption detection. */
+        /* Hor+ widescreen only during 3D world states; 2D UI screens
+         * (menus, loading screen, memory card warning, etc.) use 4:3
+         * ortho so the side margins don't expose adjacent VRAM garbage. */
+        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame ||
+                              g_GameWork.gameState == GameState_MapEvent) ? 1 : 0;
+#endif
+
+#ifdef SH_PC_PORT
+        /* PC primitives are larger than PSX. Use a 2 MB heap-allocated
+         * packet buffer per double-buffer slot instead of the 128 KB
+         * PSX TEMP_MEMORY_ADDR region; tail canary detects overflow. */
         if (!s_PcPacketBufs[0]) {
             s_PcPacketBufs[0] = (PACKET*)calloc(1, PC_PKTBUF_SIZE + PC_CANARY_SIZE);
             s_PcPacketBufs[1] = (PACKET*)calloc(1, PC_PKTBUF_SIZE + PC_CANARY_SIZE);
@@ -721,12 +744,12 @@ void MainLoop(void) // 0x80032EE0
         }
         GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
 #else
-        if (g_GameWork.gameState_594 == GameState_MainLoadScreen ||
-            g_GameWork.gameState_594 == GameState_InGame)
+        if (g_GameWork.gameState == GameState_MainLoadScreen ||
+            g_GameWork.gameState == GameState_InGame)
         {
             GsOUT_PACKET_P = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 17));
         }
-        else if (g_GameWork.gameState_594 == GameState_InventoryScreen)
+        else if (g_GameWork.gameState == GameState_InventoryScreen)
         {
             GsOUT_PACKET_P = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx * 40000));
         }
@@ -739,38 +762,10 @@ void MainLoop(void) // 0x80032EE0
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
 
-        g_SysWork.sysFlags_22A0 = SysFlag_None;
+        g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
         // Call update function for current GameState.
-        g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == GameState_InGame) {
-            /* Canary checks after InGame state update */
-            /* --- Canary checks after game state update --- */
-            {
-                PACKET* pktEnd0 = s_PcPacketBufEnds[0];
-                PACKET* pktEnd1 = s_PcPacketBufEnds[1];
-                PACKET* pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
-                ptrdiff_t pktUsed = GsOUT_PACKET_P - pktStart;
-                int canaryOk = 1;
-                int i;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd0[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
-                }
-                if (!canaryOk) {
-                    SH_DBG("[CANARY] *** PACKET BUF 0 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd0[i], pktUsed, PC_PKTBUF_SIZE);
-                }
-                canaryOk = 1;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd1[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
-                }
-                if (!canaryOk) {
-                    SH_DBG("[CANARY] *** PACKET BUF 1 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd1[i], pktUsed, PC_PKTBUF_SIZE);
-                }
-                SH_DBG("[PKTBUF] used=%td/%d (%.1f%%)", pktUsed, PC_PKTBUF_SIZE, (double)pktUsed * 100.0 / PC_PKTBUF_SIZE);
-            }
-        }
-#endif
+        g_GameStateUpdateFuncs[g_GameWork.gameState]();
 
         Demo_Update();
         Demo_GameRandSeedSet();
@@ -807,7 +802,7 @@ void MainLoop(void) // 0x80032EE0
         DrawSync(SyncMode_Wait);
         ML_TRACE("VSync-begin");
         // Handle V sync.
-        if (g_SysWork.flags_22A4 & SysFlag2_1)
+        if (g_SysWork.flags_22A4 & UnkSysFlag_1)
         {
             ML_TRACE("VSync-flag2_1-branch");
             vBlanks   = VSync(SyncMode_Count);
@@ -840,7 +835,7 @@ void MainLoop(void) // 0x80032EE0
         }
         else
         {
-            if (g_SysWork.sysState_8 != SysState_Gameplay)
+            if (g_SysWork.sysState != SysState_Gameplay)
             {
                 ML_TRACE("VSync-nonGameplay");
                 g_VBlanks     = VSync(SyncMode_Count) - g_PrevVBlanks;
@@ -873,7 +868,7 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState_594 == GameState_InGame)
+                    if (g_GameWork.gameState == GameState_InGame)
                     {
                         int effectiveFps;
 
@@ -951,95 +946,63 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("GsSwapDispBuff");
         // Draw objects?
         GsSwapDispBuff();
-        ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
-        /* Numpad .: toggle fog on/off (only active during debug camera) */
-        if (g_sdlKeyboardState && g_GameWork.gameState_594 == 11) {
+        /* Numpad . toggles fog off/on while debug camera is active. */
+        if (g_sdlKeyboardState && g_GameWork.gameState == GameState_InGame) {
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
             if (cur && !g_DebugFogTogglePrev && g_DebugCamEnabled) {
                 g_DebugFogDisabled = !g_DebugFogDisabled;
                 SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
             }
             g_DebugFogTogglePrev = cur;
-
-            /* When debug camera is off, fog is always normal */
-            if (!g_DebugCamEnabled) {
-                g_DebugFogDisabled = 0;
-            }
-
-            if (g_DebugFogDisabled) {
-                PC_WorldEnvWork.isFogEnabled_1 = 0;
-            }
+            if (!g_DebugCamEnabled) g_DebugFogDisabled = 0;
+            if (g_DebugFogDisabled) PC_WorldEnvWork.isFogEnabled_1 = 0;
         }
 
-        /* Enable hor+ widescreen only during 3D world states; 2D UI screens
-         * (menus, loading screen, memory card warning, etc.) use 4:3 ortho. */
-        g_PcHorPlusEnabled = (g_GameWork.gameState_594 == GameState_InGame ||
-                              g_GameWork.gameState_594 == GameState_MapEvent) ? 1 : 0;
-
-        /* Override background color with fog color during InGame.
-         * fog params are set by Gfx_FlashlightUpdate from the previous frame's
-         * update, so they're valid by frame 2+. Use the normal GsSortClear path
-         * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState_594 == 11 && PC_WorldEnvWork.isFogEnabled_1) {
-            g_GameWork.background2dColor_58C.r = PC_WorldEnvWork.fogColor_1C.r;
-            g_GameWork.background2dColor_58C.g = PC_WorldEnvWork.fogColor_1C.g;
-            g_GameWork.background2dColor_58C.b = PC_WorldEnvWork.fogColor_1C.b;
+        /* Override background clear with fog color during InGame.
+         * Without this the world clears to whatever color background2dColor
+         * holds (often black) and there's no atmospheric fog -- distance
+         * geometry shows in full lighting. fogColor_1C is set by
+         * Gfx_FlashlightUpdate from the previous frame so it's valid by
+         * frame 2+. The PsyX_FogColor[] mirror feeds the per-vertex shader
+         * fog (so fog ramps from clear color into geometry). */
+        if (g_GameWork.gameState == GameState_InGame && PC_WorldEnvWork.isFogEnabled_1) {
+            g_GameWork.background2dColor.r = PC_WorldEnvWork.fogColor_1C.r;
+            g_GameWork.background2dColor.g = PC_WorldEnvWork.fogColor_1C.g;
+            g_GameWork.background2dColor.b = PC_WorldEnvWork.fogColor_1C.b;
             g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
         }
 #endif
-        ML_TRACE("GsSortClear");
+        GsSortClear(g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b, &g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        /* Stack canary — detect if anything corrupted our stack frame */
-        {
-            volatile u32 _stackCanary = 0xDEADBEEF;
-#endif
-        GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
-        ML_TRACE("post-GsSortClear");
-#ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) {
-            /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
-             * Strip DR_MODE (0xE0) which crashes PsyCross ProcessDrawEnv,
-             * lines (0x40/0x50), and any unknown types. Texture page info is
-             * embedded in POLY_FT/GT prims so DR_MODE isn't needed for textures. */
+        /* Sanitize InGame OT0 -- whitelist only known-safe rendering
+         * primitives. PsyCross's ProcessDrawEnv crashes on DR_MODE (0xE0)
+         * and various unknown prim types; texture-page info is embedded
+         * in POLY_FT/GT prims so DR_MODE isn't actually needed for textures.
+         * Without this the IPD render pipeline trips on stray prims and
+         * either crashes mid-frame or eats the rest of the OT silently. */
+        if (g_GameWork.gameState == GameState_InGame) {
             GsOT* ot0 = &g_OrderingTable0[g_ActiveBufferIdx];
-            {
-                OT_TAG* cur = (OT_TAG*)ot0->tag;
-                int w2 = 0;
-                while (cur && !isendprim(cur) && w2 < 8192) {
-                    int len = getlen(cur);
-                    if (len > 0) {
-                        u8 hi = ((P_TAG*)cur)->code & 0xF0;
-                        if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
-                            hi != 0x60 && hi != 0x70 && hi != 0xA0)) {
-                            setlen(cur, 0);
-                        }
-                    }
-                    OT_TAG* next = (OT_TAG*)nextPrim(cur);
-                    /* Guard against wild pointers from corrupted OT entries */
-                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
+            OT_TAG* cur = (OT_TAG*)ot0->tag;
+            int w2 = 0;
+            while (cur && !isendprim(cur) && w2 < 8192) {
+                int len = getlen(cur);
+                if (len > 0) {
+                    u8 hi = ((P_TAG*)cur)->code & 0xF0;
+                    if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
+                        hi != 0x60 && hi != 0x70 && hi != 0xA0)) {
                         setlen(cur, 0);
-                        break;
                     }
-                    cur = next;
-                    w2++;
                 }
-            }
-        }
-
-#endif
-        ML_TRACE("OT0-draw");
-#ifdef SH_PC_PORT
-        /* Pre-draw canary check: detect if corruption happened during OT build */
-        if (g_GameWork.gameState_594 == GameState_InGame) {
-            int _ci; int _canaryOk = 1;
-            for (_ci = 0; _ci < PC_CANARY_SIZE; _ci++) {
-                if (s_PcPacketBufEnds[g_ActiveBufferIdx][_ci] != PC_CANARY_VAL) { _canaryOk = 0; break; }
-            }
-            if (!_canaryOk) {
-                SH_DBG("[CANARY] *** PRE-DRAW: buf %d overflow at byte %d (0x%02X)", g_ActiveBufferIdx, _ci, (unsigned char)s_PcPacketBufEnds[g_ActiveBufferIdx][_ci]);
+                OT_TAG* next = (OT_TAG*)nextPrim(cur);
+                if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
+                    setlen(cur, 0);
+                    break;
+                }
+                cur = next;
+                w2++;
             }
         }
 #endif
@@ -1050,7 +1013,7 @@ void MainLoop(void) // 0x80032EE0
          * OT2 holds text, screen fade, cutscene borders via g_OtTags0 layers.
          * Text uses SPRT (0x64) + DR_TPAGE (0xE1) per glyph, so allow 0xE0
          * range here (DR_TPAGE is safe; the DR_MODE crashes are in OT0). */
-        if (g_GameWork.gameState_594 == 11) {
+        if (g_GameWork.gameState == 11) {
             GsOT* ot2 = &g_OrderingTable2[g_ActiveBufferIdx];
             OT_TAG* cur2 = (OT_TAG*)ot2->tag;
             int w3 = 0;
@@ -1077,11 +1040,6 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");
-        /* End stack canary check */
-        if (_stackCanary != 0xDEADBEEF) {
-            SH_DBG("[CANARY] *** STACK CORRUPTION! canary=0x%08X", _stackCanary);
-        }
-        } /* close _stackCanary scope */
 #endif
     }
 

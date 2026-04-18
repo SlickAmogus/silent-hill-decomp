@@ -53,11 +53,11 @@ Ai_Creeper_Update                   = 0x800CCA14; // type:func
 Ai_Creeper_Init                     = 0x800CCAA4; // type:func
 sharedFunc_800D7EE8_1_s02           = 0x800CCD64; // type:func
 Ai_Creeper_ControlUpdate            = 0x800CD0C0; // type:func
-Ai_Creeper_Control_1                = 0x800CD16C; // type:func
-Ai_Creeper_Control_2                = 0x800CD500; // type:func
-Ai_Creeper_Control_3                = 0x800CDDAC; // type:func
-Ai_Creeper_Control_4                = 0x800CE3A4; // type:func
-Ai_Creeper_Control_5                = 0x800CE5F0; // type:func
+Creeper_ControlIdle                 = 0x800CD16C; // type:func
+Creeper_ControlWalkForward          = 0x800CD500; // type:func
+Creeper_ControlAttack               = 0x800CDDAC; // type:func
+Creeper_ControlStun                 = 0x800CE3A4; // type:func
+Creeper_ControlDamage               = 0x800CE5F0; // type:func
 sharedFunc_800D983C_1_s02           = 0x800CE6B8; // type:func
 sharedFunc_800D9960_1_s02           = 0x800CE7DC; // type:func
 sharedFunc_800D99D0_1_s02           = 0x800CE84C; // type:func
@@ -163,8 +163,8 @@ MAP_EVENTS                          = 0x800D1EC0;
 //----------------------------------------------------
 //--- PA: 0x008A44   VA: 0x800D1FBC   subsegment: data
 //----------------------------------------------------
-g_ParticleMapOverlayId0             = 0x800D1FE4;
-g_ParticleMapOverlayId1             = 0x800D1FE8; // type:s32
+g_ParticleMapIdx0                   = 0x800D1FE4;
+g_ParticleMapIdx1                   = 0x800D1FE8; // type:s32
 g_Particle_SpeedX                   = 0x800D1FF0;
 g_Particle_SpeedZ                   = 0x800D1FF4;
 sharedData_800DFB6C_0_s00           = 0x800D1FF8; // type:s32

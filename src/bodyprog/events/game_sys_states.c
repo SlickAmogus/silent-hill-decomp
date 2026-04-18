@@ -10,7 +10,15 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#ifdef SH_PC_PORT
+extern s_WorldEnvWork g_WorldEnvWork;
+#endif
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/events/events_main.h"
+#include "bodyprog/events/npc_main.h"
+#include "bodyprog/events/radio.h"
 #include "bodyprog/demo.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/memcard.h"
@@ -30,14 +38,11 @@ extern void DebugCamera_Update(void);
 #endif
 
 #ifndef PAD_HACK_IGNORE
-// ========================================
-// PADDING
-// ========================================
-s8  pad_bss_800BCD81[3];
-s32 pad_bss_800BCD88[2];
-s32 pad_bss_800BCD94[5];
-s32 pad_bss_800BCDD0;
-s8  pad_bss_800BCDD5[3];
+    s8  pad_bss_800BCD81[3];
+    s32 pad_bss_800BCD88[2];
+    s32 pad_bss_800BCD94[5];
+    s32 pad_bss_800BCDD0;
+    s8  pad_bss_800BCDD5[3];
 #endif
 
 // ========================================
@@ -92,12 +97,12 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     Demo_DemoRandSeedBackup();
 
-    switch (g_GameWork.gameStateStep_598[0])
+    switch (g_GameWork.gameStateSteps[0])
     {
         case 0:
             ScreenFade_Start(true, true, false);
             g_ScreenFadeTimestep            = Q12(3.0f);
-            g_GameWork.gameStateStep_598[0] = 1;
+            g_GameWork.gameStateSteps[0] = 1;
 
         case 1:
             DrawSync(SyncMode_Wait);
@@ -115,28 +120,28 @@ void GameState_InGame_Update(void) // 0x80038BD4
              * from wrongly snapping Harry via a stale positionY_EC=0. */
             {
                 s_Collision snapColl;
-                s_SubCharacter* snapHp = &g_SysWork.playerWork_4C.player_0;
-                Collision_Get(&snapColl, snapHp->position_18.vx, snapHp->position_18.vz);
+                s_SubCharacter* snapHp = &g_SysWork.playerWork.player;
+                Collision_Get(&snapColl, snapHp->position.vx, snapHp->position.vz);
                 if (snapColl.groundHeight_0 != Q12(8.0f)) {
-                    snapHp->position_18.vy = snapColl.groundHeight_0;
-                    snapHp->properties_E4.player.positionY_EC = snapColl.groundHeight_0;
+                    snapHp->position.vy = snapColl.groundHeight_0;
+                    snapHp->properties.player.positionY_EC = snapColl.groundHeight_0;
                     SH_DBG("[INIT] InGame Y snap: vy=%ld positionY_EC=%ld at (%ld,%ld)",
                            (long)snapColl.groundHeight_0, (long)snapColl.groundHeight_0,
-                           (long)snapHp->position_18.vx, (long)snapHp->position_18.vz);
+                           (long)snapHp->position.vx, (long)snapHp->position.vz);
                 } else {
                     SH_DBG("[INIT] InGame Y snap: no collision data at (%ld,%ld), keeping vy=%ld",
-                           (long)snapHp->position_18.vx, (long)snapHp->position_18.vz, (long)snapHp->position_18.vy);
+                           (long)snapHp->position.vx, (long)snapHp->position.vz, (long)snapHp->position.vy);
                 }
             }
 #endif
 
             g_IntervalVBlanks = 2;
-            g_GameWork.gameStateStep_598[0]++;
-            g_SysWork.sysFlags_22A0 |= SysFlag_6;
+            g_GameWork.gameStateSteps[0]++;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_6;
             break;
     }
 
-    if (g_SysWork.sysState_8 != SysState_Gameplay && g_SysWork.playerWork_4C.player_0.health_B0 <= Q12(0.0f))
+    if (g_SysWork.sysState != SysState_Gameplay && g_SysWork.playerWork.player.health <= Q12(0.0f))
     {
         SysWork_StateSetNext(SysState_Gameplay);
     }
@@ -150,10 +155,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
         g_DeltaTimeCpy = g_DeltaTimeRaw;
     }
 
-
-    if (g_SysWork.sysState_8 == SysState_Gameplay)
+    if (g_SysWork.sysState == SysState_Gameplay)
     {
-        g_SysWork.isMgsStringSet_18 = false;
+        g_SysWork.isMgsStringSet = false;
         g_SysStateFuncs[SysState_Gameplay]();
     }
     else
@@ -167,9 +171,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
-        g_SysStateFuncs[g_SysWork.sysState_8]();
+        g_SysStateFuncs[g_SysWork.sysState]();
 
-        if (g_SysWork.sysState_8 == SysState_Gameplay)
+        if (g_SysWork.sysState == SysState_Gameplay)
         {
             Event_Update(true);
 
@@ -183,7 +187,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueDoThingWhenEmpty();
 
-    if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
+    if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) && g_MapOverlayHeader.worldObjectsUpdate_40 != NULL)
     {
         g_MapOverlayHeader.worldObjectsUpdate_40();
     }
@@ -193,7 +197,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();
 
-    if (!(g_SysWork.sysFlags_22A0 & SysFlag_Freeze))
+    if (!(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause))
     {
         func_80040014();
         vcMoveAndSetCamera(false, false, false, false, false, false, false, false);
@@ -213,119 +217,100 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
 
-        player = &g_SysWork.playerWork_4C.player_0;
-
 #ifdef SH_PC_PORT
-        /* In debug camera mode, skip player/NPC/flashlight updates
-         * but still render Harry's model for visual debugging. */
-        DebugCamera_Update();
-        if (g_DebugCamEnabled)
+        /* Debug camera toggle (numpad *). Without this call the toggle
+         * never fires and the free cam becomes unreachable. */
         {
-            /* Render Harry in debug mode */
-            if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
-            {
-                extern u8 g_WorldEnvWork[];
-                u8 savedFog = g_WorldEnvWork[1];
-                u8 savedEnv = g_WorldEnvWork[0];
-                s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
-                if (harryModel != NULL) {
-                    func_800453E8(&harryModel->skeleton_14, true);
-                }
-                g_WorldEnvWork[1] = 0;
-                g_WorldEnvWork[0] = 0;
-                /* Reset ALL bone flg values to force full hierarchy recomputation.
-                 * Prevents stale cached workm matrices from causing alternating-frame
-                 * shrinking of Harry's model. */
-                {
-                    int _bi;
-                    for (_bi = 0; _bi < HarryBone_Count; _bi++) {
-                        g_SysWork.playerBoneCoords_890[_bi].flg = 0;
-                    }
-                }
-                func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1,
-                    g_SysWork.playerWork_4C.player_0.timer_C6, 0);
-                g_WorldEnvWork[1] = savedFog;
-                g_WorldEnvWork[0] = savedEnv;
-            }
-            Ipd_CloseRangeChunksInit();
-            Gfx_InGameDraw(1);
-            goto ingame_done;
+            extern void DebugCamera_Update(void);
+            DebugCamera_Update();
         }
 #endif
 
-        Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords_890);
+        player = &g_SysWork.playerWork.player;
+        Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords);
 
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
 
-        if (g_SavegamePtr->mapOverlayId_A4 != MapOverlayId_MAP7_S03)
+        if (g_SavegamePtr->mapOverlayId_A4 != MapIdx_MAP7_S03)
         {
             g_MapOverlayHeader.particlesUpdate_168(0, g_SavegamePtr->mapOverlayId_A4, 1);
         }
 
         Demo_DemoRandSeedRestore();
 
-        #ifdef SH_PC_PORT
-        {
-            static int _pDbg = 0;
-            if ((_pDbg++ % 120) == 0) {
-                printf("[PLAYER] flags_2=0x%x visible=%d charaModel=%p pos=(%d,%d,%d)\n",
-                       player->model_0.anim_4.flags_2,
-                       (player->model_0.anim_4.flags_2 & AnimFlag_Visible) != 0,
-                       (void*)g_WorldGfxWork.registeredCharaModels_18[Chara_Harry],
-                       g_SysWork.playerWork_4C.player_0.position_18.vx,
-                       g_SysWork.playerWork_4C.player_0.position_18.vy,
-                       g_SysWork.playerWork_4C.player_0.position_18.vz);
-                fflush(stdout);
-            }
-        }
-        #endif
-        if (player->model_0.anim_4.flags_2 & AnimFlag_Visible)
+#ifdef SH_PC_PORT
+        /* PC: AnimFlag_Visible gets cleared during/after cutscenes and never
+         * restored, leaving Harry permanently invisible.  Force it back on each
+         * InGame frame so the render block below always runs. */
+        player->model.anim.flags |= AnimFlag_Visible;
+#endif
+
+        if (player->model.anim.flags & AnimFlag_Visible)
         {
 #ifdef SH_PC_PORT
-            /* Force all skeleton bones visible */
+            /* Force all Harry skeleton bones visible. PSX implicitly leaves
+             * them visible; PC sees stray AnimFlag clears that hide the
+             * model entirely after a cutscene. */
             {
                 s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
                 if (harryModel != NULL) {
                     func_800453E8(&harryModel->skeleton_14, true);
                 }
             }
-            /* Temporarily disable fog for Harry's render — fogRamp_CC lookup
-             * can produce out-of-range indices that corrupt vertex colors when
-             * using the full rendering pipeline. */
+            /* Reset bone-coord flg values so the matrix hierarchy gets
+             * fully recomputed this frame. Stale cached workm matrices
+             * cause Harry's model to alternate-frame shrink/collapse. */
             {
-                extern u8 g_WorldEnvWork[];
-                u8 savedFog = g_WorldEnvWork[1]; /* isFogEnabled_1 */
-                u8 savedEnv = g_WorldEnvWork[0]; /* field_0 */
-                g_WorldEnvWork[1] = 0;
-                g_WorldEnvWork[0] = 0;
-                /* Reset ALL bone flg values to force full hierarchy recomputation.
-                 * Prevents stale cached workm matrices from causing alternating-frame
-                 * shrinking of Harry's model. */
-                {
-                    int _bi;
-                    for (_bi = 0; _bi < HarryBone_Count; _bi++) {
-                        g_SysWork.playerBoneCoords_890[_bi].flg = 0;
-                    }
+                int _bi;
+                for (_bi = 0; _bi < HarryBone_Count; _bi++) {
+                    g_SysWork.playerBoneCoords[_bi].flg = 0;
                 }
-#endif
-            func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords_890, 1, g_SysWork.playerWork_4C.player_0.timer_C6, 0);
-#ifdef SH_PC_PORT
-                g_WorldEnvWork[1] = savedFog;
-                g_WorldEnvWork[0] = savedEnv;
             }
+            /* Temporarily disable fog for Harry's render -- the fogRamp_CC
+             * lookup can produce out-of-range indices that corrupt his
+             * vertex colors when fed through the full lighting pipeline. */
+            {
+                u8 savedFog = g_WorldEnvWork.isFogEnabled_1;
+                u8 savedEnv = g_WorldEnvWork.field_0;
+                g_WorldEnvWork.isFogEnabled_1 = 0;
+                g_WorldEnvWork.field_0        = 0;
+                func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
+                g_WorldEnvWork.isFogEnabled_1 = savedFog;
+                g_WorldEnvWork.field_0        = savedEnv;
+            }
+#else
+            func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
 #endif
-            Chara_Flag8Clear(&g_SysWork.playerWork_4C.player_0);
-            Player_CombatUpdate(&g_SysWork.playerWork_4C, g_SysWork.playerBoneCoords_890);
-            func_8008A3AC(&g_SysWork.playerWork_4C.player_0);
+            Chara_Flag8Clear(&g_SysWork.playerWork.player);
+            Player_CombatUpdate(&g_SysWork.playerWork, g_SysWork.playerBoneCoords);
+            func_8008A3AC(&g_SysWork.playerWork.player);
         }
 
         Demo_DemoRandSeedRestore();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-NpcRoomInitSpawn");
+#endif
         Game_NpcRoomInitSpawn(true);
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-NpcUpdate");
+#endif
         Game_NpcUpdate();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-5E89C");
+#endif
         func_8005E89C();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-IpdCloseRange");
+#endif
         Ipd_CloseRangeChunksInit();
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] pre-InGameDraw");
+#endif
         Gfx_InGameDraw(1);
+#ifdef SH_PC_PORT
+        SH_DBG("[FRAME] post-InGameDraw");
+#endif
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT
     ingame_done:
@@ -338,12 +323,12 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 {
     s_SubCharacter* player;
 
-    player = &g_SysWork.playerWork_4C.player_0;
+    player = &g_SysWork.playerWork.player;
 
-    Event_Update(player->attackReceived_41 != NO_VALUE);
+    Event_Update(player->attackReceived != NO_VALUE);
     Savegame_MapRoomIdxUpdate();
 
-    switch (FP_ROUND_SCALED(player->health_B0, 10, Q12_SHIFT))
+    switch (FP_ROUND_SCALED(player->health, 10, Q12_SHIFT))
     {
         case 0:
             func_800892A4(17);
@@ -371,12 +356,12 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
             break;
     }
 
-    if (g_SysWork.playerWork_4C.player_0.health_B0 <= Q12(0.0f))
+    if (g_SysWork.playerWork.player.health <= Q12(0.0f))
     {
         return;
     }
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.light_A &&
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.light_A &&
         g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1))
     {
         Game_FlashlightToggle();
@@ -386,7 +371,7 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     {
         SysWork_StateSetNext(g_MapEventSysState);
     }
-    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.pause_14)
+    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.pause_14)
     {
         SysWork_StateSetNext(SysState_GamePaused);
     }
@@ -394,29 +379,29 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     {
         return;
     }
-    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.item_16)
+    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.item_16)
     {
         SysWork_StateSetNext(SysState_StatusMenu);
     }
-    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.map_18)
+    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.map_18)
     {
         SysWork_StateSetNext(SysState_MapScreen);
-        g_SysWork.isMgsStringSet_18 = false;
+        g_SysWork.isMgsStringSet = false;
     }
-    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.option_1A)
+    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.option_1A)
     {
         SysWork_StateSetNext(SysState_OptionsMenu);
     }
 
-    if (g_SysWork.sysState_8 == SysState_OptionsMenu ||
-        g_SysWork.sysState_8 == SysState_StatusMenu ||
-        g_SysWork.sysState_8 == SysState_MapScreen)
+    if (g_SysWork.sysState == SysState_OptionsMenu ||
+        g_SysWork.sysState == SysState_StatusMenu ||
+        g_SysWork.sysState == SysState_MapScreen)
     {
-        g_SysWork.flags_22A4 |= SysFlag2_MenuOpen;
+        g_SysWork.flags_22A4 |= UnkSysFlag_MenuOpen;
     }
     else if (ScreenFade_IsNone())
     {
-        g_SysWork.flags_22A4 &= ~SysFlag2_MenuOpen;
+        g_SysWork.flags_22A4 &= ~UnkSysFlag_MenuOpen;
     }
 }
 
@@ -439,10 +424,10 @@ void SysState_GamePaused_Update(void) // 0x800391E8
     func_80091380();
     Game_TimerUpdate();
 
-    if (g_SysWork.sysStateStep_C[0] == 0)
+    if (g_SysWork.sysStateSteps[0] == 0)
     {
         SD_Call(3);
-        g_SysWork.sysStateStep_C[0]++;
+        g_SysWork.sysStateSteps[0]++;
     }
 
     // Debug button combo to bring up save screen from pause screen.
@@ -463,9 +448,10 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         return;
     }
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.pause_14)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.pause_14)
     {
         D_800A9A68 = 0;
+
         SD_Call(4);
         SysWork_StateSetNext(SysState_Gameplay);
     }
@@ -473,12 +459,12 @@ void SysState_GamePaused_Update(void) // 0x800391E8
 
 void SysState_OptionsMenu_Update(void) // 0x80039344
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             ScreenFade_Start(true, false, false);
             g_ScreenFadeTimestep        = Q12(0.0f);
-            g_SysWork.sysStateStep_C[0] = 1;
+            g_SysWork.sysStateSteps[0] = 1;
 
         case 1:
             if (Ipd_ChunkInitCheck() != 0)
@@ -486,7 +472,7 @@ void SysState_OptionsMenu_Update(void) // 0x80039344
                 SD_Call(19);
                 GameFs_OptionBinLoad();
 
-                g_SysWork.sysStateStep_C[0]++;
+                g_SysWork.sysStateSteps[0]++;
             }
             break;
     }
@@ -504,15 +490,17 @@ void func_8003943C(void) // 0x8003943C
     s32 val0;
     s32 val1;
 
+    #define isRockDrillAttack (g_SysWork.playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap))
+
     func_8008B3E4(0);
 
     if (g_SysWork.field_275C > Q12(256.0f))
     {
         val0        = g_SysWork.field_275C - Q12(256.0f);
         roundedVal0 = FP_ROUND_TO_ZERO(val0, Q12_SHIFT);
-        func_8008B438(g_SysWork.playerCombat_38.weaponAttack_F != WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap), roundedVal0, 0);
+        func_8008B438(!isRockDrillAttack, roundedVal0, 0);
 
-        if (g_SysWork.playerCombat_38.weaponAttack_F == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap))
+        if (isRockDrillAttack)
         {
             val1        = g_SysWork.field_2764 - Q12(256.0f);
             roundedVal1 = FP_ROUND_TO_ZERO(val1, Q12_SHIFT);
@@ -521,9 +509,9 @@ void func_8003943C(void) // 0x8003943C
     }
     else
     {
-        func_8008B438(g_SysWork.playerCombat_38.weaponAttack_F != WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap), 0, 0);
+        func_8008B438(!isRockDrillAttack, 0, 0);
 
-        if (g_SysWork.playerCombat_38.weaponAttack_F == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap))
+        if (isRockDrillAttack)
         {
             func_8008B40C(0, 0);
         }
@@ -531,84 +519,86 @@ void func_8003943C(void) // 0x8003943C
 
     switch (g_SavegamePtr->mapOverlayId_A4)
     {
-        case MapOverlayId_MAP0_S01:
-        case MapOverlayId_MAP0_S02:
-        case MapOverlayId_MAP1_S00:
-        case MapOverlayId_MAP1_S01:
-        case MapOverlayId_MAP1_S02:
-        case MapOverlayId_MAP1_S03:
-        case MapOverlayId_MAP1_S04:
-        case MapOverlayId_MAP1_S05:
-        case MapOverlayId_MAP1_S06:
-        case MapOverlayId_MAP2_S00:
-        case MapOverlayId_MAP2_S01:
-        case MapOverlayId_MAP2_S02:
-        case MapOverlayId_MAP2_S03:
-        case MapOverlayId_MAP2_S04:
-        case MapOverlayId_MAP3_S00:
-        case MapOverlayId_MAP3_S01:
-        case MapOverlayId_MAP3_S02:
-        case MapOverlayId_MAP3_S04:
-        case MapOverlayId_MAP3_S05:
-        case MapOverlayId_MAP3_S06:
-        case MapOverlayId_MAP4_S00:
-        case MapOverlayId_MAP4_S01:
-        case MapOverlayId_MAP4_S02:
-        case MapOverlayId_MAP4_S03:
-        case MapOverlayId_MAP4_S04:
-        case MapOverlayId_MAP4_S05:
-        case MapOverlayId_MAP4_S06:
-        case MapOverlayId_MAP5_S00:
-        case MapOverlayId_MAP5_S01:
-        case MapOverlayId_MAP5_S02:
-        case MapOverlayId_MAP5_S03:
-        case MapOverlayId_MAP6_S00:
-        case MapOverlayId_MAP6_S01:
-        case MapOverlayId_MAP6_S02:
-        case MapOverlayId_MAP6_S03:
-        case MapOverlayId_MAP6_S04:
-        case MapOverlayId_MAP6_S05:
-        case MapOverlayId_MAP7_S00:
-        case MapOverlayId_MAP7_S01:
-        case MapOverlayId_MAP7_S02:
+        case MapIdx_MAP0_S01:
+        case MapIdx_MAP0_S02:
+        case MapIdx_MAP1_S00:
+        case MapIdx_MAP1_S01:
+        case MapIdx_MAP1_S02:
+        case MapIdx_MAP1_S03:
+        case MapIdx_MAP1_S04:
+        case MapIdx_MAP1_S05:
+        case MapIdx_MAP1_S06:
+        case MapIdx_MAP2_S00:
+        case MapIdx_MAP2_S01:
+        case MapIdx_MAP2_S02:
+        case MapIdx_MAP2_S03:
+        case MapIdx_MAP2_S04:
+        case MapIdx_MAP3_S00:
+        case MapIdx_MAP3_S01:
+        case MapIdx_MAP3_S02:
+        case MapIdx_MAP3_S04:
+        case MapIdx_MAP3_S05:
+        case MapIdx_MAP3_S06:
+        case MapIdx_MAP4_S00:
+        case MapIdx_MAP4_S01:
+        case MapIdx_MAP4_S02:
+        case MapIdx_MAP4_S03:
+        case MapIdx_MAP4_S04:
+        case MapIdx_MAP4_S05:
+        case MapIdx_MAP4_S06:
+        case MapIdx_MAP5_S00:
+        case MapIdx_MAP5_S01:
+        case MapIdx_MAP5_S02:
+        case MapIdx_MAP5_S03:
+        case MapIdx_MAP6_S00:
+        case MapIdx_MAP6_S01:
+        case MapIdx_MAP6_S02:
+        case MapIdx_MAP6_S03:
+        case MapIdx_MAP6_S04:
+        case MapIdx_MAP6_S05:
+        case MapIdx_MAP7_S00:
+        case MapIdx_MAP7_S01:
+        case MapIdx_MAP7_S02:
             break;
 
-        case MapOverlayId_MAP3_S03:
+        case MapIdx_MAP3_S03:
             Sd_SfxStop(Sfx_Unk1525);
             Sd_SfxStop(Sfx_Unk1527);
             break;
 
-        case MapOverlayId_MAP0_S00:
+        case MapIdx_MAP0_S00:
             Sd_SfxStop(Sfx_Unk1358);
             break;
     }
+
+    #undef isRockDrillAttack
 }
 
 void SysState_StatusMenu_Update(void) // 0x80039568
 {
     e_GameState gameState;
 
-    gameState = g_GameWork.gameState_594;
+    gameState = g_GameWork.gameState;
 
-    g_GameWork.gameState_594 = GameState_LoadStatusScreen;
+    g_GameWork.gameState = GameState_LoadStatusScreen;
     g_SysWork.counters_1C[0] = 0;
     g_SysWork.counters_1C[1] = 0;
 
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
 
     SysWork_StateSetNext(SysState_Gameplay);
 
-    g_GameWork.gameStateStep_598[0] = gameState;
-    g_GameWork.gameStatePrev_590    = gameState;
-    g_GameWork.gameStateStep_598[0] = 0;
+    g_GameWork.gameStateSteps[0] = gameState;
+    g_GameWork.gameStatePrev    = gameState;
+    g_GameWork.gameStateSteps[0] = 0;
 }
 
 void GameState_LoadStatusScreen_Update(void) // 0x800395C0
 {
     s_Savegame* save;
 
-    if (g_GameWork.gameStateStep_598[0] == 0)
+    if (g_GameWork.gameStateSteps[0] == 0)
     {
         DrawSync(SyncMode_Wait);
         g_IntervalVBlanks = 1;
@@ -625,7 +615,7 @@ void GameState_LoadStatusScreen_Update(void) // 0x800395C0
         func_800540A4(save->mapOverlayId_A4);
         GameFs_MapItemsTextureLoad(save->mapOverlayId_A4);
 
-        g_GameWork.gameStateStep_598[0]++;
+        g_GameWork.gameStateSteps[0]++;
     }
 
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
@@ -640,7 +630,7 @@ void SysState_MapScreen_Update(void) // 0x800396D4
 {
     if (!HAS_MAP(g_SavegamePtr->paperMapIdx_A9))
     {
-        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.map_18 ||
+        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.map_18 ||
             Gfx_MapMsg_Draw(MapMsgIdx_NoMap) > MapMsgState_Idle)
         {
             SysWork_StateSetNext(SysState_Gameplay);
@@ -650,7 +640,7 @@ void SysState_MapScreen_Update(void) // 0x800396D4
              ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
               (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0))))
     {
-        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.map_18 ||
+        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.map_18 ||
             Gfx_MapMsg_Draw(MapMsgIdx_TooDarkForMap) > MapMsgState_Idle)
         {
             SysWork_StateSetNext(SysState_Gameplay);
@@ -658,7 +648,7 @@ void SysState_MapScreen_Update(void) // 0x800396D4
     }
     else
     {
-        if (g_SysWork.sysStateStep_C[0] == 0)
+        if (g_SysWork.sysStateSteps[0] == 0)
         {
             if (g_PaperMapMarkingFileIdxs[g_SavegamePtr->paperMapIdx_A9] != NO_VALUE)
             {
@@ -669,7 +659,7 @@ void SysState_MapScreen_Update(void) // 0x800396D4
 
             ScreenFade_Start(true, false, false);
             g_ScreenFadeTimestep = Q12(0.0f);
-            g_SysWork.sysStateStep_C[0]++;
+            g_SysWork.sysStateSteps[0]++;
         }
 
         if (D_800A9A0C != 0)
@@ -681,7 +671,7 @@ void SysState_MapScreen_Update(void) // 0x800396D4
 
 void GameState_LoadMapScreen_Update(void) // 0x8003991C
 {
-    if (g_GameWork.gameStateStep_598[0] == 0)
+    if (g_GameWork.gameStateSteps[0] == 0)
     {
         DrawSync(SyncMode_Wait);
         g_IntervalVBlanks = 1;
@@ -695,7 +685,7 @@ void GameState_LoadMapScreen_Update(void) // 0x8003991C
         }
 
         Fs_QueueStartReadTim(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[g_SavegamePtr->paperMapIdx_A9], FS_BUFFER_2, &g_PaperMapImg);
-        g_GameWork.gameStateStep_598[0]++;
+        g_GameWork.gameStateSteps[0]++;
     }
 
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
@@ -712,18 +702,18 @@ void SysState_Fmv_Update(void) // 0x80039A58
 
     static RECT D_800A9A6C = { 320, 256, 160, 240 };
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             ScreenFade_Start(false, false, false);
             D_800A9A0C                  = 0;
-            g_SysWork.sysStateStep_C[0] = 1;
+            g_SysWork.sysStateSteps[0] = 1;
 
         case 1:
             if (Ipd_ChunkInitCheck() != 0)
             {
                 GameFs_StreamBinLoad();
-                g_SysWork.sysStateStep_C[0]++;
+                g_SysWork.sysStateSteps[0]++;
             }
             break;
     }
@@ -743,7 +733,7 @@ void SysState_Fmv_Update(void) // 0x80039A58
 
     // Start playing movie. File to play is based on file ID `BASE_AUDIO_FILE_IDX - g_MapEventParam`.
     // Blocks until movie has finished playback or user has skipped it.
-    open_main(BASE_AUDIO_FILE_IDX - g_MapEventParam, g_FileTable[BASE_AUDIO_FILE_IDX - g_MapEventParam].blockCount_0_19);
+    open_main(BASE_AUDIO_FILE_IDX - g_MapEventParam, g_FileTable[BASE_AUDIO_FILE_IDX - g_MapEventParam].blockCount);
 
     func_800892A4(1);
 
@@ -752,16 +742,16 @@ void SysState_Fmv_Update(void) // 0x80039A58
     LoadImage(&D_800A9A6C, (u32*)IMAGE_BUFFER_0);
     DrawSync(SyncMode_Wait);
 
-    // Set savegame flag based on `g_MapEventData->disabledEventFlag_2` flag ID.
-    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
+    // Set savegame flag based on `g_MapEventData->disabledEventFlag` flag ID.
+    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
 
     // Return to game.
     Game_StateSetNext(GameState_InGame);
 
-    // If flag is set, returns to `GameState_InGame` with `gameStateStep[0]` = 1.
+    // If flag is set, returns to `GameState_InGame` with `gameStateSteps[0]` = 1.
     if (g_MapEventData->flags_8_13 & EventParamUnkState_1)
     {
-        g_GameWork.gameStateStep_598[0] = 1;
+        g_GameWork.gameStateSteps[0] = 1;
     }
 }
 
@@ -771,67 +761,79 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     s_MapPoint2d* mapPoint;
 
     g_SysWork.field_229C            = 0;
-    g_SysWork.loadingScreenIdx_2281 = D_800BCDB0.loadingScreenId_4_9;
-    g_SysWork.field_2283            = g_MapEventData->field_8_19;
+    g_SysWork.loadingScreenIdx = D_800BCDB0.loadingScreenId_4_9;
+    g_SysWork.sfxPairIdx_2283       = g_MapEventData->sfxPairIdx_8_19;
     g_SysWork.field_2282            = g_MapEventData->flags_8_13;
 
-    SD_Call(SfxPairs[g_SysWork.field_2283].sfx_0);
+    SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
 
-    if (g_SysWork.field_2283 == 7)
+    if (g_SysWork.sfxPairIdx_2283 == SfxPairIdx_7)
     {
         D_800BCDD4            = 0;
-        g_SysWork.flags_22A4 |= SysFlag2_10;
+        g_SysWork.flags_22A4 |= UnkSysFlag_10;
     }
 
-    D_800BCDB0 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam_8_5];
+    D_800BCDB0 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam];
 
+#ifdef SH_PC_PORT
+    SH_DBG("[DOOR] SysState_LoadArea: eventParam=%d pointOfInterestIdx=%d sysState=%d",
+           g_MapEventData->eventParam, g_MapEventData->pointOfInterestIdx, g_SysWork.sysState);
+    SH_DBG("[DOOR]   D_800BCDB0: posX=%d posZ=%d triggerParam0=%d triggerParam1=%d",
+           D_800BCDB0.positionX_0, D_800BCDB0.positionZ_8,
+           D_800BCDB0.triggerParam0_4_16, D_800BCDB0.triggerParam1_4_24);
+    SH_DBG("[DOOR]   mapPointsOfInterest=%p playerPos=(%d,%d)",
+           (void*)g_MapOverlayHeader.mapPointsOfInterest_1C,
+           g_SysWork.playerWork.player.position.vx,
+           g_SysWork.playerWork.player.position.vz);
+#endif
 
     if (D_800BCDB0.triggerParam1_4_24 == 1)
     {
-        mapPoint                = &g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->pointOfInterestIdx_5];
-        offsetZ                 = g_SysWork.playerWork_4C.player_0.position_18.vz - mapPoint->positionZ_8;
-        D_800BCDB0.positionX_0 += g_SysWork.playerWork_4C.player_0.position_18.vx - mapPoint->positionX_0;
+        mapPoint                = &g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->pointOfInterestIdx];
+        offsetZ                 = g_SysWork.playerWork.player.position.vz - mapPoint->positionZ_8;
+        D_800BCDB0.positionX_0 += g_SysWork.playerWork.player.position.vx - mapPoint->positionX_0;
         D_800BCDB0.positionZ_8 += offsetZ;
     }
 
 #ifdef SH_PC_PORT
-    /* Save backup — D_800BCDB0 gets mysteriously zeroed before AreaLoad_UpdatePlayerPosition */
+    /* D_800BCDB0 gets zeroed somewhere between here and AreaLoad_Update-
+     * PlayerPosition (PSX path runs synchronously, PC's GameBoot_MapLoad
+     * trips through extra subsystems that clear it). Save a backup here
+     * and restore it in AreaLoad_UpdatePlayerPosition if it's been
+     * zeroed -- otherwise the player spawns at (0,0,0) on every door. */
     s_PC_D_800BCDB0_Backup = D_800BCDB0;
-    s_PC_D_800BCDB0_Saved = 1;
-    SH_DBG("[DOOR] Saved D_800BCDB0 backup: posX=%d posZ=%d tp0=%d tp1=%d",
-           s_PC_D_800BCDB0_Backup.positionX_0, s_PC_D_800BCDB0_Backup.positionZ_8,
-           s_PC_D_800BCDB0_Backup.triggerParam0_4_16, s_PC_D_800BCDB0_Backup.triggerParam1_4_24);
+    s_PC_D_800BCDB0_Saved  = 1;
 #endif
 
-    if (g_SysWork.sysState_8 == SysState_LoadOverlay)
+    if (g_SysWork.sysState == SysState_LoadOverlay)
     {
-        g_SysWork.processFlags_2298    = SysWorkProcessFlag_OverlayTransition;
-        g_SavegamePtr->mapOverlayId_A4 = g_MapEventData->mapOverlayIdx_8_25;
+        g_SysWork.processFlags    = ProcessFlag_OverlayTransition;
+        g_SavegamePtr->mapOverlayId_A4 = g_MapEventData->mapIdx;
         GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
     }
     else
     {
-        g_SysWork.processFlags_2298 = SysWorkProcessFlag_RoomTransition;
-        Bgm_TrackChange(g_MapEventData->mapOverlayIdx_8_25);
+        g_SysWork.processFlags = ProcessFlag_RoomTransition;
+        Bgm_TrackChange(g_MapEventData->mapIdx);
 
-        if (g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam_8_5].field_4_5 != 0)
+        if (g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam].field_4_5 != 0)
         {
-            g_SysWork.field_2349 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam_8_5].field_4_5 - 1;
+            g_SysWork.field_2349 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam].field_4_5 - 1;
         }
     }
 
-    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
+    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
 
     if (g_MapEventData->field_8_24)
     {
-        g_SysWork.flags_22A4 |= SysFlag2_6;
+        g_SysWork.flags_22A4 |= UnkSysFlag_6;
     }
     else
     {
-        g_SysWork.flags_22A4 &= ~SysFlag2_6;
+        g_SysWork.flags_22A4 &= ~UnkSysFlag_6;
     }
 
-    g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
     Game_StateSetNext(GameState_MainLoadScreen);
     Screen_BackgroundMotionBlur(SyncMode_Immediate);
 }
@@ -840,9 +842,9 @@ void AreaLoad_UpdatePlayerPosition(void) // 0x80039F30
 {
 #ifdef SH_PC_PORT
     SH_DBG("[TRANSITION] AreaLoad_UpdatePlayerPosition: BEFORE playerPos=(%d,%d,%d) targetPos=(%d,%d) loadScreen=%d",
-           g_SysWork.playerWork_4C.player_0.position_18.vx,
-           g_SysWork.playerWork_4C.player_0.position_18.vy,
-           g_SysWork.playerWork_4C.player_0.position_18.vz,
+           g_SysWork.playerWork.player.position.vx,
+           g_SysWork.playerWork.player.position.vy,
+           g_SysWork.playerWork.player.position.vz,
            D_800BCDB0.positionX_0, D_800BCDB0.positionZ_8,
            D_800BCDB0.loadingScreenId_4_9);
     /* Restore backup if D_800BCDB0 was zeroed */
@@ -857,16 +859,22 @@ void AreaLoad_UpdatePlayerPosition(void) // 0x80039F30
     s_PC_D_800BCDB0_Saved = 0;
 #endif
     Chara_PositionSet(&D_800BCDB0);
+#ifdef SH_PC_PORT
+    SH_DBG("[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(%d,%d,%d)",
+           g_SysWork.playerWork.player.position.vx,
+           g_SysWork.playerWork.player.position.vy,
+           g_SysWork.playerWork.player.position.vz);
+#endif
 }
 
 void AreaLoad_TransitionSound(void) // 0x80039F54
 {
-    SD_Call(SfxPairs[g_SysWork.field_2283].sfx_2);
+    SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_2);
 }
 
 s8 func_80039F90(void) // 0x80039F90
 {
-    if (g_SysWork.processFlags_2298 & (SysWorkProcessFlag_RoomTransition | SysWorkProcessFlag_OverlayTransition))
+    if (g_SysWork.processFlags & (ProcessFlag_RoomTransition | ProcessFlag_OverlayTransition))
     {
         return g_SysWork.field_2282;
     }
@@ -884,18 +892,18 @@ void SysState_ReadMessage_Update(void) // 0x80039FB8
     // - A specific event related flag is disenabled.
     // - A specific camera related flag is disenabled.
     // - There is no alive enemy.
-    if (!(g_MapEventData->flags_8_13 & EventParamUnkState_0) && !(g_SysWork.flags_22A4 & SysFlag2_5))
+    if (!(g_MapEventData->flags_8_13 & EventParamUnkState_0) && !(g_SysWork.flags_22A4 & UnkSysFlag_5))
     {
-        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs_1A0); i++)
+        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
         {
-            if (g_SysWork.npcs_1A0[i].model_0.charaId_0 >= Chara_Harry && g_SysWork.npcs_1A0[i].model_0.charaId_0 <= Chara_MonsterCybil &&
-                g_SysWork.npcs_1A0[i].health_B0 > Q12(0.0f))
+            if (g_SysWork.npcs[i].model.charaId >= Chara_Harry && g_SysWork.npcs[i].model.charaId <= Chara_MonsterCybil &&
+                g_SysWork.npcs[i].health > Q12(0.0f))
             {
                 break;
             }
         }
 
-        if (i == ARRAY_SIZE(g_SysWork.npcs_1A0))
+        if (i == ARRAY_SIZE(g_SysWork.npcs))
         {
             g_DeltaTime = g_DeltaTimeCpy;
         }
@@ -905,7 +913,7 @@ void SysState_ReadMessage_Update(void) // 0x80039FB8
         g_DeltaTime = g_DeltaTimeCpy;
     }
 
-    if (g_SysWork.isMgsStringSet_18 == false)
+    if (g_SysWork.isMgsStringSet == false)
     {
         g_MapOverlayHeader.playerControlFreeze_C8();
     }
@@ -919,7 +927,7 @@ void SysState_ReadMessage_Update(void) // 0x80039FB8
             break;
 
         case MapMsgState_SelectEntry0:
-            Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
+            Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
 
             unfreezePlayerFunc = &g_MapOverlayHeader.playerControlUnfreeze_CC;
 
@@ -937,29 +945,29 @@ void SysWork_SavegameUpdatePlayer(void) // 0x8003A120
     save = g_SavegamePtr;
 
     save->locationId_A8       = g_MapEventParam;
-    save->playerPositionX_244 = g_SysWork.playerWork_4C.player_0.position_18.vx;
-    save->playerPositionZ_24C = g_SysWork.playerWork_4C.player_0.position_18.vz;
-    save->playerRotationY_248 = g_SysWork.playerWork_4C.player_0.rotation_24.vy;
-    save->playerHealth_240    = g_SysWork.playerWork_4C.player_0.health_B0;
+    save->playerPositionX_244 = g_SysWork.playerWork.player.position.vx;
+    save->playerPositionZ_24C = g_SysWork.playerWork.player.position.vz;
+    save->playerRotationY_248 = g_SysWork.playerWork.player.rotation.vy;
+    save->playerHealth_240    = g_SysWork.playerWork.player.health;
 }
 
 void func_8003A16C(void) // 0x8003A16C
 {
-    if (!(g_SysWork.flags_22A4 & SysFlag2_1))
+    if (!(g_SysWork.flags_22A4 & UnkSysFlag_1))
     {
-        // Update `savegame_30C` with player info.
+        // Update `savegame` with player info.
         SysWork_SavegameUpdatePlayer();
 
-        g_GameWork.autosave_90 = g_GameWork.savegame_30C;
+        g_GameWork.autosave = g_GameWork.savegame;
     }
 }
 
 void SysWork_SavegameReadPlayer(void) // 0x8003A1F4
 {
-    g_SysWork.playerWork_4C.player_0.position_18.vx = g_SavegamePtr->playerPositionX_244;
-    g_SysWork.playerWork_4C.player_0.position_18.vz = g_SavegamePtr->playerPositionZ_24C;
-    g_SysWork.playerWork_4C.player_0.rotation_24.vy = g_SavegamePtr->playerRotationY_248;
-    g_SysWork.playerWork_4C.player_0.health_B0      = g_SavegamePtr->playerHealth_240;
+    g_SysWork.playerWork.player.position.vx = g_SavegamePtr->playerPositionX_244;
+    g_SysWork.playerWork.player.position.vz = g_SavegamePtr->playerPositionZ_24C;
+    g_SysWork.playerWork.player.rotation.vy = g_SavegamePtr->playerRotationY_248;
+    g_SysWork.playerWork.player.health      = g_SavegamePtr->playerHealth_240;
 }
 
 void SysState_SaveMenu_Update(void) // 0x8003A230
@@ -968,7 +976,7 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
 
     func_80033548();
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             SysWork_SavegameUpdatePlayer();
@@ -999,21 +1007,21 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
 
                 func_8003943C();
 
-                gameState = g_GameWork.gameState_594;
+                gameState = g_GameWork.gameState;
 
-                g_GameWork.gameState_594 = GameState_SaveScreen;
+                g_GameWork.gameState = GameState_SaveScreen;
 
                 g_SysWork.counters_1C[0] = 0;
                 g_SysWork.counters_1C[1] = 0;
 
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
 
                 SysWork_StateSetNext(SysState_Gameplay);
 
-                g_GameWork.gameStateStep_598[0] = gameState;
-                g_GameWork.gameStatePrev_590    = gameState;
-                g_GameWork.gameStateStep_598[0] = 0;
+                g_GameWork.gameStateSteps[0] = gameState;
+                g_GameWork.gameStatePrev    = gameState;
+                g_GameWork.gameStateSteps[0] = 0;
             }
             break;
     }
@@ -1023,29 +1031,29 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
 {
 #ifdef SH_PC_PORT
     if (g_MapEventData == NULL) {
-        g_SysWork.sysState_8 = SysState_Gameplay;
+        g_SysWork.sysState = SysState_Gameplay;
         return;
     }
 #endif
     if (g_MapEventData->flags_8_13 != EventParamUnkState_None)
     {
-        Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
+        Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
     }
 
     g_DeltaTime = g_DeltaTimeCpy;
 #ifdef SH_PC_PORT
     /* Guard OOB: mapEventFuncs_20 arrays vary per map (e.g. map0_s02 has 7).
-     * A stale lastUsedItem_28 can produce a garbage param well past the end. */
+     * A stale lastUsedItem can produce a garbage param well past the end. */
     if (g_MapEventParam < 0 || g_MapEventParam >= 64) {
         SH_DBG("[SS] EventCallFunc param=%d OOB — skip", g_MapEventParam);
-        g_SysWork.sysState_8 = SysState_Gameplay;
+        g_SysWork.sysState = SysState_Gameplay;
         return;
     }
     SH_DBG("[SS] EventCallFunc param=%d func=%p", g_MapEventParam,
             (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]);
     if (g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
         SH_DBG("[SS] EventCallFunc NULL — skip");
-        g_SysWork.sysState_8 = SysState_Gameplay;
+        g_SysWork.sysState = SysState_Gameplay;
         return;
     }
 #endif
@@ -1055,8 +1063,8 @@ void SysState_EventCallFunc_Update(void) // 0x8003A3C8
 void SysState_EventSetFlag_Update(void) // 0x8003A460
 {
     g_DeltaTime = g_DeltaTimeCpy;
-    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
-    g_SysWork.sysState_8 = SysState_Gameplay;
+    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
+    g_SysWork.sysState = SysState_Gameplay;
 }
 
 void SysState_EventPlaySound_Update(void) // 0x8003A4B4
@@ -1065,8 +1073,8 @@ void SysState_EventPlaySound_Update(void) // 0x8003A4B4
 
     SD_Call(((u16)g_MapEventParam + Sfx_Base) & 0xFFFF);
 
-    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
-    g_SysWork.sysState_8 = SysState_Gameplay;
+    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
+    g_SysWork.sysState = SysState_Gameplay;
 }
 
 void SysState_GameOver_Update(void) // 0x8003A52C
@@ -1079,28 +1087,28 @@ void SysState_GameOver_Update(void) // 0x8003A52C
     s32       randTipVal;
     u16*      temp_a0;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             g_MapOverlayHeader.playerControlFreeze_C8();
             g_SysWork.field_28 = Q12(0.0f);
 
-            if (g_GameWork.autosave_90.continueCount_27B < 99)
+            if (g_GameWork.autosave.continueCount_27B < 99)
             {
-                g_GameWork.autosave_90.continueCount_27B++;
+                g_GameWork.autosave.continueCount_27B++;
             }
 
             MainMenu_SelectedOptionIdxReset();
 
             // If every game over tip has been seen, reset flag bits.
-            if (g_GameWork.config_0.seenGameOverTips_2E[0] == SHRT_MAX)
+            if (g_GameWork.config.seenGameOverTips_2E[0] == SHRT_MAX)
             {
-                g_GameWork.config_0.seenGameOverTips_2E[0] = 0;
+                g_GameWork.config.seenGameOverTips_2E[0] = 0;
             }
 
             randTipVal = 0;
 
-            seenTipIdxs[0] = g_GameWork.config_0.seenGameOverTips_2E[0];
+            seenTipIdxs[0] = g_GameWork.config.seenGameOverTips_2E[0];
             for (tipIdx = 0; tipIdx < TIP_COUNT; tipIdx++)
             {
                 if (!Flags16b_IsSet(seenTipIdxs, tipIdx))
@@ -1147,7 +1155,7 @@ void SysState_GameOver_Update(void) // 0x8003A52C
                 }
             }
 
-            // Store current shown `tipIdx`, later `sysStateStep_C == 7` will set it inside `seenGameOverTips_2E`.
+            // Store current shown `tipIdx`, later `sysStateSteps == 7` will set it inside `seenGameOverTips_2E`.
             prevTipIdx = tipIdx;
 
 #if VERSION_REGION_IS(NTSC)
@@ -1170,8 +1178,8 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
             g_SysWork.field_28++;
 
-            if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                  g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)) ||
+            if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                  g_GameWorkPtr->config.controllerConfig.cancel_2)) ||
                 g_SysWork.field_28 > Q12(1.0f / 17.0f))
             {
                 SysWork_StateStepIncrement(0);
@@ -1207,8 +1215,8 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             g_SysWork.field_28++;
             Screen_BackgroundImgDraw(&g_DeathTipImg);
 
-            if (!(g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                   g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)))
+            if (!(g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                   g_GameWorkPtr->config.controllerConfig.cancel_2)))
             {
                 if (g_SysWork.field_28 <= 480)
                 {
@@ -1217,7 +1225,7 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             }
 
             // TODO: some inline FlagSet func? couldn't get matching ver, but pretty sure temp_a0 can be removed somehow
-            temp_a0 = &g_GameWork.config_0.seenGameOverTips_2E[(prevTipIdx >> 5)];
+            temp_a0 = &g_GameWork.config.seenGameOverTips_2E[(prevTipIdx >> 5)];
             *temp_a0 |= (1 << 0) << (prevTipIdx & 0x1F);
 
             SysWork_StateStepIncrement(0);
@@ -1235,9 +1243,9 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             break;
     }
 
-    if (g_SysWork.sysStateStep_C[0] >= 2 || g_GameWork.gameState_594 != GameState_InGame)
+    if (g_SysWork.sysStateSteps[0] >= 2 || g_GameWork.gameState != GameState_InGame)
     {
-        g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
     }
 
     #undef TIP_COUNT
@@ -1245,16 +1253,16 @@ void SysState_GameOver_Update(void) // 0x8003A52C
 
 void GameState_MapEvent_Update(void) // 0x8003AA4C
 {
-    if (g_GameWork.gameStateStep_598[0] == 0)
+    if (g_GameWork.gameStateSteps[0] == 0)
     {
         g_IntervalVBlanks               = 1;
         ScreenFade_Start(true, true, false);
-        g_GameWork.gameStateStep_598[0] = 1;
+        g_GameWork.gameStateSteps[0] = 1;
     }
 
     D_800A9A0C = ScreenFade_IsFinished() && Fs_QueueDoThingWhenEmpty();
 
-    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag_2);
+    Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
 
 #ifdef SH_PC_PORT
     if (g_MapEventParam < 0 || g_MapEventParam >= 64

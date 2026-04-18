@@ -3,6 +3,7 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -82,7 +83,7 @@ void func_800D7A28(void) // 0x800D7A28
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 94:
             pickupType   = CommonPickupItemId_HandgunBullets;
@@ -129,7 +130,7 @@ void func_800D7B2C(void)
 {
     g_DeltaTime = Q12(0.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -227,7 +228,7 @@ void func_800D7EB0(void)
 {
     g_DeltaTime = Q12(0.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -312,7 +313,7 @@ void func_800D81CC(void) // 0x800D81CC
 {
     g_DeltaTime = Q12(0.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -377,11 +378,11 @@ void func_800D81CC(void) // 0x800D81CC
 
 void func_800D8354(void) // 0x800D8354
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
     g_DeltaTime = Q12(0.0f);
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -403,7 +404,7 @@ void func_800D8354(void) // 0x800D8354
         case 4:
             func_800862F8(2, 0, false);
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 | g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 | g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
                 SysWork_StateStepIncrement(0);
                 break;
@@ -439,14 +440,14 @@ void func_800D85A4(void) // 0x800D85A4
 void func_800D85D8(void) // 0x800D85D8
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] >= 3 && g_SysWork.sysStateStep_C[0] < 5)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 5)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -460,40 +461,40 @@ void func_800D85D8(void) // 0x800D85D8
             Camera_PositionSet(NULL, Q12(-56.41f), Q12(-5.67f), Q12(-55.39f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-56.4f), Q12(-1.8699f), Q12(-54.16f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-2.3f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(0.0f);
+            g_SysWork.playerWork.player.position.vy = Q12(-2.3f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(0.0f);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
-            func_80085EB8(0u, &g_SysWork.playerWork_4C.player_0, 88, false);
+            func_80085EB8(0u, &g_SysWork.playerWork.player, 88, false);
             SysWork_StateStepIncrement(0);
 
         case 3:
             SysWork_StateStepIncrementDelayed(Q12(3.5f), false);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.3f));
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.3f));
             break;
 
         case 4:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.3f));
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(0.3f));
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
             break;
 
         default:
             if (Savegame_EventFlagGet(EventFlag_78))
             {
-                g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-60.0f);
-                g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(0.0f);
-                g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-63.7f);
-                g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(0.0f);
+                g_SysWork.playerWork.player.position.vx = Q12(-60.0f);
+                g_SysWork.playerWork.player.position.vy = Q12(0.0f);
+                g_SysWork.playerWork.player.position.vz = Q12(-63.7f);
+                g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(0.0f);
 
                 Savegame_EventFlagClear(EventFlag_184);
                 Savegame_EventFlagClear(EventFlag_78);
             }
             else if (Savegame_EventFlagGet(EventFlag_81))
             {
-                g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-60.0f);
-                g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(0.6f);
-                g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-56.3f);
-                g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(180.0f);
+                g_SysWork.playerWork.player.position.vx = Q12(-60.0f);
+                g_SysWork.playerWork.player.position.vy = Q12(0.6f);
+                g_SysWork.playerWork.player.position.vz = Q12(-56.3f);
+                g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(180.0f);
 
                 Savegame_EventFlagClear(EventFlag_185);
                 Savegame_EventFlagClear(EventFlag_81);
@@ -509,14 +510,14 @@ void func_800D85D8(void) // 0x800D85D8
 
 void func_800D8948(void) // 0x800D8948
 {
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] >= 4 && g_SysWork.sysStateStep_C[0] < 6)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] >= 4 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -539,19 +540,19 @@ void func_800D8948(void) // 0x800D8948
             Camera_PositionSet(NULL, Q12(-56.74f), Q12(-1.7698f), Q12(-55.13f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-55.43f), Q12(-5.5f), Q12(-54.56f),Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f),  true);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-56.34f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-2.276f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-55.1f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(0.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-56.34f);
+            g_SysWork.playerWork.player.position.vy = Q12(-2.276f);
+            g_SysWork.playerWork.player.position.vz = Q12(-55.1f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(0.0f);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 87, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 87, false);
 
-            if (g_MapEventData->pointOfInterestIdx_5 == 16)
+            if (g_MapEventData->pointOfInterestIdx == 16)
             {
                 Savegame_EventFlagSet(EventFlag_79);
             }
-            else if (g_MapEventData->pointOfInterestIdx_5 == 17)
+            else if (g_MapEventData->pointOfInterestIdx == 17)
             {
                 Savegame_EventFlagSet(EventFlag_80);
             }
@@ -561,19 +562,19 @@ void func_800D8948(void) // 0x800D8948
         case 4:
             SysWork_StateStepIncrementDelayed(Q12(3.5f), false);
 
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(0.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(-0.3f));
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(0.0f);
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(-0.3f));
             break;
 
         case 5:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(-0.3f));
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12(-0.3f));
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
             break;
         default:
             Player_ControlUnfreeze(true);
             SysWork_StateSetNext(SysState_Gameplay);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(0.0f);
+            g_SysWork.playerWork.player.position.vy = Q12(0.0f);
             break;
         }
 }
@@ -585,7 +586,7 @@ void func_800D8CC4(void) // 0x800D8CC4
 
 void MapEvent_Boiler0(void) // 0x800D8CF0
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -596,7 +597,7 @@ void MapEvent_Boiler0(void) // 0x800D8CF0
             break;
 
         case 2:
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
             MapMsg_DisplayAndHandleSelection(true, 29, 3, -1, 0, false); // "Do you want to press the switch?"
             break;
 
@@ -654,7 +655,7 @@ void MapEvent_Boiler0(void) // 0x800D8CF0
 
 void MapEvent_Boiler1(void)
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -665,7 +666,7 @@ void MapEvent_Boiler1(void)
             break;
 
         case 2:
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
             MapMsg_DisplayAndHandleSelection(true, 29, 3, -1, 0, false); // "Do you want to press the switch?"
             break;
 
@@ -690,7 +691,7 @@ void MapEvent_Boiler1(void)
 
 void MapEvent_Boiler2(void) // 0x800D9148
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -768,7 +769,7 @@ void Map_WorldObjectsInit(void)
 
     WorldObjectInit(&g_WorldObject8, "MAP_HIDE", 96.9405f, -0.3365f, 21.0918f, 0.0f, 66.8f, 0.0f);
 
-    Player_ItemRemove(InventoryItemId_NoteToSchool, 1);
+    Player_ItemRemove(InvItemId_NoteToSchool, 1);
     Savegame_EventFlagSet(EventFlag_147);
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)

@@ -23,23 +23,23 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
                                        ControllerFlag_L2 | ControllerFlag_R2 | ControllerFlag_L1 | ControllerFlag_R1)
     #define WARM_BOOT_COMBO_PRESS_ALT (ControllerFlag_Start | ControllerFlag_Triangle | ControllerFlag_Square)
 
-    if (g_GameWork.gameState_594 < GameState_MovieIntroAlternate)
+    if (g_GameWork.gameState < GameState_MovieIntroAlternate)
     {
         return ResetType_None;
     }
 
-    if (g_GameWork.gameState_594 == GameState_LoadSavegameScreen && g_GameWork.gameStateStep_598[0] == 4)
+    if (g_GameWork.gameState == GameState_LoadSavegameScreen && g_GameWork.gameStateSteps[0] == 4)
     {
         return ResetType_None;
     }
 
-    if (g_GameWork.gameState_594 == GameState_SaveScreen &&
-        (g_GameWork.gameStateStep_598[0] == 2 || g_GameWork.gameStateStep_598[0] == 3))
+    if (g_GameWork.gameState == GameState_SaveScreen &&
+        (g_GameWork.gameStateSteps[0] == 2 || g_GameWork.gameStateSteps[0] == 3))
     {
         return ResetType_None;
     }
 
-    if (g_SysWork.flags_22A4 & SysFlag2_1)
+    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
     {
         if (g_Demo_FrameCount > (TICKS_PER_SECOND * 30))
         {
@@ -51,7 +51,7 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
         g_Demo_FrameCount = ResetType_None;
     }
 
-    if (g_GameWork.gameState_594 == GameState_MainMenu)
+    if (g_GameWork.gameState == GameState_MainMenu)
     {
         return ResetType_None;
     }
@@ -75,7 +75,7 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
         return ResetType_WarmBoot;
     }
 
-    return (g_SysWork.flags_22A4 & SysFlag2_8) ? ResetType_WarmBoot : ResetType_None;
+    return (g_SysWork.flags_22A4 & UnkSysFlag_8) ? ResetType_WarmBoot : ResetType_None;
 
     #undef WARM_BOOT_COMBO_HOLD
     #undef WARM_BOOT_COMBO_PRESS
@@ -117,7 +117,7 @@ void Game_WarmBoot(void) // 0x80034264
         VSync(SyncMode_Wait);
     }
 
-    if (g_SysWork.flags_22A4 & SysFlag2_1)
+    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
     {
         Demo_Stop();
     }
@@ -129,22 +129,22 @@ void Game_WarmBoot(void) // 0x80034264
     Fs_QueueWaitForEmpty();
     Joy_Update();
 
-    prevState                = g_GameWork.gameState_594;
-    g_GameWork.gameState_594 = GameState_MainMenu;
+    prevState                = g_GameWork.gameState;
+    g_GameWork.gameState = GameState_MainMenu;
 
     g_SysWork.counters_1C[0] = 0;
     g_SysWork.counters_1C[1] = 0;
 
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
 
     SysWork_StateSetNext(SysState_Gameplay);
 
     ScreenFade_Start(true, true, false);
 
-    g_GameWork.gameStateStep_598[0] = prevState;
-    g_GameWork.gameStatePrev_590    = prevState;
-    g_GameWork.gameStateStep_598[0] = 0;
+    g_GameWork.gameStateSteps[0] = prevState;
+    g_GameWork.gameStatePrev    = prevState;
+    g_GameWork.gameStateSteps[0] = 0;
 
     g_ScreenFadeTimestep = Q12(0.0f);
 }

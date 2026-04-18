@@ -12,7 +12,7 @@ void vwDecreaseSideOfVector(q19_12* vec_x, q19_12* vec_z, q19_12 dec_val, q19_12
 
 q19_12 vwRetNewVelocityToTargetVal(q19_12 now_spd, q19_12 mv_pos, q19_12 tgt_pos, q19_12 accel, q19_12 total_max_spd, q19_12 dec_val_lim_spd);
 
-/** @brief
+/** @brief TODO
  *
  * @param now_ang_spd Current angular speed.
  * @param now_ang Current angle.
@@ -57,9 +57,9 @@ void vbSetRefView(VbRVIEW* rview);
 /** @brief Computes the transformation matrix of a given coord.
  *
  * @param rootCoord Root coord.
- * @param viewMat Output transformation matrix.
+ * @param transformMat Output transformation matrix.
  */
-void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* viewMat);
+void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformMat);
 
 /** @brief Computes a view-space matrix for a coordinate hierarchy node.
  *
@@ -114,7 +114,12 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
  */
 bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ, s32 maxX, s32 maxY, s32 maxZ, u16 nearPlane, u16 farPlane);
 
-bool func_8004A54C(s_func_8004A54C* arg0);
+/** @brief Checks if screen-space region flags span across the screen center.
+ *
+ * @param regionFlags 3x3 screen region occupancy flags.
+ * @return `true` if geometry spans the visible region, `false` otherwise.
+ */
+bool Vw_ScreenRegionSpanCheck(s_CameraScreenRegionFlags* regionFlags);
 
 /** @brief Converts a rotation to a direction vector with a given length.
  *
@@ -132,9 +137,13 @@ void vwAngleToVector(SVECTOR* vec, const SVECTOR* ang, s32 r);
  */
 q19_12 vwVectorToAngle(SVECTOR* ang, const SVECTOR* vec);
 
-/** Performs linear interpolation between Y values based on an input X within the given range.
+/** @brief Performs linear interpolation between Y values based on an input X within a given range.
  *
- * TODO
+ * @param y_ary Array of Y values.
+ * @param y_suu `y_ary` size.
+ * @param input_x Input value.
+ * @param min_x Minimum range.
+ * @param max_x Maximum range.
  */
 s32 vwOresenHokan(const s32* y_ary, s32 y_suu, s32 input_x, s32 min_x, s32 max_x);
 

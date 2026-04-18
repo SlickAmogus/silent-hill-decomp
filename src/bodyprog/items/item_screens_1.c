@@ -9,7 +9,6 @@
 
 static const s32 pad_rodata_80025E90 = 0;
 
-
 s8 D_800C3960;
 
 s8 D_800C3961;
@@ -33,32 +32,32 @@ void Inventory_ExitAnimEquippedItemUpdate(u8* weaponId) // 0x8004C088
 
     Game_PlayerMovementsReset();
 
-    playerState = g_SysWork.playerWork_4C.extra_128.state_1C;
+    playerState = g_SysWork.playerWork.extra.state;
 
-    if (g_SysWork.playerWork_4C.extra_128.state_1C < PlayerState_Idle &&
+    if (g_SysWork.playerWork.extra.state < PlayerState_Idle &&
         playerState >= PlayerState_None)
     {
-        if (g_Player_WeaponAttack != g_SysWork.playerCombat_38.weaponAttack_F)
+        if (g_Player_WeaponAttack != g_SysWork.playerCombat.weaponAttack)
         {
-            g_SysWork.playerCombat_38.isAiming_13 = false;
+            g_SysWork.playerCombat.isAiming = false;
         }
 
         weaponId = WEAPON_ATTACK_ID_GET(g_Player_WeaponAttack);
         if (weaponId == EquippedWeaponId_Chainsaw &&
-            g_SysWork.playerCombat_38.weaponAttack_F != weaponId)
+            g_SysWork.playerCombat.weaponAttack != weaponId)
         {
             goto Inventory_ExitAnimEquippedItemUpdate_block; // TODO: Remove goto if possible.
         }
 
         if (weaponId == EquippedWeaponId_RockDrill &&
-            g_SysWork.playerCombat_38.weaponAttack_F != WEAPON_ATTACK(weaponId, AttackInputType_Tap))
+            g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(weaponId, AttackInputType_Tap))
         {
         Inventory_ExitAnimEquippedItemUpdate_block:
-            g_SysWork.playerWork_4C.player_0.field_44.field_0                             = 0;
-            g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+            g_SysWork.playerWork.player.field_44.field_0                             = 0;
+            g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = Q12(0.0f);
         }
 
-        switch (g_SysWork.playerWork_4C.extra_128.lowerBodyState_24)
+        switch (g_SysWork.playerWork.extra.lowerBodyState)
         {
             case PlayerLowerBodyState_QuickTurnRight:
             case PlayerLowerBodyState_QuickTurnLeft:
@@ -69,72 +68,72 @@ void Inventory_ExitAnimEquippedItemUpdate(u8* weaponId) // 0x8004C088
 
             default:
 
-                if (g_SysWork.playerWork_4C.extra_128.state_1C == PlayerState_Combat &&
-                    g_Player_WeaponAttack != g_SysWork.playerCombat_38.weaponAttack_F)
+                if (g_SysWork.playerWork.extra.state == PlayerState_Combat &&
+                    g_Player_WeaponAttack != g_SysWork.playerCombat.weaponAttack)
                 {
-                    g_SysWork.playerWork_4C.extra_128.state_1C                     = PlayerState_None;
-                    g_SysWork.playerWork_4C.player_0.properties_E4.player.flags_11C = PlayerFlag_None;
+                    g_SysWork.playerWork.extra.state                     = PlayerState_None;
+                    g_SysWork.playerWork.player.properties.player.flags_11C = PlayerFlag_None;
                 }
 
-                if (g_SysWork.playerWork_4C.extra_128.lowerBodyState_24 >= PlayerLowerBodyState_Aim &&
-                    g_SysWork.playerCombat_38.weaponAttack_F != NO_VALUE &&
-                    g_Player_WeaponAttack == g_SysWork.playerCombat_38.weaponAttack_F)
+                if (g_SysWork.playerWork.extra.lowerBodyState >= PlayerLowerBodyState_Aim &&
+                    g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
+                    g_Player_WeaponAttack == g_SysWork.playerCombat.weaponAttack)
                 {
-                    extraModelPtr0 = &g_SysWork.playerWork_4C.extra_128.model_0;
-                    if (extraModelPtr0->anim_4.status_0 >= ANIM_STATUS(33, false))
+                    extraModelPtr0 = &g_SysWork.playerWork.extra.model;
+                    if (extraModelPtr0->anim.status >= ANIM_STATUS(33, false))
                     {
-                        modelPtr0                                         = &g_SysWork.playerWork_4C.player_0.model_0;
-                        extraModelPtr0->anim_4.status_0                 -= 10;
-                        g_SysWork.playerWork_4C.player_0.model_0.controlState_2       = ModelState_Uninitialized;
-                        g_SysWork.playerWork_4C.player_0.model_0.stateStep_3   = 0;
-                        g_SysWork.playerWork_4C.extra_128.model_0.controlState_2     = ModelState_Uninitialized;
-                        g_SysWork.playerWork_4C.extra_128.model_0.stateStep_3 = 0;
-                        modelPtr0->anim_4.status_0                      -= 10;
+                        modelPtr0                                         = &g_SysWork.playerWork.player.model;
+                        extraModelPtr0->anim.status                 -= 10;
+                        g_SysWork.playerWork.player.model.controlState       = ModelState_Uninitialized;
+                        g_SysWork.playerWork.player.model.stateStep   = 0;
+                        g_SysWork.playerWork.extra.model.controlState     = ModelState_Uninitialized;
+                        g_SysWork.playerWork.extra.model.stateStep = 0;
+                        modelPtr0->anim.status                      -= 10;
                     }
                 }
                 else
                 {
-                    modelPtr1      = &g_SysWork.playerWork_4C.player_0.model_0;
-                    extraModelPtr1 = &g_SysWork.playerWork_4C.extra_128.model_0;
+                    modelPtr1      = &g_SysWork.playerWork.player.model;
+                    extraModelPtr1 = &g_SysWork.playerWork.extra.model;
 
-                    modelPtr1->anim_4.status_0                        = ANIM_STATUS(HarryAnim_TransitionToStill, true);
-                    modelPtr1->anim_4.keyframeIdx_8                   = 0;
-                    extraModelPtr1->anim_4.status_0                   = ANIM_STATUS(HarryAnim_TransitionToStill, true);
-                    extraModelPtr1->anim_4.keyframeIdx_8              = 0;
+                    modelPtr1->anim.status                        = ANIM_STATUS(HarryAnim_TransitionToStill, true);
+                    modelPtr1->anim.keyframeIdx                   = 0;
+                    extraModelPtr1->anim.status                   = ANIM_STATUS(HarryAnim_TransitionToStill, true);
+                    extraModelPtr1->anim.keyframeIdx              = 0;
 
-                    g_SysWork.playerWork_4C.player_0.model_0.controlState_2       = ModelState_Uninitialized;
-                    g_SysWork.playerWork_4C.player_0.model_0.stateStep_3   = 0;
-                    g_SysWork.playerWork_4C.extra_128.upperBodyState_20   = PlayerUpperBodyState_None;
-                    g_SysWork.playerWork_4C.extra_128.lowerBodyState_24   = PlayerLowerBodyState_None;
-                    g_SysWork.playerWork_4C.extra_128.model_0.controlState_2     = ModelState_Uninitialized;
-                    g_SysWork.playerWork_4C.extra_128.model_0.stateStep_3 = 0;
+                    g_SysWork.playerWork.player.model.controlState       = ModelState_Uninitialized;
+                    g_SysWork.playerWork.player.model.stateStep   = 0;
+                    g_SysWork.playerWork.extra.upperBodyState   = PlayerUpperBodyState_None;
+                    g_SysWork.playerWork.extra.lowerBodyState   = PlayerLowerBodyState_None;
+                    g_SysWork.playerWork.extra.model.controlState     = ModelState_Uninitialized;
+                    g_SysWork.playerWork.extra.model.stateStep = 0;
                 }
 
-                g_SysWork.playerWork_4C.player_0.properties_E4.player.moveDistance_126 = Q12(0.0f);
-                g_SysWork.playerWork_4C.player_0.properties_E4.player.afkTimer_E8            = Q12(0.0f);
+                g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                g_SysWork.playerWork.player.properties.player.afkTimer_E8            = Q12(0.0f);
         }
     }
 
-    modelPtr3      = &g_SysWork.playerWork_4C.player_0.model_0;
-    extraModelPtr2 = &g_SysWork.playerWork_4C.extra_128.model_0;
+    modelPtr3      = &g_SysWork.playerWork.player.model;
+    extraModelPtr2 = &g_SysWork.playerWork.extra.model;
 
     // Set animation alpha.
-    modelPtr3->anim_4.alpha_A      = Q12(1.0f);
-    extraModelPtr2->anim_4.alpha_A = Q12(1.0f);
+    modelPtr3->anim.alpha      = Q12(1.0f);
+    extraModelPtr2->anim.alpha = Q12(1.0f);
 
     // Disable upper body bones.
-    g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_UPPER_BODY_BONE_MASK;
+    g_SysWork.playerWork.extra.disabledAnimBones = HARRY_UPPER_BODY_BONE_MASK;
 
     // Set animation time.
-    modelPtr3->anim_4.time_4      = Q12(modelPtr3->anim_4.keyframeIdx_8);
-    extraModelPtr2->anim_4.time_4 = Q12(extraModelPtr2->anim_4.keyframeIdx_8);
+    modelPtr3->anim.time      = Q12(modelPtr3->anim.keyframeIdx);
+    extraModelPtr2->anim.time = Q12(extraModelPtr2->anim.keyframeIdx);
 
-    Anim_BoneUpdate((s_AnmHeader*)FS_BUFFER_0, g_SysWork.playerBoneCoords_890, modelPtr3->anim_4.keyframeIdx_8, modelPtr3->anim_4.keyframeIdx_8, Q12(1.0f));
+    Anim_BoneUpdate((s_AnmHeader*)FS_BUFFER_0, g_SysWork.playerBoneCoords, modelPtr3->anim.keyframeIdx, modelPtr3->anim.keyframeIdx, Q12(1.0f));
 
     // Re-enable upper body bones, disable lower body bones.
-    g_SysWork.playerWork_4C.extra_128.disabledAnimBones_18 = HARRY_LOWER_BODY_BONE_MASK;
+    g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
 
-    Anim_BoneUpdate((s_AnmHeader*)FS_BUFFER_0, g_SysWork.playerBoneCoords_890, extraModelPtr2->anim_4.keyframeIdx_8, extraModelPtr2->anim_4.keyframeIdx_8, Q12(1.0f));
+    Anim_BoneUpdate((s_AnmHeader*)FS_BUFFER_0, g_SysWork.playerBoneCoords, extraModelPtr2->anim.keyframeIdx, extraModelPtr2->anim.keyframeIdx, Q12(1.0f));
     func_8004C040();
 }
 
@@ -149,23 +148,23 @@ bool func_8004C328(bool unused) // 0x8004C328
     hasHuntingRifle = false;
     hasShotgun      = false;
 
-    for (; (itemId = g_SavegamePtr->items_0[itemIdx].id_0) != InventoryItemId_Unequipped; itemIdx++)
+    for (; (itemId = g_SavegamePtr->items_0[itemIdx].id_0) != InvItemId_Unequipped; itemIdx++)
     {
-        if (itemId == InventoryItemId_HuntingRifle)
+        if (itemId == InvItemId_HuntingRifle)
         {
             hasHuntingRifle = true;
         }
 
-        if (itemId == InventoryItemId_Shotgun)
+        if (itemId == InvItemId_Shotgun)
         {
             hasShotgun = true;
         }
 
-        if (g_SysWork.playerCombat_38.weaponInventoryIdx_12 != NO_VALUE && itemIdx == g_SysWork.playerCombat_38.weaponInventoryIdx_12)
+        if (g_SysWork.playerCombat.weaponInventoryIdx != NO_VALUE && itemIdx == g_SysWork.playerCombat.weaponInventoryIdx)
         {
-            if (itemId >= InventoryItemId_Handgun && itemId <= InventoryItemId_Shotgun)
+            if (itemId >= InvItemId_Handgun && itemId <= InvItemId_Shotgun)
             {
-                if (g_SysWork.playerCombat_38.currentWeaponAmmo_10 != 0)
+                if (g_SysWork.playerCombat.currentWeaponAmmo != 0)
                 {
                     return true;
                 }
@@ -173,7 +172,7 @@ bool func_8004C328(bool unused) // 0x8004C328
             continue;
         }
 
-        if (itemId == InventoryItemId_Handgun || itemId == InventoryItemId_HandgunBullets)
+        if (itemId == InvItemId_Handgun || itemId == InvItemId_HandgunBullets)
         {
             if (g_SavegamePtr->items_0[itemIdx].count_1 != 0)
             {
@@ -185,15 +184,15 @@ bool func_8004C328(bool unused) // 0x8004C328
         // Checks if player has ammo.
         switch (itemId)
         {
-            case InventoryItemId_HuntingRifle:
-            case InventoryItemId_Shotgun:
+            case InvItemId_HuntingRifle:
+            case InvItemId_Shotgun:
                 if (g_SavegamePtr->items_0[itemIdx].count_1 != 0)
                 {
                     return true;
                 }
                 break;
 
-            case InventoryItemId_RifleShells:
+            case InvItemId_RifleShells:
                 if (hasHuntingRifle)
                 {
                     if (g_SavegamePtr->items_0[itemIdx].count_1 != 0)
@@ -203,7 +202,7 @@ bool func_8004C328(bool unused) // 0x8004C328
                 }
                 break;
 
-            case InventoryItemId_ShotgunShells:
+            case InvItemId_ShotgunShells:
                 if (hasShotgun)
                 {
                     if (g_SavegamePtr->items_0[itemIdx].count_1 != 0)
@@ -225,18 +224,18 @@ s32 Inventory_HyperBlasterUnlockTest(void) // 0x8004C45C
     for (i = 0; i < INVENTORY_ITEM_COUNT_MAX; i++)
     {
         // Already in inventory, can't add new one.
-        if (g_SavegamePtr->items_0[i].id_0 == InventoryItemId_HyperBlaster)
+        if (g_SavegamePtr->items_0[i].id_0 == InvItemId_HyperBlaster)
         {
             return NO_VALUE;
         }
     }
 
-    if (g_SavegamePtr->mapOverlayId_A4 > MapOverlayId_MAP0_S00)
+    if (g_SavegamePtr->mapOverlayId_A4 > MapIdx_MAP0_S00)
     {
         // Konami gun controller connected.
-        if (g_GameWork.controllers_38[1].analogController_0.status         == 0 &&
-            g_GameWork.controllers_38[1].analogController_0.received_bytes == 1 &&
-            g_GameWork.controllers_38[1].analogController_0.terminal_type  == PadTerminalType_GunControllerKonami)
+        if (g_GameWork.controllers[1].analogController_0.status         == 0 &&
+            g_GameWork.controllers[1].analogController_0.received_bytes == 1 &&
+            g_GameWork.controllers[1].analogController_0.terminal_type  == PadTerminalType_GunControllerKonami)
         {
             return 1;
         }
@@ -253,7 +252,7 @@ s32 Inventory_HyperBlasterUnlockTest(void) // 0x8004C45C
 
 s32 Inventory_HyperBlasterFunctionalTest(void) // 0x8004C4F8
 {
-    if (g_SavegamePtr->mapOverlayId_A4 > MapOverlayId_MAP0_S00)
+    if (g_SavegamePtr->mapOverlayId_A4 > MapIdx_MAP0_S00)
     {
         if ((g_SavegamePtr->clearGameEndings_24B & GameEndingFlag_Ufo) != 0)
         {
@@ -262,9 +261,9 @@ s32 Inventory_HyperBlasterFunctionalTest(void) // 0x8004C4F8
         }
 
         // Returns 1 if controller port 2 has Konami gun controller connected.
-        return g_GameWork.controllers_38[1].analogController_0.status         == 0 &&
-               g_GameWork.controllers_38[1].analogController_0.received_bytes == 1 &&
-               g_GameWork.controllers_38[1].analogController_0.terminal_type  == PadTerminalType_GunControllerKonami;
+        return g_GameWork.controllers[1].analogController_0.status         == 0 &&
+               g_GameWork.controllers[1].analogController_0.received_bytes == 1 &&
+               g_GameWork.controllers[1].analogController_0.terminal_type  == PadTerminalType_GunControllerKonami;
     }
 
     // Neither of the conditions has been completed.
@@ -290,7 +289,7 @@ void func_8004C564(u8 arg0, s8 weaponAttack) // 0x8004C564
 
             func_8008B398();
 
-            g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+            g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = Q12(0.0f);
             break;
 
         case 0:
@@ -339,8 +338,8 @@ void func_8004C564(u8 arg0, s8 weaponAttack) // 0x8004C564
                     func_8008B398();
                     D_800C3963                                                                    = 0;
                     D_800C3962                                                                    = 0;
-                    g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
-                    g_SysWork.playerWork_4C.player_0.field_44.field_0                             = 0;
+                    g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+                    g_SysWork.playerWork.player.field_44.field_0                             = 0;
                 }
             }
             break;
@@ -353,7 +352,7 @@ void func_8004C564(u8 arg0, s8 weaponAttack) // 0x8004C564
                     func_8008B438(0, 0, 0);
                     func_8008B3E4(Q8(0.0f));
 
-                    g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = Q12(0.0f);
                     D_800C3963                                                              -= 2;
                 }
             }

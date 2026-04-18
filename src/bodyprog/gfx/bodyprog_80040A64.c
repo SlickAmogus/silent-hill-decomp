@@ -39,7 +39,7 @@ s8 Sound_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     s32     balance;
 
     // If monoural sound type, default to balance of 0.
-    if (g_GameWork.config_0.optSoundType_1E)
+    if (g_GameWork.config.optSoundType_1E)
     {
         return 0;
     }
@@ -70,7 +70,7 @@ bool func_80040B74(e_CharacterId charaId) // 0x80040B74
 
     for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); i++)
     {
-        if (g_WorldGfxWork.charaModels_CC[i].charaId_0 == charaId)
+        if (g_WorldGfxWork.charaModels_CC[i].charaId == charaId)
         {
             return true;
         }
@@ -110,28 +110,28 @@ void func_80040BAC(void) // 0x80040BAC
     {
         if (i < 2)
         {
-            posTable[i].vx = g_GameWork.gsScreenWidth_588 / 2;
-            posTable[i].vy = (g_GameWork.gsScreenHeight_58A / 4) * i;
+            posTable[i].vx = g_GameWork.gsScreenWidth / 2;
+            posTable[i].vy = (g_GameWork.gsScreenHeight / 4) * i;
         }
         else if (i < 6)
         {
-            posTable[i].vx = (g_GameWork.gsScreenWidth_588 >> 1) - (((g_GameWork.gsScreenWidth_588 >> 1) >> 1) * (i - 2));
-            posTable[i].vy = g_GameWork.gsScreenHeight_58A / 2;
+            posTable[i].vx = (g_GameWork.gsScreenWidth >> 1) - (((g_GameWork.gsScreenWidth >> 1) >> 1) * (i - 2));
+            posTable[i].vy = g_GameWork.gsScreenHeight / 2;
         }
         else if (i < 10)
         {
-            posTable[i].vx = -g_GameWork.gsScreenWidth_588 / 2;
-            posTable[i].vy = (g_GameWork.gsScreenHeight_58A >> 1) - (((g_GameWork.gsScreenHeight_58A >> 1) >> 1) * (i - 6));
+            posTable[i].vx = -g_GameWork.gsScreenWidth / 2;
+            posTable[i].vy = (g_GameWork.gsScreenHeight >> 1) - (((g_GameWork.gsScreenHeight >> 1) >> 1) * (i - 6));
         }
         else if (i < 14)
         {
-            posTable[i].vx = (-g_GameWork.gsScreenWidth_588 / 2) + ((g_GameWork.gsScreenWidth_588 >> 2) * (i - 10));
-            posTable[i].vy = -g_GameWork.gsScreenHeight_58A / 2;
+            posTable[i].vx = (-g_GameWork.gsScreenWidth / 2) + ((g_GameWork.gsScreenWidth >> 2) * (i - 10));
+            posTable[i].vy = -g_GameWork.gsScreenHeight / 2;
         }
         else
         {
-            posTable[i].vx = g_GameWork.gsScreenWidth_588 / 2;
-            posTable[i].vy = -g_GameWork.gsScreenHeight_58A / 2 + ((g_GameWork.gsScreenHeight_58A >> 2) * (i - 14));
+            posTable[i].vx = g_GameWork.gsScreenWidth / 2;
+            posTable[i].vy = -g_GameWork.gsScreenHeight / 2 + ((g_GameWork.gsScreenHeight >> 2) * (i - 14));
         }
     }
 
@@ -509,7 +509,7 @@ u32 LmHeader_LoadStateGet(s_GlobalLm* globalLm) // 0x80041BA0
     {
         return StaticModelLoadState_Invalid;
     }
-    else if (globalLm->lmHdr_0->isLoaded_2 && LmHeader_IsTextureLoaded(globalLm->lmHdr_0))
+    else if (globalLm->lmHdr_0->isLoaded && LmHeader_IsTextureLoaded(globalLm->lmHdr_0))
     {
         return StaticModelLoadState_Loaded;
     }
@@ -543,11 +543,11 @@ void Lm_Init(s_GlobalLm* globalLm, s_LmHeader* lmHdr) // 0x80041CB4
 
 void LmHeader_Init(s_LmHeader* lmHdr) // 0x80041CEC
 {
-    lmHdr->magic_0         = LM_HEADER_MAGIC;
-    lmHdr->version_1       = LM_VERSION;
-    lmHdr->isLoaded_2      = true;
-    lmHdr->materialCount_3 = 0;
-    lmHdr->modelCount_8    = 0;
+    lmHdr->magic         = LM_HEADER_MAGIC;
+    lmHdr->version       = LM_VERSION;
+    lmHdr->isLoaded      = true;
+    lmHdr->materialCount = 0;
+    lmHdr->modelCount    = 0;
 }
 
 void Ipd_ActiveChunksQueueIdxClear(s_IpdChunk* chunks, s32 chunkCount) // 0x80041D10
@@ -673,7 +673,7 @@ void Map_GlobalLmFree(void) // 0x800420FC
     globalLm = &g_Map.globalLm_138;
 
     if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-        globalLm->lmHdr_0->isLoaded_2)
+        globalLm->lmHdr_0->isLoaded)
     {
         Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr_0);
     }
@@ -717,7 +717,7 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
         if (plmIdx != g_Map.globalLm_138.fileIdx_4)
         {
             if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-                g_Map.globalLm_138.lmHdr_0->isLoaded_2)
+                g_Map.globalLm_138.lmHdr_0->isLoaded)
             {
                 Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr_0);
             }
@@ -860,7 +860,7 @@ void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x80042
     // Run through all game files.
     for (i = fileIdxStart; i < FS_FILE_COUNT; i++)
     {
-        if (g_FileTable[i].type_8_24 == FileType_Ipd)
+        if (g_FileTable[i].type == FileType_Ipd)
         {
             Fs_GetFileName(sp10, i);
 
@@ -872,6 +872,9 @@ void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x80042
                 {
                     col         = &map->ipdGridCenter_42C[z];
                     col->idx[x] = i;
+#ifdef SH_PC_PORT
+                    SH_DBG("[IPD-GRID] cell(%d,%d) = fileIdx %d  file='%s'", x, z, i, sp10);
+#endif
                 }
             }
         }
@@ -1011,7 +1014,7 @@ s_IpdCollisionData* func_800426E4(s32 posX, s32 posZ) // 0x800426E4
     }
 }
 
-s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19_12 posX, q19_12 posZ) // 0x8004287C
+s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q19_12 posX, q19_12 posZ) // 0x8004287C
 {
     s_IpdChunk* chunks[4];
     q19_12      distsToEdges[4];
@@ -1033,12 +1036,12 @@ s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19
     geomX = Q12_TO_Q8(posX);
     geomZ = Q12_TO_Q8(posZ);
 
-    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
 #ifdef SH_PC_PORT
-        globalLm->lmHdr_0 != NULL &&
+    SH_DBG("[4287C] globalLm lmHdr_0=%p queueIdx=%d", (void*)globalLm->lmHdr_0, globalLm->queueIdx_8);
 #endif
-        globalLm->lmHdr_0->isLoaded_2 &&
-        Lm_ModelFind(arg0, g_Map.globalLm_138.lmHdr_0, metadata))
+    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
+        globalLm->lmHdr_0->isLoaded &&
+        Lm_ModelFind(model, g_Map.globalLm_138.lmHdr_0, metadata))
     {
         return 2;
     }
@@ -1099,16 +1102,7 @@ s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19
     for (k = 0; k < chunkIdx; k++)
     {
         curChunk = chunks[k];
-#ifdef SH_PC_PORT
-        SH_DBG("[4287C] IPD chunk k=%d ipdHdr_0=%p lmHdr_4=%p",
-               k, (void*)curChunk->ipdHdr_0, (void*)(curChunk->ipdHdr_0 ? curChunk->ipdHdr_0->lmHdr_4 : NULL));
-        if (curChunk->ipdHdr_0 == NULL || curChunk->ipdHdr_0->lmHdr_4 == NULL)
-        {
-            SH_DBG("[4287C] NULL lmHdr_4, skipping chunk k=%d", k);
-            continue;
-        }
-#endif
-        if (Lm_ModelFind(arg0, curChunk->ipdHdr_0->lmHdr_4, metadata))
+        if (Lm_ModelFind(model, curChunk->ipdHdr_0->lmHdr_4, metadata))
         {
             return (curChunk - g_Map.ipdActive_15C) + 3;
         }
@@ -1169,14 +1163,14 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
         /* Fix up global LM if just loaded */
         if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-            !g_Map.globalLm_138.lmHdr_0->isLoaded_2)
+            !g_Map.globalLm_138.lmHdr_0->isLoaded)
         {
             fullPageTexCount                         = g_Map.ipdTextures_430.fullPage_0.count_0;
             g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
             LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
 #ifdef SH_PC_PORT
-            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount_3, g_Map.globalLm_138.lmHdr_0->modelCount_8, g_Map.ipdTextures_430.fullPage_0.count_0);
+            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount, g_Map.globalLm_138.lmHdr_0->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
 #endif
             Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
 #ifdef SH_PC_PORT
@@ -1278,13 +1272,19 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     }
 
     if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-        !g_Map.globalLm_138.lmHdr_0->isLoaded_2)
+        !g_Map.globalLm_138.lmHdr_0->isLoaded)
     {
         fullPageTexCount                         = g_Map.ipdTextures_430.fullPage_0.count_0;
         g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
         LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+#ifdef SH_PC_PORT
+        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount, g_Map.globalLm_138.lmHdr_0->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
+#endif
         Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+#ifdef SH_PC_PORT
+        SH_DBG("[GLOBAL-LM-B] MaterialsLoadWithFilter done");
+#endif
         Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
 
         g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
@@ -1695,6 +1695,10 @@ s32 Ipd_LoadStart(s_IpdChunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[IPD-LOAD] Ipd_LoadStart: cell=(%d,%d) fileIdx=%d queueIdx=%d chunkSlot=%d",
+           cellX, cellZ, fileIdx, chunk->queueIdx_4, (s32)(chunk - g_Map.ipdActive_15C));
+#endif
 
     return chunk->queueIdx_4;
 }
@@ -1805,7 +1809,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     }
 
     if (!(queueState == FsQueueEntryLoadStatus_Invalid ||
-          (queueState == FsQueueEntryLoadStatus_Loaded && g_Map.globalLm_138.lmHdr_0->isLoaded_2)))
+          (queueState == FsQueueEntryLoadStatus_Loaded && g_Map.globalLm_138.lmHdr_0->isLoaded)))
     {
         return;
     }
@@ -1841,7 +1845,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
                    totalChunks, loadedChunks, cellMatchChunks, drawCount,
                    g_Map.cellX_580, g_Map.cellZ_584, g_Map.isExterior_588,
                    Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8),
-                   (g_Map.globalLm_138.lmHdr_0 ? g_Map.globalLm_138.lmHdr_0->isLoaded_2 : -1));
+                   (g_Map.globalLm_138.lmHdr_0 ? g_Map.globalLm_138.lmHdr_0->isLoaded : -1));
             /* Log first loaded chunk details */
             if (drawCount > 0) {
                 s_IpdChunk* c = &g_Map.ipdActive_15C[0];
@@ -1850,7 +1854,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
                     if (IpdHeader_LoadStateGet(c) >= StaticModelLoadState_Loaded) {
                         SH_DBG("[IPD]   chunk[%d]: cell=(%d,%d) models=%d isLoaded=%d qIdx=%d",
                                i, c->cellX_8, c->cellZ_A,
-                               c->ipdHdr_0 ? c->ipdHdr_0->modelCount_8 : -1,
+                               c->ipdHdr_0 ? c->ipdHdr_0->modelCount : -1,
                                c->ipdHdr_0 ? c->ipdHdr_0->isLoaded_1 : -1,
                                c->queueIdx_4);
                         break;
@@ -1924,7 +1928,7 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
                 if (g_Map.ipdActive_15C[si].ipdHdr_0 == ipdHdr) { slot = si; break; }
             }
             SH_DBG("[IPD-FIXUP] IpdHeader_FixOffsets PC: slot=%d fileIdx=%d modelCount=%d lmHdr=%p",
-                   slot, fileIdx, ipdHdr->lmHdr_4 ? ipdHdr->lmHdr_4->modelCount_8 : -1, (void*)ipdHdr->lmHdr_4);
+                   slot, fileIdx, ipdHdr->lmHdr_4 ? ipdHdr->lmHdr_4->modelCount : -1, (void*)ipdHdr->lmHdr_4);
         }
     }
 #else
@@ -2032,25 +2036,35 @@ void IpdHeader_ModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
     s32             j;
     s_IpdModelInfo* curModelInfo;
 
-    for (i = 0; i < ipdHdr->modelCount_8; i++)
+    for (i = 0; i < ipdHdr->modelCount; i++)
     {
         curModelInfo = &ipdHdr->modelInfo_14[i];
 
-        if (!curModelInfo->isGlobalPlm_0)
+        if (!curModelInfo->isGlobalPlm)
         {
-            curModelInfo->modelHdr_C = LmHeader_ModelHeaderSearch(&curModelInfo->modelName_4, ipdHdr->lmHdr_4);
+            curModelInfo->modelHdr = LmHeader_ModelHeaderSearch(&curModelInfo->modelName, ipdHdr->lmHdr_4);
         }
         else
         {
             for (j = 0; j < lmHdrCount; j++)
             {
-                curModelInfo->modelHdr_C = LmHeader_ModelHeaderSearch(&curModelInfo->modelName_4, lmHdrs[j]);
-                if (curModelInfo->modelHdr_C != NULL)
+                curModelInfo->modelHdr = LmHeader_ModelHeaderSearch(&curModelInfo->modelName, lmHdrs[j]);
+                if (curModelInfo->modelHdr != NULL)
                 {
                     break;
                 }
             }
         }
+#ifdef SH_PC_PORT
+        SH_DBG("[MODEL-LINK] model[%d]: name='%.4s%.4s' isGlobal=%d -> modelHdr=%p (lmHdr=%p lmModels=%d)",
+               i,
+               (char*)&curModelInfo->modelName.str[0],
+               (char*)&curModelInfo->modelName.str[4],
+               curModelInfo->isGlobalPlm,
+               (void*)curModelInfo->modelHdr,
+               (void*)(curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr_4),
+               curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount : 0) : ipdHdr->lmHdr_4->modelCount);
+#endif
     }
 }
 
@@ -2059,9 +2073,9 @@ s_ModelHeader* LmHeader_ModelHeaderSearch(u_Filename* modelName, s_LmHeader* lmH
     s32            i;
     s_ModelHeader* modelHeader;
 
-    modelHeader = lmHdr->modelHdrs_C;
+    modelHeader = lmHdr->modelHdrs;
 
-    for (i = 0; i < lmHdr->modelCount_8; i++, modelHeader++)
+    for (i = 0; i < lmHdr->modelCount; i++, modelHeader++)
     {
         if (!COMPARE_FILENAMES(modelName, &modelHeader->name_0))
         {
@@ -2085,20 +2099,9 @@ void IpdHeader_ModelBufferLinkObjectLists(s_IpdHeader* ipdHdr, s_IpdModelInfo* i
              unkData < &curModelBuffer->field_C[curModelBuffer->field_0];
              unkData++)
         {
-            // `unkData` originally stores model idx, replace that with pointer to the model's `modelHdr_C`.
-            s32 modelIdx        = (s32)(uintptr_t)unkData->modelHdr_0;
-#ifdef SH_PC_PORT
-            SH_DBG("[BUF-LINK] buf[%d] entry: modelIdx=%d -> modelHdr=%p (modelCount=%d)",
-                   (int)(curModelBuffer - ipdHdr->modelBuffers_18), modelIdx,
-                   (modelIdx >= 0 && modelIdx < ipdHdr->modelCount_8) ? (void*)ipdModels[modelIdx].modelHdr_C : NULL,
-                   ipdHdr->modelCount_8);
-            if (modelIdx < 0 || modelIdx >= ipdHdr->modelCount_8) {
-                SH_DBG("[BUF-LINK] WARNING: modelIdx %d out of range [0,%d)!", modelIdx, ipdHdr->modelCount_8);
-                unkData->modelHdr_0 = NULL;
-                continue;
-            }
-#endif
-            unkData->modelHdr_0 = ipdModels[modelIdx].modelHdr_C;
+            // `unkData` originally stores model idx, replace that with pointer to the model's `modelHdr`.
+            s32 modelIdx        = (s32)unkData->modelHdr_0;
+            unkData->modelHdr_0 = ipdModels[modelIdx].modelHdr;
         }
     }
 }
@@ -2125,8 +2128,8 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
 
     s_ModelInfo         modelInfo;
     GsCOORDINATE2       coord;
-    MATRIX              sp78;
-    MATRIX              sp98;
+    MATRIX              viewMat;
+    MATRIX              worldMat;
     s32                 geomX;
     s32                 geomY;
     q23_8               cellBoundZ;
@@ -2178,8 +2181,8 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                         coord.workm       = curBufC->field_4;
                         coord.workm.t[0] += cellBoundX;
                         coord.workm.t[2] += cellBoundZ;
-                        Vw_CoordToWorldAndViewMatrices(&coord, &sp98, &sp78);
-                        func_80057090(&modelInfo, ot, arg4, &sp78, &sp98, 0);
+                        Vw_CoordToWorldAndViewMatrices(&coord, &worldMat, &viewMat);
+                        func_80057090(&modelInfo, ot, arg4, &viewMat, &worldMat, 0);
                     }
                 }
 
@@ -2227,8 +2230,8 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                     coord.workm.t[0] += cellBoundX;
                     coord.workm.t[2] += cellBoundZ;
 
-                    Vw_CoordToWorldAndViewMatrices(&coord, &sp98, &sp78);
-                    func_80057090(&modelInfo, ot, arg4, &sp78, &sp98, 0);
+                    Vw_CoordToWorldAndViewMatrices(&coord, &worldMat, &viewMat);
+                    func_80057090(&modelInfo, ot, arg4, &viewMat, &worldMat, 0);
                 }
             }
 
@@ -2277,7 +2280,7 @@ bool func_80044420(s_IpdModelBuffer* modelBuf, s16 arg1, s16 arg2, q23_8 posX, q
                 coord.workm.t[2] = posZ;
 
                 Vw_CoordToViewSpaceMatrix(&coord, &mat);
-                return Vw_AabbVisibleInFrustumCheck(&mat, modelBuf->field_4, -0x800, modelBuf->field_8, modelBuf->field_6, 0x400, modelBuf->field_A, 0x1900, g_GameWork.gsScreenHeight_58A);
+                return Vw_AabbVisibleInFrustumCheck(&mat, modelBuf->field_4, -0x800, modelBuf->field_8, modelBuf->field_6, 0x400, modelBuf->field_A, 0x1900, g_GameWork.gsScreenHeight);
             }
         }
     }

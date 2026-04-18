@@ -4,6 +4,8 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -395,14 +397,14 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 void func_800D67F4(void) // 0x800D67F4
 {
-    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
     Map_MessageWithSfx(MapMsgIdx_DoorJammed, Sfx_Unk1576, &pos);
 }
 
 void func_800D6888(void) // 0x800D6888
 {
-    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
     Map_MessageWithSfx(MapMsgIdx_DoorLocked, Sfx_Unk1576, &pos);
 }
@@ -425,7 +427,7 @@ void MapEvent_CommonItemTake(void) // 0x800D691C
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 38:
             pickupType   = CommonPickupItemId_ShotgunShells;
@@ -473,17 +475,17 @@ void MapEvent_CommonItemTake(void) // 0x800D691C
 
 void func_800D69DC(void) // 0x800D69DC
 {
-    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 pos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 10:
-            Player_ItemRemove(InventoryItemId_SewerKey, 1);
+            Player_ItemRemove(InvItemId_SewerKey, 1);
             Map_MessageWithSfx(15, Sfx_UseKey, &pos);
             break;
 
         case 14:
-            Player_ItemRemove(InventoryItemId_SewerExitKey, 1);
+            Player_ItemRemove(InvItemId_SewerExitKey, 1);
             Map_MessageWithSfx(16, Sfx_UseKey, &pos);
             break;
 
@@ -495,7 +497,7 @@ void func_800D69DC(void) // 0x800D69DC
 
 void MapEvent_SewerKeyTake(void) // 0x800D6AD4
 {
-    Event_ItemTake(InventoryItemId_SewerKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M5S00_PickupSewerKey, 17);
+    Event_ItemTake(InvItemId_SewerKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M5S00_PickupSewerKey, 17);
 }
 
 void func_800D6B00(void) // 0x800D6B00
@@ -503,7 +505,7 @@ void func_800D6B00(void) // 0x800D6B00
     VECTOR3 vec;
     s32     i;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -515,7 +517,7 @@ void func_800D6B00(void) // 0x800D6B00
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -527,7 +529,7 @@ void func_800D6B00(void) // 0x800D6B00
             break;
 
         case 5:
-            g_SysWork.sysFlags_22A0 |= SysFlag_Freeze;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
             func_800862F8(7, FILE_TIM_DRAINKEY_TIM, false);
             break;
 
@@ -545,19 +547,19 @@ void func_800D6B00(void) // 0x800D6B00
 
         case 9:
             func_800862F8(2, 0, false);
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
             MapMsg_DisplayAndHandleSelection(true, 18, 10, 11, 0, false);
             break;
 
         case 10:
             Savegame_EventFlagSet(EventFlag_354);
 
-            func_80086470(3u, InventoryItemId_SewerExitKey, 1, false);
+            func_80086470(3u, InvItemId_SewerExitKey, 1, false);
 
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-92.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(7.7f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(0.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-92.0f);
+            g_SysWork.playerWork.player.position.vz = Q12(7.7f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(0.0f);
 
             for (i = 0; i < ARRAY_SIZE(D_800DAB7C); i++)
             {
@@ -587,7 +589,7 @@ void func_800D6B00(void) // 0x800D6B00
             Camera_PositionSet(NULL, Q12(-88.04f), Q12(-1.29f), Q12(6.26f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-91.77f), Q12(-0.89f), Q12(7.63f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            g_SysWork.pointLightIntensity_2378 = Q12(2.0f);
+            g_SysWork.pointLightIntensity = Q12(2.0f);
 
             SysWork_StateStepIncrement(0);
 
@@ -597,7 +599,7 @@ void func_800D6B00(void) // 0x800D6B00
         case 14:
             if (D_800DAB78 < Q12(1.5f) && (D_800DAB78 + g_DeltaTime) > Q12(1.5f))
             {
-                func_80085EB8(0u, &g_SysWork.playerWork_4C.player_0, 114, false);
+                func_80085EB8(0u, &g_SysWork.playerWork.player, 114, false);
             }
 
             D_800DAB78 += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.6f, 12);
@@ -608,15 +610,15 @@ void func_800D6B00(void) // 0x800D6B00
             }
             else if (D_800DAB78 > Q12(2.5f))
             {
-                g_SysWork.npcs_1A0[D_800DAB7C[2]].properties_E4.dummy.properties_E8[0].val8[0] |= (1 << 7);
+                g_SysWork.npcs[D_800DAB7C[2]].properties.dummy.properties_E8[0].val8[0] |= (1 << 7);
             }
             else if (D_800DAB78 > Q12(1.25f))
             {
-                g_SysWork.npcs_1A0[D_800DAB7C[1]].properties_E4.dummy.properties_E8[0].val8[0] |= (1 << 7);
+                g_SysWork.npcs[D_800DAB7C[1]].properties.dummy.properties_E8[0].val8[0] |= (1 << 7);
             }
             else if (D_800DAB78 > Q12(-0.1f))
             {
-                g_SysWork.npcs_1A0[D_800DAB7C[0]].properties_E4.dummy.properties_E8[0].val8[0] |= (1 << 7);
+                g_SysWork.npcs[D_800DAB7C[0]].properties.dummy.properties_E8[0].val8[0] |= (1 << 7);
             }
 
             func_800D6414();
@@ -624,28 +626,28 @@ void func_800D6B00(void) // 0x800D6B00
 
         case 15:
             vcReturnPreAutoCamWork(true);
-            g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+            g_SysWork.pointLightIntensity = Q12(1.0f);
             SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
 
-            g_SysWork.npcs_1A0[D_800DAB7C[0]].model_0.controlState_2     = ModelState_Uninitialized;
-            g_SysWork.npcs_1A0[D_800DAB7C[0]].model_0.stateStep_3 = 17;
-            g_SysWork.npcs_1A0[D_800DAB7C[0]].position_18.vx     += Q12(-0.1878f);
-            g_SysWork.npcs_1A0[D_800DAB7C[0]].position_18.vz     += Q12(0.245f);
-            g_SysWork.npcs_1A0[D_800DAB7C[0]].rotation_24.vy      = Q12_ANGLE(112.5f);
+            g_SysWork.npcs[D_800DAB7C[0]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[0]].model.stateStep = 17;
+            g_SysWork.npcs[D_800DAB7C[0]].position.vx     += Q12(-0.1878f);
+            g_SysWork.npcs[D_800DAB7C[0]].position.vz     += Q12(0.245f);
+            g_SysWork.npcs[D_800DAB7C[0]].rotation.vy      = Q12_ANGLE(112.5f);
 
-            g_SysWork.npcs_1A0[D_800DAB7C[1]].model_0.controlState_2     = ModelState_Uninitialized;
-            g_SysWork.npcs_1A0[D_800DAB7C[1]].model_0.stateStep_3 = 17;
-            g_SysWork.npcs_1A0[D_800DAB7C[1]].position_18.vx     += Q12(1.8128f);
-            g_SysWork.npcs_1A0[D_800DAB7C[1]].position_18.vz     += Q12(0.799f);
-            g_SysWork.npcs_1A0[D_800DAB7C[1]].rotation_24.vy      = Q12_ANGLE(180.0f);
+            g_SysWork.npcs[D_800DAB7C[1]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[1]].model.stateStep = 17;
+            g_SysWork.npcs[D_800DAB7C[1]].position.vx     += Q12(1.8128f);
+            g_SysWork.npcs[D_800DAB7C[1]].position.vz     += Q12(0.799f);
+            g_SysWork.npcs[D_800DAB7C[1]].rotation.vy      = Q12_ANGLE(180.0f);
 
-            g_SysWork.npcs_1A0[D_800DAB7C[2]].model_0.controlState_2     = ModelState_Uninitialized;
-            g_SysWork.npcs_1A0[D_800DAB7C[2]].model_0.stateStep_3 = 17;
-            g_SysWork.npcs_1A0[D_800DAB7C[2]].position_18.vx     += Q12(0.6531f);
-            g_SysWork.npcs_1A0[D_800DAB7C[2]].position_18.vz     += Q12(-1.2493f);
-            g_SysWork.npcs_1A0[D_800DAB7C[2]].rotation_24.vy      = Q12_ANGLE(0.0f);
+            g_SysWork.npcs[D_800DAB7C[2]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[2]].model.stateStep = 17;
+            g_SysWork.npcs[D_800DAB7C[2]].position.vx     += Q12(0.6531f);
+            g_SysWork.npcs[D_800DAB7C[2]].position.vz     += Q12(-1.2493f);
+            g_SysWork.npcs[D_800DAB7C[2]].rotation.vy      = Q12_ANGLE(0.0f);
 
-            g_SysWork.playerWork_4C.player_0.position_18.vz += Q12(-1.2f);
+            g_SysWork.playerWork.player.position.vz += Q12(-1.2f);
 
             // Return to gameplay.
             Player_ControlUnfreeze(true);
@@ -653,7 +655,7 @@ void func_800D6B00(void) // 0x800D6B00
             break;
 
         case 16:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -667,36 +669,36 @@ void func_800D6B00(void) // 0x800D6B00
 void func_800D732C(void) // 0x800D732C
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 3)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 3)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             // Warp player.
             Player_ControlFreeze();
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(56.789f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-2.02f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(60.02f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(56.789f);
+            g_SysWork.playerWork.player.position.vy = Q12(-2.02f);
+            g_SysWork.playerWork.player.position.vz = Q12(60.02f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
             Game_TurnFlashlightOn();
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(58.49f), Q12(1.18f), Q12(59.07f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(56.67f), Q12(-2.3f), Q12(59.86f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_80085EB8(0u, &g_SysWork.playerWork_4C.player_0, 88, false);
+            func_80085EB8(0u, &g_SysWork.playerWork.player, 88, false);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
             SysWork_StateStepIncrement(0);
 
         case 1:
             // Move player.
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.4f);
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.4f);
 
             SysWork_StateStepIncrementDelayed(Q12(3.8f), false);
             break;
@@ -705,7 +707,7 @@ void func_800D732C(void) // 0x800D732C
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
 
             // Move player.
-            g_SysWork.playerWork_4C.player_0.position_18.vy += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.4f);
+            g_SysWork.playerWork.player.position.vy += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.4f);
             break;
 
         default:
@@ -714,10 +716,10 @@ void func_800D732C(void) // 0x800D732C
             SysWork_StateSetNext(SysState_Gameplay);
 
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(16.7f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(0.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(52.0f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(16.7f);
+            g_SysWork.playerWork.player.position.vy = Q12(0.0f);
+            g_SysWork.playerWork.player.position.vz = Q12(52.0f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(90.0f);
 
             vcReturnPreAutoCamWork(true);
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
@@ -730,14 +732,14 @@ void func_800D732C(void) // 0x800D732C
 void func_800D75FC(void) // 0x800D75FC
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 6)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -750,7 +752,7 @@ void func_800D75FC(void) // 0x800D75FC
 
         case 2:
             SysWork_StateStepIncrementAfterFade(1, true, 0, Q12(0.0f), false);
-            if (g_SysWork.sysStateStep_C[0] == 2)
+            if (g_SysWork.sysStateSteps[0] == 2)
             {
                 g_SysWork.field_28 += g_DeltaTimeRaw;
                 if (g_SysWork.field_28 > Q12(1.0f))
@@ -762,29 +764,29 @@ void func_800D75FC(void) // 0x800D75FC
 
         case 3:
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(56.773f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-1.444f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(60.036f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(56.773f);
+            g_SysWork.playerWork.player.position.vy = Q12(-1.444f);
+            g_SysWork.playerWork.player.position.vz = Q12(60.036f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
             Game_TurnFlashlightOn();
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(57.29f), Q12(-0.86f), Q12(59.36f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(55.07f), Q12(-4.0f), Q12(60.29f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 87, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 87, false);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
             SysWork_StateStepIncrementDelayed(Q12(3.8f), false);
             break;
 
         case 5:
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
             break;
 
         default:
@@ -801,14 +803,14 @@ void func_800D75FC(void) // 0x800D75FC
 void func_800D7940(void) // 0x800D7940
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 6)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -822,7 +824,7 @@ void func_800D7940(void) // 0x800D7940
         case 2:
             SysWork_StateStepIncrementAfterFade(1, true, 0, Q12(0.0f), false);
 
-            if (g_SysWork.sysStateStep_C[0] == 2)
+            if (g_SysWork.sysStateSteps[0] == 2)
             {
                 g_SysWork.field_28 += g_DeltaTimeRaw;
                 if (g_SysWork.field_28 > Q12(1.0f))
@@ -834,29 +836,29 @@ void func_800D7940(void) // 0x800D7940
 
         case 3:
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(56.769f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-2.07f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(60.012f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(56.769f);
+            g_SysWork.playerWork.player.position.vy = Q12(-2.07f);
+            g_SysWork.playerWork.player.position.vz = Q12(60.012f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
             Game_TurnFlashlightOn();
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(57.09f), Q12(-5.76f), Q12(60.59f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(55.96f), Q12(-2.01f), Q12(59.78f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 88, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 88, false);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
             SysWork_StateStepIncrementDelayed(Q12(3.8f), false);
             break;
 
         case 5:
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
             break;
 
         default:
@@ -871,16 +873,16 @@ void func_800D7940(void) // 0x800D7940
 void func_800D7C84(void) // 0x800D7C84
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 6)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    g_SysWork.sysFlags_22A0 |= SysFlag_1;
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_ApplyMute;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -897,29 +899,29 @@ void func_800D7C84(void) // 0x800D7C84
 
         case 3:
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-22.234f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-1.734f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(60.508f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-22.234f);
+            g_SysWork.playerWork.player.position.vy = Q12(-1.734f);
+            g_SysWork.playerWork.player.position.vz = Q12(60.508f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
             Game_TurnFlashlightOn();
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(-20.39f), Q12(-3.84f), Q12(63.99f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-22.56f), Q12(-2.83f), Q12(60.78f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 87, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 87, false);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
             SysWork_StateStepIncrementDelayed(Q12(3.8f), false);
             break;
 
         case 5:
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, -0.4f, 12);
             break;
 
         default:
@@ -936,14 +938,14 @@ void func_800D7C84(void) // 0x800D7C84
 void func_800D7F88(void) // 0x800D7F88
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] > 0 && g_SysWork.sysStateStep_C[0] < 6)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
         SysWork_StateStepReset();
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -960,29 +962,29 @@ void func_800D7F88(void) // 0x800D7F88
 
         case 3:
             // Warp player.
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-22.245f);
-            g_SysWork.playerWork_4C.player_0.position_18.vy = Q12(-2.439f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(60.488f);
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-22.245f);
+            g_SysWork.playerWork.player.position.vy = Q12(-2.439f);
+            g_SysWork.playerWork.player.position.vz = Q12(60.488f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
             Game_TurnFlashlightOn();
 
             // Warp camera.
             Camera_PositionSet(NULL, Q12(-21.29f), Q12(-0.04f), Q12(62.13f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
             Camera_LookAtSet(NULL, Q12(-22.91f), Q12(-3.23f), Q12(60.34f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
-            func_80085EB8(0, &g_SysWork.playerWork_4C.player_0, 88, false);
+            func_80085EB8(0, &g_SysWork.playerWork.player, 88, false);
 
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.5f), false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.37f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.37f, 12);
             SysWork_StateStepIncrementDelayed(Q12(3.8f), false);
             break;
 
         case 5:
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.5f), false);
-            g_SysWork.playerWork_4C.player_0.position_18.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
+            g_SysWork.playerWork.player.position.vy += FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.4f, 12);
             break;
 
         default:
@@ -1018,7 +1020,7 @@ void Map_WorldObjectsInit(void) // 0x800D82A8
         func_80088FF4(Chara_Creeper, 7, 0);
         func_80088FF4(Chara_Creeper, 12, 0);
 
-        g_SysWork.npcId_2280 = 3;
+        g_SysWork.npcFlagsId = 3;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Hard)
     {
@@ -1028,11 +1030,11 @@ void Map_WorldObjectsInit(void) // 0x800D82A8
         func_80088FF4(Chara_Creeper, 8, (1 << 0) | (1 << 2) | (1 << 3));
         func_80088FF4(Chara_Creeper, 9, (1 << 0) | (1 << 2) | (1 << 3));
 
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
     else
     {
-        g_SysWork.npcId_2280 = 4;
+        g_SysWork.npcFlagsId = 4;
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
@@ -1072,7 +1074,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(368))
         {
-            if (Savegame_EventFlagGet(EventFlag_354) && (g_SysWork.playerWork_4C.player_0.position_18.vz < Q12(-66.0f)))
+            if (Savegame_EventFlagGet(EventFlag_354) && (g_SysWork.playerWork.player.position.vz < Q12(-66.0f)))
             {
                 func_8005DC1C(1585, &D_800CB0CC, 0xFF, 2);
                 Savegame_EventFlagSet(368);

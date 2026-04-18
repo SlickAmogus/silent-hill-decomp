@@ -371,7 +371,7 @@ void vbSetRefView(VbRVIEW* rview) // 0x800498D8
     vbSetWorldScreenMatrix(&coord);
 }
 
-void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* outMat) // 0x80049984
+void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformMat) // 0x80049984
 {
     GsCOORDINATE2* prevCoord;
     GsCOORDINATE2* parentCoord;
@@ -380,7 +380,7 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* outMat) //
     // If no root coord provided, set output matrix to identity.
     if (rootCoord == NULL)
     {
-        *outMat = GsIDMATRIX;
+        *transformMat = GsIDMATRIX;
     }
 
     curCoord  = rootCoord;
@@ -437,31 +437,32 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* outMat) //
     }
 
     // Set output.
-    *outMat = rootCoord->workm;
+    *transformMat = rootCoord->workm;
 }
 
 void Vw_CoordToViewSpaceMatrix(GsCOORDINATE2* rootCoord, MATRIX* viewMat) // 0x80049AF8
 {
-    MATRIX localMat;
+    MATRIX worldMat;
 
-    Vw_CoordHierarchyMatrixCompute(rootCoord, &localMat);
-    localMat.t[0] -= D_800C3868.t[0];
-    localMat.t[1] -= D_800C3868.t[1];
-    localMat.t[2] -= D_800C3868.t[2];
-    Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, &localMat, viewMat);
+    Vw_CoordHierarchyMatrixCompute(rootCoord, &worldMat);
+    worldMat.t[0] -= D_800C3868.t[0];
+    worldMat.t[1] -= D_800C3868.t[1];
+    worldMat.t[2] -= D_800C3868.t[2];
+
+    Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, &worldMat, viewMat);
 }
 
-void Vw_CoordToWorldAndViewMatrices(GsCOORDINATE2* rootCoord, MATRIX* outMat0, MATRIX* outMat1) // 0x80049B6C
+void Vw_CoordToWorldAndViewMatrices(GsCOORDINATE2* rootCoord, MATRIX* worldMat, MATRIX* viewMat) // 0x80049B6C
 {
-    Vw_CoordHierarchyMatrixCompute(rootCoord, outMat0);
-    outMat0->t[0] -= D_800C3868.t[0];
-    outMat0->t[1] -= D_800C3868.t[1];
-    outMat0->t[2] -= D_800C3868.t[2];
+    Vw_CoordHierarchyMatrixCompute(rootCoord, worldMat);
+    worldMat->t[0] -= D_800C3868.t[0];
+    worldMat->t[1] -= D_800C3868.t[1];
+    worldMat->t[2] -= D_800C3868.t[2];
 
-    Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, outMat0, outMat1);
-    outMat0->t[0] += D_800C3868.t[0];
-    outMat0->t[1] += D_800C3868.t[1];
-    outMat0->t[2] += D_800C3868.t[2];
+    Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, worldMat, viewMat);
+    worldMat->t[0] += D_800C3868.t[0];
+    worldMat->t[1] += D_800C3868.t[1];
+    worldMat->t[2] += D_800C3868.t[2];
 }
 
 void Vw_WorldScreenMatrixAtPositionGet(MATRIX* worldToScreenMat, q19_12 posX, q19_12 posY, q19_12 posZ) // 0x80049C2C
@@ -512,7 +513,7 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
     screenMinX = INT_MAX;
 	
 	#ifdef SH_PC_PORT
-    const float psxW = (float)g_GameWork.gsScreenWidth_588;
+    const float psxW = (float)g_GameWork.gsScreenWidth;
     const float winW = (float)g_PcConfig.windowWidth;
     const float horScale = winW / psxW;
 	#endif
@@ -573,13 +574,12 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
 
 #ifdef SH_PC_PORT
     {
-        /* Hor+ widescreen: the visible GTE half-width is psxHalfW * (winAspect/psxAspect).
-         * scaledX = GTE_SX2 * horScale, so the correct cull bound in scaledX space is
-         * psxHalfW * horScale * (winAspect/psxAspect).
-         * e.g. 1920x1080: 160 * 6 * (4/3) = 1280, not 960. */
-        const float psxHalfW  = (float)(g_GameWork.gsScreenWidth_588 >> 1);
-        const float psxAspect = (g_GameWork.gsScreenHeight_58A > 0)
-            ? ((float)g_GameWork.gsScreenWidth_588 / (float)g_GameWork.gsScreenHeight_58A)
+        /* Hor+ widescreen: visible GTE half-width is psxHalfW * (winAspect/psxAspect).
+         * In scaledX space the cull bound becomes psxHalfW * horScale * (winAspect/psxAspect).
+         * Without this, models off-center get clipped by the narrow 4:3 bound. */
+        const float psxHalfW  = (float)(g_GameWork.gsScreenWidth >> 1);
+        const float psxAspect = (g_GameWork.gsScreenHeight > 0)
+            ? ((float)g_GameWork.gsScreenWidth / (float)g_GameWork.gsScreenHeight)
             : (4.0f / 3.0f);
         const float winAspect = (g_PcConfig.windowHeight > 0)
             ? ((float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight)
@@ -587,9 +587,9 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
         screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) + 0.5f);
     }
 #else
-    screenCenterX = (g_GameWork.gsScreenWidth_588  / 2) + 2;
+    screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
 #endif
-    screenCenterY = (g_GameWork.gsScreenHeight_58A / 2) + 2;
+    screenCenterY = (g_GameWork.gsScreenHeight / 2) + 2;
 
     if (screenMaxX < -screenCenterX || screenCenterX < screenMinX ||
         screenMaxY < -screenCenterY || screenCenterY < screenMinY)
@@ -604,40 +604,26 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
 
 bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ, s32 maxX, s32 maxY, s32 maxZ, u16 nearPlane, u16 farPlane) // 0x80049F38
 {
-    u8                              flags0[3];
-    u8                              flags1[3];
-    s_func_8004A54C                 sp20;
-    DVECTOR                         screenPos;
-    s32                             distToNearPlane;
-    s32                             distToFarPlane;
-    s32                             interpAlpha;
-    s32                             transformedZ;
-    s32                             flag1Idx;
-    s32                             flag0Idx;
-    s32                             pointsOutsideNearPlaneCount;
-    s32                             i;
-    s32                             pointsOutsideFarClipCount;
-    bool                            cond;
-    DVECTOR*                        screenPoints;
-    u8*                             var_t1_2;
-    SVECTOR*                        temp_a1_3;
-    SVECTOR*                        temp_a2;
-    SVECTOR*                        temp_a3;
-    s_Vw_AabbVisibleInFrustumCheck* cullData;
-	
-	#ifdef SH_PC_PORT
-    const float psxW     = (float)g_GameWork.gsScreenWidth_588;
-    const float winW     = (float)g_PcConfig.windowWidth;
-    const float horScale = winW / psxW;
-    /* Hor+ widescreen: visible GTE half-width = psxHalfW * (winAspect/psxAspect).
-     * In scaledX space (GTE_SX2 * horScale) the correct cull bound is:
-     * (psxW/2) * horScale * (winAspect/psxAspect). e.g. 1920x1080 -> 1280. */
-    const float fr_psxAspect = (g_GameWork.gsScreenHeight_58A > 0)
-        ? (psxW / (float)g_GameWork.gsScreenHeight_58A) : (4.0f / 3.0f);
-    const float fr_winAspect = (g_PcConfig.windowHeight > 0)
-        ? (winW / (float)g_PcConfig.windowHeight) : fr_psxAspect;
-    const s32 cullHalfW = (s32)((psxW * 0.5f) * horScale * (fr_winAspect / fr_psxAspect) + 0.5f);
-	#endif
+    u8                        flags0[3];
+    u8                        flags1[3];
+    s_CameraScreenRegionFlags regionFlags;
+    DVECTOR                   screenPos;
+    s32                       distToNearPlane;
+    s32                       distToFarPlane;
+    s32                       interpAlpha;
+    s32                       transformedZ;
+    s32                       flag1Idx;
+    s32                       flag0Idx;
+    s32                       pointsOutsideNearPlaneCount;
+    s32                       i;
+    s32                       pointsOutsideFarClipCount;
+    bool                      cond;
+    DVECTOR*                  screenPoints;
+    u8*                       var_t1_2;
+    SVECTOR*                  temp_a1_3;
+    SVECTOR*                  temp_a2;
+    SVECTOR*                  temp_a3;
+    s_CameraCullData*         cullData;
 
     static u8 D_800AD480[24] = {
         0, 1, 1, 2, 2, 3, 3, 0,
@@ -652,15 +638,15 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
     flags1[1] = 0;
     flags1[0] = 0;
 
-    sp20.field_0[2][2] = 0;
+    regionFlags.flags[2][2] = 0;
 
-    cullData          = (s_Vw_AabbVisibleInFrustumCheck*)PSX_SCRATCH;
-    cullData->field_0 = *modelMat;
+    cullData           = (s_CameraCullData*)PSX_SCRATCH;
+    cullData->modelMat = *modelMat;
 
-    ((u32*)&sp20)[1] = 0;
-    ((u32*)&sp20)[0] = 0;
+    ((u32*)&regionFlags)[1] = 0;
+    ((u32*)&regionFlags)[0] = 0;
 
-    GsSetLsMatrix(&cullData->field_0);
+    GsSetLsMatrix(&cullData->modelMat);
 
     cullData->field_20[0].vx = minX;
     cullData->field_20[0].vy = minY;
@@ -717,33 +703,52 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
         {
             cullData->field_118[cullData->field_114++] = screenPos;
 
-			#ifdef SH_PC_PORT
-				s32 scaledX = (s32)(screenPos.vx * horScale);
-				s32 halfW = cullHalfW;
-			#else
-				s32 scaledX = screenPos.vx;
-				s32 halfW = (g_GameWork.gsScreenWidth_588 >> 1);
-			#endif
-
-			if (scaledX >= -halfW)
-			{
-				if (halfW < scaledX)
-				{
-					flag0Idx = 2;
-				}
-				else
-				{
-					flag0Idx = 1;
-				}
-			}
-			else
-			{
-				flag0Idx = 0;
-			}
-
-            if (screenPos.vy >= -(g_GameWork.gsScreenHeight_58A >> 1))
+#ifdef SH_PC_PORT
+            /* Hor+ widescreen frustum cull bound: scale GTE_SX2 by horScale
+             * and use psxHalfW * horScale * (winAspect/psxAspect) as the
+             * left/right cull bound, otherwise the 4:3 bound clips
+             * widescreen-visible models. */
             {
-                if ((g_GameWork.gsScreenHeight_58A >> 1) < screenPos.vy)
+                const float fr_psxW    = (float)g_GameWork.gsScreenWidth;
+                const float fr_winW    = (float)g_PcConfig.windowWidth;
+                const float fr_horSc   = fr_psxW > 0.0f ? fr_winW / fr_psxW : 1.0f;
+                const float fr_psxAsp  = (g_GameWork.gsScreenHeight > 0)
+                    ? (fr_psxW / (float)g_GameWork.gsScreenHeight) : (4.0f / 3.0f);
+                const float fr_winAsp  = (g_PcConfig.windowHeight > 0)
+                    ? (fr_winW / (float)g_PcConfig.windowHeight) : fr_psxAsp;
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) + 0.5f);
+                const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
+
+                if (fr_scaledX >= -fr_halfW)
+                {
+                    flag0Idx = (fr_halfW < fr_scaledX) ? 2 : 1;
+                }
+                else
+                {
+                    flag0Idx = 0;
+                }
+            }
+#else
+            if (screenPos.vx >= -(g_GameWork.gsScreenWidth >> 1))
+            {
+                if ((g_GameWork.gsScreenWidth >> 1) < screenPos.vx)
+                {
+                    flag0Idx = 2;
+                }
+                else
+                {
+                    flag0Idx = 1;
+                }
+            }
+            else
+            {
+                flag0Idx = 0;
+            }
+#endif
+
+            if (screenPos.vy >= -(g_GameWork.gsScreenHeight >> 1))
+            {
+                if ((g_GameWork.gsScreenHeight >> 1) < screenPos.vy)
                 {
                     flag1Idx = 2;
                 }
@@ -759,7 +764,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
 
             flags0[flag0Idx]                 |= 1 << 0;
             flags1[flag1Idx]                 |= 1 << 0;
-            sp20.field_0[flag1Idx][flag0Idx] |= 1 << 0;
+            regionFlags.flags[flag1Idx][flag0Idx] |= 1 << 0;
         }
     }
 
@@ -773,14 +778,14 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
         return false;
     }
 
-    if (sp20.field_0[1][1] != 0)
+    if (regionFlags.flags[1][1])
     {
         return true;
     }
 
-    if (func_8004A54C(&sp20) != 1)
+    if (Vw_ScreenRegionSpanCheck(&regionFlags) != 1)
     {
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < ARRAY_SIZE(cullData->field_60); i++)
         {
             RotTrans(&cullData->field_20[i], &cullData->field_60[i], &cullData->field_178);
         }
@@ -825,35 +830,68 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
 		{
 			RotTransPers(&cullData->field_C4[i], screenPoints, &cullData->field_178, &cullData->field_178);
 
-		#ifdef SH_PC_PORT
-			s32 scaledX = (s32)(screenPoints->vx * horScale);
-			s32 halfW   = cullHalfW;
-		#else
-			s32 scaledX = screenPoints->vx;
-			s32 halfW   = (g_GameWork.gsScreenWidth_588 >> 1);
-		#endif
+#ifdef SH_PC_PORT
+            /* Second loop -- same hor+ widescreen cull bound as the
+             * earlier per-vertex classification, applied to interior
+             * cull points. Without this widescreen models flicker. */
+            {
+                const float fr2_psxW    = (float)g_GameWork.gsScreenWidth;
+                const float fr2_winW    = (float)g_PcConfig.windowWidth;
+                const float fr2_horSc   = fr2_psxW > 0.0f ? fr2_winW / fr2_psxW : 1.0f;
+                const float fr2_psxAsp  = (g_GameWork.gsScreenHeight > 0)
+                    ? (fr2_psxW / (float)g_GameWork.gsScreenHeight) : (4.0f / 3.0f);
+                const float fr2_winAsp  = (g_PcConfig.windowHeight > 0)
+                    ? (fr2_winW / (float)g_PcConfig.windowHeight) : fr2_psxAsp;
+                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) + 0.5f);
+                const s32   fr2_scaledX = (s32)(screenPoints->vx * fr2_horSc);
 
-			// --- X ---
-			if (scaledX >= -halfW)
-			{
-				if (halfW < scaledX)
-				{
-					flag0Idx = 2;
-				}
-				else
-				{
-					flag0Idx = 1;
-				}
-			}
-			else
-			{
-				flag0Idx = 0;
-			}
+                if (fr2_scaledX >= -fr2_halfW)
+                {
+                    flag0Idx = (fr2_halfW < fr2_scaledX) ? 2 : 1;
+                }
+                else
+                {
+                    flag0Idx = 0;
+                }
+            }
+#else
+            if (screenPoints->vx >= -(g_GameWork.gsScreenWidth >> 1))
+            {
+                if ((g_GameWork.gsScreenWidth >> 1) < screenPoints->vx)
+                {
+                    flag0Idx = 2;
+                }
+                else
+                {
+                    flag0Idx = 1;
+                }
+            }
+            else
+            {
+                flag0Idx = 0;
+            }
+#endif
+
+            if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
+            {
+                if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
+                {
+                    flag1Idx = 2;
+                }
+                else
+                {
+                    flag1Idx = 1;
+                }
+            }
+            else
+            {
+                flag1Idx = 0;
+            }
 
 			// --- Y (unchanged) ---
-			if (screenPoints->vy >= -(g_GameWork.gsScreenHeight_58A >> 1))
+			if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
 			{
-				if ((g_GameWork.gsScreenHeight_58A >> 1) < screenPoints->vy)
+				if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
 				{
 					flag1Idx = 2;
 				}
@@ -898,45 +936,52 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat, s16 minX, s16 minY, s16 minZ
     return true;
 }
 
-bool func_8004A54C(s_func_8004A54C* arg0) // 0x8004A54C
+bool Vw_ScreenRegionSpanCheck(s_CameraScreenRegionFlags* regionFlags) // 0x8004A54C
 {
-    bool cond0;
-    bool cond1;
-    bool cond2;
-    bool cond3;
+    bool isLeft;
+    bool isRight;
+    bool isTop;
+    bool isBottom;
 
-    cond0 = false;
-    cond1 = false;
-    cond2 = false;
-    cond3 = false;
+    isLeft   = false;
+    isRight  = false;
+    isTop    = false;
+    isBottom = false;
 
-    if (arg0->field_0[1][1] != 0)
+    // Check center.
+    if (regionFlags->flags[1][1])
     {
         return true;
     }
 
-    if (arg0->field_0[1][0] || (arg0->field_0[0][0] && arg0->field_0[2][0]))
+    // Define vertical span.
+    if (regionFlags->flags[1][0] || (regionFlags->flags[0][0] && regionFlags->flags[2][0]))
     {
-        cond0 = true;
+        isLeft = true;
     }
-    if (arg0->field_0[1][2] || (arg0->field_0[0][2] && arg0->field_0[2][2]))
+    if (regionFlags->flags[1][2] || (regionFlags->flags[0][2] && regionFlags->flags[2][2]))
     {
-        cond1 = true;
+        isRight = true;
     }
-    if (cond0 && cond1)
+
+    // Check vertical span.
+    if (isLeft && isRight)
     {
         return true;
     }
 
-    if (arg0->field_0[0][1] || (arg0->field_0[0][0] && arg0->field_0[0][2]))
+    // Define horizontal span.
+    if (regionFlags->flags[0][1] || (regionFlags->flags[0][0] && regionFlags->flags[0][2]))
     {
-        cond2 = true;
+        isTop = true;
     }
-    if (arg0->field_0[2][1] || (arg0->field_0[2][0] && arg0->field_0[2][2]))
+    if (regionFlags->flags[2][1] || (regionFlags->flags[2][0] && regionFlags->flags[2][2]))
     {
-        cond3 = true;
+        isBottom = true;
     }
-    if (cond2 && cond3)
+
+    // Check horizontal span.
+    if (isTop && isBottom)
     {
         return true;
     }
@@ -973,9 +1018,6 @@ q19_12 vwVectorToAngle(SVECTOR* ang, const SVECTOR* vec) // 0x8004A714
 
 s32 vwOresenHokan(const s32* y_ary, s32 y_suu, s32 input_x, s32 min_x, s32 max_x) // 0x8004A7C8
 {
-    // `y_ary` = array of Y values.
-    // `y_suu` = `y_ary` size.
-
     s32 amari;    // Remainder when calculating position within interval.
     s32 kukan_w;  // Width of each interval between Y values.
     s32 kukan_no; // Index of the interval containing `input_x` angle.
@@ -993,7 +1035,7 @@ s32 vwOresenHokan(const s32* y_ary, s32 y_suu, s32 input_x, s32 min_x, s32 max_x
         }
         else
         {
-            kukan_w  = (max_x - min_x) / (y_suu - 1);
+            kukan_w  = (max_x   - min_x) / (y_suu - 1);
             amari    = (input_x - min_x) % kukan_w;
             kukan_no = (input_x - min_x) / kukan_w;
             if (kukan_no >= (y_suu - 1))

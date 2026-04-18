@@ -76,16 +76,18 @@ void vwSetCoordRefAndEntou(GsCOORDINATE2* parent_p,
 
     view_mtx = &vwViewPointInfo.vwcoord.coord;
 
+    // Setup.
     vwViewPointInfo.vwcoord.flg   = false;
     vwViewPointInfo.vwcoord.super = parent_p;
 
+    // Compute look-at rotation.
     view_ang.vy = cam_ang_y;
     view_ang.vz = cam_ang_z;
     view_ang.vx = -ratan2(-cam_y, cam_xz_r);
     view_ang.vy = Q12_ANGLE_NORM_U(view_ang.vy + Q12_ANGLE(180.0f));
 
+    // Compute view matrix.
     Math_RotMatrixZxyNegGte(&view_ang, view_mtx);
-
     view_mtx->t[0] = Q12_TO_Q8(ref_x) + Q12_MULT(Q12_TO_Q8(cam_xz_r), Math_Sin(cam_ang_y));
     view_mtx->t[1] = Q12_TO_Q8(ref_y) + Q12_TO_Q8(cam_y);
     view_mtx->t[2] = Q12_TO_Q8(ref_z) + Q12_MULT(Q12_TO_Q8(cam_xz_r), Math_Cos(cam_ang_y));
@@ -98,12 +100,12 @@ void vwSetViewInfoDirectMatrix(GsCOORDINATE2* pcoord, const MATRIX* cammat) // 0
     vwViewPointInfo.vwcoord.coord = *cammat;
 }
 
-/** @brief Converts a Q23.8 matrix transform to Q19.12, outputting the result to `pos`.
+/** @brief Extracts a position from a matrix, outputting the result to `pos`.
  *
  * Possible original name: `vwMatrixToPosition`.
  *
  * @param `pos` Output position (Q19.12).
- * @param `mat` Matrix to use for conversion.
+ * @param `mat` Matrix to use.
  */
 static inline void Math_MatrixToPosition(VECTOR3* pos, MATRIX* mat)
 {

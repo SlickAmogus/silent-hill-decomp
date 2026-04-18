@@ -1,147 +1,147 @@
 void Map_RoomBgmInit(bool arg0)
 {
-    s32              var_a0;
-    s32              var_a1;
-    s32              temp_a3;
+    s32 flags;
+    s32 var_a1;
+    s32 mapRoomIdx;
     u8* var_a2;
 
-    temp_a3 = g_SavegamePtr->mapRoomIdx_A5;
-    var_a1  = 0x199;
+    mapRoomIdx = g_SavegamePtr->mapRoomIdx_A5;
+    var_a1  = Q12(0.1f);
 
-    if (g_GameWork.bgmIdx_5B2 == 0xD)
+    if (g_GameWork.bgmIdx == 13)
     {
         var_a2 = sharedData_800ED418_4_s02;
 
-        switch (temp_a3)
+        switch (mapRoomIdx)
         {
-            case 0xF:
-                var_a0 = 4;
+            case 15:
+                flags = 1 << 2;
                 break;
 
-            case 0x10:
-                var_a0 = 6;
+            case 16:
+                flags = (1 << 1) | (1 << 2);
                 break;
 
-            case 0xE:
+            case 14:
                 if (Savegame_EventFlagGet(EventFlag_352))
                 {
-                    var_a1 = 0xA000;
-                    var_a0 = 0x101;
+                    var_a1 = Q12(10.0f);
+                    flags = (1 << 0) | (1 << 8);
                 }
                 else if (Savegame_EventFlagGet(EventFlag_350))
                 {
-                    var_a1 = 0x200;
-                    var_a0 = 0x101;
+                    var_a1 = Q12(0.25f / 2.0f);
+                    flags = (1 << 0) | (1 << 8);
                 }
                 else if (Savegame_EventFlagGet(EventFlag_348))
                 {
-                    if (g_SysWork.npcs_1A0[0].health_B0 < 0x3E8000)
+                    if (g_SysWork.npcs[0].health < Q12(1000.0f))
                     {
-                        var_a0 = 0x1FE;
+                        flags = 0x1FE; // TODO: Demagic.
                     }
                     else
                     {
-                        if (g_SysWork.playerWork_4C.player_0.position_18.vy > -0x800)
+                        if (g_SysWork.playerWork.player.position.vy > Q12(-0.5f))
                         {
-                            sharedData_800ED420_4_s02 = 0x10A;
+                            sharedData_800ED420_4_s02 = (1 << 1) | (1 << 3) | (1 << 8);
                         }
-                        else if (g_SysWork.playerWork_4C.player_0.position_18.vy < -0x2800)
+                        else if (g_SysWork.playerWork.player.position.vy < Q12(-2.5f))
                         {
-                            sharedData_800ED420_4_s02 = 0x112;
+                            sharedData_800ED420_4_s02 = (1 << 1) | (1 << 4) | (1 << 8);
                         }
+                        flags = sharedData_800ED420_4_s02;
 
-                        var_a0 = sharedData_800ED420_4_s02;
-
-                        if (g_SysWork.npcs_1A0[0].health_B0 < 0x7D0000)
+                        if (g_SysWork.npcs[0].health < Q12(2000.0f))
                         {
-                            var_a0 |= 0x24;
+                            flags |= (1 << 2) | (1 << 5);
                         }
-                        else if (g_SysWork.npcs_1A0[0].health_B0 < 0xBB8000)
+                        else if (g_SysWork.npcs[0].health < Q12(3000.0f))
                         {
-                            var_a0 |= 4;
+                            flags |= 1 << 2;
                         }
                     }
                 }
                 else
                 {
-                    var_a1 = 0x1000;
-                    var_a0 = 0x101;
+                    var_a1 = Q12(1.0f);
+                    flags = (1 << 0) | (1 << 8);
                 }
                 break;
 
             default:
-                var_a0 = 1;
+                flags = 1 << 0;
                 break;
         }
     }
-    else if (g_GameWork.bgmIdx_5B2 == 0x21)
+    else if (g_GameWork.bgmIdx == 33)
     {
         var_a2 = sharedData_800ED424_4_s02;
 
-        switch (temp_a3)
+        switch (mapRoomIdx)
         {
-            case 0x12:
+            case 18:
                 if (Savegame_EventFlagGet(EventFlag_334) || !Savegame_EventFlagGet(EventFlag_333))
                 {
-                    var_a0 = 2;
+                    flags = 1 << 1;
                 }
                 else
                 {
                     if (Savegame_EventFlagGet(EventFlag_330))
                     {
-                        var_a0 = 0x1E;
-                        var_a1 = 0x28000;
+                        flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
+                        var_a1 = CHUNK_CELL_SIZE;
                     }
                     else
                     {
-                        var_a0 = 0xE;
+                        flags = (1 << 1) | (1 << 2) | (1 << 3);
                     }
                 }
                 break;
 
-            case 0x13:
+            case 19:
                 Savegame_EventFlagSet(EventFlag_334);
 
                 if (Savegame_EventFlagGet(EventFlag_320))
                 {
-                    var_a0 = 0x101;
+                    flags = (1 << 0) | (1 << 8);
                 }
                 else
                 {
-                    var_a0 = 0x104;
+                    flags = (1 << 2) | (1 << 8);
                 }
                 break;
 
-            case 0x15:
-                var_a0 = 8;
+            case 21:
+                flags = 8;
                 break;
 
-            case 0x14:
+            case 20:
                 if (Savegame_EventFlagGet(EventFlag_327))
                 {
-                    var_a0 = 0x110;
+                    flags = (1 << 4) | (1 << 8);
                 }
                 else if (Savegame_EventFlagGet(EventFlag_324) || Savegame_EventFlagGet(EventFlag_329))
                 {
-                    var_a1 = 0x800;
+                    var_a1 = Q12(0.5f);
 
-                    if (g_SysWork.npcs_1A0[0].health_B0 > 0 && g_SysWork.npcs_1A0[0].position_18.vy < 0x1000)
+                    if (g_SysWork.npcs[0].health > Q12(0.0f) &&
+                        g_SysWork.npcs[0].position.vy < Q12(1.0f))
                     {
-                        var_a0 = 0x160;
+                        flags = (1 << 5) | (1 << 6) | (1 << 8);
                     }
                     else
                     {
-                        var_a0 = 0x120;
+                        flags = (1 << 5) | (1 << 8);
                     }
                 }
                 else
                 {
-                    var_a0 = 0x110;
+                    flags = (1 << 4) | (1 << 8);
                 }
                 break;
 
             default:
-                var_a0 = 0x101;
+                flags = (1 << 0) | (1 << 8);
                 break;
         }
     }
@@ -151,17 +151,18 @@ void Map_RoomBgmInit(bool arg0)
 
         if (!Savegame_EventFlagGet(EventFlag_314))
         {
-            if (g_SysWork.playerWork_4C.player_0.position_18.vz < 0x28000)
+            if (g_SysWork.playerWork.player.position.vz < CHUNK_CELL_SIZE)
             {
                 Savegame_EventFlagSet(EventFlag_314);
             }
-            var_a0 = 2;
+
+            flags = 1 << 1;
         }
         else
         {
-            var_a0 = sharedData_800ED42C_4_s02[temp_a3];
+            flags = sharedData_800ED42C_4_s02[mapRoomIdx];
         }
     }
 
-    Bgm_Update(var_a0, var_a1, var_a2);
+    Bgm_Update(flags, var_a1, var_a2);
 }

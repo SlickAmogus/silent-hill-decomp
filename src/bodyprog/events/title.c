@@ -34,10 +34,7 @@ static void func_8003BCF4(void);
 #define MAIN_MENU_FOG_COUNT 21
 
 #ifndef PAD_HACK_IGNORE
-// ========================================
-// PADDING
-// ========================================
-const s32 pad_rodata_8002547C = 0;
+    const s32 pad_rodata_8002547C = 0;
 #endif
 
 // ========================================
@@ -64,11 +61,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_PC_PORT
     {
         static s32 prevStep = -1, prevMenuState = -1;
-        if (g_GameWork.gameStateStep_598[0] != prevStep || g_MainMenuState != prevMenuState) {
+        if (g_GameWork.gameStateSteps[0] != prevStep || g_MainMenuState != prevMenuState) {
             printf("[SH] MainMenu: step=%d mainMenuState=%d\n",
-                g_GameWork.gameStateStep_598[0], g_MainMenuState);
+                g_GameWork.gameStateSteps[0], g_MainMenuState);
             fflush(stdout);
-            prevStep = g_GameWork.gameStateStep_598[0];
+            prevStep = g_GameWork.gameStateSteps[0];
             prevMenuState = g_MainMenuState;
         }
     }
@@ -78,7 +75,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * skip_intros only skips logos; the menu itself is still shown for map0_s00. */
     {
         static int autoStartDone = 0;
-        if (!autoStartDone && g_GameWork.gameStateStep_598[0] == 1 &&
+        if (!autoStartDone && g_GameWork.gameStateSteps[0] == 1 &&
             strcmp(g_PcConfig.mapName, "map0_s00") != 0)
         {
             autoStartDone = 1;
@@ -88,7 +85,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             if (mapId < 0) mapId = 0;
             GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
             GameBoot_PlayerInit();
-            g_SysWork.processFlags_2298 = SysWorkProcessFlag_NewGame;
+            g_SysWork.processFlags = ProcessFlag_NewGame;
             GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
             GameFs_StreamBinLoad();
 
@@ -97,9 +94,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             MemCard_Disable();
             g_SysWork.counters_1C[0]        = 0;
             g_SysWork.counters_1C[1]        = 0;
-            g_GameWork.gameStateStep_598[0]  = 0;
-            g_GameWork.gameStateStep_598[1]  = 0;
-            g_GameWork.gameStateStep_598[2]  = 0;
+            g_GameWork.gameStateSteps[0]  = 0;
+            g_GameWork.gameStateSteps[1]  = 0;
+            g_GameWork.gameStateSteps[2]  = 0;
             SysWork_StateSetNext(SysState_Gameplay);
             return;
         }
@@ -134,26 +131,27 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
 #endif
 
-    if (g_GameWork.gameStateStep_598[0] == 0)
+    if (g_GameWork.gameStateSteps[0] == 0)
     {
         g_MainMenuState = 0;
 
         if (playInGameDemo)
         {
-            g_SysWork.processFlags_2298 = SysWorkProcessFlag_BootDemo;
+            g_SysWork.processFlags = ProcessFlag_BootDemo;
         }
         else
         {
-            g_GameWork.gameStateStep_598[0] = 1;
+            g_GameWork.gameStateSteps[0] = 1;
         }
     }
 
     switch (g_MainMenuState)
     {
         case MenuState_Start:
-            g_GameWork.background2dColor_58C.r = 0;
-            g_GameWork.background2dColor_58C.g = 0;
-            g_GameWork.background2dColor_58C.b = 0;
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+
             Screen_RectInterlacedClear(0, 32, SCREEN_WIDTH, FRAMEBUFFER_HEIGHT_INTERLACED, 0, 0, 0);
             Screen_Init(SCREEN_WIDTH, true);
 
@@ -176,12 +174,12 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             {
                 GameBoot_GameStartup();
 
-                if (g_GameWork.gameStateStep_598[0] == 1 && g_SysWork.counters_1C[1] == 0)
+                if (g_GameWork.gameStateSteps[0] == 1 && g_SysWork.counters_1C[1] == 0)
                 {
                     g_Demo_ReproducedCount++;
                 }
 
-                if (g_GameWork.gameState_594 == GameState_MainLoadScreen)
+                if (g_GameWork.gameState == GameState_MainLoadScreen)
                 {
                     g_Demo_ReproducedCount++;
                 }
@@ -189,7 +187,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
             g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
 
-            if (g_GameWork.autosave_90.playerHealth_240 > Q12(0.0f))
+            if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
             {
                 g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Continue) | (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
             }
@@ -218,11 +216,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
                 SD_Call(Sfx_MenuMove);
-                g_GameWork.gameState_594 = GameState_MainMenu;
+                g_GameWork.gameState = GameState_MainMenu;
 
-                if (g_GameWork.gameStateStep_598[0] != 1)
+                if (g_GameWork.gameStateSteps[0] != 1)
                 {
-                    g_GameWork.gameStateStep_598[0] = 1;
+                    g_GameWork.gameStateSteps[0] = 1;
                     Fs_QueueReset();
                 }
             }
@@ -241,13 +239,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             // Wrap selection.
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
             {
-                g_GameWork.gameState_594 = GameState_MainMenu;
+                g_GameWork.gameState = GameState_MainMenu;
 
-                if (g_GameWork.gameStateStep_598[0] != 1)
+                if (g_GameWork.gameStateSteps[0] != 1)
                 {
-                    g_GameWork.gameStateStep_598[0] = 1;
+                    g_GameWork.gameStateSteps[0] = 1;
                     Fs_QueueReset();
                 }
 
@@ -266,9 +264,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 switch (g_MainMenu_SelectedEntry)
                 {
                     case MainMenuEntry_Continue:
-                        if (g_GameWork.autosave_90.playerHealth_240 > Q12(0.0f))
+                        if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
                         {
-                            g_GameWork.savegame_30C = g_GameWork.autosave_90;
+                            g_GameWork.savegame = g_GameWork.autosave;
                         }
                         else
                         {
@@ -276,7 +274,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         }
 
                         GameBoot_PlayerInit();
-                        g_SysWork.processFlags_2298 = SysWorkProcessFlag_Continue;
+                        g_SysWork.processFlags = ProcessFlag_Continue;
                         GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
                         break;
 
@@ -308,26 +306,26 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             {
                 GameBoot_GameStartup();
 
-                if (g_GameWork.gameStateStep_598[0] == 1 && g_SysWork.counters_1C[1] == 0)
+                if (g_GameWork.gameStateSteps[0] == 1 && g_SysWork.counters_1C[1] == 0)
                 {
                     g_Demo_ReproducedCount++;
                 }
 
-                if (g_GameWork.gameState_594 == GameState_MainLoadScreen)
+                if (g_GameWork.gameState == GameState_MainLoadScreen)
                 {
                     g_Demo_ReproducedCount++;
                 }
             }
 
             if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
-                g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                                 g_GameWorkPtr->config_0.controllerConfig_0.cancel_2))
+                g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
             {
-                g_GameWork.gameState_594 = GameState_MainMenu;
+                g_GameWork.gameState = GameState_MainMenu;
 
-                if (g_GameWork.gameStateStep_598[0] != 1)
+                if (g_GameWork.gameStateSteps[0] != 1)
                 {
-                    g_GameWork.gameStateStep_598[0] = 1;
+                    g_GameWork.gameStateSteps[0] = 1;
                     Fs_QueueReset();
                 }
             }
@@ -359,9 +357,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Select game difficulty.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
             {
 
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] New Game selected, difficulty=%d", newGameSelectedDifficultyIdx - 1);
+                SH_DBG("[SH] Calling GameBoot_SavegameInitialize... harryModel=%p",
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
 #ifdef SH_PC_PORT
                 {
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
@@ -371,23 +374,45 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
 #endif
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] GameBoot_SavegameInitialize done harryModel=%p",
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                SH_DBG("[SH] Calling GameBoot_PlayerInit... harryModel=%p",
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
                 GameBoot_PlayerInit();
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] GameBoot_PlayerInit done harryModel=%p",
+                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+#endif
 
-                g_SysWork.processFlags_2298 = SysWorkProcessFlag_NewGame;
-
+                g_SysWork.processFlags = ProcessFlag_NewGame;
 
 #ifdef SH_PC_PORT
+                /* Use the savegame's mapOverlayId_A4 (from config map=...)
+                 * instead of forcing map0_s00 -- otherwise New Game ignores
+                 * the config and always boots into the cutscene area. */
                 GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
 #else
-                GameBoot_MapLoad(MapOverlayId_MAP0_S00);
+                GameBoot_MapLoad(MapIdx_MAP0_S00);
 #endif
                 GameFs_StreamBinLoad();
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] GameFs_StreamBinLoad done");
+                SH_DBG("[SH] SD_Call(Sfx_MenuStartGame)...");
+#endif
                 SD_Call(Sfx_MenuStartGame);
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] ScreenFade_Start...");
+#endif
                 ScreenFade_Start(true, false, false);
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] g_MainMenuState = 4");
+#endif
                 g_MainMenuState     = 4;
             }
             // Cancel.
-            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)
+            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
             {
                 SD_Call(Sfx_MenuCancel);
                 g_MainMenuState = 1;
@@ -405,30 +430,44 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #endif
             if (ScreenFade_IsFinished())
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] MenuState_NewGameStart: FADE DONE!");
+#endif
                 Screen_Refresh(SCREEN_WIDTH, 0);
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] MenuState_NewGameStart: Fs_QueueWaitForEmpty");
+#endif
                 Fs_QueueWaitForEmpty();
+#ifdef SH_PC_PORT
+                SH_DBG("[SH] MenuState_NewGameStart: Chara_PositionSet check");
+#endif
 
-                if (g_GameWork.autosave_90.playerHealth_240 > Q12(0.0f))
+                if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
                 {
                     NEXT_GAME_STATES[1] = GameState_MainLoadScreen;
                 }
 
                 if (g_MainMenu_SelectedEntry == MainMenuEntry_Start)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[SH] MenuState_NewGameStart: Chara_PositionSet mapPointsOfInterest=%p",
+                            (void*)&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
+#endif
                     Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
                 }
 
                 MemCard_Disable();
 
-                prevState                       = g_GameWork.gameState_594;
-                g_GameWork.gameStateStep_598[0] = prevState;
-                g_GameWork.gameState_594        = NEXT_GAME_STATES[g_MainMenu_SelectedEntry];
-                g_SysWork.counters_1C[0]        = 0;
-                g_GameWork.gameStatePrev_590    = prevState;
-                g_GameWork.gameStateStep_598[0] = 0;
-                g_SysWork.counters_1C[1]        = 0;
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                prevState                    = g_GameWork.gameState;
+                g_GameWork.gameStateSteps[0] = prevState;
+                g_GameWork.gameState         = NEXT_GAME_STATES[g_MainMenu_SelectedEntry];
+                g_SysWork.counters_1C[0]     = 0;
+                g_GameWork.gameStatePrev     = prevState;
+                g_GameWork.gameStateSteps[0] = 0;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+
                 SysWork_StateSetNext(SysState_Gameplay);
             }
             break;
@@ -441,13 +480,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
     if (!playInGameDemo)
     {
-        switch (g_GameWork.gameStateStep_598[0])
+        switch (g_GameWork.gameStateSteps[0])
         {
             case 1:
                 if (g_SysWork.counters_1C[1] > 1740)
                 {
                     GameFs_StreamBinLoad();
-                    g_GameWork.gameStateStep_598[0]++;
+                    g_GameWork.gameStateSteps[0]++;
                 }
                 break;
 
@@ -456,9 +495,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 {
                     g_Demo_ReproducedCount++;
 
-                    g_GameWork.background2dColor_58C.r = 0;
-                    g_GameWork.background2dColor_58C.g = 0;
-                    g_GameWork.background2dColor_58C.b = 0;
+                    g_GameWork.background2dColor.r = 0;
+                    g_GameWork.background2dColor.g = 0;
+                    g_GameWork.background2dColor.b = 0;
 
                     Game_StateSetNext(GameState_MovieIntro);
                 }
@@ -466,7 +505,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         }
     }
 
-    if (g_GameWork.gameState_594 == GameState_MainMenu)
+    if (g_GameWork.gameState == GameState_MainMenu)
     {
         MainMenu_BackgroundDraw();
         func_8003B560();
@@ -601,7 +640,7 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
 
 static void MainMenu_BackgroundDraw(void) // 0x8003B758
 {
-    if (g_SysWork.sysState_8 == SysState_Gameplay)
+    if (g_SysWork.sysState == SysState_Gameplay)
     {
         SysWork_StateSetNext(SysState_OptionsMenu);
         func_8003BCF4();

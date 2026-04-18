@@ -5,10 +5,10 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
-#include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/events/bgm_update.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_background.h"
+#include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
 
@@ -18,7 +18,7 @@
 
 void func_80087EA8(s32 cmd) // 0x80087EA8
 {
-    if (!Bgm_IsCurrentBgmTargetCheck(cmd))
+    if (!Bgm_ActiveBgmTrackCheck(cmd))
     {
         return;
     }
@@ -33,28 +33,28 @@ void func_80087EDC(s32 cmd) // 0x80087EDC
         return;
     }
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            if (!Bgm_IsCurrentBgmTargetCheck(cmd))
+            if (!Bgm_ActiveBgmTrackCheck(cmd))
             {
                 SysWork_StateStepSet(1, 3);
                 break;
             }
 
-            g_SysWork.sysFlags_22A0 |= SysFlag_7;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_RequestMute;
             SysWork_StateStepIncrement(1);
             break;
 
         case 1:
-            g_SysWork.sysFlags_22A0 |= SysFlag_7;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_RequestMute;
             SD_Call(23);
 
             SysWork_StateStepIncrement(1);
             break;
 
         case 2:
-            g_SysWork.sysFlags_22A0 |= SysFlag_7;
+            g_SysWork.bgmStatusFlags |= BgmStatusFlag_RequestMute;
 
             if (!func_80045BC8())
             {
@@ -82,7 +82,7 @@ void func_80088048(void) // 0x80088048
         return;
     }
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             Bgm_AllLayersMute();
@@ -109,7 +109,7 @@ void func_800880F0(s32 arg0) // 0x800880F0
         return;
     }
 
-    switch (g_SysWork.sysStateStep_C[1])
+    switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
             Bgm_AllLayersMute();

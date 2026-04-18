@@ -53,25 +53,25 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
     // Check for user input.
     hasInput = false;
-    if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config_0.controllerConfig_0.enter_0 |
-                                          g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)) ||
-        (g_Controller0->btnsHeld_C & g_GameWorkPtr->config_0.controllerConfig_0.skip_4))
+    if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
+                                          g_GameWorkPtr->config.controllerConfig.cancel_2)) ||
+        (g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.skip_4))
     {
         hasInput = true;
     }
 
-    g_SysWork.playerWork_4C.player_0.properties_E4.player.gasWeaponPowerTimer_114 = Q12(0.0f);
-    func_8004C564(g_SysWork.playerCombat_38.weaponAttack_F, WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap));
+    g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = Q12(0.0f);
+    func_8004C564(g_SysWork.playerCombat.weaponAttack, WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap));
 
     if (msgIdx != mapMsgIdx)
     {
-        g_SysWork.isMgsStringSet_18 = false;
+        g_SysWork.isMgsStringSet = false;
     }
 
-    switch (g_SysWork.isMgsStringSet_18)
+    switch (g_SysWork.isMgsStringSet)
     {
         case false:
-            g_SysWork.mapMsgTimer_234C         = NO_VALUE;
+            g_SysWork.mapMsgTimer         = NO_VALUE;
             g_MapMsg_Select.maxIdx_0           = NO_VALUE;
             g_MapMsg_Select.selectedEntryIdx_1 = 0;
             g_MapMsg_AudioLoadBlock            = 0;
@@ -103,11 +103,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 #endif
 
             D_800BCD74 = 1;
-            g_SysWork.isMgsStringSet_18++;
+            g_SysWork.isMgsStringSet++;
             return MapMsgState_Finish;
 
         case true:
-            if (g_SysWork.sysFlags_22A0 & SysFlag_5)
+            if (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog)
             {
 #ifdef SH_PC_PORT
                 /* XA audio streaming not implemented on PC — skip the wait
@@ -139,10 +139,10 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             msgDisplayLength += msgDisplayInc;
             msgDisplayLength  = CLAMP(msgDisplayLength, 0, MAP_MESSAGE_DISPLAY_ALL_LENGTH);
 
-            if (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer_234C > 0)
+            if (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer > 0)
             {
-                g_SysWork.mapMsgTimer_234C -= g_DeltaTimeRaw;
-                g_SysWork.mapMsgTimer_234C  = CLAMP(g_SysWork.mapMsgTimer_234C, Q12(0.0f), MSG_TIMER_MAX);
+                g_SysWork.mapMsgTimer -= g_DeltaTimeRaw;
+                g_SysWork.mapMsgTimer  = CLAMP(g_SysWork.mapMsgTimer, Q12(0.0f), MSG_TIMER_MAX);
             }
 
             temp_s1 = stateMachineIdx0;
@@ -159,33 +159,33 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     if (g_MapMsg_Select.maxIdx_0 == temp)
                     {
                         if (!((g_MapMsg_AudioLoadBlock & (1 << 0)) || !hasInput) ||
-                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer_234C == 0))
+                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
                         {
                             stateMachineIdx1 = FINISH_MAP_MSG;
 
-                            if (g_SysWork.sysFlags_22A0 & SysFlag_5)
+                            if (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog)
                             {
                                 SD_Call(19);
                             }
                             break;
                         }
                     }
-                    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)
+                    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
                     {
                         g_MapMsg_Select.maxIdx_0           = temp;
                         g_MapMsg_Select.selectedEntryIdx_1 = g_MapMsg_SelectCancelIdx;
 
                         Sd_PlaySfx(Sfx_MenuCancel, 0, Q8(0.25f));
 
-                        if (g_SysWork.silentYesSelection_2350_4)
+                        if (g_SysWork.silentYesSelection)
                         {
-                            g_SysWork.silentYesSelection_2350_4 = false;
+                            g_SysWork.silentYesSelection = false;
                         }
 
                         stateMachineIdx1 = FINISH_MAP_MSG;
                         break;
                     }
-                    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0)
+                    else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
                     {
                         g_MapMsg_Select.maxIdx_0 = temp;
 
@@ -193,14 +193,14 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                         {
                             Sd_PlaySfx(Sfx_MenuCancel, 0, Q8(0.25f));
                         }
-                        else if (!g_SysWork.silentYesSelection_2350_4)
+                        else if (!g_SysWork.silentYesSelection)
                         {
                             Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
                         }
 
-                        if (g_SysWork.silentYesSelection_2350_4)
+                        if (g_SysWork.silentYesSelection)
                         {
-                            g_SysWork.silentYesSelection_2350_4 = false;
+                            g_SysWork.silentYesSelection = false;
                         }
 
                         stateMachineIdx1 = FINISH_MAP_MSG;
@@ -208,7 +208,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
                 }
                 else if ((!(g_MapMsg_AudioLoadBlock & (1 << 0)) && hasInput && g_MapMsg_Select.maxIdx_0 != 0) ||
-                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer_234C == 0))
+                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
                 {
                     if (g_MapMsg_Select.maxIdx_0 != NO_VALUE)
                     {
@@ -218,7 +218,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
 
                     g_MapMsg_CurrentIdx++;
-                    g_SysWork.mapMsgTimer_234C = g_MapMsg_Select.maxIdx_0;
+                    g_SysWork.mapMsgTimer = g_MapMsg_Select.maxIdx_0;
 
                     var_a1 = Gfx_MapMsg_CalculateWidths(g_MapMsg_CurrentIdx);
 
@@ -248,7 +248,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                         return MapMsgState_Idle;
                     }
 
-                    if (g_SysWork.sysFlags_22A0 & SysFlag_5)
+                    if (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog)
                     {
                         SD_Call(19);
                     }
@@ -279,11 +279,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
         return MapMsgState_Idle;
     }
 
-    g_SysWork.isMgsStringSet_18            = false;
-    g_SysWork.enableHighResGlyphs_2350_0 = false;
+    g_SysWork.isMgsStringSet            = false;
+    g_SysWork.enableHighResGlyphs = false;
     msgDisplayLength               = 0;
 
-    if (g_SysWork.sysFlags_22A0 & SysFlag_5)
+    if (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog)
     {
         D_800BCD74 = 1;
     }

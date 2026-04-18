@@ -31,13 +31,13 @@ void sharedFunc_800D15F0_3_s01(void)
     s32 temp2;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
-        g_SysWork.sysStateStep_C[0] >= 9 && g_SysWork.sysStateStep_C[0] < 17)
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+        g_SysWork.sysStateSteps[0] >= 9 && g_SysWork.sysStateSteps[0] < 17)
     {
         SysWork_StateStepSet(0, 17);
     }
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
 
@@ -103,13 +103,13 @@ void sharedFunc_800D15F0_3_s01(void)
             cursorX = FP_FROM(sharedData_800D4D10_3_s01, Q12_SHIFT) + 8;
             Gfx_CursorDraw(cursorX, FP_FROM(sharedData_800D4D14_3_s01, Q12_SHIFT) + 8, 8, 8, 0, 64, 32, 32, 128, 192, 0, 12);
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.cancel_2)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
             {
                 SysWork_StateStepSet(0, 6);
                 break;
             }
 
-            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.enter_0))
+            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0))
             {
                 break;
             }
@@ -213,17 +213,17 @@ void sharedFunc_800D15F0_3_s01(void)
             sharedData_800D4D0C_3_s01.vx = 0;
 
 #ifdef MAP3_S01
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-112.5f);
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(58.6f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(19.4f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-112.5f);
+            g_SysWork.playerWork.player.position.vx = Q12(58.6f);
+            g_SysWork.playerWork.player.position.vz = Q12(19.4f);
 #elif defined(MAP7_S01) || defined(MAP7_S02)
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-90.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(-101.9f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(-60.3f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-90.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(-101.9f);
+            g_SysWork.playerWork.player.position.vz = Q12(-60.3f);
 #else
-            g_SysWork.playerWork_4C.player_0.rotation_24.vy = Q12_ANGLE(-135.0f);
-            g_SysWork.playerWork_4C.player_0.position_18.vx = Q12(18.2f);
-            g_SysWork.playerWork_4C.player_0.position_18.vz = Q12(59.7f);
+            g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(-135.0f);
+            g_SysWork.playerWork.player.position.vx = Q12(18.2f);
+            g_SysWork.playerWork.player.position.vz = Q12(59.7f);
 #endif
             SysWork_StateStepSet(0, 8);
             break;
@@ -277,7 +277,7 @@ void sharedFunc_800D15F0_3_s01(void)
             {
                 SysWork_StateStepIncrementAfterFade(2, false, false, Q12(2.0f), false);
 
-                if (g_SysWork.sysStateStep_C[0] != 10)
+                if (g_SysWork.sysStateSteps[0] != 10)
                 {
                     func_8005DC1C(Sfx_Unk1501, &sharedData_800CB094_3_s01, Q8(0.5f), 0);
                     SysWork_StateStepSet(0, 14);
@@ -354,7 +354,7 @@ void sharedFunc_800D15F0_3_s01(void)
                 g_WorldObject_Dr[i].position_1C.vz += Q12_MULT_PRECISE(g_DeltaTime, (i & 1) ? sharedData_800D4D0C_3_s01.vy : -sharedData_800D4D0C_3_s01.vy);
             }
 
-            if (g_SysWork.sysStateStep_C[0] == 15)
+            if (g_SysWork.sysStateSteps[0] == 15)
             {
                 SysWork_StateStepIncrementDelayed(Q12(0.3f), false);
             }
@@ -375,7 +375,7 @@ void sharedFunc_800D15F0_3_s01(void)
 #ifdef MAP3_S01
             func_8008D448();
             Game_FlashlightAttributesFix();
-            g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+            g_SysWork.pointLightIntensity = Q12(1.0f);
 #endif
             Sd_SfxStop(Sfx_Unk1499);
             Sd_SfxStop(Sfx_Unk1501);

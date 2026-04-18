@@ -23,9 +23,9 @@ struct _Model;
 
 #define NPC_COUNT_MAX             6
 #define NPC_BONE_COUNT_MAX        10 * NPC_COUNT_MAX
-#define GROUP_CHARA_COUNT         4 /** While up to 6 NPCs and a player can exist in the game world, only 4 different character types (including the player) can be loaded at a time. */
+#define CHARA_GROUP_COUNT         4 /** While up to 6 NPCs and a player can exist in the game world, only 4 different character types (including the player) can be loaded at a time. */
 #define INVENTORY_ITEM_COUNT_MAX  40
-#define INVENTORY_ITEMS_PER_GROUP 32 /** Number of `e_InventoryItemId`'s per `e_InventoryItemGroup` */
+#define INVENTORY_ITEM_GROUP_SIZE 32 /** Number of `e_InvItemId`s per `e_InvItemGroup`. */
 #define INPUT_ACTION_COUNT        14
 #define CONTROLLER_COUNT_MAX      2
 
@@ -152,7 +152,7 @@ struct _Model;
     (FP_FROM(animTime, Q12_SHIFT) - (baseOffset))
 
 /** @brief Creates a bitmask with a contiguous range of bits set.
- * For use with `s_PlayerExtra::disabledAnimBones_18`.
+ * For use with `s_PlayerExtra::disabledAnimBones`.
  *
  * Generates an `unsigned int` mask with all bits in the range `[fromInclusive, toInclusive]` set.
  *
@@ -231,26 +231,26 @@ struct _Model;
  * if the chunk index will be a positive number. Seems like they forgot to use `ABS`?
  */
 #define PLAYER_IN_MAP_CHUNK(comp, x0, x1, x2, x3)                                                        \
-    (__chunkIdx = g_SysWork.playerWork_4C.player_0.position_18.comp / Q12(40.0f),                        \
-     ((g_SysWork.playerWork_4C.player_0.position_18.comp >  Q12(0.0f) && (__chunkIdx + (x0)) == (x1)) || \
-      (g_SysWork.playerWork_4C.player_0.position_18.comp <= Q12(0.0f) && (__chunkIdx + (x2)) == (x3))))
+    (__chunkIdx = g_SysWork.playerWork.player.position.comp / Q12(40.0f),                        \
+     ((g_SysWork.playerWork.player.position.comp >  Q12(0.0f) && (__chunkIdx + (x0)) == (x1)) || \
+      (g_SysWork.playerWork.player.position.comp <= Q12(0.0f) && (__chunkIdx + (x2)) == (x3))))
 
 #define PLAYER_NOT_IN_MAP_CHUNK(comp, x0, x1, x2, x3)                                                    \
-    (__chunkIdx = g_SysWork.playerWork_4C.player_0.position_18.comp / Q12(40.0f),                        \
-     ((g_SysWork.playerWork_4C.player_0.position_18.comp >  Q12(0.0f) && (__chunkIdx + (x0)) != (x1)) || \
-      (g_SysWork.playerWork_4C.player_0.position_18.comp <= Q12(0.0f) && (__chunkIdx + (x2)) != (x3))))
+    (__chunkIdx = g_SysWork.playerWork.player.position.comp / Q12(40.0f),                        \
+     ((g_SysWork.playerWork.player.position.comp >  Q12(0.0f) && (__chunkIdx + (x0)) != (x1)) || \
+      (g_SysWork.playerWork.player.position.comp <= Q12(0.0f) && (__chunkIdx + (x2)) != (x3))))
 
 #define MAP_CHUNK_CHECK_VARIABLE_DECL_2() \
     s32 __chunkIdx2
 
 #define PLAYER_IN_MAP_CHUNK_2(comp, x0, x1, x2, x3)                                                      \
-    (__chunkIdx2 = g_SysWork.playerWork_4C.player_0.position_18.comp / Q12(40.0f),                       \
-     ((g_SysWork.playerWork_4C.player_0.position_18.comp >  Q12(0.0f) && (__chunkIdx2 + (x0)) < (x1)) || \
-      (g_SysWork.playerWork_4C.player_0.position_18.comp <= Q12(0.0f) && (__chunkIdx2 + (x2)) < (x3))))
+    (__chunkIdx2 = g_SysWork.playerWork.player.position.comp / Q12(40.0f),                       \
+     ((g_SysWork.playerWork.player.position.comp >  Q12(0.0f) && (__chunkIdx2 + (x0)) < (x1)) || \
+      (g_SysWork.playerWork.player.position.comp <= Q12(0.0f) && (__chunkIdx2 + (x2)) < (x3))))
 
 #define PLAYER_NEAR_POS(comp, base, tol)                                                                                                                             \
-    (((g_SysWork.playerWork_4C.player_0.position_18.comp - Q12(base)) >= Q12(0.0f)) ? ((g_SysWork.playerWork_4C.player_0.position_18.comp - Q12(base)) < Q12(tol)) : \
-                                                                                      ((Q12(base) - g_SysWork.playerWork_4C.player_0.position_18.comp) < Q12(tol)))
+    (((g_SysWork.playerWork.player.position.comp - Q12(base)) >= Q12(0.0f)) ? ((g_SysWork.playerWork.player.position.comp - Q12(base)) < Q12(tol)) : \
+                                                                                      ((Q12(base) - g_SysWork.playerWork.player.position.comp) < Q12(tol)))
 
 #define MIN_OFFSET(x, neg, pos) \
     ((((x) + (-neg)) <= ((x) + (pos))) ? ((x) - (neg)) : ((x) + (pos)))
@@ -264,7 +264,7 @@ struct _Model;
  * @param z Z cell coordinate.
  * @return Packed XZ cell coordinates.
  */
-#define PACKED_CELL_XZ(x, z) \
+#define CELL_XZ(x, z) \
     ((x) + ((z) << 8))
 
 #define HAS_FLAG(ptr, idx) \
@@ -276,24 +276,48 @@ struct _Model;
 #define CLEAR_FLAG(ptr, idx) \
     ((((u32*)ptr)[(idx) >> 5] &= ~((1 << 0) << ((idx) & 0x1F))))
 
-/** Returns the `e_InventoryItemGroup` for an `e_InventoryItemId`
- * Divides the item ID by 32 (`INVENTORY_ITEMS_PER_GROUP`), uses shift for matching. */
+/** @brief Gets the `e_InvItemGroup` for an `e_InvItemId`.
+ * Divides the item ID by 32 (`INVENTORY_ITEM_GROUP_SIZE`), using a bitwise shift to match.
+ *
+ * @param itemId Item ID to process.
+ * @return Inventory item group.
+ */
 #define INVENTORY_ITEM_GROUP(itemId) \
     ((itemId) >> 5)
 
-/** Returns the index of an `e_InventoryItemId` inside the group it belongs to.
- * Modulos the item ID by 32 (`INVENTORY_ITEMS_PER_GROUP`), using AND for matching.
- * (e.g. itemId 65 would be index 1 into group 2) */
+/** @brief Gets the index of an `e_InvItemId` inside the group it belongs to.
+ * Modulos the item ID by 32 (`INVENTORY_ITEM_GROUP_SIZE`), using AND to match.
+ * E.g. `itemId` 65 would be index 1, group 2.
+ *
+ * @param itemId Item ID to process.
+ * @return Inventory item group.
+ */
 #define INVENTORY_ITEM_GROUP_ID(itemId) \
     ((itemId) & 0x1F)
 
-/** Returns `e_InventoryItemId` of the ammo for given weapon. */
+/** @brief Gets the `e_InvItemId` of the ammo for a given weapon item.
+ *
+ * @param itemId Weapon item ID to process.
+ * @return Inventory item group.
+ */
 #define INVENTORY_WEAPON_AMMO_ID(weaponId) \
-    ((weaponId) + INVENTORY_ITEMS_PER_GROUP)
+    ((weaponId) + INVENTORY_ITEM_GROUP_SIZE)
 
-/** Returns `e_InventoryItemId` of the weapon for given ammo. */
+/** @brief Gets the `e_InvItemId` of the weapon for a given ammo item.
+ *
+ * @param ammoId Ammo ID to process.
+ * @return Inventory item group.
+ */
 #define INVENTORY_AMMO_WEAPON_ID(ammoId) \
-    ((ammoId) - INVENTORY_ITEMS_PER_GROUP)
+    ((ammoId) - INVENTORY_ITEM_GROUP_SIZE)
+
+/** @brief Character group flags. Used by `s_SysWork::charaGroupFlags`. */
+typedef enum _CharaGroupFlags
+{
+    CharaGroupFlag_None = 0,
+    CharaGroupFlag_0    = 1 << 0,
+    CharaGroupFlag_1    = 1 << 1
+} e_CharaGroupFlags;
 
 /** @brief Sync modes used by `DrawSync` and `VSync`. */
 typedef enum _SyncMode
@@ -381,57 +405,57 @@ typedef enum _MapMsgAudioLoadBlock
                                    // `J2` cutscenes use single audio file for all lines (e.g. video tape cutscene).
 } e_MapMsgAudioLoadBlock;
 
-/** @brief Map overlay IDs. */
-typedef enum _MapOverlayId
+/** @brief Playable map indices. Used for binary overlays. */
+typedef enum _MapIdx
 {
-    MapOverlayId_MAP0_S00 = 0,
-    MapOverlayId_MAP0_S01 = 1,
-    MapOverlayId_MAP0_S02 = 2,
-    MapOverlayId_MAP1_S00 = 3,
-    MapOverlayId_MAP1_S01 = 4,
-    MapOverlayId_MAP1_S02 = 5,
-    MapOverlayId_MAP1_S03 = 6,
-    MapOverlayId_MAP1_S04 = 7,
-    MapOverlayId_MAP1_S05 = 8,
-    MapOverlayId_MAP1_S06 = 9,
-    MapOverlayId_MAP2_S00 = 10,
-    MapOverlayId_MAP2_S01 = 11,
-    MapOverlayId_MAP2_S02 = 12,
-    MapOverlayId_MAP2_S03 = 13,
-    MapOverlayId_MAP2_S04 = 14,
-    MapOverlayId_MAP3_S00 = 15,
-    MapOverlayId_MAP3_S01 = 16,
-    MapOverlayId_MAP3_S02 = 17,
-    MapOverlayId_MAP3_S03 = 18,
-    MapOverlayId_MAP3_S04 = 19,
-    MapOverlayId_MAP3_S05 = 20,
-    MapOverlayId_MAP3_S06 = 21,
-    MapOverlayId_MAP4_S00 = 22,
-    MapOverlayId_MAP4_S01 = 23,
-    MapOverlayId_MAP4_S02 = 24,
-    MapOverlayId_MAP4_S03 = 25,
-    MapOverlayId_MAP4_S04 = 26,
-    MapOverlayId_MAP4_S05 = 27,
-    MapOverlayId_MAP4_S06 = 28,
-    MapOverlayId_MAP5_S00 = 29,
-    MapOverlayId_MAP5_S01 = 30,
-    MapOverlayId_MAP5_S02 = 31,
-    MapOverlayId_MAP5_S03 = 32,
-    MapOverlayId_MAP6_S00 = 33,
-    MapOverlayId_MAP6_S01 = 34,
-    MapOverlayId_MAP6_S02 = 35,
-    MapOverlayId_MAP6_S03 = 36,
-    MapOverlayId_MAP6_S04 = 37,
-    MapOverlayId_MAP6_S05 = 38,
-    MapOverlayId_MAP7_S00 = 39,
-    MapOverlayId_MAP7_S01 = 40,
-    MapOverlayId_MAP7_S02 = 41,
-    MapOverlayId_MAP7_S03 = 42,
-    MapOverlayId_MAPT_S00 = 43, // } @unused Empty test maps. Only some code references remain and `HB_MTS00.ANM`/`HB_MTX00.ANM` anim files.
-    MapOverlayId_MAPX_S00 = 44  // }
-} e_MapOverlayId;
+    MapIdx_MAP0_S00 = 0,
+    MapIdx_MAP0_S01 = 1,
+    MapIdx_MAP0_S02 = 2,
+    MapIdx_MAP1_S00 = 3,
+    MapIdx_MAP1_S01 = 4,
+    MapIdx_MAP1_S02 = 5,
+    MapIdx_MAP1_S03 = 6,
+    MapIdx_MAP1_S04 = 7,
+    MapIdx_MAP1_S05 = 8,
+    MapIdx_MAP1_S06 = 9,
+    MapIdx_MAP2_S00 = 10,
+    MapIdx_MAP2_S01 = 11,
+    MapIdx_MAP2_S02 = 12,
+    MapIdx_MAP2_S03 = 13,
+    MapIdx_MAP2_S04 = 14,
+    MapIdx_MAP3_S00 = 15,
+    MapIdx_MAP3_S01 = 16,
+    MapIdx_MAP3_S02 = 17,
+    MapIdx_MAP3_S03 = 18,
+    MapIdx_MAP3_S04 = 19,
+    MapIdx_MAP3_S05 = 20,
+    MapIdx_MAP3_S06 = 21,
+    MapIdx_MAP4_S00 = 22,
+    MapIdx_MAP4_S01 = 23,
+    MapIdx_MAP4_S02 = 24,
+    MapIdx_MAP4_S03 = 25,
+    MapIdx_MAP4_S04 = 26,
+    MapIdx_MAP4_S05 = 27,
+    MapIdx_MAP4_S06 = 28,
+    MapIdx_MAP5_S00 = 29,
+    MapIdx_MAP5_S01 = 30,
+    MapIdx_MAP5_S02 = 31,
+    MapIdx_MAP5_S03 = 32,
+    MapIdx_MAP6_S00 = 33,
+    MapIdx_MAP6_S01 = 34,
+    MapIdx_MAP6_S02 = 35,
+    MapIdx_MAP6_S03 = 36,
+    MapIdx_MAP6_S04 = 37,
+    MapIdx_MAP6_S05 = 38,
+    MapIdx_MAP7_S00 = 39,
+    MapIdx_MAP7_S01 = 40,
+    MapIdx_MAP7_S02 = 41,
+    MapIdx_MAP7_S03 = 42,
+    MapIdx_MAPT_S00 = 43, // } @unused Empty test maps. Only some code references remain and `HB_MTS00.ANM`/`HB_MTX00.ANM` anim files.
+    MapIdx_MAPX_S00 = 44  // }
+} e_MapIdx;
 
-/** @brief Paper map indices. Used for the map screen. */
+/** @brief Paper map indices. Used for the navigation map screen. */
 typedef enum _PaperMapIdx
 {
     PaperMapIdx_OtherPlaces    = 0,
@@ -460,47 +484,48 @@ typedef enum _PaperMapIdx
     PaperMapIdx_AltHospital3F  = 23
 } e_PaperMapIdx;
 
-// Temp name. Related to music.
-typedef enum _SysFlags
+/** @brief Background music status flags. */
+typedef enum _BgmStatusFlags
 {
-    SysFlag_None   = 0,
-    SysFlag_Freeze = 1 << 0,
-    SysFlag_1      = 1 << 1,
-    SysFlag_2      = 1 << 2,
-    SysFlag_3      = 1 << 3,
-    SysFlag_4      = 1 << 4,
-    SysFlag_5      = 1 << 5,
-    SysFlag_6      = 1 << 6,
-    SysFlag_7      = 1 << 7
-} e_SysFlags;
+    BgmStatusFlag_None        = 0,
+    BgmStatusFlag_Pause       = 1 << 0,
+    BgmStatusFlag_ApplyMute   = 1 << 1,
+    BgmStatusFlag_RadioActive = 1 << 2,
+    BgmStatusFlag_Duck        = 1 << 3,
+    BgmStatusFlag_4           = 1 << 4,
+    BgmStatusFlag_VoiceDialog = 1 << 5,
+    BgmStatusFlag_6           = 1 << 6, // Something to do with the radio?
+    BgmStatusFlag_RequestMute = 1 << 7
+} e_BgmStatusFlags;
 
 // Temp name.
-typedef enum _SysFlags2
+typedef enum _UnkSysFlags
 {
-    SysFlag2_None     = 0,
-    SysFlag2_0        = 1 << 0,
-    SysFlag2_1        = 1 << 1,
+    UnkSysFlag_None     = 0,
+    UnkSysFlag_0        = 1 << 0,
+    UnkSysFlag_1        = 1 << 1,
 
-    SysFlag2_3        = 1 << 3,
-    SysFlag2_4        = 1 << 4,
-    SysFlag2_5        = 1 << 5, /** Related to camera. */
-    SysFlag2_6        = 1 << 6,
-    SysFlag2_MenuOpen = 1 << 7, /** Set by `SysState_Gameplay_Update` when opening the menu and cleared when returning to `SysState_Gameplay` once screen fade has completed. */
-    SysFlag2_8        = 1 << 8,
-    SysFlag2_9        = 1 << 9,
-    SysFlag2_10       = 1 << 10
-} e_SysFlags2;
+    UnkSysFlag_3        = 1 << 3,
+    UnkSysFlag_4        = 1 << 4,
+    UnkSysFlag_5        = 1 << 5, /** Related to camera. */
+    UnkSysFlag_6        = 1 << 6,
+    UnkSysFlag_MenuOpen = 1 << 7, /** Set by `SysState_Gameplay_Update` when opening the menu and cleared when returning to `SysState_Gameplay` once screen fade has completed. */
+    UnkSysFlag_8        = 1 << 8,
+    UnkSysFlag_9        = 1 << 9,
+    UnkSysFlag_10       = 1 << 10
+} e_UnkSysFlags;
 
-typedef enum _SysWorkProcessFlags
+/** @brief System process flags. */
+typedef enum _ProcessFlags
 {
-    SysWorkProcessFlag_None              = 0,
-    SysWorkProcessFlag_RoomTransition    = 1 << 0,
-    SysWorkProcessFlag_OverlayTransition = 1 << 1,
-    SysWorkProcessFlag_NewGame           = 1 << 2,
-    SysWorkProcessFlag_LoadSave          = 1 << 3,
-    SysWorkProcessFlag_Continue          = 1 << 4,
-    SysWorkProcessFlag_BootDemo          = 1 << 5
-} e_SysWorkProcessFlags;
+    ProcessFlag_None              = 0,
+    ProcessFlag_RoomTransition    = 1 << 0,
+    ProcessFlag_OverlayTransition = 1 << 1,
+    ProcessFlag_NewGame           = 1 << 2,
+    ProcessFlag_LoadSave          = 1 << 3,
+    ProcessFlag_Continue          = 1 << 4,
+    ProcessFlag_BootDemo          = 1 << 5
+} e_ProcessFlags;
 
 typedef enum _ControllerFlags
 {
@@ -535,7 +560,7 @@ typedef enum _ControllerFlags
     ControllerFlag_LStickLeft   = 1 << 27  // 0x8000000
 } e_ControllerFlags;
 
-/** @brief Character flags. Used by `s_SubCharacter::flags_3E`. */
+/** @brief Character flags. Used by `s_SubCharacter::flags`. */
 typedef enum _CharaFlags
 {
     CharaFlag_None    = 0,
@@ -612,141 +637,156 @@ typedef enum _SysState
     SysState_Invalid        = 15 /** Used by `Event_Update` to signal that SysState shouldn't be updated. */
 } e_SysState;
 
+/** @brief Inventory item model load flags. */
+typedef enum _InvItemLoadFlags
+{
+    InvItemLoadFlag_None  = 0,
+    InvItemLoadFlag_Tex0  = 1 << 0,
+    InvItemLoadFlag_Tex1  = 1 << 1,
+    InvItemLoadFlag_Tex2  = 1 << 2,
+    InvItemLoadFlag_Tex3  = 1 << 3,
+    InvItemLoadFlag_Tex4  = 1 << 4,
+    InvItemLoadFlag_Tex5  = 1 << 5,
+    InvItemLoadFlag_Tex6  = 1 << 6,
+    InvItemLoadFlag_Model = 1 << 7
+} e_InvItemLoadFlags;
+
 /** @brief Inventory command IDs. */
-typedef enum _InventoryCmdId
+typedef enum _InvCmdId
 {
-    InventoryCmdId_UseHealth     = 0, /** Text is "Use", but this one is used exclusively on health items. */
-    InventoryCmdId_Use           = 1,
-    InventoryCmdId_Equip         = 2,
-    InventoryCmdId_Unequip       = 3,
-    InventoryCmdId_EquipReload   = 4,
-    InventoryCmdId_UnequipReload = 5,
-    InventoryCmdId_OnOff         = 6,
-    InventoryCmdId_Reload        = 7,
-    InventoryCmdId_Look          = 8,
-    InventoryCmdId_UseLook       = 9,
-    InventoryCmdId_Unk10         = 10,
-    InventoryCmdId_Unk11         = 11 // Flashlight in daytime?
-} e_InventoryCmdId;
+    InvCmdId_UseHealth     = 0, /** Text is "Use", but this one is used exclusively on health items. */
+    InvCmdId_Use           = 1,
+    InvCmdId_Equip         = 2,
+    InvCmdId_Unequip       = 3,
+    InvCmdId_EquipReload   = 4,
+    InvCmdId_UnequipReload = 5,
+    InvCmdId_OnOff         = 6,
+    InvCmdId_Reload        = 7,
+    InvCmdId_Look          = 8,
+    InvCmdId_UseLook       = 9,
+    InvCmdId_Unk10         = 10,
+    InvCmdId_Unk11         = 11 // Flashlight in daytime?
+} e_InvCmdId;
 
-// Every 32 item IDs get treated as a separate group by some code.
-typedef enum _InventoryItemGroup
+/** @brief Inventory item groups. Every 32nd item ID is treated as a separate group by some code. */
+typedef enum _InvItemGroup
 {
-    InventoryItemGroup_None          = 0,
-    InventoryItemGroup_HealthItems   = 1,
-    InventoryItemGroup_Keys          = 2,
-    InventoryItemGroup_PuzzleItems   = 3,
-    InventoryItemGroup_MeleeWeapons  = 4,
-    InventoryItemGroup_GunWeapons    = 5,
-    InventoryItemGroup_GunAmmo       = 6,
-    InventoryItemGroup_PortableItems = 7,
-} e_InventoryItemGroup;
+    InvItemGroup_None          = 0,
+    InvItemGroup_HealthItems   = 1,
+    InvItemGroup_Keys          = 2,
+    InvItemGroup_PuzzleItems   = 3,
+    InvItemGroup_MeleeWeapons  = 4,
+    InvItemGroup_GunWeapons    = 5,
+    InvItemGroup_GunAmmo       = 6,
+    InvItemGroup_PortableItems = 7
+} e_InvItemGroup;
 
-typedef enum _InventoryItemId
+/** @brief Inventory item IDs. */
+typedef enum _InvItemId
 {
-    // Group 0
-    InventoryItemId_Empty                 = NO_VALUE,
-    InventoryItemId_Unequipped            = 0,
+    // Group 0 (None)
+    InvItemId_Empty                 = NO_VALUE,
+    InvItemId_Unequipped            = 0,
 
     // Group 1 (Health Items)
-    InventoryItemId_HealthDrink           = 32,
-    InventoryItemId_FirstAidKit           = 33,
-    InventoryItemId_Ampoule               = 34,
+    InvItemId_HealthDrink           = 32,
+    InvItemId_FirstAidKit           = 33,
+    InvItemId_Ampoule               = 34,
 
     // Group 2 (Keys)
-    InventoryItemId_LobbyKey              = 64,
-    InventoryItemId_HouseKey              = 65,
-    InventoryItemId_KeyOfLion             = 66,
-    InventoryItemId_KeyOfWoodman          = 67,
-    InventoryItemId_KeyOfScarecrow        = 68,
-    InventoryItemId_LibraryReserveKey     = 69,
-    InventoryItemId_ClassroomKey          = 70,
-    InventoryItemId_KGordonKey            = 71,
-    InventoryItemId_DrawbridgeKey         = 72,
-    InventoryItemId_BasementKey           = 73,
-    InventoryItemId_BasementStoreroomKey  = 74,
-    InventoryItemId_ExaminationRoomKey    = 75,
-    InventoryItemId_AntiqueShopKey        = 76,
-    InventoryItemId_SewerKey              = 77,
-    InventoryItemId_KeyOfOphiel           = 78,
-    InventoryItemId_KeyOfHagith           = 79,
-    InventoryItemId_KeyOfPhaleg           = 80,
-    InventoryItemId_KeyOfBethor           = 81,
-    InventoryItemId_KeyOfAratron          = 82,
-    InventoryItemId_NoteToSchool          = 83,
-    InventoryItemId_NoteDoghouse          = 84,
-    InventoryItemId_PictureCard           = 85,
+    InvItemId_LobbyKey              = 64,
+    InvItemId_HouseKey              = 65,
+    InvItemId_KeyOfLion             = 66,
+    InvItemId_KeyOfWoodman          = 67,
+    InvItemId_KeyOfScarecrow        = 68,
+    InvItemId_LibraryReserveKey     = 69,
+    InvItemId_ClassroomKey          = 70,
+    InvItemId_KGordonKey            = 71,
+    InvItemId_DrawbridgeKey         = 72,
+    InvItemId_BasementKey           = 73,
+    InvItemId_BasementStoreroomKey  = 74,
+    InvItemId_ExaminationRoomKey    = 75,
+    InvItemId_AntiqueShopKey        = 76,
+    InvItemId_SewerKey              = 77,
+    InvItemId_KeyOfOphiel           = 78,
+    InvItemId_KeyOfHagith           = 79,
+    InvItemId_KeyOfPhaleg           = 80,
+    InvItemId_KeyOfBethor           = 81,
+    InvItemId_KeyOfAratron          = 82,
+    InvItemId_NoteToSchool          = 83,
+    InvItemId_NoteDoghouse          = 84,
+    InvItemId_PictureCard           = 85,
 
-    InventoryItemId_SewerExitKey          = 87,
-    InventoryItemId_ChannelingStone       = 88,
+    InvItemId_SewerExitKey          = 87,
+    InvItemId_ChannelingStone       = 88,
 
     // Group 3 (Puzzle Items)
-    InventoryItemId_Chemical              = 96,
-    InventoryItemId_GoldMedallion         = 97,
-    InventoryItemId_SilverMedallion       = 98,
-    InventoryItemId_RubberBall            = 99,
-    InventoryItemId_Flauros               = 100,
-    InventoryItemId_PlasticBottle         = 101,
-    InventoryItemId_UnknownLiquid         = 102,
-    InventoryItemId_PlateOfTurtle         = 103,
-    InventoryItemId_PlateOfHatter         = 104,
-    InventoryItemId_PlateOfCat            = 105,
-    InventoryItemId_PlateOfQueen          = 106,
-    InventoryItemId_BloodPack             = 107,
-    InventoryItemId_DisinfectingAlcohol   = 108,
-    InventoryItemId_Lighter               = 109,
-    InventoryItemId_VideoTape             = 110,
+    InvItemId_Chemical              = 96,
+    InvItemId_GoldMedallion         = 97,
+    InvItemId_SilverMedallion       = 98,
+    InvItemId_RubberBall            = 99,
+    InvItemId_Flauros               = 100,
+    InvItemId_PlasticBottle         = 101,
+    InvItemId_UnknownLiquid         = 102,
+    InvItemId_PlateOfTurtle         = 103,
+    InvItemId_PlateOfHatter         = 104,
+    InvItemId_PlateOfCat            = 105,
+    InvItemId_PlateOfQueen          = 106,
+    InvItemId_BloodPack             = 107,
+    InvItemId_DisinfectingAlcohol   = 108,
+    InvItemId_Lighter               = 109,
+    InvItemId_VideoTape             = 110,
 
-    InventoryItemId_KaufmannKey           = 112,
-    InventoryItemId_Receipt               = 113,
-    InventoryItemId_SafeKey               = 114,
-    InventoryItemId_Magnet                = 115,
-    InventoryItemId_MotorcycleKey         = 116,
-    InventoryItemId_BirdCageKey           = 117,
-    InventoryItemId_Pliers                = 118,
-    InventoryItemId_Screwdriver           = 119,
-    InventoryItemId_Camera                = 120,
-    InventoryItemId_RingOfContract        = 121,
-    InventoryItemId_StoneOfTime           = 122,
-    InventoryItemId_AmuletOfSolomon       = 123,
-    InventoryItemId_CrestOfMercury        = 124,
-    InventoryItemId_Ankh                  = 125,
-    InventoryItemId_DaggerOfMelchior      = 126,
-    InventoryItemId_DiskOfOuroboros       = 127,
+    InvItemId_KaufmannKey           = 112,
+    InvItemId_Receipt               = 113,
+    InvItemId_SafeKey               = 114,
+    InvItemId_Magnet                = 115,
+    InvItemId_MotorcycleKey         = 116,
+    InvItemId_BirdCageKey           = 117,
+    InvItemId_Pliers                = 118,
+    InvItemId_Screwdriver           = 119,
+    InvItemId_Camera                = 120,
+    InvItemId_RingOfContract        = 121,
+    InvItemId_StoneOfTime           = 122,
+    InvItemId_AmuletOfSolomon       = 123,
+    InvItemId_CrestOfMercury        = 124,
+    InvItemId_Ankh                  = 125,
+    InvItemId_DaggerOfMelchior      = 126,
+    InvItemId_DiskOfOuroboros       = 127,
 
     // Group 4 (Melee Weapons)
-    InventoryItemId_KitchenKnife          = 128,
-    InventoryItemId_SteelPipe             = 129,
-    InventoryItemId_RockDrill             = 130,
+    InvItemId_KitchenKnife          = 128,
+    InvItemId_SteelPipe             = 129,
+    InvItemId_RockDrill             = 130,
 
-    InventoryItemId_Hammer                = 132,
-    InventoryItemId_Chainsaw              = 133,
-    InventoryItemId_Katana                = 134,
-    InventoryItemId_Axe                   = 135,
+    InvItemId_Hammer                = 132,
+    InvItemId_Chainsaw              = 133,
+    InvItemId_Katana                = 134,
+    InvItemId_Axe                   = 135,
 
     // Group 5 (Guns)
-    InventoryItemId_Handgun               = 160,
-    InventoryItemId_HuntingRifle          = 161,
-    InventoryItemId_Shotgun               = 162,
-    InventoryItemId_HyperBlaster          = 163,
+    InvItemId_Handgun               = 160,
+    InvItemId_HuntingRifle          = 161,
+    InvItemId_Shotgun               = 162,
+    InvItemId_HyperBlaster          = 163,
 
-    InventoryItemId_CutscenePhone         = 164,
-    InventoryItemId_CutsceneFlauros       = 165,
-    InventoryItemId_CutsceneAglaophotis   = 166,
-    InventoryItemId_CutscenePlasticBottle = 167,
-    InventoryItemId_CutsceneBaby          = 168,
-    InventoryItemId_CutsceneBloodPack     = 169,
+    InvItemId_CutscenePhone         = 164,
+    InvItemId_CutsceneFlauros       = 165,
+    InvItemId_CutsceneAglaophotis   = 166,
+    InvItemId_CutscenePlasticBottle = 167,
+    InvItemId_CutsceneBaby          = 168,
+    InvItemId_CutsceneBloodPack     = 169,
 
     // Group 6 (Gun Ammo)
-    InventoryItemId_HandgunBullets        = 192,
-    InventoryItemId_RifleShells           = 193,
-    InventoryItemId_ShotgunShells         = 194,
+    InvItemId_HandgunBullets        = 192,
+    InvItemId_RifleShells           = 193,
+    InvItemId_ShotgunShells         = 194,
 
     // Group 7 (Portable Items)
-    InventoryItemId_Flashlight            = 224,
-    InventoryItemId_PocketRadio           = 225,
-    InventoryItemId_GasolineTank          = 226
-} e_InventoryItemId;
+    InvItemId_Flashlight            = 224,
+    InvItemId_PocketRadio           = 225,
+    InvItemId_GasolineTank          = 226
+} e_InvItemId;
 
 /** @brief Common pickup item IDs. */
 typedef enum _CommonPickupItemId
@@ -767,7 +807,7 @@ typedef enum _AttackInputType
     AttackInputType_Multitap = 2
 } e_AttackInputType;
 
-/** @brief Equipped weapon IDs. Derivative of `e_InventoryItemId`.
+/** @brief Equipped weapon IDs. Derivative of `e_InvItemId`.
  *
  * TODO: Maybe just "Weapon ID", "equipable item ID", "[something else] item ID"?
  */
@@ -784,13 +824,13 @@ typedef enum _EquippedWeaponId
     EquippedWeaponId_Kick           = 8,
     EquippedWeaponId_Stomp          = 9,
 
-    EquippedWeaponId_Unk31          = 31, // LarvalStalker attack.
+    EquippedWeaponId_Unk31          = 31, // Larval Stalker attack.
     EquippedWeaponId_Handgun        = 32,
     EquippedWeaponId_HuntingRifle   = 33,
     EquippedWeaponId_Shotgun        = 34,
     EquippedWeaponId_HyperBlaster   = 35,
 
-    EquippedWeaponId_Unk37          = 37, // SplitHead attack.
+    EquippedWeaponId_Unk37          = 37, // Split Head attack.
 
     EquippedWeaponId_Unk44          = 44, // } HangedScratcher attack.
     EquippedWeaponId_Unk45          = 45, // }
@@ -798,17 +838,17 @@ typedef enum _EquippedWeaponId
     EquippedWeaponId_Unk48          = 48, // } Stalker attack.
     EquippedWeaponId_Unk49          = 49, // }
 
-    EquippedWeaponId_Unk56          = 56, // PuppetNurse attack.
+    EquippedWeaponId_Unk56          = 56, // Puppet Nurse attack.
 
-    EquippedWeaponId_Unk59          = 59, // FloatStinger attack.
+    EquippedWeaponId_Unk59          = 59, // Float Stinger attack.
 
     EquippedWeaponId_Unk61          = 61, // Twinfeeler attack.
 
-    EquippedWeaponId_Unk63          = 63, // Cybil/MonsterCybil attack.
+    EquippedWeaponId_Unk63          = 63, // Cybil or Monster Cybil attack.
 
-    EquippedWeaponId_HandgunBullets = 64, // MonsterCybil attack?
-    EquippedWeaponId_RifleShells    = 65, // MonsterCybil attack?
-    EquippedWeaponId_ShotgunShells  = 66, // MonsterCybil attack?
+    EquippedWeaponId_HandgunBullets = 64, // Monster Cybil attack?
+    EquippedWeaponId_RifleShells    = 65, // Monster Cybil attack?
+    EquippedWeaponId_ShotgunShells  = 66, // Monster Cybil attack?
 
     EquippedWeaponId_Unk69          = 69, // Bloodsucker attack.
     EquippedWeaponId_Unk70          = 70, // Kaufmann attack on Dahlia?
@@ -1010,9 +1050,9 @@ STATIC_ASSERT_SIZEOF(s_ControllerConfig, 28);
 
 typedef struct _InventoryItem
 {
-    u8 id_0;      /** `InventoryItemId` */
+    u8 id_0;      /** `InvItemId` */
     u8 count_1;
-    u8 command_2; /** `InventoryCmdId` */
+    u8 command_2; /** `InvCmdId` */
     u8 field_3;   // Some sort of index?
 } s_InventoryItem;
 STATIC_ASSERT_SIZEOF(s_InventoryItem, 4);
@@ -1028,12 +1068,12 @@ typedef struct _Savegame
     s_InventoryItem items_0[INVENTORY_ITEM_COUNT_MAX];
     s8              field_A0;
     s8              field_A1[3];
-    s8              mapOverlayId_A4;          /** `e_MapOverlayId` Index to overlay `.BIN` files. */
+    s8              mapOverlayId_A4;          /** `e_MapIdx` Index to overlay `.BIN` files. */
     s8              mapRoomIdx_A5;            /** Index to local map geometry `.IPD` files. */
     s16             savegameCount_A6;
     s8              locationId_A8;            /** `e_SaveLocationId` */
     u8              paperMapIdx_A9;           /** `e_PaperMapIdx` | Index of the paper map displayed when opening the map screen. */
-    u8              equippedWeapon_AA;        /** `e_InventoryItemId` | Affects the visible player weapon model. */
+    u8              equippedWeapon_AA;        /** `e_InvItemId` | Affects the visible player weapon model. */
     u8              inventorySlotCount_AB;    /** Item slots. */
     u32             itemToggleFlags_AC;       /** `e_ItemToggleFlags` */
     s32             ovlEnemyStates[45];       /** Flags indicating the enemy states in a given overlay.
@@ -1097,26 +1137,27 @@ STATIC_ASSERT_SIZEOF(s_Savegame, 636);
 /** TODO: Known as `Trigger` in SilentHillMapExaminer: https://github.com/ItEndsWithTens/SilentHillMapExaminer/blob/master/src/SHME.ExternalTool.Guts/Trigger.cs */
 typedef struct _EventData
 {
-    s16 requiredEventFlag_0;
-    s16 disabledEventFlag_2;
-    s8  triggerType_4_0    : 4; /** `e_TriggerType` */
-    u8  activationType_4_4 : 4; /** `e_TriggerActivationType` */
-    u8  pointOfInterestIdx_5;   /** Index into `g_MapOverlayHeader.mapPointsOfInterest_1C`. */
-    u8  requiredItemId_6;       /** `e_InventoryItemId` that player must use from item screen. */
-    u8  unk_7[1];
-    u32 sysState_8_0       : 5; /** `e_SysState` used by the event. */
-    u32 eventParam_8_5     : 8; /** Can be an ID of a `MapMsg`, sound effect, index into `mapEventFuncs_20`, or index into `mapPointsOfInterest_1C` for `areaLoad` events. */
-    u32 flags_8_13         : 6; /** `e_EventDataUnkCutsceneState` */
-    u32 field_8_19         : 5;
-    u32 field_8_24         : 1;
-    u32 mapOverlayIdx_8_25 : 6;
-    u32 field_8_31         : 1;
+    /* 0x0    */ s16 requiredEventFlag;
+    /* 0x2    */ s16 disabledEventFlag;
+    /* 0x4+0  */ s8  triggerType    : 4; /** `e_TriggerType` */
+    /* 0x4+4  */ u8  activationType : 4; /** `e_TriggerActivationType` */
+    /* 0x5    */ u8  pointOfInterestIdx; /** Index into `g_MapOverlayHeader.mapPointsOfInterest_1C`. */
+    /* 0x6    */ u8  requiredItemId;     /** `e_InvItemId` that player must use from item screen. */
+    /* 0x7    */ u8  __pad_7;
+    /* 0x8+0  */ u32 sysState        : 5; /** `e_SysState` used by the event. */
+    /* 0x8+5  */ u32 eventParam      : 8; /** Can be an ID of a `MapMsg`, sound effect, index into `mapEventFuncs_20`, or index into `mapPointsOfInterest_1C` for `areaLoad` events. */
+    /* 0x8+8  */ u32 flags_8_13      : 6; /** `e_EventDataUnkState` */
+    /* 0x8+13 */ u32 sfxPairIdx_8_19 : 5; /** `e_SfxPairIdx` | Index into `SFX_PAIRS`. */
+    /* 0x8+19 */ u32 field_8_24      : 1;
+    /* 0x8+24 */ u32 mapIdx          : 6;
+    /* 0x8+25 */ u32 field_8_31      : 1;
 } s_EventData;
 STATIC_ASSERT_SIZEOF(s_EventData, 12);
 
+/** @brief User options configuration. */
 typedef struct _SaveUserConfig
 {
-    s_ControllerConfig controllerConfig_0;
+    s_ControllerConfig controllerConfig;
     s8                 optScreenPosX_1C;          /** Range: [-11, 11], default: 0. */
     s8                 optScreenPosY_1D;          /** Range: [-8, 8], default: 0. */
     u8                 optSoundType_1E;           /** `bool` | Stereo: `false`, Monaural: `true`, default: Stereo. */
@@ -1127,7 +1168,7 @@ typedef struct _SaveUserConfig
     u8                 optExtraWeaponCtrl_23;     /** `bool` | Switch: `false`, Press: `true`, default: Press. */
     u8                 optExtraBloodColor_24;     /** `e_BloodColor` | Default: Normal. */
     s8                 optAutoLoad_25;            /** `bool` | Off: `false`, On: `true`, default: Off. */
-    u8                 unk_26;                    // Padding?
+    u8                 __pad_26;
     u8                 optExtraOptionsEnabled_27; /** Holds unlocked option flags. */
     s8                 optExtraViewCtrl_28;       /** `bool` | Normal: `false`, Reverse: `true`, default: Normal. */
     s8                 optExtraViewMode_29;       /** `bool` | Normal: `false`, Self View: `true`, default: Normal. */
@@ -1141,92 +1182,75 @@ typedef struct _SaveUserConfig
 } s_SaveUserConfig;
 STATIC_ASSERT_SIZEOF(s_SaveUserConfig, 56);
 
-/** @brief Game workspace. Stores miscellaneous gameplay-related data.
- */
+/** @brief Game workspace. Stores miscellaneous gameplay-related data. */
 typedef struct _GameWork
 {
-    s_SaveUserConfig   config_0;
-    s_ControllerData   controllers_38[CONTROLLER_COUNT_MAX];
-    s_Savegame         autosave_90;
-    s_Savegame         savegame_30C;
-    u16                gsScreenWidth_588;
-    u16                gsScreenHeight_58A;
-    s_PrimColor        background2dColor_58C;
-    e_GameState        gameStatePrev_590;
-    e_GameState        gameState_594;
-    s32                gameStateStep_598[3]; /** Temp data used by current `gameState`. Can be another state ID or other data.
-                                              * This states could be sub-states for specific events of individual screens
-                                              * because of the way it's normally used in menus. For example: in the settings
-                                              * screen, [0] is used to define what option the player has selected, and [1] is used
-                                              * during specific settings screens, such as the position screen or the brightness screen.
-                                              *
-                                              * [2] is likely rarely used or maybe only used during maps.
-                                              */
-    s8                 unk_5A4[4];
-    s32                field_5A8;
-    s32                field_5AC;
-    s8                 unk_5B0;
-    s8                 mapAnimIdx_5B1;
-    s8                 bgmIdx_5B2;   // Index of ``.
-    s8                 ambientIdx_5B4; // Index of `g_AmbientVabTaskLoadCmds`.
-    s_AnalogController rawController_5B4;
-    s8                 unk_5BC[28];
+    /* 0x0   */ s_SaveUserConfig   config;
+    /* 0x38  */ s_ControllerData   controllers[CONTROLLER_COUNT_MAX];
+    /* 0x90  */ s_Savegame         autosave;
+    /* 0x30C */ s_Savegame         savegame;
+    /* 0x588 */ u16                gsScreenWidth;
+    /* 0x58A */ u16                gsScreenHeight;
+    /* 0x58C */ s_PrimColor        background2dColor;
+    /* 0x590 */ e_GameState        gameStatePrev;
+    /* 0x594 */ e_GameState        gameState;
+    /* 0x598 */ s32                gameStateSteps[3]; /** Sub-state steps used by the current `gameState`. Can be other state IDs or data. */
+    /* 0x5A4 */ s8                 unk_5A4[4];        // Padding?
+    /* 0x5A8 */ s32                field_5A8;
+    /* 0x5AC */ s32                field_5AC;
+    /* 0x5B0 */ s8                 __pad_5B0;
+    /* 0x5B1 */ s8                 mapAnimIdx;
+    /* 0x5B2 */ s8                 bgmIdx;            /** `BgmTrackIdx` | Currently player background music track. */
+    /* 0x5B4 */ s8                 ambientIdx;        /** Index of `g_AmbientVabTaskLoadCmds`. */
+    /* 0x5B4 */ s_AnalogController rawController;
+    /* 0x5BC */ s8                 unused_5BC[28];    // @unused Debug data?
 } s_GameWork;
 STATIC_ASSERT_SIZEOF(s_GameWork, 1496);
 
-/** @brief Constant character animation info passed to `Anim_Update` functions.
- * The struct itself defines which `Anim_Update` function is to be called.
- */
+/** @brief Constant character animation info passed to `Anim_Update` functions. */
 typedef struct _AnimInfo
 {
-    void (*playbackFunc_0)(struct _Model* model, struct _AnmHeader* anmHdr, GsCOORDINATE2* coords, struct _AnimInfo* animInfo);
-    u8 status_4;                      /** Packed anim status. Init base? See `s_ModelAnimData::status_0`. */
-    s8 hasVariableDuration_5;         /** `bool` | Use `duration_8.variableFunc`: `true`, Use `duration_8.constant`: `false`. */
-    u8 linkStatus_6;                  /** Packed anim status link target. See `s_ModelAnim::status_0`. */
-    // 1 byte of padding.
-    union
-    {
-        q19_12 constant;              /** Constant duration at 30 FPS. */
-        q19_12 (*variableFunc)(void); /** Variable duration at 30 FPS via a function. Allows animations to be sped up or slowed down. */
-    } duration_8;
-    s16 startKeyframeIdx_C;           /** Start keyframe index. Sometimes `NO_VALUE`, unknown why. */
-    s16 endKeyframeIdx_E;             /** End keyframe index. */
+    /* 0x0 */ void (*playbackFunc)(struct _Model* model, struct _AnmHeader* anmHdr, GsCOORDINATE2* coords, struct _AnimInfo* animInfo);
+    /* 0x4 */ u8 status;                        /** Packed anim status. Init base? See `s_ModelAnimData::status`. */
+    /* 0x5 */ s8 hasVariableDuration;           /** `bool` | Use `duration.variableFunc`: `true`, Use `duration.constant`: `false`. */
+    /* 0x6 */ u8 linkStatus;                    /** Packed anim status link target. See `s_ModelAnim::status`. */
+              // 1 byte of padding.
+              union
+              {
+                  q19_12 constant;              /** Constant duration at 30 FPS. */
+                  q19_12 (*variableFunc)(void); /** Variable duration at 30 FPS via a function. Allows animations to be sped up or slowed down. */
+    /* 0x8 */ } duration;
+    /* 0xC */ s16 startKeyframeIdx;             /** Start keyframe index. Sometimes `NO_VALUE`, unknown why. */
+    /* 0xE */ s16 endKeyframeIdx;               /** End keyframe index. */
 } s_AnimInfo;
 STATIC_ASSERT_SIZEOF(s_AnimInfo, 16);
 
 /** @brief Character model animation. */
 typedef struct _ModelAnim
 {
-    u8          status_0;         /** Is active: bit 0, Anim index: bits 1-7. Possible original name: `anim_status`. */
-    u8          maybeSomeState_1; // State says if `time_4` is anim time/anim status or a func ptr? That field could be a union.
-    u16         flags_2;          /** `e_AnimFlags` */
-    q19_12      time_4;           /** Time on timeline. */
-    s16         keyframeIdx_8;    /** Active keyframe index. */
-    q3_12       alpha_A;          /** Keyframe progress alpha. Rename to `keyframeAlpha_A`? */
-    s_AnimInfo* animInfo_C;       // } Arrays of anim infos?
-    s_AnimInfo* animInfo_10;      // }
+    /* 0x0  */ u8          status;             /** Is active: bit 0, Anim index: bits 1-7. */
+    /* 0x1  */ u8          mapAnimStatusStart; /** Start anim status of map-specific anim infos. Only used for Harry. */
+    /* 0x2  */ u16         flags;              /** `e_AnimFlags` */
+    /* 0x4  */ q19_12      time;               /** Time on timeline. */
+    /* 0x8  */ s16         keyframeIdx;        /** Active keyframe index. */
+    /* 0xA  */ q3_12       alpha;              /** Keyframe progress alpha. */
+    /* 0xC  */ s_AnimInfo* baseAnimInfos;      /** Anim infos. For Harry, used for base anims. */
+    /* 0x10 */ s_AnimInfo* mapAnimInfos;       /** Map-specific anim infos. Only used for Harry. */
 } s_ModelAnim;
 STATIC_ASSERT_SIZEOF(s_ModelAnim, 20);
 
 /** @brief Character model. */
 typedef struct _Model
 {
-    s8          charaId_0;      /** `e_CharacterId` */
-    u8          paletteIdx_1;   /** Changes the texture palette index for this model. */
-    u8          controlState_2; /** Active character control state. */
-    u8          stateStep_3;    // Step number or temp data for the current `controlState_2`? In `s_PlayerExtra` always 1, set to 0 for 1 tick when anim state appears to change.
-                                // Used differently in player's `s_SubCharacter`. 0: anim transitioning(?), bit 1: animated, bit 2: turning.
-                                // Sometimes holds actual anim index?
-    s_ModelAnim anim_4;
+    /* 0x0 */ s8          charaId;      /** `e_CharacterId` */
+    /* 0x1 */ u8          paletteIdx;   /** Changes the texture palette index for this model. */
+    /* 0x2 */ u8          controlState; /** Active character control state. */
+    /* 0x3 */ u8          stateStep;    // Step number or temp data for the current `controlState`? In `s_PlayerExtra` always 1, set to 0 for 1 tick when anim state appears to change.
+                                        // Used differently in player's `s_SubCharacter`. 0: anim transitioning(?), bit 1: animated, bit 2: turning.
+                                        // Sometimes holds actual anim index?
+    /* 0x4 */ s_ModelAnim anim;
 } s_Model;
 STATIC_ASSERT_SIZEOF(s_Model, 24);
-
-typedef union
-{
-    s32 val32;
-    s16 val16[2];
-    s8  val8[4];
-} u_Property;
 
 // TODO: Unsure if this struct is puppet doctor specific or shared with all characterss. Pointer gets set at puppetDoc+0x124.
 typedef struct
@@ -1259,8 +1283,15 @@ typedef struct
 typedef struct _CharaDamage
 {
     VECTOR3 position_0;
-    q19_12 amount_C;
+    q19_12  amount_C;
 } s_CharaDamage;
+
+typedef union
+{
+    s32 val32;
+    s16 val16[2];
+    s8  val8[4];
+} u_Property;
 
 /** @brief Temporary struct. */
 typedef struct _SubCharPropertiesDummy
@@ -1285,7 +1316,7 @@ typedef struct _PropertiesPlayer
     u8            field_10C;    // Player SFX pitch?
     u8            field_10D;
     s8            unk_10E[2];
-    q19_12        timer_110; // Increases when `flags_3E & CharaFlag_Unk4` is set, reset when reaches `D_800C45EC`.
+    q19_12        timer_110; // Increases when `flags & CharaFlag_Unk4` is set, reset when reaches `D_800C45EC`.
     q19_12        gasWeaponPowerTimer_114; // Timer for the rock drill and chainsaw power.
     s16           field_118;
     s8            unk_11A[2];
@@ -1366,26 +1397,26 @@ typedef struct _PropertiesBloodsucker
     q19_12 timer_EC;
     q19_12 timer_F0;
     q19_12 timer_F4;
-    s8     unk_F8[36]; // Unused?
-    s32    flags_118; /** `e_BloodsuckerFlags` */
+    s8     unused_F8[36]; /** @unused */
+    s32    flags;         /** `e_BloodsuckerFlags` */
 } s_PropertiesBloodsucker;
 
 /** @brief Creeper character properties. */
 typedef struct _PropertiesCreeper
 {
-    u16    flags_E8; /** `e_CreeperFlags` */ // TODO: `Ai_Creeper_Control_2` and `Ai_Creeper_Control_5` require `s32`, but changing it breaks matches elsewhere.
-    s8     unk_EA[2];
-    q3_12  offsetX_EC;
-    q3_12  offsetZ_EE;
-    q19_12 timer_F0;                // Timer with unknown purpose.
-    q19_12 targetPositionX_F4;
-    q19_12 targetPositionZ_F8;
-    q19_12 prevTargetPositionX_FC;  // } Unsure. Maybe home position to return to?
-    q19_12 prevTargetPositionZ_100; // }
-    q19_12 timer_104;               // Timer with unknown purpose.
-    q3_12  rotationY_108;
-    s16    animStatus_10A;
-    q4_12  moveSpeed_10C;
+    /* 0xE8  */ u16    flags; /** `e_CreeperFlags` */
+    /* 0xEA  */ s8     __pad_EA[2];
+    /* 0xEC  */ q3_12  collisionOffsetX;
+    /* 0xEE  */ q3_12  collisionOffsetZ;
+    /* 0xF0  */ q19_12 attackTimer;
+    /* 0xF4  */ q19_12 targetPositionX;
+    /* 0xF8  */ q19_12 targetPositionZ;
+    /* 0xFC  */ q19_12 homePositionX;
+    /* 0x100 */ q19_12 homePositionZ;
+    /* 0x104 */ q19_12 chirpTimer;
+    /* 0x108 */ q3_12  angleToTarget;
+    /* 0x10A */ s16    animStatus_10A; // TODO: Purpose unclear.
+    /* 0x10C */ q4_12  moveSpeed;
 } s_PropertiesCreeper;
 STATIC_ASSERT_SIZEOF(s_PropertiesCreeper, 40);
 
@@ -1414,8 +1445,7 @@ STATIC_ASSERT_SIZEOF(s_PropertiesDahlia, 64);
 typedef struct _PropertiesFloatstinger
 {
     s16        flags_E8;
-    s8         unk_EA[2];
-    s8         unk_EC[2];
+    s8         unk_EA[4];
     q3_12      field_EE; // Angle.
     q19_12     field_F0;
     s16        field_F4;
@@ -1542,7 +1572,7 @@ typedef struct _PropertiesMonsterCybil
     u8     field_116;
     s8     unk_117;
     s16    field_118;
-    q3_12  field_11A; // Angle?
+    q3_12  field_11A; // Angle.
     s16    field_11C;
     s16    field_11E;
     s16    field_120;
@@ -1634,7 +1664,7 @@ STATIC_ASSERT_SIZEOF(s_PropertiesSplitHead, 64);
 typedef struct _PropertiesStalker
 {
     s16    flags_E8; /** `e_StalkerFlags` */
-    s8     unk_EA[2]; // Padding?
+    s8     __pad_EA[2];
     q3_12  offset_EC;
     q3_12  offset_EE;
     q19_12 targetPositionX_F0;
@@ -1647,7 +1677,7 @@ typedef struct _PropertiesStalker
     q19_12 relAnimTime_104;
     q4_12  timer_108;
     u8     field_10A;
-    s8     unk_10B; // Padding?
+    s8     __pad_10B;
     q19_12 timer_10C;
     q19_12 health_110;
     q3_12  angle_114;
@@ -1686,10 +1716,10 @@ STATIC_ASSERT_SIZEOF(s_SubCharacter_D8, 8);
 
 typedef struct
 {
-    s16 field_0; // Something dependent on `CharaFlag_Unk8`.
-    u8  field_2; // In player: packed weapon attack. See `WEAPON_ATTACK`.
-                 // This is not the same as `attackReceived_41`, as this value only resets when player is aiming.
-                 // In NPCs: Indicates attack performed on player.
+    s16     field_0; // Something dependent on `CharaFlag_Unk8`.
+    u8      field_2; // In player: packed weapon attack. See `WEAPON_ATTACK`.
+                     // This is not the same as `attackReceived`, as this value only resets when player is aiming.
+                     // In NPCs: Indicates attack performed on player.
     u8      field_3;
     u8      field_4;
     s8      unk_5[3];
@@ -1725,71 +1755,71 @@ STATIC_ASSERT_SIZEOF(s_SubCharacter_D4, 4);
 
 typedef struct _SubCharacter
 {
-    s_Model  model_0;          // In player: Manage the half lower part of Harry's body animations (legs and feet).
-    VECTOR3  position_18;      /** Q19.12 */
-    SVECTOR3 rotation_24;      /** Q3.12 */
-    q3_12    field_2A;         // Angle related to `rotation_24`, unknown purpose.
-    SVECTOR3 rotationSpeed_2C; /** Q3.12 | Range: `[Q12_ANGLE(-157.5f), Q12_ANGLE(157.5f)]`. */
-    q3_12    field_32;         // Related to `rotationSpeed_2C`, unknown purpose.
-    q19_12   fallSpeed_34;
-    q19_12   moveSpeed_38;
-    q3_12    headingAngle_3C;
-    s16      flags_3E;     /** `e_CharaFlags` */
-    s8       field_40;     // In player: Index of the NPC attacking the player.
-                           // In NPCs: Unknown.
-                           // Possibly `Game_NpcRoomInitSpawn` may have the answer, indicating
-                           // it's used to indicate the NPC index in `s_Savegame::ovlEnemyStates`.
-    s8  attackReceived_41; // Packed weapon attack indicating what attack has been performed to the character. See `WEAPON_ATTACK`.
-    s8  unk_42[2];         // Most likely padding.
-    s_SubCharacter_44  field_44;
-    q19_12  health_B0;
-    s_CharaDamage damage_B4;
-    u16     deathTimer_C4; // Part of `shBattleInfo` struct in SH2, may use something similar here.
-    q3_12   timer_C6;      // Some sort of timer. Written to by `Ai_LarvalStalker_Update`.
+    /* 0x0  */ s_Model           model;          // In player: Manage the half lower part of Harry's body animations (legs and feet).
+    /* 0x18 */ VECTOR3           position;       /** Q19.12 */
+    /* 0x24 */ SVECTOR3          rotation;       /** Q3.12 */
+    /* 0x2A */ q3_12             field_2A;       // Angle related to `rotation`, unknown purpose.
+    /* 0x2C */ SVECTOR3          rotationSpeed;  /** Q3.12 | Range: `[Q12_ANGLE(-157.5f), Q12_ANGLE(157.5f)]`. */
+    /* 0x32 */ q3_12             field_32;       // Related to `rotationSpeed`, unknown purpose.
+    /* 0x34 */ q19_12            fallSpeed;
+    /* 0x38 */ q19_12            moveSpeed;
+    /* 0x3C */ q3_12             headingAngle;
+    /* 0x3E */ s16               flags;          /** `e_CharaFlags` */
+    /* 0x40 */ s8                field_40;       // In player: Index of the NPC attacking the player.
+                                                 // In NPCs: Unknown.
+                                                 // Possibly `Game_NpcRoomInitSpawn` may have the answer, indicating
+                                                 // it's used to indicate the NPC index in `s_Savegame::ovlEnemyStates`.
+    /* 0x41 */ s8                attackReceived; // Packed weapon attack indicating what attack has been performed to the character. See `WEAPON_ATTACK`.
+               // 2 bytes of padding.
+    /* 0x44 */ s_SubCharacter_44 field_44;
+    /* 0xB0 */ q19_12            health;
+    /* 0xB4 */ s_CharaDamage     damage;
+    /* 0xC4 */ u16               deathTimer;     // Part of `shBattleInfo` struct in SH2, may use something similar here.
+    /* 0xC6 */ q3_12             timer_C6;       // Some sort of timer. Written to by `Ai_LarvalStalker_Update`.
 
     // Fields seen used inside maps (eg. `map0_s00` `func_800D923C`)
-    s_SubCharacter_C8 field_C8;
-    s_SubCharacter_D4 field_D4; // Contains collision radius and somethign else.
-    s_SubCharacter_D8 field_D8; // Translation data?
-    u8                field_E0; // Related to collision. If the player collides with the only enemy in memory and the enemy is knocked down, this is set to 1.
-    s8                field_E1_0 : 4; // State.
-    u8                field_E1_4 : 4; // Index for array of `s_func_8006CF18`.
-    s_func_8006CF18*  field_E4;
+    /* 0xC8 */ s_SubCharacter_C8 field_C8;
+    /* 0xD4 */ s_SubCharacter_D4 field_D4;       // Contains collision radius and somethign else.
+    /* 0xD8 */ s_SubCharacter_D8 field_D8;       // Translation data?
+    /* 0xE0 */ u8                field_E0;       // Related to collision. If the player collides with the only enemy in memory and the enemy is knocked down, this is set to 1.
+    /* 0xE1 */ s8                field_E1_0 : 4; // State.
+    /* 0xE1 */ u8                field_E1_4 : 4; // Index for array of `s_func_8006CF18`.
+    /* 0xE4 */ s_func_8006CF18*  field_E4;
 
-    union
-    {
-        s_PropertiesDummy           dummy;
-        s_PropertiesPlayer          player;
-        s_PropertiesNpc             npc;
-
-        s_PropertiesAirScreamer     airScreamer;
-        s_PropertiesAlessa          alessa;
-        s_PropertiesBloodsucker     bloodsucker;
-        s_PropertiesCreeper         creeper;
-        s_PropertiesDahlia          dahlia;
-        s_PropertiesFloatstinger    floatstinger;
-        e_PropertiesGroaner         groaner;
-        s_PropertiesHangedScratcher hangedScratcher;
-        s_PropertiesIncubus         incubus;
-        s_PropertiesLarvalStalker   larvalStalker;
-        s_PropertiesMonsterCybil    monsterCybil;
-        s_PropertiesPuppetNurse     puppetNurse;
-        s_PropertiesRomper          romper;
-        s_PropertiesSplitHead       splitHead;
-        s_PropertiesStalker         stalker;
-        s_PropertiesTwinfeeler      twinfeeler;
-    } properties_E4;
+             union
+             {
+                 s_PropertiesDummy           dummy;
+                 s_PropertiesPlayer          player;
+                 s_PropertiesNpc             npc;
+             
+                 s_PropertiesAirScreamer     airScreamer;
+                 s_PropertiesAlessa          alessa;
+                 s_PropertiesBloodsucker     bloodsucker;
+                 s_PropertiesCreeper         creeper;
+                 s_PropertiesDahlia          dahlia;
+                 s_PropertiesFloatstinger    floatstinger;
+                 e_PropertiesGroaner         groaner;
+                 s_PropertiesHangedScratcher hangedScratcher;
+                 s_PropertiesIncubus         incubus;
+                 s_PropertiesLarvalStalker   larvalStalker;
+                 s_PropertiesMonsterCybil    monsterCybil;
+                 s_PropertiesPuppetNurse     puppetNurse;
+                 s_PropertiesRomper          romper;
+                 s_PropertiesSplitHead       splitHead;
+                 s_PropertiesStalker         stalker;
+                 s_PropertiesTwinfeeler      twinfeeler;
+    /* 0xE4 */ } properties;
 } s_SubCharacter;
 STATIC_ASSERT_SIZEOF(s_SubCharacter, 296);
 
 typedef struct _PlayerExtra
 {
-    s_Model           model_0;              /** Manages upper half body's animations (torso, arms, head). */
-    s32               disabledAnimBones_18; /** Bitfield of disabled animation bones. Can be created using the `BITMASK_RANGE` macro. */
-    s32               state_1C;             /** `e_PlayerState` */
-    s32               upperBodyState_20;    /** `e_PlayerUpperBodyState` */
-    s32               lowerBodyState_24;    /** `e_PlayerLowerBodyState` */
-    e_InventoryItemId lastUsedItem_28;      /** Holds the last item ID used from inventory when the player is inside an item trigger area. */
+    /* 0x0  */ s_Model           model;             /** Manages upper half body's animations (torso, arms, head). */
+    /* 0x18 */ s32               disabledAnimBones; /** Bitfield of disabled animation bones. Can be created using the `BITMASK_RANGE` macro. */
+    /* 0x1C */ s32               state;             /** `e_PlayerState` */
+    /* 0x20 */ s32               upperBodyState;    /** `e_PlayerUpperBodyState` */
+    /* 0x24 */ s32               lowerBodyState;    /** `e_PlayerLowerBodyState` */
+    /* 0x28 */ e_InvItemId lastUsedItem;      /** Holds the last item ID used from inventory when the player is inside an item trigger area. */
 } s_PlayerExtra;
 STATIC_ASSERT_SIZEOF(s_PlayerExtra, 44);
 
@@ -1799,21 +1829,21 @@ STATIC_ASSERT_SIZEOF(s_PlayerExtra, 44);
  */
 typedef struct _PlayerWork
 {
-    s_SubCharacter player_0; /** Possible original name: `player`. */
-    s_PlayerExtra  extra_128;
+    /* 0x0   */ s_SubCharacter player; /** Possible original name: `player`. */
+    /* 0x128 */ s_PlayerExtra  extra;
 } s_PlayerWork;
 STATIC_ASSERT_SIZEOF(s_PlayerWork, 340);
 
 /** @brief Player combat info. */
 typedef struct _PlayerCombat
 {
-    VECTOR3 field_0; // Q19.12 position offset?
-    s8      unk_C[3];
-    s8      weaponAttack_F;        /** Packed weapon attack. See `WEAPON_ATTACK`. */
-    u8      currentWeaponAmmo_10;
-    u8      totalWeaponAmmo_11;
-    s8      weaponInventoryIdx_12; /** Index of the currently equipped weapon in the inventory. */
-    u8      isAiming_13;           /** `bool` */
+    /* 0x0  */ VECTOR3 field_0;            // Q19.12 position offset?
+    /* 0xC  */ s8      __pad_C[3];
+    /* 0xF  */ s8      weaponAttack;       /** Packed weapon attack. See `WEAPON_ATTACK`. */
+    /* 0x10 */ u8      currentWeaponAmmo;
+    /* 0x11 */ u8      totalWeaponAmmo;
+    /* 0x12 */ s8      weaponInventoryIdx; /** Index of the currently equipped weapon in the inventory. */
+    /* 0x13 */ u8      isAiming;           /** `bool` */
 } s_PlayerCombat;
 STATIC_ASSERT_SIZEOF(s_PlayerCombat, 20);
 
@@ -1861,6 +1891,7 @@ typedef struct
 } s_StructUnk3;
 STATIC_ASSERT_SIZEOF(s_StructUnk3, 52);
 
+// Extra effects info?
 typedef struct
 {
     s32             primType_0; /** `e_PrimitiveType` */
@@ -1871,7 +1902,7 @@ typedef struct
     u8              field_14;
     u8              isFlashlightOn_15;          /** `bool` */
     u8              isFlashlightUnavailable_16; /** `bool` */
-    s8              unk_17;                     // Most likely padding.
+    s8              unk_17;
     q3_12           flashlightIntensity_18;     // Alpha.
     u16             field_1A;
     s_StructUnk3    field_1C[2];
@@ -1884,71 +1915,71 @@ STATIC_ASSERT_SIZEOF(s_SysWork_2388, 392);
 /** @brief Main system workspace. Stores key engine data. */
 typedef struct _SysWork
 {
-    s8              unk_0[8];
-    e_SysState      sysState_8;
-    s32             sysStateStep_C[3]; /** Temp data used by current `sysState_8`. Can be another state ID or other data. */
-    s32             isMgsStringSet_18; /** `bool` | Indicates if string have been loaded and is going (or it is) being display. */
-    s32             counters_1C[3];
-    q19_12          field_28; // Multi-purpose? Used as alpha to fade between images in `Screen_BackgroundImgTransition`.
-    q19_12          timer_2C; // Cutscene message timer?
-    s32             field_30;
-    s8              unk_34[4]; // Padding?
-    s_PlayerCombat  playerCombat_38; // Information related to weapons and attack.
-    s_PlayerWork    playerWork_4C;
-    s_SubCharacter  npcs_1A0[NPC_COUNT_MAX];
-    GsCOORDINATE2   playerBoneCoords_890[HarryBone_Count];
-    GsCOORDINATE2   unkCoords_E30[5];  // Might be part of previous array for 5 extra coords which go unused.
-    GsCOORDINATE2   npcCoords_FC0[NPC_BONE_COUNT_MAX]; // Dynamic coord buffer? 10 coords per NPC (given max of 6 NPCs).
-    s8              npcId_2280;                        // NPC ID for `npcFlags_2290`. Not an index, starts at 1.
-    s8              loadingScreenIdx_2281;
-    s8              field_2282;                        /** `e_EventDataUnkCutsceneState` */
-    s8              field_2283;    // Index into `SfxPairs`.
-    u16             field_2284[4]; // Flags for character types?
-                                   // Enabling a flag for Larval Stalkers causes them to die.
-    s32             field_228C[1];
-    s32             npcFlags_2290; // Flags related to NPCs. Each bit corresponds to `npcs_1A0` index.
-    s8              unk_2294[4];   // Padding?
-    e_SysWorkProcessFlags processFlags_2298;
-    s32             field_229C;    /** Dead code. It get assigned -1 when the player has been initalized and get 0 assigned when the player changes the area, beyond that, the code do not use this variable. */
-    e_SysFlags      sysFlags_22A0; // Music related.
-    e_SysFlags2     flags_22A4;    // `e_SysFlags2` | `SysFlag2_6` passed as "use through door cam" flag in `vcSetFirstCamWork`. Also `e_SysFlags` or different?
-    GsCOORDINATE2   coord_22A8;    // For particles only?
-    GsCOORDINATE2   coord_22F8;    // Likely related to above.
-    s8              field_2348   : 8;
-    s8              field_2349   : 8; // Particle spawn multiplier?
-    u8              field_234A   : 8; /** `bool` */
-    u8              field_234B_0 : 4;
-    u8              field_234B_4 : 4;
-    s32             mapMsgTimer_234C;
-    u8              enableHighResGlyphs_2350_0    : 4; /** `bool` */
-    u8              silentYesSelection_2350_4     : 4; /** `bool` */
-    u32             inventoryItemSelectedIdx_2351 : 8;
-    u32             flags_2352                    : 8;
-    s8              targetNpcIdx_2353; /** Index of the NPC being targeted by the player. */
-    s8              npcIdxs_2354[4];
-    u8              enablePlayerMatchAnim_2358; /** `bool` | Activates the animation performed by Harry when lighting a match at the beginning of the game. */
-    s8              unk_2359[1];
-    u8              playerStopFlags_235A; /** `e_PlayerStopFlags` */
-    s8              unk_235B[1];
-    GsCOORDINATE2*  field_235C;              // Player torso bone.
-    VECTOR3         pointLightPosition_2360; //                   } Often gets set from DMS cutscene data.
-    GsCOORDINATE2*  field_236C;              // Player root bone. }
-    SVECTOR         pointLightRot_2370;      //                   }
-    s16             pointLightIntensity_2378;
-    q3_12           cameraAngleY_237A;
-    q3_12           cameraAngleZ_237C;
-    s16             field_237E;
-    q19_12          cameraRadiusXz_2380;
-    q19_12          cameraY_2384;
-    s_SysWork_2388  field_2388;
-    s32             field_2510;
-    s_SysWork_2514  field_2514;
-    u8              unk_254C[508];
-    q3_12           bgmLayerVolumes_2748[BGM_LAYER_COUNT];
-    u8              unk_275A[2];
-    q19_12          field_275C;
-    s32             field_2760;
-    s32             field_2764;
+    /* 0x0      */ s8               unused_0[8]; /** @unused */
+    /* 0x8      */ e_SysState       sysState;
+    /* 0xC      */ s32              sysStateSteps[3]; /** Temp data used by current `sysState`. Can be another state ID or other data. */
+    /* 0x10     */ bool             isMgsStringSet;   /** Indicates if string have been loaded and is going (or it is) being display. */
+    /* 0x1C     */ s32              counters_1C[3];
+    /* 0x28     */ q19_12           field_28; // Multi-purpose? Used as alpha to fade between images in `Screen_BackgroundImgTransition`.
+    /* 0x2C     */ q19_12           timer_2C; // Cutscene message timer?
+    /* 0x30     */ s32              field_30;
+    /* 0x34     */ s8               unused_34[4]; /** @unused */
+    /* 0x38     */ s_PlayerCombat   playerCombat;
+    /* 0x4C     */ s_PlayerWork     playerWork;
+    /* 0x1A0    */ s_SubCharacter   npcs[NPC_COUNT_MAX];
+    /* 0x890    */ GsCOORDINATE2    playerBoneCoords[HarryBone_Count];
+    /* 0xE30    */ GsCOORDINATE2    unkCoords_E30[5];              // Might be part of previous array for 5 extra coords which go unused.
+    /* 0xFC0    */ GsCOORDINATE2    npcCoords[NPC_BONE_COUNT_MAX]; // Dynamic coord buffer? 10 coords per NPC (given max of 6 NPCs).
+    /* 0x2280   */ s8               npcFlagsId;                    // NPC ID for `npcFlags`. Not an index, starts at 1.
+    /* 0x2281   */ s8               loadingScreenIdx;
+    /* 0x2282   */ s8               field_2282;                         /** `e_EventDataUnkState` */
+    /* 0x2283   */ s8               sfxPairIdx_2283;                    /** `e_SfxPairIdx` | Index into `SFX_PAIRS`. */
+    /* 0x2284   */ u16              charaGroupFlags[CHARA_GROUP_COUNT]; /** `e_CharaGroupFlags` */
+                                                                        // Enabling a flag for Larval Stalkers causes them to die.
+    /* 0x228C   */ s32              field_228C[1];
+    /* 0x2290   */ s32              npcFlags;       // Flags related to NPCs. Each bit corresponds to an `npcs` array entry.
+    /* 0x2294   */ s8               unused_2294[4]; /** @unused */
+    /* 0x2298   */ e_ProcessFlags   processFlags;
+    /* 0x229C   */ s32              field_229C; /** Dead code. Set to -1 when the player has been initalized and set to 0 when the player changes areas. Beyond that, this variable is unused. */
+    /* 0x22A0   */ e_BgmStatusFlags bgmStatusFlags;
+    /* 0x22A4   */ e_UnkSysFlags    flags_22A4;       // `UnkSysFlag_6` passed as "use through door cam" flag in `vcSetFirstCamWork`.
+    /* 0x22A8   */ GsCOORDINATE2    coord_22A8;       // For particles only?
+    /* 0x22F8   */ GsCOORDINATE2    coord_22F8;       // Likely related to above.
+    /* 0x2348+0 */ s8               field_2348   : 8; // Related to particles.
+    /* 0x2349+0 */ s8               field_2349   : 8; // Particle spawn multiplier?
+    /* 0x234A+0 */ u8               field_234A   : 8; /** `bool` */
+    /* 0x234B+0 */ u8               field_234B_0 : 4; /** `bool` | Related to particles. Used to trigger SFX? */
+    /* 0x234B+4 */ u8               field_234B_4 : 4; // Related to particles.
+    /* 0x234C   */ s32              mapMsgTimer;
+    /* 0x2350+0 */ u8               enableHighResGlyphs : 4; /** `bool` */
+    /* 0x2350+4 */ u8               silentYesSelection  : 4; /** `bool` */
+    /* 0x2351+0 */ u32              invItemSelectedIdx  : 8;
+    /* 0x2352+0 */ u32              invItemLoadFlags    : 8; /** `e_InvItemLoadFlags` */
+    /* 0x2353   */ s8               targetNpcIdx;            /** Index of the NPC in `npcs` being targeted by the player. */
+    /* 0x2354   */ s8               npcIdxs[CHARA_GROUP_COUNT];
+    /* 0x2358   */ u8               enablePlayerMatchAnim; /** `bool` | Activates the animation performed by Harry when lighting a match at the beginning of the game. */
+    /* 0x2359   */ s8               unused_2359;           /** @unused */
+    /* 0x235A   */ u8               playerStopFlags;       /** `e_PlayerStopFlags` */
+                // 1 byte of padding.
+    /* 0x235C   */ GsCOORDINATE2*   field_235C;         // Bone related to pocket light.
+    /* 0x2360   */ VECTOR3          pointLightPosition; //                               } Often gets set from DMS cutscene data.
+    /* 0x236C   */ GsCOORDINATE2*   field_236C;         // Bone related to pocket light. }
+    /* 0x2370   */ SVECTOR          pointLightRotation; //                               }
+    /* 0x2378   */ s16              pointLightIntensity;
+    /* 0x237A   */ q3_12            cameraAngleY;
+    /* 0x237C   */ q3_12            cameraAngleZ;
+    /* 0x237E   */ s16              field_237E;
+    /* 0x2380   */ q19_12           cameraRadiusXz;
+    /* 0x2384   */ q19_12           cameraY_2384;
+    /* 0x2388   */ s_SysWork_2388   field_2388;
+    /* 0x2510   */ s32              field_2510;
+    /* 0x2514   */ s_SysWork_2514   field_2514;
+    /* 0x254C   */ s8               unused_254C[508]; /** @unused Debug data? */
+    /* 0x2748   */ q3_12            bgmLayerVolumes[BGM_LAYER_COUNT];
+                   // 2 bytes of padding.
+    /* 0x275C   */ q19_12           field_275C;
+    /* 0x2760   */ s32              field_2760;
+    /* 0x2764   */ s32              field_2764;
 } s_SysWork;
 STATIC_ASSERT_SIZEOF(s_SysWork, 10088);
 
@@ -1963,8 +1994,6 @@ extern s_Savegame* const       g_SavegamePtr;
 extern s_ControllerData* const g_Controller0;
 extern s_ControllerData* const g_Controller1;
 
-extern u32 g_MapEventParam;
-
 /** @brief Sets `sysState` in `g_SysWork` for the next tick.
  *
  * @param sysState System state to set.
@@ -1975,13 +2004,13 @@ static inline s32 SysWork_StateSetNext(e_SysState sysState)
     s32 state;
 
     state                       =
-    g_SysWork.sysState_8        = sysState;
+    g_SysWork.sysState        = sysState;
     g_SysWork.counters_1C[2]          = 0;
-    g_SysWork.sysStateStep_C[0] = 0;
+    g_SysWork.sysStateSteps[0] = 0;
     g_SysWork.field_28          = 0;//Q12(0.0f);
-    g_SysWork.sysStateStep_C[1] = 0;
+    g_SysWork.sysStateSteps[1] = 0;
     g_SysWork.timer_2C          = 0;//Q12(0.0f);
-    g_SysWork.sysStateStep_C[2] = 0;
+    g_SysWork.sysStateSteps[2] = 0;
     return state;
 }
 
@@ -1994,20 +2023,20 @@ static inline void SysWork_StateStepIncrement(s32 stepIdx)
     if (stepIdx == 0)
     {
         g_SysWork.field_28          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[1] = 0;
+        g_SysWork.sysStateSteps[1] = 0;
         g_SysWork.timer_2C          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[2] = 0;
-        g_SysWork.sysStateStep_C[0]++;
+        g_SysWork.sysStateSteps[2] = 0;
+        g_SysWork.sysStateSteps[0]++;
     }
     else if (stepIdx == 1)
     {
         g_SysWork.timer_2C          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[2] = 0;
-        g_SysWork.sysStateStep_C[1]++;
+        g_SysWork.sysStateSteps[2] = 0;
+        g_SysWork.sysStateSteps[1]++;
     }
     else
     {
-        g_SysWork.sysStateStep_C[2]++;
+        g_SysWork.sysStateSteps[2]++;
     }
 }
 
@@ -2024,23 +2053,23 @@ static inline s32 SysWork_StateStepSet(s32 stepIdx, s32 sysStateStep)
     if (stepIdx == 0)
     {
         step                        =
-        g_SysWork.sysStateStep_C[0] = sysStateStep;
+        g_SysWork.sysStateSteps[0] = sysStateStep;
         g_SysWork.field_28          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[1] = 0;
+        g_SysWork.sysStateSteps[1] = 0;
         g_SysWork.timer_2C          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[2] = 0;
+        g_SysWork.sysStateSteps[2] = 0;
     }
     else if (stepIdx == 1)
     {
         step                        =
-        g_SysWork.sysStateStep_C[1] = sysStateStep;
+        g_SysWork.sysStateSteps[1] = sysStateStep;
         g_SysWork.timer_2C          = 0;//Q12(0.0f);
-        g_SysWork.sysStateStep_C[2] = 0;
+        g_SysWork.sysStateSteps[2] = 0;
     }
     else
     {
         step                        =
-        g_SysWork.sysStateStep_C[2] = sysStateStep;
+        g_SysWork.sysStateSteps[2] = sysStateStep;
     }
 
     return step;
@@ -2049,29 +2078,29 @@ static inline s32 SysWork_StateStepSet(s32 stepIdx, s32 sysStateStep)
 /** @brief Resets `sysStateStep` in `g_SysWork` for the next tick. */
 static inline void SysWork_StateStepReset()
 {
-    g_SysWork.sysStateStep_C[0] = NO_VALUE;
+    g_SysWork.sysStateSteps[0] = NO_VALUE;
     g_SysWork.field_28          = 0;//Q12(0.0f);
-    g_SysWork.sysStateStep_C[1] = 0;
+    g_SysWork.sysStateSteps[1] = 0;
     g_SysWork.timer_2C          = 0;//Q12(0.0f);
-    g_SysWork.sysStateStep_C[2] = 0;
+    g_SysWork.sysStateSteps[2] = 0;
 }
 
-/** @brief Sets an NPC flag in the `g_SysWork.npcFlags_2290` bitfield.
+/** @brief Sets an NPC flag in the `g_SysWork.npcFlags` bitfield.
  *
  * @param flagIdx Index of the NPC flag to set.
  */
 static inline void SysWork_NpcFlagSet(s32 flagIdx)
 {
-    g_SysWork.npcFlags_2290 |= 1 << flagIdx;
+    g_SysWork.npcFlags |= 1 << flagIdx;
 }
 
-/** @brief Clears an NPC flag in the `g_SysWork.npcFlags_2290` bitfield.
+/** @brief Clears an NPC flag in the `g_SysWork.npcFlags` bitfield.
  *
  * @param flagIdx Index of the NPC flag to clear.
  */
 static inline void SysWork_NpcFlagClear(s32 flagIdx)
 {
-    CLEAR_FLAG(&g_SysWork.npcFlags_2290, flagIdx);
+    CLEAR_FLAG(&g_SysWork.npcFlags, flagIdx);
 }
 
 /** @brief Clears state steps twice for some reason? Only used once below, others use regular `Game_StateSetNext`. */
@@ -2079,21 +2108,21 @@ static inline void Game_StateSetNext_ClearStateSteps(e_GameState gameState)
 {
     e_GameState prevState;
 
-    prevState = g_GameWork.gameState_594;
+    prevState = g_GameWork.gameState;
 
-    g_GameWork.gameState_594        = gameState;
+    g_GameWork.gameState        = gameState;
     g_SysWork.counters_1C[0]              = 0;
     g_SysWork.counters_1C[1]              = 0;
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
 
     SysWork_StateSetNext(SysState_Gameplay);
 
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
-    g_GameWork.gameStateStep_598[0] = prevState;
-    g_GameWork.gameStatePrev_590    = prevState;
-    g_GameWork.gameStateStep_598[0] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
+    g_GameWork.gameStateSteps[0] = prevState;
+    g_GameWork.gameStatePrev    = prevState;
+    g_GameWork.gameStateSteps[0] = 0;
 }
 
 /** @brief Sets the GameState to be used in the next game update.
@@ -2103,19 +2132,19 @@ static inline void Game_StateSetNext(e_GameState gameState)
 {
     e_GameState prevState;
 
-    prevState = g_GameWork.gameState_594;
+    prevState = g_GameWork.gameState;
 
-    g_GameWork.gameState_594        = gameState;
+    g_GameWork.gameState        = gameState;
     g_SysWork.counters_1C[0]              = 0;
     g_SysWork.counters_1C[1]              = 0;
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
 
     SysWork_StateSetNext(SysState_Gameplay);
 
-    g_GameWork.gameStateStep_598[0] = prevState;
-    g_GameWork.gameStatePrev_590    = prevState;
-    g_GameWork.gameStateStep_598[0] = 0;
+    g_GameWork.gameStateSteps[0] = prevState;
+    g_GameWork.gameStatePrev    = prevState;
+    g_GameWork.gameStateSteps[0] = 0;
 }
 
 /** @brief Returns the GameState to the previously used state.
@@ -2125,19 +2154,19 @@ static inline void Game_StateSetPrevious()
 {
     e_GameState prevState;
 
-    prevState = g_GameWork.gameState_594;
+    prevState = g_GameWork.gameState;
 
     g_SysWork.counters_1C[0]              = 0;
     g_SysWork.counters_1C[1]              = 0;
-    g_GameWork.gameStateStep_598[1] = 0;
-    g_GameWork.gameStateStep_598[2] = 0;
+    g_GameWork.gameStateSteps[1] = 0;
+    g_GameWork.gameStateSteps[2] = 0;
 
     SysWork_StateSetNext(SysState_Gameplay);
 
-    g_GameWork.gameStateStep_598[0] = prevState;
-    g_GameWork.gameState_594        = g_GameWork.gameStatePrev_590;
-    g_GameWork.gameStatePrev_590    = prevState;
-    g_GameWork.gameStateStep_598[0] = 0;
+    g_GameWork.gameStateSteps[0] = prevState;
+    g_GameWork.gameState        = g_GameWork.gameStatePrev;
+    g_GameWork.gameStatePrev    = prevState;
+    g_GameWork.gameStateSteps[0] = 0;
 }
 
 /** @brief Gets an event flag state from the savegame event flags array.
@@ -2204,38 +2233,38 @@ static inline s32 Flags16b_IsSet(const u16* flags, s32 flagIdx)
 /** @brief Sets the animation of a character.
  *
  * @param chara Character to set animation for. TODO: Maybe should take `s_ModelAnim` instead? If fits better, also rename to `Anim_Set`.
- * @param animStatus Packed anim status. See `s_ModelAnim::status_0`.
+ * @param animStatus Packed anim status. See `s_ModelAnim::status`.
  * @param keyframeIdx Active keyframe index.
  */
 static inline void Character_AnimSet(s_SubCharacter* chara, s32 animStatus, s32 keyframeIdx)
 {
     // TODO: Problem with header includes prevents `Q12` macro use.
-    chara->model_0.anim_4.status_0      = animStatus;
-    chara->model_0.anim_4.time_4        = keyframeIdx << 12;//Q12(keyframeIdx);
-    chara->model_0.anim_4.keyframeIdx_8 = keyframeIdx;
+    chara->model.anim.status      = animStatus;
+    chara->model.anim.time        = keyframeIdx << 12;//Q12(keyframeIdx);
+    chara->model.anim.keyframeIdx = keyframeIdx;
 }
 
-/** @brief Checks if the `s_SubCharacter*` has the given `flags_3E` value set. */
+/** @brief Checks if the `s_SubCharacter*` has the given `flags` value set. */
 #define Chara_HasFlag(chara, flag) \
-    ((chara)->flags_3E & (flag))
+    ((chara)->flags & (flag))
 
 /** @brief Sets given animation flags for a model.
  *
  * @param model `s_Model` to update.
  * @param flag Flags to set.
  */
-#define Model_AnimFlagsSet(model, flags) \
-    (model)->anim_4.flags_2 |= (flags)
+#define Model_AnimFlagsSet(model, setFlags) \
+    (model)->anim.flags |= (setFlags)
 
 /** @brief Clears given animation flags for a model.
  *
  * @param model `s_Model` to update.
- * @param flag Flags to clear.
+ * @param clearFlags Flags to clear.
  */
-#define Model_AnimFlagsClear(model, flags) \
-    (model)->anim_4.flags_2 &= ~(flags)
+#define Model_AnimFlagsClear(model, clearFlags) \
+    (model)->anim.flags &= ~(clearFlags)
 
-/** @brief Updates a model anim if `model->stateStep_3` is 0.
+/** @brief Updates a model anim if `model->stateStep` is 0.
  *
  * @param model Model to update.
  * @param animIdx Anim index to set.
@@ -2243,10 +2272,10 @@ static inline void Character_AnimSet(s_SubCharacter* chara, s32 animStatus, s32 
  */
 static inline void Model_AnimStatusSet(s_Model* model, s32 animIdx, bool isActive)
 {
-    if (model->stateStep_3 == 0)
+    if (model->stateStep == 0)
     {
-        model->anim_4.status_0 = ANIM_STATUS(animIdx, isActive);
-        model->stateStep_3++;
+        model->anim.status = ANIM_STATUS(animIdx, isActive);
+        model->stateStep++;
     }
 }
 
@@ -2256,7 +2285,7 @@ static inline void Model_AnimStatusSet(s_Model* model, s32 animIdx, bool isActiv
  */
 static inline void ModelAnim_StatusIncrement(s_ModelAnim* anim)
 {
-    anim->status_0++;
+    anim->status++;
 }
 
 /** @brief Decrements the anim status of a model anim.
@@ -2265,10 +2294,10 @@ static inline void ModelAnim_StatusIncrement(s_ModelAnim* anim)
  */
 static inline void ModelAnim_StatusDecrement(s_ModelAnim* anim)
 {
-    anim->status_0--;
+    anim->status--;
 }
 
-/** @brief Similar to `Model_AnimStatusSet`, but also sets `anim_4.time_4` and `anim_4.keyframeIdx_8`
+/** @brief Similar to `Model_AnimStatusSet`, but also sets `anim.time` and `anim.keyframeIdx`
  * from the `animInfos` `s_AnimInfo` array.
  *
  * @param model Model to update.
@@ -2278,12 +2307,12 @@ static inline void ModelAnim_StatusDecrement(s_ModelAnim* anim)
  * @param animInfosOffset Anim infos offset.
  */
 #define Model_AnimStatusKeyframeSet(model, animIdx, isActive, animInfos, animInfosOffset)                                       \
-    if ((model).stateStep_3 == 0)                                                                                               \
+    if ((model).stateStep == 0)                                                                                               \
     {                                                                                                                           \
-        (model).anim_4.status_0 = ANIM_STATUS(animIdx, isActive);                                                               \
-        (model).stateStep_3++;                                                                                                  \
-        (model).anim_4.time_4        = Q12((animInfos)[ANIM_STATUS(animIdx, isActive) + (animInfosOffset)].startKeyframeIdx_C); \
-        (model).anim_4.keyframeIdx_8 = (animInfos)[ANIM_STATUS(animIdx, (isActive) + (animInfosOffset))].startKeyframeIdx_C;    \
+        (model).anim.status = ANIM_STATUS(animIdx, isActive);                                                               \
+        (model).stateStep++;                                                                                                  \
+        (model).anim.time        = Q12((animInfos)[ANIM_STATUS(animIdx, isActive) + (animInfosOffset)].startKeyframeIdx); \
+        (model).anim.keyframeIdx = (animInfos)[ANIM_STATUS(animIdx, (isActive) + (animInfosOffset))].startKeyframeIdx;    \
     }
 
 /** @brief Attempts to reset a humanoid NPC's anim state index to 0.
@@ -2294,11 +2323,11 @@ static inline void Character_AnimStateReset(s_SubCharacter* chara)
 {
     // TODO: This uses `dahlia` part of union, but is most likely either a `human` part shared with all humanoid characters
     // or humanoids only share a small portion early in the union.
-    if (chara->properties_E4.dahlia.resetStateIdx0_F8)
+    if (chara->properties.dahlia.resetStateIdx0_F8)
     {
-        chara->properties_E4.dahlia.stateIdx0         = 0;
-        chara->model_0.stateStep_3                    = 0;
-        chara->properties_E4.dahlia.resetStateIdx0_F8 = 0;
+        chara->properties.dahlia.stateIdx0         = 0;
+        chara->model.stateStep                    = 0;
+        chara->properties.dahlia.resetStateIdx0_F8 = 0;
     }
 }
 
@@ -2309,7 +2338,7 @@ static inline void Character_AnimStateReset(s_SubCharacter* chara)
 #define Chara_PropertiesClear(chara)                           \
     for (i = 0; i < 16; i++)                                   \
     {                                                          \
-        chara->properties_E4.dummy.properties_E8[i].val32 = 0; \
+        chara->properties.dummy.properties_E8[i].val32 = 0; \
     }
 
 /** @brief Clears a character's damage field.
@@ -2317,10 +2346,10 @@ static inline void Character_AnimStateReset(s_SubCharacter* chara)
  * @param chara Character to update.
  */
 #define Chara_DamageClear(chara)                  \
-    (chara)->damage_B4.amount_C      = Q12(0.0f); \
-    (chara)->damage_B4.position_0.vz = Q12(0.0f); \
-    (chara)->damage_B4.position_0.vy = Q12(0.0f); \
-    (chara)->damage_B4.position_0.vx = Q12(0.0f)
+    (chara)->damage.amount_C      = Q12(0.0f); \
+    (chara)->damage.position_0.vz = Q12(0.0f); \
+    (chara)->damage.position_0.vy = Q12(0.0f); \
+    (chara)->damage.position_0.vx = Q12(0.0f)
 
 /** @brief Sets a character's received attack type.
  *
@@ -2331,13 +2360,13 @@ static inline void Character_AnimStateReset(s_SubCharacter* chara)
  * @param attack Attack type to set.
  */
 #define Chara_AttackReceivedSet(chara, attack) \
-    (chara)->attackReceived_41 = (attack)
+    (chara)->attackReceived = (attack)
 
 /** @brief Gets a character's received attack type.
  *
  * @param chara Character to update.
  */
 #define Chara_AttackReceivedGet(chara) \
-    (chara)->attackReceived_41
+    (chara)->attackReceived
 
 #endif

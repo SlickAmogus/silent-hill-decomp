@@ -47,6 +47,45 @@
 // ENUMS
 // ======
 
+// Used by `func_8006E490` and `func_8006E150`.
+typedef enum _OrientationFlags
+{
+    OrientationFlags_None    = 0,
+    OrientationFlags_InvertX = 1 << 0,
+    OrientationFlags_InvertZ = 1 << 1,
+    OrientationFlags_SwapXz  = 1 << 2
+} e_OrientationFlags;
+
+/** @brief SFX pair indices. Used for `SFX_PAIRS`. */
+typedef enum _SfxPairIdx
+{
+    SfxPairIdx_0  = 0,
+    SfxPairIdx_1  = 1,
+    SfxPairIdx_2  = 2,
+    SfxPairIdx_3  = 3,
+    SfxPairIdx_4  = 4,
+    SfxPairIdx_5  = 5,
+    SfxPairIdx_6  = 6,
+    SfxPairIdx_7  = 7,
+    SfxPairIdx_8  = 8,
+    SfxPairIdx_9  = 9,
+    SfxPairIdx_10 = 10,
+    SfxPairIdx_11 = 11,
+    SfxPairIdx_12 = 12,
+    SfxPairIdx_13 = 13,
+    SfxPairIdx_14 = 14,
+    SfxPairIdx_15 = 15,
+    SfxPairIdx_16 = 16,
+    SfxPairIdx_17 = 17,
+    SfxPairIdx_18 = 18,
+    SfxPairIdx_19 = 19,
+    SfxPairIdx_20 = 20,
+    SfxPairIdx_21 = 21,
+    SfxPairIdx_22 = 22,
+    SfxPairIdx_23 = 23,
+    SfxPairIdx_24 = 24
+} e_SfxPairIdx;
+
 // @brief Animation playback states. Returned by `Chara_AnimPlaybackStateGet`.
 typedef enum _AnimPlaybackState
 {
@@ -59,17 +98,57 @@ typedef enum _AnimPlaybackState
 /** @brief Background music flags. */
 typedef enum _BgmFlags
 {
-    BgmFlag_Unk0 = 1 << 0,
-    BgmFlag_Unk1 = 1 << 1,
-    BgmFlag_Unk2 = 1 << 2,
-    BgmFlag_Unk3 = 1 << 3,
-    BgmFlag_Unk4 = 1 << 4,
-    BgmFlag_Unk5 = 1 << 5,
-    BgmFlag_Unk6 = 1 << 6,
-    BgmFlag_Unk7 = 1 << 7,
-    BgmFlag_Unk8 = 1 << 8,
-    BgmFlag_Unk9 = 1 << 9
+    BgmFlag_Layer0    = 1 << 0,
+    BgmFlag_Layer1    = 1 << 1,
+    BgmFlag_Layer2    = 1 << 2,
+    BgmFlag_Layer3    = 1 << 3,
+    BgmFlag_Layer4    = 1 << 4,
+    BgmFlag_Layer5    = 1 << 5,
+    BgmFlag_Layer6    = 1 << 6,
+    BgmFlag_Layer7    = 1 << 7,
+    BgmFlag_KeepAlive = 1 << 8,
+    BgmFlag_MuteAll   = 1 << 9
 } e_BgmFlags;
+
+/** @brief Background music track indices. */
+typedef enum _BgmTrackIdx
+{
+    BgmTrackIdx_0 = 0,
+    BgmTrackIdx_1 = 1,
+    BgmTrackIdx_2 = 2,
+    BgmTrackIdx_3 = 3,
+    BgmTrackIdx_4 = 4,
+    BgmTrackIdx_5 = 5,
+    BgmTrackIdx_6 = 6,
+    BgmTrackIdx_7 = 7,
+    BgmTrackIdx_8 = 8,
+    BgmTrackIdx_9 = 9,
+    BgmTrackIdx_10 = 10,
+    BgmTrackIdx_11 = 11,
+    BgmTrackIdx_12 = 12,
+    BgmTrackIdx_13 = 13,
+    BgmTrackIdx_14 = 14,
+    BgmTrackIdx_15 = 15,
+    BgmTrackIdx_16 = 16,
+    BgmTrackIdx_17 = 17,
+    BgmTrackIdx_18 = 18,
+    BgmTrackIdx_19 = 19,
+    BgmTrackIdx_20 = 20,
+    BgmTrackIdx_21 = 21,
+    BgmTrackIdx_22 = 22,
+    BgmTrackIdx_23 = 23,
+    BgmTrackIdx_24 = 24,
+    BgmTrackIdx_25 = 25,
+    BgmTrackIdx_26 = 26,
+    BgmTrackIdx_27 = 27,
+    BgmTrackIdx_28 = 28,
+    BgmTrackIdx_29 = 29,
+    BgmTrackIdx_30 = 30,
+    BgmTrackIdx_31 = 31,
+    BgmTrackIdx_32 = 32,
+    BgmTrackIdx_33 = 33,
+    BgmTrackIdx_34 = 34
+} e_BgmTrackIds;
 
 typedef enum _CollisionFlags
 {
@@ -272,10 +351,10 @@ STATIC_ASSERT_SIZEOF(s_8002AC04, 16);
 
 typedef struct
 {
-    s32               id_0;
-    s32               flags_4;
-    s32               modelCount_8;
-    struct TMD_STRUCT models_c[1];
+    /* 0x0 */ s32               id;
+    /* 0x4 */ s32               flags;
+    /* 0x8 */ s32               modelCount;
+    /* 0xC */ struct TMD_STRUCT models[1];
 } s_TmdFile;
 
 typedef struct
@@ -317,7 +396,7 @@ typedef struct
             s16 field_2;
         } s_0;
     } field_4;
-    s16 vy_8; // Q7.8
+    s16 vy_8; // Q7.8? Usually Q12, need to reevaluate.
     u8  field_A;
     u8  field_B; // Flags?
     union
@@ -343,7 +422,7 @@ typedef struct
     } field_C;
     union
     {
-        q20_12 field_0;
+        q20_12 field_0; // Timer.
         struct
         {
             s16 field_0;
@@ -397,8 +476,8 @@ typedef struct
     DVECTOR_XZ direction_14;
     q23_8      positionX_18;
     q23_8      positionZ_1C;
-    s32        field_20;
-    s32        field_24;
+    q23_8      newPositionX_20;
+    q23_8      newPositionZ_24;
     s16        field_28; // } `SVECTOR3`, packed rotation? Probably not.
     s16        field_2A; // }
     s16        field_2C; // }
@@ -424,7 +503,7 @@ typedef struct
 {
     s8      field_0;
     s8      unk_1;
-    DVECTOR field_2; // Q3.12 | XY rotation.
+    DVECTOR field_2; // Q3.12 | Angle constraint. X is min, Y is max. TODO: Don't use `DVECTOR` for this anymore.
 } s_CollisionState_44_0;
 
 typedef struct
@@ -533,8 +612,8 @@ typedef struct
 
 typedef struct
 {
-    s16 field_0;
-    s16 field_2;
+    q3_12 field_0; // X
+    q3_12 field_2; // Z
 } s_func_8006E490_20;
 
 typedef struct
@@ -718,15 +797,15 @@ STATIC_ASSERT_SIZEOF(s_Material, 24);
 
 typedef struct _LmHeader
 {
-    u8             magic_0;    /** See `LM_HEADER_MAGIC`. */
-    u8             version_1;  /** See `LM_VERSION`. */
-    u8             isLoaded_2; /** `bool` */
-    u8             materialCount_3;
-    s_Material*    materials_4;
-    u8             modelCount_8;
-    u8             unk_9[3];
-    s_ModelHeader* modelHdrs_C;
-    u8*            modelOrder_10;
+    /* 0x0  */ u8             magic;    /** See `LM_HEADER_MAGIC`. */
+    /* 0x1  */ u8             version;  /** See `LM_VERSION`. */
+    /* 0x2  */ u8             isLoaded; /** `bool` */
+    /* 0x3  */ u8             materialCount;
+    /* 0x4  */ s_Material*    materials;
+    /* 0x8  */ u8             modelCount;
+               // 3 bytes of padding.
+    /* 0xC  */ s_ModelHeader* modelHdrs;
+    /* 0x10 */ u8*            modelOrder;
 } s_LmHeader;
 
 typedef struct _IpdCollisionData_10
@@ -828,21 +907,21 @@ STATIC_ASSERT_SIZEOF(s_IpdModelBuffer, 24);
 
 typedef struct _IpdModelInfo
 {
-    u8             isGlobalPlm_0; // `false` if loaded from inside `IPD`, `true` if loaded from `*_GLB.PLM`.
-    u8             unk_1[3];
-    u_Filename     modelName_4;
-    s_ModelHeader* modelHdr_C;
+    /** 0x0 */ u8             isGlobalPlm; // `false` if loaded from inside `IPD`, `true` if loaded from `*_GLB.PLM`.
+               // 3 bytes of padding.
+    /** 0x4 */ u_Filename     modelName;
+    /** 0xC */ s_ModelHeader* modelHdr;
 } s_IpdModelInfo;
 STATIC_ASSERT_SIZEOF(s_IpdModelInfo, 16);
 
 typedef struct _IpdHeader
 {
-    u8                 magic_0;
+    u8                 magic;
     u8                 isLoaded_1; /** `bool` */
     s8                 cellX_2;
     s8                 cellZ_3;
     s_LmHeader*        lmHdr_4;
-    u8                 modelCount_8;
+    u8                 modelCount;
     u8                 modelBufferCount_9;
     u8                 modelOrderCount_A;
     u8                 unk_B[1];
@@ -870,18 +949,18 @@ STATIC_ASSERT_SIZEOF(s_AnmBindPose, 6);
 
 typedef struct _AnmHeader
 {
-    u16           dataOffset_0;
-    u8            rotationBoneCount_2;
-    u8            translationBoneCount_3;
-    u16           keyframeDataSize_4; // Size per keyframe, `(rotationBoneCount_2 * 9) + (translationBoneCount_3 * 3)`?
-    u8            boneCount_6;
-    u8            unk_7;
-    u32           activeBones_8; // Holds bit field of bones to update.
-    u32           fileSize_C;
-    u16           keyframeCount_10;
-    u8            scaleLog2_12;
-    u8            rootYOffset_13;
-    s_AnmBindPose bindPoses_14[0]; // Array size = `boneCount_6`.
+    /* 0x0  */ u16           dataOffset;
+    /* 0x2  */ u8            rotationBoneCount;
+    /* 0x3  */ u8            translationBoneCount;
+    /* 0x4  */ u16           keyframeDataSize; // Size per keyframe, `(rotationBoneCount * 9) + (translationBoneCount * 3)`?
+    /* 0x6  */ u8            boneCount;
+               // 1 byte of padding.
+    /* 0x8  */ u32           activeBones;      // Bit field of bones to update.
+    /* 0xC  */ u32           fileSize;
+    /* 0x10 */ u16           keyframeCount;
+    /* 0x12 */ u8            scaleLog2;
+    /* 0x13 */ u8            rootYOffset;
+    /* 0x14 */ s_AnmBindPose bindPoses[0];     // Array size = `boneCount`.
 } s_AnmHeader;
 STATIC_ASSERT_SIZEOF(s_AnmHeader, 20);
 
@@ -1010,20 +1089,20 @@ STATIC_ASSERT_SIZEOF(s_Bone, 20);
 
 typedef struct _LinkedBone
 {
-    s_Bone              bone_0;
-    struct _LinkedBone* next_14;
+    /* 0x0  */ s_Bone              bone;
+    /* 0x14 */ struct _LinkedBone* next;
 } s_LinkedBone;
 STATIC_ASSERT_SIZEOF(s_LinkedBone, 24);
 
 typedef struct
 {
-    u8            boneCount_0;
-    u8            boneIdx_1;
-    u8            field_2;
-    s8            field_3;
-    s_LinkedBone* bones_4;
-    s_LinkedBone* bones_8;
-    s_LinkedBone  bones_C[56];
+    /* 0x0 */ u8            boneCount;
+    /* 0x1 */ u8            boneIdx;
+    /* 0x2 */ u8            field_2;
+    /* 0x3 */ s8            field_3;
+    /* 0x4 */ s_LinkedBone* bones_4;
+    /* 0x8 */ s_LinkedBone* bones_8;
+    /* 0xC */ s_LinkedBone  bones_C[56];
 } s_Skeleton;
 STATIC_ASSERT_SIZEOF(s_Skeleton, 1356);
 
@@ -1124,7 +1203,7 @@ typedef struct _WaterZone
 
 typedef struct
 {
-    u8            charaId_0;  /** `e_CharacterId` */
+    u8            charaId;  /** `e_CharacterId` */
     u8            isLoaded_1; /** `bool` */
     // 2 bytes of padding.
     s32           queueIdx_4;
@@ -1163,7 +1242,7 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectModel, 28);
 /** @brief Geometry space world object to draw. */
 typedef struct _WorldObject
 {
-    s_WorldObjectModel* model_0;
+    s_WorldObjectModel* model;
     s32                 positionX_4 : 18; /** Q9.8 */
     s32                 positionY_4 : 14; /** Q5.8 */
     s32                 positionZ_8 : 18; /** Q9.8 */
@@ -1188,7 +1267,7 @@ STATIC_ASSERT_SIZEOF(s_TriggerZone, 4);
 
 typedef struct _HeldItem
 {
-    s32           itemId_0; /** `e_InventoryItemId` */
+    s32           itemId_0; /** `e_InvItemId` */
     s32           queueIdx_4;
     char*         textureName_8;
     s_FsImageDesc imageDesc_C;
@@ -1210,7 +1289,7 @@ typedef struct _WorldGfxWork
     VECTOR3           ipdSamplePoint_8; /** Used by IPD logic to sample which chunks to load or unload. */
     u8*               charaLmBuffer_14;
     s_CharaModel*     registeredCharaModels_18[Chara_Count];
-    s_CharaModel      charaModels_CC[GROUP_CHARA_COUNT];
+    s_CharaModel      charaModels_CC[CHARA_GROUP_COUNT];
     s_CharaModel      harryModel_164C;
     s_HeldItem        heldItem_1BAC;             /** The item held by the player. */
     s_TriggerZone*  triggerZone_1BD8;
@@ -1490,7 +1569,7 @@ typedef struct _SpawnInfo
     q19_12 positionX_0;
     s8     charaId_4;   /** `e_CharacterId` */
     u8     rotationY_5; /** Degrees in Q7.8, range [0, 256]. */
-    s8     flags_6;     /** Copied to `stateStep_3` in `s_Model`, with `controlState_2 = ModelState_Uninitialized`. */
+    s8     flags_6;     /** Copied to `stateStep` in `s_Model`, with `controlState = ModelState_Uninitialized`. */
     s32    gameDifficultyMin_7_0 : 4;
     q19_12 positionZ_8;
 } s_SpawnInfo;
@@ -1499,11 +1578,12 @@ STATIC_ASSERT_SIZEOF(s_SpawnInfo, 12);
 /** Special map-specific Harry anim data. */
 typedef struct
 {
-    s16   status_0; /** Packed anim status. See `s_ModelAnim::status_0`. */
-    s16   status_2; /** Packed anim status. See `s_ModelAnim::status_0`. */
-    q3_12 time_4;   /** Fixed-point anim time. */
+    s16   status; /** Packed anim status. See `s_ModelAnim::status`. */
+    s16   status_2; /** Packed anim status. See `s_ModelAnim::status`. */
+    q3_12 time;   /** Fixed-point anim time. */
     s16   keyframeIdx_6;
-} s_UnkStruct3_Mo; // Probable size: 8 bytes.
+} s_UnkStruct3_Mo;
+STATIC_ASSERT_SIZEOF(s_UnkStruct3_Mo, 8);
 
 /** Guessed based on in-debugger observation during gameplay.
  * Everything is inited to 0xFFFF and some data is written when the player is hit by monsters.
@@ -1604,7 +1684,7 @@ typedef struct _MapOverlayHeader
     GsCOORDINATE2*         field_28;
     u8*                    loadableItems_2C;
     const char**           mapMessages_30; // Array of strings.
-    s_AnimInfo*            animInfos_34;   // Map-specific anim infos for Harry (for anims 38+).
+    s_AnimInfo*            harryMapAnimInfos_34; // Map-specific anim infos for Harry (for anims 38+).
     s_UnkStruct3_Mo*       field_38; // Array of 40?
     void                   (*worldObjectsInit_3C)(void); // func(?).
     void                   (*worldObjectsUpdate_40)(void);
@@ -1695,7 +1775,7 @@ typedef struct _MapOverlayHeader
     s32*                   data_18C;
     s32*                   data_190;
     void                   (*charaUpdateFuncs_194[Chara_Count])(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords); /** Guessed params. Funcptrs for each `e_CharacterId`, set to 0 for IDs not included in the map overlay. Called by `Game_NpcUpdate`. */
-    s8                     charaGroupIds_248[GROUP_CHARA_COUNT]; /** `e_CharacterId` values where if `s_SpawnInfo::charaId_4 == Chara_None`, `charaGroupIds_248[0]` is used for `charaSpawns_24C[0]` and `charaGroupIds_248[1]` for `charaSpawns_24C[1]`. */
+    s8                     charaGroupIds_248[CHARA_GROUP_COUNT]; /** `e_CharacterId` values where if `s_SpawnInfo::charaId_4 == Chara_None`, `charaGroupIds_248[0]` is used for `charaSpawns_24C[0]` and `charaGroupIds_248[1]` for `charaSpawns_24C[1]`. */
     s_SpawnInfo            charaSpawns_24C[2][16];               /** Array of character type/position/flags. `flags_6 == 0` are unused slots? Read by `Game_NpcRoomInitSpawn`. */
     VC_ROAD_DATA           roadDataList_3CC[100];
     s_TriggerZone          triggerZones_D2C[200];
@@ -2082,7 +2162,7 @@ typedef struct
 
 typedef struct
 {
-    MATRIX  field_0;
+    MATRIX  field_0; // View matrix?
     SVECTOR field_20;
     VECTOR  field_28; // Q27.4
     s32     field_38;
@@ -2186,24 +2266,8 @@ extern s32 D_800A99A0;
 /** Relative file offset for map texture? */
 extern s8 D_800A99B5;
 
-extern char* D_800A99E4[8];
-
-extern s8 g_PaperMapFileIdxs[];
-
-extern s8 g_PaperMapMarkingFileIdxs[];
-
-extern s_FsImageDesc D_800A9A04;
-
-extern s32 D_800A9A0C; // Old IDB name `FS_AllFilesLoaded`, though FS code doesn't set it.
-
-extern s32 g_MapEventSysState; /** `e_InventoryItemId` */
-
-extern s32 g_MapEventLastUsedItem; /** `e_InventoryItemId` */
-
-/** Radio pitch state based on the distance from the player to an enemy. Range: `[0, 3]`. */
-extern s32 g_RadioPitchState;
-
 #ifndef SH_PC_PORT
+/* PC port declares this as static inside game_sys_states.c. */
 extern void (*g_SysStateFuncs[])(void);
 #endif
 
@@ -2328,6 +2392,7 @@ extern s_EventData* g_ItemTriggerEvents[];
 
 extern s32 pad_bss_800BCD94[5];
 
+/** Radio SFX data. */
 extern s_800BCDA8 D_800BCDA8[2];
 
 extern s_MapPoint2d D_800BCDB0;
@@ -2343,7 +2408,7 @@ extern s8 pad_bss_800BCDD5[3];
 
 extern s_EventData* g_MapEventData;
 
-/** `e_InventoryItemId` | related to displaying items. */
+/** `e_InvItemId` | related to displaying items. */
 extern u8 D_800AE187;
 
 extern s16 D_800AE1A8;
@@ -2380,7 +2445,7 @@ extern q3_12 g_Player_FlexRotationX;
 extern u8 D_800AF220;
 
 /** @brief Last weapon selected. While it is being assigned the value of
- * `g_SysWork::playerCombat_38::weaponAttack_F` this time it is used to determine
+ * `g_SysWork::playerCombat::weaponAttack` this time it is used to determine
  * the last weapon used in order to load the required animation data.
  */
 extern s32 g_Player_LastWeaponSelected;
@@ -2404,8 +2469,6 @@ extern s_CollisionPoint g_CollisionPointCache;
 extern u8 D_800AFD04;
 
 extern u8 D_800AFD05;
-
-extern const s_AreaLoadSfx SfxPairs[25];
 
 extern s32 D_800AFD3C;
 
@@ -2621,11 +2684,6 @@ void func_80032D1C(void);
 /** Bodyprog entrypoint. Called by `main`. */
 void MainLoop(void);
 
-/** @brief Set player position.
- * Used for setting the position of the player when transitioning in from rooms.
- */
-void Chara_PositionSet(s_MapPoint2d* mapPoint);
-
 void func_8003943C(void);
 
 /** `SysState_Fmv` update function.
@@ -2647,10 +2705,10 @@ s32 Ipd_ChunkInitCheck(void);
 /** `arg0` should be `void*`? */
 void Gfx_InGameDraw(s32 arg0);
 
-void WorldObject_ModelNameSet(s_WorldObjectModel* arg0, char* newStr);
+void WorldObject_ModelNameSet(s_WorldObjectModel* model, char* newStr);
 
 /** Submits a world object to draw. */
-void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVECTOR3* rot);
+void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVECTOR3* rot);
 
 /** @unused Returns held item ID. */
 s32 WorldGfx_HeldItemIdGet(void);
@@ -2659,10 +2717,10 @@ s32 WorldGfx_PlayerPrevHeldItem(s_PlayerCombat* combat);
 
 /** @brief Loads and sets an item held by the player.
  *
- * @param itemId ID of the held item to load (`e_InventoryItemId`).
+ * @param itemId ID of the held item to load (`e_InvItemId`).
  * @return Model or texture queue index.
  */
-s32 WorldGfx_PlayerHeldItemSet(e_InventoryItemId itemId);
+s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId);
 
 void func_8003D01C(void);
 
@@ -2701,42 +2759,7 @@ s32 func_8003DD74(e_CharacterId charaId, s32 arg1);
 /** `arg1` is packed data. Each byte is a separate value. */
 void WorldGfx_HeldItemAttach(e_CharacterId charaId, s32 arg1); // Called by some chara init funcs.
 
-void func_8003E740(void);
-
-void Gfx_MapInitMapEffectsUpdate(s32 idx0, s32 idx1);
-
-void func_8003EDA8(void);
-
-void Gfx_MapEffectsUpdate(s32 idx0, s32 idx1, e_PrimitiveType primType, void* primData, s32 arg4, s32 arg5);
-
-q19_12 func_8003F4DC(GsCOORDINATE2** coords, SVECTOR* rot, q19_12 alpha, s32 arg3, u32 arg4, s_SysWork* sysWork);
-
-u32 func_8003F654(s_SysWork_2388* arg0);
-
-s32 func_8003F6F0(s32 arg0, s32 arg1, s32 arg2);
-
-void func_8003F838(s_StructUnk3* arg0, s_StructUnk3* arg1, s_StructUnk3* arg2, q19_12 weight);
-
 s32 func_800868F4(s32 arg0, s32 arg1, s32 idx);
-
-/** @brief Computes the weighted average of `a` and `b`.
- *
- * @param a First value.
- * @param b Second value.
- * @param weight Weight as a fixed-point alpha in Q3.12, range `[0, 4096]`.
- * @return Weighted average of `a` and `b`.
- */
-q19_12 Math_WeightedAverageGet(s32 a, s32 b, q19_12 weight);
-
-void func_8003FCB0(const s_MapEffectsInfo* arg0, const s_MapEffectsInfo* arg1, const s_MapEffectsInfo* arg2, q19_12 alphaTo);
-
-void func_8003FD38(s_StructUnk3* arg0, s_StructUnk3* arg1, s_StructUnk3* arg2, q19_12 weight0, q19_12 weight1, q19_12 alphaTo);
-
-void func_8003FE04(const s_MapEffectsInfo* arg0, const s_MapEffectsInfo* arg1, const s_MapEffectsInfo* arg2, q19_12 alphaTo);
-
-s32 func_8003FEC0(const s_MapEffectsInfo* arg0);
-
-void func_8003FF2C(s_StructUnk3* arg0);
 
 void func_80040004(s_MapOverlayHeader* overlayHdr);
 
@@ -2836,7 +2859,7 @@ s_IpdCollisionData** func_800425D8(s32* collDataIdx);
 
 s_IpdCollisionData* func_800426E4(s32 posX, s32 posZ);
 
-s32 func_8004287C(s_WorldObjectModel* arg0, s_WorldObjectMetadata* metadata, q19_12 posX, q19_12 posZ);
+s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q19_12 posX, q19_12 posZ);
 
 /** @brief Gets the load state of an LM file.
  *
@@ -3216,7 +3239,7 @@ s32 LmHeader_ModelCountGet(s_LmHeader* lmHdr);
 
 void Bone_ModelAssign(s_Bone* bone, s_LmHeader* lmHdr, s32 modelHdrIdx);
 
-bool Lm_ModelFind(s_WorldObjectModel* arg0, s_LmHeader* lmHdr, s_WorldObjectMetadata* metadata);
+bool Lm_ModelFind(s_WorldObjectModel* model, s_LmHeader* lmHdr, s_WorldObjectMetadata* metadata);
 
 void StringCopy(char* prevStr, char* newStr);
 
@@ -3224,7 +3247,7 @@ void StringCopy(char* prevStr, char* newStr);
 void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s32 arg5, GsOT* ot, s32 arg7);
 
 /** Crucial 3D drawing function. */
-void func_80057090(s_ModelInfo* modelInfo, GsOT* otTag, s32 arg2, MATRIX* mat0, MATRIX* mat1, u16 arg5);
+void func_80057090(s_ModelInfo* modelInfo, GsOT* otTag, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5);
 
 s32 func_800571D0(u32 arg0);
 
@@ -3384,23 +3407,23 @@ void SysWork_StateStepIncrementDelayed(q19_12 delay, bool reset);
 /** @brief Updates character states during events/cutscenes. */
 void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset);
 
-/** @brief Sets `sysStateStep_C` depending on whether `eventFlagIdx` flag is set.
+/** @brief Sets `sysStateSteps` depending on whether `eventFlagIdx` flag is set.
  *
  * @param eventFlagIdx Flag index.
  * @param stepTrue Step to use if flag is set.
  * @param stepFalse Step to use if flag is not set.
- * @param stepSecondary If `true`, sets `sysStateStep_C[1]` instead of `sysStateStep_C[0]`, otherwise sets `sysStateStep_C[0]`.
+ * @param stepSecondary If `true`, sets `sysStateSteps[1]` instead of `sysStateSteps[0]`, otherwise sets `sysStateSteps[0]`.
  */
 void func_8008605C(e_EventFlag eventFlagIdx, s32 stepTrue, s32 stepFalse, bool stepSecondary);
 
-/** @brief Displays a selection menu and sets `sysStateStep_C` depending on the chosen value.
+/** @brief Displays a selection menu and sets `sysStateSteps` depending on the chosen value.
  *
- * @param hasSelection `true` if it waits for a selection, `false` if `sysStateStep_C` increments after displaying.
+ * @param hasSelection `true` if it waits for a selection, `false` if `sysStateSteps` increments after displaying.
  * @param mapMsgIdx Map message index of the message to display.
  * @param step0 Step to use if selection #0 is chosen.
  * @param step1 Step to use if selection #1 is chosen.
  * @param step2 Step to use if selection #2 is chosen.
- * @param stepSecondary If `true`, sets `sysStateStep_C[1]` instead of `sysStateStep_C[0]`, otherwise sets `sysStateStep_C[0]`.
+ * @param stepSecondary If `true`, sets `sysStateSteps[1]` instead of `sysStateSteps[0]`, otherwise sets `sysStateSteps[0]`.
  */
 void MapMsg_DisplayAndHandleSelection(bool hasSelection, s32 mapMsgIdx, s32 step0, s32 step1, s32 step2, bool stepSecondary);
 
@@ -3411,7 +3434,7 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
 void func_800862F8(s32 stateStep, e_FsFile fileIdx, bool reset);
 
 /** Stepped state handler for displaying picked up items? */
-void func_80086470(u32 stateStep, e_InventoryItemId itemId, s32 itemCount, bool reset);
+void func_80086470(u32 stateStep, e_InvItemId itemId, s32 itemCount, bool reset);
 
 void func_800865FC(bool isPos, s32 idx0, s32 idx1, q3_12 angleY, q19_12 offsetOrPosX, q19_12 offsetOrPosZ);
 
@@ -3502,7 +3525,7 @@ void MapMsg_DisplayWithTexture(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12
 /** @brief Displays a message with a background texture that is darken after reading the first sentence. */
 void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx0, s32 mapMsgIdx1);
 
-void Event_ItemTake(e_InventoryItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx, s32 mapMsgIdx);
+void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx, s32 mapMsgIdx);
 
 void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx);
 
@@ -3602,6 +3625,7 @@ s32 func_8008A0CC(void); /** Returns 0. */
 
 s64 func_8008A0D4(void); /** Returns 0. */
 
+/** Anim infos setup for character. */
 s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* pos, s_SubCharacter* chara2, q3_12 angle0, q3_12 angle1);
 
 u32 func_8008A270(s32 idx);
@@ -3687,8 +3711,14 @@ s_Texture* Textures_ActiveTex_FindTexture(char* texName, s_ActiveTextures* activ
  */
 void Gfx_DebugStringPositionSet(s16 unused, s16 posX, s16 posY);
 
-/** Angle func. */
-q3_12 func_8005BF38(q3_12 angle);
+/** @brief Normalizes a signed Q3.12 fixed-point angle to the clamped signed integer range `[-2048, 2047]`.
+ * Appears to have the same effect as `Q12_ANGLE_NORM_S` macro. Maybe this was written by someone unaware of that?
+ * TODO: Once the build is shiftable, check if calls to this can simply be switched over to the macro.
+ *
+ * @param angle Angle to normalize.
+ * @return Normalized angle.
+ */
+q3_12 Math_AngleNormalizeSigned(q3_12 angle);
 
 bool func_8005BF58(s32* arg0, s32* arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 arg8, s32 arg9);
 
@@ -3696,8 +3726,7 @@ s32 func_8005C1CC(s32* arg0, s32* arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, 
 
 s32 func_8005C7B0(s32 arg0);
 
-/** `arg0` type assumed. */
-void func_800625F4(VECTOR3* arg0, s16 arg1, s32 arg2, s32 arg3);
+void func_800625F4(VECTOR3* arg0, q3_12 angle, s32 arg2, s32 arg3);
 
 bool func_80062708(POLY_FT4** poly, s32 idx);
 
@@ -3706,8 +3735,8 @@ bool func_80063A50(POLY_FT4** poly, s32 idx);
 // Important for drawing gun smoke effect.
 bool func_80064334(POLY_FT4** poly, s32 idx);
 
-/** Displays gun shooting effects. */
-void func_8006342C(s32 weaponAttack, q3_12 angle0, s16 angle1, GsCOORDINATE2* coord);
+/** Displays gunfire effects. */
+void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coord);
 
 s32 func_8005CB20(s_SubCharacter* chara, s_CollisionResult* collResult, q3_12 offsetX, q3_12 offsetZ);
 
@@ -3718,6 +3747,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx);
 
 bool func_800611C0(POLY_FT4** poly, s32 idx);
 
+/** Spawns blood effect? */
 void func_800622B8(s32 unused, s_SubCharacter* chara, s32 animStatus, s32 arg3);
 
 void func_80064F04(VECTOR3* arg0, s8 arg1, s16 arg2);
@@ -3930,19 +3960,19 @@ void func_8006C838(s_CollisionState* collState, s_IpdCollisionData* collData);
 
 void func_8006CA18(s_CollisionState* collState, s_IpdCollisionData* collData, s_func_8006CA18* arg2);
 
-s16 func_8006CB90(s_CollisionState* collState);
+s16 Collision_OffsetAlphaGet(s_CollisionState* collState);
 
-s32 func_8006CC44(q23_8 x, q23_8 z, s_CollisionState* arg2);
+s32 func_8006CC44(q23_8 posX, q23_8 posZ, s_CollisionState* collState);
 
 void func_8006CC9C(s_CollisionState* collState);
 
 void func_8006CF18(s_CollisionState* collState, s_func_8006CF18* arg1, s32 idx);
 
-void func_8006D01C(VECTOR3* arg0, VECTOR3* arg1, s16 arg2, s_CollisionState* arg3);
+void func_8006D01C(VECTOR3* arg0, VECTOR3* offset, q3_12 offsetAlpha, s_CollisionState* collState);
 
 void func_8006D2B4(VECTOR3* arg0, s_CollisionState_44* arg1);
 
-void func_8006D600(VECTOR3* pos, s32 arg1, s32 arg2, s32 arg3, s32 arg4);
+void func_8006D600(VECTOR3* pos, q19_12 angle, q19_12 rotX, q19_12 rotY, s32 arg4);
 
 void func_8006D774(s_CollisionState* collState, VECTOR3* arg1, VECTOR3* arg2);
 
@@ -4054,20 +4084,6 @@ void SysWork_SavegameReadPlayer(void);
 /** @brief Handles a warm game reboot. */
 void Game_WarmBoot(void);
 
-void Savegame_MapRoomIdxUpdate(void);
-
-/** @Unused */
-s32 func_8003647C(void);
-
-/** @Unused */
-s32 func_80036498(void);
-
-/** @Unused */
-u32 func_800364BC(void);
-
-// Draws a pallete of colors in the frame buffer.
-void func_8003652C(void);
-
 s32 Gfx_MapMsg_Draw(s32 mapMsgIdx);
 
 s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1);
@@ -4078,55 +4094,6 @@ void func_80036E48(u16* arg0, s16* arg1);
 void func_8003708C(s16* ptr0, u16* ptr1);
 
 void func_80037124(void);
-
-void func_80037154(void);
-
-/** Radio sound related. */
-void Game_RadioSoundStop(void);
-
-/** Finds the ground hight and warps the player to it? */
-void Game_PlayerHeightUpdate(void);
-
-// ============ `bodyprog/events/events_main.c` =========================
-
-void Event_Update(bool disableButtonEvents);
-
-bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint);
-
-bool Event_CollideObbFacingCheck(s_MapPoint2d* mapPoint);
-
-bool Event_CollideObbCheck(s_MapPoint2d* mapPoint);
-
-// =========================
-
-// ==================== `bodyprog/events/npc_main.c` ==============
-
-void Savegame_EnemyStateUpdate(s_SubCharacter* chara);
-
-/** @brief Updates character's damage flag to reflect if damage was taken.
- *
- * @param chara Character to update.
- */
-void Chara_DamagedFlagUpdate(s_SubCharacter* chara);
-
-void func_80037E78(s_SubCharacter* chara);
-
-/** Responsible for loading NPCs on the map. */
-void Game_NpcRoomInitSpawn(bool cond);
-
-/** @brief Main NPC update function. Runs through each NPC and calls `g_MapOverlayHeader.charaUpdateFuncs_194` for them. */
-void Game_NpcUpdate(void);
-
-/** @brief Performs a 2D distance check on the XZ plane between two positions.
- *
- * @param from First position (Q19.12).
- * @param to Second position (Q19.12).
- * @param radius Intersection radius.
- * @return `true` if the 2D distance exceeds the radius, `false` otherwise.
- */
-bool Math_Distance2dCheck(const VECTOR3* from, const VECTOR3* to, q19_12 radius);
-
-// ====================
 
 s32 func_800382B0(s32 arg0);
 
@@ -4269,7 +4236,7 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork);
  */
 void Gfx_WorldObjectDraw(s_WorldObject* obj);
 
-void func_8003CC7C(s_WorldObjectModel* arg0, MATRIX* arg1, MATRIX* arg2);
+void func_8003CC7C(s_WorldObjectModel* model, MATRIX* arg1, MATRIX* arg2);
 
 /** @brief Advanced a character model LM buffer.
  *
@@ -4337,39 +4304,11 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1);
 /** Something for Puppet Doctor. */
 void func_8003E544(s_Skeleton* skel, s32 arg1);
 
-void Options_BrightnessMenu_LinesDraw(s32 arg0);
-
-/** Loads a flame graphic. */
-void GameFs_FlameGfxLoad(void);
-
-void Game_SpotlightLoadScreenAttribsFix(void);
-
-/** @brief Determines what enviroment effects data from `MAP_EFFECTS_INFOS` will use
- * based on `s_MapOverlayHeader::field_16`.
- */
-void Gfx_MapEffectsAssign(s_MapOverlayHeader* mapHdr);
-
-/** @brief Adjust light point attributes to make it simile a flashlight. */
-void Game_FlashlightAttributesFix(void);
-
 void func_8003ECBC(void);
 
 void func_8003ECE4(void);
 
 void func_8003EDA8(void);
-
-void func_8003EDB8(CVECTOR* color0, CVECTOR* color1);
-
-/** @unused */
-void func_8003EE30(s32 arg0, s32* arg1, s32 arg2, s32 arg3);
-
-void Gfx_LoadScreenMapEffectsUpdate(s32 arg0, s32 arg1);
-
-void Gfx_MapEffectsStepUpdate(const s_MapEffectsInfo* preset0, const s_MapEffectsInfo* preset1, e_PrimitiveType primType, void* primData, s32 arg4, s32 arg5);
-
-void Gfx_FogParametersSet(s_StructUnk3* arg0, const s_MapEffectsInfo* preset);
-
-void Gfx_FlashlightUpdate(void);
 
 /** Resets player info such as the inventory, health, and playtime in the savegame buffer. */
 void Game_SavegameResetPlayer(void);
@@ -4522,21 +4461,6 @@ void GameState_DebugMoviePlayer_Update(void);
 void GameState_Options_Update(void);
 void GameState_LoadMapScreen_Update(void);
 void GameState_Unk15_Update(void);
-
-/** @brief Toggles the player's flashlight on. */
-void Game_TurnFlashlightOn(void);
-
-/** @brief Toggles the player's flashlight off. */
-void Game_TurnFlashlightOff(void);
-
-/** @brief Toggles the player's flashlight. */
-void Game_FlashlightToggle(void);
-
-/** @brief Checks if the player's flashlight is on.
- *
- * @return `true` if the flashlight is on, `false` otherwise.
- */
-bool Game_FlashlightIsOn(void);
 
 /** Handles character spawn? */
 void func_80089034(e_CharacterId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ);

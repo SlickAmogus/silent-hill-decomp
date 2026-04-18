@@ -10,32 +10,34 @@
  * This code specifically handle file streaming and some general
  * sound game effects.
  *
- * @note Name deobfuscation.
+ * @note Name deobfuscation:
  * `Tokimeki Memorial ~Forever With You~` and `Konami International Rally Championship` symbols
- * indicate that what are named `commands` in the decomp are actually `tasks`. TM
- * suggests that at some point, they were called `events`.
+ * indicate what the decomp calls `commands` are actually `tasks`.
+ * TM suggests that at some point, they were called `events`.
  */
 
 // ==============
 // HELPER MACROS
 // ==============
 
-/** @brief Packs an audio type and program index into a single  value.
+/** * @brief Packs an audio type (VAB ID) and program index into a single 16-bit value.
  *
- * The third field from `s_VabInfo` is obfuscated.
- * The value get pass to `SdVoKeyOn` through the first argument (`vab_pro`) where it is used to give a
- * value to the variables `prog` (by doing the equivalent of `vab_progIdx_2 & 0x7F`) and `vabid`
- * (by doing the equivalent of `vab_progIdx_2 >> 8`).
- * This indicates from the values that are 516 (0x204), `prog` receives the value of
- * 2 while `vabid` would receive 4. This also fits with other values like 256 (0x100) and 514 (0x202).
+ * This macro replicates the encoding used in the third field of `s_VabInfo`. 
+ * The resulting value is passed to `SdVoKeyOn` via the `vab_pro` argument, 
+ * where the function extracts:
+ * - The Program Index: derived via `(vab_pro & 0x7F)`.
+ * - The VAB ID: derived via `vab_pro >> 8`.
  *
- * The first argument is related to `e_AudioType` and `g_Sd_AudioType`, used to
- * access the index of `vab_h`, which apparently allocates VAG data in memory.
+ * For example, a value of 516 (0x0204) results in a program index of 4 and a 
+ * VAB ID of 2. Similarly, 256 (0x0100) and 514 (0x0202) follow this bit-packed 
+ * structure.
  *
- * The second value is the index for a VAB-specific attribute named `program`.
+ * @param audioType ID used to index `vab_h`, which manages VAG data allocation in SPU memory.
+ * @param progIdx The specific program index within the VAB attribute table.
+ * @return Packed audio type and program index.
  */
 #define TYPE_AND_PROG_SFX(audioType, progIdx) \
-    (audioType << 8) + progIdx
+    ((audioType << 8) + progIdx)
 
 // ======
 // ENUMS
@@ -59,11 +61,48 @@ typedef enum _AudioType
     AudioType_MusicBank     = 3
 } e_AudioType;
 
+/** @brief VAB audio load states. */
+typedef enum _AudioLoadState
+{
+    AudioLoadState_Reset     = 0,
+    AudioLoadState_Stop      = 1,
+    AudioLoadState_SetOff    = 2,
+    AudioLoadState_LoadFile  = 3,
+    AudioLoadState_CheckLoad = 4,
+    AudioLoadState_Move      = 5,
+    AudioLoadState_SetNext   = 6,
+    AudioLoadState_MoveNext  = 7,
+    AudioLoadState_MoveLast  = 8,
+    AudioLoadState_Finalize  = 9
+} e_AudioLoadState;
+
+/** @brief XA load states. */
+typedef enum _XaLoadState
+{
+    XaLoadState_Initialize    = 0,
+    XaLoadState_SetMode       = 1,
+    XaLoadState_PrepareFilter = 2,
+    XaLoadState_SetFilter     = 3,
+    XaLoadState_CalculateLba  = 4,
+    XaLoadState_Seek          = 5,
+    XaLoadState_StartRead     = 6,
+    XaLoadState_EnableAudio   = 7
+} e_XaLoadState;
+
+/** @brief XA stop states. */
+typedef enum _XaStopState
+{
+    XaStopState_FadeOut   = 0,
+    XaStopState_Mute      = 1,
+    XaStopState_PauseDisc = 2,
+    XaStopState_Cleanup   = 3
+} e_XaStopState;
+
 // ========
 // STRUCTS
 // ========
 
-// Used for loading XA files. `field_0` holds commands for `Sd_CdPrimitiveCmdTry`
+// Used for loading XA files. `field_0` holds commands for `Sd_CdPrimitiveCmdTry`.
 typedef struct
 {
     u8 field_0;
@@ -91,8 +130,7 @@ typedef struct
                                      * that assigns it is executed. Part of a rule for `SD_Call`.
                                      */
     u8  isStereoEnabled_12;         /** `bool` */
-    s8  isXaStopping_13;            /** `bool` | Set to `true` to stop an XA file in memory from playing, otherwise `false`.
-                                     */
+    s8  isXaStopping_13;            /** `bool` | Set to `true` to stop an XA file in memory from playing, otherwise `false`. */
     u8  bgmFadeSpeed_14;            /** Music fade speed. Range: `[0, 2]`, default: 0. */
     u8  isAudioLoading_15;          /** `bool` | If a KDT or VAB file is being loaded. | Loading: `true`, Nothing loading: `false`, default: Nothing loading. */
     u8  isXaNotPlaying_16;          /** `bool` | Playing: `false`, Nothing playing: `true`, default: Nothing playing. */
@@ -239,8 +277,12 @@ extern s_VabInfo g_Vab_InfoTable[420];
 // This is done until a way to replicate `common`
 // segment behavior is found.
 
+extern CdlLOC XaCdLocation;
+
 #ifndef SH_PC_PORT
-extern CdlLOC D_800C15E8;
+/* PC port: these BSS-order externs cause unresolved symbols on PC where
+ * we don't link the matching PSX BSS image. Hide on PC; provided by
+ * stubs/data_stubs.c when actually needed. */
 extern s32 pad_bss_800C15EC;
 extern s_800C15F0 D_800C15F0[4];
 extern u16 g_AudioPlayingIdxList[24];
@@ -253,6 +295,7 @@ extern s_800C1688 D_800C1688;
 extern s32 pad_bss_800C1694;
 extern s_VabPlayingInfo g_Sd_VabPlayingInfo;
 extern u8 g_Sd_TaskPool[32];
+#endif
 extern s32 D_800C16C8[0x840];
 extern u8 g_Sd_AudioType;
 extern char pad_bss_800C37C9[3];
@@ -263,7 +306,6 @@ extern s_AudioItemData* g_Sd_VabTargetLoad;
 extern s_AudioItemData* g_Sd_KdtTargetLoad;
 extern u8 D_800C37DC;
 extern u8 g_Sd_CurrentTask;
-#endif
 #endif
 #endif
 

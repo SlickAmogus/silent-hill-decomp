@@ -1,4 +1,6 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -61,7 +63,7 @@ void func_800D14BC(void) // 0x800D14BC
     pickupType   = CommonPickupItemId_FirstAidKit;
     eventFlagIdx = 0;
 
-    switch (g_MapEventData->pointOfInterestIdx_5)
+    switch (g_MapEventData->pointOfInterestIdx)
     {
         case 101:
             pickupType   = CommonPickupItemId_HealthDrink;
@@ -79,9 +81,9 @@ void func_800D1500(void) // 0x800D1500
 
 void func_800D1524(void) // 0x800D1524
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx_5].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
 
-    Player_ItemRemove(InventoryItemId_BasementKey, 1);
+    Player_ItemRemove(InvItemId_BasementKey, 1);
     Map_MessageWithSfx(28, Sfx_UseKey, &sfxPos); // "Used basement key."
 
     Savegame_EventFlagSet(EventFlag_MapMark_585);
@@ -98,7 +100,7 @@ INCLUDE_RODATA("maps/map3_s01/nonmatchings/map3_s01", sharedData_800CB0A0_3_s01)
 
 void MapEvent_UnknownLiquidInteract(void) // 0x800D23AC
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -110,7 +112,7 @@ void MapEvent_UnknownLiquidInteract(void) // 0x800D23AC
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
@@ -145,7 +147,7 @@ void MapEvent_UnknownLiquidInteract(void) // 0x800D23AC
             break;
 
         case 10:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -168,7 +170,7 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
         EventState_5     = 5
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case EventState_0:
             Player_ControlFreeze();
@@ -179,7 +181,7 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
             break;
 
         case EventState_2:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 59);
+            func_80086C58(&g_SysWork.playerWork.player, 59);
             break;
 
         case EventState_SfxId:
@@ -191,7 +193,7 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
             break;
 
         case EventState_5:
-            func_80086C58(&g_SysWork.playerWork_4C.player_0, 60);
+            func_80086C58(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -200,15 +202,15 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
             Savegame_EventFlagSet(EventFlag_M3S01_PickupUnknownLiquid);
 
             // Replace Plastic Bottle with Unknown Liquid in inventory.
-            Player_ItemRemove(InventoryItemId_PlasticBottle, 1);
-            func_80086470(3, InventoryItemId_UnknownLiquid, DEFAULT_PICKUP_ITEM_COUNT, false);
+            Player_ItemRemove(InvItemId_PlasticBottle, 1);
+            func_80086470(3, InvItemId_UnknownLiquid, DEFAULT_PICKUP_ITEM_COUNT, false);
             break;
     }
 }
 
 void MapEvent_PlasticBottleTake(void) // 0x800D2720
 {
-    Event_ItemTake(InventoryItemId_PlasticBottle, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M3S01_PickupPlasticBottle, 21);
+    Event_ItemTake(InvItemId_PlasticBottle, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M3S01_PickupPlasticBottle, 21);
 }
 
 void MapEvent_MapTake0(void) // 0x800D274C
@@ -223,7 +225,7 @@ void MapEvent_MapTake1(void) // 0x800D2774
 
 void func_800D279C(void) // 0x800D279C
 {
-    Event_ItemTake(InventoryItemId_BasementKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M3S01_PickupBasementKey, 24);
+    Event_ItemTake(InvItemId_BasementKey, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M3S01_PickupBasementKey, 24);
 }
 
 void MapEvent_Generator0(void) // 0x800D27C8
@@ -234,7 +236,7 @@ void MapEvent_Generator0(void) // 0x800D27C8
         EventState_DontPressSwitch = NO_VALUE
     } e_EventState;
 
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -245,7 +247,7 @@ void MapEvent_Generator0(void) // 0x800D27C8
             break;
 
         case 2:
-            g_SysWork.silentYesSelection_2350_4 = true;
+            g_SysWork.silentYesSelection = true;
             MapMsg_DisplayAndHandleSelection(true, 25, EventState_PressSwitch, EventState_DontPressSwitch, 0, false); // "Do you want to press the switch?"
             break;
 
@@ -280,7 +282,7 @@ void MapEvent_Generator0(void) // 0x800D27C8
 
 void func_800D29A4(void) // 0x800D29A4
 {
-    switch (g_SysWork.sysStateStep_C[0])
+    switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
             Player_ControlFreeze();
@@ -305,7 +307,7 @@ void func_800D29A4(void) // 0x800D29A4
 
 void func_800D2A88(void) // 0x800D2A88
 {
-    if (g_SysWork.sysStateStep_C[1] == 0)
+    if (g_SysWork.sysStateSteps[1] == 0)
     {
         func_8005DC1C(Sfx_MenuMap, &QVECTOR3(61.72f, -0.8f, 100.5098f), Q8(0.5f), 0);
     }
@@ -426,14 +428,14 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
             Gfx_MapInitMapEffectsUpdate(4, 4);
 
             g_SysWork.field_235C = NULL;
-            g_SysWork.pointLightPosition_2360.vx = Q12(59.1f);
-            g_SysWork.pointLightPosition_2360.vy = Q12(-3.0f);
-            g_SysWork.pointLightPosition_2360.vz = Q12(19.1f);
+            g_SysWork.pointLightPosition.vx = Q12(59.1f);
+            g_SysWork.pointLightPosition.vy = Q12(-3.0f);
+            g_SysWork.pointLightPosition.vz = Q12(19.1f);
             g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightRot_2370.vx = Q12_ANGLE(-90.0f);
-            g_SysWork.pointLightRot_2370.vy = Q12_ANGLE(0.0f);
-            g_SysWork.pointLightRot_2370.vz = Q12_ANGLE(0.0f);
-            g_SysWork.pointLightIntensity_2378 = Q12(0.7f);
+            g_SysWork.pointLightRotation.vx = Q12_ANGLE(-90.0f);
+            g_SysWork.pointLightRotation.vy = Q12_ANGLE(0.0f);
+            g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
+            g_SysWork.pointLightIntensity = Q12(0.7f);
 
             func_8008D438();
 

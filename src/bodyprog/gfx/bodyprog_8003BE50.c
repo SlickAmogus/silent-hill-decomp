@@ -10,6 +10,7 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/memcard.h"
 #include "bodyprog/screen/screen_data.h"
@@ -65,15 +66,27 @@ void func_8003BED0(void) // 0x8003BED0
 
     itemLmHdr = &g_WorldGfxWork.itemLmHdr_1BE4;
 
-    if (!Fs_QueueIsEntryLoaded(g_WorldGfxWork.itemLmQueueIdx_2BE4) || itemLmHdr->isLoaded_2)
+    if (!Fs_QueueIsEntryLoaded(g_WorldGfxWork.itemLmQueueIdx_2BE4) || itemLmHdr->isLoaded)
     {
         return;
     }
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr_1BE4);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] LmHeader_FixOffsets done, matCnt=%d", g_WorldGfxWork.itemLmHdr_1BE4.materialCount);
+#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "TIM00", &IMAGE_TIM, 1);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] TIM00 apply done");
+#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "BG_ETC", &IMAGE_ETC, 1);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] BG_ETC apply done");
+#endif
     Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr_1BE4);
+#ifdef SH_PC_PORT
+    SH_DBG("[ITEM-LM] MaterialFlagsApply done");
+#endif
 }
 
 s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
@@ -83,7 +96,7 @@ s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
 
     zoneType = SpeedZoneType_Slow;
 
-    if (g_SavegamePtr->mapOverlayId_A4 == MapOverlayId_MAP0_S00)
+    if (g_SavegamePtr->mapOverlayId_A4 == MapIdx_MAP0_S00)
     {
         return SpeedZoneType_Normal;
     }
@@ -116,7 +129,7 @@ void WorldGfx_MapInit(void) // 0x8003C048
     Map_Init(GLOBAL_LM_BUFFER, IPD_BUFFER, 0x2C000);
     Collision_Init();
 
-    g_SysWork.pointLightIntensity_2378 = Q12(1.0f);
+    g_SysWork.pointLightIntensity = Q12(1.0f);
 
     Game_FlashlightAttributesFix();
     func_8005B55C(vwGetViewCoord());
@@ -161,7 +174,7 @@ void CharaModel_Free(s_CharaModel* model) // 0x8003C1AC
     s_FsImageDesc image = { 0 };
 
     //memset(&image, 0, 8);
-    model->charaId_0  = Chara_None;
+    model->charaId  = Chara_None;
     model->isLoaded_1 = false;
     model->queueIdx_4 = 0;
     model->lmHdr_8    = MAP_CHARA_LM_BUFFER;
@@ -196,6 +209,10 @@ void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerP
         activeIpdCount = 4;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[IPD-INIT] Ipd_PlayerChunkInit: flags=0x%02X activeIpdCount=%d playerPos=(%d,%d) mapTag='%.4s'",
+           flags, activeIpdCount, playerPosX, playerPosZ, mapHdr->mapInfo_0->tag_2);
+#endif
 
     mapInfo = mapHdr->mapInfo_0;
     Ipd_MapFileInfoSet(mapInfo->tag_2, mapInfo->plmFileIdx_0, activeIpdCount, CHECK_FLAG(mapInfo->flags_6, MapFlag_Interior, false), 0, 0);
@@ -220,10 +237,16 @@ void Map_WorldClear(void) // 0x8003C30C
     flags = g_WorldGfxWork.mapInfo_0->flags_6;
     if ((flags & MapFlag_Interior) && (flags & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[TRANSITION] Map_WorldClear: interior small room -> Map_WorldClearReset (flags=0x%02X)", flags);
+#endif
         Map_WorldClearReset();
         return;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[TRANSITION] Map_WorldClear: full clear -> Ipd_ActiveMapChunksClear + Ipd_TexturesRefClear (flags=0x%02X)", flags);
+#endif
     Ipd_ActiveMapChunksClear();
     Ipd_TexturesRefClear();
 }
@@ -231,7 +254,7 @@ void Map_WorldClear(void) // 0x8003C30C
 void WorldGfx_IpdSamplePointStore(void) // 0x8003C368
 {
     g_WorldGfxWork.useStoredPoint_4 = true;
-    g_WorldGfxWork.ipdSamplePoint_8 = g_SysWork.playerWork_4C.player_0.position_18;
+    g_WorldGfxWork.ipdSamplePoint_8 = g_SysWork.playerWork.player.position;
 }
 
 void WorldGfx_IpdSamplePointReset(void) // 0x8003C3A0
@@ -248,7 +271,7 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
                           // the player player position or a position slightly ahead computed from the heading angle.
                           //
                           // In Old Silent Hill (after Cafe 5to2) while standing still, this value is
-                          // the same as `g_SysWork.playerWork_4C.player_0.position_18`.
+                          // the same as `g_SysWork.playerWork.player.position`.
     VECTOR3         pos1; // Draw distance?
                           // If the conditional `if (g_WorldEnvWork.isFogEnabled_1)` is reversed
                           // to run the `else` block, when fog is enabled, the draw distance
@@ -268,7 +291,7 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
     u8              flagsCpy;
     s_SubCharacter* chara;
 
-    chara = &g_SysWork.playerWork_4C.player_0;
+    chara = &g_SysWork.playerWork.player;
 
     if (g_WorldGfxWork.useStoredPoint_4)
     {
@@ -276,18 +299,18 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
     }
     else
     {
-        pos0 = chara->position_18;
+        pos0 = chara->position;
     }
 
-    moveAmt = (chara->moveSpeed_38 * Q12(5.5f)) / 16015; // TODO: `Q12(3.91f)`? What's this doing?
+    moveAmt = (chara->moveSpeed * Q12(5.5f)) / 16015; // TODO: `Q12(3.91f)`? What's this doing?
     moveAmt = CLAMP(moveAmt, Q12(0.0f), Q12(5.5f));
 
-    pos0.vx += Q12_MULT_PRECISE(moveAmt, Math_Sin(chara->headingAngle_3C));
-    pos0.vz += Q12_MULT_PRECISE(moveAmt, Math_Cos(chara->headingAngle_3C));
+    pos0.vx += Q12_MULT_PRECISE(moveAmt, Math_Sin(chara->headingAngle));
+    pos0.vz += Q12_MULT_PRECISE(moveAmt, Math_Cos(chara->headingAngle));
 
     if (g_WorldGfxWork.mapInfo_0 == &MAP_INFOS[MapType_THR] &&
-        chara->position_18.vx >= Q12(-40.0f) && chara->position_18.vx <= Q12(40.0f) &&
-        chara->position_18.vz >= Q12(200.0f) && chara->position_18.vz <= Q12(240.0f))
+        chara->position.vx >= Q12(-40.0f) && chara->position.vx <= Q12(40.0f) &&
+        chara->position.vz >= Q12(200.0f) && chara->position.vz <= Q12(240.0f))
     {
         pos0.vz = Q12(200.0f);
     }
@@ -320,33 +343,33 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         pos1.vx += temp_s0_2;
         pos1.vz += temp_v1_4;
 
-        if (Vc_VectorMagnitudeCalc(pos1.vx - chara->position_18.vx, Q12(0.0f), pos1.vz - chara->position_18.vz) > Q12(16.0f))
+        if (Vc_VectorMagnitudeCalc(pos1.vx - chara->position.vx, Q12(0.0f), pos1.vz - chara->position.vz) > Q12(16.0f))
         {
             var_s1  = Q12(14.0f);
-            pos1.vx = chara->position_18.vx + Q12_MULT(Math_Sin(rot.vy), var_s1);
-            pos1.vz = chara->position_18.vz + Q12_MULT(Math_Cos(rot.vy), var_s1);
+            pos1.vx = chara->position.vx + Q12_MULT(Math_Sin(rot.vy), var_s1);
+            pos1.vz = chara->position.vz + Q12_MULT(Math_Cos(rot.vy), var_s1);
         }
     }
     else
     {
-        pos1     = chara->position_18;
-        pos1.vx += FP_FROM(Q12(Math_Sin(chara->rotation_24.vy)), Q12_SHIFT);
-        pos1.vz += FP_FROM(Q12(Math_Cos(chara->rotation_24.vy)), Q12_SHIFT);
+        pos1     = chara->position;
+        pos1.vx += FP_FROM(Q12(Math_Sin(chara->rotation.vy)), Q12_SHIFT);
+        pos1.vz += FP_FROM(Q12(Math_Cos(chara->rotation.vy)), Q12_SHIFT);
     }
 
     flagsCpy = g_WorldGfxWork.mapInfo_0->flags_6;
     if ((flagsCpy & MapFlag_Interior) && (flagsCpy & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
     {
-        var_a1 = chara->position_18.vx / Q12(2.5f);
-        if (chara->position_18.vx < Q12(0.0f))
+        var_a1 = chara->position.vx / Q12(2.5f);
+        if (chara->position.vx < Q12(0.0f))
         {
             var_a1--;
         }
 
-        var_a0  = chara->position_18.vz / Q12(2.5f);
+        var_a0  = chara->position.vz / Q12(2.5f);
         temp_a1 = var_a1 * Q12(2.5f);
 
-        if (chara->position_18.vz < Q12(0.0f))
+        if (chara->position.vz < Q12(0.0f))
         {
             var_a0--;
         }
@@ -410,25 +433,34 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
     }
 #endif
 
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] pre-ChunkCheckDraw");
+#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] pre-2dEffectsDraw");
+#endif
     Gfx_2dEffectsDraw();
+#ifdef SH_PC_PORT
+    SH_DBG("[INGAMEDRAW] done");
+#endif
 }
 
 // ========================================
 // OBJECTS DRAW
 // ========================================
 
-void WorldObject_ModelNameSet(s_WorldObjectModel* arg0, char* newStr) // 0x8003C8F8
+void WorldObject_ModelNameSet(s_WorldObjectModel* model, char* newStr) // 0x8003C8F8
 {
-    arg0->metadata_10.lmIdx_9 = 0;
-    arg0->modelInfo_0.field_0  = 0;
+    model->metadata_10.lmIdx_9 = 0;
+    model->modelInfo_0.field_0  = 0;
 
-    StringCopy(arg0->metadata_10.name_0.str, newStr);
+    StringCopy(model->metadata_10.name_0.str, newStr);
 
-    arg0->metadata_10.field_8 = 0;
+    model->metadata_10.field_8 = 0;
 }
 
-void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVECTOR3* rot) // 0x8003C92C
+void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVECTOR3* rot) // 0x8003C92C
 {
     q23_8          geomPosX;
     q23_8          geomPosY;
@@ -443,14 +475,18 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
     // Check if array of world objects to draw is full.
     if (g_WorldGfxWork.objectCount_2BE8 < ARRAY_SIZE(g_WorldGfxWork.objects_2BEC))
     {
-        if (arg0->metadata_10.lmIdx_9 == 0)
+        if (model->metadata_10.lmIdx_9 == 0)
         {
             func_8003BED0();
-            lmIdx = func_8004287C(arg0, &arg0->metadata_10, g_SysWork.playerWork_4C.player_0.position_18.vx, g_SysWork.playerWork_4C.player_0.position_18.vz);
+
+            lmIdx = func_8004287C(model, &model->metadata_10, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
             if (lmIdx == 0)
             {
-                if (!Lm_ModelFind(arg0, &g_WorldGfxWork.itemLmHdr_1BE4, &arg0->metadata_10))
+                if (!Lm_ModelFind(model, &g_WorldGfxWork.itemLmHdr_1BE4, &model->metadata_10))
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[WOBJ] Lm_ModelFind returned false, returning");
+#endif
                     return;
                 }
                 else
@@ -459,7 +495,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
                 }
             }
 
-            arg0->metadata_10.lmIdx_9 = lmIdx;
+            model->metadata_10.lmIdx_9 = lmIdx;
         }
 
         // Compute geometry position and rotation.
@@ -475,7 +511,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
         {
             obj = &g_WorldGfxWork.objects_2BEC[i];
 
-            if (arg0 == obj->model_0 &&
+            if (model == obj->model &&
                 geomPosX == obj->positionX_4 &&
                 geomPosZ == obj->positionZ_8 &&
                 geomPosY == obj->positionY_4 &&
@@ -493,7 +529,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* arg0, const VECTOR3* pos, const SVEC
         obj->rotationY_C = geomRotZ;
         if (obj->positionZ_8) {} // @hack Required for match.
         obj->rotationZ_C = geomRotY;
-        obj->model_0     = arg0;
+        obj->model     = model;
         obj->positionX_4 = geomPosX;
         obj->positionY_4 = geomPosY;
         obj->positionZ_8 = geomPosZ;
@@ -511,6 +547,9 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[WOD] enter count=%d sizeof_obj=%d", worldGfxWork->objectCount_2BE8, (int)sizeof(s_WorldObject));
+#endif
 
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects_2BEC[0]; curObj < &worldGfxWork->objects_2BEC[worldGfxWork->objectCount_2BE8]; curObj++)
@@ -524,8 +563,8 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
 {
     GsCOORDINATE2 coord;
-    SVECTOR       rot; // Q3_12
-    MATRIX        mats[2];
+    SVECTOR       rot;     // Q3_12
+    MATRIX        mats[2]; // View mat, world mat.
 
     coord.flg   = false;
     coord.super = NULL;
@@ -542,44 +581,46 @@ void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
 
     Math_RotMatrixZxyNeg(&rot, &coord.coord);
     Vw_CoordToWorldAndViewMatrices(&coord, &mats[1], &mats[0]);
-    func_8003CC7C(obj->model_0, &mats[0], &mats[1]);
+    func_8003CC7C(obj->model, &mats[0], &mats[1]);
 }
 
-void func_8003CC7C(s_WorldObjectModel* arg0, MATRIX* arg1, MATRIX* arg2) // 0x8003CC7C
+void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat) // 0x8003CC7C
 {
     s8                     lmIdx;
     s_WorldObjectMetadata* objMetaCpy;
     s_ModelHeader*         modelHdr;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[CC7C] arg0=%p", (void*)arg0);
-    if (arg0 == NULL) return;
+    /* PSX trusted the caller; PC sees occasional NULL `model` from
+     * map overlay sanitizer + un-decompiled callers. Bail rather than
+     * dereference. */
+    if (model == NULL) return;
 #endif
-    lmIdx = arg0->metadata_10.lmIdx_9;
+    lmIdx = model->metadata_10.lmIdx_9;
     if (lmIdx == 0)
     {
         return;
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] lmIdx=%d", (int)lmIdx);
+#endif
 
-    modelHdr   = arg0->modelInfo_0.modelHdr_8;
-    objMetaCpy = &arg0->metadata_10;
+    modelHdr   = model->modelInfo_0.modelHdr_8;
+    objMetaCpy = &model->metadata_10;
 
     if (lmIdx >= 3 && lmIdx < 7)
     {
         if (!IpdHeader_IsLoaded(lmIdx - 3))
         {
-            arg0->metadata_10.lmIdx_9 = 0;
+            model->metadata_10.lmIdx_9 = 0;
         }
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[CC7C] modelHdr=%p read_from=%p offsetof_modelHdr8=%d",
-           (void*)modelHdr,
-           (void*)&arg0->modelInfo_0.modelHdr_8,
-           (int)((char*)&arg0->modelInfo_0.modelHdr_8 - (char*)arg0));
+    SH_DBG("[CC7C] modelHdr=%p", (void*)modelHdr);
     if (modelHdr == NULL)
     {
-        arg0->metadata_10.lmIdx_9 = 0;
+        model->metadata_10.lmIdx_9 = 0;
         return;
     }
     SH_DBG("[CC7C] pre-COMPARE");
@@ -587,11 +628,14 @@ void func_8003CC7C(s_WorldObjectModel* arg0, MATRIX* arg1, MATRIX* arg2) // 0x80
 
     if (COMPARE_FILENAMES(&objMetaCpy->name_0, &modelHdr->name_0))
     {
-        arg0->metadata_10.lmIdx_9 = 0;
+        model->metadata_10.lmIdx_9 = 0;
         return;
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[CC7C] pre-57090");
+#endif
 
-    func_80057090(&arg0->modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, arg1, arg2, 0);
+    func_80057090(&model->modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
 
 // ========================================
@@ -608,17 +652,17 @@ s32 WorldGfx_PlayerPrevHeldItem(s_PlayerCombat* combat) // 0x8003CD6C
     s32 itemId;
     s8  weaponAttack;
 
-    weaponAttack = combat->weaponAttack_F;
+    weaponAttack = combat->weaponAttack;
     itemId       = NO_VALUE;
     if (weaponAttack != NO_VALUE)
     {
-        itemId = weaponAttack + InventoryItemId_KitchenKnife;
+        itemId = weaponAttack + InvItemId_KitchenKnife;
     }
 
     return WorldGfx_PlayerHeldItemSet(itemId);
 }
 
-s32 WorldGfx_PlayerHeldItemSet(e_InventoryItemId itemId) // 0x8003CDA0
+s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
 {
     s32         fileIdx;
     s_HeldItem* heldItem;
@@ -639,67 +683,67 @@ s32 WorldGfx_PlayerHeldItemSet(e_InventoryItemId itemId) // 0x8003CDA0
             break;
 
         case NO_VALUE:
-        case InventoryItemId_KitchenKnife:
-        case InventoryItemId_Hammer:
-        case InventoryItemId_Axe:
-        case InventoryItemId_Handgun:
-        case InventoryItemId_HuntingRifle:
-        case InventoryItemId_Shotgun:
+        case InvItemId_KitchenKnife:
+        case InvItemId_Hammer:
+        case InvItemId_Axe:
+        case InvItemId_Handgun:
+        case InvItemId_HuntingRifle:
+        case InvItemId_Shotgun:
             fileIdx                 = NO_VALUE;
             heldItem->textureName_8 = "HERO";
             break;
 
-        case InventoryItemId_SteelPipe:
+        case InvItemId_SteelPipe:
             fileIdx                 = FILE_ITEM_PIPE_TIM;
             heldItem->textureName_8 = "PIPE";
             break;
 
-        case InventoryItemId_CutscenePhone:
+        case InvItemId_CutscenePhone:
             fileIdx                 = FILE_ITEM_PHONE_TIM;
             heldItem->textureName_8 = "PHONE";
             break;
 
-        case InventoryItemId_CutsceneFlauros:
+        case InvItemId_CutsceneFlauros:
             fileIdx                 = FILE_ITEM_FLAUROS_TIM;
             heldItem->textureName_8 = "FLAUROS";
             break;
 
-        case InventoryItemId_CutsceneAglaophotis:
+        case InvItemId_CutsceneAglaophotis:
             fileIdx                 = FILE_ITEM_AGLA_TIM;
             heldItem->textureName_8 = "AGLA";
             break;
 
-        case InventoryItemId_CutscenePlasticBottle:
+        case InvItemId_CutscenePlasticBottle:
             fileIdx                 = FILE_ITEM_BOTL_TIM;
             heldItem->textureName_8 = "BOTL";
             break;
 
-        case InventoryItemId_CutsceneBaby:
+        case InvItemId_CutsceneBaby:
             fileIdx                 = FILE_ITEM_BABY_TIM;
             heldItem->textureName_8 = "BABY";
             break;
 
-        case InventoryItemId_CutsceneBloodPack:
+        case InvItemId_CutsceneBloodPack:
             fileIdx                 = FILE_ITEM_BLOOD_TIM;
             heldItem->textureName_8 = "BLOOD";
             break;
 
-        case InventoryItemId_Chainsaw:
+        case InvItemId_Chainsaw:
             fileIdx                 = FILE_ITEM_CSAW_TIM;
             heldItem->textureName_8 = "CSAW";
             break;
 
-        case InventoryItemId_HyperBlaster:
+        case InvItemId_HyperBlaster:
             fileIdx                 = FILE_ITEM_HPRGUN_TIM;
             heldItem->textureName_8 = "HPRGUN";
             break;
 
-        case InventoryItemId_RockDrill:
+        case InvItemId_RockDrill:
             fileIdx                 = FILE_ITEM_DRILL_TIM;
             heldItem->textureName_8 = "DRILL";
             break;
 
-        case InventoryItemId_Katana:
+        case InvItemId_Katana:
             fileIdx                 = FILE_ITEM_KATANA_TIM;
             heldItem->textureName_8 = "KATANA";
             break;
@@ -739,71 +783,71 @@ s32 WorldGfx_PlayerHeldItemSet(e_InventoryItemId itemId) // 0x8003CDA0
             fileIdx = NO_VALUE;
             break;
 
-        case InventoryItemId_KitchenKnife:
+        case InvItemId_KitchenKnife:
             fileIdx = FILE_ITEM_KNIFE_PLM;
             break;
 
-        case InventoryItemId_SteelPipe:
+        case InvItemId_SteelPipe:
             fileIdx = FILE_ITEM_PIPE_PLM;
             break;
 
-        case InventoryItemId_Hammer:
+        case InvItemId_Hammer:
             fileIdx = FILE_ITEM_HAMMER_PLM;
             break;
 
-        case InventoryItemId_Axe:
+        case InvItemId_Axe:
             fileIdx = FILE_ITEM_AXE_PLM;
             break;
 
-        case InventoryItemId_Handgun:
+        case InvItemId_Handgun:
             fileIdx = FILE_ITEM_HANDGUN_PLM;
             break;
 
-        case InventoryItemId_HuntingRifle:
+        case InvItemId_HuntingRifle:
             fileIdx = FILE_ITEM_RIFLE_PLM;
             break;
 
-        case InventoryItemId_Shotgun:
+        case InvItemId_Shotgun:
             fileIdx = FILE_ITEM_SHOTGUN_PLM;
             break;
 
-        case InventoryItemId_CutscenePhone:
+        case InvItemId_CutscenePhone:
             fileIdx = FILE_ITEM_PHONE_PLM;
             break;
 
-        case InventoryItemId_CutsceneFlauros:
+        case InvItemId_CutsceneFlauros:
             fileIdx = FILE_ITEM_FLAUROS_PLM;
             break;
 
-        case InventoryItemId_CutsceneAglaophotis:
+        case InvItemId_CutsceneAglaophotis:
             fileIdx = FILE_ITEM_AGLA_PLM;
             break;
 
-        case InventoryItemId_CutscenePlasticBottle:
+        case InvItemId_CutscenePlasticBottle:
             fileIdx = FILE_ITEM_BOTL_PLM;
             break;
 
-        case InventoryItemId_CutsceneBaby:
+        case InvItemId_CutsceneBaby:
             fileIdx = FILE_ITEM_BABY_PLM;
             break;
 
-        case InventoryItemId_CutsceneBloodPack:
+        case InvItemId_CutsceneBloodPack:
             fileIdx = FILE_ITEM_BLOOD_PLM;
             break;
 
-        case InventoryItemId_Chainsaw:
+        case InvItemId_Chainsaw:
             fileIdx = FILE_ITEM_CSAW_PLM;
             break;
 
-        case InventoryItemId_HyperBlaster:
+        case InvItemId_HyperBlaster:
             fileIdx = FILE_ITEM_HPRGUN_PLM;
             break;
 
-        case InventoryItemId_RockDrill:
+        case InvItemId_RockDrill:
             fileIdx = FILE_ITEM_DRILL_PLM;
             break;
 
-        case InventoryItemId_Katana:
+        case InvItemId_Katana:
             fileIdx = FILE_ITEM_KATANA_PLM;
             break;
     }
@@ -830,8 +874,8 @@ void func_8003D03C(void) // 0x8003D03C
 
 void WorldGfx_HeldItemDraw(void) // 0x8003D058
 {
-    MATRIX         mat0;
-    MATRIX         mat1;
+    MATRIX         viewMat;
+    MATRIX         worldMat;
     GsCOORDINATE2* coord;
     s_HeldItem*    heldItem;
     s_LmHeader*    lmHdr;
@@ -844,28 +888,43 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
     }
 
     // Distinguish between left-handed and right-handed items.
-    if (heldItem->itemId_0 == InventoryItemId_CutscenePhone)
+    if (heldItem->itemId_0 == InvItemId_CutscenePhone)
     {
-        coord = &g_SysWork.playerBoneCoords_890[HarryBone_LeftHand];
+        coord = &g_SysWork.playerBoneCoords[HarryBone_LeftHand];
     }
     else
     {
-        coord = &g_SysWork.playerBoneCoords_890[HarryBone_RightHand];
+        coord = &g_SysWork.playerBoneCoords[HarryBone_RightHand];
     }
 
     if (Fs_QueueIsEntryLoaded(heldItem->queueIdx_4))
     {
         lmHdr = heldItem->lmHdr_14;
-        if (!lmHdr->isLoaded_2)
+        if (!lmHdr->isLoaded)
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] FixOffsets begin: lmHdr=%p itemId=%d tex=%s", (void*)lmHdr, heldItem->itemId_0, heldItem->textureName_8 ? heldItem->textureName_8 : "(null)");
+#endif
             LmHeader_FixOffsets(lmHdr);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] FixOffsets done: matCnt=%d modelCnt=%d", lmHdr->materialCount, lmHdr->modelCount);
+#endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName_8, &heldItem->imageDesc_C, BlendMode_Additive);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] MaterialFsImageApply1 done");
+#endif
             Lm_MaterialFlagsApply(lmHdr);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] MaterialFlagsApply done");
+#endif
             Bone_ModelAssign(&heldItem->bone_18, heldItem->lmHdr_14, 0);
+#ifdef SH_PC_PORT
+            SH_DBG("[HELD-LM] Bone_ModelAssign done");
+#endif
         }
 
-        Vw_CoordToWorldAndViewMatrices(coord, &mat1, &mat0);
-        func_80057090(&heldItem->bone_18.modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, &mat0, &mat1, 0);
+        Vw_CoordToWorldAndViewMatrices(coord, &worldMat, &viewMat);
+        func_80057090(&heldItem->bone_18.modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
     }
 }
 
@@ -892,7 +951,7 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);
 
-    g_WorldGfxWork.harryModel_164C.charaId_0 = Chara_Harry;
+    g_WorldGfxWork.harryModel_164C.charaId = Chara_Harry;
     harryModel->isLoaded_1               = false;
     harryModel->queueIdx_4               = queueIdx;
     harryModel->lmHdr_8                  = harryLmHdr;
@@ -910,7 +969,7 @@ s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
     s_CharaModel* curModel;
 
     for (queueIdx = 0, i = 0, g_WorldGfxWork.charaLmBuffer_14 = MAP_CHARA_LM_BUFFER, cond = false;
-         i < GROUP_CHARA_COUNT;
+         i < CHARA_GROUP_COUNT;
          i++)
     {
         curCharaId = mapHdr->charaGroupIds_248[i];
@@ -920,12 +979,12 @@ s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
         {
             if (!cond)
             {
-                if (curCharaId != curModel->charaId_0)
+                if (curCharaId != curModel->charaId)
                 {
                     cond = true;
                     for (j = i; j < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); j++)
                     {
-                        g_WorldGfxWork.charaModels_CC[j].charaId_0 = Chara_None;
+                        g_WorldGfxWork.charaModels_CC[j].charaId = Chara_None;
                     }
                 }
             }
@@ -1083,7 +1142,7 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
     {
         curModel = &g_WorldGfxWork.charaModels_CC[i];
 
-        charaId = curModel->charaId_0;
+        charaId = curModel->charaId;
         if (charaId != Chara_None)
         {
             lmData = (s32)curModel->lmHdr_8 + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
@@ -1097,9 +1156,9 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
 
 void WorldGfx_CharaFree(s_CharaModel* model) // 0x8003D6A4
 {
-    if (model->charaId_0 != Chara_None)
+    if (model->charaId != Chara_None)
     {
-        g_WorldGfxWork.registeredCharaModels_18[model->charaId_0] = NULL;
+        g_WorldGfxWork.registeredCharaModels_18[model->charaId] = NULL;
         CharaModel_Free(model);
     }
 }
@@ -1114,7 +1173,7 @@ void WorldGfx_CharaLoad(e_CharacterId charaId, s32 modeIdx, s_LmHeader* lmHdr, s
     {
         lmHdrBuf = lmHdr;
     }
-    else if (g_WorldGfxWork.charaModels_CC[modeIdx].charaId_0 != Chara_None)
+    else if (g_WorldGfxWork.charaModels_CC[modeIdx].charaId != Chara_None)
     {
         lmHdrBuf = g_WorldGfxWork.charaModels_CC[modeIdx].lmHdr_8;
     }
@@ -1145,7 +1204,7 @@ s32 WorldGfx_CharaModelLoad(e_CharacterId charaId, s32 modelIdx, s_LmHeader* lmH
     s_FsImageDesc* modelTex;
 
     model        = &g_WorldGfxWork.charaModels_CC[modelIdx];
-    modelCharaId = model->charaId_0;
+    modelCharaId = model->charaId;
     modelTex     = &model->texture_C;
 
     // If character is invalid, set model as unused.
@@ -1178,7 +1237,7 @@ s32 WorldGfx_CharaModelLoad(e_CharacterId charaId, s32 modelIdx, s_LmHeader* lmH
     }
 
     // Set loaded model data.
-    model->charaId_0  = charaId;
+    model->charaId  = charaId;
     model->isLoaded_1 = false;
     model->queueIdx_4 = queueIdx;
     model->lmHdr_8    = lmHdr;
@@ -1213,13 +1272,15 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 {
     s_Skeleton* skel;
 
-
-    if (!model->isLoaded_1 && model->charaId_0 != Chara_None && Fs_QueueIsEntryLoaded(model->queueIdx_4))
+    if (!model->isLoaded_1 && model->charaId != Chara_None && Fs_QueueIsEntryLoaded(model->queueIdx_4))
     {
         model->isLoaded_1 = true;
 
+#ifdef SH_PC_PORT
+        SH_DBG("[CHARA-LOAD] charaId=%d lmHdr=%p fixing offsets...", model->charaId, (void*)model->lmHdr_8);
+#endif
         LmHeader_FixOffsets(model->lmHdr_8);
-        Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[model->charaId_0].textureFileIdx, &model->texture_C, CHARA_FILE_INFOS[model->charaId_0].materialBlendMode_6_10 % 4);
+        Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[model->charaId].textureFileIdx, &model->texture_C, CHARA_FILE_INFOS[model->charaId].materialBlendMode_6_10 % 4);
 
         skel = &model->skeleton_14;
 
@@ -1228,16 +1289,16 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
         {
             s_LmHeader* lm = model->lmHdr_8;
             SH_DBG("[CHARA-TEX] charaId=%d matCount=%d modelCount=%d",
-                    model->charaId_0, lm->materialCount_3, lm->modelCount_8);
-            for (int _mi = 0; _mi < lm->materialCount_3; _mi++) {
-                s_Material* _m = &lm->materials_4[_mi];
+                    model->charaId, lm->materialCount, lm->modelCount);
+            for (int _mi = 0; _mi < lm->materialCount; _mi++) {
+                s_Material* _m = &lm->materials[_mi];
                 SH_DBG("[CHARA-TEX] mat[%d] name='%.8s' field_C=%d E=0x%02x F=0x%02x clut=0x%04x UV=0x%04x tex=%p",
                         _mi, _m->name_0.str, _m->field_C, _m->field_E, _m->field_F,
                         _m->field_10, _m->field_14.u16, (void*)_m->texture_8);
             }
             /* Log first prim's texture data from first model's first mesh */
-            if (lm->modelCount_8 > 0 && lm->modelHdrs_C[0].meshCount_8 > 0) {
-                s_MeshHeader* _mh = &lm->modelHdrs_C[0].meshHdrs_C[0];
+            if (lm->modelCount > 0 && lm->modelHdrs[0].meshCount_8 > 0) {
+                s_MeshHeader* _mh = &lm->modelHdrs[0].meshHdrs_C[0];
                 if (_mh->primitiveCount_0 > 0) {
                     s_Primitive* _p = &_mh->primitives_4[0];
                     SH_DBG("[CHARA-TEX] prim0: f0=0x%04x(UV0) f2=0x%04x(clut) f4=0x%04x(UV1) f6=0x%04x(tpage) f8=0x%04x(UV2) fA=0x%04x(UV3)",
@@ -1447,8 +1508,6 @@ void func_8003DE60(s_Skeleton* skel, s32 arg1) // 0x8003DE60
         }
     }
 }
-
-const s32 pad_rodata_80025BB0 = 0;
 
 void func_8003DF84(s_Skeleton* skel, s32 arg1) // 0x8003DF84
 {
@@ -1749,3 +1808,5 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
             break;
     }
 }
+
+const s32 pad_rodata_80025BB0 = 0;

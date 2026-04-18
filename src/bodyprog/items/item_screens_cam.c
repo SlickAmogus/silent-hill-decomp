@@ -12,7 +12,6 @@
 #include "sh_log.h"
 #endif
 
-
 GsCOORD2PARAM D_800C3928;
 s8 g_Player_WeaponAttack;
 s8 pad_bss_800C3951[3];
@@ -140,11 +139,11 @@ void ItemScreen_ItemRotate(SVECTOR* arg0, GsCOORDINATE2* arg1) // 0x8004BCDC
 
 void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 {
-    MATRIX sp10;
-    MATRIX sp30;
-    MATRIX sp50;
-    s32 j;
+    MATRIX viewMat;
+    MATRIX localToScreenMat;
+    MATRIX worldMat;
     s32 i;
+    s32 j;
 
 #ifdef SH_PC_PORT
     SH_DBG("[BD74] enter idx=%d obj=%p coord2=%p tmd=%p arg2=%d",
@@ -152,17 +151,17 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
            arg1 ? (void*)arg1->coord2 : NULL,
            arg1 ? (void*)arg1->tmd : NULL, (int)arg2);
     if (arg1->coord2 == NULL) { SH_DBG("[BD74] null coord2"); return; }
-    if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd — skip"); return; }
+    if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd -- skip"); return; }
 #endif
-    Vw_CoordToWorldAndViewMatrices(arg1->coord2, &sp50, &sp10);
+    Vw_CoordToWorldAndViewMatrices(arg1->coord2, &worldMat, &viewMat);
 
-    sp30 = sp10;
+    localToScreenMat = viewMat;
 
     for (i = 0; i < 3; i++)
     {
         for (j = 0; j < 3; j++)
         {
-            sp10.m[i][j] = Q12(sp10.m[i][j]) / g_Items_Transforms[displayItemIdx].scale.vx;
+            viewMat.m[i][j] = Q12(viewMat.m[i][j]) / g_Items_Transforms[displayItemIdx].scale.vx;
         }
     }
 
@@ -172,13 +171,13 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         {
             for (j = 0; j < 3; j++)
             {
-                sp10.m[i][j] -= Q12_MULT(sp10.m[i][j], Math_Sin((g_Items_Coords[displayItemIdx].coord.t[2] + 0x400) >> 2));
+                viewMat.m[i][j] -= Q12_MULT(viewMat.m[i][j], Math_Sin((g_Items_Coords[displayItemIdx].coord.t[2] + 0x400) >> 2));
             }
         }
     }
 
-    GsSetLightMatrix(&sp10);
-    GsSetLsMatrix(&sp30);
+    GsSetLightMatrix(&viewMat);
+    GsSetLsMatrix(&localToScreenMat);
 
     if (arg2 == 2)
     {
@@ -209,7 +208,7 @@ void func_8004BFE8(void) // 0x8004BFE8
     // Set distance between projection plane and viewpoint. Results in FOV change.
     GsSetProjection(1000);
 
-    g_Player_WeaponAttack = g_SysWork.playerCombat_38.weaponAttack_F;
+    g_Player_WeaponAttack = g_SysWork.playerCombat.weaponAttack;
 }
 
 /** Possible failsafe?
