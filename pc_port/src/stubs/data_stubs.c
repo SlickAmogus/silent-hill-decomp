@@ -1292,6 +1292,12 @@ const s32 sharedData_800CB094_3_s01[3] = {
     (s32)0xFFF9B19A, (s32)0xFFFFE000, (s32)0xFFFC319A
 };
 
+/* Particle map idx globals: declared extern in particle.h, defined per-map in
+ * PSX symbol files (no-op on PC).  Define once here so the link resolves. */
+typedef int e_MapIdx; /* avoid pulling in heavy headers; underlying type is enum/int */
+e_MapIdx g_ParticleMapIdx0 = 0;
+e_MapIdx g_ParticleMapIdx1 = 0;
+
 /* Cross-map shared symbol: defined in map3_s05.c, used by map3_s04.c.
  * On PSX both maps share the address; on PC each is a separate DLL so
  * we promote the definition to the main exe and #ifndef the original.
