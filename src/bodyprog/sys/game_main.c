@@ -289,9 +289,14 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) {
             VECTOR3 gameCamPos;
             vcGetNowCamPos(&gameCamPos);
-            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d",
+            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d  harry=(%ld,%ld,%ld) yaw=%d  map=%d",
                 (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
-                (int)g_SysWork.cameraAngleY);
+                (int)g_SysWork.cameraAngleY,
+                (long)g_SysWork.playerWork.player.position.vx,
+                (long)g_SysWork.playerWork.player.position.vy,
+                (long)g_SysWork.playerWork.player.position.vz,
+                (int)g_SysWork.playerWork.player.rotation.vy,
+                (int)g_SavegamePtr->mapOverlayId_A4);
         }
         prevKey = cur;
     }
@@ -300,9 +305,14 @@ void DebugCamera_Update(void)
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_5];
         if (cur && !prevKey) {
-            SH_DBG("CORRECTED CAMERA POSITION pos=(%ld,%ld,%ld) angleY=%d angleX=%d",
+            SH_DBG("CORRECTED CAMERA POSITION pos=(%ld,%ld,%ld) angleY=%d angleX=%d  harry=(%ld,%ld,%ld) yaw=%d  map=%d",
                 (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
+                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX,
+                (long)g_DebugCamSavedHarryPos.vx,
+                (long)g_DebugCamSavedHarryPos.vy,
+                (long)g_DebugCamSavedHarryPos.vz,
+                (int)g_SysWork.playerWork.player.rotation.vy,
+                (int)g_SavegamePtr->mapOverlayId_A4);
         }
         prevKey = cur;
     }

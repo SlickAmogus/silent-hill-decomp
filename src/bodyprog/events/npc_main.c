@@ -421,14 +421,21 @@ void Game_NpcUpdate(void) // 0x80038354
                     _cherylInitDone = true;
                 }
             }
-            /* Same spawn-init pattern for Cybil/AirScreamer/GreyChild: reset
-             * stateStep once on first AI tick so Model_AnimStatusSet fires
-             * and the NPC actually enters its state machine. Without this the
-             * NPC appears loaded but never animates. Per-slot guard keyed on
-             * charaId so a second spawn after the first dies re-inits. */
+            /* Same spawn-init pattern for Cybil/AirScreamer: reset stateStep
+             * once on first AI tick so Model_AnimStatusSet fires and the NPC
+             * actually enters its state machine. Without this the NPC appears
+             * loaded but never animates.  Per-slot guard keyed on charaId so
+             * a second spawn after the first dies re-inits.
+             *
+             * NOT applied to GreyChild/Stalker: their AI uses stateStep as
+             * an init-switch selector (stateStep_5 / _6 / _7 etc map to
+             * different StalkerControl_X states).  map0_s00_2.c rewrites
+             * controlState=Uninitialized + stateStep=6 after the corpse
+             * cutscene to make them aggressive; resetting stateStep to 0
+             * here would break that handoff and leave them stuck in the
+             * Init->switch-no-match->Init loop forever. */
             else if (npc->model.charaId == Chara_Cybil ||
-                     npc->model.charaId == Chara_AirScreamer ||
-                     npc->model.charaId == Chara_GreyChild)
+                     npc->model.charaId == Chara_AirScreamer)
             {
                 if (npc->model.controlState == ModelState_Uninitialized) {
                     npc->model.stateStep = 0;
