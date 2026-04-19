@@ -71,15 +71,15 @@ s32 Bgm_Init(void) // 0x80035780
 #ifdef SH_PC_PORT
     {
         static int lastStep = -1;
-        if (g_GameWork.gameStateStep_598[1] != lastStep) {
-            SH_DBG("[SH] Bgm_Init: step=%d bgmIdx=%d bgmIdx_5B2=%d",
-                    g_GameWork.gameStateStep_598[1], g_MapOverlayHeader.bgmIdx_14, g_GameWork.bgmIdx_5B2);
-            lastStep = g_GameWork.gameStateStep_598[1];
+        if (g_GameWork.gameStateSteps[1] != lastStep) {
+            SH_DBG("[SH] Bgm_Init: step=%d bgmIdx=%d bgmIdx=%d",
+                    g_GameWork.gameStateSteps[1], g_MapOverlayHeader.bgmIdx_14, g_GameWork.bgmIdx);
+            lastStep = g_GameWork.gameStateSteps[1];
         }
     }
 #endif
 
-    switch (g_GameWork.gameStateStep_598[1])
+    switch (g_GameWork.gameStateSteps[1])
     {
         case 0:
             func_8003596C();
@@ -91,7 +91,7 @@ s32 Bgm_Init(void) // 0x80035780
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] Bgm_Init: bgm target matches, skip to step 3");
 #endif
-                g_GameWork.gameStateStep_598[1] += 2;
+                g_GameWork.gameStateSteps[1] += 2;
             }
             else
             {

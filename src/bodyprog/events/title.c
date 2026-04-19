@@ -61,11 +61,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_PC_PORT
     {
         static s32 prevStep = -1, prevMenuState = -1;
-        if (g_GameWork.gameStateStep_598[0] != prevStep || g_MainMenuState != prevMenuState) {
+        if (g_GameWork.gameStateSteps[0] != prevStep || g_MainMenuState != prevMenuState) {
             printf("[SH] MainMenu: step=%d mainMenuState=%d\n",
-                g_GameWork.gameStateStep_598[0], g_MainMenuState);
+                g_GameWork.gameStateSteps[0], g_MainMenuState);
             fflush(stdout);
-            prevStep = g_GameWork.gameStateStep_598[0];
+            prevStep = g_GameWork.gameStateSteps[0];
             prevMenuState = g_MainMenuState;
         }
     }
@@ -75,7 +75,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * skip_intros only skips logos; the menu itself is still shown for map0_s00. */
     {
         static int autoStartDone = 0;
-        if (!autoStartDone && g_GameWork.gameStateStep_598[0] == 1 &&
+        if (!autoStartDone && g_GameWork.gameStateSteps[0] == 1 &&
             strcmp(g_PcConfig.mapName, "map0_s00") != 0)
         {
             autoStartDone = 1;
@@ -85,7 +85,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             if (mapId < 0) mapId = 0;
             GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
             GameBoot_PlayerInit();
-            g_SysWork.processFlags = SysWorkProcessFlag_NewGame;
+            g_SysWork.processFlags = ProcessFlag_NewGame;
             GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
             GameFs_StreamBinLoad();
 
@@ -94,9 +94,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             MemCard_Disable();
             g_SysWork.counters_1C[0]        = 0;
             g_SysWork.counters_1C[1]        = 0;
-            g_GameWork.gameStateStep_598[0]  = 0;
-            g_GameWork.gameStateStep_598[1]  = 0;
-            g_GameWork.gameStateStep_598[2]  = 0;
+            g_GameWork.gameStateSteps[0]  = 0;
+            g_GameWork.gameStateSteps[1]  = 0;
+            g_GameWork.gameStateSteps[2]  = 0;
             SysWork_StateSetNext(SysState_Gameplay);
             return;
         }
@@ -137,7 +137,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         if (playInGameDemo)
         {
-            g_SysWork.processFlags = SysWorkProcessFlag_BootDemo;
+            g_SysWork.processFlags = ProcessFlag_BootDemo;
         }
         else
         {
@@ -148,9 +148,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     switch (g_MainMenuState)
     {
         case MenuState_Start:
-            g_GameWork.background2dColor_58C.r = 0;
-            g_GameWork.background2dColor_58C.g = 0;
-            g_GameWork.background2dColor_58C.b = 0;
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
             Screen_RectInterlacedClear(0, 32, SCREEN_WIDTH, FRAMEBUFFER_HEIGHT_INTERLACED, 0, 0, 0);
             Screen_Init(SCREEN_WIDTH, true);
 
@@ -273,7 +273,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         }
 
                         GameBoot_PlayerInit();
-                        g_SysWork.processFlags = SysWorkProcessFlag_Continue;
+                        g_SysWork.processFlags = ProcessFlag_Continue;
                         GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
                         break;
 
@@ -385,7 +385,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
 #endif
 
-                g_SysWork.processFlags = SysWorkProcessFlag_NewGame;
+                g_SysWork.processFlags = ProcessFlag_NewGame;
 
 
 #ifdef SH_PC_PORT
@@ -463,15 +463,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                 MemCard_Disable();
 
-                prevState                       = g_GameWork.gameState_594;
-                g_GameWork.gameStateStep_598[0] = prevState;
-                g_GameWork.gameState_594        = NEXT_GAME_STATES[g_MainMenu_SelectedEntry];
+                prevState                       = g_GameWork.gameState;
+                g_GameWork.gameStateSteps[0] = prevState;
+                g_GameWork.gameState        = NEXT_GAME_STATES[g_MainMenu_SelectedEntry];
                 g_SysWork.counters_1C[0]        = 0;
-                g_GameWork.gameStatePrev_590    = prevState;
-                g_GameWork.gameStateStep_598[0] = 0;
+                g_GameWork.gameStatePrev    = prevState;
+                g_GameWork.gameStateSteps[0] = 0;
                 g_SysWork.counters_1C[1]        = 0;
-                g_GameWork.gameStateStep_598[1] = 0;
-                g_GameWork.gameStateStep_598[2] = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] MenuState_NewGameStart: SysWork_StateSetNext(Gameplay)");
 #endif

@@ -37,7 +37,7 @@ static void GameBoot_NpcClear(void) // 0x80034EC8
 
 void GameBoot_NpcInit(void) // 0x80034F18
 {
-    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY_237A);
+    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
     func_8005E70C();
 
     if (g_SysWork.field_234A)
@@ -62,7 +62,7 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     HARRY_CHECK("start");
 #endif
     vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork.player.position);
-    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY_237A);
+    vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after vcInit");
 #endif
@@ -91,7 +91,7 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 #endif
 
     GameBoot_NpcClear();
-    g_SysWork.npcId_2280 = 5;
+    g_SysWork.npcFlagsId = 5;
     func_8005E650(mapOvlId);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after func_8005E650");

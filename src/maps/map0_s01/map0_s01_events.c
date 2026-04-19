@@ -88,7 +88,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
     s_SubCharacter* chara1;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
         g_SysWork.sysStateSteps[0] > 5 && g_SysWork.sysStateSteps[0] < 47)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -362,7 +362,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
             func_80088F94(&g_SysWork.npcs[0], 0, 0);
             SD_Call(19);
             Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, 0, 0);
-            func_80086470(3, InventoryItemId_Handgun, HANDGUN_AMMO_PICKUP_ITEM_COUNT, false);
+            func_80086470(3, InvItemId_Handgun, HANDGUN_AMMO_PICKUP_ITEM_COUNT, false);
             SysWork_StateStepIncrement(0);
 
         case 49:

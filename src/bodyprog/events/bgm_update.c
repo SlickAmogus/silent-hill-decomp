@@ -152,7 +152,7 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
     s32       endLayerIdx;
     q3_12*    layerVols;
     u8*       layerLimitsCpy;
-    static s8 bgmLayerVols[8];
+    static s8 bgmLayerVolumes[8];
 
     // Setup.
     flagsCpy       = flags;
@@ -276,7 +276,7 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
             curLayerVol1 = Q12(0.0312f);
         }
 
-        bgmLayerVols[i] = curLayerVol1;
+        bgmLayerVolumes[i] = curLayerVol1;
     }
 
     isMusicPlayer = false;
@@ -291,7 +291,7 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
         if (bgm_upd_count < 30) {
             SH_DBG("[SH_BGM] Bgm_Update #%d: active=%d st=%d fE=%d c0=%d fl=0x%x lv0=%d outV0=%d isMp=%d",
                     bgm_upd_count, isBgmLayerActive, D_800A99A0, temp_s2, cond0, flagsCpy,
-                    bgmLayerVols[0], bgmLayerVolumes[0], 0);
+                    bgmLayerVolumes[0], bgmLayerVolumes[0], 0);
             bgm_upd_count++;
         }
     }
@@ -362,14 +362,14 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
                     SH_DBG("[SH_BGM] isMusicPlayer+cond0: outVols=[%d,%d,%d,%d,%d,%d,%d,%d] lv0=%d",
                             bgmLayerVolumes[0], bgmLayerVolumes[1], bgmLayerVolumes[2], bgmLayerVolumes[3],
                             bgmLayerVolumes[4], bgmLayerVolumes[5], bgmLayerVolumes[6], bgmLayerVolumes[7],
-                            bgmLayerVols[0]);
+                            bgmLayerVolumes[0]);
                     mp_count++;
                 }
             }
 #endif
-            for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes_2748) - 1); i++)
+            for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
             {
-                Sd_BgmLayerVolumeSet(i, bgmLayerVols[i]);
+                Sd_BgmLayerVolumeSet(i, bgmLayerVolumes[i]);
             }
         }
         else

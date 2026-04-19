@@ -898,8 +898,8 @@ void vcSetNearestEnemyDataInVC_WORK(VC_WORK* w_p) // 0x80081D90
             (sc_p->deathTimer <= ENEMY_DEATH_TIME_MAX || sc_p->health >= Q12(0.0f)) &&
             !(sc_p->flags & CharaFlag_Unk5)) // `sc_p->battle(ShBattleInfo).status & (1 << 5)` in SH2.
         {
-            ofs_x = sc_p->position.vx - w_p->chara_pos_114.vx;
-            ofs_z = sc_p->position.vz - w_p->chara_pos_114.vz;
+            ofs_x = sc_p->position.vx - w_p->chara_pos.vx;
+            ofs_z = sc_p->position.vz - w_p->chara_pos.vz;
 
             if (abs(ofs_x) >= ENEMY_DIST_MAX ||
                 abs(ofs_z) >= ENEMY_DIST_MAX)
@@ -1040,8 +1040,8 @@ void vcSetNearRoadAryByCharaPos(VC_WORK* w_p, VC_ROAD_DATA* road_ary_list, s32 h
         static int _roadLog = 0;
         if (++_roadLog <= 5 || (_roadLog % 300) == 0) {
             SH_DBG("[ROAD] vcSetNearRoadAry: charaPos=(%d,%d) found=%d roads",
-                   (int)w_p->chara_pos_114.vx, (int)w_p->chara_pos_114.vz,
-                   (int)w_p->near_road_suu_2B4);
+                   (int)w_p->chara_pos.vx, (int)w_p->chara_pos.vz,
+                   (int)w_p->near_road_suu);
         }
     }
 #endif
@@ -1101,22 +1101,8 @@ bool vcSetCurNearRoadInVC_WORK(VC_WORK* w_p) // 0x800822B8
             ret_warp_f = true;
         }
 
-        w_p->cur_near_road_2B8 = *new_cur_p;
-#ifdef SH_PC_PORT
-        {
-            static int _selLog = 0;
-            if (++_selLog <= 5 || (_selLog % 300) == 0) {
-                VC_ROAD_DATA* rd = w_p->cur_near_road_2B8.road_p_0;
-                SH_DBG("[ROAD] CurRoad(new): rd=[%d,%d x %d,%d] sw=[%d,%d x %d,%d] flags=0x%x camMv=%d mvY=%d minHy=%d maxHy=%d watchOfsHy=%d",
-                       (int)Q4_TO_Q12(rd->lim_rd_8.min_hx)/4096, (int)Q4_TO_Q12(rd->lim_rd_8.max_hx)/4096,
-                       (int)Q4_TO_Q12(rd->lim_rd_8.min_hz)/4096, (int)Q4_TO_Q12(rd->lim_rd_8.max_hz)/4096,
-                       (int)Q4_TO_Q12(rd->lim_sw_0.min_hx)/4096, (int)Q4_TO_Q12(rd->lim_sw_0.max_hx)/4096,
-                       (int)Q4_TO_Q12(rd->lim_sw_0.min_hz)/4096, (int)Q4_TO_Q12(rd->lim_sw_0.max_hz)/4096,
-                       (int)rd->flags_10, (int)rd->cam_mv_type_14, (int)rd->mv_y_type_11,
-                       (int)rd->lim_rd_min_hy_13, (int)rd->lim_rd_max_hy_12, (int)rd->ofs_watch_hy_14);
-            }
-        }
-#endif
+        w_p->cur_near_road = *new_cur_p;
+
         return ret_warp_f;
     }
 
@@ -1420,7 +1406,7 @@ void vcAutoRenewalWatchTgtPosAndAngZ(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, V
         w_p->watch_tgt_pos = far_watch_pos;
     }
 
-    vcMixSelfViewEffectToWatchTgtPos(&w_p->watch_tgt_pos_7C, &w_p->watch_tgt_ang_z_8C, self_view_eff_rate,
+    vcMixSelfViewEffectToWatchTgtPos(&w_p->watch_tgt_pos, &w_p->watch_tgt_ang_z, self_view_eff_rate,
                                      w_p, &g_SysWork.playerBoneCoords[HarryBone_Head].workm, playerChara.model.anim.status);
 
     if (w_p->watch_tgt_pos.vy > w_p->watch_tgt_max_y)
@@ -1497,19 +1483,8 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
                 break;
         }
 
-        watch_y = Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14) + w_p->chara_bottom_y_120;
-#ifdef SH_PC_PORT
-        {
-            static int _watchLog = 0;
-            if (++_watchLog <= 3600) {
-                SH_DBG("[WATCH] watch_y=%d botY=%d topY=%d grndY=%d camY=%d ofsWhy=%d",
-                       watch_y, w_p->chara_bottom_y_120, w_p->chara_top_y_124,
-                       w_p->chara_grnd_y_12C, w_p->cam_pos_50.vy,
-                       Q4_TO_Q12(vcWork.cur_near_road_2B8.road_p_0->ofs_watch_hy_14));
-            }
-        }
-#endif
-        vcSetWatchTgtXzPos(watch_tgt_pos, &w_p->chara_pos_114, &w_p->cam_pos_50, tgt_chara2watch_cir_dist, tgt_watch_cir_r, w_p->chara_eye_ang_y_144);
+        watch_y = Q4_TO_Q12(vcWork.cur_near_road.road_p->ofs_watch_hy) + w_p->chara_bottom_y;
+        vcSetWatchTgtXzPos(watch_tgt_pos, &w_p->chara_pos, &w_p->cam_pos, tgt_chara2watch_cir_dist, tgt_watch_cir_r, w_p->chara_eye_ang_y);
         vcSetWatchTgtYParam(watch_tgt_pos, w_p, cam_mv_type, watch_y);
     }
 }
@@ -2178,9 +2153,16 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
 
     near_road_data = &w_p->cur_near_road;
 
-    ideal_pos->vx = w_p->chara_pos_114.vx + Q12_MULT(default_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y_FE));
-    ideal_pos->vy = w_p->chara_top_y_124  + Q12(0.65f); /* PC patch: lower camera to ~half height above ground (~1.05 vs ~2.1 world units) */
-    ideal_pos->vz = w_p->chara_pos_114.vz + Q12_MULT(default_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y_FE));
+    ideal_pos->vx = w_p->chara_pos.vx + Q12_MULT(default_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y));
+#ifdef SH_PC_PORT
+    /* PC patch: lower in-game camera to ~half height above ground (~1.05 vs ~2.1
+     * world units). PSX baseline `chara_top_y - 0.4` puts the camera ~2 units up;
+     * with PC's ground-at-zero convention this looks too high. */
+    ideal_pos->vy = w_p->chara_top_y  + Q12(0.65f);
+#else
+    ideal_pos->vy = w_p->chara_top_y  - Q12(0.4f);
+#endif
+    ideal_pos->vz = w_p->chara_pos.vz + Q12_MULT(default_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y));
 
     cam_pos_y   = w_p->cam_pos.vy;
     chara_pos_y = w_p->chara_pos.vy;
@@ -2202,34 +2184,25 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
 
     road_data = w_p->cur_near_road.road_p;
 
-/* On the PC port, all maps return Y=0 from Collision_Get because the IPD collision
- * mesh stores heights relative to world origin. The road-node lim_rd_max_hy (camera
- * height floor) was authored assuming Harry stands at a negative Y (e.g. the opening
- * road has maxHy=-40 Q4 = -10240 Q12, intending a 2.5-unit-high camera floor for a
- * ~2-unit-below-origin ground). With Harry at Y=0 the character-relative ideal
- * (chara_top - 0.4 Ã¢â€°Ë† -8601) exceeds -10240 in the CLAMP and the camera is pushed
- * 0.4 units too high, creating a steeper-than-intended downward pitch.
- *
- * Fix: keep only the ceiling clamp (lim_rd_min_hy, prevents extreme altitude) and
- * let the camera always reach its character-relative ideal on the Y axis.  The floor
- * clamp (lim_rd_max_hy) is skipped because it is calibrated for a world-Y baseline
- * that differs from the PC port's ground-at-zero convention. */
 #ifdef SH_PC_PORT
+    /* PSX clamps camera Y between lim_rd_min_hy (ceiling) and
+     * lim_rd_max_hy (floor). PC skips the floor clamp -- the road
+     * data is calibrated for a world-Y baseline that differs from
+     * our ground-at-zero convention; applying max_hy raised the
+     * camera ~0.4 units above where it should sit. */
     {
-        s32 _camMinHy = Q4_TO_Q12(road_data->lim_rd_min_hy_13);
+        s32 _camMinHy = Q4_TO_Q12(road_data->lim_rd_min_hy);
         if (ideal_pos->vy < _camMinHy)
             ideal_pos->vy = _camMinHy;
     }
 #else
-    ideal_pos->vy = CLAMP(ideal_pos->vy, Q4_TO_Q12(road_data->lim_rd_min_hy_13), Q4_TO_Q12(road_data->lim_rd_max_hy_12));
+    ideal_pos->vy = CLAMP(ideal_pos->vy, Q4_TO_Q12(road_data->lim_rd_min_hy), Q4_TO_Q12(road_data->lim_rd_max_hy));
 #endif
 
     temp_x = w_p->chara_pos.vx;
     temp_z = w_p->chara_pos.vz;
 
-#ifndef SH_PC_PORT
-    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&temp_x, &temp_z, &near_road_data->rd_14);
-#endif
+    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&temp_x, &temp_z, &near_road_data->rd);
 
     horizontal_distance_fp = Q12_TO_Q8(Vc_VectorMagnitudeCalc(temp_x - w_p->chara_pos.vx,
                                                               delta_y_clamped,
@@ -2270,12 +2243,7 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     ideal_pos->vx = w_p->chara_pos.vx + Math_MulFixed(final_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y), Q12_SHIFT);
     ideal_pos->vz = w_p->chara_pos.vz + Math_MulFixed(final_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y), Q12_SHIFT);
 
-    /* On PC: re-enable XZ constraint so the camera doesn't clip into walls or
-     * into void through narrow alley geometry. Without this, the chase-cam goes
-     * through walls whenever the road lim_rd_8 Z-range is small (e.g. the town
-     * alley has Z=[112,128], only 16 world units).  The PSX road node data was
-     * authored assuming this constraint is always active. */
-    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, &near_road_data->rd_14);
+    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, &near_road_data->rd);
 
     #undef ANGLE_DELTA_RANGE
 }
@@ -2942,7 +2910,7 @@ void vcSetDataToVwSystem(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type) // 0x80085884
 
     if (w_p->updateLookAtPoint)
     {
-        w_p->field_D8 = false;
+        w_p->updateLookAtPoint = false;
         vwSetCoordRefAndEntou(&g_SysWork.playerBoneCoords[HarryBone_Head],
                               Q12(0.0f), Q12(-0.05f), Q12(0.3f),
                               Q12_ANGLE(180.0f), Q12_ANGLE(0.0f), Q12(-0.2f), Q12(1.0f));

@@ -935,20 +935,8 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
     ProgAtr*  prog;
     s32       vabId;
     s32       sp48;
-#ifdef SH_PC_PORT
-    {
-        static int key_on_count = 0;
-        if (key_on_count < 10) {
-            MIDI* m_dbg = &smf_midi[chan];
-            s32 vab_dbg = (m_dbg->bank_change_5A > 0x10) ? smf_song[chan >> 4].sd_seq_vab_id_508 : m_dbg->bank_change_5A;
-            SH_DBG("[SH_BGM] key_on: chan=%d note=%d vel=%d vab=%d vh_addr=%p prog=%d",
-                    chan, c1, c2, vab_dbg, (void*)vab_h[vab_dbg].vh_addr_4, m_dbg->prog_no_0);
-            key_on_count++;
-        }
-    }
-#endif
-    MIDI*     m;
-    PORT*     p;
+    MIDI*     midi;
+    PORT*     port;
     VagAtr*   sd_vag_atr;
     s16       vo;
     s16       temp_s0_5;
@@ -1245,7 +1233,7 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 if (bgm_keyon_count < 10) {
                     SH_DBG("[SH_BGM] key_on final: vo=%d sp48=%d vol_l=%d vol_r=%d pitch=%u addr=0x%x vab=%d mvoll=%d mvolr=%d",
                             vo, sp48, s_attr.volume.left, s_attr.volume.right, s_attr.pitch, s_attr.addr,
-                            sp44, smf_song[chan >> 4].sd_seq_mvoll_50C, smf_song[chan >> 4].sd_seq_mvolr_50E);
+                            vabId, smf_song[chan >> 4].sd_seq_mvoll_50C, smf_song[chan >> 4].sd_seq_mvolr_50E);
                     bgm_keyon_count++;
                 }
             }

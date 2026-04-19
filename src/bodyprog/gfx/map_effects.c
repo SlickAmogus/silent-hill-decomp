@@ -506,7 +506,7 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, func_80080A10(), &g_SysWork), g_SysWork.pointLightIntensity);
 
     func_800554C4(temp, ptr2->flashlightLensFlareIntensity_2C, coord, g_SysWork.field_235C, &rot,
-                  g_SysWork.pointLightPosition_2360.vx, g_SysWork.pointLightPosition_2360.vy, g_SysWork.pointLightPosition_2360.vz,
+                  g_SysWork.pointLightPosition.vx, g_SysWork.pointLightPosition.vy, g_SysWork.pointLightPosition.vz,
 #ifdef SH_PC_PORT
                   g_WorldGfxWork.mapInfo_0 ? g_WorldGfxWork.mapInfo_0->waterZones_8 : NULL);
 #else
