@@ -4,7 +4,7 @@
 
 s32      g_VBlanks;
 s32      g_UncappedVBlanks;
-s32      pad_bss_800B5C3C;
+s32      __pad_bss_800B5C3C;
 GsOT_TAG g_OtTags0[2][16];
 
 q19_12   g_DeltaTime;

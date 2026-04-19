@@ -27,7 +27,7 @@ GsCOORDINATE2 D_800C3AE8; // 0x800C3AE8
 
 SVECTOR3 D_800C3B38; // 0x800C3B38
 
-s16 pad_bss_800C3B3E[5];
+s16 __pad_bss_800C3B3E[5];
 
 VbRVIEW D_800C3B48; // 0x800C3B48
 
@@ -39,7 +39,7 @@ s32 D_800C3BA8;
 
 s32 D_800C3BAC;
 
-s32 pad_bss_800C3BB0[2];
+s32 __pad_bss_800C3BB0[2];
 
 u8 g_Item_MapLoadableItems[48]; // 0x800C3BB8
 
@@ -53,11 +53,11 @@ s32 D_800C3E18[7]; // 0x800C3E18
 
 s32 g_Inventory_EquippedItemIdx; // 0x800C3E34
 
-s32 pad_bss_800C3E38[2];
+s32 __pad_bss_800C3E38[2];
 
 u8 D_800C3E40;
 
-s8 pad_bss_800C3E41[7];
+s8 __pad_bss_800C3E41[7];
 
 GsCOORDINATE2 g_Items_Coords[DISPLAYED_ITEM_COUNT_MAX]; // 0x800C3E48
 
@@ -1111,11 +1111,11 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_TransitionToStill,       false), false, ANIM_STATUS(HarryAnim_TransitionToStill,       true), { Q12(10.0f)    }, NO_VALUE, 0   },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_TransitionToStill,       true),  false, NO_VALUE,                                             { Q12(0.0f)     }, 0,        0   },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_WalkForward,             false), false, ANIM_STATUS(HarryAnim_WalkForward,             true), { Q12(50.0f)    }, NO_VALUE, 1   },
-    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_WalkForward,             true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(func_800706E4), 1,        23  },
+    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_WalkForward,             true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(Player_VariableAnimDurationGet), 1,        23  },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_RunForward,              false), false, ANIM_STATUS(HarryAnim_RunForward,              true), { Q12(20.0f)    }, NO_VALUE, 26  },
-    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_RunForward,              true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(func_800706E4), 26,       45  },
+    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_RunForward,              true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(Player_VariableAnimDurationGet), 26,       45  },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_WalkBackward,            false), false, ANIM_STATUS(HarryAnim_WalkBackward,            true), { Q12(20.0f)    }, NO_VALUE, 46  },
-    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_WalkBackward,            true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(func_800706E4), 46,       69  },
+    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_WalkBackward,            true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(Player_VariableAnimDurationGet), 46,       69  },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_SidestepLeft,            false), false, ANIM_STATUS(HarryAnim_SidestepLeft,            true), { Q12(50.0f)    }, NO_VALUE, 70  },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_SidestepLeft,            true),  false, NO_VALUE,                                             { Q12(30.0f)    }, 70,       94  },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_SidestepRight,           false), false, ANIM_STATUS(HarryAnim_SidestepRight,           true), { Q12(50.0f)    }, NO_VALUE, 95  },
@@ -1161,7 +1161,7 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Idle,                    false), false, ANIM_STATUS(HarryAnim_Idle,                    true), { Q12(5.0f)     }, NO_VALUE, 503 },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Idle,                    true),  false, NO_VALUE,                                             { Q12(10.0f)    }, 503,      542 },
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_IdleExhausted,           false), false, ANIM_STATUS(HarryAnim_IdleExhausted,           true), { Q12(5.0f)     }, NO_VALUE, 543 },
-    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(func_800706E4), 543,      567 },
+    { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(Player_VariableAnimDurationGet), 543,      567 },
 #ifdef SH_PC_PORT
     /* 56 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunAim,    false), false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(10.0f) }, NO_VALUE, 503 },
     /* 57 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_HandgunAim,    true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },

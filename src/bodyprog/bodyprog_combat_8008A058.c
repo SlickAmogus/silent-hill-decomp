@@ -1262,7 +1262,7 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     q19_12      offsetX;
     q19_12      offsetY;
     q19_12      offsetZ;
-    q20_12      damageAmt;
+    q20_12      damageAmount;
     s32         var_v1;
     u32         var_s7;
     s32         var_v0;
@@ -1416,7 +1416,7 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         var_v1 += 3;
     }
 
-    damageAmt = Q12_MULT_PRECISE(new_var, var_v1 >> 2);
+    damageAmount = Q12_MULT_PRECISE(new_var, var_v1 >> 2);
 
     switch (weaponAttack)
     {
@@ -1445,12 +1445,12 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         default:
             if (target != &g_SysWork.playerWork.player && !(target->flags & CharaFlag_Unk3))
             {
-                damageAmt *= 4;
+                damageAmount *= 4;
             }
 
             if (offsetY == 1)
             {
-                damageAmt = Q12_MULT_PRECISE(damageAmt, offsetZ);
+                damageAmount = Q12_MULT_PRECISE(damageAmount, offsetZ);
                 var_s7 = Q12_MULT_PRECISE(var_s7, offsetZ);
             }
 
@@ -1515,12 +1515,12 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] pre-damage: damageAmt=%d var_s7=%d offsetXYZ=(%d,%d,%d)",
-           damageAmt, var_s7, offsetX, offsetY, offsetZ);
+    SH_DBG("[B714] pre-damage: damageAmount=%d var_s7=%d offsetXYZ=(%d,%d,%d)",
+           damageAmount, var_s7, offsetX, offsetY, offsetZ);
 #endif
-    if (damageAmt != Q12(0.0f))
+    if (damageAmount != Q12(0.0f))
     {
-        target->damage.amount_C += damageAmt;
+        target->damage.amount_C += damageAmount;
     }
 
     if (var_s7 != 0)
@@ -1540,13 +1540,13 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     SH_DBG("[B714] post-damage: target->health=%d attackReceived=%d", target->health, target->attackReceived);
 #endif
 
-    if (damageAmt | var_s7)
+    if (damageAmount | var_s7)
     {
         var_a2 = temp_fp->field_12;
 
 #ifdef SH_PC_PORT
-        SH_DBG("[B714] effects: var_a2=%d target_charaId=%d damageAmt=%d var_s7=%d",
-               var_a2, target->model.charaId, damageAmt, var_s7);
+        SH_DBG("[B714] effects: var_a2=%d target_charaId=%d damageAmount=%d var_s7=%d",
+               var_a2, target->model.charaId, damageAmount, var_s7);
 #endif
 
         if (var_a2 > 0 && var_a2 < 8)
@@ -1715,11 +1715,11 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
     s_SubCharacter*  chara0;
     static VECTOR3 D_800C4788[4];
     static VECTOR3 D_800C47B8;
-    static s32 pad_bss_800C47C4;
+    static s32 __pad_bss_800C47C4;
     static VECTOR3 D_800C47C8[2];
-    static s32 pad_bss_800C4E0[2];
+    static s32 __pad_bss_800C4E0[2];
     static VECTOR3 D_800C47E8;
-    static s32 pad_bss_800C4F4;
+    static s32 __pad_bss_800C4F4;
     static s_RayData D_800C47F8;
 
     countX = chara->field_44.field_24[0].vx;

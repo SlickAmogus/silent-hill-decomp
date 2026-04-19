@@ -1057,7 +1057,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
              * FlyIdle playback once so wings flap during the flyby pass. */
             {
                 s_SubCharacter* _bird = &g_SysWork.npcs[0];
-                u8 _wantStatus = ANIM_STATUS(AirScreamerAnim_19, true);
+                u8 _wantStatus = ANIM_STATUS(AirScreamerAnim_HoverVariable, true);
                 if (_bird->model.anim.status != _wantStatus) {
                     _bird->model.anim.status = _wantStatus;
                     _bird->model.anim.keyframeIdx = 0;

@@ -10,7 +10,7 @@ s32 g_Demo_DemoFileIdx;
 
 s32 g_Demo_PlayFileIdx;
 
-s32 pad_bss_800C4848[2];
+s32 __pad_bss_800C4848[2];
 
 s_SaveUserConfig g_Demo_UserConfigBackup;
 
@@ -36,7 +36,7 @@ s_DemoFrameData* g_Demo_PlayFileBufferPtr = NULL; /* Initialized at runtime via 
 s_DemoFrameData* g_Demo_PlayFileBufferPtr = (s_DemoFrameData*)0x800F5E00;
 #endif
 
-bool Demo_SequenceAdvance(s32 incrementAmt) // 0x8008EF20
+bool Demo_SequenceAdvance(s32 incrementAmount) // 0x8008EF20
 {
     #define DEMO_FILE_COUNT_MAX 5
 
@@ -57,7 +57,7 @@ bool Demo_SequenceAdvance(s32 incrementAmt) // 0x8008EF20
 #endif
     };
 
-    g_Demo_DemoId += incrementAmt;
+    g_Demo_DemoId += incrementAmount;
 
     while (true)
     {
@@ -80,8 +80,8 @@ bool Demo_SequenceAdvance(s32 incrementAmt) // 0x8008EF20
         }
 
         // If funcptr is set and returned false, skip to next demo.
-        // Direction to skip depends on sign of `incrementAmt` (forward or backward).
-        if (incrementAmt >= 0)
+        // Direction to skip depends on sign of `incrementAmount` (forward or backward).
+        if (incrementAmount >= 0)
         {
             g_Demo_DemoId++;
         }

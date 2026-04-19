@@ -94,7 +94,7 @@ segments:
       - [0x3EC8,  rodata] # Garbage padding
       - [0x3ECC, .rodata, bodyprog_mapscreen_80066D90]
       - [0x3FE4, .rodata, collision]
-      - [0x4BF0, .rodata, bodyprog_800706E4]
+      - [0x4BF0, .rodata, player_control]
       - [0x5CF0, .rodata, view/vc_main]
       - [0x5F9C, .rodata, bodyprog_80085D78]
       - [0x60A4, .rodata, bodyprog_80089090]
@@ -167,12 +167,12 @@ segments:
       - [0x13264,   c, events/npc_main]          # }
       - [0x14074,   c, events/game_sys_states]   # }
       - [0x15FC8,   c, events/title] # Name convention from SH2/4.
-      - [0x171CC,   c, events/bodyprog_8003BD2C]
+      - [0x171CC,   c, events/bodyprog_8003BD2C] # npc_collisions_update.c?
       - [0x172F0,   c, gfx/bodyprog_8003BE50]
       - [0x19A88,   c, gfx/map_effects]
-      - [0x1B4A4,   c, gfx/bodyprog_80040004]
+      - [0x1B4A4,   c, events/bodyprog_80040004] # triggers_update.c?
       - [0x1B4EC,   c, view/vc_util]
-      - [0x1BF04,   c, gfx/bodyprog_80040A64]
+      - [0x1C014,   c, gfx/bodyprog_80040B74]
       - [0x1FA44,   c, gfx/bodyprog_anim_800445A4]
       - [0x20F1C,   c, sound/sd_call]
       - [0x23ED8,   c, view/vw_main]
@@ -191,7 +191,7 @@ segments:
       - [0x42230,   c, bodyprog_mapscreen_80066EB0]
       - [0x42350,   c, bodyprog_mapscreen_80066D90]
       - [0x44C8C,   c, collision]
-      - [0x4BB84,   c, bodyprog_800706E4]
+      - [0x4BB84,   c, player_control]
       - [0x5BDE0,   c, view/vc_main]
       - [0x61218,   c, bodyprog_80085D78]
       - [0x63348,   c, bodyprog_bgm_80087EA8]
@@ -464,7 +464,7 @@ segments:
       - [0x98288, .bss, gfx/map_effects]
       - [0x98298,  bss]
       - [0x9B08C,  pad] # Garbage.
-      - [0x9B090, .bss, gfx/bodyprog_80040A64]
+      - [0x9B090, .bss, gfx/bodyprog_80040B74]
       - [0x9CA4C,  pad] # Garbage.
       - [0x9CA50, .bss, gfx/bodyprog_anim_800445A4]
       - [0x9CA54,  pad] # Garbage.
@@ -483,7 +483,7 @@ segments:
                         # Variables only ever used in `Player_CombatUpdate`
                         # where it get assigned the position of player, but
                         # never used for anything else.
-                        # This shouldn't be part of `bodyprog_800706E4`
+                        # This shouldn't be part of `player_control`
                         # because of how far it is from bss data actually part
                         # of the file.
       - [0x9F774,  pad] # Garbage.
@@ -493,12 +493,12 @@ segments:
       - [0x9F8F4,  pad] # Garbage.
       - [0x9F8F8, .bss, collision]
       - [0x9F96C,  pad] # Garbage.
-      - [0x9F970, .bss, bodyprog_800706E4]
+      - [0x9F970, .bss, player_control]
       - [0x9FABC,  pad] # Garbage.
-      - [0x9FAC0,  bss, bodyprog_800706E4_2] # Only contains `D_800C4620` which must be nested
+      - [0x9FAC0,  bss, player_control_2] # Only contains `D_800C4620` which must be nested
                                              # static inside `func_800806AC` (since it's only used
                                              # there), however, it would require make another split
-                                             # to `bodyprog_800706E4.c`, but to not make incorrect
+                                             # to `player_control.c`, but to not make incorrect
                                              # premature splits better finish code recognition in order
                                              # to make proper guesses where to do the split is.
       - [0x9FACC,  pad] # Garbage.

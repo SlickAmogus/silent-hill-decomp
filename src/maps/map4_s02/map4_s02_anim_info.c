@@ -4,7 +4,7 @@
 #ifdef SH_PC_PORT
 /* Windows DLL: imported func ptrs aren't compile-time constants. Shim
  * to 0 then patch via constructor below. */
-#define func_800706E4 0
+#define Player_VariableAnimDurationGet 0
 #endif
 
 s_AnimInfo HARRY_M4S02_ANIM_INFOS[35] = {
@@ -27,11 +27,11 @@ s_AnimInfo HARRY_M4S02_ANIM_INFOS[35] = {
     { Anim_BlendLinear, ANIM_STATUS(46, false), false, ANIM_STATUS(46, true), { Q12(15) }, NO_VALUE, 824 },
     { Anim_PlaybackOnce, ANIM_STATUS(46, true), false, ANIM_STATUS(46, true), { Q12(15) }, 824, 830 },
     { Anim_BlendLinear, ANIM_STATUS(47, false), false, ANIM_STATUS(47, true), { Q12(15) }, NO_VALUE, 831 },
-    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { func_800706E4 }, 831, 844 },
+    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 831, 844 },
     { Anim_BlendLinear, ANIM_STATUS(48, false), false, ANIM_STATUS(48, true), { Q12(15) }, NO_VALUE, 845 },
     { Anim_PlaybackOnce, ANIM_STATUS(48, true), false, ANIM_STATUS(48, true), { Q12(15) }, 845, 851 },
     { Anim_BlendLinear, ANIM_STATUS(49, false), false, ANIM_STATUS(49, true), { Q12(15) }, NO_VALUE, 852 },
-    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { func_800706E4 }, 852, 865 },
+    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 852, 865 },
     { Anim_BlendLinear, ANIM_STATUS(50, false), false, ANIM_STATUS(50, true), { Q12(15) }, NO_VALUE, 866 },
     { Anim_PlaybackOnce, ANIM_STATUS(50, true), false, ANIM_STATUS(50, true), { Q12(15) }, 866, 892 },
     { Anim_BlendLinear, ANIM_STATUS(51, false), false, ANIM_STATUS(51, true), { Q12(15) }, NO_VALUE, 893 },
@@ -46,11 +46,11 @@ s_AnimInfo HARRY_M4S02_ANIM_INFOS[35] = {
 };
 
 #ifdef SH_PC_PORT
-#undef func_800706E4
+#undef Player_VariableAnimDurationGet
 
 __attribute__((constructor))
 static void map4_s02_anim_info_patch(void) {
-    HARRY_M4S02_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
-    HARRY_M4S02_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M4S02_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
+    HARRY_M4S02_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
 }
 #endif
