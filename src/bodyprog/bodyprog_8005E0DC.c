@@ -1991,9 +1991,14 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[6342C] enter weaponAttack=%d unkTable1_4C=%p count=%d coord=%p",
-           (int)weaponAttack, (void*)g_MapOverlayHeader.unkTable1_4C,
-           (int)g_MapOverlayHeader.unkTable1Count_50, (void*)coord);
+    /* Particle pipeline (muzzle flash + bullet sparks) emits POLY_FT4 prims
+     * into OT0 with CLUT/TPAGE bits referencing weapon textures that aren't
+     * loaded into our software VRAM. PsyCross then crashes on GsDrawOt of
+     * OT0 the next frame. Skip the entire particle dispatch on PC until
+     * the weapon-texture upload path is wired up. The combat damage logic
+     * in Player_CombatUpdate / func_8008A0E4 is unaffected. */
+    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping particle dispatch)", (int)weaponAttack);
+    return;
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.

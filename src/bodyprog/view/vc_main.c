@@ -375,8 +375,12 @@ s32 vcExecCamera(void) // 0x80080FBC
         } s_PcCamOverride;
 
         static const s_PcCamOverride OVERRIDES[] = {
-            /* map0_s01 corner — recorded via Numpad debug + key 5 */
-            { 1, { 14891, 0, 1095525 }, Q12(3.0f),
+            /* map0_s01 corner — DISABLED until a confirmed-good debug-cam
+             * recording is captured. The previously-saved (1760, 272) pose
+             * appears to have been the user's bad-camera reproduction in
+             * debug mode, not the corrected pose. Set radius back to
+             * Q12(1.5f) once new angles arrive. */
+            { 1, { 14891, 0, 1095525 }, Q12(0.0f),
                  { 14720, -10240, 1100997 }, 1760, 272 },
         };
 

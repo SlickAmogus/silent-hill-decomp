@@ -347,6 +347,15 @@ void DebugCamera_Update(void)
                 if (g_TpsCamPitch >  Q12_ANGLE(80.0f)) g_TpsCamPitch =  Q12_ANGLE(80.0f);
             }
 
+            /* Place camPos at distance D back along yaw, lifted by pitch.
+             * Use the same lookAt-based formula as the debug free-fly cam:
+             *   forward = cos(pitch) * D
+             *   camPos  = harry + (-forward*sin(yaw), -sin(pitch)*D + base_height, -forward*cos(yaw))
+             *   lookAt  = harry + (0, lookat_ofs, 0)
+             * then Vw_SetLookAtMatrix derives the view matrix. Avoids the
+             * earlier Math_RotMatrixZxyNeg path whose Ry*Rx (vs the correct
+             * Rx*Ry for orbit) caused the camera to tumble on diagonal
+             * mouse motion. */
             s32 tpSinY     = Math_Sin(g_TpsCamYaw);
             s32 tpCosY     = Math_Cos(g_TpsCamYaw);
             s32 tpSinPitch = Math_Sin(g_TpsCamPitch);
@@ -363,24 +372,7 @@ void DebugCamera_Update(void)
             tpLookAt.vz = tp_hr->position.vz;
             tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS;
 
-            /* Build view matrix directly. Vw_SetLookAtMatrix re-derives yaw
-             * via ratan2(sinY*k, cosY*k) and Q12 rounding makes pitch vary
-             * with yaw → camera tilts on horizontal mouse. Using exact yaw
-             * fixes that. */
-            {
-                SVECTOR camRot;
-                MATRIX  viewMat;
-                s32 deltaY_q8    = (s32)Q12_TO_Q8(tpLookAt.vy - tpCamPos.vy);
-                s32 horizDist_q8 = (s32)Q12_TO_Q8(tpHorizDist > 0 ? tpHorizDist : 1);
-                camRot.vz = (s16)Q12_ANGLE(0.0f);
-                camRot.vy = (s16)g_TpsCamYaw;
-                camRot.vx = (s16)ratan2(-(q23_8)deltaY_q8, (q23_8)horizDist_q8);
-                Math_RotMatrixZxyNeg(&camRot, &viewMat);
-                viewMat.t[0] = Q12_TO_Q8(tpCamPos.vx);
-                viewMat.t[1] = Q12_TO_Q8(tpCamPos.vy);
-                viewMat.t[2] = Q12_TO_Q8(tpCamPos.vz);
-                vwSetViewInfoDirectMatrix(NULL, &viewMat);
-            }
+            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
 
             /* Key 6 (top row): snapshot TPS camera state for tuning */
