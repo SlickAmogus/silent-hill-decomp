@@ -375,18 +375,14 @@ s32 vcExecCamera(void) // 0x80080FBC
         } s_PcCamOverride;
 
         static const s_PcCamOverride OVERRIDES[] = {
-            /* map0_s01 corner — recorded via Numpad debug + key 5
-             * (latest run: harry=(17016,0,1094800), bad cam was
-             * around (13886,-8448,1097555)).
-             *
-             * angleX is FLIPPED from what the debug-cam logger recorded
-             * (-256 → +256). The recorded value's sign disagrees with
-             * how the in-game camera path interprets pitch — a known
-             * convention disconnect we still need to root-cause. Empirical
-             * fix: negate angleX here until the debug-cam math is
-             * reconciled with the playthrough camera path. */
-            { 1, { 17016, 0, 1094800 }, Q12(1.5f),
-                 { 18763, -8448, 1101611 }, 1856, 256 },
+            /* map0_s01 corner — recorded via Numpad debug + key 5.
+             * Latest run: harry=(13533,0,1098735), bad cam pos was
+             * (18763,-8448,1101611). User's verified-good pose recorded
+             * angleY=1792, angleX=-192 (NEGATIVE here = camera tilted
+             * down, per user empirical confirmation that numpad-+
+             * (+angleX) shows sky/ceiling). */
+            { 1, { 13533, 0, 1098735 }, Q12(1.5f),
+                 { 16771, -8448, 1099500 }, 1792, -192 },
         };
 
         s32 hx = g_SysWork.playerWork.player.position.vx;
