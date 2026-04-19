@@ -68,7 +68,7 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
                         chara->model.anim.status, chara->model.anim.keyframeIdx,
                         ai->startKeyframeIdx, ai->endKeyframeIdx,
                         dahliaProps.stateIdx0,
-                        anmHdr->keyframeCount_10, anmHdr->boneCount_6);
+                        anmHdr->keyframeCount, anmHdr->boneCount);
                 _cDbg++;
             }
             if (ai->playbackFunc != NULL)

@@ -526,7 +526,7 @@ s32 g_Items_DisplayedCount = 0;
 u8 g_Inventory_EquippedItem = 0;
 u8 D_800AE185 = 0;
 u8 D_800AE186 = 0;
-u8 D_800AE187 = InvItemId_Unequipped; // `e_InventoryItemId`
+u8 D_800AE187 = InvItemId_Unequipped; // `e_InvItemId`
 u32 D_800AE188 = 0;
 u16 D_800AE18C = 0; // } Used by JAP0-only code.
 u16 D_800AE18E = 0; // }
@@ -2839,7 +2839,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             if (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].count_1 == 0 &&
-                INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo)
+                INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo)
             {
                 g_Inventory_ScrollTransitionTimer++;
                 *selectedItemId = 0;
@@ -2929,7 +2929,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             {
                 D_800C3BAC = NO_VALUE;
 
-                if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo)
+                if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo)
                 {
                     for (l = 0; l < g_SavegamePtr->inventorySlotCount_AB; l++)
                     {
@@ -2983,7 +2983,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             if ((g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].count_1 == 0 &&
-                 INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo) ||
+                 INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo) ||
                 var_t3 >= 0 && g_SavegamePtr->items_0[var_t3].count_1 == 0)
             {
                 g_Inventory_ScrollTransitionTimer++;
@@ -3079,20 +3079,20 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             {
                 switch (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0)
                 {
-                    case InventoryItemId_HealthDrink:
-                    case InventoryItemId_FirstAidKit:
-                    case InventoryItemId_Ampoule:
+                    case InvItemId_HealthDrink:
+                    case InvItemId_FirstAidKit:
+                    case InvItemId_Ampoule:
                         switch (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0)
                         {
-                            case InventoryItemId_FirstAidKit:
+                            case InvItemId_FirstAidKit:
                                 g_SysWork.playerWork.player.health += Q12(80.0f);
                                 break;
 
-                            case InventoryItemId_HealthDrink:
+                            case InvItemId_HealthDrink:
                                 g_SysWork.playerWork.player.health += Q12(40.0f);
                                 break;
 
-                            case InventoryItemId_Ampoule:
+                            case InvItemId_Ampoule:
                                 g_SysWork.playerWork.player.health += Q12(100.0f);
                                 g_SavegamePtr->healthSaturation_238    = Q12(300.0f);
                                 break;
@@ -3164,9 +3164,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
         case 11:
             if (g_Inventory_ScrollTransitionTimer == 0 &&
-                ((g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 >= InventoryItemId_LobbyKey &&
-                  g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 < InventoryItemId_KitchenKnife) ||
-                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 == InventoryItemId_GasolineTank))
+                ((g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 >= InvItemId_LobbyKey &&
+                  g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 < InvItemId_KitchenKnife) ||
+                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 == InvItemId_GasolineTank))
             {
                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].count_1 = 0;
             }
@@ -3828,7 +3828,7 @@ void func_800540A4(s8 arg0) // 0x800540A4
 
     for (i = 0; i < g_SavegamePtr->inventorySlotCount_AB; i++)
     {
-        if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[i].id_0) == InventoryItemGroup_GunAmmo &&
+        if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[i].id_0) == InvItemGroup_GunAmmo &&
             g_SavegamePtr->items_0[i].id_0 == INVENTORY_WEAPON_AMMO_ID(g_SavegamePtr->items_0[g_SysWork.playerCombat.weaponInventoryIdx].id_0))
         {
             g_SavegamePtr->items_0[i].count_1 = g_SysWork.playerCombat.totalWeaponAmmo;
@@ -4014,7 +4014,7 @@ void Inventory_ExitAnimFixes(void) // 0x80054634
     g_SavegamePtr->equippedWeapon_AA = g_Inventory_EquippedItem;
     if (g_SavegamePtr->equippedWeapon_AA)
     {
-        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(g_SavegamePtr->equippedWeapon_AA + InventoryItemId_KitchenKnife, AttackInputType_Tap);
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(g_SavegamePtr->equippedWeapon_AA + InvItemId_KitchenKnife, AttackInputType_Tap);
     }
     else
     {

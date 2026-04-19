@@ -122,7 +122,7 @@ void DebugCamera_Update(void)
     #define DBG_CAM_VERT_SPEED 256
 
     if (!g_sdlKeyboardState) return;
-    if (g_GameWork.gameState_594 != GameState_InGame) return;
+    if (g_GameWork.gameState != GameState_InGame) return;
 
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
     {
@@ -132,7 +132,7 @@ void DebugCamera_Update(void)
             if (g_DebugCamEnabled) {
                 /* Capture current camera as starting point */
                 vcGetNowCamPos(&g_DebugCamPos);
-                g_DebugCamAngleY = g_SysWork.cameraAngleY_237A;
+                g_DebugCamAngleY = g_SysWork.cameraAngleY;
                 g_DebugCamAngleX = 0;
                 g_DebugCamInited = 1;
                 /* Save Harry's position to restore when debug cam is disabled */
@@ -291,7 +291,7 @@ void DebugCamera_Update(void)
             vcGetNowCamPos(&gameCamPos);
             SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d",
                 (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
-                (int)g_SysWork.cameraAngleY_237A);
+                (int)g_SysWork.cameraAngleY);
         }
         prevKey = cur;
     }
@@ -619,17 +619,17 @@ void GameState_Boot_Update(void) // 0x80032D1C
 
                 SysWork_StateSetNext(SysState_Gameplay);
 
-                g_GameWork.gameStateStep_598[0] = gameState;
+                g_GameWork.gameStateSteps[0] = gameState;
 #ifdef SH_PC_PORT
                 if (g_PcConfig.skipIntros) {
                     /* Normally called by b_konami.c; must happen before MainMenu */
                     Settings_RestoreDefaults();
-                    g_GameWork.gameState_594 = GameState_MainMenu;
+                    g_GameWork.gameState = GameState_MainMenu;
                 } else
 #endif
-                g_GameWork.gameState_594        = gameState + 1;
-                g_GameWork.gameStatePrev_590    = gameState;
-                g_GameWork.gameStateStep_598[0] = 0;
+                g_GameWork.gameState        = gameState + 1;
+                g_GameWork.gameStatePrev    = gameState;
+                g_GameWork.gameStateSteps[0] = 0;
             }
             break;
     }
@@ -722,8 +722,8 @@ void MainLoop(void) // 0x80032EE0
         }
         GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
 #else
-        if (g_GameWork.gameState_594 == GameState_MainLoadScreen ||
-            g_GameWork.gameState_594 == GameState_InGame)
+        if (g_GameWork.gameState == GameState_MainLoadScreen ||
+            g_GameWork.gameState == GameState_InGame)
         {
             GsOUT_PACKET_P = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 17));
         }
@@ -743,9 +743,9 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
         // Call update function for current GameState.
-        g_GameStateUpdateFuncs[g_GameWork.gameState_594]();
+        g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == GameState_InGame) {
+        if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
             /* --- Canary checks after game state update --- */
             {
@@ -874,7 +874,7 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState_594 == GameState_InGame)
+                    if (g_GameWork.gameState == GameState_InGame)
                     {
                         int effectiveFps;
 
@@ -955,7 +955,7 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
         /* Numpad .: toggle fog on/off (only active during debug camera) */
-        if (g_sdlKeyboardState && g_GameWork.gameState_594 == 11) {
+        if (g_sdlKeyboardState && g_GameWork.gameState == 11) {
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
             if (cur && !g_DebugFogTogglePrev && g_DebugCamEnabled) {
                 g_DebugFogDisabled = !g_DebugFogDisabled;
@@ -975,17 +975,17 @@ void MainLoop(void) // 0x80032EE0
 
         /* Enable hor+ widescreen only during 3D world states; 2D UI screens
          * (menus, loading screen, memory card warning, etc.) use 4:3 ortho. */
-        g_PcHorPlusEnabled = (g_GameWork.gameState_594 == GameState_InGame ||
-                              g_GameWork.gameState_594 == GameState_MapEvent) ? 1 : 0;
+        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame ||
+                              g_GameWork.gameState == GameState_MapEvent) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState_594 == 11 && PC_WorldEnvWork.isFogEnabled_1) {
-            g_GameWork.background2dColor_58C.r = PC_WorldEnvWork.fogColor_1C.r;
-            g_GameWork.background2dColor_58C.g = PC_WorldEnvWork.fogColor_1C.g;
-            g_GameWork.background2dColor_58C.b = PC_WorldEnvWork.fogColor_1C.b;
+        if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled_1) {
+            g_GameWork.background2dColor.r = PC_WorldEnvWork.fogColor_1C.r;
+            g_GameWork.background2dColor.g = PC_WorldEnvWork.fogColor_1C.g;
+            g_GameWork.background2dColor.b = PC_WorldEnvWork.fogColor_1C.b;
             g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
@@ -997,10 +997,10 @@ void MainLoop(void) // 0x80032EE0
         {
             volatile u32 _stackCanary = 0xDEADBEEF;
 #endif
-        GsSortClear(g_GameWork.background2dColor_58C.r, g_GameWork.background2dColor_58C.g, g_GameWork.background2dColor_58C.b, &g_OrderingTable0[g_ActiveBufferIdx]);
+        GsSortClear(g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b, &g_OrderingTable0[g_ActiveBufferIdx]);
         ML_TRACE("post-GsSortClear");
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState_594 == 11) {
+        if (g_GameWork.gameState == 11) {
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
              * Strip DR_MODE (0xE0) which crashes PsyCross ProcessDrawEnv,
              * lines (0x40/0x50), and any unknown types. Texture page info is
@@ -1034,7 +1034,7 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("OT0-draw");
 #ifdef SH_PC_PORT
         /* Pre-draw canary check: detect if corruption happened during OT build */
-        if (g_GameWork.gameState_594 == GameState_InGame) {
+        if (g_GameWork.gameState == GameState_InGame) {
             int _ci; int _canaryOk = 1;
             for (_ci = 0; _ci < PC_CANARY_SIZE; _ci++) {
                 if (s_PcPacketBufEnds[g_ActiveBufferIdx][_ci] != PC_CANARY_VAL) { _canaryOk = 0; break; }
@@ -1051,7 +1051,7 @@ void MainLoop(void) // 0x80032EE0
          * OT2 holds text, screen fade, cutscene borders via g_OtTags0 layers.
          * Text uses SPRT (0x64) + DR_TPAGE (0xE1) per glyph, so allow 0xE0
          * range here (DR_TPAGE is safe; the DR_MODE crashes are in OT0). */
-        if (g_GameWork.gameState_594 == 11) {
+        if (g_GameWork.gameState == 11) {
             GsOT* ot2 = &g_OrderingTable2[g_ActiveBufferIdx];
             OT_TAG* cur2 = (OT_TAG*)ot2->tag;
             int w3 = 0;

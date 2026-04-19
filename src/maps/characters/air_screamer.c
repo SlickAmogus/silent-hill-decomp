@@ -534,7 +534,7 @@ s32 Ai_AirScreamer_DamageTake(s_SubCharacter* airScreamer, q19_12 mult)
     u8     temp_a1;
     q19_12 angle;
 
-    damage0     = airScreamer->damage_B4.amount_C;
+    damage0     = airScreamer->damage.amount_C;
     animStatus = airScreamer->model.anim.status;
     attack     = airScreamer->attackReceived;
     damageType        = AirScreamerDamage_None;
@@ -2884,8 +2884,8 @@ void Ai_AirScreamer_Control_10(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        g_SysWork.npcIdxs_2354[0] == NO_VALUE &&
-                        g_SysWork.npcIdxs_2354[1] == NO_VALUE)
+                        g_SysWork.npcIdxs[0] == NO_VALUE &&
+                        g_SysWork.npcIdxs[1] == NO_VALUE)
                     {
                         if (animStatus == ANIM_STATUS(AirScreamerAnim_25, true) ||
                             animStatus == ANIM_STATUS(AirScreamerAnim_23, true))
@@ -5015,8 +5015,8 @@ void Ai_AirScreamer_Control_23(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        g_SysWork.npcIdxs_2354[0] == NO_VALUE &&
-                        g_SysWork.npcIdxs_2354[1] == NO_VALUE)
+                        g_SysWork.npcIdxs[0] == NO_VALUE &&
+                        g_SysWork.npcIdxs[1] == NO_VALUE)
                     {
                         if (animStatus == ANIM_STATUS(19, true))
                         {
@@ -7394,7 +7394,7 @@ void Ai_AirScreamer_Control_38(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        (g_SysWork.npcIdxs_2354[0] == NO_VALUE && g_SysWork.npcIdxs_2354[1] == NO_VALUE) &&
+                        (g_SysWork.npcIdxs[0] == NO_VALUE && g_SysWork.npcIdxs[1] == NO_VALUE) &&
                         temp_s7 == 0x23)
                     {
                         airScreamer->model.controlState = AirScreamerControl_40;
@@ -13124,7 +13124,7 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
     temp_s1    = &airScreamer->field_44;
 
     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-        g_SysWork.npcIdxs_2354[0] == NO_VALUE && g_SysWork.npcIdxs_2354[1] == NO_VALUE &&
+        g_SysWork.npcIdxs[0] == NO_VALUE && g_SysWork.npcIdxs[1] == NO_VALUE &&
         airScreamer->model.controlState != AirScreamerControl_12 && airScreamer->model.controlState != AirScreamerControl_25 &&
         airScreamer->model.controlState != AirScreamerControl_40 && airScreamer->model.controlState != AirScreamerControl_49)
     {

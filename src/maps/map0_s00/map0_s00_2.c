@@ -159,14 +159,14 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     s32  time;
 
     skipCutscene = false;
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
         g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 13)
     {
 #ifdef SH_PC_PORT
         SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
                 g_SysWork.sysStateSteps[0],
                 g_Controller0->btnsClicked_10,
-                g_GameWorkPtr->config_0.controllerConfig_0.skip_4);
+                g_GameWorkPtr->config.controllerConfig.skip_4);
 #endif
         skipCutscene = true;
         SysWork_StateStepReset();
@@ -1433,11 +1433,11 @@ block7:
             }
         }
 
-        var_s1 = func_8005BF38(ratan2(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
+        var_s1 = Math_AngleNormalizeSigned(ratan2(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
                                       g_SysWork.npcs[0].position.vz - g_SysWork.playerWork.player.position.vz) -
                                g_SysWork.playerWork.player.headingAngle);
 
-        temp_a0 = func_8005BF38(ratan2(Q12(-62.0f) - g_SysWork.playerWork.player.position.vx,
+        temp_a0 = Math_AngleNormalizeSigned(ratan2(Q12(-62.0f) - g_SysWork.playerWork.player.position.vx,
                                        Q12(106.0f) - g_SysWork.playerWork.player.position.vz) -
                                 g_SysWork.playerWork.player.headingAngle);
 
