@@ -141,13 +141,19 @@ void DebugCamera_Update(void)
                 /* Save Harry's position to restore when debug cam is disabled */
                 g_DebugCamSavedHarryPos = g_SysWork.playerWork.player.position;
                 g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.positionY_EC;
+                /* Hide Harry — debug cam follows him for IPD chunk streaming
+                 * but the model itself blocks the view we're trying to record. */
+                g_SysWork.playerWork.player.model.anim.flags &= ~AnimFlag_Visible;
+                g_SysWork.playerWork.extra.model.anim.flags &= ~AnimFlag_Visible;
                 SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
                     (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             } else {
-                /* Restore Harry's original position */
+                /* Restore Harry's original position + visibility */
                 g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
                 g_SysWork.playerWork.player.properties.player.positionY_EC = g_DebugCamSavedHarryPosY;
+                g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
+                g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
                 SH_DBG("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             }
@@ -341,40 +347,45 @@ void DebugCamera_Update(void)
                 SDL_GetRelativeMouseState(&mdx, &mdy);
                 g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
                 g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                /* mdy > 0 = mouse moved down; ADD so mouse-down raises camera
-                 * above Harry, pointing it toward the ground (TPS convention). */
+                /* Mouse vertical → look direction only.
+                 * mdy > 0 (mouse down) increases pitch → look down at ground.
+                 * mdy < 0 (mouse up)   decreases pitch → look up at ceiling.
+                 * Camera POSITION stays fixed above Harry; only the lookAt
+                 * height moves. This avoids the floor-plummet problem from
+                 * orbit-style elevation when the user flicks diagonally. */
                 g_TpsCamPitch += (s32)(mdy * TP_PITCH_SENS);
-                if (g_TpsCamPitch < -Q12_ANGLE(30.0f)) g_TpsCamPitch = -Q12_ANGLE(30.0f);
-                if (g_TpsCamPitch >  Q12_ANGLE(80.0f)) g_TpsCamPitch =  Q12_ANGLE(80.0f);
+                if (g_TpsCamPitch < -Q12_ANGLE(45.0f)) g_TpsCamPitch = -Q12_ANGLE(45.0f);
+                if (g_TpsCamPitch >  Q12_ANGLE(45.0f)) g_TpsCamPitch =  Q12_ANGLE(45.0f);
             }
 
-            /* Place camPos at distance D back along yaw, lifted by pitch.
-             * Use the same lookAt-based formula as the debug free-fly cam:
-             *   forward = cos(pitch) * D
-             *   camPos  = harry + (-forward*sin(yaw), -sin(pitch)*D + base_height, -forward*cos(yaw))
-             *   lookAt  = harry + (0, lookat_ofs, 0)
-             * then Vw_SetLookAtMatrix derives the view matrix. Avoids the
-             * earlier Math_RotMatrixZxyNeg path whose Ry*Rx (vs the correct
-             * Rx*Ry for orbit) caused the camera to tumble on diagonal
-             * mouse motion. */
-            s32 tpSinY     = Math_Sin(g_TpsCamYaw);
-            s32 tpCosY     = Math_Cos(g_TpsCamYaw);
+            /* Fixed-height behind-Harry camera. Yaw rotates camera around
+             * Harry on the XZ plane at constant height. Pitch ONLY shifts
+             * the lookAt point up/down so the view tilts without the
+             * camera plummeting. */
+            #define TP_LOOKAT_REACH Q12(8.0f)   /* how far lookAt slides per unit pitch */
+
+            s32 tpSinY = Math_Sin(g_TpsCamYaw);
+            s32 tpCosY = Math_Cos(g_TpsCamYaw);
             s32 tpSinPitch = Math_Sin(g_TpsCamPitch);
-            s32 tpCosPitch = Math_Cos(g_TpsCamPitch);
-            s32 tpHorizDist = (s32)((s64)TP_DIST * tpCosPitch >> 12);
-            s32 tpVertLift  = (s32)((s64)TP_DIST * tpSinPitch >> 12);
 
             VECTOR3 tpCamPos, tpLookAt;
-            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)tpHorizDist * tpSinY >> 12);
-            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)tpHorizDist * tpCosY >> 12);
-            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT - tpVertLift;
+            /* Camera D units behind Harry along yaw direction, at fixed lift */
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * tpSinY >> 12);
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * tpCosY >> 12);
+            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT;
 
+            /* lookAt at Harry's chest, slid up/down by pitch.
+             * PSX +Y = down, so pitch>0 (look down) needs lookAt.vy MORE
+             * positive (closer to ground). */
             tpLookAt.vx = tp_hr->position.vx;
             tpLookAt.vz = tp_hr->position.vz;
-            tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS;
+            tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS
+                          + (s32)((s64)TP_LOOKAT_REACH * tpSinPitch >> 12);
 
             Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
+
+            #undef TP_LOOKAT_REACH
 
             /* Key 6 (top row): snapshot TPS camera state for tuning */
             {
