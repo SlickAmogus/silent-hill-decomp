@@ -351,6 +351,62 @@ s32 vcExecCamera(void) // 0x80080FBC
 
     vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
                        vcWork.flags & VC_VISIBLE_CHARA_F);
+
+#ifdef SH_PC_PORT
+    /* Hand-tuned camera overrides for spots where the road-node math
+     * produces a wrong angle/position.  Each entry triggers when Harry
+     * is within `radius` of `harryAt` on a specific map.  TODO: revisit
+     * once the road-camera math is fixed properly so these can drop out. */
+    {
+        typedef struct {
+            s8     mapId;
+            VECTOR3 harryAt;     /* Q12 world */
+            s32    radius;       /* Q12 distance */
+            VECTOR3 camPos;      /* Q12 world */
+            s16    angleY;       /* Q12 angle */
+            s16    angleX;       /* Q12 angle */
+        } s_PcCamOverride;
+
+        static const s_PcCamOverride OVERRIDES[] = {
+            /* map0_s01 corner — recorded via Numpad debug + key 5 */
+            { 1, { 17307, 0, 1094979 }, Q12(3.0f),
+                 { 14720, -10240, 1100997 }, 1712, -320 },
+        };
+
+        s32 hx = g_SysWork.playerWork.player.position.vx;
+        s32 hy = g_SysWork.playerWork.player.position.vy;
+        s32 hz = g_SysWork.playerWork.player.position.vz;
+        s32 mapId = (s32)g_SavegamePtr->mapOverlayId_A4;
+
+        for (size_t oi = 0; oi < sizeof(OVERRIDES) / sizeof(OVERRIDES[0]); oi++) {
+            const s_PcCamOverride* o = &OVERRIDES[oi];
+            if (o->mapId != mapId) continue;
+            s32 dx = hx - o->harryAt.vx;
+            s32 dy = hy - o->harryAt.vy;
+            s32 dz = hz - o->harryAt.vz;
+            s32 r  = Vc_VectorMagnitudeCalc(dx, dy, dz);
+            if (r > o->radius) continue;
+
+            SVECTOR camRot;
+            MATRIX  camMat;
+            camRot.vx = o->angleX;
+            camRot.vy = o->angleY;
+            camRot.vz = 0;
+            Math_RotMatrixZxyNeg(&camRot, &camMat);
+            camMat.t[0] = Q12_TO_Q8(o->camPos.vx);
+            camMat.t[1] = Q12_TO_Q8(o->camPos.vy);
+            camMat.t[2] = Q12_TO_Q8(o->camPos.vz);
+
+            vcWork.cam_pos        = o->camPos;
+            vcWork.cam_mat        = camMat;
+            vcWork.cam_mat_ang.vx = o->angleX;
+            vcWork.cam_mat_ang.vy = o->angleY;
+            vcWork.cam_mat_ang.vz = 0;
+            break;
+        }
+    }
+#endif
+
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
 
     vcWork.through_door_activate_init_f = false;
