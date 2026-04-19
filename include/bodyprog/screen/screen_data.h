@@ -30,7 +30,7 @@ extern s32 g_IntervalVBlanks;
 
 extern s32      g_VBlanks;
 extern s32      g_UncappedVBlanks;
-extern s32      pad_bss_800B5C3C;
+extern s32      __pad_bss_800B5C3C;
 extern GsOT_TAG g_OtTags0[2][16];
 
 /** Main gameplay timer. Code pauses gameplay by setting this to `Q12(0.0f)`.

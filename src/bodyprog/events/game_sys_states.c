@@ -38,11 +38,11 @@ extern void DebugCamera_Update(void);
 #endif
 
 #ifndef PAD_HACK_IGNORE
-    s8  pad_bss_800BCD81[3];
-    s32 pad_bss_800BCD88[2];
-    s32 pad_bss_800BCD94[5];
-    s32 pad_bss_800BCDD0;
-    s8  pad_bss_800BCDD5[3];
+    s8  __pad_bss_800BCD81[3];
+    s32 __pad_bss_800BCD88[2];
+    s32 __pad_bss_800BCD94[5];
+    s32 __pad_bss_800BCDD0;
+    s8  __pad_bss_800BCDD5[3];
 #endif
 
 // ========================================

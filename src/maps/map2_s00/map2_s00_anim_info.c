@@ -2,10 +2,10 @@
 #include "bodyprog/math/math.h"
 
 #ifdef SH_PC_PORT
-/* Windows DLL: imported function pointers (func_800706E4 lives in main exe)
+/* Windows DLL: imported function pointers (Player_VariableAnimDurationGet lives in main exe)
  * are not compile-time constants. Shim to 0 for the static initializer,
  * then patch via constructor below after DLL is loaded. */
-#define func_800706E4 0
+#define Player_VariableAnimDurationGet 0
 #endif
 
 s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
@@ -28,11 +28,11 @@ s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
     { Anim_BlendLinear, ANIM_STATUS(46, false), false, ANIM_STATUS(46, true), { Q12(15) }, NO_VALUE, 816 },
     { Anim_PlaybackOnce, ANIM_STATUS(46, true), false, ANIM_STATUS(46, true), { Q12(15) }, 816, 822 },
     { Anim_BlendLinear, ANIM_STATUS(47, false), false, ANIM_STATUS(47, true), { Q12(15) }, NO_VALUE, 823 },
-    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { func_800706E4 }, 823, 836 },
+    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 823, 836 },
     { Anim_BlendLinear, ANIM_STATUS(48, false), false, ANIM_STATUS(48, true), { Q12(15) }, NO_VALUE, 837 },
     { Anim_PlaybackOnce, ANIM_STATUS(48, true), false, ANIM_STATUS(48, true), { Q12(15) }, 837, 843 },
     { Anim_BlendLinear, ANIM_STATUS(49, false), false, ANIM_STATUS(49, true), { Q12(15) }, NO_VALUE, 844 },
-    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { func_800706E4 }, 844, 857 },
+    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 844, 857 },
     { Anim_BlendLinear, ANIM_STATUS(50, false), false, ANIM_STATUS(50, true), { Q12(15) }, NO_VALUE, 858 },
     { Anim_PlaybackOnce, ANIM_STATUS(50, true), false, ANIM_STATUS(50, true), { Q12(15) }, 858, 884 },
     { Anim_BlendLinear, ANIM_STATUS(51, false), false, ANIM_STATUS(51, true), { Q12(15) }, NO_VALUE, 885 },
@@ -51,13 +51,13 @@ s_AnimInfo HARRY_M2S00_ANIM_INFOS[39] = {
 };
 
 #ifdef SH_PC_PORT
-#undef func_800706E4
+#undef Player_VariableAnimDurationGet
 
-/* Patch in real func_800706E4 pointer for entries that needed
+/* Patch in real Player_VariableAnimDurationGet pointer for entries that needed
  * variable-duration callback. Runs once on DLL load. */
 __attribute__((constructor))
 static void map2_s00_anim_info_patch(void) {
-    HARRY_M2S00_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
-    HARRY_M2S00_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M2S00_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
+    HARRY_M2S00_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
 }
 #endif

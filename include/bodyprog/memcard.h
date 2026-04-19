@@ -304,7 +304,7 @@ typedef struct _SaveUserConfigContainer
 typedef struct
 {
     s32 totalSavegameCount_0;
-    s32 fileIdx_4;
+    s32 fileIdx;
     s32 saveIdx_8;
 } s_MemCard_TotalSavesInfo;
 
@@ -403,7 +403,7 @@ extern s_MemCard_SaveHeader g_MemCard_BasicSaveInfo3[MEMCARD_FILE_COUNT_MAX];
 /** @brief Defines if the game can use the memory card. */
 extern bool g_MemCard_AvailibityStatus;
 
-extern s32 pad_bss_800B5484;
+extern s32 __pad_bss_800B5484;
 
 extern s_MemCard_Work g_MemCard_Work; // 0x800B5488
 
@@ -417,14 +417,14 @@ extern s32 g_MemCard_PrevSavegameCount;
 
 extern s16 g_MemCard_SavegameCount;
 
-extern s16 pad_bss_800BCD2A;
+extern s16 __pad_bss_800BCD2A;
 
 extern s_SaveScreenElement* g_MemCard_ActiveSavegameEntry;
 
 /** @brief Amount of elements in each memory card. */
 extern u8  g_Savegame_ElementCount0[MEMCARD_SLOT_COUNT_MAX];
 
-extern s16 pad_bss_800BCD32;
+extern s16 __pad_bss_800BCD32;
 /** @brief Stores all memory cards/devices status. */
 
 extern u32 g_MemCard_AllMemCardsStatus;
@@ -433,7 +433,7 @@ extern u32 g_MemCard_AllMemCardsStatus;
  */
 extern s8 g_SaveScreen_SaveScreenState;
 
-extern s8 pad_bss_800BCD39;
+extern s8 __pad_bss_800BCD39;
 
 /** @brief Counts all elements of all inserted memory cards. */
 extern s16 g_MemCard_TotalElementsCount;
@@ -448,7 +448,7 @@ extern s8 g_SelectedFileIdx;
 
 extern s8 g_SelectedDeviceId;
 
-extern s8 pad_bss_800BCD41[3];
+extern s8 __pad_bss_800BCD41[3];
 
 // ==========
 // FUNCTIONS

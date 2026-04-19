@@ -2,7 +2,7 @@
 #include "bodyprog/math/math.h"
 
 #ifdef SH_PC_PORT
-#define func_800706E4 0
+#define Player_VariableAnimDurationGet 0
 #endif
 
 s_AnimInfo HARRY_M6S02_ANIM_INFOS[43] = {
@@ -25,11 +25,11 @@ s_AnimInfo HARRY_M6S02_ANIM_INFOS[43] = {
     { Anim_BlendLinear, ANIM_STATUS(46, false), false, ANIM_STATUS(46, true), { Q12(15) }, NO_VALUE, 820 },
     { Anim_PlaybackOnce, ANIM_STATUS(46, true), false, ANIM_STATUS(46, true), { Q12(15) }, 820, 826 },
     { Anim_BlendLinear, ANIM_STATUS(47, false), false, ANIM_STATUS(47, true), { Q12(15) }, NO_VALUE, 827 },
-    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { func_800706E4 }, 827, 840 },
+    { Anim_PlaybackLoop, ANIM_STATUS(47, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 827, 840 },
     { Anim_BlendLinear, ANIM_STATUS(48, false), false, ANIM_STATUS(48, true), { Q12(15) }, NO_VALUE, 841 },
     { Anim_PlaybackOnce, ANIM_STATUS(48, true), false, ANIM_STATUS(48, true), { Q12(15) }, 841, 847 },
     { Anim_BlendLinear, ANIM_STATUS(49, false), false, ANIM_STATUS(49, true), { Q12(15) }, NO_VALUE, 848 },
-    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { func_800706E4 }, 848, 861 },
+    { Anim_PlaybackLoop, ANIM_STATUS(49, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 848, 861 },
     { Anim_BlendLinear, ANIM_STATUS(50, false), false, ANIM_STATUS(50, true), { Q12(15) }, NO_VALUE, 862 },
     { Anim_PlaybackOnce, ANIM_STATUS(50, true), false, ANIM_STATUS(50, true), { Q12(15) }, 862, 888 },
     { Anim_BlendLinear, ANIM_STATUS(51, false), false, ANIM_STATUS(51, true), { Q12(15) }, NO_VALUE, 889 },
@@ -52,11 +52,11 @@ s_AnimInfo HARRY_M6S02_ANIM_INFOS[43] = {
 };
 
 #ifdef SH_PC_PORT
-#undef func_800706E4
+#undef Player_VariableAnimDurationGet
 
 __attribute__((constructor))
 static void map6_s02_anim_info_patch(void) {
-    HARRY_M6S02_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
-    HARRY_M6S02_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M6S02_ANIM_INFOS[19].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
+    HARRY_M6S02_ANIM_INFOS[23].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
 }
 #endif

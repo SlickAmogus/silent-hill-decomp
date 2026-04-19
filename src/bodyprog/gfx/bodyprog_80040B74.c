@@ -24,43 +24,6 @@
  */
 
 // ========================================
-// SOUND
-// ========================================
-
-s8 Sound_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
-{
-    #define STEREO_BALANCE_RANGE 127
-
-    VECTOR3 camPos; // Q19.12
-    VECTOR  offset; // Q25.6
-    VECTOR  dir;    // Q19.12
-    MATRIX  viewMat;
-    s32     dot;
-    s32     balance;
-
-    // If monoural sound type, default to balance of 0.
-    if (g_GameWork.config.optSoundType_1E)
-    {
-        return 0;
-    }
-
-    // Compute direction from camera to sound.
-    vwGetViewPosition(&camPos);
-    offset.vx = Q12_TO_Q6(soundPos->vx - camPos.vx);
-    offset.vy = Q12_TO_Q6(soundPos->vy - camPos.vy);
-    offset.vz = Q12_TO_Q6(soundPos->vz - camPos.vz);
-    VectorNormal(&offset, &dir);
-
-    // Compute stereo balance.
-    Vw_CoordHierarchyMatrixCompute(vwGetViewCoord(), &viewMat);
-    dot     = Math_MultiplyMatrix(viewMat, dir);
-    balance = CLAMP(dot, -STEREO_BALANCE_RANGE, STEREO_BALANCE_RANGE);
-    return balance;
-}
-
-void func_80040B6C(void) {} // 0x80040B6C
-
-// ========================================
 // CHARACTERS
 // ========================================
 
@@ -497,7 +460,7 @@ u32 LmHeader_LoadStateGet(s_GlobalLm* globalLm) // 0x80041BA0
     s32 queueState;
     s32 queueStateCpy;
 
-    queueState    = Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8);
+    queueState    = Fs_QueueEntryLoadStatusGet(globalLm->queueIdx);
     queueStateCpy = queueState;
 
     if (queueStateCpy == FsQueueEntryLoadStatus_Unloaded)
@@ -509,7 +472,7 @@ u32 LmHeader_LoadStateGet(s_GlobalLm* globalLm) // 0x80041BA0
     {
         return StaticModelLoadState_Invalid;
     }
-    else if (globalLm->lmHdr_0->isLoaded && LmHeader_IsTextureLoaded(globalLm->lmHdr_0))
+    else if (globalLm->lmHdr->isLoaded && LmHeader_IsTextureLoaded(globalLm->lmHdr))
     {
         return StaticModelLoadState_Loaded;
     }
@@ -534,11 +497,11 @@ void Map_Init(s_LmHeader* lmHdr, s_IpdHeader* ipdBuf, s32 ipdBufSize) // 0x80041
 
 void Lm_Init(s_GlobalLm* globalLm, s_LmHeader* lmHdr) // 0x80041CB4
 {
-    globalLm->lmHdr_0 = lmHdr;
+    globalLm->lmHdr = lmHdr;
     LmHeader_Init(lmHdr);
 
-    globalLm->queueIdx_8 = 0;
-    globalLm->fileIdx_4  = NO_VALUE;
+    globalLm->queueIdx = 0;
+    globalLm->fileIdx  = NO_VALUE;
 }
 
 void LmHeader_Init(s_LmHeader* lmHdr) // 0x80041CEC
@@ -672,13 +635,13 @@ void Map_GlobalLmFree(void) // 0x800420FC
 
     globalLm = &g_Map.globalLm_138;
 
-    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-        globalLm->lmHdr_0->isLoaded)
+    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+        globalLm->lmHdr->isLoaded)
     {
-        Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr_0);
+        Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr);
     }
 
-    Lm_Init(&g_Map.globalLm_138, g_Map.globalLm_138.lmHdr_0);
+    Lm_Init(&g_Map.globalLm_138, g_Map.globalLm_138.lmHdr);
 }
 
 s_Texture* Texture_InfoGet(char* texName) // 0x80042178
@@ -714,16 +677,16 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
 
     if (plmIdx != NO_VALUE)
     {
-        if (plmIdx != g_Map.globalLm_138.fileIdx_4)
+        if (plmIdx != g_Map.globalLm_138.fileIdx)
         {
-            if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-                g_Map.globalLm_138.lmHdr_0->isLoaded)
+            if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+                g_Map.globalLm_138.lmHdr->isLoaded)
             {
-                Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr_0);
+                Lm_MaterialRefCountDec(g_Map.globalLm_138.lmHdr);
             }
 
-            g_Map.globalLm_138.fileIdx_4  = plmIdx;
-            g_Map.globalLm_138.queueIdx_8 = NO_VALUE;
+            g_Map.globalLm_138.fileIdx  = plmIdx;
+            g_Map.globalLm_138.queueIdx = NO_VALUE;
         }
     }
 
@@ -1037,11 +1000,11 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
     geomZ = Q12_TO_Q8(posZ);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[4287C] globalLm lmHdr_0=%p queueIdx=%d", (void*)globalLm->lmHdr_0, globalLm->queueIdx_8);
+    SH_DBG("[4287C] globalLm lmHdr=%p queueIdx=%d", (void*)globalLm->lmHdr, globalLm->queueIdx);
 #endif
-    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-        globalLm->lmHdr_0->isLoaded &&
-        Lm_ModelFind(model, g_Map.globalLm_138.lmHdr_0, metadata))
+    if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+        globalLm->lmHdr->isLoaded &&
+        Lm_ModelFind(model, g_Map.globalLm_138.lmHdr, metadata))
     {
         return 2;
     }
@@ -1127,7 +1090,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         if (chunkInitCallCount < 20 || (chunkInitCallCount % 300) == 0) {
             SH_DBG("[IPD-INIT] Ipd_ChunkInit #%d: pos0=(%d,%d) pos1=(%d,%d) globalLm.queueIdx=%d globalLm.fileIdx=%d",
                    chunkInitCallCount, posX0, posZ0, posX1, posZ1,
-                   g_Map.globalLm_138.queueIdx_8, g_Map.globalLm_138.fileIdx_4);
+                   g_Map.globalLm_138.queueIdx, g_Map.globalLm_138.fileIdx);
         }
         chunkInitCallCount++;
     }
@@ -1136,9 +1099,9 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     g_Map.positionX_578 = posX1;
     g_Map.positionX_57C = posZ1;
 
-    if (g_Map.globalLm_138.queueIdx_8 == NO_VALUE)
+    if (g_Map.globalLm_138.queueIdx == NO_VALUE)
     {
-        g_Map.globalLm_138.queueIdx_8 = Fs_QueueStartRead(g_Map.globalLm_138.fileIdx_4, g_Map.globalLm_138.lmHdr_0);
+        g_Map.globalLm_138.queueIdx = Fs_QueueStartRead(g_Map.globalLm_138.fileIdx, g_Map.globalLm_138.lmHdr);
     }
 
 #ifdef SH_PC_PORT
@@ -1162,21 +1125,21 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         }
 
         /* Fix up global LM if just loaded */
-        if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-            !g_Map.globalLm_138.lmHdr_0->isLoaded)
+        if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+            !g_Map.globalLm_138.lmHdr->isLoaded)
         {
             fullPageTexCount                         = g_Map.ipdTextures_430.fullPage_0.count_0;
             g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
-            LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+            LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr);
 #ifdef SH_PC_PORT
-            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount, g_Map.globalLm_138.lmHdr_0->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
+            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr->materialCount, g_Map.globalLm_138.lmHdr->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
 #endif
-            Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+            Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
 #ifdef SH_PC_PORT
             SH_DBG("[GLOBAL-LM-A] MaterialsLoadWithFilter done");
 #endif
-            Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
+            Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr);
 
             g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
         }
@@ -1228,7 +1191,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
                     /* Fix up the chunk if loaded */
                     if (Fs_QueueEntryLoadStatusGet(pChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
                     {
-                        IpdHeader_FixOffsets(pChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr_0, 1,
+                        IpdHeader_FixOffsets(pChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr, 1,
                                             &g_Map.ipdTextures_430.fullPage_0,
                                             &g_Map.ipdTextures_430.halfPage_2C,
                                             g_Map.texFileIdx_134);
@@ -1271,21 +1234,21 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         Map_ChunkLoad(&g_Map, posX0, posZ0, posX1, posZ1);
     }
 
-    if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8) >= FsQueueEntryLoadStatus_Loaded &&
-        !g_Map.globalLm_138.lmHdr_0->isLoaded)
+    if (Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+        !g_Map.globalLm_138.lmHdr->isLoaded)
     {
         fullPageTexCount                         = g_Map.ipdTextures_430.fullPage_0.count_0;
         g_Map.ipdTextures_430.fullPage_0.count_0 = 4;
 
-        LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr_0);
+        LmHeader_FixOffsets(g_Map.globalLm_138.lmHdr);
 #ifdef SH_PC_PORT
-        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr_0->materialCount, g_Map.globalLm_138.lmHdr_0->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
+        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm_138.lmHdr->materialCount, g_Map.globalLm_138.lmHdr->modelCount, g_Map.ipdTextures_430.fullPage_0.count_0);
 #endif
-        Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr_0, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
+        Lm_MaterialsLoadWithFilter(g_Map.globalLm_138.lmHdr, &g_Map.ipdTextures_430.fullPage_0, NULL, g_Map.texFileIdx_134, BlendMode_Additive);
 #ifdef SH_PC_PORT
         SH_DBG("[GLOBAL-LM-B] MaterialsLoadWithFilter done");
 #endif
-        Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr_0);
+        Lm_MaterialFlagsApply(g_Map.globalLm_138.lmHdr);
 
         g_Map.ipdTextures_430.fullPage_0.count_0 = fullPageTexCount;
     }
@@ -1294,7 +1257,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     {
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
         {
-            IpdHeader_FixOffsets(curChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr_0, 1, &g_Map.ipdTextures_430.fullPage_0, &g_Map.ipdTextures_430.halfPage_2C, g_Map.texFileIdx_134);
+            IpdHeader_FixOffsets(curChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr, 1, &g_Map.ipdTextures_430.fullPage_0, &g_Map.ipdTextures_430.halfPage_2C, g_Map.texFileIdx_134);
             func_80044044(curChunk->ipdHdr_0, curChunk->cellX_8, curChunk->cellZ_A);
         }
     }
@@ -1801,7 +1764,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     s32         queueState;
     s_IpdChunk* curChunk;
 
-    queueState = Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8);
+    queueState = Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx);
 
     if (queueState == FsQueueEntryLoadStatus_Unloaded)
     {
@@ -1809,7 +1772,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     }
 
     if (!(queueState == FsQueueEntryLoadStatus_Invalid ||
-          (queueState == FsQueueEntryLoadStatus_Loaded && g_Map.globalLm_138.lmHdr_0->isLoaded)))
+          (queueState == FsQueueEntryLoadStatus_Loaded && g_Map.globalLm_138.lmHdr->isLoaded)))
     {
         return;
     }
@@ -1844,8 +1807,8 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
             SH_DBG("[IPD] ChunkCheckDraw: total=%d loaded=%d cellMatch=%d drawn=%d cellXZ=(%d,%d) ext=%d globalLmQ=%d globalLmLoaded=%d",
                    totalChunks, loadedChunks, cellMatchChunks, drawCount,
                    g_Map.cellX_580, g_Map.cellZ_584, g_Map.isExterior_588,
-                   Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx_8),
-                   (g_Map.globalLm_138.lmHdr_0 ? g_Map.globalLm_138.lmHdr_0->isLoaded : -1));
+                   Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx),
+                   (g_Map.globalLm_138.lmHdr ? g_Map.globalLm_138.lmHdr->isLoaded : -1));
             /* Log first loaded chunk details */
             if (drawCount > 0) {
                 s_IpdChunk* c = &g_Map.ipdActive_15C[0];

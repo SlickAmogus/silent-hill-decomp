@@ -1318,7 +1318,7 @@ typedef struct _PropertiesPlayer
     s8            unk_10E[2];
     q19_12        timer_110; // Increases when `flags & CharaFlag_Unk4` is set, reset when reaches `D_800C45EC`.
     q19_12        gasWeaponPowerTimer_114; // Timer for the rock drill and chainsaw power.
-    s16           field_118;
+    s16           field_118; // q3_12?
     s8            unk_11A[2];
     e_PlayerFlags flags_11C;
     q3_12         quickTurnHeadingAngle_120; /** Target quick turn heading angle. */
@@ -1401,6 +1401,29 @@ typedef struct _PropertiesBloodsucker
     s32    flags;         /** `e_BloodsuckerFlags` */
 } s_PropertiesBloodsucker;
 
+
+/** @brief Cheryl character properties. */
+// TODO: Needs revision. Copy of Dahlia properties.
+typedef struct _PropertiesCheryl
+{
+    /* 0xE8 */  s32        controlState;
+                u_Property properties_EC;
+                u_Property properties_F0;
+                u_Property properties_F4;
+                s32        resetStateIdx0_F8;
+                s32        field_FC;
+                s32        field_100;
+                u_Property properties_104;
+                u_Property properties_108;
+                u_Property properties_10C;
+                VECTOR3    field_110;
+    /* 0x11C */ s32        flags; /** `e_CherylFlags` */
+                u_Property properties_120;
+                q3_12      moveDistance_124;
+                q3_12      moveDistance_126;
+} s_PropertiesCheryl;
+STATIC_ASSERT_SIZEOF(s_PropertiesCheryl, 64);
+
 /** @brief Creeper character properties. */
 typedef struct _PropertiesCreeper
 {
@@ -1421,7 +1444,7 @@ typedef struct _PropertiesCreeper
 STATIC_ASSERT_SIZEOF(s_PropertiesCreeper, 40);
 
 /** @brief Dahlia character properties. */
-typedef struct _SubCharPropertiesDahlia
+typedef struct _PropertiesDahlia
 {
     s32        stateIdx0;
     u_Property properties_EC;
@@ -1606,32 +1629,32 @@ STATIC_ASSERT_SIZEOF(s_PropertiesPuppetNurse, 64);
 /** @brief Romper character properties. */
 typedef struct _PropertiesRomper
 {
-    s32    flags_E8; /** `e_RomperFlags` */
-    q3_12  angle_EC; // Target heading angle?
-    s16    field_EE;
-    q3_12  field_F0; // Move speed accumulation for this tick.
-    q3_12  rotationY_F2;
-    q19_12 field_F4; // Relative anim time?
-    q3_12  offsetX_F8; // } Move offset?
-    q3_12  offsetZ_FA; // }
-    q19_12 targetPositionX_FC;
-    q19_12 targetPositionZ_100;
-    s32    field_104;
-    q19_12 positionX_108;
-    u8     field_10C; // Relative keyframe index?
-    s8     unk_10D;
-    u16    field_10E;
-    q19_12 positionZ_110;
-    u8     field_114;
-    u8     field_115;
-    q3_12  field_116;
-    q3_12  timer_118;
-    u8     field_11A;
-    s8     unk_11B;
-    q3_12  timer_11C;
-    s8     unk_11E[2];
-    q19_12 distance_120; // Distance?
-    q19_12 field_124; // Move speed step?
+    /* 0xE8 */ s32    flags; /** `e_RomperFlags` */
+               q3_12  angle_EC; // Target heading angle?
+               s16    field_EE;
+               q3_12  field_F0; // Move speed accumulation for this tick.
+               q3_12  rotationY_F2;
+               q19_12 field_F4; // Relative anim time?
+    /* 0xF8 */ q3_12  movementOffsetX;
+    /* 0xFA */ q3_12  movementOffsetZ;
+               q19_12 targetPositionX_FC;
+               q19_12 targetPositionZ_100;
+               s32    field_104;
+               q19_12 positionX_108;
+               u8     field_10C; // Relative keyframe index?
+               s8     unk_10D;
+               u16    field_10E;
+               q19_12 positionZ_110;
+               u8     field_114;
+               u8     field_115;
+               q3_12  field_116;
+               q3_12  timer_118;
+               u8     field_11A;
+               s8     unk_11B;
+               q3_12  timer_11C;
+               s8     unk_11E[2];
+               q19_12 distance_120;
+               q19_12 field_124; // Move speed step?
 } s_PropertiesRomper;
 
 /** @brief Split Head character properties. */
@@ -1795,6 +1818,7 @@ typedef struct _SubCharacter
                  s_PropertiesAirScreamer     airScreamer;
                  s_PropertiesAlessa          alessa;
                  s_PropertiesBloodsucker     bloodsucker;
+                 s_PropertiesCheryl          cheryl;
                  s_PropertiesCreeper         creeper;
                  s_PropertiesDahlia          dahlia;
                  s_PropertiesFloatstinger    floatstinger;

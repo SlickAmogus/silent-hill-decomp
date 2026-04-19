@@ -148,12 +148,12 @@ SH_MAP_OVERLAY_HEADER = {
         NULL, NULL, NULL, NULL, NULL, NULL, NULL, Ai_Stalker_Update,
         Ai_Stalker_Update, Ai_Stalker_Update, NULL, NULL, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, Ai_Cheryl_Update },
+        NULL, NULL, NULL, NULL, Cheryl_Update },
     .charaGroupIds_248 = {},
     .charaSpawns_24C   = {
 #include "chara_spawns.h"
     },
-    .roadDataList_3CC = {
+    .cameraPaths_3CC = {
 #include "vc_road_data.h"
     },
     .triggerZones_D2C = {

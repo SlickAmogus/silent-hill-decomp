@@ -21,11 +21,11 @@
 
 s_800C42E8     D_800C42E8[24];
 s16            D_800C4408;
-s16            pad_bss_800C440A;
+s16            __pad_bss_800C440A;
 GsCOORDINATE2* D_800C440C;
 GsCOORDINATE2* D_800C4410;
 s8             D_800C4414; /** Flags. */
-s8             pad_bss_800C4415[3];
+s8             __pad_bss_800C4415[3];
 s_800C4418     D_800C4418;
 
 // ========================================
@@ -37,7 +37,7 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
     s32        i;
     s32        effectTexFlags;
     static u16 loadedEffectTextureFlags;
-    static s16 pad_bss_800C42DA[7];
+    static s16 __pad_bss_800C42DA[7];
 
     D_800A908C.v     = 0;
     D_800A908C.clutY = 0;
@@ -1624,7 +1624,7 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
             temp_v1_6                                                 = (0x80 - (((g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 - 0xCC0) << 7) / 204800)) < 0x20;
             var_a0_3                                                  = !(temp_v1_6) ? (0x80 - (((g_MapOverlayHeader.unkTable1_4C[idx].field_10.field_0 - 0xCC0) << 7) / 204800)) : 0x20;
             g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3 = var_a0_3;
-            var_t0                                                    = var_a0_3 & 0xFF;
+            var_t0                                                    = Q8_FRACT(var_a0_3);
         }
         else
         {

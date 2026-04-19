@@ -2,7 +2,7 @@
 #include "bodyprog/math/math.h"
 
 #ifdef SH_PC_PORT
-#define func_800706E4 0
+#define Player_VariableAnimDurationGet 0
 #endif
 
 s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
@@ -41,9 +41,9 @@ s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
     { Anim_BlendLinear, ANIM_STATUS(54, false), false, ANIM_STATUS(54, true), { Q12(10) }, NO_VALUE, 998 },
     { Anim_PlaybackOnce, ANIM_STATUS(54, true), false, ANIM_STATUS(54, true), { Q12(20) }, 998, 1021 },
     { Anim_BlendLinear, ANIM_STATUS(55, false), false, ANIM_STATUS(55, true), { Q12(10) }, NO_VALUE, 1022 },
-    { Anim_PlaybackLoop, ANIM_STATUS(55, true), true, NO_VALUE, { func_800706E4 }, 1022, 1033 },
+    { Anim_PlaybackLoop, ANIM_STATUS(55, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 1022, 1033 },
     { Anim_BlendLinear, ANIM_STATUS(56, false), false, ANIM_STATUS(56, true), { Q12(10) }, NO_VALUE, 1034 },
-    { Anim_PlaybackLoop, ANIM_STATUS(56, true), true, NO_VALUE, { func_800706E4 }, 1034, 1045 },
+    { Anim_PlaybackLoop, ANIM_STATUS(56, true), true, NO_VALUE, { Player_VariableAnimDurationGet }, 1034, 1045 },
     { Anim_BlendLinear, ANIM_STATUS(57, false), false, ANIM_STATUS(57, true), { Q12(10) }, NO_VALUE, 1046 },
     { Anim_PlaybackOnce, ANIM_STATUS(57, true), false, ANIM_STATUS(57, true), { Q12(10) }, 1046, 1064 },
     { Anim_BlendLinear, ANIM_STATUS(58, false), false, ANIM_STATUS(58, true), { Q12(10) }, NO_VALUE, 1065 },
@@ -86,11 +86,11 @@ s_AnimInfo HARRY_M6S04_ANIM_INFOS[77] = {
 };
 
 #ifdef SH_PC_PORT
-#undef func_800706E4
+#undef Player_VariableAnimDurationGet
 
 __attribute__((constructor))
 static void map6_s04_anim_info_patch(void) {
-    HARRY_M6S04_ANIM_INFOS[35].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
-    HARRY_M6S04_ANIM_INFOS[37].duration.variableFunc = (q19_12 (*)(void))func_800706E4;
+    HARRY_M6S04_ANIM_INFOS[35].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
+    HARRY_M6S04_ANIM_INFOS[37].duration.variableFunc = (q19_12 (*)(void))Player_VariableAnimDurationGet;
 }
 #endif
