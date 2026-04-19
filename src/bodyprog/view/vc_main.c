@@ -375,14 +375,17 @@ s32 vcExecCamera(void) // 0x80080FBC
         } s_PcCamOverride;
 
         static const s_PcCamOverride OVERRIDES[] = {
-            /* map0_s01 corner — recorded via Numpad debug + key 5.
-             * Latest run: harry=(13533,0,1098735), bad cam pos was
-             * (18763,-8448,1101611). User's verified-good pose recorded
-             * angleY=1792, angleX=-192 (NEGATIVE here = camera tilted
-             * down, per user empirical confirmation that numpad-+
-             * (+angleX) shows sky/ceiling). */
-            { 1, { 13533, 0, 1098735 }, Q12(1.5f),
-                 { 16771, -8448, 1099500 }, 1792, -192 },
+            /* map0_s01 corner — TWO recorded bad spots, each with its
+             * own corrected pose. Both recorded via Numpad debug + key 5.
+             * Convention: +angleX = look up, -angleX = look down (user
+             * empirically confirmed: numpad - increments angleX, shows
+             * sky/ceiling). Recorded angleY/angleX usable as-is. */
+            /* Spot 1: harry=(16630,0,1092748), bad cam was (14431,-8448,1095641) */
+            { 1, { 16630, 0, 1092748 }, Q12(1.5f),
+                 { 15505, -9222, 1098282 }, 1840, -288 },
+            /* Spot 2: harry=(15109,0,1100175), bad cam was (16771,-8448,1099500) */
+            { 1, { 15109, 0, 1100175 }, Q12(1.5f),
+                 { 19667, -6912, 1104091 }, 2480, -160 },
         };
 
         s32 hx = g_SysWork.playerWork.player.position.vx;
