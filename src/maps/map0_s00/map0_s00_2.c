@@ -159,18 +159,29 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
     s32  time;
 
     skipCutscene = false;
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
         g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 13)
     {
 #ifdef SH_PC_PORT
         SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
                 g_SysWork.sysStateSteps[0],
                 g_Controller0->btnsClicked_10,
-                g_GameWorkPtr->config.controllerConfig.skip_4);
+                g_GameWorkPtr->config_0.controllerConfig_0.skip_4);
 #endif
         skipCutscene = true;
         SysWork_StateStepReset();
     }
+
+    #ifdef SH_PC_PORT
+    {
+        static s32 lastStep = -1;
+        if (g_SysWork.sysStateSteps[0] != lastStep) {
+            SH_DBG("[SH_DMS] OpeningCutscene step=%d", g_SysWork.sysStateSteps[0]);
+            lastStep = g_SysWork.sysStateSteps[0];
+        }
+        SH_DBG("[CS] step=%d t=%d", g_SysWork.sysStateSteps[0], g_Timer0);
+    }
+    #endif
 
     switch (g_SysWork.sysStateSteps[0])
     {
@@ -206,13 +217,12 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 
         case 3:
             func_80085EB8(0, &g_SysWork.playerWork.player, 0x35, false);
-#ifdef SH_PC_PORT
-            /* PSX sets these via the animation update chain that PC
-             * bypasses. Force-mark Harry's lower + upper body anims as
-             * visible+unlocked so he renders during the opening shot. */
+            #ifdef SH_PC_PORT
+            /* Ensure Harry is visible during cutscene — on PSX this flag is set
+             * by the animation update chain, but PC bypasses that path */
             g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible | AnimFlag_Unlocked;
-            g_SysWork.playerWork.extra.model.anim.flags  |= AnimFlag_Visible | AnimFlag_Unlocked;
-#endif
+            g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible | AnimFlag_Unlocked;
+            #endif
             SysWork_StateStepIncrement(0);
 
         case 4:
@@ -304,7 +314,13 @@ void MapEvent_OpeningCutscene(void) // 0x0x800D9748
 #endif
     if (g_Timer0 >= Q12(0.0f))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[CS] DMS t=%d", g_Timer0);
+#endif
         Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
+#ifdef SH_PC_PORT
+        SH_DBG("[CS] DMS hero OK");
+#endif
         vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
@@ -330,6 +346,15 @@ void func_800D9D98(void) // 0x800D9D98
 {
     func_800DA454();
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateSteps[0] != _lastStep) {
+            SH_DBG("[D9D98] step=%d", g_SysWork.sysStateSteps[0]);
+            _lastStep = g_SysWork.sysStateSteps[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
@@ -380,6 +405,15 @@ void func_800DA028(void) // 0x800DA028
 {
     func_800DA454();
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateSteps[0] != _lastStep) {
+            SH_DBG("[DA028] step=%d", g_SysWork.sysStateSteps[0]);
+            _lastStep = g_SysWork.sysStateSteps[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
@@ -505,6 +539,15 @@ void func_800DA5A0(void) // 0x800DA5A0
     s32 temp_s1_2;
     s32 temp_s2;
 
+#ifdef SH_PC_PORT
+    {
+        static s32 _lastStep = -1;
+        if (g_SysWork.sysStateSteps[0] != _lastStep) {
+            SH_DBG("[DA5A0] step=%d", g_SysWork.sysStateSteps[0]);
+            _lastStep = g_SysWork.sysStateSteps[0];
+        }
+    }
+#endif
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
@@ -578,9 +621,23 @@ void func_800DA5A0(void) // 0x800DA5A0
             break;
 
         case 3:
+#ifdef SH_PC_PORT
+            SH_DBG("[DA5A0] step3: npc0 charaId=%d pos=(%d,%d,%d) stateEC=%d",
+                    g_SysWork.npcs[0].model.charaId,
+                    g_SysWork.npcs[0].position.vx,
+                    g_SysWork.npcs[0].position.vy,
+                    g_SysWork.npcs[0].position.vz,
+                    g_SysWork.npcs[0].properties.dummy.properties_E8[1].val32);
+#endif
             g_SysWork.npcs[0].properties.player.headingAngle_124 = Q12(1.8f);
 
+#ifdef SH_PC_PORT
+            SH_DBG("[DA5A0] step3: calling func_80086728");
+#endif
             func_80086728(&g_SysWork.npcs[0], 2, 1, 0);
+#ifdef SH_PC_PORT
+            SH_DBG("[DA5A0] step3: func_80086728 returned");
+#endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
 #ifdef SH_PC_PORT
             SH_DBG("[DA5A0] step3: done");
@@ -907,6 +964,18 @@ void func_800DB26C(void) // 0x800DB26C
 
 void func_800DB514(void) // 0x800DB514
 {
+#ifdef SH_PC_PORT
+    {
+        static s32 s_lastStep = -1;
+        s32 curStep = g_SysWork.sysStateSteps[0];
+        if (curStep != s_lastStep) {
+            SH_DBG("[DB514] step=%d EF16=%d EF17=%d DFB60=%d", curStep,
+                    Savegame_EventFlagGet(EventFlag_16), Savegame_EventFlagGet(EventFlag_17),
+                    D_800DFB60);
+            s_lastStep = curStep;
+        }
+    }
+#endif
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
@@ -972,9 +1041,8 @@ void func_800DB514(void) // 0x800DB514
         case 8:
             func_80085EB8(1, &g_SysWork.playerWork.player, 0, false);
 #ifdef SH_PC_PORT
-            /* Safety: if the pickup anim never reports state==1 within
-             * 2 seconds (PSX path through anim event reporting differs),
-             * advance the cutscene anyway so we don't deadlock here. */
+            /* Safety: if the pickup animation doesn't report state==1 within
+             * 2 seconds on PC, advance anyway. */
             g_SysWork.timer_2C += g_DeltaTimeRaw;
             if (g_SysWork.timer_2C > Q12(2.0f))
             {
@@ -1082,7 +1150,7 @@ void MapEvent_CutsceneAlleyNightmare(void) // 0x800DB94C
             {
                 Math_SetSVectorFast(&offset, 0, -38, 0);
 
-                Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords[HarryBone_Head], &neck_lwm);
+                Vw_CoordHierarchyMatrixCompute(&g_SysWork.playerBoneCoords[2], &neck_lwm);
 
                 // Load transformation matrix.
                 gte_SetRotMatrix(&neck_lwm);
@@ -1365,11 +1433,11 @@ block7:
             }
         }
 
-        var_s1 = Math_AngleNormalizeSigned(ratan2(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
+        var_s1 = func_8005BF38(ratan2(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
                                       g_SysWork.npcs[0].position.vz - g_SysWork.playerWork.player.position.vz) -
                                g_SysWork.playerWork.player.headingAngle);
 
-        temp_a0 = Math_AngleNormalizeSigned(ratan2(Q12(-62.0f) - g_SysWork.playerWork.player.position.vx,
+        temp_a0 = func_8005BF38(ratan2(Q12(-62.0f) - g_SysWork.playerWork.player.position.vx,
                                        Q12(106.0f) - g_SysWork.playerWork.player.position.vz) -
                                 g_SysWork.playerWork.player.headingAngle);
 

@@ -87,22 +87,8 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
     s_SubCharacter* chara0;
     s_SubCharacter* chara1;
 
-#ifdef SH_PC_PORT
-    /* Track cutscene step transitions so a hang isolates immediately
-     * to the offending step (visible in the log when enable_debug_log=1). */
-    {
-        static s32 s_lastCafeStep = -1;
-        if ((s32)g_SysWork.sysStateSteps[0] != s_lastCafeStep) {
-            SH_DBG("[CAFE] step %d -> %d  timer=%d msgIdx=%d",
-                   s_lastCafeStep, (s32)g_SysWork.sysStateSteps[0],
-                   (s32)g_Timer0, (s32)g_MapMsgSoundIdx);
-            s_lastCafeStep = (s32)g_SysWork.sysStateSteps[0];
-        }
-    }
-#endif
-
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config_0.controllerConfig_0.skip_4) &&
         g_SysWork.sysStateSteps[0] > 5 && g_SysWork.sysStateSteps[0] < 47)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -376,7 +362,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
             func_80088F94(&g_SysWork.npcs[0], 0, 0);
             SD_Call(19);
             Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, 0, 0);
-            func_80086470(3, InvItemId_Handgun, HANDGUN_AMMO_PICKUP_ITEM_COUNT, false);
+            func_80086470(3, InventoryItemId_Handgun, HANDGUN_AMMO_PICKUP_ITEM_COUNT, false);
             SysWork_StateStepIncrement(0);
 
         case 49:
@@ -1063,22 +1049,27 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         if (Savegame_EventFlagGet(EventFlag_41))
         {
 #ifdef SH_PC_PORT
-            /* The flyby is DMS-driven (position/rotation come from
-             * Dms_CharacterGetPosRot), so the AI state machine isn't
-             * running and the wings never animate. Force FlyIdle
-             * playback once so the wings flap during the flyby pass. */
+            SH_DBG("[M0S01_WOU] EF41 path: calling Model_AnimDurationGet npcs[0]=%p charaId=%d",
+                   (void*)&g_SysWork.npcs[0],
+                   (int)g_SysWork.npcs[0].model.charaId);
+            /* Flyby is DMS-driven (position/rotation come from Dms_CharacterGetPosRot),
+             * so the AI state machine isn't running and wings never animate. Force
+             * FlyIdle playback once so wings flap during the flyby pass. */
             {
                 s_SubCharacter* _bird = &g_SysWork.npcs[0];
                 u8 _wantStatus = ANIM_STATUS(AirScreamerAnim_19, true);
                 if (_bird->model.anim.status != _wantStatus) {
-                    _bird->model.anim.status      = _wantStatus;
+                    _bird->model.anim.status = _wantStatus;
                     _bird->model.anim.keyframeIdx = 0;
-                    _bird->model.anim.time        = 0;
-                    _bird->model.stateStep        = 0;
+                    _bird->model.anim.time = 0;
+                    _bird->model.stateStep = 0;
                 }
             }
 #endif
             temp_a1 = g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&g_SysWork.npcs[0].model));
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] Model_AnimDurationGet OK temp_a1=%d", (int)temp_a1);
+#endif
 
             ptr = &g_Timer0;
             if (temp_a1 < Q12(25.0f))
@@ -1091,6 +1082,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
             *ptr = var_a2;
 
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] calling Dms_CharacterGetPosRot BIRD t=%d", (int)g_Timer0);
+#endif
             Dms_CharacterGetPosRot(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "BIRD",
                                    g_Timer0, (s_DmsHeader*)FS_BUFFER_11);
 #ifdef SH_PC_PORT
@@ -1114,7 +1108,14 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
                  D_800E2560 > Q12(7.5f))
         {
             Savegame_EventFlagSet(EventFlag_41);
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] calling func_800D3AC0 (air screamer init) npcs[0]=%p",
+                   (void*)&g_SysWork.npcs[0]);
+#endif
             func_800D3AC0(&g_SysWork.npcs[0]);
+#ifdef SH_PC_PORT
+            SH_DBG("[M0S01_WOU] func_800D3AC0 OK");
+#endif
         }
         else
         {

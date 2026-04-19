@@ -89,10 +89,19 @@ bool Fs_QueueDoBuffersOverlap(u8* data0, u32 size0, u8* data1, u32 size1)
 bool Fs_QueueTickSetLoc(s_FsQueueEntry* entry)
 {
     CdlLOC cdloc;
-    CdIntToPos(entry->info->startSector, &cdloc);
+    CdIntToPos(entry->info->startSector_0_0, &cdloc);
 #ifdef SH_PC_PORT
     /* PsyCross CdControl returns 0 for CdlSetloc even on success.
      * Call it for the side effect (seeking the file), then return true. */
+    {
+        static int setlocLog = 0;
+        if (setlocLog < 10) {
+            printf("[SH] Fs_QueueTickSetLoc: startSector=%d cdloc=(%02x:%02x:%02x)\n",
+                entry->info->startSector_0_0,
+                cdloc.minute, cdloc.second, cdloc.sector);
+            setlocLog++;
+        }
+    }
     CdControl(CdlSetloc, (u_char*)&cdloc, NULL);
     return true;
 #else

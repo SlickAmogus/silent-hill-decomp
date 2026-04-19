@@ -526,7 +526,7 @@ s32 g_Items_DisplayedCount = 0;
 u8 g_Inventory_EquippedItem = 0;
 u8 D_800AE185 = 0;
 u8 D_800AE186 = 0;
-u8 D_800AE187 = InvItemId_Unequipped; // `e_InvItemId`
+u8 D_800AE187 = InvItemId_Unequipped; // `e_InventoryItemId`
 u32 D_800AE188 = 0;
 u16 D_800AE18C = 0; // } Used by JAP0-only code.
 u16 D_800AE18E = 0; // }
@@ -1340,8 +1340,8 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
         }
 
         // Equipped item.
-        if (g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 != (u8)InvItemId_Empty && 
-            g_Inventory_EquippedItemIdx != NO_VALUE)
+        if (g_Inventory_EquippedItemIdx != NO_VALUE &&
+            g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 != (u8)InvItemId_Empty)
         {
 #ifdef SH_PC_PORT
             if (g_Items_Coords[7].param != NULL)
@@ -2839,7 +2839,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             if (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].count_1 == 0 &&
-                INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo)
+                INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo)
             {
                 g_Inventory_ScrollTransitionTimer++;
                 *selectedItemId = 0;
@@ -2929,7 +2929,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             {
                 D_800C3BAC = NO_VALUE;
 
-                if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo)
+                if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo)
                 {
                     for (l = 0; l < g_SavegamePtr->inventorySlotCount_AB; l++)
                     {
@@ -2983,7 +2983,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             if ((g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].count_1 == 0 &&
-                 INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InvItemGroup_GunAmmo) ||
+                 INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0) == InventoryItemGroup_GunAmmo) ||
                 var_t3 >= 0 && g_SavegamePtr->items_0[var_t3].count_1 == 0)
             {
                 g_Inventory_ScrollTransitionTimer++;
@@ -3079,20 +3079,20 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             {
                 switch (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0)
                 {
-                    case InvItemId_HealthDrink:
-                    case InvItemId_FirstAidKit:
-                    case InvItemId_Ampoule:
+                    case InventoryItemId_HealthDrink:
+                    case InventoryItemId_FirstAidKit:
+                    case InventoryItemId_Ampoule:
                         switch (g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0)
                         {
-                            case InvItemId_FirstAidKit:
+                            case InventoryItemId_FirstAidKit:
                                 g_SysWork.playerWork.player.health += Q12(80.0f);
                                 break;
 
-                            case InvItemId_HealthDrink:
+                            case InventoryItemId_HealthDrink:
                                 g_SysWork.playerWork.player.health += Q12(40.0f);
                                 break;
 
-                            case InvItemId_Ampoule:
+                            case InventoryItemId_Ampoule:
                                 g_SysWork.playerWork.player.health += Q12(100.0f);
                                 g_SavegamePtr->healthSaturation_238    = Q12(300.0f);
                                 break;
@@ -3111,6 +3111,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[USEHEAL] count0 exit: clearing item, calling func_8004EF48");
+#endif
                     g_SavegamePtr->items_0[g_SysWork.invItemSelectedIdx].id_0 = InvItemId_Empty;
 
                     g_Inventory_ScrollTransitionTimer = 0;
@@ -3161,9 +3164,9 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
         case 11:
             if (g_Inventory_ScrollTransitionTimer == 0 &&
-                ((g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 >= InvItemId_LobbyKey &&
-                  g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 < InvItemId_KitchenKnife) ||
-                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 == InvItemId_GasolineTank))
+                ((g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 >= InventoryItemId_LobbyKey &&
+                  g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 < InventoryItemId_KitchenKnife) ||
+                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].id_0 == InventoryItemId_GasolineTank))
             {
                 g_SavegamePtr->items_0[(u8)g_SysWork.invItemSelectedIdx].count_1 = 0;
             }
@@ -3825,7 +3828,7 @@ void func_800540A4(s8 arg0) // 0x800540A4
 
     for (i = 0; i < g_SavegamePtr->inventorySlotCount_AB; i++)
     {
-        if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[i].id_0) == InvItemGroup_GunAmmo &&
+        if (INVENTORY_ITEM_GROUP(g_SavegamePtr->items_0[i].id_0) == InventoryItemGroup_GunAmmo &&
             g_SavegamePtr->items_0[i].id_0 == INVENTORY_WEAPON_AMMO_ID(g_SavegamePtr->items_0[g_SysWork.playerCombat.weaponInventoryIdx].id_0))
         {
             g_SavegamePtr->items_0[i].count_1 = g_SysWork.playerCombat.totalWeaponAmmo;
@@ -4011,7 +4014,7 @@ void Inventory_ExitAnimFixes(void) // 0x80054634
     g_SavegamePtr->equippedWeapon_AA = g_Inventory_EquippedItem;
     if (g_SavegamePtr->equippedWeapon_AA)
     {
-        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(g_SavegamePtr->equippedWeapon_AA + InvItemId_KitchenKnife, AttackInputType_Tap);
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(g_SavegamePtr->equippedWeapon_AA + InventoryItemId_KitchenKnife, AttackInputType_Tap);
     }
     else
     {
@@ -4058,9 +4061,31 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
     GsDOBJ2*           ptr;
     struct TMD_STRUCT* models;
 
+#ifdef SH_PC_PORT
+    /* s_TmdFile is a raw TMD file image: id/flags/nobj followed by
+     * object table (each object 28 bytes on disk, 7×u32). PSX code
+     * passed &models[loadableItemIdx] because TMD_STRUCT matched the
+     * on-disk layout there; on 64-bit it doesn't. Parse through the
+     * file-layout helper, then resolve the real TMD_STRUCT and link. */
+    (void)models;
+    if (tmd != NULL) {
+        /* Match GameFs_TmdDataAlloc: it passes &buf[1], i.e. skips the
+         * TMD id field and points at (flags, nobj, objects…). s_TmdFile
+         * maps that as (id_0, flags_4, modelCount_8, models_c), so the
+         * cache key is &flags_4. */
+        unsigned long*     tmd_hdr = (unsigned long*)&tmd->flags;
+        struct TMD_STRUCT* obj;
+        GsMapModelingData(tmd_hdr);
+        obj = GsGetTMDObject(tmd_hdr, loadableItemIdx);
+        if (obj != NULL) {
+            GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
+        }
+    }
+#else
     models = tmd->models;
 
     GsLinkObject4((u32)&models[loadableItemIdx], &g_Items_ItemsModelData[displayItemIdx], 0);
+#endif
 
     ptr         = &g_Items_ItemsModelData[displayItemIdx];
     ptr->coord2 = &g_Items_Coords[displayItemIdx];

@@ -192,7 +192,7 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
      * stack memory. On PSX, stack contents are predictable; on x86-64,
      * they vary with binary layout, causing sporadic crashes. */
     memset(&state, 0, sizeof(state));
-    memset(&collQuery, 0, sizeof(collQuery));
+    memset(&query, 0, sizeof(query));
 #endif
 
     pos.vx = Q12(0.0f);
@@ -238,13 +238,15 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     }
 
 #ifdef SH_PC_PORT
-    /* SH_DBG is gated by enable_debug_log at runtime, so the per-call
-     * cap is no longer necessary -- when logging is off this is a
-     * no-op anyway. Log every call so cutscene-time crashes show
-     * the full Collision_Get history. */
-    SH_DBG("[COLLGET] field_90=%d field_7C=0x%X field_80=%d field_84=%d field_88=%d field_8C=%d groundH=%d",
-            state.field_90, state.field_7C, state.field_80, state.field_84,
-            state.field_88, state.field_8C, coll->groundHeight_0);
+    {
+        static int _cgDbg = 0;
+        if (_cgDbg < 20) {
+            SH_DBG("[COLLGET] field_90=%d field_7C=0x%X field_80=%d field_84=%d field_88=%d field_8C=%d groundH=%d",
+                    state.field_90, state.field_7C, state.field_80, state.field_84,
+                    state.field_88, state.field_8C, coll->groundHeight_0);
+        }
+        _cgDbg++;
+    }
 #endif
 
     coll->field_4 = state.field_88;
@@ -462,11 +464,13 @@ s32 Collision_CharaCollisionSetup(s_CollisionResult* collResult, VECTOR3* offset
     s32              charaCount;
     s32              var_s1; // TODO: Maybe `bool`?
 
-    collQuery.position_0.vx = chara->position.vx + chara->field_D8.offsetX_4;
-    collQuery.position_0.vy = chara->position.vy - Q12(0.02f);
-    collQuery.position_0.vz = chara->position.vz + chara->field_D8.offsetZ_6;
+    /* PC: IPD collision data is now reformatted for 64-bit by
+     * ParseIpdCollisionData in ipd_reformat.c. Enable real collision. */
 
-    if (func_800426E4(chara->position.vx, chara->position.vz) == NULL)
+    sp28.position_0.vx = chara->position.vx + chara->field_D8.offsetX_4;
+    sp28.position_0.vy = chara->position.vy - Q12(0.02f);
+    sp28.position_0.vz = chara->position.vz + chara->field_D8.offsetZ_6;
+
     {
         s_IpdCollisionData* _collCheck = func_800426E4(chara->position.vx, chara->position.vz);
         if (_collCheck == NULL
@@ -501,17 +505,18 @@ s32 Collision_CharaCollisionSetup(s_CollisionResult* collResult, VECTOR3* offset
             break;
     }
 
+    /* On PSX MIPS, function arguments are evaluated left-to-right, so
+     * func_800425D8(&collDataIdx) sets collDataIdx before it's read, and
+     * Collision_ActiveCharactersGet(&charaCount,...) sets charaCount before
+     * it's read.  On x86-64, evaluation order is unspecified — GCC may read
+     * collDataIdx/charaCount before the side-effect calls execute, giving
+     * garbage values (e.g. charaCount=32766).  Fix: evaluate first. */
     {
-        /* MIPS arg-eval is left-to-right so the original code worked:
-         *   func_8006A4A8(..., side_effect(&v), v, ..., side_effect(&c), c)
-         * x86-64 leaves the order unspecified -- both `v` and `c` end up
-         * read before the side-effect runs and you get garbage. Sequence
-         * the calls so each side-effect commits before its read. */
-        s_IpdCollisionData** collDataPtrs = func_800425D8(&collDataIdx);
-        s_SubCharacter**     charas       = Collision_ActiveCharactersGet(&charaCount, chara, true);
-        return func_8006A4A8(collResult, &offsetCpy, &collQuery, var_s1,
-                             collDataPtrs, collDataIdx, NULL, 0,
-                             charas, charaCount);
+        s_IpdCollisionData** _collPtrs = func_800425D8(&collDataIdx);
+        s_SubCharacter**     _charas   = Collision_ActiveCharactersGet(&charaCount, chara, true);
+        return func_8006A4A8(collResult, &offsetCpy, &sp28, var_s1,
+                             _collPtrs, collDataIdx, NULL, 0,
+                             _charas, charaCount);
     }
 }
 
@@ -584,8 +589,8 @@ s32 Collision_OffsetCheck(s_CollisionResult* collResult, VECTOR* offset, s_Colli
     s32 stackPtr;
     s32 var1;
 
-    stackPtr = SetSp(0x1F8003D8);
-    var1 = func_8006A42C(collResult, offset, collQuery);
+    stackPtr = SetSp((unsigned long)PSX_SCRATCH_ADDR(0x3D8));
+    var1 = func_8006A42C(collResult, offset, query);
     SetSp(stackPtr);
 
     if (var1 == NO_VALUE)
@@ -598,18 +603,16 @@ s32 Collision_OffsetCheck(s_CollisionResult* collResult, VECTOR* offset, s_Colli
 
 s32 func_8006A42C(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery) // 0x8006A42C
 {
-    VECTOR3              offsetCpy;
-    s32                  collDataIdx;
-    s_IpdCollisionData** collDataPtrs;
+    VECTOR3 offsetCpy;
+    s32     collDataIdx;
 
     offsetCpy = *offset;
 
-    /* MIPS evaluates args left-to-right, so the original
-     *   func_8006A4A8(..., func_800425D8(&collDataIdx), collDataIdx, ...)
-     * worked because the side-effect ran before the read. x86-64 leaves
-     * the order unspecified and reads garbage. Sequence the call. */
-    collDataPtrs = func_800425D8(&collDataIdx);
-    return func_8006A4A8(collResult, &offsetCpy, collQuery, 0, collDataPtrs, collDataIdx, NULL, 0, NULL, 0);
+    /* Same MIPS left-to-right eval order fix as Collision_CharaCollisionSetup */
+    {
+        s_IpdCollisionData** _collPtrs = func_800425D8(&collDataIdx);
+        return func_8006A4A8(collResult, &offsetCpy, query, 0, _collPtrs, collDataIdx, NULL, 0, NULL, 0);
+    }
 }
 
 s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery, s32 arg3,
@@ -629,7 +632,7 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
     s_SubCharacter*      chara;
 
 #ifdef SH_PC_PORT
-    memset(&collState, 0, sizeof(collState));
+    memset(&sp18, 0, sizeof(sp18));
 #endif
     cond = false;
 
@@ -639,7 +642,14 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
         return 0;
     }
 
-    func_8006A940(offset, collQuery, charas, charaCount);
+#ifdef SH_PC_PORT
+    { static int _a4dbg = 0; if (_a4dbg < 5) {
+        SH_DBG("[A4A8] ENTER query.f12=%d collDataIdx=%d charaCount=%d arg3=%d",
+               query->field_12, collDataIdx, charaCount, arg3);
+    } _a4dbg++; }
+#endif
+
+    func_8006A940(offset, query, charas, charaCount);
 
 #ifdef SH_PC_PORT
     { static int _a4dbg2 = 0; if (_a4dbg2 < 5) { SH_DBG("[A4A8] after func_8006A940"); } _a4dbg2++; }
@@ -649,9 +659,17 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
 
     collResult->field_18 = func_8006F620(&offsetCpy, collQuery, collQuery->rotation_C.vz, collQuery->rotation_C.vy);
 
-    Collision_QueryInit(&collState, &offsetCpy, collQuery, arg3);
+#ifdef SH_PC_PORT
+    { static int _a4dbg3 = 0; if (_a4dbg3 < 5) { SH_DBG("[A4A8] after func_8006F620"); } _a4dbg3++; }
+#endif
 
-    offset1 = offsetCpy;
+    Collision_QueryInit(&sp18, &offsetCpy, query, arg3);
+
+#ifdef SH_PC_PORT
+    { static int _a4dbg4 = 0; if (_a4dbg4 < 5) { SH_DBG("[A4A8] after QueryInit"); } _a4dbg4++; }
+#endif
+
+    sp130 = offsetCpy;
 
     collResult->offset_0.vz = Q12(0.0f);
     collResult->offset_0.vx = Q12(0.0f);
@@ -674,17 +692,26 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
 
 #ifdef SH_PC_PORT
         { static int _loopDbg = 0; if (_loopDbg < 5) {
-            SH_DBG("[A4A8] loop iter: field_0_0=%d collDataIdx=%d", collState.field_0_0, collDataIdx);
+            SH_DBG("[A4A8] loop iter: field_0_0=%d collDataIdx=%d", sp18.field_0_0, collDataIdx);
         } _loopDbg++; }
 #endif
 
         // Run through collision data.
         for (curCollData = collDataPtrs; curCollData < &collDataPtrs[collDataIdx]; curCollData++)
         {
-            func_8006AD44(&collState, *curCollData);
+#ifdef SH_PC_PORT
+            { static int _cdDbg = 0; if (_cdDbg < 5) {
+                SH_DBG("[A4A8] func_8006AD44 collData=%p", (void*)*curCollData);
+            } _cdDbg++; }
+#endif
+            func_8006AD44(&sp18, *curCollData);
         }
 
-        if (collState.field_44.field_0.field_0 && collState.field_44.field_0.field_2.vx == collState.field_44.field_0.field_2.vy)
+#ifdef SH_PC_PORT
+        { static int _postAd = 0; if (_postAd < 5) { SH_DBG("[A4A8] after AD44 loop"); } _postAd++; }
+#endif
+
+        if (sp18.field_44.field_0.field_0 && sp18.field_44.field_0.field_2.vx == sp18.field_44.field_0.field_2.vy)
         {
             cond |= true;
         }
@@ -706,14 +733,14 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
                 var_a0 -= 15;
             }
 
-            collState.field_98.field_0 = Q12_TO_Q8(chara->position.vx + chara->field_D8.offsetX_4);
-            collState.field_9C.field_0 = Q12_TO_Q8(chara->position.vz + chara->field_D8.offsetZ_6);
+            sp18.field_98.field_0 = Q12_TO_Q8(chara->position.vx + chara->field_D8.offsetX_4);
+            sp18.field_9C.field_0 = Q12_TO_Q8(chara->position.vz + chara->field_D8.offsetZ_6);
 
-            collState.field_A0.s_1.field_0 = Q12_TO_Q8(chara->field_C8.field_0 + chara->position.vy);
-            collState.field_A0.s_1.field_2 = Q12_TO_Q8(chara->field_C8.field_2 + chara->position.vy);
-            collState.field_A0.s_1.field_4 = var_a0;
-            collState.field_A0.s_1.field_6 = chara->field_E1_0;
-            collState.field_A0.s_1.field_8 = &chara->field_E0;
+            sp18.field_A0.s_1.field_0 = Q12_TO_Q8(chara->field_C8.field_0 + chara->position.vy);
+            sp18.field_A0.s_1.field_2 = Q12_TO_Q8(chara->field_C8.field_2 + chara->position.vy);
+            sp18.field_A0.s_1.field_4 = var_a0;
+            sp18.field_A0.s_1.field_6 = chara->field_E1_0;
+            sp18.field_A0.s_1.field_8 = &chara->field_E0;
 
             if (collState.field_0_0 == 0)
             {
@@ -724,7 +751,11 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
             func_8006CF18(&collState, chara->field_E4, chara->field_E1_4);
         }
 
-        func_8006D01C(&sp120, &offset1, Collision_OffsetAlphaGet(&collState), &collState);
+#ifdef SH_PC_PORT
+        { static int _postChara = 0; if (_postChara < 5) { SH_DBG("[A4A8] after chara loop"); } _postChara++; }
+#endif
+
+        func_8006D01C(&sp120, &sp130, func_8006CB90(&sp18), &sp18);
 
 #ifdef SH_PC_PORT
         { static int _postD01C = 0; if (_postD01C < 5) { SH_DBG("[A4A8] after D01C"); } _postD01C++; }
@@ -825,8 +856,8 @@ void func_8006A940(VECTOR3* offset, s_CollisionQuery* collQuery, s_SubCharacter*
             continue;
         }
 
-        posX = (curChara->position.vx + curChara->field_D8.offsetX_4) - collQuery->position_0.vx;
-        posZ = (curChara->position.vz + curChara->field_D8.offsetZ_6) - collQuery->position_0.vz;
+        posX = (curChara->position.vx + curChara->field_D8.offsetX_4) - query->position_0.vx;
+        posZ = (curChara->position.vz + curChara->field_D8.offsetZ_6) - query->position_0.vz;
 
         mag = Vc_VectorMagnitudeCalc(posX, Q12(0.0f), posZ);
         if (((curChara->field_D4.radius_0 + collQuery->rotation_C.vz) + Q12_ANGLE(36.0f)) < mag)
@@ -937,7 +968,7 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
     }
 #endif
 
-    if (collState->field_0_0 == 0)
+    if (state->field_0_0 == 0)
     {
         func_80069994(collData);
     }
@@ -950,9 +981,9 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
      * The array has field_1E * field_1F entries. */
     {
         s32 maxIdx = (s32)collData->field_1E * (s32)collData->field_1F;
-        s32 loopEnd_i = collState->field_A0.s_0.field_1 + collState->field_A0.s_0.field_3;
+        s32 loopEnd_i = state->field_A0.s_0.field_1 + state->field_A0.s_0.field_3;
         if (startIdx < 0 || endIdx < 0 || startIdx >= collData->field_1E ||
-            endIdx >= collData->field_1E || collState->field_A0.s_0.field_1 < 0 ||
+            endIdx >= collData->field_1E || state->field_A0.s_0.field_1 < 0 ||
             loopEnd_i > collData->field_1F ||
             (loopEnd_i * collData->field_1E + endIdx) >= maxIdx) {
             goto ad44_skip_grid;
@@ -960,7 +991,7 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
     }
 #endif
 
-    for (i = collState->field_A0.s_0.field_1; i < (collState->field_A0.s_0.field_1 + collState->field_A0.s_0.field_3); i++)
+    for (i = state->field_A0.s_0.field_1; i < (state->field_A0.s_0.field_1 + state->field_A0.s_0.field_3); i++)
     {
         curUnk = &collData->ptr_20[(i * collData->field_1E) + startIdx];
 
@@ -1005,13 +1036,13 @@ bool func_8006AEAC(s_CollisionState* collState, s_IpdCollisionData* collData) //
 #ifdef SH_PC_PORT
     /* Guard against divide-by-zero on collision cell size */
     if (collData->field_1C == 0) {
-        collState->field_A0.s_0.field_4 = NULL;
+        state->field_A0.s_0.field_4 = NULL;
         return true;
     }
 #endif
 
-    if ((collState->field_98.vec_0.vx / collData->field_1C) < 0 || (collState->field_98.vec_0.vx / collData->field_1C) >= collData->field_1E ||
-        ((collState->field_98.vec_0.vz / collData->field_1C) < 0) || (collState->field_98.vec_0.vz / collData->field_1C) >= collData->field_1F)
+    if ((state->field_98.vec_0.vx / collData->field_1C) < 0 || (state->field_98.vec_0.vx / collData->field_1C) >= collData->field_1E ||
+        ((state->field_98.vec_0.vz / collData->field_1C) < 0) || (state->field_98.vec_0.vz / collData->field_1C) >= collData->field_1F)
     {
         collState->field_A0.s_0.field_4 = NULL;
         return true;
@@ -1457,8 +1488,8 @@ void func_8006BB50(s_CollisionState* collState, s32 arg1) // 0x8006BB50
         deltaZ = -collState->field_CC.field_6.vx;
     }
 
-    temp2 = collState->field_4.field_28 - collState->field_CC.field_20.field_C;
-    func_8006BCC4(&collState->field_44, (u8*)collState->field_CC.ipdCollisionData_0 + (collState->field_CC.field_4 + 52), arg1, deltaX, deltaZ, temp2);
+    temp2 = state->field_4.field_28 - state->field_CC.field_20.field_C;
+    func_8006BCC4(&state->field_44, (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS), arg1, deltaX, deltaZ, temp2);
 }
 
 s32 func_8006BC34(s_CollisionState* collState)
@@ -1675,12 +1706,12 @@ void func_8006C0C8(s_CollisionState* collState, s16 arg1, s16 arg2) // 0x8006C0C
 
     if (temp + collState->field_CC.field_12.vy < collState->field_4.field_2C)
     {
-        collState->field_40 = (u8*)collState->field_CC.ipdCollisionData_0 + (collState->field_CC.field_4 + 52);
-        collState->field_34 = 1;
-        collState->field_38 = arg1;
-        collState->field_3A = (collState->field_4.distance_8 * arg1) >> 8;
-        collState->field_3C = collState->field_CC.field_6.vy;
-        collState->field_3E = -collState->field_CC.field_6.vx;
+        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS);
+        state->field_34 = 1;
+        state->field_38 = arg1;
+        state->field_3A = (state->field_4.distance_8 * arg1) >> 8;
+        state->field_3C = state->field_CC.field_6.vy;
+        state->field_3E = -state->field_CC.field_6.vx;
     }
 }
 
@@ -1892,14 +1923,14 @@ void func_8006C45C(s_CollisionState* collState) // 0x8006C45C
 
     if (func_8006C1B8(1, var_s2, collState) && collState->field_4.field_2C >= collState->field_CC.field_6.vy)
     {
-        collState->field_38 = var_s2;
-        collState->field_34 = 1;
-        temp           = collState->field_98.vec_0.vx + Q12_MULT(collState->field_4.offset_C.vx, var_s2);
-        collState->field_3A = (collState->field_4.distance_8 * var_s2) >> 8;
-        collState->field_40 = (u8*)collState->field_CC.ipdCollisionData_0 + (collState->field_CC.field_4 + 52);
-        collState->field_3C = temp - collState->field_CC.field_6.vx;
-        temp2          = collState->field_98.vec_0.vz + Q12_MULT(collState->field_4.offset_C.vz, var_s2);
-        collState->field_3E = temp2 - collState->field_CC.field_6.vz;
+        state->field_38 = var_s2;
+        state->field_34 = 1;
+        temp           = state->field_98.vec_0.vx + Q12_MULT(state->field_4.offset_C.vx, var_s2);
+        state->field_3A = (state->field_4.distance_8 * var_s2) >> 8;
+        state->field_40 = (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS);
+        state->field_3C = temp - state->field_CC.field_6.vx;
+        temp2          = state->field_98.vec_0.vz + Q12_MULT(state->field_4.offset_C.vz, var_s2);
+        state->field_3E = temp2 - state->field_CC.field_6.vz;
     }
 }
 
@@ -1907,8 +1938,8 @@ void func_8006C794(s_CollisionState* collState, s32 arg1, s32 dist) // 0x8006C79
 {
     if (collState->field_4.field_2C >= (collState->field_CC.field_6.vy + (dist - collState->field_CC.field_C.field_0)))
     {
-        func_8006BCC4(&collState->field_44,
-                      (u8*)collState->field_CC.ipdCollisionData_0 + (collState->field_CC.field_4 + 52),
+        func_8006BCC4(&state->field_44,
+                      (u8*)state->field_CC.ipdCollisionData_0 + (state->field_CC.field_4 + IPD_COLL_FIELD34_OFS),
                       arg1,
                       collState->field_98.vec_0.vx - collState->field_CC.field_6.vx,
                       collState->field_98.vec_0.vz - collState->field_CC.field_6.vz,
@@ -3772,17 +3803,17 @@ bool func_8006FD90(s_SubCharacter* chara, s32 count, q19_12 baseDistMax, q19_12 
     q19_12  distMult;
     q19_12  distMax;
 
-    if (Math_AngleNormalizeSigned(ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
+    if (func_8005BF38(ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
                              g_SysWork.playerWork.player.position.vz - chara->position.vz) -
                       chara->rotation.vy) < 0)
     {
-        distMult = (Math_AngleNormalizeSigned(ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
+        distMult = (func_8005BF38(ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
                                         g_SysWork.playerWork.player.position.vz - chara->position.vz) -
                                  chara->rotation.vy) * 2) + Q12_ANGLE(360.0f);
     }
     else
     {
-        distMult = (Q12_ANGLE(180.0f) - Math_AngleNormalizeSigned((ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
+        distMult = (Q12_ANGLE(180.0f) - func_8005BF38((ratan2(g_SysWork.playerWork.player.position.vx - chara->position.vx,
                                                              g_SysWork.playerWork.player.position.vz - chara->position.vz) -
                                                       chara->rotation.vy))) * 2;
     }

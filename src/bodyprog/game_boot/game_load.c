@@ -49,7 +49,7 @@ void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
 void GameState_LoadScreen_Update(void) // 0x800348E8
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadScreen_Update: entering (step=%d)", g_GameWork.gameStateSteps[0]);
+    SH_DBG("[SH] GameState_LoadScreen_Update: entering (step=%d)", g_GameWork.gameStateStep_598[0]);
 #endif
     GameBoot_LoadingScreen();
 #ifdef SH_PC_PORT
@@ -81,17 +81,28 @@ void GameBoot_GameStartup(void) // 0x80034964
     // should be triggered.
     static s32 demoLoadAttempCount;
 
-    switch (g_GameWork.gameStateSteps[0])
+#ifdef SH_PC_PORT
+    {
+        static s32 prevLoadStep = -1;
+        if (g_GameWork.gameStateStep_598[0] != prevLoadStep) {
+            printf("[SH] GameBoot_GameStartup step=%d\n", g_GameWork.gameStateStep_598[0]);
+            fflush(stdout);
+            prevLoadStep = g_GameWork.gameStateStep_598[0];
+        }
+    }
+#endif
+
+    switch (g_GameWork.gameStateStep_598[0])
     {
         case 0:
 #ifdef SH_PC_PORT
             SH_DBG("[TRANSITION] GameStartup step=0: processFlags=0x%X (%s) sizeof(s_WorldGfxWork)=%zu",
                    g_SysWork.processFlags,
-                   (g_SysWork.processFlags == ProcessFlag_RoomTransition) ? "RoomTransition" :
-                   (g_SysWork.processFlags == ProcessFlag_OverlayTransition) ? "OverlayTransition" :
-                   (g_SysWork.processFlags == ProcessFlag_BootDemo) ? "BootDemo" :
-                   (g_SysWork.processFlags == ProcessFlag_LoadSave) ? "LoadSave" :
-                   (g_SysWork.processFlags == ProcessFlag_Continue) ? "Continue" : "Unknown",
+                   (g_SysWork.processFlags == SysWorkProcessFlag_RoomTransition) ? "RoomTransition" :
+                   (g_SysWork.processFlags == SysWorkProcessFlag_OverlayTransition) ? "OverlayTransition" :
+                   (g_SysWork.processFlags == SysWorkProcessFlag_BootDemo) ? "BootDemo" :
+                   (g_SysWork.processFlags == SysWorkProcessFlag_LoadSave) ? "LoadSave" :
+                   (g_SysWork.processFlags == SysWorkProcessFlag_Continue) ? "Continue" : "Unknown",
                    sizeof(s_WorldGfxWork));
 #endif
             g_IntervalVBlanks                  = 1;
@@ -99,12 +110,12 @@ void GameBoot_GameStartup(void) // 0x80034964
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
 
-            if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
+            if (g_SysWork.processFlags == SysWorkProcessFlag_RoomTransition)
             {
                 AreaLoad_UpdatePlayerPosition();
                 g_GameWork.gameStateSteps[0] = 7;
             }
-            else if (g_SysWork.processFlags == ProcessFlag_BootDemo)
+            else if (g_SysWork.processFlags == SysWorkProcessFlag_BootDemo)
             {
                 demoLoadAttempCount             = 0;
                 g_GameWork.gameStateSteps[0] = 1;
@@ -171,12 +182,12 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 4:
-            if (g_SysWork.processFlags == ProcessFlag_OverlayTransition)
+            if (g_SysWork.processFlags == SysWorkProcessFlag_OverlayTransition)
             {
                 AreaLoad_UpdatePlayerPosition();
             }
-            else if (g_SysWork.processFlags == ProcessFlag_LoadSave ||
-                     g_SysWork.processFlags == ProcessFlag_Continue)
+            else if (g_SysWork.processFlags == SysWorkProcessFlag_LoadSave ||
+                     g_SysWork.processFlags == SysWorkProcessFlag_Continue)
             {
                 g_SysWork.loadingScreenIdx = LoadingScreenId_PlayerRun;
             }
@@ -217,7 +228,14 @@ void GameBoot_GameStartup(void) // 0x80034964
             }
 
             Ipd_PlayerChunkInit(&g_MapOverlayHeader, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
-            if (g_SysWork.processFlags == ProcessFlag_OverlayTransition)
+#ifdef SH_PC_PORT
+            SH_DBG("[TRANSITION] GameStartup step=7 post-init: playerPos=(%d,%d,%d) mapTag='%.4s'",
+                   g_SysWork.playerWork.player.position.vx,
+                   g_SysWork.playerWork.player.position.vy,
+                   g_SysWork.playerWork.player.position.vz,
+                   g_MapOverlayHeader.mapInfo_0 ? g_MapOverlayHeader.mapInfo_0->tag_2 : "NULL");
+#endif
+            if (g_SysWork.processFlags == SysWorkProcessFlag_OverlayTransition)
             {
                 Game_RadioSoundStop();
             }
@@ -273,7 +291,7 @@ void GameBoot_GameStartup(void) // 0x80034964
                 if (bgmResult == 0)
                 {
                     SH_DBG("[SH] BGM_Init step9: Bgm_Init() returned 0 (done)");
-                    g_GameWork.gameStatePrev = GameState_MainLoadScreen;
+                    g_GameWork.gameState_594 = GameState_MainLoadScreen;
                     Game_StateStepIncrement();
                 }
             }
@@ -287,7 +305,7 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 10:
-            if (g_SysWork.processFlags == ProcessFlag_BootDemo && !(g_SysWork.flags_22A4 & UnkSysFlag_1))
+            if (g_SysWork.processFlags == SysWorkProcessFlag_BootDemo && !(g_SysWork.flags_22A4 & SysFlag2_1))
             {
                 Demo_Start();
                 g_SysWork.flags_22A4 |= UnkSysFlag_1;
@@ -305,7 +323,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 #endif
             if (g_SysWork.counters_1C[0] >= 60)
             {
-                if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
+                if (g_SysWork.processFlags == SysWorkProcessFlag_RoomTransition)
                 {
                     GameBoot_NpcInit();
                 }
@@ -314,7 +332,7 @@ void GameBoot_GameStartup(void) // 0x80034964
                     GameBoot_InGameInit();
                 }
 
-                if (g_SysWork.processFlags <= (u32)ProcessFlag_OverlayTransition)
+                if (g_SysWork.processFlags <= (u32)SysWorkProcessFlag_OverlayTransition)
                 {
                     AreaLoad_TransitionSound();
                 }
@@ -350,11 +368,20 @@ void GameBoot_GameStartup(void) // 0x80034964
 /** @brief Initalizes drawing of a loading screen. */
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
-    if (g_SysWork.loadingScreenIdx != LoadingScreenId_None && g_GameWork.gameStateSteps[0] < 10)
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_LoadingScreen: loadingScreenIdx=%d step=%d",
+            g_SysWork.loadingScreenIdx_2281, g_GameWork.gameStateStep_598[0]);
+#endif
+    if (g_SysWork.loadingScreenIdx_2281 != LoadingScreenId_None && g_GameWork.gameStateStep_598[0] < 10)
     {
         ScreenFade_Start(false, true, false);
         g_ScreenFadeTimestep = Q12(0.8f);
-        g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx]();
+#ifdef SH_PC_PORT
+        SH_DBG("[SH] GameBoot_LoadingScreen: calling func[%d]=%p",
+                g_SysWork.loadingScreenIdx_2281,
+                (void*)g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx_2281]);
+#endif
+        g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx_2281]();
     }
 
 #ifdef SH_PC_PORT
