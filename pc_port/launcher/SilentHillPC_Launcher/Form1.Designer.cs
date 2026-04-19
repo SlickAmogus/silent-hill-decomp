@@ -39,6 +39,11 @@ partial class Form1
     private Label fpsLabel;
     private ComboBox comboFps;
 
+    private Label loggingLabel;
+    private Panel loggingPanel;
+    private RadioButton loggingYes;
+    private RadioButton loggingNo;
+
 
 
     protected override void Dispose(bool disposing)
@@ -80,11 +85,16 @@ partial class Form1
             this.fpsLabel = new System.Windows.Forms.Label();
             this.chunksLabel = new System.Windows.Forms.Label();
             this.comboFps = new System.Windows.Forms.ComboBox();
+            this.loggingLabel = new System.Windows.Forms.Label();
+            this.loggingPanel = new System.Windows.Forms.Panel();
+            this.loggingYes = new System.Windows.Forms.RadioButton();
+            this.loggingNo = new System.Windows.Forms.RadioButton();
             this.fullscreenPanel.SuspendLayout();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
             this.introPanel.SuspendLayout();
+            this.loggingPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.SuspendLayout();
             // 
@@ -326,14 +336,48 @@ partial class Form1
             this.introLabel.TabIndex = 16;
             this.introLabel.Text = "Skip Intros:";
             // 
-            // fpsLabel
-            // 
+            // fpsLabel (moved down to make room for Enable Logging row)
+            //
             this.fpsLabel.AutoSize = true;
-            this.fpsLabel.Location = new System.Drawing.Point(214, 255);
+            this.fpsLabel.Location = new System.Drawing.Point(214, 290);
             this.fpsLabel.Name = "fpsLabel";
             this.fpsLabel.Size = new System.Drawing.Size(54, 13);
             this.fpsLabel.TabIndex = 30;
             this.fpsLabel.Text = "FPS Limit:";
+            //
+            // loggingLabel (placed where fpsLabel used to be at 214,255)
+            //
+            this.loggingLabel.AutoSize = true;
+            this.loggingLabel.Location = new System.Drawing.Point(214, 255);
+            this.loggingLabel.Name = "loggingLabel";
+            this.loggingLabel.Size = new System.Drawing.Size(82, 13);
+            this.loggingLabel.TabIndex = 32;
+            this.loggingLabel.Text = "Enable Logging:";
+            //
+            // loggingYes
+            //
+            this.loggingYes.Location = new System.Drawing.Point(5, 5);
+            this.loggingYes.Name = "loggingYes";
+            this.loggingYes.Size = new System.Drawing.Size(49, 24);
+            this.loggingYes.TabIndex = 33;
+            this.loggingYes.Text = "Yes";
+            //
+            // loggingNo
+            //
+            this.loggingNo.Location = new System.Drawing.Point(59, 5);
+            this.loggingNo.Name = "loggingNo";
+            this.loggingNo.Size = new System.Drawing.Size(45, 24);
+            this.loggingNo.TabIndex = 34;
+            this.loggingNo.Text = "No";
+            //
+            // loggingPanel (same column as introPanel/fpsLabel position 299/296)
+            //
+            this.loggingPanel.Controls.Add(this.loggingYes);
+            this.loggingPanel.Controls.Add(this.loggingNo);
+            this.loggingPanel.Location = new System.Drawing.Point(299, 250);
+            this.loggingPanel.Name = "loggingPanel";
+            this.loggingPanel.Size = new System.Drawing.Size(138, 30);
+            this.loggingPanel.TabIndex = 35;
             // 
             // chunksLabel
             // 
@@ -352,7 +396,7 @@ partial class Form1
             "60",
             "120",
             "240"});
-            this.comboFps.Location = new System.Drawing.Point(296, 251);
+            this.comboFps.Location = new System.Drawing.Point(296, 286);
             this.comboFps.Name = "comboFps";
             this.comboFps.Size = new System.Drawing.Size(100, 21);
             this.comboFps.TabIndex = 31;
@@ -380,6 +424,8 @@ partial class Form1
             this.Controls.Add(this.introPanel);
             this.Controls.Add(this.fpsLabel);
             this.Controls.Add(this.comboFps);
+            this.Controls.Add(this.loggingLabel);
+            this.Controls.Add(this.loggingPanel);
             this.Name = "Form1";
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
@@ -388,6 +434,7 @@ partial class Form1
             this.cullingPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
             this.introPanel.ResumeLayout(false);
+            this.loggingPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();

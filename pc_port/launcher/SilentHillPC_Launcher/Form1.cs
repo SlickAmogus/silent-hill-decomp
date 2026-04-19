@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 public partial class Form1 : Form
@@ -16,6 +17,29 @@ public partial class Form1 : Form
         this.Icon = SilentHillPC_Launcher.Properties.Resources.launchericon;
         PopulateDisplayOptions();
         LoadConfig();
+    }
+
+    /// <summary>
+    /// Parse `# mapX_sY  Description text` lines from config.cfg comments
+    /// into a map of id → description so the dropdown can show both.
+    /// </summary>
+    private Dictionary<string, string> LoadMapDescriptions(string cfgPath)
+    {
+        var result = new Dictionary<string, string>();
+        if (!File.Exists(cfgPath)) return result;
+
+        var rx = new Regex(@"^#\s+(map\d+_s\d+)\s+(.+?)\s*$");
+        try
+        {
+            foreach (var line in File.ReadAllLines(cfgPath))
+            {
+                var m = rx.Match(line);
+                if (m.Success && !result.ContainsKey(m.Groups[1].Value))
+                    result[m.Groups[1].Value] = m.Groups[2].Value.Trim();
+            }
+        }
+        catch { /* best-effort; missing descs just fall back to plain id */ }
+        return result;
     }
 
     private void PopulateDisplayOptions()
@@ -56,6 +80,10 @@ public partial class Form1 : Form
         introYes.Checked = config.Get("skip_intros", "0") == "1";
         introNo.Checked = !introYes.Checked;
 
+        // enable debug logging (writes SH_DBG output to SilentHill.log)
+        loggingYes.Checked = config.Get("enable_debug_log", "0") == "1";
+        loggingNo.Checked = !loggingYes.Checked;
+
         comboFps.SelectedItem = config.Get("fps_cap", "30");
         string fps = config.Get("fps_cap", "30");
         if (comboFps.Items.Contains(fps))
@@ -63,9 +91,8 @@ public partial class Form1 : Form
         else
             comboFps.SelectedItem = "30";
 
-        // map dropdown
-        comboMap.Items.AddRange(new string[]
-        {
+        // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
+        string[] mapIds = {
             "map0_s00","map0_s01","map0_s02",
             "map1_s00","map1_s01","map1_s02","map1_s03","map1_s04","map1_s05","map1_s06",
             "map2_s00","map2_s01","map2_s02","map2_s03","map2_s04",
@@ -74,9 +101,24 @@ public partial class Form1 : Form
             "map5_s00","map5_s01","map5_s02","map5_s03",
             "map6_s00","map6_s01","map6_s02","map6_s03","map6_s04","map6_s05",
             "map7_s00","map7_s01","map7_s02","map7_s03"
-        });
+        };
+        Dictionary<string, string> mapDescs = LoadMapDescriptions(cfgPath);
+        foreach (var id in mapIds)
+        {
+            string desc;
+            comboMap.Items.Add(mapDescs.TryGetValue(id, out desc) ? $"{id}  -  {desc}" : id);
+        }
+        // Widen the dropdown list so descriptions don't get clipped
+        comboMap.DropDownWidth = 400;
 
-        comboMap.SelectedItem = config.Get("map", "map0_s00");
+        string savedMap = config.Get("map", "map0_s00");
+        // Find the dropdown entry whose id prefix matches the saved map id
+        for (int i = 0; i < comboMap.Items.Count; i++)
+        {
+            string item = comboMap.Items[i].ToString();
+            string itemId = item.Split(new[] { "  -  " }, StringSplitOptions.None)[0];
+            if (itemId == savedMap) { comboMap.SelectedIndex = i; break; }
+        }
 
         // resolution
         string w = config.Get("width", "640");
@@ -100,7 +142,13 @@ public partial class Form1 : Form
     {
         config.Set("fullscreen", radioFullscreenYes.Checked ? "1" : "0");
         config.Set("vsync", radioVsyncYes.Checked ? "1" : "0");
-        config.Set("map", comboMap.SelectedItem.ToString());
+        // Persist only the map id, not the displayed " - description" suffix
+        if (comboMap.SelectedItem != null)
+        {
+            string sel = comboMap.SelectedItem.ToString();
+            string mapId = sel.Split(new[] { "  -  " }, StringSplitOptions.None)[0];
+            config.Set("map", mapId);
+        }
         // resolution
         if (comboResolution.SelectedItem != null)
         {
@@ -121,6 +169,9 @@ public partial class Form1 : Form
 
         // skip intros
         config.Set("skip_intros", introYes.Checked ? "1" : "0");
+
+        // enable debug logging
+        config.Set("enable_debug_log", loggingYes.Checked ? "1" : "0");
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());
