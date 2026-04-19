@@ -341,8 +341,9 @@ void DebugCamera_Update(void)
                 SDL_GetRelativeMouseState(&mdx, &mdy);
                 g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
                 g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                /* mdy > 0 = mouse moved down; subtract so mouse-up raises camera */
-                g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
+                /* mdy > 0 = mouse moved down; ADD so mouse-down raises camera
+                 * above Harry, pointing it toward the ground (TPS convention). */
+                g_TpsCamPitch += (s32)(mdy * TP_PITCH_SENS);
                 if (g_TpsCamPitch < -Q12_ANGLE(30.0f)) g_TpsCamPitch = -Q12_ANGLE(30.0f);
                 if (g_TpsCamPitch >  Q12_ANGLE(80.0f)) g_TpsCamPitch =  Q12_ANGLE(80.0f);
             }

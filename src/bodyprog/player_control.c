@@ -1412,33 +1412,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
                         s_aimActive = 1;
+                        extra->lowerBodyState = PlayerLowerBodyState_Aim;
 
                         if (fireHeld && s_fireFrames == 0) {
-                            /* Fire: recoil anim + flag attack so
-                             * Player_CombatUpdate dispatches damage */
-                            player->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
-                            player->model.stateStep = 0;
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
-                            extra->model.stateStep = 0;
-                            extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                            /* Fire: flag attack so Player_CombatUpdate
+                             * dispatches damage. Don't touch anim — the
+                             * HandgunAim/Recoil placeholders make Harry
+                             * disappear; leave him in his current pose. */
                             player->field_44.field_0 = 1;
                             g_Player_IsShooting = 1;
                             s_fireFrames = 20;
                             SH_DBG("[AIM] FIRE weaponAttack=%d rot=%d",
                                    (int)g_SysWork.playerCombat.weaponAttack,
                                    (int)player->rotation.vy);
-                        } else {
-                            /* Aim idle: hold pose */
-                            if (player->model.anim.status != ANIM_STATUS(HarryAnim_HandgunAim, true) &&
-                                player->model.anim.status != ANIM_STATUS(HarryAnim_HandgunAim, false) &&
-                                player->model.anim.status != ANIM_STATUS(HarryAnim_HandgunRecoil, false) &&
-                                player->model.anim.status != ANIM_STATUS(HarryAnim_HandgunRecoil, true)) {
-                                player->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                                player->model.stateStep = 0;
-                                extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                                extra->model.stateStep = 0;
-                            }
-                            extra->lowerBodyState = PlayerLowerBodyState_Aim;
                         }
                         if (s_fireFrames > 0) s_fireFrames--;
                     } else {
@@ -1447,10 +1433,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         if (s_aimActive) {
                             s_aimActive = 0;
                             g_SysWork.playerCombat.isAiming = false;
-                            player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
-                            player->model.stateStep = 0;
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
-                            extra->model.stateStep = 0;
                         }
                     }
                 }
