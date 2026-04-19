@@ -377,10 +377,16 @@ s32 vcExecCamera(void) // 0x80080FBC
         static const s_PcCamOverride OVERRIDES[] = {
             /* map0_s01 corner — recorded via Numpad debug + key 5
              * (latest run: harry=(17016,0,1094800), bad cam was
-             * around (13886,-8448,1097555)). Tight radius so it only
-             * fires when Harry is genuinely in this corner spot. */
+             * around (13886,-8448,1097555)).
+             *
+             * angleX is FLIPPED from what the debug-cam logger recorded
+             * (-256 → +256). The recorded value's sign disagrees with
+             * how the in-game camera path interprets pitch — a known
+             * convention disconnect we still need to root-cause. Empirical
+             * fix: negate angleX here until the debug-cam math is
+             * reconciled with the playthrough camera path. */
             { 1, { 17016, 0, 1094800 }, Q12(1.5f),
-                 { 18763, -8448, 1101611 }, 1856, -256 },
+                 { 18763, -8448, 1101611 }, 1856, 256 },
         };
 
         s32 hx = g_SysWork.playerWork.player.position.vx;
