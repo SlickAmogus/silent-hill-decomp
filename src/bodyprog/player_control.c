@@ -8013,7 +8013,14 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
 
             if (player->field_44.field_0 > 0)
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[FIRE] pre-6342C weaponAttack=%d unkAngle=%d rotX=%d coord=%p",
+                       (int)playerCombat.weaponAttack, (int)unkAngle, (int)unkRot.vx, (void*)coord);
+#endif
                 func_8006342C(playerCombat.weaponAttack, unkAngle, unkRot.vx, coord);
+#ifdef SH_PC_PORT
+                SH_DBG("[FIRE] post-6342C");
+#endif
             }
         }
         else
@@ -8170,6 +8177,11 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
 
         if (playerExtra.upperBodyState != PlayerUpperBodyState_AimStop)
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[FIRE] CombatUpdate dispatch: weaponAttack=%d field_44.0=%d D_800C4554=%d D_800C4556=%d",
+                   (int)playerCombat.weaponAttack, (int)player->field_44.field_0,
+                   (int)D_800C4554, (int)D_800C4556);
+#endif
             if (playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
                 if (D_800C4554 != NO_VALUE || D_800C4556 != D_800C4554)
@@ -8185,7 +8197,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             {
                 func_8008A0E4(player->field_44.field_0, playerCombat.weaponAttack, player, &playerCombat.field_0, &g_SysWork.npcs[0], unkRot.vx, unkRot.vy);
             }
-
+#ifdef SH_PC_PORT
+            SH_DBG("[FIRE] CombatUpdate post-A0E4");
+#endif
             D_800C42D2 = unkRot.vx;
             D_800C42D0 = unkRot.vy;
         }
