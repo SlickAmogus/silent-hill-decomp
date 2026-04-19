@@ -8209,9 +8209,13 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         if (playerExtra.upperBodyState != PlayerUpperBodyState_AimStop)
         {
 #ifdef SH_PC_PORT
+            extern int g_SH_PostFireTrace;
             SH_DBG("[FIRE] CombatUpdate dispatch: weaponAttack=%d field_44.0=%d D_800C4554=%d D_800C4556=%d",
                    (int)playerCombat.weaponAttack, (int)player->field_44.field_0,
                    (int)D_800C4554, (int)D_800C4556);
+            if (player->field_44.field_0 > 0) {
+                g_SH_PostFireTrace = 8;
+            }
 #endif
             if (playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {

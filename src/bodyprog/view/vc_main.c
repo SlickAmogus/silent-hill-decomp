@@ -354,29 +354,37 @@ s32 vcExecCamera(void) // 0x80080FBC
 
 #ifdef SH_PC_PORT
     /* Hand-tuned camera overrides for spots where the road-node math
-     * produces a wrong angle/position.  Each entry triggers when Harry
-     * is within `radius` of `harryAt` on a specific map.  TODO: revisit
-     * once the road-camera math is fixed properly so these can drop out. */
+     * produces a wrong angle/position. Each entry triggers when Harry
+     * is within `radius` of `harryAt` on a specific map.
+     *
+     * camPos + (angleY, angleX) match the debug-cam convention so the
+     * matrix is built via the same lookAt-based path:
+     *   forward = cos(angleX) * 20480
+     *   lookAt  = camPos + (forward*sin(angleY), sin(angleX)*20480, forward*cos(angleY))
+     *   Vw_SetLookAtMatrix(camPos, lookAt)
+     *
+     * TODO: drop this table once the road-node math is fixed properly. */
     {
         typedef struct {
-            s8     mapId;
+            s8      mapId;
             VECTOR3 harryAt;     /* Q12 world */
-            s32    radius;       /* Q12 distance */
+            s32     radius;      /* Q12 distance */
             VECTOR3 camPos;      /* Q12 world */
-            s16    angleY;       /* Q12 angle */
-            s16    angleX;       /* Q12 angle */
+            s16     angleY;      /* Q12 angle, debug-cam convention */
+            s16     angleX;      /* Q12 angle, +ve = look down */
         } s_PcCamOverride;
 
         static const s_PcCamOverride OVERRIDES[] = {
             /* map0_s01 corner — recorded via Numpad debug + key 5 */
-            { 1, { 17307, 0, 1094979 }, Q12(3.0f),
-                 { 14720, -10240, 1100997 }, 1712, -320 },
+            { 1, { 14891, 0, 1095525 }, Q12(3.0f),
+                 { 14720, -10240, 1100997 }, 1760, 272 },
         };
 
         s32 hx = g_SysWork.playerWork.player.position.vx;
         s32 hy = g_SysWork.playerWork.player.position.vy;
         s32 hz = g_SysWork.playerWork.player.position.vz;
         s32 mapId = (s32)g_SavegamePtr->mapOverlayId_A4;
+        bool overrideFired = false;
 
         for (size_t oi = 0; oi < sizeof(OVERRIDES) / sizeof(OVERRIDES[0]); oi++) {
             const s_PcCamOverride* o = &OVERRIDES[oi];
@@ -387,27 +395,25 @@ s32 vcExecCamera(void) // 0x80080FBC
             s32 r  = Vc_VectorMagnitudeCalc(dx, dy, dz);
             if (r > o->radius) continue;
 
-            SVECTOR camRot;
-            MATRIX  camMat;
-            camRot.vx = o->angleX;
-            camRot.vy = o->angleY;
-            camRot.vz = 0;
-            Math_RotMatrixZxyNeg(&camRot, &camMat);
-            camMat.t[0] = Q12_TO_Q8(o->camPos.vx);
-            camMat.t[1] = Q12_TO_Q8(o->camPos.vy);
-            camMat.t[2] = Q12_TO_Q8(o->camPos.vz);
+            VECTOR3 lookAt;
+            s32 forward = (s32)((s64)20480 * Math_Cos(o->angleX) >> 12);
+            lookAt.vx = o->camPos.vx + (s32)((s64)forward * Math_Sin(o->angleY) >> 12);
+            lookAt.vy = o->camPos.vy + (s32)((s64)20480 * Math_Sin(o->angleX) >> 12);
+            lookAt.vz = o->camPos.vz + (s32)((s64)forward * Math_Cos(o->angleY) >> 12);
 
-            vcWork.cam_pos        = o->camPos;
-            vcWork.cam_mat        = camMat;
-            vcWork.cam_mat_ang.vx = o->angleX;
-            vcWork.cam_mat_ang.vy = o->angleY;
-            vcWork.cam_mat_ang.vz = 0;
+            Vw_SetLookAtMatrix(&o->camPos, &lookAt);
+            vcWork.cam_pos = o->camPos;
+            overrideFired = true;
             break;
         }
-    }
-#endif
 
+        if (!overrideFired) {
+            vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
+        }
+    }
+#else
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
+#endif
 
     vcWork.through_door_activate_init_f = false;
     vcWork.flags                     &= ~(VC_WARP_CAM_F | VC_WARP_WATCH_F | VC_WARP_CAM_TGT_F);
