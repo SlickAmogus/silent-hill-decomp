@@ -106,6 +106,7 @@ int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle re
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
+int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
 int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
@@ -761,7 +762,11 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #ifdef SH_PC_PORT
-#define ML_TRACE(tag) ((void)0)
+        /* g_SH_PostFireTrace is bumped to N in Player_CombatUpdate when a
+         * fire dispatch happens. ML_TRACE prints for the next N frames
+         * to catch where the post-fire crash happens. */
+        extern int g_SH_PostFireTrace;
+#define ML_TRACE(tag) do { if (g_SH_PostFireTrace > 0) SH_DBG("[ML] " tag); } while (0)
 #else
 #define ML_TRACE(tag) ((void)0)
 #endif
@@ -1056,6 +1061,9 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");
+        if (g_SH_PostFireTrace > 0) {
+            g_SH_PostFireTrace--;
+        }
         /* End stack canary check */
         if (_stackCanary != 0xDEADBEEF) {
             SH_DBG("[CANARY] *** STACK CORRUPTION! canary=0x%08X", _stackCanary);
