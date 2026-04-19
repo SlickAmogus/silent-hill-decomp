@@ -25,6 +25,23 @@
  */
 void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[CYBIL] enter chara=%p anm=%p coord=%p ctrl=%d step=%d status=%d",
+           (void*)chara, (void*)anmHdr, (void*)coords,
+           chara ? chara->model.controlState : -1,
+           chara ? chara->model.stateStep : -1,
+           chara ? chara->model.anim.status : -1);
+    if (chara->model.controlState == ModelState_Uninitialized)
+    {
+        SH_DBG("[CYBIL] pre-Init");
+        Ai_Cybil_Init(chara);
+        SH_DBG("[CYBIL] post-Init");
+    }
+    Ai_Cybil_AnimStateUpdate(chara, coords);   SH_DBG("[CYBIL] post-AnimStateUpdate");
+    Ai_Cybil_MovementUpdate(chara, coords);    SH_DBG("[CYBIL] post-MovementUpdate");
+    Ai_Cybil_AnimUpdate(chara, anmHdr, coords);SH_DBG("[CYBIL] post-AnimUpdate status=%d",
+                                                      chara->model.anim.status);
+#else
     if (chara->model.controlState == ModelState_Uninitialized)
     {
         Ai_Cybil_Init(chara);
@@ -33,6 +50,7 @@ void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* 
     Ai_Cybil_AnimStateUpdate(chara, coords);
     Ai_Cybil_MovementUpdate(chara, coords);
     Ai_Cybil_AnimUpdate(chara, anmHdr, coords);
+#endif
 }
 
 /** Addresses
@@ -508,7 +526,7 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
             {
                 if (sharedData_800E237C_0_s01 == 0)
                 {
-                    func_8006342C(EquippedWeaponId_Unk63, Q12_ANGLE(90.0f), chara->rotation.vy, &g_SysWork.npcCoords[0]);
+                    func_8006342C(EquippedWeaponId_Unk63, 1024, chara->rotation.vy, &g_SysWork.npcCoords[0]);
                     func_8005DC1C(Sfx_Unk1622, &chara->position, Q8(0.75f), 0);
                     sharedData_800E237C_0_s01 = 1;
                 }

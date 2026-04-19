@@ -1,13 +1,12 @@
 #include "bodyprog/bodyprog.h"
-#include "bodyprog/events/npc_main.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/air_screamer.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 // NOTES:
 // - M0S01 includes some extra functions missing from other maps, but also removes the body of most `Ai_AirScreamer_Control_X` functions.
@@ -518,10 +517,6 @@ void sharedFunc_800D2BE4_0_s01(s_SubCharacter* airScreamer)
 void sharedFunc_800D2BF4_0_s01(s_SubCharacter* airScreamer)
 {
 #ifdef SH_PC_PORT
-    /* Pre-merge: anim infos come from a hand-crafted PC table (anim_info
-     * structure type mismatched the upstream union layout). Without this
-     * the AirScreamer renders without anims and crashes on first state
-     * advance. */
     extern s_AnimInfo AIR_SCREAMER_ANIM_INFOS[];
     ModelAnim_AnimInfoSet(&airScreamer->model.anim, AIR_SCREAMER_ANIM_INFOS);
 #else
@@ -539,7 +534,7 @@ s32 Ai_AirScreamer_DamageTake(s_SubCharacter* airScreamer, q19_12 mult)
     u8     temp_a1;
     q19_12 angle;
 
-    damage0     = airScreamer->damage.amount_C;
+    damage0     = airScreamer->damage_B4.amount_C;
     animStatus = airScreamer->model.anim.status;
     attack     = airScreamer->attackReceived;
     damageType        = AirScreamerDamage_None;
@@ -2889,8 +2884,8 @@ void Ai_AirScreamer_Control_10(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        g_SysWork.npcIdxs[0] == NO_VALUE &&
-                        g_SysWork.npcIdxs[1] == NO_VALUE)
+                        g_SysWork.npcIdxs_2354[0] == NO_VALUE &&
+                        g_SysWork.npcIdxs_2354[1] == NO_VALUE)
                     {
                         if (animStatus == ANIM_STATUS(AirScreamerAnim_25, true) ||
                             animStatus == ANIM_STATUS(AirScreamerAnim_23, true))
@@ -5020,8 +5015,8 @@ void Ai_AirScreamer_Control_23(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        g_SysWork.npcIdxs[0] == NO_VALUE &&
-                        g_SysWork.npcIdxs[1] == NO_VALUE)
+                        g_SysWork.npcIdxs_2354[0] == NO_VALUE &&
+                        g_SysWork.npcIdxs_2354[1] == NO_VALUE)
                     {
                         if (animStatus == ANIM_STATUS(19, true))
                         {
@@ -7399,7 +7394,7 @@ void Ai_AirScreamer_Control_38(s_SubCharacter* airScreamer)
 
                 case 1:
                     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-                        (g_SysWork.npcIdxs[0] == NO_VALUE && g_SysWork.npcIdxs[1] == NO_VALUE) &&
+                        (g_SysWork.npcIdxs_2354[0] == NO_VALUE && g_SysWork.npcIdxs_2354[1] == NO_VALUE) &&
                         temp_s7 == 0x23)
                     {
                         airScreamer->model.controlState = AirScreamerControl_40;
@@ -9056,7 +9051,7 @@ bool sharedFunc_800DC67C_2_s00(s_SubCharacter* airScreamer)
     if (airScreamerProps.field_E8_0 == 1)
     {
         func_800803FC(&sharedData_800F217C_2_s00, airScreamer->field_40);
-        return Math_Distance2dGet(&airScreamer->position, &sharedData_800F217C_2_s00) > CHUNK_CELL_SIZE;
+        return Math_Distance2dGet(&airScreamer->position, &sharedData_800F217C_2_s00) > Q12(40.0f);
     }
 
     return false;
@@ -13129,7 +13124,7 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
     temp_s1    = &airScreamer->field_44;
 
     if (!Chara_HasFlag(&g_SysWork.playerWork.player, CharaFlag_Unk4) &&
-        g_SysWork.npcIdxs[0] == NO_VALUE && g_SysWork.npcIdxs[1] == NO_VALUE &&
+        g_SysWork.npcIdxs_2354[0] == NO_VALUE && g_SysWork.npcIdxs_2354[1] == NO_VALUE &&
         airScreamer->model.controlState != AirScreamerControl_12 && airScreamer->model.controlState != AirScreamerControl_25 &&
         airScreamer->model.controlState != AirScreamerControl_40 && airScreamer->model.controlState != AirScreamerControl_49)
     {

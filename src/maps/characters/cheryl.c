@@ -60,11 +60,20 @@ void Ai_Cheryl_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
     if (dahliaProps.properties_F0.val32 == 0)
     {
 #ifdef SH_PC_PORT
-        /* Guard against NULL playbackFunc -- some CHERYL_ANIM_INFOS entries may
-         * have unmerged playback function pointers on PC. */
-        s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model.anim.status];
-        if (ai->playbackFunc != NULL)
-            ai->playbackFunc(&chara->model, anmHdr, coord, ai);
+        {
+            s_AnimInfo* ai = &CHERYL_ANIM_INFOS[chara->model.anim.status];
+            static int _cDbg = 0;
+            if (_cDbg < 60 && (dahliaProps.stateIdx0 == 2 || chara->model.anim.status >= 6)) {
+                SH_DBG("[CHERYL_RUN] status=%d kf=%d startKF=%d endKF=%d stateIdx0=%d anmKfCount=%d anmBones=%d",
+                        chara->model.anim.status, chara->model.anim.keyframeIdx,
+                        ai->startKeyframeIdx, ai->endKeyframeIdx,
+                        dahliaProps.stateIdx0,
+                        anmHdr->keyframeCount_10, anmHdr->boneCount_6);
+                _cDbg++;
+            }
+            if (ai->playbackFunc != NULL)
+                ai->playbackFunc(&chara->model, anmHdr, coord, ai);
+        }
 #else
         CHERYL_ANIM_INFOS[chara->model.anim.status].playbackFunc(&chara->model, anmHdr, coord, &CHERYL_ANIM_INFOS[chara->model.anim.status]);
 #endif

@@ -138,6 +138,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             chara                          = &g_SysWork.npcs[npcIdx];
             chara->model.anim.flags |= AnimFlag_Visible;
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC_SPAWN] slot=%d charaId=%d spawnIdx=%d pos=(%d,%d,%d) rotY=%d",
+                   (int)npcIdx, (int)chara->model.charaId, (int)i,
+                   (int)chara->position.vx, (int)chara->position.vy,
+                   (int)chara->position.vz, (int)chara->rotation.vy);
+#endif
         }
     }
 }
@@ -278,7 +284,7 @@ void Game_NpcUpdate(void) // 0x80038354
                         field_0[m].field_8.vz = field_0[m - 1].field_8.vz;
                     }
 
-                    temp_t1 = (u32)npc - (u32)g_SysWork.npcs;
+                    temp_t1 = (uintptr_t)npc - (uintptr_t)g_SysWork.npcs;
                     temp2   = ((((temp_t1 * 0x7E8) - (temp_t1 * 0xFD)) * 4) + temp_t1) * -0x3FFFF;
 
                     field_0[j].bitIdx_0   = temp2 >> 3;
@@ -315,29 +321,32 @@ void Game_NpcUpdate(void) // 0x80038354
 
             animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model.charaId];
 #ifdef SH_PC_PORT
-            /* PC AI safety: only NPCs whose AI we've verified to run end
-             * to end on PC are dispatched.  All others get their slot
-             * cleared so the AI never fires.  Anim-not-loaded (idx=0xFF)
-             * is a transient state -- skip this tick, do NOT clear the
-             * slot or other code (e.g. map0_s01 BIRD fly-by) crashes
-             * dereferencing the empty slot. */
+            /* On PC only Cheryl's NPC AI is safe to run. All other NPCs
+             * (Cybil, monsters, grey children) have AI that crashes due to
+             * unsupported subsystems (collision, PSX-specific state).
+             * Also skip if anim data not loaded yet (idx==0xFF) or update
+             * function pointer is NULL (sanitized out by map overlay loader). */
             {
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model.charaId < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
                                     g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId] != NULL);
                 /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
                  * baseline working set; Cybil + AirScreamer added because
-                 * render-only path never produced a visible model -- they need
-                 * AI updates to drive the model state. */
+                 * render-only path never produced a visible model — they need
+                 * AI updates to drive the model state.  When new NPCs crash,
+                 * narrow this list rather than going back to a blanket skip. */
                 bool isFullAiNpc = (npc->model.charaId == Chara_Cheryl ||
                                     npc->model.charaId == Chara_GreyChild ||
                                     npc->model.charaId == Chara_Cybil ||
                                     npc->model.charaId == Chara_AirScreamer);
+                /* No render-only set — kept as opt-out for any future NPC that
+                 * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;
 
                 /* Force AnimFlag_Visible for charaId > Chara_MonsterCybil --
-                 * the distance-check block earlier only runs for ids <= 24,
-                 * so Cybil (26) and others never get visible flag set. */
+                 * the distance-check block above only runs for ids <= 24,
+                 * so Cybil (26) and AirScreamer would otherwise never get
+                 * the flag set and would skip the func_8003DA9C render call. */
                 if (isFullAiNpc && npc->model.charaId > Chara_MonsterCybil) {
                     npc->model.anim.flags |= AnimFlag_Visible;
                 }
@@ -346,27 +355,52 @@ void Game_NpcUpdate(void) // 0x80038354
                 {
                     if (isFullAiNpc && !animLoaded)
                     {
-                        /* ANM still loading -- skip this tick, do NOT clear
-                         * the slot (other code references it via npcs[k]). */
+                        /* Anim data not loaded yet (Chara_Spawn just happened this
+                         * frame, async ANM read still pending). Do NOT kill the
+                         * NPC — the slot would get wiped and game code expecting
+                         * npcs[slot] to hold this chara (e.g. map0_s01 BIRD
+                         * fly-by) would dereference an empty slot and crash.
+                         * Just skip AI this tick and wait for load to complete. */
+                        static u32 _animWaitLogged = 0;
+                        if (!(_animWaitLogged & (1u << (npc->model.charaId & 31)))) {
+                            SH_DBG("[NPC_AI] charaId=%d anim not loaded yet (idx=%d) — waiting",
+                                   npc->model.charaId, (int)(s8)animDataInfoIdx);
+                            _animWaitLogged |= (1u << (npc->model.charaId & 31));
+                        }
                     }
                     else if (isRenderOnlyNpc)
                     {
+                        /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
+                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
+                                   npc->model.charaId, animDataInfoIdx,
+                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14);
                             func_8003DA9C(npc->model.charaId,
                                           g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
+                            SH_DBG("[NPC_RENDER] done charaId=%d", npc->model.charaId);
                         }
                     }
                     else
                     {
+                        /* Fully unsafe NPC — remove so it doesn't keep firing. */
                         npc->model.charaId = Chara_None;
                     }
                     continue;
                 }
                 if (!hasUpdateFn)
                 {
-                    /* No update fn -- still render the model. */
+                    /* Map overlay's charaUpdateFunc was NULL (likely sanitized
+                     * out by map_overlay_loader for an un-decompiled stub).
+                     * Don't kill the NPC — keep it alive so the model can
+                     * render even without AI driving it. */
+                    static u32 _noUpdateFnLogged = 0;
+                    if (!(_noUpdateFnLogged & (1u << (npc->model.charaId & 31)))) {
+                        SH_DBG("[NPC_AI] charaId=%d has NULL charaUpdateFunc — skipping AI, keeping for render",
+                               npc->model.charaId);
+                        _noUpdateFnLogged |= (1u << (npc->model.charaId & 31));
+                    }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
                         func_8003DA9C(npc->model.charaId,
                                       g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
@@ -378,7 +412,7 @@ void Game_NpcUpdate(void) // 0x80038354
             }
             /* Reset stateStep only on the first frame after spawn so
              * Model_AnimStatusSet can fire once.  Don't reset every frame
-             * or anim status transitions (blend->playback) get stuck. */
+             * or anim status transitions (blend→playback) get stuck. */
             if (npc->model.charaId == Chara_Cheryl)
             {
                 static bool _cherylInitDone = false;
@@ -389,8 +423,9 @@ void Game_NpcUpdate(void) // 0x80038354
             }
             /* Same spawn-init pattern for Cybil/AirScreamer/GreyChild: reset
              * stateStep once on first AI tick so Model_AnimStatusSet fires
-             * and the NPC enters its state machine.  Without this the NPC
-             * appears loaded but never animates. */
+             * and the NPC actually enters its state machine. Without this the
+             * NPC appears loaded but never animates. Per-slot guard keyed on
+             * charaId so a second spawn after the first dies re-inits. */
             else if (npc->model.charaId == Chara_Cybil ||
                      npc->model.charaId == Chara_AirScreamer ||
                      npc->model.charaId == Chara_GreyChild)
@@ -408,7 +443,31 @@ void Game_NpcUpdate(void) // 0x80038354
             Chara_DamagedFlagUpdate(npc);
             func_8003BD48(npc);
 
+#ifdef SH_PC_PORT
+            /* Guard against NULL animFile for any NPC: the playback function
+             * always dereferences animHdr for bone data, so NULL crashes.
+             * Cheryl logs details; other NPCs (e.g. grey children) just wait
+             * until Chara_ProcessLoads() completes their ANM read. */
+            if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
+                if (npc->model.charaId == Chara_Cheryl) {
+                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=NULL coord=%p — skipping",
+                            animDataInfoIdx, (void*)coord);
+                } else {
+                    SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d animFile1_8=NULL — waiting for load",
+                            npc->model.charaId, animDataInfoIdx);
+                }
+                continue;
+            }
+#endif
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] ai-enter charaId=%d status=%d kf=%d",
+                    npc->model.charaId, npc->model.anim.status,
+                    npc->model.anim.keyframeIdx);
+#endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);
+#ifdef SH_PC_PORT
+            SH_DBG("[NPC] ai-done charaId=%d status=%d", npc->model.charaId, npc->model.anim.status);
+#endif
 
             func_8003BE28();
 #ifdef SH_PC_PORT

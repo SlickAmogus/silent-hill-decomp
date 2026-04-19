@@ -32,7 +32,7 @@ s8 g_CharaAnimInfoIdxs[Chara_Count] = {
 #ifdef SH_PC_PORT
 /* On PC, FS_BUFFER_0 is not a compile-time constant (points into g_PsxRam[]).
  * Initialize at runtime instead. See also: Fs_QueueInitialize or GameState_Boot. */
-s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
+s_CharaAnimDataInfo g_CharaTypeAnimInfo[GROUP_CHARA_COUNT] = {
     {
         .charaId0_0         = Chara_Harry,
         .charaId1_1         = Chara_Harry,
@@ -50,7 +50,7 @@ void PcPort_InitCharaAnimInfo(void)
     g_CharaTypeAnimInfo[0].animFile1_8 = (s_AnmHeader*)FS_BUFFER_0;
 }
 #else
-s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
+s_CharaAnimDataInfo g_CharaTypeAnimInfo[GROUP_CHARA_COUNT] = {
     {
         .charaId0_0         = Chara_Harry,
         .charaId1_1         = Chara_Harry,
@@ -105,7 +105,7 @@ s32 Fs_CharaAnimDataInfoIdxGet(e_CharacterId charaId) // 0x800352F8
 
     for (i = 1; (i < CHARA_GROUP_COUNT); i++)
     {
-        if (g_CharaTypeAnimInfo[i].charaId0_0 == charaId)
+        if (g_CharaTypeAnimInfo[i].charaId1_1 == charaId)
         {
             return i;
         }
@@ -167,7 +167,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile
     }
 
     initAnimDataInfo->npcCoords_14       = &g_SysWork.npcCoords[0];
-    initAnimDataInfo->charaId1_1      = Chara_None;
+    initAnimDataInfo->charaId1_1         = Chara_None;
     initAnimDataInfo->animFile1_8        = NULL;
     initAnimDataInfo->animBufferSize2_10 = 0;
     initAnimDataInfo->charaId0_0         = charaId;
@@ -188,7 +188,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile
 
     for (i = 1; i < CHARA_GROUP_COUNT; i++)
     {
-        if (i != idx && g_CharaTypeAnimInfo[i].charaId0_0 != Chara_None && Fs_CharaAnimDataSizeCheck(idx, i) != false)
+        if (i != idx && g_CharaTypeAnimInfo[i].charaId1_1 != Chara_None && Fs_CharaAnimDataSizeCheck(idx, i) != false)
         {
             bzero(&g_CharaTypeAnimInfo[i], sizeof(s_CharaAnimDataInfo));
         }
@@ -213,26 +213,27 @@ void Fs_CharaAnimInfoUpdate(s32 idx, e_CharacterId charaId, s_AnmHeader* animFil
         else if (idx >= 2)
         {
 #ifdef SH_PC_PORT
-            /* Previous slot's animFile1_8 may be NULL if that NPC never
-             * completed loading (e.g. AirScreamer's async ANM read
-             * arrives before the previous slot is initialised). Fall
-             * back to npcCoords[0] instead of NULL-deref-ing boneCount. */
+            /* Guard: previous slot's animFile may be NULL if that NPC never
+             * completed loading (e.g. Air Screamer async ANM read arriving
+             * before the previous slot is initialised).  Fall back to the
+             * start of the NPC coord area to avoid a NULL deref crash. */
             if (g_CharaTypeAnimInfo[idx - 1].animFile1_8 == NULL) {
+                SH_DBG("[ANIM_ALLOC] Fs_CharaAnimInfoUpdate idx=%d: prev slot animFile=NULL, using npcCoords[0]", idx);
                 localCoord = &g_SysWork.npcCoords[0];
             } else {
 #endif
-            idx0        = g_CharaTypeAnimInfo[idx - 1].animFile1_8->boneCount;
+            idx0        = g_CharaTypeAnimInfo[idx - 1].animFile1_8->boneCount_6;
             localCoord  = g_CharaTypeAnimInfo[idx - 1].npcCoords_14;
             localCoord += idx0 + 1;
-
-            // Check for end of `g_SysWork.npcCoords` array.
-            if ((&localCoord[animFile->boneCount] + 1) >= &g_SysWork.npcCoords[NPC_BONE_COUNT_MAX])
-            {
-                localCoord = g_MapOverlayHeader.field_28;
-            }
 #ifdef SH_PC_PORT
             }
 #endif
+
+            // Check for end of `g_SysWork.npcCoords` array.
+            if ((&localCoord[animFile->boneCount_6] + 1) >= &g_SysWork.npcCoords[NPC_BONE_COUNT_MAX])
+            {
+                localCoord = g_MapOverlayHeader.field_28;
+            }
         }
     }
 
@@ -261,7 +262,7 @@ void Fs_CharaAnimBoneInfoUpdate(void) // 0x8003569C
             coord   += g_CharaTypeAnimInfo[i].animFile1_8->boneCount + 1;
 
             // Check for end of `g_SysWork.npcCoords` array.
-            if ((&coord[animFile->boneCount] + 1) >= &g_SysWork.npcCoords[NPC_BONE_COUNT_MAX])
+            if ((&coord[animFile->boneCount_6] + 1) >= &g_SysWork.npcCoords[NPC_BONE_COUNT_MAX])
             {
                 coord = g_MapOverlayHeader.field_28;
             }
