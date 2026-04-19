@@ -1163,14 +1163,14 @@ s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
     { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_IdleExhausted,           false), false, ANIM_STATUS(HarryAnim_IdleExhausted,           true), { Q12(5.0f)     }, NO_VALUE, 543 },
     { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_IdleExhausted,           true),  true,  NO_VALUE,                                             ANIM_DURATION_FUNC(Player_VariableAnimDurationGet), 543,      567 },
 #ifdef SH_PC_PORT
-    /* 56 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunAim,    false), false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(10.0f) }, NO_VALUE, 503 },
-    /* 57 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_HandgunAim,    true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
-    /* 58 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk29,         false), false, ANIM_STATUS(HarryAnim_Unk29,         true), { Q12(10.0f) }, NO_VALUE, 503 },
-    /* 59 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk29,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
-    /* 60 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk30,         false), false, ANIM_STATUS(HarryAnim_Unk30,         true), { Q12(10.0f) }, NO_VALUE, 503 },
-    /* 61 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk30,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 503,      542 },
-    /* 62 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunRecoil, false), false, ANIM_STATUS(HarryAnim_HandgunRecoil, true), { Q12(5.0f)  }, NO_VALUE, 485 },
-    /* 63 */ { Anim_PlaybackOnce, ANIM_STATUS(HarryAnim_HandgunRecoil, true),  false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(15.0f) }, 485,      502 },
+    /* 56 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunAim,    false), false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(10.0f) }, NO_VALUE, 580 },
+    /* 57 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_HandgunAim,    true),  false, NO_VALUE,                                   { Q12(30.0f) }, 580,      595 },
+    /* 58 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk29,         false), false, ANIM_STATUS(HarryAnim_Unk29,         true), { Q12(10.0f) }, NO_VALUE, 580 },
+    /* 59 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk29,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 580,      595 },
+    /* 60 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_Unk30,         false), false, ANIM_STATUS(HarryAnim_Unk30,         true), { Q12(10.0f) }, NO_VALUE, 580 },
+    /* 61 */ { Anim_PlaybackLoop, ANIM_STATUS(HarryAnim_Unk30,         true),  false, NO_VALUE,                                   { Q12(30.0f) }, 580,      595 },
+    /* 62 */ { Anim_BlendLinear,  ANIM_STATUS(HarryAnim_HandgunRecoil, false), false, ANIM_STATUS(HarryAnim_HandgunRecoil, true), { Q12(5.0f)  }, NO_VALUE, 596 },
+    /* 63 */ { Anim_PlaybackOnce, ANIM_STATUS(HarryAnim_HandgunRecoil, true),  false, ANIM_STATUS(HarryAnim_HandgunAim,    true), { Q12(15.0f) }, 596,      602 },
 #else
     {}
 #endif

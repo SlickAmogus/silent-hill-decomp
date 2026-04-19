@@ -1990,6 +1990,12 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
 
     ptr = PSX_SCRATCH;
 
+#ifdef SH_PC_PORT
+    SH_DBG("[6342C] enter weaponAttack=%d unkTable1_4C=%p count=%d coord=%p",
+           (int)weaponAttack, (void*)g_MapOverlayHeader.unkTable1_4C,
+           (int)g_MapOverlayHeader.unkTable1Count_50, (void*)coord);
+#endif
+
     // TODO: Use `Math_SetSVectorFast`.
     switch (weaponAttack)
     {
