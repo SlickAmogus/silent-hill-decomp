@@ -1173,48 +1173,28 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             {
                 q3_12 turnSpeed = Q12_ANGLE(2.0f);
 
-                /* TPS mode: WASD drive camera-relative movement. Body
-                 * smoothly rotates toward the input direction and Harry
-                 * walks forward in that direction. Sidestep anims unused
-                 * — modern TPS feel. Mouse handles camera yaw/pitch in
-                 * game_main.c. */
+                /* TPS mode: Harry's body always tracks the camera yaw, so
+                 * WASD is always relative to Harry (== relative to camera).
+                 * W = forward, S = back, A/D = strafe in Harry's frame.
+                 * Mouse rotates the camera, body follows automatically. */
                 if (g_DebugThirdPersonCam) {
-                    int hW = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
-                    int hS = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
-                    int hA = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
-                    int hD = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
+                    /* Snap body yaw to camera yaw every frame — no lerp,
+                     * camera IS the steering. (Future: rotate head bone
+                     * separately so only the head tracks the cam while
+                     * the body lags slightly.) */
+                    player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
 
+                    g_Player_IsMovingForward     = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
+                    g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
+                    g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
+                    g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
                     g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
                     g_Player_IsTurningLeft       = 0;
                     g_Player_IsTurningRight      = 0;
-                    g_Player_IsSteppingLeftHold  = 0;
-                    g_Player_IsSteppingRightHold = 0;
-                    g_Player_IsMovingBackward    = 0;
+                    g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
+                                                   g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
                     g_Player_HeadingAngle        = Q12_ANGLE(0.0f);
                     g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
-
-                    int dz = hW - hS;
-                    int dx = hD - hA;
-
-                    if (dz != 0 || dx != 0) {
-                        /* Camera basis: forward=(sin,0,cos), right=(cos,0,-sin) */
-                        s32 sY = Math_Sin(g_TpsCamYaw);
-                        s32 cY = Math_Cos(g_TpsCamYaw);
-                        s32 mvX = dz * sY + dx * cY;
-                        s32 mvZ = dz * cY - dx * sY;
-                        q3_12 targetYaw = (q3_12)ratan2(mvX, mvZ);
-                        q3_12 delta = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
-                        q3_12 maxStep = Q12_ANGLE(20.0f);
-                        if (delta >  maxStep) delta =  maxStep;
-                        if (delta < -maxStep) delta = -maxStep;
-                        player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + delta + Q12_ANGLE(360.0f));
-
-                        g_Player_IsMovingForward = 1;
-                        g_Player_HasMoveInput    = 1;
-                    } else {
-                        g_Player_IsMovingForward = 0;
-                        g_Player_HasMoveInput    = 0;
-                    }
                 } else {
                     /* Non-TPS: after cutscenes, Player_Controller's `*2 & 0x3` shift
                      * register can leave stale bits in g_Player_IsMovingForward that
