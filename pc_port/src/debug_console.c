@@ -17,6 +17,7 @@
 extern const unsigned char* g_sdlKeyboardState;
 extern const s_MapInfo MAP_INFOS[MapType_Count];
 extern void GameBoot_MapLoad(s32 mapIdx);
+extern void GameFs_WeaponInfoUpdate(void);
 
 /* ========================================
  * EMBEDDED 5x7 FONT (ASCII 32-95)
@@ -211,6 +212,8 @@ static void con_execute(const char* cmd)
         con_print("  MAP <TAG> - LOAD MAP BY TAG");
         con_print("  GIVE HANDGUN - EQUIP HANDGUN");
         con_print("  GIVE PIPE    - EQUIP STEEL PIPE");
+        con_print("  GIVE KNIFE   - EQUIP KITCHEN KNIFE");
+        con_print("  GIVE PIPE    - EQUIP STEEL PIPE");
         con_print("  HELP      - SHOW THIS");
         con_print("  CLEAR     - CLEAR OUTPUT");
     }
@@ -272,12 +275,25 @@ static void con_execute(const char* cmd)
     else if (strcmp(upper, "GIVE HANDGUN") == 0) {
         g_SavegamePtr->equippedWeapon_AA = InvItemId_Handgun;
         g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+        /* Loads HB_WEP4.ANM into FS_BUFFER_12 + patches
+         * HARRY_BASE_ANIM_INFOS[56..76] from D_80028B94[78..] so the
+         * real handgun aim/recoil anims play instead of placeholder
+         * Idle keyframes. */
+        GameFs_WeaponInfoUpdate();
         con_print("EQUIPPED HANDGUN (R_CTRL=AIM, C=FIRE)");
     }
     else if (strcmp(upper, "GIVE PIPE") == 0) {
         g_SavegamePtr->equippedWeapon_AA = InvItemId_SteelPipe;
         g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
+        /* Loads HB_WEP2.ANM + patches anim infos for steel-pipe swing */
+        GameFs_WeaponInfoUpdate();
         con_print("EQUIPPED STEEL PIPE");
+    }
+    else if (strcmp(upper, "GIVE KNIFE") == 0) {
+        g_SavegamePtr->equippedWeapon_AA = InvItemId_KitchenKnife;
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap);
+        GameFs_WeaponInfoUpdate();
+        con_print("EQUIPPED KITCHEN KNIFE");
     }
     else if (upper[0] != '\0') {
         con_print("UNKNOWN COMMAND. TYPE 'HELP'");
