@@ -359,9 +359,9 @@ void DebugCamera_Update(void)
                  * Vw_SetLookAtMatrix builds the actual view; this is the
                  * same proven path the debug free-fly cam uses, so any
                  * residual axis confusion is just a sign flip away. */
-                g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
+                g_TpsCamYaw   -= (s32)(mdx * TP_MOUSE_SENS);
                 g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                g_TpsCamPitch += (s32)(mdy * TP_PITCH_SENS);
+                g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
                 /* Clamp short of vertical to avoid horiz_dist=0 → atan2(0,0)
                  * gimbal at the poles. ±70° gives full freedom without going
                  * over Harry's head or under his feet. */
