@@ -345,63 +345,54 @@ void DebugCamera_Update(void)
             {
                 int mdx = 0, mdy = 0;
                 SDL_GetRelativeMouseState(&mdx, &mdy);
+                /* GTA-style orbit camera. Convention:
+                 *   yaw=0   → camera south of Harry, looking north
+                 *   pitch=0 → camera at Harry's height, looking horizontal
+                 *   pitch>0 → camera rises ABOVE Harry, looks down at him
+                 *   pitch<0 → camera dips BELOW Harry, looks up at him
+                 *
+                 * Mouse-RIGHT (mdx>0) → += yaw → camera goes to Harry's
+                 *   east → scene rotates left → feels like "turning right" ✓
+                 * Mouse-DOWN  (mdy>0) → += pitch → camera rises above →
+                 *   view tilts down to see the floor ✓
+                 *
+                 * Vw_SetLookAtMatrix builds the actual view; this is the
+                 * same proven path the debug free-fly cam uses, so any
+                 * residual axis confusion is just a sign flip away. */
                 g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
                 g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                /* FPS convention: mouse DOWN (mdy>0) → look DOWN at floor.
-                 * "Look down" in PSX (+Y=down) means camera Z aligns with
-                 * world +Y, which is pitch NEGATIVE in our Rx*Ry view
-                 * derivation. So subtract mdy. */
-                g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
-                if (g_TpsCamPitch < -Q12_ANGLE(80.0f)) g_TpsCamPitch = -Q12_ANGLE(80.0f);
-                if (g_TpsCamPitch >  Q12_ANGLE(80.0f)) g_TpsCamPitch =  Q12_ANGLE(80.0f);
+                g_TpsCamPitch += (s32)(mdy * TP_PITCH_SENS);
+                /* Clamp short of vertical to avoid horiz_dist=0 → atan2(0,0)
+                 * gimbal at the poles. ±70° gives full freedom without going
+                 * over Harry's head or under his feet. */
+                if (g_TpsCamPitch < -Q12_ANGLE(70.0f)) g_TpsCamPitch = -Q12_ANGLE(70.0f);
+                if (g_TpsCamPitch >  Q12_ANGLE(70.0f)) g_TpsCamPitch =  Q12_ANGLE(70.0f);
             }
 
-            /* Camera position: D units behind Harry along yaw, fixed lift
-             * above. Camera doesn't move with pitch — pitch only changes
-             * the view rotation. */
-            s32 tpSinY = Math_Sin(g_TpsCamYaw);
-            s32 tpCosY = Math_Cos(g_TpsCamYaw);
+            /* Spherical-orbit camera position around Harry:
+             *   horizDist  = D * cos(pitch)        — shrinks as cam goes overhead
+             *   vertOffset = -D * sin(pitch)       — negative when pitch>0 = cam UP
+             *                                        in PSX -Y=up
+             *   camPos = harry + (-sin(yaw)*horizDist, baseLift+vertOffset, -cos(yaw)*horizDist)
+             *   lookAt = harry's chest */
+            s32 tpSinY     = Math_Sin(g_TpsCamYaw);
+            s32 tpCosY     = Math_Cos(g_TpsCamYaw);
             s32 tpSinPitch = Math_Sin(g_TpsCamPitch);
             s32 tpCosPitch = Math_Cos(g_TpsCamPitch);
 
-            VECTOR3 tpCamPos;
-            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * tpSinY >> 12);
-            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * tpCosY >> 12);
-            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT;
+            s32 horizDist  = (s32)((s64)TP_DIST * tpCosPitch >> 12);
+            s32 vertOffset = -(s32)((s64)TP_DIST * tpSinPitch >> 12);
 
-            /* lookAt kept for the snapshot logger only — not used to build
-             * the matrix (the lookAt-derivation path's ratan2 introduced
-             * unstable pitch as yaw changed, causing the tumble). */
-            VECTOR3 tpLookAt;
+            VECTOR3 tpCamPos, tpLookAt;
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)horizDist * tpSinY >> 12);
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)horizDist * tpCosY >> 12);
+            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT + vertOffset;
+
             tpLookAt.vx = tp_hr->position.vx;
             tpLookAt.vz = tp_hr->position.vz;
             tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS;
 
-            /* Build the view matrix DIRECTLY from yaw + pitch as
-             * R = Rx(-pitch) * Ry(-yaw). No ratan2, no lookAt → no tumble.
-             * Pure horizontal mouse can ONLY change yaw, pure vertical can
-             * ONLY change pitch. */
-            {
-                MATRIX vm;
-                /* All values already Q12 (4096 = 1.0); products need >>12 */
-                vm.m[0][0] = (s16)tpCosY;
-                vm.m[0][1] = 0;
-                vm.m[0][2] = (s16)(-tpSinY);
-
-                vm.m[1][0] = (s16)((tpSinPitch * tpSinY) >> 12);
-                vm.m[1][1] = (s16)tpCosPitch;
-                vm.m[1][2] = (s16)((tpSinPitch * tpCosY) >> 12);
-
-                vm.m[2][0] = (s16)((tpCosPitch * tpSinY) >> 12);
-                vm.m[2][1] = (s16)(-tpSinPitch);
-                vm.m[2][2] = (s16)((tpCosPitch * tpCosY) >> 12);
-
-                vm.t[0] = Q12_TO_Q8(tpCamPos.vx);
-                vm.t[1] = Q12_TO_Q8(tpCamPos.vy);
-                vm.t[2] = Q12_TO_Q8(tpCamPos.vz);
-
-                vwSetViewInfoDirectMatrix(NULL, &vm);
-            }
+            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
 
             /* Key 6 (top row): snapshot TPS camera state for tuning */
