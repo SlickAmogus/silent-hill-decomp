@@ -375,16 +375,17 @@ s32 vcExecCamera(void) // 0x80080FBC
         } s_PcCamOverride;
 
         static const s_PcCamOverride OVERRIDES[] = {
-            /* map0_s01 corner — TWO recorded bad spots, each with its
-             * own corrected pose. Both recorded via Numpad debug + key 5.
-             * Convention: +angleX = look up, -angleX = look down (user
-             * empirically confirmed: numpad - increments angleX, shows
-             * sky/ceiling). Recorded angleY/angleX usable as-is. */
-            /* Spot 1: harry=(16630,0,1092748), bad cam was (14431,-8448,1095641) */
-            { 1, { 16630, 0, 1092748 }, Q12(1.5f),
+            /* map0_s01 corner overrides — DISABLED (radius Q12(0.0f))
+             * because the proper fix (correcting fix_ang_x/y for the
+             * 5 affected road nodes in vc_road_data.h) was restored
+             * from commit b41836a80. The road camera system now
+             * smoothly tracks Harry through the corner via SETTLE
+             * interpolation between FIX_ANG anchor nodes. Keep these
+             * entries documented as a safety net — re-enable any one
+             * by raising its radius if a specific spot still misbehaves. */
+            { 1, { 16630, 0, 1092748 }, Q12(0.0f),
                  { 15505, -9222, 1098282 }, 1840, -288 },
-            /* Spot 2: harry=(15109,0,1100175), bad cam was (16771,-8448,1099500) */
-            { 1, { 15109, 0, 1100175 }, Q12(1.5f),
+            { 1, { 15109, 0, 1100175 }, Q12(0.0f),
                  { 19667, -6912, 1104091 }, 2480, -160 },
         };
 

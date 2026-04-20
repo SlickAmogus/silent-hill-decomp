@@ -1545,8 +1545,8 @@
       .ofs_watch_hy = Q4(0.5f),
       .field_15 = 0,
       .cam_mv_type = VC_MV_FIX_ANG,
-      .fix_ang_x = Q8_ANGLE(313.0f),
-      .fix_ang_y = Q8_ANGLE(152.0f),
+      .fix_ang_x = Q8_ANGLE(65.0f),  /* PC corrected: debug cam angleX=2784 → pitch up ~65° */
+      .fix_ang_y = Q8_ANGLE(357.0f), /* PC corrected: debug cam angleY=4064 → yaw ~357° */
     },
     {
       .lim_sw = {
@@ -1570,8 +1570,8 @@
       .ofs_watch_hy = Q4(0.5f),
       .field_15 = 0,
       .cam_mv_type = VC_MV_SETTLE,
-      .fix_ang_x = Q8_ANGLE(315.0f),
-      .fix_ang_y = Q8_ANGLE(315.0f),
+      .fix_ang_x = Q8_ANGLE(270.0f), /* PC corrected: SETTLE lower bound (W), tracks Harry in 270°→180° arc */
+      .fix_ang_y = Q8_ANGLE(180.0f), /* PC corrected: SETTLE upper bound (S), debug cam angleY≈0° (N) */
     },
     {
       .lim_sw = {
@@ -1595,8 +1595,8 @@
       .ofs_watch_hy = Q4(-1.0f),
       .field_15 = 0,
       .cam_mv_type = VC_MV_FIX_ANG,
-      .fix_ang_x = Q8_ANGLE(294.0f),
-      .fix_ang_y = Q8_ANGLE(81.0f),
+      .fix_ang_x = Q8_ANGLE(297.0f), /* PC corrected: debug cam angleX=720 → pitch down ~63° */
+      .fix_ang_y = Q8_ANGLE(28.0f),  /* PC corrected: debug cam angleY=320 → yaw ~28° */
     },
     {
       .lim_sw = {
@@ -1620,8 +1620,8 @@
       .ofs_watch_hy = Q4(0.5f),
       .field_15 = 0,
       .cam_mv_type = VC_MV_SETTLE,
-      .fix_ang_x = Q8_ANGLE(110.0f),
-      .fix_ang_y = Q8_ANGLE(110.0f),
+      .fix_ang_x = Q8_ANGLE(0.0f),   /* PC corrected: SETTLE lower bound (N), Harry in NE-SSE arc */
+      .fix_ang_y = Q8_ANGLE(170.0f), /* PC corrected: SETTLE upper bound (SSE), debug cam angleY≈134° */
     },
     {
       .lim_sw = {
@@ -1845,8 +1845,8 @@
       .ofs_watch_hy = Q4(-0.5f),
       .field_15 = 5,
       .cam_mv_type = VC_MV_FIX_ANG,
-      .fix_ang_x = Q8_ANGLE(323.0f),
-      .fix_ang_y = Q8_ANGLE(141.0f),
+      .fix_ang_x = Q8_ANGLE(37.0f),  /* PC corrected: debug cam angleX=-416 → pitch up ~37° */
+      .fix_ang_y = Q8_ANGLE(179.0f), /* PC corrected: debug cam angleY=2032 → yaw ~179° (S) */
     },
     {
       .lim_sw = {
