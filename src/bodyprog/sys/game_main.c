@@ -347,50 +347,49 @@ void DebugCamera_Update(void)
                 SDL_GetRelativeMouseState(&mdx, &mdy);
                 /* GTA-style orbit camera. Convention:
                  *   yaw=0   → camera south of Harry, looking north
-                 *   pitch=0 → camera at Harry's height, looking horizontal
-                 *   pitch>0 → camera rises ABOVE Harry, looks down at him
-                 *   pitch<0 → camera dips BELOW Harry, looks up at him
+                 *   pitch>0 → camera looks UP (pitches up, dips below)
+                 *   pitch<0 → camera looks DOWN (pitches down, rises above)
                  *
-                 * Mouse-RIGHT (mdx>0) → += yaw → camera goes to Harry's
-                 *   east → scene rotates left → feels like "turning right" ✓
-                 * Mouse-DOWN  (mdy>0) → += pitch → camera rises above →
-                 *   view tilts down to see the floor ✓
-                 *
-                 * Vw_SetLookAtMatrix builds the actual view; this is the
-                 * same proven path the debug free-fly cam uses, so any
-                 * residual axis confusion is just a sign flip away. */
-                g_TpsCamYaw   -= (s32)(mdx * TP_MOUSE_SENS);
+                 * Mouse-RIGHT (mdx>0) → += yaw → view rotates right (FPS) ✓
+                 * Mouse-UP    (mdy<0) → -=mdy → += pitch → view tilts up   ✓
+                 * Mouse-DOWN  (mdy>0) → -=mdy → -= pitch → view tilts down ✓ */
+                g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
                 g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
                 g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
-                /* Clamp short of vertical to avoid horiz_dist=0 → atan2(0,0)
-                 * gimbal at the poles. ±70° gives full freedom without going
-                 * over Harry's head or under his feet. */
-                if (g_TpsCamPitch < -Q12_ANGLE(70.0f)) g_TpsCamPitch = -Q12_ANGLE(70.0f);
-                if (g_TpsCamPitch >  Q12_ANGLE(70.0f)) g_TpsCamPitch =  Q12_ANGLE(70.0f);
+                /* Tighter clamp on the look-down side so the camera doesn't
+                 * rise far over Harry's head; symmetric range was making the
+                 * cam pop overhead easily. */
+                if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+                if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
             }
 
-            /* Spherical-orbit camera position around Harry:
-             *   horizDist  = D * cos(pitch)        — shrinks as cam goes overhead
-             *   vertOffset = -D * sin(pitch)       — negative when pitch>0 = cam UP
-             *                                        in PSX -Y=up
-             *   camPos = harry + (-sin(yaw)*horizDist, baseLift+vertOffset, -cos(yaw)*horizDist)
-             *   lookAt = harry's chest */
-            s32 tpSinY     = Math_Sin(g_TpsCamYaw);
-            s32 tpCosY     = Math_Cos(g_TpsCamYaw);
-            s32 tpSinPitch = Math_Sin(g_TpsCamPitch);
-            s32 tpCosPitch = Math_Cos(g_TpsCamPitch);
+            /* Compute view direction (forward unit vector) from yaw+pitch.
+             * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
+            s32 sy = Math_Sin(g_TpsCamYaw);
+            s32 cy = Math_Cos(g_TpsCamYaw);
+            s32 sp = Math_Sin(g_TpsCamPitch);
+            s32 cp = Math_Cos(g_TpsCamPitch);
 
-            s32 horizDist  = (s32)((s64)TP_DIST * tpCosPitch >> 12);
-            s32 vertOffset = -(s32)((s64)TP_DIST * tpSinPitch >> 12);
+            /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12 */
+            s32 fwdX = (s32)((s64)sy * cp >> 12);
+            s32 fwdY = -sp;
+            s32 fwdZ = (s32)((s64)cy * cp >> 12);
 
+            /* Camera D units BACK along forward, lifted by TP_HEIGHT */
             VECTOR3 tpCamPos, tpLookAt;
-            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)horizDist * tpSinY >> 12);
-            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)horizDist * tpCosY >> 12);
-            tpCamPos.vy = tp_hr->position.vy + TP_HEIGHT + vertOffset;
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * fwdX >> 12);
+            tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
 
-            tpLookAt.vx = tp_hr->position.vx;
-            tpLookAt.vz = tp_hr->position.vz;
-            tpLookAt.vy = tp_hr->position.vy + TP_LOOKAT_OFS;
+            /* lookAt FAR ahead of camera along forward (~25 world units).
+             * Big delta vectors avoid Vw_SetLookAtMatrix's Q12→Q8 truncation
+             * jitter — that was the source of the random pitch wobble while
+             * panning horizontally. */
+            #define TP_LOOKAT_DIST Q12(25.0f)
+            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+            tpLookAt.vy = tpCamPos.vy + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+            #undef TP_LOOKAT_DIST
 
             Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
