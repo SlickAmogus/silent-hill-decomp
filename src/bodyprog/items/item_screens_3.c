@@ -2783,9 +2783,17 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
         case 6:
             g_Inventory_ScrollTransitionTimer++;
+#ifdef SH_PC_PORT
+            SH_DBG("[UNEQUIP] timer=%d scale.vx=0x%x",
+                   (int)g_Inventory_ScrollTransitionTimer,
+                   (unsigned)g_Items_Transforms[7].scale.vx);
+#endif
 
             if (g_Inventory_ScrollTransitionTimer == 9)
             {
+#ifdef SH_PC_PORT
+                SH_DBG("[UNEQUIP] complete -- clearing equipped weapon");
+#endif
                 g_Inventory_EquippedItem                        = InvItemId_Unequipped;
                 g_SavegamePtr->equippedWeapon_AA                = InvItemId_Unequipped;
                 g_SysWork.playerCombat.weaponAttack        = NO_VALUE;

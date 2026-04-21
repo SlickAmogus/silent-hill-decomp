@@ -146,12 +146,27 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     s32 j;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[BD74] enter idx=%d obj=%p coord2=%p tmd=%p arg2=%d",
-           (int)displayItemIdx, (void*)arg1,
-           arg1 ? (void*)arg1->coord2 : NULL,
-           arg1 ? (void*)arg1->tmd : NULL, (int)arg2);
-    if (arg1->coord2 == NULL) { SH_DBG("[BD74] null coord2"); return; }
-    if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd -- skip"); return; }
+    {
+        s32 scx = g_Items_Transforms[displayItemIdx].scale.vx;
+        s32 scy = g_Items_Transforms[displayItemIdx].scale.vy;
+        s32 scz = g_Items_Transforms[displayItemIdx].scale.vz;
+        SH_DBG("[BD74] enter idx=%d obj=%p coord2=%p tmd=%p arg2=%d scale=(0x%x,0x%x,0x%x)",
+               (int)displayItemIdx, (void*)arg1,
+               arg1 ? (void*)arg1->coord2 : NULL,
+               arg1 ? (void*)arg1->tmd : NULL, (int)arg2,
+               (unsigned)scx, (unsigned)scy, (unsigned)scz);
+        if (arg1->coord2 == NULL) { SH_DBG("[BD74] null coord2"); return; }
+        if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd -- skip"); return; }
+        if (scx == 0) {
+            /* Hypothesis: unequip-anim shrinks slot 7 scale to 0 (item_screens_3.c:2812)
+             * -> divide-by-zero in the loop below. PSX MIPS silently produces
+             * garbage; x86-64 raises SIGFPE and kills the process with no crash log.
+             * Skip render this frame to confirm. If this prevents the crash,
+             * fix is to clamp scale to a small minimum or skip render at zero. */
+            SH_DBG("[BD74] scale.vx==0 -- SKIP render to avoid SIGFPE (idx=%d)", (int)displayItemIdx);
+            return;
+        }
+    }
 #endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &worldMat, &viewMat);
 
