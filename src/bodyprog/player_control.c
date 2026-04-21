@@ -1155,10 +1155,30 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             }
 
             // If player is not performing a movement.
+#ifdef SH_PC_PORT
+            /* PC: also fall through to None/Combat if aim is held with a
+             * weapon equipped — the aim/fire shim lives in the PC PORT
+             * block of the None/Combat case and otherwise never runs while
+             * Harry is standing still. Player_Controller doesn't fold R2
+             * into HasActionInput (only Cross/run do that on PSX). */
+            {
+                u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim_8;
+                bool aimHeld   = (g_Controller0->btnsHeld_C & aimBtn) != 0;
+                bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
+                if (!aimHeld || !hasWeapon)
+                {
+                    if (!(g_Player_HasMoveInput | g_Player_HasActionInput))
+                    {
+                        break;
+                    }
+                }
+            }
+#else
             if (!(g_Player_HasMoveInput | g_Player_HasActionInput))
             {
                 break;
             }
+#endif
 
             Player_ExtraStateSet(player, extra, PlayerState_None);
 
@@ -1380,11 +1400,29 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 {
                     static u8 s_aimActive = 0;
                     static u8 s_fireFrames = 0;
+                    static u8 s_prevAimHeld = 0;
+                    static u8 s_prevFireHeld = 0;
                     u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim_8;
                     u16 fireBtn = g_GameWorkPtr->config.controllerConfig.action_6;
                     bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
                     bool aimHeld  = (g_Controller0->btnsHeld_C & aimBtn) != 0;
                     bool fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
+
+                    /* Edge-log key state changes so we can see in the log
+                     * whether the shim is reached and whether the buttons
+                     * are being read at all. */
+                    if (aimHeld != s_prevAimHeld) {
+                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d",
+                               (int)aimHeld, (int)hasWeapon,
+                               (int)g_SysWork.playerCombat.weaponAttack,
+                               (int)playerExtra.state);
+                        s_prevAimHeld = aimHeld;
+                    }
+                    if (fireHeld != s_prevFireHeld) {
+                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d",
+                               (int)fireHeld, (int)aimHeld, (int)hasWeapon);
+                        s_prevFireHeld = fireHeld;
+                    }
 
                     g_Player_IsAiming = aimHeld && hasWeapon;
 
