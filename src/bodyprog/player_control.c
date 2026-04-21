@@ -1410,17 +1410,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
                     /* Edge-log key state changes so we can see in the log
                      * whether the shim is reached and whether the buttons
-                     * are being read at all. */
+                     * are being read at all. Includes raw btnsHeld_C and
+                     * the configured masks so we can verify whether the
+                     * R2/Cross bits actually arrive in the controller word
+                     * — separates "key not pressed" from "key pressed but
+                     * mapped to a different bit than aim_8 expects". */
                     if (aimHeld != s_prevAimHeld) {
-                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d",
+                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x",
                                (int)aimHeld, (int)hasWeapon,
                                (int)g_SysWork.playerCombat.weaponAttack,
-                               (int)playerExtra.state);
+                               (int)playerExtra.state,
+                               (unsigned)g_Controller0->btnsHeld_C,
+                               (unsigned)aimBtn, (unsigned)fireBtn);
                         s_prevAimHeld = aimHeld;
                     }
                     if (fireHeld != s_prevFireHeld) {
-                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d",
-                               (int)fireHeld, (int)aimHeld, (int)hasWeapon);
+                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x",
+                               (int)fireHeld, (int)aimHeld, (int)hasWeapon,
+                               (unsigned)g_Controller0->btnsHeld_C,
+                               (unsigned)aimBtn, (unsigned)fireBtn);
                         s_prevFireHeld = fireHeld;
                     }
 

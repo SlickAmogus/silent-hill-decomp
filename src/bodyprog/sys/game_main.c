@@ -38,11 +38,6 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/sys/game_main.h"
 #include "screens/saveload.h"
 
-#ifdef SH_PC_PORT
-/* In bodyprog/player.h; forward-declared here to avoid pulling the full
- * header chain for one F-key debug shortcut. */
-extern void GameFs_WeaponInfoUpdate(void);
-#endif
 
 // ========================================
 // GLOBAL VARIABLES
@@ -332,71 +327,10 @@ void DebugCamera_Update(void)
         prevKey = cur;
     }
 
-    /* F-keys: in-game test bindings. Bypass console + inventory.
-     *   F1 = spawn Grey Child ~3u in front of Harry
-     *   F2 = equip steel pipe
-     *   F3 = equip kitchen knife
-     *   F4 = equip handgun
-     * Weapon hotkeys call GameFs_WeaponInfoUpdate which patches
-     * HARRY_BASE_ANIM_INFOS[56..76] from the weapon-specific anim info
-     * table and queues the .ANM file load. Without it, weaponAttack stays
-     * NO_VALUE and the aim/fire shim short-circuits. */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_F1];
-        if (cur && !prevKey) {
-            s_SubCharacter* hr = &g_SysWork.playerWork.player;
-            q3_12 yaw = hr->rotation.vy;
-            /* Forward = (sin(yaw), cos(yaw)) per the convention used by
-             * player_pos_update.c:26-27 and the AirScreamer mover. */
-            q19_12 dist = Q12(3.0f);
-            q19_12 posX = hr->position.vx + Q12_MULT(Math_Sin(yaw), dist);
-            q19_12 posZ = hr->position.vz + Q12_MULT(Math_Cos(yaw), dist);
-            /* Face Harry (yaw + 180). */
-            q3_12 spawnYaw = Q12_ANGLE_NORM_U(yaw + Q12_ANGLE(180.0f));
-            s32 slot = Chara_Spawn(Chara_GreyChild, 0, posX, posZ, spawnYaw, 0);
-            SH_DBG("[DEBUG] F1: spawn GreyChild slot=%d at (%d,%d) yaw=%d (Harry pos=%d,%d yaw=%d)",
-                   (int)slot, (int)posX, (int)posZ, (int)spawnYaw,
-                   (int)hr->position.vx, (int)hr->position.vz, (int)yaw);
-            /* NOTE: GreyChild anim probably isn't loaded in map0_s01. The
-             * NPC will appear as an empty slot until anim data is force-
-             * loaded — see npc_main.c (animDataInfoIdx==0xFF skip). */
-        }
-        prevKey = cur;
-    }
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_F2];
-        if (cur && !prevKey) {
-            g_SavegamePtr->equippedWeapon_AA = InvItemId_SteelPipe;
-            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
-            GameFs_WeaponInfoUpdate();
-            SH_DBG("[DEBUG] F2: equipped STEEL PIPE  (C=swing)");
-        }
-        prevKey = cur;
-    }
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_F3];
-        if (cur && !prevKey) {
-            g_SavegamePtr->equippedWeapon_AA = InvItemId_KitchenKnife;
-            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap);
-            GameFs_WeaponInfoUpdate();
-            SH_DBG("[DEBUG] F3: equipped KITCHEN KNIFE  (C=swing)");
-        }
-        prevKey = cur;
-    }
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_F4];
-        if (cur && !prevKey) {
-            g_SavegamePtr->equippedWeapon_AA = InvItemId_Handgun;
-            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
-            GameFs_WeaponInfoUpdate();
-            SH_DBG("[DEBUG] F4: equipped HANDGUN  (R_CTRL=aim, C=fire)");
-        }
-        prevKey = cur;
-    }
+    /* F-key debug hotkeys removed: F4 (handgun) was freezing controls and
+     * the test map already has knife + pistol pickups, so the bindings
+     * are unnecessary here. Re-add when an in-progress later-map test
+     * needs an item that isn't in the world yet. */
 
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
