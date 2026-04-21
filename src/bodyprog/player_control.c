@@ -1414,21 +1414,46 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * the configured masks so we can verify whether the
                      * R2/Cross bits actually arrive in the controller word
                      * — separates "key not pressed" from "key pressed but
-                     * mapped to a different bit than aim_8 expects". */
+                     * mapped to a different bit than aim_8 expects".
+                     *
+                     * Also includes raw SDL keyboard state for RCTRL/C —
+                     * if SDL says RCTRL=0 while user holds it, the fault
+                     * is at the OS/SDL layer (focus / key grabbed / win11
+                     * quirk). If SDL says RCTRL=1 but btnsHeld_C lacks the
+                     * R2 bit, fault is in PsyCross's keyboard polling. */
+                    int sdlRctrl = (g_sdlKeyboardState && g_sdlKeyboardState[SDL_SCANCODE_RCTRL]) ? 1 : 0;
+                    int sdlLctrl = (g_sdlKeyboardState && g_sdlKeyboardState[SDL_SCANCODE_LCTRL]) ? 1 : 0;
+                    int sdlC     = (g_sdlKeyboardState && g_sdlKeyboardState[SDL_SCANCODE_C])     ? 1 : 0;
+                    static int s_prevSdlRctrl = 0;
+                    static int s_prevSdlLctrl = 0;
+                    if (sdlRctrl != s_prevSdlRctrl) {
+                        SH_DBG("[AIM/SDL] RCTRL=%d (LCTRL=%d C=%d btnsHeld_C=0x%04x)",
+                               sdlRctrl, sdlLctrl, sdlC,
+                               (unsigned)g_Controller0->btnsHeld_C);
+                        s_prevSdlRctrl = sdlRctrl;
+                    }
+                    if (sdlLctrl != s_prevSdlLctrl) {
+                        SH_DBG("[AIM/SDL] LCTRL=%d (RCTRL=%d C=%d btnsHeld_C=0x%04x)",
+                               sdlLctrl, sdlRctrl, sdlC,
+                               (unsigned)g_Controller0->btnsHeld_C);
+                        s_prevSdlLctrl = sdlLctrl;
+                    }
                     if (aimHeld != s_prevAimHeld) {
-                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x",
+                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x SDL[RCTRL=%d LCTRL=%d]",
                                (int)aimHeld, (int)hasWeapon,
                                (int)g_SysWork.playerCombat.weaponAttack,
                                (int)playerExtra.state,
                                (unsigned)g_Controller0->btnsHeld_C,
-                               (unsigned)aimBtn, (unsigned)fireBtn);
+                               (unsigned)aimBtn, (unsigned)fireBtn,
+                               sdlRctrl, sdlLctrl);
                         s_prevAimHeld = aimHeld;
                     }
                     if (fireHeld != s_prevFireHeld) {
-                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x",
+                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x SDL[RCTRL=%d LCTRL=%d C=%d]",
                                (int)fireHeld, (int)aimHeld, (int)hasWeapon,
                                (unsigned)g_Controller0->btnsHeld_C,
-                               (unsigned)aimBtn, (unsigned)fireBtn);
+                               (unsigned)aimBtn, (unsigned)fireBtn,
+                               sdlRctrl, sdlLctrl, sdlC);
                         s_prevFireHeld = fireHeld;
                     }
 
