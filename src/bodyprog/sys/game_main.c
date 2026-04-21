@@ -38,6 +38,12 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/sys/game_main.h"
 #include "screens/saveload.h"
 
+#ifdef SH_PC_PORT
+/* In bodyprog/player.h; forward-declared here to avoid pulling the full
+ * header chain for one F-key debug shortcut. */
+extern void GameFs_WeaponInfoUpdate(void);
+#endif
+
 // ========================================
 // GLOBAL VARIABLES
 // ========================================
@@ -322,6 +328,45 @@ void DebugCamera_Update(void)
                 (long)g_DebugCamSavedHarryPos.vz,
                 (int)g_SysWork.playerWork.player.rotation.vy,
                 (int)g_SavegamePtr->mapOverlayId_A4);
+        }
+        prevKey = cur;
+    }
+
+    /* F1/F2/F3: equip handgun/pipe/knife. Bypasses console + inventory.
+     * GameFs_WeaponInfoUpdate patches HARRY_BASE_ANIM_INFOS[56..76] from the
+     * weapon-specific anim info table and queues the weapon's .ANM file load,
+     * so aim/fire shim sees weaponAttack != NO_VALUE and the right keyframes
+     * are addressed. */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_F1];
+        if (cur && !prevKey) {
+            g_SavegamePtr->equippedWeapon_AA = InvItemId_Handgun;
+            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+            GameFs_WeaponInfoUpdate();
+            SH_DBG("[DEBUG] F1: equipped HANDGUN  (R_CTRL=aim, C=fire)");
+        }
+        prevKey = cur;
+    }
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_F2];
+        if (cur && !prevKey) {
+            g_SavegamePtr->equippedWeapon_AA = InvItemId_SteelPipe;
+            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap);
+            GameFs_WeaponInfoUpdate();
+            SH_DBG("[DEBUG] F2: equipped STEEL PIPE  (C=swing)");
+        }
+        prevKey = cur;
+    }
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_F3];
+        if (cur && !prevKey) {
+            g_SavegamePtr->equippedWeapon_AA = InvItemId_KitchenKnife;
+            g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap);
+            GameFs_WeaponInfoUpdate();
+            SH_DBG("[DEBUG] F3: equipped KITCHEN KNIFE  (C=swing)");
         }
         prevKey = cur;
     }
