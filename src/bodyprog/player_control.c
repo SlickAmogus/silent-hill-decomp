@@ -1511,6 +1511,39 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                         (int)extra->model.anim.keyframeIdx,
                                         (unsigned)extra->model.anim.status,
                                         (int)player->rotation.vy);
+
+                            /* Ammo decrement + fire SFX — Player_UpperBodyUpdate
+                             * is bypassed by this PC shim, so its ammo-decrement
+                             * + SFX block (player_control.c:3252-3275) never runs.
+                             * The keyframe-window gate (D_800C44D0/D4) is also
+                             * never set up because UpperBodyUpdate is what sets
+                             * it. Trigger on fire-edge instead.
+                             *
+                             * Skips the field_44 path that the original would
+                             * take; we already set field_44.field_0 above so
+                             * Player_CombatUpdate will still dispatch damage. */
+                            {
+                                s16 invIdx = g_SysWork.playerCombat.weaponInventoryIdx;
+                                if (g_SysWork.playerCombat.currentWeaponAmmo > 0) {
+                                    g_SysWork.playerCombat.currentWeaponAmmo--;
+                                    if (invIdx >= 0 && invIdx < (s16)INVENTORY_ITEM_COUNT_MAX) {
+                                        if (g_SavegamePtr->items_0[invIdx].count_1 > 0) {
+                                            g_SavegamePtr->items_0[invIdx].count_1--;
+                                        }
+                                    }
+                                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0,
+                                                  &player->position, Q8(0.5f), 0);
+                                    SH_DBG_ECHO("[AIM-KF] ammo--: now=%d invIdx=%d sfx=%d",
+                                                (int)g_SysWork.playerCombat.currentWeaponAmmo,
+                                                (int)invIdx,
+                                                (int)g_Player_EquippedWeaponInfo.attackSfx_0);
+                                } else {
+                                    func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx_4,
+                                                  &player->position, Q8(0.5f), 0);
+                                    SH_DBG_ECHO("[AIM-KF] dry-fire: out of ammo, sfx=%d",
+                                                (int)g_Player_EquippedWeaponInfo.outOfAmmoSfx_4);
+                                }
+                            }
                         }
                         if (s_fireFrames > 0) s_fireFrames--;
 
