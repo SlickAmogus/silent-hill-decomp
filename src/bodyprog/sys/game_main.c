@@ -209,65 +209,6 @@ void DebugCamera_Update(void)
         prevKey = cur;
     }
 
-    /* Numpad 3: rescue teleport — snap Harry back to room spawn position (edge-triggered) */
-    {
-        static int prevKey = 0;
-        s_SubCharacter* hp = &g_SysWork.playerWork.player;
-
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
-        if (cur && !prevKey) {
-            /* Use the spawn position from the savegame data, then query
-             * Collision_Get at that position for the correct ground height. */
-            VECTOR3 spawnPos;
-            s_Collision _rescueColl;
-            spawnPos.vx = g_SavegamePtr->playerPositionX_244;
-            spawnPos.vz = g_SavegamePtr->playerPositionZ_24C;
-
-            /* If savegame position looks invalid (all zeros), use a known default */
-            if (spawnPos.vx == 0 && spawnPos.vz == 0) {
-                spawnPos.vx = 573440;  /* map0_s00 default spawn */
-                spawnPos.vz = 77824;
-            }
-
-            /* Query ground height at spawn position. If Collision_Get returns
-             * the default (Q12(8.0)=32768, meaning chunk not loaded), use 0
-             * which is the correct floor level for most maps. */
-            Collision_Get(&_rescueColl, spawnPos.vx, spawnPos.vz);
-            spawnPos.vy = _rescueColl.groundHeight_0;
-            if (spawnPos.vy == Q12(8.0f)) {
-                spawnPos.vy = 0;  /* default ground level */
-            }
-
-            /* Skip teleport during cutscenes (ev_cam_rate > 0 = border active).
-             * Updating Harry's position while DMS is running would conflict with
-             * bone animation and corrupt the skeleton for the rest of the scene. */
-            if (g_WorldGfxWork.vcCameraInternalInfo_1BDC.ev_cam_rate > 0) {
-                SH_DBG("[DEBUG] Rescue teleport: skipped (cutscene active)");
-            } else {
-                SH_DBG("[DEBUG] Rescue teleport: (%ld,%ld,%ld) -> spawn (%ld,%ld,%ld)",
-                       (long)hp->position.vx, (long)hp->position.vy, (long)hp->position.vz,
-                       (long)spawnPos.vx, (long)spawnPos.vy, (long)spawnPos.vz);
-                hp->position = spawnPos;
-                hp->fallSpeed = Q12(0.0f);
-                hp->properties.player.positionY_EC = spawnPos.vy;
-                /* Do NOT touch playerBoneCoords — the normal skeleton update will
-                 * sync root bone coords from position on the next frame. Updating
-                 * them here during a cutscene conflicts with DMS bone animation. */
-            }
-        }
-        prevKey = cur;
-    }
-    /* Numpad 0: toggle FPS cap on/off (edge-triggered) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
-        if (cur && !prevKey) {
-            g_DebugUnlockFps = !g_DebugUnlockFps;
-            SH_DBG("[DEBUG] FPS cap: %s", g_DebugUnlockFps ? "UNLOCKED" : "config value");
-        }
-        prevKey = cur;
-    }
-
     /* Number key 1: kill Harry (triggers death animation) */
     {
         static int prevKey = 0;
@@ -276,20 +217,6 @@ void DebugCamera_Update(void)
             g_SysWork.playerWork.player.health = -Q12(1.0f);
             SH_DBG("[DEBUG] Key 1: KILL HARRY — health set to -Q12(1.0)");
         }
-        prevKey = cur;
-    }
-    /* Number key 2: SFX checkpoint marker */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_2];
-        if (cur && !prevKey) { SH_DBG("CHECK SFX HERE"); }
-        prevKey = cur;
-    }
-    /* Number key 3: BGM checkpoint marker */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_3];
-        if (cur && !prevKey) { SH_DBG("CHECK BGM HERE"); }
         prevKey = cur;
     }
     /* Number key 4: mark incorrect camera position (logs GAME camera, not debug cam) */
@@ -414,59 +341,6 @@ void DebugCamera_Update(void)
                 }
                 s_tpLogPrev = s_tpLogCur;
             }
-
-            /* TPS preset-pose loggers — top row 7/8/9/0 for the four
-             * cardinal "where the camera should be relative to Harry"
-             * test poses. User maneuvers the cam to match the label,
-             * presses the key, log shows actual yaw/pitch/camPos/lookAt
-             * + camera→harry direction vector. Compare to expected:
-             *
-             *   7 = BEHIND Harry, looking forward (default TPS view)
-             *   8 = ABOVE Harry, looking straight DOWN
-             *   9 = IN FRONT of Harry, looking back at his face
-             *   0 = LEFT of Harry, looking right at him
-             */
-            /* Print the expected pose targets ONCE per TPS session so the
-             * user knows what each preset key represents. */
-            {
-                static int s_tpPosePrinted = 0;
-                if (!s_tpPosePrinted) {
-                    s_tpPosePrinted = 1;
-                    SH_DBG("[TPS-POSE] === preset pose loggers active ===");
-                    SH_DBG("[TPS-POSE] press top-row 7: BEHIND-FORWARD  (camYaw matches bodyYaw, camPitch~0, default TPS)");
-                    SH_DBG("[TPS-POSE] press top-row 8: LOOK-DOWN       (camYaw matches bodyYaw, camPitch~+45, looking at floor in front)");
-                    SH_DBG("[TPS-POSE] press top-row 9: LOOK-UP         (camYaw matches bodyYaw, camPitch~-45, looking at ceiling)");
-                    SH_DBG("[TPS-POSE] press top-row 0: LEFT-SIDE       (camYaw = bodyYaw - 90deg, camPitch~0, viewing harry's left side)");
-                }
-            }
-
-            #define TP_PRESET_LOG(scancode, label) do { \
-                static int s_prev_##scancode = 0; \
-                int s_cur_##scancode = g_sdlKeyboardState[SDL_SCANCODE_##scancode]; \
-                if (s_cur_##scancode && !s_prev_##scancode) { \
-                    s32 dxh = tpCamPos.vx - tp_hr->position.vx; \
-                    s32 dyh = tpCamPos.vy - tp_hr->position.vy; \
-                    s32 dzh = tpCamPos.vz - tp_hr->position.vz; \
-                    SH_DBG("[TPS-POSE %s] harry=(%d,%d,%d) bodyYaw=%d", label, \
-                        tp_hr->position.vx, tp_hr->position.vy, tp_hr->position.vz, \
-                        (int)tp_hr->rotation.vy); \
-                    SH_DBG("[TPS-POSE %s] camYaw=%d camPitch=%d (Q12: 4096=360deg)", label, \
-                        (int)g_TpsCamYaw, (int)g_TpsCamPitch); \
-                    SH_DBG("[TPS-POSE %s] camPos=(%d,%d,%d) lookAt=(%d,%d,%d)", label, \
-                        tpCamPos.vx, tpCamPos.vy, tpCamPos.vz, \
-                        tpLookAt.vx, tpLookAt.vy, tpLookAt.vz); \
-                    SH_DBG("[TPS-POSE %s] camDelta=(%d,%d,%d)  (cam - harry; PSX -Y=up so neg dy = above)", label, \
-                        dxh, dyh, dzh); \
-                } \
-                s_prev_##scancode = s_cur_##scancode; \
-            } while (0)
-
-            TP_PRESET_LOG(7, "BEHIND-FORWARD");
-            TP_PRESET_LOG(8, "LOOK-DOWN");
-            TP_PRESET_LOG(9, "LOOK-UP");
-            TP_PRESET_LOG(0, "LEFT-SIDE");
-
-            #undef TP_PRESET_LOG
 
             #undef TP_DIST
             #undef TP_HEIGHT
