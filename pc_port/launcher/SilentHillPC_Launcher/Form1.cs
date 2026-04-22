@@ -84,6 +84,10 @@ public partial class Form1 : Form
         loggingYes.Checked = config.Get("enable_debug_log", "0") == "1";
         loggingNo.Checked = !loggingYes.Checked;
 
+        // show secondary console window (mirrors SH_DBG_ECHO lines live)
+        consoleYes.Checked = config.Get("show_console", "0") == "1";
+        consoleNo.Checked = !consoleYes.Checked;
+
         comboFps.SelectedItem = config.Get("fps_cap", "30");
         string fps = config.Get("fps_cap", "30");
         if (comboFps.Items.Contains(fps))
@@ -172,6 +176,9 @@ public partial class Form1 : Form
 
         // enable debug logging
         config.Set("enable_debug_log", loggingYes.Checked ? "1" : "0");
+
+        // show secondary console window
+        config.Set("show_console", consoleYes.Checked ? "1" : "0");
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());
