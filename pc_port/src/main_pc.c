@@ -45,12 +45,24 @@ extern void* g_OvlBodyprog;
 typedef struct s_DemoFrameData s_DemoFrameData;
 extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 
-/* Unified debug log — writes to stdout (SilentHill.log) */
+/* Unified debug log — writes to a fopen'd SilentHill.log handle that
+ * doesn't depend on stdout being redirected.  Lets us keep SH_DBG going
+ * to the file even when show_console=1 leaves stdout pointed at the
+ * visible console window.  Set g_ShDebugEchoStdout from main() after
+ * config is parsed. */
 FILE* g_ShDebugLog = NULL;
+int   g_ShDebugEchoStdout = 0;
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
-        g_ShDebugLog = stdout;
+        g_ShDebugLog = fopen("SilentHill.log", "w");
+        if (!g_ShDebugLog) {
+            /* Last resort — fall back to stdout so we don't crash on the
+             * first SH_DBG. Caller (main) normally pre-opens this. */
+            g_ShDebugLog = stdout;
+        } else {
+            setvbuf(g_ShDebugLog, NULL, _IONBF, 0);
+        }
     }
 }
 
@@ -91,22 +103,8 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    /* Redirect both stdout and stderr to single log file.
-     * Hide the console window since all output goes to the log. */
-    freopen("SilentHill.log", "w", stdout);
-    freopen("SilentHill.log", "a", stderr);
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-
-    /* Hide the console window — use raw Win32 to avoid windows.h conflicts */
-    {
-        typedef void* HWND;
-        extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
-        extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
-        HWND con = GetConsoleWindow();
-        if (con) ShowWindow(con, /*SW_HIDE*/ 0);
-    }
-
+    /* Open the log file FIRST so any SH_DBG before config-load reaches it. */
+    SH_DebugLogInit();
     SH_DBG("[SH] main() entered");
 
     PrintBanner();
@@ -115,6 +113,31 @@ int main(int argc, char* argv[])
 
     /* Load config file */
     PcConfig_Load("config.cfg");
+
+    /* Console window: hide by default + redirect stdout/stderr -> log so
+     * stray printf/fprintf get captured.  When show_console=1, leave the
+     * console window visible and let stdout/stderr stay pointed at it.
+     * SH_DBG always writes to g_ShDebugLog (a separately-fopen'd FILE*)
+     * so the log file gets the full stream either way. */
+    if (g_PcConfig.showConsole) {
+        g_ShDebugEchoStdout = 1;
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+        SH_DBG_ECHO("[SH] show_console=1 — console window left visible, SH_DBG_ECHO mirrored to stdout");
+    } else {
+        freopen("SilentHill.log", "a", stdout);
+        freopen("SilentHill.log", "a", stderr);
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+        /* Hide console window — raw Win32 to avoid windows.h conflicts */
+        {
+            typedef void* HWND;
+            extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
+            extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
+            HWND con = GetConsoleWindow();
+            if (con) ShowWindow(con, /*SW_HIDE*/ 0);
+        }
+    }
     int windowWidth = g_PcConfig.windowWidth;
     int windowHeight = g_PcConfig.windowHeight;
 
@@ -148,15 +171,17 @@ int main(int argc, char* argv[])
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
 
-    /* Redirect PsyCross log into our SilentHill.log (stdout) instead of
-     * a separate "Silent Hill.log" file, and remove the empty file it created. */
+    /* Redirect PsyCross log into our SilentHill.log (g_ShDebugLog) instead
+     * of a separate "Silent Hill.log" file.  Pointing at g_ShDebugLog
+     * directly (not stdout) means PsyCross logs always reach the file even
+     * in show_console=1 mode where stdout stays connected to the console. */
     {
         extern FILE* g_logStream;
-        if (g_logStream && g_logStream != stdout) {
+        if (g_logStream && g_logStream != g_ShDebugLog) {
             fclose(g_logStream);
-            g_logStream = stdout;
             remove("Silent Hill.log");
         }
+        g_logStream = g_ShDebugLog;
     }
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
