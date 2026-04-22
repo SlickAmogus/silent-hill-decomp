@@ -1475,28 +1475,68 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     if (g_Player_IsAiming) {
                         D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
-                        s_aimActive = 1;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
+
+                        /* On aim entry (edge), kick the anim system into
+                         * HandgunAim so the recoil keyframe window opens
+                         * and Player_Controller's ammo-decrement path
+                         * (player_control.c:3245-3265) can fire on the
+                         * next Cross press.
+                         *
+                         * Earlier shim left anim untouched because the
+                         * static placeholder slots 56-63 pointed at kf 503
+                         * (Idle) and HandgunAim wouldn't ramp keyframeIdx
+                         * into the fire window anyway. After equip via
+                         * inventory, GameFs_WeaponInfoUpdate patches slots
+                         * 56-75 from D_80028B94[78..] to the real handgun
+                         * keyframes (570-579 aim, 605-658 recoil), so
+                         * setting status now produces real animation. */
+                        if (!s_aimActive) {
+                            s_aimActive = 1;
+                            extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                            extra->model.stateStep = 0;
+                            SH_DBG_ECHO("[AIM-KF] aim entry: set anim.status=HandgunAim(blend) status=0x%x kfIdx=%d",
+                                        (unsigned)extra->model.anim.status,
+                                        (int)extra->model.anim.keyframeIdx);
+                        }
 
                         if (fireHeld && s_fireFrames == 0) {
                             /* Fire: flag attack so Player_CombatUpdate
-                             * dispatches damage. Don't touch anim — the
-                             * HandgunAim/Recoil placeholders make Harry
-                             * disappear; leave him in his current pose. */
+                             * dispatches damage. */
                             player->field_44.field_0 = 1;
                             g_Player_IsShooting = 1;
                             s_fireFrames = 20;
-                            SH_DBG("[AIM] FIRE weaponAttack=%d rot=%d",
-                                   (int)g_SysWork.playerCombat.weaponAttack,
-                                   (int)player->rotation.vy);
+                            SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d kfIdx=%d status=0x%x rot=%d",
+                                        (int)g_SysWork.playerCombat.weaponAttack,
+                                        (int)extra->model.anim.keyframeIdx,
+                                        (unsigned)extra->model.anim.status,
+                                        (int)player->rotation.vy);
                         }
                         if (s_fireFrames > 0) s_fireFrames--;
+
+                        /* Watch keyframeIdx ramp; only log on change so the
+                         * console doesn't get a flood. */
+                        {
+                            static s16 s_prevKf = -1;
+                            s16 curKf = extra->model.anim.keyframeIdx;
+                            if (curKf != s_prevKf) {
+                                SH_DBG_ECHO("[AIM-KF] kfIdx=%d status=0x%x",
+                                            (int)curKf,
+                                            (unsigned)extra->model.anim.status);
+                                s_prevKf = curKf;
+                            }
+                        }
                     } else {
                         g_Player_IsShooting = 0;
                         s_fireFrames = 0;
                         if (s_aimActive) {
                             s_aimActive = 0;
                             g_SysWork.playerCombat.isAiming = false;
+                            /* Release: blend back to Idle so Harry doesn't
+                             * stay in aim pose forever. */
+                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model.stateStep = 0;
+                            SH_DBG_ECHO("[AIM-KF] aim release: anim.status=Idle(blend)");
                         }
                     }
                 }
