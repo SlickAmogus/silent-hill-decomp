@@ -2814,22 +2814,7 @@ __block19CC:
     }
 
 #ifdef SH_PC_PORT
-    {
-        static int _primLog = 0;
-        if (_primLog < 40) {
-            SH_DBG("[PRIM] __block19CC: total=%d emitted=%d depth_skip=? nclip_skip=? bounds_skip=?",
-                pc_primIdx, pc_emitted);
-            if (pc_emitted > 0) {
-                /* Log first emitted poly's screen coords */
-                POLY_FT4* _firstPoly = (POLY_FT4*)GsOUT_PACKET_P - pc_emitted;
-                SH_DBG("  firstPoly xy0=(%d,%d) xy1=(%d,%d) xy2=(%d,%d) xy3=(%d,%d) rgb=(%d,%d,%d,0x%02X)",
-                    _firstPoly->x0, _firstPoly->y0, _firstPoly->x1, _firstPoly->y1,
-                    _firstPoly->x2, _firstPoly->y2, _firstPoly->x3, _firstPoly->y3,
-                    _firstPoly->r0, _firstPoly->g0, _firstPoly->b0, _firstPoly->code);
-            }
-            _primLog++;
-        }
-    }
+    (void)pc_primIdx; (void)pc_emitted;
     }
 #endif
 
