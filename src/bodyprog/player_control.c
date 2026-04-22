@@ -19,6 +19,7 @@ extern int g_DebugThirdPersonCam;
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
 #include <SDL_scancode.h>
+#include <SDL_mouse.h>
 
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
@@ -1407,6 +1408,18 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
                     bool aimHeld  = (g_Controller0->btnsHeld_C & aimBtn) != 0;
                     bool fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
+
+                    /* TPS mode: also accept mouse buttons.
+                     *   RMB = aim
+                     *   LMB = fire
+                     * Mouse state is independent of SDL relative-mouse
+                     * mode (the camera still gets its motion via mdx/mdy
+                     * over in game_main.c). */
+                    if (g_DebugThirdPersonCam) {
+                        Uint32 mb = SDL_GetMouseState(NULL, NULL);
+                        if (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) aimHeld  = true;
+                        if (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  fireHeld = true;
+                    }
 
                     /* Edge-log key state changes so we can see in the log
                      * whether the shim is reached and whether the buttons
