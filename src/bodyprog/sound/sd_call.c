@@ -1200,7 +1200,7 @@ void Sd_SetVolXa(s16 volLeft, s16 volRight) // 0x80047860
 {
     SdSetSerialVol(0, (volLeft * gSDVolConfig.globalVolumeXa_E) >> 7, (volRight * gSDVolConfig.globalVolumeXa_E) >> 7);
 #ifdef SH_PC_PORT
-    XaPlayer_SetVolume(volLeft);
+    XaPlayer_SetVolume(volLeft, volRight);
 #endif
 }
 
