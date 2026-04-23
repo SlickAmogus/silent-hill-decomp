@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_port/xa_player.h"
 #include <SDL_timer.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
@@ -720,6 +721,9 @@ void MainLoop(void) // 0x80032EE0
         MemCard_Update();
         ML_TRACE("Sd_TaskPoolExecute");
         Sd_TaskPoolExecute();
+#ifdef SH_PC_PORT
+        XaPlayer_Update();
+#endif
 
         if (!Sd_AudioStreamingCheck())
         {
