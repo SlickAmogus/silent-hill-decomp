@@ -2,7 +2,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
-#include "pc_port/xa_player.h"
+#include "xa_player.h"
 #include <stdio.h>
 #endif
 

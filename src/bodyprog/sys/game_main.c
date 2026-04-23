@@ -3,7 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
-#include "pc_port/xa_player.h"
+#include "xa_player.h"
 #include <SDL_timer.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
