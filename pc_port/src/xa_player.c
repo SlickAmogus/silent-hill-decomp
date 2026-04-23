@@ -76,7 +76,7 @@ typedef struct {
     int bitDepth;
 
     int isPlaying;
-    int isPreparedForPlayback;
+    int needsInitialFill;
 
     // ADPCM state per channel (L/R)
     int16_t lastSamples[2][2];  // [channel][prev0, prev1]
@@ -267,6 +267,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.totalSectors = numSectors;
     g_XaPlayer.remainingSectors = numSectors;
     g_XaPlayer.isPlaying = 1;
+    g_XaPlayer.needsInitialFill = 1;  // Will be handled on first Update call
 
     // Create OpenAL source if not already created
     if (!g_XaPlayer.alSource) {
@@ -290,6 +291,45 @@ void XaPlayer_Stop(void) {
     g_XaPlayer.isPlaying = 0;
 }
 
+// Fill a single OpenAL buffer with decoded XA data
+static void FillBuffer(ALuint buffer) {
+    if (!g_XaPlayer.remainingSectors) {
+        return;
+    }
+
+    // Decode sectors into PCM
+    int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
+    int sectorsThisBuffer = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER) ?
+                            XA_SECTORS_PER_BUFFER : g_XaPlayer.remainingSectors;
+
+    for (int s = 0; s < sectorsThisBuffer; s++) {
+        // Seek to sector in file
+        uint32_t byteOffset = (g_XaPlayer.currentSector + s) * XA_SECTOR_SIZE;
+        fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
+
+        // Read sector
+        uint8_t sectorData[XA_SECTOR_SIZE];
+        if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
+            SH_DBG("[XA] Short read at sector %u", g_XaPlayer.currentSector + s);
+            g_XaPlayer.isPlaying = 0;
+            return;
+        }
+
+        // Decode
+        DecodeXaSector(sectorData, pcmPtr);
+        pcmPtr += XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+    }
+
+    // Queue buffer to OpenAL
+    int sampleBytes = sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+    alBufferData(buffer, AL_FORMAT_STEREO16, g_XaPlayer.pcmBuffer,
+                 sampleBytes, g_XaPlayer.sampleRate);
+    alSourceQueueBuffers(g_XaPlayer.alSource, 1, &buffer);
+
+    g_XaPlayer.currentSector += sectorsThisBuffer;
+    g_XaPlayer.remainingSectors -= sectorsThisBuffer;
+}
+
 void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOffset, uint32_t numSectors) {
     // Alternative entry point (not used yet)
     XaPlayer_Play(xaIdx);
@@ -301,11 +341,21 @@ void XaPlayer_Update(void) {
         return;
     }
 
-    // Check for processed (finished) buffers
     ALint processed = 0;
-    alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
 
-    // Refill any processed buffers
+    // On first update after Play, pre-fill all buffers
+    if (g_XaPlayer.needsInitialFill) {
+        SH_DBG("[XA] Initial fill: queuing %d buffers", XA_NUM_BUFFERS);
+        for (int i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
+            processed++;  // Treat as "available to fill"
+        }
+        g_XaPlayer.needsInitialFill = 0;
+    } else {
+        // Check for processed (finished) buffers
+        alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
+    }
+
+    // Refill available buffers
     while (processed > 0 && g_XaPlayer.remainingSectors > 0) {
         ALuint buffer;
         alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buffer);
@@ -334,9 +384,10 @@ void XaPlayer_Update(void) {
         }
 
         // Queue buffer to OpenAL
+        // XA_SAMPLES_PER_SECTOR is the stereo interleaved sample count (int16 values)
+        int sampleBytes = sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
         alBufferData(buffer, AL_FORMAT_STEREO16, g_XaPlayer.pcmBuffer,
-                     sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t),
-                     g_XaPlayer.sampleRate);
+                     sampleBytes, g_XaPlayer.sampleRate);
         alSourceQueueBuffers(g_XaPlayer.alSource, 1, &buffer);
 
         g_XaPlayer.currentSector += sectorsThisBuffer;
