@@ -2,6 +2,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_port/xa_player.h"
 #include <stdio.h>
 #endif
 
@@ -136,10 +137,6 @@ void SD_Call(u32 cmd) // 0x80045A7C
         case 20:
         case 21:
         case 22:
-#ifdef SH_PC_PORT
-            /* XA streaming requires CD-XA hardware - skip on PC */
-            return;
-#endif
             Sd_XaAudioPlayTaskAdd(cmd);
     }
 }
@@ -1202,6 +1199,9 @@ void Sd_SetVolBgm(s16 volLeft, s16 volRight) // 0x80047808
 void Sd_SetVolXa(s16 volLeft, s16 volRight) // 0x80047860
 {
     SdSetSerialVol(0, (volLeft * gSDVolConfig.globalVolumeXa_E) >> 7, (volRight * gSDVolConfig.globalVolumeXa_E) >> 7);
+#ifdef SH_PC_PORT
+    XaPlayer_SetVolume(volLeft);
+#endif
 }
 
 s16 Sd_GetVolSe(s16 arg0) // 0x800478B8
@@ -1738,11 +1738,22 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
             break;
 
         case 1:
+#ifdef SH_PC_PORT
+            XaPlayer_Play(g_Sd_AudioWork.xaAudioIdx_4);
+            Sd_TaskPoolUpdate();
+#else
             Sd_XaAudioPlay();
+#endif
             break;
 
         case 2:
+#ifdef SH_PC_PORT
+            XaPlayer_Stop();
+            g_Sd_AudioWork.xaAudioIdx_4 = 0;
+            Sd_TaskPoolUpdate();
+#else
             Sd_XaAudioStop();
+#endif
             break;
 
         case 6:
