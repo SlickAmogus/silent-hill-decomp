@@ -5,6 +5,29 @@
 #include <string.h>
 #include <AL/al.h>
 #include <AL/alc.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+// Minimal struct definitions matching decomp layout
+typedef struct {
+    uint8_t xaFileIdx_0;
+    uint8_t pad_1[3];
+    uint32_t sector_4_bits : 24;
+    uint8_t field_4_24;
+    uint32_t audioLength_8_bits : 24;
+    uint8_t field_8_24;
+} s_XaItemData;
+
+typedef struct {
+    uint16_t cdErrorCount_0;
+    uint16_t xaAudioIdxCheck_2;
+    uint16_t xaAudioIdx_4;
+    // ... rest not needed
+} s_Sd_AudioWork;
+
+// Externs from decomp
+extern s_XaItemData g_XaItemData[727];
+extern s_Sd_AudioWork g_Sd_AudioWork;
 
 // XA file mapping: xaFileIdx_0 → filename
 static const char* const g_XaFileNames[] = {
@@ -203,16 +226,58 @@ static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
 
 // Initialize playback for a specific XA index
 void XaPlayer_Play(uint16_t xaIdx) {
-    SH_DBG("[XA] Play request: xaIdx=%u", xaIdx);
+    if (xaIdx >= 727) {
+        SH_DBG("[XA] Invalid XA index: %u", xaIdx);
+        return;
+    }
 
-    // For now, just set playing state
-    // Full implementation would:
-    // 1. Look up g_XaItemData[xaIdx]
-    // 2. Open the file
-    // 3. Prepare OpenAL buffers
-    // 4. Start playback
+    s_XaItemData* item = &g_XaItemData[xaIdx];
+    uint16_t fileIdx = item->xaFileIdx_0;
 
+    if (fileIdx < 1 || fileIdx > 9) {
+        SH_DBG("[XA] Invalid file index in item %u: %u", xaIdx, fileIdx);
+        return;
+    }
+
+    SH_DBG("[XA] Play: xaIdx=%u fileIdx=%u sector=%u len=%u",
+           xaIdx, fileIdx, item->sector_4_bits, item->audioLength_8_bits);
+
+    // Stop any current playback
+    if (g_XaPlayer.isPlaying) {
+        XaPlayer_Stop();
+    }
+
+    // Open file
+    FILE* file = OpenXaFile(fileIdx);
+    if (!file) {
+        SH_DBG("[XA] Failed to open file index %u", fileIdx);
+        return;
+    }
+
+    // Calculate number of sectors to read
+    // audioLength_8 is in VSync frames; convert to sectors
+    // At 60fps: 1 frame = 630 samples; 37.8kHz: 2016 samples/sector/channel
+    uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
+
+    SH_DBG("[XA] Will read %u sectors (duration %u frames)", numSectors, item->audioLength_8_bits);
+
+    g_XaPlayer.file = file;
+    g_XaPlayer.xaIdx = xaIdx;
+    g_XaPlayer.currentSector = item->sector_4_bits;
+    g_XaPlayer.totalSectors = numSectors;
+    g_XaPlayer.remainingSectors = numSectors;
     g_XaPlayer.isPlaying = 1;
+
+    // Create OpenAL source if not already created
+    if (!g_XaPlayer.alSource) {
+        alGenSources(1, &g_XaPlayer.alSource);
+        for (int i = 0; i < XA_NUM_BUFFERS; i++) {
+            alGenBuffers(1, &g_XaPlayer.alBuffers[i]);
+        }
+        g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
+    }
+
+    SH_DBG("[XA] Playback started: source=%u", g_XaPlayer.alSource);
 }
 
 void XaPlayer_Stop(void) {
@@ -225,13 +290,77 @@ void XaPlayer_Stop(void) {
     g_XaPlayer.isPlaying = 0;
 }
 
+void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOffset, uint32_t numSectors) {
+    // Alternative entry point (not used yet)
+    XaPlayer_Play(xaIdx);
+}
+
 void XaPlayer_Update(void) {
     // Check if playback is ongoing
     if (!g_XaPlayer.isPlaying) {
         return;
     }
 
-    // TODO: Check for processed buffers and refill
+    // Check for processed (finished) buffers
+    ALint processed = 0;
+    alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
+
+    // Refill any processed buffers
+    while (processed > 0 && g_XaPlayer.remainingSectors > 0) {
+        ALuint buffer;
+        alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buffer);
+
+        // Decode sectors into PCM
+        int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
+        int sectorsThisBuffer = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER) ?
+                                XA_SECTORS_PER_BUFFER : g_XaPlayer.remainingSectors;
+
+        for (int s = 0; s < sectorsThisBuffer; s++) {
+            // Seek to sector in file
+            uint32_t byteOffset = (g_XaPlayer.currentSector + s) * XA_SECTOR_SIZE;
+            fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
+
+            // Read sector
+            uint8_t sectorData[XA_SECTOR_SIZE];
+            if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
+                SH_DBG("[XA] Short read at sector %u", g_XaPlayer.currentSector + s);
+                g_XaPlayer.isPlaying = 0;
+                return;
+            }
+
+            // Decode
+            DecodeXaSector(sectorData, pcmPtr);
+            pcmPtr += XA_SAMPLES_PER_SECTOR * sizeof(int16_t);  // Note: stereo interleaved
+        }
+
+        // Queue buffer to OpenAL
+        alBufferData(buffer, AL_FORMAT_STEREO16, g_XaPlayer.pcmBuffer,
+                     sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t),
+                     g_XaPlayer.sampleRate);
+        alSourceQueueBuffers(g_XaPlayer.alSource, 1, &buffer);
+
+        g_XaPlayer.currentSector += sectorsThisBuffer;
+        g_XaPlayer.remainingSectors -= sectorsThisBuffer;
+        processed--;
+    }
+
+    // Start playback if not already started
+    ALint sourceState = 0;
+    alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
+    if (sourceState != AL_PLAYING && sourceState != AL_PAUSED) {
+        alSourcePlay(g_XaPlayer.alSource);
+        SH_DBG("[XA] Starting playback (source=%u)", g_XaPlayer.alSource);
+    }
+
+    // Check if playback finished
+    if (g_XaPlayer.remainingSectors == 0) {
+        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
+        if (sourceState == AL_STOPPED) {
+            SH_DBG("[XA] Playback finished");
+            g_XaPlayer.isPlaying = 0;
+            g_Sd_AudioWork.xaAudioIdx_4 = 0;  // Signal game we're done
+        }
+    }
 }
 
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
