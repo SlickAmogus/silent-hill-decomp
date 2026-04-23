@@ -1406,19 +1406,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim_8;
                     u16 fireBtn = g_GameWorkPtr->config.controllerConfig.action_6;
                     bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
-                    bool aimHeld  = (g_Controller0->btnsHeld_C & aimBtn) != 0;
-                    bool fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
+                    bool aimHeld;
+                    bool fireHeld;
 
-                    /* TPS mode: also accept mouse buttons.
-                     *   RMB = aim
-                     *   LMB = fire
-                     * Mouse state is independent of SDL relative-mouse
-                     * mode (the camera still gets its motion via mdx/mdy
-                     * over in game_main.c). */
+                    /* TPS mode: mouse-only for aim/fire so LSHIFT can stay
+                     * a pure run modifier (LSHIFT is mapped to R2/aim in
+                     * the PSX-button layer; if we honored that here, aim
+                     * would steal sprint).  Outside TPS keep the keyboard
+                     * mapping (LSHIFT aim, C fire). */
                     if (g_DebugThirdPersonCam) {
                         Uint32 mb = SDL_GetMouseState(NULL, NULL);
-                        if (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) aimHeld  = true;
-                        if (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  fireHeld = true;
+                        aimHeld  = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+                        fireHeld = (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
+                    } else {
+                        aimHeld  = (g_Controller0->btnsHeld_C & aimBtn)  != 0;
+                        fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
                     }
 
                     /* Edge-log key state changes so we can see in the log
@@ -1505,7 +1507,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                              * dispatches damage. */
                             player->field_44.field_0 = 1;
                             g_Player_IsShooting = 1;
-                            s_fireFrames = 20;
+                            /* ~40 frame cooldown ≈ 0.67s at 60fps ≈ 1.5
+                             * shots/sec — close to PSX handgun pace.
+                             * Was 20 = 3 shots/sec which felt rapid-fire. */
+                            s_fireFrames = 40;
                             SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d kfIdx=%d status=0x%x rot=%d",
                                         (int)g_SysWork.playerCombat.weaponAttack,
                                         (int)extra->model.anim.keyframeIdx,
