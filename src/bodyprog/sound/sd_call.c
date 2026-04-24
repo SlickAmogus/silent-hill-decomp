@@ -858,6 +858,11 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
 void Sd_XaAudioPlayTaskAdd(u16 sfx) // 0x80046D3C
 {
     g_Sd_AudioWork.xaAudioIdxCheck_2 = sfx & 0xFFF;
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x%04X idx=%u fileIdx=%u",
+           sfx, g_Sd_AudioWork.xaAudioIdxCheck_2,
+           g_XaItemData[g_Sd_AudioWork.xaAudioIdxCheck_2].xaFileIdx_0);
+#endif
 
     if (g_XaItemData[g_Sd_AudioWork.xaAudioIdxCheck_2].xaFileIdx_0 != 0)
     {
@@ -870,6 +875,9 @@ void Sd_XaAudioPlayTaskAdd(u16 sfx) // 0x80046D3C
         g_Sd_AudioWork.xaAudioIdx_4 = g_Sd_AudioWork.xaAudioIdxCheck_2;
 
         Sd_TaskPoolAdd(1);
+#ifdef SH_PC_PORT
+        SH_DBG("[SH_AUDIO] XA tasks queued: idx=%u", g_Sd_AudioWork.xaAudioIdx_4);
+#endif
     }
 }
 
@@ -1929,6 +1937,13 @@ u8 Sd_CdPrimitiveCmdTry(s32 com, u8* param, u8* res) // 0x80048954
 
     return true;
 }
+
+#ifdef SH_PC_PORT
+// Called by XA player to signal playback completion
+void Xa_SignalPlaybackFinished(void) {
+    g_Sd_AudioWork.xaAudioIdx_4 = 0;
+}
+#endif
 
 #undef BSS_HACK_SD_CALL_C
 #undef VAB_BUFFER_LIMIT

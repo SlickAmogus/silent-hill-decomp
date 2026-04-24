@@ -27,7 +27,9 @@ typedef struct {
 
 // Externs from decomp
 extern s_XaItemData g_XaItemData[727];
-extern s_Sd_AudioWork g_Sd_AudioWork;
+
+// PC wrapper to signal playback finished
+extern void Xa_SignalPlaybackFinished(void);
 
 // XA file mapping: xaFileIdx_0 → filename
 static const char* const g_XaFileNames[] = {
@@ -409,7 +411,7 @@ void XaPlayer_Update(void) {
         if (sourceState == AL_STOPPED) {
             SH_DBG("[XA] Playback finished");
             g_XaPlayer.isPlaying = 0;
-            g_Sd_AudioWork.xaAudioIdx_4 = 0;  // Signal game we're done
+            Xa_SignalPlaybackFinished();  // Signal game we're done
         }
     }
 }

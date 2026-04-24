@@ -87,6 +87,14 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
     s_SubCharacter* chara0;
     s_SubCharacter* chara1;
 
+#ifdef SH_PC_PORT
+    static u8 lastState = 255;
+    if (g_SysWork.sysStateSteps[0] != lastState) {
+        SH_DBG("[CAFE_EVENT] state=%u", g_SysWork.sysStateSteps[0]);
+        lastState = g_SysWork.sysStateSteps[0];
+    }
+#endif
+
     // Skip.
     if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
         g_SysWork.sysStateSteps[0] > 5 && g_SysWork.sysStateSteps[0] < 47)
