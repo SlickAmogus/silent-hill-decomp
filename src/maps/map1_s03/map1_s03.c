@@ -3,6 +3,7 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
@@ -22,7 +23,7 @@ void Ai_LockerDeadBody_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOOR
 {
     s_AnimInfo* animInfo;
 
-    if (chara->model.controlState == ModelState_Uninitialized)
+    if (chara->model.controlState == 0)
     {
         chara->model.anim.alpha = Q12(0.0f);
         Character_AnimSet(chara, ANIM_STATUS(LockerDeadBodyAnim_2, true), 0);
@@ -458,14 +459,14 @@ void func_800DAF18(void) // 0x800DAF18
             D_800E3A40[0].vx_0     = -0xA333;
             D_800E3A40[0].field_8  = 0x1EB;
             D_800E3A40[0].field_C  = 0x147;
-            D_800E3A40[0].vz_4     = -0xD599;
+            D_800E3A40[0].vz_4     = Q12(-13.35f);
             D_800E3A40[0].idx_14   = 2;
             D_800E3A40[0].field_12 = 0x28;
             D_800E3A40[0].field_E  = 0x400;
             D_800E3A40[0].field_10 = 0x4CC;
 
-            D_800E3A40[1].vx_0     = -0xA400;
-            D_800E3A40[1].vz_4     = -0x11B85;
+            D_800E3A40[1].vx_0     = Q12(-10.25f);
+            D_800E3A40[1].vz_4     = Q12(-17.72f);
             D_800E3A40[1].field_C  = 0xCC;
             D_800E3A40[1].field_12 = 0x28;
 
@@ -476,7 +477,7 @@ void func_800DAF18(void) // 0x800DAF18
                 sharedData_800E30C8_1_s02.field_28[2] = 0x6D1E;
                 sharedData_800E30C8_1_s02.field_34[2] = 0xC00;
                 sharedData_800E30C8_1_s02.field_74    = 0x96;
-                sharedData_800E30C8_1_s02.field_18[2] = -0x11C00;
+                sharedData_800E30C8_1_s02.field_18[2] = Q12(-17.75f);
                 sharedData_800E30C8_1_s02.field_30[2] = 0;
                 sharedData_800E30C8_1_s02.field_3C[2] = 0x4CC;
                 sharedData_800E30C8_1_s02.field_44[2] = 0x800;
@@ -492,8 +493,8 @@ void func_800DAF18(void) // 0x800DAF18
                 D_800E3A40[1].field_E  = 0x333;
                 D_800E3A40[1].field_10 = 0x599;
                 D_800E3A40[2].field_C  = 0xF5;
-                D_800E3A40[2].vx_0     = -0x10DC2;
-                D_800E3A40[2].vz_4     = -0x11C00;
+                D_800E3A40[2].vx_0     = Q12(-16.86f);
+                D_800E3A40[2].vz_4     = Q12(-17.75f);
                 D_800E3A40[2].field_8  = 0x333;
                 D_800E3A40[2].idx_14   = 3;
                 D_800E3A40[2].field_12 = 0x3C;
@@ -946,7 +947,7 @@ void func_800DC310(void) // 0x800DC310
         EventState_Skip           = 13
     } e_EventState;
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 11)
     {
         ScreenFade_ResetTimestep();
@@ -1259,7 +1260,7 @@ void func_800DCDDC(void) // 0x800DCDDC
             Fs_QueueStartReadTim(FILE_TIM_ENBAN_TIM, FS_BUFFER_1, &D_800E2004);
             Fs_QueueStartRead(FILE_ANIM_UFO1_DMS, FS_BUFFER_13);
 
-            D_800E617C = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
             ScreenFade_ResetTimestep();
 
             SD_Call(Sfx_Unk1467);
@@ -1275,17 +1276,17 @@ void func_800DCDDC(void) // 0x800DCDDC
             break;
 
         case 2:
-            if (Fs_QueueDoThingWhenEmpty())
+            if (Fs_QueueChunksLoad())
             {
                 SysWork_StateStepIncrement(0);
             }
             break;
 
         case 3:
-            D_800E617C = 0;
+            g_Cutscene_Timer = Q12(0.0f);
 
             SysWork_StateStepIncrementAfterFade(0, true, 3, 0, false);
-            DmsHeader_FixOffsets((s_DmsHeader*)FS_BUFFER_13);
+            Dms_HeaderFixOffsets((s_DmsHeader*)FS_BUFFER_13);
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
             Game_TurnFlashlightOn();
@@ -1299,7 +1300,7 @@ void func_800DCDDC(void) // 0x800DCDDC
             break;
 
         case 6:
-            SysWork_StateStepIncrementAfterTime(&D_800E617C, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
             sharedFunc_800CE5D4_1_s03(&D_800E200C, Q12(0.5f), Q12(0.05f), 0);
             break;
             
@@ -1345,19 +1346,19 @@ void func_800DCDDC(void) // 0x800DCDDC
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
 
-            D_800E617C = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             Sd_SfxStop(Sfx_Unk1467);
             break;
     }
 
     D_800E201C += g_DeltaTime;
-    if (D_800E617C >= Q12(0.0f))
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800E617C, (s_DmsHeader*)FS_BUFFER_13);
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800E6160, &D_800E6170, NULL, D_800E617C, (s_DmsHeader*)FS_BUFFER_13));
-        vcUserCamTarget(&D_800E6160, NULL, true);
-        vcUserWatchTarget(&D_800E6170, NULL, true);
+        Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_13);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_13));
+        vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
     }
 }
 
@@ -1384,12 +1385,12 @@ void Map_WorldObjectsInit(void) // 0x800DD3AC
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        func_80088FF4(Chara_GreyChild, 1, 0);
-        func_80088FF4(Chara_GreyChild, 5, 0);
-        func_80088FF4(Chara_GreyChild, 6, 0);
-        func_80088FF4(Chara_GreyChild, 7, 0);
-        func_80088FF4(Chara_Creeper, 5, 0);
-        func_80088FF4(Chara_Creeper, 6, 0);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 1, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 5, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 6, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 7, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 5, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 6, SpawnFlag_None);
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
@@ -1535,7 +1536,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_ShotgunShells0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -1543,7 +1544,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HandgunBullets0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position_0, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
         }
     }
 
@@ -1551,7 +1552,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HealthDrink0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[2].position_0, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
         }
     }
 
@@ -1559,7 +1560,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HandgunBullets1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position_0, &g_CommonWorldObjectPoses[3].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation_C);
         }
     }
 
@@ -1567,7 +1568,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HandgunBullets2))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[4].position_0, &g_CommonWorldObjectPoses[4].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation_C);
         }
     }
 
@@ -1575,7 +1576,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_ShotgunShells1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &g_CommonWorldObjectPoses[5].position_0, &g_CommonWorldObjectPoses[5].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &g_CommonWorldObjectPoses[5].position, &g_CommonWorldObjectPoses[5].rotation_C);
         }
     }
 
@@ -1583,7 +1584,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HandgunBullets3))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[6].position_0, &g_CommonWorldObjectPoses[6].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[6].position, &g_CommonWorldObjectPoses[6].rotation_C);
         }
     }
 
@@ -1591,7 +1592,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HealthDrink1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[7].position_0, &g_CommonWorldObjectPoses[7].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[7].position, &g_CommonWorldObjectPoses[7].rotation_C);
         }
     }
 
@@ -1599,7 +1600,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_HealthDrink2))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[8].position_0, &g_CommonWorldObjectPoses[8].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[8].position, &g_CommonWorldObjectPoses[8].rotation_C);
         }
     }
 
@@ -1607,7 +1608,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DD688
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S03_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &g_CommonWorldObjectPoses[9].position_0, &g_CommonWorldObjectPoses[9].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &g_CommonWorldObjectPoses[9].position, &g_CommonWorldObjectPoses[9].rotation_C);
         }
     }
 }
@@ -1618,25 +1619,25 @@ void func_800DE624(void) // 0x800DE624
 
     if (Savegame_EventFlagGet(EventFlag_M1S02_PickupClassroomKey) && g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
     {
-        func_80088FF4(Chara_GreyChild, 9, 3);
-        func_80088FF4(Chara_GreyChild, 10, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 9, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 10, SpawnFlag_0 | SpawnFlag_1);
     }
 
     if (Savegame_EventFlagGet(EventFlag_M1S03_PickupLibraryReserveKey))
     {
         if (g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
         {
-            func_80088FF4(Chara_GreyChild, 12, 3);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 12, SpawnFlag_0 | SpawnFlag_1);
         }
 
         if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Hard)
         {
-            func_80088FF4(Chara_GreyChild, 13, 3);
-            func_80088FF4(Chara_GreyChild, 11, 7);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 13, SpawnFlag_0 | SpawnFlag_1);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 11, SpawnFlag_0 | SpawnFlag_1 | SpawnFlag_2);
         }
 
-        func_80088FF4(Chara_GreyChild, 14, 11);
-        func_80088FF4(Chara_GreyChild, 15, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 14, SpawnFlag_0 | SpawnFlag_1 | SpawnFlag_3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 15, SpawnFlag_0 | SpawnFlag_1);
     }
 
     playerHealth = g_SysWork.playerWork.player.health;
@@ -1652,33 +1653,33 @@ void func_800DE624(void) // 0x800DE624
 
     if (playerHealth > Q12(20.0f))
     {
-        func_80088FF4(Chara_Creeper, 0, 3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 0, SpawnFlag_0 | SpawnFlag_1);
     }
     else
     {
-        func_80088FF4(Chara_Creeper, 0, 0);
+        Chara_SpawnFlagsSet(Chara_Creeper, 0, SpawnFlag_None);
     }
 
     if (playerHealth > Q12(60.0f))
     {
-        func_80088FF4(Chara_Creeper, 1, 3);
-        func_80088FF4(Chara_Creeper, 2, 3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 1, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_Creeper, 2, SpawnFlag_0 | SpawnFlag_1);
     }
     else
     {
-        func_80088FF4(Chara_Creeper, 1, 0);
-        func_80088FF4(Chara_Creeper, 2, 0);
+        Chara_SpawnFlagsSet(Chara_Creeper, 1, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 2, SpawnFlag_None);
     }
 
     if (playerHealth > Q12(80.0f))
     {
-        func_80088FF4(Chara_Creeper, 3, 3);
-        func_80088FF4(Chara_Creeper, 4, 3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 3, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_Creeper, 4, SpawnFlag_0 | SpawnFlag_1);
     }
     else
     {
-        func_80088FF4(Chara_Creeper, 3, 0);
-        func_80088FF4(Chara_Creeper, 4, 0);
+        Chara_SpawnFlagsSet(Chara_Creeper, 3, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 4, SpawnFlag_None);
     }
 }
 

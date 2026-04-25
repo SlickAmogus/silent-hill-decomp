@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/events/radio.h"
 #include "bodyprog/gfx/map_effects.h"
@@ -204,13 +205,13 @@ void func_800EBA40(void) // 0x800EBA40
             Game_TimerUpdate();
             Gfx_CursorDraw((s16)(FP_FROM(D_800F0354, Q12_SHIFT) + 8), FP_FROM(D_800F0358, Q12_SHIFT) + 8, 8, 8, 0, 64, 32, 32, 128, 192, 0, 12);
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 SysWork_StateStepSet(0, 7);
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 for (i = 0; i < ARRAY_SIZE(D_800F0158); i++)
                 {
@@ -342,7 +343,7 @@ void func_800EBF70(void) // 0x800EBF70
             break;
 
         case 3:
-            if (Fs_QueueDoThingWhenEmpty())
+            if (Fs_QueueChunksLoad())
             {
                 g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
@@ -360,7 +361,7 @@ void func_800EBF70(void) // 0x800EBF70
             g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
             temp_v0 = func_800CD20C();
-            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2))
+            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 if (temp != temp_v0)
                 {
@@ -451,7 +452,7 @@ void func_800EC42C(void) // 0x800EC42C
             Fs_QueueStartReadTim(FILE_TIM_ENBAN_TIM, FS_BUFFER_1, &D_800F0178);
             Fs_QueueStartRead(FILE_ANIM_UFO3_DMS, FS_BUFFER_13);
 
-            D_800F3E0C = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             ScreenFade_ResetTimestep();
             SD_Call(Sfx_Unk1467);
@@ -468,17 +469,17 @@ void func_800EC42C(void) // 0x800EC42C
             break;
 
         case 2:
-            if (Fs_QueueDoThingWhenEmpty() != false)
+            if (Fs_QueueChunksLoad() != false)
             {
                 SysWork_StateStepIncrement(0);
             }
             break;
 
         case 3:
-            D_800F3E0C = 0;
+            g_Cutscene_Timer = 0;
 
             SysWork_StateStepIncrementAfterFade(0, true, 3, 0, false);
-            DmsHeader_FixOffsets((s_DmsHeader* )FS_BUFFER_13);
+            Dms_HeaderFixOffsets((s_DmsHeader* )FS_BUFFER_13);
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
             Game_TurnFlashlightOn();
@@ -496,7 +497,7 @@ void func_800EC42C(void) // 0x800EC42C
             break;
 
         case 6:
-            SysWork_StateStepIncrementAfterTime(&D_800F3E0C, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
     block_18:
             sharedFunc_800CE5D4_1_s03(&D_800F0180, Q12(0.5f), Q12(0.05f), 0);
             break;
@@ -652,25 +653,25 @@ void func_800EC42C(void) // 0x800EC42C
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
 
-            D_800F3E0C = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             Sd_SfxStop(Sfx_Unk1467);
             break;
     }
 
-    if (D_800F3E0C >= Q12(0.0f))
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800F3E0C, (s_DmsHeader*)FS_BUFFER_13);
+        Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_13);
 
         g_SysWork.playerWork.player.position.vx -= Q12(20.0f);
 
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800F3DF0, &D_800F3E00, NULL, D_800F3E0C, (s_DmsHeader*)FS_BUFFER_13));
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_13));
 
-        D_800F3DF0.vx -= Q12(20.0f);
-        D_800F3E00.vx -= Q12(20.0f);
+        g_Cutscene_CameraPositionTarget.vx -= Q12(20.0f);
+        g_Cutscene_CameraLookAtTarget.vx -= Q12(20.0f);
 
-        vcUserCamTarget(&D_800F3DF0, NULL, true);
-        vcUserWatchTarget(&D_800F3E00, NULL, true);
+        vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
     }
 }
 
@@ -726,7 +727,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_RifleShells0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -734,7 +735,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_HandgunBullets))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position_0, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
         }
     }
 
@@ -742,7 +743,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[2].position_0, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
         }
     }
 
@@ -750,7 +751,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_HealthDrink))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[3].position_0, &g_CommonWorldObjectPoses[3].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation_C);
         }
     }
 
@@ -758,7 +759,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_RifleShells1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[4].position_0, &g_CommonWorldObjectPoses[4].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation_C);
         }
     }
 }

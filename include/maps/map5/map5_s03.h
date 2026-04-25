@@ -33,26 +33,25 @@ extern s_WorldObjectPose      g_WorldObjectPose_ShotgunShells;
 extern s_WorldObjectPose      g_WorldObjectPose_HealthDrink1;
 extern s_WorldObjectDescNoRot g_WorldObject_Movaches;
 extern s32                    D_800D6F8C;
-extern s_WorldObjectModel        g_WorldObject_SavePad;
+extern s_WorldObjectModel     g_WorldObject_SavePad;
 extern s_WorldObjectPose      g_WorldObjectPose_SavePad[2];
 extern s_WorldObjectDesc      g_WorldObject_Mag;
-extern s_WorldObjectModel        g_CommonWorldObjects[6];
-extern s_WorldObjectModel        g_WorldObject_HealthDrink;
-extern s_WorldObjectModel        g_WorldObject_ShotgunShells;
+extern s_WorldObjectModel     g_CommonWorldObjects[6];
+extern s_WorldObjectModel     g_WorldObject_HealthDrink;
+extern s_WorldObjectModel     g_WorldObject_ShotgunShells;
 
 extern u16 D_800D3BDC;
 
 extern s32 D_800D3C40;
 
-extern s16 D_800D3C44; // Time.
+extern q3_12 D_800D3C44; // Time.
 
-extern VECTOR3 D_800D6F38;
-
-extern VECTOR3 D_800D6F48;
+extern VECTOR3 g_Cutscene_CameraPositionTarget;
+extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 
 extern u8 D_800D6F54;
 
-extern s32 D_800D6F58;
+extern q19_12 g_Cutscene_Timer;
 
 void func_800D1004(s32 arg0);
 

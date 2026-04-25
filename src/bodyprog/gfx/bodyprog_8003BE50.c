@@ -29,7 +29,7 @@ const s32 pad_rodata_80025524 = 0;
 
 s_LinkedBone* WorldGfx_CharaModelBonesGet(e_CharacterId charaId) // 0x8003BE50
 {
-    return g_WorldGfxWork.registeredCharaModels_18[charaId]->skeleton_14.bones_C;
+    return g_WorldGfxWork.registeredCharaModels[charaId]->skeleton.bones_C;
 }
 
 void GameFs_BgEtcGfxLoad(void) // 0x8003BE6C
@@ -41,7 +41,7 @@ void GameFs_BgEtcGfxLoad(void) // 0x8003BE6C
 
 void GameFs_BgItemLoad(void) // 0x8003BE9C
 {
-    g_WorldGfxWork.itemLmQueueIdx_2BE4 = Fs_QueueStartRead(FILE_BG_BG_ITEM_PLM, &g_WorldGfxWork.itemLmHdr_1BE4);
+    g_WorldGfxWork.itemLmQueueIdx = Fs_QueueStartRead(FILE_BG_BG_ITEM_PLM, &g_WorldGfxWork.itemLmHdr);
 }
 
 void func_8003BED0(void) // 0x8003BED0
@@ -64,26 +64,26 @@ void func_8003BED0(void) // 0x8003BED0
 
     s_LmHeader* itemLmHdr;
 
-    itemLmHdr = &g_WorldGfxWork.itemLmHdr_1BE4;
+    itemLmHdr = &g_WorldGfxWork.itemLmHdr;
 
-    if (!Fs_QueueIsEntryLoaded(g_WorldGfxWork.itemLmQueueIdx_2BE4) || itemLmHdr->isLoaded)
+    if (!Fs_QueueIsEntryLoaded(g_WorldGfxWork.itemLmQueueIdx) || itemLmHdr->isLoaded)
     {
         return;
     }
 
-    LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr_1BE4);
+    LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
 #ifdef SH_PC_PORT
-    SH_DBG("[ITEM-LM] LmHeader_FixOffsets done, matCnt=%d", g_WorldGfxWork.itemLmHdr_1BE4.materialCount);
+    SH_DBG("[ITEM-LM] LmHeader_FixOffsets done, matCnt=%d", g_WorldGfxWork.itemLmHdr.materialCount);
 #endif
-    Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "TIM00", &IMAGE_TIM, 1);
+    Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "TIM00", &IMAGE_TIM, 1);
 #ifdef SH_PC_PORT
     SH_DBG("[ITEM-LM] TIM00 apply done");
 #endif
-    Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr_1BE4, "BG_ETC", &IMAGE_ETC, 1);
+    Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "BG_ETC", &IMAGE_ETC, 1);
 #ifdef SH_PC_PORT
     SH_DBG("[ITEM-LM] BG_ETC apply done");
 #endif
-    Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr_1BE4);
+    Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr);
 #ifdef SH_PC_PORT
     SH_DBG("[ITEM-LM] MaterialFlagsApply done");
 #endif
@@ -101,16 +101,16 @@ s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
         return SpeedZoneType_Normal;
     }
 
-    if (g_WorldGfxWork.mapInfo_0->speedZones_C != NULL)
+    if (g_WorldGfxWork.mapInfo->speedZones_C != NULL)
     {
-        curZone = g_WorldGfxWork.mapInfo_0->speedZones_C;
-        while (curZone->type_0 != NO_VALUE)
+        curZone = g_WorldGfxWork.mapInfo->speedZones_C;
+        while (curZone->type != NO_VALUE)
         {
-            if (posX >= Q4_TO_Q12(curZone->minX_2) && Q4_TO_Q12(curZone->maxX_4) >= posX &&
-                posZ >= Q4_TO_Q12(curZone->minZ_6) && Q4_TO_Q12(curZone->maxZ_8) >= posZ &&
-                zoneType < curZone->type_0)
+            if (posX >= Q4_TO_Q12(curZone->minX) && Q4_TO_Q12(curZone->maxX) >= posX &&
+                posZ >= Q4_TO_Q12(curZone->minZ) && Q4_TO_Q12(curZone->maxZ) >= posZ &&
+                zoneType < curZone->type)
             {
-                zoneType = curZone->type_0;
+                zoneType = curZone->type;
             }
 
             curZone++;
@@ -124,7 +124,7 @@ void WorldGfx_MapInit(void) // 0x8003C048
 {
     WorldEnv_Init();
 
-    g_WorldGfxWork.useStoredPoint_4 = false;
+    g_WorldGfxWork.useStoredPoint = false;
 
     Map_Init(GLOBAL_LM_BUFFER, IPD_BUFFER, 0x2C000);
     Collision_Init();
@@ -140,13 +140,13 @@ void Item_HeldItemModelFree(void) // 0x8003C0C0
 {
     s_HeldItem* heldItem;
 
-    heldItem = &g_WorldGfxWork.heldItem_1BAC;
+    heldItem = &g_WorldGfxWork.heldItem;
 
-    heldItem->itemId_0                       = NO_VALUE;
-    heldItem->lmHdr_14                       = HELD_ITEM_LM_BUFFER;
-    heldItem->bone_18.modelInfo_0.field_0    = 0;
-    heldItem->bone_18.modelInfo_0.coord_4    = NULL;
-    heldItem->bone_18.modelInfo_0.modelHdr_8 = NULL;
+    heldItem->itemId                       = NO_VALUE;
+    heldItem->lmHdr                       = HELD_ITEM_LM_BUFFER;
+    heldItem->bone.modelInfo.field_0    = 0;
+    heldItem->bone.modelInfo.coord      = NULL;
+    heldItem->bone.modelInfo.modelHdr = NULL;
 }
 
 void CharaModel_AllModelsFree(void) // 0x8003C110
@@ -158,12 +158,12 @@ void CharaModel_AllModelsFree(void) // 0x8003C110
     {
         if (i != Chara_Harry)
         {
-            g_WorldGfxWork.registeredCharaModels_18[i] = NULL;
+            g_WorldGfxWork.registeredCharaModels[i] = NULL;
         }
     }
 
-    g_WorldGfxWork.charaLmBuffer_14 = MAP_CHARA_LM_BUFFER;
-    for (curModel = &g_WorldGfxWork.charaModels_CC[0]; curModel < &g_WorldGfxWork.charaModels_CC[4]; curModel++)
+    g_WorldGfxWork.charaLmBuffer = MAP_CHARA_LM_BUFFER;
+    for (curModel = &g_WorldGfxWork.charaModels[0]; curModel < &g_WorldGfxWork.charaModels[4]; curModel++)
     {
         CharaModel_Free(curModel);
     }
@@ -175,10 +175,10 @@ void CharaModel_Free(s_CharaModel* model) // 0x8003C1AC
 
     //memset(&image, 0, 8);
     model->charaId  = Chara_None;
-    model->isLoaded_1 = false;
-    model->queueIdx_4 = 0;
-    model->lmHdr_8    = MAP_CHARA_LM_BUFFER;
-    model->texture_C  = image;
+    model->isLoaded = false;
+    model->queueIdx = 0;
+    model->lmHdr    = MAP_CHARA_LM_BUFFER;
+    model->texture  = image;
 }
 
 // ========================================
@@ -193,9 +193,9 @@ void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerP
     u8         flags;
     s_MapInfo* mapInfo;
 
-    g_WorldGfxWork.mapInfo_0 = mapHdr->mapInfo_0;
+    g_WorldGfxWork.mapInfo = mapHdr->mapInfo;
 
-    flags = mapHdr->mapInfo_0->flags_6;
+    flags = mapHdr->mapInfo->flags_6;
     if (flags & MapFlag_OneActiveChunk)
     {
         activeIpdCount = 1;
@@ -211,13 +211,13 @@ void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerP
 
 #ifdef SH_PC_PORT
     SH_DBG("[IPD-INIT] Ipd_PlayerChunkInit: flags=0x%02X activeIpdCount=%d playerPos=(%d,%d) mapTag='%.4s'",
-           flags, activeIpdCount, playerPosX, playerPosZ, mapHdr->mapInfo_0->tag_2);
+           flags, activeIpdCount, playerPosX, playerPosZ, mapHdr->mapInfo->tag_2);
 #endif
 
-    mapInfo = mapHdr->mapInfo_0;
+    mapInfo = mapHdr->mapInfo;
     Ipd_MapFileInfoSet(mapInfo->tag_2, mapInfo->plmFileIdx_0, activeIpdCount, CHECK_FLAG(mapInfo->flags_6, MapFlag_Interior, false), 0, 0);
 
-    if (mapHdr->mapInfo_0 == &MAP_INFOS[MapType_THR])
+    if (mapHdr->mapInfo == &MAP_INFOS[MapType_THR])
     {
         Map_PlaceIpdAtCell(FILE_BG_THR05FD_IPD, -1, 8);
     }
@@ -234,7 +234,7 @@ void Map_WorldClear(void) // 0x8003C30C
 {
     u8 flags;
 
-    flags = g_WorldGfxWork.mapInfo_0->flags_6;
+    flags = g_WorldGfxWork.mapInfo->flags_6;
     if ((flags & MapFlag_Interior) && (flags & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
     {
 #ifdef SH_PC_PORT
@@ -253,13 +253,13 @@ void Map_WorldClear(void) // 0x8003C30C
 
 void WorldGfx_IpdSamplePointStore(void) // 0x8003C368
 {
-    g_WorldGfxWork.useStoredPoint_4 = true;
-    g_WorldGfxWork.ipdSamplePoint_8 = g_SysWork.playerWork.player.position;
+    g_WorldGfxWork.useStoredPoint = true;
+    g_WorldGfxWork.ipdSamplePoint = g_SysWork.playerWork.player.position;
 }
 
 void WorldGfx_IpdSamplePointReset(void) // 0x8003C3A0
 {
-    g_WorldGfxWork.useStoredPoint_4 = false;
+    g_WorldGfxWork.useStoredPoint = false;
 }
 
 void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
@@ -293,9 +293,9 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
 
     chara = &g_SysWork.playerWork.player;
 
-    if (g_WorldGfxWork.useStoredPoint_4)
+    if (g_WorldGfxWork.useStoredPoint)
     {
-        pos0 = g_WorldGfxWork.ipdSamplePoint_8;
+        pos0 = g_WorldGfxWork.ipdSamplePoint;
     }
     else
     {
@@ -308,7 +308,7 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
     pos0.vx += Q12_MULT_PRECISE(moveDist, Math_Sin(chara->headingAngle));
     pos0.vz += Q12_MULT_PRECISE(moveDist, Math_Cos(chara->headingAngle));
 
-    if (g_WorldGfxWork.mapInfo_0 == &MAP_INFOS[MapType_THR] &&
+    if (g_WorldGfxWork.mapInfo == &MAP_INFOS[MapType_THR] &&
         chara->position.vx >= Q12(-40.0f) && chara->position.vx <= Q12(40.0f) &&
         chara->position.vz >= Q12(200.0f) && chara->position.vz <= Q12(240.0f))
     {
@@ -324,7 +324,7 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         vwGetViewPosition(&pos1);
         vwGetViewAngle(&rot);
 
-        flagsCpy = g_WorldGfxWork.mapInfo_0->flags_6;
+        flagsCpy = g_WorldGfxWork.mapInfo->flags_6;
         if (!(flagsCpy & MapFlag_Interior) || !(flagsCpy & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
         {
             var_s1 = Q12_MULT(Math_Cos(rot.vx), Q12(9.0f));
@@ -357,7 +357,7 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         pos1.vz += FP_FROM(Q12(Math_Cos(chara->rotation.vy)), Q12_SHIFT);
     }
 
-    flagsCpy = g_WorldGfxWork.mapInfo_0->flags_6;
+    flagsCpy = g_WorldGfxWork.mapInfo->flags_6;
     if ((flagsCpy & MapFlag_Interior) && (flagsCpy & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
     {
         var_a1 = chara->position.vx / Q12(2.5f);
@@ -387,14 +387,14 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
         static s32 closeRangeLogCD = 0;
         if ((closeRangeLogCD++ % 300) == 0) {
             SH_DBG("[IPD-INIT] Ipd_CloseRangeChunksInit: pos0=(%d,%d) pos1=(%d,%d) fogEnabled=%d useStored=%d",
-                   pos0.vx, pos0.vz, pos1.vx, pos1.vz, g_WorldEnvWork.isFogEnabled_1, g_WorldGfxWork.useStoredPoint_4);
+                   pos0.vx, pos0.vz, pos1.vx, pos1.vz, g_WorldEnvWork.isFogEnabled_1, g_WorldGfxWork.useStoredPoint);
         }
     }
 #endif
     Ipd_ChunkInit(pos0.vx, pos0.vz, pos1.vx, pos1.vz);
 }
 
-s32 Ipd_ChunkInitCheck(void) // 0x8003C850
+bool Ipd_ChunkInitCheck(void) // 0x8003C850
 {
     Ipd_CloseRangeChunksInit();
     return Ipd_AreChunksLoaded();
@@ -453,7 +453,7 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
 void WorldObject_ModelNameSet(s_WorldObjectModel* model, char* newStr) // 0x8003C8F8
 {
     model->metadata_10.lmIdx_9 = 0;
-    model->modelInfo_0.field_0  = 0;
+    model->modelInfo.field_0  = 0;
 
     StringCopy(model->metadata_10.name_0.str, newStr);
 
@@ -473,7 +473,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
     s_WorldObject* obj;
 
     // Check if array of world objects to draw is full.
-    if (g_WorldGfxWork.objectCount_2BE8 < ARRAY_SIZE(g_WorldGfxWork.objects_2BEC))
+    if (g_WorldGfxWork.objectCount < ARRAY_SIZE(g_WorldGfxWork.objects))
     {
         if (model->metadata_10.lmIdx_9 == 0)
         {
@@ -482,7 +482,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
             lmIdx = func_8004287C(model, &model->metadata_10, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
             if (lmIdx == 0)
             {
-                if (!Lm_ModelFind(model, &g_WorldGfxWork.itemLmHdr_1BE4, &model->metadata_10))
+                if (!Lm_ModelFind(model, &g_WorldGfxWork.itemLmHdr, &model->metadata_10))
                 {
 #ifdef SH_PC_PORT
                     SH_DBG("[WOBJ] Lm_ModelFind returned false, returning");
@@ -507,9 +507,9 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
         geomRotZ = rot->vy;
 
         // Check if world object to draw was already submitted?
-        for (i = 0; i < g_WorldGfxWork.objectCount_2BE8; i++)
+        for (i = 0; i < g_WorldGfxWork.objectCount; i++)
         {
-            obj = &g_WorldGfxWork.objects_2BEC[i];
+            obj = &g_WorldGfxWork.objects[i];
 
             if (model == obj->model &&
                 geomPosX == obj->positionX_4 &&
@@ -524,7 +524,7 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
         }
 
         // Submit world object to draw.
-        obj = &g_WorldGfxWork.objects_2BEC[g_WorldGfxWork.objectCount_2BE8];
+        obj = &g_WorldGfxWork.objects[g_WorldGfxWork.objectCount];
         obj->rotationX_C = geomRotX;
         obj->rotationY_C = geomRotZ;
         if (obj->positionZ_8) {} // @hack Required for match.
@@ -534,13 +534,13 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
         obj->positionY_4 = geomPosY;
         obj->positionZ_8 = geomPosZ;
 
-        g_WorldGfxWork.objectCount_2BE8++;
+        g_WorldGfxWork.objectCount++;
     }
 }
 
 void Gfx_WorldObjectsClear(s_WorldGfxWork* worldGfxWork) // 0x8003CB3C
 {
-    worldGfxWork->objectCount_2BE8 = 0;
+    worldGfxWork->objectCount = 0;
 }
 
 void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
@@ -548,16 +548,16 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
     s_WorldObject* curObj;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[WOD] enter count=%d sizeof_obj=%d", worldGfxWork->objectCount_2BE8, (int)sizeof(s_WorldObject));
+    SH_DBG("[WOD] enter count=%d sizeof_obj=%d", worldGfxWork->objectCount, (int)sizeof(s_WorldObject));
 #endif
 
     // Run through world objects to draw.
-    for (curObj = &worldGfxWork->objects_2BEC[0]; curObj < &worldGfxWork->objects_2BEC[worldGfxWork->objectCount_2BE8]; curObj++)
+    for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)
     {
         Gfx_WorldObjectDraw(curObj);
     }
 
-    worldGfxWork->objectCount_2BE8 = 0;
+    worldGfxWork->objectCount = 0;
 }
 
 void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
@@ -605,7 +605,7 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     SH_DBG("[CC7C] lmIdx=%d", (int)lmIdx);
 #endif
 
-    modelHdr   = model->modelInfo_0.modelHdr_8;
+    modelHdr   = model->modelInfo.modelHdr;
     objMetaCpy = &model->metadata_10;
 
     if (lmIdx >= 3 && lmIdx < 7)
@@ -635,7 +635,7 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     SH_DBG("[CC7C] pre-57090");
 #endif
 
-    func_80057090(&model->modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
+    func_80057090(&model->modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
 
 // ========================================
@@ -644,7 +644,7 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
 
 s32 WorldGfx_HeldItemIdGet(void) // 0x8003CD5C
 {
-    return g_WorldGfxWork.heldItem_1BAC.itemId_0;
+    return g_WorldGfxWork.heldItem.itemId;
 }
 
 s32 WorldGfx_PlayerPrevHeldItem(s_PlayerCombat* combat) // 0x8003CD6C
@@ -668,14 +668,14 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
     s_HeldItem* heldItem;
 
     // Check if requested item is already being held.
-    heldItem = &g_WorldGfxWork.heldItem_1BAC;
-    if (heldItem->itemId_0 == itemId)
+    heldItem = &g_WorldGfxWork.heldItem;
+    if (heldItem->itemId == itemId)
     {
         return 0;
     }
 
     // Define texture files to load.
-    heldItem->itemId_0 = itemId;
+    heldItem->itemId = itemId;
     switch (itemId)
     {
         default:
@@ -690,89 +690,89 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
         case InvItemId_HuntingRifle:
         case InvItemId_Shotgun:
             fileIdx                 = NO_VALUE;
-            heldItem->textureName_8 = "HERO";
+            heldItem->textureName = "HERO";
             break;
 
         case InvItemId_SteelPipe:
             fileIdx                 = FILE_ITEM_PIPE_TIM;
-            heldItem->textureName_8 = "PIPE";
+            heldItem->textureName = "PIPE";
             break;
 
         case InvItemId_CutscenePhone:
             fileIdx                 = FILE_ITEM_PHONE_TIM;
-            heldItem->textureName_8 = "PHONE";
+            heldItem->textureName = "PHONE";
             break;
 
         case InvItemId_CutsceneFlauros:
             fileIdx                 = FILE_ITEM_FLAUROS_TIM;
-            heldItem->textureName_8 = "FLAUROS";
+            heldItem->textureName = "FLAUROS";
             break;
 
         case InvItemId_CutsceneAglaophotis:
             fileIdx                 = FILE_ITEM_AGLA_TIM;
-            heldItem->textureName_8 = "AGLA";
+            heldItem->textureName = "AGLA";
             break;
 
         case InvItemId_CutscenePlasticBottle:
             fileIdx                 = FILE_ITEM_BOTL_TIM;
-            heldItem->textureName_8 = "BOTL";
+            heldItem->textureName = "BOTL";
             break;
 
         case InvItemId_CutsceneBaby:
             fileIdx                 = FILE_ITEM_BABY_TIM;
-            heldItem->textureName_8 = "BABY";
+            heldItem->textureName = "BABY";
             break;
 
         case InvItemId_CutsceneBloodPack:
             fileIdx                 = FILE_ITEM_BLOOD_TIM;
-            heldItem->textureName_8 = "BLOOD";
+            heldItem->textureName = "BLOOD";
             break;
 
         case InvItemId_Chainsaw:
             fileIdx                 = FILE_ITEM_CSAW_TIM;
-            heldItem->textureName_8 = "CSAW";
+            heldItem->textureName = "CSAW";
             break;
 
         case InvItemId_HyperBlaster:
             fileIdx                 = FILE_ITEM_HPRGUN_TIM;
-            heldItem->textureName_8 = "HPRGUN";
+            heldItem->textureName = "HPRGUN";
             break;
 
         case InvItemId_RockDrill:
             fileIdx                 = FILE_ITEM_DRILL_TIM;
-            heldItem->textureName_8 = "DRILL";
+            heldItem->textureName = "DRILL";
             break;
 
         case InvItemId_Katana:
             fileIdx                 = FILE_ITEM_KATANA_TIM;
-            heldItem->textureName_8 = "KATANA";
+            heldItem->textureName = "KATANA";
             break;
     }
 
     // Set texture UVs.
     if (fileIdx == NO_VALUE)
     {
-        heldItem->imageDesc_C.tPage[1] = 27;
-        heldItem->imageDesc_C.tPage[0] = 0;
-        heldItem->imageDesc_C.u        = 0;
-        heldItem->imageDesc_C.v        = 0;
-        heldItem->imageDesc_C.clutX    = 736;
-        heldItem->imageDesc_C.clutY    = 480;
+        heldItem->imageDesc.tPage[1] = 27;
+        heldItem->imageDesc.tPage[0] = 0;
+        heldItem->imageDesc.u        = 0;
+        heldItem->imageDesc.v        = 0;
+        heldItem->imageDesc.clutX    = 736;
+        heldItem->imageDesc.clutY    = 480;
     }
     else
     {
-        heldItem->imageDesc_C.tPage[1] = 27;
-        heldItem->imageDesc_C.tPage[0] = 0;
-        heldItem->imageDesc_C.u        = 48;
-        heldItem->imageDesc_C.v        = 224;
-        heldItem->imageDesc_C.clutX    = 736;
-        heldItem->imageDesc_C.clutY    = 498;
+        heldItem->imageDesc.tPage[1] = 27;
+        heldItem->imageDesc.tPage[0] = 0;
+        heldItem->imageDesc.u        = 48;
+        heldItem->imageDesc.v        = 224;
+        heldItem->imageDesc.clutX    = 736;
+        heldItem->imageDesc.clutY    = 498;
     }
 
     // Load texture.
     if (fileIdx != NO_VALUE)
     {
-        heldItem->queueIdx_4 = Fs_QueueStartReadTim(fileIdx, FS_BUFFER_10, &heldItem->imageDesc_C);
+        heldItem->queueIdx = Fs_QueueStartReadTim(fileIdx, FS_BUFFER_10, &heldItem->imageDesc);
     }
 
     // Define index of model file to lead.
@@ -855,8 +855,8 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
     // Load model.
     if (fileIdx != NO_VALUE)
     {
-        heldItem->queueIdx_4 = Fs_QueueStartRead(fileIdx, heldItem->lmHdr_14);
-        return heldItem->queueIdx_4;
+        heldItem->queueIdx = Fs_QueueStartRead(fileIdx, heldItem->lmHdr);
+        return heldItem->queueIdx;
     }
 
     return 0;
@@ -864,12 +864,12 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
 
 void func_8003D01C(void) // 0x8003D01C
 {
-    g_WorldGfxWork.heldItem_1BAC.bone_18.modelInfo_0.field_0 &= ~(1 << 31);
+    g_WorldGfxWork.heldItem.bone.modelInfo.field_0 &= ~(1 << 31);
 }
 
 void func_8003D03C(void) // 0x8003D03C
 {
-    g_WorldGfxWork.heldItem_1BAC.bone_18.modelInfo_0.field_0 |= 1 << 31;
+    g_WorldGfxWork.heldItem.bone.modelInfo.field_0 |= 1 << 31;
 }
 
 void WorldGfx_HeldItemDraw(void) // 0x8003D058
@@ -881,14 +881,14 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
     s_LmHeader*    lmHdr;
 
     // Check if held item is valid.
-    heldItem = &g_WorldGfxWork.heldItem_1BAC;
-    if (heldItem->itemId_0 == NO_VALUE)
+    heldItem = &g_WorldGfxWork.heldItem;
+    if (heldItem->itemId == NO_VALUE)
     {
         return;
     }
 
     // Distinguish between left-handed and right-handed items.
-    if (heldItem->itemId_0 == InvItemId_CutscenePhone)
+    if (heldItem->itemId == InvItemId_CutscenePhone)
     {
         coord = &g_SysWork.playerBoneCoords[HarryBone_LeftHand];
     }
@@ -897,19 +897,19 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         coord = &g_SysWork.playerBoneCoords[HarryBone_RightHand];
     }
 
-    if (Fs_QueueIsEntryLoaded(heldItem->queueIdx_4))
+    if (Fs_QueueIsEntryLoaded(heldItem->queueIdx))
     {
-        lmHdr = heldItem->lmHdr_14;
+        lmHdr = heldItem->lmHdr;
         if (!lmHdr->isLoaded)
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] FixOffsets begin: lmHdr=%p itemId=%d tex=%s", (void*)lmHdr, heldItem->itemId_0, heldItem->textureName_8 ? heldItem->textureName_8 : "(null)");
+            SH_DBG("[HELD-LM] FixOffsets begin: lmHdr=%p itemId=%d tex=%s", (void*)lmHdr, heldItem->itemId, heldItem->textureName ? heldItem->textureName : "(null)");
 #endif
             LmHeader_FixOffsets(lmHdr);
 #ifdef SH_PC_PORT
             SH_DBG("[HELD-LM] FixOffsets done: matCnt=%d modelCnt=%d", lmHdr->materialCount, lmHdr->modelCount);
 #endif
-            Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName_8, &heldItem->imageDesc_C, BlendMode_Additive);
+            Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName, &heldItem->imageDesc, BlendMode_Additive);
 #ifdef SH_PC_PORT
             SH_DBG("[HELD-LM] MaterialFsImageApply1 done");
 #endif
@@ -917,14 +917,14 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
 #ifdef SH_PC_PORT
             SH_DBG("[HELD-LM] MaterialFlagsApply done");
 #endif
-            Bone_ModelAssign(&heldItem->bone_18, heldItem->lmHdr_14, 0);
+            Bone_ModelAssign(&heldItem->bone, heldItem->lmHdr, 0);
 #ifdef SH_PC_PORT
             SH_DBG("[HELD-LM] Bone_ModelAssign done");
 #endif
         }
 
         Vw_CoordToWorldAndViewMatrices(coord, &worldMat, &viewMat);
-        func_80057090(&heldItem->bone_18.modelInfo_0, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
+        func_80057090(&heldItem->bone.modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, &viewMat, &worldMat, 0);
     }
 }
 
@@ -944,18 +944,18 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
 
     Chara_FsImageCalc(&image, Chara_Harry, 0);
 
-    worldGfxWork                                     = &g_WorldGfxWork;
-    harryModel                                       = &worldGfxWork->harryModel_164C;
-    g_WorldGfxWork.registeredCharaModels_18[Chara_Harry] = harryModel;
+    worldGfxWork                                      = &g_WorldGfxWork;
+    harryModel                                        = &worldGfxWork->harryModel;
+    g_WorldGfxWork.registeredCharaModels[Chara_Harry] = harryModel;
 
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);
 
-    g_WorldGfxWork.harryModel_164C.charaId = Chara_Harry;
-    harryModel->isLoaded_1               = false;
-    harryModel->queueIdx_4               = queueIdx;
-    harryModel->lmHdr_8                  = harryLmHdr;
-    g_WorldGfxWork.harryModel_164C.texture_C = image;
+    g_WorldGfxWork.harryModel.charaId = Chara_Harry;
+    harryModel->isLoaded              = false;
+    harryModel->queueIdx              = queueIdx;
+    harryModel->lmHdr                 = harryLmHdr;
+    g_WorldGfxWork.harryModel.texture = image;
 }
 
 s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
@@ -968,12 +968,12 @@ s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
     s32           curCharaId;
     s_CharaModel* curModel;
 
-    for (queueIdx = 0, i = 0, g_WorldGfxWork.charaLmBuffer_14 = MAP_CHARA_LM_BUFFER, cond = false;
+    for (queueIdx = 0, i = 0, g_WorldGfxWork.charaLmBuffer = MAP_CHARA_LM_BUFFER, cond = false;
          i < CHARA_GROUP_COUNT;
          i++)
     {
         curCharaId = mapHdr->charaGroupIds_248[i];
-        curModel   = &g_WorldGfxWork.charaModels_CC[i];
+        curModel   = &g_WorldGfxWork.charaModels[i];
 
         if (curCharaId != Chara_None)
         {
@@ -982,9 +982,9 @@ s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
                 if (curCharaId != curModel->charaId)
                 {
                     cond = true;
-                    for (j = i; j < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); j++)
+                    for (j = i; j < ARRAY_SIZE(g_WorldGfxWork.charaModels); j++)
                     {
-                        g_WorldGfxWork.charaModels_CC[j].charaId = Chara_None;
+                        g_WorldGfxWork.charaModels[j].charaId = Chara_None;
                     }
                 }
             }
@@ -992,10 +992,10 @@ s32 WorldGfx_MapInitCharaLoad(s_MapOverlayHeader* mapHdr) // 0x8003D21C
             if (cond)
             {
                 Chara_FsImageCalc(&image, curCharaId, i);
-                queueIdx = WorldGfx_CharaModelLoad(curCharaId, i, (s_LmHeader*)g_WorldGfxWork.charaLmBuffer_14, &image);
+                queueIdx = WorldGfx_CharaModelLoad(curCharaId, i, (s_LmHeader*)g_WorldGfxWork.charaLmBuffer, &image);
             }
 
-            WorldGfx_CharaLmBufferAdvance(&g_WorldGfxWork.charaLmBuffer_14, curCharaId);
+            WorldGfx_CharaLmBufferAdvance(&g_WorldGfxWork.charaLmBuffer, curCharaId);
         }
     }
 
@@ -1068,7 +1068,7 @@ void Chara_FsImageCalc(s_FsImageDesc* image, s32 charaId, s32 modelIdx) // 0x800
 
 bool WorldGfx_IsCharaModelPresent(e_CharacterId charaId) // 0x8003D444
 {
-    return g_WorldGfxWork.registeredCharaModels_18[charaId] != NULL;
+    return g_WorldGfxWork.registeredCharaModels[charaId] != NULL;
 }
 
 void func_8003D460(void) {} // 0x8003D460
@@ -1082,11 +1082,11 @@ void WorldGfx_CharaModelTransparentSet(e_CharacterId charaId, bool enableTranspa
     s32           y;
     s_CharaModel* model;
 
-    model = g_WorldGfxWork.registeredCharaModels_18[charaId];
-    Lm_TransparentPrimSet(model->lmHdr_8, enableTransparency);
+    model = g_WorldGfxWork.registeredCharaModels[charaId];
+    Lm_TransparentPrimSet(model->lmHdr, enableTransparency);
 
-    rect.x = model->texture_C.clutX;
-    rect.y = model->texture_C.clutY;
+    rect.x = model->texture.clutX;
+    rect.y = model->texture.clutY;
     rect.w = 16;
     rect.h = 16;
 
@@ -1115,9 +1115,9 @@ void WorldGfx_CharaModelMaterialSet(s32 charaId, s32 blendMode) // 0x8003D550
 {
     s_CharaModel* model;
 
-    model = g_WorldGfxWork.registeredCharaModels_18[charaId];
-    Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[charaId].textureFileIdx, &model->texture_C, blendMode);
-    Lm_MaterialFlagsApply(model->lmHdr_8);
+    model = g_WorldGfxWork.registeredCharaModels[charaId];
+    Lm_MaterialFileIdxApply(model->lmHdr, CHARA_FILE_INFOS[charaId].textureFileIdx, &model->texture, blendMode);
+    Lm_MaterialFlagsApply(model->lmHdr);
 }
 
 void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
@@ -1127,9 +1127,9 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
     u32           lmData;
     s_CharaModel* curModel;
 
-    for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); i++)
+    for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels); i++)
     {
-        curModel = &g_WorldGfxWork.charaModels_CC[i];
+        curModel = &g_WorldGfxWork.charaModels[i];
         if ((forceFree >> i) & (1 << 0))
         {
             WorldGfx_CharaFree(curModel);
@@ -1137,18 +1137,18 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
     }
 
     i = 0;
-    g_WorldGfxWork.charaLmBuffer_14 = MAP_CHARA_LM_BUFFER;
-    for (; i < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); i++)
+    g_WorldGfxWork.charaLmBuffer = MAP_CHARA_LM_BUFFER;
+    for (; i < ARRAY_SIZE(g_WorldGfxWork.charaModels); i++)
     {
-        curModel = &g_WorldGfxWork.charaModels_CC[i];
+        curModel = &g_WorldGfxWork.charaModels[i];
 
         charaId = curModel->charaId;
         if (charaId != Chara_None)
         {
-            lmData = (s32)curModel->lmHdr_8 + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
-            if (g_WorldGfxWork.charaLmBuffer_14 < lmData)
+            lmData = (s32)curModel->lmHdr + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
+            if (g_WorldGfxWork.charaLmBuffer < lmData)
             {
-                g_WorldGfxWork.charaLmBuffer_14 = lmData;
+                g_WorldGfxWork.charaLmBuffer = lmData;
             }
         }
     }
@@ -1158,7 +1158,7 @@ void WorldGfx_CharaFree(s_CharaModel* model) // 0x8003D6A4
 {
     if (model->charaId != Chara_None)
     {
-        g_WorldGfxWork.registeredCharaModels_18[model->charaId] = NULL;
+        g_WorldGfxWork.registeredCharaModels[model->charaId] = NULL;
         CharaModel_Free(model);
     }
 }
@@ -1173,14 +1173,14 @@ void WorldGfx_CharaLoad(e_CharacterId charaId, s32 modeIdx, s_LmHeader* lmHdr, s
     {
         lmHdrBuf = lmHdr;
     }
-    else if (g_WorldGfxWork.charaModels_CC[modeIdx].charaId != Chara_None)
+    else if (g_WorldGfxWork.charaModels[modeIdx].charaId != Chara_None)
     {
-        lmHdrBuf = g_WorldGfxWork.charaModels_CC[modeIdx].lmHdr_8;
+        lmHdrBuf = g_WorldGfxWork.charaModels[modeIdx].lmHdr;
     }
     else
     {
-        lmHdrBuf = (s_LmHeader*)g_WorldGfxWork.charaLmBuffer_14;
-        WorldGfx_CharaLmBufferAdvance(&g_WorldGfxWork.charaLmBuffer_14, charaId);
+        lmHdrBuf = (s_LmHeader*)g_WorldGfxWork.charaLmBuffer;
+        WorldGfx_CharaLmBufferAdvance(&g_WorldGfxWork.charaLmBuffer, charaId);
     }
 
     // Set texture UVs.
@@ -1203,14 +1203,14 @@ s32 WorldGfx_CharaModelLoad(e_CharacterId charaId, s32 modelIdx, s_LmHeader* lmH
     s_CharaModel*  model;
     s_FsImageDesc* modelTex;
 
-    model        = &g_WorldGfxWork.charaModels_CC[modelIdx];
+    model        = &g_WorldGfxWork.charaModels[modelIdx];
     modelCharaId = model->charaId;
-    modelTex     = &model->texture_C;
+    modelTex     = &model->texture;
 
     // If character is invalid, set model as unused.
     if (charaId == Chara_None)
     {
-        g_WorldGfxWork.registeredCharaModels_18[modelCharaId] = NULL;
+        g_WorldGfxWork.registeredCharaModels[modelCharaId] = NULL;
         return 0;
     }
 
@@ -1219,15 +1219,15 @@ s32 WorldGfx_CharaModelLoad(e_CharacterId charaId, s32 modelIdx, s_LmHeader* lmH
     {
         if (charaId == modelCharaId)
         {
-            if (lmHdr == model->lmHdr_8 && memcmp(tex, modelTex, sizeof(s_FsImageDesc)) == 0)
+            if (lmHdr == model->lmHdr && memcmp(tex, modelTex, sizeof(s_FsImageDesc)) == 0)
             {
                 return 0;
             }
         }
 
-        g_WorldGfxWork.registeredCharaModels_18[modelCharaId] = NULL;
+        g_WorldGfxWork.registeredCharaModels[modelCharaId] = NULL;
     }
-    g_WorldGfxWork.registeredCharaModels_18[charaId] = model;
+    g_WorldGfxWork.registeredCharaModels[charaId] = model;
 
     // Load model and texture files.
     queueIdx = Fs_QueueStartRead(CHARA_FILE_INFOS[charaId].modelFileIdx, lmHdr);
@@ -1238,16 +1238,16 @@ s32 WorldGfx_CharaModelLoad(e_CharacterId charaId, s32 modelIdx, s_LmHeader* lmH
 
     // Set loaded model data.
     model->charaId  = charaId;
-    model->isLoaded_1 = false;
-    model->queueIdx_4 = queueIdx;
-    model->lmHdr_8    = lmHdr;
-    model->texture_C  = *tex;
+    model->isLoaded = false;
+    model->queueIdx = queueIdx;
+    model->lmHdr    = lmHdr;
+    model->texture  = *tex;
     return queueIdx;
 }
 
 void WorldGfx_PlayerModelProcessLoad(void) // 0x8003D938
 {
-    WorldGfx_CharaModelProcessLoad(&g_WorldGfxWork.harryModel_164C);
+    WorldGfx_CharaModelProcessLoad(&g_WorldGfxWork.harryModel);
 }
 
 void WorldGfx_CharaModelProcessAllLoads(void) // 0x8003D95C
@@ -1259,7 +1259,7 @@ void WorldGfx_CharaModelProcessAllLoads(void) // 0x8003D95C
     {
         if (i != Chara_Harry)
         {
-            model = g_WorldGfxWork.registeredCharaModels_18[i];
+            model = g_WorldGfxWork.registeredCharaModels[i];
             if (model != NULL)
             {
                 WorldGfx_CharaModelProcessLoad(model);
@@ -1272,22 +1272,22 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 {
     s_Skeleton* skel;
 
-    if (!model->isLoaded_1 && model->charaId != Chara_None && Fs_QueueIsEntryLoaded(model->queueIdx_4))
+    if (!model->isLoaded && model->charaId != Chara_None && Fs_QueueIsEntryLoaded(model->queueIdx))
     {
-        model->isLoaded_1 = true;
+        model->isLoaded = true;
 
 #ifdef SH_PC_PORT
-        SH_DBG("[CHARA-LOAD] charaId=%d lmHdr=%p fixing offsets...", model->charaId, (void*)model->lmHdr_8);
+        SH_DBG("[CHARA-LOAD] charaId=%d lmHdr=%p fixing offsets...", model->charaId, (void*)model->lmHdr);
 #endif
-        LmHeader_FixOffsets(model->lmHdr_8);
-        Lm_MaterialFileIdxApply(model->lmHdr_8, CHARA_FILE_INFOS[model->charaId].textureFileIdx, &model->texture_C, CHARA_FILE_INFOS[model->charaId].materialBlendMode_6_10 % 4);
+        LmHeader_FixOffsets(model->lmHdr);
+        Lm_MaterialFileIdxApply(model->lmHdr, CHARA_FILE_INFOS[model->charaId].textureFileIdx, &model->texture, CHARA_FILE_INFOS[model->charaId].materialBlendMode % 4);
 
-        skel = &model->skeleton_14;
+        skel = &model->skeleton;
 
-        Lm_MaterialFlagsApply(model->lmHdr_8);
+        Lm_MaterialFlagsApply(model->lmHdr);
 #ifdef SH_PC_PORT
         {
-            s_LmHeader* lm = model->lmHdr_8;
+            s_LmHeader* lm = model->lmHdr;
             SH_DBG("[CHARA-TEX] charaId=%d matCount=%d modelCount=%d",
                     model->charaId, lm->materialCount, lm->modelCount);
             for (int _mi = 0; _mi < lm->materialCount; _mi++) {
@@ -1307,13 +1307,13 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
             }
             /* Check texture descriptor */
             SH_DBG("[CHARA-TEX] texDesc: tPage=[%d,%d] u=%d v=%d clutXY=(%d,%d)",
-                    model->texture_C.tPage[0], model->texture_C.tPage[1],
-                    model->texture_C.u, model->texture_C.v,
-                    model->texture_C.clutX, model->texture_C.clutY);
+                    model->texture.tPage[0], model->texture.tPage[1],
+                    model->texture.u, model->texture.v,
+                    model->texture.clutX, model->texture.clutY);
         }
 #endif
-        Skeleton_Init(skel, model->skeleton_14.bones_C, 56);
-        func_8004506C(skel, model->lmHdr_8);
+        Skeleton_Init(skel, model->skeleton.bones_C, 56);
+        func_8004506C(skel, model->lmHdr);
         func_800452EC(skel);
         func_800453E8(skel, true);
     }
@@ -1323,7 +1323,7 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 #endif
 }
 
-void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
+void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
 {
     CVECTOR tintColor = { 0 };
     s16     ret;
@@ -1342,7 +1342,7 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
                     g_WorldEnvWork.field_0, g_WorldEnvWork.isFogEnabled_1,
                     g_WorldEnvWork.screenBrightness_8,
                     g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
-                    coord[0].coord.t[0], coord[0].coord.t[1], coord[0].coord.t[2]);
+                    boneCoords[0].coord.t[0], boneCoords[0].coord.t[1], boneCoords[0].coord.t[2]);
             render_dbg++;
         }
     }
@@ -1370,12 +1370,13 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 
     }
 
 #ifdef SH_PC_PORT
-    if (g_WorldGfxWork.registeredCharaModels_18[charaId] == NULL) {
+    if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
 #endif
-    func_80045534(&g_WorldGfxWork.registeredCharaModels_18[charaId]->skeleton_14, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
-                  coord, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
+    func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
+                  boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
+
     if (timer != Q12(0.0f))
     {
         func_80055330(g_WorldEnvWork.field_0, g_WorldEnvWork.field_20, g_WorldEnvWork.field_3, tintColor.r << 5, tintColor.g << 5, tintColor.b << 5, g_WorldEnvWork.screenBrightness_8);
@@ -1395,7 +1396,7 @@ void WorldGfx_HeldItemAttach(e_CharacterId charaId, s32 arg1) // 0x8003DD80
 {
     s_CharaModel* model;
 
-    model = g_WorldGfxWork.registeredCharaModels_18[charaId];
+    model = g_WorldGfxWork.registeredCharaModels[charaId];
 
 #ifdef SH_PC_PORT
     /* Model may not be loaded yet (async CD read pending). Skip attachment — it
@@ -1406,42 +1407,42 @@ void WorldGfx_HeldItemAttach(e_CharacterId charaId, s32 arg1) // 0x8003DD80
     switch (charaId)
     {
         case Chara_Harry:
-            func_8003DE60(&model->skeleton_14, arg1);
+            func_8003DE60(&model->skeleton, arg1);
             break;
 
         case Chara_Stalker:
-            func_8003E388(&model->skeleton_14, arg1);
+            func_8003E388(&model->skeleton, arg1);
             break;
 
         case Chara_Cybil:
         case Chara_EndingCybil:
-            func_8003DF84(&model->skeleton_14, arg1);
+            func_8003DF84(&model->skeleton, arg1);
             break;
 
         case Chara_MonsterCybil:
-            func_8003E08C(&model->skeleton_14, arg1);
+            func_8003E08C(&model->skeleton, arg1);
             break;
 
         case Chara_Dahlia:
         case Chara_EndingDahlia:
-            func_8003E194(&model->skeleton_14, arg1);
+            func_8003E194(&model->skeleton, arg1);
             break;
 
         case Chara_Kaufmann:
         case Chara_EndingKaufmann:
-            func_8003E238(&model->skeleton_14, arg1);
+            func_8003E238(&model->skeleton, arg1);
             break;
 
         case Chara_SplitHead:
-            func_8003E414(&model->skeleton_14, arg1);
+            func_8003E414(&model->skeleton, arg1);
             break;
 
         case Chara_PuppetNurse:
-            func_8003E4A0(&model->skeleton_14, arg1);
+            func_8003E4A0(&model->skeleton, arg1);
             break;
 
         case Chara_PuppetDoctor:
-            func_8003E544(&model->skeleton_14, arg1);
+            func_8003E544(&model->skeleton, arg1);
             break;
     }
 }

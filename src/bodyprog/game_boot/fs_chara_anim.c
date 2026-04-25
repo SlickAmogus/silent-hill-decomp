@@ -40,7 +40,7 @@ s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
         .animFile1_8        = NULL,
         .animBufferSize1_C  = 0x2E630,
         .animBufferSize2_10 = 0x2E630,
-        .npcCoords_14       = NULL
+        .npcBoneCoords       = NULL
     }, {}, {}, {}
 };
 /* Called from main_pc.c after PsxMemory_Init */
@@ -58,7 +58,7 @@ s_CharaAnimDataInfo g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
         .animFile1_8        = (s_AnmHeader*)FS_BUFFER_0,
         .animBufferSize1_C  = 0x2E630,
         .animBufferSize2_10 = 0x2E630,
-        .npcCoords_14       = NULL
+        .npcBoneCoords       = NULL
     }, {}, {}, {}
 };
 #endif
@@ -166,7 +166,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile
         }
     }
 
-    initAnimDataInfo->npcCoords_14       = &g_SysWork.npcCoords[0];
+    initAnimDataInfo->npcBoneCoords       = &g_SysWork.npcCoords[0];
     initAnimDataInfo->charaId1_1         = Chara_None;
     initAnimDataInfo->animFile1_8        = NULL;
     initAnimDataInfo->animBufferSize2_10 = 0;
@@ -223,7 +223,7 @@ void Fs_CharaAnimInfoUpdate(s32 idx, e_CharacterId charaId, s_AnmHeader* animFil
             } else {
 #endif
             idx0        = g_CharaTypeAnimInfo[idx - 1].animFile1_8->boneCount;
-            localCoord  = g_CharaTypeAnimInfo[idx - 1].npcCoords_14;
+            localCoord  = g_CharaTypeAnimInfo[idx - 1].npcBoneCoords;
             localCoord += idx0 + 1;
 #ifdef SH_PC_PORT
             }
@@ -240,7 +240,7 @@ void Fs_CharaAnimInfoUpdate(s32 idx, e_CharacterId charaId, s_AnmHeader* animFil
     animDataInfo->charaId1_1         = charaId;
     animDataInfo->animFile1_8        = animFile;
     animDataInfo->animBufferSize2_10 = Fs_GetFileSectorAlignedSize(CHARA_FILE_INFOS[charaId].animFileIdx);
-    animDataInfo->npcCoords_14       = localCoord;
+    animDataInfo->npcBoneCoords       = localCoord;
 
     Anim_BoneInit(animFile, localCoord);
 
@@ -257,7 +257,7 @@ void Fs_CharaAnimBoneInfoUpdate(void) // 0x8003569C
     {
         if (g_MapOverlayHeader.charaGroupIds_248[i] != Chara_None)
         {
-            coord    = g_CharaTypeAnimInfo[i].npcCoords_14;
+            coord    = g_CharaTypeAnimInfo[i].npcBoneCoords;
             animFile = g_CharaTypeAnimInfo[i + 1].animFile1_8;
             coord   += g_CharaTypeAnimInfo[i].animFile1_8->boneCount + 1;
 
@@ -267,7 +267,7 @@ void Fs_CharaAnimBoneInfoUpdate(void) // 0x8003569C
                 coord = g_MapOverlayHeader.field_28;
             }
 
-            g_CharaTypeAnimInfo[i + 1].npcCoords_14 = coord;
+            g_CharaTypeAnimInfo[i + 1].npcBoneCoords = coord;
             Anim_BoneInit(animFile, coord);
         }
     }

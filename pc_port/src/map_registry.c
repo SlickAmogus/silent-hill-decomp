@@ -78,56 +78,56 @@ static const char* const MAP_NAMES[] = {
  */
 static s_MapOverlayHeader g_StubHeaders[] = {
     /* MapIdx_MAP0_S00 = 0 — fully compiled, not used as stub */
-    [MapIdx_MAP0_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 2, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP0_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 3, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP0_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP0_S00] = { .mapInfo = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 2, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP0_S01] = { .mapInfo = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 3, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP0_S02] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
 
-    [MapIdx_MAP1_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 5, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP1_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 6, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP1_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 7, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP1_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 8, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP1_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP1_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 26, .ambientAudioIdx_15 = 9, .field_16 = 3, .field_17 = 0 },
-    [MapIdx_MAP1_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 8, .ambientAudioIdx_15 = 10, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP1_S00] = { .mapInfo = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 5, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP1_S01] = { .mapInfo = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 18, .ambientAudioIdx_15 = 6, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP1_S02] = { .mapInfo = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 7, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP1_S03] = { .mapInfo = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 11, .ambientAudioIdx_15 = 8, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP1_S04] = { .mapInfo = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP1_S05] = { .mapInfo = &MAP_INFOS[MapType_SU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 26, .ambientAudioIdx_15 = 9, .field_16 = 3, .field_17 = 0 },
+    [MapIdx_MAP1_S06] = { .mapInfo = &MAP_INFOS[MapType_SC],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 8, .ambientAudioIdx_15 = 10, .field_16 = 1, .field_17 = 2 },
 
-    [MapIdx_MAP2_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP2_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 27, .ambientAudioIdx_15 = 12, .field_16 = 1, .field_17 = 0 },
-    [MapIdx_MAP2_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 13, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP2_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP2_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 38, .ambientAudioIdx_15 = 14, .field_16 = 1, .field_17 = 0 },
+    [MapIdx_MAP2_S00] = { .mapInfo = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP2_S01] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 27, .ambientAudioIdx_15 = 12, .field_16 = 1, .field_17 = 0 },
+    [MapIdx_MAP2_S02] = { .mapInfo = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 6, .ambientAudioIdx_15 = 13, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP2_S03] = { .mapInfo = &MAP_INFOS[MapType_THR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP2_S04] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 38, .ambientAudioIdx_15 = 14, .field_16 = 1, .field_17 = 0 },
 
-    [MapIdx_MAP3_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 15, .field_16 = 1, .field_17 = 1 },
-    [MapIdx_MAP3_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 16, .field_16 = 1, .field_17 = 1 },
-    [MapIdx_MAP3_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 17, .field_16 = 1, .field_17 = 0 },
-    [MapIdx_MAP3_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 18, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP3_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 19, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP3_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 19, .ambientAudioIdx_15 = 20, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP3_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 21, .field_16 = 1, .field_17 = 1 },
+    [MapIdx_MAP3_S00] = { .mapInfo = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 15, .field_16 = 1, .field_17 = 1 },
+    [MapIdx_MAP3_S01] = { .mapInfo = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 16, .ambientAudioIdx_15 = 16, .field_16 = 1, .field_17 = 1 },
+    [MapIdx_MAP3_S02] = { .mapInfo = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 17, .field_16 = 1, .field_17 = 0 },
+    [MapIdx_MAP3_S03] = { .mapInfo = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 18, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP3_S04] = { .mapInfo = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 2, .ambientAudioIdx_15 = 19, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP3_S05] = { .mapInfo = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 19, .ambientAudioIdx_15 = 20, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP3_S06] = { .mapInfo = &MAP_INFOS[MapType_HP],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 21, .field_16 = 1, .field_17 = 1 },
 
-    [MapIdx_MAP4_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
-    [MapIdx_MAP4_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 24, .ambientAudioIdx_15 = 22, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP4_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 17, .ambientAudioIdx_15 = 23, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP4_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 33, .ambientAudioIdx_15 = 24, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP4_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 32, .ambientAudioIdx_15 = 25, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP4_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 13, .ambientAudioIdx_15 = 26, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP4_S06] = { .mapInfo_0 = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP4_S00] = { .mapInfo = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
+    [MapIdx_MAP4_S01] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 24, .ambientAudioIdx_15 = 22, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP4_S02] = { .mapInfo = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 17, .ambientAudioIdx_15 = 23, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP4_S03] = { .mapInfo = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 33, .ambientAudioIdx_15 = 24, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP4_S04] = { .mapInfo = &MAP_INFOS[MapType_HU],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 32, .ambientAudioIdx_15 = 25, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP4_S05] = { .mapInfo = &MAP_INFOS[MapType_SPU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 13, .ambientAudioIdx_15 = 26, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP4_S06] = { .mapInfo = &MAP_INFOS[MapType_SPR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 1, .field_17 = 2 },
 
-    [MapIdx_MAP5_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_DR],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 28, .ambientAudioIdx_15 = 27, .field_16 = 2, .field_17 = 5 },
-    [MapIdx_MAP5_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_RSR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 28, .field_16 = 2, .field_17 = 2 },
-    [MapIdx_MAP5_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 29, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP5_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 30, .field_16 = 2, .field_17 = 1 },
+    [MapIdx_MAP5_S00] = { .mapInfo = &MAP_INFOS[MapType_DR],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 28, .ambientAudioIdx_15 = 27, .field_16 = 2, .field_17 = 5 },
+    [MapIdx_MAP5_S01] = { .mapInfo = &MAP_INFOS[MapType_RSR], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 28, .field_16 = 2, .field_17 = 2 },
+    [MapIdx_MAP5_S02] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 29, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP5_S03] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 7, .ambientAudioIdx_15 = 30, .field_16 = 2, .field_17 = 1 },
 
-    [MapIdx_MAP6_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 20, .ambientAudioIdx_15 = 31, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP6_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 32, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP6_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 21, .ambientAudioIdx_15 = 33, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP6_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_DRU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 12, .ambientAudioIdx_15 = 34, .field_16 = 2, .field_17 = 5 },
-    [MapIdx_MAP6_S04] = { .mapInfo_0 = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 37, .ambientAudioIdx_15 = 35, .field_16 = 2, .field_17 = 0 },
-    [MapIdx_MAP6_S05] = { .mapInfo_0 = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP6_S00] = { .mapInfo = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 20, .ambientAudioIdx_15 = 31, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP6_S01] = { .mapInfo = &MAP_INFOS[MapType_ER],  .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 32, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP6_S02] = { .mapInfo = &MAP_INFOS[MapType_RSU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 21, .ambientAudioIdx_15 = 33, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP6_S03] = { .mapInfo = &MAP_INFOS[MapType_DRU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 12, .ambientAudioIdx_15 = 34, .field_16 = 2, .field_17 = 5 },
+    [MapIdx_MAP6_S04] = { .mapInfo = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 37, .ambientAudioIdx_15 = 35, .field_16 = 2, .field_17 = 0 },
+    [MapIdx_MAP6_S05] = { .mapInfo = &MAP_INFOS[MapType_APU], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 3, .ambientAudioIdx_15 = 11, .field_16 = 2, .field_17 = 0 },
 
-    [MapIdx_MAP7_S00] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 10, .ambientAudioIdx_15 = 36, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP7_S01] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 37, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP7_S02] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 38, .field_16 = 2, .field_17 = 6 },
-    [MapIdx_MAP7_S03] = { .mapInfo_0 = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 35, .ambientAudioIdx_15 = 39, .field_16 = 3, .field_17 = 2 },
+    [MapIdx_MAP7_S00] = { .mapInfo = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 10, .ambientAudioIdx_15 = 36, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP7_S01] = { .mapInfo = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 37, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP7_S02] = { .mapInfo = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 1, .ambientAudioIdx_15 = 38, .field_16 = 2, .field_17 = 6 },
+    [MapIdx_MAP7_S03] = { .mapInfo = &MAP_INFOS[MapType_ER2], .loadingScreenFuncs_18 = g_StubLoadScreenFuncs, .mapPointsOfInterest_1C = &g_StubMapPoint, .bgmIdx_14 = 35, .ambientAudioIdx_15 = 39, .field_16 = 3, .field_17 = 2 },
 };
 
 /* ========================================================================
@@ -178,7 +178,7 @@ void MapRegistry_Load(e_MapIdx id)
 
     fprintf(stderr, "[MapRegistry] Active map: %s (overlay %d, mapType %d)\n",
         MapRegistry_GetName(id), id,
-        (int)(g_pMapOverlayHeader->mapInfo_0 - MAP_INFOS));
+        (int)(g_pMapOverlayHeader->mapInfo - MAP_INFOS));
 }
 
 int MapRegistry_FindByName(const char* name)

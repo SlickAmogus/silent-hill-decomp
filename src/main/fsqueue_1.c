@@ -24,7 +24,7 @@ s32 Fs_QueueGetLength(void)
     return (g_FsQueue.last.idx + 1) - g_FsQueue.postLoad.idx;
 }
 
-bool Fs_QueueDoThingWhenEmpty(void)
+bool Fs_QueueChunksLoad(void)
 {
     bool result;
 
@@ -40,7 +40,7 @@ bool Fs_QueueDoThingWhenEmpty(void)
          * permanently block the item pickup state machine. */
         result = true;
 #else
-        result = Ipd_ChunkInitCheck() != 0;
+        result = Ipd_ChunkInitCheck() != false;
 #endif
     }
 

@@ -3,6 +3,7 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
@@ -127,7 +128,7 @@ void func_800CF0B8(void) // 0x800CF0B8
     Savegame_EventFlagClear(EventFlag_412);
 
     hasSkippedEarly = false;
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= 2 && g_SysWork.sysStateSteps[0] <= 19)
     {
         // Sets flag to `true` if player skipped before step 19.
@@ -277,7 +278,7 @@ void func_800CF0B8(void) // 0x800CF0B8
             break;
 
         case 16:
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
             SysWork_StateStepIncrement(0);
 
         case 17:
@@ -324,7 +325,7 @@ void func_800CF0B8(void) // 0x800CF0B8
             g_SysWork.playerWork.player.position.vz = Q12(-19.5f);
             g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(164.1f);
 
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
             Player_ControlUnfreeze(true);
 
             SysWork_StateSetNext(SysState_Gameplay);
@@ -398,7 +399,7 @@ void func_800CFC34(void) // 0x800CFC34
             Fs_QueueStartReadTim(FILE_TIM_ENBAN_TIM, FS_BUFFER_1, &D_800D3B70);
             Fs_QueueStartRead(FILE_ANIM_UFO5_DMS, FS_BUFFER_13);
 
-            D_800D4E28 = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             ScreenFade_ResetTimestep();
 
@@ -417,16 +418,17 @@ void func_800CFC34(void) // 0x800CFC34
             break;
 
         case 2:
-            if (Fs_QueueDoThingWhenEmpty())
+            if (Fs_QueueChunksLoad())
             {
                 SysWork_StateStepIncrement(0);
             }
             break;
 
         case 3:
-            D_800D4E28 = 0;
+            g_Cutscene_Timer = Q12(0.0f);
+
             SysWork_StateStepIncrementAfterFade(0, true, 3, Q12(0.0f), false);
-            DmsHeader_FixOffsets(FS_BUFFER_13);
+            Dms_HeaderFixOffsets(FS_BUFFER_13);
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
             Game_TurnFlashlightOn();
@@ -440,7 +442,7 @@ void func_800CFC34(void) // 0x800CFC34
             break;
 
         case 6:
-            SysWork_StateStepIncrementAfterTime(&D_800D4E28, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
 
             for (i = 0; i < 15; i++)
             {
@@ -522,7 +524,7 @@ void func_800CFC34(void) // 0x800CFC34
             func_80086470(3, InvItemId_ChannelingStone, 1, false);
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
-            D_800D4E28 = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             if (Savegame_EventFlagGet(EventFlag_469))
             {
@@ -562,13 +564,13 @@ void func_800CFC34(void) // 0x800CFC34
         }
     }
 
-    if (D_800D4E28 >= 0)
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
         // TODO: Remove null chars from "HERO" once later rodata is added.
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO\0\0\0\0", D_800D4E28, FS_BUFFER_13);
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800D4E0C, &D_800D4E1C, NULL, D_800D4E28, FS_BUFFER_13));
-        vcUserCamTarget(&D_800D4E0C, NULL, true);
-        vcUserWatchTarget(&D_800D4E1C, NULL, true);
+        Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO\0\0\0\0", g_Cutscene_Timer, FS_BUFFER_13);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, FS_BUFFER_13));
+        vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
     }
 }
 
@@ -1597,7 +1599,7 @@ void func_800D2364(void) // 0x800D2364
                         else
                         {
                             GET_PTR(sp10, j, i, k) = temp_s0;
-                            ptr->field_6C[j][i]    = -(temp_s0 >> 0xC);
+                            ptr->field_6C[j][i]    = -(temp_s0 >> Q12_SHIFT);
                         }
                     }
                     else
@@ -1610,11 +1612,11 @@ void func_800D2364(void) // 0x800D2364
                                 GET_PTR(sp10, j, i, k + 1)
                                 ++;
                             }
-                            ptr->field_6C[j][i] = -(temp_s0 >> 0xC);
+                            ptr->field_6C[j][i] = -(temp_s0 >> Q12_SHIFT);
                         }
                         else
                         {
-                            ptr->field_6C[j][i] = temp_s0 >> 0xC;
+                            ptr->field_6C[j][i] = temp_s0 >> Q12_SHIFT;
                         }
 
                         GET_PTR(sp10, j, i, k) = temp_s0;
@@ -1640,7 +1642,9 @@ void func_800D2364(void) // 0x800D2364
         {
             for (j = 0; j < 3; j++)
             {
-                Math_SetSVectorFastSum(&ptr->field_44[j], (((i + j) / 17) << 7) - 0x400, -8 * k,
+                Math_SetSVectorFastSum(&ptr->field_44[j],
+                                       (((i + j) / 17) << 7) - 0x400,
+                                       -8 * k,
                                        0x400 - (((i + j) % 17) << 7));
             }
 
@@ -1652,7 +1656,9 @@ void func_800D2364(void) // 0x800D2364
 
         for (i = 287; i < 289; i++)
         {
-            Math_SetSVectorFastSum(&ptr->field_44[0], ((i / 17) << 7) - 0x400, -8 * k,
+            Math_SetSVectorFastSum(&ptr->field_44[0],
+                                   ((i / 17) << 7) - 0x400,
+                                   -8 * k,
                                    0x400 - ((i % 17) << 7));
 
             gte_ldv0(&ptr->field_44[0]);
@@ -1666,10 +1672,8 @@ void func_800D2364(void) // 0x800D2364
             for (j = 0; j < 16; j++)
             {
                 temp_a2 = (var_t2_2->field_484[i][j] + var_t2_2->field_484[i + 1][j] +
-                           var_t2_2->field_484[i][j + 1] + var_t2_2->field_484[i + 1][j + 1]) >>
-                          2;
-
-                if (temp_a2 < 0x41 || (temp_a2 - 0x40) >> 3 >= ORDERING_TABLE_SIZE)
+                           var_t2_2->field_484[i][j + 1] + var_t2_2->field_484[i + 1][j + 1]) >> 2;
+                if (temp_a2 < 65 || ((temp_a2 - 64) >> 3) >= ORDERING_TABLE_SIZE)
                 {
                     continue;
                 }

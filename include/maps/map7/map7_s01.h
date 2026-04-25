@@ -81,11 +81,11 @@ extern s_800E1690 D_800E1690;
 
 extern s16 D_800E16A8[2];
 
-extern VECTOR3 D_800E2C48;
-extern VECTOR3 D_800E2C58;
+extern VECTOR3 g_Cutscene_CameraPositionTarget;
+extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 
-extern u8  D_800E2C64;
-extern s32 D_800E2C68;
+extern u8 D_800E2C64;
+extern q19_12 g_Cutscene_Timer;
 
 extern s_WorldObjectDesc g_WorldObject_Door;
 extern s_WorldObjectDesc g_WorldObject_Stone0;
@@ -226,7 +226,7 @@ void func_800DAD7C(void);
 
 void func_800DADA8(void);
 
-void func_800DADD4(void);
+void MapEvent_CutsceneCherylRedirect3(void);
 
 void func_800DAE00(void);
 
@@ -246,7 +246,7 @@ void func_800DC080(void);
 
 void func_800DCE20(void);
 
-void func_800DD348(void* unused, s32 idx, u8 val);
+void func_800DD348(void* unused, s32 idx, u8 spawnFlags);
 
 void Map_WorldObjectsInit(void);
 

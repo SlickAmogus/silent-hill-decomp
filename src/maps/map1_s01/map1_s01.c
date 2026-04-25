@@ -3,6 +3,7 @@
 #include <psyq/gtemac.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
@@ -19,7 +20,7 @@ void Ai_Cat_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
     s_AnimInfo* animInfo;
     bool        cond;
 
-    if (chara->model.controlState == ModelState_Uninitialized)
+    if (chara->model.controlState == 0)
     {
         chara->model.controlState                                      = 1;
         chara->model.anim.status                              = ANIM_STATUS(3, true);
@@ -228,7 +229,7 @@ void func_800D7308(void)
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_ApplyMute;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < EventState_Skip)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -382,7 +383,7 @@ void func_800D7864(void) // 0x800D7864
 
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_ApplyMute;
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= MEDALLION_CUTSCENE_START && g_SysWork.sysStateSteps[0] < MEDALLION_CUTSCENE_END)
     {
         ScreenFade_ResetTimestep();
@@ -576,7 +577,7 @@ void MapEvent_PianoPuzzle(bool playNote) // 0x800D7F18
         return;
     }
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
     {
         SysWork_StateStepIncrement(0);
         return;
@@ -594,7 +595,7 @@ void MapEvent_PianoPuzzle(bool playNote) // 0x800D7F18
     cursorY = FP_FROM(g_PianoCursorY, Q12_SHIFT) + 8;
     Gfx_CursorDraw(cursorX, cursorY, 8, 8, 0, 64, 32, 32, 128, 192, 0, 12);
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
     {
         if (FP_FROM(g_PianoCursorY, Q12_SHIFT) >= 34)
         {
@@ -806,10 +807,10 @@ void func_800D8794(void) // 0x800D8794
     MapMsg_DisplayWithTexture(FILE_TIM_LOCKER0_TIM, Q12(0.0f), Q12(0.0f), 32);
 }
 
-extern s32 g_Timer0; // Cutscene timer.
+extern q19_12 g_Cutscene_Timer; // Cutscene timer.
 extern u8 D_800DD598;
-extern VECTOR3 g_CameraPositionTarget;
-extern VECTOR3 g_CameraLookAtTarget;
+extern VECTOR3 g_Cutscene_CameraPositionTarget;
+extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 
 void func_800D87C0(void) // 0x800D87C0
 {
@@ -822,7 +823,7 @@ void func_800D87C0(void) // 0x800D87C0
     s_WorldObjectDesc* obj;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < EventState_Skip)
     {
         if ( g_SysWork.sysStateSteps[0]  < 4)
@@ -849,7 +850,7 @@ void func_800D87C0(void) // 0x800D87C0
             break;
 
         case 2:
-            if (Fs_QueueDoThingWhenEmpty())
+            if (Fs_QueueChunksLoad())
             {
                 SysWork_StateStepIncrement(0);
             }
@@ -865,9 +866,9 @@ void func_800D87C0(void) // 0x800D87C0
             break;
 
         case 4:
-            DmsHeader_FixOffsets((s_DmsHeader* )FS_BUFFER_16);
+            Dms_HeaderFixOffsets((s_DmsHeader* )FS_BUFFER_16);
 
-            g_Timer0 = Q12(0.0f);
+            g_Cutscene_Timer = Q12(0.0f);
 
             func_80085EB8(0u, &g_SysWork.playerWork.player, 85, false);
             func_8003D03C();
@@ -875,7 +876,7 @@ void func_800D87C0(void) // 0x800D87C0
             SysWork_StateStepIncrement(0);
 
         case 5:
-            g_Timer0 = MIN((g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Q12(12.0f))), Q12(8.0f));
+            g_Cutscene_Timer = MIN((g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Q12(12.0f))), Q12(8.0f));
             SysWork_StateStepIncrement(0);
 
         case 6:
@@ -884,8 +885,8 @@ void func_800D87C0(void) // 0x800D87C0
             SysWork_StateStepIncrement(0);
 
         case 7:
-            g_Timer0 = MIN((g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Q12(12.0f))), Q12(8.0f));
-            if (g_Timer0 >= Q12(8.0f))
+            g_Cutscene_Timer = MIN((g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Q12(12.0f))), Q12(8.0f));
+            if (g_Cutscene_Timer >= Q12(8.0f))
             {
                 SysWork_StateStepIncrement(0);
             }
@@ -904,13 +905,13 @@ void func_800D87C0(void) // 0x800D87C0
             SysWork_StateStepIncrement(0);
 
         case 9:
-            g_Timer0 = MIN((g_Timer0 + Q12_MULT_PRECISE(g_DeltaTime, Q12(18.0f))), Q12(33.0f));
-            if (g_Timer0 >= Q12(33.0f))
+            g_Cutscene_Timer = MIN((g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Q12(18.0f))), Q12(33.0f));
+            if (g_Cutscene_Timer >= Q12(33.0f))
             {
                 SysWork_StateStepIncrement(0);
             }
 
-            g_Timer0 = MAX(g_Timer0, Q12(16.0f));
+            g_Cutscene_Timer = MAX(g_Cutscene_Timer, Q12(16.0f));
             break;
 
         case 10:
@@ -920,35 +921,35 @@ void func_800D87C0(void) // 0x800D87C0
             SysWork_StateStepIncrement(0);
 
         case 11:
-            g_Timer0 = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(21.0f)) + g_Timer0), Q12(48.0f));
-            if (g_Timer0 >= Q12(48.0f))
+            g_Cutscene_Timer = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(21.0f)) + g_Cutscene_Timer), Q12(48.0f));
+            if (g_Cutscene_Timer >= Q12(48.0f))
             {
                 SysWork_StateStepIncrement(0);
             }
 
-            g_Timer0 = MAX(g_Timer0, Q12(34.0f));
+            g_Cutscene_Timer = MAX(g_Cutscene_Timer, Q12(34.0f));
             break;
 
         case 12:
             MapMsg_DisplayAndHandleSelection(false, 33, 0, 0, 0, false); // "Just a cat..."
 
-            g_Timer0 = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f)) + g_Timer0), Q12(121.0f));
-            g_Timer0 = MAX(g_Timer0, Q12(49.0f));
+            g_Cutscene_Timer = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f)) + g_Cutscene_Timer), Q12(121.0f));
+            g_Cutscene_Timer = MAX(g_Cutscene_Timer, Q12(49.0f));
             break;
 
         case 13:
-            g_Timer0 = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f)) + g_Timer0), Q12(121.0f));
-            if (g_Timer0 >= Q12(121.0f))
+            g_Cutscene_Timer = MIN((Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f)) + g_Cutscene_Timer), Q12(121.0f));
+            if (g_Cutscene_Timer >= Q12(121.0f))
             {
                 SysWork_StateStepIncrement(0);
             }
 
-            g_Timer0 = MAX(g_Timer0, Q12(49.0f));
+            g_Cutscene_Timer = MAX(g_Cutscene_Timer, Q12(49.0f));
             break;
 
         case 14:
             func_8005DC1C(Sfx_Unk1448, &QVECTOR3(-56.4f, -0.8f, 16.8f), Q8(0.5f), 0);
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
             SysWork_StateStepIncrement(0);
 
         case 15:
@@ -977,7 +978,7 @@ void func_800D87C0(void) // 0x800D87C0
             break;
 
         default:
-            g_Timer0 = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
             g_SysWork.playerWork.player.position.vx += FP_FROM((Math_Sin(g_SysWork.playerWork.player.rotation.vy + Q12_ANGLE(180.0f)) * Q12(1.1f)), Q12_SHIFT);
             g_SysWork.playerWork.player.position.vz += FP_FROM((Math_Cos(g_SysWork.playerWork.player.rotation.vy + Q12_ANGLE(180.0f)) * Q12(1.1f)), Q12_SHIFT);
 
@@ -988,10 +989,10 @@ void func_800D87C0(void) // 0x800D87C0
             Savegame_EventFlagSet(EventFlag_77);
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            func_80088D34(0);
+            Chara_BonesInit(0);
 
             Savegame_EventFlagSet(EventFlag_76);
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
             func_8003D01C();
 
             if (D_800DD598 == 0)
@@ -1001,24 +1002,24 @@ void func_800D87C0(void) // 0x800D87C0
             break;
     }
 
-    if (g_Timer0 >= Q12(0.0f))
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
+        Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16);
 
-        if (g_Timer0 >= Q12(16.0f))
+        if (g_Cutscene_Timer >= Q12(16.0f))
         {
-            Dms_CharacterGetPosRot(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "CAT", g_Timer0, (s_DmsHeader*)FS_BUFFER_16);
+            Dms_CharacterTransformGet(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "CAT", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16);
         }
 
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CameraPositionTarget, &g_CameraLookAtTarget, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_16));
-        vcUserCamTarget(&g_CameraPositionTarget, NULL, true);
-        vcUserWatchTarget(&g_CameraLookAtTarget, NULL, true);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16));
+        vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
     }
 
     if (Savegame_EventFlagGet(EventFlag_76) && !Savegame_EventFlagGet(EventFlag_77))
     {
         obj = &g_WorldObject1;
-        tmp0 = MIN((g_Timer0 - Q12(16.0f)), Q12(2.0f));
+        tmp0 = MIN((g_Cutscene_Timer - Q12(16.0f)), Q12(2.0f));
 
         obj->rotation_28.vy = Q12_MULT_PRECISE(tmp0, Q12_ANGLE(-4.1f)) - Q12_ANGLE(42.05f);
     }
@@ -1052,15 +1053,15 @@ void Map_WorldObjectsInit(void) // 0x800D91EC
         WorldObjectInit(&g_WorldObject0, "SILVER_H", -98.8f, 0.0f, 22.8f, -90.0f, 28.5f, 0);
     }
 
-    if (g_SavegamePtr->gameDifficulty_260 == -1)
+    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        func_80088FF4(Chara_GreyChild, 10, 0);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 10, SpawnFlag_None);
     }
     else if (g_SavegamePtr->gameDifficulty_260 == 1)
     {
-        func_80088FF4(Chara_GreyChild, 0, 3);
-        func_80088FF4(Chara_GreyChild, 1, 3);
-        func_80088FF4(Chara_GreyChild, 2, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 0, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 1, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 2, SpawnFlag_0 | SpawnFlag_1);
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
@@ -1139,7 +1140,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9514
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S01_HandgunBullets0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -1148,7 +1149,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9514
 
         if (!Savegame_EventFlagGet(EventFlag_M1S01_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &g_CommonWorldObjectPoses[1].position_0, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
         }
     }
 
@@ -1156,7 +1157,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9514
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S01_HealthDrink))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[2].position_0, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
         }
     }
 
@@ -1164,7 +1165,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9514
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S01_HandgunBullets1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position_0, &g_CommonWorldObjectPoses[3].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation_C);
         }
     }
 
@@ -1172,7 +1173,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9514
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S01_HandgunBullets2))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[4].position_0, &g_CommonWorldObjectPoses[4].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation_C);
         }
     }
 }
@@ -1183,27 +1184,27 @@ void func_800D9DDC(void) // 0x800D9DDC
     {
         if (Savegame_EventFlagGet(EventFlag_M1S01_PickupChemical))
         {
-            func_80088FF4(Chara_GreyChild, 0, 3);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 0, SpawnFlag_0 | SpawnFlag_1);
         }
 
         if (Savegame_EventFlagGet(EventFlag_M1S01_PickupGoldMedallion))
         {
-            func_80088FF4(Chara_GreyChild, 1, 3);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 1, SpawnFlag_0 | SpawnFlag_1);
 
             if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
             {
-                func_80088FF4(Chara_GreyChild, 2, 7);
+                Chara_SpawnFlagsSet(Chara_GreyChild, 2, SpawnFlag_0 | SpawnFlag_1 | SpawnFlag_2);
             }
         }
     }
 
     if (Savegame_EventFlagGet(EventFlag_77))
     {
-        func_80088FF4(Chara_GreyChild, 3, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 3, SpawnFlag_0 | SpawnFlag_1);
 
         if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
         {
-            func_80088FF4(Chara_GreyChild, 7, 0);
+            Chara_SpawnFlagsSet(Chara_GreyChild, 7, SpawnFlag_None);
         }
     }
 }

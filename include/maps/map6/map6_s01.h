@@ -24,11 +24,9 @@
 
 #include "maps/shared.h"
 
-extern s32 D_800D4070;
-
-extern u16 D_800D4074;
-
-extern u16 D_800D4100;
+extern q19_12 g_Cutscene_Timer;
+extern u16    g_Cutscene_MapMsgAudioCmds0;
+extern u16    g_Cutscene_MapMsgAudioCmds1;
 
 extern u16 D_800D4108;
 
@@ -36,41 +34,39 @@ extern s_FsImageDesc D_800D410C;
 
 extern DVECTOR D_800D4114[];
 
-extern u8 D_800D416C;
+extern u8 g_Cutscene_UpdateSibyl; /** `bool` */
+extern u8 g_Cutscene_UpdateDaria; /** `bool` */
 
-extern u8 D_800D416D;
+extern u8 g_Cutscene_MapMsgAudioIdx1;
 
-extern u8 D_800D416E;
+extern VECTOR3 D_800D4174[5];
 
-extern VECTOR3 D_800D4174[];
-
-extern s16 D_800D41B0;
+extern q3_12 D_800D41B0;
 
 /** Time. */
 extern q19_12 D_800D41B4;
 
-extern u8 D_800D5345;
+extern u8 D_800D5345; /** `bool` */
 
-extern VECTOR3 D_800D5354;
+extern VECTOR3 g_Cutscene_CameraPositionTarget;
+extern VECTOR3 g_Cutscene_CameraLookAtTarget;
+extern u8      g_Cutscene_MapMsgAudioIdx0;
 
-extern VECTOR3 D_800D5364;
-
-extern u8 D_800D5370;
-
-extern s_WorldObjectDesc D_800D5374;
-
-extern s_WorldObjectDesc D_800D53A4[7];
-
+extern s_WorldObjectDesc  D_800D5374;
+extern s_WorldObjectDesc  D_800D53A4[7];
 extern s_WorldObjectModel g_CommonWorldObjects[6];
 extern s_WorldObjectPose  g_CommonWorldObjectPoses[3]; // 0x800D4128
 
 /** @brief Handles a Health Drink, Handgun Bullets, or Rifle Shells item pickup event. */
 void MapEvent_CommonItemTake(void);
 
+// Map event.
 void func_800D13D8(void);
 
+// Map event.
 void func_800D236C(void);
 
+// Map event.
 void func_800D2658(void);
 
 void Map_WorldObjectsInit(void);
