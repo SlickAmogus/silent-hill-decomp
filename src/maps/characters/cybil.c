@@ -31,7 +31,7 @@ void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* 
            chara ? chara->model.controlState : -1,
            chara ? chara->model.stateStep : -1,
            chara ? chara->model.anim.status : -1);
-    if (chara->model.controlState == ModelState_Uninitialized)
+    if (chara->model.controlState == 0)
     {
         SH_DBG("[CYBIL] pre-Init");
         Ai_Cybil_Init(chara);
@@ -42,7 +42,7 @@ void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* 
     Ai_Cybil_AnimUpdate(chara, anmHdr, coords);SH_DBG("[CYBIL] post-AnimUpdate status=%d",
                                                       chara->model.anim.status);
 #else
-    if (chara->model.controlState == ModelState_Uninitialized)
+    if (chara->model.controlState == 0)
     {
         Ai_Cybil_Init(chara);
     }

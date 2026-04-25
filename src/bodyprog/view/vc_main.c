@@ -876,7 +876,7 @@ void vcPreSetDataInVC_WORK(VC_WORK* w_p, VC_ROAD_DATA* vc_road_ary_list) // 0x80
             vcWork.flags &= ~VC_OLD_PRS_F_VIEW_F;
         }
 
-        if (g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.view_E)
+        if (g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.view)
         {
             vcWork.flags |= VC_PRS_F_VIEW_F;
         }
@@ -1822,8 +1822,8 @@ void vcMakeFarWatchTgtPos(VECTOR3* watch_tgt_pos, VC_WORK* w_p, VC_AREA_SIZE_TYP
         }
 
         // Compute look-at Y anchor.
-        ofs_y = Q8_TO_Q12(CHARA_FILE_INFOS[sc_p->model.charaId].cameraOffsetY_C_2);
-        switch (CHARA_FILE_INFOS[sc_p->model.charaId].cameraAnchor_C_0)
+        ofs_y = Q8_TO_Q12(CHARA_FILE_INFOS[sc_p->model.charaId].cameraOffsetY);
+        switch (CHARA_FILE_INFOS[sc_p->model.charaId].cameraAnchor)
         {
             default:
             case CameraAnchor_Character:

@@ -1390,7 +1390,7 @@ void func_800D2ED0(GsOT_TAG* arg0) // 0x800D2ED0
 void Twinfeeler_TextureLoad(void) // 0x800D3038
 {
     // TODO: Does game ever use this texture afterward?
-    // After this `Twinfeeler_Init` checks `Fs_QueueDoThingWhenEmpty()` before proceeding.
+    // After this `Twinfeeler_Init` checks `Fs_QueueChunksLoad()` before proceeding.
     // Could it be some preload/warm-up before the actual enemy file loads? If so, this func should be renamed.
     Fs_QueueStartReadTim(FILE_TEST_WARMTEST_TIM, FS_BUFFER_1, &D_800A9094);
 }
@@ -1836,7 +1836,7 @@ bool Twinfeeler_Init(s_SubCharacter* twinfeeler) // 0x800D3CD4
 
     localTwinfeeler = twinfeeler;
 
-    if (!Fs_QueueDoThingWhenEmpty())
+    if (!Fs_QueueChunksLoad())
     {
         return false;
     }
@@ -1856,9 +1856,9 @@ bool Twinfeeler_Init(s_SubCharacter* twinfeeler) // 0x800D3CD4
     twinfeeler->headingAngle = twinfeeler->rotation.vy;
     twinfeeler->field_E1_0      = 4;
 
-    localTwinfeeler->properties.twinfeeler.field_EC.position_0.vx = Q12(0.0f);
-    localTwinfeeler->properties.twinfeeler.field_EC.position_0.vy = Q12(0.0f);
-    localTwinfeeler->properties.twinfeeler.field_EC.position_0.vz = Q12(0.0f);
+    localTwinfeeler->properties.twinfeeler.field_EC.position.vx = Q12(0.0f);
+    localTwinfeeler->properties.twinfeeler.field_EC.position.vy = Q12(0.0f);
+    localTwinfeeler->properties.twinfeeler.field_EC.position.vz = Q12(0.0f);
     localTwinfeeler->properties.twinfeeler.field_10C              = 0;
     localTwinfeeler->properties.twinfeeler.field_110              = 0;
     localTwinfeeler->properties.twinfeeler.field_114              = 0;
@@ -2910,9 +2910,9 @@ void func_800D55C8(s_SubCharacter* chara) // 0x800D55C8
     s32        temp_s2;
     s32        temp_v0;
 
-    unkPos.vx = chara->properties.twinfeeler.field_EC.position_0.vx;
-    unkPos.vz = chara->properties.twinfeeler.field_EC.position_0.vz;
-    unkPos.vy = chara->properties.twinfeeler.field_EC.position_0.vy;
+    unkPos.vx = chara->properties.twinfeeler.field_EC.position.vx;
+    unkPos.vz = chara->properties.twinfeeler.field_EC.position.vz;
+    unkPos.vy = chara->properties.twinfeeler.field_EC.position.vy;
 
     moveSpeed                                  = chara->moveSpeed;
     chara->properties.twinfeeler.field_108 = moveSpeed;
@@ -2938,29 +2938,29 @@ void func_800D55C8(s_SubCharacter* chara) // 0x800D55C8
         func_8005C944(chara, &sp10);
     }
 
-    posComp                                             = chara->properties.twinfeeler.field_EC.position_0.vx;
+    posComp                                             = chara->properties.twinfeeler.field_EC.position.vx;
     chara->moveSpeed                                    = chara->properties.twinfeeler.field_108;
-    chara->properties.twinfeeler.field_EC.position_0.vx = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
+    chara->properties.twinfeeler.field_EC.position.vx = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
 
     if (posComp <= Q12(0.0f))
     {
-        chara->properties.twinfeeler.field_EC.position_0.vx = -chara->properties.twinfeeler.field_EC.position_0.vx;
+        chara->properties.twinfeeler.field_EC.position.vx = -chara->properties.twinfeeler.field_EC.position.vx;
     }
 
-    posComp                                             = chara->properties.twinfeeler.field_EC.position_0.vy;
-    chara->properties.twinfeeler.field_EC.position_0.vy = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
+    posComp                                             = chara->properties.twinfeeler.field_EC.position.vy;
+    chara->properties.twinfeeler.field_EC.position.vy = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
 
     if (posComp <= Q12(0.0f))
     {
-        chara->properties.twinfeeler.field_EC.position_0.vy = -chara->properties.twinfeeler.field_EC.position_0.vy;
+        chara->properties.twinfeeler.field_EC.position.vy = -chara->properties.twinfeeler.field_EC.position.vy;
     }
 
-    posComp                                             = chara->properties.twinfeeler.field_EC.position_0.vz;
-    chara->properties.twinfeeler.field_EC.position_0.vz = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
+    posComp                                             = chara->properties.twinfeeler.field_EC.position.vz;
+    chara->properties.twinfeeler.field_EC.position.vz = SquareRoot12(Q12_MULT_PRECISE(posComp, posComp) >> g_VBlanks);
 
     if (posComp <= Q12(0.0f))
     {
-        chara->properties.twinfeeler.field_EC.position_0.vz = -chara->properties.twinfeeler.field_EC.position_0.vz;
+        chara->properties.twinfeeler.field_EC.position.vz = -chara->properties.twinfeeler.field_EC.position.vz;
     }
 
     chara->rotation.vy = Math_AngleNormalizeSigned(chara->rotation.vy);
@@ -3029,7 +3029,7 @@ void func_800D59C0(s_LinkedBone* bone) // 0x800D59C0
 
     for (i = 0; i < 56; i++)
     {
-        bone[i].bone.modelInfo_0.field_0 &= ~1;
+        bone[i].bone.modelInfo.field_0 &= ~1;
     }
 }
 
@@ -3069,7 +3069,7 @@ void func_800D59EC(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D59EC
                 }
 
                 bone                       = &bones[idx - 1].bone;
-                bone->modelInfo_0.field_0 |= 1 << 0;
+                bone->modelInfo.field_0 |= 1 << 0;
             }
         }
     }
@@ -3094,7 +3094,7 @@ void func_800D59EC(s_SubCharacter* chara, GsCOORDINATE2* coords) // 0x800D59EC
                     }
 
                     bone                       = &bones[idx - 1].bone;
-                    bone->modelInfo_0.field_0 |= 1 << 0;
+                    bone->modelInfo.field_0 |= 1 << 0;
                 }
             }
         }
@@ -3249,16 +3249,16 @@ void func_800D5E30(s_SubCharacter* twinfeeler, GsCOORDINATE2* coords) // 0x800D5
         ptr->field_10      = Q12(0.45f);
         ptr->field_E       = newPosY - Q12(0.3f);
         ptr->field_C       = posY;
-        ptr->position_0.vx = newPosX;
-        ptr->position_0.vy = newPosY;
-        ptr->position_0.vz = newPosZ;
+        ptr->position.vx = newPosX;
+        ptr->position.vy = newPosY;
+        ptr->position.vz = newPosZ;
         ptr->field_12      = 3;
     }
 }
 
 void Twinfeeler_Update(s_SubCharacter* twinfeeler, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800D5F28
 {
-    if (twinfeeler->model.controlState == ModelState_Uninitialized)
+    if (twinfeeler->model.controlState == 0)
     {
         Twinfeeler_TextureLoad(); // Just calls `Fs_QueueStartReadTim`.
         twinfeeler->model.controlState = TwinfeelerControl_1;
@@ -3374,7 +3374,7 @@ void func_800D6774(void) // 0x800D6774
     s32         i;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 11)
     {
         SysWork_StateStepSet(0, 12);
@@ -3561,7 +3561,7 @@ void func_800D6F24(void) // 0x800D6F24
     void* var_s0;
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 9)
     {
         SysWork_StateStepSet(0, 9);
@@ -3602,7 +3602,7 @@ void func_800D6F24(void) // 0x800D6F24
             break;
 
         case 6:
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
 
             Savegame_EventFlagSet(EventFlag_327);
 
@@ -3641,7 +3641,7 @@ void func_800D6F24(void) // 0x800D6F24
             g_SysWork.playerWork.player.position.vz = Q12(140.36f);
             g_SysWork.playerWork.player.rotation.vy = Q12_ANGLE(90.0f);
 
-            func_80088F94(&g_SysWork.npcs[0], 0, 0);
+            Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
 
             Savegame_EventFlagSet(EventFlag_327);
 
@@ -4684,7 +4684,7 @@ void func_800D8FC0(void) // 0x800D8FC0
     scratchData = PSX_SCRATCH_ADDR(0);
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 5)
     {
         SysWork_StateStepSet(0, 5);
@@ -4805,7 +4805,7 @@ void func_800D8FC0(void) // 0x800D8FC0
 void func_800D960C(void) // 0x800D960C
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= 2 && g_SysWork.sysStateSteps[0] < 4)
     {
         SysWork_StateStepReset();
@@ -5019,7 +5019,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
     {
         if (!Savegame_EventFlagGet(EventFlag_M4S03_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -5027,7 +5027,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
     {
         if (!Savegame_EventFlagGet(EventFlag_M4S03_RifleShells0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[1].position_0, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
         }
     }
 
@@ -5035,7 +5035,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D9BB0
     {
         if (!Savegame_EventFlagGet(EventFlag_M4S03_RifleShells1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[2].position_0, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
         }
     }
 }

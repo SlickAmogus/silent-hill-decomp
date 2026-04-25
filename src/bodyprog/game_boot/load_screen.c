@@ -122,9 +122,9 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
     }
     /* Force all skeleton bones visible (same as InGame Harry render) */
     {
-        s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels_18[Chara_Harry];
+        s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels[Chara_Harry];
         if (harryModel != NULL) {
-            func_800453E8(&harryModel->skeleton_14, true);
+            func_800453E8(&harryModel->skeleton, true);
         }
     }
     /* Reset ALL bone flg values to force full hierarchy recomputation.

@@ -17,7 +17,6 @@
 #include "screens/stream/stream.h"
 
 #define LINE_CURSOR_TIMER_MAX 8
-
 #ifdef SH_PC_PORT
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
@@ -39,9 +38,12 @@ bool g_ControllerMenu_IsOnActionsPane     = false;
 
 /** @brief Tracks movement time of the cursor highlight. */
 static s32 g_Options_SelectionHighlightTimer;
+
 /** @brief Number of options to show in the extra options screen. Shows extra unlockable settings if they are unlocked. */
 static s32 g_ExtraOptionsMenu_EntryCount;
+
 static s32 g_ExtraOptionsMenu_SelectedBloodColorEntry;
+
 static s32 g_ExtraOptionsMenu_BulletMultMax;
 
 // ========================================
@@ -123,11 +125,11 @@ void GameState_Options_Update(void) // 0x801E2D44
                     break;
             }
 
-            g_ExtraOptionsMenu_EntryCount   = (g_GameWork.config.optExtraOptionsEnabled_27) ? 8 : 6;
-            g_GameWork.gameStateSteps[0] = OptionsMenuState_MainOptions;
+            g_ExtraOptionsMenu_EntryCount = (g_GameWork.config.optExtraOptionsEnabled_27) ? 8 : 6;
+            g_GameWork.gameStateSteps[0]  = OptionsMenuState_MainOptions;
             g_SysWork.counters_1C[1]              = 0;
-            g_GameWork.gameStateSteps[1] = 0;
-            g_GameWork.gameStateSteps[2] = 0;
+            g_GameWork.gameStateSteps[1]  = 0;
+            g_GameWork.gameStateSteps[2]  = 0;
             break;
 
         case OptionsMenuState_LeaveScreenPos:
@@ -210,8 +212,8 @@ void GameState_Options_Update(void) // 0x801E2D44
                 SysWork_StateSetNext(SysState_Gameplay);
 
                 g_GameWork.gameStateSteps[0] = gameState;
-                g_GameWork.gameState        = prevGameState;
-                g_GameWork.gameStatePrev    = gameState;
+                g_GameWork.gameState         = prevGameState;
+                g_GameWork.gameStatePrev     = gameState;
                 g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterMainOptions;
             }
 
@@ -220,11 +222,11 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_EnterExtraOptions:
             if (ScreenFade_IsFinished())
             {
-                g_GameWork.gameStateSteps[0]   = OptionsMenuState_ExtraOptions;
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_ExtraOptions;
                 g_SysWork.counters_1C[1]                = 0;
                 ScreenFade_Start(false, true, false);
-                g_GameWork.gameStateSteps[1]   = 0;
-                g_GameWork.gameStateSteps[2]   = 0;
+                g_GameWork.gameStateSteps[1]      = 0;
+                g_GameWork.gameStateSteps[2]      = 0;
                 g_Options_SelectionHighlightTimer = 0;
             }
             break;
@@ -290,8 +292,8 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
 
         // Leave to gameplay (if options menu was accessed with `Option` input action).
         if (g_GameWork.gameStatePrev == GameState_InGame &&
-            !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0) &&
-            (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.option_1A))
+            !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter) &&
+            (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.option))
         {
             Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
 
@@ -442,11 +444,12 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     }
 
     // Leave menu.
-    if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.cancel_2 |
-                                          (ControllerFlag_L2 | ControllerFlag_R2 | ControllerFlag_L1 | ControllerFlag_R1))) &&
+    if ((g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.cancel |
+                                          (ControllerFlag_L2 | ControllerFlag_R2 |
+                                           ControllerFlag_L1 | ControllerFlag_R1))) &&
         g_GameWork.gameStateSteps[0] != OptionsMenuState_LeaveExtraOptions)
     {
-        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+        if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
         {
             Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
         }
@@ -503,8 +506,8 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
     // Leave to gameplay (if options menu was accessed with `Option` input action).
     if (g_GameWork.gameStatePrev == GameState_InGame &&
-        !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0) &&
-        (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.option_1A))
+        !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter) &&
+        (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.option))
     {
         Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
 
@@ -536,8 +539,8 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     {
         case MainOptionsMenuEntry_Exit:
             // Exit menu to gameplay.
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
-                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
 
@@ -550,7 +553,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
         case MainOptionsMenuEntry_Controller:
             // Enter controller screen.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 Fs_QueueStartReadTim(FILE_TIM_OPTION2_TIM, IMAGE_BUFFER_3, &g_ControllerButtonAtlasImg);
@@ -565,7 +568,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
         case MainOptionsMenuEntry_ScreenPosition:
             // Enter screen position screen.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
 
@@ -578,7 +581,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             break;
 
         case MainOptionsMenuEntry_Brightness:
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 if (g_GameWork.gameStatePrev == GameState_MainMenu)
@@ -695,7 +698,8 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
     vol = 0;
 
-    if (g_Controller0->btnsClicked_10 & (ControllerFlag_L2 | ControllerFlag_R2 | ControllerFlag_L1 | ControllerFlag_R1))
+    if (g_Controller0->btnsClicked_10 & (ControllerFlag_L2 | ControllerFlag_R2 |
+                                         ControllerFlag_L1 | ControllerFlag_R1))
     {
         if (g_GameWork.gameStateSteps[0] == OptionsMenuState_EnterExtraOptions)
         {
@@ -713,8 +717,8 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
     // Reset selection cursor.
     if (((g_GameWork.gameStateSteps[0] != OptionsMenuState_EnterExtraOptions && g_MainOptionsMenu_SelectedEntry != MainOptionsMenuEntry_Exit) &&
-         !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)) &&
-        (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2))
+         !(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)) &&
+        (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel))
     {
         Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
 
@@ -977,13 +981,13 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
 
     // Draw active selection highlight.
-    highlightLine.vertex0_0.vx = HIGHLIGHT_OFFSET_X;
-    highlightLine.vertex1_4.vx = selectionHighlightFrom.vx +
-                                 Q12_MULT(selectionHighlightTo.vx - selectionHighlightFrom.vx, interpAlpha);
-    highlightLine.vertex1_4.vy = selectionHighlightFrom.vy +
-                                 Q12_MULT(selectionHighlightTo.vy - selectionHighlightFrom.vy, interpAlpha) +
-                                 LINE_OFFSET_Y;
-    highlightLine.vertex0_0.vy = highlightLine.vertex1_4.vy;
+    highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+    highlightLine.vertex1.vx = selectionHighlightFrom.vx +
+                               Q12_MULT(selectionHighlightTo.vx - selectionHighlightFrom.vx, interpAlpha);
+    highlightLine.vertex1.vy = selectionHighlightFrom.vy +
+                               Q12_MULT(selectionHighlightTo.vy - selectionHighlightFrom.vy, interpAlpha) +
+                               LINE_OFFSET_Y;
+    highlightLine.vertex0.vy = highlightLine.vertex1.vy;
     Options_Selection_HighlightDraw(&highlightLine, true, false);
 
     // Draw selection bullet points.
@@ -1061,22 +1065,22 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
     if (g_Options_SelectionHighlightTimer == 0)
     {
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
-        selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)    - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
-        selectionHighlightTo.vy   = ((u16)g_MainOptionsMenu_SelectedEntry * LINE_OFFSET_Y)        - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vy   = ((u16)g_MainOptionsMenu_SelectedEntry * LINE_OFFSET_Y)          - HIGHLIGHT_OFFSET_Y;
     }
 
     // Compute sine-based interpolation alpha.
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
 
     // Draw active selection highlight.
-    highlightLine.vertex0_0.vx = HIGHLIGHT_OFFSET_X;
-    highlightLine.vertex1_4.vx = selectionHighlightFrom.vx +
-                                 FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
-    highlightLine.vertex1_4.vy = selectionHighlightFrom.vy +
-                                 FP_FROM((selectionHighlightTo.vy - selectionHighlightFrom.vy) * interpAlpha, Q12_SHIFT) +
-                                 LINE_OFFSET_Y;
-    highlightLine.vertex0_0.vy = highlightLine.vertex1_4.vy;
+    highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+    highlightLine.vertex1.vx = selectionHighlightFrom.vx +
+                               FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
+    highlightLine.vertex1.vy = selectionHighlightFrom.vy +
+                               FP_FROM((selectionHighlightTo.vy - selectionHighlightFrom.vy) * interpAlpha, Q12_SHIFT) +
+                               LINE_OFFSET_Y;
+    highlightLine.vertex0.vy = highlightLine.vertex1.vy;
     Options_Selection_HighlightDraw(&highlightLine, true, false);
 
     // Draw selection bullet points.
@@ -1231,7 +1235,7 @@ void Options_ExtraOptionsMenu_ConfigDraw(void) // 0x801E4B2C
     Gfx_StringSetColor(StringColorId_White);
 
     // Draw left/right arrows for subset of options.
-    if (g_ExtraOptionsMenu_SelectedEntry < (u32)ExtraOptionsMenuEntry_Count) // TODO: Cast suggests `g_ExtraOptionsMenu_SelectedEntry` type might be unsigned.
+    if (g_ExtraOptionsMenu_SelectedEntry < (u32)ExtraOptionsMenuEntry_Count)
     {
         // Draw flashing left/right arrows.
         for (i = 0; i < 2; i++)
@@ -1487,7 +1491,7 @@ void Options_ScreenPosMenu_Control(void) // 0x801E53A0
             }
 
             // Start background color fade.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 if (screenPosMenu_BackgroundFade == 255)
                 {
@@ -1497,7 +1501,7 @@ void Options_ScreenPosMenu_Control(void) // 0x801E53A0
             }
 
             // Leave menu.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
 
@@ -1647,22 +1651,22 @@ void Options_ScreenPosMenu_ArrowsDraw(void) // 0x801E5A08
     }
 
     if ((g_Controller0->btnsClicked_10 & ControllerFlag_LStickUp) ||
-        (g_Controller0->btnsHeld_C & ControllerFlag_LStickUp))
+        (g_Controller0->btnsHeld_C     & ControllerFlag_LStickUp))
     {
         dirs[0] = true;
     }
     if ((g_Controller0->btnsClicked_10 & ControllerFlag_LStickDown) ||
-        (g_Controller0->btnsHeld_C & ControllerFlag_LStickDown))
+        (g_Controller0->btnsHeld_C     & ControllerFlag_LStickDown))
     {
         dirs[1] = true;
     }
     if ((g_Controller0->btnsClicked_10 & ControllerFlag_LStickLeft) ||
-        (g_Controller0->btnsHeld_C & ControllerFlag_LStickLeft))
+        (g_Controller0->btnsHeld_C     & ControllerFlag_LStickLeft))
     {
         dirs[2] = true;
     }
     if ((g_Controller0->btnsClicked_10 & ControllerFlag_LStickRight) ||
-        (g_Controller0->btnsHeld_C & ControllerFlag_LStickRight))
+        (g_Controller0->btnsHeld_C     & ControllerFlag_LStickRight))
     {
         dirs[3] = true;
     }
@@ -1775,10 +1779,10 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             }
 
             // Fade screen and leave menu.
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
-                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel))
             {
-                if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+                if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
                 {
                     Sd_PlaySfx(Sfx_MenuConfirm, 0, Q8(0.25f));
                 }
@@ -1912,8 +1916,8 @@ void Options_Selection_HighlightDraw(const s_Line2d* line, bool hasShadow, bool 
         setRGBC1(linePrim, 160, 128, 64,  0x50);
     }
 
-    setXY0Fast(linePrim, localLine->vertex0_0.vx, localLine->vertex0_0.vy);
-    setXY1Fast(linePrim, localLine->vertex1_4.vx, localLine->vertex1_4.vy);
+    setXY0Fast(linePrim, localLine->vertex0.vx, localLine->vertex0.vy);
+    setXY1Fast(linePrim, localLine->vertex1.vx, localLine->vertex1.vy);
     addPrim((u8*)ot->org + (hasShadow ? LAYER_36 : LAYER_24), linePrim);
     GsOUT_PACKET_P = (u8*)linePrim + sizeof(LINE_G2);
 
@@ -1928,8 +1932,8 @@ void Options_Selection_HighlightDraw(const s_Line2d* line, bool hasShadow, bool 
         setRGB2(poly, 0, 0, 0);
         setRGB3(poly, Q8_COLOR(0.375f), Q8_COLOR(0.375f), Q8_COLOR(0.375f));
         setXY4(poly,
-               localLine->vertex0_0.vx, localLine->vertex0_0.vy - STR_OFFSET_Y, localLine->vertex0_0.vx, localLine->vertex0_0.vy,
-               localLine->vertex1_4.vx, localLine->vertex1_4.vy - STR_OFFSET_Y, localLine->vertex1_4.vx, localLine->vertex1_4.vy);
+               localLine->vertex0.vx, localLine->vertex0.vy - STR_OFFSET_Y, localLine->vertex0.vx, localLine->vertex0.vy,
+               localLine->vertex1.vx, localLine->vertex1.vy - STR_OFFSET_Y, localLine->vertex1.vx, localLine->vertex1.vy);
         addPrim((u8*)ot->org + LAYER_36, poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
 
@@ -2021,9 +2025,9 @@ void Options_Selection_ArrowDraw(const s_Triangle2d* arrow, bool isFlashing, boo
         setRGBC2(arrowPoly, 0, 240, 240, 0x30);
     }
 
-    setXY0Fast(arrowPoly, arrow->vertex0_0.vx, arrow->vertex0_0.vy);
-    setXY1Fast(arrowPoly, arrow->vertex1_4.vx, arrow->vertex1_4.vy);
-    setXY2Fast(arrowPoly, arrow->vertex2_8.vx, arrow->vertex2_8.vy);
+    setXY0Fast(arrowPoly, arrow->vertex0.vx, arrow->vertex0.vy);
+    setXY1Fast(arrowPoly, arrow->vertex1.vx, arrow->vertex1.vy);
+    setXY2Fast(arrowPoly, arrow->vertex2.vx, arrow->vertex2.vy);
     addPrim((u8*)ot->org + LAYER_40, arrowPoly);
     GsOUT_PACKET_P = (u8*)arrowPoly + sizeof(POLY_G3);
 }
@@ -2063,15 +2067,15 @@ void Options_Selection_BulletPointDraw(const s_Quad2d* quad, bool isBorder, bool
             // Draw triangle.
             if (i != 0)
             {
-                setXY0Fast(poly, quad->vertex0_0.vx, quad->vertex0_0.vy);
-                setXY1Fast(poly, quad->vertex1_4.vx, quad->vertex1_4.vy);
-                setXY2Fast(poly, quad->vertex3_C.vx, quad->vertex3_C.vy);
+                setXY0Fast(poly, quad->vertex0.vx, quad->vertex0.vy);
+                setXY1Fast(poly, quad->vertex1.vx, quad->vertex1.vy);
+                setXY2Fast(poly, quad->vertex3.vx, quad->vertex3.vy);
             }
             else
             {
-                setXY0Fast(poly, quad->vertex0_0.vx, quad->vertex0_0.vy);
-                setXY1Fast(poly, quad->vertex2_8.vx, quad->vertex2_8.vy);
-                setXY2Fast(poly, quad->vertex3_C.vx, quad->vertex3_C.vy);
+                setXY0Fast(poly, quad->vertex0.vx, quad->vertex0.vy);
+                setXY1Fast(poly, quad->vertex2.vx, quad->vertex2.vy);
+                setXY2Fast(poly, quad->vertex3.vx, quad->vertex3.vy);
             }
         }
         else
@@ -2095,15 +2099,15 @@ void Options_Selection_BulletPointDraw(const s_Quad2d* quad, bool isBorder, bool
             // Draw triangle.
             if (i != 0)
             {
-                setXY0Fast(poly, quad->vertex3_C.vx, quad->vertex3_C.vy);
-                setXY1Fast(poly, quad->vertex1_4.vx, quad->vertex1_4.vy);
-                setXY2Fast(poly, quad->vertex2_8.vx, quad->vertex2_8.vy);
+                setXY0Fast(poly, quad->vertex3.vx, quad->vertex3.vy);
+                setXY1Fast(poly, quad->vertex1.vx, quad->vertex1.vy);
+                setXY2Fast(poly, quad->vertex2.vx, quad->vertex2.vy);
             }
             else
             {
-                setXY0Fast(poly, quad->vertex0_0.vx, quad->vertex0_0.vy);
-                setXY1Fast(poly, quad->vertex1_4.vx, quad->vertex1_4.vy);
-                setXY2Fast(poly, quad->vertex2_8.vx, quad->vertex2_8.vy);
+                setXY0Fast(poly, quad->vertex0.vx, quad->vertex0.vy);
+                setXY1Fast(poly, quad->vertex1.vx, quad->vertex1.vy);
+                setXY2Fast(poly, quad->vertex2.vx, quad->vertex2.vy);
             }
         }
 
@@ -2129,11 +2133,11 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
     {
         case ControllerMenuState_Exit:
             ScreenFade_Start(false, true, false);
-            selectedEntries.preset_0 = ControllerMenuState_Exit;
+            selectedEntries.preset = ControllerMenuState_Exit;
 
             // Leave menu.
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
-                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SD_Call(Sfx_MenuCancel);
 
@@ -2165,16 +2169,16 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
         case ControllerMenuState_Type1:
         case ControllerMenuState_Type2:
         case ControllerMenuState_Type3:
-            selectedEntries.preset_0 = g_GameWork.gameStateSteps[1];
+            selectedEntries.preset = g_GameWork.gameStateSteps[1];
 
             // Set binding preset.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 SD_Call(Sfx_MenuConfirm);
                 Settings_RestoreControlDefaults(g_GameWork.gameStateSteps[1] - 1);
             }
             // Reset selection cursor.
-            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 SD_Call(Sfx_MenuCancel);
                 g_GameWork.gameStateSteps[1] = ControllerMenuState_Exit;
@@ -2204,36 +2208,36 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
             break;
 
         case ControllerMenuState_Actions:
-            actionIdx = selectedEntries.action_4;
+            actionIdx = selectedEntries.action;
 
             // Move selection cursor up/down.
             if (g_Controller0->btnsPulsedGui_1C & ControllerFlag_LStickUp)
             {
                 if (actionIdx != InputAction_Enter)
                 {
-                    selectedEntries.action_4 = actionIdx - 1;
+                    selectedEntries.action = actionIdx - 1;
                 }
                 else
                 {
-                    selectedEntries.action_4 = InputAction_Option;
+                    selectedEntries.action = InputAction_Option;
                 }
             }
             else if (g_Controller0->btnsPulsedGui_1C & ControllerFlag_LStickDown)
             {
                 if (actionIdx != InputAction_Option)
                 {
-                    selectedEntries.action_4 = actionIdx + 1;
+                    selectedEntries.action = actionIdx + 1;
                 }
                 else
                 {
-                    selectedEntries.action_4 = InputAction_Enter;
+                    selectedEntries.action = InputAction_Enter;
                 }
             }
             // Move selection cursor left/right.
             else if (g_Controller0->btnsPulsedGui_1C & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
             {
                 g_GameWork.gameStateSteps[2] = 0;
-                g_GameWork.gameStateSteps[1] = selectedEntries.preset_0;
+                g_GameWork.gameStateSteps[1] = selectedEntries.preset;
             }
             // Bind button to input action.
             else
@@ -2265,13 +2269,16 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
     }
 
     // Play cursor navigation SFX.
-    if (g_Controller0->btnsPulsedGui_1C & (ControllerFlag_LStickUp | ControllerFlag_LStickRight | ControllerFlag_LStickDown | ControllerFlag_LStickLeft))
+    if (g_Controller0->btnsPulsedGui_1C & (ControllerFlag_LStickUp    |
+                                           ControllerFlag_LStickRight |
+                                           ControllerFlag_LStickDown  |
+                                           ControllerFlag_LStickLeft))
     {
         SD_Call(Sfx_MenuMove);
     }
 
     // Draw menu graphics.
-    Options_ControllerMenu_EntriesDraw(g_ControllerMenu_IsOnActionsPane, selectedEntries.preset_0, selectedEntries.action_4, boundActionIdx);
+    Options_ControllerMenu_EntriesDraw(g_ControllerMenu_IsOnActionsPane, selectedEntries.preset, selectedEntries.action, boundActionIdx);
 }
 
 s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx) // 0x801E6CF4
@@ -2292,7 +2299,10 @@ s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx) // 0x801E6CF4
     {
         btnFlag = 1 << i;
 
-        if ((btnFlag & (ControllerFlag_DpadUp | ControllerFlag_DpadRight | ControllerFlag_DpadDown | ControllerFlag_DpadLeft)) ||
+        if ((btnFlag & (ControllerFlag_DpadUp    |
+                        ControllerFlag_DpadRight |
+                        ControllerFlag_DpadDown  |
+                        ControllerFlag_DpadLeft)) ||
             !(btnFlag & g_Controller0->btnsClicked_10))
         {
             continue;
@@ -2303,9 +2313,9 @@ s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx) // 0x801E6CF4
         // Remove binding.
         if (boundBtnFlag & btnFlag)
         {
-            if ((actionIdx < InputAction_Skip ||
+            if ((actionIdx <  InputAction_Skip   ||
                  actionIdx == InputAction_Action ||
-                 actionIdx == InputAction_Aim ||
+                 actionIdx == InputAction_Aim    ||
                  actionIdx == InputAction_Item) &&
                 !(bindings[actionIdx] & ~btnFlag))
             {
@@ -2365,9 +2375,9 @@ s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx) // 0x801E6CF4
 
                     if (curActionIdx != NO_VALUE)
                     {
-                        if ((curActionIdx < InputAction_Skip ||
+                        if ((curActionIdx <  InputAction_Skip   ||
                              curActionIdx == InputAction_Action ||
-                             curActionIdx == InputAction_Aim ||
+                             curActionIdx == InputAction_Aim    ||
                              curActionIdx == InputAction_Item) &&
                             !(bindings[curActionIdx] & ~btnFlag))
                         {
@@ -2412,8 +2422,8 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     GsOT*    ot;
 
     /** @brief Draw modes for textured entry selection highlights in the controller config menu.
-     * 0 corresponds to the presets pane on the left,
-     * 1 corresponds to the actions pane on the right.
+     * 0: Left presets pane.
+     * 1: Right actions pane.
      */
     static DR_MODE SELECTION_HIGHLIGHT_DRAW_MODES[2] = {
         {
@@ -2435,8 +2445,8 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     };
 
     /** @brief Quads for textured entry selection highlights in the controller config menu.
-     * 0 corresponds to the presets pane on the left,
-     * 1 corresponds to the actions pane on the right.
+     * 0: Left presets pane.
+     * 1: Right actions pane.
      */
     static POLY_G4 SELECTION_HIGHLIGHT_QUADS[2] = {
         {

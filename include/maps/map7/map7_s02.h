@@ -66,8 +66,8 @@ extern u8 D_800E9D8E;
 extern s8 D_800E9ECC;
 extern u8 D_800E9ECD;
 
-/** Time. */
-extern s32 D_800E9ED0;
+extern q19_12 D_800E9ED0;
+
 extern s16 D_800E9ED4;
 extern s16 D_800E9ED6;
 extern s16 D_800E9ED8;
@@ -81,11 +81,11 @@ extern s_800EA494 D_800EA494;
 
 extern u8 D_800EA4A9;
 
-extern VECTOR3 D_800EB694;
-extern VECTOR3 D_800EB6A4;
+extern VECTOR3 g_Cutscene_CameraPositionTarget;
+extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 
 extern u8     D_800EB6B0;
-extern q19_12 D_800EB6B4; // Timer.
+extern q19_12 g_Cutscene_Timer; // Timer.
 
 extern s_WorldObjectDesc      g_WorldObject_Door;
 extern s_WorldObjectDesc      g_WorldObject_Beans[16];
@@ -158,7 +158,7 @@ void Ai_GhostDoctor_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDIN
 void Ai_GhostDoctor_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
 
 /** @brief Updates the transform of the `coord` matrix to the character's position, converting
- * from world space to geometry space.
+ * from world-space to geometry space.
  *
  * @param chara Reference character.
  * @param coord Output coord to update.

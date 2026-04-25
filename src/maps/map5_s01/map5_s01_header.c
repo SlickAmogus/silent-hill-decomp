@@ -32,7 +32,7 @@ void (*g_MapEventFuncs[])() = {
 };
 
 SH_MAP_OVERLAY_HEADER = {
-    .mapInfo_0                        = &MAP_INFOS[MapType_RSR],
+    .mapInfo                        = &MAP_INFOS[MapType_RSR],
     .getMapRoomIdxFunc_4              = Map_RoomIdxGet,
     .field_8                          = 19,
     .func_C                           = sharedFunc_800D929C_0_s00,

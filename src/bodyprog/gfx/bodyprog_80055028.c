@@ -1171,11 +1171,11 @@ void Bone_ModelAssign(s_Bone* bone, s_LmHeader* lmHdr, s32 modelHdrIdx)
     s_ModelHeader* modelHdr;
 
     modelHdr = lmHdr->modelHdrs;
-    bone->modelInfo_0.modelIdx_C = modelHdrIdx;
+    bone->modelInfo.modelIdx = modelHdrIdx;
 
     if (lmHdr->magic == LM_HEADER_MAGIC)
     {
-        bone->modelInfo_0.modelHdr_8 = &modelHdr[modelHdrIdx];
+        bone->modelInfo.modelHdr = &modelHdr[modelHdrIdx];
     }
 }
 
@@ -1200,8 +1200,8 @@ bool Lm_ModelFind(s_WorldObjectModel* model, s_LmHeader* lmHdr, s_WorldObjectMet
             if (!COMPARE_FILENAMES(&modelHdr->name_0, &sp10))
             {
                 result                       = true;
-                model->modelInfo_0.modelIdx_C = i;
-                model->modelInfo_0.modelHdr_8 = modelHdr;
+                model->modelInfo.modelIdx = i;
+                model->modelInfo.modelHdr = modelHdr;
             }
         }
     }
@@ -1340,7 +1340,7 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
     GsOT_TAG*      otTag;
     s_ModelHeader* modelHdr;
 
-    modelHdr = modelInfo->modelHdr_8;
+    modelHdr = modelInfo->modelHdr;
 
 #ifdef SH_PC_PORT
     if (modelHdr == NULL) {
@@ -1453,7 +1453,7 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
     scratchData = PSX_SCRATCH_ADDR(0);
 
-    modelHdr     = modelInfo->modelHdr_8;
+    modelHdr     = modelInfo->modelHdr;
 #ifdef SH_PC_PORT
     if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
         return;
@@ -1467,7 +1467,7 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
         static int _logCnt3 = 0;
         if (_logCnt3 < 50) {
             SH_DBG("[DRAW] modelIdx=%d meshCnt=%d vertOff=%u normOff=%u meshHdrs=%p",
-                modelInfo->modelIdx_C, modelHdr->meshCount_8,
+                modelInfo->modelIdx, modelHdr->meshCount_8,
                 vertOffset, normalOffset, (void*)modelHdr->meshHdrs_C);
             for (int _mi = 0; _mi < modelHdr->meshCount_8; _mi++) {
                 s_MeshHeader* _mh = &modelHdr->meshHdrs_C[_mi];
@@ -2829,7 +2829,7 @@ void func_80059D50(s32 arg0, s_ModelInfo* modelInfo, MATRIX* mat, s32 arg3, GsOT
 
     scratchData = PSX_SCRATCH_ADDR(0);
 
-    modelHdr = modelInfo->modelHdr_8;
+    modelHdr = modelInfo->modelHdr;
 
     for (curMeshHdr = &modelHdr->meshHdrs_C[0]; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
     {
@@ -2984,7 +2984,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     scratchData = PSX_SCRATCH_ADDR(0);
 
 #ifdef SH_PC_PORT
-    modelHdr = modelInfo->modelHdr_8;
+    modelHdr = modelInfo->modelHdr;
     if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
         return;
     }
@@ -3036,7 +3036,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     }
 
 #ifndef SH_PC_PORT
-    modelHdr     = modelInfo->modelHdr_8;
+    modelHdr     = modelInfo->modelHdr;
 #endif
     vertOffset   = modelHdr->vertexOffset_9;
     normalOffset = modelHdr->normalOffset_A;
@@ -3056,7 +3056,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
             if (_meshLog < 25) {
                 s_GteScratchData2* sd2 = (s_GteScratchData2*)scratchData;
                 SH_DBG("[MESH] mdl=%d vOff=%d verts=%d prims=%d env0=%d sZ[off]=%d,%d sXY[off]=(%d,%d),(%d,%d) t2=%d fB1=%d",
-                    modelInfo->modelIdx_C, vertOffset,
+                    modelInfo->modelIdx, vertOffset,
                     curMeshHdr->vertexCount_1,
                     curMeshHdr->primitiveCount_0,
                     g_WorldEnvWork.field_0,

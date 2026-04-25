@@ -31,8 +31,8 @@
 
 typedef struct
 {
-    s16 field_0;
-    s16 field_2; // Angle.
+    s16   field_0;
+    q3_12 field_2; // Angle.
 } s_800DFB44;
 
 typedef struct
@@ -56,7 +56,7 @@ extern u8 D_800DD594;
 /** Time. */
 extern q19_12 D_800DFAB8;
 
-extern u16 g_MapMsgSounds[]; // 0x800DFABC
+extern u16 g_Cutscene_MapMsgAudioCmds[];
 
 extern u8 D_800DFAC2;
 
@@ -71,14 +71,14 @@ extern q19_12 D_800DFAD0;
 
 extern s32 D_800DFAD4;
 
-extern bool g_WarpCamera; // 0x800DFAD8
+extern bool g_WarpCamera;
 
 extern q19_12 D_800DFADC;
 
 extern VECTOR3 D_800DFAE0[];  // }  TODO might be one big table.
 extern VECTOR3 D_800DFB28[3]; // }
 
-extern u8 g_MapMsgSoundIdx; // 0x800DFB58
+extern u8 g_Cutscene_MapMsgAudioIdx;
 
 extern s32 D_800DFB40;
 
@@ -88,7 +88,7 @@ extern s_800DFB48 D_800DFB48;
 
 extern s32 D_800DFB54;
 
-extern s32 D_800DFB5C;
+extern q19_12 D_800DFB5C;
 
 extern u8 D_800DFB60;
 
@@ -108,17 +108,90 @@ extern u8 D_800E34EC;
 
 extern u8 D_800E39AC;
 
+// Wheelchair and its spinning wheel in the alley?
 extern s_WorldObjectModel D_800E3A5C[2];
+extern VECTOR3            D_800E3A9C;
+extern SVECTOR3           D_800E3AAC;
 
-extern VECTOR3 D_800E3A9C;
+/** Open alley gate event? */
+void func_800D9610(void);
 
-extern SVECTOR3 D_800E3AAC;
+/** @brief Handles the cutscene event in which Harry wakes up from the car crash to find Cheryl missing. */
+void MapEvent_CutsceneOpening(void);
 
-void func_800D0124(void);
+/** @brief Handles the cutscene event in which Harry hears Cheryl's footsteps for the first time and moves toward their
+ * source.
+ */
+void MapEvent_CutsceneCherylFootsteps0(void);
 
+/** @brief Handles the cutscene event in which Harry hears Cheryl's footsteps for the first time and moves toward their
+ * source.
+ */
+void MapEvent_CutsceneCherylFootsteps1(void);
+
+/** @brief Handles the cutscene event in which Harry hears Cheryl's footsteps for the first time and moves toward their
+ * source.
+ */
+void MapEvent_CutsceneCherylFootsteps2(void);
+
+// Plays distant Cheryl footstep SFX?
+void Cheryl_DistantFootstepSfxPlay(void);
+
+/** @brief Handles the cutscene event in which Harry spots Cheryl in the fog for the first time and begins to follow
+ * her.
+ */
+void MapEvent_CutsceneCherylSpotted(void);
+
+/** @brief Handles the cutscene event in which Harry is redirected to searching for Cheryl after the player attempts to
+ * run off in the wrong direction.
+ */
+void MapEvent_CutsceneCherylRedirect0(void);
+
+/** @brief Handles the cutscene event in which Harry is redirected to searching for Cheryl after the player attempts to
+ * run off in the wrong direction.
+ */
+void MapEvent_CutsceneCherylRedirect1(void);
+
+/** @brief Handles the cutscene event in which Harry is redirected to searching for Cheryl after the player attempts to
+ * run off in the wrong direction.
+ */
+void MapEvent_CutsceneCherylRedirect2(void);
+
+/** @brief Handles the cutscene event in which Harry is redirected to searching for Cheryl after the player attempts to
+ * run off in the wrong direction.
+ */
+void MapEvent_CutsceneCherylRedirect3(void);
+
+/** @brief Handles the cutscene event in which Harry spots Cheryl in the fog for the second time and follows her into
+ * the alley.
+ */
+void MapEvent_CutsceneCherylIntoTheAlley(void);
+
+// TODO: Which cutscene?
+void func_800DB26C(void);
+
+/** @brief Handles the cutscene event in which the alley gets darker and Harry lights a match. */
+void MapEven_CutsceneAlleyGetsDarker(void);
+
+// Dead end cutscene
+void func_800DB870(void);
+
+/** @brief Handles the cutscene event in which Harry spots the dead body on a chain link fence and is promptly ambushed
+ * by Grey Children.
+ */
 void MapEvent_CutsceneAlleyNightmare(void);
 
+// Stops sound effects and warps the player to the ground.
 void func_800DBE00(void);
+
+void Map_WorldObjectsInit(void);
+
+void Map_WorldObjectsUpdate(void);
+
+/** @brief Handles the map event which spawns Grey Children to ambush Harry. */
+void MapEvent_GreyChildrenSpawn(void);
+
+// Alley rail camera setup events?
 
 void func_800DC33C(void);
 
@@ -128,53 +201,12 @@ void func_800DC8D8(void);
 
 void func_800DCA30(void);
 
+void func_800DCC54(void);
+
 s32 func_800DCDA8(void);
 
 s32 func_800DCF38(s32);
 
 void func_800DD0CC(void);
-
-void Map_WorldObjectsInit(void);
-
-void Map_WorldObjectsUpdate(void);
-
-void MapEvent_GreyChildrenSpawn(void);
-
-void func_800DD0CC(void);
-
-void func_800DCC54(void);
-
-// Plays distant Cheryl footstep SFX?
-void func_800DA454(void);
-
-void func_800DA5A0(void);
-
-void func_800D9610(void);
-
-void func_800D9D98(void);
-
-void func_800DA028(void);
-
-void func_800DA254(void);
-
-void func_800DAA68(void);
-
-void func_800DAB8C(void);
-
-void func_800DACB0(void);
-
-void func_800DADD4(void);
-
-void func_800DAEFC(void);
-
-void func_800DB26C(void);
-
-void func_800DB514(void);
-
-void func_800DB870(void);
-
-void func_800DADD4(void);
-
-void MapEvent_OpeningCutscene(void);
 
 #endif

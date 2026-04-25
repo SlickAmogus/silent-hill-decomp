@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
@@ -119,7 +120,7 @@ void func_800D0B64(void) // 0x800D0B64
     #define lisaChara g_SysWork.npcs[0]
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < EventState_Skip)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -132,15 +133,15 @@ void func_800D0B64(void) // 0x800D0B64
             Savegame_EventFlagClear(EventFlag_476);
             func_8003A16C();
 
-            g_MapMsgSoundIdx = 0;
+            g_Cutscene_MapMsgAudioIdx = 0;
             D_800D31D8 = 0;
 
             Savegame_EventFlagSet(EventFlag_476);
             Fs_QueueStartRead(FILE_ANIM_HSPTL6_DMS, FS_BUFFER_11);
             Fs_QueueWaitForEmpty();
-            DmsHeader_FixOffsets((s_DmsHeader*)FS_BUFFER_11);
+            Dms_HeaderFixOffsets((s_DmsHeader*)FS_BUFFER_11);
 
-            g_Timer0 = Q12(0.0f);
+            g_Cutscene_Timer = Q12(0.0f);
             g_SysWork.field_235C = NULL;
             g_SysWork.field_236C = NULL;
             g_SysWork.pointLightIntensity = Q12(0.5f);
@@ -167,7 +168,7 @@ void func_800D0B64(void) // 0x800D0B64
             break;
 
         case 1:
-            Map_MessageWithAudio(15, &g_MapMsgSoundIdx, &g_MapMsgSounds);
+            Map_MessageWithAudio(15, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
             break;
 
         case 2:
@@ -184,7 +185,7 @@ void func_800D0B64(void) // 0x800D0B64
             break;
 
         case 5:
-            Map_MessageWithAudio(16, &g_MapMsgSoundIdx, &g_MapMsgSounds);
+            Map_MessageWithAudio(16, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
             break;
 
         case 6:
@@ -192,8 +193,8 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 7:
-            Map_MessageWithAudio(30, &g_MapMsgSoundIdx, &g_MapMsgSounds);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(2.5f), Q12(1.0f), Q12(44.0f), false, true);
+            Map_MessageWithAudio(30, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(2.5f), Q12(1.0f), Q12(44.0f), false, true);
             break;
 
         case 8:
@@ -201,13 +202,13 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 9:
-            Map_MessageWithAudio(30, &g_MapMsgSoundIdx, &g_MapMsgSounds);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(2.5f), Q12(1.0f), Q12(62.0f), true, false);
+            Map_MessageWithAudio(30, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(2.5f), Q12(1.0f), Q12(62.0f), true, false);
             break;
 
         case 10:
             SysWork_StateStepIncrementDelayed(Q12(0.4f), false);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(2.5f), Q12(1.0f), Q12(62.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(2.5f), Q12(1.0f), Q12(62.0f), true, false);
             break;
 
         case 11:
@@ -216,9 +217,9 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 12:
-            Map_MessageWithAudio(35, &g_MapMsgSoundIdx, &g_MapMsgSounds);
+            Map_MessageWithAudio(35, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
             SysWork_StateStepIncrementDelayed(Q12(0.5f), false);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(2.5f), Q12(1.0f), Q12(65.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(2.5f), Q12(1.0f), Q12(65.0f), true, false);
             break;
 
         case 13:
@@ -226,8 +227,8 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 14:
-            Map_MessageWithAudio(35, &g_MapMsgSoundIdx, &g_MapMsgSounds);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(2.5f), Q12(1.0f), Q12(65.0f), true, false);
+            Map_MessageWithAudio(35, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(2.5f), Q12(1.0f), Q12(65.0f), true, false);
             break;
 
         case 15:
@@ -239,12 +240,12 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 17:
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(7.5f), Q12(65.0f), Q12(81.0f), true, true);
-            Map_MessageWithAudio(37, &g_MapMsgSoundIdx, &g_MapMsgSounds);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(7.5f), Q12(65.0f), Q12(81.0f), true, true);
+            Map_MessageWithAudio(37, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
             break;
 
         case 18:
-            func_80088F94(&lisaChara, 0, 0);
+            Chara_ModelCharaIdClear(&lisaChara, 0, 0);
             func_80085EB8(0, &playerChara, 139, false);
 
             Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(16.3f), Q12(-1.55f), Q12(-138.6f));
@@ -258,8 +259,8 @@ void func_800D0B64(void) // 0x800D0B64
             SysWork_StateStepIncrement(0);
 
         case 19:
-            Map_MessageWithAudio(37, &g_MapMsgSoundIdx, &g_MapMsgSounds);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, false);
+            Map_MessageWithAudio(37, &g_Cutscene_MapMsgAudioIdx, &g_Cutscene_MapMsgAudioCmds);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, false);
             break;
 
         case 20:
@@ -271,11 +272,11 @@ void func_800D0B64(void) // 0x800D0B64
             break;
         case 22:
             MapMsg_DisplayAndHandleSelection(false, 38, 0, 0, 0, false);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, false);
             break;
 
         case 23:
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, true);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(82.0f), Q12(105.0f), true, true);
             break;
 
         case 24:
@@ -285,11 +286,11 @@ void func_800D0B64(void) // 0x800D0B64
 
         case 25:
             MapMsg_DisplayAndHandleSelection(false, 40, 0, 0, 0, false);
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(6.0f), Q12(106.0f), Q12(150.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(6.0f), Q12(106.0f), Q12(150.0f), true, false);
             break;
 
         case 26:
-            SysWork_StateStepIncrementAfterTime(&g_Timer0, Q12(6.0f), Q12(106.0f), Q12(150.0f), true, true);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(6.0f), Q12(106.0f), Q12(150.0f), true, true);
             break;
 
         case EventState_Skip:
@@ -297,7 +298,7 @@ void func_800D0B64(void) // 0x800D0B64
             break;
 
         case 28:
-            g_Timer0 = Q12(150.0f);
+            g_Cutscene_Timer = Q12(150.0f);
             SysWork_StateStepIncrement(0);
             break;
 
@@ -314,9 +315,9 @@ void func_800D0B64(void) // 0x800D0B64
             g_SysWork.pointLightIntensity = Q12(1.0f);
 
             Savegame_EventFlagSet(EventFlag_471);
-            func_80088F94(&lisaChara, 0, 0);
+            Chara_ModelCharaIdClear(&lisaChara, 0, 0);
 
-            g_Timer0 = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             SD_Call(19);
 
@@ -329,18 +330,18 @@ void func_800D0B64(void) // 0x800D0B64
             break;
     }
 
-    if (g_Timer0 >= Q12(0.0f))
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&playerChara.position, &playerChara.rotation, "HERO", g_Timer0, (s_DmsHeader*)FS_BUFFER_11);
+        Dms_CharacterTransformGet(&playerChara.position, &playerChara.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_11);
 
         if (g_SysWork.sysStateSteps[0] < 18)
         {
-            Dms_CharacterGetPosRot(&lisaChara.position, &lisaChara.rotation, "LISA", g_Timer0, (s_DmsHeader*)FS_BUFFER_11);
+            Dms_CharacterTransformGet(&lisaChara.position, &lisaChara.rotation, "LISA", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_11);
         }
 
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&g_CutsceneCameraPosition, &g_CutsceneCameraLookAt, NULL, g_Timer0, (s_DmsHeader*)FS_BUFFER_11));
-        vcUserCamTarget(&g_CutsceneCameraPosition, NULL, true);
-        vcUserWatchTarget(&g_CutsceneCameraLookAt, NULL, true);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPosition, &g_Cutscene_CameraLookAt, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_11));
+        vcUserCamTarget(&g_Cutscene_CameraPosition, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAt, NULL, true);
 
         if (g_SysWork.sysStateSteps[0] == 1 || g_SysWork.sysStateSteps[0] == 2)
         {
@@ -454,7 +455,7 @@ void func_800D1604(void) // 0x800D1604
 
     GsOUT_PACKET_P = ptr->field_8;
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip)
     {
         if (g_SysWork.sysStateSteps[0] >= 3)
         {
@@ -471,7 +472,7 @@ void func_800D1604(void) // 0x800D1604
             Player_ControlFreeze();
             SysWork_StateStepIncrementAfterFade(false, true, 2, 0, false);
 
-            g_MapMsgSoundIdx = 0;
+            g_Cutscene_MapMsgAudioIdx = 0;
             D_800D31DC[1]    = 0;
             D_800D31DC[0]    = 0;
 
@@ -504,7 +505,7 @@ void func_800D1604(void) // 0x800D1604
             break;
 
         case 6:
-            Map_MessageWithAudio(42, &g_MapMsgSoundIdx, &D_800D31C4);
+            Map_MessageWithAudio(42, &g_Cutscene_MapMsgAudioIdx, &D_800D31C4);
 
         case 5:
             if (g_SysWork.sysStateSteps[0] == 5)
@@ -582,7 +583,7 @@ void func_800D1604(void) // 0x800D1604
 
         case 8:
             func_800866D4(53, 1, false);
-            Map_MessageWithAudio(43, &g_MapMsgSoundIdx, &D_800D31C4);
+            Map_MessageWithAudio(43, &g_Cutscene_MapMsgAudioIdx, &D_800D31C4);
             Camera_LookAtSet(&g_SysWork.playerWork.player.position, Q12(-1.6f), Q12(-0.3f), 0, 0, 0, 0, 0, false);
 
             g_DeltaTime >>= 2;
@@ -592,7 +593,7 @@ void func_800D1604(void) // 0x800D1604
 
         case 9:
             func_800866D4(53, 1, false);
-            Map_MessageWithAudio(43, &g_MapMsgSoundIdx, &D_800D31C4);
+            Map_MessageWithAudio(43, &g_Cutscene_MapMsgAudioIdx, &D_800D31C4);
             Camera_LookAtSet(&g_SysWork.playerWork.player.position, Q12(-1.6f), Q12(-0.3f), 0, 0, 0, 0, 0, false);
 
             g_DeltaTime >>= 2;
@@ -636,7 +637,7 @@ void func_800D1604(void) // 0x800D1604
         case 11:
             func_800866D4(53, 1, false);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.6f), false);
-            Map_MessageWithAudio(46, &g_MapMsgSoundIdx, &D_800D31C4);
+            Map_MessageWithAudio(46, &g_Cutscene_MapMsgAudioIdx, &D_800D31C4);
 
             g_DeltaTime >>= 2;
             D_800D31DC[0] = MIN(D_800D31DC[0] + Q12_MULT_PRECISE(g_DeltaTime, 0x428), 0x1EB);

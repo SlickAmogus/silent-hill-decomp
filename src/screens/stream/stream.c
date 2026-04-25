@@ -87,7 +87,7 @@ void GameState_DebugMoviePlayer_Update(void) // 0x801E2908
 {
     static s32 g_Debug_MoviePlayerIdx = 0; // 0x801E3F3C
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
     {
         Game_StateSetNext(GameState_Unk16); // Changes to non-existent state 22 and crashes. Maybe removed debug menu.
     }
@@ -110,7 +110,7 @@ void GameState_DebugMoviePlayer_Update(void) // 0x801E2908
     Text_Debug_Draw(Text_Debug_IntToString(2, g_Debug_MoviePlayerIdx));
 #endif
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
     {
         open_main(FILE_XA_ZC_14392 - g_Debug_MoviePlayerIdx, 0);
     }
@@ -251,7 +251,7 @@ void movie_main(char* file_name, s32 f_size, s32 sector) // 0x801E2B9C
         strSync(&m->dec);
         VSync(SyncMode_Wait);
     }
-    while (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    while (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
            MainLoop_ShouldWarmReset() <= ResetType_None);
 
     SsSetSerialVol(0, 0, 0);
@@ -275,9 +275,9 @@ void strSetDefDecEnv(DECENV* dec, s32 x0, s32 y0, s32 x1, s32 y1) // 0x801E2F8C
     dec->rectid    = 0;
     dec->isdone    = 0;
 
-    setRECT(&dec->rect[0], x0, y0, SCREEN_WIDTH * PPW, SCREEN_HEIGHT);
-    setRECT(&dec->rect[1], x1, y1, SCREEN_WIDTH * PPW, SCREEN_HEIGHT);
-    setRECT(&dec->slice, x0, y0, 16 * PPW, SCREEN_HEIGHT);
+    setRECT(&dec->rect[0], x0, y0, PPW(SCREEN_WIDTH), SCREEN_HEIGHT);
+    setRECT(&dec->rect[1], x1, y1, PPW(SCREEN_WIDTH), SCREEN_HEIGHT);
+    setRECT(&dec->slice, x0, y0, PPW(16), SCREEN_HEIGHT);
 }
 
 void strInit(CdlLOC* loc, void (*callback)()) // 0x801E300C
@@ -412,7 +412,7 @@ u_long* strNext(DECENV* dec) // 0x801E331C
         m->height = sector->height;
     }
 
-    dec->rect[0].w = dec->rect[1].w = m->width * PPW;
+    dec->rect[0].w = dec->rect[1].w = PPW(m->width);
     dec->rect[0].h = dec->rect[1].h = m->height;
     dec->slice.h                    = m->height;
     return addr;

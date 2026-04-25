@@ -17,22 +17,22 @@
  *   SVECTOR3:                6 bytes (no pointers, layout-identical)
  *
  * PSX binary layout at buffer start:
- *   0x00 [1]  isLoaded_0
- *   0x01 [1]  characterCount_1
- *   0x02 [1]  intervalCount_2
+ *   0x00 [1]  isLoaded
+ *   0x01 [1]  characterCount
+ *   0x02 [1]  intervalCount
  *   0x03 [1]  field_3
  *   0x04 [4]  field_4
  *   0x08 [4]  intervalOffset    (relative to buffer start)
- *   0x0C [12] origin_C          (VECTOR3: 3 x s32)
+ *   0x0C [12] origin          (VECTOR3: 3 x s32)
  *   0x18 [4]  charactersOffset  (relative to buffer start)
  *   0x1C [16] camera entry      (s_DmsEntry, PSX layout)
  *   --- total header region: 0x2C (44 bytes) ---
  *
  * PSX s_DmsEntry layout (16 bytes):
- *   0x00 [2]  keyframeCount_0
- *   0x02 [1]  svectorCount_2
+ *   0x00 [2]  keyframeCount
+ *   0x02 [1]  svectorCount
  *   0x03 [1]  field_3
- *   0x04 [4]  name_4[4]
+ *   0x04 [4]  name[4]
  *   0x08 [4]  svectorOffset    (relative to buffer start)
  *   0x0C [4]  keyframeOffset   (relative to buffer start)
  */
@@ -43,6 +43,7 @@
 #include <string.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 
 #define PSX_SIZEOF_DMS_HEADER 28   /* 0x1C — just the header fields, no camera */
 #define PSX_SIZEOF_DMS_ENTRY  16
@@ -60,23 +61,23 @@ static inline s16 rd16s(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 
 static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
 {
-    dst->keyframeCount_0 = rd16s(&src[0]);
-    dst->svectorCount_2  = src[2];
+    dst->keyframeCount = rd16s(&src[0]);
+    dst->svectorCount  = src[2];
     dst->field_3         = src[3];
-    memcpy(dst->name_4, &src[4], 4);
+    memcpy(dst->name, &src[4], 4);
 
     u32 svecOff = rd32(&src[8]);
     u32 kfOff   = rd32(&src[12]);
 
     /* SVECTORs and keyframes — copy to heap so they survive buffer overwrites */
-    s32 svecBytes = dst->svectorCount_2 * sizeof(SVECTOR3);
-    dst->svectorPtr_8 = (SVECTOR3*)malloc(svecBytes);
-    memcpy(dst->svectorPtr_8, base + svecOff, svecBytes);
+    s32 svecBytes = dst->svectorCount * sizeof(SVECTOR3);
+    dst->svectors = (SVECTOR3*)malloc(svecBytes);
+    memcpy(dst->svectors, base + svecOff, svecBytes);
 
     /* Keyframe size depends on whether this is a camera or character entry.
      * We don't know yet, so store raw pointer temporarily — the caller
-     * (DmsHeader_FixOffsets_PC) will heap-copy keyframes after parsing. */
-    dst->keyframes_C.character = (s_DmsKeyframeCharacter*)(base + kfOff);
+     * (Dms_HeaderFixOffsets_PC) will heap-copy keyframes after parsing. */
+    dst->keyframes.character = (s_DmsKeyframeCharacter*)(base + kfOff);
 }
 
 /**
@@ -89,7 +90,7 @@ static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
  * Intervals are also heap-copied since they may overlap with the expanded
  * 64-bit header region (PSX header = 44 bytes, 64-bit header = 64 bytes).
  */
-void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
+void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 {
     u8* raw = (u8*)dmsHdr;
 
@@ -100,7 +101,7 @@ void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
            raw[8], raw[9], raw[10], raw[11]);
     fflush(stdout);
 
-    /* Check if already reformatted (isLoaded_0 is at byte 0 in both layouts) */
+    /* Check if already reformatted (isLoaded is at byte 0 in both layouts) */
     if (raw[0] == 1)
     {
         printf("[SH] DmsFixOffsets_PC: already loaded, skipping\n");
@@ -129,7 +130,7 @@ void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
     ParseDmsEntry(&camera, &raw[PSX_SIZEOF_DMS_HEADER], raw);
 
     printf("  camera: keyframes=%d svecs=%d name=%.4s\n",
-           camera.keyframeCount_0, camera.svectorCount_2, camera.name_4);
+           camera.keyframeCount, camera.svectorCount, camera.name);
 
     /* Parse character entries from PSX layout (16 bytes each) into heap */
     s_DmsEntry* characters = NULL;
@@ -142,8 +143,8 @@ void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
                           raw + charactersOff + i * PSX_SIZEOF_DMS_ENTRY,
                           raw);
             printf("  character[%d]: name=%.4s keyframes=%d svecs=%d\n",
-                   i, characters[i].name_4, characters[i].keyframeCount_0,
-                   characters[i].svectorCount_2);
+                   i, characters[i].name, characters[i].keyframeCount,
+                   characters[i].svectorCount);
         }
     }
 
@@ -161,19 +162,19 @@ void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
 
     /* Heap-copy camera keyframes */
     {
-        s32 camKfBytes = camera.keyframeCount_0 * sizeof(s_DmsKeyframeCamera);
+        s32 camKfBytes = camera.keyframeCount * sizeof(s_DmsKeyframeCamera);
         s_DmsKeyframeCamera* camKfHeap = (s_DmsKeyframeCamera*)malloc(camKfBytes);
-        memcpy(camKfHeap, camera.keyframes_C.camera, camKfBytes);
-        camera.keyframes_C.camera = camKfHeap;
+        memcpy(camKfHeap, camera.keyframes.camera, camKfBytes);
+        camera.keyframes.camera = camKfHeap;
     }
 
     /* Heap-copy character keyframes */
     for (int i = 0; i < characterCount; i++)
     {
-        s32 charKfBytes = characters[i].keyframeCount_0 * sizeof(s_DmsKeyframeCharacter);
+        s32 charKfBytes = characters[i].keyframeCount * sizeof(s_DmsKeyframeCharacter);
         s_DmsKeyframeCharacter* charKfHeap = (s_DmsKeyframeCharacter*)malloc(charKfBytes);
-        memcpy(charKfHeap, characters[i].keyframes_C.character, charKfBytes);
-        characters[i].keyframes_C.character = charKfHeap;
+        memcpy(charKfHeap, characters[i].keyframes.character, charKfBytes);
+        characters[i].keyframes.character = charKfHeap;
     }
 
     /*
@@ -184,17 +185,17 @@ void DmsHeader_FixOffsets_PC(s_DmsHeader* dmsHdr)
     if (g_DmsHeapHeader) free(g_DmsHeapHeader);
     g_DmsHeapHeader = (s_DmsHeader*)calloc(1, sizeof(s_DmsHeader));
 
-    g_DmsHeapHeader->isLoaded_0       = 1;
-    g_DmsHeapHeader->characterCount_1 = characterCount;
-    g_DmsHeapHeader->intervalCount_2  = intervalCount;
+    g_DmsHeapHeader->isLoaded       = 1;
+    g_DmsHeapHeader->characterCount = characterCount;
+    g_DmsHeapHeader->intervalCount  = intervalCount;
     g_DmsHeapHeader->field_3          = field_3;
     g_DmsHeapHeader->field_4          = field_4;
-    g_DmsHeapHeader->intervalPtr_8    = intervals;
-    g_DmsHeapHeader->origin_C.vx      = originVx;
-    g_DmsHeapHeader->origin_C.vy      = originVy;
-    g_DmsHeapHeader->origin_C.vz      = originVz;
-    g_DmsHeapHeader->characters_18    = characters;
-    g_DmsHeapHeader->camera_1C        = camera;
+    g_DmsHeapHeader->intervals    = intervals;
+    g_DmsHeapHeader->origin.vx      = originVx;
+    g_DmsHeapHeader->origin.vy      = originVy;
+    g_DmsHeapHeader->origin.vz      = originVz;
+    g_DmsHeapHeader->characters    = characters;
+    g_DmsHeapHeader->camera        = camera;
 
     /* Also write into the buffer so code that reads it directly still works */
     memset(dmsHdr, 0, sizeof(s_DmsHeader));

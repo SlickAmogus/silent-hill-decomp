@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
@@ -205,7 +206,7 @@ void func_800D2668(void) // 0x800D2668
     SVECTOR3* tmpSvec;
 
     // Skip.
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4 &&
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip &&
         g_SysWork.sysStateSteps[0] >= 2 && g_SysWork.sysStateSteps[0] < 23)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -227,7 +228,7 @@ void func_800D2668(void) // 0x800D2668
             Chara_Spawn(Chara_Lisa, 0, Q12(4.4f), Q12(269.9f), 0, 3);
 
             sharedFunc_800D88AC_0_s00(&g_SysWork.npcs[0]);
-            DmsHeader_FixOffsets(FS_BUFFER_11);
+            Dms_HeaderFixOffsets(FS_BUFFER_11);
 
             g_SysWork.field_30 = 20;
             ScreenFade_ResetTimestep();
@@ -249,7 +250,7 @@ void func_800D2668(void) // 0x800D2668
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
 
-            D_800D5A40 = 0;
+            g_Cutscene_Timer = 0;
             D_800D5A4E = 0;
 
             SysWork_StateStepIncrement(0);
@@ -274,11 +275,11 @@ void func_800D2668(void) // 0x800D2668
 
         case 5:
             Map_MessageWithAudio(19, &D_800D5A3C, &D_800D599C);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(10.0f), Q12(1.0f), Q12(21.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(1.0f), Q12(21.0f), true, false);
             break;
 
         case 6:
-            D_800D5A40 = Q12(22.0f);
+            g_Cutscene_Timer = Q12(22.0f);
 
             func_80085EB8(0, &g_SysWork.npcs[0], 7, false);
             SysWork_StateStepIncrement(0);
@@ -334,23 +335,23 @@ void func_800D2668(void) // 0x800D2668
 
         case 18:
             Map_MessageWithAudio(42, &D_800D5A3C, &D_800D599C);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
             break;
 
         case 19:
             SysWork_StateStepIncrementDelayed(Q12(0.5f), false);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
             break;
 
         case 20:
             Map_MessageWithAudio(43, &D_800D5A3C, &D_800D599C);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
             break;
 
         case 21:
             Map_MessageWithAudio(45, &D_800D5A3C, &D_800D599C);
             SysWork_StateStepIncrementDelayed(Q12(2.2f), false);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
 
             if (g_SysWork.sysStateSteps[0] != 21)
             {
@@ -360,12 +361,12 @@ void func_800D2668(void) // 0x800D2668
 
         case 22:
             Map_MessageWithAudio(45, &D_800D5A3C, &D_800D599C);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
             break;
 
         case 23:
             SysWork_StateStepIncrementAfterFade(1, true, 0, 0, false);
-            SysWork_StateStepIncrementAfterTime(&D_800D5A40, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
+            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(9.0f), Q12(23.0f), Q12(139.0f), true, false);
             break;
 
         case 24:
@@ -381,9 +382,9 @@ void func_800D2668(void) // 0x800D2668
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             sharedFunc_800D2EF4_0_s00();
-            func_80088F94(g_SysWork.npcs, 0, 0);
+            Chara_ModelCharaIdClear(g_SysWork.npcs, 0, 0);
 
-            D_800D5A40 = NO_VALUE;
+            g_Cutscene_Timer = NO_VALUE;
 
             Savegame_EventFlagSet(EventFlag_294);
             Savegame_EventFlagSet(EventFlag_MapMark_AltHospital1F_WomensBathroomBroken);
@@ -421,13 +422,13 @@ void func_800D2668(void) // 0x800D2668
         }
     }
 
-    if (D_800D5A40 >= Q12(0.0f))
+    if (g_Cutscene_Timer >= Q12(0.0f))
     {
-        Dms_CharacterGetPosRot(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", D_800D5A40, FS_BUFFER_11);
-        Dms_CharacterGetPosRot(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "LISA", D_800D5A40, FS_BUFFER_11);
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&D_800D5A20, &D_800D5A30, NULL, D_800D5A40, FS_BUFFER_11));
-        vcUserCamTarget(&D_800D5A20, NULL, true);
-        vcUserWatchTarget(&D_800D5A30, NULL, true);
+        Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, FS_BUFFER_11);
+        Dms_CharacterTransformGet(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "LISA", g_Cutscene_Timer, FS_BUFFER_11);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, FS_BUFFER_11));
+        vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
+        vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
     }
 }
 
@@ -575,7 +576,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D3DA4
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S04_HealthDrink0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -583,7 +584,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D3DA4
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S04_HandgunBullets))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position_0, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
         }
     }
 }
@@ -592,8 +593,8 @@ void func_800D43B8(void) // 0x800D43B8
 {
     if (Savegame_EventFlagGet(EventFlag_300))
     {
-        func_80088FF4(Chara_PuppetDoctor, 2, 1);
-        func_80088FF4(Chara_PuppetDoctor, 3, 1);
+        Chara_SpawnFlagsSet(Chara_PuppetDoctor, 2, SpawnFlag_0);
+        Chara_SpawnFlagsSet(Chara_PuppetDoctor, 3, SpawnFlag_0);
     }
 }
 

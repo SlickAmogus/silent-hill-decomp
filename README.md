@@ -1,10 +1,10 @@
 ## About this fork
 
 > [!IMPORTANT]
-This project itself **is not**, and **will not**, produce a port, to PC or any other platform. It is a **decompilation** of the original game code which can be compiled back into a binary identical to the original. This codebase is *NOT* port-ready, though preliminary efforts and *sensible, slow progress* is being made which can be followed in the Discord server. There is no rush.
+This project itself **is not**, and **will not**, produce a port, to PC or any other platform. It is a **decompilation** of the original game code which can be compiled back into a binary identical to the original. This codebase is **not** port-ready, though preliminary efforts and **sensible, slow progress** is being made which can be followed in the Discord server. There is no rush.
 
 > [!IMPORTANT]
-If you are a journalist, put in the effort to contact the people involved and do your due research. *DO NOT* spread declarative misinformation about what this project means. We've already had a few cases of sensationalism which set very incorrect expectations.
+If you are a journalist, put in the effort to contact the people involved and do your due research. **DO NOT** spread declarative misinformation about what this project means. We've already had a few cases of sensationalism which set very incorrect expectations.
 
 ## Progress
 
@@ -15,7 +15,7 @@ If you are a journalist, put in the effort to contact the people involved and do
 Reaching 100% means every function in the game is accounted for, but that's **only the end of the first phase, not the project as a whole**.
 
 
-- **Deobfuscation and naming**: many functions and variables still have generated names like `func_80241A30`. We'll need to figure out the actual purposes of these and name them meaningfully.
+- **Deobfuscation and naming**: many functions and variables still have generated names like `func_80241A30`. We'll need to figure out the actual purposes of these and name them appropriately.
 - **Data migration**: raw binary data needs to be parsed into proper C structs so the data can be made understandable.
 - **Shiftability**: making the build not rely on hardcoded memory addresses so that code and data can be modified without breaking everything.
 - **Documentation**: understanding and documenting how the game's systems work together to aid in mods and future projects.

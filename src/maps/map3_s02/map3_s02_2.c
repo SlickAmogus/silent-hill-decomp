@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/dms.h"
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
@@ -118,8 +119,8 @@ void func_800D03FC(void) // 0x800D03FC
 
 void func_800D0608(void) // 0x800D0608
 {
-    VECTOR3  cameraPos;
-    VECTOR3  cameraTarget;
+    VECTOR3  camPosTarget;
+    VECTOR3  camLookAtTarget;
     VECTOR3  lightIntPos;
     SVECTOR3 unused;
 
@@ -236,7 +237,7 @@ void func_800D0608(void) // 0x800D0608
         GsOUT_PACKET_P = (PACKET*)scratch->stp_8;
     }
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 4)
     {
         SysWork_StateStepSet(0, 4);
@@ -254,7 +255,7 @@ void func_800D0608(void) // 0x800D0608
 
             Fs_QueueStartRead(FILE_ANIM_DWSTWY_DMS, FS_BUFFER_24);
             Fs_QueueWaitForEmpty();
-            DmsHeader_FixOffsets(FS_BUFFER_24);
+            Dms_HeaderFixOffsets(FS_BUFFER_24);
 
             Chara_Spawn(Chara_Alessa, 0, Q12(80.0f), Q12(100.0f), Q12_ANGLE(0.0f), 3);
 
@@ -313,12 +314,12 @@ void func_800D0608(void) // 0x800D0608
 
     if (D_800D1FEC >= 0)
     {
-        Dms_CharacterGetPosRot(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "ARISA", D_800D1FEC, FS_BUFFER_24);
-        vcChangeProjectionValue(Dms_CameraGetTargetPos(&cameraPos, &cameraTarget, NULL, D_800D1FEC, FS_BUFFER_24));
-        vcUserCamTarget(&cameraPos, NULL, true);
-        vcUserWatchTarget(&cameraTarget, NULL, true);
-        Dms_CharacterGetPosRot(&g_SysWork.pointLightPosition, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
-        Dms_CharacterGetPosRot(&lightIntPos, &unused, "L_INT", D_800D1FEC, FS_BUFFER_24);
+        Dms_CharacterTransformGet(&g_SysWork.npcs[0].position, &g_SysWork.npcs[0].rotation, "ARISA", D_800D1FEC, FS_BUFFER_24);
+        vcChangeProjectionValue(Dms_CameraTargetGet(&camPosTarget, &camLookAtTarget, NULL, D_800D1FEC, FS_BUFFER_24));
+        vcUserCamTarget(&camPosTarget, NULL, true);
+        vcUserWatchTarget(&camLookAtTarget, NULL, true);
+        Dms_CharacterTransformGet(&g_SysWork.pointLightPosition, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
+        Dms_CharacterTransformGet(&lightIntPos, &unused, "L_INT", D_800D1FEC, FS_BUFFER_24);
 
         g_SysWork.pointLightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.pointLightPosition.vy, Math_Vector2MagCalc(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz));
         g_SysWork.pointLightRotation.vy = ratan2(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz);

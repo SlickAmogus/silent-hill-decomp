@@ -65,8 +65,8 @@ void func_80037E78(s_SubCharacter* chara) // 0x80037E78
 void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 {
     s_Collision     coll;
-    s32             charaId0;
-    s32             charaId1;
+    s32             groupCharaId0;
+    s32             groupCharaId1;
     s32             npcIdx;
     s32             i;
     s32*            ovlEnemiesStatePtr;
@@ -88,8 +88,8 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
     }
 
-    charaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
-    charaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
+    groupCharaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
+    groupCharaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
 
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
@@ -100,8 +100,10 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
         pos = (VECTOR3*)curCharaSpawn;
 
-        if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) && HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
-            curCharaSpawn->flags_6 != 0 && g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&
+        if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) &&
+            HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
+            curCharaSpawn->flags_6 != 0 &&
+            g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&
             func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) &&
             !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f)) &&
             (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f))))
@@ -119,24 +121,24 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             }
             else
             {
-                g_SysWork.npcs[npcIdx].model.charaId = (i < 16) ? charaId0 : charaId1;
+                g_SysWork.npcs[npcIdx].model.charaId = (i < 16) ? groupCharaId0 : groupCharaId1;
             }
 
-            g_SysWork.npcs[npcIdx].field_40               = i;
-            g_SysWork.npcs[npcIdx].model.controlState = ModelState_Uninitialized;
+            g_SysWork.npcs[npcIdx].field_40           = i;
+            g_SysWork.npcs[npcIdx].model.controlState = 0;
             g_SysWork.npcs[npcIdx].model.stateStep    = curCharaSpawn->flags_6;
-            g_SysWork.npcs[npcIdx].position.vx         = curCharaSpawn->positionX_0;
-            g_SysWork.npcs[npcIdx].position.vz         = curCharaSpawn->positionZ_8;
+            g_SysWork.npcs[npcIdx].position.vx        = curCharaSpawn->positionX_0;
+            g_SysWork.npcs[npcIdx].position.vz        = curCharaSpawn->positionZ_8;
 
             Collision_Get(&coll, curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8);
 
             g_SysWork.npcs[npcIdx].position.vy = coll.groundHeight_0;
-            g_SysWork.npcs[npcIdx].rotation.vy = curCharaSpawn->rotationY_5 * 16;
+            g_SysWork.npcs[npcIdx].rotation.vy = Q8_TO_Q12(curCharaSpawn->rotationY_5);
 
             SET_FLAG(&g_SysWork.npcFlags, npcIdx);
             SET_FLAG(g_SysWork.field_228C, i);
 
-            chara                          = &g_SysWork.npcs[npcIdx];
+            chara                    = &g_SysWork.npcs[npcIdx];
             chara->model.anim.flags |= AnimFlag_Visible;
 #ifdef SH_PC_PORT
             SH_DBG("[NPC_SPAWN] slot=%d charaId=%d spawnIdx=%d pos=(%d,%d,%d) rotY=%d",
@@ -182,7 +184,7 @@ void Game_NpcUpdate(void) // 0x80038354
     s32                l;
     s32                animDataInfoIdx;
     s32                temp2;
-    GsCOORDINATE2*     coord;
+    GsCOORDINATE2*     boneCoords;
     s_SubCharacter*    npc;
     s_func_800382EC_0* temp_s0_3;
 
@@ -246,9 +248,9 @@ void Game_NpcUpdate(void) // 0x80038354
                           Q12_SQUARE_PRECISE(Q12_TO_Q6(npc->position.vz) - posZShift6);
                 var_t5 = 0;
 
-                if (g_MapOverlayHeader.mapInfo_0->flags_6 & MapFlag_Interior)
+                if (g_MapOverlayHeader.mapInfo->flags_6 & MapFlag_Interior)
                 {
-                    var_t5 = (g_MapOverlayHeader.mapInfo_0->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)) > 0;
+                    var_t5 = (g_MapOverlayHeader.mapInfo->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)) > 0;
                 }
 
                 for (j = 0; j < 3; j++)
@@ -372,11 +374,11 @@ void Game_NpcUpdate(void) // 0x80038354
                     {
                         /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
-                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcCoords=%p",
+                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcBoneCoords=%p",
                                    npc->model.charaId, animDataInfoIdx,
-                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14);
+                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords);
                             func_8003DA9C(npc->model.charaId,
-                                          g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                          g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
                             SH_DBG("[NPC_RENDER] done charaId=%d", npc->model.charaId);
@@ -403,7 +405,7 @@ void Game_NpcUpdate(void) // 0x80038354
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
                         func_8003DA9C(npc->model.charaId,
-                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14,
+                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords,
                                       1, npc->timer_C6,
                                       (s8)npc->model.paletteIdx);
                     }
@@ -437,14 +439,14 @@ void Game_NpcUpdate(void) // 0x80038354
             else if (npc->model.charaId == Chara_Cybil ||
                      npc->model.charaId == Chara_AirScreamer)
             {
-                if (npc->model.controlState == ModelState_Uninitialized) {
+                if (npc->model.controlState == 0) {
                     npc->model.stateStep = 0;
                     SH_DBG("[NPC_AI] init reset charaId=%d slot=%d stateStep=0",
                            npc->model.charaId, (int)k);
                 }
             }
 #endif
-            coord           = g_CharaTypeAnimInfo[animDataInfoIdx].npcCoords_14;
+            boneCoords      = g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords;
 
             Chara_Flag8Clear(npc);
             Chara_DamagedFlagUpdate(npc);
@@ -457,8 +459,8 @@ void Game_NpcUpdate(void) // 0x80038354
              * until Chara_ProcessLoads() completes their ANM read. */
             if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
                 if (npc->model.charaId == Chara_Cheryl) {
-                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=NULL coord=%p — skipping",
-                            animDataInfoIdx, (void*)coord);
+                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=NULL boneCoords=%p — skipping",
+                            animDataInfoIdx, (void*)boneCoords);
                 } else {
                     SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d animFile1_8=NULL — waiting for load",
                             npc->model.charaId, animDataInfoIdx);
@@ -471,7 +473,7 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.charaId, npc->model.anim.status,
                     npc->model.anim.keyframeIdx);
 #endif
-            g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, coord);
+            g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, boneCoords);
 #ifdef SH_PC_PORT
             SH_DBG("[NPC] ai-done charaId=%d status=%d", npc->model.charaId, npc->model.anim.status);
 #endif
@@ -491,7 +493,7 @@ void Game_NpcUpdate(void) // 0x80038354
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {
-                func_8003DA9C(npc->model.charaId, coord, 1, npc->timer_C6, (s8)npc->model.paletteIdx);
+                func_8003DA9C(npc->model.charaId, boneCoords, 1, npc->timer_C6, (s8)npc->model.paletteIdx);
             }
         }
     }
@@ -568,8 +570,8 @@ void Game_NpcUpdate(void) // 0x80038354
         else
         {
             var_s3 = 0;
-            if (!(g_MapOverlayHeader.mapInfo_0->flags_6 & MapFlag_Interior) ||
-                !(g_MapOverlayHeader.mapInfo_0->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
+            if (!(g_MapOverlayHeader.mapInfo->flags_6 & MapFlag_Interior) ||
+                !(g_MapOverlayHeader.mapInfo->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
             {
                 var_s3 = 1;
             }

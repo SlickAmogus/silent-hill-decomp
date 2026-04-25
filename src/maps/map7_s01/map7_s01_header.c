@@ -56,7 +56,7 @@ void (*g_MapEventFuncs[])() = {
     func_800DAB64,
     func_800DAD7C,
     func_800DADA8,
-    func_800DADD4,
+    MapEvent_CutsceneCherylRedirect3,
     func_800DAE00,
     func_800DB13C,
     func_800DB1F0,
@@ -72,7 +72,7 @@ void (*g_MapEventFuncs[])() = {
 };
 
 SH_MAP_OVERLAY_HEADER = {
-    .mapInfo_0                        = &MAP_INFOS[MapType_ER2],
+    .mapInfo                        = &MAP_INFOS[MapType_ER2],
     .getMapRoomIdxFunc_4              = Map_RoomIdxGet,
     .field_8                          = NO_VALUE,
     .func_C                           = sharedFunc_800D929C_0_s00,

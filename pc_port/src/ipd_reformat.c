@@ -56,25 +56,25 @@ static void ParseIpdModelInfo(s_IpdModelInfo* dst, const u8* src)
 
 static void ParseIpdModelBufferC(s_IpdModelBuffer_C* dst, const u8* src)
 {
-    /* modelHdr_0 initially holds a model index (small integer), not a pointer.
+    /* modelHdr initially holds a model index (small integer), not a pointer.
      * IpdHeader_ModelBufferLinkObjectLists replaces it with actual pointer. */
     u32 modelIdx = rd32(&src[0]);
-    dst->modelHdr_0 = (s_ModelHeader*)(uintptr_t)modelIdx;
+    dst->modelHdr = (s_ModelHeader*)(uintptr_t)modelIdx;
 
     /* MATRIX at offset 4 (32 bytes): short m[3][3], short pad, long t[3] */
-    memcpy(&dst->field_4, &src[4], sizeof(MATRIX));
+    memcpy(&dst->mat, &src[4], sizeof(MATRIX));
 }
 
 static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
 {
-    dst->field_0 = src[0];
-    dst->field_1 = src[1];
-    dst->field_2 = src[2];
-    dst->unk_3   = (s8)src[3];
-    dst->field_4 = rds16(&src[4]);
-    dst->field_6 = rds16(&src[6]);
-    dst->field_8 = rds16(&src[8]);
-    dst->field_A = rds16(&src[10]);
+    dst->field_0      = src[0];
+    dst->field_1      = src[1];
+    dst->subcellCount = src[2];
+    dst->__pad_3      = (s8)src[3];
+    dst->minX         = rds16(&src[4]);
+    dst->maxX         = rds16(&src[6]);
+    dst->minZ         = rds16(&src[8]);
+    dst->maxZ         = rds16(&src[10]);
 
     u32 fieldC_off  = rd32(&src[12]);
     u32 field10_off = rd32(&src[16]);
@@ -98,8 +98,8 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
     /* field_10: SVECTOR array, field_1 entries - raw data in buffer, no reformatting needed */
     dst->field_10 = (SVECTOR*)(base + field10_off);
 
-    /* field_14: SVECTOR bounding box array, field_2 entries */
-    dst->field_14 = (SVECTOR*)(base + field14_off);
+    /* subcellPositions: SVECTOR bounding box array, field_2 entries */
+    dst->subcellPositions = (SVECTOR*)(base + field14_off);
 }
 
 static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8* collbase)
@@ -252,35 +252,34 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     memset(ipdHdr, 0, sizeof(s_IpdHeader));
 
     ipdHdr->magic            = magic;
-    ipdHdr->isLoaded_1         = 0; /* Will be set to 1 by caller after all fixups */
-    ipdHdr->cellX_2            = (s8)cellX;
-    ipdHdr->cellZ_3            = (s8)cellZ;
-    ipdHdr->lmHdr_4            = (s_LmHeader*)(raw + lmHdrOff);
+    ipdHdr->isLoaded         = 0; /* Will be set to 1 by caller after all fixups */
+    ipdHdr->cellX            = (s8)cellX;
+    ipdHdr->cellZ            = (s8)cellZ;
+    ipdHdr->lmHdr            = (s_LmHeader*)(raw + lmHdrOff);
     ipdHdr->modelCount       = modelCount;
-    ipdHdr->modelBufferCount_9 = modelBufferCount;
-    ipdHdr->modelOrderCount_A  = modelOrderCount;
+    ipdHdr->modelBufferCount = modelBufferCount;
+    ipdHdr->modelOrderCount  = modelOrderCount;
     ipdHdr->unk_B[0]           = unkB;
-    memcpy(ipdHdr->unk_C, unkC, 8);
-    ipdHdr->modelInfo_14       = modelInfos;
-    ipdHdr->modelBuffers_18    = modelBuffers;
+    memcpy(&ipdHdr->unk_B[1], unkC, 8);
+    ipdHdr->modelInfo       = modelInfos;
+    ipdHdr->modelBuffers    = modelBuffers;
 
-    /* Restore subcell table: textureCount_1C(1) + unk_1D[3](3) + unk_20[48](48) = 52 bytes */
-    ipdHdr->textureCount_1C = subcellTable[0];
-    memcpy(ipdHdr->unk_1D, &subcellTable[1], 3);
-    memcpy(ipdHdr->unk_20, &subcellTable[4], 48);
+    /* Restore subcell table: textureCount(1) + unk_1D[51] = 52 bytes total */
+    ipdHdr->textureCount = subcellTable[0];
+    memcpy(ipdHdr->unk_1D, &subcellTable[1], 51);
 
-    ipdHdr->modelOrderList_50 = raw + modelOrderOff;
+    ipdHdr->modelOrderList = raw + modelOrderOff;
 
     /* Parse collision data into the embedded struct */
-    ParseIpdCollisionData(&ipdHdr->collisionData_54, collraw, collbase);
+    ParseIpdCollisionData(&ipdHdr->collisionData, collraw, collbase);
 
     /* Register as valid collision data for stale-pointer detection */
     {
         extern void PC_CollRegisterValid(s_IpdCollisionData* cd);
-        PC_CollRegisterValid(&ipdHdr->collisionData_54);
+        PC_CollRegisterValid(&ipdHdr->collisionData);
     }
 
     SH_DBG("[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]",
-            (void*)ipdHdr->lmHdr_4, (void*)ipdHdr->modelInfo_14, modelCount,
-            (void*)ipdHdr->modelBuffers_18, modelBufferCount);
+            (void*)ipdHdr->lmHdr, (void*)ipdHdr->modelInfo, modelCount,
+            (void*)ipdHdr->modelBuffers, modelBufferCount);
 }

@@ -47,6 +47,17 @@
 // ENUMS
 // ======
 
+/** @brief Character spawn flags. */
+typedef enum _SpawnFlags
+{
+    SpawnFlag_None = 0,
+    SpawnFlag_0    = 1 << 0,
+    SpawnFlag_1    = 1 << 1,
+    SpawnFlag_2    = 1 << 2,
+    SpawnFlag_3    = 1 << 3,
+    SpawnFlag_4    = 1 << 4
+} e_SpawnFlags;
+
 // Used by `func_8006E490` and `func_8006E150`.
 typedef enum _OrientationFlags
 {
@@ -167,7 +178,7 @@ typedef enum _CollisionType
     CollisionType_Unk2 = 2
 } e_CollisionType;
 
-/** Map flags. */
+/** @brief Map flags. */
 typedef enum _MapFlags
 {
     MapFlag_FourActiveChunks = 0,      /** Used by exterior maps. */
@@ -375,7 +386,7 @@ typedef struct
 {
     union
     {
-        s32 vx_0; // Q23.8 } Displacement offset. `func_80062708` indicates Q12?
+        q19_12 vx_0; // Displacement offset.
         struct
         {
             s16 field_0;
@@ -389,16 +400,16 @@ typedef struct
     } field_0;
     union
     {
-        s32 vz_4; // Q23.8 } `func_80062708` indicates Q12?
+        q19_12 vz_4;
         struct
         {
             s16 field_0;
             s16 field_2;
         } s_0;
     } field_4;
-    s16 vy_8; // Q7.8? Usually Q12, need to reevaluate.
-    u8  field_A;
-    u8  field_B; // Flags?
+    q3_12 vy_8;
+    u8    field_A;
+    u8    field_B; // Flags?
     union
     {
         s32 field_0;
@@ -416,8 +427,8 @@ typedef struct
         } s_1;
         struct
         {
-            u16 field_0;
-            u16 field_2;
+            q4_12 field_0;
+            u16   field_2;
         } s_2;
     } field_C;
     union
@@ -462,15 +473,15 @@ STATIC_ASSERT_SIZEOF(s_Collision, 12);
 
 typedef struct
 {
-    VECTOR3  position_0; // Q19.12
-    SVECTOR3 rotation_C; // Q3.12
+    VECTOR3  position; // Q19.12
+    SVECTOR3 rotation_C; // Q3.12 TODO: Not a rotation? Y position is added to this.
     s8       field_12;
 } s_CollisionQuery;
 
 typedef struct
 {
     s32        field_0;
-    s32        field_4; // `bool`?
+    bool       field_4;
     q19_12     distance_8;
     SVECTOR    offset_C; // Q23.8
     DVECTOR_XZ direction_14;
@@ -606,8 +617,8 @@ typedef struct
     s32    field_1C; // X }
     s32    field_20; // Z }
     s32    field_24; // Z }
-    q19_12 field_28; // } Maybe XZ position.
-    q19_12 field_2C; // }
+    q19_12 field_28; // Maybe XZ position.
+    q19_12 field_2C; // Base height?
 } s_func_8006F338;
 
 typedef struct
@@ -795,6 +806,7 @@ typedef struct _Material
 } s_Material;
 STATIC_ASSERT_SIZEOF(s_Material, 24);
 
+/** @brief LM file header. */
 typedef struct _LmHeader
 {
     /* 0x0  */ u8             magic;    /** See `LM_HEADER_MAGIC`. */
@@ -882,26 +894,28 @@ typedef struct _IpdCollisionData
 } s_IpdCollisionData;
 STATIC_ASSERT_SIZEOF(s_IpdCollisionData, 308);
 
+// Node of some kind?
 typedef struct _IpdModelBuffer_C
 {
-    s_ModelHeader* modelHdr_0;
-    MATRIX         field_4;
+    /* 0x0 */ s_ModelHeader* modelHdr;
+    /* 0x4 */ MATRIX         mat;
 } s_IpdModelBuffer_C;
 STATIC_ASSERT_SIZEOF(s_IpdModelBuffer_C, 36);
 
+/** @brief IPD model buffer. */
 typedef struct _IpdModelBuffer
 {
-    u8                  field_0; // Count of `field_C` entries.
-    u8                  field_1;
-    u8                  field_2;
-    s8                  unk_3;
-    s16                 field_4;
-    s16                 field_6;
-    s16                 field_8;
-    s16                 field_A;
-    s_IpdModelBuffer_C* field_C;
-    SVECTOR*            field_10; // Pointer to unknown collision data, type assumed.
-    SVECTOR*            field_14; // Pointer to unknown collision data, type assumed.
+    /* 0x0  */ u8                  field_0; // Count of `field_C` entries.
+    /* 0x1  */ u8                  field_1;
+    /* 0x2  */ u8                  subcellCount;
+    /* 0x3  */ s8                  __pad_3;
+    /* 0x4  */ q7_8                minX; // } TODO: Cell range or subcell range?
+    /* 0x6  */ q7_8                maxX; // }
+    /* 0x8  */ q7_8                minZ; // }
+    /* 0xA  */ q7_8                maxZ; // }
+    /* 0xC  */ s_IpdModelBuffer_C* field_C;
+    /* 0x10 */ SVECTOR*            field_10;         // Pointer to unknown collision data.
+    /* 0x14 */ SVECTOR*            subcellPositions; /** XZ positions. TODO: Use different struct. */
 } s_IpdModelBuffer;
 STATIC_ASSERT_SIZEOF(s_IpdModelBuffer, 24);
 
@@ -914,53 +928,53 @@ typedef struct _IpdModelInfo
 } s_IpdModelInfo;
 STATIC_ASSERT_SIZEOF(s_IpdModelInfo, 16);
 
+/** @brief IPD model file header. */
 typedef struct _IpdHeader
 {
-    u8                 magic;
-    u8                 isLoaded_1; /** `bool` */
-    s8                 cellX_2;
-    s8                 cellZ_3;
-    s_LmHeader*        lmHdr_4;
-    u8                 modelCount;
-    u8                 modelBufferCount_9;
-    u8                 modelOrderCount_A;
-    u8                 unk_B[1];
-    u8                 unk_C[8];
-    s_IpdModelInfo*    modelInfo_14;
-    s_IpdModelBuffer*  modelBuffers_18;
-    u8                 textureCount_1C; // Should it be `u32`?
-                                        // "`u8` - Relative pointer to textures list"
-                                        // "`u32` - Relative pointer to object order"
-    u8                 unk_1D[3];
-    u8                 unk_20[48];
-    u8*                modelOrderList_50;
-    s_IpdCollisionData collisionData_54;
+    /* 0x0  */ u8                 magic;
+    /* 0x1  */ u8                 isLoaded; /** `bool` */
+    /* 0x3  */ s8                 cellX;
+    /* 0x3  */ s8                 cellZ;
+    /* 0x4  */ s_LmHeader*        lmHdr;
+    /* 0x8  */ u8                 modelCount;
+    /* 0x9  */ u8                 modelBufferCount;
+    /* 0xA  */ u8                 modelOrderCount;
+    /* 0xB  */ s8                 unk_B[9];
+    /* 0x14 */ s_IpdModelInfo*    modelInfo;
+    /* 0x18 */ s_IpdModelBuffer*  modelBuffers;
+    /* 0x1C */ u8                 textureCount; // Should it be `u32`?
+                                                // "`u8` - Relative pointer to textures list"
+                                                // "`u32` - Relative pointer to object order"
+    /* 0x1D */ s8                 unk_1D[51];
+    /* 0x50 */ u8*                modelOrderList;
+    /* 0x54 */ s_IpdCollisionData collisionData;
 } s_IpdHeader;
 
 // See: https://github.com/laura-a-n-n/silent-hill-museum/blob/main/ksy/sh1anm.ksy
 typedef struct _AnmBindPose
 {
-    s8 parentBone;
-    s8 rotationDataIdx_1;
-    s8 translationDataIdx_2;
-    s8 translationInitial_3[3];
+    /* 0x0 */ s8 parentBone;
+    /* 0x1 */ s8 rotationDataIdx;
+    /* 0x2 */ s8 translationDataIdx;
+    /* 0x3 */ s8 translationInitial[3];
 } s_AnmBindPose;
 STATIC_ASSERT_SIZEOF(s_AnmBindPose, 6);
 
+/** @brief ANM file header. */
 typedef struct _AnmHeader
 {
     /* 0x0  */ u16           dataOffset;
     /* 0x2  */ u8            rotationBoneCount;
     /* 0x3  */ u8            translationBoneCount;
-    /* 0x4  */ u16           keyframeDataSize; // Size per keyframe, `(rotationBoneCount * 9) + (translationBoneCount * 3)`?
-    /* 0x6  */ u8            boneCount;
+    /* 0x4  */ u16           keyframeDataSize; /** Size per keyframe. `(rotationBoneCount * 9) + (translationBoneCount * 3)`? */
+    /* 0x6  */ u8            boneCount;        /** Size of `bindPoses`. */
                // 1 byte of padding.
-    /* 0x8  */ u32           activeBones;      // Bit field of bones to update.
+    /* 0x8  */ u32           activeBones; /** Bit field of bones to update. */
     /* 0xC  */ u32           fileSize;
     /* 0x10 */ u16           keyframeCount;
     /* 0x12 */ u8            scaleLog2;
     /* 0x13 */ u8            rootYOffset;
-    /* 0x14 */ s_AnmBindPose bindPoses[0];     // Array size = `boneCount`.
+    /* 0x14 */ s_AnmBindPose bindPoses[0];
 } s_AnmHeader;
 STATIC_ASSERT_SIZEOF(s_AnmHeader, 20);
 
@@ -981,7 +995,7 @@ typedef struct
     u32        field_8;
     s32        field_C;
     s16        field_10;
-    u8         unk_12[2];
+    s8         __pad_12[2];
     DVECTOR_XZ field_14;
 } s_CollisionState_CC_20;
 
@@ -1064,6 +1078,7 @@ typedef struct
     // TODO: May be incomplete. Maybe not, added the final padding based on `Collision_Get`.
 } s_CollisionState;
 
+/** @brief Global LM model. */
 typedef struct _GlobalLm
 {
     /* 0x0 */ s_LmHeader* lmHdr;
@@ -1073,20 +1088,22 @@ typedef struct _GlobalLm
 
 typedef struct
 {
-    s32            field_0; // Bone flags?
-    GsCOORDINATE2* coord_4;
-    s_ModelHeader* modelHdr_8;
-    s32            modelIdx_C;
+    /* 0x0 */ s32            field_0; // Bone flags?
+    /* 0x4 */ GsCOORDINATE2* coord;
+    /* 0x8 */ s_ModelHeader* modelHdr;
+    /* 0xC */ s32            modelIdx;
 } s_ModelInfo;
 
+/** @brief IPD skeleton model bone. */
 typedef struct _Bone
 {
-    s_ModelInfo   modelInfo_0;
-    s8            field_10;
-    s8            unk_11[3];
+    /* 0x0  */ s_ModelInfo modelInfo;
+    /* 0x10 */ s8          idx;
+               // 3 bytes of padding.
 } s_Bone;
 STATIC_ASSERT_SIZEOF(s_Bone, 20);
 
+/** @brief IPD skeleton model bone node. */
 typedef struct _LinkedBone
 {
     /* 0x0  */ s_Bone              bone;
@@ -1123,18 +1140,18 @@ typedef struct
 // or `s_AnimMetadata`?
 typedef struct _CharaAnimDataInfo
 {
-    s8             charaId0_0;  /** `e_CharacterId` */
-    s8             charaId1_1;  /** `e_CharacterId` */
-    // 2 bytes of padding.
+    /* 0x0  */ s8             charaId0_0;  /** `e_CharacterId` */
+    /* 0x1  */ s8             charaId1_1;  /** `e_CharacterId` */
+               // 2 bytes of padding.
 #ifdef SH_PC_PORT
-    s_AnmHeader*   animFile0_4; // On PSX this is s32 (pointer fits in 32 bits).
+    /* 0x4  */ s_AnmHeader*   animFile0_4; // On PSX this is s32 (pointer fits in 32 bits).
 #else
-    s32            animFile0_4; // s_AnmHeader* animFile0_4; // TODO: Needs to be a pointer.
+    /* 0x4  */ s32            animFile0_4; // s_AnmHeader* animFile0_4; // TODO: Needs to be a pointer.
 #endif
-    s_AnmHeader*   animFile1_8;
-    s32            animBufferSize1_C;
-    s32            animBufferSize2_10;
-    GsCOORDINATE2* npcCoords_14;
+    /* 0x8  */ s_AnmHeader*   animFile1_8;
+    /* 0xC  */ s32            animBufferSize1_C;
+    /* 0x10 */ s32            animBufferSize2_10;
+    /* 0x14 */ GsCOORDINATE2* npcBoneCoords;
 } s_CharaAnimDataInfo;
 #ifndef SH_PC_PORT
 STATIC_ASSERT_SIZEOF(s_CharaAnimDataInfo, 24);
@@ -1166,7 +1183,7 @@ STATIC_ASSERT_SIZEOF(s_800AD4C8, 24);
 /** @brief Collision point data. */
 typedef struct
 {
-    VECTOR3     position_0; // Q19.12
+    VECTOR3     position; // Q19.12
     s_Collision collision_C;
     s32         field_18; // Count of points in circle?
 } s_CollisionPoint;
@@ -1180,47 +1197,51 @@ typedef struct
 } s_800BCDA8;
 STATIC_ASSERT_SIZEOF(s_800BCDA8, 4);
 
+/** @brief Speed zone. Defines a volume used for player speed modulation. */
 typedef struct _SpeedZone
 {
-    s8   type_0; /** `e_SpeedZoneType` */
-    // 1 byte of padding.
-    q11_4 minX_2;
-    q11_4 maxX_4;
-    q11_4 minZ_6;
-    q11_4 maxZ_8;
+    /* 0x0 */ s8   type; /** `e_SpeedZoneType` */
+              // 1 byte of padding.
+    /* 0x2 */ q11_4 minX;
+    /* 0x4 */ q11_4 maxX;
+    /* 0x6 */ q11_4 minZ;
+    /* 0x/ */ q11_4 maxZ;
 } s_SpeedZone;
 
+/** @brief Water zone. Defines a volume used for visual water effects. */
 typedef struct _WaterZone
 {
-    u8  isEnabled_0; /** `bool` */
-    // 1 byte of padding.
-    s16 illumination_2;
-    q11_4 minX_4;
-    q11_4 maxX_6;
-    q11_4 minZ_8;
-    q11_4 maxZ_A;
+    /* 0x0 */ u8    isEnabled; /** `bool` */
+              // 1 byte of padding.
+    /* 0x2 */ q11_4 illumination;
+    /* 0x4 */ q11_4 minX;
+    /* 0x6 */ q11_4 maxX;
+    /* 0x8 */ q11_4 minZ;
+    /* 0xA */ q11_4 maxZ;
 } s_WaterZone;
 
-typedef struct
+/** @brief Character model. */
+typedef struct _CharaModel
 {
-    u8            charaId;  /** `e_CharacterId` */
-    u8            isLoaded_1; /** `bool` */
-    // 2 bytes of padding.
-    s32           queueIdx_4;
-    s_LmHeader*   lmHdr_8;
-    s_FsImageDesc texture_C;
-    s_Skeleton    skeleton_14;
+    /* 0x0  */ u8            charaId;  /** `e_CharacterId` */
+    /* 0x1  */ u8            isLoaded; /** `bool` */
+               // 2 bytes of padding.
+    /* 0x4  */ s32           queueIdx;
+    /* 0x8  */ s_LmHeader*   lmHdr;
+    /* 0xC  */ s_FsImageDesc texture;
+    /* 0x14 */ s_Skeleton    skeleton;
 } s_CharaModel;
 STATIC_ASSERT_SIZEOF(s_CharaModel, 1376);
 
-typedef struct _MapInfo
+/** @brief Map GFX info. */
+typedef struct _MapGfxInfo
 {
-    s16                plmFileIdx_0;
-    char               tag_2[4];
-    u8                 flags_6; /** `e_MapFlags` */
-    // 1 byte of padding.
-    const s_WaterZone* waterZones_8;
-    const s_SpeedZone* speedZones_C;
+    /* 0x0 */ s16                plmFileIdx_0;
+    /* 0x2 */ char               tag_2[4];
+    /* 0x6 */ u8                 flags_6; /** `e_MapFlags` */
+              // 1 byte of padding.
+    /* 0x8 */ const s_WaterZone* waterZones_8;
+    /* 0xC */ const s_SpeedZone* speedZones_C;
 } s_MapInfo;
 
 // Rough name.
@@ -1234,47 +1255,48 @@ typedef struct _WorldObjectMetadata
 // Rough name.
 typedef struct _WorldObjectModel
 {
-    s_ModelInfo           modelInfo_0;
+    s_ModelInfo           modelInfo;
     s_WorldObjectMetadata metadata_10;
 } s_WorldObjectModel;
 STATIC_ASSERT_SIZEOF(s_WorldObjectModel, 28);
 
-/** @brief Geometry space world object to draw. */
+/** @brief Geometry-space world object to draw. */
 typedef struct _WorldObject
 {
     s_WorldObjectModel* model;
     s32                 positionX_4 : 18; /** Q9.8 */
     s32                 positionY_4 : 14; /** Q5.8 */
     s32                 positionZ_8 : 18; /** Q9.8 */
-    s32                 pad_8_18    : 14;
+    s32                 __pad_8_18  : 14;
     s32                 rotationX_C : 10; /** Q0.10 */
     s32                 rotationY_C : 12; /** Q0.12 */
     s32                 rotationZ_C : 10; /** Q0.10 */
 } s_WorldObject;
 STATIC_ASSERT_SIZEOF(s_WorldObject, 16);
 
-/** @brief World space trigger zone. */
+/** @brief World-space trigger zone. */
 typedef struct _TriggerZone
 {
-    u8  endOfArray_0_0 : 1; // End of array marker.
-    s32 positionX_0_1  : 10;
-    s32 positionZ_0_11 : 10;
-    u32 sizeX_0_21     : 4;
-    u32 sizeZ_0_25     : 4;
-    u32 field_0_29     : 3; // Related to ground height? Used to set `s_func_8006F338::field_2C` which then gets copied by `func_8006F250`, that func has only been seen called by AirScreamer?
+    /* 0x0+0  */ u8  isEndOfArray : 1;  /** `bool` | Marks last entry. */
+    /* 0x+01  */ s32 positionX    : 10; /** Meter steps. */
+    /* 0x+011 */ s32 positionZ    : 10; /** Meter steps. */
+    /* 0x0+21 */ u32 sizeX        : 4;  /** Meter steps. */
+    /* 0x0+25 */ u32 sizeZ        : 4;  /** Meter steps. */
+    /* 0x0+29 */ u32 height       : 3;  /** Half-meter steps. Used to set `s_func_8006F338::field_2C` which is then copied by `func_8006F250`. */
 } s_TriggerZone;
 STATIC_ASSERT_SIZEOF(s_TriggerZone, 4);
 
+/** @brief Hand-held player item. */
 typedef struct _HeldItem
 {
-    s32           itemId_0; /** `e_InvItemId` */
-    s32           queueIdx_4;
-    char*         textureName_8;
-    s_FsImageDesc imageDesc_C;
-    s_LmHeader*   lmHdr_14;
-    s_Bone        bone_18;
+    /* 0x0  */ s32           itemId; /** `e_InvItemId` */
+    /* 0x4  */ s32           queueIdx;
+    /* 0x8  */ char*         textureName;
+    /* 0xC  */ s_FsImageDesc imageDesc;
+    /* 0x14 */ s_LmHeader*   lmHdr;
+    /* 0x18 */ s_Bone        bone;
 } s_HeldItem;
-STATIC_ASSERT_SIZEOF(s_HeldItem, 0x2C);
+STATIC_ASSERT_SIZEOF(s_HeldItem, 44);
 
 /** @brief World GFX workspace.
  * TODO: Could be `s_RendererWork`? Will depend on where other data resides.
@@ -1283,37 +1305,37 @@ STATIC_ASSERT_SIZEOF(s_HeldItem, 0x2C);
  */
 typedef struct _WorldGfxWork
 {
-    s_MapInfo*        mapInfo_0;
-    u8                useStoredPoint_4; /** `bool` */
-    u8                unk_5[3];
-    VECTOR3           ipdSamplePoint_8; /** Used by IPD logic to sample which chunks to load or unload. */
-    u8*               charaLmBuffer_14;
-    s_CharaModel*     registeredCharaModels_18[Chara_Count];
-    s_CharaModel      charaModels_CC[CHARA_GROUP_COUNT];
-    s_CharaModel      harryModel_164C;
-    s_HeldItem        heldItem_1BAC;             /** The item held by the player. */
-    s_TriggerZone*  triggerZone_1BD8;
-    VC_CAMERA_INTINFO vcCameraInternalInfo_1BDC; /** Debug camera info. */
-    s_LmHeader        itemLmHdr_1BE4;
-    u8                itemLmData_1BF4[4096 - sizeof(s_LmHeader)]; // Retail game uses 2.75kb file, but they allocate 4kb for it.
-    s32               itemLmQueueIdx_2BE4;
-    s32               objectCount_2BE8;                     /** `objects_2BEC` size. */
-    s_WorldObject     objects_2BEC[WORLD_OBJECT_COUNT_MAX]; /** World objects to draw. */
+    /* 0x0    */ s_MapInfo*        mapInfo;
+    /* 0x4    */ u8                useStoredPoint; /** `bool` */
+    /* 0x5    */ s8                __pad_5[3];
+    /* 0x8    */ VECTOR3           ipdSamplePoint; /** Used by IPD logic to sample which chunks to load or unload. */
+    /* 0x14   */ u8*               charaLmBuffer;
+    /* 0x18   */ s_CharaModel*     registeredCharaModels[Chara_Count];
+    /* 0xCC   */ s_CharaModel      charaModels[CHARA_GROUP_COUNT];
+    /* 0x164C */ s_CharaModel      harryModel;
+    /* 0x1BAC */ s_HeldItem        heldItem; /** Item held by the player. */
+    /* 0x1BD8 */ s_TriggerZone*    triggerZone;
+    /* 0x1BDC */ VC_CAMERA_INTINFO vcCameraInternalInfo; /** Debug camera info. */
+    /* 0x1BE4 */ s_LmHeader        itemLmHdr;
+    /* 0x1BF4 */ u8                itemLmData[4096 - sizeof(s_LmHeader)]; // 4kb allocated for 2.75kb game files.
+    /* 0x2BE4 */ s32               itemLmQueueIdx;
+    /* 0x2BE8 */ s32               objectCount;                     /** `objects` size. */
+    /* 0x2BEC */ s_WorldObject     objects[WORLD_OBJECT_COUNT_MAX]; /** World objects to draw. */
 } s_WorldGfxWork;
 STATIC_ASSERT_SIZEOF(s_WorldGfxWork, 11708);
 
-// IPD data?
+/** @brief IPD map geometry chunk. */
 typedef struct
 {
-    s_IpdHeader* ipdHdr_0;
-    s32          queueIdx_4;
-    s16          cellX_8;
-    s16          cellZ_A;
-    q19_12       distance0_C;
-    q19_12       distance1_10;
-    u8           materialCount_14;
-    s8           unk_15[3];
-    s32          outsideCount_18;
+    /* 0x0  */ s_IpdHeader* ipdHdr;
+    /* 0x4  */ s32          queueIdx;
+    /* 0x8  */ s16          cellX;
+    /* 0xA  */ s16          cellZ;
+    /* 0xC  */ q19_12       distance0;
+    /* 0x10 */ q19_12       distance1;
+    /* 0x14 */ u8           materialCount;
+    /* 0x15 */ s8           __pad_15[3];
+    /* 0x18 */ s32          outsideCount;
 } s_IpdChunk;
 STATIC_ASSERT_SIZEOF(s_IpdChunk, 28);
 
@@ -1441,71 +1463,22 @@ typedef struct
     s16 field_6; // Keyframe index or time.
 } s_800C44F0; // Probable size: 8 bytes.
 
-/** Holds file IDs of anim/model/texture for each `e_CharacterId`, along with some data used in VC camera code. */
-typedef struct
+/** @brief Character file info.
+ * Holds file IDs of anim/model/texture for each `e_CharacterId` along with some data used in VC camera code.
+ */
+typedef struct _CharaFileInfo
 {
-    s16            animFileIdx;
-    s16            modelFileIdx;
-    s16            textureFileIdx         : 16;
-    q8_8           field_6                : 10;
-    u16            materialBlendMode_6_10 : 6; /** `e_BlendMode` */
-    s_FsImageDesc* field_8;                    // Extra texture pointer? Usually `NULL` in `CHARA_FILE_INFOS`.
-    u16            cameraAnchor_C_0  : 2;      /** `e_CameraAnchor` */
-    q19_12         cameraOffsetY_C_2 : 14;
-    // 2 bytes of padding.
+    /* 0x0    */ s16            animFileIdx;
+    /* 0x2    */ s16            modelFileIdx;
+    /* 0x4+0  */ s16            textureFileIdx    : 16;
+    /* 0x4+16 */ q8_8           field_6           : 10;
+    /* 0x4+26 */ u16            materialBlendMode : 6; /** `e_BlendMode` */
+    /* 0x8    */ s_FsImageDesc* field_8;               // TODO: Extra texture pointer? Usually `NULL` in `CHARA_FILE_INFOS`.
+    /* 0xC+0  */ u16            cameraAnchor  : 2;     /** `e_CameraAnchor` */
+    /* 0xC+2  */ q19_12         cameraOffsetY : 14;
+                 // 2 bytes of padding.
 } s_CharaFileInfo;
 STATIC_ASSERT_SIZEOF(s_CharaFileInfo, 16);
-
-typedef struct
-{
-    SVECTOR3 positionTarget_0; /** Q7.8 */
-    SVECTOR3 lookAtTarget_6;   /** Q7.8 */
-    s16      field_C[2];       // `field_C[1]` gets passed to `vcChangeProjectionValue`.
-} s_DmsKeyframeCamera;
-STATIC_ASSERT_SIZEOF(s_DmsKeyframeCamera, 16);
-
-typedef struct
-{
-    SVECTOR3 position_0; /** Q7.8 */
-    SVECTOR3 rotation_6; /** Q7.8 */
-} s_DmsKeyframeCharacter;
-STATIC_ASSERT_SIZEOF(s_DmsKeyframeCharacter, 12);
-
-typedef struct
-{
-    s16       keyframeCount_0;
-    u8        svectorCount_2;
-    u8        field_3;      // Usually 0, but sometimes filled in, possibly junk data left in padding byte.
-    char      name_4[4];    // First 4 chars of name. E.g. Code checks for "DAHLIA", file is "DAHL".
-    SVECTOR3* svectorPtr_8; // Pointer to `SVECTOR3`s. Unknown purpose.
-    union
-    {
-        s_DmsKeyframeCharacter* character;
-        s_DmsKeyframeCamera*    camera;
-    } keyframes_C;
-} s_DmsEntry;
-STATIC_ASSERT_SIZEOF(s_DmsEntry, 16);
-
-typedef struct
-{
-    s16 startKeyframeIdx_0;
-    s16 frameCount_2; /** Frame duration at 30 FPS. */
-} s_DmsInterval;
-STATIC_ASSERT_SIZEOF(s_DmsInterval, 4);
-
-typedef struct
-{
-    u8             isLoaded_0; /** `bool` */
-    u8             characterCount_1;
-    u8             intervalCount_2;
-    u8             field_3; // Usually 0, but sometimes filled in.
-    u32            field_4; // Unknown, correlates with DMS file size.
-    s_DmsInterval* intervalPtr_8;
-    VECTOR3        origin_C; /** Q23.8 | Origin point. Gets added to character positions. */
-    s_DmsEntry*    characters_18;
-    s_DmsEntry     camera_1C;
-} s_DmsHeader;
-STATIC_ASSERT_SIZEOF(s_DmsHeader, 44);
 
 /** @brief Used for normal credits screen. */
 typedef struct
@@ -1553,24 +1526,27 @@ typedef struct _MapPoint2d
     q19_12 positionX_0;
 
     // Optional data.
-    u32   mapIdx_4_0          : 5; /** `e_PaperMapIdx`? */
-    u32   field_4_5           : 4;
-    u32   loadingScreenId_4_9 : 3; /** `e_LoadingScreenId` */
-    u32   field_4_12          : 4;
-    q24_8 triggerParam0_4_16  : 8; // Usually a `Q8_ANGLE`
-    u32   triggerParam1_4_24  : 8;
+    u32    mapIdx_4_0          : 5; /** `e_PaperMapIdx`? */
+    u32    field_4_5           : 4;
+    u32    loadingScreenId_4_9 : 3; /** `e_LoadingScreenId` */
+    u32    field_4_12          : 4;
+    q24_8  triggerParam0_4_16  : 8; // Usually a `Q8_ANGLE`
+    u32    triggerParam1_4_24  : 8;
 
     q19_12 positionZ_8;
 } s_MapPoint2d;
 STATIC_ASSERT_SIZEOF(s_MapPoint2d, 12);
 
+/** @brief Character spawn info. */
 typedef struct _SpawnInfo
 {
     q19_12 positionX_0;
-    s8     charaId_4;   /** `e_CharacterId` */
-    u8     rotationY_5; /** Degrees in Q7.8, range [0, 256]. */
-    s8     flags_6;     /** Copied to `stateStep` in `s_Model`, with `controlState = ModelState_Uninitialized`. */
-    s32    gameDifficultyMin_7_0 : 4;
+
+    s8     charaId_4; /** `e_CharacterId` */
+    q0_8   rotationY_5;
+    s8     flags_6;                   /** `e_SpawnFlags` | Copied to `stateStep` in `s_Model`, with `controlState = 0`. */
+    s32    gameDifficultyMin_7_0 : 4; /** `e_GameDifficulty` | Minimum difficulty required for successful spawn. */
+
     q19_12 positionZ_8;
 } s_SpawnInfo;
 STATIC_ASSERT_SIZEOF(s_SpawnInfo, 12);
@@ -1618,21 +1594,21 @@ typedef struct
 
 typedef struct
 {
-    u8  field_0;
-    u8  field_1;
-    u8  field_2;
-    u8  field_3;
-    s16 field_4;
-    s16 field_6;
-    s16 field_8;
-    s16 field_A;
-    s16 field_C;
-    s16 field_E;
-    s16 field_10;
-    s16 field_12;
-    s32 field_14;
-    s32 field_18;
-    s32 field_1C;
+    u8    field_0;
+    u8    field_1;
+    u8    field_2;
+    u8    field_3;
+    s16   field_4;
+    s16   field_6;
+    s16   field_8;
+    s16   field_A;
+    s16   field_C;
+    s16   field_E;
+    q3_12 field_10;
+    s16   field_12;
+    s32   field_14;
+    s32   field_18;
+    s32   field_1C;
 } s_MapOverlayHeader_7C;
 STATIC_ASSERT_SIZEOF(s_MapOverlayHeader_7C, 0x20);
 
@@ -1640,7 +1616,7 @@ typedef struct
 {
     s32    field_0[4];
     s16    field_10[4];
-    s32    field_18[4];
+    q19_12 field_18[4];
     u16    field_28[4];
     u8     field_30[4];
     q3_12  field_34[4]; // Y angles.
@@ -1662,7 +1638,7 @@ typedef struct
  */
 typedef struct _MapOverlayHeader
 {
-    s_MapInfo*             mapInfo_0;
+    s_MapInfo*             mapInfo;
     u8                     (*getMapRoomIdxFunc_4)(s32 x, s32 y); // Called by `Savegame_MapRoomIdxUpdate`.
     s8                     field_8;
     s32                    (*func_C)();
@@ -1782,20 +1758,20 @@ typedef struct _MapOverlayHeader
 } s_MapOverlayHeader;
 STATIC_ASSERT_SIZEOF(s_MapOverlayHeader, 0x104C);
 
-typedef struct
+typedef struct _MapMsgSelect
 {
     /* 0x0 */ s8 maxIdx;
     /* 0x1 */ u8 selectedEntryIdx;
 } s_MapMsgSelect;
 
-typedef struct
+typedef struct _MapEffectsPresetIdxs
 {
     u8 presetIdx1_0;
     u8 presetIdx2_1;
 } s_MapEffectsPresetIdxs;
 
 /** @brief Line of sight data for finished ray trace. TODO: Could rename to `s_Los` to keep "ray" as a generic math term? */
-typedef struct
+typedef struct _RayData
 {
     s8              hasHit_0; /** `bool` */
     u8              field_1;
@@ -1807,15 +1783,15 @@ typedef struct
     q7_8            field_1C; // Angle.
 } s_RayData;
 
-typedef struct
+typedef struct _CollisionResult
 {
-    VECTOR3 offset_0;  // Q19.12
-    s32     field_C;   // Absolute ground height? Might be using `s_Collision` substruct?
+    VECTOR3 offset_0; // Q19.12
+    q19_12  field_C;  // Absolute ground height? Might be using `s_Collision` substruct?
     s16     field_10;
     s16     field_12;
-    s8      field_14;  // Count of something? 12 is significant.
-    s8      unk_15[3]; // Probably padding.
-    s32     field_18;
+    s8      field_14; // Count of something? 12 is significant.
+    s8      __pad_15[3];
+    q19_12  field_18;
 } s_CollisionResult;
 
 typedef struct
@@ -1839,9 +1815,9 @@ typedef struct
     {
         struct
         {
-            DVECTOR  screenPos_3DC;
-            s32      depthP_3E0;
-            s16      rotMatrix_3E4[3][3]; // Truncated `MATRIX` without the `long t[3];` transfer vector?
+            DVECTOR screenPos_3DC;
+            s32     depthP_3E0;
+            s16     rotMatrix_3E4[3][3]; // Truncated `MATRIX` without the `long t[3];` transfer vector?
         } vertex;
 
         struct
@@ -1925,7 +1901,7 @@ typedef struct
     POLY_FT4* field_0;
     SVECTOR   field_4; // Q23.8
     MATRIX    field_C;
-    VECTOR3   field_2C; // Q23.8
+    VECTOR3   field_2C; // Q23.8 | Set as grid-aligned player position in `func_80065B94`.
     s32       field_38;
     DVECTOR   field_3C;
     s32       field_40;
@@ -1980,9 +1956,9 @@ typedef struct
     MATRIX  field_C;
     s32     field_2C;
     DVECTOR field_30;
-    s16     field_34[24];
-    s16     field_64[24];
-    s16     field_94[24];
+    q3_12   field_34[24];
+    q3_12   field_64[24];
+    q3_12   field_94[24];
     s16     field_C4;
     s16     field_C6;
     s16     field_C8;
@@ -1996,7 +1972,7 @@ typedef struct
     s16     field_E4[4];
     union
     {
-        DVECTOR field_0[4];
+        DVECTOR field_0[4]; // Q19.12
         s32     raw_0[4];
     } u_field_EC;
     union
@@ -2004,8 +1980,8 @@ typedef struct
         DVECTOR field_0[4];
         s32     raw_0[4];
     } u_field_FC; // Q3.12 | Positions or offsets.
-    s32     field_10C[4];
-    s32     field_11C[4];
+    q19_12  field_10C[4]; // X offsets?
+    q19_12  field_11C[4]; // Z offsets?
 } s_func_8005E89C;
 
 typedef struct
@@ -2049,7 +2025,7 @@ typedef struct
     DVECTOR         field_16C;
     s32             field_170;
     s32             field_174;
-    s32             field_178;
+    q19_12          field_178;
     s32             field_17C;
     s32             field_180;
     s32             field_184;
@@ -2122,7 +2098,7 @@ typedef struct
     s32             field_1DC;
     s32             field_1E0;
     s32             field_1E4;
-    s32             field_1E8;
+    q19_12          field_1E8;
 } s_func_80063A50;
 
 typedef struct
@@ -2699,8 +2675,11 @@ void CharaModel_Free(s_CharaModel* model);
 
 void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerPosZ);
 
-/** Unknown bodyprog func. Called by `Fs_QueueDoThingWhenEmpty`. */
-s32 Ipd_ChunkInitCheck(void);
+/** @brief Loads map chunks in view and checks if they are loaded.
+ *
+ * @param `true` if chunks in view are loaded, `false` otherwise.
+ */
+bool Ipd_ChunkInitCheck(void);
 
 /** `arg0` should be `void*`? */
 void Gfx_InGameDraw(s32 arg0);
@@ -2803,7 +2782,7 @@ void Lm_Init(s_GlobalLm* globalLm, s_LmHeader* lmHdr);
 
 void LmHeader_Init(s_LmHeader* lmHdr);
 
-/** @brief Clears `queueIdx_4` in array of `s_IpdChunk` */
+/** @brief Clears `queueIdx` in array of `s_IpdChunk` */
 void Ipd_ActiveChunksQueueIdxClear(s_IpdChunk* chunks, s32 chunkCount);
 
 void Ipd_TexturesInit(void);
@@ -2973,9 +2952,15 @@ void func_80044044(s_IpdHeader* ipd, s32 cellX, s32 cellZ);
  */
 void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s32 arg4);
 
-bool func_80044420(s_IpdModelBuffer* modelBuf, s16 arg1, s16 arg2, q23_8 posX, q23_8 posZ);
+/** @brief Checks if an IPD chunk subcell is visible.
+ *
+ * @param modelBuf IPD model buffer.
+ * @param subcellX X subcell position.
+ * @param subcellZ Z subcell position.
+ * @param posX X cell position? TODO: Subcell/cell intent unclear, needs more research.
+ */
+bool Gfx_ChunkSubcellVisibleCheck(s_IpdModelBuffer* modelBuf, q7_8 subcellX, q7_8 subcellZ, q23_8 posX, q23_8 posZ);
 
-/** Loads anim file? */
 void Anim_BoneInit(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
 s_AnimInfo* func_80044918(s_ModelAnim* anim);
@@ -3077,7 +3062,7 @@ void func_800453E8(s_Skeleton* skel, bool cond);
 /** Does something with skeleton bones. `arg0` is a struct pointer. */
 void func_80045468(s_Skeleton* skel, s32* arg1, bool cond);
 
-void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* coord, q3_12 arg4, u16 arg5, s_FsImageDesc* images);
+void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoords, q3_12 arg4, u16 arg5, s_FsImageDesc* images);
 
 /** `arg0` is probably a bit flag. */
 void func_8004C564(u8 arg0, s8 weaponAttack);
@@ -3318,41 +3303,6 @@ void func_8005E89C(void);
 
 s32 func_8005F55C(s32 arg0);
 
-void DmsHeader_FixOffsets(s_DmsHeader* dmsHdr);
-
-void DmsEntry_FixOffsets(s_DmsEntry* entry, s_DmsHeader* dmsHdr);
-
-/** @unused? `volatile` needed for match. */
-s_DmsInterval* func_8008CA60(volatile s32 unused, s32 idx, s_DmsHeader* dmsHdr);
-
-void Dms_CharacterGetPosRot(VECTOR3* pos, SVECTOR3* rot, const char* charaName, q19_12 time, s_DmsHeader* dmsHdr);
-
-void Dms_CharacterGetStartPosRot(VECTOR3* pos, SVECTOR3* rot, const char* charaName, s32 time, s_DmsHeader* dmsHdr);
-
-s32 Dms_CharacterFindIdxByName(char* name, s_DmsHeader* dmsHdr);
-
-void Dms_CharacterGetPosRotByIdx(VECTOR3* pos, SVECTOR3* rot, s32 charaIdx, q19_12 time, s_DmsHeader* dmsHdr);
-
-void Dms_CharacterKeyframeInterpolate(s_DmsKeyframeCharacter* result, s_DmsKeyframeCharacter* frame0, s_DmsKeyframeCharacter* frame1, s32 alpha);
-
-/** @unused? Returns `96 * cotangent(angle / 2)`. Possibly camera/FOV related. */
-q3_12 func_8008CDBC(q3_12 angle);
-
-s32 Dms_CameraGetTargetPos(VECTOR3* posTarget, VECTOR3* lookAtTarget, u16* arg2, q19_12 time, s_DmsHeader* dmsHdr);
-
-/** @unused Returns whether any axis differs by more than 22.5 degrees (1/16 of full rotation). */
-bool func_8008CF54(SVECTOR3* rot0, SVECTOR3* rot1);
-
-s32 Dms_CameraKeyframeInterpolate(s_DmsKeyframeCamera* result, const s_DmsKeyframeCamera* frame0, const s_DmsKeyframeCamera* frame1, s32 alpha);
-
-void func_8008D1D0(s32* prevKeyframe, s32* nextKeyframe, q19_12* alpha, q19_12 time, s_DmsEntry* camEntry, s_DmsHeader* dmsHdr);
-
-u32 Dms_IntervalStateGet(q19_12 time, s_DmsHeader* dmsHdr);
-
-s32 func_8008D330(s32 arg0, s_DmsEntry* camEntry);
-
-s32 Math_LerpFixed12(s16 from, s16 to, q19_12 alpha);
-
 void func_8008D41C(void);
 
 void func_8008D438(void);
@@ -3445,13 +3395,13 @@ void func_800867B4(s32 state, s32 paperMapFileIdx);
 
 void func_800868DC(s32 idx);
 
-/** @brief Displays a map message with a sound.
+/** @brief Displays a map message with dialog audio and increments the audio index.
  *
  * @param mapMsgIdx Index of the message to display.
- * @param soundIdx Index of the sound to play.
- * @param sounds Sound indices.
+ * @param audioIdx Index of the dialog audio command to play.
+ * @param audioCmds Dialog audio commands.
  */
-void Map_MessageWithAudio(s32 mapMsgIdx, u8* soundIdx, u16* soundsIdxs);
+void Map_MessageWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioCmds);
 
 /** @brief Sets the camera position target.
  *
@@ -3548,15 +3498,13 @@ bool Chara_Load(s32 modelIdx, s8 charaId, GsCOORDINATE2* coords, s8 forceFree, s
 
 bool Chara_ProcessLoads(void);
 
-void func_80088D34(s32 idx);
+void Chara_BonesInit(s32 idx);
 
-s32 Chara_Spawn(e_CharacterId charaId, s32 arg1, q19_12 posX, q19_12 posZ, q3_12 rotY, u32 stateStep);
+s32 Chara_Spawn(e_CharacterId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ, q3_12 rotY, u32 stateStep);
 
-void func_80088F94(s_SubCharacter* chara, s32 unused1, s32 unused2);
+void Chara_ModelCharaIdClear(s_SubCharacter* chara, s32 unused0, s32 unused1);
 
-void func_80088FF4(e_CharacterId charaId, s32 spawnIdx, s32 spawnFlags);
-
-bool func_8008F434(s32 arg0);
+void Chara_SpawnFlagsSet(e_CharacterId charaId, s32 spawnIdx, s32 spawnFlags);
 
 // ========================
 
@@ -3865,11 +3813,11 @@ void Collision_DefaultResultSet(s_CollisionResult* collResult, q19_12 offsetX, q
 /** @brief Gets an array of active characters for collision testing.
  *
  * @param charaCount Output number of characters found.
- * @param excludeChara Character to exclude (typically the one being tested).
+ * @param excludedChara Character to exclude, typically the one being tested.
  * @param includePlayer Filter out the player.
  * @return Active characters.
  */
-s_SubCharacter** Collision_ActiveCharactersGet(s32* charaCount, const s_SubCharacter* excludeChara, bool includePlayer);
+s_SubCharacter** Collision_ActiveCharactersGet(s32* charaCount, const s_SubCharacter* excludedChara, bool includePlayer);
 
 /** @brief Checks a movement offset against a collision result.
  *
@@ -3882,7 +3830,7 @@ s32 Collision_OffsetCheck(s_CollisionResult* collResult, VECTOR* offset, s_Colli
 
 s32 func_8006A42C(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery);
 
-s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery, s32 arg3,
+s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQuery* collQuery, bool arg3,
                   s_IpdCollisionData** collDataPtrs, s32 collDataIdx, s_func_8006CF18* arg6, s32 arg7, s_SubCharacter** charas, s32 charaCount);
 
 // Claude suggests `Collision_NpcMovementDampen`? Investigate.
@@ -3893,9 +3841,9 @@ void func_8006A940(VECTOR3* offset, s_CollisionQuery* collQuery, s_SubCharacter*
  * @param collState Collision state to initialize.
  * @param offset Movement offset.
  * @param collQuery Input collision query parameters.
- * @param arg3 Configuration flag. @todo What is it?
+ * @param arg3 Configuration flag. TODO: What is it?
  */
-void Collision_QueryInit(s_CollisionState* collState, VECTOR3* offset, s_CollisionQuery* collQuery, s32 arg3);
+void Collision_QueryInit(s_CollisionState* collState, VECTOR3* offset, s_CollisionQuery* collQuery, bool arg3);
 
 /** @brief Calculates the movement direction vector and distance from a position offset.
  *
@@ -3941,7 +3889,7 @@ void func_8006C0C8(s_CollisionState* collState, s16 arg1, s16 arg2);
 
 bool func_8006C1B8(u32 arg0, s16 arg1, s_CollisionState* collState);
 
-s16 func_8006C248(s32 arg0, s16 arg1, q3_12 deltaX, q3_12 deltaZ, s16 arg4);
+s16 func_8006C248(s32 packedDir, s16 arg1, q3_12 deltaX, q3_12 deltaZ, s16 arg4);
 
 bool func_8006C3D4(s_CollisionState* collState, s_IpdCollisionData* collData, s32 idx);
 
@@ -4010,8 +3958,8 @@ void func_8006F338(s_func_8006F338* arg0, q19_12 posX, q19_12 posZ, q19_12 posDe
 
 bool func_8006F3C4(s_func_8006F338* arg0, const s_TriggerZone* zone);
 
-/** Translates something. */
-s32 func_8006F620(VECTOR3* pos, s_CollisionQuery* collQuery, s32 arg2, s32 arg3);
+/** Translates something. Unsure on 3rd param's name. */
+q19_12 func_8006F620(VECTOR3* pos, s_CollisionQuery* collQuery, q19_12 dist, q19_12 offsetY);
 
 void func_8006F8FC(q19_12* outX, q19_12* outZ, q19_12 posX, q19_12 posZ, const s_TriggerZone* zone);
 
@@ -4068,7 +4016,7 @@ void nullsub_800334C8(void);
 
 bool func_80033548(void);
 
-/** @brief Updates the savegame buffer with the current player SysWork info (position, rotation, health, event index). */
+/** @brief Updates the savegame buffer with current player info (position, rotation, health, event index). */
 void SysWork_SavegameUpdatePlayer(void);
 
 /** @brief Updates SysWork with player info from the savegame buffer (position, rotation, health). */
@@ -4141,11 +4089,12 @@ s8 func_80039F90(void);
 
 void SysState_ReadMessage_Update(void);
 
-void func_8003A16C(void);
+/** @brief Updates the active autosave savegame entry with the most recent savegame. */
+void SysWork_AutosaveUpdate(void);
 
 void SysState_SaveMenu_Update(void);
 
-void SysState_EventCallFunc_Update(void);
+void SysState_EventCallback_Update(void);
 
 void SysState_EventSetFlag_Update(void);
 
@@ -4268,7 +4217,7 @@ void WorldGfx_CharaModelProcessAllLoads(void);
 
 void WorldGfx_CharaModelProcessLoad(s_CharaModel* model);
 
-void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* coord, s32 arg2, q3_12 timer, s32 arg4);
+void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4);
 
 /** Something for Harry. `arg` is a packed value. */
 void func_8003DE60(s_Skeleton* skel, s32 arg1);
@@ -4460,7 +4409,7 @@ void GameState_LoadMapScreen_Update(void);
 void GameState_Unk15_Update(void);
 
 /** Handles character spawn? */
-void func_80089034(e_CharacterId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ);
+void Chara_SpawnPositionSet(e_CharacterId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ);
 
 /* Does the map zoom in, red lines? Argument types guessed based on f`unc_800E83C0` in MAP2_S00. */
 void Map_BoxOutlineDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s16 arg6, s16 arg7, s16 arg8);

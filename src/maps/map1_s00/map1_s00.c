@@ -404,7 +404,7 @@ void func_800D8354(void) // 0x800D8354
         case 4:
             func_800862F8(2, 0, false);
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 | g_GameWorkPtr->config.controllerConfig.cancel_2))
+            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SysWork_StateStepIncrement(0);
                 break;
@@ -440,7 +440,7 @@ void func_800D85A4(void) // 0x800D85A4
 void func_800D85D8(void) // 0x800D85D8
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= 3 && g_SysWork.sysStateSteps[0] < 5)
     {
         ScreenFade_ResetTimestep();
@@ -510,7 +510,7 @@ void func_800D85D8(void) // 0x800D85D8
 
 void func_800D8948(void) // 0x800D8948
 {
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= 4 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
@@ -774,16 +774,16 @@ void Map_WorldObjectsInit(void)
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        func_80088FF4(Chara_GreyChild, 3, 0);
-        func_80088FF4(Chara_GreyChild, 9, 0);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 3, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 9, SpawnFlag_None);
     }
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Hard)
     {
-        func_80088FF4(Chara_GreyChild, 10, 11);
-        func_80088FF4(Chara_GreyChild, 11, 3);
-        func_80088FF4(Chara_GreyChild, 12, 3);
-        func_80088FF4(Chara_GreyChild, 13, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 10, SpawnFlag_0 | SpawnFlag_1 | SpawnFlag_3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 11, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 12, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 13, SpawnFlag_0 | SpawnFlag_1);
     }
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
@@ -943,7 +943,7 @@ void Map_WorldObjectsUpdate(void)
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S00_HandgunBullets0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[0].position_0, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }
 
@@ -984,7 +984,7 @@ void func_800DA3FC(void) // 0x800DA3FC
 {
     if (Savegame_EventFlagGet(EventFlag_M1S01_PickupSilverMedallion))
     {
-        func_80088FF4(Chara_GreyChild, 0, 3);
-        func_80088FF4(Chara_GreyChild, 1, 3);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 0, SpawnFlag_0 | SpawnFlag_1);
+        Chara_SpawnFlagsSet(Chara_GreyChild, 1, SpawnFlag_0 | SpawnFlag_1);
     }
 }

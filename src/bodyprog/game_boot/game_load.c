@@ -233,7 +233,7 @@ void GameBoot_GameStartup(void) // 0x80034964
                    g_SysWork.playerWork.player.position.vx,
                    g_SysWork.playerWork.player.position.vy,
                    g_SysWork.playerWork.player.position.vz,
-                   g_MapOverlayHeader.mapInfo_0 ? g_MapOverlayHeader.mapInfo_0->tag_2 : "NULL");
+                   g_MapOverlayHeader.mapInfo ? g_MapOverlayHeader.mapInfo->tag_2 : "NULL");
 #endif
             if (g_SysWork.processFlags == ProcessFlag_OverlayTransition)
             {

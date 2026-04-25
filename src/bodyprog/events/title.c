@@ -238,7 +238,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             // Wrap selection.
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 g_GameWork.gameState = GameState_MainMenu;
 
@@ -317,8 +317,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
-                g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter_0 |
-                                                 g_GameWorkPtr->config.controllerConfig.cancel_2))
+                g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 g_GameWork.gameState = GameState_MainMenu;
 
@@ -356,13 +356,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Select game difficulty.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter_0)
+            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
             {
 
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] New Game selected, difficulty=%d", newGameSelectedDifficultyIdx - 1);
                 SH_DBG("[SH] Calling GameBoot_SavegameInitialize... harryModel=%p",
-                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
 #ifdef SH_PC_PORT
                 {
@@ -375,14 +375,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #endif
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] GameBoot_SavegameInitialize done harryModel=%p",
-                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels[1]);
                 SH_DBG("[SH] Calling GameBoot_PlayerInit... harryModel=%p",
-                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
                 GameBoot_PlayerInit();
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] GameBoot_PlayerInit done harryModel=%p",
-                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
 
                 g_SysWork.processFlags = ProcessFlag_NewGame;
@@ -390,7 +390,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
 #ifdef SH_PC_PORT
                 SH_DBG("[SH] Before GameBoot_MapLoad: registeredCharaModels[Harry]=%p",
-                        (void*)g_WorldGfxWork.registeredCharaModels_18[1]);
+                        (void*)g_WorldGfxWork.registeredCharaModels[1]);
                 SH_DBG("[SH] Calling GameBoot_MapLoad + GameFs_StreamBinLoad");
 #endif
 #ifdef SH_PC_PORT
@@ -417,7 +417,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 g_MainMenuState     = 4;
             }
             // Cancel.
-            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel_2)
+            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 SD_Call(Sfx_MenuCancel);
                 g_MainMenuState = 1;

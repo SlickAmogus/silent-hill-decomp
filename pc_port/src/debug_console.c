@@ -225,8 +225,8 @@ static void con_execute(const char* cmd)
         char line[CON_MAX_LINE];
         const char* cur_tag = "???";
 
-        if (g_WorldGfxWork.mapInfo_0) {
-            cur_tag = g_WorldGfxWork.mapInfo_0->tag_2;
+        if (g_WorldGfxWork.mapInfo) {
+            cur_tag = g_WorldGfxWork.mapInfo->tag_2;
         }
 
         snprintf(line, CON_MAX_LINE, "CURRENT MAP: %s", cur_tag);

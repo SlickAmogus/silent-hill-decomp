@@ -31,9 +31,9 @@ bool func_80040B74(e_CharacterId charaId) // 0x80040B74
 {
     s32 i;
 
-    for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels_CC); i++)
+    for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels); i++)
     {
-        if (g_WorldGfxWork.charaModels_CC[i].charaId == charaId)
+        if (g_WorldGfxWork.charaModels[i].charaId == charaId)
         {
             return true;
         }
@@ -435,7 +435,7 @@ u32 IpdHeader_LoadStateGet(s_IpdChunk* chunk) // 0x80041B1C
     s32 queueState;
     s32 queueStateCpy;
 
-    queueState    = Fs_QueueEntryLoadStatusGet(chunk->queueIdx_4);
+    queueState    = Fs_QueueEntryLoadStatusGet(chunk->queueIdx);
     queueStateCpy = queueState;
 
     if (queueStateCpy == FsQueueEntryLoadStatus_Unloaded)
@@ -447,7 +447,7 @@ u32 IpdHeader_LoadStateGet(s_IpdChunk* chunk) // 0x80041B1C
     {
         return StaticModelLoadState_Invalid;
     }
-    else if (chunk->ipdHdr_0->isLoaded_1 && IpdHeader_IsTextureLoaded(chunk->ipdHdr_0))
+    else if (chunk->ipdHdr->isLoaded && IpdHeader_IsTextureLoaded(chunk->ipdHdr))
     {
         return StaticModelLoadState_Loaded;
     }
@@ -519,7 +519,7 @@ void Ipd_ActiveChunksQueueIdxClear(s_IpdChunk* chunks, s32 chunkCount) // 0x8004
 
     for (curChunk = &chunks[0]; curChunk < &chunks[chunkCount]; curChunk++)
     {
-        curChunk->queueIdx_4 = NO_VALUE;
+        curChunk->queueIdx = NO_VALUE;
     }
 }
 
@@ -571,21 +571,21 @@ void Map_PlaceIpdAtCell(s16 ipdFileIdx, s32 cellX, s32 cellZ) // 0x80041ED0
 
     for (curChunk = g_Map.ipdActive_15C; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
-        if (curChunk->cellX_8 != cellX || curChunk->cellZ_A != cellZ)
+        if (curChunk->cellX != cellX || curChunk->cellZ != cellZ)
         {
             continue;
         }
 
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            ipdHdr = curChunk->ipdHdr_0;
-            if (ipdHdr->isLoaded_1)
+            ipdHdr = curChunk->ipdHdr;
+            if (ipdHdr->isLoaded)
             {
-                Lm_MaterialRefCountDec(ipdHdr->lmHdr_4);
+                Lm_MaterialRefCountDec(ipdHdr->lmHdr);
             }
         }
 
-        curChunk->queueIdx_4 = NO_VALUE;
+        curChunk->queueIdx = NO_VALUE;
     }
 }
 
@@ -727,7 +727,7 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
     {
         s32 activeCount = 0;
         for (i = 0; i < map->ipdActiveSize_158; i++) {
-            if (map->ipdActive_15C[i].queueIdx_4 != NO_VALUE) activeCount++;
+            if (map->ipdActive_15C[i].queueIdx != NO_VALUE) activeCount++;
         }
         SH_DBG("[IPD-CLEAR] Ipd_ActiveChunksClear: clearing %d active chunks (total slots=%d, newSize=%d)",
                activeCount, map->ipdActiveSize_158, arg1);
@@ -744,30 +744,30 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
     {
         curChunk = &map->ipdActive_15C[i];
 
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            ipdHdr1 = curChunk->ipdHdr_0;
-            if (ipdHdr1 != NULL && ipdHdr1->isLoaded_1)
+            ipdHdr1 = curChunk->ipdHdr;
+            if (ipdHdr1 != NULL && ipdHdr1->isLoaded)
             {
-                Lm_MaterialRefCountDec(ipdHdr1->lmHdr_4);
+                Lm_MaterialRefCountDec(ipdHdr1->lmHdr);
             }
         }
 
-        curChunk->queueIdx_4      = NO_VALUE;
-        curChunk->distance1_10    = INT_MAX;
-        curChunk->outsideCount_18 = 0;
+        curChunk->queueIdx      = NO_VALUE;
+        curChunk->distance1    = INT_MAX;
+        curChunk->outsideCount = 0;
 
         if (i < arg1)
         {
-            curChunk->ipdHdr_0 = ipdHdr0;
+            curChunk->ipdHdr = ipdHdr0;
             *(u8**)&ipdHdr0 += step;
         }
         else if (i < PC_MAX_IPD_CHUNKS)
         {
             /* Allocate individual buffers for extra debug slots */
-            if (curChunk->ipdHdr_0 == NULL)
+            if (curChunk->ipdHdr == NULL)
             {
-                curChunk->ipdHdr_0 = (s_IpdHeader*)calloc(1, step > 0 ? step : 65536);
+                curChunk->ipdHdr = (s_IpdHeader*)calloc(1, step > 0 ? step : 65536);
             }
         }
     }
@@ -776,26 +776,26 @@ void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
     {
         curChunk = &map->ipdActive_15C[i];
 
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            ipdHdr1 = curChunk->ipdHdr_0;
-            if (ipdHdr1->isLoaded_1)
+            ipdHdr1 = curChunk->ipdHdr;
+            if (ipdHdr1->isLoaded)
             {
-                Lm_MaterialRefCountDec(ipdHdr1->lmHdr_4);
+                Lm_MaterialRefCountDec(ipdHdr1->lmHdr);
             }
         }
 
-        curChunk->queueIdx_4      = NO_VALUE;
-        curChunk->distance1_10    = INT_MAX;
-        curChunk->outsideCount_18 = 0;
+        curChunk->queueIdx      = NO_VALUE;
+        curChunk->distance1    = INT_MAX;
+        curChunk->outsideCount = 0;
 
         if (i < arg1)
         {
-            curChunk->ipdHdr_0 = ipdHdr0;
+            curChunk->ipdHdr = ipdHdr0;
         }
         else
         {
-            curChunk->ipdHdr_0 = NULL;
+            curChunk->ipdHdr = NULL;
         }
     }
 #endif
@@ -912,10 +912,10 @@ s_IpdCollisionData** func_800425D8(s32* collDataIdx) // 0x800425D8
 
     while (ptr < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158])
     {
-        if (Fs_QueueEntryLoadStatusGet(ptr->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(ptr->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            ipdHdr = ptr->ipdHdr_0;
-            if (ipdHdr->isLoaded_1)
+            ipdHdr = ptr->ipdHdr;
+            if (ipdHdr->isLoaded)
             {
                 collData = IpdHeader_CollisionDataGet(ipdHdr);
                 if (collData != NULL)
@@ -952,17 +952,17 @@ s_IpdCollisionData* func_800426E4(s32 posX, s32 posZ) // 0x800426E4
     for (curChunk = g_Map.ipdActive_15C; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
         // Check if chunk is loaded.
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) < FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < FsQueueEntryLoadStatus_Loaded)
         {
             continue;
         }
 
         // Check if chunk matches cell coordinates.
-        ipdHdr = curChunk->ipdHdr_0;
-        if (ipdHdr->isLoaded_1 &&
-            curChunk->cellX_8 == cellX && curChunk->cellZ_A == cellZ)
+        ipdHdr = curChunk->ipdHdr;
+        if (ipdHdr->isLoaded &&
+            curChunk->cellX == cellX && curChunk->cellZ == cellZ)
         {
-            return &ipdHdr->collisionData_54;
+            return &ipdHdr->collisionData;
         }
     }
 
@@ -1016,19 +1016,19 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
          curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158];
          curChunk++)
     {
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) < FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < FsQueueEntryLoadStatus_Loaded)
         {
             continue;
         }
 
-        if (!curChunk->ipdHdr_0->isLoaded_1)
+        if (!curChunk->ipdHdr->isLoaded)
         {
             continue;
         }
 
         if (!g_Map.isExterior_588)
         {
-            if (curChunk->cellX_8 == cellX && curChunk->cellZ_A == cellZ)
+            if (curChunk->cellX == cellX && curChunk->cellZ == cellZ)
             {
                 chunks[chunkIdx] = curChunk;
                 chunkIdx++;
@@ -1037,10 +1037,10 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
         }
         else
         {
-            if (curChunk->cellX_8 >= (cellX - 1) && (cellX + 1) >= curChunk->cellX_8 &&
-                curChunk->cellZ_A >= (cellZ - 1) && (cellZ + 1) >= curChunk->cellZ_A)
+            if (curChunk->cellX >= (cellX - 1) && (cellX + 1) >= curChunk->cellX &&
+                curChunk->cellZ >= (cellZ - 1) && (cellZ + 1) >= curChunk->cellZ)
             {
-                distToEdge = Ipd_DistanceToEdgeGet(geomX, geomZ, curChunk->cellX_8, curChunk->cellZ_A);
+                distToEdge = Ipd_DistanceToEdgeGet(geomX, geomZ, curChunk->cellX, curChunk->cellZ);
                 for (i = 0; i < chunkIdx; i++)
                 {
                     if (distToEdge < distsToEdges[i])
@@ -1065,7 +1065,7 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
     for (k = 0; k < chunkIdx; k++)
     {
         curChunk = chunks[k];
-        if (Lm_ModelFind(model, curChunk->ipdHdr_0->lmHdr_4, metadata))
+        if (Lm_ModelFind(model, curChunk->ipdHdr->lmHdr, metadata))
         {
             return (curChunk - g_Map.ipdActive_15C) + 3;
         }
@@ -1161,7 +1161,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
                     /* Find next unused slot */
                     while (nextSlot < PC_MAX_IPD_CHUNKS &&
-                           Fs_QueueEntryLoadStatusGet(g_Map.ipdActive_15C[nextSlot].queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                           Fs_QueueEntryLoadStatusGet(g_Map.ipdActive_15C[nextSlot].queueIdx) >= FsQueueEntryLoadStatus_Loaded)
                     {
                         nextSlot++;
                     }
@@ -1173,7 +1173,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
                     }
 
                     pChunk = &g_Map.ipdActive_15C[nextSlot];
-                    pChunk->materialCount_14 = 0;
+                    pChunk->materialCount = 0;
 
                     /* Start loading */
                     Ipd_LoadStart(pChunk, pFileIdx, px, pz, posX0, posZ0, posX1, posZ1, g_Map.isExterior_588);
@@ -1189,13 +1189,13 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
                     }
 
                     /* Fix up the chunk if loaded */
-                    if (Fs_QueueEntryLoadStatusGet(pChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                    if (Fs_QueueEntryLoadStatusGet(pChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
                     {
-                        IpdHeader_FixOffsets(pChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr, 1,
+                        IpdHeader_FixOffsets(pChunk->ipdHdr, &g_Map.globalLm_138.lmHdr, 1,
                                             &g_Map.ipdTextures_430.fullPage_0,
                                             &g_Map.ipdTextures_430.halfPage_2C,
                                             g_Map.texFileIdx_134);
-                        func_80044044(pChunk->ipdHdr_0, pChunk->cellX_8, pChunk->cellZ_A);
+                        func_80044044(pChunk->ipdHdr, pChunk->cellX, pChunk->cellZ);
                     }
 
                     nextSlot++;
@@ -1209,7 +1209,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
             s32 loadedCount = 0;
             for (curChunk = g_Map.ipdActive_15C; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
             {
-                if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
                     loadedCount++;
             }
             SH_DBG("[PRELOAD] Loaded %d chunks for map '%s'", loadedCount, g_Map.mapTag_144);
@@ -1255,10 +1255,10 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
     for (curChunk = g_Map.ipdActive_15C; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
     {
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            IpdHeader_FixOffsets(curChunk->ipdHdr_0, &g_Map.globalLm_138.lmHdr, 1, &g_Map.ipdTextures_430.fullPage_0, &g_Map.ipdTextures_430.halfPage_2C, g_Map.texFileIdx_134);
-            func_80044044(curChunk->ipdHdr_0, curChunk->cellX_8, curChunk->cellZ_A);
+            IpdHeader_FixOffsets(curChunk->ipdHdr, &g_Map.globalLm_138.lmHdr, 1, &g_Map.ipdTextures_430.fullPage_0, &g_Map.ipdTextures_430.halfPage_2C, g_Map.texFileIdx_134);
+            func_80044044(curChunk->ipdHdr, curChunk->cellX, curChunk->cellZ);
         }
     }
 }
@@ -1423,12 +1423,12 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
                     }
 #endif
 
-                    if (Fs_QueueEntryLoadStatusGet(chunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+                    if (Fs_QueueEntryLoadStatusGet(chunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
                     {
-                        ipdHdr = chunk->ipdHdr_0;
-                        if (ipdHdr->isLoaded_1)
+                        ipdHdr = chunk->ipdHdr;
+                        if (ipdHdr->isLoaded)
                         {
-                            Lm_MaterialRefCountDec(ipdHdr->lmHdr_4);
+                            Lm_MaterialRefCountDec(ipdHdr->lmHdr);
                         }
                     }
 
@@ -1436,7 +1436,7 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
                     /* Reset material count so this chunk isn't re-evicted in
                        the same frame (stale materialCount from pre-eviction
                        would make it the top eviction candidate again). */
-                    chunk->materialCount_14 = 0;
+                    chunk->materialCount = 0;
 #endif
 
                     curQueueIdx = Ipd_LoadStart(chunk, chunkIdx, projCellX, projCellZ, posX0, posZ0, posX1, posZ1, map->isExterior_588);
@@ -1463,40 +1463,40 @@ void Ipd_ActiveChunksSample(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1
     // Run through active chunks.
     for (curChunk = map->ipdActive_15C; curChunk < &map->ipdActive_15C[map->ipdActiveSize_158]; curChunk++)
     {
-        if (curChunk->queueIdx_4 == NO_VALUE)
+        if (curChunk->queueIdx == NO_VALUE)
         {
-            curChunk->distance0_C  = INT_MAX;
-            curChunk->distance1_10 = INT_MAX;
+            curChunk->distance0  = INT_MAX;
+            curChunk->distance1 = INT_MAX;
         }
         else
         {
             Ipd_DistanceToEdgeCalc(curChunk, posX0, posZ0, posX1, posZ1, isExterior);
         }
 
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) < FsQueueEntryLoadStatus_Loaded || !curChunk->ipdHdr_0->isLoaded_1)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < FsQueueEntryLoadStatus_Loaded || !curChunk->ipdHdr->isLoaded)
         {
-            curChunk->materialCount_14 = 0;
+            curChunk->materialCount = 0;
         }
         else
         {
-            curChunk->materialCount_14 = Ipd_HalfPageMaterialCountGet(curChunk->ipdHdr_0);
+            curChunk->materialCount = Ipd_HalfPageMaterialCountGet(curChunk->ipdHdr);
         }
 
-        if (curChunk->distance0_C > Q12(0.0f) && curChunk->distance1_10 > Q12(0.0f))
+        if (curChunk->distance0 > Q12(0.0f) && curChunk->distance1 > Q12(0.0f))
         {
-            curChunk->outsideCount_18++;
+            curChunk->outsideCount++;
         }
         else
         {
-            curChunk->outsideCount_18 = 0;
+            curChunk->outsideCount = 0;
         }
     }
 }
 
 void Ipd_DistanceToEdgeCalc(s_IpdChunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1, bool isExterior) // 0x80043338
 {
-    chunk->distance0_C  = Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, chunk->cellX_8, chunk->cellZ_A, isExterior);
-    chunk->distance1_10 = Ipd_PaddedDistanceToEdgeGet(posX1, posZ1, chunk->cellX_8, chunk->cellZ_A, isExterior);
+    chunk->distance0  = Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, chunk->cellX, chunk->cellZ, isExterior);
+    chunk->distance1 = Ipd_PaddedDistanceToEdgeGet(posX1, posZ1, chunk->cellX, chunk->cellZ, isExterior);
 }
 
 void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
@@ -1517,25 +1517,25 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
 
     for (curChunk = &map->ipdActive_15C[0]; curChunk < &map->ipdActive_15C[map->ipdActiveSize_158]; curChunk++)
     {
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            if (curChunk->ipdHdr_0->isLoaded_1 &&
-                curChunk->distance0_C > _matDist && curChunk->distance1_10 > _matDist)
+            if (curChunk->ipdHdr->isLoaded &&
+                curChunk->distance0 > _matDist && curChunk->distance1 > _matDist)
             {
-                Lm_MaterialRefCountDec(curChunk->ipdHdr_0->lmHdr_4);
+                Lm_MaterialRefCountDec(curChunk->ipdHdr->lmHdr);
             }
         }
     }
 
     for (curChunk = &map->ipdActive_15C[0]; curChunk < &map->ipdActive_15C[map->ipdActiveSize_158]; curChunk++)
     {
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx_4) >= FsQueueEntryLoadStatus_Loaded)
+        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded)
         {
-            if (curChunk->ipdHdr_0->isLoaded_1 &&
-                (curChunk->distance0_C <= _matDist || curChunk->distance1_10 <= _matDist))
+            if (curChunk->ipdHdr->isLoaded &&
+                (curChunk->distance0 <= _matDist || curChunk->distance1 <= _matDist))
             {
-                Ipd_MaterialsLoad(curChunk->ipdHdr_0, &map->ipdTextures_430.fullPage_0, &map->ipdTextures_430.halfPage_2C, map->texFileIdx_134);
-                Lm_MaterialFlagsApply(curChunk->ipdHdr_0->lmHdr_4);
+                Ipd_MaterialsLoad(curChunk->ipdHdr, &map->ipdTextures_430.fullPage_0, &map->ipdTextures_430.halfPage_2C, map->texFileIdx_134);
+                Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
             }
         }
     }
@@ -1553,8 +1553,8 @@ bool Map_IsIpdPresent(s_IpdChunk* chunks, s32 cellX, s32 cellZ) // 0x80043578
 
     for (i = 0; i < g_Map.ipdActiveSize_158; i++)
     {
-        if (chunks[i].queueIdx_4 != NO_VALUE &&
-            cellX == chunks[i].cellX_8 && cellZ == chunks[i].cellZ_A)
+        if (chunks[i].queueIdx != NO_VALUE &&
+            cellX == chunks[i].cellX && cellZ == chunks[i].cellZ)
         {
             return true;
         }
@@ -1582,23 +1582,23 @@ s_IpdChunk* Ipd_FreeChunkFind(s_IpdChunk* chunks, bool isExterior)
     {
         if (!isExterior)
         {
-            if (curChunk->queueIdx_4 == NO_VALUE)
+            if (curChunk->queueIdx == NO_VALUE)
             {
                 activeChunk = curChunk;
                 break;
             }
             else
             {
-                if (largestOutsideCount < curChunk->outsideCount_18)
+                if (largestOutsideCount < curChunk->outsideCount)
                 {
-                    largestOutsideCount = curChunk->outsideCount_18;
+                    largestOutsideCount = curChunk->outsideCount;
                     activeChunk         = curChunk;
                 }
             }
         }
         else
         {
-            if (curChunk->queueIdx_4 == NO_VALUE)
+            if (curChunk->queueIdx == NO_VALUE)
             {
 #ifdef SH_PC_PORT
                 /* On PC with 64 slots, immediately return empty slots
@@ -1621,9 +1621,9 @@ s_IpdChunk* Ipd_FreeChunkFind(s_IpdChunk* chunks, bool isExterior)
             }
             else
             {
-                matCount = curChunk->materialCount_14;
+                matCount = curChunk->materialCount;
 
-                dist = curChunk->distance0_C;
+                dist = curChunk->distance0;
                 if (dist == Q12(0.0f))
                 {
                     continue;
@@ -1652,18 +1652,18 @@ s32 Ipd_LoadStart(s_IpdChunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19
         return fileIdx;
     }
 
-    chunk->cellX_8    = cellX;
-    chunk->cellZ_A    = cellZ;
-    chunk->queueIdx_4 = Fs_QueueStartRead(fileIdx, chunk->ipdHdr_0);
+    chunk->cellX    = cellX;
+    chunk->cellZ    = cellZ;
+    chunk->queueIdx = Fs_QueueStartRead(fileIdx, chunk->ipdHdr);
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
 #ifdef SH_PC_PORT
     SH_DBG("[IPD-LOAD] Ipd_LoadStart: cell=(%d,%d) fileIdx=%d queueIdx=%d chunkSlot=%d",
-           cellX, cellZ, fileIdx, chunk->queueIdx_4, (s32)(chunk - g_Map.ipdActive_15C));
+           cellX, cellZ, fileIdx, chunk->queueIdx, (s32)(chunk - g_Map.ipdActive_15C));
 #endif
 
-    return chunk->queueIdx_4;
+    return chunk->queueIdx;
 }
 
 bool Ipd_AreChunksLoaded(void) // 0x80043740
@@ -1694,7 +1694,7 @@ bool Ipd_AreChunksLoaded(void) // 0x80043740
                 continue;
         }
 
-        if (curChunk->distance0_C <= Q12(0.0f) || curChunk->distance1_10 <= Q12(0.0f))
+        if (curChunk->distance0 <= Q12(0.0f) || curChunk->distance1 <= Q12(0.0f))
         {
             return false;
         }
@@ -1718,7 +1718,7 @@ bool func_80043830(void) // 0x80043830
     {
         loadState = IpdHeader_LoadStateGet(curChunk);
         if (loadState == StaticModelLoadState_Invalid || loadState == StaticModelLoadState_Loaded ||
-            (curChunk->distance0_C > Q12(0.0f) && curChunk->distance1_10 > Q12(0.0f)))
+            (curChunk->distance0 > Q12(0.0f) && curChunk->distance1 > Q12(0.0f)))
         {
             continue;
         }
@@ -1728,7 +1728,7 @@ bool func_80043830(void) // 0x80043830
             continue;
         }
 
-        if (Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX_578), Q12_TO_Q8(g_Map.positionX_57C), curChunk->cellX_8, curChunk->cellZ_A) <= Q8(4.5f))
+        if (Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX_578), Q12_TO_Q8(g_Map.positionX_57C), curChunk->cellX, curChunk->cellZ) <= Q8(4.5f))
         {
             return true;
         }
@@ -1796,7 +1796,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #ifdef SH_PC_PORT
             cellMatchChunks++;
 #endif
-            Gfx_IpdChunkDraw(curChunk->ipdHdr_0, g_Map.positionX_578, g_Map.positionX_57C, ot, arg1);
+            Gfx_IpdChunkDraw(curChunk->ipdHdr, g_Map.positionX_578, g_Map.positionX_57C, ot, arg1);
 #ifdef SH_PC_PORT
             if (++drawCount >= drawLimit) break;
 #endif
@@ -1816,10 +1816,10 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
                 for (i = 0; i < g_Map.ipdActiveSize_158; i++, c++) {
                     if (IpdHeader_LoadStateGet(c) >= StaticModelLoadState_Loaded) {
                         SH_DBG("[IPD]   chunk[%d]: cell=(%d,%d) models=%d isLoaded=%d qIdx=%d",
-                               i, c->cellX_8, c->cellZ_A,
-                               c->ipdHdr_0 ? c->ipdHdr_0->modelCount : -1,
-                               c->ipdHdr_0 ? c->ipdHdr_0->isLoaded_1 : -1,
-                               c->queueIdx_4);
+                               i, c->cellX, c->cellZ,
+                               c->ipdHdr ? c->ipdHdr->modelCount : -1,
+                               c->ipdHdr ? c->ipdHdr->isLoaded : -1,
+                               c->queueIdx);
                         break;
                     }
                 }
@@ -1838,13 +1838,13 @@ bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
      * at screen edges. On PSX exact-cell match was fine; on PC the viewport
      * can show a sliver of the next cell before the cell boundary is reached. */
     {
-        s32 dx = (s32)chunk->cellX_8 - map->cellX_580;
-        s32 dz = (s32)chunk->cellZ_A - map->cellZ_584;
+        s32 dx = (s32)chunk->cellX - map->cellX_580;
+        s32 dz = (s32)chunk->cellZ - map->cellZ_584;
         if (dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1) return true;
     }
 #else
-    if (map->cellX_580 == chunk->cellX_8 &&
-        map->cellZ_584 == chunk->cellZ_A)
+    if (map->cellX_580 == chunk->cellX &&
+        map->cellZ_584 == chunk->cellZ)
     {
         return true;
     }
@@ -1855,19 +1855,19 @@ bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
 
 bool IpdHeader_IsTextureLoaded(s_IpdHeader* ipdHdr) // 0x80043B70
 {
-    if (!ipdHdr->isLoaded_1)
+    if (!ipdHdr->isLoaded)
     {
         return false;
     }
 
-    return LmHeader_IsTextureLoaded(ipdHdr->lmHdr_4);
+    return LmHeader_IsTextureLoaded(ipdHdr->lmHdr);
 }
 
 s_IpdCollisionData* IpdHeader_CollisionDataGet(s_IpdHeader* ipdHdr) // 0x80043BA4
 {
-    if (ipdHdr->isLoaded_1)
+    if (ipdHdr->isLoaded)
     {
-        return &ipdHdr->collisionData_54;
+        return &ipdHdr->collisionData;
     }
 
     return NULL;
@@ -1881,31 +1881,31 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
         if (raw[1] == 1) return; /* already loaded (check raw byte, struct may not be populated yet) */
         extern void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
         IpdHeader_FixOffsets_PC(ipdHdr);
-        ipdHdr->isLoaded_1 = true;
+        ipdHdr->isLoaded = true;
         /* LmHeader_FixOffsets now uses PC reformatter */
-        LmHeader_FixOffsets(ipdHdr->lmHdr_4);
+        LmHeader_FixOffsets(ipdHdr->lmHdr);
         {
             /* Find which chunk slot this belongs to for logging */
             s32 slot = -1, si;
             for (si = 0; si < g_Map.ipdActiveSize_158; si++) {
-                if (g_Map.ipdActive_15C[si].ipdHdr_0 == ipdHdr) { slot = si; break; }
+                if (g_Map.ipdActive_15C[si].ipdHdr == ipdHdr) { slot = si; break; }
             }
             SH_DBG("[IPD-FIXUP] IpdHeader_FixOffsets PC: slot=%d fileIdx=%d modelCount=%d lmHdr=%p",
-                   slot, fileIdx, ipdHdr->lmHdr_4 ? ipdHdr->lmHdr_4->modelCount : -1, (void*)ipdHdr->lmHdr_4);
+                   slot, fileIdx, ipdHdr->lmHdr ? ipdHdr->lmHdr->modelCount : -1, (void*)ipdHdr->lmHdr);
         }
     }
 #else
-    if (ipdHdr->isLoaded_1)
+    if (ipdHdr->isLoaded)
     {
         return;
     }
-    ipdHdr->isLoaded_1 = true;
+    ipdHdr->isLoaded = true;
 
     IpdHeader_FixHeaderOffsets(ipdHdr);
-    IpdCollData_FixOffsets(&ipdHdr->collisionData_54);
-    LmHeader_FixOffsets(ipdHdr->lmHdr_4);
+    IpdCollData_FixOffsets(&ipdHdr->collisionData);
+    LmHeader_FixOffsets(ipdHdr->lmHdr);
 #endif
-    func_8008E4EC(ipdHdr->lmHdr_4);
+    func_8008E4EC(ipdHdr->lmHdr);
 #ifdef SH_PC_PORT
     /* When preloading, skip material loading here — loading 129 chunks'
      * textures at once overwhelms the PSX VRAM texture system.
@@ -1915,38 +1915,38 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
 #endif
     {
         Ipd_MaterialsLoad(ipdHdr, fullPageActiveTexs, halfPageActiveTexs, fileIdx);
-        Lm_MaterialFlagsApply(ipdHdr->lmHdr_4);
+        Lm_MaterialFlagsApply(ipdHdr->lmHdr);
     }
     IpdHeader_ModelLinkObjectLists(ipdHdr, lmHdrs, lmHdrCount);
-    IpdHeader_ModelBufferLinkObjectLists(ipdHdr, ipdHdr->modelInfo_14);
+    IpdHeader_ModelBufferLinkObjectLists(ipdHdr, ipdHdr->modelInfo);
 }
 
 void Ipd_MaterialsLoad(s_IpdHeader* ipdHdr, s_ActiveTextures* fullPageActiveTexs, s_ActiveTextures* halfPageActiveTexs, e_FsFile fileIdx) // 0x80043C7C
 {
-    if (!ipdHdr->isLoaded_1)
+    if (!ipdHdr->isLoaded)
     {
         return;
     }
 
     if (fullPageActiveTexs != NULL)
     {
-        Lm_MaterialsLoadWithFilter(ipdHdr->lmHdr_4, fullPageActiveTexs, &LmFilter_IsFullPage, fileIdx, BlendMode_Additive);
+        Lm_MaterialsLoadWithFilter(ipdHdr->lmHdr, fullPageActiveTexs, &LmFilter_IsFullPage, fileIdx, BlendMode_Additive);
     }
 
     if (halfPageActiveTexs != NULL)
     {
-        Lm_MaterialsLoadWithFilter(ipdHdr->lmHdr_4, halfPageActiveTexs, &LmFilter_IsHalfPage, fileIdx, BlendMode_Additive);
+        Lm_MaterialsLoadWithFilter(ipdHdr->lmHdr, halfPageActiveTexs, &LmFilter_IsHalfPage, fileIdx, BlendMode_Additive);
     }
 }
 
 s32 Ipd_HalfPageMaterialCountGet(s_IpdHeader* ipdHdr) // 0x80043D00
 {
-    if (!ipdHdr->isLoaded_1)
+    if (!ipdHdr->isLoaded)
     {
         return 0;
     }
 
-    return Lm_MaterialCountGet(LmFilter_IsHalfPage, ipdHdr->lmHdr_4);
+    return Lm_MaterialCountGet(LmFilter_IsHalfPage, ipdHdr->lmHdr);
 }
 
 bool LmFilter_IsFullPage(s_Material* mat) // 0x80043D44
@@ -1978,18 +1978,18 @@ void IpdHeader_FixHeaderOffsets(s_IpdHeader* ipdHdr) // 0x80043DA4
 {
     s_IpdModelBuffer* curModelBuf;
 
-    ipdHdr->lmHdr_4           = (u8*)ipdHdr->lmHdr_4 + (uintptr_t)ipdHdr;
-    ipdHdr->modelInfo_14      = (u8*)ipdHdr->modelInfo_14 + (uintptr_t)ipdHdr;
-    ipdHdr->modelBuffers_18   = (u8*)ipdHdr->modelBuffers_18 + (uintptr_t)ipdHdr;
-    ipdHdr->modelOrderList_50 = (u8*)ipdHdr->modelOrderList_50 + (uintptr_t)ipdHdr;
+    ipdHdr->lmHdr           = (u8*)ipdHdr->lmHdr + (u32)ipdHdr;
+    ipdHdr->modelInfo      = (u8*)ipdHdr->modelInfo + (u32)ipdHdr;
+    ipdHdr->modelBuffers   = (u8*)ipdHdr->modelBuffers + (u32)ipdHdr;
+    ipdHdr->modelOrderList = (u8*)ipdHdr->modelOrderList + (u32)ipdHdr;
 
-    for (curModelBuf = &ipdHdr->modelBuffers_18[0];
-         curModelBuf < &ipdHdr->modelBuffers_18[ipdHdr->modelBufferCount_9];
+    for (curModelBuf = &ipdHdr->modelBuffers[0];
+         curModelBuf < &ipdHdr->modelBuffers[ipdHdr->modelBufferCount];
          curModelBuf++)
     {
-        curModelBuf->field_C  = (u8*)curModelBuf->field_C + (uintptr_t)ipdHdr;
-        curModelBuf->field_10 = (u8*)curModelBuf->field_10 + (uintptr_t)ipdHdr;
-        curModelBuf->field_14 = (u8*)curModelBuf->field_14 + (uintptr_t)ipdHdr;
+        curModelBuf->field_C  = (u8*)curModelBuf->field_C + (u32)ipdHdr;
+        curModelBuf->field_10 = (u8*)curModelBuf->field_10 + (u32)ipdHdr;
+        curModelBuf->subcellPositions = (u8*)curModelBuf->subcellPositions + (u32)ipdHdr;
     }
 }
 
@@ -2001,11 +2001,11 @@ void IpdHeader_ModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
 
     for (i = 0; i < ipdHdr->modelCount; i++)
     {
-        curModelInfo = &ipdHdr->modelInfo_14[i];
+        curModelInfo = &ipdHdr->modelInfo[i];
 
         if (!curModelInfo->isGlobalPlm)
         {
-            curModelInfo->modelHdr = LmHeader_ModelHeaderSearch(&curModelInfo->modelName, ipdHdr->lmHdr_4);
+            curModelInfo->modelHdr = LmHeader_ModelHeaderSearch(&curModelInfo->modelName, ipdHdr->lmHdr);
         }
         else
         {
@@ -2025,8 +2025,8 @@ void IpdHeader_ModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
                (char*)&curModelInfo->modelName.str[4],
                curModelInfo->isGlobalPlm,
                (void*)curModelInfo->modelHdr,
-               (void*)(curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr_4),
-               curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount : 0) : ipdHdr->lmHdr_4->modelCount);
+               (void*)(curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr),
+               curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount : 0) : ipdHdr->lmHdr->modelCount);
 #endif
     }
 }
@@ -2054,17 +2054,17 @@ void IpdHeader_ModelBufferLinkObjectLists(s_IpdHeader* ipdHdr, s_IpdModelInfo* i
     s_IpdModelBuffer*   curModelBuffer;
     s_IpdModelBuffer_C* unkData;
 
-    for (curModelBuffer = ipdHdr->modelBuffers_18;
-         curModelBuffer < &ipdHdr->modelBuffers_18[ipdHdr->modelBufferCount_9];
+    for (curModelBuffer = ipdHdr->modelBuffers;
+         curModelBuffer < &ipdHdr->modelBuffers[ipdHdr->modelBufferCount];
          curModelBuffer++)
     {
         for (unkData = &curModelBuffer->field_C[0];
              unkData < &curModelBuffer->field_C[curModelBuffer->field_0];
              unkData++)
         {
-            // `unkData` originally stores model idx, replace that with pointer to the model's `modelHdr`.
-            s32 modelIdx        = (s32)unkData->modelHdr_0;
-            unkData->modelHdr_0 = ipdModels[modelIdx].modelHdr;
+            // TODO: `unkData` originally stores model idx, replace that with pointer to the model's `modelHdr`.
+            s32 modelIdx      = (s32)unkData->modelHdr;
+            unkData->modelHdr = ipdModels[modelIdx].modelHdr;
         }
     }
 }
@@ -2074,15 +2074,15 @@ void func_80044044(s_IpdHeader* ipd, s32 cellX, s32 cellZ) // 0x80044044
     s32 prevCellX;
     s32 prevCellZ;
 
-    /* IPD reformatter now properly populates collisionData_54 on PC */
+    /* IPD reformatter now properly populates collisionData on PC */
 
-    prevCellX = ipd->cellX_2;
-    prevCellZ = ipd->cellZ_3;
+    prevCellX = ipd->cellX;
+    prevCellZ = ipd->cellZ;
 
-    ipd->cellX_2                       = cellX;
-    ipd->cellZ_3                       = cellZ;
-    ipd->collisionData_54.positionX_0 += (cellX - prevCellX) * Q12_TO_Q8(CHUNK_CELL_SIZE);
-    ipd->collisionData_54.positionZ_4 += (cellZ - prevCellZ) * Q12_TO_Q8(CHUNK_CELL_SIZE);
+    ipd->cellX                       = cellX;
+    ipd->cellZ                       = cellZ;
+    ipd->collisionData.positionX_0 += (cellX - prevCellX) * Q12_TO_Q8(CHUNK_CELL_SIZE);
+    ipd->collisionData.positionZ_4 += (cellZ - prevCellZ) * Q12_TO_Q8(CHUNK_CELL_SIZE);
 }
 
 void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s32 arg4) // 0x80044090
@@ -2090,11 +2090,11 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
     #define CHUNK_SUBCELL_SIZE Q8(8.0f)
 
     s_ModelInfo         modelInfo;
-    GsCOORDINATE2       coord;
+    GsCOORDINATE2       modelCoord;
     MATRIX              viewMat;
     MATRIX              worldMat;
     s32                 geomX;
-    s32                 geomY;
+    s32                 geomZ;
     q23_8               cellBoundZ;
     q23_8               cellBoundX;
     s32                 subcellZ;
@@ -2107,44 +2107,44 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
 
     // Convert position to geometry space.
     geomX = Q12_TO_Q8(posX);
-    geomY = Q12_TO_Q8(posZ);
+    geomZ = Q12_TO_Q8(posZ);
 
     // Compute cell boundary position.
-    cellBoundX = ipdHdr->cellX_2 * Q12_TO_Q8(CHUNK_CELL_SIZE);
-    cellBoundZ = ipdHdr->cellZ_3 * Q12_TO_Q8(CHUNK_CELL_SIZE);
+    cellBoundX = ipdHdr->cellX * Q12_TO_Q8(CHUNK_CELL_SIZE);
+    cellBoundZ = ipdHdr->cellZ * Q12_TO_Q8(CHUNK_CELL_SIZE);
 
     // Compute subcells.
     subcellX = FLOOR_TO_STEP(geomX - cellBoundX, CHUNK_SUBCELL_SIZE);
-    subcellZ = FLOOR_TO_STEP(geomY - cellBoundZ, CHUNK_SUBCELL_SIZE);
+    subcellZ = FLOOR_TO_STEP(geomZ - cellBoundZ, CHUNK_SUBCELL_SIZE);
     subcellX = MAX(subcellX, 0);
     subcellZ = MAX(subcellZ, 0);
     subcellX = MIN(subcellX, 4);
     subcellZ = MIN(subcellZ, 4);
 
-    modelInfo.coord_4 = &coord;
-    coord.flg         = true;
+    modelInfo.coord = &modelCoord;
+    modelCoord.flg         = true;
     modelInfo.field_0 = 0;
-    coord.super       = NULL;
+    modelCoord.super       = NULL;
 
 #ifdef SH_PC_PORT
     if (g_DebugCamEnabled || g_PcConfig.disableCulling) {
         /* Render ALL model buffers, skip subcell/spatial culling */
-        s32 startI = 0, endI = ipdHdr->modelBufferCount_9;
+        s32 startI = 0, endI = ipdHdr->modelBufferCount;
         temp_fp = NULL;
         for (i = startI; i < endI; i++)
         {
-            ipdModelBuf = &ipdHdr->modelBuffers_18[i];
+            ipdModelBuf = &ipdHdr->modelBuffers[i];
             /* Skip frustum check in debug mode - draw everything */
             {
                 for (curBufC = ipdModelBuf->field_C; curBufC < &ipdModelBuf->field_C[ipdModelBuf->field_0]; curBufC++)
                 {
-                    modelInfo.modelHdr_8 = curBufC->modelHdr_0;
-                    if (modelInfo.modelHdr_8 != NULL)
+                    modelInfo.modelHdr = curBufC->modelHdr;
+                    if (modelInfo.modelHdr != NULL)
                     {
-                        coord.workm       = curBufC->field_4;
-                        coord.workm.t[0] += cellBoundX;
-                        coord.workm.t[2] += cellBoundZ;
-                        Vw_CoordToWorldAndViewMatrices(&coord, &worldMat, &viewMat);
+                        modelCoord.workm       = curBufC->mat;
+                        modelCoord.workm.t[0] += cellBoundX;
+                        modelCoord.workm.t[2] += cellBoundZ;
+                        Vw_CoordToWorldAndViewMatrices(&modelCoord, &worldMat, &viewMat);
                         func_80057090(&modelInfo, ot, arg4, &viewMat, &worldMat, 0);
                     }
                 }
@@ -2166,34 +2166,37 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
     } else
 #endif
     {
-    temp_fp = &ipdHdr->textureCount_1C + (subcellZ * 10) + (subcellX * 2);
+    temp_fp = &ipdHdr->textureCount + (subcellZ * 10) + (subcellX * 2);
 #ifdef SH_PC_PORT
     {
         static int subcellLogCD = 0;
         if (++subcellLogCD >= 120) {
             SH_DBG("[IPD-DRAW] subcell=(%d,%d) temp_fp[0]=%d temp_fp[1]=%d bufCount=%d orderCount=%d",
                    subcellX, subcellZ, temp_fp[0], temp_fp[1],
-                   ipdHdr->modelBufferCount_9, ipdHdr->modelOrderCount_A);
+                   ipdHdr->modelBufferCount, ipdHdr->modelOrderCount);
             subcellLogCD = 0;
         }
     }
 #endif
     for (i = temp_fp[0]; i < (temp_fp[1] + temp_fp[0]); i++)
     {
-        ipdModelBuf = &ipdHdr->modelBuffers_18[ipdHdr->modelOrderList_50[i]];
+        ipdModelBuf = &ipdHdr->modelBuffers[ipdHdr->modelOrderList[i]];
 
-        if (func_80044420(ipdModelBuf, geomX - cellBoundX, geomY - cellBoundZ, cellBoundX, cellBoundZ))
+        if (Gfx_ChunkSubcellVisibleCheck(ipdModelBuf, geomX - cellBoundX, geomZ - cellBoundZ, cellBoundX, cellBoundZ))
         {
             for (curBufC = ipdModelBuf->field_C; curBufC < &ipdModelBuf->field_C[ipdModelBuf->field_0]; curBufC++)
             {
-                modelInfo.modelHdr_8 = curBufC->modelHdr_0;
-                if (modelInfo.modelHdr_8 != NULL)
+                modelInfo.modelHdr = curBufC->modelHdr;
+                if (modelInfo.modelHdr != NULL)
                 {
-                    coord.workm       = curBufC->field_4;
-                    coord.workm.t[0] += cellBoundX;
-                    coord.workm.t[2] += cellBoundZ;
+                    // Set model matrix.
+                    modelCoord.workm = curBufC->mat;
 
-                    Vw_CoordToWorldAndViewMatrices(&coord, &worldMat, &viewMat);
+                    // Offset model on XZ plane.
+                    modelCoord.workm.t[0] += cellBoundX;
+                    modelCoord.workm.t[2] += cellBoundZ;
+
+                    Vw_CoordToWorldAndViewMatrices(&modelCoord, &worldMat, &viewMat);
                     func_80057090(&modelInfo, ot, arg4, &viewMat, &worldMat, 0);
                 }
             }
@@ -2220,30 +2223,36 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
     #undef CHUNK_SUBCELL_SIZE
 }
 
-bool func_80044420(s_IpdModelBuffer* modelBuf, s16 arg1, s16 arg2, q23_8 posX, q23_8 posZ) // 0x80044420
+bool Gfx_ChunkSubcellVisibleCheck(s_IpdModelBuffer* modelBuf, q7_8 subcellX, q7_8 subcellZ, q23_8 posX, q23_8 posZ) // 0x80044420
 {
-    GsCOORDINATE2 coord;
-    MATRIX        mat;
-    SVECTOR*      ptr;
+    GsCOORDINATE2 viewCoord;
+    MATRIX        viewMat;
+    SVECTOR*      curSubcellPos; // TODO: Subcell? Cell?
 
-    for (ptr = modelBuf->field_14; ptr < &modelBuf->field_14[modelBuf->field_2]; ptr++)
+    // Run through subcell positions.
+    for (curSubcellPos = modelBuf->subcellPositions;
+         curSubcellPos < &modelBuf->subcellPositions[modelBuf->subcellCount];
+         curSubcellPos++)
     {
-        if (ptr->vx < arg1 &&
-            arg1 < ptr->vy &&
-            ptr->vz < arg2)
+        if (curSubcellPos->vx < subcellX          &&
+            subcellX          < curSubcellPos->vy &&
+            curSubcellPos->vz < subcellZ)
         {
-            if (arg2 < ptr->pad)
+            if (subcellZ < curSubcellPos->pad) // TODO: `pad` access indicates different struct.
             {
-                coord.flg   = true;
-                coord.super = NULL;
-                coord.workm = GsIDMATRIX;
+                viewCoord.flg   = true;
+                viewCoord.super = NULL;
+                viewCoord.workm = GsIDMATRIX;
 
-                coord.workm.t[0] = posX;
-                coord.workm.t[1] = Q8(0.0f);
-                coord.workm.t[2] = posZ;
+                viewCoord.workm.t[0] = posX;
+                viewCoord.workm.t[1] = Q8(0.0f);
+                viewCoord.workm.t[2] = posZ;
 
-                Vw_CoordToViewSpaceMatrix(&coord, &mat);
-                return Vw_AabbVisibleInFrustumCheck(&mat, modelBuf->field_4, -0x800, modelBuf->field_8, modelBuf->field_6, 0x400, modelBuf->field_A, 0x1900, g_GameWork.gsScreenHeight);
+                Vw_CoordToViewSpaceMatrix(&viewCoord, &viewMat);
+                return Vw_AabbVisibleInFrustumCheck(&viewMat,
+                                                    modelBuf->minX, Q8(-8.0f), modelBuf->minZ,
+                                                    modelBuf->maxX, Q8(4.0f), modelBuf->maxZ,
+                                                    Q8(25.0f), g_GameWork.gsScreenHeight);
             }
         }
     }

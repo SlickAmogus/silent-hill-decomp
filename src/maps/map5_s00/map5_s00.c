@@ -629,19 +629,19 @@ void func_800D6B00(void) // 0x800D6B00
             g_SysWork.pointLightIntensity = Q12(1.0f);
             SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
 
-            g_SysWork.npcs[D_800DAB7C[0]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[0]].model.controlState     = 0;
             g_SysWork.npcs[D_800DAB7C[0]].model.stateStep = 17;
             g_SysWork.npcs[D_800DAB7C[0]].position.vx     += Q12(-0.1878f);
             g_SysWork.npcs[D_800DAB7C[0]].position.vz     += Q12(0.245f);
             g_SysWork.npcs[D_800DAB7C[0]].rotation.vy      = Q12_ANGLE(112.5f);
 
-            g_SysWork.npcs[D_800DAB7C[1]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[1]].model.controlState     = 0;
             g_SysWork.npcs[D_800DAB7C[1]].model.stateStep = 17;
             g_SysWork.npcs[D_800DAB7C[1]].position.vx     += Q12(1.8128f);
             g_SysWork.npcs[D_800DAB7C[1]].position.vz     += Q12(0.799f);
             g_SysWork.npcs[D_800DAB7C[1]].rotation.vy      = Q12_ANGLE(180.0f);
 
-            g_SysWork.npcs[D_800DAB7C[2]].model.controlState     = ModelState_Uninitialized;
+            g_SysWork.npcs[D_800DAB7C[2]].model.controlState     = 0;
             g_SysWork.npcs[D_800DAB7C[2]].model.stateStep = 17;
             g_SysWork.npcs[D_800DAB7C[2]].position.vx     += Q12(0.6531f);
             g_SysWork.npcs[D_800DAB7C[2]].position.vz     += Q12(-1.2493f);
@@ -669,7 +669,7 @@ void func_800D6B00(void) // 0x800D6B00
 void func_800D732C(void) // 0x800D732C
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 3)
     {
         ScreenFade_ResetTimestep();
@@ -732,7 +732,7 @@ void func_800D732C(void) // 0x800D732C
 void func_800D75FC(void) // 0x800D75FC
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
@@ -803,7 +803,7 @@ void func_800D75FC(void) // 0x800D75FC
 void func_800D7940(void) // 0x800D7940
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
@@ -873,7 +873,7 @@ void func_800D7940(void) // 0x800D7940
 void func_800D7C84(void) // 0x800D7C84
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
@@ -938,7 +938,7 @@ void func_800D7C84(void) // 0x800D7C84
 void func_800D7F88(void) // 0x800D7F88
 {
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip_4) &&
+    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 6)
     {
         ScreenFade_ResetTimestep();
@@ -1014,21 +1014,21 @@ void Map_WorldObjectsInit(void) // 0x800D82A8
 
     if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
     {
-        func_80088FF4(Chara_Creeper, 0, 0);
-        func_80088FF4(Chara_Creeper, 1, 0);
-        func_80088FF4(Chara_Creeper, 4, 0);
-        func_80088FF4(Chara_Creeper, 7, 0);
-        func_80088FF4(Chara_Creeper, 12, 0);
+        Chara_SpawnFlagsSet(Chara_Creeper, 0, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 1, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 4, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 7, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 12, SpawnFlag_None);
 
         g_SysWork.npcFlagsId = 3;
     }
     else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Hard)
     {
-        func_80088FF4(Chara_Creeper, 5, (1 << 2) | (1 << 3));
-        func_80088FF4(Chara_Creeper, 6, (1 << 2) | (1 << 3));
-        func_80088FF4(Chara_Creeper, 7, 0);
-        func_80088FF4(Chara_Creeper, 8, (1 << 0) | (1 << 2) | (1 << 3));
-        func_80088FF4(Chara_Creeper, 9, (1 << 0) | (1 << 2) | (1 << 3));
+        Chara_SpawnFlagsSet(Chara_Creeper, 5, SpawnFlag_2 | SpawnFlag_3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 6, SpawnFlag_2 | SpawnFlag_3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 7, SpawnFlag_None);
+        Chara_SpawnFlagsSet(Chara_Creeper, 8, SpawnFlag_0 | SpawnFlag_2 | SpawnFlag_3);
+        Chara_SpawnFlagsSet(Chara_Creeper, 9, SpawnFlag_0 | SpawnFlag_2 | SpawnFlag_3);
 
         g_SysWork.npcFlagsId = 4;
     }
@@ -1086,7 +1086,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_ShotgunShells))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &D_800DAAD0.position_0, &D_800DAAD0.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[5], &D_800DAAD0.position, &D_800DAAD0.rotation_C);
         }
     }
 
@@ -1094,7 +1094,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_HealthDrink0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DAAE4.position_0, &D_800DAAE4.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DAAE4.position, &D_800DAAE4.rotation_C);
         }
     }
 
@@ -1102,7 +1102,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_HandgunBullets0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &D_800DAAF8.position_0, &D_800DAAF8.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &D_800DAAF8.position, &D_800DAAF8.rotation_C);
         }
     }
 
@@ -1110,7 +1110,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_RifleShells))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &D_800DAB0C.position_0, &D_800DAB0C.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &D_800DAB0C.position, &D_800DAB0C.rotation_C);
         }
     }
 
@@ -1118,7 +1118,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_FirstAidKit0))
         {
-            WorldGfx_ObjectAdd(g_CommonWorldObjects, &D_800DAB20.position_0, &D_800DAB20.rotation_C);
+            WorldGfx_ObjectAdd(g_CommonWorldObjects, &D_800DAB20.position, &D_800DAB20.rotation_C);
         }
     }
 
@@ -1126,7 +1126,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_FirstAidKit1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &D_800DAB34.position_0, &D_800DAB34.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[0], &D_800DAB34.position, &D_800DAB34.rotation_C);
         }
     }
 
@@ -1134,7 +1134,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_HealthDrink1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DAB48.position_0, &D_800DAB48.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DAB48.position, &D_800DAB48.rotation_C);
         }
     }
 
@@ -1142,7 +1142,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D84D8
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S00_HandgunBullets1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &D_800DAB5C.position_0, &D_800DAB5C.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &D_800DAB5C.position, &D_800DAB5C.rotation_C);
         }
     }
 }
@@ -1151,27 +1151,27 @@ void func_800D8DFC(void) // 0x800D8DFC
 {
     if (Savegame_EventFlagGet(EventFlag_354))
     {
-        func_80088FF4(Chara_HangedScratcher, 0, 6);
-        func_80088FF4(Chara_HangedScratcher, 1, 6);
-        func_80088FF4(Chara_HangedScratcher, 2, 6);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 0, SpawnFlag_1 | SpawnFlag_2);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 1, SpawnFlag_1 | SpawnFlag_2);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 2, SpawnFlag_1 | SpawnFlag_2);
 
         if (g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
         {
-            func_80088FF4(Chara_HangedScratcher, 11, 6);
+            Chara_SpawnFlagsSet(Chara_HangedScratcher, 11, SpawnFlag_1 | SpawnFlag_2);
         }
 
         if (Savegame_EventFlagGet(EventFlag_MapMark_527))
         {
-            func_80089034(Chara_HangedScratcher, 12, Q12(-90.3f), Q12(-92.9f));
+            Chara_SpawnPositionSet(Chara_HangedScratcher, 12, Q12(-90.3f), Q12(-92.9f));
         }
 
-        func_80088FF4(Chara_HangedScratcher, 12, 6);
-        func_80088FF4(Chara_HangedScratcher, 13, 6);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 12, SpawnFlag_1 | SpawnFlag_2);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 13, SpawnFlag_1 | SpawnFlag_2);
     }
 
     if (Savegame_EventFlagGet(EventFlag_M5S00_PickupSewerKey))
     {
-        func_80088FF4(Chara_HangedScratcher, 6, 9);
+        Chara_SpawnFlagsSet(Chara_HangedScratcher, 6, SpawnFlag_0 | SpawnFlag_3);
     }
 }
 

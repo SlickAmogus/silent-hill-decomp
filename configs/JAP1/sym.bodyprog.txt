@@ -536,7 +536,7 @@ SysWork_SavegameUpdatePlayer                 = 0x80039EF8; // type:func
 func_8003A16C                                = 0x80039F44; // type:func
 SysWork_SavegameReadPlayer                   = 0x80039FCC; // type:func
 SysState_SaveMenu_Update                     = 0x8003A008; // type:func
-SysState_EventCallFunc_Update                = 0x8003A1A0; // type:func
+SysState_EventCallback_Update                = 0x8003A1A0; // type:func
 SysState_EventSetFlag_Update                 = 0x8003A238; // type:func
 SysState_EventPlaySound_Update               = 0x8003A28C; // type:func
 SysState_GameOver_Update                     = 0x8003A304; // type:func
@@ -746,7 +746,7 @@ LmHeader_ModelHeaderSearch                   = 0x80043D04; // type:func
 IpdHeader_ModelBufferLinkObjectLists         = 0x80043D60; // type:func
 func_80044044                                = 0x80043E1C; // type:func
 Gfx_IpdChunkDraw                             = 0x80043E68; // type:func
-func_80044420                                = 0x800441F8; // type:func
+Gfx_ChunkSubcellVisibleCheck                 = 0x800441F8; // type:func
 
 //-----------------------------------------------------------------------------
 //--- PA: 0x01F81C   VA: 0x8004437C   subsegment: c, gfx/bodyprog_anim_800445A4
@@ -1427,11 +1427,11 @@ Map_BoxOutlineDraw                           = 0x80089E80; // type:func
 //--------------------------------------------------------------
 Chara_Load                                   = 0x8008A78C; // type:func
 Chara_ProcessLoads                           = 0x8008A81C; // type:func
-func_80088D34                                = 0x8008A844; // type:func
+Chara_BonesInit                              = 0x8008A844; // type:func
 Chara_Spawn                                  = 0x8008A888; // type:func
-func_80088F94                                = 0x8008AAA4; // type:func
-func_80088FF4                                = 0x8008AB04; // type:func
-func_80089034                                = 0x8008AB44; // type:func
+Chara_ModelCharaIdClear                      = 0x8008AAA4; // type:func
+Chara_SpawnFlagsSet                          = 0x8008AB04; // type:func
+Chara_SpawnPositionSet                       = 0x8008AB44; // type:func
 
 //--------------------------------------------------------------------
 //--- PA: 0x066040   VA: 0x8008ABA0   subsegment: c, bodyprog_80089090
@@ -1490,21 +1490,21 @@ func_8008BF84                                = 0x8008DA94; // type:func
 //------------------------------------------------------
 //--- PA: 0x069950   VA: 0x8008E4B0   subsegment: c, dms
 //------------------------------------------------------
-DmsHeader_FixOffsets                         = 0x8008E4B0; // type:func
-DmsEntry_FixOffsets                          = 0x8008E554; // type:func
-func_8008CA60                                = 0x8008E570; // type:func
-Dms_CharacterGetPosRot                       = 0x8008E584; // type:func
+Dms_HeaderFixOffsets                         = 0x8008E4B0; // type:func
+Dms_EntryFixOffsets                          = 0x8008E554; // type:func
+Dms_IntervalGet                              = 0x8008E570; // type:func
+Dms_CharacterTransformGet                    = 0x8008E584; // type:func
 Dms_CharacterFindIdxByName                   = 0x8008E620; // type:func
-Dms_CharacterGetPosRotByIdx                  = 0x8008E6A0; // type:func
+Dms_CharacterTransformGetByIdx               = 0x8008E6A0; // type:func
 Dms_CharacterKeyframeInterpolate             = 0x8008E7A8; // type:func
-func_8008CDBC                                = 0x8008E8CC; // type:func
-Dms_CameraGetTargetPos                       = 0x8008E92C; // type:func
-func_8008CF54                                = 0x8008EA64; // type:func
+Dms_FovScaleGet                              = 0x8008E8CC; // type:func
+Dms_CameraTargetGet                          = 0x8008E92C; // type:func
+Dms_RotationsCompare                         = 0x8008EA64; // type:func
 Dms_CameraKeyframeInterpolate                = 0x8008EAFC; // type:func
-func_8008D1D0                                = 0x8008ECE0; // type:func
+Dms_CameraKeyframeInterpGet                  = 0x8008ECE0; // type:func
 Dms_IntervalStateGet                         = 0x8008EDD4; // type:func
-func_8008D330                                = 0x8008EE40; // type:func
-Math_LerpFixed12                             = 0x8008EEE4; // type:func
+Dms_CameraRelKeyframeIdxGet                  = 0x8008EE40; // type:func
+Dms_AngleLerp                                = 0x8008EEE4; // type:func
 
 //--------------------------------------------------------
 //--- PA: 0x06A3CC   VA: 0x8008EF2C   subsegment: c, water
