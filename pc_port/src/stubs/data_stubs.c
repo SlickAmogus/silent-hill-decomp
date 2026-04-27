@@ -821,13 +821,15 @@ u8 g_ActiveBufferIdx[256] = {0};
 /* g_Ai_AirScreamer_ControlFuncs now defined in src/maps/characters/air_screamer.c */
 u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
 u8 g_Ai_SplitHead_ControlFuncs[256] = {0};
+/* g_Cutscene_CameraLookAt and g_Cutscene_CameraPosition (no -Target suffix)
+ * are provided per-map via pc_port/build_gen/extracted_data/<map>_extracted_data.c.
+ * The -Target variants are runtime working storage written by Dms code, so
+ * we keep them as zero-init shared stubs here. */
 u8 g_Cutscene_CameraLookAtTarget[256] = {0};
 u8 g_Cutscene_CameraPositionTarget[256] = {0};
 u8 g_CommonWorldObjectPoses[256] = {0};
 u8 g_CommonWorldObjects[256] = {0};
-u8 g_Cutscene_CameraLookAt[256] = {0};
 u8 g_CutsceneCameraLookAtTarget[256] = {0};
-u8 g_Cutscene_CameraPosition[256] = {0};
 u8 g_CutsceneCameraPositionTarget[256] = {0};
 u8 g_CutscenePosition[256] = {0};
 u8 g_CutsceneTimer[256] = {0};
@@ -841,14 +843,9 @@ u8 g_GeneratorMakeNoise[256] = {0};
 u8 g_Gfx_LockTimFileIdxs[256] = {0};
 u8 g_Gfx_PaperMapMarkingAlpha[256] = {0};
 u8 g_MainImg0[256] = {0};
-u8 g_Cutscene_MapMsgAudioIdx = 0;
-u8 g_Cutscene_MapMsgAudioIdx0[256] = {0};
-u8 g_Cutscene_MapMsgAudioIdx1[256] = {0};
-u8 g_Cutscene_MapMsgAudioIdx2[256] = {0};
-unsigned short g_Cutscene_MapMsgAudioCmds[256] = {0};
-unsigned short g_Cutscene_MapMsgAudioCmds0[256] = {0};
-unsigned short g_Cutscene_MapMsgAudioCmds1[256] = {0};
-unsigned short g_Cutscene_MapMsgAudioCmds2[256] = {0};
+/* g_Cutscene_MapMsgAudioCmds[0-2] and g_Cutscene_MapMsgAudioIdx[0-2] now
+ * provided per-map via pc_port/build_gen/extracted_data/<map>_extracted_data.c
+ * (extracted from VIN/MAP*.BIN by tools/extract_map_data.py). */
 void* g_Cutscene_UpdateSibyl = 0;
 void* g_Cutscene_UpdateDaria = 0;
 void* g_Cutscene_UpdateBaby = 0;
@@ -894,11 +891,8 @@ u8 g_PuppetNurse_AnimStatus4[256] = {0};
 u8 g_PuppetNurse_ModelStates0[256] = {0};
 u8 g_Romper_ControlFuncs[256] = {0};
 u8 g_Screen_FadeStatus[256] = {0};
-s32 g_Cutscene_Timer = 0;
-s32 g_Cutscene_Timer0 = 0;
-s32 g_Cutscene_Timer1 = 0;
-s32 g_Cutscene_Timer2 = 0;
-s32 g_Cutscene_Timer3 = 0;
+/* g_Cutscene_Timer[0-3] now provided per-map via
+ * pc_port/build_gen/extracted_data/<map>_extracted_data.c */
 u8 g_WarpCamera[256] = {0};
 u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
 u8 g_WorldGfxWork[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
