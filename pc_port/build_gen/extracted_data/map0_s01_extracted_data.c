@@ -19,7 +19,8 @@
 #include <assert.h>  /* C11 static_assert macro */
 #include "common.h"
 #include "game.h"  /* VECTOR3 */
-#include "maps/shared.h"  /* s_WorldObjectPose (D_800DE12C/D_800DE140) */
+#include "main/fsqueue.h"  /* s_FsImageDesc (transitively via shared.h) */
+#include "maps/shared.h"   /* s_WorldObjectPose (D_800DE12C/D_800DE140) */
 
 // 0x800DE0CC  size 0x94 (148 bytes) — main voice cmd table for cafe cutscene
 // This is the parent block; D_800DE124/D_800DE128 below alias into it on PSX.
