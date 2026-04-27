@@ -46,6 +46,20 @@
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
     poly3->p3 = (u8)((_fa * 127) >> 12); \
 } while(0)
+
+/* Compute fog factor (0-127) from a single screenZ value. Used for character
+ * prims which don't have a precomputed field_252[] fog ramp array. Reads the
+ * world's fog ramp at the index derived from screenZ. */
+#define PC_SCREEN_Z_TO_FOG(z) ({ \
+    s32 _z = (s32)(z); s32 _fb; \
+    if (!g_WorldEnvWork.isFogEnabled_1) { _fb = 0; } \
+    else if (_z < (1 << g_WorldEnvWork.fogDepthShift_14)) { \
+        s32 _idx = (_z << 7) >> g_WorldEnvWork.fogDepthShift_14; \
+        if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
+        _fb = g_WorldEnvWork.fogRamp_CC[_idx]; \
+    } else { _fb = 255; } \
+    (u8)((_fb * 127) >> 8); \
+})
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fogFarDistance_10)
 #define VTXCOL_LDDP(dp) gte_lddp(dp)
@@ -3484,6 +3498,15 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(s32*)&poly.gt3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
             *(u16*)&poly.gt3->u2 = prim->field_8;
 
+#ifdef SH_PC_PORT
+            /* Encode per-vertex fog so the shader can blend toward fog color
+             * with distance. Without this, distant characters render as the
+             * solid color from gte_nct (which collapses to the background
+             * color = black when fog dampens light contribution to ~0). */
+            poly.gt3->p1 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_1]);
+            poly.gt3->p2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_2]);
+#endif
+
             setlen(poly.gt3, 9);
 
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
@@ -3556,6 +3579,14 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(s32*)&poly.gt4->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
             *(u16*)&poly.gt4->u2 = prim->field_8;
             *(u16*)&poly.gt4->u3 = prim->field_A;
+
+#ifdef SH_PC_PORT
+            /* Encode per-vertex fog. PsyCross GT4 layout: p1 -> v0+v1, p2 -> v2 (after swap),
+             * p3 -> v3 (after swap). See ProcessSinglePoly POLY_GT4 case. */
+            poly.gt4->p1 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_1]);
+            poly.gt4->p2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_2]);
+            poly.gt4->p3 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_3]);
+#endif
 
             setlen(poly.gt4, 12);
 
