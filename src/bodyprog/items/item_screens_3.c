@@ -4271,10 +4271,27 @@ void func_80054A04(u8 itemId) // 0x80054A04
 #endif
 
 #ifdef SH_PC_PORT
-    /* On PSX, g_Items_ItemsModelData[9] aliases D_800C3E08 in BSS.  On
+    /* On PSX, g_Items_ItemsModelData[9] aliases D_800C3E08 in BSS. On
      * 64-bit PC the struct sizes differ, so index 9 is out of bounds.
-     * Set coord2 directly on D_800C3E08 instead. */
-    D_800C3E08.coord2 = &g_Items_Coords[9];
+     * Inline a Gfx_Items_Display equivalent that targets D_800C3E08
+     * directly (matching the PSX aliasing semantics). Without this
+     * link step the TMD pointer never gets attached to the GsDOBJ2,
+     * func_8004BD74 sees obj->tmd == NULL, and the item silently fails
+     * to render — that's the "invisible health drink / picked-up map
+     * shows no model" symptom. */
+    {
+        s_TmdFile* _tmd = (s_TmdFile*)FS_BUFFER_5;
+        if (_tmd != NULL) {
+            unsigned long*     _hdr = (unsigned long*)&_tmd->flags;
+            struct TMD_STRUCT* _obj;
+            GsMapModelingData(_hdr);
+            _obj = GsGetTMDObject(_hdr, 0);
+            if (_obj != NULL) {
+                GsLinkObject4_PC(_obj, &D_800C3E08);
+            }
+        }
+        D_800C3E08.coord2 = &g_Items_Coords[9];
+    }
 #else
     Gfx_Items_Display(FS_BUFFER_5, 9, 0);
 #endif
