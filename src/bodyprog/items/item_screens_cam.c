@@ -168,7 +168,13 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         }
     }
 #endif
+#ifdef SH_PC_PORT
+    SH_DBG("[BD74] pre-CoordToWorldAndViewMatrices");
+#endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &worldMat, &viewMat);
+#ifdef SH_PC_PORT
+    SH_DBG("[BD74] post-CoordToWorldAndViewMatrices");
+#endif
 
     localToScreenMat = viewMat;
 
@@ -179,6 +185,9 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             viewMat.m[i][j] = Q12(viewMat.m[i][j]) / g_Items_Transforms[displayItemIdx].scale.vx;
         }
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[BD74] post-divide-loop");
+#endif
 
     if (arg2 != 3 && displayItemIdx < 7)
     {
@@ -191,18 +200,41 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         }
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[BD74] pre-SetLightMatrix");
+#endif
     GsSetLightMatrix(&viewMat);
     GsSetLsMatrix(&localToScreenMat);
+#ifdef SH_PC_PORT
+    SH_DBG("[BD74] post-SetLsMatrix");
+#endif
 
     if (arg2 == 2)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[BD74] pre-arg2==2 OT chain");
+#endif
         GsClearOt(0, 0, &g_OrderingTable1[g_ActiveBufferIdx]);
         GsSortOt(&g_OrderingTable1[g_ActiveBufferIdx], &g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        SH_DBG("[BD74] pre-GsSortObject4J(OT1) tmd=%p primn=%lu",
+               (void*)arg1->tmd,
+               arg1->tmd ? (unsigned long)((struct TMD_STRUCT*)arg1->tmd)->primn : 0UL);
+#endif
         GsSortObject4J(arg1, &g_OrderingTable1[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
+#ifdef SH_PC_PORT
+        SH_DBG("[BD74] post-GsSortObject4J(OT1)");
+#endif
     }
     else
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[BD74] pre-GsSortObject4J(OT0) tmd=%p", (void*)arg1->tmd);
+#endif
         GsSortObject4J(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
+#ifdef SH_PC_PORT
+        SH_DBG("[BD74] post-GsSortObject4J(OT0)");
+#endif
     }
 }
 
