@@ -45,9 +45,10 @@ static const char* const g_XaFileNames[] = {
     "45_28784",  // 9
 };
 
-// ADPCM filter tables (from DuckStation SPU)
-static const int8_t g_FilterPos[] = {0, 60, 115, 98, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-static const int8_t g_FilterNeg[] = {0, 0, -52, -55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+/* XA-ADPCM filter tables. NOTE: XA has 5 filters (0..4), unlike SPU which has 4.
+ * Values from PSX documentation / DuckStation cdrom.cpp DecodeXAADPCMChunks. */
+static const int16_t g_FilterPos[16] = {0, 60, 115,  98, 122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static const int16_t g_FilterNeg[16] = {0,  0, -52, -55, -60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // XA sector constants
 #define XA_SECTOR_SIZE 2336
@@ -77,11 +78,22 @@ typedef struct {
     int isStereo;
     int bitDepth;
 
+    /* XA channel multiplex filter: only sectors whose subheader matches
+     * (filterFile, filterChannel) belong to the current voice line.
+     * Other sectors interleaved on disc carry different channels and
+     * must be skipped. Set from the first sector when Play starts. */
+    uint8_t filterFile;
+    uint8_t filterChannel;
+
     int isPlaying;
     int needsInitialFill;
 
-    // ADPCM state per channel (L/R)
-    int16_t lastSamples[2][2];  // [channel][prev0, prev1]
+    /* ADPCM history per channel — int32 to hold UNCLAMPED filter feedback,
+     * which is critical for accurate IIR prediction near saturation. */
+    int32_t lastSamples[2][2];  /* [channel][prev0=newer, prev1=older] */
+
+    /* Debug: if non-zero, replicate L into R after decode (test if R is broken). */
+    int debugForceMono;
 } XaPlayerState;
 
 static XaPlayerState g_XaPlayer = {0};
@@ -100,92 +112,189 @@ static void ParseXaSubheader(uint8_t coding, int* outStereo, int* outSampleRate,
     *outBitDepth = (coding >> 4) & 1;     // 0=4bit, 1=8bit
 }
 
-// Decode ADPCM from a 4-bit sub-block
-// nibbles: 28 nibbles (4-bit each, packed 2 per byte)
-// subblockIdx: which of 8 sub-blocks (0-7)
-// shift: left shift amount from header
-// filterIdx: filter index (0-3)
-// prev: previous samples [0]=prev0, [1]=prev1
-// isRight: 0=left channel, 1=right channel (for stereo interleaving)
-// outSamples: pointer to write 28 decoded samples
-static void DecodeAdpcmSubblock4bit(const uint8_t* words, int shift, int filterIdx,
-                                     int16_t prev[2], int isRight, int16_t* outSamples) {
-    int8_t filterPos = g_FilterPos[filterIdx];
-    int8_t filterNeg = g_FilterNeg[filterIdx];
+/* Decode 28 ADPCM samples from one sub-block of a sound group.
+ *
+ * Each sound group is 128 bytes:
+ *   header[0..15]: 4 used header bytes repeated 4 times. headers[0..7] = sub-block descriptors.
+ *   words[16..127]: 28 LE u32 words. Each word packs 8 nibbles (one per sub-block):
+ *     byte 0: low nibble = sb0, high nibble = sb1
+ *     byte 1: low nibble = sb2, high nibble = sb3
+ *     byte 2: low nibble = sb4, high nibble = sb5
+ *     byte 3: low nibble = sb6, high nibble = sb7
+ *
+ * For 4-bit stereo, sub-blocks alternate L,R,L,R,L,R,L,R (sb=0..7 -> L,R,L,R,L,R,L,R).
+ * For 4-bit mono, all sub-blocks feed the single channel sequentially.
+ */
+static void DecodeSubblock4bit(const uint8_t* group, int sb, int32_t prev[2],
+                               int16_t outSamples[28]) {
+    const uint8_t* headers = group + 4;        /* 8 header bytes, one per sub-block */
+    const uint8_t* words   = group + 16;       /* 28 LE u32 words */
+
+    int shift     = headers[sb] & 0xF;
+    int filterIdx = (headers[sb] >> 4) & 0x7;  /* XA: 5 filters (0..4) */
+    int16_t fpos  = g_FilterPos[filterIdx];
+    int16_t fneg  = g_FilterNeg[filterIdx];
+    int byteIdx   = sb >> 1;                   /* which byte in the word holds this sb's nibble */
+    int nibShift  = (sb & 1) ? 4 : 0;          /* low or high nibble */
 
     for (int w = 0; w < 28; w++) {
-        // Extract 4-bit nibble: each word holds 2 nibbles (8 sub-blocks interleaved)
-        uint32_t wordVal;
-        memcpy(&wordVal, &words[w * 4], 4);  // LE
-        int nibble = (wordVal >> (isRight * 4)) & 0xF;
+        uint8_t byte = words[w * 4 + byteIdx];
+        int nibble = (byte >> nibShift) & 0xF;
 
-        // Expand 4-bit to 16-bit with shift
+        /* Sign-extend 4-bit nibble into 16-bit, then arithmetic-shift right by `shift`. */
         int32_t sample = ((int16_t)(nibble << 12)) >> shift;
 
-        // Mix in filtered previous samples
-        sample += ((int32_t)prev[0] * filterPos) >> 6;
-        sample += ((int32_t)prev[1] * filterNeg) >> 6;
+        /* Apply IIR filter with rounding (+32). vgmstream xa_decoder.c:
+         * sample = sample + ((coef1 * hist1 + coef2 * hist2 + 32) >> 6); */
+        sample += ((int32_t)prev[0] * fpos + (int32_t)prev[1] * fneg + 32) >> 6;
 
-        // Clamp and store
+        /* History feeds back the UNCLAMPED value for IIR precision; clamp only on output. */
         prev[1] = prev[0];
-        prev[0] = ClampS16(sample);
-
-        outSamples[w] = prev[0];
+        prev[0] = sample;                   /* full int32 precision */
+        outSamples[w] = ClampS16(sample);
     }
 }
 
-// Decode one XA sector to PCM
-// Returns number of samples decoded (stereo = 2 per sample pair)
+/* Decode one XA sector into a PCM buffer.
+ * Returns the number of int16 samples written (stereo = interleaved L/R pairs counted as 2).
+ */
 static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
-    // Parse coding info from subheader
     uint8_t coding = sector[3];
     int isStereo = coding & 1;
-    int sampleRate = (coding >> 2) & 3;
     int bitDepth = (coding >> 4) & 1;
 
-    // For now, only handle 4-bit stereo (what 05_02152 uses)
-    if (bitDepth != 0 || !isStereo) {
-        SH_DBG("[XA] Warning: 8-bit or mono not yet implemented. coding=0x%02X", coding);
+    if (bitDepth != 0) {
+        SH_DBG("[XA] 8-bit ADPCM not implemented (coding=0x%02X)", coding);
         return 0;
     }
 
-    int16_t* outPtr = pcmOut;
-
-    // 18 groups per sector
-    for (int g = 0; g < XA_GROUPS_PER_SECTOR; g++) {
-        const uint8_t* group = sector + XA_PAYLOAD_OFFSET + g * XA_GROUP_SIZE;
-        const uint8_t* headers = group + 4;   // skip first 4-byte duplicate
-        const uint8_t* words = group + 16;
-
-        // 8 sub-blocks (for 4-bit stereo: 4 left + 4 right, interleaved)
+    /* One-time dump of the first group's headers from the very first sector
+     * we ever decode in this session — so we can verify shift/filter values. */
+    static int s_HasDumped = 0;
+    if (!s_HasDumped) {
+        s_HasDumped = 1;
+        const uint8_t* g0 = sector + XA_PAYLOAD_OFFSET;
+        SH_DBG("[XA] First-group raw header bytes: %02X %02X %02X %02X %02X %02X %02X %02X "
+               "%02X %02X %02X %02X %02X %02X %02X %02X",
+               g0[0],g0[1],g0[2],g0[3],g0[4],g0[5],g0[6],g0[7],
+               g0[8],g0[9],g0[10],g0[11],g0[12],g0[13],g0[14],g0[15]);
         for (int sb = 0; sb < 8; sb++) {
-            int shift = headers[sb] & 0xF;
-            int filterIdx = (headers[sb] >> 4) & 0xF;
-            int channelIdx = sb & 1;  // 0=left, 1=right
-
-            // Decode 28 samples for this sub-block
-            int16_t samples[28];
-            DecodeAdpcmSubblock4bit(words, shift, filterIdx,
-                                     g_XaPlayer.lastSamples[channelIdx],
-                                     sb >> 1,  // isRight for word extraction
-                                     samples);
-
-            // Interleave stereo: samples for left (sb=0,2,4,6) and right (sb=1,3,5,7)
-            for (int s = 0; s < 28; s++) {
-                if (channelIdx == 0) {
-                    // Left channel (even sub-blocks)
-                    outPtr[s * 2] = samples[s];
-                } else {
-                    // Right channel (odd sub-blocks)
-                    outPtr[s * 2 + 1] = samples[s];
-                }
-            }
-
-            outPtr += 28 * 2;  // advance by 28 stereo pairs
+            uint8_t h = (g0 + 4)[sb];
+            SH_DBG("[XA]   sb=%d header=0x%02X shift=%d filter=%d",
+                   sb, h, h & 0xF, (h >> 4) & 0x7);
         }
     }
 
-    return XA_SAMPLES_PER_SECTOR;  // total samples (mono count; stereo needs x2 interleaved)
+    int16_t* out = pcmOut;
+    int written = 0;
+    int16_t* outStart = out;
+
+    for (int g = 0; g < XA_GROUPS_PER_SECTOR; g++) {
+        const uint8_t* group = sector + XA_PAYLOAD_OFFSET + g * XA_GROUP_SIZE;
+
+        if (isStereo) {
+            /* 8 sub-blocks per group = 4 stereo pairs of 28 samples each.
+             * For each pair p (0..3): sb=2p is L, sb=2p+1 is R, sharing 28 stereo positions. */
+            for (int p = 0; p < 4; p++) {
+                int16_t leftSamples[28], rightSamples[28];
+                DecodeSubblock4bit(group, 2 * p,     g_XaPlayer.lastSamples[0], leftSamples);
+                DecodeSubblock4bit(group, 2 * p + 1, g_XaPlayer.lastSamples[1], rightSamples);
+                for (int s = 0; s < 28; s++) {
+                    *out++ = leftSamples[s];
+                    *out++ = rightSamples[s];
+                }
+                written += 56;  /* 28 stereo pairs = 56 ints */
+            }
+        } else {
+            /* Mono: all 8 sub-blocks feed channel 0 sequentially. */
+            for (int sb = 0; sb < 8; sb++) {
+                int16_t samples[28];
+                DecodeSubblock4bit(group, sb, g_XaPlayer.lastSamples[0], samples);
+                for (int s = 0; s < 28; s++) *out++ = samples[s];
+                written += 28;
+            }
+        }
+    }
+
+    /* Diagnostics: dump min/max/range and a sample mid-sector slice. */
+    static int s_DumpedSamples = 0;
+    if (!s_DumpedSamples && isStereo && written >= 4032) {
+        s_DumpedSamples = 1;
+        int16_t lMin=32767, lMax=-32768, rMin=32767, rMax=-32768;
+        long long lSum=0, rSum=0;
+        for (int i = 0; i < written; i += 2) {
+            int16_t lv = outStart[i], rv = outStart[i+1];
+            if (lv < lMin) lMin = lv; if (lv > lMax) lMax = lv;
+            if (rv < rMin) rMin = rv; if (rv > rMax) rMax = rv;
+            lSum += lv; rSum += rv;
+        }
+        SH_DBG("[XA] Sector stats: L range [%d,%d] mean %lld   R range [%d,%d] mean %lld",
+               lMin, lMax, lSum/(written/2), rMin, rMax, rSum/(written/2));
+        /* Mid-sector slice: stereo pairs at offset 1000 (sample ~T1000 of first sector) */
+        SH_DBG("[XA] Mid-sector samples (offset 2000, 8 pairs L,R): "
+               "(%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d)",
+               outStart[2000], outStart[2001], outStart[2002], outStart[2003],
+               outStart[2004], outStart[2005], outStart[2006], outStart[2007],
+               outStart[2008], outStart[2009], outStart[2010], outStart[2011],
+               outStart[2012], outStart[2013], outStart[2014], outStart[2015]);
+    }
+
+    /* DEBUG: dump decoded PCM to a .wav file (first 8 sectors of the very first track).
+     * Lets us listen to the raw decoded output independently of OpenAL playback. */
+    static FILE*    s_WavFile      = NULL;
+    static int      s_WavSectors   = 0;
+    static uint32_t s_WavDataBytes = 0;
+    if (s_WavSectors < 8 && isStereo) {
+        if (!s_WavFile) {
+            s_WavFile = fopen("xa_dump.wav", "wb");
+            if (s_WavFile) {
+                /* Write a placeholder WAV header (will patch lengths on close). */
+                uint8_t hdr[44] = {0};
+                memcpy(hdr,    "RIFF", 4);
+                memcpy(hdr+8,  "WAVE", 4);
+                memcpy(hdr+12, "fmt ", 4);
+                hdr[16] = 16;          /* fmt chunk size = 16 */
+                hdr[20] = 1;           /* PCM */
+                hdr[22] = 2;           /* channels */
+                uint32_t sr = (uint32_t)g_XaPlayer.sampleRate;
+                memcpy(hdr+24, &sr, 4);
+                uint32_t br = sr * 2 * 2;  /* byte rate = sr * channels * bytesPerSample */
+                memcpy(hdr+28, &br, 4);
+                hdr[32] = 4;           /* block align = channels * bytesPerSample */
+                hdr[34] = 16;          /* bits per sample */
+                memcpy(hdr+36, "data", 4);
+                fwrite(hdr, 1, 44, s_WavFile);
+                SH_DBG("[XA] Started writing decoded audio to xa_dump.wav (sr=%u)", sr);
+            }
+        }
+        if (s_WavFile) {
+            fwrite(outStart, 1, written * sizeof(int16_t), s_WavFile);
+            s_WavDataBytes += written * sizeof(int16_t);
+            s_WavSectors++;
+            if (s_WavSectors == 8) {
+                /* Patch RIFF and data chunk sizes in header. */
+                uint32_t dataSize = s_WavDataBytes;
+                uint32_t riffSize = dataSize + 36;
+                fseek(s_WavFile, 4, SEEK_SET);
+                fwrite(&riffSize, 4, 1, s_WavFile);
+                fseek(s_WavFile, 40, SEEK_SET);
+                fwrite(&dataSize, 4, 1, s_WavFile);
+                fclose(s_WavFile);
+                s_WavFile = NULL;
+                SH_DBG("[XA] xa_dump.wav written: %u sectors, %u data bytes", 8, dataSize);
+            }
+        }
+    }
+
+    /* DEBUG: force mono — duplicate L into R channel.
+     * If voice becomes clean with this enabled, R-channel decode is broken. */
+    if (g_XaPlayer.debugForceMono && isStereo) {
+        for (int i = 0; i < written; i += 2) {
+            outStart[i+1] = outStart[i];
+        }
+    }
+
+    return written;
 }
 
 // Find XA file by index, trying multiple search paths
@@ -196,13 +305,19 @@ static FILE* OpenXaFile(int fileIdx) {
     }
 
     const char* filename = g_XaFileNames[fileIdx];
+    /* Search paths walk up from the build dir. The exe normally runs from
+     * pc_port/build/, with disc_extract at silenthill/disc_extract/ —
+     * three levels up. Extra levels guard against subdir builds. */
     const char* searchDirs[] = {
         "disc_extract/XA/",
         "../disc_extract/XA/",
         "../../disc_extract/XA/",
+        "../../../disc_extract/XA/",
+        "../../../../disc_extract/XA/",
     };
+    const int numDirs = sizeof(searchDirs) / sizeof(searchDirs[0]);
 
-    for (int d = 0; d < 3; d++) {
+    for (int d = 0; d < numDirs; d++) {
         char path[512];
         snprintf(path, sizeof(path), "%s%s", searchDirs[d], filename);
         FILE* f = fopen(path, "rb");
@@ -212,7 +327,8 @@ static FILE* OpenXaFile(int fileIdx) {
         }
     }
 
-    SH_DBG("[XA] Failed to open file index %d (%s)", fileIdx, filename);
+    SH_DBG("[XA] Failed to open file index %d (%s) — tried %d paths starting from cwd",
+           fileIdx, filename, numDirs);
     return NULL;
 }
 
@@ -256,11 +372,30 @@ void XaPlayer_Play(uint16_t xaIdx) {
         return;
     }
 
+    // Peek the first sector's subheader to learn the audio format AND the
+    // (file, channel) filter — XA streams are multiplexed across many channels.
+    uint32_t firstByteOffset = item->sector_4_bits * XA_SECTOR_SIZE;
+    fseek(file, firstByteOffset, SEEK_SET);
+    uint8_t headBuf[8];
+    if (fread(headBuf, 1, 8, file) != 8) {
+        SH_DBG("[XA] Cannot read first sector subheader (sector=%u)", item->sector_4_bits);
+        fclose(file);
+        return;
+    }
+    int isStereo, srCode, bitDepth;
+    ParseXaSubheader(headBuf[3], &isStereo, &srCode, &bitDepth);
+    int sampleRate = (srCode == 0) ? 37800 : 18900;
+
+    uint8_t filterFile    = headBuf[0];
+    uint8_t filterChannel = headBuf[1];
+
+    SH_DBG("[XA] Format: %s %dHz %dbit  coding=0x%02X  filter file=%02X ch=%02X",
+           isStereo ? "stereo" : "mono", sampleRate, bitDepth ? 8 : 4,
+           headBuf[3], filterFile, filterChannel);
+
     // Calculate number of sectors to read
     // audioLength_8 is in VSync frames; convert to sectors
-    // At 60fps: 1 frame = 630 samples; 37.8kHz: 2016 samples/sector/channel
     uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
-
     SH_DBG("[XA] Will read %u sectors (duration %u frames)", numSectors, item->audioLength_8_bits);
 
     g_XaPlayer.file = file;
@@ -268,15 +403,22 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.currentSector = item->sector_4_bits;
     g_XaPlayer.totalSectors = numSectors;
     g_XaPlayer.remainingSectors = numSectors;
+    g_XaPlayer.sampleRate = sampleRate;
+    g_XaPlayer.isStereo = isStereo;
+    g_XaPlayer.bitDepth = bitDepth;
+    g_XaPlayer.filterFile = filterFile;
+    g_XaPlayer.filterChannel = filterChannel;
     g_XaPlayer.isPlaying = 1;
-    g_XaPlayer.needsInitialFill = 1;  // Will be handled on first Update call
+    g_XaPlayer.needsInitialFill = 1;
+    /* Reset per-track ADPCM filter state. */
+    memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
+    /* Mono replication test confirmed not the issue — leave off. */
+    g_XaPlayer.debugForceMono = 0;
 
-    // Create OpenAL source if not already created
+    // Create OpenAL source/buffers once
     if (!g_XaPlayer.alSource) {
         alGenSources(1, &g_XaPlayer.alSource);
-        for (int i = 0; i < XA_NUM_BUFFERS; i++) {
-            alGenBuffers(1, &g_XaPlayer.alBuffers[i]);
-        }
+        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
         g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
     }
 
@@ -288,9 +430,18 @@ void XaPlayer_Stop(void) {
 
     if (g_XaPlayer.alSource) {
         alSourceStop(g_XaPlayer.alSource);
+        /* Detach all buffers from the source so the next Play starts with a
+         * clean queue. Without this, leftover buffers from the previous track
+         * play before the new audio (audible as "tail of previous line"). */
+        alSourcei(g_XaPlayer.alSource, AL_BUFFER, 0);
     }
 
     g_XaPlayer.isPlaying = 0;
+    /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
+     * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
+     * in that case Sd_TaskPoolExecute case 2 already preserves xaAudioIdx_4
+     * for the upcoming Play, and the about-to-fire Play will re-set the flags. */
+    Xa_SignalPlaybackFinished();
 }
 
 // Fill a single OpenAL buffer with decoded XA data
@@ -337,82 +488,102 @@ void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOf
     XaPlayer_Play(xaIdx);
 }
 
+/* Decode up to XA_SECTORS_PER_BUFFER MATCHING sectors (skipping interleaved
+ * sectors of other channels) into the PCM scratch buffer and upload to a
+ * given AL buffer. Returns total int16 samples written. */
+static int FillAndUploadOne(ALuint alBuffer) {
+    if (g_XaPlayer.remainingSectors == 0) return 0;
+
+    int wantedMatches = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER)
+                      ? XA_SECTORS_PER_BUFFER : (int)g_XaPlayer.remainingSectors;
+    int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
+    int totalSamples = 0;
+    int matchedCount = 0;
+    /* Cap raw scan to avoid runaway if the channel ends prematurely. */
+    int scanCap = wantedMatches * 32;
+
+    while (matchedCount < wantedMatches && scanCap-- > 0) {
+        uint32_t byteOffset = g_XaPlayer.currentSector * XA_SECTOR_SIZE;
+        fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
+
+        uint8_t sectorData[XA_SECTOR_SIZE];
+        if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
+            SH_DBG("[XA] EOF/short read at sector %u (matched %d/%d)",
+                   g_XaPlayer.currentSector, matchedCount, wantedMatches);
+            g_XaPlayer.remainingSectors = 0;
+            break;
+        }
+        g_XaPlayer.currentSector++;
+
+        /* Skip if this sector doesn't belong to our (file, channel) stream. */
+        if (sectorData[0] != g_XaPlayer.filterFile ||
+            sectorData[1] != g_XaPlayer.filterChannel) {
+            continue;
+        }
+
+        int written = DecodeXaSector(sectorData, pcmPtr);
+        pcmPtr += written;
+        totalSamples += written;
+        matchedCount++;
+    }
+
+    if (matchedCount == 0) return 0;
+    g_XaPlayer.remainingSectors -= matchedCount;
+
+    int byteCount = totalSamples * (int)sizeof(int16_t);
+    ALenum format = g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+    alBufferData(alBuffer, format, g_XaPlayer.pcmBuffer, byteCount, g_XaPlayer.sampleRate);
+    alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
+
+    return totalSamples;
+}
+
 void XaPlayer_Update(void) {
-    // Check if playback is ongoing
-    if (!g_XaPlayer.isPlaying) {
+    if (!g_XaPlayer.isPlaying) return;
+
+    /* On first Update after Play: queue all buffers fresh (none are
+     * processed because nothing has been queued or played yet). */
+    if (g_XaPlayer.needsInitialFill) {
+        int queued = 0;
+        for (int i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
+            if (FillAndUploadOne(g_XaPlayer.alBuffers[i]) > 0) queued++;
+        }
+        SH_DBG("[XA] Initial fill: queued %d/%d buffers, %u sectors left",
+               queued, XA_NUM_BUFFERS, g_XaPlayer.remainingSectors);
+        g_XaPlayer.needsInitialFill = 0;
+
+        if (queued > 0) {
+            alSourcePlay(g_XaPlayer.alSource);
+            SH_DBG("[XA] Starting playback (source=%u sr=%d %s)",
+                   g_XaPlayer.alSource, g_XaPlayer.sampleRate,
+                   g_XaPlayer.isStereo ? "stereo" : "mono");
+        }
         return;
     }
 
+    /* Refill any buffers that have finished playing back. */
     ALint processed = 0;
-
-    // On first update after Play, pre-fill all buffers
-    if (g_XaPlayer.needsInitialFill) {
-        SH_DBG("[XA] Initial fill: queuing %d buffers", XA_NUM_BUFFERS);
-        for (int i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
-            processed++;  // Treat as "available to fill"
-        }
-        g_XaPlayer.needsInitialFill = 0;
-    } else {
-        // Check for processed (finished) buffers
-        alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
-    }
-
-    // Refill available buffers
+    alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
     while (processed > 0 && g_XaPlayer.remainingSectors > 0) {
-        ALuint buffer;
-        alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buffer);
-
-        // Decode sectors into PCM
-        int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
-        int sectorsThisBuffer = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER) ?
-                                XA_SECTORS_PER_BUFFER : g_XaPlayer.remainingSectors;
-
-        for (int s = 0; s < sectorsThisBuffer; s++) {
-            // Seek to sector in file
-            uint32_t byteOffset = (g_XaPlayer.currentSector + s) * XA_SECTOR_SIZE;
-            fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
-
-            // Read sector
-            uint8_t sectorData[XA_SECTOR_SIZE];
-            if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
-                SH_DBG("[XA] Short read at sector %u", g_XaPlayer.currentSector + s);
-                g_XaPlayer.isPlaying = 0;
-                return;
-            }
-
-            // Decode
-            DecodeXaSector(sectorData, pcmPtr);
-            pcmPtr += XA_SAMPLES_PER_SECTOR * sizeof(int16_t);  // Note: stereo interleaved
-        }
-
-        // Queue buffer to OpenAL
-        // XA_SAMPLES_PER_SECTOR is the stereo interleaved sample count (int16 values)
-        int sampleBytes = sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
-        alBufferData(buffer, AL_FORMAT_STEREO16, g_XaPlayer.pcmBuffer,
-                     sampleBytes, g_XaPlayer.sampleRate);
-        alSourceQueueBuffers(g_XaPlayer.alSource, 1, &buffer);
-
-        g_XaPlayer.currentSector += sectorsThisBuffer;
-        g_XaPlayer.remainingSectors -= sectorsThisBuffer;
+        ALuint buf;
+        alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buf);
+        FillAndUploadOne(buf);
         processed--;
     }
 
-    // Start playback if not already started
+    /* If the source underran (e.g. paused mid-stream), re-kick. */
     ALint sourceState = 0;
     alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
-    if (sourceState != AL_PLAYING && sourceState != AL_PAUSED) {
+    if (sourceState != AL_PLAYING && g_XaPlayer.remainingSectors > 0) {
         alSourcePlay(g_XaPlayer.alSource);
-        SH_DBG("[XA] Starting playback (source=%u)", g_XaPlayer.alSource);
     }
 
-    // Check if playback finished
-    if (g_XaPlayer.remainingSectors == 0) {
-        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
-        if (sourceState == AL_STOPPED) {
-            SH_DBG("[XA] Playback finished");
-            g_XaPlayer.isPlaying = 0;
-            Xa_SignalPlaybackFinished();  // Signal game we're done
-        }
+    /* Detect end-of-playback: no more sectors AND source has stopped. */
+    if (g_XaPlayer.remainingSectors == 0 && sourceState == AL_STOPPED) {
+        SH_DBG("[XA] Playback finished");
+        g_XaPlayer.isPlaying = 0;
+        if (g_XaPlayer.file) { fclose(g_XaPlayer.file); g_XaPlayer.file = NULL; }
+        Xa_SignalPlaybackFinished();
     }
 }
 
@@ -421,10 +592,15 @@ void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
         return;
     }
 
-    // Average left and right, normalize to 0.0-1.0
+    /* Match PSX scaling: (vol * globalVolumeXa_E) >> 7 then map 0..127 to 0..1 OpenAL gain.
+     * Per Sd_SetVolXa in sd_call.c. Without globalVolumeXa_E here we approximate
+     * by treating the input vol as the already-scaled value. Divide by 127 to
+     * normalize, NOT by 84 which overdrove voices well past max gain. */
     int vol = (volLeft + volRight) / 2;
-    float gain = vol / 84.0f;  // 84 is max per game code
+    if (vol < 0) vol = 0;
+    float gain = (float)vol / 127.0f;
+    if (gain > 1.0f) gain = 1.0f;
     alSourcef(g_XaPlayer.alSource, AL_GAIN, gain);
 
-    SH_DBG("[XA] Volume set: %d (gain %.2f)", vol, gain);
+    SH_DBG("[XA] Volume set: vol=%d gain=%.2f", vol, gain);
 }

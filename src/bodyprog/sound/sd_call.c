@@ -1747,7 +1747,14 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
 
         case 1:
 #ifdef SH_PC_PORT
-            XaPlayer_Play(g_Sd_AudioWork.xaAudioIdx_4);
+            /* Use xaAudioIdxCheck_2 (the queued-track-id, persistent across Stop)
+             * instead of xaAudioIdx_4 (the active-track-id, cleared by Stop).
+             * Mirrors PSX Sd_XaAudioPlay's XaLoadState_Initialize using check_2
+             * and XaLoadState_EnableAudio re-setting xaAudioIdx_4. Lets the
+             * Stop-then-Play sequence in Sd_XaAudioPlayTaskAdd work correctly
+             * even when Stop fully clears the streaming-state flags. */
+            XaPlayer_Play(g_Sd_AudioWork.xaAudioIdxCheck_2);
+            g_Sd_AudioWork.xaAudioIdx_4 = g_Sd_AudioWork.xaAudioIdxCheck_2;
             Sd_TaskPoolUpdate();
 #else
             Sd_XaAudioPlay();
@@ -1756,8 +1763,10 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
 
         case 2:
 #ifdef SH_PC_PORT
+            /* XaPlayer_Stop calls Xa_SignalPlaybackFinished which clears
+             * xaAudioIdx_4 + D_800C37DC. Safe because the upcoming Play in
+             * Sd_XaAudioPlayTaskAdd's queue uses xaAudioIdxCheck_2 (still set). */
             XaPlayer_Stop();
-            g_Sd_AudioWork.xaAudioIdx_4 = 0;
             Sd_TaskPoolUpdate();
 #else
             Sd_XaAudioStop();
@@ -1939,9 +1948,32 @@ u8 Sd_CdPrimitiveCmdTry(s32 com, u8* param, u8* res) // 0x80048954
 }
 
 #ifdef SH_PC_PORT
-// Called by XA player to signal playback completion
+/* Called by XA player when playback finishes naturally OR is stopped.
+ * Mimics the cleanup the PSX state machine in Sd_XaAudioPlay /
+ * Sd_XaAudioStop performs at end-of-stream / stop:
+ *   - xaAudioIdx_4   = 0   (Sd_AudioStreamingCheck case 1 → 0)
+ *   - D_800C37DC     = 0   (Sd_AudioStreamingCheck case 4 → 0)
+ *   - isXaStopping_13 = 0  (matches PSX cleanup phase)
+ * Without these clears, Sd_AudioStreamingCheck() returns 4 forever and
+ * Bgm_Init() blocks the loading-screen state machine at scene transitions
+ * (manifests as a black screen after the alley gate).
+ */
 void Xa_SignalPlaybackFinished(void) {
-    g_Sd_AudioWork.xaAudioIdx_4 = 0;
+    g_Sd_AudioWork.xaAudioIdx_4    = 0;
+    g_Sd_AudioWork.isXaStopping_13 = false;
+    D_800C37DC                     = false;
+}
+
+// Public accessor for the static g_Sd_AudioWork.xaAudioIdx_4.
+u16 Sd_GetXaAudioIdx(void) {
+    return g_Sd_AudioWork.xaAudioIdx_4;
+}
+
+// Watchdog helper: force-clear all XA streaming state.
+void Sd_ForceClearXaAudioIdx(void) {
+    g_Sd_AudioWork.xaAudioIdx_4    = 0;
+    g_Sd_AudioWork.isXaStopping_13 = false;
+    D_800C37DC                     = false;
 }
 #endif
 

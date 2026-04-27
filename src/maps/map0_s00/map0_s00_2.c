@@ -54,16 +54,7 @@ void Map_RoomBgmInit(bool arg0) // 0x800D94F8
         var1 = Q12(0.3f);
     }
 
-#ifdef SH_PC_PORT
-    /* D_800DF300 is stubbed (zeroed), so no layer bits beyond Unk8 are set.
-     * Do NOT add BgmFlag_Unk0 — that is the mute flag; setting it forces
-     * Bgm_Update to strip all layer bits, keeping volume at zero.
-     * Without Unk0, Bgm_Update XORs bit-0 in, enabling layer 0 always.
-     * Pass NULL so g_Bgm_LayerLimits (all 128 = unity gain) is used. */
-    Bgm_Update(flags, var1, NULL);
-#else
     Bgm_Update(flags, var1, &D_800DF2F8);
-#endif
 }
 
 void GameBoot_LoadScreen_StageString(void) // 0x800D95D4

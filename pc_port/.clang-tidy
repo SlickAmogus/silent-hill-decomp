@@ -1,0 +1,7 @@
+# PC port-local clang-tidy override.
+# Disables noisy checks for code that touches PSX-named symbols
+# (D_800XXXXXX raw addrs, ALLCAPS data tables, mixedCase legacy names)
+# which intentionally don't follow modern naming conventions.
+---
+Checks: '-*'
+...

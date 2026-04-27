@@ -282,17 +282,34 @@ void GameBoot_GameStartup(void) // 0x80034964
         case 9:
 #ifdef SH_PC_PORT
             {
-                static int bgm_init_logged = 0;
-                if (!bgm_init_logged) {
-                    SH_DBG("[SH] BGM_Init step9: calling Bgm_Init()");
-                    bgm_init_logged = 1;
-                }
+                /* Log actual return + state every 60 frames so we can see why
+                 * Bgm_Init is failing to return 0 during scene transitions. */
+                static int bgm_frame_counter = 0;
                 s32 bgmResult = Bgm_Init();
+                bgm_frame_counter++;
+                if (bgm_frame_counter == 1 || bgm_frame_counter % 60 == 0) {
+                    extern u16 Sd_GetXaAudioIdx(void);
+                    SH_DBG("[SH] step9 Bgm_Init=%d  StreamingCheck=%d  QueueLen=%d  bgmStep=%d  xaIdx=%d",
+                           (int)bgmResult, (int)Sd_AudioStreamingCheck(), (int)Fs_QueueGetLength(),
+                           (int)g_GameWork.gameStateSteps[1], (int)Sd_GetXaAudioIdx());
+                }
                 if (bgmResult == 0)
                 {
-                    SH_DBG("[SH] BGM_Init step9: Bgm_Init() returned 0 (done)");
+                    SH_DBG("[SH] step9: Bgm_Init() returned 0, advancing");
+                    bgm_frame_counter = 0;
                     g_GameWork.gameState = GameState_MainLoadScreen;
                     Game_StateStepIncrement();
+                }
+                /* Watchdog: after 5 sec stuck, force-clear xaAudioIdx_4 and bgmStep
+                 * so the load screen doesn't hang forever from a stale audio state. */
+                if (bgm_frame_counter > 300) {
+                    extern u16 Sd_GetXaAudioIdx(void);
+                    extern void Sd_ForceClearXaAudioIdx(void);
+                    SH_DBG("[SH] step9 WATCHDOG: forcing clear (xaIdx %d -> 0, bgmStep %d -> 0)",
+                           (int)Sd_GetXaAudioIdx(), (int)g_GameWork.gameStateSteps[1]);
+                    Sd_ForceClearXaAudioIdx();
+                    g_GameWork.gameStateSteps[1] = 0;
+                    bgm_frame_counter = 0;
                 }
             }
 #else
