@@ -336,11 +336,11 @@ u8 D_800DD593[256] = {0};
 u8 D_800DD594[256] = {0};
 u8 D_800DD598[256] = {0};
 u8 D_800DD718[256] = {0};
-u8 D_800DE124[256] = {0};
-u8 D_800DE128[256] = {0};
-u8 D_800DE12C[256] = {0};
-u8 D_800DE140[256] = {0};
-u8 D_800DE154[256] = {0};
+/* D_800DE124, D_800DE128, D_800DE12C, D_800DE140, D_800DE154 are now defined
+ * with real binary-extracted values in pc_port/build_gen/extracted_data/
+ * map0_s01_extracted_data.c (only map0_s01 references them). The shared
+ * zero-stubs were producing SD_Call(0) for the AirScreamer cutscene voice
+ * lines and zero positions for the radio static SFX. */
 u8 D_800DE250[256] = {0};
 u8 D_800DE251[256] = {0};
 u8 D_800DF080[256] = {0};
