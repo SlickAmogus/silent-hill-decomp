@@ -358,8 +358,8 @@ u8 D_800DF570[256] = {0};
 u8 D_800DF580[256] = {0};
 u8 D_800DFAB8[256] = {0};
 u8 D_800DFAC2[256] = {0};
-u8 D_800DFAC4[256] = {0};
-u8 D_800DFAC8[256] = {0};
+/* D_800DFAC4 (alley camera warp flag), D_800DFAC8 (voice cmd table) now
+ * defined with proper binary-extracted values in map0_s00_extracted_data.c. */
 u8 D_800DFACC[256] = {0};
 u8 D_800DFAD0[256] = {0};
 u8 D_800DFAD4[256] = {0};
@@ -393,7 +393,7 @@ u8 D_800DFB48[256] = {0};
 u8 D_800DFB54[256] = {0};
 u8 D_800DFB5C[256] = {0};
 u8 D_800DFB60[256] = {0};
-u8 D_800DFB61[256] = {0};
+/* D_800DFB61 now defined in map0_s00_extracted_data.c. */
 u8 D_800DFEF0[256] = {0};
 u8 D_800DFEF2[256] = {0};
 u8 D_800DFEF4[256] = {0};
