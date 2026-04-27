@@ -111,11 +111,18 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                  * player-property reset side-effects still happen — they are
                  * harmless for NPCs because properties is a union and the
                  * fields written overlap unused NPC fields, but matching the
-                 * PSX behavior is safer than skipping. */
+                 * PSX behavior is safer than skipping.
+                 *
+                 * stateStep MUST be non-zero after we set anim.status — the
+                 * AI's Model_AnimStatusSet only fires when stateStep==0, so
+                 * a zero here lets the next AI tick (e.g. Ai_Cybil_AnimStateUpdate
+                 * case 0 which forces CybilAnim_1) clobber the scripted anim.
+                 * Setting stateStep=1 means "this state has already been
+                 * entered; don't re-enter and overwrite anim.status". */
                 g_MapOverlayHeader.func_124(chara);
                 /* arg2 is a raw anim index — encode as ANIM_STATUS(idx, false). */
                 chara->model.anim.status = (u8)ANIM_STATUS(arg2, false);
-                chara->model.stateStep     = 0;
+                chara->model.stateStep     = 1;
                 chara->model.anim.time        = Q12(0.0f);
                 chara->model.anim.keyframeIdx = 0;
                 chara->model.anim.flags |= AnimFlag_Unlocked;
