@@ -8801,6 +8801,19 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
                    "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
                    p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
                    p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
+            /* Confirm slots 56/57 are now patched to weapon-specific entries */
+            SH_DBG("[WEP_LOAD] HARRY_BASE_ANIM_INFOS[56] status=%d hasVar=%d link=%d sk=%d ek=%d",
+                   HARRY_BASE_ANIM_INFOS[56].status,
+                   HARRY_BASE_ANIM_INFOS[56].hasVariableDuration,
+                   HARRY_BASE_ANIM_INFOS[56].linkStatus,
+                   HARRY_BASE_ANIM_INFOS[56].startKeyframeIdx,
+                   HARRY_BASE_ANIM_INFOS[56].endKeyframeIdx);
+            SH_DBG("[WEP_LOAD] HARRY_BASE_ANIM_INFOS[57] status=%d hasVar=%d link=%d sk=%d ek=%d",
+                   HARRY_BASE_ANIM_INFOS[57].status,
+                   HARRY_BASE_ANIM_INFOS[57].hasVariableDuration,
+                   HARRY_BASE_ANIM_INFOS[57].linkStatus,
+                   HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx,
+                   HARRY_BASE_ANIM_INFOS[57].endKeyframeIdx);
         }
 #endif
     }
