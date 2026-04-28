@@ -8738,6 +8738,11 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
         g_Player_LastWeaponSelected = g_SysWork.playerCombat.weaponAttack;
         func_8007F14C(g_SysWork.playerCombat.weaponAttack);
 
+#ifdef SH_PC_PORT
+        SH_DBG("[WEP_LOAD] weaponAttack=%d FS_BUFFER_12=%p — queuing weapon ANM",
+               (int)g_SysWork.playerCombat.weaponAttack, (void*)FS_BUFFER_12);
+#endif
+
         switch (g_SysWork.playerCombat.weaponAttack)
         {
             case EquippedWeaponId_KitchenKnife:
@@ -8781,6 +8786,23 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
                 Fs_QueueStartRead(FILE_ANIM_HB_WEP53_ANM, FS_BUFFER_12);
                 break;
         }
+
+#ifdef SH_PC_PORT
+        /* Wait for the weapon ANM to actually finish loading. The switch
+         * just queued the read; without waiting, the next anim playback
+         * might happen against the old/empty FS_BUFFER_12 contents and
+         * Harry's torso bones get garbage rotation data. The wait is
+         * cheap (typically a few hundred ms for a 14KB file) and only
+         * fires on weapon change. */
+        Fs_QueueWaitForEmpty();
+        {
+            const u8* p = (const u8*)FS_BUFFER_12;
+            SH_DBG("[WEP_LOAD] post-load FS_BUFFER_12 first 16 bytes: "
+                   "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+                   p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
+                   p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
+        }
+#endif
     }
 }
 
