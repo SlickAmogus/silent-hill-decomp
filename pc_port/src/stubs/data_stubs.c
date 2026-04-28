@@ -14,7 +14,10 @@ u8 CREEPER_ANIM_INFOS[256] = {0};
 /* CYBIL_ANIM_INFOS provided by cybil_anim_info.c */
 u8 DAHLIA_ANIM_INFOS[256] = {0};
 u8 D_80028544[256] = {0};
-u8 D_800294F4[256] = {0};
+/* D_800294F4 now defined in pc_port/src/d_800294f4_data.c with real
+ * binary-extracted weapon anim keyframe data. The prior zero-stub here
+ * caused Harry's handgun aim pose to render with shrunken torso because
+ * GameFs_WeaponInfoUpdate copied all-zeros into D_800C44F0[]. */
 u8 D_8002B2CC[256] = {0};
 u8 D_800A9938[256] = {0};
 u8 D_800A9945[256] = {0};

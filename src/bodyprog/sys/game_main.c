@@ -220,37 +220,43 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Number key 4: mark incorrect camera position (logs GAME camera, not debug cam) */
+    /* Number key 4: mark INCORRECT (current in-game) camera — pos + lookAt */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_4];
         if (cur && !prevKey) {
-            VECTOR3 gameCamPos;
+            extern void vcGetNowWatchPos(VECTOR3* watch_pos);
+            VECTOR3 gameCamPos, gameCamLook;
             vcGetNowCamPos(&gameCamPos);
-            SH_DBG("INCORRECT CAMERA POSITION HERE pos=(%ld,%ld,%ld) angleY=%d  harry=(%ld,%ld,%ld) yaw=%d  map=%d",
-                (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
-                (int)g_SysWork.cameraAngleY,
+            vcGetNowWatchPos(&gameCamLook);
+            SH_DBG("==== INCORRECT-CAM @ map=%d harry=(%ld,%ld,%ld) yaw=%d ====",
+                (int)g_SavegamePtr->mapOverlayId_A4,
                 (long)g_SysWork.playerWork.player.position.vx,
                 (long)g_SysWork.playerWork.player.position.vy,
                 (long)g_SysWork.playerWork.player.position.vz,
-                (int)g_SysWork.playerWork.player.rotation.vy,
-                (int)g_SavegamePtr->mapOverlayId_A4);
+                (int)g_SysWork.playerWork.player.rotation.vy);
+            SH_DBG("    cam pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) angleY=%d",
+                (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
+                (long)gameCamLook.vx, (long)gameCamLook.vy, (long)gameCamLook.vz,
+                (int)g_SysWork.cameraAngleY);
         }
         prevKey = cur;
     }
-    /* Number key 5: mark corrected camera position + log full debug cam state */
+    /* Number key 5: mark CORRECTED (debug-cam) camera — pos + lookAt */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_5];
         if (cur && !prevKey) {
-            SH_DBG("CORRECTED CAMERA POSITION pos=(%ld,%ld,%ld) angleY=%d angleX=%d  harry=(%ld,%ld,%ld) yaw=%d  map=%d",
-                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX,
+            SH_DBG("==== CORRECTED-CAM @ map=%d harry=(%ld,%ld,%ld) yaw=%d ====",
+                (int)g_SavegamePtr->mapOverlayId_A4,
                 (long)g_DebugCamSavedHarryPos.vx,
                 (long)g_DebugCamSavedHarryPos.vy,
                 (long)g_DebugCamSavedHarryPos.vz,
-                (int)g_SysWork.playerWork.player.rotation.vy,
-                (int)g_SavegamePtr->mapOverlayId_A4);
+                (int)g_SysWork.playerWork.player.rotation.vy);
+            SH_DBG("    cam pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) angleY=%d angleX=%d",
+                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
+                (long)g_DebugCamLookAt.vx, (long)g_DebugCamLookAt.vy, (long)g_DebugCamLookAt.vz,
+                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
         }
         prevKey = cur;
     }
