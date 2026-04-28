@@ -1,6 +1,9 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/math/math.h"
+#ifdef SH_PC_PORT
+#include "psx_memory.h"  /* PSX_ADDR() for OT1 second-buffer pointer */
+#endif
 
 s32      g_VBlanks;
 s32      g_UncappedVBlanks;
@@ -63,7 +66,16 @@ GsOT g_OrderingTable0[2] = {
 
 GsOT g_OrderingTable1[2] = {
     { 9, (GsOT_TAG*)FS_BUFFER_1, 0, 0, 0 },
+#ifdef SH_PC_PORT
+    /* On PSX the second buffer was at the raw address 0x801E2E00 (back-to-back
+     * with FS_BUFFER_1 = 0x801E2600). On 64-bit PC that raw integer is a tiny
+     * bogus pointer — GsClearOt/GsSortOt crash dereferencing it. The picked-up
+     * inventory item render hits this on the second framebuffer (e.g. health
+     * drink pickup). Route through PSX_ADDR so it lands inside g_PsxRam. */
+    { 9, (GsOT_TAG*)PSX_ADDR(0x001E2E00), 0, 0, 0 }
+#else
     { 9, (GsOT_TAG*)0x801E2E00, 0, 0, 0 }
+#endif
 };
 
 GsOT g_OrderingTable2[2] = {
