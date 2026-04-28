@@ -26,21 +26,28 @@
 void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[CYBIL] enter chara=%p anm=%p coord=%p ctrl=%d step=%d status=%d",
-           (void*)chara, (void*)anmHdr, (void*)coords,
-           chara ? chara->model.controlState : -1,
-           chara ? chara->model.stateStep : -1,
-           chara ? chara->model.anim.status : -1);
+    {
+        static u8 _prevStatus = 0xFF;
+        static s16 _prevKf = -1;
+        u8 curStatus = chara->model.anim.status;
+        s16 curKf = chara->model.anim.keyframeIdx;
+        if (curStatus != _prevStatus || curKf != _prevKf) {
+            SH_DBG("[CYBIL] status=%d kf=%d (was %d / %d) ctrl=%d step=%d sIdx0=%d",
+                   curStatus, curKf, _prevStatus, _prevKf,
+                   chara->model.controlState,
+                   chara->model.stateStep,
+                   chara->properties.dahlia.stateIdx0);
+            _prevStatus = curStatus;
+            _prevKf = curKf;
+        }
+    }
     if (chara->model.controlState == 0)
     {
-        SH_DBG("[CYBIL] pre-Init");
         Ai_Cybil_Init(chara);
-        SH_DBG("[CYBIL] post-Init");
     }
-    Ai_Cybil_AnimStateUpdate(chara, coords);   SH_DBG("[CYBIL] post-AnimStateUpdate");
-    Ai_Cybil_MovementUpdate(chara, coords);    SH_DBG("[CYBIL] post-MovementUpdate");
-    Ai_Cybil_AnimUpdate(chara, anmHdr, coords);SH_DBG("[CYBIL] post-AnimUpdate status=%d",
-                                                      chara->model.anim.status);
+    Ai_Cybil_AnimStateUpdate(chara, coords);
+    Ai_Cybil_MovementUpdate(chara, coords);
+    Ai_Cybil_AnimUpdate(chara, anmHdr, coords);
 #else
     if (chara->model.controlState == 0)
     {
