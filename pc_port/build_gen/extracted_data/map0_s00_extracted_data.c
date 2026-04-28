@@ -30,13 +30,21 @@ u16 g_Cutscene_MapMsgAudioCmds[14] = {
     0x0000, 0x0000
 };
 
-// 0x800DFAC4  s32 — alley camera warp flag.
+// 0x800DFAC4  s32 — alley camera warp flag (used by chase scene).
 // PSX initializes to 1 from binary so the first frame of the alley sequence
 // performs Camera_PositionSet(...,warp=true). After that, code sets it to 0.
 // With the prior zero-init stub, the warp never fired and the camera stayed
 // at its previous position — that's the "alley cameras glitched, void/partial
-// view" symptom.
+// view" symptom on the FIRST chase camera. Subsequent waypoints are gated on
+// g_WarpCamera below.
 s32 D_800DFAC4 = 1;
+
+// 0x800DFAD8  s32 — chase corridor camera warp flag (separate from D_800DFAC4).
+// Same story as D_800DFAC4: starts at 1 in binary, code toggles it as Harry
+// crosses chase-section boundaries. With the zero stub, the second/third
+// corridor cameras (alley deep + corner) never warped into place either,
+// leaving the camera stuck at the previous waypoint and clipping into walls.
+s32 g_WarpCamera = 1;
 
 // 0x800DFAC8  u16[] — voice cmd table for "What is this?" / "Hey wait, stop!".
 // Aliases into g_Cutscene_MapMsgAudioCmds[6..]; PC duplicates as a

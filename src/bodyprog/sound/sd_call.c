@@ -524,6 +524,16 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     audioIdx   = sfxId - Sfx_Base;
     g_Sd_VabPlayingInfo.volumeLeft_C = gSDVolConfig.volumeSe_4 + g_Vab_InfoTable[audioIdx].field_5;
 
+#ifdef SH_PC_PORT
+    if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
+        SH_DBG("[RADIO_VOL] sfxId=%d aIdx=%d vol_in=%d field_5=%d volumeSe_4=%d -> volumeLeft_C=%d",
+               (int)sfxId, (int)audioIdx, (int)vol,
+               (int)g_Vab_InfoTable[audioIdx].field_5,
+               (int)gSDVolConfig.volumeSe_4,
+               (int)g_Sd_VabPlayingInfo.volumeLeft_C);
+    }
+#endif
+
     if (sfxId == Sfx_RadioInterferenceLoop)
     {
         voiceIdx   = 22;

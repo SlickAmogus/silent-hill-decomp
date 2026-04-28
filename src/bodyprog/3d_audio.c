@@ -9,6 +9,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound_system.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 VECTOR3 D_800C42C0;
 VECTOR3* D_800C42CC;
@@ -311,6 +314,17 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     {
         finalVol = 0;
     }
+
+#ifdef SH_PC_PORT
+    /* Trace radio loop attenuation. The pitch-2210 + addr-set logs show the
+     * SPU is being keyed on, but volL=0/volR=0 — narrow that down to whether
+     * func_8005DE0C produces 0 finalVol or whether it survives through
+     * Sd_SfxAttributesUpdate's volumeLeft_C math. */
+    if (sfxId == 1321 || sfxId == 1322 /* Sfx_RadioInterference/StaticLoop */) {
+        SH_DBG("[RADIO_VOL] func_8005DE0C sfx=%d vol_in=%d att0=%d s3=%d finalVol=%d",
+               (int)sfxId, (int)vol, (int)att0, (int)s3, (int)finalVol);
+    }
+#endif
 
     Sd_SfxAttributesUpdate(sfxId, balance, finalVol, pitch);
 }

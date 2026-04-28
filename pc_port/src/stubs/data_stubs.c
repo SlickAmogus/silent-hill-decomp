@@ -896,7 +896,8 @@ u8 g_Romper_ControlFuncs[256] = {0};
 u8 g_Screen_FadeStatus[256] = {0};
 /* g_Cutscene_Timer[0-3] now provided per-map via
  * pc_port/build_gen/extracted_data/<map>_extracted_data.c */
-u8 g_WarpCamera[256] = {0};
+/* g_WarpCamera now defined in map0_s00_extracted_data.c with init=1
+ * (from binary). Was zero-stub which broke alley camera warps. */
 u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
 u8 g_WorldGfxWork[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
 u8 g_WorldObject0[256] = {0};
