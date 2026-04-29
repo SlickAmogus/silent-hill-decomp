@@ -1099,10 +1099,25 @@ s32    g_Player_LastWeaponSelected        = NO_VALUE;
 #ifdef SH_PC_PORT
 /* PC: upstream decomp only has 57 entries (up to HarryAnim_IdleExhausted).
  * HarryAnim_HandgunAim=28 and HarryAnim_HandgunRecoil=31 index at 56/57/62/63
- * → OOB → crash. Extend to 64 and fill 28–31 with placeholder entries pointing
- * at existing Idle keyframes so aim/fire play SOMETHING without crashing.
- * Once real anim data is recovered from the PSX binary, replace these. */
-s_AnimInfo HARRY_BASE_ANIM_INFOS[64] = {
+ * → OOB → crash. Extend to 76 to cover the full weapon-anim slot range
+ * (56-75 — see GameFs_WeaponInfoUpdate loop) and fill 28-31 with
+ * placeholder entries pointing at existing Idle keyframes so aim/fire
+ * play SOMETHING without crashing.
+ *
+ * Slots 64-75 correspond to HarryAnim_Unk32..Unk37 active/inactive pairs.
+ * We don't have real placeholder data for them, but the array MUST extend
+ * to 76 because GameFs_WeaponInfoUpdate writes:
+ *
+ *     for (i = 56; i < 76; i++)
+ *         HARRY_BASE_ANIM_INFOS[i] = D_80028B94[(i - 56) + relAnimInfoIdx];
+ *
+ * If the array is sized 64, indices 64-75 write past the end and stomp
+ * adjacent globals — including D_800AFBF4 (the weapon info table itself!),
+ * which means the second weapon equip reads garbage animAttack_7 / sfx
+ * fields. C zero-inits the unspecified entries, so leaving 64-75 empty
+ * is safe; it just means those statuses won't have valid playback data
+ * until weapon-specific entries get written by GameFs_WeaponInfoUpdate. */
+s_AnimInfo HARRY_BASE_ANIM_INFOS[76] = {
 #else
 s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
 #endif
