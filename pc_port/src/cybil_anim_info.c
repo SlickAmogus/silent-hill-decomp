@@ -1,17 +1,12 @@
 /*
  * Cybil animation info table for PC port.
  *
- * Sourced from the commented-out template in
- * include/maps/characters/cybil.h.  The original PSX rodata for each
- * map (MAP0_S01, MAP4_S01, MAP6_S01, MAP7_S03) lives in non-decomp'd
- * .s files that the PC port doesn't ingest.  Without a real definition
- * the previous stub (`u8 CYBIL_ANIM_INFOS[256] = {0}`) left every
- * playbackFunc_0 == NULL, so the first call from Ai_Cybil_AnimUpdate
- * crashed.
+ * Extracted directly from MAP0_S01.BIN at PA 0x14318
+ * (PSX VA 0x800DD890, base delta 0x800C9578). 64 entries, 16 bytes each.
  *
- * For map0_s01 we pick the MAP6_S01 entries for the CybilAnim_16/17
- * conditional gap — map0_s01 does not actually drive those animations
- * during Cybil's intro, so the choice is harmless.
+ * The original PSX rodata for each Cybil-bearing map (MAP0_S01, MAP4_S01,
+ * MAP6_S01, MAP7_S03) lives in non-decomp'd .s files; this is the actual
+ * MAP0_S01 layout straight from the disc image.
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
@@ -53,9 +48,9 @@ s_AnimInfo CYBIL_ANIM_INFOS[] = {
     { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_15, false), false, ANIM_STATUS(CybilAnim_15, true),  { Q12(10.0f)  }, NO_VALUE, 250 },
     { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_15, true),  false, ANIM_STATUS(CybilAnim_15, true),  { Q12(10.0f)  }, 250,      270 },
     { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_16, false), false, ANIM_STATUS(CybilAnim_16, true),  { Q12(10.0f)  }, NO_VALUE, 271 },
-    { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_16, true),  false, ANIM_STATUS(CybilAnim_16, true),  { Q12(10.0f)  }, 271,      276 },
-    { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_17, false), false, ANIM_STATUS(CybilAnim_17, true),  { Q12(10.0f)  }, NO_VALUE, 284 },
-    { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_17, true),  false, ANIM_STATUS(CybilAnim_17, true),  { Q12(10.0f)  }, 284,      292 },
+    { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_16, true),  false, ANIM_STATUS(CybilAnim_16, true),  { Q12(10.0f)  }, 271,      281 },
+    { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_17, false), false, ANIM_STATUS(CybilAnim_17, true),  { Q12(10.0f)  }, NO_VALUE, 282 },
+    { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_17, true),  false, ANIM_STATUS(CybilAnim_17, true),  { Q12(10.0f)  }, 282,      292 },
     { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_18, false), false, ANIM_STATUS(CybilAnim_18, true),  { Q12(10.0f)  }, NO_VALUE, 293 },
     { Anim_PlaybackOnce, ANIM_STATUS(CybilAnim_18, true),  false, ANIM_STATUS(CybilAnim_18, true),  { Q12(10.0f)  }, 293,      302 },
     { Anim_BlendLinear,  ANIM_STATUS(CybilAnim_19, false), false, ANIM_STATUS(CybilAnim_19, true),  { Q12(10.0f)  }, NO_VALUE, 303 },
