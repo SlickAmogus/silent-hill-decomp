@@ -920,30 +920,12 @@ void MainLoop(void) // 0x80032EE0
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
         if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled_1) {
-            /* Cheryl-chase alley override: when EventFlag_8 (chase active) is
-             * set in map0_s00, the player is running through the alley where
-             * the original game shows mostly darkness. The "void" outside the
-             * alley walls is exposed because chunks beyond the corridor never
-             * load on PC (level streaming bypassed). Force the bg + shader fog
-             * to black for that corridor only — keeps map0_s00 main town and
-             * everything in map0_s01+ at their normal fog colors. */
-            int _alleyDark = (g_SavegamePtr->mapOverlayId_A4 == MapIdx_MAP0_S00 &&
-                              Savegame_EventFlagGet(EventFlag_8));
-            if (_alleyDark) {
-                g_GameWork.background2dColor.r = 0;
-                g_GameWork.background2dColor.g = 0;
-                g_GameWork.background2dColor.b = 0;
-                g_PsyX_FogColor[0] = 0.0f;
-                g_PsyX_FogColor[1] = 0.0f;
-                g_PsyX_FogColor[2] = 0.0f;
-            } else {
-                g_GameWork.background2dColor.r = PC_WorldEnvWork.fogColor_1C.r;
-                g_GameWork.background2dColor.g = PC_WorldEnvWork.fogColor_1C.g;
-                g_GameWork.background2dColor.b = PC_WorldEnvWork.fogColor_1C.b;
-                g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
-                g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
-                g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
-            }
+            g_GameWork.background2dColor.r = PC_WorldEnvWork.fogColor_1C.r;
+            g_GameWork.background2dColor.g = PC_WorldEnvWork.fogColor_1C.g;
+            g_GameWork.background2dColor.b = PC_WorldEnvWork.fogColor_1C.b;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
         }
 #endif
         ML_TRACE("GsSortClear");
