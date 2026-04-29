@@ -1540,20 +1540,50 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                              * current pose, then PlaybackOnce uses startKf
                              * from the slot data. */
                             u8 attackStatus = g_Player_EquippedWeaponInfo.animAttack_7;
+                            /* Fallback: if EquippedWeaponInfo wasn't filled
+                             * for some reason (the WEP_DBG log will reveal
+                             * if/when this happens), pick the known
+                             * animAttack_7 by weaponAttack. Values match
+                             * D_800AFBF4[N].animAttack_7 in
+                             * items/item_screens_3.c. */
+                            if (attackStatus == 0) {
+                                switch (g_SysWork.playerCombat.weaponAttack) {
+                                    case WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_Axe, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_Hammer, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_Chainsaw, AttackInputType_Tap):
+                                        attackStatus = 62; /* Unk29 inactive blend */
+                                        break;
+                                    case WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap):
+                                        attackStatus = 58; /* Unk29 inactive blend (rock drill specific) */
+                                        break;
+                                    case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
+                                    case WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap):
+                                        attackStatus = 72; /* Unk36 inactive blend */
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
                             if (attackStatus != 0) {
                                 extra->model.anim.status = attackStatus;
                                 extra->model.stateStep = 0;
                                 extra->model.anim.time = Q12(0.0f);
                             }
 
-                            /* Cooldown: long enough to cover blend (varies)
-                             * + active anim (~25-50 frames depending on
-                             * weapon). 80 frames ≈ 1.3s at 60fps which is
-                             * a safe upper bound for handgun/knife. The
-                             * end-of-anim transition below switches back
-                             * to HandgunAim active mid-cooldown so Harry
-                             * is visually ready before the cooldown ends. */
-                            s_fireFrames = 80;
+                            /* Cooldown: enough to cover blend + active
+                             * anim. 50 frames ≈ 0.83s at 60fps — covers
+                             * the worst case of handgun fire (slot 73
+                             * 22-keyframe playback) plus a short rest
+                             * before the next press is accepted. The
+                             * end-of-anim transition below shortens this
+                             * to 8 frames once the active anim's end
+                             * keyframe is reached, so a fast tapper gets
+                             * one shot per anim cycle. */
+                            s_fireFrames = 50;
 
                             SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d animAttack_7=%d kfIdx=%d status=0x%x",
                                         (int)g_SysWork.playerCombat.weaponAttack,
@@ -8774,6 +8804,30 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
             relKeyframeIdx                                    = 39;
             g_Player_EquippedWeaponInfo                       = D_800AFBF4[6];
             g_SysWork.playerWork.player.field_C8.field_8 = -0x1600;
+#ifdef SH_PC_PORT
+            SH_DBG("[WEP_DBG] handgun pre-copy D_800AFBF4[6]: sfx0=%d sfx2=%d sfx4=%d aim6=%d att7=%d hold8=%d f9=%d fA=%d fB=%d sizeof=%d",
+                   (int)D_800AFBF4[6].attackSfx_0,
+                   (int)D_800AFBF4[6].reloadSfx_2,
+                   (int)D_800AFBF4[6].outOfAmmoSfx_4,
+                   (int)D_800AFBF4[6].animStopAiming_6,
+                   (int)D_800AFBF4[6].animAttack_7,
+                   (int)D_800AFBF4[6].animAttackHold_8,
+                   (int)D_800AFBF4[6].field_9,
+                   (int)D_800AFBF4[6].field_A,
+                   (int)D_800AFBF4[6].unk_B,
+                   (int)sizeof(D_800AFBF4[6]));
+            SH_DBG("[WEP_DBG] handgun post-copy g_Player_EquippedWeaponInfo: sfx0=%d sfx2=%d sfx4=%d aim6=%d att7=%d hold8=%d f9=%d fA=%d fB=%d sizeof=%d",
+                   (int)g_Player_EquippedWeaponInfo.attackSfx_0,
+                   (int)g_Player_EquippedWeaponInfo.reloadSfx_2,
+                   (int)g_Player_EquippedWeaponInfo.outOfAmmoSfx_4,
+                   (int)g_Player_EquippedWeaponInfo.animStopAiming_6,
+                   (int)g_Player_EquippedWeaponInfo.animAttack_7,
+                   (int)g_Player_EquippedWeaponInfo.animAttackHold_8,
+                   (int)g_Player_EquippedWeaponInfo.field_9,
+                   (int)g_Player_EquippedWeaponInfo.field_A,
+                   (int)g_Player_EquippedWeaponInfo.unk_B,
+                   (int)sizeof(g_Player_EquippedWeaponInfo));
+#endif
             break;
 
         case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
@@ -8889,6 +8943,16 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
                    HARRY_BASE_ANIM_INFOS[57].linkStatus,
                    HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx,
                    HARRY_BASE_ANIM_INFOS[57].endKeyframeIdx);
+            /* Sanity check — animAttack_7 should be 72 for handgun, 62 for
+             * knife, etc. If this prints 0 here while D_800AFBF4[6]
+             * source clearly has 72, there's a struct alignment / layout
+             * mismatch on PC. */
+            SH_DBG("[WEP_LOAD] g_Player_EquippedWeaponInfo: attackSfx=%d animStop=%d animAttack=%d animHold=%d sizeof=%d",
+                   (int)g_Player_EquippedWeaponInfo.attackSfx_0,
+                   (int)g_Player_EquippedWeaponInfo.animStopAiming_6,
+                   (int)g_Player_EquippedWeaponInfo.animAttack_7,
+                   (int)g_Player_EquippedWeaponInfo.animAttackHold_8,
+                   (int)sizeof(g_Player_EquippedWeaponInfo));
         }
 #endif
     }
