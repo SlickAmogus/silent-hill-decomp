@@ -677,7 +677,18 @@ void Sd_LastSfxStop(void) // 0x800468EC
 void Sd_SfxStop(u16 sfxId) // 0x8004690C
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SFX] Sd_SfxStop: sfxId=%d (Sfx_Base+%d)", sfxId, sfxId - Sfx_Base);
+    /* Cutscenes "stop ambient SFX X" every frame, which spammed the log
+     * 4 calls/frame x 60 fps. Dedupe via a tiny ring of recent IDs. */
+    {
+        static u16 _recent[8] = {0};
+        static u8  _ridx      = 0;
+        int i;
+        for (i = 0; i < 8; i++) if (_recent[i] == sfxId) goto _no_log;
+        SH_DBG("[SFX] Sd_SfxStop: sfxId=%d (Sfx_Base+%d)", sfxId, sfxId - Sfx_Base);
+        _recent[_ridx] = sfxId;
+        _ridx = (_ridx + 1) & 7;
+    _no_log:;
+    }
 #endif
     Sd_SfxStopStep(sfxId);
 }
