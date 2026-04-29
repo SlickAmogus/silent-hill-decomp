@@ -95,6 +95,14 @@ public partial class Form1 : Form
         else
             comboFps.SelectedItem = "30";
 
+        // Filtering: int in config (0/1/2) <-> dropdown index
+        // 0 = Off, 1 = Dithering, 2 = Bilinear
+        int filterIdx;
+        if (!int.TryParse(config.Get("psx_dither", "1"), out filterIdx))
+            filterIdx = 1; // default to dithering
+        if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
+        comboFiltering.SelectedIndex = filterIdx;
+
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
             "map0_s00","map0_s01","map0_s02",
@@ -182,6 +190,10 @@ public partial class Form1 : Form
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());
+
+        // Filtering: dropdown index (0=Off, 1=Dithering, 2=Bilinear) -> int
+        if (comboFiltering.SelectedIndex >= 0)
+            config.Set("psx_dither", comboFiltering.SelectedIndex.ToString());
 
         config.Save();
     }
