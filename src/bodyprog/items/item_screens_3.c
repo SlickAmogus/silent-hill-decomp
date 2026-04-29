@@ -1098,26 +1098,27 @@ s32    g_Player_LastWeaponSelected        = NO_VALUE;
 #endif
 #ifdef SH_PC_PORT
 /* PC: upstream decomp only has 57 entries (up to HarryAnim_IdleExhausted).
- * HarryAnim_HandgunAim=28 and HarryAnim_HandgunRecoil=31 index at 56/57/62/63
- * → OOB → crash. Extend to 76 to cover the full weapon-anim slot range
- * (56-75 — see GameFs_WeaponInfoUpdate loop) and fill 28-31 with
- * placeholder entries pointing at existing Idle keyframes so aim/fire
- * play SOMETHING without crashing.
+ * Multiple game functions write past that with hardcoded indices:
  *
- * Slots 64-75 correspond to HarryAnim_Unk32..Unk37 active/inactive pairs.
- * We don't have real placeholder data for them, but the array MUST extend
- * to 76 because GameFs_WeaponInfoUpdate writes:
+ *   - GameFs_WeaponInfoUpdate (player_control.c:8857): writes 56..75
+ *   - func_8007E860            (player_control.c:8606): writes 92..99
+ *   - func_8007E8C0            (player_control.c:8621): writes 76..(76+N)
+ *     where N is the size of g_MapOverlayHeader.harryMapAnimInfos_34
+ *     (up to ~44 for map0_s01 → indices 76..119).
  *
- *     for (i = 56; i < 76; i++)
- *         HARRY_BASE_ANIM_INFOS[i] = D_80028B94[(i - 56) + relAnimInfoIdx];
+ * model.anim.status is a u8, so the maximum legal index is 255. Sizing
+ * the array to 256 matches that bound and covers every write site —
+ * smaller sizes left adjacent globals (most importantly D_800AFBF4, the
+ * weapon-info table) being stomped, which silently corrupted weapon
+ * data on the second equip and broke firing animation/sound for any
+ * weapon switched into.
  *
- * If the array is sized 64, indices 64-75 write past the end and stomp
- * adjacent globals — including D_800AFBF4 (the weapon info table itself!),
- * which means the second weapon equip reads garbage animAttack_7 / sfx
- * fields. C zero-inits the unspecified entries, so leaving 64-75 empty
- * is safe; it just means those statuses won't have valid playback data
- * until weapon-specific entries get written by GameFs_WeaponInfoUpdate. */
-s_AnimInfo HARRY_BASE_ANIM_INFOS[76] = {
+ * C zero-inits unspecified entries; valid data is written into them
+ * lazily by the loops above as the player equips a weapon / loads a
+ * map. The placeholder entries 56-63 below cover handgun aim/fire/
+ * recoil before the first weapon equip so the very first aim doesn't
+ * read all zeros. */
+s_AnimInfo HARRY_BASE_ANIM_INFOS[256] = {
 #else
 s_AnimInfo HARRY_BASE_ANIM_INFOS[57] = {
 #endif
