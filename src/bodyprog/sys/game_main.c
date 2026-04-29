@@ -735,11 +735,27 @@ void MainLoop(void) // 0x80032EE0
         XaPlayer_Update();
 #endif
 
+#ifdef SH_PC_PORT
+        /* PSX gates Fs_QueueUpdate on audio streaming because the disc
+         * laser can only do one thing at a time — reading file data and
+         * streaming XA from CD share the same hardware. On PC the
+         * "disc" is a regular file (and XA streams from separate .XA
+         * files via xa_player.c), so reads and audio operations don't
+         * compete. The gate is not just unnecessary on PC, it's
+         * actively harmful: any audio-task-pool stall (a CD command not
+         * yet stubbed in PsyCross, a state-machine bug) blocks the
+         * file queue, which in turn blocks inventory opening
+         * (Fs_QueueChunksLoad never returns true), room transitions,
+         * and DMS chunk loads. Tick the queue every frame on PC. */
+        ML_TRACE("Fs_QueueUpdate");
+        Fs_QueueUpdate();
+#else
         if (!Sd_AudioStreamingCheck())
         {
             ML_TRACE("Fs_QueueUpdate");
             Fs_QueueUpdate();
         }
+#endif
 
         ML_TRACE("func_80089128");
         func_80089128();
