@@ -1502,56 +1502,70 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                         (int)extra->model.anim.keyframeIdx);
                         }
 
-                        /* Edge-triggered fire: only fire on the press
-                         * (false→true transition), not while held. This
-                         * prevents the recoil→aim→recoil cycle the user
-                         * sees when holding the fire key — they wanted
-                         * "press = single shot, hold = stay in shoot
-                         * pose, release = smooth back to ready". */
-                        static int s_prevFireHeld_edge = 0;
-                        int firePress = (fireHeld && !s_prevFireHeld_edge);
-                        s_prevFireHeld_edge = fireHeld;
-                        if (firePress && s_fireFrames == 0) {
+                        /* Auto-fire: while the fire button is held, fire
+                         * each time the previous shot's anim cycle has
+                         * completed (s_fireFrames == 0). PSX flow:
+                         *   HandgunAim active (idle aim, kf 570-579 loop)
+                         *   → on fire: status = animAttack_7 (inactive
+                         *     blend → active)
+                         *   → active anim plays once (e.g. handgun = slot
+                         *     73, kf 582-604 = "outstretch + fire +
+                         *     recoil") then holds (link=self)
+                         *   → game manually transitions to HandgunAim
+                         *     active when the anim end keyframe is hit
+                         *   → ready to fire again
+                         *
+                         * Earlier shim hardcoded HarryAnim_Unk29 which is
+                         * the "aim target-lock switch" pose, not the fire
+                         * pose — that's why the user only saw recoil and
+                         * not the outstretch. Use animAttack_7 from the
+                         * loaded weapon info instead so the right slot
+                         * (handgun=72, knife=62) gets played. */
+                        if (fireHeld && hasWeapon && s_fireFrames == 0) {
                             /* Fire: flag attack so Player_CombatUpdate
                              * dispatches damage. */
                             player->field_44.field_0 = 1;
                             g_Player_IsShooting = 1;
-                            /* ~40 frame cooldown ≈ 0.67s at 60fps ≈ 1.5
-                             * shots/sec — close to PSX handgun pace.
-                             * Was 20 = 3 shots/sec which felt rapid-fire. */
-                            s_fireFrames = 40;
 
-                            /* Drive recoil animation so user sees Harry react
-                             * to the shot. Handgun recoil = HARRY_BASE_ANIM_INFOS
-                             * slot 58/59 (anim 29) after WeaponInfoUpdate
-                             * patched the slots. The vanilla recoil→aim
-                             * transition lives in Player_UpperBodyMainUpdate
-                             * which is skipped on PC; the cooldown logic
-                             * below transitions back once recoil plays out. */
-                            if (g_SysWork.playerCombat.weaponAttack ==
-                                WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
-                                extra->model.anim.status = ANIM_STATUS(HarryAnim_Unk29, false);
+                            /* Set attack anim. animAttack_7 is the inactive
+                             * blend status; Anim_BlendLinear advances to
+                             * the active form (animAttack_7 | 1). Reset
+                             * anim.time so the blend starts at progress 0
+                             * — without this, time carries over from the
+                             * HandgunAim loop (kf 570-579 → time ≈ Q12(575)
+                             * which is way past the blend duration), and
+                             * the blend skips entirely.
+                             *
+                             * Don't touch keyframeIdx: blend reads bones'
+                             * current pose, then PlaybackOnce uses startKf
+                             * from the slot data. */
+                            u8 attackStatus = g_Player_EquippedWeaponInfo.animAttack_7;
+                            if (attackStatus != 0) {
+                                extra->model.anim.status = attackStatus;
                                 extra->model.stateStep = 0;
-                                extra->model.anim.keyframeIdx = 0;
                                 extra->model.anim.time = Q12(0.0f);
                             }
-                            SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d kfIdx=%d status=0x%x rot=%d",
-                                        (int)g_SysWork.playerCombat.weaponAttack,
-                                        (int)extra->model.anim.keyframeIdx,
-                                        (unsigned)extra->model.anim.status,
-                                        (int)player->rotation.vy);
 
-                            /* Ammo decrement + fire SFX — Player_UpperBodyUpdate
-                             * is bypassed by this PC shim, so its ammo-decrement
-                             * + SFX block (player_control.c:3252-3275) never runs.
-                             * The keyframe-window gate (D_800C44D0/D4) is also
-                             * never set up because UpperBodyUpdate is what sets
-                             * it. Trigger on fire-edge instead.
-                             *
-                             * Skips the field_44 path that the original would
-                             * take; we already set field_44.field_0 above so
-                             * Player_CombatUpdate will still dispatch damage. */
-                            {
+                            /* Cooldown: long enough to cover blend (varies)
+                             * + active anim (~25-50 frames depending on
+                             * weapon). 80 frames ≈ 1.3s at 60fps which is
+                             * a safe upper bound for handgun/knife. The
+                             * end-of-anim transition below switches back
+                             * to HandgunAim active mid-cooldown so Harry
+                             * is visually ready before the cooldown ends. */
+                            s_fireFrames = 80;
+
+                            SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d animAttack_7=%d kfIdx=%d status=0x%x",
+                                        (int)g_SysWork.playerCombat.weaponAttack,
+                                        (int)attackStatus,
+                                        (int)extra->model.anim.keyframeIdx,
+                                        (unsigned)extra->model.anim.status);
+
+                            /* Ranged weapons consume ammo + fire-SFX. Melee
+                             * weapons (knife/pipe/etc) don't take ammo. */
+                            bool isRanged = (g_SysWork.playerCombat.weaponAttack >=
+                                             WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+                            if (isRanged) {
                                 s16 invIdx = g_SysWork.playerCombat.weaponInventoryIdx;
                                 if (g_SysWork.playerCombat.currentWeaponAmmo > 0) {
                                     g_SysWork.playerCombat.currentWeaponAmmo--;
@@ -1562,32 +1576,54 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                     }
                                     func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0,
                                                   &player->position, Q8(0.5f), 0);
-                                    SH_DBG_ECHO("[AIM-KF] ammo--: now=%d invIdx=%d sfx=%d",
-                                                (int)g_SysWork.playerCombat.currentWeaponAmmo,
-                                                (int)invIdx,
-                                                (int)g_Player_EquippedWeaponInfo.attackSfx_0);
                                 } else {
                                     func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx_4,
                                                   &player->position, Q8(0.5f), 0);
-                                    SH_DBG_ECHO("[AIM-KF] dry-fire: out of ammo, sfx=%d",
-                                                (int)g_Player_EquippedWeaponInfo.outOfAmmoSfx_4);
                                 }
+                            } else {
+                                /* Melee: play attack swing SFX. */
+                                func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0,
+                                              &player->position, Q8(0.5f), 0);
                             }
                         }
                         if (s_fireFrames > 0) {
                             s_fireFrames--;
-                            /* Once the recoil window has played out (~12
-                             * frames after fire-edge), force back to
-                             * HandgunAim hold. Without this Harry stays
-                             * in the recoil end-pose forever. */
-                            if (s_fireFrames == 28 &&
-                                g_SysWork.playerCombat.weaponAttack ==
-                                WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
-                                extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                                extra->model.stateStep = 0;
-                                extra->model.anim.keyframeIdx = 0;
-                                extra->model.anim.time = Q12(0.0f);
-                                SH_DBG_ECHO("[AIM-KF] recoil->aim transition");
+
+                            /* Keep field_44.field_0 set throughout the fire
+                             * window. func_8008A0E4 (the combat dispatcher)
+                             * clears field_44 if the anim status is
+                             * inactive (during the blend frames before
+                             * status auto-advances to active), AND
+                             * func_8008A3E0 returns 0 immediately if
+                             * field_44.field_0 == 0. So setting it once
+                             * on fire-press and letting it get cleared
+                             * means temp_a1 stays 0 forever and no NPC
+                             * is ever in the hit cone. Re-arm it every
+                             * frame while the fire window is open. */
+                            player->field_44.field_0 = 1;
+
+                            /* Detect end-of-active-anim and transition back
+                             * to HandgunAim. The active anim status is
+                             * (animAttack_7 | 1). When we see that status
+                             * AND keyframeIdx has reached/passed the slot's
+                             * end keyframe, the fire anim is done holding
+                             * at its final pose — flip to aim-idle so Harry
+                             * is visually ready before the next fire. */
+                            u8 activeStatus = g_Player_EquippedWeaponInfo.animAttack_7 | 1;
+                            if (activeStatus != 1 &&
+                                extra->model.anim.status == activeStatus &&
+                                activeStatus < 76) {
+                                s16 endKf = HARRY_BASE_ANIM_INFOS[activeStatus].endKeyframeIdx;
+                                if (endKf > 0 && extra->model.anim.keyframeIdx >= endKf) {
+                                    extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, true);
+                                    extra->model.anim.time = Q12((float)HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx);
+                                    extra->model.anim.keyframeIdx = HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx;
+                                    /* Allow next fire after a short pause
+                                     * (so the aim-loop is visible briefly
+                                     * before the next outstretch). */
+                                    if (s_fireFrames > 8) s_fireFrames = 8;
+                                    SH_DBG_ECHO("[AIM-KF] active->aim transition kfReached=%d", (int)endKf);
+                                }
                             }
                         }
 
