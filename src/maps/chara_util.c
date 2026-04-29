@@ -192,6 +192,32 @@ s32 Chara_AnimPlaybackStateGet(s_SubCharacter* chara)
 #endif
     }
 
+#ifdef SH_PC_PORT
+    /* Function pointer comparison must happen in EXE TU — the DLL has its
+     * own IAT thunk addresses for these functions and direct comparison
+     * fails. Anim_IsPlaybackOnce / _IsBlendLinear are exported from the
+     * EXE specifically to do this comparison server-side. */
+    extern int Anim_IsPlaybackOnce(void* fn);
+    extern int Anim_IsBlendLinear(void* fn);
+    if (Anim_IsPlaybackOnce(animInfo->playbackFunc))
+    {
+        if (Anim_DurationGet(chara, animInfo) > Q12(0.0f))
+        {
+            return chara->model.anim.keyframeIdx == animInfo->endKeyframeIdx;
+        }
+        else
+        {
+            return chara->model.anim.keyframeIdx == animInfo->startKeyframeIdx;
+        }
+    }
+
+    if (Anim_IsBlendLinear(animInfo->playbackFunc))
+    {
+        return -2;
+    }
+
+    return -1;
+#else
     if (animInfo->playbackFunc == Anim_PlaybackOnce)
     {
         if (Anim_DurationGet(chara, animInfo) > Q12(0.0f))
@@ -210,6 +236,7 @@ s32 Chara_AnimPlaybackStateGet(s_SubCharacter* chara)
     }
 
     return -1;
+#endif
 }
 
 bool sharedFunc_800D8A00_0_s00(s_SubCharacter* chara, s32 arg1, VECTOR3* arg2In, q19_12 angleIn, s32 arg4)

@@ -143,10 +143,10 @@ void DebugCamera_Update(void)
                 /* Save Harry's position to restore when debug cam is disabled */
                 g_DebugCamSavedHarryPos = g_SysWork.playerWork.player.position;
                 g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.positionY_EC;
-                /* Hide Harry — debug cam follows him for IPD chunk streaming
-                 * but the model itself blocks the view we're trying to record. */
-                g_SysWork.playerWork.player.model.anim.flags &= ~AnimFlag_Visible;
-                g_SysWork.playerWork.extra.model.anim.flags &= ~AnimFlag_Visible;
+                /* Keep Harry visible at his original position so we can
+                 * see him while flying the debug cam — useful for
+                 * marking corrected camera positions relative to him.
+                 * (Was hidden + teleport-followed in the prior design.) */
                 SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
                     (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
@@ -432,14 +432,18 @@ void DebugCamera_Update(void)
         dbg_slash_prev = dbg_slash_cur;
     }
 
-    /* Move Harry to follow behind the debug camera. This ensures that the
-     * material/texture system (which loads textures near Harry's position)
-     * textures chunks around wherever the debug camera is exploring. */
+    /* Keep Harry at his original position (do NOT teleport-follow the
+     * debug cam). This makes it possible to fly the debug cam around
+     * Harry and mark camera positions RELATIVE to where he actually is.
+     * Texture/IPD chunks near the saved Harry position remain loaded.
+     * Side effect: flying far away may show un-textured / un-loaded
+     * geometry, but that's a fair trade for being able to mark
+     * corrected-camera positions accurately. */
     {
         s_SubCharacter* hp = &g_SysWork.playerWork.player;
-        hp->position.vx = g_DebugCamPos.vx;
-        hp->position.vz = g_DebugCamPos.vz;
-        /* Keep Harry at ground level (don't follow camera Y) */
+        hp->position.vx = g_DebugCamSavedHarryPos.vx;
+        hp->position.vz = g_DebugCamSavedHarryPos.vz;
+        hp->position.vy = g_DebugCamSavedHarryPos.vy;
     }
 
     /* Set look-at point ahead of camera, incorporating pitch (AngleX).

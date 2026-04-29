@@ -543,4 +543,25 @@ void Anim_BlendEaseOut(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     model->anim.keyframeIdx = FP_FROM(newTime, Q12_SHIFT);
 }
 
+#ifdef SH_PC_PORT
+/* DLL/EXE function-pointer comparison helpers.
+ *
+ * On Windows, when a map DLL references `Anim_PlaybackOnce`, the linker
+ * generates an IAT thunk inside the DLL — its address differs from the
+ * actual function in the EXE. CYBIL_ANIM_INFOS (compiled into the EXE)
+ * stores the EXE's address, but chara_util.c's `animInfo->playbackFunc
+ * == Anim_PlaybackOnce` runs from the DLL where `Anim_PlaybackOnce`
+ * resolves to the thunk → comparison fails → returns -1 → cafe cutscene
+ * freezes at state 12 waiting for D_800DE251 to advance.
+ *
+ * Fix: do the comparison from EXE TU. These wrappers are compiled into
+ * the EXE so the symbol resolves to the actual function address. The
+ * `fn` parameter holds whatever value was stored in the AnimInfo table
+ * (EXE address since cybil_anim_info.c is in EXE TU); comparing inside
+ * the EXE makes both sides EXE addresses. */
+int Anim_IsPlaybackOnce(void* fn) { return fn == (void*)Anim_PlaybackOnce; }
+int Anim_IsPlaybackLoop(void* fn) { return fn == (void*)Anim_PlaybackLoop; }
+int Anim_IsBlendLinear(void* fn)  { return fn == (void*)Anim_BlendLinear;  }
+#endif
+
 // 
