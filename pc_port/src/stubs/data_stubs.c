@@ -348,8 +348,11 @@ u8 D_800DE250[256] = {0};
 u8 D_800DE251[256] = {0};
 u8 D_800DF080[256] = {0};
 u8 D_800DF1CC[256] = {0};
-u8 D_800DF2F8[256] = {128, 128, 128, 128, 128, 128, 128, 128};
-u8 D_800DF300[256] = {0};
+/* D_800DF2F8 (BGM layer caps) and D_800DF300 (BGM layer→EventFlag table)
+ * now defined in map0_s00_extracted_data.c with real binary-extracted
+ * values. The prior zero-stub made map0_s00 BGM layers gate incorrectly
+ * (all-on or all-off depending on EventFlag_0 state), causing the alley
+ * BGM to play at max intensity from the start instead of building up. */
 u8 D_800DF554[256] = {0};
 u8 D_800DF558[256] = {0};
 u8 D_800DF55C[256] = {0};

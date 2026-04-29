@@ -20,6 +20,35 @@
 #include "common.h"
 #include "game.h"  /* VECTOR3 */
 
+// 0x800DF2F8  size 0x8 (8 bytes) — BGM layer maximum-volume caps for the
+// Cheryl chase / alley sequence. All 0x80 (128) = all layers can play at
+// 100% if their gating event flag is set. Same as the global default,
+// but Map_RoomBgmInit explicitly passes &D_800DF2F8 so we have to carry
+// the data even though it's identical content.
+u8 D_800DF2F8[8] = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80 };
+
+// 0x800DF300  s16 array — BGM layer-to-EventFlag mapping table for map0_s00.
+// Indexed by layer (1..6) in Map_RoomBgmInit; the loop turns layer i on
+// IFF Savegame_EventFlagGet(D_800DF300[i]) is true. Without this real
+// data the prior u8[256] zero-stub made every layer gate on EventFlag_0
+// (the "any flag set" garbage) so all layers were either always on or
+// always off depending on first byte. Extracted from MAP0_S00.BIN at
+// file offset 0x15D88. Header declares as `extern s16 D_800DF300[]`.
+//
+// Layer mapping (alley progression, per the chase script's flag-set
+// pattern in map0_s00_2.c):
+//   [0] = 0   (sentinel — layer 0 not gated this way)
+//   [1] = 3   (EventFlag_3:  initial layer — set early)
+//   [2] = 20  (EventFlag_20: alley1 entry)
+//   [3] = 22  (EventFlag_22: alley2 progression)
+//   [4] = 23  (EventFlag_23: alley2 deeper)
+//   [5] = 21  (EventFlag_21: alley3 entry / dark area)
+//   [6] = 24  (EventFlag_24: alley3 grey-children spawn point)
+s16 D_800DF300[16] = {
+    0, 3, 20, 22, 23, 21, 24, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
+};
+
 // 0x800DFAB4  size 0x8 (8 bytes)
 s32 g_Cutscene_Timer = -1;
 
