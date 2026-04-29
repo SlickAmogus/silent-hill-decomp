@@ -212,15 +212,24 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     }
 
 #ifdef SH_PC_PORT
-    /* Combat hit confirmation. If ret > 0 and chara is an NPC (e.g. AirScreamer),
-     * the player's attack landed. Log target NPC and damage state so the
-     * user can tell if shots actually register. */
-    if (chara == &g_SysWork.playerWork.player && ret >= 0 && weaponAttack != NO_VALUE) {
+    /* Combat hit log: dump every dispatch (regardless of ret) so we can
+     * see why shots aren't registering. ret=-1 = no hit window; ret>=0
+     * = hit attempted, value is the hit-zone code. temp_a1 is the result
+     * of func_8008A3E0 (the actual raycast) — if 0, no NPC was in the
+     * hit cone, so no damage dispatched. */
+    if (chara == &g_SysWork.playerWork.player && weaponAttack != NO_VALUE && arg0 > 0) {
         s_SubCharacter* tgt = &g_SysWork.npcs[0];
-        SH_DBG("[FIRE] hit ret=%d wep=%d -> tgt[0] charaId=%d health=%d damageAmt=%d temp_a1=%d",
-               (int)ret, (int)weaponAttack,
-               (int)tgt->model.charaId, (int)tgt->health,
-               (int)tgt->damage.amount_C, (int)temp_a1);
+        static int _fireLogCount = 0;
+        if (_fireLogCount < 30) {
+            SH_DBG("[FIRE_HIT] ret=%d wep=%d temp_a1=%d kf=%d animStatus=0x%x | tgt[0] charaId=%d health=%d damageAmt=%d pos=(%d,%d,%d)",
+                   (int)ret, (int)weaponAttack, (int)temp_a1,
+                   (int)g_SysWork.playerWork.extra.model.anim.keyframeIdx,
+                   (unsigned)g_SysWork.playerWork.extra.model.anim.status,
+                   (int)tgt->model.charaId, (int)tgt->health,
+                   (int)tgt->damage.amount_C,
+                   (int)tgt->position.vx, (int)tgt->position.vy, (int)tgt->position.vz);
+            _fireLogCount++;
+        }
     }
 #endif
 
