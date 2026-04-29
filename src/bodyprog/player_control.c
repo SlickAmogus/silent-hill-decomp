@@ -1502,7 +1502,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                         (int)extra->model.anim.keyframeIdx);
                         }
 
-                        if (fireHeld && s_fireFrames == 0) {
+                        /* Edge-triggered fire: only fire on the press
+                         * (false→true transition), not while held. This
+                         * prevents the recoil→aim→recoil cycle the user
+                         * sees when holding the fire key — they wanted
+                         * "press = single shot, hold = stay in shoot
+                         * pose, release = smooth back to ready". */
+                        static int s_prevFireHeld_edge = 0;
+                        int firePress = (fireHeld && !s_prevFireHeld_edge);
+                        s_prevFireHeld_edge = fireHeld;
+                        if (firePress && s_fireFrames == 0) {
                             /* Fire: flag attack so Player_CombatUpdate
                              * dispatches damage. */
                             player->field_44.field_0 = 1;
