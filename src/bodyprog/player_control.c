@@ -1511,6 +1511,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                              * shots/sec — close to PSX handgun pace.
                              * Was 20 = 3 shots/sec which felt rapid-fire. */
                             s_fireFrames = 40;
+
+                            /* Drive recoil animation so user sees Harry react
+                             * to the shot. Handgun recoil = HARRY_BASE_ANIM_INFOS
+                             * slot 58/59 (anim 29) after WeaponInfoUpdate
+                             * patched the slots. The vanilla recoil→aim
+                             * transition lives in Player_UpperBodyMainUpdate
+                             * which is skipped on PC; the cooldown logic
+                             * below transitions back once recoil plays out. */
+                            if (g_SysWork.playerCombat.weaponAttack ==
+                                WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
+                                extra->model.anim.status = ANIM_STATUS(HarryAnim_Unk29, false);
+                                extra->model.stateStep = 0;
+                                extra->model.anim.keyframeIdx = 0;
+                                extra->model.anim.time = Q12(0.0f);
+                            }
                             SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d kfIdx=%d status=0x%x rot=%d",
                                         (int)g_SysWork.playerCombat.weaponAttack,
                                         (int)extra->model.anim.keyframeIdx,
@@ -1550,7 +1565,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 }
                             }
                         }
-                        if (s_fireFrames > 0) s_fireFrames--;
+                        if (s_fireFrames > 0) {
+                            s_fireFrames--;
+                            /* Once the recoil window has played out (~12
+                             * frames after fire-edge), force back to
+                             * HandgunAim hold. Without this Harry stays
+                             * in the recoil end-pose forever. */
+                            if (s_fireFrames == 28 &&
+                                g_SysWork.playerCombat.weaponAttack ==
+                                WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
+                                extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
+                                extra->model.stateStep = 0;
+                                extra->model.anim.keyframeIdx = 0;
+                                extra->model.anim.time = Q12(0.0f);
+                                SH_DBG_ECHO("[AIM-KF] recoil->aim transition");
+                            }
+                        }
 
                         /* Watch keyframeIdx ramp; only log on change so the
                          * console doesn't get a flood. */

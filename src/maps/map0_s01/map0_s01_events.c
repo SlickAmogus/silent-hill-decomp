@@ -205,6 +205,24 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
             }
 
             temp_s0_5 = D_800DE251;
+#ifdef SH_PC_PORT
+            /* Trace why state 12 stays stuck. PSX fires anim 11 once anim 10
+             * end-keyframe is reached; on PC the condition path may not match
+             * if D_800DE251 drifted to 0 or 2, or if AnimPlaybackStateGet
+             * returns something other than 1. Log every frame at state 12. */
+            if (g_SysWork.sysStateSteps[0] == 12) {
+                static int _lastLogFrame = -1;
+                int _curFrame = (int)g_Cutscene_Timer;
+                if (_curFrame != _lastLogFrame) {
+                    s32 _ps = (s32)Chara_AnimPlaybackStateGet(&g_SysWork.npcs[0]);
+                    SH_DBG("[CAFE_12] timer=%d D_800DE251=%d AnimPlaybackState=%d cybilStatus=%d cybilKf=%d",
+                           (int)g_Cutscene_Timer, (int)D_800DE251, (int)_ps,
+                           (int)g_SysWork.npcs[0].model.anim.status,
+                           (int)g_SysWork.npcs[0].model.anim.keyframeIdx);
+                    _lastLogFrame = _curFrame;
+                }
+            }
+#endif
             if (D_800DE251 == 1 && Chara_AnimPlaybackStateGet(&g_SysWork.npcs[0]) == temp_s0_5)
             {
                 func_80085EB8(0, &g_SysWork.npcs[0], 11, false);
