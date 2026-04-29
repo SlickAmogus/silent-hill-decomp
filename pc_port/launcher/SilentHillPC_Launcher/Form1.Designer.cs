@@ -242,9 +242,10 @@ partial class Form1
             this.introPanel.Size = new System.Drawing.Size(138, 30);
             this.introPanel.TabIndex = 20;
             this.introPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.introPanel_Paint);
-            // 
+            //
             // comboMap
-            // 
+            //
+            this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMap.Location = new System.Drawing.Point(8, 315);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(200, 21);
@@ -259,17 +260,19 @@ partial class Form1
             this.btnPlay.TabIndex = 12;
             this.btnPlay.Text = "Play";
             this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
-            // 
+            //
             // comboResolution
-            // 
+            //
+            this.comboResolution.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboResolution.Location = new System.Drawing.Point(80, 151);
             this.comboResolution.Name = "comboResolution";
             this.comboResolution.Size = new System.Drawing.Size(120, 21);
             this.comboResolution.TabIndex = 0;
             this.comboResolution.SelectedIndexChanged += new System.EventHandler(this.comboResolution_SelectedIndexChanged);
-            // 
+            //
             // comboRefresh
-            // 
+            //
+            this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboRefresh.Location = new System.Drawing.Point(80, 211);
             this.comboRefresh.Name = "comboRefresh";
             this.comboRefresh.Size = new System.Drawing.Size(120, 21);
@@ -371,6 +374,7 @@ partial class Form1
             //
             // comboFps
             //
+            this.comboFps.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboFps.Items.AddRange(new object[] {
             "0",
             "30",
