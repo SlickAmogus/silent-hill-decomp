@@ -1967,13 +1967,23 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
      * screenWidth/2 (=160 in 4:3); 16:9 windows need a wider bound
      * (psxH * winW / (2 * winH)) so polygons in the extension band
      * don't get silently culled (gives 213 for 1920x1080). Without
-     * this hor+ shows holes in geometry near the screen edges. */
+     * this hor+ shows holes in geometry near the screen edges.
+     *
+     * For windows TALLER than 4:3 (e.g. 5:4 = 1280x1024) the formula
+     * yields HALF-WIDTH < 160, which over-culls compared to PSX:
+     * polys at the rightmost / leftmost ~10 px of the PSX viewport get
+     * dropped even though they'd render on real hardware. Clamp to
+     * AT LEAST PSX's half-width so taller windows still see the full
+     * native FOV (with ortho stretching to fill vertically). */
     {
+        const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
         const float visibleHalfW = (g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight))
-            : (float)(g_GameWork.gsScreenWidth >> 1);
-        scratchData->field_380.s_0.field_0 = (s32)(visibleHalfW + 0.5f);
+            : (float)psxHalfW;
+        s32 halfW = (s32)(visibleHalfW + 0.5f);
+        if (halfW < psxHalfW) halfW = psxHalfW;
+        scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
     scratchData->field_380.s_0.field_0    = g_GameWork.gsScreenWidth >> 1;
