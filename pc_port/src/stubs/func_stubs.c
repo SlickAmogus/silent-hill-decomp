@@ -70,7 +70,11 @@ void LoadAverageCol(unsigned char *v0, unsigned char *v1, long p0, long p1, unsi
     v2[1] = g > 255 ? 255 : (g < 0 ? 0 : g);
     v2[2] = b > 255 ? 255 : (b < 0 ? 0 : b);
 }
-void SpuGetVoiceAttr() { }
+/* SpuGetVoiceAttr is now provided by PsyCross's libspu.c (real
+ * implementation that copies attrs from g_SpuVoices). The previous
+ * no-op stub left attr.pitch=0, which made libsd's per-frame radio
+ * update pass pitch=0 and our SetVoiceAttr handler pause the OpenAL
+ * source — radio static played for one frame and went silent. */
 void WorldObject_D_800D7FF0() { }
 void WorldObject_D_800D8020() { }
 void WorldObject_D_800D8050() { }
