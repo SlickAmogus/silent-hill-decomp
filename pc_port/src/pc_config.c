@@ -15,6 +15,7 @@ s_PcConfig g_PcConfig = {
     .fpsCap         = 30,
     .skipIntros     = 0,
     .showConsole    = 0,
+    .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
     .mapName        = "map0_s00"
 };
 
@@ -113,6 +114,13 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "show_console") == 0)
         {
             g_PcConfig.showConsole = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "psx_dither") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.psxDither = v;
         }
         else if (strcmp(key, "map") == 0)
         {

@@ -48,6 +48,9 @@ public class ConfigManager
 
     public void Save()
     {
+        // Track which keys already had a line so we know what to append
+        var seen = new HashSet<string>();
+
         for (int i = 0; i < _lines.Count; i++)
         {
             var line = _lines[i];
@@ -55,8 +58,19 @@ public class ConfigManager
                 continue;
 
             var key = line.Split('=')[0].Trim();
+            seen.Add(key);
             if (_values.ContainsKey(key))
                 _lines[i] = $"{key} = {_values[key]}";
+        }
+
+        // Append any keys the launcher set that didn't have a line yet
+        // (e.g. a new option added to the launcher whose config.cfg
+        // template predates the new option). Without this, Set() calls
+        // for new keys silently get dropped on Save().
+        foreach (var kv in _values)
+        {
+            if (!seen.Contains(kv.Key))
+                _lines.Add($"{kv.Key} = {kv.Value}");
         }
 
         File.WriteAllLines(_path, _lines);

@@ -12,6 +12,7 @@ typedef struct {
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
     int showConsole;     /* 1 = keep the secondary console window visible + echo SH_DBG to it */
+    int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

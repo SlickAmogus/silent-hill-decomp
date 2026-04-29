@@ -39,6 +39,9 @@ partial class Form1
     private Label fpsLabel;
     private ComboBox comboFps;
 
+    private Label filteringLabel;
+    private ComboBox comboFiltering;
+
     private Label loggingLabel;
     private Panel loggingPanel;
     private RadioButton loggingYes;
@@ -90,6 +93,8 @@ partial class Form1
             this.fpsLabel = new System.Windows.Forms.Label();
             this.chunksLabel = new System.Windows.Forms.Label();
             this.comboFps = new System.Windows.Forms.ComboBox();
+            this.filteringLabel = new System.Windows.Forms.Label();
+            this.comboFiltering = new System.Windows.Forms.ComboBox();
             this.loggingLabel = new System.Windows.Forms.Label();
             this.loggingPanel = new System.Windows.Forms.Panel();
             this.loggingYes = new System.Windows.Forms.RadioButton();
@@ -103,16 +108,16 @@ partial class Form1
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
             this.introPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.loggingPanel.SuspendLayout();
             this.consolePanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.SuspendLayout();
             // 
             // fullscreenPanel
             // 
             this.fullscreenPanel.Controls.Add(this.radioFullscreenYes);
             this.fullscreenPanel.Controls.Add(this.radioFullscreenNo);
-            this.fullscreenPanel.Location = new System.Drawing.Point(80, 136);
+            this.fullscreenPanel.Location = new System.Drawing.Point(80, 116);
             this.fullscreenPanel.Name = "fullscreenPanel";
             this.fullscreenPanel.Size = new System.Drawing.Size(120, 30);
             this.fullscreenPanel.TabIndex = 16;
@@ -137,7 +142,7 @@ partial class Form1
             // 
             this.vsyncPanel.Controls.Add(this.radioVsyncYes);
             this.vsyncPanel.Controls.Add(this.radioVsyncNo);
-            this.vsyncPanel.Location = new System.Drawing.Point(80, 196);
+            this.vsyncPanel.Location = new System.Drawing.Point(80, 176);
             this.vsyncPanel.Name = "vsyncPanel";
             this.vsyncPanel.Size = new System.Drawing.Size(120, 30);
             this.vsyncPanel.TabIndex = 17;
@@ -162,7 +167,7 @@ partial class Form1
             // 
             this.cullingPanel.Controls.Add(this.radioCullingYes);
             this.cullingPanel.Controls.Add(this.radioCullingNo);
-            this.cullingPanel.Location = new System.Drawing.Point(300, 136);
+            this.cullingPanel.Location = new System.Drawing.Point(300, 116);
             this.cullingPanel.Name = "cullingPanel";
             this.cullingPanel.Size = new System.Drawing.Size(100, 30);
             this.cullingPanel.TabIndex = 18;
@@ -188,7 +193,7 @@ partial class Form1
             // 
             this.preloadPanel.Controls.Add(this.radioPreloadYes);
             this.preloadPanel.Controls.Add(this.radioPreloadNo);
-            this.preloadPanel.Location = new System.Drawing.Point(300, 168);
+            this.preloadPanel.Location = new System.Drawing.Point(300, 148);
             this.preloadPanel.Name = "preloadPanel";
             this.preloadPanel.Size = new System.Drawing.Size(100, 30);
             this.preloadPanel.TabIndex = 20;
@@ -232,7 +237,7 @@ partial class Form1
             // 
             this.introPanel.Controls.Add(this.introYes);
             this.introPanel.Controls.Add(this.introNo);
-            this.introPanel.Location = new System.Drawing.Point(299, 200);
+            this.introPanel.Location = new System.Drawing.Point(299, 180);
             this.introPanel.Name = "introPanel";
             this.introPanel.Size = new System.Drawing.Size(138, 30);
             this.introPanel.TabIndex = 20;
@@ -257,7 +262,7 @@ partial class Form1
             // 
             // comboResolution
             // 
-            this.comboResolution.Location = new System.Drawing.Point(80, 171);
+            this.comboResolution.Location = new System.Drawing.Point(80, 151);
             this.comboResolution.Name = "comboResolution";
             this.comboResolution.Size = new System.Drawing.Size(120, 21);
             this.comboResolution.TabIndex = 0;
@@ -265,7 +270,7 @@ partial class Form1
             // 
             // comboRefresh
             // 
-            this.comboRefresh.Location = new System.Drawing.Point(80, 231);
+            this.comboRefresh.Location = new System.Drawing.Point(80, 211);
             this.comboRefresh.Name = "comboRefresh";
             this.comboRefresh.Size = new System.Drawing.Size(120, 21);
             this.comboRefresh.TabIndex = 1;
@@ -278,7 +283,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(400, 134);
+            this.banner.Size = new System.Drawing.Size(400, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -286,7 +291,7 @@ partial class Form1
             // cullLabel
             // 
             this.cullLabel.AutoSize = true;
-            this.cullLabel.Location = new System.Drawing.Point(214, 145);
+            this.cullLabel.Location = new System.Drawing.Point(214, 125);
             this.cullLabel.Name = "cullLabel";
             this.cullLabel.Size = new System.Drawing.Size(79, 13);
             this.cullLabel.TabIndex = 0;
@@ -295,7 +300,7 @@ partial class Form1
             // fullscreenLabel
             // 
             this.fullscreenLabel.AutoSize = true;
-            this.fullscreenLabel.Location = new System.Drawing.Point(6, 145);
+            this.fullscreenLabel.Location = new System.Drawing.Point(6, 125);
             this.fullscreenLabel.Name = "fullscreenLabel";
             this.fullscreenLabel.Size = new System.Drawing.Size(58, 13);
             this.fullscreenLabel.TabIndex = 2;
@@ -304,7 +309,7 @@ partial class Form1
             // vsyncLabel
             // 
             this.vsyncLabel.AutoSize = true;
-            this.vsyncLabel.Location = new System.Drawing.Point(8, 205);
+            this.vsyncLabel.Location = new System.Drawing.Point(8, 185);
             this.vsyncLabel.Name = "vsyncLabel";
             this.vsyncLabel.Size = new System.Drawing.Size(41, 13);
             this.vsyncLabel.TabIndex = 3;
@@ -313,7 +318,7 @@ partial class Form1
             // resolutionLabel
             // 
             this.resolutionLabel.AutoSize = true;
-            this.resolutionLabel.Location = new System.Drawing.Point(6, 175);
+            this.resolutionLabel.Location = new System.Drawing.Point(6, 155);
             this.resolutionLabel.Name = "resolutionLabel";
             this.resolutionLabel.Size = new System.Drawing.Size(60, 13);
             this.resolutionLabel.TabIndex = 13;
@@ -322,7 +327,7 @@ partial class Form1
             // refreshLabel
             // 
             this.refreshLabel.AutoSize = true;
-            this.refreshLabel.Location = new System.Drawing.Point(7, 235);
+            this.refreshLabel.Location = new System.Drawing.Point(7, 215);
             this.refreshLabel.Name = "refreshLabel";
             this.refreshLabel.Size = new System.Drawing.Size(73, 13);
             this.refreshLabel.TabIndex = 14;
@@ -340,110 +345,131 @@ partial class Form1
             // introLabel
             // 
             this.introLabel.AutoSize = true;
-            this.introLabel.Location = new System.Drawing.Point(214, 209);
+            this.introLabel.Location = new System.Drawing.Point(214, 189);
             this.introLabel.Name = "introLabel";
             this.introLabel.Size = new System.Drawing.Size(60, 13);
             this.introLabel.TabIndex = 16;
             this.introLabel.Text = "Skip Intros:";
             // 
-            // fpsLabel (left column, under Refresh Rate)
-            //
+            // fpsLabel
+            // 
             this.fpsLabel.AutoSize = true;
-            this.fpsLabel.Location = new System.Drawing.Point(8, 265);
+            this.fpsLabel.Location = new System.Drawing.Point(8, 245);
             this.fpsLabel.Name = "fpsLabel";
             this.fpsLabel.Size = new System.Drawing.Size(54, 13);
             this.fpsLabel.TabIndex = 30;
             this.fpsLabel.Text = "FPS Limit:";
-            //
-            // loggingLabel (Enable Logging row, X=right column, ~32px below intros)
-            //
-            this.loggingLabel.AutoSize = true;
-            this.loggingLabel.Location = new System.Drawing.Point(214, 241);
-            this.loggingLabel.Name = "loggingLabel";
-            this.loggingLabel.Size = new System.Drawing.Size(82, 13);
-            this.loggingLabel.TabIndex = 32;
-            this.loggingLabel.Text = "Enable Logging:";
-            //
-            // loggingYes
-            //
-            this.loggingYes.Location = new System.Drawing.Point(5, 5);
-            this.loggingYes.Name = "loggingYes";
-            this.loggingYes.Size = new System.Drawing.Size(49, 24);
-            this.loggingYes.TabIndex = 33;
-            this.loggingYes.Text = "Yes";
-            //
-            // loggingNo
-            //
-            this.loggingNo.Location = new System.Drawing.Point(59, 5);
-            this.loggingNo.Name = "loggingNo";
-            this.loggingNo.Size = new System.Drawing.Size(45, 24);
-            this.loggingNo.TabIndex = 34;
-            this.loggingNo.Text = "No";
-            //
-            // loggingPanel (right column, ~32px below intros)
-            //
-            this.loggingPanel.Controls.Add(this.loggingYes);
-            this.loggingPanel.Controls.Add(this.loggingNo);
-            this.loggingPanel.Location = new System.Drawing.Point(299, 232);
-            this.loggingPanel.Name = "loggingPanel";
-            this.loggingPanel.Size = new System.Drawing.Size(138, 30);
-            this.loggingPanel.TabIndex = 35;
-            //
-            // consoleLabel (Show Console row — under Enable Logging, same uniform spacing)
-            //
-            this.consoleLabel.AutoSize = true;
-            this.consoleLabel.Location = new System.Drawing.Point(214, 273);
-            this.consoleLabel.Name = "consoleLabel";
-            this.consoleLabel.Size = new System.Drawing.Size(80, 13);
-            this.consoleLabel.TabIndex = 36;
-            this.consoleLabel.Text = "Show Console:";
-            //
-            // consoleYes
-            //
-            this.consoleYes.Location = new System.Drawing.Point(5, 5);
-            this.consoleYes.Name = "consoleYes";
-            this.consoleYes.Size = new System.Drawing.Size(49, 24);
-            this.consoleYes.TabIndex = 37;
-            this.consoleYes.Text = "Yes";
-            //
-            // consoleNo
-            //
-            this.consoleNo.Location = new System.Drawing.Point(59, 5);
-            this.consoleNo.Name = "consoleNo";
-            this.consoleNo.Size = new System.Drawing.Size(45, 24);
-            this.consoleNo.TabIndex = 38;
-            this.consoleNo.Text = "No";
-            //
-            // consolePanel (right column, ~32px below logging)
-            //
-            this.consolePanel.Controls.Add(this.consoleYes);
-            this.consolePanel.Controls.Add(this.consoleNo);
-            this.consolePanel.Location = new System.Drawing.Point(299, 264);
-            this.consolePanel.Name = "consolePanel";
-            this.consolePanel.Size = new System.Drawing.Size(138, 30);
-            this.consolePanel.TabIndex = 39;
             // 
             // chunksLabel
-            //
+            // 
             this.chunksLabel.AutoSize = true;
-            this.chunksLabel.Location = new System.Drawing.Point(214, 177);
+            this.chunksLabel.Location = new System.Drawing.Point(214, 157);
             this.chunksLabel.Name = "chunksLabel";
             this.chunksLabel.Size = new System.Drawing.Size(85, 13);
             this.chunksLabel.TabIndex = 1;
             this.chunksLabel.Text = "Preload Chunks:";
-            // 
+            //
             // comboFps
-            // 
+            //
             this.comboFps.Items.AddRange(new object[] {
             "0",
             "30",
             "60",
             "120",
             "240"});
-            this.comboFps.Location = new System.Drawing.Point(80, 261);
+            this.comboFps.Location = new System.Drawing.Point(80, 241);
             this.comboFps.Name = "comboFps";
             this.comboFps.Size = new System.Drawing.Size(120, 21);
             this.comboFps.TabIndex = 31;
+            //
+            // filteringLabel
+            //
+            this.filteringLabel.AutoSize = true;
+            this.filteringLabel.Location = new System.Drawing.Point(8, 275);
+            this.filteringLabel.Name = "filteringLabel";
+            this.filteringLabel.Size = new System.Drawing.Size(50, 13);
+            this.filteringLabel.TabIndex = 40;
+            this.filteringLabel.Text = "Filtering:";
+            //
+            // comboFiltering
+            //
+            this.comboFiltering.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboFiltering.Items.AddRange(new object[] {
+            "Off",
+            "Dithering",
+            "Bilinear"});
+            this.comboFiltering.Location = new System.Drawing.Point(80, 271);
+            this.comboFiltering.Name = "comboFiltering";
+            this.comboFiltering.Size = new System.Drawing.Size(120, 21);
+            this.comboFiltering.TabIndex = 41;
+            // 
+            // loggingLabel
+            // 
+            this.loggingLabel.AutoSize = true;
+            this.loggingLabel.Location = new System.Drawing.Point(214, 221);
+            this.loggingLabel.Name = "loggingLabel";
+            this.loggingLabel.Size = new System.Drawing.Size(84, 13);
+            this.loggingLabel.TabIndex = 32;
+            this.loggingLabel.Text = "Enable Logging:";
+            // 
+            // loggingPanel
+            // 
+            this.loggingPanel.Controls.Add(this.loggingYes);
+            this.loggingPanel.Controls.Add(this.loggingNo);
+            this.loggingPanel.Location = new System.Drawing.Point(299, 212);
+            this.loggingPanel.Name = "loggingPanel";
+            this.loggingPanel.Size = new System.Drawing.Size(138, 30);
+            this.loggingPanel.TabIndex = 35;
+            // 
+            // loggingYes
+            // 
+            this.loggingYes.Location = new System.Drawing.Point(5, 5);
+            this.loggingYes.Name = "loggingYes";
+            this.loggingYes.Size = new System.Drawing.Size(49, 24);
+            this.loggingYes.TabIndex = 33;
+            this.loggingYes.Text = "Yes";
+            // 
+            // loggingNo
+            // 
+            this.loggingNo.Location = new System.Drawing.Point(59, 5);
+            this.loggingNo.Name = "loggingNo";
+            this.loggingNo.Size = new System.Drawing.Size(45, 24);
+            this.loggingNo.TabIndex = 34;
+            this.loggingNo.Text = "No";
+            // 
+            // consoleLabel
+            // 
+            this.consoleLabel.AutoSize = true;
+            this.consoleLabel.Location = new System.Drawing.Point(214, 253);
+            this.consoleLabel.Name = "consoleLabel";
+            this.consoleLabel.Size = new System.Drawing.Size(78, 13);
+            this.consoleLabel.TabIndex = 36;
+            this.consoleLabel.Text = "Show Console:";
+            // 
+            // consolePanel
+            // 
+            this.consolePanel.Controls.Add(this.consoleYes);
+            this.consolePanel.Controls.Add(this.consoleNo);
+            this.consolePanel.Location = new System.Drawing.Point(299, 244);
+            this.consolePanel.Name = "consolePanel";
+            this.consolePanel.Size = new System.Drawing.Size(138, 30);
+            this.consolePanel.TabIndex = 39;
+            // 
+            // consoleYes
+            // 
+            this.consoleYes.Location = new System.Drawing.Point(5, 5);
+            this.consoleYes.Name = "consoleYes";
+            this.consoleYes.Size = new System.Drawing.Size(49, 24);
+            this.consoleYes.TabIndex = 37;
+            this.consoleYes.Text = "Yes";
+            // 
+            // consoleNo
+            // 
+            this.consoleNo.Location = new System.Drawing.Point(59, 5);
+            this.consoleNo.Name = "consoleNo";
+            this.consoleNo.Size = new System.Drawing.Size(45, 24);
+            this.consoleNo.TabIndex = 38;
+            this.consoleNo.Text = "No";
             // 
             // Form1
             // 
@@ -468,6 +494,8 @@ partial class Form1
             this.Controls.Add(this.introPanel);
             this.Controls.Add(this.fpsLabel);
             this.Controls.Add(this.comboFps);
+            this.Controls.Add(this.filteringLabel);
+            this.Controls.Add(this.comboFiltering);
             this.Controls.Add(this.loggingLabel);
             this.Controls.Add(this.loggingPanel);
             this.Controls.Add(this.consoleLabel);
@@ -480,9 +508,9 @@ partial class Form1
             this.cullingPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
             this.introPanel.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.loggingPanel.ResumeLayout(false);
             this.consolePanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 

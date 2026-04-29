@@ -207,6 +207,19 @@ int main(int argc, char* argv[])
         SH_LOG("VSync set to %d", g_PcConfig.vsync);
     }
 
+    /* Apply texture-filtering mode from config: 0 = neither, 1 = PSX
+     * dither, 2 = bilinear. Mutually exclusive — bilinear softens
+     * everything while dither keeps the original look but masks the
+     * texture-page seam artifacts and adds the authentic PSX noise. */
+    switch (g_PcConfig.psxDither) {
+    case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
+    case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
+    default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+    }
+    SH_LOG("Filtering: %s",
+           g_cfg_psxDither ? "PSX dither" :
+           g_cfg_bilinearFiltering ? "bilinear" : "off");
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();
