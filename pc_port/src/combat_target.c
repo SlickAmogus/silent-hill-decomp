@@ -11,10 +11,12 @@
  * sometimes Q12_ANGLE half-cones depending on caller); we use a fixed
  * 45deg half-cone here, which is wide enough for the AS room.
  */
+#include <stdio.h>
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
+#include "sh_log.h"
 
 void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* combat,
                    s32 arg3, s32 arg4, s32 mode)
@@ -68,4 +70,11 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
             *outVerticalAngle = Q12_ANGLE(90.0f);
         }
     }
+
+    SH_DBG("[TGTACQ] arg3=%d arg4=%d mode=%d nearestIdx=%d outAngle=%d (npcs[0] charaId=%d e1=%d hp=%d)",
+           (int)arg3, (int)arg4, (int)mode, (int)nearestIdx,
+           outVerticalAngle ? (int)*outVerticalAngle : -1,
+           (int)g_SysWork.npcs[0].model.charaId,
+           (int)g_SysWork.npcs[0].field_E1_0,
+           (int)g_SysWork.npcs[0].health);
 }
