@@ -4649,6 +4649,19 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                             (extra->model.anim.status != ANIM_STATUS(HarryAnim_HandgunRecoil, true) ||
                              extra->model.anim.keyframeIdx != D_800C44F0[3].field_6))
                         {
+#ifdef SH_PC_PORT
+                            // Melee D_800C44F0 keyframes don't line up with our anim ranges either; permit attack when current active anim is at its endKeyframeIdx.
+                            bool pcAtEndOfActive = false;
+                            if (ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) && extra->model.anim.status < 76)
+                            {
+                                s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                                if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                                {
+                                    pcAtEndOfActive = true;
+                                }
+                            }
+                            if (!pcAtEndOfActive)
+#endif
                             break;
                         }
                     }
