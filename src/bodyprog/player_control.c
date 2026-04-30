@@ -4064,6 +4064,17 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 {
                     g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                 }
+#ifdef SH_PC_PORT
+                // D_800C44F0[].field_6 keyframe targets (handgun: 592/67) don't line up with HandgunAim's actual active range (570-579) so the original transition never fires; fall back to "current anim reached endKeyframeIdx".
+                else if (extra->model.anim.status < 76)
+                {
+                    s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                    if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                    {
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                    }
+                }
+#endif
             }
             break;
 
