@@ -4642,6 +4642,19 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                         (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk34, true) ||
                          extra->model.anim.keyframeIdx != D_800C44F0[6].field_4))
                     {
+#ifdef SH_PC_PORT
+                        // D_800C44F0 keyframe values don't match our anim data ranges (see AimStart fallback). Permit fire when we're sitting at the endKeyframeIdx of an active anim so the gating still works on PC.
+                        bool pcAtEndOfActive = false;
+                        if (ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) && extra->model.anim.status < 76)
+                        {
+                            s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                            if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                            {
+                                pcAtEndOfActive = true;
+                            }
+                        }
+                        if (!pcAtEndOfActive)
+#endif
                         break;
                     }
                 }
