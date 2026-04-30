@@ -3373,15 +3373,18 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         // Attack anim.
         else if (
 #ifdef SH_PC_PORT
-                 // D_800C44F0 keyframes don't match our anim ranges; also accept "active fire/recoil anim sitting at its endKeyframeIdx" so post-fire returns to Aim.
+                 // Accept "active fire/recoil anim sitting at either kf bound" — backward-playing anims (negative duration) end at startKeyframeIdx.
                  (((extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
                     extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk36, true) ||
                     extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true) ||
-                    extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk29, true)) &&
+                    extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk29, true) ||
+                    extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk34, true)) &&
                    ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
                    extra->model.anim.status < 76 &&
-                   HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx > 0 &&
-                   extra->model.anim.keyframeIdx == HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx) ||
+                   ((HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx > 0 &&
+                     extra->model.anim.keyframeIdx == HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx) ||
+                    (HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx > 0 &&
+                     extra->model.anim.keyframeIdx == HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx))) ||
 #endif
                  ((extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
                   extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk36, true)) &&
@@ -4081,11 +4084,13 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                 }
 #ifdef SH_PC_PORT
-                // D_800C44F0[].field_6 keyframe targets (handgun: 592/67) don't line up with HandgunAim's actual active range (570-579) so the original transition never fires; fall back to "current anim reached endKeyframeIdx".
+                // D_800C44F0 keyframe targets don't line up with our anim ranges. Detect anim-finished by comparing kf to either bound (active anims with negative duration play startKf<-endKf, ending at startKf).
                 else if (extra->model.anim.status < 76)
                 {
-                    s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
-                    if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                    s16 startKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                    s16 endKf   = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                    if ((endKf > 0 && extra->model.anim.keyframeIdx == endKf) ||
+                        (startKf > 0 && extra->model.anim.keyframeIdx == startKf))
                     {
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                     }
@@ -4325,11 +4330,13 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                   g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_RunLeft) &&
                  (extra->model.anim.keyframeIdx <= D_800C44F0[D_800AF220].field_6)));
 #ifdef SH_PC_PORT
-            // D_800C44F0 keyframe values don't match our anim data ranges (see AimStart fallback). Allow AimStop to advance when the lower-aim/stop anim has reached its endKeyframeIdx.
+            // Allow AimStop to advance when the active anim reaches either bound (see AimStart fallback for backward-anim explanation).
             if (!aimStopReady && extra->model.anim.status < 76)
             {
-                s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
-                if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                s16 startKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                s16 endKf   = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                if ((endKf > 0 && extra->model.anim.keyframeIdx == endKf) ||
+                    (startKf > 0 && extra->model.anim.keyframeIdx == startKf))
                 {
                     aimStopReady = true;
                 }
@@ -4650,12 +4657,14 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                              extra->model.anim.keyframeIdx != D_800C44F0[3].field_6))
                         {
 #ifdef SH_PC_PORT
-                            // Melee D_800C44F0 keyframes don't line up with our anim ranges either; permit attack when current active anim is at its endKeyframeIdx.
+                            // Permit attack when active anim is at either bound (forward or backward end).
                             bool pcAtEndOfActive = false;
                             if (ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) && extra->model.anim.status < 76)
                             {
-                                s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
-                                if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                                s16 startKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                                s16 endKf   = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                                if ((endKf > 0 && extra->model.anim.keyframeIdx == endKf) ||
+                                    (startKf > 0 && extra->model.anim.keyframeIdx == startKf))
                                 {
                                     pcAtEndOfActive = true;
                                 }
@@ -4685,22 +4694,23 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     if (gunFireGated)
                     {
 #ifdef SH_PC_PORT
-                        // D_800C44F0 keyframe values don't match our anim data ranges (see AimStart fallback). Permit fire when we're sitting at the endKeyframeIdx of an active anim so the gating still works on PC.
+                        // Permit fire when active anim is at either bound. Backward-playing anims (negative duration, e.g. handgun "ready" pose Q12(-35) plays 592->580) end at startKeyframeIdx, not endKeyframeIdx.
                         bool pcAtEndOfActive = false;
-                        s16 pcEndKf = -1;
+                        s16 pcStartKf = -1, pcEndKf = -1;
                         if (ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) && extra->model.anim.status < 76)
                         {
-                            pcEndKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
-                            if (pcEndKf > 0 && extra->model.anim.keyframeIdx == pcEndKf)
+                            pcStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                            pcEndKf   = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                            if ((pcEndKf > 0 && extra->model.anim.keyframeIdx == pcEndKf) ||
+                                (pcStartKf > 0 && extra->model.anim.keyframeIdx == pcStartKf))
                             {
                                 pcAtEndOfActive = true;
                             }
                         }
-                        SH_DBG_ECHO("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d endKf=%d gated=%d pcOK=%d D44F0[0]=%d [1]=%d",
+                        SH_DBG_ECHO("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d startKf=%d endKf=%d gated=%d pcOK=%d",
                             (int)g_Player_IsShooting, (int)g_Player_IsAttacking,
                             (unsigned)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
-                            (int)pcEndKf, (int)gunFireGated, (int)pcAtEndOfActive,
-                            (int)D_800C44F0[0].field_6, (int)D_800C44F0[1].field_6);
+                            (int)pcStartKf, (int)pcEndKf, (int)gunFireGated, (int)pcAtEndOfActive);
                         if (!pcAtEndOfActive)
 #endif
                         break;
