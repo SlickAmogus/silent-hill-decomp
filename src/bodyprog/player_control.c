@@ -1531,10 +1531,26 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * rolled shim. The shim above (TPS, movement, input flag
                  * setting) replaces only Player_LowerBodyUpdate; UpperBody
                  * is the original code path. Gated on the same
-                 * playerExtra.state check the original would do. */
+                 * playerExtra.state check the original would do.
+                 *
+                 * Diagnostic: log entry/exit so a crash inside UpperBody
+                 * shows up as a "pre" with no matching "post" — narrows
+                 * where the next bug lives without symbols. */
                 if (playerExtra.state < (u32)PlayerState_Idle)
                 {
+                    SH_DBG_ECHO("[UB] pre upState=%d state=%d aim=%d shoot=%d weap=%d kf=%d aStatus=0x%x",
+                                (int)extra->upperBodyState,
+                                (int)playerExtra.state,
+                                (int)g_Player_IsAiming,
+                                (int)g_Player_IsShooting,
+                                (int)g_SysWork.playerCombat.weaponAttack,
+                                (int)extra->model.anim.keyframeIdx,
+                                (unsigned)extra->model.anim.status);
                     Player_UpperBodyUpdate(player, extra);
+                    SH_DBG_ECHO("[UB] post upState=%d kf=%d aStatus=0x%x",
+                                (int)extra->upperBodyState,
+                                (int)extra->model.anim.keyframeIdx,
+                                (unsigned)extra->model.anim.status);
                 }
             }
 #else
