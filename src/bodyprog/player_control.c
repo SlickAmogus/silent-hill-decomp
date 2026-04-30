@@ -1472,215 +1472,29 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         s_prevFireHeld = fireHeld;
                     }
 
-                    g_Player_IsAiming = aimHeld && hasWeapon;
+                    /* Stage 1 of de-shimming: feed the input flags the
+                     * original Player_Controller would set, then let the
+                     * original Player_UpperBodyUpdate (called below) drive
+                     * the aim/fire/recoil/reload anim state machine + ammo
+                     * + SFX + field_44 hit dispatch. The shim used to do
+                     * all that itself (lines 1475-1685 in older revisions)
+                     * but those handcrafted paths fought the original code
+                     * once combat state activated and never produced the
+                     * proper anim chain (Unk36 → Unk30 → HandgunRecoil →
+                     * HandgunAim). With collision/Ray_LineCheck working
+                     * again, the original UpperBody can run cleanly. */
+                    g_Player_IsAiming        = aimHeld && hasWeapon;
+                    g_Player_HasActionInput  = fireHeld && hasWeapon;
+                    /* IsAttacking / IsHoldAttack / IsShooting get driven by
+                     * Player_UpperBodyMainUpdate state transitions; we just
+                     * tell it about the *input*. */
 
                     if (g_Player_IsAiming) {
                         D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
-
-                        /* On aim entry (edge), kick the anim system into
-                         * HandgunAim so the recoil keyframe window opens
-                         * and Player_Controller's ammo-decrement path
-                         * (player_control.c:3245-3265) can fire on the
-                         * next Cross press.
-                         *
-                         * Earlier shim left anim untouched because the
-                         * static placeholder slots 56-63 pointed at kf 503
-                         * (Idle) and HandgunAim wouldn't ramp keyframeIdx
-                         * into the fire window anyway. After equip via
-                         * inventory, GameFs_WeaponInfoUpdate patches slots
-                         * 56-75 from D_80028B94[78..] to the real handgun
-                         * keyframes (570-579 aim, 605-658 recoil), so
-                         * setting status now produces real animation. */
-                        if (!s_aimActive) {
-                            s_aimActive = 1;
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, false);
-                            extra->model.stateStep = 0;
-                            SH_DBG_ECHO("[AIM-KF] aim entry: set anim.status=HandgunAim(blend) status=0x%x kfIdx=%d",
-                                        (unsigned)extra->model.anim.status,
-                                        (int)extra->model.anim.keyframeIdx);
-                        }
-
-                        /* Auto-fire: while the fire button is held, fire
-                         * each time the previous shot's anim cycle has
-                         * completed (s_fireFrames == 0). PSX flow:
-                         *   HandgunAim active (idle aim, kf 570-579 loop)
-                         *   → on fire: status = animAttack_7 (inactive
-                         *     blend → active)
-                         *   → active anim plays once (e.g. handgun = slot
-                         *     73, kf 582-604 = "outstretch + fire +
-                         *     recoil") then holds (link=self)
-                         *   → game manually transitions to HandgunAim
-                         *     active when the anim end keyframe is hit
-                         *   → ready to fire again
-                         *
-                         * Earlier shim hardcoded HarryAnim_Unk29 which is
-                         * the "aim target-lock switch" pose, not the fire
-                         * pose — that's why the user only saw recoil and
-                         * not the outstretch. Use animAttack_7 from the
-                         * loaded weapon info instead so the right slot
-                         * (handgun=72, knife=62) gets played. */
-                        if (fireHeld && hasWeapon && s_fireFrames == 0) {
-                            /* Fire: flag attack so Player_CombatUpdate
-                             * dispatches damage. */
-                            player->field_44.field_0 = 1;
-                            g_Player_IsShooting = 1;
-
-                            /* Set attack anim. animAttack_7 is the inactive
-                             * blend status; Anim_BlendLinear advances to
-                             * the active form (animAttack_7 | 1). Reset
-                             * anim.time so the blend starts at progress 0
-                             * — without this, time carries over from the
-                             * HandgunAim loop (kf 570-579 → time ≈ Q12(575)
-                             * which is way past the blend duration), and
-                             * the blend skips entirely.
-                             *
-                             * Don't touch keyframeIdx: blend reads bones'
-                             * current pose, then PlaybackOnce uses startKf
-                             * from the slot data. */
-                            u8 attackStatus = g_Player_EquippedWeaponInfo.animAttack_7;
-                            /* Fallback: if EquippedWeaponInfo wasn't filled
-                             * for some reason (the WEP_DBG log will reveal
-                             * if/when this happens), pick the known
-                             * animAttack_7 by weaponAttack. Values match
-                             * D_800AFBF4[N].animAttack_7 in
-                             * items/item_screens_3.c. */
-                            if (attackStatus == 0) {
-                                switch (g_SysWork.playerCombat.weaponAttack) {
-                                    case WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_Axe, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_Hammer, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_Chainsaw, AttackInputType_Tap):
-                                        attackStatus = 62; /* Unk29 inactive blend */
-                                        break;
-                                    case WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap):
-                                        attackStatus = 58; /* Unk29 inactive blend (rock drill specific) */
-                                        break;
-                                    case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
-                                    case WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap):
-                                        attackStatus = 72; /* Unk36 inactive blend */
-                                        break;
-                                    default:
-                                        break;
-                                }
-                            }
-                            if (attackStatus != 0) {
-                                extra->model.anim.status = attackStatus;
-                                extra->model.stateStep = 0;
-                                extra->model.anim.time = Q12(0.0f);
-                            }
-
-                            /* Cooldown: enough to cover blend + active
-                             * anim. 50 frames ≈ 0.83s at 60fps — covers
-                             * the worst case of handgun fire (slot 73
-                             * 22-keyframe playback) plus a short rest
-                             * before the next press is accepted. The
-                             * end-of-anim transition below shortens this
-                             * to 8 frames once the active anim's end
-                             * keyframe is reached, so a fast tapper gets
-                             * one shot per anim cycle. */
-                            s_fireFrames = 50;
-
-                            SH_DBG_ECHO("[AIM-KF] FIRE weaponAttack=%d animAttack_7=%d kfIdx=%d status=0x%x",
-                                        (int)g_SysWork.playerCombat.weaponAttack,
-                                        (int)attackStatus,
-                                        (int)extra->model.anim.keyframeIdx,
-                                        (unsigned)extra->model.anim.status);
-
-                            /* Ranged weapons consume ammo + fire-SFX. Melee
-                             * weapons (knife/pipe/etc) don't take ammo. */
-                            bool isRanged = (g_SysWork.playerCombat.weaponAttack >=
-                                             WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
-                            if (isRanged) {
-                                s16 invIdx = g_SysWork.playerCombat.weaponInventoryIdx;
-                                if (g_SysWork.playerCombat.currentWeaponAmmo > 0) {
-                                    g_SysWork.playerCombat.currentWeaponAmmo--;
-                                    if (invIdx >= 0 && invIdx < (s16)INVENTORY_ITEM_COUNT_MAX) {
-                                        if (g_SavegamePtr->items_0[invIdx].count_1 > 0) {
-                                            g_SavegamePtr->items_0[invIdx].count_1--;
-                                        }
-                                    }
-                                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0,
-                                                  &player->position, Q8(0.5f), 0);
-                                } else {
-                                    func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx_4,
-                                                  &player->position, Q8(0.5f), 0);
-                                }
-                            } else {
-                                /* Melee: play attack swing SFX. */
-                                func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx_0,
-                                              &player->position, Q8(0.5f), 0);
-                            }
-                        }
-                        if (s_fireFrames > 0) {
-                            s_fireFrames--;
-
-                            /* Keep field_44.field_0 set throughout the fire
-                             * window. func_8008A0E4 (the combat dispatcher)
-                             * clears field_44 if the anim status is
-                             * inactive (during the blend frames before
-                             * status auto-advances to active), AND
-                             * func_8008A3E0 returns 0 immediately if
-                             * field_44.field_0 == 0. So setting it once
-                             * on fire-press and letting it get cleared
-                             * means temp_a1 stays 0 forever and no NPC
-                             * is ever in the hit cone. Re-arm it every
-                             * frame while the fire window is open. */
-                            player->field_44.field_0 = 1;
-
-                            /* Detect end-of-active-anim and transition back
-                             * to HandgunAim. The active anim status is
-                             * (animAttack_7 | 1). When we see that status
-                             * AND keyframeIdx has reached/passed the slot's
-                             * end keyframe, the fire anim is done holding
-                             * at its final pose — flip to aim-idle so Harry
-                             * is visually ready before the next fire. */
-                            u8 activeStatus = g_Player_EquippedWeaponInfo.animAttack_7 | 1;
-                            if (activeStatus != 1 &&
-                                extra->model.anim.status == activeStatus &&
-                                activeStatus < 76) {
-                                s16 endKf = HARRY_BASE_ANIM_INFOS[activeStatus].endKeyframeIdx;
-                                if (endKf > 0 && extra->model.anim.keyframeIdx >= endKf) {
-                                    extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunAim, true);
-                                    extra->model.anim.time = Q12((float)HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx);
-                                    extra->model.anim.keyframeIdx = HARRY_BASE_ANIM_INFOS[57].startKeyframeIdx;
-                                    /* Allow next fire after a short pause
-                                     * (so the aim-loop is visible briefly
-                                     * before the next outstretch). */
-                                    if (s_fireFrames > 8) s_fireFrames = 8;
-                                    SH_DBG_ECHO("[AIM-KF] active->aim transition kfReached=%d", (int)endKf);
-                                }
-                            }
-                        }
-
-                        /* Watch keyframeIdx ramp; only log on change so the
-                         * console doesn't get a flood. */
-                        {
-                            static s16 s_prevKf = -1;
-                            s16 curKf = extra->model.anim.keyframeIdx;
-                            if (curKf != s_prevKf) {
-                                SH_DBG_ECHO("[AIM-KF] kfIdx=%d status=0x%x",
-                                            (int)curKf,
-                                            (unsigned)extra->model.anim.status);
-                                s_prevKf = curKf;
-                            }
-                        }
                     } else {
-                        g_Player_IsShooting = 0;
-                        s_fireFrames = 0;
-                        if (s_aimActive) {
-                            s_aimActive = 0;
-                            g_SysWork.playerCombat.isAiming = false;
-                            /* Release: blend back to Idle so Harry doesn't
-                             * stay in aim pose forever. */
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
-                            extra->model.stateStep = 0;
-                            SH_DBG_ECHO("[AIM-KF] aim release: anim.status=Idle(blend)");
-                        }
+                        g_SysWork.playerCombat.isAiming = false;
                     }
                 }
 
@@ -1704,6 +1518,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     q19_12 savedSpeed = D_800C4550;
                     func_8007B924(player, extra);
                     D_800C4550 = savedSpeed;
+                }
+
+                /* Run the original upper-body update so aim/fire/reload
+                 * animations come from real game logic instead of a hand-
+                 * rolled shim. The shim above (TPS, movement, input flag
+                 * setting) replaces only Player_LowerBodyUpdate; UpperBody
+                 * is the original code path. Gated on the same
+                 * playerExtra.state check the original would do. */
+                if (playerExtra.state < (u32)PlayerState_Idle)
+                {
+                    Player_UpperBodyUpdate(player, extra);
                 }
             }
 #else
