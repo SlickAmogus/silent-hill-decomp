@@ -3371,9 +3371,25 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             }
         }
         // Attack anim.
-        else if ((extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
+        else if (
+#ifdef SH_PC_PORT
+                 // D_800C44F0 keyframes don't match our anim ranges; also accept "active fire/recoil anim sitting at its endKeyframeIdx" so post-fire returns to Aim.
+                 (((extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
+                    extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk36, true) ||
+                    extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true) ||
+                    extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk29, true)) &&
+                   ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
+                   extra->model.anim.status < 76 &&
+                   HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx > 0 &&
+                   extra->model.anim.keyframeIdx == HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx) ||
+#endif
+                 ((extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
                   extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk36, true)) &&
                  extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
+#ifdef SH_PC_PORT
+                )
+#endif
+                )
         {
             if (playerProps.flags_11C & PlayerFlag_Unk0)
             {
