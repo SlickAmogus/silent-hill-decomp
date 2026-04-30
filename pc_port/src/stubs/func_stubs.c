@@ -83,7 +83,7 @@ void WorldObject_D_800D8090() { }
 void WorldObject_D_800D80B0() { }
 void WorldObject_D_800D80E0() { }
 /* func_8005B62C: removed — upstream now has real implementation */
-void func_8005CD38() { }
+/* func_8005CD38: real implementation in pc_port/src/combat_target.c */
 void func_800692A4() { }
 void func_8009E198() { }
 void gte_ldsxy0() { }
