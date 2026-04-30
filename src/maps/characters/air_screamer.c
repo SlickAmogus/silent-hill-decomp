@@ -13265,7 +13265,29 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
     if (sp10 != 0)
     {
 #ifdef SH_PC_PORT
-        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) return;
+        /* PC: sharedData_800CAA98_0_s01 is a stubbed rodata table
+         * (data_stubs.c). The hand-authored hitbox vertex pointers in
+         * ptr_D48[] are NULL and field_D70[][] is zero. The original
+         * function uses those to compute an exact polygon hitbox for AS
+         * but if we just return early, field_E1_0 stays 0 forever and
+         * Collision_ActiveCharactersGet filters AS out of every collision
+         * query — bullets and the knife both miss every shot.
+         *
+         * Fall back to a fixed cylinder hitbox so AS is at least a
+         * targetable cylinder even without the per-anim polygon data.
+         * Tuning: AS is roughly 2 units across the wing-span in-game; a
+         * 1.5-unit radius is forgiving enough for the player. */
+        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) {
+            airScreamer->field_C8.field_4 = Q12( 1.5f);
+            airScreamer->field_C8.field_0 = Q12(-1.5f);
+            airScreamer->field_C8.field_6 = Q12( 0.0f);
+            airScreamer->field_C8.field_8 = Q12( 0.0f);
+            airScreamer->field_C8.field_2 = Q12( 1.5f);
+            airScreamer->field_D4.radius_0 = Q12( 1.5f);
+            airScreamer->field_D4.field_2  = Q12( 1.5f);
+            airScreamer->field_E1_0        = 3;
+            return;
+        }
 #endif
         idx0 = 0;
         idx1 = 1;
