@@ -3355,7 +3355,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
                 extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true))
             {
-                if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
+                if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6
+#ifdef SH_PC_PORT
+                    || pcAttackDone
+#endif
+                    )
                 {
                     extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunAim, true);
                     extra->model.anim.keyframeIdx = D_800C44F0[0].field_6;
