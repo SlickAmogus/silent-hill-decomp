@@ -1131,6 +1131,18 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         g_MapOverlayHeader.func_108();
     }
 
+#ifdef SH_PC_PORT
+    /* Force hold-to-aim mode BEFORE Player_Controller runs. The original
+     * supports both modes (toggle for PSX, hold for "extra weapon
+     * control"). PC keyboard play assumes hold semantics, but a savegame
+     * load may set this to 0 (toggle), and Player_Controller reads the
+     * value live to wire g_Player_IsAiming. If we set it after Player_
+     * Controller, the input flag for THIS frame is wrong, and the upper-
+     * body state machine bounces aim on/off (Harry stuck in readied
+     * pose, can't fire, can't release shift). Pin every frame. */
+    g_GameWork.config.optExtraWeaponCtrl_23 = 1;
+#endif
+
     if (g_DeltaTime != Q12(0.0f))
     {
         Player_Controller();
@@ -1471,15 +1483,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                sdlRctrl, sdlLctrl, sdlC);
                         s_prevFireHeld = fireHeld;
                     }
-
-                    /* Force hold-to-aim mode. settings_reset.c defaults it
-                     * to 1, but if it ever gets reset to 0 (toggle mode)
-                     * the keyboard bindings break: the Aim-state exit at
-                     * line 4522 reads `(!optExtra && IsAiming)` which with
-                     * held=true and optExtra=0 evaluates true on entry
-                     * frame and bounces out. Pin it so PC always uses
-                     * hold-to-aim. */
-                    g_GameWork.config.optExtraWeaponCtrl_23 = 1;
 
                     /* TPS mode reads mouse buttons; Player_Controller only
                      * reads PsyCross keyboard mappings. Override the input
