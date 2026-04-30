@@ -4304,10 +4304,22 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 extra->model.stateStep++;
             }
 
-            if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_4 ||
+            bool aimStopReady = (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_4 ||
                 ((g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_RunForward || g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_RunRight ||
                   g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_RunLeft) &&
-                 (extra->model.anim.keyframeIdx <= D_800C44F0[D_800AF220].field_6)))
+                 (extra->model.anim.keyframeIdx <= D_800C44F0[D_800AF220].field_6)));
+#ifdef SH_PC_PORT
+            // D_800C44F0 keyframe values don't match our anim data ranges (see AimStart fallback). Allow AimStop to advance when the lower-aim/stop anim has reached its endKeyframeIdx.
+            if (!aimStopReady && extra->model.anim.status < 76)
+            {
+                s16 endKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].endKeyframeIdx;
+                if (endKf > 0 && extra->model.anim.keyframeIdx == endKf)
+                {
+                    aimStopReady = true;
+                }
+            }
+#endif
+            if (aimStopReady)
             {
                 switch (g_SysWork.playerWork.extra.lowerBodyState)
                 {
