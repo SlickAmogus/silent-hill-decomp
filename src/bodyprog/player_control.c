@@ -1472,29 +1472,32 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         s_prevFireHeld = fireHeld;
                     }
 
-                    /* Stage 1 of de-shimming: feed the input flags the
-                     * original Player_Controller would set, then let the
-                     * original Player_UpperBodyUpdate (called below) drive
-                     * the aim/fire/recoil/reload anim state machine + ammo
-                     * + SFX + field_44 hit dispatch. The shim used to do
-                     * all that itself (lines 1475-1685 in older revisions)
-                     * but those handcrafted paths fought the original code
-                     * once combat state activated and never produced the
-                     * proper anim chain (Unk36 → Unk30 → HandgunRecoil →
-                     * HandgunAim). With collision/Ray_LineCheck working
-                     * again, the original UpperBody can run cleanly. */
-                    g_Player_IsAiming        = aimHeld && hasWeapon;
-                    g_Player_HasActionInput  = fireHeld && hasWeapon;
-                    /* IsAttacking / IsHoldAttack / IsShooting get driven by
-                     * Player_UpperBodyMainUpdate state transitions; we just
-                     * tell it about the *input*. */
+                    /* Force hold-to-aim mode. settings_reset.c defaults it
+                     * to 1, but if it ever gets reset to 0 (toggle mode)
+                     * the keyboard bindings break: the Aim-state exit at
+                     * line 4522 reads `(!optExtra && IsAiming)` which with
+                     * held=true and optExtra=0 evaluates true on entry
+                     * frame and bounces out. Pin it so PC always uses
+                     * hold-to-aim. */
+                    g_GameWork.config.optExtraWeaponCtrl_23 = 1;
 
-                    if (g_Player_IsAiming) {
+                    /* TPS mode reads mouse buttons; Player_Controller only
+                     * reads PsyCross keyboard mappings. Override the input
+                     * flags Player_Controller set if we're in TPS so the
+                     * upper-body state machine sees the mouse state. */
+                    if (g_DebugThirdPersonCam) {
+                        g_Player_IsAiming = aimHeld && hasWeapon;
+                        if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+                            extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
+                            g_Player_IsShooting  = fireHeld;
+                            g_Player_IsAttacking = fireHeld;
+                        }
+                    }
+
+                    if (g_Player_IsAiming && hasWeapon) {
                         D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
-                    } else {
-                        g_SysWork.playerCombat.isAiming = false;
                     }
                 }
 
