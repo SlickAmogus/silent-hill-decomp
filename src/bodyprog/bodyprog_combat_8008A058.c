@@ -212,21 +212,26 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     }
 
 #ifdef SH_PC_PORT
-    /* Combat hit log: dump every dispatch (regardless of ret) so we can
-     * see why shots aren't registering. ret=-1 = no hit window; ret>=0
-     * = hit attempted, value is the hit-zone code. temp_a1 is the result
-     * of func_8008A3E0 (the actual raycast) — if 0, no NPC was in the
-     * hit cone, so no damage dispatched. */
+    /* Combat hit log: log every dispatch where SOMETHING interesting is
+     * happening — either the cone has a target (temp_a1 > 0) or there's
+     * an actual NPC in npcs[0] (so we can see why hits don't register
+     * even when AirScreamer is loaded). Earlier 30-entry cap limited us
+     * to the first few dispatches where npcs[0] was empty, which gave
+     * no info about combat post-AirScreamer-arrival. Also log player
+     * position + npc position so we can verify the hit cone geometry. */
     if (chara == &g_SysWork.playerWork.player && weaponAttack != NO_VALUE && arg0 > 0) {
         s_SubCharacter* tgt = &g_SysWork.npcs[0];
+        bool interesting = (temp_a1 != 0) || (tgt->model.charaId != 0);
         static int _fireLogCount = 0;
-        if (_fireLogCount < 30) {
-            SH_DBG("[FIRE_HIT] ret=%d wep=%d temp_a1=%d kf=%d animStatus=0x%x | tgt[0] charaId=%d health=%d damageAmt=%d pos=(%d,%d,%d)",
+        if (interesting && _fireLogCount < 200) {
+            VECTOR3* pp = &g_SysWork.playerWork.player.position;
+            SH_DBG("[FIRE_HIT] ret=%d wep=%d temp_a1=%d kf=%d animStatus=0x%x | playerPos=(%d,%d,%d) yaw=%d | tgt[0] charaId=%d hp=%d pos=(%d,%d,%d)",
                    (int)ret, (int)weaponAttack, (int)temp_a1,
                    (int)g_SysWork.playerWork.extra.model.anim.keyframeIdx,
                    (unsigned)g_SysWork.playerWork.extra.model.anim.status,
+                   (int)pp->vx, (int)pp->vy, (int)pp->vz,
+                   (int)g_SysWork.playerWork.player.rotation.vy,
                    (int)tgt->model.charaId, (int)tgt->health,
-                   (int)tgt->damage.amount_C,
                    (int)tgt->position.vx, (int)tgt->position.vy, (int)tgt->position.vz);
             _fireLogCount++;
         }
