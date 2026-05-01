@@ -712,11 +712,13 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     GsCOORDINATE2* camCoord;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled — gte_stsxy3_g3 and gte_stsz3c are now proper
-     * macros in pc_port/include/inline_no_dmpsx.h. Blood splat
-     * particle math should produce valid POLY_FT4 geometry. */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d",
+    /* PC: re-disabled. Particles still cause delayed crashes even with
+     * GTE macros + SetPriority fix in place. Damage applies without
+     * the visual effects (target->damage.amount_C is set in B714 BEFORE
+     * F6B0 runs). Investigate further before re-enabling. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping)",
            (void*)chara, chara->model.charaId, arg2, arg3);
+    return;
 #endif
 
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
@@ -1997,11 +1999,12 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled — gte_stsxy3_g3 and gte_stsz3c are now proper
-     * macros in pc_port/include/inline_no_dmpsx.h, so particle XY/Z
-     * computation produces valid POLY_FT4 vertex data. The PsyCross
-     * clut/tpage guard catches any prims with truly bad textures. */
-    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
+    /* PC: re-disabled. Even with GTE macros real and the SetPriority
+     * code-byte fix in place, particle pipeline still triggers a
+     * delayed crash post-pistol-equip. Falling back to known-good
+     * (no muzzle flash, but combat damage still works). */
+    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping)", (int)weaponAttack);
+    return;
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
