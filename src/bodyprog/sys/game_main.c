@@ -524,16 +524,6 @@ void GameState_Boot_Update(void) // 0x80032D1C
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
 #ifdef SH_PC_PORT
-            /* Load the "violent and disturbing images" warning TIM into the
-             * same VRAM region the original PSX `main()` (src/main/main.c)
-             * uploads it to. `Screen_BackgroundImgDraw(&g_MainImg0)` at the
-             * end of GameState_Boot_Update reads from that region every
-             * frame, so the warning will display during boot fade-in. On
-             * PSX the same VRAM was filled by main()'s explicit warning
-             * sequence; on PC main() never runs, so we load it here. */
-            if (!g_PcConfig.skipIntros) {
-                Fs_QueueStartReadTim(FILE_1ST_2ZANKO_E_TIM, FS_BUFFER_0, &g_MainImg0);
-            }
             if (g_PcConfig.skipIntros) {
                 /* Replicate all loads that b_konami.c/b_kcet.c normally handle during logo display */
                 WorldGfx_HarryCharaLoad();
@@ -551,18 +541,6 @@ void GameState_Boot_Update(void) // 0x80032D1C
         case 3:
             if (ScreenFade_IsFinished())
             {
-#ifdef SH_PC_PORT
-                /* Hold the warning screen for ~120 additional frames (2s
-                 * at 60fps) so the player can read it after fade-in
-                 * completes. Skipped if skip_intros=1. */
-                {
-                    static s32 _warnHold = 0;
-                    if (!g_PcConfig.skipIntros && _warnHold < 120) {
-                        _warnHold++;
-                        break;
-                    }
-                }
-#endif
                 Fs_QueueWaitForEmpty();
 
                 gameState = g_GameWork.gameState;
