@@ -1451,39 +1451,35 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
 #ifdef SH_PC_PORT
-                /* PC fast-track to death anim. The original PSX death flow
-                 * cascades through HoverInjured -> HoverInjuredToStun ->
-                 * Stun and then waits for AS to fully settle
-                 * (sharedFunc_800D5F00_0_s01 needs touching ground, zero
-                 * rotation/move/fall speeds). On PC the physics tick
-                 * doesn't drain those velocities the way PSX did, so AS
-                 * hovers indefinitely in mid-air with health=0.
-                 *
-                 * After ~30 frames (~0.5s @ 60fps) of being dead in any
-                 * active anim, force-zero the velocity fields and snap AS
-                 * to ground so the original settle check passes. Also pin
-                 * anim to Stun and override temp_s3 so the original
-                 * transition fires the same frame. */
+                /* PC fast-track to death anim. The original PSX flow
+                 * cascades HoverInjured -> HoverInjuredToStun -> Stun and
+                 * then waits for AS to fully settle (touching ground, zero
+                 * rotation/move/fall speeds). With the AI rodata table
+                 * (`sharedData_800CAA98_0_s01.field_380`) being a 256-byte
+                 * zero stub on PC, the per-keyframe behavior bitfield is
+                 * always zero, so the chain advances by anim-end only and
+                 * the settle check rarely passes. After 30 frames in case 0
+                 * with health<=0, force the kill condition. Counter does
+                 * NOT gate on anim active — gating on it caused indefinite
+                 * resets when anim status flipped between anims. */
                 {
                     static s32 s_pcDeathTimeout = 0;
-                    if (ANIM_STATUS_IS_ACTIVE(animStatus)) {
-                        if (s_pcDeathTimeout++ > 30) {
-                            s_pcDeathTimeout = 0;
-                            airScreamer->moveSpeed = Q12(0.0f);
-                            airScreamer->fallSpeed = Q12(0.0f);
-                            airScreamer->rotationSpeed.vx = 0;
-                            airScreamer->rotationSpeed.vy = 0;
-                            airScreamer->rotationSpeed.vz = 0;
-                            airScreamer->field_32 = 0;
-                            airScreamerProps.field_EC = 0;
-                            airScreamer->position.vy = Collision_GroundHeightGet(
-                                airScreamer->position.vx, airScreamer->position.vz);
-                            airScreamer->model.anim.status = ANIM_STATUS(AirScreamerAnim_Stun, true);
-                            temp_s3     = true;
-                            animStatus  = ANIM_STATUS(AirScreamerAnim_Stun, true);
-                        }
-                    } else {
+                    s_pcDeathTimeout++;
+                    if (s_pcDeathTimeout > 30) {
                         s_pcDeathTimeout = 0;
+                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d", animStatus, (int)temp_s3);
+                        airScreamer->moveSpeed = Q12(0.0f);
+                        airScreamer->fallSpeed = Q12(0.0f);
+                        airScreamer->rotationSpeed.vx = 0;
+                        airScreamer->rotationSpeed.vy = 0;
+                        airScreamer->rotationSpeed.vz = 0;
+                        airScreamer->field_32 = 0;
+                        airScreamerProps.field_EC = 0;
+                        airScreamer->position.vy = Collision_GroundHeightGet(
+                            airScreamer->position.vx, airScreamer->position.vz);
+                        airScreamer->model.anim.status = ANIM_STATUS(AirScreamerAnim_Stun, true);
+                        temp_s3     = true;
+                        animStatus  = ANIM_STATUS(AirScreamerAnim_Stun, true);
                     }
                 }
 #endif
