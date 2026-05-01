@@ -1450,6 +1450,32 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
             {
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
+#ifdef SH_PC_PORT
+                /* PC: sharedFunc_800D5F00_0_s01 requires AS to fully
+                 * settle (touching ground, zero move/fall/rotation) for
+                 * the death transition to fire. The PSX physics tick
+                 * naturally slows AS down when alive->dead, but on PC
+                 * the AS hovers indefinitely in mid-air at posY high
+                 * above ground, so temp_s3 stays false forever and we
+                 * loop in Stun anim. Force the transition after ~180
+                 * frames (3s at 60fps) with health depleted in Stun. */
+                {
+                    static s32 s_pcDeathTimeout = 0;
+                    if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true)) {
+                        if (s_pcDeathTimeout++ > 180) {
+                            s_pcDeathTimeout = 0;
+                            airScreamer->health = NO_VALUE;
+                            func_800622B8(3, airScreamer, ANIM_STATUS(AirScreamerAnim_StandToStun, true), 2);
+                            airScreamer->model.stateStep = AirScreamerStateStep_1;
+                            sharedFunc_800D3DFC_0_s01(airScreamer);
+                            break;
+                        }
+                    } else {
+                        s_pcDeathTimeout = 0;
+                    }
+                }
+#endif
+
                 if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true) && temp_s3 == true)
                 {
                     airScreamer->health = NO_VALUE;
