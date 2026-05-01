@@ -760,8 +760,19 @@ void SetPriority(PACKET* p, int a, int b)
      * code[2]. PsyCross's ProcessDrawEnv reads `len` words, so len=3 would
      * read past the struct causing garbage GP0 commands and crashes.
      * Setting len=0 makes this an OT pass-through node. The tpage/ABR is
-     * instead handled by the adjacent SetDrawMode calls in the game code. */
+     * instead handled by the adjacent SetDrawMode calls in the game code.
+     *
+     * BUT we also need to clear the code byte. Otherwise PsyCross's
+     * ParsePrimitivesLinkedList reads the leftover code from whatever was
+     * previously at this packet-buffer location, dispatches to that prim
+     * type's processor (e.g. POLY_F3 returns 4 longs), and advances 20
+     * bytes — past the 4-byte tagLength endpacket. Result: diff=-16
+     * errors and eventually corrupted vertex/split state that crashes
+     * GsDrawOt. Set code=0xFF so primType=0xF0 hits the default switch
+     * case in ParsePrimitive, which returns 0 and breaks the inner
+     * loop cleanly. */
     setlen(p, 0);
+    setcode(p, 0xFF);
     (void)a; (void)b;
 }
 
