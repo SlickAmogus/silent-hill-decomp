@@ -103,6 +103,10 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     SH_DBG("[SH] GameBoot_MapLoad: GameFs_PlayerMapAnimLoad");
 #endif
     GameFs_PlayerMapAnimLoad(mapIdx);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_MapLoad: post-PlayerMapAnimLoad processFlags=0x%X weaponAttack=%d",
+           (unsigned)g_SysWork.processFlags, (int)g_SysWork.playerCombat.weaponAttack);
+#endif
 
     // If the player spawns in the map with a weapon equipped (either because it's a demo
     // or because the player saved the game with a weapon equipped), this and the next function
@@ -111,8 +115,20 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     if (g_SysWork.processFlags & (ProcessFlag_NewGame | ProcessFlag_LoadSave |
                                        ProcessFlag_Continue | ProcessFlag_BootDemo))
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[SH] GameBoot_MapLoad: WorldGfx_PlayerPrevHeldItem");
+#endif
         WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
+#ifdef SH_PC_PORT
+        SH_DBG("[SH] GameBoot_MapLoad: post-PlayerPrevHeldItem");
+#endif
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_MapLoad: Gfx_PlayerHeldItemAttach weap=%d", (int)g_SysWork.playerCombat.weaponAttack);
+#endif
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
+#ifdef SH_PC_PORT
+    SH_DBG("[SH] GameBoot_MapLoad: complete");
+#endif
 }
