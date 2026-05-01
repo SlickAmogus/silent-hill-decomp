@@ -601,9 +601,6 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     {
         return;
     }
-#ifdef SH_PC_PORT
-    SH_DBG("[CC7C] lmIdx=%d", (int)lmIdx);
-#endif
 
     modelHdr   = model->modelInfo.modelHdr;
     objMetaCpy = &model->metadata_10;
@@ -617,13 +614,12 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[CC7C] modelHdr=%p", (void*)modelHdr);
+    /* Guard NULL modelHdr (was once a crash; now silent skip) */
     if (modelHdr == NULL)
     {
         model->metadata_10.lmIdx_9 = 0;
         return;
     }
-    SH_DBG("[CC7C] pre-COMPARE");
 #endif
 
     if (COMPARE_FILENAMES(&objMetaCpy->name_0, &modelHdr->name_0))
@@ -631,9 +627,6 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
         model->metadata_10.lmIdx_9 = 0;
         return;
     }
-#ifdef SH_PC_PORT
-    SH_DBG("[CC7C] pre-57090");
-#endif
 
     func_80057090(&model->modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
