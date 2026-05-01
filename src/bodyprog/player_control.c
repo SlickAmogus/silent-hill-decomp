@@ -1279,13 +1279,28 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         extra->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         extra->model.stateStep = 0;
                     }
-                    /* Jump back ends when anim plays out OR on hard timeout
-                     * (~45 frames) so a stomped anim can never freeze the
-                     * flag and slide Harry forever. */
+                    /* Jump back ends when the active anim completes (kf at
+                     * end) OR on a hard timeout, OR if the player stops
+                     * holding back. The previous check ended the flag the
+                     * instant status transitioned to ACTIVE — but that's
+                     * just blend->playback handoff, the actual jump body
+                     * hasn't played yet. Wait for the active anim to
+                     * finish (kf == endKeyframeIdx) so the full jump-back
+                     * animation completes. */
                     if (s_jumpBackActive) {
                         s_jumpBackFrames++;
-                        if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) ||
-                            s_jumpBackFrames > 45 ||
+                        bool animFinished = false;
+                        if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) &&
+                            player->model.anim.status < 76)
+                        {
+                            const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[player->model.anim.status];
+                            s16 endKf = info->endKeyframeIdx;
+                            if (endKf > 0 && player->model.anim.keyframeIdx >= endKf) {
+                                animFinished = true;
+                            }
+                        }
+                        if (animFinished ||
+                            s_jumpBackFrames > 60 ||
                             !g_Player_IsMovingBackward) {
                             s_jumpBackActive = 0;
                             s_jumpBackFrames = 0;
