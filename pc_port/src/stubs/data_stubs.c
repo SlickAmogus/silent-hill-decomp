@@ -840,7 +840,21 @@ u8 g_CutsceneCameraPositionTarget[256] = {0};
 u8 g_CutscenePosition[256] = {0};
 u8 g_CutsceneTimer[256] = {0};
 u8 g_DoorOfEclypse_MapMsgIdx[256] = {0};
-u8 g_Effect_BloodSplats[256] = {0};
+/* g_Effect_BloodSplats: was u8[256], but each s_BloodSplat is 2 bytes
+ * (s16 field_0; bodyprog/bodyprog.h:1568) and the map header sets
+ * bloodSplatCount_58 = ARRAY_SIZE(g_Effect_BloodSplats) using the
+ * extern's declared size — which is MAP_BLOOD_SPLAT_COUNT_MAX (150 for
+ * map0_s00/s01, 50 for s02, etc.; per-map in include/maps/<map>.h).
+ * func_8005F6B0 then iterates bloodSplats_54[0..150) writing field_0,
+ * which past 128 entries overruns the 256-byte stub and corrupts
+ * adjacent globals → next frame's GsDrawOt(OT0) crashes.
+ *
+ * Storage symbol is shared across all maps so size for the maximum
+ * (150 entries × 2 bytes = 300 bytes; declared as 150-element array
+ * so ARRAY_SIZE returns 150). Locally redeclare s_BloodSplat to avoid
+ * pulling in bodyprog.h. */
+typedef struct { signed short field_0; } sh_pc_BloodSplat;
+sh_pc_BloodSplat g_Effect_BloodSplats[150] = {{0}};
 u8 g_EventThing_Flashlight[256] = {0};
 u8 g_EventThing_KitchenKnife[256] = {0};
 u8 g_EventThing_Map[256] = {0};
