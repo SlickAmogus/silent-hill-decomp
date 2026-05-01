@@ -1467,7 +1467,19 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                     s_pcDeathTimeout++;
                     if (s_pcDeathTimeout > 30) {
                         s_pcDeathTimeout = 0;
-                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d", animStatus, (int)temp_s3);
+                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d -> jumping to controlState=None",
+                               animStatus, (int)temp_s3);
+                        /* Don't fall through to the inner if. That path
+                         * sets stateStep=1 inside Control_2, which has
+                         * no escape (Control_2 only has cases 0/1/2 and
+                         * the chain to controlState=None lives in
+                         * Control_1 / Control_17 — both `#ifndef
+                         * MAP0_S01` so absent here). Jump straight to
+                         * the "officially dead" state mirroring
+                         * Ai_AirScreamer_Control_1 case StateStep_7
+                         * (line 1342). EventFlag_M0S01_AirScreamerDied
+                         * fires from map0_s01_events.c on the next
+                         * frame because health == NO_VALUE. */
                         airScreamer->moveSpeed = Q12(0.0f);
                         airScreamer->fallSpeed = Q12(0.0f);
                         airScreamer->rotationSpeed.vx = 0;
@@ -1477,9 +1489,12 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                         airScreamerProps.field_EC = 0;
                         airScreamer->position.vy = Collision_GroundHeightGet(
                             airScreamer->position.vx, airScreamer->position.vz);
-                        airScreamer->model.anim.status = ANIM_STATUS(AirScreamerAnim_Stun, true);
-                        temp_s3     = true;
-                        animStatus  = ANIM_STATUS(AirScreamerAnim_Stun, true);
+                        airScreamer->health             = NO_VALUE;
+                        airScreamer->model.controlState = AirScreamerControl_None;
+                        airScreamer->model.stateStep    = AirScreamerStateStep_13;
+                        airScreamer->model.anim.status  = ANIM_STATUS(AirScreamerAnim_StandToStun, true);
+                        airScreamerProps.flags          = AirScreamerFlag_None;
+                        return;
                     }
                 }
 #endif

@@ -256,6 +256,10 @@ endif()
 if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.cfg")
     file(COPY "${CMAKE_SOURCE_DIR}/config.cfg" DESTINATION "${CMAKE_BINARY_DIR}")
 endif()
+# Always copy run_capture.bat so the user has a debug-launcher next to the exe
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/run_capture.bat")
+    file(COPY "${CMAKE_SOURCE_DIR}/run_capture.bat" DESTINATION "${CMAKE_BINARY_DIR}")
+endif()
 
 # =============================================================================
 # Map Overlay DLLs (optional — builds all maps as loadable modules)

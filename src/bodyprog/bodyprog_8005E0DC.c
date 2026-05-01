@@ -712,13 +712,12 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     GsCOORDINATE2* camCoord;
 
 #ifdef SH_PC_PORT
-    /* PC: re-disabled. Particles still cause delayed crashes even with
-     * GTE macros + SetPriority fix in place. Damage applies without
-     * the visual effects (target->damage.amount_C is set in B714 BEFORE
-     * F6B0 runs). Investigate further before re-enabling. */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping)",
+    /* PC: re-enabled — same fix as func_8006342C above. Stub
+     * `sharedData_800DFB7C_0_s00` was 256 B for a 200-entry × 20 B
+     * array; alloc walked off the end and corrupted adjacent globals.
+     * Now sized to 450 entries in pc_port/src/stubs/data_stubs.c. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d",
            (void*)chara, chara->model.charaId, arg2, arg3);
-    return;
 #endif
 
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
@@ -1999,12 +1998,12 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: re-disabled. Even with GTE macros real and the SetPriority
-     * code-byte fix in place, particle pipeline still triggers a
-     * delayed crash post-pistol-equip. Falling back to known-good
-     * (no muzzle flash, but combat damage still works). */
-    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping)", (int)weaponAttack);
-    return;
+    /* PC: re-enabled. Root cause of prior delayed crash was
+     * `sharedData_800DFB7C_0_s00` being a 256 B stub while the code
+     * walks it as 200+ entries × 20 B; alloc past slot 12 corrupted
+     * adjacent globals. Stub now resized to 450 entries (worst-case
+     * map) — see pc_port/src/stubs/data_stubs.c. */
+    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.

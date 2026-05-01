@@ -1178,7 +1178,15 @@ u8 sharedData_800DF2DC_0_s00[256] = {0};
 u8 sharedData_800DFB10_0_s01[256] = {0};
 u8 sharedData_800DFB6C_0_s00[256] = {0};
 u8 sharedData_800DFB70_0_s00[256] = {0};
-u8 sharedData_800DFB7C_0_s00[256] = {0};
+/* Real type is `s_MapHdr_field_4C` (20 bytes/entry); the worst-case map
+ * is map4_s01 with MAP_FIELD_4C_COUNT=450, so size to 450*20=9000 bytes
+ * to avoid out-of-bounds writes from `func_8005E7E0` -> muzzle/blood
+ * spawn paths. Previously 256 B (= 12 valid entries) caused adjacent-
+ * global corruption when alloc walked past slot 12, manifesting as
+ * delayed audio-task-pool crash after first pistol fire. Same bug
+ * class as the `g_Effect_BloodSplats[150]` retype. */
+typedef struct { u8 _bytes[20]; } sh_pc_MapHdrField4C;
+sh_pc_MapHdrField4C sharedData_800DFB7C_0_s00[450] = {0};
 u8 sharedData_800E0CA8_0_s00[256] = {0};
 u8 sharedData_800E0CAC_0_s00[256] = {0};
 u8 sharedData_800E0CB0_0_s00[256] = {0};
