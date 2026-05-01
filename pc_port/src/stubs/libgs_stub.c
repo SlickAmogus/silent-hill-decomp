@@ -940,10 +940,8 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     int      lmode   = gs_light_mode;
     PACKET  *pk;
 
-    SH_DBG("[GSSORT] obj=%p tmd=%p ot=%p shift=%d",
-           (void*)obj, obj ? (void*)obj->tmd : NULL, (void*)ot, shift);
-    if (!obj || !obj->tmd || !ot) { SH_DBG("[GSSORT] early-out NULL"); return; }
- 
+    if (!obj || !obj->tmd || !ot) { return; }
+
     tmd = (struct TMD_STRUCT*)obj->tmd;
     vp  = (SVECTOR*)tmd->vertop;
     np  = (SVECTOR*)tmd->nortop;
@@ -951,9 +949,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     primn = (int)tmd->primn;
     pk  = GsOUT_PACKET_P;
 
-    SH_DBG("[GSSORT] vp=%p np=%p pp=%p primn=%d lmode=%d",
-           (void*)vp, (void*)np, (void*)pp, primn, gs_light_mode);
-    if (!vp || !pp) { SH_DBG("[GSSORT] null vp/pp"); return; }
+    if (!vp || !pp) { return; }
     if (lmode < 0 || lmode > 2) lmode = 0;
  
     while (primn > 0) {

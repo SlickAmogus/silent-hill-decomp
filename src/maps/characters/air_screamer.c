@@ -1451,24 +1451,36 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
 #ifdef SH_PC_PORT
-                /* PC: sharedFunc_800D5F00_0_s01 requires AS to fully
-                 * settle (touching ground, zero move/fall/rotation) for
-                 * the death transition to fire. The PSX physics tick
-                 * naturally slows AS down when alive->dead, but on PC
-                 * the AS hovers indefinitely in mid-air at posY high
-                 * above ground, so temp_s3 stays false forever and we
-                 * loop in Stun anim. Force the transition after ~180
-                 * frames (3s at 60fps) with health depleted in Stun. */
+                /* PC fast-track to death anim. The original PSX death flow
+                 * cascades through HoverInjured -> HoverInjuredToStun ->
+                 * Stun and then waits for AS to fully settle
+                 * (sharedFunc_800D5F00_0_s01 needs touching ground, zero
+                 * rotation/move/fall speeds). On PC the physics tick
+                 * doesn't drain those velocities the way PSX did, so AS
+                 * hovers indefinitely in mid-air with health=0.
+                 *
+                 * After ~30 frames (~0.5s @ 60fps) of being dead in any
+                 * active anim, force-zero the velocity fields and snap AS
+                 * to ground so the original settle check passes. Also pin
+                 * anim to Stun and override temp_s3 so the original
+                 * transition fires the same frame. */
                 {
                     static s32 s_pcDeathTimeout = 0;
-                    if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true)) {
-                        if (s_pcDeathTimeout++ > 180) {
+                    if (ANIM_STATUS_IS_ACTIVE(animStatus)) {
+                        if (s_pcDeathTimeout++ > 30) {
                             s_pcDeathTimeout = 0;
-                            airScreamer->health = NO_VALUE;
-                            func_800622B8(3, airScreamer, ANIM_STATUS(AirScreamerAnim_StandToStun, true), 2);
-                            airScreamer->model.stateStep = AirScreamerStateStep_1;
-                            sharedFunc_800D3DFC_0_s01(airScreamer);
-                            break;
+                            airScreamer->moveSpeed = Q12(0.0f);
+                            airScreamer->fallSpeed = Q12(0.0f);
+                            airScreamer->rotationSpeed.vx = 0;
+                            airScreamer->rotationSpeed.vy = 0;
+                            airScreamer->rotationSpeed.vz = 0;
+                            airScreamer->field_32 = 0;
+                            airScreamerProps.field_EC = 0;
+                            airScreamer->position.vy = Collision_GroundHeightGet(
+                                airScreamer->position.vx, airScreamer->position.vz);
+                            airScreamer->model.anim.status = ANIM_STATUS(AirScreamerAnim_Stun, true);
+                            temp_s3     = true;
+                            animStatus  = ANIM_STATUS(AirScreamerAnim_Stun, true);
                         }
                     } else {
                         s_pcDeathTimeout = 0;

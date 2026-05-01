@@ -146,35 +146,14 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     s32 j;
 
 #ifdef SH_PC_PORT
-    {
-        s32 scx = g_Items_Transforms[displayItemIdx].scale.vx;
-        s32 scy = g_Items_Transforms[displayItemIdx].scale.vy;
-        s32 scz = g_Items_Transforms[displayItemIdx].scale.vz;
-        SH_DBG("[BD74] enter idx=%d obj=%p coord2=%p tmd=%p arg2=%d scale=(0x%x,0x%x,0x%x)",
-               (int)displayItemIdx, (void*)arg1,
-               arg1 ? (void*)arg1->coord2 : NULL,
-               arg1 ? (void*)arg1->tmd : NULL, (int)arg2,
-               (unsigned)scx, (unsigned)scy, (unsigned)scz);
-        if (arg1->coord2 == NULL) { SH_DBG("[BD74] null coord2"); return; }
-        if (arg1->tmd == NULL) { SH_DBG("[BD74] null tmd -- skip"); return; }
-        if (scx == 0) {
-            /* Hypothesis: unequip-anim shrinks slot 7 scale to 0 (item_screens_3.c:2812)
-             * -> divide-by-zero in the loop below. PSX MIPS silently produces
-             * garbage; x86-64 raises SIGFPE and kills the process with no crash log.
-             * Skip render this frame to confirm. If this prevents the crash,
-             * fix is to clamp scale to a small minimum or skip render at zero. */
-            SH_DBG("[BD74] scale.vx==0 -- SKIP render to avoid SIGFPE (idx=%d)", (int)displayItemIdx);
-            return;
-        }
-    }
-#endif
-#ifdef SH_PC_PORT
-    SH_DBG("[BD74] pre-CoordToWorldAndViewMatrices");
+    /* Silently skip degenerate cases that would crash on x86-64.
+     * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
+     * that used to kill the process with SIGFPE; clamp/skip handles it. */
+    if (arg1->coord2 == NULL) return;
+    if (arg1->tmd == NULL) return;
+    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
 #endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &worldMat, &viewMat);
-#ifdef SH_PC_PORT
-    SH_DBG("[BD74] post-CoordToWorldAndViewMatrices");
-#endif
 
     localToScreenMat = viewMat;
 
@@ -185,9 +164,6 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             viewMat.m[i][j] = Q12(viewMat.m[i][j]) / g_Items_Transforms[displayItemIdx].scale.vx;
         }
     }
-#ifdef SH_PC_PORT
-    SH_DBG("[BD74] post-divide-loop");
-#endif
 
     if (arg2 != 3 && displayItemIdx < 7)
     {
@@ -200,41 +176,18 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         }
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[BD74] pre-SetLightMatrix");
-#endif
     GsSetLightMatrix(&viewMat);
     GsSetLsMatrix(&localToScreenMat);
-#ifdef SH_PC_PORT
-    SH_DBG("[BD74] post-SetLsMatrix");
-#endif
 
     if (arg2 == 2)
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[BD74] pre-arg2==2 OT chain");
-#endif
         GsClearOt(0, 0, &g_OrderingTable1[g_ActiveBufferIdx]);
         GsSortOt(&g_OrderingTable1[g_ActiveBufferIdx], &g_OrderingTable0[g_ActiveBufferIdx]);
-#ifdef SH_PC_PORT
-        SH_DBG("[BD74] pre-GsSortObject4J(OT1) tmd=%p primn=%lu",
-               (void*)arg1->tmd,
-               arg1->tmd ? (unsigned long)((struct TMD_STRUCT*)arg1->tmd)->primn : 0UL);
-#endif
         GsSortObject4J(arg1, &g_OrderingTable1[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
-#ifdef SH_PC_PORT
-        SH_DBG("[BD74] post-GsSortObject4J(OT1)");
-#endif
     }
     else
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[BD74] pre-GsSortObject4J(OT0) tmd=%p", (void*)arg1->tmd);
-#endif
         GsSortObject4J(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
-#ifdef SH_PC_PORT
-        SH_DBG("[BD74] post-GsSortObject4J(OT0)");
-#endif
     }
 }
 
