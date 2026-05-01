@@ -711,6 +711,23 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     s32            curDist;
     GsCOORDINATE2* camCoord;
 
+#ifdef SH_PC_PORT
+    /* Damage hit effects (blood/sparks particles) — same problem as the
+     * muzzle-flash dispatch in func_8006342C: particles populate
+     * g_MapOverlayHeader.unkTable1_4C[] which render as POLY_FT4 prims
+     * with weapon-specific CLUT/TPAGE bits referencing unloaded weapon
+     * textures. PsyCross then crashes on GsDrawOt(OT0) the next frame.
+     *
+     * Damage application itself happens in func_8008B714 BEFORE this is
+     * called (line 1550: target->damage.amount_C += damageAmount), so
+     * skipping these particles costs only the visual hit-flash; the
+     * enemy still takes damage. Re-enable when the weapon-texture
+     * upload path is wired up. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping particle dispatch)",
+           (void*)chara, chara->model.charaId, arg2, arg3);
+    return;
+#endif
+
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
     {
         arg3 = 5;
