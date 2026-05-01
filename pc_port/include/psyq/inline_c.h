@@ -31,4 +31,28 @@
     _p[0] = MFC2(12); _p[1] = MFC2(13); _p[2] = MFC2(14); \
 } while(0)
 
+/* gte_stsxy3_g3: store SXY0/1/2 (GTE C12-14) into the X/Y slots of a
+ * POLY_G3 layout. POLY_G3 has XYs at offsets 8, 16, 24 — POLY_FT4 has
+ * its first three vertex XYs at the same offsets, so this macro is
+ * also valid for the first 3 vertices of POLY_FT4 (the muzzle-flash
+ * particle code in bodyprog_8005E0DC.c uses it that way). */
+#undef gte_stsxy3_g3
+#define gte_stsxy3_g3( p ) do { \
+    char *_b = (char*)(p); \
+    *(uint*)(_b + 8)  = MFC2(12); \
+    *(uint*)(_b + 16) = MFC2(13); \
+    *(uint*)(_b + 24) = MFC2(14); \
+} while(0)
+
+/* gte_stsz3c: store SZ1/SZ2/SZ3 (GTE C17-19) into 3 consecutive shorts
+ * at p. Used by particle math after gte_rtpt() to grab the depths of
+ * three transformed vertices. */
+#undef gte_stsz3c
+#define gte_stsz3c( p ) do { \
+    short *_s = (short*)(p); \
+    _s[0] = (short)MFC2(17); \
+    _s[1] = (short)MFC2(18); \
+    _s[2] = (short)MFC2(19); \
+} while(0)
+
 #endif
