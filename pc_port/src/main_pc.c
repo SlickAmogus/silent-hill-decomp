@@ -261,7 +261,18 @@ int main(int argc, char* argv[])
     MapRegistry_Init();
     SH_LOG("Active map: %s", g_PcConfig.mapName);
 
-    SH_LOG("All subsystems initialized. Entering MainLoop...");
+    SH_LOG("All subsystems initialized.");
+
+    /* Warning screen: "There are violent and disturbing images in this game."
+     * The PSX original shows this in main() before the Konami logo. The PC
+     * port replaces main() entirely, so we reproduce just the warning step
+     * here. Skipped if skip_intros=1 in config.cfg. */
+    {
+        extern void Pc_PlayWarningScreen(void);
+        Pc_PlayWarningScreen();
+    }
+
+    SH_LOG("Entering MainLoop...");
 
     /*
      * On PSX, main() loads BODYPROG.BIN and B_KONAMI.BIN overlays,

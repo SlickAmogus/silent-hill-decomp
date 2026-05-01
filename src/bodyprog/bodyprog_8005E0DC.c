@@ -712,20 +712,10 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     GsCOORDINATE2* camCoord;
 
 #ifdef SH_PC_PORT
-    /* Damage hit effects (blood/sparks particles) — same problem as the
-     * muzzle-flash dispatch in func_8006342C: particles populate
-     * g_MapOverlayHeader.unkTable1_4C[] which render as POLY_FT4 prims
-     * with weapon-specific CLUT/TPAGE bits referencing unloaded weapon
-     * textures. PsyCross then crashes on GsDrawOt(OT0) the next frame.
-     *
-     * Damage application itself happens in func_8008B714 BEFORE this is
-     * called (line 1550: target->damage.amount_C += damageAmount), so
-     * skipping these particles costs only the visual hit-flash; the
-     * enemy still takes damage. Re-enable when the weapon-texture
-     * upload path is wired up. */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping particle dispatch)",
-           (void*)chara, chara->model.charaId, arg2, arg3);
-    return;
+    /* PC: re-enabled now that PsyCross POLY_FT4 dispatch validates
+     * clut/tpage and silently drops bogus prims (PsyX_GPU.cpp).
+     * Should now safely emit blood/sparks without crashing. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d", (void*)chara, chara->model.charaId, arg2, arg3);
 #endif
 
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
@@ -2006,14 +1996,9 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* Particle pipeline (muzzle flash + bullet sparks) emits POLY_FT4 prims
-     * into OT0 with CLUT/TPAGE bits referencing weapon textures that aren't
-     * loaded into our software VRAM. PsyCross then crashes on GsDrawOt of
-     * OT0 the next frame. Skip the entire particle dispatch on PC until
-     * the weapon-texture upload path is wired up. The combat damage logic
-     * in Player_CombatUpdate / func_8008A0E4 is unaffected. */
-    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping particle dispatch)", (int)weaponAttack);
-    return;
+    /* PC: re-enabled now that PsyCross POLY_FT4 dispatch validates
+     * clut/tpage and silently drops bogus prims (PsyX_GPU.cpp). */
+    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
