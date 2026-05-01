@@ -712,10 +712,21 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     GsCOORDINATE2* camCoord;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled now that PsyCross POLY_FT4 dispatch validates
-     * clut/tpage and silently drops bogus prims (PsyX_GPU.cpp).
-     * Should now safely emit blood/sparks without crashing. */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d", (void*)chara, chara->model.charaId, arg2, arg3);
+    /* PC: re-disabled. The PsyCross POLY_FT4 clut/tpage guard catches
+     * prims with bogus textures, but it can't catch prims with garbage
+     * VERTEX coordinates — and that's what we end up with here, because
+     * the GTE intrinsics gte_stsxy3_g3, gte_stsxy3c, gte_stsz3c, etc.
+     * that the particle math relies on are no-op stubs in
+     * pc_port/src/stubs/func_stubs.c. Vertex positions stay
+     * uninitialized → POLY_FT4 dispatched with garbage coords →
+     * downstream PsyCross crashes during GsDrawOt.
+     *
+     * Damage application is unaffected (target->damage.amount_C is set
+     * in func_8008B714 line 1550 BEFORE F6B0 is called). Re-enable
+     * once those GTE intrinsics get real implementations. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping particle dispatch — GTE stubs)",
+           (void*)chara, chara->model.charaId, arg2, arg3);
+    return;
 #endif
 
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
@@ -1996,9 +2007,15 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled now that PsyCross POLY_FT4 dispatch validates
-     * clut/tpage and silently drops bogus prims (PsyX_GPU.cpp). */
-    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
+    /* PC: re-disabled. Same root cause as func_8005F6B0 — the GTE
+     * intrinsics this particle code depends on (gte_stsxy3_g3,
+     * gte_stsxy3c, etc.) are no-op stubs in func_stubs.c, so the
+     * resulting POLY_FT4s have garbage vertex coords and PsyCross
+     * crashes during dispatch. The PsyCross clut/tpage guard can't
+     * catch this since the textures are valid; it's the vertices
+     * that are garbage. Re-enable once those GTE stubs are real. */
+    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping — GTE stubs make particles unsafe)", (int)weaponAttack);
+    return;
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
