@@ -931,9 +931,14 @@ void MainLoop(void) // 0x80032EE0
         }
 
         /* Enable hor+ widescreen only during 3D world states; 2D UI screens
-         * (menus, loading screen, memory card warning, etc.) use 4:3 ortho. */
-        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame ||
-                              g_GameWork.gameState == GameState_MapEvent) ? 1 : 0;
+         * (menus, loading screen, memory card warning, etc.) use 4:3 ortho.
+         *
+         * MapEvent excluded: pickup-prompt SPRTs (`There is a Residential
+         * area map. Take it?`) are 2D overlays sized for 320-wide
+         * framebuffer. With horplus on, ortho expands to ~480 but SPRT UVs
+         * stay at 0..256 — texture wraps and you get the 4x-tiled-map
+         * artifact behind the dialog. */
+        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's

@@ -148,10 +148,36 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 #ifdef SH_PC_PORT
     /* Silently skip degenerate cases that would crash on x86-64.
      * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
-     * that used to kill the process with SIGFPE; clamp/skip handles it. */
+     * that used to kill the process with SIGFPE. */
     if (arg1->coord2 == NULL) return;
-    if (arg1->tmd == NULL) return;
     if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
+    /* Diagnostic: log when item TMD is missing — manifests as a blue
+     * wireframe outline in inventory preview. Once-per-idx-per-session so
+     * we don't spam (capped at 8 distinct hits). */
+    if (arg1->tmd == NULL) {
+        static u8 s_loggedNullTmd[16] = {0};
+        if (displayItemIdx < 16 && !s_loggedNullTmd[displayItemIdx]) {
+            s_loggedNullTmd[displayItemIdx] = 1;
+            SH_DBG("[ITEMTMD] arg1->tmd=NULL idx=%d coord2=%p — render skipped (will show wireframe)",
+                   (int)displayItemIdx, (void*)arg1->coord2);
+        }
+        return;
+    }
+    /* TMD non-NULL but maybe empty: log primn so we know if the
+     * model-data link populated correctly. */
+    {
+        struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
+        static u8 s_loggedTmd[16] = {0};
+        if (displayItemIdx < 16 && !s_loggedTmd[displayItemIdx]) {
+            s_loggedTmd[displayItemIdx] = 1;
+            SH_DBG("[ITEMTMD] idx=%d tmd=%p vertop=%p primtop=%p primn=%lu vern=%lu",
+                   (int)displayItemIdx, (void*)_t,
+                   _t ? (void*)_t->vertop : NULL,
+                   _t ? (void*)_t->primtop : NULL,
+                   _t ? (unsigned long)_t->primn : 0UL,
+                   _t ? (unsigned long)_t->vern : 0UL);
+        }
+    }
 #endif
     Vw_CoordToWorldAndViewMatrices(arg1->coord2, &worldMat, &viewMat);
 
