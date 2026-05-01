@@ -61,9 +61,23 @@ void SH_DebugLogInit(void)
              * first SH_DBG. Caller (main) normally pre-opens this. */
             g_ShDebugLog = stdout;
         } else {
-            setvbuf(g_ShDebugLog, NULL, _IONBF, 0);
+            /* Line-buffer (was _IONBF). With unbuffered, every SH_DBG hit
+             * disk; the knife combat path emits 2-3k logs/frame and that
+             * halved framerate. _IOLBF flushes only on '\n' which we add
+             * to every log line, plus stdio auto-flushes on crash via
+             * atexit. Set a 64KB buffer to amortize across multi-line
+             * burst logs. */
+            static char s_logBuf[64 * 1024];
+            setvbuf(g_ShDebugLog, s_logBuf, _IOLBF, sizeof(s_logBuf));
         }
     }
+}
+
+/* Final-flush hook: ensure the log is flushed before the process exits
+ * (normal or crash). Stdio also runs this via atexit but registering
+ * explicitly makes the intent obvious. */
+static void Sh_LogAtExitFlush(void) {
+    if (g_ShDebugLog && g_ShDebugLog != stdout) fflush(g_ShDebugLog);
 }
 
 
@@ -105,6 +119,7 @@ int main(int argc, char* argv[])
 {
     /* Open the log file FIRST so any SH_DBG before config-load reaches it. */
     SH_DebugLogInit();
+    atexit(Sh_LogAtExitFlush);
     SH_DBG("[SH] main() entered");
 
     PrintBanner();

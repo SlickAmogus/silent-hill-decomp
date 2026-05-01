@@ -26,10 +26,14 @@ void SH_DebugLogInit(void);
 }
 #endif
 
+/* No fflush per call — that adds ~5us per SH_DBG and combat hit-detection
+ * during a knife swing emits 2000-3000 logs/frame, halving the framerate.
+ * Rely on stdio's _IOLBF line buffering (set in SH_DebugLogInit). On
+ * unhandled crash, our SetUnhandledExceptionFilter handler in main_pc.c
+ * does the final fflush. */
 #define SH_DBG(fmt, ...) do { \
     if (!g_ShDebugLog) SH_DebugLogInit(); \
     fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
-    fflush(g_ShDebugLog); \
 } while (0)
 
 /* Like SH_DBG but also prints to stdout when show_console is on — use for
