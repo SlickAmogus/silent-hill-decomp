@@ -32,17 +32,29 @@
 } while(0)
 
 /* gte_stsxy3_g3: store SXY0/1/2 (GTE C12-14) into the X/Y slots of a
- * POLY_G3 layout. POLY_G3 has XYs at offsets 8, 16, 24 — POLY_FT4 has
- * its first three vertex XYs at the same offsets, so this macro is
- * also valid for the first 3 vertices of POLY_FT4 (the muzzle-flash
- * particle code in bodyprog_8005E0DC.c uses it that way). */
+ * POLY_G3 / POLY_FT4 / POLY_GT4 packet. PSX layout has XYs at 8,16,24
+ * (DECLARE_P_ADDR=4 B); PC with USE_EXTENDED_PRIM_POINTERS has them
+ * at 16,24,32 (DECLARE_P_ADDR=12 B). Using PSX offsets on PC clobbers
+ * the prim header (len/pgxp_index) AND shifts vertex data by one
+ * slot, leaving x2,y2 uninitialized — see crash dump from
+ * 2026-05-01 21:37 (ParsePrimitivesLinkedList +0xa5, bad next-pointer
+ * with the muzzle-flash tpage byte 0x2B in upper bytes). */
 #undef gte_stsxy3_g3
+#if defined(_M_X64) || defined(__amd64__) || defined(SH_PC_PORT)
+#define gte_stsxy3_g3( p ) do { \
+    char *_b = (char*)(p); \
+    *(uint*)(_b + 16) = MFC2(12); \
+    *(uint*)(_b + 24) = MFC2(13); \
+    *(uint*)(_b + 32) = MFC2(14); \
+} while(0)
+#else
 #define gte_stsxy3_g3( p ) do { \
     char *_b = (char*)(p); \
     *(uint*)(_b + 8)  = MFC2(12); \
     *(uint*)(_b + 16) = MFC2(13); \
     *(uint*)(_b + 24) = MFC2(14); \
 } while(0)
+#endif
 
 /* gte_stsz3c: store SZ1/SZ2/SZ3 (GTE C17-19) into 3 consecutive shorts
  * at p. Used by particle math after gte_rtpt() to grab the depths of
