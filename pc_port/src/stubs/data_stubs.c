@@ -817,7 +817,13 @@ u8 StUnSetRing[256] = {0};
 u8 TWINFEELER_ANIM_INFOS[256] = {0};
 /* TransposeMatrix: moved to libgs_stub.c as a proper function */
 u8 UNKKOWN_23_ANIM_INFOS[256] = {0};
-u8 VectorNormal[256] = {0};
+/* VectorNormal: moved to libgs_stub.c as a proper function.
+ * Was stubbed as a 256-byte zero array, which made calls to it
+ * jump into the .data section -> NX fault on Windows DEP.
+ * Caught via WinDbg minidump 2026-05-01 22:54 (radio interference
+ * path: Game_NpcUpdate -> Vc_StereoBalanceGet -> VectorNormal).
+ * Only triggered after radio pickup since the radio-interference
+ * code path is gated on ItemToggleFlag_RadioOn. */
 u8 erase[256] = {0};
 u8 firstfile[256] = {0};
 u8 format[256] = {0};
