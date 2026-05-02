@@ -1001,6 +1001,18 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
 
 #ifdef SH_PC_PORT
     SH_DBG("[4287C] globalLm lmHdr=%p queueIdx=%d", (void*)globalLm->lmHdr, globalLm->queueIdx);
+    fflush(g_ShDebugLog);
+    /* PC: belt-and-suspenders null guards. Crash dump 2026-05-02 02:08
+     * (FAILURE_BUCKET_ID INVALID_POINTER_READ at func_8004287C+0x337,
+     * `mov rax, qword ptr [rax]`) hit during GameBoot_InGameInit on
+     * the new map after door transition. The chunk list is still
+     * populating at this point — some slots have queueIdx set but
+     * ipdHdr / ipdHdr->lmHdr / etc. not yet ready. */
+    if (globalLm->lmHdr == NULL) {
+        SH_DBG("[4287C] globalLm->lmHdr is NULL — bail");
+        fflush(g_ShDebugLog);
+        return 0;
+    }
 #endif
     if (Fs_QueueEntryLoadStatusGet(globalLm->queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
         globalLm->lmHdr->isLoaded &&
@@ -1021,6 +1033,22 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
             continue;
         }
 
+#ifdef SH_PC_PORT
+        /* Same guard as above: a queueIdx >= Loaded doesn't yet
+         * imply ipdHdr was populated by IpdHeader_FixOffsets — there's
+         * a small window during multi-stage loads where the queue
+         * thinks the read is done but the post-read fixup hasn't
+         * run yet. */
+        if (curChunk->ipdHdr == NULL) {
+            static int s_loggedNull4287 = 0;
+            if (s_loggedNull4287 < 4) {
+                SH_DBG("[4287C] curChunk->ipdHdr=NULL slot=%td queueIdx=%d — skip",
+                       curChunk - g_Map.ipdActive_15C, curChunk->queueIdx);
+                s_loggedNull4287++;
+            }
+            continue;
+        }
+#endif
         if (!curChunk->ipdHdr->isLoaded)
         {
             continue;
