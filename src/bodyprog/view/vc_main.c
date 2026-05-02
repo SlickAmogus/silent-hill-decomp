@@ -1554,25 +1554,14 @@ void vcMakeNormalWatchTgtPos(VECTOR3* watch_tgt_pos, s16* watch_tgt_ang_z_p, VC_
                 break;
         }
 
-#ifdef SH_PC_PORT
-        /* Anchor the look-at point on Harry's CHEST (chara_center_y),
-         * not his feet (chara_bottom_y). The original PSX formula
-         *     watch_y = ofs_watch_hy + chara_bottom_y
-         * places the screen-center crosshair below Harry's body — feet
-         * minus the road-node offset (Y-up = negative) puts the target
-         * roughly halfway up his back from a typical TPS angle. The
-         * road-node `ofs_watch_hy` bias is preserved (per-road tuning
-         * still applies); we just shift the base from feet to chest.
-         *
-         * `chara_center_y` is computed in vcSetSubjChara as
-         * (bottom + top) / 2, which lands ~0.85 world-units above the
-         * feet — same chest anchor used by the debug TPS camera
-         * (TP_LOOKAT_OFS = Q12(-0.85f), game_main.c:329) and matching
-         * the far-watch path at line 1796 (chara_pos.vy - Q12(0.8f)). */
-        watch_y = Q4_TO_Q12(vcWork.cur_near_road.road_p->ofs_watch_hy) + w_p->chara_center_y;
-#else
+        /* Reverted: anchoring on chara_center_y (chest) tilted the
+         * camera too far UP — user reported "camera appears higher"
+         * and wants more of Harry's BODY visible (cam tilted down).
+         * The PSX-original chara_bottom_y is correct; the apparent
+         * "halfway up Harry's back" framing comes from elsewhere
+         * (likely cam_pos Y, not lookAt Y). Fix that separately if
+         * still wrong after this revert. */
         watch_y = Q4_TO_Q12(vcWork.cur_near_road.road_p->ofs_watch_hy) + w_p->chara_bottom_y;
-#endif
         vcSetWatchTgtXzPos(watch_tgt_pos, &w_p->chara_pos, &w_p->cam_pos, tgt_chara2watch_cir_dist, tgt_watch_cir_r, w_p->chara_eye_ang_y);
         vcSetWatchTgtYParam(watch_tgt_pos, w_p, cam_mv_type, watch_y);
     }
