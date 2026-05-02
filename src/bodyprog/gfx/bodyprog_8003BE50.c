@@ -208,6 +208,27 @@ void Ipd_PlayerChunkInit(s_MapOverlayHeader* mapHdr, s32 playerPosX, s32 playerP
     {
         activeIpdCount = 4;
     }
+#ifdef SH_PC_PORT
+    /* Bump active chunk count on PC. Original game used 1-2 chunks for
+     * interior rooms because PSX 4:3 view fit the entire room within
+     * those cells. With Hor+ widescreen + pixel-aspect compensation
+     * (PsyCross 9c502de) the visible horizontal extent is ~1.46x PSX,
+     * so chunks adjacent to the player's cell now appear at the screen
+     * edges and need to stay resident. User reported edge geometry
+     * disappearing as they turn (chunks not loaded fast enough to
+     * cover the wider view). Confirmed via [IPD] ChunkCheckDraw log:
+     * `total=256 loaded=2` regardless of room size.
+     *
+     * Floor at 4 covers the worst-case 1.46x extent in any rotation
+     * (player at corner of 2x2 cells, view extending into 1 more on
+     * each side). Map slot count maxes at PC_MAX_IPD_CHUNKS=256 so
+     * upping the count costs ~50KB/chunk extra RAM at most. */
+    if (activeIpdCount < 4) {
+        SH_DBG("[IPD-INIT] Bumping activeIpdCount from %d to 4 (PC: wider view needs more chunks)",
+               activeIpdCount);
+        activeIpdCount = 4;
+    }
+#endif
 
 #ifdef SH_PC_PORT
     SH_DBG("[IPD-INIT] Ipd_PlayerChunkInit: flags=0x%02X activeIpdCount=%d playerPos=(%d,%d) mapTag='%.4s'",
