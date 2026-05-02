@@ -1093,6 +1093,24 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
     for (k = 0; k < chunkIdx; k++)
     {
         curChunk = chunks[k];
+#ifdef SH_PC_PORT
+        /* Same load-order race as the earlier guards in this function:
+         * curChunk->ipdHdr passed the null check above (else it
+         * wouldn't be in chunks[]), but its ipdHdr->lmHdr can still be
+         * NULL during PC's multi-stage post-load fixup window. Crash
+         * dump 2026-05-02 03:36 hit func_8004287C+0x422 here with
+         * `mov rax, qword ptr [rax]` reading lmHdr through a NULL. */
+        if (curChunk->ipdHdr == NULL || curChunk->ipdHdr->lmHdr == NULL) {
+            static int s_loggedNull4287_lm = 0;
+            if (s_loggedNull4287_lm < 4) {
+                SH_DBG("[4287C] chunks[%d]->ipdHdr=%p lmHdr=%p — skip",
+                       k, (void*)curChunk->ipdHdr,
+                       curChunk->ipdHdr ? (void*)curChunk->ipdHdr->lmHdr : NULL);
+                s_loggedNull4287_lm++;
+            }
+            continue;
+        }
+#endif
         if (Lm_ModelFind(model, curChunk->ipdHdr->lmHdr, metadata))
         {
             return (curChunk - g_Map.ipdActive_15C) + 3;
