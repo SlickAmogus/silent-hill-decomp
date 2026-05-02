@@ -1003,6 +1003,23 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
     q19_12 deltaTime;
     void (*controlFunc)(s_SubCharacter*);
 
+#ifdef SH_PC_PORT
+    /* PC short-circuit: when the AS is "officially dead" (health ==
+     * NO_VALUE, set by our death fast-track in Control_2), stop
+     * dispatching control funcs entirely. Without this, the death
+     * sequence loops Control_2 -> Control_0 -> Control_46 -> Control_51
+     * -> Control_2 forever — each cycle takes a few seconds and the
+     * post-death cutscene trigger only fires after a counter wins the
+     * race. User reports the wait at roughly 2 minutes. Freezing the
+     * AI here lets EventFlag_M0S01_AirScreamerDied (already set by the
+     * map event when health went to NO_VALUE) drive the next scene
+     * immediately. AS body stays at last pose; the cutscene
+     * compositor takes over the camera so it doesn't matter. */
+    if (airScreamer->health == NO_VALUE) {
+        return false;
+    }
+#endif
+
     deltaTime = g_DeltaTime;
     if (deltaTime < Q12(0.0f))
     {
