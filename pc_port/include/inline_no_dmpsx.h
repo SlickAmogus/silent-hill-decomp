@@ -44,20 +44,43 @@
 } while(0)
 
 /* gte_stsxy3_g3 - Store SXY0/SXY1/SXY2 (GTE C12-14) into the X/Y slots
- * of a POLY_G3 packet at offsets 8, 16, 24. POLY_FT4 has its first
- * three vertex XYs at the same offsets, so this also targets the
- * leading 3 vertices of POLY_FT4 (used by particle code in
- * bodyprog_8005E0DC.c — muzzle flash + bullet sparks). PsyCross
- * doesn't define this, so without the macro all particle XYs land at
- * uninitialized values and the resulting POLY_FT4 has garbage geometry
- * that crashes GsDrawOt. */
+ * of POLY_G3 / POLY_FT4 / POLY_GT4 packets.
+ *
+ * PSX offsets are 8, 16, 24 because DECLARE_P_ADDR is 4 bytes there.
+ * On PC with USE_EXTENDED_PRIM_POINTERS, DECLARE_P_ADDR is 12 bytes,
+ * so the same logical vertex slots live at 16, 24, 32.
+ *
+ * Earlier this macro used the PSX offsets verbatim. The result:
+ *   * offset 8 (PC) overlaps the prim's `len`/`pgxp_index` header,
+ *     so each muzzle-flash POLY_FT4 had its header trashed by a
+ *     32-bit screen-coord write — corrupting both setlen() and the
+ *     PGXP index.
+ *   * x0,y0 received vertex-1 data, x1,y1 received vertex-2 data,
+ *     and x2,y2 was never written (left uninitialized).
+ *
+ * Symptom was a crash inside ParsePrimitivesLinkedList walking past
+ * a corrupted next-pointer (high garbage like 0x2B00..., the tpage
+ * byte from the next muzzle-flash field write bleeding into bytes
+ * that should have been part of an addr field).
+ *
+ * On PSX (32-bit, non-extended) compiles, fall back to the original
+ * offsets so this header stays valid for both targets. */
 #undef gte_stsxy3_g3
+#if defined(_M_X64) || defined(__amd64__) || defined(SH_PC_PORT)
+#define gte_stsxy3_g3( p ) do { \
+    char *_b = (char*)(p); \
+    *(uint*)(_b + 16) = MFC2(12); \
+    *(uint*)(_b + 24) = MFC2(13); \
+    *(uint*)(_b + 32) = MFC2(14); \
+} while(0)
+#else
 #define gte_stsxy3_g3( p ) do { \
     char *_b = (char*)(p); \
     *(uint*)(_b + 8)  = MFC2(12); \
     *(uint*)(_b + 16) = MFC2(13); \
     *(uint*)(_b + 24) = MFC2(14); \
 } while(0)
+#endif
 
 /* gte_stsz3c - Store SZ1/SZ2/SZ3 (GTE C17-19) into 3 consecutive
  * shorts at p. The particle code uses this after gte_rtpt() to grab
