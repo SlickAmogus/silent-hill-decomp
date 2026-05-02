@@ -2343,6 +2343,14 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
         *(u16*)&(*poly)->u3 = (g_MapOverlayHeader.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) -
                               (g_MapOverlayHeader.unkTable1_4C[idx].field_B ? 0x611F : 0x60E1);
 
+#ifdef SH_PC_PORT
+        /* PC: PsyCross's prim dispatcher crashes on unknown code bytes
+         * (PSX GPU was tolerant — the GP0 register decoded the cmd word
+         * directly so an uninitialized code byte just produced garbage
+         * rendering, not a crash). `addPrimFast` only sets `len`; we
+         * never set `code`. Explicitly install POLY_FT4 (0x2C). */
+        setPolyFT4(*poly);
+#endif
         addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_1BC >> 3], (*poly), 9);
         *poly += 1;
     }
