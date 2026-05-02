@@ -1068,6 +1068,29 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
             if (curChunk->cellX >= (cellX - 1) && (cellX + 1) >= curChunk->cellX &&
                 curChunk->cellZ >= (cellZ - 1) && (cellZ + 1) >= curChunk->cellZ)
             {
+#ifdef SH_PC_PORT
+                /* `chunks[4]` is a fixed stack array. With PC's chunk
+                 * count bump (PC_MAX_IPD_CHUNKS=256, vs PSX's 4), more
+                 * loaded chunks can pass the ±1 cell-range check and
+                 * the loop OOB-writes past chunks[4]/distsToEdges[4],
+                 * stomping adjacent stack — that's the source of the
+                 * "NHS." filename bytes appearing in OT addr fields
+                 * (chunks[] holds s_IpdChunk* whose names begin with
+                 * "BG_*.PLM" etc.) and the func_8004287C+0x422 crash.
+                 *
+                 * Cap chunkIdx at 4 (the original PSX max). Sorting
+                 * inserts only when there's room; we drop further
+                 * matches outside the 4 nearest. */
+                if (chunkIdx >= 4) {
+                    static int s_loggedOob4287 = 0;
+                    if (s_loggedOob4287 < 4) {
+                        SH_DBG("[4287C] chunkIdx=%d already at max — skipping further matches",
+                               chunkIdx);
+                        s_loggedOob4287++;
+                    }
+                    continue;
+                }
+#endif
                 distToEdge = Ipd_DistanceToEdgeGet(geomX, geomZ, curChunk->cellX, curChunk->cellZ);
                 for (i = 0; i < chunkIdx; i++)
                 {
