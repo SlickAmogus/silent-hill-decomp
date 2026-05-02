@@ -422,7 +422,18 @@ void XaPlayer_Play(uint16_t xaIdx) {
         g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
     }
 
-    SH_DBG("[XA] Playback started: source=%u", g_XaPlayer.alSource);
+    /* Always reset gain to full at the start of a new track. The game's
+     * audio task pool emits a Sd_SetVolXa(0,0) "mute-before-seek" early
+     * in gameplay (sd_call.c:1073, inside Sd_XaPreLoadAudio case 0).
+     * On PSX the matching restore happens after the seek completes; on
+     * PC the seek path is a no-op via PsyCross's CdControl, so the
+     * restore never fires and the OpenAL source gain stays stuck at
+     * 0.0 for the rest of the session. Without this reset, every voice
+     * line after the first ~20 plays silently (cafe cutscene voices
+     * still work because they precede the mute event). */
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, 1.0f);
+
+    SH_DBG("[XA] Playback started: source=%u (gain reset to 1.0)", g_XaPlayer.alSource);
 }
 
 void XaPlayer_Stop(void) {
