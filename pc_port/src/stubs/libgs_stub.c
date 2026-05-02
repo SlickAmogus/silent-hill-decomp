@@ -9,6 +9,7 @@
 #include <libgpu.h>
 #include <libgte.h>
 #include <libetc.h>
+#include <libcd.h>     /* CdlLOC for StGetBackloc stub */
 #include <string.h>
 #include <stdio.h>
 #include <SDL.h>
@@ -863,6 +864,40 @@ long VectorNormal(VECTOR *v0, VECTOR *v1)
     v1->pad = 0;
     return sq;
 }
+
+/* ==========================================================================
+ * libcd streaming (St*) and libpress FMV decoder (Dec*) no-op stubs.
+ *
+ * These were ALL stubbed as `u8 NAME[256] = {0}` in data_stubs.c, same
+ * latent NX-fault bug class as VectorNormal. None of them are reached
+ * in normal PC gameplay (FMV is handled by fmv_player.cpp / xa_player.c)
+ * but ANY path that triggers the original Stream_* machinery in
+ * screens/stream/stream.c would jump into .data and crash. No-op
+ * implementations are safe because the surrounding code already gates
+ * actual playback through the PC FMV path.
+ *
+ * Signatures pulled from pc_port/PsyCross/include/psx/libcd.h:203-217
+ * and include/psyq/libpress.h:8-12,61.
+ * ==========================================================================*/
+
+void StSetRing(u_int* ring_addr, u_int ring_size) { (void)ring_addr; (void)ring_size; }
+void StUnSetRing(void) {}
+void StSetStream(u_int mode, u_int start_frame, u_int end_frame,
+                 void (*func1)(), void (*func2)()) {
+    (void)mode; (void)start_frame; (void)end_frame; (void)func1; (void)func2;
+}
+u_int StFreeRing(u_int* base) { (void)base; return 0; }
+u_int StGetNext(u_int** addr, u_int** header) {
+    (void)addr; (void)header; return 0;
+}
+void StCdInterrupt(void) {}
+int StGetBackloc(CdlLOC* loc) { (void)loc; return 0; }
+
+void DecDCTReset(int mode) { (void)mode; }
+void DecDCTvlc(u_int* bs, u_int* buf) { (void)bs; (void)buf; }
+void DecDCTin(u_int* buf, int mode) { (void)buf; (void)mode; }
+void DecDCTout(u_int* buf, int size) { (void)buf; (void)size; }
+int DecDCToutCallback(void (*func)()) { (void)func; return 0; }
 
 void GsInitCoordinate2(void *super, GsCOORDINATE2 *coord)
 {

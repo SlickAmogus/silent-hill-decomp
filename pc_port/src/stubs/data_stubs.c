@@ -771,11 +771,12 @@ u8 D_800F56EC[256] = {0};
 u8 D_800F570C[256] = {0};
 u8 D_800F572C[256] = {0};
 u8 D_800F574C[256] = {0};
-u8 DecDCTReset[256] = {0};
-u8 DecDCTin[256] = {0};
-u8 DecDCTout[256] = {0};
-u8 DecDCToutCallback[256] = {0};
-u8 DecDCTvlc[256] = {0};
+/* Dec* (libpress FMV decoder): moved to libgs_stub.c as no-op functions.
+ * Were data stubs, which made calls jump into .data section -> NX fault.
+ * The original FMV pipeline isn't used on PC (xa_player.c handles audio,
+ * fmv_player.cpp handles video) but if any code path reaches the
+ * Stream_* machinery in screens/stream/stream.c, all 5 of these get
+ * called. Same bug class as VectorNormal. */
 /* ExitCriticalSection: handled in libapi_stub.c */
 u8 FLAUROS_ANIM_INFOS[256] = {0};
 u8 FLOATSTINGER_ANIM_INFOS[256] = {0};
@@ -806,14 +807,12 @@ u8 SPLIT_HEAD_ANIM_INFOS[256] = {0};
 /* SetMulRotMatrix - implemented in func_stubs.c */
 /* SetPolyG3 - implemented in func_stubs.c */
 /* Square0 - implemented in func_stubs.c */
-u8 StCdInterrupt[256] = {0};
+/* St* (libcd streaming): moved to libgs_stub.c as no-op functions.
+ * Were data stubs — same NX-fault bug class as VectorNormal. The
+ * streaming machinery isn't used on PC but the original Stream_*
+ * code in screens/stream/stream.c references them. StCdIntrFlag
+ * stays as data — it's an int flag, not a function. */
 u8 StCdIntrFlag[256] = {0};
-u8 StFreeRing[256] = {0};
-u8 StGetBackloc[256] = {0};
-u8 StGetNext[256] = {0};
-u8 StSetRing[256] = {0};
-u8 StSetStream[256] = {0};
-u8 StUnSetRing[256] = {0};
 u8 TWINFEELER_ANIM_INFOS[256] = {0};
 /* TransposeMatrix: moved to libgs_stub.c as a proper function */
 u8 UNKKOWN_23_ANIM_INFOS[256] = {0};
@@ -824,9 +823,13 @@ u8 UNKKOWN_23_ANIM_INFOS[256] = {0};
  * path: Game_NpcUpdate -> Vc_StereoBalanceGet -> VectorNormal).
  * Only triggered after radio pickup since the radio-interference
  * code path is gated on ItemToggleFlag_RadioOn. */
-u8 erase[256] = {0};
-u8 firstfile[256] = {0};
-u8 format[256] = {0};
+/* erase / firstfile / format / nextfile: REMOVED. These were data
+ * stubs that DUPLICATED the real implementations in
+ * PsyCross/src/psx/libapi.c (lines 302/308/314/326). With MinGW
+ * --export-all-symbols the linker order between .o files determines
+ * which definition wins per call site — undefined behavior that may
+ * have been silently corrupting the memcard path even when it
+ * appeared to work. Using PsyCross's real ones now. */
 u8 fst_max[256] = {0};
 u8 fst_min[256] = {0};
 u8 g_ActiveBufferIdx[256] = {0};
@@ -1049,7 +1052,7 @@ u8 g_WorldObject_Wall9[256] = {0};
 u8 g_WorldObject_Window[256] = {0};
 u8 g_WorldObject_Winr[256] = {0};
 u8 g_WorldObject_Zukan[256] = {0};
-u8 nextfile[256] = {0};
+/* nextfile: removed — see comment by erase/firstfile/format above. */
 u8 sharedData_800CAA98_0_s01[256] = {0};
 u8 sharedData_800CB088_3_s01[256] = {0};
 u8 sharedData_800CB0A0_3_s01[256] = {0};
