@@ -584,7 +584,11 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
         const float winAspect = (g_PcConfig.windowHeight > 0)
             ? ((float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight)
             : psxAspect;
-        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) + 0.5f);
+        /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — bumped after PsyCross commit
+         * 9c502de added pixel-aspect comp to the Hor+ ortho. The cull
+         * bound has to match the actual on-screen visible extent or
+         * objects on the new ~9.4% wider edges get culled. */
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * 1.09375f + 0.5f);
     }
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
@@ -719,7 +723,10 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                     ? (fr_psxW / (float)g_GameWork.gsScreenHeight) : (4.0f / 3.0f);
                 const float fr_winAsp  = (g_PcConfig.windowHeight > 0)
                     ? (fr_winW / (float)g_PcConfig.windowHeight) : fr_psxAsp;
-                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) + 0.5f);
+                /* Match pixel-aspect compensation in PsyCross hor+ ortho:
+                 * extra ~9.4% horizontal bound so models on the wider
+                 * 16:9 edges aren't frustum-culled. */
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * 1.09375f + 0.5f);
                 const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
 
                 if (fr_scaledX >= -fr_halfW)
