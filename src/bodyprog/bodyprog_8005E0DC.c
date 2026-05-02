@@ -1998,12 +1998,18 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled. Root cause of prior delayed crash was
-     * `sharedData_800DFB7C_0_s00` being a 256 B stub while the code
-     * walks it as 200+ entries × 20 B; alloc past slot 12 corrupted
-     * adjacent globals. Stub now resized to 450 entries (worst-case
-     * map) — see pc_port/src/stubs/data_stubs.c. */
-    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
+    /* PC: muzzle flash re-disabled. Stub-size fix solved the
+     * adjacent-globals corruption (was 256 B vs needed 9000 B), and
+     * setPolyFT4 fix solved a suspected uninitialized code byte —
+     * but crash STILL hits OT0-draw on first fire. Crash is deeper
+     * in PsyCross's textured-quad render path (TriangulateQuad /
+     * MakeTexcoordQuad with this prim's tpage=0x002B clut=0x00D3).
+     * Need debugger session on the .dmp to find the exact line.
+     * Until then, skip the spawn so combat is playable. The blood
+     * splat counterpart func_80064334 stays enabled — its poly path
+     * differs and hasn't reproduced the crash. */
+    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping until GPU crash root-caused)", (int)weaponAttack);
+    return;
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
