@@ -1272,6 +1272,30 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->clut       = (g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
 
+#ifdef SH_PC_PORT
+            /* PC: same hardcoded-PSX-offset bug as func_80064334:2467
+             * — but here we have 4 POLY_FT4s + 2 DR_MODEs.
+             * PSX sizes: POLY_FT4=36 B, DR_MODE=12 B. PC: 48 B / 20 B.
+             * Original 0xA0=160 was 4*40 PSX (with slack); on PC need
+             * 4*sizeof(POLY_FT4)=192. +0xC=12 PSX DR_MODE; PC=20.
+             * +0x18=24 (=2 PSX DR_MODE); PC=40.
+             *
+             * Smoking gun: line 1271 sets (*poly)->tpage = 43 = 0x2B.
+             * Without this fix, that tpage write lands inside another
+             * prim's addr field — every observed bad nextPtr in the OT
+             * walker logs leads with 0x2B (e.g., 0x2B1F408EEA70F9). */
+            ptr->field_12C = (PACKET*)((POLY_FT4*)(*poly) + 4);
+            SetPriority(ptr->field_12C, 0, 0);
+            SetPriority((PACKET*)((DR_MODE*)ptr->field_12C + 1), 1, 1);
+
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 1);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 2);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], ptr->field_12C);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 3);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], (PACKET*)((DR_MODE*)ptr->field_12C + 1));
+            *poly = (POLY_FT4*)((DR_MODE*)ptr->field_12C + 2);
+#else
             ptr->field_12C = (PACKET*)*poly + 0xA0;
             SetPriority(ptr->field_12C, 0, 0);
             SetPriority(ptr->field_12C + 0xC, 1, 1);
@@ -1283,6 +1307,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 3);
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], ptr->field_12C + 12);
             *poly = ptr->field_12C + 0x18;
+#endif
         }
         return true;
     }
