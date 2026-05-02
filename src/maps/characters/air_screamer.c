@@ -22,6 +22,20 @@
 void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
 #ifdef SH_PC_PORT
+    /* PC death short-circuit. The previous attempt put this in
+     * Ai_AirScreamer_Control, but Ai_AirScreamer_Init runs FIRST every
+     * frame and unconditionally resets `health = BASE_HEALTH + rand`
+     * because our fast-track set controlState = AirScreamerControl_None
+     * (= 0) — which is also Init's "uninitialized" sentinel. By the
+     * time Control's early-return ran, health was back to ~380.
+     * Putting the check here, before Init, keeps health == NO_VALUE
+     * stable. Also force-set EventFlag_M0S01_AirScreamerDied since
+     * the events.c gate normally requires EventFlag_47 too, and on PC
+     * that flag isn't set on the death frame for some reason. */
+    if (airScreamer->health == NO_VALUE) {
+        Savegame_EventFlagSet(EventFlag_M0S01_AirScreamerDied);
+        return;
+    }
     SH_DBG("[AIRSCR] enter chara=%p anm=%p coord=%p", (void*)airScreamer, (void*)anmHdr, (void*)coords);
     sharedFunc_800D21E4_0_s01(anmHdr, coords);           SH_DBG("[AIRSCR] post-21E4");
     sharedFunc_800D2200_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2200");

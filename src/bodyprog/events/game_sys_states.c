@@ -760,6 +760,34 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     u32           offsetZ;
     s_MapPoint2d* mapPoint;
 
+#ifdef SH_PC_PORT
+    /* Crash dump from 2026-05-01 23:49 had FAILURE_BUCKET_ID
+     * INVALID_POINTER_READ at SysState_LoadArea_Update+0x3fe with no
+     * preceding [DOOR] log entry — meaning the crash is somewhere
+     * before line 779's SH_DBG fires. The function dereferences
+     * g_MapEventData and g_MapOverlayHeader.mapPointsOfInterest_1C
+     * heavily, so guard them first and log enough state to localize. */
+    SH_DBG("[DOOR-ENTRY] SysState_LoadArea_Update: g_MapEventData=%p mapPointsOfInterest=%p sysState=%d",
+           (void*)g_MapEventData, (void*)g_MapOverlayHeader.mapPointsOfInterest_1C,
+           (int)g_SysWork.sysState);
+    fflush(g_ShDebugLog);  /* flush NOW so the trace survives the crash */
+    if (g_MapEventData == NULL) {
+        SH_DBG("[DOOR-ENTRY] g_MapEventData is NULL — bailing");
+        fflush(g_ShDebugLog);
+        return;
+    }
+    if (g_MapOverlayHeader.mapPointsOfInterest_1C == NULL) {
+        SH_DBG("[DOOR-ENTRY] mapPointsOfInterest_1C is NULL — bailing");
+        fflush(g_ShDebugLog);
+        return;
+    }
+    SH_DBG("[DOOR-ENTRY] g_MapEventData fields: sfxPairIdx_8_19=%d flags_8_13=0x%X eventParam=%d pointOfInterestIdx=%d mapIdx=%d",
+           g_MapEventData->sfxPairIdx_8_19, g_MapEventData->flags_8_13,
+           g_MapEventData->eventParam, g_MapEventData->pointOfInterestIdx,
+           g_MapEventData->mapIdx);
+    fflush(g_ShDebugLog);
+#endif
+
     g_SysWork.field_229C            = 0;
     g_SysWork.loadingScreenIdx = D_800BCDB0.loadingScreenId_4_9;
     g_SysWork.sfxPairIdx_2283       = g_MapEventData->sfxPairIdx_8_19;

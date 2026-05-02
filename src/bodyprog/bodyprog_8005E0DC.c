@@ -2464,6 +2464,31 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
         *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
         (*poly + 1)->b0         = ptr->field_134.b;
 
+#ifdef SH_PC_PORT
+        /* PC: prim sizes differ from PSX because DECLARE_P_ADDR is 12 B
+         * (vs PSX 4 B) — POLY_FT4 = 48 B (vs 36), DR_MODE = 20 B (vs
+         * 12). The original hardcoded byte offsets (0x50, 12, 24)
+         * were tuned for PSX layout and on PC produced buffer overlap:
+         * the two DR_MODEs collided with the second POLY_FT4 and with
+         * each other, smashing into the 1st-byte `addr` field of the
+         * next-allocated prim. That's the source of the bad nextPtr
+         * values like 0x2B00... (tpage byte) and 0xFFEF... that
+         * triggered the OT walker bail-out and the disappearing-
+         * geometry symptom during knife combat. Use sizeof-based
+         * arithmetic instead. */
+        ptr->field_12C = (PACKET*)((POLY_FT4*)(*poly) + 2);
+
+        SetPriority(ptr->field_12C, 0, 0);
+        SetPriority((PACKET*)((DR_MODE*)ptr->field_12C + 1), 1, 1);
+
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], ptr->field_12C);
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly + 1);
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3],
+                (PACKET*)((DR_MODE*)ptr->field_12C + 1));
+
+        *poly = (POLY_FT4*)((DR_MODE*)ptr->field_12C + 2);
+#else
         ptr->field_12C = (PACKET*)(*poly) + 0x50;
 
         SetPriority(ptr->field_12C, 0, 0);
@@ -2475,6 +2500,7 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], ptr->field_12C + 12);
 
         *poly = ptr->field_12C + 24;
+#endif
     }
     else
     {
