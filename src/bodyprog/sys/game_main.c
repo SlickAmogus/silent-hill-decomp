@@ -321,13 +321,25 @@ void DebugCamera_Update(void)
             tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
             tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
 
-            /* lookAt FAR ahead of camera along forward (~25 world units).
-             * Big delta vectors avoid Vw_SetLookAtMatrix's Q12→Q8 truncation
-             * jitter — that was the source of the random pitch wobble while
-             * panning horizontally. */
+            /* lookAt FAR ahead, Y-anchored to Harry's chest. Previous
+             * impl projected straight forward from camera origin (vy
+             * = camPos.vy) which placed screen-center at the camera's
+             * own Y — TP_HEIGHT above Harry's feet, ≈ his mid-back.
+             * Hence the user complaint that the cam sits "halfway up
+             * Harry's back". TP_LOOKAT_OFS was declared but never
+             * applied. Anchor lookAt.vy at harry.y + TP_LOOKAT_OFS so
+             * the screen-center crosshair lands on Harry's chest. The
+             * X/Z still project forward by TP_LOOKAT_DIST so we keep
+             * the Q12→Q8 anti-jitter benefit of a far target.
+             *
+             * Pitch contribution: bias additionally by sin(pitch) so
+             * looking up/down still works — at pitch=0 the cam looks
+             * dead-on at chest; at pitch=+50° the look target rides
+             * higher; at pitch=-40° lower. */
             #define TP_LOOKAT_DIST Q12(25.0f)
+            s32 anchorY = tp_hr->position.vy + TP_LOOKAT_OFS;
             tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
-            tpLookAt.vy = tpCamPos.vy + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
             tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
             #undef TP_LOOKAT_DIST
 
