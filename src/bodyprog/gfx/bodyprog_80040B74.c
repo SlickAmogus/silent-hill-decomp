@@ -1834,13 +1834,20 @@ bool Ipd_CellPositionMatchCheck(s_IpdChunk* chunk, s_Map* map)
 {
 #ifdef SH_PC_PORT
     if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
-    /* Expand match to ±1 cell in X and Z so adjacent geometry isn't clipped
-     * at screen edges. On PSX exact-cell match was fine; on PC the viewport
-     * can show a sliver of the next cell before the cell boundary is reached. */
+    /* Expand match in X and Z so adjacent geometry isn't clipped at the
+     * screen edges. On PSX exact-cell match was fine because the 4:3
+     * viewport stayed inside one cell width. On PC:
+     *   * 16:9 + Hor+ extends X view ~1.33x
+     *   * + pixel-aspect compensation extends X view another ~9.4%
+     *     (commit 9275146d8 in PsyCross, fixes Harry-too-thick).
+     * Combined, ~1.46x more horizontal extent than PSX. ±2 X cells
+     * covers the worst case (e.g. cafe interior where the side walls
+     * are ~1.5 cells away from Harry's cell). Z stays ±1 since the
+     * vertical FOV is unchanged. */
     {
         s32 dx = (s32)chunk->cellX - map->cellX_580;
         s32 dz = (s32)chunk->cellZ - map->cellZ_584;
-        if (dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1) return true;
+        if (dx >= -2 && dx <= 2 && dz >= -1 && dz <= 1) return true;
     }
 #else
     if (map->cellX_580 == chunk->cellX &&
