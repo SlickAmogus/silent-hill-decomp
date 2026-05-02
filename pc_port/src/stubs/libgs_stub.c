@@ -838,6 +838,32 @@ MATRIX* TransposeMatrix(MATRIX *m0, MATRIX *m1)
     return m1;
 }
 
+/* PSY-Q libgte VectorNormal - not implemented in PsyCross. PSX original
+ * runs on the GTE; we just compute it in C. v0 is the input vector;
+ * v1 receives the normalized result scaled to Q12 (where 1.0 = 4096).
+ * Returns the squared magnitude (matches PSX register semantics — the
+ * one consumer in our codebase, Vc_StereoBalanceGet, ignores the
+ * return value, so the exact return matches PSX docs but isn't
+ * load-bearing). */
+long VectorNormal(VECTOR *v0, VECTOR *v1)
+{
+    long sq = (long)v0->vx * v0->vx
+            + (long)v0->vy * v0->vy
+            + (long)v0->vz * v0->vz;
+    long mag = SquareRoot0((int)sq);
+    if (mag != 0) {
+        v1->vx = ((long)v0->vx << 12) / mag;
+        v1->vy = ((long)v0->vy << 12) / mag;
+        v1->vz = ((long)v0->vz << 12) / mag;
+    } else {
+        v1->vx = 0;
+        v1->vy = 0;
+        v1->vz = 0;
+    }
+    v1->pad = 0;
+    return sq;
+}
+
 void GsInitCoordinate2(void *super, GsCOORDINATE2 *coord)
 {
     if (coord) {
