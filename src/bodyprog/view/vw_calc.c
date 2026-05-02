@@ -859,7 +859,12 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                     ? (fr2_psxW / (float)g_GameWork.gsScreenHeight) : (4.0f / 3.0f);
                 const float fr2_winAsp  = (g_PcConfig.windowHeight > 0)
                     ? (fr2_winW / (float)g_PcConfig.windowHeight) : fr2_psxAsp;
-                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) + 0.5f);
+                /* Same pixel-aspect compensation + safety margin as the
+                 * other two cull-bound calls in this file (lines 587,
+                 * 722). Was missed when the pixel-aspect factor was
+                 * added — caused the persistent edge-clipping the user
+                 * has been chasing across multiple test passes. */
+                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * 1.09375f + 16.5f);
                 const s32   fr2_scaledX = (s32)(screenPoints->vx * fr2_horSc);
 
                 if (fr2_scaledX >= -fr2_halfW)
