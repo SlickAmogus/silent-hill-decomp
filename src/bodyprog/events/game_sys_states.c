@@ -833,23 +833,67 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     s_PC_D_800BCDB0_Saved  = 1;
 #endif
 
+#ifdef SH_PC_PORT
+    /* Snapshot scalar fields from g_MapEventData BEFORE GameBoot_MapLoad
+     * runs. Reason: GameBoot_MapLoad unloads the current map overlay,
+     * which deallocates the s_EventData struct that g_MapEventData
+     * points into (it lives in g_MapOverlayHeader.mapEvents_18 and the
+     * old map's overlay gets unloaded by MapOverlay_Unload). Using
+     * g_MapEventData after the map load is a use-after-free; on PC it
+     * crashed with INVALID_POINTER_READ at the disabledEventFlag access
+     * (movzx eax, word ptr [rax+2]). Crash hash db439cd4 in dump
+     * 2026-05-02 — same scenario kept reproducing because the lifetime
+     * mismatch is in the source flow, not in any of our PC shims. */
+    s16 _eventData_disabledEventFlag = g_MapEventData->disabledEventFlag;
+    u32 _eventData_field_8_24        = g_MapEventData->field_8_24;
+    u32 _eventData_mapIdx            = g_MapEventData->mapIdx;
+    s32 _eventData_eventParam        = g_MapEventData->eventParam;
+    SH_DBG("[DOOR-ENTRY] snapshotted: disabledFlag=%d mapIdx=%u eventParam=%d field_8_24=%u",
+           _eventData_disabledEventFlag, _eventData_mapIdx,
+           _eventData_eventParam, _eventData_field_8_24);
+    fflush(g_ShDebugLog);
+#endif
+
     if (g_SysWork.sysState == SysState_LoadOverlay)
     {
         g_SysWork.processFlags    = ProcessFlag_OverlayTransition;
+#ifdef SH_PC_PORT
+        g_SavegamePtr->mapOverlayId_A4 = _eventData_mapIdx;
+#else
         g_SavegamePtr->mapOverlayId_A4 = g_MapEventData->mapIdx;
+#endif
         GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
     }
     else
     {
         g_SysWork.processFlags = ProcessFlag_RoomTransition;
+#ifdef SH_PC_PORT
+        Bgm_TrackChange(_eventData_mapIdx);
+        if (g_MapOverlayHeader.mapPointsOfInterest_1C[_eventData_eventParam].field_4_5 != 0)
+        {
+            g_SysWork.field_2349 = g_MapOverlayHeader.mapPointsOfInterest_1C[_eventData_eventParam].field_4_5 - 1;
+        }
+#else
         Bgm_TrackChange(g_MapEventData->mapIdx);
-
         if (g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam].field_4_5 != 0)
         {
             g_SysWork.field_2349 = g_MapOverlayHeader.mapPointsOfInterest_1C[g_MapEventData->eventParam].field_4_5 - 1;
         }
+#endif
     }
 
+#ifdef SH_PC_PORT
+    Savegame_EventFlagSetAlt(_eventData_disabledEventFlag);
+
+    if (_eventData_field_8_24)
+    {
+        g_SysWork.flags_22A4 |= UnkSysFlag_6;
+    }
+    else
+    {
+        g_SysWork.flags_22A4 &= ~UnkSysFlag_6;
+    }
+#else
     Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
 
     if (g_MapEventData->field_8_24)
@@ -860,6 +904,7 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     {
         g_SysWork.flags_22A4 &= ~UnkSysFlag_6;
     }
+#endif
 
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
     Game_StateSetNext(GameState_MainLoadScreen);
