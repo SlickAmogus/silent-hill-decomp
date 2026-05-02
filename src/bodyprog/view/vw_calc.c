@@ -584,11 +584,14 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
         const float winAspect = (g_PcConfig.windowHeight > 0)
             ? ((float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight)
             : psxAspect;
-        /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — bumped after PsyCross commit
-         * 9c502de added pixel-aspect comp to the Hor+ ortho. The cull
-         * bound has to match the actual on-screen visible extent or
-         * objects on the new ~9.4% wider edges get culled. */
-        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * 1.09375f + 0.5f);
+        /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — matches PsyCross's Hor+
+         * ortho. Add 16 pixels of safety margin: the math gives the
+         * EXACT visible-edge bound, but vertices right at that bound
+         * get truncation-culled by a fraction of a unit (user
+         * reported small triangles at edges visible while turning,
+         * indicating the cull boundary is one row of pixels too
+         * tight). 16 px @ 1920 wide is ~0.8% extra render — cheap. */
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * 1.09375f + 16.5f);
     }
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
@@ -725,8 +728,12 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                     ? (fr_winW / (float)g_PcConfig.windowHeight) : fr_psxAsp;
                 /* Match pixel-aspect compensation in PsyCross hor+ ortho:
                  * extra ~9.4% horizontal bound so models on the wider
-                 * 16:9 edges aren't frustum-culled. */
-                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * 1.09375f + 0.5f);
+                 * 16:9 edges aren't frustum-culled. +16 px safety
+                 * margin so polygons exactly at the visible edge
+                 * aren't truncation-culled (was producing the small
+                 * disappearing triangles at screen edges while
+                 * panning). */
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * 1.09375f + 16.5f);
                 const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
 
                 if (fr_scaledX >= -fr_halfW)
