@@ -1998,18 +1998,16 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: muzzle flash re-disabled. Stub-size fix solved the
-     * adjacent-globals corruption (was 256 B vs needed 9000 B), and
-     * setPolyFT4 fix solved a suspected uninitialized code byte —
-     * but crash STILL hits OT0-draw on first fire. Crash is deeper
-     * in PsyCross's textured-quad render path (TriangulateQuad /
-     * MakeTexcoordQuad with this prim's tpage=0x002B clut=0x00D3).
-     * Need debugger session on the .dmp to find the exact line.
-     * Until then, skip the spawn so combat is playable. The blood
-     * splat counterpart func_80064334 stays enabled — its poly path
-     * differs and hasn't reproduced the crash. */
-    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping until GPU crash root-caused)", (int)weaponAttack);
-    return;
+    /* PC: re-enabled. WinDbg analysis of the post-fire crash dump
+     * revealed it was NOT in the prim-render path — it was the OT
+     * linked-list walker dereferencing a high-but-bogus next-pointer
+     * (`ParsePrimitivesLinkedList+0xa5`, INVALID_POINTER_READ). The
+     * walker's only guard caught nextPtr < 0x10000; values like
+     * `(uintptr_t)-1` and unmapped high addresses passed through.
+     * Walker now also bails on -1 and addresses past Windows user
+     * mode (0x7FFF'FFFF'FFFF). Worst case after re-enable: muzzle
+     * flash skips visually for a frame; game keeps running. */
+    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
