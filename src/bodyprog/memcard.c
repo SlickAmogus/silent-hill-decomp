@@ -136,17 +136,35 @@ bool MemCard_AreAllFilesUsed(s32 deviceId) // 0x8002E76C
 
 void MemCard_SysInit2(void) // 0x8002E7BC
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SysInit2 enter availability=%d", (int)g_MemCard_AvailibityStatus);
+#endif
     if (g_MemCard_AvailibityStatus == true)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[MCRD-INIT] SysInit2 skipped (already initialised)");
+#endif
         return;
     }
 
     g_MemCard_AvailibityStatus = true;
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] pre StatusInitSuccess");
+#endif
     MemCard_StatusInitSuccess();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] pre EventsInit");
+#endif
     MemCard_EventsInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] post EventsInit");
+#endif
 
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork_E0[0], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork_E0[1], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SysInit2 done");
+#endif
 }
 
 void MemCard_Disable(void) // 0x8002E830
@@ -1324,9 +1342,21 @@ void MemCard_Init(void) // 0x800303E4
 
 void MemCard_EventsInit(void) // 0x80030414
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] EventsInit: pre StateInit");
+#endif
     MemCard_StateInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] EventsInit: pre SwEventsInit");
+#endif
     MemCard_SwEventsInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] EventsInit: pre HwEventsInit");
+#endif
     MemCard_HwEventsInit();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] EventsInit: done");
+#endif
 }
 
 void MemCard_StateInit(void) // 0x80030444
@@ -1338,38 +1368,77 @@ void MemCard_StateInit(void) // 0x80030444
 
 void MemCard_SwEventsInit(void) // 0x8003045C
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: pre EnterCriticalSection");
+#endif
     EnterCriticalSection();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: pre OpenEvent IOE");
+#endif
     g_MemCard_Work.eventSwSpIOE_10    = OpenEvent(SwCARD, EvSpIOE, EvMdNOINTR, NULL);
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: IOE handle=%d", (int)g_MemCard_Work.eventSwSpIOE_10);
+#endif
     g_MemCard_Work.eventSwSpERROR_14  = OpenEvent(SwCARD, EvSpERROR, EvMdNOINTR, NULL);
     g_MemCard_Work.eventSwSpTIMOUT_18 = OpenEvent(SwCARD, EvSpTIMOUT, EvMdNOINTR, NULL);
     g_MemCard_Work.eventSwSpNEW_1C    = OpenEvent(SwCARD, EvSpNEW, EvMdNOINTR, NULL);
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: 4x OpenEvent done, pre ExitCriticalSection");
+#endif
     ExitCriticalSection();
 
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: pre EnableEvents");
+#endif
     EnableEvent(g_MemCard_Work.eventSwSpIOE_10);
     EnableEvent(g_MemCard_Work.eventSwSpERROR_14);
     EnableEvent(g_MemCard_Work.eventSwSpTIMOUT_18);
     EnableEvent(g_MemCard_Work.eventSwSpNEW_1C);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: pre SwEventsReset");
+#endif
     MemCard_SwEventsReset();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] SwEventsInit: done");
+#endif
 }
 
 void MemCard_HwEventsInit(void) // 0x80030530
 {
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: pre EnterCriticalSection");
+#endif
     EnterCriticalSection();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: pre 5x OpenEvent (with INTR callbacks)");
+#endif
     g_MemCard_Work.eventHwSpIOE_20     = OpenEvent(HwCARD, EvSpIOE, EvMdINTR, MemCard_HwEventSpIOE);
     g_MemCard_Work.eventHwSpERROR_24   = OpenEvent(HwCARD, EvSpERROR, EvMdINTR, MemCard_HwEventSpERROR);
     g_MemCard_Work.eventHwSpTIMOUT_28  = OpenEvent(HwCARD, EvSpTIMOUT, EvMdINTR, MemCard_HwEventSpTIMOUT);
     g_MemCard_Work.eventHwSpNEW_2C     = OpenEvent(HwCARD, EvSpNEW, EvMdINTR, MemCard_HwEventSpNEW);
     g_MemCard_Work.eventHwSpUNKNOWN_30 = OpenEvent(HwCARD, EvSpUNKNOWN, EvMdINTR, MemCard_HwEventSpUNKNOWN);
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: 5x OpenEvent done, pre ExitCriticalSection");
+#endif
     ExitCriticalSection();
 
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: pre EnableEvents");
+#endif
     EnableEvent(g_MemCard_Work.eventHwSpIOE_20);
     EnableEvent(g_MemCard_Work.eventHwSpERROR_24);
     EnableEvent(g_MemCard_Work.eventHwSpTIMOUT_28);
     EnableEvent(g_MemCard_Work.eventHwSpNEW_2C);
     EnableEvent(g_MemCard_Work.eventHwSpUNKNOWN_30);
 
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: pre HwEventsReset");
+#endif
     MemCard_HwEventsReset();
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD-INIT] HwEventsInit: done");
+#endif
 }
 
 void MemCard_EventsClose(void) // 0x80030640
