@@ -581,9 +581,21 @@ void GameState_Boot_Update(void) // 0x80032D1C
             break;
     }
 
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] step=%d pre func_80033548\n", (int)g_GameWork.gameStateSteps[0]); fflush(g_ShDebugLog); } }
+#endif
     func_80033548();
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post func_80033548 / pre Screen_BackgroundImgDraw\n"); fflush(g_ShDebugLog); } }
+#endif
     Screen_BackgroundImgDraw(&g_MainImg0);
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post Screen_BackgroundImgDraw / pre func_80089090\n"); fflush(g_ShDebugLog); } }
+#endif
     func_80089090(1);
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post func_80089090 — frame done\n"); fflush(g_ShDebugLog); } }
+#endif
 }
 
 void MainLoop(void) // 0x80032EE0
