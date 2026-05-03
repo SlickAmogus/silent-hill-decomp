@@ -846,6 +846,10 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
     ptr = &g_MemCard_SaveWork.devices_0[statusPtr->deviceId_4];
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MPS] enter processState=%d processId=%d deviceId=%d fileIdx=%d saveIdx=%d", (int)statusPtr->processState_10, (int)statusPtr->processId_0, (int)statusPtr->deviceId_4, (int)statusPtr->fileIdx_8, (int)statusPtr->saveIdx_C);
+#endif
+
     switch (statusPtr->processState_10)
     {
         case 0: // Checks currently saving file status.
