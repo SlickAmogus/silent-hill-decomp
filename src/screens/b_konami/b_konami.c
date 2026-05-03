@@ -186,10 +186,15 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                     Fs_QueueWaitForEmpty();
 
 #ifdef SH_PC_PORT
-                    /* Skip memory card check on PC - no hardware available.
-                     * Go directly to NoMemCard state. */
-                    g_GameWork.gameStateSteps[0] = KcetLogoStateStep_NoMemCard;
-                    break;
+                    /* PC: previously forced KcetLogoStateStep_NoMemCard
+                     * because the memcard subsystem wasn't implemented.
+                     * Now that PsyCross has a real backed-by-MCD-file
+                     * memcard layer (and the in-game memcard state
+                     * machine reaches InitComplete cleanly per the
+                     * 7d22d94db / 15fd7fd commits), let the real
+                     * MemCardCheck loop run so saves are detected at
+                     * boot and the warning routing / load option
+                     * works correctly. */
 #endif
 
 #if VERSION_REGION_IS(NTSCJ)
