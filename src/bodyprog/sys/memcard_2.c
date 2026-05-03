@@ -9,6 +9,10 @@
 #include "bodyprog/memcard.h"
 #include "screens/saveload.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 s16 g_MemCard_SavegameCount;
 
 s16 __pad_bss_800BCD2A;
@@ -130,6 +134,11 @@ bool func_80033548(void) // 0x80033548
         preMemCardStatus = MemCard_StatusGet(prevStatusCpy, i);
         memSaveDataIdx   = WrapIdx(i);
 
+#ifdef SH_PC_PORT
+        SH_DBG("[MCRD2] slot=%d screenState=%d cardStatus=%d (prev=%d) (NotConn=0/Success=1/InitErr=2/InitDone=3/LoadErr=4/NewDev=5/NoNewDev=6)",
+               (int)i, (int)g_SaveScreen_SaveScreenState, (int)memCardStatus, (int)preMemCardStatus);
+#endif
+
         g_MemCard_ActiveSavegameEntry                       = MemCard_ActiveSavegameEntryGet(memSaveDataIdx >> 2);
         g_Savegame_ElementCount1[memSaveDataIdx >> 2]       = 0;
         g_Savegame_ElementCount0[memSaveDataIdx >> 2]       = 0;
@@ -201,6 +210,11 @@ bool func_80033548(void) // 0x80033548
                     break;
             }
 
+#ifdef SH_PC_PORT
+            SH_DBG("[MCRD2] slot=%d not-init-complete entryType=%d (NoMC=0/Unfmt=1/Corrupt=2/Load=3/OutBlks=4/NoData=5/Unk6=6/CorrSv=7/Sv=8/NewSv=9/NewFi=10)",
+                   (int)i, (int)g_MemCard_ActiveSavegameEntry->type_4);
+#endif
+
             g_Savegame_ElementCount1[WrapIdx(i) >> 2]++;
             g_MemCard_ActiveSavegameEntry++;
         }
@@ -222,6 +236,11 @@ bool func_80033548(void) // 0x80033548
                 memSaveDataIdx = WrapIdx(i);
                 g_Savegame_ElementCount0[memSaveDataIdx >> 2]++;
             }
+
+#ifdef SH_PC_PORT
+            SH_DBG("[MCRD2] slot=%d init-complete usedFiles=0 entryType=%d", (int)i,
+                   (int)g_MemCard_ActiveSavegameEntry->type_4);
+#endif
 
             g_Savegame_ElementCount1[WrapIdx(i) >> 2]++;
             g_MemCard_ActiveSavegameEntry++;
