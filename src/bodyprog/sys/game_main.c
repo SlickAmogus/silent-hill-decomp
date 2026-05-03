@@ -109,6 +109,7 @@ int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person fol
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
+int g_SH_AlwaysMlTrace = 1;      /* 1 = unconditional ML_TRACE every frame; flip to 0 once silent crashes are diagnosed */
 int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
@@ -730,10 +731,14 @@ void MainLoop(void) // 0x80032EE0
 
 #ifdef SH_PC_PORT
         /* g_SH_PostFireTrace is bumped to N in Player_CombatUpdate when a
-         * fire dispatch happens. ML_TRACE prints for the next N frames
-         * to catch where the post-fire crash happens. */
+         * fire dispatch happens. ML_TRACE prints for those frames AND for
+         * any frame where g_SH_AlwaysMlTrace is set (currently always-on
+         * to diagnose the post-pistol-equip silent crash). */
         extern int g_SH_PostFireTrace;
-#define ML_TRACE(tag) do { if (g_SH_PostFireTrace > 0) SH_DBG("[ML] " tag); } while (0)
+        extern int g_SH_AlwaysMlTrace;
+#define ML_TRACE(tag) do { \
+    if (g_SH_PostFireTrace > 0 || g_SH_AlwaysMlTrace) SH_DBG("[ML] " tag); \
+} while (0)
 #else
 #define ML_TRACE(tag) ((void)0)
 #endif
