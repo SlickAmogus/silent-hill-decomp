@@ -712,12 +712,18 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
     GsCOORDINATE2* camCoord;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled — same fix as func_8006342C above. Stub
-     * `sharedData_800DFB7C_0_s00` was 256 B for a 200-entry × 20 B
-     * array; alloc walked off the end and corrupted adjacent globals.
-     * Now sized to 450 entries in pc_port/src/stubs/data_stubs.c. */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d",
+    /* PC: re-DISABLED for diagnostic. Re-enabling this in 2dc1253d8
+     * (sized stub to 9000B) coincided with geometry corruption during
+     * knife combat — bad nextPtrs in OT walker. Theory: dispatcher
+     * GTE-transforms spawned particle data, garbage Z avg lands in
+     * field_158, OT bucket math goes OOB. Spawn never produced visible
+     * blood anyway (BLD.TIM not loaded), so disabling is no visual
+     * regression. If geometry corruption disappears with this disabled,
+     * source is confirmed and we re-implement with proper PC-safe
+     * paths. */
+    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d (PC: skipping)",
            (void*)chara, chara->model.charaId, arg2, arg3);
+    return;
 #endif
 
     if (g_GameWork.config.optExtraBloodColor_24 == 14) // TODO: Demagic 14.
@@ -2117,16 +2123,16 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
     ptr = PSX_SCRATCH;
 
 #ifdef SH_PC_PORT
-    /* PC: re-enabled. WinDbg analysis of the post-fire crash dump
-     * revealed it was NOT in the prim-render path — it was the OT
-     * linked-list walker dereferencing a high-but-bogus next-pointer
-     * (`ParsePrimitivesLinkedList+0xa5`, INVALID_POINTER_READ). The
-     * walker's only guard caught nextPtr < 0x10000; values like
-     * `(uintptr_t)-1` and unmapped high addresses passed through.
-     * Walker now also bails on -1 and addresses past Windows user
-     * mode (0x7FFF'FFFF'FFFF). Worst case after re-enable: muzzle
-     * flash skips visually for a frame; game keeps running. */
-    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
+    /* PC: re-DISABLED for diagnostic — paired with func_8005F6B0
+     * disable. Re-enabling these spawns in 2dc1253d8 coincided with
+     * persistent geometry-disappearing during knife combat. Walker
+     * hardening + bucket clamps caught a lot but bad nextPtrs still
+     * reach the OT. Disabling spawn at the source isolates whether
+     * the spawn → dispatch → addPrim chain is the root cause. No
+     * visual regression — muzzle flash never rendered visibly anyway
+     * (TIM not loaded, etc.). */
+    SH_DBG("[6342C] enter weaponAttack=%d (PC: skipping)", (int)weaponAttack);
+    return;
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.
