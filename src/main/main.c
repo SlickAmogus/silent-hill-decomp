@@ -103,11 +103,19 @@ int main(void)
     // Initialize SPU.
     SpuInit();
 
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0] pre Fs_QueueStartReadTim 2ZANKO_E\n"); fflush(g_ShDebugLog); } }
+#endif
     // Load `1ST/2ZANKO_E.TIM` ("There are violent and disturbing images...").
 #if VERSION_REGION_IS(NTSCJ)
     Fs_QueueStartReadTim(FILE_1ST_2ZANKO80_TIM, FS_BUFFER_0, &g_MainImg0);
 #else
     Fs_QueueStartReadTim(FILE_1ST_2ZANKO_E_TIM, FS_BUFFER_0, &g_MainImg0);
+#endif
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0] post Fs_QueueStartReadTim — img0={tPage=%u,%u u=%u v=%u clutX=%d clutY=%d}\n",
+        (unsigned)g_MainImg0.tPage[0], (unsigned)g_MainImg0.tPage[1], (unsigned)g_MainImg0.u, (unsigned)g_MainImg0.v,
+        (int)g_MainImg0.clutX, (int)g_MainImg0.clutY); fflush(g_ShDebugLog); } }
 #endif
 
     while (Fs_QueueGetLength() > 0)
@@ -115,18 +123,37 @@ int main(void)
         Fs_QueueUpdate();
         VSync(SyncMode_Wait);
     }
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0] post Fs_QueueWait — TIM should be in VRAM now\n"); fflush(g_ShDebugLog); } }
+#endif
 
     // Start loading `1ST/BODYPROG.BIN` and `1ST\B_KONAMI.BIN`.
     Fs_QueueStartRead(FILE_1ST_BODYPROG_BIN, FS_BUFFER_0);
     Fs_QueueStartRead(FILE_1ST_B_KONAMI_BIN, FS_BUFFER_1);
 
     SetDispMask(1);
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0] pre fade-in loop (display warning image)\n"); fflush(g_ShDebugLog); } }
+#endif
 
     // Fade in `1ST/2ZANKO_E.TIM` over 64 frames using `TILE` with subtractive blending.
     fade = 255;
     prim = PSX_SCRATCH;
+#ifdef SH_PC_PORT
+    int _bootFadeIter = 0;
+#endif
     while (true)
     {
+#ifdef SH_PC_PORT
+        if ((_bootFadeIter & 0xF) == 0) {
+            extern FILE* g_ShDebugLog;
+            if (g_ShDebugLog) {
+                fprintf(g_ShDebugLog, "[BOOT0] fade-iter=%d fade=%d fbIdx=%d\n", _bootFadeIter, fade, (int)g_MainFbIdx);
+                fflush(g_ShDebugLog);
+            }
+        }
+        _bootFadeIter++;
+#endif
         g_MainDispEnv.disp.y = 256 - (g_MainFbIdx * 224);
         PutDispEnv(&g_MainDispEnv);
 
@@ -175,6 +202,10 @@ int main(void)
         Fs_QueueUpdate();
         VSync(SyncMode_Wait);
     }
+
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0] post fade-in loop done (total iters=%d)\n", _bootFadeIter); fflush(g_ShDebugLog); } }
+#endif
 
     // If files haven't loaded yet, wait until they do.
     while (Fs_QueueGetLength() > 0)

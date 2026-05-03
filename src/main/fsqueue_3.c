@@ -266,8 +266,18 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     TIM_IMAGE tim;
     RECT      tempRect;
 
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim entry: externalData=%p img.u=%u img.v=%u tPage=%u,%u clutX=%d clutY=%d\n",
+        entry->externalData, (unsigned)entry->extra.image.u, (unsigned)entry->extra.image.v,
+        (unsigned)entry->extra.image.tPage[0], (unsigned)entry->extra.image.tPage[1],
+        (int)entry->extra.image.clutX, (int)entry->extra.image.clutY); fflush(g_ShDebugLog); } }
+#endif
     OpenTIM((u64*)entry->externalData);
     ReadTIM(&tim);
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] post ReadTIM: prect=%p caddr=%p paddr=%p mode=%u\n",
+        (void*)tim.prect, (void*)tim.caddr, (void*)tim.paddr, (unsigned)tim.mode); fflush(g_ShDebugLog); } }
+#endif
 
     tempRect = *tim.prect;
     if (entry->extra.image.u != 0xFF)
@@ -280,6 +290,10 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         // Same as `tempRect.y = (entry->extra.image.tPage & 0x10) * 16` for normal tPage.
         tempRect.y = entry->extra.image.v + ((entry->extra.image.tPage[1] << 4) & 0x100);
     }
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre pixel LoadImage rect=(%d,%d %dx%d)\n",
+        (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
+#endif
 
     LoadImage(&tempRect, tim.paddr);
 
@@ -291,9 +305,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             tempRect.x = entry->extra.image.clutX;
             tempRect.y = entry->extra.image.clutY;
         }
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre CLUT LoadImage rect=(%d,%d %dx%d)\n",
+            (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
+#endif
 
         LoadImage(&tempRect, tim.caddr);
     }
+#ifdef SH_PC_PORT
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
+#endif
 
     return true;
 }
