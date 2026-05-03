@@ -112,6 +112,11 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
             g_MapEventData     = mapEvent;
             g_MapEventSysState = mapEvent->sysState;
             g_MapEventParam    = mapEvent->eventParam;
+#ifdef SH_PC_PORT
+            SH_DBG("[EVENT-NONE] mapEventIdx=%d sysState=%d eventParam=%d",
+                   (int)(mapEvent - g_MapOverlayHeader.mapEvents_24),
+                   (int)g_MapEventSysState, (int)g_MapEventParam);
+#endif
             return;
         }
 
@@ -218,6 +223,15 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         g_MapEventData     = mapEvent;
         g_MapEventSysState = mapEvent->sysState;
         g_MapEventParam    = mapEvent->eventParam;
+#ifdef SH_PC_PORT
+        SH_DBG("[EVENT-FIRE] mapEventIdx=%d sysState=%d eventParam=%d triggerType=%d activationType=%d poiIdx=%d",
+               (int)(mapEvent - g_MapOverlayHeader.mapEvents_24),
+               (int)g_MapEventSysState,
+               (int)g_MapEventParam,
+               (int)mapEvent->triggerType,
+               (int)mapEvent->activationType,
+               (int)mapEvent->pointOfInterestIdx);
+#endif
         return;
     }
 
