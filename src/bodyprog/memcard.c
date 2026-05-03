@@ -1631,7 +1631,20 @@ bool MemCard_WorkSet(e_MemCardIoMode mode, s32 deviceId, s_MemCard_Directory* ou
     g_MemCard_Work.directories_40 = outDir;
 
     MemCard_DevicePathGenerate(deviceId, g_MemCard_Work.filePath_44);
+#ifdef SH_PC_PORT
+    /* PSX strcat(dest, NULL) was harmless (the C library happened to
+     * read garbage from low memory and terminate). On x86-64 mingw
+     * strcat with NULL second arg is undefined and segfaults instantly.
+     * Process_Init / MemCard_WorkSet's MemCardIoMode_Init / DirRead
+     * paths pass filename = NULL — only the file Read/Write/Create
+     * paths supply a real filename. Skip the concat for NULL. */
+    if (filename != NULL)
+    {
+        strcat(g_MemCard_Work.filePath_44, filename);
+    }
+#else
     strcat(g_MemCard_Work.filePath_44, filename);
+#endif
 
     g_MemCard_Work.createBlockCount_60 = createBlockCount;
     g_MemCard_Work.seekOffset_64       = fileOffset;
