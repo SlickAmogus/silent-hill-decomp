@@ -74,10 +74,25 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
         BootScreen_KonamiScreenDraw();
         Screen_FadeUpdate();
         Fs_QueueUpdate();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] pre MemCard_Update\n"); fflush(g_ShDebugLog); } }
+#endif
         MemCard_Update();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] pre func_80033548\n"); fflush(g_ShDebugLog); } }
+#endif
         func_80033548();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post func_80033548\n"); fflush(g_ShDebugLog); } }
+#endif
         nullsub_800334C8();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post nullsub\n"); fflush(g_ShDebugLog); } }
+#endif
         VSync(SyncMode_Wait);
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post VSync\n"); fflush(g_ShDebugLog); } }
+#endif
 #ifdef SH_PC_PORT
         g_DeltaTime = Q12(1.0f / 60.0f);
         g_DeltaTimeRaw = Q12(1.0f / 60.0f);

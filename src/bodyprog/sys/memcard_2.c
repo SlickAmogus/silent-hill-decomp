@@ -362,11 +362,22 @@ bool func_80033548(void) // 0x80033548
         g_MemCard_TotalElementsCount += g_Savegame_ElementCount0[WrapIdx(i) >> 2];
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCRD2] post-slot-loop totalElems=%d savegameCount=%d", (int)g_MemCard_TotalElementsCount, (int)g_MemCard_SavegameCount);
+#endif
+
     g_MemCard_SavegameCount += g_MemCard_TotalElementsCount;
+
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCRD2] pre-2nd-device-loop");
+#endif
 
     for (i = 0; i < MEMCARD_DEVICE_COUNT_MAX; i += 4)
     {
         memCardStatus2 = MemCard_StatusGet(g_MemCard_AllMemCardsStatus, i);
+#ifdef SH_PC_PORT
+        SH_DBG_ECHO("[MCRD2] 2nd-loop slot=%d status2=%d", (int)i, (int)memCardStatus2);
+#endif
         if (memCardStatus2 == FileState_Unused || memCardStatus2 == FileState_Unk2)
         {
             D_800A97E0          = (WrapIdx(i) >> 2) == 0;
@@ -395,6 +406,9 @@ bool func_80033548(void) // 0x80033548
         }
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCRD2] post-2nd-device-loop D_800A97DC=%d D_800A97E0=%d", (int)D_800A97DC, (int)D_800A97E0);
+#endif
     D_800A97DC--;
 
     if (D_800A97DC == 0)
@@ -469,6 +483,10 @@ bool func_80033548(void) // 0x80033548
         g_GameWork.gameStateSteps[2] = 0;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCRD2] pre-final-switch sp3C=%d", (int)sp3C);
+#endif
+
     switch (sp3C)
     {
         case 1:
@@ -481,9 +499,15 @@ bool func_80033548(void) // 0x80033548
         case 16:
         case 20:
         case 25:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCRD2] func_80033548 returning true");
+#endif
             return true;
 
         default:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCRD2] func_80033548 returning false");
+#endif
             return false;
     }
 }
