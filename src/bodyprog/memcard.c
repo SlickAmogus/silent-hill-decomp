@@ -1327,11 +1327,34 @@ void MemCard_SaveBlockInit(s_PsxSaveBlock* saveBlock, s8 blockCount, s32 saveIdx
 
     bzero(saveBlock->field_44, 0x1C);
 
+#ifdef SH_PC_PORT
+    /* PC: skip the memcard icon copy. The icon TIM is split across
+     * three sequential globals (D_800A8D98 + D_800A8DA0 + D_800A8DA8)
+     * intended to lay out as one contiguous TIM in memory. On PSX this
+     * is the actual layout; on x86-64 mingw the second memcpy
+     * (textureData_80, paddr, 128) crashes inside msvcrt!memcpy with
+     * INVALID_POINTER_READ — most likely a SIMD overread past the end
+     * of D_800A8DA8 into unmapped memory, or a linker-placement
+     * difference that breaks the contiguity assumption.
+     *
+     * Without the icon copy the save block still has correct magic,
+     * blockCount, title (so the OS-level memcard browser shows the
+     * file with name) — only the visual icon is missing. The actual
+     * save data written by Process_Save's later phases (config + game
+     * data + header) is unaffected.
+     *
+     * Proper fix: bundle the three TIM globals into one byte array
+     * with explicit layout, or hard-code the icon CLUT/pixels into
+     * the save block directly. */
+    bzero(saveBlock->iconPalette_60, 0x20);
+    bzero(saveBlock->textureData_80, 0x80);
+#else
     OpenTIM(&D_800A8D98);
     ReadTIM(&iconTexture);
 
     memcpy(saveBlock->iconPalette_60, iconTexture.caddr, iconTexture.crect->w * iconTexture.crect->h * 2);
     memcpy(saveBlock->textureData_80, iconTexture.paddr, iconTexture.prect->w * iconTexture.prect->h * 2);
+#endif
 }
 
 s32 MemCard_DeviceTest(s32 deviceId) // 0x80030288
