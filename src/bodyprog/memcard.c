@@ -330,18 +330,11 @@ bool MemCard_NoSavesDoneCheck(s32* outDeviceId, s32* outFileIdx, s32* outSaveIdx
 void MemCard_Update(void) // 0x8002EB88
 {
 #ifdef SH_PC_PORT
-    /* PC: short-circuit RESTORED. Removing it in 88eb0738d combined
-     * with the func_80033548 un-stub crashed the game at boot. The
-     * Konami logo flow ends up calling `func_80033548` which calls
-     * `MemCard_SysInit2` which sets `g_MemCard_AvailibityStatus =
-     * true`, after which this per-frame pump runs the real PSX
-     * state machine (`MemCard_StateUpdate` → `MemCard_State_Init`
-     * → `_card_info` / SwEvent dispatch) before PsyCross is fully
-     * initialised — somewhere in that path the process dies.
-     *
-     * Re-enable in tandem with func_80033548 once the boot-time
-     * crash is identified. */
-    return;
+    /* PC: short-circuit REMOVED FOR DIAGNOSTIC (paired with the
+     * func_80033548 un-stub). Game will crash again at boot like
+     * 88eb0738d, but the [MCRD-INIT] entries (1cb46c6eb) will
+     * print every step of the SysInit2 chain until the dying
+     * call. Restore both short-circuits after capturing the log. */
 #endif
     s_MemCard_Process* statusPtr;
 
