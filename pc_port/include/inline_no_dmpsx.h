@@ -82,16 +82,31 @@
 } while(0)
 #endif
 
-/* gte_stsz3c - Store SZ1/SZ2/SZ3 (GTE C17-19) into 3 consecutive
- * shorts at p. The particle code uses this after gte_rtpt() to grab
- * the 3 transformed Z depths for OT depth-sorting. PsyCross doesn't
- * define it. */
+/* gte_stsz3c - Store SZ1/SZ2/SZ3 (GTE C17-19) at 4-byte stride.
+ *
+ * PSX impl uses `swc2 $N, K($r)` which is a Store Word Coprocessor 2
+ * — that's a 32-bit store at offsets 0, 4, 8 (NOT a halfword store).
+ * The SZ register is 16-bit, but swc2 writes the full 32-bit register
+ * (high 16 bits zero on this register class), so the destination
+ * struct fields are treated as s32 (e.g. bodyprog_8005E0DC.c reads
+ * field_158, field_15C, field_160 — 4-byte spaced).
+ *
+ * Earlier PC version wrote 3 consecutive SHORTS, which only filled
+ * field_158, field_15A, field_15C — leaving field_160 untouched
+ * (stale scratchpad data from the prior particle frame). That stale
+ * value flowed into the (158+15C+160+164)>>2 average-Z computation,
+ * producing an OOB OT bucket index → POLY_FT4 vertex bytes written
+ * into adjacent OT_TAG entries → bad-nextPtr crashes during knife
+ * combat.
+ *
+ * Fix: 4-byte stride writes matching PSX behavior. Lower 16 bits =
+ * GTE SZ value (0..0xFFFF, unsigned), upper 16 bits = 0. */
 #undef gte_stsz3c
 #define gte_stsz3c( p ) do { \
-    short *_s = (short*)(p); \
-    _s[0] = (short)MFC2(17); \
-    _s[1] = (short)MFC2(18); \
-    _s[2] = (short)MFC2(19); \
+    int *_w = (int*)(p); \
+    _w[0] = (int)(MFC2(17) & 0xFFFF); \
+    _w[1] = (int)(MFC2(18) & 0xFFFF); \
+    _w[2] = (int)(MFC2(19) & 0xFFFF); \
 } while(0)
 
 #endif
