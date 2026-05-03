@@ -82,8 +82,14 @@ static inline s32 WrapIdx(s32 idx)
 bool func_80033548(void) // 0x80033548
 {
 #ifdef SH_PC_PORT
-    /* Memory card detection not yet implemented on PC - pretend cards are ready */
-    return true;
+    /* PC: previously short-circuited with `return true;` because the
+     * memcard backend wasn't implemented. PsyCross now has a real
+     * memcard layer (0.MCD file + libapi.c firstfile/nextfile/open/
+     * read/write); let the real PSX state-machine flow run so the
+     * save screen actually populates slots/entryTypes. The early
+     * return was the reason the save screen showed only the
+     * notebook background with no slots/prompts. */
+    SH_DBG("[MCRD2] func_80033548 enter (real flow)");
 #endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.
