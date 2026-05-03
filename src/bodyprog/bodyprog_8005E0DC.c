@@ -1246,8 +1246,27 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
             setSemiTrans(*poly + 1, false);
 
+#ifdef SH_PC_PORT
+            /* Bounds-check the OT bucket index. The expression
+             *   (field_140 - field_3) >> 3
+             * has NO clamp in the original code (other particle funcs
+             * line 2350 / 2445 DO clamp). With deep-Z geometry or
+             * negative offsets the index can go OOB the org[2048]
+             * array and addPrim then writes prim data INTO the OT
+             * array itself — that's the source of the persistent
+             * `0x...NHS.` bad nextPtrs (POLY_FT4 vertex+UV bytes
+             * landing in OT_TAG addr fields). */
+            {
+                s32 _bucket1 = (ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
+                if (_bucket1 < 0) _bucket1 = 0;
+                if (_bucket1 >= ORDERING_TABLE_SIZE) _bucket1 = ORDERING_TABLE_SIZE - 1;
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket1], *poly);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket1], *poly + 1);
+            }
+#else
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly);
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 1);
+#endif
             *poly += 2;
         }
         else
@@ -1280,20 +1299,23 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * 4*sizeof(POLY_FT4)=192. +0xC=12 PSX DR_MODE; PC=20.
              * +0x18=24 (=2 PSX DR_MODE); PC=40.
              *
-             * Smoking gun: line 1271 sets (*poly)->tpage = 43 = 0x2B.
-             * Without this fix, that tpage write lands inside another
-             * prim's addr field — every observed bad nextPtr in the OT
-             * walker logs leads with 0x2B (e.g., 0x2B1F408EEA70F9). */
+             * Also bounds-clamp the OT bucket index — same OOB guard
+             * as the if-branch above. */
             ptr->field_12C = (PACKET*)((POLY_FT4*)(*poly) + 4);
             SetPriority(ptr->field_12C, 0, 0);
             SetPriority((PACKET*)((DR_MODE*)ptr->field_12C + 1), 1, 1);
 
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 1);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 2);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], ptr->field_12C);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly + 3);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], (PACKET*)((DR_MODE*)ptr->field_12C + 1));
+            {
+                s32 _bucket2 = (ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
+                if (_bucket2 < 0) _bucket2 = 0;
+                if (_bucket2 >= ORDERING_TABLE_SIZE) _bucket2 = ORDERING_TABLE_SIZE - 1;
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 1);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 2);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], ptr->field_12C);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 3);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], (PACKET*)((DR_MODE*)ptr->field_12C + 1));
+            }
             *poly = (POLY_FT4*)((DR_MODE*)ptr->field_12C + 2);
 #else
             ptr->field_12C = (PACKET*)*poly + 0xA0;
@@ -1331,7 +1353,17 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
     *(s32*)&(*poly)->u0 = (((g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) + (((ptr->field_164 << 5) + ptr->field_168) << 8) + ((ptr->field_150 << 5) + ptr->field_154);
 
+#ifdef SH_PC_PORT
+    /* Same OOB-bucket fix as the if/else branches above. */
+    {
+        s32 _bucketT = (ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
+        if (_bucketT < 0) _bucketT = 0;
+        if (_bucketT >= ORDERING_TABLE_SIZE) _bucketT = ORDERING_TABLE_SIZE - 1;
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketT], *poly);
+    }
+#else
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3], *poly);
+#endif
 
     *poly += 1;
 
