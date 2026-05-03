@@ -8149,6 +8149,12 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
     #define playerExtra  g_SysWork.playerWork.extra
     #define playerCombat g_SysWork.playerCombat
 
+#ifdef SH_PC_PORT
+    SH_DBG("[CU] enter weap=%d lbState=%d state=%d gasTimer=%d",
+           (int)playerCombat.weaponAttack, (int)playerExtra.lowerBodyState,
+           (int)playerExtra.state, (int)playerProps.gasWeaponPowerTimer_114);
+#endif
+
     model = &playerExtra.model;
 
     if (playerExtra.lowerBodyState < PlayerLowerBodyState_Aim)
@@ -8180,6 +8186,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         }
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[CU] post-bone-copy");
+#endif
     if (playerProps.gasWeaponPowerTimer_114 != Q12(0.0f))
     {
         g_SysWork.timer_2C++;
@@ -8187,10 +8196,19 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         if (playerProps.moveDistance_126 >= Q12(3.1739f) ||
             (g_SysWork.timer_2C & (1 << 0)))
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[CU] pre-6342C call (gas weapon spawn)");
+#endif
             func_8006342C(g_SavegamePtr->equippedWeapon_AA - InvItemId_KitchenKnife,
                           Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), coord);
+#ifdef SH_PC_PORT
+            SH_DBG("[CU] post-6342C call");
+#endif
         }
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[CU] pre-main-combat");
+#endif
 
     if (!(playerExtra.state >= PlayerState_Unk7 && playerExtra.state < PlayerState_Unk51) &&
         ((playerExtra.state >= PlayerState_None && playerExtra.state < PlayerState_Idle) ||
@@ -8323,6 +8341,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             unkRot.vy = ratan2(temp_s0, sp70.vy - Q12_TO_Q8(playerCombat.field_0.vy));
         }
 
+#ifdef SH_PC_PORT
+        SH_DBG("[CU] pre-HyperBlaster-check");
+#endif
         if (playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap) &&
             playerCombat.isAiming &&
             model->anim.status >= ANIM_STATUS(HarryAnim_HandgunAim, true) && model->anim.keyframeIdx >= 574)
@@ -8357,6 +8378,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             }
         }
 
+#ifdef SH_PC_PORT
+        SH_DBG("[CU] pre-Chainsaw-RockDrill-check");
+#endif
         if (playerExtra.state < PlayerState_Idle)
         {
             if ((playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw, AttackInputType_Tap) &&
