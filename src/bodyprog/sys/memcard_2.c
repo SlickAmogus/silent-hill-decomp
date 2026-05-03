@@ -89,7 +89,7 @@ bool func_80033548(void) // 0x80033548
      * 1cb46c6eb) will fire as the flow runs, and the LAST line
      * before the crash names the dying call. Then we restore the
      * short-circuit and patch that call surgically. */
-    SH_DBG("[MCRD2] func_80033548 enter (real flow)");
+    SH_DBG_ECHO("[MCRD2] func_80033548 enter (real flow)");
 #endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.
@@ -141,7 +141,7 @@ bool func_80033548(void) // 0x80033548
         memSaveDataIdx   = WrapIdx(i);
 
 #ifdef SH_PC_PORT
-        SH_DBG("[MCRD2] slot=%d screenState=%d cardStatus=%d (prev=%d) (NotConn=0/Success=1/InitErr=2/InitDone=3/LoadErr=4/NewDev=5/NoNewDev=6)",
+        SH_DBG_ECHO("[MCRD2] slot=%d screenState=%d cardStatus=%d (prev=%d) (NotConn=0/Success=1/InitErr=2/InitDone=3/LoadErr=4/NewDev=5/NoNewDev=6)",
                (int)i, (int)g_SaveScreen_SaveScreenState, (int)memCardStatus, (int)preMemCardStatus);
 #endif
 
@@ -217,7 +217,7 @@ bool func_80033548(void) // 0x80033548
             }
 
 #ifdef SH_PC_PORT
-            SH_DBG("[MCRD2] slot=%d not-init-complete entryType=%d (NoMC=0/Unfmt=1/Corrupt=2/Load=3/OutBlks=4/NoData=5/Unk6=6/CorrSv=7/Sv=8/NewSv=9/NewFi=10)",
+            SH_DBG_ECHO("[MCRD2] slot=%d not-init-complete entryType=%d (NoMC=0/Unfmt=1/Corrupt=2/Load=3/OutBlks=4/NoData=5/Unk6=6/CorrSv=7/Sv=8/NewSv=9/NewFi=10)",
                    (int)i, (int)g_MemCard_ActiveSavegameEntry->type_4);
 #endif
 
@@ -244,7 +244,7 @@ bool func_80033548(void) // 0x80033548
             }
 
 #ifdef SH_PC_PORT
-            SH_DBG("[MCRD2] slot=%d init-complete usedFiles=0 entryType=%d", (int)i,
+            SH_DBG_ECHO("[MCRD2] slot=%d init-complete usedFiles=0 entryType=%d", (int)i,
                    (int)g_MemCard_ActiveSavegameEntry->type_4);
 #endif
 

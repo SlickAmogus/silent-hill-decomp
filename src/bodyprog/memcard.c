@@ -137,33 +137,33 @@ bool MemCard_AreAllFilesUsed(s32 deviceId) // 0x8002E76C
 void MemCard_SysInit2(void) // 0x8002E7BC
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SysInit2 enter availability=%d", (int)g_MemCard_AvailibityStatus);
+    SH_DBG_ECHO("[MCRD-INIT] SysInit2 enter availability=%d", (int)g_MemCard_AvailibityStatus);
 #endif
     if (g_MemCard_AvailibityStatus == true)
     {
 #ifdef SH_PC_PORT
-        SH_DBG("[MCRD-INIT] SysInit2 skipped (already initialised)");
+        SH_DBG_ECHO("[MCRD-INIT] SysInit2 skipped (already initialised)");
 #endif
         return;
     }
 
     g_MemCard_AvailibityStatus = true;
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] pre StatusInitSuccess");
+    SH_DBG_ECHO("[MCRD-INIT] pre StatusInitSuccess");
 #endif
     MemCard_StatusInitSuccess();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] pre EventsInit");
+    SH_DBG_ECHO("[MCRD-INIT] pre EventsInit");
 #endif
     MemCard_EventsInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] post EventsInit");
+    SH_DBG_ECHO("[MCRD-INIT] post EventsInit");
 #endif
 
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork_E0[0], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork_E0[1], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SysInit2 done");
+    SH_DBG_ECHO("[MCRD-INIT] SysInit2 done");
 #endif
 }
 
@@ -1336,19 +1336,19 @@ void MemCard_Init(void) // 0x800303E4
 void MemCard_EventsInit(void) // 0x80030414
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] EventsInit: pre StateInit");
+    SH_DBG_ECHO("[MCRD-INIT] EventsInit: pre StateInit");
 #endif
     MemCard_StateInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] EventsInit: pre SwEventsInit");
+    SH_DBG_ECHO("[MCRD-INIT] EventsInit: pre SwEventsInit");
 #endif
     MemCard_SwEventsInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] EventsInit: pre HwEventsInit");
+    SH_DBG_ECHO("[MCRD-INIT] EventsInit: pre HwEventsInit");
 #endif
     MemCard_HwEventsInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] EventsInit: done");
+    SH_DBG_ECHO("[MCRD-INIT] EventsInit: done");
 #endif
 }
 
@@ -1362,26 +1362,26 @@ void MemCard_StateInit(void) // 0x80030444
 void MemCard_SwEventsInit(void) // 0x8003045C
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: pre EnterCriticalSection");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: pre EnterCriticalSection");
 #endif
     EnterCriticalSection();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: pre OpenEvent IOE");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: pre OpenEvent IOE");
 #endif
     g_MemCard_Work.eventSwSpIOE_10    = OpenEvent(SwCARD, EvSpIOE, EvMdNOINTR, NULL);
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: IOE handle=%d", (int)g_MemCard_Work.eventSwSpIOE_10);
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: IOE handle=%d", (int)g_MemCard_Work.eventSwSpIOE_10);
 #endif
     g_MemCard_Work.eventSwSpERROR_14  = OpenEvent(SwCARD, EvSpERROR, EvMdNOINTR, NULL);
     g_MemCard_Work.eventSwSpTIMOUT_18 = OpenEvent(SwCARD, EvSpTIMOUT, EvMdNOINTR, NULL);
     g_MemCard_Work.eventSwSpNEW_1C    = OpenEvent(SwCARD, EvSpNEW, EvMdNOINTR, NULL);
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: 4x OpenEvent done, pre ExitCriticalSection");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: 4x OpenEvent done, pre ExitCriticalSection");
 #endif
     ExitCriticalSection();
 
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: pre EnableEvents");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: pre EnableEvents");
 #endif
     EnableEvent(g_MemCard_Work.eventSwSpIOE_10);
     EnableEvent(g_MemCard_Work.eventSwSpERROR_14);
@@ -1389,22 +1389,22 @@ void MemCard_SwEventsInit(void) // 0x8003045C
     EnableEvent(g_MemCard_Work.eventSwSpNEW_1C);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: pre SwEventsReset");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: pre SwEventsReset");
 #endif
     MemCard_SwEventsReset();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] SwEventsInit: done");
+    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: done");
 #endif
 }
 
 void MemCard_HwEventsInit(void) // 0x80030530
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: pre EnterCriticalSection");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: pre EnterCriticalSection");
 #endif
     EnterCriticalSection();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: pre 5x OpenEvent (with INTR callbacks)");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: pre 5x OpenEvent (with INTR callbacks)");
 #endif
     g_MemCard_Work.eventHwSpIOE_20     = OpenEvent(HwCARD, EvSpIOE, EvMdINTR, MemCard_HwEventSpIOE);
     g_MemCard_Work.eventHwSpERROR_24   = OpenEvent(HwCARD, EvSpERROR, EvMdINTR, MemCard_HwEventSpERROR);
@@ -1412,12 +1412,12 @@ void MemCard_HwEventsInit(void) // 0x80030530
     g_MemCard_Work.eventHwSpNEW_2C     = OpenEvent(HwCARD, EvSpNEW, EvMdINTR, MemCard_HwEventSpNEW);
     g_MemCard_Work.eventHwSpUNKNOWN_30 = OpenEvent(HwCARD, EvSpUNKNOWN, EvMdINTR, MemCard_HwEventSpUNKNOWN);
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: 5x OpenEvent done, pre ExitCriticalSection");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: 5x OpenEvent done, pre ExitCriticalSection");
 #endif
     ExitCriticalSection();
 
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: pre EnableEvents");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: pre EnableEvents");
 #endif
     EnableEvent(g_MemCard_Work.eventHwSpIOE_20);
     EnableEvent(g_MemCard_Work.eventHwSpERROR_24);
@@ -1426,11 +1426,11 @@ void MemCard_HwEventsInit(void) // 0x80030530
     EnableEvent(g_MemCard_Work.eventHwSpUNKNOWN_30);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: pre HwEventsReset");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: pre HwEventsReset");
 #endif
     MemCard_HwEventsReset();
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD-INIT] HwEventsInit: done");
+    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: done");
 #endif
 }
 
@@ -1862,7 +1862,7 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
             strcat(filePath, "*");
             curFile = firstfile(filePath, &fileInfo);
 #ifdef SH_PC_PORT
-            SH_DBG("[MCRD] DirRead: firstfile path='%s' result=%p", filePath, (void*)curFile);
+            SH_DBG_ECHO("[MCRD] DirRead: firstfile path='%s' result=%p", filePath, (void*)curFile);
 #endif
         }
         else
@@ -1883,7 +1883,7 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
     result = (g_MemCard_Work.hasNewDevice_70 == true) ? MemCardResult_NewDevice : MemCardResult_NoNewDevice;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[MCRD] DirRead done: filesFound=%d hasNewDevice=%d -> result=%d (NewDevice=5/NoNewDevice=6)",
+    SH_DBG_ECHO("[MCRD] DirRead done: filesFound=%d hasNewDevice=%d -> result=%d (NewDevice=5/NoNewDevice=6)",
            filesFound, (int)g_MemCard_Work.hasNewDevice_70, (int)result);
 #endif
 
@@ -1909,7 +1909,7 @@ s32 MemCard_State_FileCreate(void) // 0x800310B4
         case 1:
             g_MemCard_Work.fileHandle_74 = open(g_MemCard_Work.filePath_44, (g_MemCard_Work.createBlockCount_60 << 16) | O_CREAT);
 #ifdef SH_PC_PORT
-            SH_DBG("[MCRD] FileCreate: path='%s' blockCount=%d -> handle=%d retry=%d",
+            SH_DBG_ECHO("[MCRD] FileCreate: path='%s' blockCount=%d -> handle=%d retry=%d",
                    g_MemCard_Work.filePath_44,
                    (int)g_MemCard_Work.createBlockCount_60,
                    (int)g_MemCard_Work.fileHandle_74,
