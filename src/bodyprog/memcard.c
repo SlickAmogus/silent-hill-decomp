@@ -8,6 +8,10 @@
 #include "main/fsqueue.h"
 #include "bodyprog/memcard.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 #ifndef PAD_HACK_IGNORE
     s32 __pad_bss_800B5484;
 #endif
@@ -1771,6 +1775,7 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
     char             filePath[16];
     s32              result;
     s32              i;
+    s32              filesFound = 0;
 
     for (i = 0; i < MEMCARD_FILE_COUNT_MAX; i++)
     {
@@ -1784,6 +1789,9 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
             MemCard_DevicePathGenerate(g_MemCard_Work.deviceId_3C, filePath);
             strcat(filePath, "*");
             curFile = firstfile(filePath, &fileInfo);
+#ifdef SH_PC_PORT
+            SH_DBG("[MCRD] DirRead: firstfile path='%s' result=%p", filePath, (void*)curFile);
+#endif
         }
         else
         {
@@ -1797,9 +1805,15 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
 
         strcpy(g_MemCard_Work.directories_40->filenames_0[i], fileInfo.name);
         g_MemCard_Work.directories_40->blockCounts_13B[i] = (fileInfo.size + (8192 - 1)) / 8192;
+        filesFound++;
     }
 
     result = (g_MemCard_Work.hasNewDevice_70 == true) ? MemCardResult_NewDevice : MemCardResult_NoNewDevice;
+
+#ifdef SH_PC_PORT
+    SH_DBG("[MCRD] DirRead done: filesFound=%d hasNewDevice=%d -> result=%d (NewDevice=5/NoNewDevice=6)",
+           filesFound, (int)g_MemCard_Work.hasNewDevice_70, (int)result);
+#endif
 
     g_MemCard_Work.state_4     = MemCardCardState_Idle;
     g_MemCard_Work.stateStep_8 = 0;
@@ -1822,6 +1836,13 @@ s32 MemCard_State_FileCreate(void) // 0x800310B4
 
         case 1:
             g_MemCard_Work.fileHandle_74 = open(g_MemCard_Work.filePath_44, (g_MemCard_Work.createBlockCount_60 << 16) | O_CREAT);
+#ifdef SH_PC_PORT
+            SH_DBG("[MCRD] FileCreate: path='%s' blockCount=%d -> handle=%d retry=%d",
+                   g_MemCard_Work.filePath_44,
+                   (int)g_MemCard_Work.createBlockCount_60,
+                   (int)g_MemCard_Work.fileHandle_74,
+                   (int)g_MemCard_Work.retryCount_78);
+#endif
             if (g_MemCard_Work.fileHandle_74 == NO_VALUE)
             {
                 if (g_MemCard_Work.retryCount_78++ >= 15)
