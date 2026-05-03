@@ -923,14 +923,32 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
             break;
 
         case 1: // Creates a new file in the memory card.
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MPS] case1 pre SaveBlockInit fileIdxCpy=%d", (int)fileIdxCpy);
+#endif
             MemCard_SaveBlockInit(&g_MemCard_SaveWork.saveBlock_118, 1, fileIdxCpy, 0, 0, 0x70, 0x60, 0, 0);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MPS] case1 pre SaveInfoClear");
+#endif
             MemCard_SaveInfoClear(&g_MemCard_SaveWork.saveInfo_318);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MPS] case1 pre FilenameGenerate");
+#endif
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MPS] case1 post FilenameGenerate filePath='%s'", filePath);
+#endif
 
             if (MemCard_WorkSet(MemCardIoMode_Create, statusPtr->deviceId_4, NULL, filePath, 1, 0, &g_MemCard_SaveWork.saveBlock_118, 0x300))
             {
+#ifdef SH_PC_PORT
+                SH_DBG_ECHO("[MPS] case1 WorkSet returned true, advancing to state 2");
+#endif
                 statusPtr->processState_10 = 2;
             }
+#ifdef SH_PC_PORT
+            else { SH_DBG_ECHO("[MPS] case1 WorkSet returned false (state busy?)"); }
+#endif
             break;
 
         case 2: // Checks if previous step was successful.
