@@ -648,15 +648,27 @@ void MainLoop(void) // 0x80032EE0
         g_TickCount++;
 
 #ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] === iteration tick=%u start ===\n", (unsigned)g_TickCount); fflush(g_ShDebugLog); } }
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post PsyX_UpdateInput\n"); fflush(g_ShDebugLog); } }
         DebugConsole_Update();
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post DebugConsole_Update\n"); fflush(g_ShDebugLog); } }
 #endif
         // Update input.
         Joy_ReadP1();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Joy_ReadP1\n"); fflush(g_ShDebugLog); } }
+#endif
         Demo_ControllerDataUpdate();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Demo_ControllerDataUpdate\n"); fflush(g_ShDebugLog); } }
+#endif
         Joy_ControllerDataUpdate();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Joy_ControllerDataUpdate\n"); fflush(g_ShDebugLog); } }
+#endif
 
         if (MainLoop_ShouldWarmReset() == 2)
         {
@@ -696,13 +708,25 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre GsClearOt OT0/OT2\n"); fflush(g_ShDebugLog); } }
+#endif
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post GsClearOt\n"); fflush(g_ShDebugLog); } }
+#endif
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] tick=%u gameState=%d pre GameStateUpdate\n", (unsigned)g_TickCount, (int)g_GameWork.gameState); fflush(g_ShDebugLog); } }
+#endif
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post GameStateUpdate\n"); fflush(g_ShDebugLog); } }
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
@@ -732,8 +756,17 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_Update\n"); fflush(g_ShDebugLog); } }
+#endif
         Demo_Update();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_GameRandSeedSet\n"); fflush(g_ShDebugLog); } }
+#endif
         Demo_GameRandSeedSet();
+#ifdef SH_PC_PORT
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre WarmReset check\n"); fflush(g_ShDebugLog); } }
+#endif
 
         if (MainLoop_ShouldWarmReset() == 2)
         {
@@ -745,11 +778,13 @@ void MainLoop(void) // 0x80032EE0
         /* g_SH_PostFireTrace is bumped to N in Player_CombatUpdate when a
          * fire dispatch happens. ML_TRACE prints for those frames AND for
          * any frame where g_SH_AlwaysMlTrace is set (currently always-on
-         * to diagnose the post-pistol-equip silent crash). */
+         * to diagnose the post-pistol-equip silent crash AND a boot-time
+         * silent crash that dies after frame 1's GameState_Boot_Update
+         * completes — so flush per call so the trace survives the crash). */
         extern int g_SH_PostFireTrace;
         extern int g_SH_AlwaysMlTrace;
 #define ML_TRACE(tag) do { \
-    if (g_SH_PostFireTrace > 0 || g_SH_AlwaysMlTrace) SH_DBG("[ML] " tag); \
+    if (g_SH_PostFireTrace > 0 || g_SH_AlwaysMlTrace) SH_DBG_ECHO("[ML] " tag); \
 } while (0)
 #else
 #define ML_TRACE(tag) ((void)0)
