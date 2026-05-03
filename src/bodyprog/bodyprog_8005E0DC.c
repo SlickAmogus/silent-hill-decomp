@@ -1721,9 +1721,30 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
         (*poly + 1)->b0         = ptr->field_130.b;
 
+#ifdef SH_PC_PORT
+        /* Bounds-clamp OT bucket. The early-return guard at line 1539
+         * checks `(field_158 - 8) >> 3 < OT_SIZE` but addPrim here
+         * uses `field_158 >> 3` (no -8), so for field_158 near upper
+         * bound the index can be one bucket past what the guard
+         * tested. addPrim writes prim data into wrong memory inside
+         * the OT array, producing the persistent `0x...NHS.` bad
+         * nextPtr corruption (POLY_FT4 vertex bytes from this prim
+         * landing in another OT entry's addr field). User reports
+         * geometry disappearing during knife combat — this is the
+         * corruption path that survived the func_80060044 fix. */
+        {
+            s32 _bucket = ptr->field_158 >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 1);
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 2);
+        }
+#else
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly);
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly + 1);
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly + 2);
+#endif
 
         *poly = *poly + 3;
     }
@@ -1734,7 +1755,17 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         *(u16*)&(*poly)->r0 = var_t0 + (var_t0 << 8);
         (*poly)->b0         = var_t0;
 
+#ifdef SH_PC_PORT
+        /* Same off-by-one bound clamp as the if-branch above. */
+        {
+            s32 _bucket = ptr->field_158 >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+        }
+#else
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly);
+#endif
 
         *poly = *poly + 1;
     }
