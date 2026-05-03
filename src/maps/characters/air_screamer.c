@@ -1561,7 +1561,19 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                     break;
                 }
 #ifdef MAP0_S01
+                /* Passive health drain. Original PSX rate (×10) gives a
+                 * 38-second floor for the boss to die even with no
+                 * player attacks, which felt long in PC playtesting
+                 * (user reports ~1-2 minute wait between starting the
+                 * fight and the death cutscene). 4x faster drain →
+                 * ~9.5-second floor, still long enough for the player
+                 * to land hits and feel agency over the fight, but
+                 * doesn't stretch out post-AS-aggro into tedium. */
+#ifdef SH_PC_PORT
+                damage = g_DeltaTime * 40;
+#else
                 damage = g_DeltaTime * 10;
+#endif
                 if (damage < airScreamer->health)
                 {
                     airScreamer->health -= damage;
