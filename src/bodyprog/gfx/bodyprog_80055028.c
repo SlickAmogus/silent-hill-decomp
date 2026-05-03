@@ -1976,10 +1976,18 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
      * AT LEAST PSX's half-width so taller windows still see the full
      * native FOV (with ortho stretching to fill vertically). */
     {
+        /* Multiply by PSX_NTSC_PIXEL_ASPECT (1.09375) to match
+         * PsyCross's hor+ ortho — see PsyX_render.cpp commit 9c502de.
+         * Without this factor, polygons in the ~9.4% horizontal slice
+         * exposed by the pixel-aspect compensation get culled by this
+         * per-poly visibility bound even though they'd render. This is
+         * the actual source of the persistent edge-of-screen "missing
+         * triangle" culling reported across multiple test sessions
+         * since the pixel-aspect fix landed. */
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
         const float visibleHalfW = (g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight))
+               (2.0f * (float)g_PcConfig.windowHeight)) * 1.09375f
             : (float)psxHalfW;
         s32 halfW = (s32)(visibleHalfW + 0.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
@@ -2907,7 +2915,24 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
+#ifdef SH_PC_PORT
+    /* Same per-poly visibility bound as Gfx_MeshDraw (line 1979) —
+     * applied at the second mesh-render path. Apply hor+ +
+     * pixel-aspect formula here too or polys get culled at edges
+     * even with the other fix in place. */
+    {
+        const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
+        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+            ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+               (2.0f * (float)g_PcConfig.windowHeight)) * 1.09375f
+            : (float)psxHalfW;
+        s32 halfW = (s32)(visibleHalfW + 0.5f);
+        if (halfW < psxHalfW) halfW = psxHalfW;
+        scratchData->field_380.s_0.field_0 = halfW;
+    }
+#else
     scratchData->field_380.s_0.field_0 = g_GameWork.gsScreenWidth >> 1;
+#endif
 
     for (prim = meshHdr->primitives_4; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
     {
