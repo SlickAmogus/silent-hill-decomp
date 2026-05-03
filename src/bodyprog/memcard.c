@@ -312,8 +312,14 @@ bool MemCard_NoSavesDoneCheck(s32* outDeviceId, s32* outFileIdx, s32* outSaveIdx
 void MemCard_Update(void) // 0x8002EB88
 {
 #ifdef SH_PC_PORT
-    /* Memory card I/O not implemented on PC - skip to avoid blocking */
-    return;
+    /* PC: previously short-circuited because the memcard backend
+     * wasn't implemented. PsyCross now provides a real memcard
+     * layer, so let the per-frame state pump run. Without
+     * MemCard_StateUpdate() running, the state machine never
+     * advanced past initial → DirRead never executed → save screen
+     * had nothing to enumerate. Paired with the same fix to
+     * func_80033548 (memcard_2.c) which gates the slot-render
+     * pipeline. */
 #endif
     s_MemCard_Process* statusPtr;
 
