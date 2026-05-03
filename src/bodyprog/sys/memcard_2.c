@@ -82,14 +82,20 @@ static inline s32 WrapIdx(s32 idx)
 bool func_80033548(void) // 0x80033548
 {
 #ifdef SH_PC_PORT
-    /* PC: previously short-circuited with `return true;` because the
-     * memcard backend wasn't implemented. PsyCross now has a real
-     * memcard layer (0.MCD file + libapi.c firstfile/nextfile/open/
-     * read/write); let the real PSX state-machine flow run so the
-     * save screen actually populates slots/entryTypes. The early
-     * return was the reason the save screen showed only the
-     * notebook background with no slots/prompts. */
-    SH_DBG("[MCRD2] func_80033548 enter (real flow)");
+    /* PC: short-circuit RESTORED. Removing it in 88eb0738d crashed
+     * the game at boot — `func_80033548` is invoked from the Konami
+     * logo screen (b_konami.c:78) and the title screen (title.c:123)
+     * BEFORE any save UI appears, and the real PSX state-machine
+     * flow doesn't survive the early-boot environment yet (some
+     * MemCard_SysInit2 / SwEvent / state-pump path crashes hard
+     * before this function's body even reaches the inner SH_DBG).
+     *
+     * The empty save screen is a known-issue side effect of this
+     * short-circuit. To re-enable safely we'd need to gate the real
+     * flow on actually being inside the save UI (not boot screens),
+     * or fix the early-boot crash first (likely a NULL pointer in
+     * MemCard_SysInit2 or its SwEvent setup). */
+    return true;
 #endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.

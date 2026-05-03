@@ -312,14 +312,18 @@ bool MemCard_NoSavesDoneCheck(s32* outDeviceId, s32* outFileIdx, s32* outSaveIdx
 void MemCard_Update(void) // 0x8002EB88
 {
 #ifdef SH_PC_PORT
-    /* PC: previously short-circuited because the memcard backend
-     * wasn't implemented. PsyCross now provides a real memcard
-     * layer, so let the per-frame state pump run. Without
-     * MemCard_StateUpdate() running, the state machine never
-     * advanced past initial → DirRead never executed → save screen
-     * had nothing to enumerate. Paired with the same fix to
-     * func_80033548 (memcard_2.c) which gates the slot-render
-     * pipeline. */
+    /* PC: short-circuit RESTORED. Removing it in 88eb0738d combined
+     * with the func_80033548 un-stub crashed the game at boot. The
+     * Konami logo flow ends up calling `func_80033548` which calls
+     * `MemCard_SysInit2` which sets `g_MemCard_AvailibityStatus =
+     * true`, after which this per-frame pump runs the real PSX
+     * state machine (`MemCard_StateUpdate` → `MemCard_State_Init`
+     * → `_card_info` / SwEvent dispatch) before PsyCross is fully
+     * initialised — somewhere in that path the process dies.
+     *
+     * Re-enable in tandem with func_80033548 once the boot-time
+     * crash is identified. */
+    return;
 #endif
     s_MemCard_Process* statusPtr;
 
