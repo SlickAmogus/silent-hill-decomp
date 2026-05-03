@@ -2026,9 +2026,31 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 *(u16*)&(*poly + 1)->r0           = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0                   = ptr->field_130.b;
 
+#ifdef SH_PC_PORT
+                /* Bounds-clamp OT bucket. The early-return guard at the
+                 * top of this function checks `field_20C >> 3 < OT_SIZE`
+                 * but addPrim here uses `(field_20C + var_s7) >> 3` —
+                 * var_s7 can be 0x100 (256) on normal path or 0xC (12)
+                 * on death — pushing the index past 2047 even when the
+                 * guard passed. Same OOB class as func_80060044 was;
+                 * different particle path (this one fires when knife
+                 * hits AS — `func_800622B8(3,...)` → slot 3 → here).
+                 * The bad nextPtr 0x...2E4E4349 ASCII-pattern in the
+                 * recent log decodes to POLY_FT4 vertex bytes from
+                 * this prim landing in another OT entry's addr field. */
+                {
+                    s32 _bucket = (ptr->field_20C + var_s7) >> 3;
+                    if (_bucket < 0) _bucket = 0;
+                    if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 1);
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 2);
+                }
+#else
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly);
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly + 1);
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly + 2);
+#endif
 
                 *poly = *poly + 3;
             }
@@ -2037,7 +2059,16 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 *(u16*)&(*poly)->r0 = temp_s2 + (temp_s2 << 8);
                 (*poly)->b0         = temp_s2;
 
+#ifdef SH_PC_PORT
+                {
+                    s32 _bucket2 = (ptr->field_20C + var_s7) >> 3;
+                    if (_bucket2 < 0) _bucket2 = 0;
+                    if (_bucket2 >= ORDERING_TABLE_SIZE) _bucket2 = ORDERING_TABLE_SIZE - 1;
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly);
+                }
+#else
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly);
+#endif
 
                 *poly = *poly + 1;
             }
@@ -2653,7 +2684,21 @@ bool func_80064FC0(POLY_FT4** polys, s32 idx) // 0x80064FC0
     *(u16*)&(*polys)->u2 = 0x3F00;
     *(u16*)&(*polys)->u3 = 0x3F3F;
 
+#ifdef SH_PC_PORT
+    /* Bounds-clamp OT bucket. func_80064FC0 (case 31, spark/glow) only
+     * has screen-space ABS guards earlier — no Z guard. Negative Z (e.g.
+     * particle very close to camera, behind near plane) → unsigned wrap
+     * to astronomical OOB index. Same OOB class as the other particle
+     * functions; clamp to valid OT bucket range. */
+    {
+        s32 _bucket = (ptr->field_140 - 0x20) >> 3;
+        if (_bucket < 0) _bucket = 0;
+        if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], (*polys));
+    }
+#else
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - 0x20) >> 3], (*polys));
+#endif
 
     *polys += 1;
     return true;
