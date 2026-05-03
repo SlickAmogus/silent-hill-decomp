@@ -675,6 +675,37 @@ s32 sharedFunc_800D2DAC_0_s00(void)
         // Check if anim has started or finished.
         if (Anim_DurationGet(model, animInfo) > Q12(0.0f))
         {
+#ifdef SH_PC_PORT
+            /* PC: the cutscene-anim shim that replaces the original
+             * func_BC for in-cutscene player updates copies DMS pose to
+             * bones but doesn't advance model->anim.keyframeIdx through
+             * the scripted sequence. So this function — used by script
+             * state machines to poll "anim done?" before advancing —
+             * returns 0 forever, leaving Harry frozen at scripted
+             * interaction points (dog statue save, hospital vines,
+             * other crouch/inspect anims).
+             *
+             * Fallback: if keyframeIdx hasn't advanced for ~60 frames
+             * (~250 ms @ 240 fps), report the anim as done. The
+             * player_control.c PUPD logging shows kf stuck for thousands
+             * of frames in stuck cases — 60 is a generous threshold
+             * that won't false-positive on a real running anim. */
+            {
+                static s32 s_lastKf       = -1;
+                static s32 s_stuckCounter = 0;
+                static s32 s_lastStatus   = -1;
+                if ((s32)model->anim.status != s_lastStatus
+                    || (s32)model->anim.keyframeIdx != s_lastKf) {
+                    s_lastStatus   = model->anim.status;
+                    s_lastKf       = model->anim.keyframeIdx;
+                    s_stuckCounter = 0;
+                } else if (++s_stuckCounter > 60) {
+                    /* unfreeze: pretend we hit the end keyframe */
+                    s_stuckCounter = 0;
+                    return 1;
+                }
+            }
+#endif
             return model->anim.keyframeIdx == animInfo->endKeyframeIdx;
         }
         else
