@@ -343,7 +343,16 @@ void MemCard_Update(void) // 0x8002EB88
         return;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCU] availability=true state=%d stateStep=%d", (int)g_MemCard_Work.state_4, (int)g_MemCard_Work.stateStep_8);
+#endif
+
     MemCard_StateUpdate();
+
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCU] post StateUpdate state=%d stateStep=%d result=%d", (int)g_MemCard_Work.state_4, (int)g_MemCard_Work.stateStep_8, (int)g_MemCard_Work.stateResult_C);
+    SH_DBG_ECHO("[MCU] saveWork[0].processId=%d saveWork[1].processId=%d memCardInit=%d", (int)g_MemCard_SaveWork.saveWork_E0[0].processId_0, (int)g_MemCard_SaveWork.saveWork_E0[1].processId_0, (int)g_MemCard_SaveWork.memCardInitalized_110);
+#endif
 
     if (g_MemCard_SaveWork.saveWork_E0[0].processId_0 != MemCardProcess_None)
     {
@@ -360,36 +369,74 @@ void MemCard_Update(void) // 0x8002EB88
     {
         if (g_MemCard_SaveWork.memCardInitalized_110 == 1 && g_MemCard_SaveWork.saveWork_E0[1].processId_0 == MemCardProcess_None)
         {
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] pre SaveWork_SetParams (slot 1)");
+#endif
             MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork_E0[1], g_MemCard_SaveWork.memCardInitalized_110, g_MemCard_SaveWork.saveWork_E0[1].deviceId_4, 0, 0, 0, g_MemCard_SaveWork.memCardInitalized_110);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] post SaveWork_SetParams (slot 1)");
+#endif
         }
 
         statusPtr = &g_MemCard_SaveWork.saveWork_E0[1];
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCU] pre process-switch processId=%d", (int)statusPtr->processId_0);
+#endif
+
     switch (statusPtr->processId_0)
     {
         case MemCardProcess_Init: // Also used as update process.
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] pre Process_Init");
+#endif
             MemCard_Process_Init(statusPtr);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] post Process_Init");
+#endif
             break;
 
         case MemCardProcess_Load_Game:
         case MemCardProcess_Load_Settings:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] pre Process_Load");
+#endif
             MemCard_Process_Load(statusPtr);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] post Process_Load");
+#endif
             break;
 
         case MemCardProcess_Save_3:
         case MemCardProcess_Save_5:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] pre Process_Save");
+#endif
             MemCard_Process_Save(statusPtr);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] post Process_Save");
+#endif
             break;
 
         case MemCardProcess_Format:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] pre Process_Format");
+#endif
             MemCard_Process_Format(statusPtr);
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MCU] post Process_Format");
+#endif
             break;
 
         case MemCardProcess_None:
         default:
             break;
     }
+
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCU] post process-switch lastResult=%d", (int)statusPtr->lastMemCardResult_14);
+#endif
 
     if (statusPtr->processId_0 != MemCardProcess_None && statusPtr->lastMemCardResult_14 != MemCardResult_Success)
     {
@@ -399,6 +446,10 @@ void MemCard_Update(void) // 0x8002EB88
             g_MemCard_SaveWork.saveWork_E0[1].deviceId_4 = (g_MemCard_SaveWork.saveWork_E0[1].deviceId_4 + 1) & 0x7;
         }
     }
+
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MCU] MemCard_Update done");
+#endif
 }
 
 void MemCard_Process_Format(s_MemCard_Process* statusPtr) // 0x8002ECE0
@@ -1597,6 +1648,9 @@ bool MemCard_MemCardIsIdle(void) // 0x800309FC
 
 void MemCard_StateUpdate(void) // 0x80030A0C
 {
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MSU] enter state=%d", (int)g_MemCard_Work.state_4);
+#endif
     switch (g_MemCard_Work.state_4)
     {
         case MemCardCardState_Idle:
@@ -1605,19 +1659,43 @@ void MemCard_StateUpdate(void) // 0x80030A0C
             break;
 
         case MemCardCardState_Init:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] pre State_Init");
+#endif
             g_MemCard_Work.stateResult_C = MemCard_State_Init();
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] post State_Init result=%d", (int)g_MemCard_Work.stateResult_C);
+#endif
             break;
 
         case MemCardCardState_Check:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] pre State_Check");
+#endif
             g_MemCard_Work.stateResult_C = MemCard_State_Check();
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] post State_Check");
+#endif
             break;
 
         case MemCardCardState_Load:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] pre State_Load");
+#endif
             g_MemCard_Work.stateResult_C = MemCard_State_Load();
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] post State_Load");
+#endif
             break;
 
         case MemCardCardState_DirRead:
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] pre State_DirRead");
+#endif
             g_MemCard_Work.stateResult_C = MemCard_State_DirRead();
+#ifdef SH_PC_PORT
+            SH_DBG_ECHO("[MSU] post State_DirRead");
+#endif
             break;
 
         case MemCardCardState_FileCreate:
@@ -1635,6 +1713,9 @@ void MemCard_StateUpdate(void) // 0x80030A0C
         default:
             break;
     }
+#ifdef SH_PC_PORT
+    SH_DBG_ECHO("[MSU] exit");
+#endif
 }
 
 s32 MemCard_State_Init(void) // 0x80030AD8
