@@ -82,20 +82,14 @@ static inline s32 WrapIdx(s32 idx)
 bool func_80033548(void) // 0x80033548
 {
 #ifdef SH_PC_PORT
-    /* PC: short-circuit RESTORED. Removing it in 88eb0738d crashed
-     * the game at boot — `func_80033548` is invoked from the Konami
-     * logo screen (b_konami.c:78) and the title screen (title.c:123)
-     * BEFORE any save UI appears, and the real PSX state-machine
-     * flow doesn't survive the early-boot environment yet (some
-     * MemCard_SysInit2 / SwEvent / state-pump path crashes hard
-     * before this function's body even reaches the inner SH_DBG).
-     *
-     * The empty save screen is a known-issue side effect of this
-     * short-circuit. To re-enable safely we'd need to gate the real
-     * flow on actually being inside the save UI (not boot screens),
-     * or fix the early-boot crash first (likely a NULL pointer in
-     * MemCard_SysInit2 or its SwEvent setup). */
-    return true;
+    /* PC: short-circuit REMOVED FOR DIAGNOSTIC. We expect the game
+     * to crash at boot like 88eb0738d did — but this time the
+     * [MCRD-INIT] / [MCRD2] SH_DBG entries inside MemCard_SysInit2
+     * / EventsInit / SwEventsInit / HwEventsInit (added in
+     * 1cb46c6eb) will fire as the flow runs, and the LAST line
+     * before the crash names the dying call. Then we restore the
+     * short-circuit and patch that call surgically. */
+    SH_DBG("[MCRD2] func_80033548 enter (real flow)");
 #endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.
