@@ -129,6 +129,17 @@ int main(int argc, char* argv[])
     /* Load config file */
     PcConfig_Load("config.cfg");
 
+    /* Apply pixel-aspect mode to PsyCross's runtime PAR global. */
+    {
+        extern float g_PsxPixelAspect;
+        switch (g_PcConfig.pixelAspectMode) {
+            case 2:  g_PsxPixelAspect = 1.0f;     break; /* square */
+            case 3:  g_PsxPixelAspect = 1.143f;   break; /* 8:7 */
+            case 1:
+            default: g_PsxPixelAspect = 1.09375f; break; /* CRT NTSC */
+        }
+    }
+
     /* Console window: hide by default + redirect stdout/stderr -> log so
      * stray printf/fprintf get captured.  When show_console=1, leave the
      * console window visible and let stdout/stderr stay pointed at it.
