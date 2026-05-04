@@ -1045,11 +1045,21 @@ void MainLoop(void) // 0x80032EE0
             {
                 OT_TAG* cur = (OT_TAG*)ot0->tag;
                 int w2 = 0;
-                /* Compute valid pointer ranges once outside the loop. */
+                /* Compute valid pointer ranges once outside the loop.
+                 * GsOT.length is LOG2 of the entry count (PsyCross
+                 * GsClearOt does `n = 1 << ot->length`), so for the
+                 * 2048-entry OT, length == 11 and the array spans
+                 * 2048 * sizeof(GsOT_TAG) = 24 KB. Earlier I computed
+                 * length * sizeof which gave only 132 bytes and made
+                 * the sanitizer reject every legitimate entry past the
+                 * first few — manifesting as constant [OT-SANIT] spam
+                 * during pistol fire (5000+ aborts in a single test
+                 * session) without actually catching the corruption. */
                 uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
                 uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
                 uintptr_t otLo   = (uintptr_t)ot0->org;
-                uintptr_t otHi   = otLo + (uintptr_t)ot0->length * sizeof(GsOT_TAG);
+                size_t    otCnt  = (size_t)1 << ot0->length;
+                uintptr_t otHi   = otLo + otCnt * sizeof(GsOT_TAG);
                 while (cur && !isendprim(cur) && w2 < 8192) {
                     /* Validate cur is in either the packet buffer or the OT
                      * array before any field access. */
@@ -1057,9 +1067,25 @@ void MainLoop(void) // 0x80032EE0
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
                                  (curAddr >= otLo  && curAddr < otHi));
                     if (!curOk) {
-                        SH_DBG("[OT-SANIT] aborting walk: cur=%p out of valid prim memory (pkt=[%p..%p) ot=[%p..%p))",
-                               (void*)cur, (void*)pktLo, (void*)pktHi,
-                               (void*)otLo, (void*)otHi);
+                        /* One-shot dump per session: log the previous (still-
+                         * valid) entry's contents so we can see what wrote
+                         * the bad nextPtr. After the first dump, fall back
+                         * to the rate-limited summary. */
+                        static int s_dumpedOnce = 0;
+                        if (!s_dumpedOnce) {
+                            s_dumpedOnce = 1;
+                            const uint32_t* w = (const uint32_t*)cur;
+                            SH_DBG("[OT-SANIT] FIRST bad cur=%p — pkt=[%p..%p) ot=[%p..%p) — first 32 bytes at cur:",
+                                   (void*)cur, (void*)pktLo, (void*)pktHi,
+                                   (void*)otLo, (void*)otHi);
+                            SH_DBG("[OT-SANIT]   %08x %08x %08x %08x %08x %08x %08x %08x",
+                                   (unsigned)w[0], (unsigned)w[1], (unsigned)w[2], (unsigned)w[3],
+                                   (unsigned)w[4], (unsigned)w[5], (unsigned)w[6], (unsigned)w[7]);
+                        } else {
+                            SH_DBG("[OT-SANIT] aborting walk: cur=%p out of valid prim memory (pkt=[%p..%p) ot=[%p..%p))",
+                                   (void*)cur, (void*)pktLo, (void*)pktHi,
+                                   (void*)otLo, (void*)otHi);
+                        }
                         break;
                     }
                     int len = getlen(cur);
