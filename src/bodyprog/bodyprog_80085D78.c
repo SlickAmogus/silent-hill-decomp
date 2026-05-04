@@ -126,9 +126,22 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                 chara->model.anim.time        = Q12(0.0f);
                 chara->model.anim.keyframeIdx = 0;
                 chara->model.anim.flags |= AnimFlag_Unlocked;
-                SH_DBG("[ANIM_SET] charaId=%d anim=%d status=%d",
+                /* Mirror arg2 into the AI state-index field. PSX's
+                 * func_124 reads a2 from caller and uses it for both
+                 * anim.status AND properties.dahlia.stateIdx0; the
+                 * decomp signature only captures the first. Without
+                 * stateIdx0, AI defaults to case 0 (idle) which decays
+                 * moveDistance_126 to 0, freezing Cybil/etc in place
+                 * while their walk anim cycles — user symptom: "Cybil
+                 * walks in place at end of cutscene". stateIdx0 is in
+                 * the chara properties union; for dahlia/cybil layout
+                 * it shares offset with similar AI fields on other
+                 * NPC types so the write is harmless cross-type. */
+                chara->properties.dahlia.stateIdx0 = (u8)arg2;
+                SH_DBG("[ANIM_SET] charaId=%d anim=%d status=%d stateIdx0=%d",
                        chara->model.charaId, (int)arg2,
-                       (int)chara->model.anim.status);
+                       (int)chara->model.anim.status,
+                       (int)chara->properties.dahlia.stateIdx0);
 #else
                 g_MapOverlayHeader.func_124(chara);
 #endif

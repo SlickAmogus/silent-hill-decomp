@@ -2232,14 +2232,18 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     near_road_data = &w_p->cur_near_road;
 
     ideal_pos->vx = w_p->chara_pos.vx + Q12_MULT(default_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y));
-#ifdef SH_PC_PORT
-    /* PC patch: lower in-game camera to ~half height above ground (~1.05 vs ~2.1
-     * world units). PSX baseline `chara_top_y - 0.4` puts the camera ~2 units up;
-     * with PC's ground-at-zero convention this looks too high. */
-    ideal_pos->vy = w_p->chara_top_y  + Q12(0.65f);
-#else
-    ideal_pos->vy = w_p->chara_top_y  - Q12(0.4f);
-#endif
+    /* Reverted to PSX baseline (chara_top_y - 0.4f) — the +0.65f
+     * variant put the camera BELOW Harry in PSX-down (+Y=down)
+     * convention, which combined with the watch-target Y at
+     * chara_top_y - 0.25 (vcRenewalCamTgtMvVecYParam, VC_MV_CHASE)
+     * made the camera tilt UP to see the target above it. User
+     * symptom: street cameras showing only Harry's upper body.
+     * The original "camera too high on PC" complaint that motivated
+     * the +0.65f override was probably resolved by other camera
+     * fixes since (TPS rework, road-clamp skip, lookAt anchor
+     * revert). If it returns, prefer a smaller offset like
+     * `chara_top_y - Q12(0.2f)` rather than the sign-flip. */
+    ideal_pos->vy = w_p->chara_top_y - Q12(0.4f);
     ideal_pos->vz = w_p->chara_pos.vz + Q12_MULT(default_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y));
 
     cam_pos_y   = w_p->cam_pos.vy;
