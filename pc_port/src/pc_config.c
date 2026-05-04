@@ -16,6 +16,7 @@ s_PcConfig g_PcConfig = {
     .skipIntros     = 0,
     .showConsole    = 0,
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
+    .pixelAspectMode = 1, /* 1=CRT NTSC (1.09375), 2=square (1.0), 3=8:7 (1.143) */
     .mapName        = "map0_s00"
 };
 
@@ -121,6 +122,12 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 2) v = 2;
             g_PcConfig.psxDither = v;
+        }
+        else if (strcmp(key, "pixel_aspect") == 0)
+        {
+            int v = atoi(value);
+            if (v < 1 || v > 3) v = 1; /* invalid -> default to CRT */
+            g_PcConfig.pixelAspectMode = v;
         }
         else if (strcmp(key, "map") == 0)
         {

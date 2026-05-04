@@ -2,6 +2,10 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "pc_config.h"
+/* PsyCross runtime PAR (cca5660). main_pc.c sets this from
+ * g_PcConfig.pixelAspectMode at startup; the per-poly cull bounds
+ * here must track the same factor PsyCross's Hor+ ortho uses. */
+extern float g_PsxPixelAspect;
 #endif
 
 #include <psyq/gtemac.h>
@@ -1987,7 +1991,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
         const float visibleHalfW = (g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * 1.09375f
+               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW;
         s32 halfW = (s32)(visibleHalfW + 0.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
@@ -2924,7 +2928,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
         const float visibleHalfW = (g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * 1.09375f
+               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW;
         s32 halfW = (s32)(visibleHalfW + 0.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
