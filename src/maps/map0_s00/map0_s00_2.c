@@ -1378,7 +1378,19 @@ void func_800DBE00(void) // 0x800DBE00
     Sd_SfxStop(Sfx_Unk1361);
     Sd_SfxStop(Sfx_Unk1360);
 
+#ifdef SH_PC_PORT
+    /* PSX called SD_Call(22) here which routes through Sd_BranchCTRL
+     * case 21 → Sd_AllSfxWithRRStop → Sd_AllSfxStop. That blanket
+     * stop also kills the death-scream voices Sfx_Unk1318/1319 that
+     * the Death-anim keyframe just triggered, cutting them mid-attack
+     * envelope (user symptom: "Harry death scream high/short/squeaky
+     * in map0_s00 only" — other maps go to GameOver state which
+     * preserves the voices). The three Sd_SfxStop calls above already
+     * kill the ambient loops, so the SD_Call(22) is redundant for the
+     * loops and actively destructive for the scream. */
+#else
     SD_Call(22);
+#endif
     func_800892A4(4);
 
     SysWork_StateSetNext(SysState_Gameplay);

@@ -439,10 +439,36 @@ void Game_NpcUpdate(void) // 0x80038354
             else if (npc->model.charaId == Chara_Cybil ||
                      npc->model.charaId == Chara_AirScreamer)
             {
-                if (npc->model.controlState == 0) {
-                    npc->model.stateStep = 0;
-                    SH_DBG("[NPC_AI] init reset charaId=%d slot=%d stateStep=0",
-                           npc->model.charaId, (int)k);
+                /* Per-slot latch — fire ONCE per spawn, not every frame
+                 * the NPC happens to be at controlState==None.
+                 *
+                 * Original code stomped stateStep=0 every frame
+                 * controlState was 0, which broke the cutscene→combat
+                 * handoff: Air Screamer's intro sets controlState=None
+                 * + stateStep=7 to transition into Control_46 (combat
+                 * dive); the next NpcUpdate would then immediately
+                 * stomp stateStep back to 0, killing the handoff and
+                 * leaving the AS in StandIdle forever. Same family
+                 * also affects Cybil combat in later levels.
+                 *
+                 * Latch resets when the slot is cleared (charaId →
+                 * Chara_None on death/despawn) so a respawn re-arms. */
+                static u8 _spawnInitDone[3]   = { 0, 0, 0 };
+                static u8 _lastInitCharaId[3] = { 0xFF, 0xFF, 0xFF };
+                if (k < 3) {
+                    /* Re-arm latch if the slot's charaId changed
+                     * (despawn/respawn cycle, including a new NPC
+                     * occupying the same slot). */
+                    if (npc->model.charaId != _lastInitCharaId[k]) {
+                        _spawnInitDone[k] = 0;
+                        _lastInitCharaId[k] = npc->model.charaId;
+                    }
+                    if (!_spawnInitDone[k] && npc->model.controlState == 0) {
+                        npc->model.stateStep = 0;
+                        _spawnInitDone[k] = 1;
+                        SH_DBG("[NPC_AI] one-shot spawn-init charaId=%d slot=%d stateStep=0",
+                               npc->model.charaId, (int)k);
+                    }
                 }
             }
 #endif
