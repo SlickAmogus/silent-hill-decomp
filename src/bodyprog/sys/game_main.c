@@ -1030,12 +1030,38 @@ void MainLoop(void) // 0x80032EE0
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
              * Strip DR_MODE (0xE0) which crashes PsyCross ProcessDrawEnv,
              * lines (0x40/0x50), and any unknown types. Texture page info is
-             * embedded in POLY_FT/GT prims so DR_MODE isn't needed for textures. */
+             * embedded in POLY_FT/GT prims so DR_MODE isn't needed for textures.
+             *
+             * Defensive: validate cur pointer BEFORE dereferencing on each
+             * iteration. Particle spawning (handgun muzzle flash, same class
+             * as the knife OT corruption family) can write garbage nextPtrs
+             * into OT entries, and the post-GsSortClear walker hits one,
+             * dereferences cur->code or cur->tag, INVALID_POINTER_READ in
+             * MainLoop directly. The earlier next-pointer bounds check
+             * caught some cases but not e.g. addresses that are in valid
+             * user-space range but not actually prim memory. Validate cur
+             * is in our packet buffer OR the OT array before reading it. */
             GsOT* ot0 = &g_OrderingTable0[g_ActiveBufferIdx];
             {
                 OT_TAG* cur = (OT_TAG*)ot0->tag;
                 int w2 = 0;
+                /* Compute valid pointer ranges once outside the loop. */
+                uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
+                uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
+                uintptr_t otLo   = (uintptr_t)ot0->org;
+                uintptr_t otHi   = otLo + (uintptr_t)ot0->length * sizeof(GsOT_TAG);
                 while (cur && !isendprim(cur) && w2 < 8192) {
+                    /* Validate cur is in either the packet buffer or the OT
+                     * array before any field access. */
+                    uintptr_t curAddr = (uintptr_t)cur;
+                    int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
+                                 (curAddr >= otLo  && curAddr < otHi));
+                    if (!curOk) {
+                        SH_DBG("[OT-SANIT] aborting walk: cur=%p out of valid prim memory (pkt=[%p..%p) ot=[%p..%p))",
+                               (void*)cur, (void*)pktLo, (void*)pktHi,
+                               (void*)otLo, (void*)otHi);
+                        break;
+                    }
                     int len = getlen(cur);
                     if (len > 0) {
                         u8 hi = ((P_TAG*)cur)->code & 0xF0;
