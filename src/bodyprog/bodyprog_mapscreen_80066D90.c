@@ -941,4 +941,112 @@ INCLUDE_RODATA("bodyprog/nonmatchings/bodyprog_mapscreen_80066D90", D_80028B2C);
 
 INCLUDE_RODATA("bodyprog/nonmatchings/bodyprog_mapscreen_80066D90", D_80028B34);
 
+#ifdef SH_PC_PORT
+/* PC port: drop in the decompiled paper-map tile renderer.
+ *
+ * Draws the 320x240 paper-map texture as a 3x2 grid of 128x128 VRAM
+ * tiles at the requested screen position with Q12 zoom. Per-tile
+ * culling skips tiles outside the visible window; UV coords advance
+ * one row at a time per tile via the static D_80028B2C/B34 arrays.
+ *
+ * tPage walks across multiple texture pages because the full image
+ * doesn't fit in one PSX page — see the getTPage math walking
+ * tPage[1] + tile_x + tile_y*0x10.
+ *
+ * This is the actual paper-map screen renderer; without it the map
+ * screen is invisible (only the background dot grid + decorations
+ * from func_80067914 / func_80068E0C show up). */
+void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
+{
+    u16 right_edge_sp28;
+    u16 bottom_edge_sp30;
+    s16 clamped_left_t5;
+    s16 clamped_right_sp88;
+    s16 clamped_top_t4;
+    s16 clamped_bottom_sp80;
+    s32 x_relative_a3;
+    s32 y_relative_t0;
+    s16 u_t0;
+    s16 v_temp;
+    s32 tile_x_s8;
+    s32 tile_y_s1;
+    POLY_FT4* poly;
+
+    s16 D_80028B2C[] = { -160, -160, -160, -160 };
+    s16 D_80028B34[] = { -240, -240, -240 };
+
+    /* Bounds of the scaled 320x240 image in screen space. */
+    right_edge_sp28  = Q12_MULT_PRECISE(scale_arg2, 320) + x_arg0 - 1;
+    bottom_edge_sp30 = Q12_MULT_PRECISE(scale_arg2, 240) + y_arg1 - 1;
+
+    poly = (POLY_FT4*)GsOUT_PACKET_P;
+
+    /* Iterate the 3x2 array of 128x128 tiles. */
+    for (tile_x_s8 = 0; tile_x_s8 < 3; tile_x_s8++)
+    {
+        for (tile_y_s1 = 0; tile_y_s1 < 2; tile_y_s1++)
+        {
+            if (((tile_x_s8 + 1) * 128 < x_arg0) || right_edge_sp28 < (tile_x_s8 * 128))
+                continue;
+
+            if (((tile_y_s1 + 1) * 128 < y_arg1 + (g_PaperMapImg.v >> 1)) ||
+                ((bottom_edge_sp30 + (g_PaperMapImg.v >> 1)) < tile_y_s1 * 128))
+                continue;
+
+            clamped_left_t5 = CLAMP_LOW(x_arg0, tile_x_s8 * 128);
+
+            clamped_right_sp88 = ((tile_x_s8 + 1) * 128 < right_edge_sp28)
+                ? (tile_x_s8 + 1) * 128 - clamped_left_t5
+                : right_edge_sp28 - clamped_left_t5;
+
+            if ((y_arg1 + (g_PaperMapImg.v >> 1)) >= tile_y_s1 * 128)
+                clamped_top_t4 = y_arg1 + (g_PaperMapImg.v >> 1);
+            else
+                clamped_top_t4 = tile_y_s1 * 128;
+
+            if (((tile_y_s1 + 1) * 128) < (bottom_edge_sp30 + (g_PaperMapImg.v >> 1)))
+                clamped_bottom_sp80 = ((tile_y_s1 + 1) * 128) - clamped_top_t4;
+            else
+                clamped_bottom_sp80 = (bottom_edge_sp30 + (g_PaperMapImg.v >> 1)) - clamped_top_t4;
+
+            x_relative_a3 = clamped_left_t5 - (tile_x_s8 * 128);
+            y_relative_t0 = clamped_top_t4 - (tile_y_s1 * 128);
+
+            D_80028B2C[tile_x_s8 + 1] = D_80028B2C[tile_x_s8] + ((clamped_right_sp88 << 0xC) / scale_arg2);
+            D_80028B34[tile_y_s1 + 1] = D_80028B34[tile_y_s1] + ((clamped_bottom_sp80 << 13) / scale_arg2);
+
+            setPolyFT4(poly);
+
+            setXY0Fast(poly, D_80028B2C[tile_x_s8],     D_80028B34[tile_y_s1]);
+            setXY1Fast(poly, D_80028B2C[tile_x_s8 + 1], D_80028B34[tile_y_s1]);
+            setXY2Fast(poly, D_80028B2C[tile_x_s8],     D_80028B34[tile_y_s1 + 1]);
+            setXY3Fast(poly, D_80028B2C[tile_x_s8 + 1], D_80028B34[tile_y_s1 + 1]);
+
+            setUV0AndClutSum(poly, x_relative_a3, y_relative_t0 << 1,
+                getClut(g_PaperMapImg.clutX, g_PaperMapImg.clutY));
+            setUV1AndTPageSum(poly, x_relative_a3 + clamped_right_sp88, y_relative_t0 << 1,
+                getTPage(g_PaperMapImg.tPage[0], 0,
+                    (g_PaperMapImg.tPage[1] + tile_x_s8 + (tile_y_s1 * 0x10)) << 6,
+                    (((g_PaperMapImg.tPage[1] + (tile_y_s1 * 0x10)) >> 4) & 1) << 8));
+
+            u_t0   = clamped_left_t5 - (tile_x_s8 * 128);
+            v_temp = clamped_top_t4 - (tile_y_s1 * 128);
+            v_temp = (v_temp << 1) - 1;
+
+            setUV2Sum(poly, u_t0,                       v_temp + (clamped_bottom_sp80 << 1));
+            setUV3Sum(poly, clamped_right_sp88 + u_t0,  v_temp + (clamped_bottom_sp80 << 1));
+
+            setSemiTrans(poly, 0);
+            setRGB0Fast(poly, 128, 128, 128);
+
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[4], poly);
+            poly++;
+        }
+    }
+
+    GsOUT_PACKET_P = (PACKET*)poly;
+    g_SysWork.sysFlags_22A0 |= 1;
+}
+#else
 INCLUDE_ASM("bodyprog/nonmatchings/bodyprog_mapscreen_80066D90", func_800692A4); // 0x800692A4
+#endif
