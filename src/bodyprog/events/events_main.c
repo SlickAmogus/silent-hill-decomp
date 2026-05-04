@@ -72,6 +72,19 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 
     mapEvent = &g_MapOverlayHeader.mapEvents_24[-1];
 
+#ifdef SH_PC_PORT
+    /* Hard iteration cap. Sentinel triggerType=NO_VALUE (-1) stored in
+     * the s8:4 bitfield should stop iteration after the last entry, but
+     * recent traces show iteration walking to mapEventIdx=60+ on map0_s01
+     * (which only has 23 entries). The OOB read produces garbage event
+     * data with eventParam=14 — game then dispatches into garbage memory
+     * and triggers spurious item pickups (KeyOfWoodman dog-head freeze).
+     * Likely a bitfield sign-extension or struct alignment difference
+     * vs PSX. Cap iteration to MAX_MAP_EVENTS so we don't walk wild. */
+    const int MAX_MAP_EVENTS = 128;
+    int _eventIdx = -1;
+#endif
+
     while (true)
     {
         s32 disabledEventFlag_temp;
@@ -79,6 +92,13 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         s16 requiredEventFlag;
 
         mapEvent++;
+#ifdef SH_PC_PORT
+        _eventIdx++;
+        if (_eventIdx >= MAX_MAP_EVENTS) {
+            SH_DBG("[EVENT] iteration capped at %d — sentinel never matched (probable bitfield issue)", _eventIdx);
+            break;
+        }
+#endif
 
         if (mapEvent->triggerType == NO_VALUE)
         {
