@@ -166,7 +166,249 @@ s32 func_8005CB20(s_SubCharacter* chara, s_CollisionResult* arg1, q3_12 offsetX,
 }
 
 // Important for combat.
+#ifdef SH_PC_PORT
+/* PC build uses pc_port/src/combat_target.c — that's the implementation
+ * actively driving Air Screamer targeting / pistol aim today. The PSX-faithful
+ * decompiled body below (decomp.me scratch ufUsN, ~95%-matching, gcc2.8.1-psx)
+ * is preserved for the PSX build and as a reference if we want to switch
+ * the PC port over to it later. */
 INCLUDE_ASM("bodyprog/nonmatchings/bodyprog_combat_8005BF38", func_8005CD38); // 0x8005CD38
+#else
+/* Decompiled body — based on decomp.me scratch ufUsN (2163/50600, gcc2.8.1-psx).
+ * Translated m2c offset-suffixed names to the project's struct field names:
+ *   s_func_800700F8_2  -> s_RayData
+ *   .field_10          -> .chara_10
+ *   npcs_1A0[]         -> npcs[]
+ *   playerWork_4C      -> playerWork
+ *   .player_0          -> .player
+ *   targetNpcIdx_2353  -> targetNpcIdx
+ *   model_0.charaId_0  -> model.charaId
+ *   health_B0          -> health
+ *   position_18        -> position
+ *   rotation_24        -> rotation
+ *   flags_3E           -> flags
+ */
+void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 arg5) // 0x8005CD38
+{
+    VECTOR3   sp10;
+    s_RayData sp20;
+    VECTOR3   sp40;
+    VECTOR3   sp50;
+    VECTOR3   sp60;
+
+    s32 sp70[6];
+    s16 sp88[6];
+    s16 sp98[6];
+    s32 spA8[6];
+
+    s32 temp_s7;
+    s32 temp_t8;
+    s32 temp_s6;
+    s32 var_s2;
+    s32 var_s5;
+    s32 var_t0;
+    s32 temp_a1_2;
+    s_SubCharacter* npc;
+
+    temp_s7 = arg2->vx;
+    temp_t8 = arg2->vy;
+    temp_s6 = arg2->vz;
+
+    sp10.vx = temp_s7;
+    sp10.vy = temp_t8;
+    sp10.vz = temp_s6;
+
+    *arg0  = -1;
+    var_s5 = 0;
+
+    for (var_s2 = 0; var_s2 < 6; var_s2++)
+    {
+        if (g_SysWork.npcs[var_s2].model.charaId == 0 || g_SysWork.npcs[var_s2].health < 0)
+        {
+            continue;
+        }
+
+        sp60.vx = g_SysWork.npcs[var_s2].position.vx + g_SysWork.npcs[var_s2].field_D8.offsetX_0;
+        sp60.vy = g_SysWork.npcs[var_s2].position.vy + g_SysWork.npcs[var_s2].field_C8.field_6;
+        sp60.vz = g_SysWork.npcs[var_s2].position.vz + g_SysWork.npcs[var_s2].field_D8.offsetZ_2;
+
+        if (arg5 < 3)
+        {
+            if (SQUARE(arg4 >> 6) < (SQUARE((temp_s7 - sp60.vx) >> 6) + SQUARE((temp_t8 - sp60.vy) >> 6) + SQUARE((temp_s6 - sp60.vz) >> 6)))
+            {
+                continue;
+            }
+
+            sp98[var_s5] = ratan2(sp60.vx - temp_s7, sp60.vz - temp_s6);
+
+            if (arg3 < ABS(func_8005BF38(g_SysWork.playerWork.player.rotation.vy - sp98[var_s5])))
+            {
+                continue;
+            }
+
+            if (arg5 != 0)
+            {
+                if (g_SysWork.targetNpcIdx == var_s2)
+                {
+                    continue;
+                }
+
+                sp98[var_s5] = func_8005BF38(sp98[var_s5] - g_SysWork.playerWork.player.field_2A);
+
+                if (arg5 == 1 && sp98[var_s5] < 0)
+                {
+                    continue;
+                }
+
+                if (arg5 == 2 && sp98[var_s5] > 0)
+                {
+                    continue;
+                }
+            }
+        }
+        else
+        {
+            sp50.vx = temp_s7 + FP_MULTIPLY(arg3, Math_Sin(g_SysWork.playerWork.player.rotation.vy), 0xC);
+            sp50.vz = temp_s6 + FP_MULTIPLY(arg3, Math_Cos(g_SysWork.playerWork.player.rotation.vy), 0xC);
+
+            if (SQUARE(arg4 >> 6) < (SQUARE((sp50.vx - sp60.vx) >> 6) + SQUARE((sp50.vz - sp60.vz) >> 6)))
+            {
+                continue;
+            }
+
+            sp98[var_s5] = func_8005BF38((ratan2(sp60.vx - temp_s7, sp60.vz - temp_s6) - g_SysWork.playerWork.player.rotation.vy));
+
+            if (arg5 != 3)
+            {
+                spA8[var_s5] = SquareRoot0(SQUARE((sp60.vx - temp_s7) >> 6) + SQUARE((sp60.vz - temp_s6) >> 6)) << 6;
+            }
+        }
+
+        sp88[var_s5] = ratan2(SquareRoot0(SQUARE((sp60.vx - temp_s7) >> 6) + SQUARE((sp60.vz - temp_s6) >> 6)) << 6, sp60.vy - temp_t8);
+
+        if (sp88[var_s5] < 0)
+        {
+            continue;
+        }
+
+        if (sp88[var_s5] > 0x800)
+        {
+            continue;
+        }
+
+        if (arg5 < 1 || arg5 >= 3)
+        {
+            if (g_SysWork.targetNpcIdx == var_s2)
+            {
+                *arg0 = var_s2;
+                *arg1 = sp88[var_s5];
+                return;
+            }
+        }
+
+        sp70[var_s5] = var_s2;
+        var_s5++;
+    }
+
+    if (var_s5 == 0)
+    {
+        return;
+    }
+
+    for (var_s2 = 0; var_s2 < var_s5; var_s2++)
+    {
+        npc = g_SysWork.npcs;
+
+        for (var_t0 = var_s2 + 1; var_t0 < var_s5; var_t0++)
+        {
+            if ((!(npc[sp70[var_s2]].flags & 2) && !(npc[sp70[var_t0]].flags & 2)) ||
+                ((npc[sp70[var_s2]].flags & 2) && (npc[sp70[var_t0]].flags & 2)))
+            {
+                switch (arg5)
+                {
+                    case 0:
+                    case 3:
+                        if (ABS(sp98[var_s2]) > ABS(sp98[var_t0]))
+                        {
+                            break;
+                        }
+                        continue;
+
+                    case 1:
+                        if (sp98[var_s2] > sp98[var_t0])
+                        {
+                            break;
+                        }
+                        continue;
+
+                    case 2:
+                        if (sp98[var_s2] < sp98[var_t0])
+                        {
+                            break;
+                        }
+                        continue;
+
+                    case 4:
+                        if (SQUARE(spA8[var_s2] >> 6) * abs(sp98[var_s2]) > SQUARE(spA8[var_t0] >> 6) * abs(sp98[var_t0]))
+                        {
+                            break;
+                        }
+                        continue;
+
+                    case 5:
+                        if (spA8[var_s2] > spA8[var_t0])
+                        {
+                            break;
+                        }
+                        continue;
+
+                    default:
+                        continue;
+                }
+            }
+            else if (!(npc[sp70[var_s2]].flags & 2))
+            {
+                continue;
+            }
+
+            if (arg5 > 3 && arg5 < 6)
+            {
+                temp_a1_2    = spA8[var_s2];
+                spA8[var_s2] = spA8[var_t0];
+                spA8[var_t0] = temp_a1_2;
+            }
+
+            temp_a1_2    = sp98[var_s2];
+            sp98[var_s2] = sp98[var_t0];
+            sp98[var_t0] = temp_a1_2;
+
+            temp_a1_2    = sp88[var_s2];
+            sp88[var_s2] = sp88[var_t0];
+            sp88[var_t0] = temp_a1_2;
+
+            temp_a1_2    = sp70[var_s2];
+            sp70[var_s2] = sp70[var_t0];
+            sp70[var_t0] = temp_a1_2;
+        }
+
+        var_t0  = sp70[var_s2];
+        sp40.vx = (g_SysWork.npcs[var_t0].position.vx + g_SysWork.npcs[var_t0].field_D8.offsetX_0) - temp_s7;
+        sp40.vy = (g_SysWork.npcs[var_t0].position.vy + g_SysWork.npcs[var_t0].field_C8.field_6) - temp_t8;
+        sp40.vz = (g_SysWork.npcs[var_t0].position.vz + g_SysWork.npcs[var_t0].field_D8.offsetZ_2) - temp_s6;
+
+        if (func_8006DA08(&sp20, &sp10, &sp40, &g_SysWork.playerWork.player) && sp20.chara_10 == &g_SysWork.npcs[var_t0])
+        {
+            break;
+        }
+    }
+
+    if (var_s2 < var_s5)
+    {
+        *arg0 = sp70[var_s2];
+        *arg1 = sp88[var_s2];
+    }
+}
+#endif
 
 bool func_8005D50C(s32* targetNpcIdx, q3_12* outAngle0, q3_12* outAngle1, VECTOR3* unkOffset, u32 npcIdx, q19_12 angleConstraint) // 0x8005D50C
 {

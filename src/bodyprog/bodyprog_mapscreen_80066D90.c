@@ -1045,7 +1045,7 @@ void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
     }
 
     GsOUT_PACKET_P = (PACKET*)poly;
-    g_SysWork.sysFlags_22A0 |= 1;
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 }
 #else
 INCLUDE_ASM("bodyprog/nonmatchings/bodyprog_mapscreen_80066D90", func_800692A4); // 0x800692A4

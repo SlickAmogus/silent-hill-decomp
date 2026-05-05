@@ -116,7 +116,15 @@ void func_800880F0(s32 arg0) // 0x800880F0
 
             if (arg0 == 0)
             {
+#ifndef SH_PC_PORT
+                /* PSX SD_Call(22) is a blanket SfxStop. On PC the SPU→OpenAL
+                 * path stops in-progress samples instantly (PSX ADPCM has a
+                 * natural decay tail that makes the cutoff inaudible), which
+                 * kills the death scream / pickup voice mid-playback. Same
+                 * regression class as the map0_s00 death-zone fix in
+                 * map0_s00_2.c:1381. BGM mute (above) still runs. */
                 SD_Call(22);
+#endif
             }
             else
             {
