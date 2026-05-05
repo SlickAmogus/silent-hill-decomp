@@ -1311,6 +1311,36 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
             *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
 
+#ifdef SH_PC_PORT
+            /* PC simplification: emit a single POLY_FT4 instead of the
+             * PSX 4×POLY_FT4 + 2×DR_MODE layered layout. The multi-prim
+             * structure was the cause of long-lived OT corruption when
+             * the user knifed enemies — blood splat particles persist
+             * for ~50s @60fps, so corruption from these 4-prim emits
+             * (with addr-field-clobbering struct copies on lines 1314)
+             * compounded across thousands of frames. The OT0 sanitizer
+             * was trapping the corruption and re-linking the chain to
+             * org[0], dropping every mid-distance bucket and producing
+             * the "huge swaths of world geometry disappear" symptom.
+             *
+             * Same trade-off as the muzzle-flash fix
+             * (bodyprog_8005E0DC.c:2610-2632): visual is slightly less
+             * "layered" than PSX but doesn't trash adjacent geometry.
+             *
+             * Color setup: func_80055A90 was already called above
+             * (line 1307) with var_a2 fade; field_130 is the additive
+             * primary color. Use it directly. */
+            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+            (*poly)->b0         = ptr->field_130.b;
+
+            {
+                s32 _bucket2 = (ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
+                if (_bucket2 < 0) _bucket2 = 0;
+                if (_bucket2 >= ORDERING_TABLE_SIZE) _bucket2 = ORDERING_TABLE_SIZE - 1;
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly);
+            }
+            *poly += 1;
+#else
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
             *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
@@ -1319,33 +1349,6 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->clut       = (g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
 
-#ifdef SH_PC_PORT
-            /* PC: same hardcoded-PSX-offset bug as func_80064334:2467
-             * — but here we have 4 POLY_FT4s + 2 DR_MODEs.
-             * PSX sizes: POLY_FT4=36 B, DR_MODE=12 B. PC: 48 B / 20 B.
-             * Original 0xA0=160 was 4*40 PSX (with slack); on PC need
-             * 4*sizeof(POLY_FT4)=192. +0xC=12 PSX DR_MODE; PC=20.
-             * +0x18=24 (=2 PSX DR_MODE); PC=40.
-             *
-             * Also bounds-clamp the OT bucket index — same OOB guard
-             * as the if-branch above. */
-            ptr->field_12C = (PACKET*)((POLY_FT4*)(*poly) + 4);
-            SetPriority(ptr->field_12C, 0, 0);
-            SetPriority((PACKET*)((DR_MODE*)ptr->field_12C + 1), 1, 1);
-
-            {
-                s32 _bucket2 = (ptr->field_140 - g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
-                if (_bucket2 < 0) _bucket2 = 0;
-                if (_bucket2 >= ORDERING_TABLE_SIZE) _bucket2 = ORDERING_TABLE_SIZE - 1;
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 1);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 2);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], ptr->field_12C);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly + 3);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], (PACKET*)((DR_MODE*)ptr->field_12C + 1));
-            }
-            *poly = (POLY_FT4*)((DR_MODE*)ptr->field_12C + 2);
-#else
             ptr->field_12C = (PACKET*)*poly + 0xA0;
             SetPriority(ptr->field_12C, 0, 0);
             SetPriority(ptr->field_12C + 0xC, 1, 1);
