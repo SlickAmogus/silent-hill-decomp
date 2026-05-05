@@ -5,10 +5,8 @@
 #include "bodyprog/bodyprog.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "pc_config.h"
-#include "hires_override.h"
 #endif
 
 #include <psyq/libapi.h>
@@ -114,59 +112,6 @@ bool Fs_QueueTickSetLoc(s_FsQueueEntry* entry)
 #endif
 }
 
-#ifdef SH_PC_PORT
-/* Hi-res override pending table.
- * When Fs_QueueTickRead detects a loose file LARGER than the disc-image
- * buffer slot, we cannot slurp it into entry->data without overflowing.
- * Instead, stash the loose file's path here keyed by entry pointer; the
- * disc CdRead happens normally so VRAM still receives the original native
- * TIM. Then Fs_QueuePostLoadTim — which has already parsed the disc TIM
- * and computed the engine's target VRAM rect — uses that path to register
- * a hi-res GL texture override. */
-#define HIRES_PENDING_MAX 32
-typedef struct {
-    s_FsQueueEntry* entry;
-    char path[160];
-} HiresPending;
-static HiresPending s_hiresPending[HIRES_PENDING_MAX];
-
-static void HiresPending_Stash(s_FsQueueEntry* entry, const char* path)
-{
-    int free = -1;
-    for (int i = 0; i < HIRES_PENDING_MAX; i++)
-    {
-        if (s_hiresPending[i].entry == entry) { free = i; break; }
-        if (s_hiresPending[i].entry == NULL && free < 0) free = i;
-    }
-    if (free < 0)
-    {
-        fprintf(stderr, "[HIRES] pending table full, dropping %s\n", path);
-        return;
-    }
-    s_hiresPending[free].entry = entry;
-    strncpy(s_hiresPending[free].path, path,
-            sizeof(s_hiresPending[free].path) - 1);
-    s_hiresPending[free].path[sizeof(s_hiresPending[free].path) - 1] = '\0';
-}
-
-static const char* HiresPending_PopPath(s_FsQueueEntry* entry)
-{
-    static char buf[160];
-    for (int i = 0; i < HIRES_PENDING_MAX; i++)
-    {
-        if (s_hiresPending[i].entry == entry)
-        {
-            strncpy(buf, s_hiresPending[i].path, sizeof(buf));
-            buf[sizeof(buf) - 1] = '\0';
-            s_hiresPending[i].entry = NULL;
-            s_hiresPending[i].path[0] = '\0';
-            return buf;
-        }
-    }
-    return NULL;
-}
-#endif
-
 bool Fs_QueueTickRead(s_FsQueueEntry* entry)
 {
     s32 sectorCount;
@@ -219,49 +164,19 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         if (lf != NULL)
         {
             size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
-            /* Probe loose file size. If it overflows the disc-image buffer
-             * slot, we cannot byte-replace; treat it as a hi-res TIM and
-             * defer to PostLoadTim. */
-            long fileSize = 0;
-            if (fseek(lf, 0, SEEK_END) == 0)
+            size_t got = fread(entry->data, 1, bufSize, lf);
+            fclose(lf);
             {
-                fileSize = ftell(lf);
-                fseek(lf, 0, SEEK_SET);
-            }
-
-            if (fileSize > 0 && (size_t)fileSize > bufSize)
-            {
-                fclose(lf);
-                HiresPending_Stash(entry, loosePath);
+                static int looseLog = 0;
+                if (looseLog < 32)
                 {
-                    static int hiresLog = 0;
-                    if (hiresLog < 32)
-                    {
-                        fprintf(stderr, "[LOOSE/HIRES] %s (%ld bytes) > buf %u; deferring to PostLoad\n",
-                                loosePath, fileSize, (unsigned)bufSize);
-                        hiresLog++;
-                    }
+                    fprintf(stderr, "[LOOSE] %s -> %u/%u bytes\n",
+                            loosePath, (unsigned)got, (unsigned)bufSize);
+                    looseLog++;
                 }
-                /* Fall through to CdRead so the disc TIM populates entry->data
-                 * for native VRAM upload (hi-res override is registered later
-                 * with the engine's chosen target rect). */
             }
-            else
-            {
-                size_t got = fread(entry->data, 1, bufSize, lf);
-                fclose(lf);
-                {
-                    static int looseLog = 0;
-                    if (looseLog < 32)
-                    {
-                        fprintf(stderr, "[LOOSE] %s -> %u/%u bytes\n",
-                                loosePath, (unsigned)got, (unsigned)bufSize);
-                        looseLog++;
-                    }
-                }
-                (void)got;
-                return true;
-            }
+            (void)got;
+            return true;
         }
     }
 #endif
@@ -409,12 +324,6 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 {
     TIM_IMAGE tim;
     RECT      tempRect;
-#ifdef SH_PC_PORT
-    RECT      pixelRect = {0};
-    RECT      clutRect = {0};
-    bool      haveClut = false;
-    int       discBitDepth = 0;
-#endif
 
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim entry: externalData=%p img.u=%u img.v=%u tPage=%u,%u clutX=%d clutY=%d\n",
@@ -446,15 +355,6 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
 
     LoadImage(&tempRect, tim.paddr);
-#ifdef SH_PC_PORT
-    pixelRect = tempRect;
-    /* tim.mode bits 0-2: 0=4bpp, 1=8bpp, 2=16bpp, 3=24bpp. */
-    {
-        int code = (int)(tim.mode & 0x7);
-        discBitDepth = (code == 0) ? 4 : (code == 1) ? 8 :
-                       (code == 2) ? 16 : (code == 3) ? 24 : 0;
-    }
-#endif
 
     if (tim.caddr != NULL)
     {
@@ -470,51 +370,9 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
 
         LoadImage(&tempRect, tim.caddr);
-#ifdef SH_PC_PORT
-        clutRect = tempRect;
-        haveClut = true;
-#endif
     }
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
-
-    /* Hi-res override: if Fs_QueueTickRead detected a loose TIM bigger than
-     * the disc buffer, register it now with the rects we just used for the
-     * native upload. Sample-time lookup will key by (tpage, clut), which
-     * derive from these same coords. */
-    {
-        const char* hiresPath = HiresPending_PopPath(entry);
-        if (hiresPath && hiresPath[0] && discBitDepth > 0)
-        {
-            FILE* hf = fopen(hiresPath, "rb");
-            if (hf)
-            {
-                fseek(hf, 0, SEEK_END);
-                long sz = ftell(hf);
-                fseek(hf, 0, SEEK_SET);
-                if (sz > 0 && sz < 64 * 1024 * 1024)
-                {
-                    unsigned char* buf = (unsigned char*)malloc((size_t)sz);
-                    if (buf)
-                    {
-                        size_t got = fread(buf, 1, (size_t)sz, hf);
-                        if (got == (size_t)sz)
-                        {
-                            int cx = haveClut ? (int)clutRect.x : -1;
-                            int cy = haveClut ? (int)clutRect.y : -1;
-                            HiresOverride_RegisterFromTim(
-                                hiresPath, buf, (unsigned int)sz,
-                                (int)pixelRect.x, (int)pixelRect.y,
-                                (int)pixelRect.w, (int)pixelRect.h,
-                                cx, cy, discBitDepth);
-                        }
-                        free(buf);
-                    }
-                }
-                fclose(hf);
-            }
-        }
-    }
 #endif
 
     return true;
