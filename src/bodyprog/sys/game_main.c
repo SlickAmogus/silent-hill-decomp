@@ -598,6 +598,93 @@ void GameState_Boot_Update(void) // 0x80032D1C
 #endif
 }
 
+#ifdef SH_PC_PORT
+/* Sentinel scan helper — walks an OT chain looking for the corrupt-addr
+ * fingerprint that's been plaguing the muzzle flash codepath: a prim's
+ * `addr` field points OUTSIDE both the packet buffer and the OT bucket
+ * array (and isn't the natural &prim_terminator). The bug class is a
+ * 32→64-bit pointer truncation hidden somewhere in the spawn/update
+ * dispatch we haven't been able to spot via grep.
+ *
+ * Strategy: call this at multiple checkpoints across the frame. The
+ * FIRST checkpoint that detects corruption brackets the writer to the
+ * subsystem that ran since the previous clean checkpoint.
+ *
+ * Logs at most once per (phase × ot) per session so the log doesn't
+ * flood; switch phases by adding a new label string, no de-dup overhead.
+ *
+ * Safe to call on any frame — the existing OT0/OT2 sanitizer at
+ * post-GsSortClear will still terminate the chain so we never crash. */
+extern OT_TAG prim_terminator;
+void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
+{
+    if (!ot || !ot->tag) return;
+
+    uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
+    uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
+    uintptr_t otLo   = (uintptr_t)ot->org;
+    int       otLen  = (ot->length > 0 && ot->length <= 16) ? (int)ot->length : 0;
+    size_t    otCnt  = (size_t)1 << otLen;
+    uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
+    uintptr_t termA  = (uintptr_t)&prim_terminator;
+
+    OT_TAG* prev = NULL;
+    OT_TAG* cur  = (OT_TAG*)ot->tag;
+    int hops = 0;
+
+    while (cur && hops < 16384)
+    {
+        uintptr_t curA = (uintptr_t)cur;
+        int valid = (curA == termA) ||
+                    (curA >= pktLo && curA < pktHi) ||
+                    (curA >= otLo  && curA < otHi);
+        if (!valid)
+        {
+            /* Found the corruption boundary. prev is the LAST valid prim;
+             * its `addr` field was clobbered to point at `cur` (wild).
+             * Log once per phase × OT name pair. */
+            static const void* s_seenPhase[16] = {0};
+            static const void* s_seenOt[16]    = {0};
+            static int         s_seenCount     = 0;
+            int seen = 0;
+            for (int i = 0; i < s_seenCount; i++)
+                if (s_seenPhase[i] == phase && s_seenOt[i] == otName) { seen = 1; break; }
+            if (!seen && s_seenCount < 16)
+            {
+                s_seenPhase[s_seenCount] = phase;
+                s_seenOt[s_seenCount]    = otName;
+                s_seenCount++;
+                SH_DBG("[OT-SCAN] %s/%s: CORRUPT addr field — prev=%p next=%p hops=%d (pkt=[%p..%p) ot=[%p..%p))",
+                       phase, otName, (void*)prev, (void*)cur, hops,
+                       (void*)pktLo, (void*)pktHi, (void*)otLo, (void*)otHi);
+                if (prev != NULL)
+                {
+                    u32* w = (u32*)prev;
+                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
+                           w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
+                           w[8], w[9], w[10], w[11], w[12], w[13], w[14], w[15]);
+                }
+            }
+            return;
+        }
+        if (curA == termA) return; /* clean end of chain */
+        prev = cur;
+        cur  = (OT_TAG*)nextPrim(cur);
+        hops++;
+    }
+}
+
+#define PC_OT_SCAN(phase) do { \
+    if (g_GameWork.gameState == GameState_InGame) { \
+        Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], phase, "OT0"); \
+        Pc_OtSentinelScan(&g_OrderingTable2[g_ActiveBufferIdx], phase, "OT2"); \
+    } \
+} while (0)
+#else
+#define PC_OT_SCAN(phase) ((void)0)
+#endif
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -722,11 +809,13 @@ void MainLoop(void) // 0x80032EE0
 #ifdef SH_PC_PORT
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] tick=%u gameState=%d pre GameStateUpdate\n", (unsigned)g_TickCount, (int)g_GameWork.gameState); fflush(g_ShDebugLog); } }
 #endif
+        PC_OT_SCAN("pre-GameStateUpdate");
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post GameStateUpdate\n"); fflush(g_ShDebugLog); } }
 #endif
+        PC_OT_SCAN("post-GameStateUpdate");
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
@@ -760,6 +849,7 @@ void MainLoop(void) // 0x80032EE0
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_Update\n"); fflush(g_ShDebugLog); } }
 #endif
         Demo_Update();
+        PC_OT_SCAN("post-Demo_Update");
 #ifdef SH_PC_PORT
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_GameRandSeedSet\n"); fflush(g_ShDebugLog); } }
 #endif
@@ -789,8 +879,10 @@ void MainLoop(void) // 0x80032EE0
 #else
 #define ML_TRACE(tag) ((void)0)
 #endif
+        PC_OT_SCAN("pre-Screen_FadeUpdate");
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
+        PC_OT_SCAN("post-Screen_FadeUpdate");
         ML_TRACE("MemCard_Update");
         MemCard_Update();
         ML_TRACE("Sd_TaskPoolExecute");
@@ -821,10 +913,13 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
+        PC_OT_SCAN("post-Fs_QueueUpdate");
         ML_TRACE("func_80089128");
         func_80089128();
+        PC_OT_SCAN("post-func_80089128");
         ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
+        PC_OT_SCAN("post-func_8008D78C");
         ML_TRACE("DrawSync");
         DrawSync(SyncMode_Wait);
         ML_TRACE("VSync-begin");
@@ -1001,8 +1096,20 @@ void MainLoop(void) // 0x80032EE0
          * area map. Take it?`) are 2D overlays sized for 320-wide
          * framebuffer. With horplus on, ortho expands to ~480 but SPRT UVs
          * stay at 0..256 — texture wraps and you get the 4x-tiled-map
-         * artifact behind the dialog. */
-        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame) ? 1 : 0;
+         * artifact behind the dialog.
+         *
+         * sysState gate: Map_PaperMapGet / Event_MapTake / item-inspection
+         * pickups all run as gameplay sub-states (sysState =
+         * SysState_EventCallback / EventSetFlag / EventPlaySound /
+         * ReadMessage) WHILE gameState stays InGame. They draw 2D
+         * full-screen background images (paper map, item TIM) the same
+         * way GameState_MapEvent does — so they need the same horplus
+         * exclusion. Without this, the paper-map pickup screen renders
+         * with the wider ortho and the 320-wide background SPRTs fall
+         * short of the new screen width, exposing the previous frame's
+         * gameplay framebuffer pixels as garbage tiling around the map. */
+        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
+                              g_SysWork.sysState == SysState_Gameplay) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
@@ -1058,36 +1165,58 @@ void MainLoop(void) // 0x80032EE0
                 uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
                 uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
                 uintptr_t otLo   = (uintptr_t)ot0->org;
-                size_t    otCnt  = (size_t)1 << ot0->length;
-                uintptr_t otHi   = otLo + otCnt * sizeof(GsOT_TAG);
-                while (cur && !isendprim(cur) && w2 < 8192) {
-                    /* Validate cur is in either the packet buffer or the OT
-                     * array before any field access. */
+                /* Clamp length to a sane range. Real OT length is 11
+                 * (2048 entries); accept up to 16 (65536 entries). If
+                 * GsOT itself was clobbered to a huge length the shift
+                 * would overflow size_t and the bounds window becomes
+                 * "anything", letting wild pointers slip through. */
+                int       otLen  = (ot0->length > 0 && ot0->length <= 16) ? (int)ot0->length : 0;
+                size_t    otCnt  = (size_t)1 << otLen;
+                uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
+                /* CRITICAL: validate `cur` BEFORE any field access — including
+                 * the loop condition's isendprim(cur), which reads cur->addr
+                 * (a 64-bit pointer load). If ot0->tag itself was corrupted
+                 * to a wild-but-non-NULL pointer, the very first
+                 * `!isendprim(cur)` faults with INVALID_POINTER_READ
+                 * (`mov rdx,[rax]`) before our in-loop curOk check ever
+                 * runs. Pre-validate, and re-check at top of every
+                 * iteration. */
+                /* Track prev so we can TRUNCATE the chain when corruption is
+                 * found. Detection alone isn't enough — DrawOTag walks the
+                 * same chain after the sanitizer returns and faults on the
+                 * same wild pointer. We need to splice the chain to end at
+                 * the last known-good entry. */
+                OT_TAG* prev = NULL;
+                while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
                                  (curAddr >= otLo  && curAddr < otHi));
                     if (!curOk) {
-                        /* One-shot dump per session: log the previous (still-
-                         * valid) entry's contents so we can see what wrote
-                         * the bad nextPtr. After the first dump, fall back
-                         * to the rate-limited summary. */
                         static int s_dumpedOnce = 0;
                         if (!s_dumpedOnce) {
                             s_dumpedOnce = 1;
-                            const uint32_t* w = (const uint32_t*)cur;
-                            SH_DBG("[OT-SANIT] FIRST bad cur=%p — pkt=[%p..%p) ot=[%p..%p) — first 32 bytes at cur:",
-                                   (void*)cur, (void*)pktLo, (void*)pktHi,
+                            SH_DBG("[OT-SANIT] FIRST bad cur=%p (w2=%d) prev=%p — pkt=[%p..%p) ot=[%p..%p)",
+                                   (void*)cur, w2, (void*)prev,
+                                   (void*)pktLo, (void*)pktHi,
                                    (void*)otLo, (void*)otHi);
-                            SH_DBG("[OT-SANIT]   %08x %08x %08x %08x %08x %08x %08x %08x",
-                                   (unsigned)w[0], (unsigned)w[1], (unsigned)w[2], (unsigned)w[3],
-                                   (unsigned)w[4], (unsigned)w[5], (unsigned)w[6], (unsigned)w[7]);
+                        }
+                        /* Skip past the corrupt prim by re-linking prev to
+                         * ot0->org[0] — the closest-to-camera bucket, last in
+                         * draw order. The OT chain walks from far→near
+                         * (org[N-1] → ... → org[0] → terminator). When we
+                         * detect corruption mid-chain, jumping to org[0]
+                         * preserves the nearest-camera geometry (which is
+                         * what the user notices missing — items near Harry
+                         * during muzzle flash). The middle buckets are still
+                         * lost, but a small fraction vs. truncating-at-prev. */
+                        if (prev != NULL) {
+                            setaddr(prev, &ot0->org[0]);
                         } else {
-                            SH_DBG("[OT-SANIT] aborting walk: cur=%p out of valid prim memory (pkt=[%p..%p) ot=[%p..%p))",
-                                   (void*)cur, (void*)pktLo, (void*)pktHi,
-                                   (void*)otLo, (void*)otHi);
+                            ot0->tag = (u_long*)&ot0->org[0];
                         }
                         break;
                     }
+                    if (isendprim(cur)) break;
                     int len = getlen(cur);
                     if (len > 0) {
                         u8 hi = ((P_TAG*)cur)->code & 0xF0;
@@ -1097,12 +1226,25 @@ void MainLoop(void) // 0x80032EE0
                         }
                     }
                     OT_TAG* next = (OT_TAG*)nextPrim(cur);
-                    /* Guard against wild pointers from corrupted OT entries */
+                    /* Guard against wild next pointers. Truncate at cur — make
+                     * it the new chain terminator instead of just zeroing its
+                     * length (the old behaviour left cur->addr pointing at the
+                     * wild target, so DrawOTag would still chase it). */
                     if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
-                        setlen(cur, 0);
+                        static int s_badNextDumped = 0;
+                        if (!s_badNextDumped) {
+                            s_badNextDumped = 1;
+                            SH_DBG("[OT-SANIT] FIRST wild next=%p at cur=%p (w2=%d) — re-link to org[0]",
+                                   (void*)next, (void*)cur, w2);
+                        }
+                        /* Re-link cur past the corrupt next to ot0->org[0]
+                         * (closest-camera bucket) so DrawOTag walks through
+                         * the nearest geometry instead of the wild pointer. */
+                        setaddr(cur, &ot0->org[0]);
                         break;
                     }
-                    cur = next;
+                    prev = cur;
+                    cur  = next;
                     w2++;
                 }
             }
@@ -1128,12 +1270,49 @@ void MainLoop(void) // 0x80032EE0
         /* Sanitize InGame OT2 — extended whitelist for 2D overlays.
          * OT2 holds text, screen fade, cutscene borders via g_OtTags0 layers.
          * Text uses SPRT (0x64) + DR_TPAGE (0xE1) per glyph, so allow 0xE0
-         * range here (DR_TPAGE is safe; the DR_MODE crashes are in OT0). */
+         * range here (DR_TPAGE is safe; the DR_MODE crashes are in OT0).
+         *
+         * Defense in depth: same `cur` bounds-validation as the OT0
+         * sanitizer above. The OT2 walk uses the SAME isendprim/nextPrim
+         * dereference pattern, so a wild pointer in ot2->tag or chained
+         * via nextPrim faults identically (`mov rdx,[rax]`) on the
+         * loop-condition read. Pre-check before any field access, and
+         * re-check after each nextPrim hop. */
         if (g_GameWork.gameState == 11) {
             GsOT* ot2 = &g_OrderingTable2[g_ActiveBufferIdx];
             OT_TAG* cur2 = (OT_TAG*)ot2->tag;
             int w3 = 0;
-            while (cur2 && !isendprim(cur2) && w3 < 4096) {
+            uintptr_t pktLo2 = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
+            uintptr_t pktHi2 = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
+            uintptr_t otLo2  = (uintptr_t)ot2->org;
+            int       otLen2 = (ot2->length > 0 && ot2->length <= 16) ? (int)ot2->length : 0;
+            size_t    otCnt2 = (size_t)1 << otLen2;
+            uintptr_t otHi2  = (otLo2 && otLen2) ? (otLo2 + otCnt2 * sizeof(GsOT_TAG)) : otLo2;
+            OT_TAG* prev2 = NULL;
+            while (cur2 && w3 < 4096) {
+                uintptr_t curAddr2 = (uintptr_t)cur2;
+                int curOk2 = ((curAddr2 >= pktLo2 && curAddr2 < pktHi2) ||
+                              (curAddr2 >= otLo2  && curAddr2 < otHi2));
+                if (!curOk2) {
+                    static int s_ot2DumpedOnce = 0;
+                    if (!s_ot2DumpedOnce) {
+                        s_ot2DumpedOnce = 1;
+                        SH_DBG("[OT2-SANIT] FIRST bad cur2=%p (w3=%d) prev=%p — pkt=[%p..%p) ot=[%p..%p)",
+                               (void*)cur2, w3, (void*)prev2,
+                               (void*)pktLo2, (void*)pktHi2,
+                               (void*)otLo2, (void*)otHi2);
+                    }
+                    /* Skip past corrupt prim — see OT0 sanitizer above for
+                     * rationale. Jump to ot2->org[0] (closest-to-camera
+                     * bucket) to preserve nearest-camera geometry. */
+                    if (prev2 != NULL) {
+                        setaddr(prev2, &ot2->org[0]);
+                    } else {
+                        ot2->tag = (u_long*)&ot2->org[0];
+                    }
+                    break;
+                }
+                if (isendprim(cur2)) break;
                 int len2 = getlen(cur2);
                 if (len2 > 0) {
                     u8 hi2 = ((P_TAG*)cur2)->code & 0xF0;
@@ -1142,7 +1321,19 @@ void MainLoop(void) // 0x80032EE0
                         setlen(cur2, 0);
                     }
                 }
-                cur2 = (OT_TAG*)nextPrim(cur2);
+                OT_TAG* next2 = (OT_TAG*)nextPrim(cur2);
+                if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > (uintptr_t)0x7FFFFFFFFFFF)) {
+                    static int s_ot2BadNextDumped = 0;
+                    if (!s_ot2BadNextDumped) {
+                        s_ot2BadNextDumped = 1;
+                        SH_DBG("[OT2-SANIT] FIRST wild next=%p at cur2=%p (w3=%d) — re-link to org[0]",
+                               (void*)next2, (void*)cur2, w3);
+                    }
+                    setaddr(cur2, &ot2->org[0]);
+                    break;
+                }
+                prev2 = cur2;
+                cur2  = next2;
                 w3++;
             }
         }

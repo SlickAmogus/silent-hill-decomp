@@ -56,15 +56,22 @@
 } while(0)
 #endif
 
-/* gte_stsz3c: store SZ1/SZ2/SZ3 (GTE C17-19) into 3 consecutive shorts
- * at p. Used by particle math after gte_rtpt() to grab the depths of
- * three transformed vertices. */
+/* gte_stsz3c: store SZ1/SZ2/SZ3 (GTE C17-19) with PSX `swc2` stride (4 bytes).
+ * Mirrors the canonical fix in pc_port/include/inline_no_dmpsx.h. Kept here
+ * defensively for any TU that includes this shim without inline_no_dmpsx.h.
+ *
+ * PSX uses `swc2 $N,K($p)` — a 32-bit store at offsets 0, 4, 8. Earlier the
+ * macro here used `short*` stride 2 (6 bytes total), leaving the upper half
+ * of each destination s32 stale → particle code that averages four
+ * consecutive s32 fields after gte_stsz3c (e.g. func_80063A50 muzzle-flash
+ * field_1BC..field_1C8) produces garbage Z, lands in OT bucket 0, and the
+ * quads render as a one-frame full-screen flash. */
 #undef gte_stsz3c
 #define gte_stsz3c( p ) do { \
-    short *_s = (short*)(p); \
-    _s[0] = (short)MFC2(17); \
-    _s[1] = (short)MFC2(18); \
-    _s[2] = (short)MFC2(19); \
+    int *_w = (int*)(p); \
+    _w[0] = (int)(MFC2(17) & 0xFFFF); \
+    _w[1] = (int)(MFC2(18) & 0xFFFF); \
+    _w[2] = (int)(MFC2(19) & 0xFFFF); \
 } while(0)
 
 #endif

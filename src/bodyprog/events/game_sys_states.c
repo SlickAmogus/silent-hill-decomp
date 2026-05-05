@@ -290,26 +290,63 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Demo_DemoRandSeedRestore();
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] pre-NpcRoomInitSpawn");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2], g_OrderingTable2[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "pre-NpcRoomInitSpawn", "OT0");
+            Pc_OtSentinelScan(&g_OrderingTable2[g_ActiveBufferIdx], "pre-NpcRoomInitSpawn", "OT2");
+        }
 #endif
         Game_NpcRoomInitSpawn(true);
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] pre-NpcUpdate");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2], g_OrderingTable2[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "post-NpcRoomInitSpawn", "OT0");
+        }
 #endif
         Game_NpcUpdate();
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] pre-5E89C");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "post-NpcUpdate", "OT0");
+        }
 #endif
         func_8005E89C();
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] pre-IpdCloseRange");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "post-func_8005E89C-particles", "OT0");
+        }
 #endif
         Ipd_CloseRangeChunksInit();
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] pre-InGameDraw");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "post-IpdCloseRange", "OT0");
+        }
 #endif
         Gfx_InGameDraw(1);
 #ifdef SH_PC_PORT
         SH_DBG("[FRAME] post-InGameDraw");
+        {
+            extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+            extern s32 g_ActiveBufferIdx;
+            extern GsOT g_OrderingTable0[2];
+            Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "post-Gfx_InGameDraw", "OT0");
+        }
 #endif
         Demo_DemoRandSeedAdvance();
 #ifdef SH_PC_PORT
@@ -408,6 +445,17 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 void SysState_GamePaused_Update(void) // 0x800391E8
 {
     static s32 D_800A9A68 = 0;
+
+#ifdef SH_PC_PORT
+    /* Make pause actually pause. `BgmStatusFlag_Pause` is misleadingly named:
+     * it's the flag the InGame update flow uses to gate world-objects, camera,
+     * player, NPC, particle, and character-render updates (see this file
+     * lines ~190 and ~200). MainLoop resets bgmStatusFlags to None at the
+     * top of every frame, so we have to re-set it each tick during pause.
+     * Other gameplay sub-states that should pause the world (paper-map
+     * screen, cutscene borders, various event states) already do this. */
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+#endif
 
     D_800A9A68 += g_DeltaTimeRaw;
     if (!((D_800A9A68 >> 11) & (1 << 0)))
