@@ -9,6 +9,7 @@ extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
 extern int g_PcHorPlusEnabled;
+extern int g_PsxSkipFramebufferStore;
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -1092,24 +1093,20 @@ void MainLoop(void) // 0x80032EE0
         /* Enable hor+ widescreen only during 3D world states; 2D UI screens
          * (menus, loading screen, memory card warning, etc.) use 4:3 ortho.
          *
-         * MapEvent excluded: pickup-prompt SPRTs (`There is a Residential
-         * area map. Take it?`) are 2D overlays sized for 320-wide
-         * framebuffer. With horplus on, ortho expands to ~480 but SPRT UVs
-         * stay at 0..256 — texture wraps and you get the 4x-tiled-map
-         * artifact behind the dialog.
+         * Map pickup specifically: the paper-map pickup screen renders 2D
+         * full-screen SPRTs that need 4:3 ortho. Item-pickup dialogs
+         * (`do you want to pick up X?`) DO NOT need this — they want 16:9
+         * to match the surrounding gameplay aspect.
          *
-         * sysState gate: Map_PaperMapGet / Event_MapTake / item-inspection
-         * pickups all run as gameplay sub-states (sysState =
-         * SysState_EventCallback / EventSetFlag / EventPlaySound /
-         * ReadMessage) WHILE gameState stays InGame. They draw 2D
-         * full-screen background images (paper map, item TIM) the same
-         * way GameState_MapEvent does — so they need the same horplus
-         * exclusion. Without this, the paper-map pickup screen renders
-         * with the wider ortho and the 320-wide background SPRTs fall
-         * short of the new screen width, exposing the previous frame's
-         * gameplay framebuffer pixels as garbage tiling around the map. */
+         * Detection: PaperMap_ReuploadTimToVram_PC is the only place that
+         * sets g_PsxSkipFramebufferStore, and it runs every tick during
+         * the map pickup screen. Use that flag as the "this is a map
+         * pickup tick" signal — it's already set by game logic before
+         * we get here in MainLoop. (auto-clears in PsyX_EndScene.)
+         *
+         * Result: item pickups stay 16:9, map pickup goes to 4:3. */
         g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
-                              g_SysWork.sysState == SysState_Gameplay) ? 1 : 0;
+                              !g_PsxSkipFramebufferStore) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
