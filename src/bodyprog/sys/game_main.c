@@ -16,7 +16,10 @@ extern int g_PsxSkipFramebufferStore;
 extern u8 g_WorldEnvWork[];
 #define PC_WorldEnvWork (*(s_WorldEnvWork*)g_WorldEnvWork)
 #include "bodyprog/view/vw_main.h"
+#include "bodyprog/view/structs.h"
+extern VC_WORK vcWork;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
+extern void vcGetNowWatchPos(VECTOR3* watch_pos);
 extern const unsigned char* g_sdlKeyboardState;
 #include "debug_console.h"
 #include "map_registry.h"
@@ -122,6 +125,31 @@ static q3_12 g_DebugCamAngleX = 0; /* pitch/tilt: positive = look down, negative
 static VECTOR3 g_DebugCamSavedHarryPos; /* Harry's position when debug cam was enabled */
 static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
 
+/* ---- Normal-camera "nudge" state (numpad-driven manual cam tweaking) ----
+ * vcMoveAndSetCamera produces a camera each frame; we want to let the user
+ * nudge that output in real time so they can find a good camera and log it
+ * via top-row 4/5. The nudges are an additive delta on top of whatever the
+ * normal cam computed:
+ *     final cam_pos     = vcWork.cam_pos       + g_PcCamNudgePos
+ *     final watch_tgt   = (rotate watch_tgt around cam_pos by yaw nudge,
+ *                          pitch yaw by pitch nudge) + g_PcCamNudgePos
+ * Numpad 3 zeroes the nudges, restoring the scene's default cam.
+ *
+ * "Default cam" tracking: every frame BEFORE we apply nudges we record
+ * vcWork.cam_pos / watch_tgt_pos in g_DefaultCam. That way the natural
+ * cam-road interpolation drives the default and Numpad 3 simply discards
+ * accumulated tweaks. */
+typedef struct {
+    VECTOR3 pos;
+    VECTOR3 lookAt;
+    s32     valid;
+} s_DefaultCamera;
+
+static VECTOR3       g_PcCamNudgePos     = {0, 0, 0};
+static s32           g_PcCamNudgeYaw     = 0; /* Q3.12 added to cam yaw */
+static s32           g_PcCamNudgePitch   = 0; /* Q3.12 added to cam pitch */
+static s_DefaultCamera g_DefaultCam      = {{0,0,0}, {0,0,0}, 0};
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
@@ -222,51 +250,223 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Number key 4: mark INCORRECT (current in-game) camera — pos + lookAt */
+    /* Number keys 4/5: log BAD / GOOD camera position.
+     * Reads whichever camera is currently active (normal vcMoveAndSetCamera,
+     * debug free-fly, or TPS) and writes pos/lookAt/pitch/yaw/FOV/mode.
+     * Implemented as a shared block so both keys produce identical fields. */
     {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_4];
-        if (cur && !prevKey) {
-            extern void vcGetNowWatchPos(VECTOR3* watch_pos);
-            VECTOR3 gameCamPos, gameCamLook;
-            vcGetNowCamPos(&gameCamPos);
-            vcGetNowWatchPos(&gameCamLook);
-            SH_DBG("==== INCORRECT-CAM @ map=%d harry=(%ld,%ld,%ld) yaw=%d ====",
-                (int)g_SavegamePtr->mapOverlayId_A4,
+        static int prevKey4 = 0, prevKey5 = 0;
+        int cur4 = g_sdlKeyboardState[SDL_SCANCODE_4];
+        int cur5 = g_sdlKeyboardState[SDL_SCANCODE_5];
+        const char* tag = NULL;
+        if (cur4 && !prevKey4) tag = "BAD CAMERA POSITION";
+        else if (cur5 && !prevKey5) tag = "GOOD CAMERA POSITION";
+        if (tag) {
+            VECTOR3 camPos, lookAt;
+            s32     pitch, yaw;
+            const char* mode;
+            if (g_DebugCamEnabled) {
+                /* Free-fly debug cam — read its own state. */
+                camPos = g_DebugCamPos;
+                lookAt = g_DebugCamLookAt;
+                yaw    = (s32)g_DebugCamAngleY;
+                pitch  = (s32)g_DebugCamAngleX;
+                mode   = "DEBUG";
+            } else if (g_DebugThirdPersonCam) {
+                /* TPS orbit cam — re-read live vcWork (TPS calls
+                 * Vw_SetLookAtMatrix, so vcWork may not be in sync;
+                 * use TPS state directly). */
+                vcGetNowCamPos(&camPos);
+                vcGetNowWatchPos(&lookAt);
+                yaw   = g_TpsCamYaw;
+                pitch = g_TpsCamPitch;
+                mode  = "TPS";
+            } else {
+                /* Normal cam (vcMoveAndSetCamera + nudges already applied
+                 * earlier this frame). vcWork is the authoritative source. */
+                camPos = vcWork.cam_pos;
+                lookAt = vcWork.watch_tgt_pos;
+                yaw    = (s32)vcWork.cam_mat_ang.vy;
+                pitch  = (s32)vcWork.cam_mat_ang.vx;
+                mode   = "NORMAL";
+            }
+            SH_DBG("[%s] tick=%u map=%d mode=%s harry=(%ld,%ld,%ld) bodyYaw=%d",
+                tag,
+                (unsigned)SDL_GetTicks(),
+                (int)g_SavegamePtr->mapOverlayId_A4, mode,
                 (long)g_SysWork.playerWork.player.position.vx,
                 (long)g_SysWork.playerWork.player.position.vy,
                 (long)g_SysWork.playerWork.player.position.vz,
                 (int)g_SysWork.playerWork.player.rotation.vy);
-            SH_DBG("    cam pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) angleY=%d",
-                (long)gameCamPos.vx, (long)gameCamPos.vy, (long)gameCamPos.vz,
-                (long)gameCamLook.vx, (long)gameCamLook.vy, (long)gameCamLook.vz,
-                (int)g_SysWork.cameraAngleY);
+            SH_DBG("[%s] pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) pitch=%d yaw=%d FOV=%d nudge=(%ld,%ld,%ld) yawN=%d pitchN=%d",
+                tag,
+                (long)camPos.vx, (long)camPos.vy, (long)camPos.vz,
+                (long)lookAt.vx, (long)lookAt.vy, (long)lookAt.vz,
+                (int)pitch, (int)yaw, (int)vcWork.geom_screen_dist,
+                (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
+                (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
         }
-        prevKey = cur;
-    }
-    /* Number key 5: mark CORRECTED (debug-cam) camera — pos + lookAt */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_5];
-        if (cur && !prevKey) {
-            SH_DBG("==== CORRECTED-CAM @ map=%d harry=(%ld,%ld,%ld) yaw=%d ====",
-                (int)g_SavegamePtr->mapOverlayId_A4,
-                (long)g_DebugCamSavedHarryPos.vx,
-                (long)g_DebugCamSavedHarryPos.vy,
-                (long)g_DebugCamSavedHarryPos.vz,
-                (int)g_SysWork.playerWork.player.rotation.vy);
-            SH_DBG("    cam pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) angleY=%d angleX=%d",
-                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                (long)g_DebugCamLookAt.vx, (long)g_DebugCamLookAt.vy, (long)g_DebugCamLookAt.vz,
-                (int)g_DebugCamAngleY, (int)g_DebugCamAngleX);
-        }
-        prevKey = cur;
+        prevKey4 = cur4;
+        prevKey5 = cur5;
     }
 
     /* F-key debug hotkeys removed: F4 (handgun) was freezing controls and
      * the test map already has knife + pistol pickups, so the bindings
      * are unnecessary here. Re-add when an in-progress later-map test
      * needs an item that isn't in the world yet. */
+
+    /* ==== Normal-camera manual tweak (numpad nudges) + Numpad 3 reset ====
+     * Active in NORMAL camera mode only (not debug-cam, not TPS). Reads
+     * keyboard, accumulates an additive offset on top of vcMoveAndSetCamera
+     * and applies it to vcWork via Vw_SetLookAtMatrix. ~5x less sensitive
+     * than the debug-cam speeds so nudges are usable for fine-tuning.
+     *
+     * Numpad 3 zeroes the nudge accumulator, snapping the camera back to
+     * vcMoveAndSetCamera's natural output (the "default" cam). Tracking a
+     * separate g_DefaultCam isn't actually needed — vcWork already holds
+     * the default before our nudges land — but we still update it each
+     * frame so external observers (logging, future commands) can see the
+     * pristine pre-nudge cam. */
+    if (!g_DebugCamEnabled && !g_DebugThirdPersonCam &&
+        g_GameWork.gameState == GameState_InGame)
+    {
+        #define PC_NUDGE_MOVE_SPEED  102   /* Q12(~0.025) — ~5x slower than debug 512 */
+        #define PC_NUDGE_TURN_SPEED  3     /* ~5x slower than debug 16 */
+        #define PC_NUDGE_VERT_SPEED  51    /* ~5x slower than debug 256 */
+
+        /* Snapshot the pristine default cam BEFORE nudge application.
+         * vcMoveAndSetCamera ran earlier this frame and put its result in
+         * vcWork — that's our default. */
+        g_DefaultCam.pos    = vcWork.cam_pos;
+        g_DefaultCam.lookAt = vcWork.watch_tgt_pos;
+        g_DefaultCam.valid  = 1;
+
+        /* Numpad 3: reset nudge accumulator (held = repeats; cheap) */
+        {
+            static int prevKey3 = 0;
+            int cur3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
+            if (cur3 && !prevKey3) {
+                g_PcCamNudgePos.vx = 0;
+                g_PcCamNudgePos.vy = 0;
+                g_PcCamNudgePos.vz = 0;
+                g_PcCamNudgeYaw    = 0;
+                g_PcCamNudgePitch  = 0;
+                SH_DBG("[CAM-RESET] nudges cleared — restored to default cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld)",
+                    (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
+                    (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
+            }
+            prevKey3 = cur3;
+        }
+
+        /* Read numpad nudge keys (held = continuous). Camera-relative
+         * forward/strafe uses the cam's current yaw so 8 always pushes
+         * "into the screen". */
+        {
+            s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
+            s32 sinY   = Math_Sin(camYaw);
+            s32 cosY   = Math_Cos(camYaw);
+
+            /* Numpad 8/5: forward / back (cam-relative XZ) */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+            }
+            /* Numpad 4/6: strafe left / right */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+            }
+            /* Numpad 7/9: turn left / right (yaw) */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
+                g_PcCamNudgeYaw -= PC_NUDGE_TURN_SPEED;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
+                g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
+            }
+            /* Numpad +/-: vertical (PSX +Y = down → KP_PLUS goes UP via -Y) */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
+                g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+                g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
+            }
+            /* Pitch isn't separately bound on the numpad in this mode —
+             * use top-row 4/5 to log and external/console commands to set
+             * pitch directly. (Reserved: g_PcCamNudgePitch.) */
+        }
+
+        /* Numpad /: print current nudged camera (works in normal cam) */
+        {
+            static int npslPrev = 0;
+            int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
+            if (cur && !npslPrev) {
+                SH_DBG("[CAM] default pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) yaw=%d",
+                    (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
+                    (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz,
+                    (int)vcWork.cam_mat_ang.vy);
+                SH_DBG("[CAM] nudge   pos=(%ld,%ld,%ld) yaw=%d pitch=%d",
+                    (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
+                    (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
+            }
+            npslPrev = cur;
+        }
+
+        /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
+         * lookAt is rotated around cam_pos by the yaw nudge so the camera
+         * "swings" rather than parallel-translating. */
+        if (g_PcCamNudgePos.vx | g_PcCamNudgePos.vy | g_PcCamNudgePos.vz |
+            g_PcCamNudgeYaw   | g_PcCamNudgePitch)
+        {
+            VECTOR3 newCam, newLook;
+            VECTOR3 dl;
+            s32 syN, cyN, dx, dz;
+
+            newCam.vx = vcWork.cam_pos.vx + g_PcCamNudgePos.vx;
+            newCam.vy = vcWork.cam_pos.vy + g_PcCamNudgePos.vy;
+            newCam.vz = vcWork.cam_pos.vz + g_PcCamNudgePos.vz;
+
+            /* Original lookAt relative to cam */
+            dl.vx = vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx;
+            dl.vy = vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy;
+            dl.vz = vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz;
+
+            /* Rotate XZ component of dl by yaw nudge */
+            syN = Math_Sin(g_PcCamNudgeYaw);
+            cyN = Math_Cos(g_PcCamNudgeYaw);
+            dx  = (s32)(((s64)dl.vx * cyN + (s64)dl.vz * syN) >> 12);
+            dz  = (s32)((-(s64)dl.vx * syN + (s64)dl.vz * cyN) >> 12);
+
+            newLook.vx = newCam.vx + dx;
+            newLook.vy = newCam.vy + dl.vy + g_PcCamNudgePitch; /* crude pitch as Y bias */
+            newLook.vz = newCam.vz + dz;
+
+            Vw_SetLookAtMatrix(&newCam, &newLook);
+            vwSetViewInfo();
+
+            /* Periodic trace so log shows nudge cam is live */
+            {
+                static int tickCounter = 0;
+                if ((++tickCounter & 0x3F) == 0) {
+                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d",
+                        (long)newCam.vx, (long)newCam.vy, (long)newCam.vz,
+                        (long)newLook.vx, (long)newLook.vy, (long)newLook.vz,
+                        (int)g_PcCamNudgeYaw);
+                }
+            }
+        }
+
+        #undef PC_NUDGE_MOVE_SPEED
+        #undef PC_NUDGE_TURN_SPEED
+        #undef PC_NUDGE_VERT_SPEED
+    }
 
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
