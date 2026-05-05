@@ -1444,8 +1444,19 @@ void MainLoop(void) // 0x80032EE0
                     int len = getlen(cur);
                     if (len > 0) {
                         u8 hi = ((P_TAG*)cur)->code & 0xF0;
+                        u8 codeFull = ((P_TAG*)cur)->code;
+                        /* DR_TPAGE (0xE1) is needed in OT0 for the paper-map
+                         * pickup screen and similar background-image draws —
+                         * Screen_BackgroundImgDraw aliases the OT0 far bucket
+                         * and prepends SPRT + DR_TPAGE pairs. Without DR_TPAGE
+                         * passing through, the SPRTs sample whatever tpage was
+                         * last set (typically the gameplay framebuffer region)
+                         * and the pickup screen renders as tiled gameplay-scene
+                         * garbage. Other 0xE_ codes (DR_MODE multi-byte family)
+                         * remain stripped. */
                         if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
-                            hi != 0x60 && hi != 0x70 && hi != 0xA0)) {
+                            hi != 0x60 && hi != 0x70 && hi != 0xA0 &&
+                            codeFull != 0xE1)) {
                             setlen(cur, 0);
                         }
                     }
