@@ -331,7 +331,14 @@ def cmd_info(args):
 
 def cmd_extract(args):
     in_root = Path(args.input)
-    out_root = Path(args.output)
+    if args.output is None:
+        # default: <input>_pngs alongside the input (works for single
+        # files too — `foo.TIM` → `foo_pngs/foo.png`)
+        out_root = in_root.with_name(in_root.stem + "_pngs") if in_root.is_file() \
+                   else in_root.parent / (in_root.name + "_pngs")
+        print(f"  (output not specified, using {out_root})")
+    else:
+        out_root = Path(args.output)
 
     n_ok = 0
     n_skip = 0
@@ -361,7 +368,12 @@ def cmd_extract(args):
 
 def cmd_pack(args):
     in_root = Path(args.input)
-    out_root = Path(args.output)
+    if args.output is None:
+        out_root = in_root.with_name(in_root.stem + "_tims") if in_root.is_file() \
+                   else in_root.parent / (in_root.name + "_tims")
+        print(f"  (output not specified, using {out_root})")
+    else:
+        out_root = Path(args.output)
 
     n_ok = 0
     n_skip = 0
@@ -410,12 +422,14 @@ def main():
 
     p_ex = sub.add_parser("extract", help="TIM tree → PNG tree (+ sidecar metadata)")
     p_ex.add_argument("input", help="root TIM directory or single .TIM")
-    p_ex.add_argument("output", help="root PNG output directory")
+    p_ex.add_argument("output", nargs="?", default=None,
+                      help="output dir (default: <input>_pngs alongside input)")
     p_ex.set_defaults(func=cmd_extract)
 
     p_pk = sub.add_parser("pack", help="PNG tree → TIM tree (16bpp)")
     p_pk.add_argument("input", help="root PNG directory or single .png")
-    p_pk.add_argument("output", help="root TIM output directory")
+    p_pk.add_argument("output", nargs="?", default=None,
+                      help="output dir (default: <input>_tims alongside input)")
     p_pk.set_defaults(func=cmd_pack)
 
     args = ap.parse_args()
