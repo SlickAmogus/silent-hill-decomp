@@ -391,16 +391,24 @@ void DebugCamera_Update(void)
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
                 g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
             }
-            /* Numpad +/-: vertical (PSX +Y = down → KP_PLUS goes UP via -Y) */
+            /* Numpad +/-: tilt up / down (pitch). Matches debug cam.
+             * The pitch nudge biases the lookAt Y at the apply site
+             * (search g_PcCamNudgePitch). PSX +Y = down → KP_PLUS goes
+             * up by subtracting from Y. */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-                g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
+                g_PcCamNudgePitch -= PC_NUDGE_VERT_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+                g_PcCamNudgePitch += PC_NUDGE_VERT_SPEED;
+            }
+            /* Page Up / Page Down: vertical move (camera-Y) — also
+             * matches debug cam's vertical bindings. */
+            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
+                g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
                 g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
             }
-            /* Pitch isn't separately bound on the numpad in this mode —
-             * use top-row 4/5 to log and external/console commands to set
-             * pitch directly. (Reserved: g_PcCamNudgePitch.) */
         }
 
         /* Numpad /: print current nudged camera (works in normal cam) */

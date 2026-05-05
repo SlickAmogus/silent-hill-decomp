@@ -61,6 +61,10 @@ to the PSX-controller path:
 
 Outside TPS mode, mouse buttons are ignored.
 
+Top-row **6** logs a `[TPS-SNAP]` entry capturing camera + Harry pose
+(only valid in TPS mode). Top-row **7/8/9/0** log preset-pose entries
+for tuning the body-tracks-camera math.
+
 ---
 
 ## PC-only debug keys
@@ -70,25 +74,73 @@ behavior.
 
 | Key | Function |
 |-----|----------|
-| **`** (backtick) | Console toggle *(currently doesn't render — reserved)* |
+| **`** (backtick) | Console toggle |
 | **Top-row 1** | Kill Harry (set `health = -Q12(1.0)`) |
-| **Top-row 4** | Mark "incorrect" camera position to log |
-| **Top-row 5** | Mark "corrected" camera position + full debug-cam state to log |
+| **Top-row 4** | Tag camera coords to log as `BAD CAMERA POSITION` |
+| **Top-row 5** | Tag camera coords to log as `GOOD CAMERA POSITION` |
 | **Top-row 6** | TPS camera state snapshot *(TPS mode only)* |
+| **Top-row 7/8/9/0** | TPS preset-pose loggers |
 
-### Free-fly debug camera
+Top-row 4/5 work in **all camera modes** (normal, debug, TPS) and dump
+position + lookAt + yaw + pitch to the log so you can compare a wrong
+camera position against a corrected one.
 
-Toggle: **Numpad ***  (asterisk).
+---
 
-| Numpad | Function |
-|--------|----------|
-| **8 / 5** | Forward / back |
-| **4 / 6** | Strafe left / right |
-| **7 / 9** | Turn left / right |
-| **+ / -** | Up / down |
-| **/** | Print current camera coords to log |
-| **.** | Toggle fog on/off |
-| **1** | Toggle wall collision |
+## Cameras
+
+There are **three** camera modes; the active one depends on which
+toggles you've pressed:
+
+1. **Normal scene camera** — the game's road-data / cutscene camera.
+   This is what runs by default.
+2. **Free-fly debug camera** — toggled by Numpad `*`. Disconnects
+   from scene logic so you can fly around. Keeps Harry stationary.
+3. **TPS follow camera** — toggled by Numpad `2`. Spherical orbit
+   tracking Harry. Mouse-look + WASD body-relative movement.
+
+### Common bindings
+
+These work in **normal cam** and **debug cam** (both use the same
+keys with parallel meaning):
+
+| Numpad | Normal cam (nudge) | Debug cam (free-fly) |
+|--------|--------------------|--------------------|
+| **8 / 5** | Forward / back (cam-relative XZ) | Forward / back |
+| **4 / 6** | Strafe left / right | Strafe left / right |
+| **7 / 9** | Turn left / right (yaw) | Turn left / right (yaw) |
+| **+ / -** | Tilt up / down (pitch) | Tilt up / down (pitch) |
+| **/** | Print camera coords to log | Print camera coords to log |
+| **PageUp / PageDown** | Vertical Y (up / down) | Vertical Y (up / down) |
+
+### Normal-cam-specific
+
+| Key | Function |
+|-----|----------|
+| **Numpad 3** | Reset nudge accumulator — snaps the camera back to the scene's default position |
+
+The normal cam "nudge" system *adds* offsets on top of whatever the
+game's camera logic produces. Pressing Numpad 3 zeroes the nudges and
+the cam returns to its scene-driven position.
+
+### Debug-cam-specific
+
+| Key | Function |
+|-----|----------|
+| **Numpad `*`** | Toggle free-fly debug cam on/off |
+| **Numpad 1** | Toggle wall collision |
+| **Numpad .** | Toggle fog on/off (only when debug cam is active) |
+| **Numpad 0** | Cycle to next map overlay (DLL maps) |
+
+Wall collision and fog toggles are scoped to debug cam so they don't
+interfere with normal play.
+
+### What's *not* available
+
+- **No pitch dial in TPS mode** — pitch is mouse-only there. The
+  numpad keys are claimed by the normal-cam nudge or the debug cam.
+- **No roll** in any cam — Silent Hill never rolls.
+- **No FOV adjust** — bound to the scene's projection matrix.
 
 ---
 
@@ -98,4 +150,5 @@ Toggle: **Numpad ***  (asterisk).
 - PSX-button → in-game function: `src/bodyprog/sys/settings_reset.c` `Settings_RestoreControlDefaults()`
 - TPS direct-poll (WASD / mouse): `src/bodyprog/sys/game_main.c` (search for `g_DebugThirdPersonCam`)
 - TPS aim/fire mouse polling: `src/bodyprog/player_control.c` (search for `SDL_BUTTON_RIGHT`)
+- Normal-cam nudge state + handlers: `src/bodyprog/sys/game_main.c` (search for `g_PcCamNudge`)
 - Debug key handlers: `src/bodyprog/sys/game_main.c` (search for `[DEBUG]`)
