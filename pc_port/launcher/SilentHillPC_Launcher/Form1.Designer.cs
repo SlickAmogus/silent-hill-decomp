@@ -52,6 +52,12 @@ partial class Form1
     private RadioButton consoleYes;
     private RadioButton consoleNo;
 
+    private Label looseLabel;
+    private Panel loosePanel;
+    private RadioButton looseYes;
+    private RadioButton looseNo;
+    private ToolTip looseTooltip;
+
 
 
     protected override void Dispose(bool disposing)
@@ -103,6 +109,11 @@ partial class Form1
             this.consolePanel = new System.Windows.Forms.Panel();
             this.consoleYes = new System.Windows.Forms.RadioButton();
             this.consoleNo = new System.Windows.Forms.RadioButton();
+            this.looseLabel = new System.Windows.Forms.Label();
+            this.loosePanel = new System.Windows.Forms.Panel();
+            this.looseYes = new System.Windows.Forms.RadioButton();
+            this.looseNo = new System.Windows.Forms.RadioButton();
+            this.looseTooltip = new System.Windows.Forms.ToolTip(this.components);
             this.fullscreenPanel.SuspendLayout();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
@@ -111,6 +122,7 @@ partial class Form1
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.loggingPanel.SuspendLayout();
             this.consolePanel.SuspendLayout();
+            this.loosePanel.SuspendLayout();
             this.SuspendLayout();
             // 
             // fullscreenPanel
@@ -246,7 +258,7 @@ partial class Form1
             // comboMap
             //
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(8, 315);
+            this.comboMap.Location = new System.Drawing.Point(8, 345);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(200, 21);
             this.comboMap.TabIndex = 11;
@@ -254,7 +266,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(272, 315);
+            this.btnPlay.Location = new System.Drawing.Point(272, 345);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(116, 23);
             this.btnPlay.TabIndex = 12;
@@ -339,7 +351,7 @@ partial class Form1
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(8, 299);
+            this.levelLabel.Location = new System.Drawing.Point(8, 329);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(36, 13);
             this.levelLabel.TabIndex = 15;
@@ -474,10 +486,50 @@ partial class Form1
             this.consoleNo.Size = new System.Drawing.Size(45, 24);
             this.consoleNo.TabIndex = 38;
             this.consoleNo.Text = "No";
-            // 
+            //
+            // looseLabel
+            //
+            this.looseLabel.AutoSize = true;
+            this.looseLabel.Location = new System.Drawing.Point(214, 285);
+            this.looseLabel.Name = "looseLabel";
+            this.looseLabel.Size = new System.Drawing.Size(96, 13);
+            this.looseLabel.TabIndex = 42;
+            this.looseLabel.Text = "Allow Loose Files:";
+            this.looseTooltip.SetToolTip(this.looseLabel,
+                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
+            //
+            // loosePanel
+            //
+            this.loosePanel.Controls.Add(this.looseYes);
+            this.loosePanel.Controls.Add(this.looseNo);
+            this.loosePanel.Location = new System.Drawing.Point(299, 276);
+            this.loosePanel.Name = "loosePanel";
+            this.loosePanel.Size = new System.Drawing.Size(138, 30);
+            this.loosePanel.TabIndex = 45;
+            //
+            // looseYes
+            //
+            this.looseYes.Location = new System.Drawing.Point(5, 5);
+            this.looseYes.Name = "looseYes";
+            this.looseYes.Size = new System.Drawing.Size(49, 24);
+            this.looseYes.TabIndex = 43;
+            this.looseYes.Text = "Yes";
+            this.looseTooltip.SetToolTip(this.looseYes,
+                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
+            //
+            // looseNo
+            //
+            this.looseNo.Location = new System.Drawing.Point(59, 5);
+            this.looseNo.Name = "looseNo";
+            this.looseNo.Size = new System.Drawing.Size(45, 24);
+            this.looseNo.TabIndex = 44;
+            this.looseNo.Text = "No";
+            this.looseTooltip.SetToolTip(this.looseNo,
+                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
+            //
             // Form1
-            // 
-            this.ClientSize = new System.Drawing.Size(400, 350);
+            //
+            this.ClientSize = new System.Drawing.Size(400, 380);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -504,6 +556,8 @@ partial class Form1
             this.Controls.Add(this.loggingPanel);
             this.Controls.Add(this.consoleLabel);
             this.Controls.Add(this.consolePanel);
+            this.Controls.Add(this.looseLabel);
+            this.Controls.Add(this.loosePanel);
             this.Name = "Form1";
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
@@ -515,6 +569,7 @@ partial class Form1
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.loggingPanel.ResumeLayout(false);
             this.consolePanel.ResumeLayout(false);
+            this.loosePanel.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 

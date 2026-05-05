@@ -1,9 +1,12 @@
 
 #include "main/fsqueue.h"
 #include "main/fsmem.h"
+#include "main/fileinfo.h"
 #include "bodyprog/bodyprog.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <string.h>
+#include "pc_config.h"
 #endif
 
 #include <psyq/libapi.h>
@@ -121,6 +124,62 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
     {
         sectorCount += FS_SECTOR_SIZE - 1;
     }
+
+#ifdef SH_PC_PORT
+    /* Loose-file override: when allow_loose_files is enabled, probe
+     * gamedata/load/{FOLDER}/{NAME}{EXT} on disk. If present, slurp it
+     * directly into the queue entry's buffer and skip the CD read. This
+     * is how the texture-mod pipeline replaces individual TIM/TMD/etc.
+     * files without rebuilding the .bin image.
+     *
+     * One fopen("rb") per asset load. If the file isn't there the open
+     * fails immediately and we fall through to the original CdRead path.
+     * No stat / no caching — the OS handles directory caching for us. */
+    if (g_PcConfig.allowLooseFiles && entry->info != NULL)
+    {
+        s_FileInfo* file = entry->info;
+        const char* folder = g_FilePaths[file->pathIdx]; /* e.g. "\\BG\\" */
+        char strippedFolder[16];
+        char nameBuf[32];
+        char loosePath[160];
+        size_t fi = 0;
+        size_t fl;
+        FILE* lf;
+
+        /* Strip leading/trailing backslashes from g_FilePaths entry. */
+        if (folder[0] == '\\') folder++;
+        fl = strlen(folder);
+        while (fl > 0 && folder[fl - 1] == '\\') fl--;
+        if (fl >= sizeof(strippedFolder)) fl = sizeof(strippedFolder) - 1;
+        for (fi = 0; fi < fl; fi++) strippedFolder[fi] = folder[fi];
+        strippedFolder[fl] = '\0';
+
+        Fs_GetFileInfoName(nameBuf, file);
+
+        /* Use forward slashes — fopen on mingw accepts them. */
+        snprintf(loosePath, sizeof(loosePath), "gamedata/load/%s/%s",
+                 strippedFolder, nameBuf);
+
+        lf = fopen(loosePath, "rb");
+        if (lf != NULL)
+        {
+            size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
+            size_t got = fread(entry->data, 1, bufSize, lf);
+            fclose(lf);
+            {
+                static int looseLog = 0;
+                if (looseLog < 32)
+                {
+                    fprintf(stderr, "[LOOSE] %s -> %u/%u bytes\n",
+                            loosePath, (unsigned)got, (unsigned)bufSize);
+                    looseLog++;
+                }
+            }
+            (void)got;
+            return true;
+        }
+    }
+#endif
 
     {
         int result;

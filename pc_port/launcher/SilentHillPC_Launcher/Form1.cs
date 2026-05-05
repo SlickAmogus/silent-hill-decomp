@@ -88,6 +88,10 @@ public partial class Form1 : Form
         consoleYes.Checked = config.Get("show_console", "0") == "1";
         consoleNo.Checked = !consoleYes.Checked;
 
+        // allow loose files (texture mod support: gamedata/load/{folder}/{name}.{ext})
+        looseYes.Checked = config.Get("allow_loose_files", "0") == "1";
+        looseNo.Checked = !looseYes.Checked;
+
         comboFps.SelectedItem = config.Get("fps_cap", "30");
         string fps = config.Get("fps_cap", "30");
         if (comboFps.Items.Contains(fps))
@@ -187,6 +191,9 @@ public partial class Form1 : Form
 
         // show secondary console window
         config.Set("show_console", consoleYes.Checked ? "1" : "0");
+
+        // allow loose files (texture mod support)
+        config.Set("allow_loose_files", looseYes.Checked ? "1" : "0");
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());
