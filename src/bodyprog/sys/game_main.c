@@ -817,6 +817,14 @@ void GameState_Boot_Update(void) // 0x80032D1C
  * Safe to call on any frame — the existing OT0/OT2 sanitizer at
  * post-GsSortClear will still terminate the chain so we never crash. */
 extern OT_TAG prim_terminator;
+/* Provided by libgs_stub.c — gives the bounds of any subroot OT registered
+ * via GsSortOt(subroot, root). The pickup-screen pipeline registers
+ * g_OrderingTable1 as a subroot of g_OrderingTable0; its bucket nodes
+ * live in storage outside our packet-buffer + OT0-array windows and
+ * MUST be accepted as valid chain pointers, otherwise the sanitizer
+ * truncates the chain mid-walk and the picked-up item disappears. */
+extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
+
 void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
 {
     if (!ot || !ot->tag) return;
@@ -828,6 +836,8 @@ void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
     size_t    otCnt  = (size_t)1 << otLen;
     uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
     uintptr_t termA  = (uintptr_t)&prim_terminator;
+    uintptr_t subLo  = 0, subHi = 0;
+    GsSortOt_GetSubrootBounds(&subLo, &subHi);
 
     OT_TAG* prev = NULL;
     OT_TAG* cur  = (OT_TAG*)ot->tag;
@@ -838,7 +848,8 @@ void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
         uintptr_t curA = (uintptr_t)cur;
         int valid = (curA == termA) ||
                     (curA >= pktLo && curA < pktHi) ||
-                    (curA >= otLo  && curA < otHi);
+                    (curA >= otLo  && curA < otHi) ||
+                    (subLo && curA >= subLo && curA < subHi);
         if (!valid)
         {
             /* Found the corruption boundary. prev is the LAST valid prim;
@@ -1370,6 +1381,13 @@ void MainLoop(void) // 0x80032EE0
                 int       otLen  = (ot0->length > 0 && ot0->length <= 16) ? (int)ot0->length : 0;
                 size_t    otCnt  = (size_t)1 << otLen;
                 uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
+                /* Subroot OT bounds (set by GsSortOt in libgs_stub.c).
+                 * Pickup screen registers g_OrderingTable1 as a subroot
+                 * of OT0; OT1's bucket nodes need to be accepted as
+                 * valid chain pointers, otherwise the truncate-on-bad-
+                 * cur path here erases the picked-up item. */
+                uintptr_t subLo = 0, subHi = 0;
+                GsSortOt_GetSubrootBounds(&subLo, &subHi);
                 /* CRITICAL: validate `cur` BEFORE any field access — including
                  * the loop condition's isendprim(cur), which reads cur->addr
                  * (a 64-bit pointer load). If ot0->tag itself was corrupted
@@ -1387,7 +1405,8 @@ void MainLoop(void) // 0x80032EE0
                 while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
-                                 (curAddr >= otLo  && curAddr < otHi));
+                                 (curAddr >= otLo  && curAddr < otHi)  ||
+                                 (subLo && curAddr >= subLo && curAddr < subHi));
                     if (!curOk) {
                         static int s_dumpedOnce = 0;
                         if (!s_dumpedOnce) {

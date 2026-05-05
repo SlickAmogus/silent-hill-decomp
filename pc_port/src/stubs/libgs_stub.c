@@ -1077,7 +1077,89 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     }
 }
 
+/* Bounds for the OT0 sanitizer (game_main.c) so it knows the OT1 storage
+ * region is a valid chain target. Without this, the sanitizer would flag
+ * OT1's bucket nodes as wild pointers and truncate the OT0 chain mid-walk —
+ * killing pickup-screen item rendering even though GsSortOt did its job.
+ * Set by GsSortOt below; queried via GsSortOt_GetSubrootBounds(). */
+static uintptr_t s_GsSortOt_subrootLo = 0;
+static uintptr_t s_GsSortOt_subrootHi = 0;
+
+void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi)
+{
+    if (lo) *lo = s_GsSortOt_subrootLo;
+    if (hi) *hi = s_GsSortOt_subrootHi;
+}
+
 void GsSortOt(GsOT *src, GsOT *dst)
 {
+#ifdef SH_PC_PORT
+    /* PSX libgs GsSortOt(subroot, root): registers `subroot` as a sub-OT
+     * of `root` so that DrawOTag, when walking root, will dive into the
+     * subroot's chain at the splice point. The pickup-screen pipeline in
+     * item_screens_cam.c func_8004BD74 (arg2==2 path) is:
+     *
+     *     GsClearOt(OT1);                   // empty out subroot
+     *     GsSortOt(OT1, OT0);               // register subroot now
+     *     GsSortObject4J(item, OT1, ...);   // populate subroot AFTER
+     *
+     * — so this function MUST splice on empty buckets and rely on
+     * GsSortObject4J's later addPrim()s into OT1 propagating through the
+     * link we set up here.
+     *
+     * Mechanics: src->tag is the head of src's chain (at &src->org[N-1]),
+     * src->org[0] is the chain terminator end. We splice the whole src
+     * bucket-chain into dst->org[0]:
+     *     setaddr(src->org[0], dst->org[0].next)   # tail of src → dst's old next
+     *     setaddr(dst->org[0],     src->tag)       # dst's next → head of src
+     *
+     * This was a no-op stub before — that's why pickup-screen items
+     * (health drink, keys, etc.) rendered invisible: the TMD got sorted
+     * into OT1 but OT1 was orphaned.
+     *
+     * Bounds export for the OT0 sanitizer (game_main.c Pc_OtSentinelScan
+     * and the inline OT0 walker pre-GsDrawOt): src->org and src->tag
+     * point into OT1's backing storage (FS_BUFFER_1 / PSX_ADDR space),
+     * which is outside the packet-buffer + OT0-array windows the
+     * sanitizer recognises. Export the OT1 range so the sanitizer can
+     * accept those nodes instead of flagging them as wild and
+     * truncating the chain. */
+    GsOT_TAG* dst_slot0;
+    uintptr_t dst_slot0_next;
+    GsOT_TAG* src_tail;
+    int       n_src;
+
+    if (src == NULL || dst == NULL) return;
+    if (src->org == NULL || dst->org == NULL) return;
+    if (src->tag == NULL) return;
+
+    n_src    = 1 << src->length;
+    src_tail = &src->org[0];                     /* terminator end of src chain */
+    dst_slot0      = (GsOT_TAG*)&dst->org[0];    /* nearest bucket of dst */
+    dst_slot0_next = getaddr(dst_slot0);
+
+    /* Splice src into dst at dst.org[0]. src->tag will be the head of
+     * the inserted chain and src->org[0] (already a terminator before
+     * GsSortObject4J runs) becomes the rejoin point back into dst. */
+    setaddr(src_tail,  dst_slot0_next);
+    setaddr(dst_slot0, src->tag);
+
+    /* Publish src's storage bounds for the OT0 sanitizer. Cover the
+     * full src->org[] array. */
+    s_GsSortOt_subrootLo = (uintptr_t)src->org;
+    s_GsSortOt_subrootHi = (uintptr_t)(src->org + n_src);
+
+    {
+        static int s_logCount = 0;
+        if (s_logCount < 4) {
+            SH_DBG("[GSSORTOT] spliced subroot src=%p tag=%p (n=%d) into dst[0]=%p (had next=%p) bounds=[%p..%p)",
+                   (void*)src, (void*)src->tag, n_src,
+                   (void*)dst_slot0, (void*)dst_slot0_next,
+                   (void*)s_GsSortOt_subrootLo, (void*)s_GsSortOt_subrootHi);
+            s_logCount++;
+        }
+    }
+#else
     (void)src; (void)dst;
+#endif
 }
