@@ -16,6 +16,7 @@
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <string.h>
 #include "sh_log.h"
 #endif
 
@@ -472,6 +473,19 @@ void func_8005E89C(void) // 0x8005E89C
 
     poly = (POLY_FT4*)GsOUT_PACKET_P;
 
+#ifdef SH_PC_PORT
+    /* Per-case scan inside func_8005E89C dispatch loop. We confirmed via
+     * MainLoop checkpoints that corruption first appears AFTER this
+     * function runs, so the writer is one of these cases. The phase
+     * tag includes the case number so we can pinpoint the writer. */
+    extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
+    extern s32 g_ActiveBufferIdx;
+#define PARTICLE_CASE_SCAN(label) \
+    Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "5E89C-" label, "OT0")
+#else
+#define PARTICLE_CASE_SCAN(label) ((void)0)
+#endif
+
     for (i = 0; i < g_MapOverlayHeader.unkTable1Count_50; i++)
     {
         switch (g_MapOverlayHeader.unkTable1_4C[i].field_A)
@@ -481,15 +495,18 @@ void func_8005E89C(void) // 0x8005E89C
 
             case 1:
                 func_80060044(&poly, i);
+                PARTICLE_CASE_SCAN("case1-80060044");
                 break;
 
             case 2:
                 func_800611C0(&poly, i);
+                PARTICLE_CASE_SCAN("case2-800611C0");
                 break;
 
             case 3:
             case 4:
                 func_80062708(&poly, i);
+                PARTICLE_CASE_SCAN("case3or4-80062708");
                 break;
 
             case 15:
@@ -498,38 +515,46 @@ void func_8005E89C(void) // 0x8005E89C
             case 18:
             case 19:
                 func_80063A50(&poly, i);
+                PARTICLE_CASE_SCAN("case15to19-80063A50");
                 break;
 
             case 20:
             case 21:
             case 22:
                 func_80064334(&poly, i);
+                PARTICLE_CASE_SCAN("case20to22-80064334");
                 break;
 
             case 8:
             case 10:
                 g_MapOverlayHeader.func_64(&poly, i);
+                PARTICLE_CASE_SCAN("case8or10-func_64");
                 break;
 
             case 9:
             case 11:
                 g_MapOverlayHeader.func_68(&poly, i);
+                PARTICLE_CASE_SCAN("case9or11-func_68");
                 break;
 
             case 7:
                 g_MapOverlayHeader.func_70(&poly, i);
+                PARTICLE_CASE_SCAN("case7-func_70");
                 break;
 
             case 5:
                 g_MapOverlayHeader.func_78(&poly, i);
+                PARTICLE_CASE_SCAN("case5-func_78");
                 break;
 
             case 13:
                 g_MapOverlayHeader.func_80(i);
+                PARTICLE_CASE_SCAN("case13-func_80");
                 break;
 
             case 14:
                 g_MapOverlayHeader.func_84(&poly, i);
+                PARTICLE_CASE_SCAN("case14-func_84");
                 break;
 
             case 23:
@@ -537,10 +562,12 @@ void func_8005E89C(void) // 0x8005E89C
             case 25:
             case 26:
                 g_MapOverlayHeader.func_8C(&poly, i);
+                PARTICLE_CASE_SCAN("case23to26-func_8C");
                 break;
 
             case 27:
                 g_MapOverlayHeader.func_98(&poly, i);
+                PARTICLE_CASE_SCAN("case27-func_98");
                 break;
 
             case 28:
@@ -2542,6 +2569,19 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
 
     ptr->field_160 = (((ptr->field_158 >> 6) + 16) * ptr->field_0.field_2C) / ptr->field_150;
 
+#ifdef SH_PC_PORT
+    /* Zero the entire 136-byte allocation up front (2x POLY_FT4 + 2x DR_MODE).
+     * PSX gets away with stale pkt buffer data because every prim field is
+     * explicitly written below. On PC the prim header is wider (12 B vs 4 B)
+     * and the *(u16*) writes to u2/u3 (lines 2580/2581) only touch 2 of the
+     * 4 bytes those slots cover, leaving stale pad bytes from previous frames.
+     * If those stale bytes happen to look like a chain pointer in the high
+     * 32 of the addr field, the OT walker chases them.
+     *
+     * Cost: one memset per particle update, ~136 bytes. Negligible. */
+    memset(*poly, 0, sizeof(POLY_FT4) * 2 + sizeof(DR_MODE) * 2);
+#endif
+
     setPolyFT4(*poly);
 
     setXY0Fast(*poly, (u16)ptr->field_154.vx - (u16)ptr->field_160, ptr->field_154.vy - ptr->field_160);
@@ -2567,6 +2607,30 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
 
     if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 0x3))
     {
+#ifdef SH_PC_PORT
+        /* PC simplification: skip the multi-prim layered render. Original
+         * PSX path emits 2 POLY_FT4s sandwiched between 2 DR_MODEs (a
+         * tpage-switching trick to do additive + subtractive blending on
+         * the same particle). Per-byte tracing showed the multi-prim
+         * arithmetic consistently corrupted the addr field of subsequent
+         * prims on PC (fingerprint: low32 = high32 of pkt range, high32 =
+         * `0x09` from setlen + a tpage byte from the DR_MODE payload),
+         * even with sizeof-based offsets. Stubbing this branch entirely
+         * eliminated the corruption.
+         *
+         * Replacement: emit a single POLY_FT4 (the additive flash quad
+         * only). PsyCross handles blending via per-prim setSemiTrans.
+         * Visual diff: muzzle flash particles look slightly less
+         * "layered" than PSX but are clearly visible and don't trash
+         * adjacent geometry. */
+        func_80055E90(&ptr->field_130, ptr->field_15C);
+        *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+        (*poly)->b0         = ptr->field_130.b;
+
+        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
+
+        *poly = *poly + 1;
+#else
         func_80055A90(&ptr->field_134, &ptr->field_130, ptr->field_15C, ptr->field_150 * 16);
 
         next  = *poly + 1;
@@ -2580,31 +2644,6 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
         *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
         (*poly + 1)->b0         = ptr->field_134.b;
 
-#ifdef SH_PC_PORT
-        /* PC: prim sizes differ from PSX because DECLARE_P_ADDR is 12 B
-         * (vs PSX 4 B) — POLY_FT4 = 48 B (vs 36), DR_MODE = 20 B (vs
-         * 12). The original hardcoded byte offsets (0x50, 12, 24)
-         * were tuned for PSX layout and on PC produced buffer overlap:
-         * the two DR_MODEs collided with the second POLY_FT4 and with
-         * each other, smashing into the 1st-byte `addr` field of the
-         * next-allocated prim. That's the source of the bad nextPtr
-         * values like 0x2B00... (tpage byte) and 0xFFEF... that
-         * triggered the OT walker bail-out and the disappearing-
-         * geometry symptom during knife combat. Use sizeof-based
-         * arithmetic instead. */
-        ptr->field_12C = (PACKET*)((POLY_FT4*)(*poly) + 2);
-
-        SetPriority(ptr->field_12C, 0, 0);
-        SetPriority((PACKET*)((DR_MODE*)ptr->field_12C + 1), 1, 1);
-
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], ptr->field_12C);
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly + 1);
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3],
-                (PACKET*)((DR_MODE*)ptr->field_12C + 1));
-
-        *poly = (POLY_FT4*)((DR_MODE*)ptr->field_12C + 2);
-#else
         ptr->field_12C = (PACKET*)(*poly) + 0x50;
 
         SetPriority(ptr->field_12C, 0, 0);
