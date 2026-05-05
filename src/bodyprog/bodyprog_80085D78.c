@@ -106,8 +106,21 @@ void PaperMap_ReuploadTimToVram_PC(void)
         clutRect.h = 0;
     }
 
+    /* Hypothesis-5 nuclear option: even with the framebuffer-store gating,
+     * paper-map screens still showed tiled gameplay framebuffer content
+     * sampled from VRAM (320, 16+). The double-buffered g_vramTexture +
+     * indirect upload path (LoadImage → vram[] → GR_UpdateVRAM → GPU)
+     * leaves a window where stale data can persist in whichever texture
+     * is NOT the current one. Force the freshly-loaded TIM data into BOTH
+     * GPU vram textures right now, in this region only. This bypasses the
+     * vram_need_update flag and texture-swap dance entirely. */
+    GR_DirectUploadVRAMRegion(pixRect.x, pixRect.y, pixRect.w, pixRect.h);
+    if (clutRect.w > 0 && clutRect.h > 0) {
+        GR_DirectUploadVRAMRegion(clutRect.x, clutRect.y, clutRect.w, clutRect.h);
+    }
+
     if (s_logCount < 5) {
-        SH_DBG("[PMAP-RELOAD] uploaded paddr=%p pixRect=(%d,%d %dx%d) caddr=%p clutRect=(%d,%d %dx%d)",
+        SH_DBG("[PMAP-RELOAD] uploaded paddr=%p pixRect=(%d,%d %dx%d) caddr=%p clutRect=(%d,%d %dx%d) directUploadBoth=1",
                (void*)tim.paddr, (int)pixRect.x, (int)pixRect.y, (int)pixRect.w, (int)pixRect.h,
                (void*)tim.caddr, (int)clutRect.x, (int)clutRect.y, (int)clutRect.w, (int)clutRect.h);
     }
