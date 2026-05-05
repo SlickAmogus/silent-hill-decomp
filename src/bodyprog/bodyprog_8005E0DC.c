@@ -2627,8 +2627,20 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
          * "layered" than PSX but are clearly visible and don't trash
          * adjacent geometry. */
         func_80055E90(&ptr->field_130, ptr->field_15C);
-        *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
-        (*poly)->b0         = ptr->field_130.b;
+        /* Dim the muzzle-flash RGB to ~62% so the additive-style blend
+         * looks like a fading flash rather than a fully-opaque colored
+         * quad. Without explicit DR_MODE setup the prim inherits whatever
+         * tpage is active, which on PC tends to default to ABR=0
+         * (50%/50% average blend) — that visualizes as a solid quad.
+         * Halving the source color compensates so the visible result is
+         * closer to the layered PSX appearance. */
+        {
+            u8 dr = (u8)((ptr->field_130.r * 5) >> 3);
+            u8 dg = (u8)((ptr->field_130.g * 5) >> 3);
+            u8 db = (u8)((ptr->field_130.b * 5) >> 3);
+            *(u16*)&(*poly)->r0 = dr + (dg << 8);
+            (*poly)->b0         = db;
+        }
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
 
