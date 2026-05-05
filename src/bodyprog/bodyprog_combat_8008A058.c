@@ -1337,7 +1337,21 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
     else
     {
+#ifdef SH_PC_PORT
+        /* PC: harmonize with the matched form on line 1333 (uintptr_t).
+         * The (u32) casts here are modular-arithmetic-safe — both operands
+         * are pointers into the same .bss image so their high 32 bits
+         * agree and the difference truncates correctly — but the audit
+         * pattern (pattern 4: `(u32)&global` pointer-to-int truncation)
+         * matches our 32→64 bug-class scrub list. Use uintptr_t to make
+         * the safety locally visible without relying on global-layout
+         * coincidence, and to remove this site from future scrubs. The
+         * computed value feeds `1 << (...)` as a bitmask hash; the
+         * full-width subtraction keeps the same low bits. */
+        sp10 = 1 << (((s32)((uintptr_t)((u8*)target - sizeof(s_PlayerWork)) - (uintptr_t)&g_SysWork.playerWork) * -0x6EB3E453) >> 3);
+#else
         sp10 = 1 << (((s32)((u32)((u8*)target - sizeof(s_PlayerWork)) - (u32)&g_SysWork.playerWork) * -0x6EB3E453) >> 3);
+#endif
 
         if (sp14 & sp10)
         {

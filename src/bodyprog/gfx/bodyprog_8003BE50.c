@@ -1138,7 +1138,19 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
 {
     u8            charaId;
     s32           i;
+#ifdef SH_PC_PORT
+    /* PC: tracking the largest end-of-LM-header address. On PSX these all
+     * fit in 32 bits so a u32 sufficed. On x64 with 8-byte pointers, the
+     * `(s32)curModel->lmHdr` cast TRUNCATES the high 32 bits, and the
+     * subsequent compare/assign through a `u32` lmData drops them too.
+     * Result: charaLmBuffer ends up at a low-address truncation of the
+     * real value, and the next chara model load lands at the wrong VRAM
+     * region. Use uintptr_t throughout so the full 64-bit pointer math
+     * survives. */
+    uintptr_t     lmData;
+#else
     u32           lmData;
+#endif
     s_CharaModel* curModel;
 
     for (i = 0; i < ARRAY_SIZE(g_WorldGfxWork.charaModels); i++)
@@ -1159,11 +1171,19 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
         charaId = curModel->charaId;
         if (charaId != Chara_None)
         {
+#ifdef SH_PC_PORT
+            lmData = (uintptr_t)curModel->lmHdr + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
+            if ((uintptr_t)g_WorldGfxWork.charaLmBuffer < lmData)
+            {
+                g_WorldGfxWork.charaLmBuffer = (u8*)lmData;
+            }
+#else
             lmData = (s32)curModel->lmHdr + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
             if (g_WorldGfxWork.charaLmBuffer < lmData)
             {
                 g_WorldGfxWork.charaLmBuffer = lmData;
             }
+#endif
         }
     }
 }

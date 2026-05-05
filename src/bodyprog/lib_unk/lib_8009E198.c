@@ -54,7 +54,44 @@ s_SysWork_2510 D_800B142C = {
     .func_C  = func_8009E9D0,
 };
 
+#ifdef SH_PC_PORT
+/* Decompiled body — based on decomp.me scratch 0QYid (290/3800, psyq4.1).
+ * Not yet 100%-matching, so PSX build path keeps the INCLUDE_ASM. */
+s32 func_8009E198(s_SysWork_2514* arg0, u32 arg1) // 0x8009E198
+{
+    s_SysWork_2514_0 tmp;
+    s32              ret = arg0 != NULL;
+
+    if (!ret)
+    {
+        return ret;
+    }
+
+    tmp = (s_SysWork_2514_0){
+        .padPort_0_0 = 0,
+        .field_0_8   = 0x80,
+        .field_0_16  = 1,
+        .field_0_17  = 1,
+        .field_0_18  = 1,
+        .field_0_19  = 0,
+        .field_0_22  = 0,
+        .field_0_23  = 0,
+        .field_0_24  = 0,
+    };
+    tmp.padPort_0_0 = arg1 & 0x13;
+
+    arg0->actuatorData_4 = 0;
+    /* Zeros field_8 (s16), field_A (s8), and unk_B[0] in one 4-byte store. */
+    *(u32*)&arg0->field_8 = 0;
+    arg0->field_C  = NULL;
+    arg0->field_10 = NULL;
+    arg0->field_0  = tmp;
+
+    return ret;
+}
+#else
 INCLUDE_ASM("bodyprog/nonmatchings/lib_unk/lib_8009E198", func_8009E198);
+#endif
 
 s32 func_8009E230(s_SysWork_2514* arg0) // 0x8009E230
 {

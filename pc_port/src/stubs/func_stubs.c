@@ -86,7 +86,7 @@ void WorldObject_D_800D80E0() { }
 /* func_8005CD38: real implementation in pc_port/src/combat_target.c */
 /* func_800692A4: paper-map tile renderer — real C body now lives in
  * src/bodyprog/bodyprog_mapscreen_80066D90.c under SH_PC_PORT */
-void func_8009E198() { }
+/* func_8009E198: real C body in src/bodyprog/lib_unk/lib_8009E198.c under SH_PC_PORT */
 void gte_ldsxy0() { }
 void gte_ldv3c() { }
 void gte_stsxy3_g3() { }
