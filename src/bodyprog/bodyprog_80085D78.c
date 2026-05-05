@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
+#include <PsyX/PsyX_render.h> /* g_PsxSkipFramebufferStore */
 #endif
 
 #include <psyq/libpad.h>
@@ -18,9 +19,100 @@
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+extern int g_PcHorPlusEnabled;
+#endif
+
 VECTOR3 D_800C4640[2][8];
 q3_12   D_800C4700[8];
 q19_12  D_800C4710[6];
+
+#ifdef SH_PC_PORT
+/* Re-upload the paper-map TIM from FS_BUFFER_2 to its target VRAM region AND
+ * disable PsyCross's per-frame framebuffer→VRAM blit for this tick.
+ *
+ * Why this exists on PC only:
+ *   1. `PsyX_EndScene` calls `GR_StoreFrameBuffer` every frame, which both
+ *      (a) GL-blits the rendered framebuffer onto the `g_vramTexture` at
+ *      (disp.x, disp.y, disp.w, disp.h) and (b) reads it back into the CPU
+ *      `vram[]` array via `GR_ReadFramebufferDataToVRAM`.
+ *   2. The paper-map CLUT lives at VRAM (224, 15) — INSIDE the (0,0)-(320,240)
+ *      display rect. Every frame, the framebuffer blit overwrites the CLUT in
+ *      the GPU texture, AND the readback overwrites the CLUT in vram[]. The
+ *      next LoadImage anywhere marks `vram_need_update=1` and reuploads the
+ *      corrupted vram[]. The pickup screen then samples corrupted CLUT and
+ *      renders tiled gameplay framebuffer content instead of the map.
+ *
+ * Game state machines that run as gameplay sub-states (Event_MapTake,
+ * `map0_s01_events.c` cafe map take, `func_800867B4`) hit this. The full-screen
+ * map screen doesn't, because gameplay doesn't render in that GameState.
+ *
+ * Fix: (a) set `g_PsxSkipFramebufferStore` to suppress the framebuffer→VRAM
+ * blit for this frame and (b) re-LoadImage the TIM each tick so the fresh
+ * bytes land in the next GR_UpdateVRAM upload. The flag auto-clears in
+ * PsyX_EndScene, so the game must call this helper every tick during the
+ * pickup screen. */
+void PaperMap_ReuploadTimToVram_PC(void)
+{
+    static int s_logCount = 0;
+    TIM_IMAGE tim;
+    RECT16    pixRect;
+    RECT16    clutRect;
+    u_char    magic;
+    int       openOk;
+
+    /* Suppress the framebuffer→VRAM blit for this frame so PsyX_EndScene's
+     * GR_StoreFrameBuffer can't clobber the paper-map CLUT at VRAM (224,15).
+     * The flag auto-clears at end-of-frame inside PsyX_EndScene. */
+    g_PsxSkipFramebufferStore = 1;
+
+    /* Log first few invocations so we can verify the helper actually runs
+     * and the source buffer still holds a TIM. */
+    magic  = ((u_char*)FS_BUFFER_2)[0];
+    openOk = OpenTIM((u_long*)FS_BUFFER_2);
+    if (s_logCount < 5) {
+        SH_DBG("[PMAP-RELOAD] tick=%d FS_BUFFER_2=%p magic=0x%02X openTIM=%d skipStore=1 gameState=%d sysState=%d horplus=%d",
+               s_logCount, (void*)FS_BUFFER_2, (unsigned)magic, openOk,
+               (int)g_GameWork.gameState, (int)g_SysWork.sysState,
+               g_PcHorPlusEnabled);
+        s_logCount++;
+    }
+
+    if (openOk == 0) {
+        return;
+    }
+    if (ReadTIM(&tim) == NULL) {
+        return;
+    }
+
+    pixRect = *tim.prect;
+    if (g_PaperMapImg.u != 0xFF) {
+        pixRect.x = g_PaperMapImg.u + ((g_PaperMapImg.tPage[1] & 0xF) << 6);
+        pixRect.y = g_PaperMapImg.v + ((g_PaperMapImg.tPage[1] << 4) & 0x100);
+    }
+    LoadImage(&pixRect, tim.paddr);
+
+    if (tim.caddr != NULL) {
+        clutRect = *tim.crect;
+        if (g_PaperMapImg.clutX != NO_VALUE) {
+            clutRect.x = g_PaperMapImg.clutX;
+            clutRect.y = g_PaperMapImg.clutY;
+        }
+        LoadImage(&clutRect, tim.caddr);
+    } else {
+        clutRect.x = -1;
+        clutRect.y = -1;
+        clutRect.w = 0;
+        clutRect.h = 0;
+    }
+
+    if (s_logCount < 5) {
+        SH_DBG("[PMAP-RELOAD] uploaded paddr=%p pixRect=(%d,%d %dx%d) caddr=%p clutRect=(%d,%d %dx%d)",
+               (void*)tim.paddr, (int)pixRect.x, (int)pixRect.y, (int)pixRect.w, (int)pixRect.h,
+               (void*)tim.caddr, (int)clutRect.x, (int)clutRect.y, (int)clutRect.w, (int)clutRect.h);
+    }
+}
+#endif
 
 // ========================================
 // EVENT AND INTERACTIONS RELATED
@@ -562,6 +654,13 @@ void func_800867B4(s32 state, s32 paperMapFileIdx) // 0x800867B4
             break;
 
         case 1:
+#ifdef SH_PC_PORT
+            /* Same framebuffer-readback corruption as Event_MapTake — this
+             * helper is used by gameplay sub-state map-zoom events (map1_s06
+             * church, map2_s00 waterworks/school/sketchbook). Re-upload TIM
+             * each frame before sampling. */
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             break;
 
@@ -1168,6 +1267,9 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
         case 3:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             MapMsg_DisplayAndHandleSelection(true, mapMsgIdx, 4, 5, 0, true); // 4 is "No", 5 is "Yes".
             break;
@@ -1209,6 +1311,9 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
         case 5:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), true);
             break;

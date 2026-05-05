@@ -811,6 +811,9 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
         case 3:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            { extern void PaperMap_ReuploadTimToVram_PC(void); PaperMap_ReuploadTimToVram_PC(); }
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             MapMsg_DisplayAndHandleSelection(true, 59, 6, 4, 0, false);
             break;
@@ -833,6 +836,9 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
         case 7:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            { extern void PaperMap_ReuploadTimToVram_PC(void); PaperMap_ReuploadTimToVram_PC(); }
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
             break;
