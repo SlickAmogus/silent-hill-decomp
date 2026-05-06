@@ -43,6 +43,26 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
     sharedFunc_800D2274_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2274");
     sharedFunc_800D2390_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2390");
     Ai_AirScreamer_Control(airScreamer);                 SH_DBG("[AIRSCR] post-Control");
+    /* Movement diagnosis: dump the per-frame state that drives the swoop
+     * movement chain. cs/ss = control state / state-step (selects which
+     * sharedFunc_800D5xxx helper writes field_B4[0]). moveSpd is what
+     * sharedFunc_800D63A4 will read this frame (after _6EC4 ramps it).
+     * accel/target = field_B4[0][1..2] which _6EC4 integrates into
+     * moveSpeed each tick — if these stay 0 during attack states, AS
+     * never accelerates → "stuck in place" symptom. _4A80 gates the
+     * whole movement chain at sharedFunc_800D62D8. */
+    {
+        s32 _4a80 = sharedFunc_800D4A80_0_s01(airScreamer);
+        SH_DBG("[ASMOV] cs=%d ss=%d anim=0x%X moveSpd=%d accel=%d target=%d _4A80=%d hp=%d",
+               (int)airScreamer->model.controlState,
+               (int)airScreamer->model.stateStep,
+               (int)airScreamer->model.anim.status,
+               (int)airScreamer->moveSpeed,
+               (int)sharedData_800E21D0_0_s01.field_B4[0][1],
+               (int)sharedData_800E21D0_0_s01.field_B4[0][2],
+               (int)_4a80,
+               (int)airScreamer->health);
+    }
     sharedFunc_800D62D8_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-62D8");
     sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
     sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
