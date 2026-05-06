@@ -255,6 +255,15 @@ int main(int argc, char* argv[])
            g_cfg_psxDither ? "PSX dither" :
            g_cfg_bilinearFiltering ? "bilinear" : "off");
 
+    /* PGXP master gate: PsyCross is compiled with USE_PGXP=1, but the
+     * runtime path is opt-in via config.cfg use_pgxp. When 0, prim emit
+     * writes a_zw=0 and the vertex shader takes the 2D-ortho branch
+     * (PSX-affine look). When 1, GTE captures FP twins and shader does
+     * perspective-correct projection via Projection3D + cache lookups.
+     * (declared in PsyX/PsyX_public.h, defined in PsyX_render.cpp) */
+    g_PsxUsePgxp = g_PcConfig.usePgxp ? 1 : 0;
+    SH_LOG("PGXP: %s", g_PsxUsePgxp ? "ON (perspective-correct, WIP)" : "off (affine)");
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();
