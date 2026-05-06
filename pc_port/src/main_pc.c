@@ -140,6 +140,15 @@ int main(int argc, char* argv[])
         }
     }
 
+    /* Apply UI scaling preference to PsyCross's hor+ flag immediately, so
+     * boot screens (warning / Konami / KCET / intro / main menu) pillarbox
+     * correctly when uiScaling=0. game_main.c re-evaluates this every
+     * frame once MainLoop is running. */
+    {
+        extern int g_PcHorPlusEnabled;
+        g_PcHorPlusEnabled = (g_PcConfig.uiScaling == 0) ? 0 : 1;
+    }
+
     /* Console window: hide by default + redirect stdout/stderr -> log so
      * stray printf/fprintf get captured.  When show_console=1, leave the
      * console window visible and let stdout/stderr stay pointed at it.
