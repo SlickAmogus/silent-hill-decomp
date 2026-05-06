@@ -254,7 +254,11 @@ extern s8 sharedData_800E57CC_1_s02;
 
 extern s_sharedData_800E21D0_0_s01 sharedData_800E21D0_0_s01;
 
-extern s_func_800D2E04 const sharedData_800CAA98_0_s01; // Used by `Ai_AirScreamer_Init` / `sharedFunc_800D2BF4_0_s01`
+/* On PSX this lives in const ROM rodata; on PC the runtime reformatter
+ * populates a struct in the .data segment (see pc_port/src/as_rodata_reformat.c)
+ * so the const qualifier is dropped — game code still treats it as
+ * read-only data, just isn't compile-time-enforced. */
+extern s_func_800D2E04 sharedData_800CAA98_0_s01; // Used by `Ai_AirScreamer_Init` / `sharedFunc_800D2BF4_0_s01`
 
 extern s_AnimInfo ROPMER_ANIM_INFOS[];
 

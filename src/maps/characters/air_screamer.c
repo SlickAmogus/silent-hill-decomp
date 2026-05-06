@@ -1481,43 +1481,6 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
             {
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
-#ifdef SH_PC_PORT
-                /* PC fast-track to death anim. The original PSX flow waits
-                 * for AS to fully settle (anim==Stun, temp_s3==true) before
-                 * marking it dead. With sharedData_800CAA98_0_s01 in the
-                 * wrong layout (PC s_AnimInfo is 32 B vs PSX 16 B), the
-                 * per-keyframe behavior bitfield in field_380 reads garbage
-                 * from the shifted-offset rodata, so settle conditions
-                 * rarely trigger. After 30 frames in case 0 with health<=0,
-                 * force the kill condition. Counter does NOT gate on anim
-                 * active — gating on it caused indefinite resets when anim
-                 * status flipped between anims. Restore once a proper
-                 * reformatter for s_func_800D2E04 lands. */
-                {
-                    static s32 s_pcDeathTimeout = 0;
-                    s_pcDeathTimeout++;
-                    if (s_pcDeathTimeout > 30) {
-                        s_pcDeathTimeout = 0;
-                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d -> jumping to controlState=None",
-                               animStatus, (int)temp_s3);
-                        airScreamer->moveSpeed = Q12(0.0f);
-                        airScreamer->fallSpeed = Q12(0.0f);
-                        airScreamer->rotationSpeed.vx = 0;
-                        airScreamer->rotationSpeed.vy = 0;
-                        airScreamer->rotationSpeed.vz = 0;
-                        airScreamer->field_32 = 0;
-                        airScreamerProps.field_EC = 0;
-                        airScreamer->position.vy = Collision_GroundHeightGet(
-                            airScreamer->position.vx, airScreamer->position.vz);
-                        airScreamer->health             = NO_VALUE;
-                        airScreamer->model.controlState = AirScreamerControl_None;
-                        airScreamer->model.stateStep    = AirScreamerStateStep_13;
-                        airScreamer->model.anim.status  = ANIM_STATUS(AirScreamerAnim_StandToStun, true);
-                        airScreamerProps.flags          = AirScreamerFlag_None;
-                        return;
-                    }
-                }
-#endif
                 if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true) && temp_s3 == true)
                 {
                     airScreamer->health = NO_VALUE;
@@ -1549,15 +1512,7 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                     break;
                 }
 #ifdef MAP0_S01
-                /* PC: 4× the PSX passive drain (10 → 40) so the AS dies fast
-                 * enough to feel right while the rodata layout mismatch
-                 * suppresses the real damage cascade. Restore to *10 once
-                 * the reformatter lands. */
-#ifdef SH_PC_PORT
-                damage = g_DeltaTime * 40;
-#else
                 damage = g_DeltaTime * 10;
-#endif
                 if (damage < airScreamer->health)
                 {
                     airScreamer->health -= damage;
@@ -13238,13 +13193,11 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                 }
 
 #ifdef SH_PC_PORT
-                /* PC: rodata layout mismatch (PSX 4-B pointers vs PC 8-B)
-                 * makes ptr_D48[i] read from wrong offset → garbage non-NULL.
-                 * Always break — collision falls back to the airScreamer
-                 * cylinder hitbox set up by sharedFunc_800D82B8. Until the
-                 * reformatter lands, attack-specific bone-derived collision
-                 * targets aren't available. */
-                break;
+                /* PC: ptr_D48[1] is NULL after the reformatter (PSX address
+                 * invalid). Skip the bone-derived target setup — the
+                 * cylinder hitbox in sharedFunc_800D82B8 is the
+                 * collision target. */
+                if (sharedData_800CAA98_0_s01.ptr_D48[1] == NULL) break;
 #endif
                 func_800805BC(&vec[0], sharedData_800CAA98_0_s01.ptr_D48[1], &coords[sharedData_800CAA98_0_s01.ptr_D48[1]->pad], 2);
 
@@ -13268,10 +13221,9 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                 }
 
 #ifdef SH_PC_PORT
-                /* PC: same ptr_D48 layout mismatch as the bite-attack
-                 * branch above. Skip the bone-derived target setup; the
-                 * cylinder hitbox in sharedFunc_800D82B8 still applies. */
-                break;
+                /* PC: ptr_D48[2,3] are NULL after the reformatter. */
+                if (sharedData_800CAA98_0_s01.ptr_D48[2] == NULL ||
+                    sharedData_800CAA98_0_s01.ptr_D48[3] == NULL) break;
 #endif
                 func_800805BC(vec, sharedData_800CAA98_0_s01.ptr_D48[2], &coords[sharedData_800CAA98_0_s01.ptr_D48[2]->pad], 2);
                 func_800805BC(&vec[2], sharedData_800CAA98_0_s01.ptr_D48[3], &coords[sharedData_800CAA98_0_s01.ptr_D48[3]->pad], 2);
@@ -13350,23 +13302,24 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
     if (sp10 != 0)
     {
 #ifdef SH_PC_PORT
-        /* PC: sharedData_800CAA98_0_s01 contains valid PSX-layout bytes
-         * but the C struct on PC has a different layout (s_AnimInfo is
-         * 32 B PC vs 16 B PSX, and ptr_D48[] is 5×8 B PC vs 5×4 B PSX),
-         * so .ptr_D48[4] reads from the wrong offset and the NULL check
-         * misses. Until a proper reformatter lands, unconditionally use
-         * the fallback cylinder hitbox: 1.5-unit radius, AS-shaped. AS
-         * stays a targetable cylinder; the bullet/knife collision tests
-         * still pass against field_C8 + field_D4. */
-        airScreamer->field_C8.field_4 = Q12( 1.5f);
-        airScreamer->field_C8.field_0 = Q12(-1.5f);
-        airScreamer->field_C8.field_6 = Q12( 0.0f);
-        airScreamer->field_C8.field_8 = Q12( 0.0f);
-        airScreamer->field_C8.field_2 = Q12( 1.5f);
-        airScreamer->field_D4.radius_0 = Q12( 1.5f);
-        airScreamer->field_D4.field_2  = Q12( 1.5f);
-        airScreamer->field_E1_0        = 3;
-        return;
+        /* PC: ptr_D48[4] is set to NULL at startup by the reformatter
+         * (PSX 0x80XXXXXX address is invalid on PC). The original
+         * polygon-hitbox computation requires those bone vertex
+         * pointers; without them, fall back to a cylinder so AS is at
+         * least targetable. The reformatter could in theory point
+         * ptr_D48[] at PC-resident bone vertex tables, but no one has
+         * built those — until then, cylinder-only collision. */
+        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) {
+            airScreamer->field_C8.field_4 = Q12( 1.5f);
+            airScreamer->field_C8.field_0 = Q12(-1.5f);
+            airScreamer->field_C8.field_6 = Q12( 0.0f);
+            airScreamer->field_C8.field_8 = Q12( 0.0f);
+            airScreamer->field_C8.field_2 = Q12( 1.5f);
+            airScreamer->field_D4.radius_0 = Q12( 1.5f);
+            airScreamer->field_D4.field_2  = Q12( 1.5f);
+            airScreamer->field_E1_0        = 3;
+            return;
+        }
 #endif
         idx0 = 0;
         idx1 = 1;
