@@ -523,6 +523,28 @@ done:
         SDL_CloseAudioDevice(audioDev);
     }
 
+    /* Wait for skip keys to release before returning. Otherwise the still-held
+     * key would carry into the next state's first Joy_Update, which sees the
+     * 0→held edge as a fresh btnsClicked and bleeds into the main menu (e.g.
+     * Enter to skip intro = phantom Confirm on the title). Capped so a stuck
+     * key can't hang the boot. */
+    {
+        int wait_frames = 0;
+        while (wait_frames < 30) /* ~500ms at 60fps */
+        {
+            SDL_PumpEvents();
+            const Uint8* ks = SDL_GetKeyboardState(NULL);
+            if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
+                !ks[SDL_SCANCODE_SPACE])
+                break;
+            SDL_Delay(16);
+            wait_frames++;
+        }
+        SDL_PumpEvents();
+        SDL_FlushEvent(SDL_KEYDOWN);
+        SDL_FlushEvent(SDL_KEYUP);
+    }
+
     printf("[FMV] Playback complete (%d frames)\n", done_frames);
     return 0;
 }
