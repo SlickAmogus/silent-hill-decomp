@@ -1,11 +1,13 @@
 /* warning_screen.c — PC-port "violent and disturbing images" warning.
  *
- * Mirrors the structure of GameState_KonamiLogo_Update — Screen_Init →
- * per-frame OT build → GsSwapDispBuff → GsDrawOt → PsyX_EndScene — but
- * with an explicit DrawEnv/DispEnv setup so the prim coordinates are
- * predictable. Without explicit setup, GsDefDispBuff2's choice of
- * buffer position leaves drawenv.ofs at non-zero values and the image
- * lands in the bottom-right quadrant of the framebuffer.
+ * Renders the 2ZANKO_E warning image full-screen with a fade-in, mirroring
+ * the PSX main()'s boot screen. Implementation follows the same Screen_Init
+ * + centered-coord-system pattern as GameState_KonamiLogo_Update so the
+ * image actually lands centered in the visible 4:3 area; the previous
+ * approach of pushing an explicit 320×240 disp/draw env without calling
+ * Screen_Init left activeDispEnv/drawenv in a hybrid state with PsyCross
+ * (gs_screen_w/h still at the static defaults from libgs_stub.c init)
+ * and the image rendered shrunk into one quadrant.
  *
  * Skipped if skip_intros = 1 in config.cfg.
  */
@@ -31,34 +33,28 @@ static s_FsImageDesc s_WarnImg = {
     .clutY = 480
 };
 
-/* Explicit DispEnv / DrawEnv mirroring src/main/main.c lines 57-66.
- * 320×224 visible area, drawn into the 320×240 framebuffer at (0,0). */
-static DISPENV s_WarnDispEnv = {
-    .disp   = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT },
-    .screen = { 0, 8, 256, 224 }
-};
-static DRAWENV s_WarnDrawEnv = {
-    .clip = { 0, 0, SCREEN_WIDTH, 224 },
-    .ofs  = { 0, 0 },
-    .dtd  = 1,
-    .isbg = 1,
-    .r0 = 0, .g0 = 0, .b0 = 0
-};
-
+/* Draw the three 128×224-px SPRTs that make up the 2ZANKO image. After
+ * Screen_Init(SCREEN_WIDTH * 2, true) the drawenv ofs is at the screen
+ * center (320, 240) — same as the Konami logo path. We position the
+ * image centered on (0, 0) in this coord system, so it lands centered
+ * in the visible 4:3 area. The image is 384 px wide visually (3 tpages
+ * × 128 px each, 4-bpp); we sample exactly the visible 128 px region
+ * of each tpage (UV 0..127, V 0..223). Three SPRTs at sprtX = -192,
+ * -64, 64 stitch the image symmetrically around 0, the same pattern
+ * BootScreen_KonamiScreenDraw uses for the Konami logo.
+ */
 static void Warn_DrawImage(void)
 {
-    /* Three 256-wide SPRT segments. Each samples one of the three
-     * vertically-adjacent texture pages (13, 14, 15) the TIM was
-     * uploaded into. PSX coords: x = -64, 64, 192 with width 256
-     * means the three segments overlap 50% with each other. The
-     * actual image data is 384 px wide (3 tpages × 128 px) and the
-     * draw rects exceed that to the sides — the off-image areas
-     * sample CLUT index 0 (transparent, drops via setSemiTrans). */
     s32 i;
     s32 sprtX;
-    GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0];
+    /* g_OtTags0[][0xF] is the back (z=15) of g_OrderingTable2 (length=4
+     * → 16 buckets). Image goes here; fade tile follows in the same
+     * bucket and gets pushed to the head of the list, ending up in
+     * front of the image at draw time. Same pattern as
+     * BootScreen_KonamiScreenDraw. */
+    GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
 
-    for (i = 0, sprtX = -64; i < 3; sprtX += 128, i++)
+    for (i = 0, sprtX = -192; i < 3; sprtX += 128, i++)
     {
         SPRT* sp = (SPRT*)GsOUT_PACKET_P;
         DR_TPAGE* tp;
@@ -66,8 +62,8 @@ static void Warn_DrawImage(void)
         addPrimFast(addr, sp, 4);
         setSprt(sp);
         setRGB0(sp, 0x80, 0x80, 0x80);
-        setWH(sp, 256, 256);
-        setXY0(sp, sprtX, -8);
+        setWH(sp, 128, 224);
+        setXY0(sp, sprtX, -112);
         setUV0(sp, 0, 0);
         setClut(sp, s_WarnImg.clutX, s_WarnImg.clutY);
 
@@ -79,13 +75,16 @@ static void Warn_DrawImage(void)
     }
 }
 
+/* Subtractive-blend full-screen fade tile. Goes in front of the image,
+ * so insert it after the SPRTs in the same OT bucket. */
 static void Warn_DrawFadeTile(s32 fade)
 {
-    GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0];
+    /* Last bucket (0xF) of OT2 — same as Konami fade tile. */
+    GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
     DR_TPAGE* tp = (DR_TPAGE*)GsOUT_PACKET_P;
     TILE* tile;
 
-    /* Push DR_TPAGE first to switch to subtractive-blend (abr=2). */
+    /* DR_TPAGE first to switch GPU into subtractive-blend (abr=2). */
     setDrawTPage(tp, 0, 1, getTPageN(0, 2, 0, 0));
     AddPrim(addr, tp);
 
@@ -94,8 +93,11 @@ static void Warn_DrawFadeTile(s32 fade)
     setTile(tile);
     setSemiTrans(tile, 1);
     setRGB0(tile, fade, fade, fade);
-    setWH(tile, SCREEN_WIDTH, SCREEN_HEIGHT);
-    setXY0(tile, 0, 0);
+    /* Cover the entire 640×480 framebuffer (centered drawenv has ofs
+     * at (320,240); start at (-SCREEN_WIDTH, -SCREEN_HEIGHT) covers
+     * (-320,-240) to (320,240) which is the whole fb). */
+    setWH(tile, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
+    setXY0(tile, -SCREEN_WIDTH, -SCREEN_HEIGHT);
 
     GsOUT_PACKET_P = (PACKET*)((u8*)tile + sizeof(TILE));
 }
@@ -104,14 +106,15 @@ static void Warn_SwapAndDraw(void)
 {
     VSync(SyncMode_Wait);
     GsSwapDispBuff();
-    PutDispEnv(&s_WarnDispEnv);
-    PutDrawEnv(&s_WarnDrawEnv);
-    GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+    /* Draw via OT2 (where g_OtTags0 lives) — matches the OT bucket the
+     * SPRTs and fade tile were pushed into. KonamiLogo uses the same OT. */
+    GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
     PsyX_EndScene();
 
     g_ActiveBufferIdx = GsGetActiveBuff();
     GsOUT_PACKET_P    = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 15));
     GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
+    GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
 }
 
 void Pc_PlayWarningScreen(void)
@@ -127,15 +130,16 @@ void Pc_PlayWarningScreen(void)
 
     SH_DBG("[WARNSCR] enter — initializing screen");
 
-    /* Set up GPU work area at 320×240 progressive — same dimensions PSX
-     * main() used. ResetGraph(0) was called in main_pc.c init, so we just
-     * need to set the disp/draw envs. */
-    PutDispEnv(&s_WarnDispEnv);
-    PutDrawEnv(&s_WarnDrawEnv);
+    /* Match the Konami-logo screen setup exactly: 640×480 interlaced
+     * progressive-after-Screen_Init clip (drawenv.clip.h forced to 224).
+     * Screen_Init internally calls GsInitGraph2 + GsDefDispBuff2 which
+     * sets gs_screen_w/h to (640,480) and drawenv ofs to (320,240). */
+    Screen_Init(SCREEN_WIDTH * 2, true);
 
     g_ActiveBufferIdx = GsGetActiveBuff();
     GsOUT_PACKET_P    = (PACKET*)(TEMP_MEMORY_ADDR + (g_ActiveBufferIdx << 15));
     GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
+    GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
 
     SH_DBG("[WARNSCR] queueing TIM load");
     Fs_QueueStartReadTim(FILE_1ST_2ZANKO_E_TIM, FS_BUFFER_0, &s_WarnImg);
