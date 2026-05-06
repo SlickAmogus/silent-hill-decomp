@@ -952,17 +952,19 @@ void MainLoop(void) // 0x80032EE0
     /* PC graphic-content warning. Runs after all subsystem inits
      * (GsInitVcount, MemCard, Joy, InitGeom, SD_Init) so it shares
      * the same boot pipeline as Konami/KCET — no perceptible delay
-     * between warning and the next state. Force hor+ on so the
-     * image stretches to fill the 16:9 window edge-to-edge, the
-     * way Konami/KCET screens do (their bg-color clear paints the
-     * full window even though their prims are 4:3 inner). Restored
-     * to 0 after — game_main's per-frame gate at line 1327 reasserts
-     * the InGame-only rule once the loop starts. */
+     * between warning and the next state. Hor+ OFF so the PsyCross
+     * 2D ortho is (0, disp.w, disp.h, 0) — fb 0..640 maps to the
+     * full window with no margin, and our quads at fb 0..640
+     * stretch edge-to-edge. With hor+ ON the ortho would expand to
+     * [-margin, disp.w+margin], leaving the quads inside the inner
+     * 4:3 portion (white margin visible on the sides). Per-frame
+     * gate at line 1371 reasserts the InGame-only rule once the
+     * main loop starts. */
     {
         extern int g_PcHorPlusEnabled;
         extern void Pc_PlayWarningScreen(void);
         const int prevHor = g_PcHorPlusEnabled;
-        g_PcHorPlusEnabled = 1;
+        g_PcHorPlusEnabled = 0;
         Pc_PlayWarningScreen();
         g_PcHorPlusEnabled = prevHor;
     }
