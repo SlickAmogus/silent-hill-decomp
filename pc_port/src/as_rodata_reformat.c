@@ -24,8 +24,7 @@
  * via the existing PC shim.
  */
 
-#include "common.h"
-#include "game.h"
+#include "bodyprog/bodyprog.h"
 #include "maps/shared.h"
 #include "sh_log.h"
 
