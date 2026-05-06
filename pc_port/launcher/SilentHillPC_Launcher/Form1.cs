@@ -92,6 +92,11 @@ public partial class Form1 : Form
         looseYes.Checked = config.Get("allow_loose_files", "0") == "1";
         looseNo.Checked = !looseYes.Checked;
 
+        // PGXP — sub-pixel-precision GTE coords + perspective-correct textures.
+        // WORK IN PROGRESS — defaults off until prim emit sites are migrated.
+        pgxpYes.Checked = config.Get("use_pgxp", "0") == "1";
+        pgxpNo.Checked = !pgxpYes.Checked;
+
         comboFps.SelectedItem = config.Get("fps_cap", "30");
         string fps = config.Get("fps_cap", "30");
         if (comboFps.Items.Contains(fps))
@@ -194,6 +199,9 @@ public partial class Form1 : Form
 
         // allow loose files (texture mod support)
         config.Set("allow_loose_files", looseYes.Checked ? "1" : "0");
+
+        // PGXP toggle (work-in-progress)
+        config.Set("use_pgxp", pgxpYes.Checked ? "1" : "0");
 
         if (comboFps.SelectedItem != null)
             config.Set("fps_cap", comboFps.SelectedItem.ToString());

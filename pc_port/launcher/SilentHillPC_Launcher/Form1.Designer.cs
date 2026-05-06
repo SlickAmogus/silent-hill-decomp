@@ -42,6 +42,12 @@ partial class Form1
     private Label filteringLabel;
     private ComboBox comboFiltering;
 
+    private Label pgxpLabel;
+    private Panel pgxpPanel;
+    private RadioButton pgxpYes;
+    private RadioButton pgxpNo;
+    private ToolTip pgxpTooltip;
+
     private Label loggingLabel;
     private Panel loggingPanel;
     private RadioButton loggingYes;
@@ -101,6 +107,11 @@ partial class Form1
             this.comboFps = new System.Windows.Forms.ComboBox();
             this.filteringLabel = new System.Windows.Forms.Label();
             this.comboFiltering = new System.Windows.Forms.ComboBox();
+            this.pgxpLabel = new System.Windows.Forms.Label();
+            this.pgxpPanel = new System.Windows.Forms.Panel();
+            this.pgxpYes = new System.Windows.Forms.RadioButton();
+            this.pgxpNo = new System.Windows.Forms.RadioButton();
+            this.pgxpTooltip = new System.Windows.Forms.ToolTip(this.components);
             this.loggingLabel = new System.Windows.Forms.Label();
             this.loggingPanel = new System.Windows.Forms.Panel();
             this.loggingYes = new System.Windows.Forms.RadioButton();
@@ -113,7 +124,6 @@ partial class Form1
             this.loosePanel = new System.Windows.Forms.Panel();
             this.looseYes = new System.Windows.Forms.RadioButton();
             this.looseNo = new System.Windows.Forms.RadioButton();
-            this.looseTooltip = new System.Windows.Forms.ToolTip(this.components);
             this.fullscreenPanel.SuspendLayout();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
@@ -254,9 +264,9 @@ partial class Form1
             this.introPanel.Size = new System.Drawing.Size(138, 30);
             this.introPanel.TabIndex = 20;
             this.introPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.introPanel_Paint);
-            //
+            // 
             // comboMap
-            //
+            // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMap.Location = new System.Drawing.Point(8, 345);
             this.comboMap.Name = "comboMap";
@@ -272,18 +282,18 @@ partial class Form1
             this.btnPlay.TabIndex = 12;
             this.btnPlay.Text = "Play";
             this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
-            //
+            // 
             // comboResolution
-            //
+            // 
             this.comboResolution.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboResolution.Location = new System.Drawing.Point(80, 151);
             this.comboResolution.Name = "comboResolution";
             this.comboResolution.Size = new System.Drawing.Size(120, 21);
             this.comboResolution.TabIndex = 0;
             this.comboResolution.SelectedIndexChanged += new System.EventHandler(this.comboResolution_SelectedIndexChanged);
-            //
+            // 
             // comboRefresh
-            //
+            // 
             this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboRefresh.Location = new System.Drawing.Point(80, 211);
             this.comboRefresh.Name = "comboRefresh";
@@ -383,9 +393,9 @@ partial class Form1
             this.chunksLabel.Size = new System.Drawing.Size(85, 13);
             this.chunksLabel.TabIndex = 1;
             this.chunksLabel.Text = "Preload Chunks:";
-            //
+            // 
             // comboFps
-            //
+            // 
             this.comboFps.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboFps.Items.AddRange(new object[] {
             "0",
@@ -397,18 +407,18 @@ partial class Form1
             this.comboFps.Name = "comboFps";
             this.comboFps.Size = new System.Drawing.Size(120, 21);
             this.comboFps.TabIndex = 31;
-            //
+            // 
             // filteringLabel
-            //
+            // 
             this.filteringLabel.AutoSize = true;
             this.filteringLabel.Location = new System.Drawing.Point(8, 275);
             this.filteringLabel.Name = "filteringLabel";
-            this.filteringLabel.Size = new System.Drawing.Size(50, 13);
+            this.filteringLabel.Size = new System.Drawing.Size(46, 13);
             this.filteringLabel.TabIndex = 40;
             this.filteringLabel.Text = "Filtering:";
-            //
+            // 
             // comboFiltering
-            //
+            // 
             this.comboFiltering.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboFiltering.Items.AddRange(new object[] {
             "Off",
@@ -486,50 +496,84 @@ partial class Form1
             this.consoleNo.Size = new System.Drawing.Size(45, 24);
             this.consoleNo.TabIndex = 38;
             this.consoleNo.Text = "No";
-            //
+            // 
             // looseLabel
-            //
+            // 
             this.looseLabel.AutoSize = true;
             this.looseLabel.Location = new System.Drawing.Point(214, 285);
             this.looseLabel.Name = "looseLabel";
-            this.looseLabel.Size = new System.Drawing.Size(96, 13);
+            this.looseLabel.Size = new System.Drawing.Size(90, 13);
             this.looseLabel.TabIndex = 42;
-            this.looseLabel.Text = "Allow Loose Files:";
-            this.looseTooltip.SetToolTip(this.looseLabel,
-                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
-            //
+            this.looseLabel.Text = "Load Loose Files:";
+            // 
             // loosePanel
-            //
+            // 
             this.loosePanel.Controls.Add(this.looseYes);
             this.loosePanel.Controls.Add(this.looseNo);
             this.loosePanel.Location = new System.Drawing.Point(299, 276);
             this.loosePanel.Name = "loosePanel";
             this.loosePanel.Size = new System.Drawing.Size(138, 30);
             this.loosePanel.TabIndex = 45;
-            //
+            // 
             // looseYes
-            //
+            // 
             this.looseYes.Location = new System.Drawing.Point(5, 5);
             this.looseYes.Name = "looseYes";
             this.looseYes.Size = new System.Drawing.Size(49, 24);
             this.looseYes.TabIndex = 43;
             this.looseYes.Text = "Yes";
-            this.looseTooltip.SetToolTip(this.looseYes,
-                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
-            //
+            // 
             // looseNo
-            //
+            // 
             this.looseNo.Location = new System.Drawing.Point(59, 5);
             this.looseNo.Name = "looseNo";
             this.looseNo.Size = new System.Drawing.Size(45, 24);
             this.looseNo.TabIndex = 44;
             this.looseNo.Text = "No";
-            this.looseTooltip.SetToolTip(this.looseNo,
-                "Scan gamedata/load/ for replacement TIM/TMD/etc and use those instead of the disc image. For texture mods.");
+            //
+            // pgxpLabel
+            //
+            this.pgxpLabel.AutoSize = true;
+            this.pgxpLabel.Location = new System.Drawing.Point(214, 317);
+            this.pgxpLabel.Name = "pgxpLabel";
+            this.pgxpLabel.Size = new System.Drawing.Size(64, 13);
+            this.pgxpLabel.TabIndex = 46;
+            this.pgxpLabel.Text = "Use PGXP:";
+            this.pgxpTooltip.SetToolTip(this.pgxpLabel,
+                "Sub-pixel-precision GTE coords + perspective-correct textures. Off = PSX wobble. WORK IN PROGRESS — expect glitches.");
+            //
+            // pgxpPanel
+            //
+            this.pgxpPanel.Controls.Add(this.pgxpYes);
+            this.pgxpPanel.Controls.Add(this.pgxpNo);
+            this.pgxpPanel.Location = new System.Drawing.Point(299, 308);
+            this.pgxpPanel.Name = "pgxpPanel";
+            this.pgxpPanel.Size = new System.Drawing.Size(138, 30);
+            this.pgxpPanel.TabIndex = 49;
+            //
+            // pgxpYes
+            //
+            this.pgxpYes.Location = new System.Drawing.Point(5, 5);
+            this.pgxpYes.Name = "pgxpYes";
+            this.pgxpYes.Size = new System.Drawing.Size(49, 24);
+            this.pgxpYes.TabIndex = 47;
+            this.pgxpYes.Text = "Yes";
+            this.pgxpTooltip.SetToolTip(this.pgxpYes,
+                "Sub-pixel-precision GTE coords + perspective-correct textures. WORK IN PROGRESS.");
+            //
+            // pgxpNo
+            //
+            this.pgxpNo.Location = new System.Drawing.Point(59, 5);
+            this.pgxpNo.Name = "pgxpNo";
+            this.pgxpNo.Size = new System.Drawing.Size(45, 24);
+            this.pgxpNo.TabIndex = 48;
+            this.pgxpNo.Text = "No";
+            this.pgxpTooltip.SetToolTip(this.pgxpNo,
+                "Affine textures (PSX wobble look).");
             //
             // Form1
             //
-            this.ClientSize = new System.Drawing.Size(400, 380);
+            this.ClientSize = new System.Drawing.Size(400, 410);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -558,6 +602,8 @@ partial class Form1
             this.Controls.Add(this.consolePanel);
             this.Controls.Add(this.looseLabel);
             this.Controls.Add(this.loosePanel);
+            this.Controls.Add(this.pgxpLabel);
+            this.Controls.Add(this.pgxpPanel);
             this.Name = "Form1";
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
@@ -570,6 +616,8 @@ partial class Form1
             this.loggingPanel.ResumeLayout(false);
             this.consolePanel.ResumeLayout(false);
             this.loosePanel.ResumeLayout(false);
+            this.pgxpPanel.SuspendLayout();
+            this.pgxpPanel.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
