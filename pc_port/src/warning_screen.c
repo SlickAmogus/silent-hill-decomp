@@ -53,14 +53,20 @@ static s_FsImageDesc s_WarnImg = {
 static void Warn_DrawImage(void)
 {
     /* Three quad x-positions evenly dividing fb 0..640 (with ofs.x=320,
-     * raw -320..+320 = fb 0..640): -320, -107, +107. Quad width 213. */
+     * raw -320..+320 = fb 0..640): -320, -107, +107. Last quad widened
+     * by 1 (214) to close the rounding gap from 213+213+213=639. */
     static const s16 s_quadX[3] = { -320, -107, +107 };
-    static const s16 s_quadW    = 213;
-    /* Vertical: cover fb 0..240 (full disp.h). With ofs.y=224, raw
-     * -224..+16 maps to fb 0..240. Image is 224 tall in source, so we
-     * stretch 224 source rows to 240 fb rows (small upscale). */
-    static const s16 s_quadY    = -224;
-    static const s16 s_quadH    = 240;
+    static const s16 s_quadW[3] = { 213, 214, 213 };
+    /* Vertical: cover fb 0..480 (matches the fade tile's
+     * setWH(SCREEN_WIDTH*2, SCREEN_HEIGHT*2) at xy(-SCREEN_WIDTH,-SCREEN_HEIGHT)).
+     * Screen_Init(640, true) puts gs_screen_h at 448 (interlaced) and
+     * the GR_Ortho2D maps fb y 0..disp.h to NDC ±1, so to fill the
+     * full window vertically the quad needs to reach disp.h=448 (and a
+     * bit more is fine — clipping is forgiving). With ofs.y=224, raw
+     * -240..+240 maps to fb -16..464. Image source is 224 rows; we
+     * stretch 224 source rows to 480 fb rows (~2.14× vertical upscale). */
+    static const s16 s_quadY    = -240;
+    static const s16 s_quadH    = 480;
     s32 i;
     GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
 
@@ -68,7 +74,7 @@ static void Warn_DrawImage(void)
     {
         POLY_FT4*  poly = (POLY_FT4*)GsOUT_PACKET_P;
         s16 x0 = s_quadX[i];
-        s16 x1 = (s16)(s_quadX[i] + s_quadW);
+        s16 x1 = (s16)(s_quadX[i] + s_quadW[i]);
         s16 y0 = s_quadY;
         s16 y1 = (s16)(s_quadY + s_quadH);
 
