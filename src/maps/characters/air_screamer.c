@@ -13238,7 +13238,13 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                 }
 
 #ifdef SH_PC_PORT
-                if (sharedData_800CAA98_0_s01.ptr_D48[1] == NULL) break;
+                /* PC: rodata layout mismatch (PSX 4-B pointers vs PC 8-B)
+                 * makes ptr_D48[i] read from wrong offset → garbage non-NULL.
+                 * Always break — collision falls back to the airScreamer
+                 * cylinder hitbox set up by sharedFunc_800D82B8. Until the
+                 * reformatter lands, attack-specific bone-derived collision
+                 * targets aren't available. */
+                break;
 #endif
                 func_800805BC(&vec[0], sharedData_800CAA98_0_s01.ptr_D48[1], &coords[sharedData_800CAA98_0_s01.ptr_D48[1]->pad], 2);
 
@@ -13262,7 +13268,10 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                 }
 
 #ifdef SH_PC_PORT
-                if (sharedData_800CAA98_0_s01.ptr_D48[2] == NULL || sharedData_800CAA98_0_s01.ptr_D48[3] == NULL) break;
+                /* PC: same ptr_D48 layout mismatch as the bite-attack
+                 * branch above. Skip the bone-derived target setup; the
+                 * cylinder hitbox in sharedFunc_800D82B8 still applies. */
+                break;
 #endif
                 func_800805BC(vec, sharedData_800CAA98_0_s01.ptr_D48[2], &coords[sharedData_800CAA98_0_s01.ptr_D48[2]->pad], 2);
                 func_800805BC(&vec[2], sharedData_800CAA98_0_s01.ptr_D48[3], &coords[sharedData_800CAA98_0_s01.ptr_D48[3]->pad], 2);
