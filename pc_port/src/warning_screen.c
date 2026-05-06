@@ -33,41 +33,59 @@ static s_FsImageDesc s_WarnImg = {
     .clutY = 480
 };
 
-/* Draw the three 128×224-px SPRTs that make up the 2ZANKO image. After
- * Screen_Init(SCREEN_WIDTH * 2, true) the drawenv ofs is at the screen
- * center (320, 240) — same as the Konami logo path. We position the
- * image centered on (0, 0) in this coord system, so it lands centered
- * in the visible 4:3 area. The image is 384 px wide visually (3 tpages
- * × 128 px each, 4-bpp); we sample exactly the visible 128 px region
- * of each tpage (UV 0..127, V 0..223). Three SPRTs at sprtX = -192,
- * -64, 64 stitch the image symmetrically around 0, the same pattern
- * BootScreen_KonamiScreenDraw uses for the Konami logo.
+/* Draw the 2ZANKO image stretched to fill the entire framebuffer.
+ *
+ * The image is 384 px wide × 224 px tall, stored across 3 tpages (13/14/15)
+ * with 128 px of real data per tpage. SPRT renders 1:1 source-to-dest, so
+ * SPRTs would only fill 384/640 ≈ 60% of the framebuffer width. Use
+ * POLY_FT4 quads instead — they decouple vertex positions from UVs, so
+ * we can sample the 128×224 source region of each tpage and render it
+ * stretched to ~213×240 in framebuffer space, edge-to-edge across the
+ * full 640×240 fb. With non-PGXP ortho mapping fb (0..disp.w) → NDC ±1,
+ * fb 0..640 fills the full visible window width.
+ *
+ * After Screen_Init(SCREEN_WIDTH * 2, true) the drawenv ofs is at
+ * (320, 224). Raw quad coords -320..+320 horizontally translate to
+ * fb 0..640 (full screen width). Vertically, raw -120..+120 translates
+ * to fb 104..344 — slightly off-center to land in the visible 0..240
+ * area; the fade tile covers anything outside.
  */
 static void Warn_DrawImage(void)
 {
+    /* Three quad x-positions evenly dividing fb 0..640 (with ofs.x=320,
+     * raw -320..+320 = fb 0..640): -320, -107, +107. Quad width 213. */
+    static const s16 s_quadX[3] = { -320, -107, +107 };
+    static const s16 s_quadW    = 213;
+    /* Vertical: cover fb 0..240 (full disp.h). With ofs.y=224, raw
+     * -224..+16 maps to fb 0..240. Image is 224 tall in source, so we
+     * stretch 224 source rows to 240 fb rows (small upscale). */
+    static const s16 s_quadY    = -224;
+    static const s16 s_quadH    = 240;
     s32 i;
-    s32 sprtX;
-    /* g_OtTags0[][0xF] is the back (z=15) of g_OrderingTable2 (length=4
-     * → 16 buckets). Image goes here; fade tile follows in the same
-     * bucket and gets pushed to the head of the list, ending up in
-     * front of the image at draw time. Same pattern as
-     * BootScreen_KonamiScreenDraw. */
     GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
 
-    for (i = 0, sprtX = -192; i < 3; sprtX += 128, i++)
+    for (i = 0; i < 3; i++)
     {
-        SPRT* sp = (SPRT*)GsOUT_PACKET_P;
-        DR_TPAGE* tp;
+        POLY_FT4*  poly = (POLY_FT4*)GsOUT_PACKET_P;
+        DR_TPAGE*  tp;
+        s16 x0 = s_quadX[i];
+        s16 x1 = (s16)(s_quadX[i] + s_quadW);
+        s16 y0 = s_quadY;
+        s16 y1 = (s16)(s_quadY + s_quadH);
 
-        addPrimFast(addr, sp, 4);
-        setSprt(sp);
-        setRGB0(sp, 0x80, 0x80, 0x80);
-        setWH(sp, 128, 224);
-        setXY0(sp, sprtX, -112);
-        setUV0(sp, 0, 0);
-        setClut(sp, s_WarnImg.clutX, s_WarnImg.clutY);
+        addPrimFast(addr, poly, 9);
+        setPolyFT4(poly);
+        setRGB0(poly, 0x80, 0x80, 0x80);
+        /* Vertex layout for POLY_FT4: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right. */
+        poly->x0 = x0; poly->y0 = y0;
+        poly->x1 = x1; poly->y1 = y0;
+        poly->x2 = x0; poly->y2 = y1;
+        poly->x3 = x1; poly->y3 = y1;
+        /* Sample each tpage's 128 px of real data, full 224 rows. */
+        setUV4(poly, 0, 0,  128, 0,  0, 224,  128, 224);
+        setClut(poly, s_WarnImg.clutX, s_WarnImg.clutY);
 
-        tp = (DR_TPAGE*)((u8*)sp + sizeof(SPRT));
+        tp = (DR_TPAGE*)((u8*)poly + sizeof(POLY_FT4));
         setDrawTPage(tp, 0, 1, getTPageN(1, 0, 13 + i, 0));
         AddPrim(addr, tp);
 
