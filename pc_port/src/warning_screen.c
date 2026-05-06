@@ -54,14 +54,7 @@ static void Warn_DrawImage(void)
      * BootScreen_KonamiScreenDraw. */
     GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
 
-    /* PSX original used 256x256 SPRTs at sprtX = -64, 64, 192 with ofs (0,0).
-     * Translated to centered ofs (320, 120): sprtX = -384, -256, -128.
-     * Each samples u=0..255 of its tpage; overlap pattern mirrors PSX —
-     * later segments cover earlier ones, so visible image data per
-     * segment is its left half (real data) + the next segment's left
-     * half covering its padding right half. Total visible image fills
-     * fb -64..448 of the 640-wide framebuffer (~70% of the 4:3 inner). */
-    for (i = 0, sprtX = -384; i < 3; sprtX += 128, i++)
+    for (i = 0, sprtX = -192; i < 3; sprtX += 128, i++)
     {
         SPRT* sp = (SPRT*)GsOUT_PACKET_P;
         DR_TPAGE* tp;
@@ -69,7 +62,7 @@ static void Warn_DrawImage(void)
         addPrimFast(addr, sp, 4);
         setSprt(sp);
         setRGB0(sp, 0x80, 0x80, 0x80);
-        setWH(sp, 256, 224);
+        setWH(sp, 128, 224);
         setXY0(sp, sprtX, -112);
         setUV0(sp, 0, 0);
         setClut(sp, s_WarnImg.clutX, s_WarnImg.clutY);
