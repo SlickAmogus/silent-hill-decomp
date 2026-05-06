@@ -80,6 +80,19 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
     # so they need the exe's exported symbols to resolve at load time.
     target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
 
+    # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
+    # archive AND the exe's import lib (which re-exports PsyCross via the
+    # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
+    # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
+    # in extra libgpu/libapi symbols by reference) which triggered hard
+    # multiple-definition errors. Allow the linker to pick whichever copy
+    # comes first — both are byte-identical since they came from the same
+    # static archive originally. Long-term cleanup: drop psycross_static
+    # from this link and rely solely on the exe's import lib. */
+    target_link_options(${MAP_NAME} PRIVATE
+        "LINKER:--allow-multiple-definition"
+    )
+
     # Export the g_MapOverlayHeader_<name> symbol from the DLL.
     # WINDOWS_EXPORT_ALL_SYMBOLS auto-generates a .def file on MinGW/MSVC.
     set_target_properties(${MAP_NAME} PROPERTIES
