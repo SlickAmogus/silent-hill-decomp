@@ -107,16 +107,6 @@ public partial class Form1 : Form
         if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
 
-        // UI Scaling: 0 = Pillarboxed (default, 4:3 with black bars),
-        // 1 = Stretched (hor+ widescreen during gameplay)
-        string uiScalingRaw = config.Get("ui_scaling", "pillarboxed");
-        int uiScalingIdx = 0;
-        if (uiScalingRaw == "stretched" || uiScalingRaw == "stretch" || uiScalingRaw == "1")
-            uiScalingIdx = 1;
-        else if (uiScalingRaw == "pillarboxed" || uiScalingRaw == "pillarbox" || uiScalingRaw == "0")
-            uiScalingIdx = 0;
-        comboUiScaling.SelectedIndex = uiScalingIdx;
-
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
             "map0_s00","map0_s01","map0_s02",
@@ -211,11 +201,6 @@ public partial class Form1 : Form
         // Filtering: dropdown index (0=Off, 1=Dithering, 2=Bilinear) -> int
         if (comboFiltering.SelectedIndex >= 0)
             config.Set("psx_dither", comboFiltering.SelectedIndex.ToString());
-
-        // UI Scaling: dropdown index (0=Pillarboxed, 1=Stretched) -> string
-        if (comboUiScaling.SelectedIndex >= 0)
-            config.Set("ui_scaling",
-                comboUiScaling.SelectedIndex == 1 ? "stretched" : "pillarboxed");
 
         config.Save();
     }

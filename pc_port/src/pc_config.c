@@ -18,7 +18,6 @@ s_PcConfig g_PcConfig = {
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
     .pixelAspectMode = 1, /* 1=CRT NTSC (1.09375), 2=square (1.0), 3=8:7 (1.143) */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
-    .uiScaling      = 0, /* 0=pillarboxed (4:3 with black bars), 1=stretched (hor+ widescreen) */
     .mapName        = "map0_s00"
 };
 
@@ -134,16 +133,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "allow_loose_files") == 0)
         {
             g_PcConfig.allowLooseFiles = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "ui_scaling") == 0)
-        {
-            /* Accept either string or number for friendliness. */
-            if (strcmp(value, "stretched") == 0 || strcmp(value, "stretch") == 0)
-                g_PcConfig.uiScaling = 1;
-            else if (strcmp(value, "pillarboxed") == 0 || strcmp(value, "pillarbox") == 0)
-                g_PcConfig.uiScaling = 0;
-            else
-                g_PcConfig.uiScaling = (atoi(value) != 0);
         }
         else if (strcmp(key, "map") == 0)
         {
