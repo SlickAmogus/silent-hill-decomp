@@ -140,6 +140,18 @@ int main(int argc, char* argv[])
         }
     }
 
+    /* Apply UI pillarbox-bars preference: when uiScaling=pillarboxed (0,
+     * default), GR_PaintPillarboxBars paints the side bars black after
+     * each bg-color clear, so a non-black bg (KCET screen's white,
+     * intro fade tints, etc.) doesn't leak into the bars and make UI
+     * look stretched. When stretched (1), bars stay whatever the bg
+     * clear painted them. Doesn't touch glViewport — 3D world still
+     * fills the full window via hor+ perspective. */
+    {
+        extern int g_PcUiPillarboxBars;
+        g_PcUiPillarboxBars = (g_PcConfig.uiScaling == 0) ? 1 : 0;
+    }
+
     /* Console window: hide by default + redirect stdout/stderr -> log so
      * stray printf/fprintf get captured.  When show_console=1, leave the
      * console window visible and let stdout/stderr stay pointed at it.
