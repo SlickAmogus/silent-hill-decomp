@@ -1481,55 +1481,6 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
             {
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
-#ifdef SH_PC_PORT
-                /* PC fast-track to death anim. The original PSX flow
-                 * cascades HoverInjured -> HoverInjuredToStun -> Stun and
-                 * then waits for AS to fully settle (touching ground, zero
-                 * rotation/move/fall speeds). With the AI rodata table
-                 * (`sharedData_800CAA98_0_s01.field_380`) being a 256-byte
-                 * zero stub on PC, the per-keyframe behavior bitfield is
-                 * always zero, so the chain advances by anim-end only and
-                 * the settle check rarely passes. After 30 frames in case 0
-                 * with health<=0, force the kill condition. Counter does
-                 * NOT gate on anim active — gating on it caused indefinite
-                 * resets when anim status flipped between anims. */
-                {
-                    static s32 s_pcDeathTimeout = 0;
-                    s_pcDeathTimeout++;
-                    if (s_pcDeathTimeout > 30) {
-                        s_pcDeathTimeout = 0;
-                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d -> jumping to controlState=None",
-                               animStatus, (int)temp_s3);
-                        /* Don't fall through to the inner if. That path
-                         * sets stateStep=1 inside Control_2, which has
-                         * no escape (Control_2 only has cases 0/1/2 and
-                         * the chain to controlState=None lives in
-                         * Control_1 / Control_17 — both `#ifndef
-                         * MAP0_S01` so absent here). Jump straight to
-                         * the "officially dead" state mirroring
-                         * Ai_AirScreamer_Control_1 case StateStep_7
-                         * (line 1342). EventFlag_M0S01_AirScreamerDied
-                         * fires from map0_s01_events.c on the next
-                         * frame because health == NO_VALUE. */
-                        airScreamer->moveSpeed = Q12(0.0f);
-                        airScreamer->fallSpeed = Q12(0.0f);
-                        airScreamer->rotationSpeed.vx = 0;
-                        airScreamer->rotationSpeed.vy = 0;
-                        airScreamer->rotationSpeed.vz = 0;
-                        airScreamer->field_32 = 0;
-                        airScreamerProps.field_EC = 0;
-                        airScreamer->position.vy = Collision_GroundHeightGet(
-                            airScreamer->position.vx, airScreamer->position.vz);
-                        airScreamer->health             = NO_VALUE;
-                        airScreamer->model.controlState = AirScreamerControl_None;
-                        airScreamer->model.stateStep    = AirScreamerStateStep_13;
-                        airScreamer->model.anim.status  = ANIM_STATUS(AirScreamerAnim_StandToStun, true);
-                        airScreamerProps.flags          = AirScreamerFlag_None;
-                        return;
-                    }
-                }
-#endif
-
                 if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true) && temp_s3 == true)
                 {
                     airScreamer->health = NO_VALUE;
@@ -1561,19 +1512,7 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                     break;
                 }
 #ifdef MAP0_S01
-                /* Passive health drain. Original PSX rate (×10) gives a
-                 * 38-second floor for the boss to die even with no
-                 * player attacks, which felt long in PC playtesting
-                 * (user reports ~1-2 minute wait between starting the
-                 * fight and the death cutscene). 4x faster drain →
-                 * ~9.5-second floor, still long enough for the player
-                 * to land hits and feel agency over the fight, but
-                 * doesn't stretch out post-AS-aggro into tedium. */
-#ifdef SH_PC_PORT
-                damage = g_DeltaTime * 40;
-#else
                 damage = g_DeltaTime * 10;
-#endif
                 if (damage < airScreamer->health)
                 {
                     airScreamer->health -= damage;
