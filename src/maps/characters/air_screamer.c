@@ -1481,6 +1481,43 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
             {
                 Ai_AirScreamer_DamageTake(airScreamer, Q12(0.0f));
 
+#ifdef SH_PC_PORT
+                /* PC fast-track to death anim. The original PSX flow waits
+                 * for AS to fully settle (anim==Stun, temp_s3==true) before
+                 * marking it dead. With sharedData_800CAA98_0_s01 in the
+                 * wrong layout (PC s_AnimInfo is 32 B vs PSX 16 B), the
+                 * per-keyframe behavior bitfield in field_380 reads garbage
+                 * from the shifted-offset rodata, so settle conditions
+                 * rarely trigger. After 30 frames in case 0 with health<=0,
+                 * force the kill condition. Counter does NOT gate on anim
+                 * active — gating on it caused indefinite resets when anim
+                 * status flipped between anims. Restore once a proper
+                 * reformatter for s_func_800D2E04 lands. */
+                {
+                    static s32 s_pcDeathTimeout = 0;
+                    s_pcDeathTimeout++;
+                    if (s_pcDeathTimeout > 30) {
+                        s_pcDeathTimeout = 0;
+                        SH_DBG("[ASDIE] PC fast-track firing: anim=0x%X temp_s3=%d -> jumping to controlState=None",
+                               animStatus, (int)temp_s3);
+                        airScreamer->moveSpeed = Q12(0.0f);
+                        airScreamer->fallSpeed = Q12(0.0f);
+                        airScreamer->rotationSpeed.vx = 0;
+                        airScreamer->rotationSpeed.vy = 0;
+                        airScreamer->rotationSpeed.vz = 0;
+                        airScreamer->field_32 = 0;
+                        airScreamerProps.field_EC = 0;
+                        airScreamer->position.vy = Collision_GroundHeightGet(
+                            airScreamer->position.vx, airScreamer->position.vz);
+                        airScreamer->health             = NO_VALUE;
+                        airScreamer->model.controlState = AirScreamerControl_None;
+                        airScreamer->model.stateStep    = AirScreamerStateStep_13;
+                        airScreamer->model.anim.status  = ANIM_STATUS(AirScreamerAnim_StandToStun, true);
+                        airScreamerProps.flags          = AirScreamerFlag_None;
+                        return;
+                    }
+                }
+#endif
                 if (animStatus == ANIM_STATUS(AirScreamerAnim_Stun, true) && temp_s3 == true)
                 {
                     airScreamer->health = NO_VALUE;
@@ -1512,7 +1549,15 @@ void Ai_AirScreamer_Control_2(s_SubCharacter* airScreamer)
                     break;
                 }
 #ifdef MAP0_S01
+                /* PC: 4× the PSX passive drain (10 → 40) so the AS dies fast
+                 * enough to feel right while the rodata layout mismatch
+                 * suppresses the real damage cascade. Restore to *10 once
+                 * the reformatter lands. */
+#ifdef SH_PC_PORT
+                damage = g_DeltaTime * 40;
+#else
                 damage = g_DeltaTime * 10;
+#endif
                 if (damage < airScreamer->health)
                 {
                     airScreamer->health -= damage;
@@ -13296,29 +13341,23 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
     if (sp10 != 0)
     {
 #ifdef SH_PC_PORT
-        /* PC: sharedData_800CAA98_0_s01 is a stubbed rodata table
-         * (data_stubs.c). The hand-authored hitbox vertex pointers in
-         * ptr_D48[] are NULL and field_D70[][] is zero. The original
-         * function uses those to compute an exact polygon hitbox for AS
-         * but if we just return early, field_E1_0 stays 0 forever and
-         * Collision_ActiveCharactersGet filters AS out of every collision
-         * query — bullets and the knife both miss every shot.
-         *
-         * Fall back to a fixed cylinder hitbox so AS is at least a
-         * targetable cylinder even without the per-anim polygon data.
-         * Tuning: AS is roughly 2 units across the wing-span in-game; a
-         * 1.5-unit radius is forgiving enough for the player. */
-        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) {
-            airScreamer->field_C8.field_4 = Q12( 1.5f);
-            airScreamer->field_C8.field_0 = Q12(-1.5f);
-            airScreamer->field_C8.field_6 = Q12( 0.0f);
-            airScreamer->field_C8.field_8 = Q12( 0.0f);
-            airScreamer->field_C8.field_2 = Q12( 1.5f);
-            airScreamer->field_D4.radius_0 = Q12( 1.5f);
-            airScreamer->field_D4.field_2  = Q12( 1.5f);
-            airScreamer->field_E1_0        = 3;
-            return;
-        }
+        /* PC: sharedData_800CAA98_0_s01 contains valid PSX-layout bytes
+         * but the C struct on PC has a different layout (s_AnimInfo is
+         * 32 B PC vs 16 B PSX, and ptr_D48[] is 5×8 B PC vs 5×4 B PSX),
+         * so .ptr_D48[4] reads from the wrong offset and the NULL check
+         * misses. Until a proper reformatter lands, unconditionally use
+         * the fallback cylinder hitbox: 1.5-unit radius, AS-shaped. AS
+         * stays a targetable cylinder; the bullet/knife collision tests
+         * still pass against field_C8 + field_D4. */
+        airScreamer->field_C8.field_4 = Q12( 1.5f);
+        airScreamer->field_C8.field_0 = Q12(-1.5f);
+        airScreamer->field_C8.field_6 = Q12( 0.0f);
+        airScreamer->field_C8.field_8 = Q12( 0.0f);
+        airScreamer->field_C8.field_2 = Q12( 1.5f);
+        airScreamer->field_D4.radius_0 = Q12( 1.5f);
+        airScreamer->field_D4.field_2  = Q12( 1.5f);
+        airScreamer->field_E1_0        = 3;
+        return;
 #endif
         idx0 = 0;
         idx1 = 1;
