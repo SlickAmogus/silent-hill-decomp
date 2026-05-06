@@ -180,6 +180,15 @@ int main(int argc, char* argv[])
     extern void PcPort_InitSdBuffers(void);
     PcPort_InitSdBuffers();
 
+    /* Translate the Air Screamer per-keyframe AI rodata from PSX layout
+     * (16-byte s_AnimInfo, 4-byte ptrs) to PC layout (32-byte s_AnimInfo,
+     * 8-byte ptrs). Without this, every read past animInfo_0[] in
+     * sharedData_800CAA98_0_s01 returns garbage from a wrong offset and
+     * the AS AI breaks (or the earlier band-aids force a degraded
+     * fallback). See pc_port/src/as_rodata_reformat.c. */
+    extern void AsRodata_Reformat(void);
+    AsRodata_Reformat();
+
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
     g_OvlDynamic  = PSX_ADDR(0x000CBAA8);

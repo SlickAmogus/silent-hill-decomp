@@ -1053,18 +1053,23 @@ u8 g_WorldObject_Window[256] = {0};
 u8 g_WorldObject_Winr[256] = {0};
 u8 g_WorldObject_Zukan[256] = {0};
 /* nextfile: removed — see comment by erase/firstfile/format above. */
-/* Air Screamer per-keyframe AI rodata (s_func_800D2E04, 0xD6C bytes).
+/* Air Screamer per-keyframe AI rodata — RAW PSX-LAYOUT bytes, 0xD78 total.
  * Extracted from MAP0_S01.BIN at offset 0x1520 (PSX VRAM 0x800CAA98).
  * PSX function/data pointers (animInfo[].playbackFunc, .variableFunc when
- * hasVariableDuration!=0, ptr_D48[5]) zeroed out: NULL-checks in
- * air_screamer.c skip those code paths on PC.  Animation tables, per-keyframe
- * behavior bitfield (field_380), attack-distance LUT (properties_D14), weighted
- * attack tables (field_D24/D3C), and SFX volume table (sfxVolumes_CE8) are
- * intact -- replaces the 256-byte zero stub that caused stun-spam death loop.
+ * hasVariableDuration!=0, ptr_D48[5]) zeroed out at extract time — they hold
+ * 0x80XXXXXX addresses that aren't valid on PC.
+ *
+ * These bytes are PSX struct layout (16-byte s_AnimInfo, 4-byte pointers).
+ * On PC, s_AnimInfo is 32 bytes and ptr_D48[] is 5×8B, so reading directly
+ * through the s_func_800D2E04 type would land every field past animInfo_0[]
+ * at the wrong offset. The reformatter at pc_port/src/as_rodata_reformat.c
+ * walks these bytes with explicit PSX offsets and populates the actual
+ * sharedData_800CAA98_0_s01 struct (PC layout) at startup.
+ *
  * Map0_s01 vs map2_s00 differ only in 58 bytes that are all PSX function/data
- * pointers, so a single sanitized copy serves all maps that host the AS.
+ * pointers, so a single sanitized copy serves every map that hosts the AS.
  */
-u8 sharedData_800CAA98_0_s01[0xD6C] = {
+const u8 g_AsRodataPsxRaw[0xD78] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
     0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xFF, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
     0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
@@ -1279,7 +1284,15 @@ u8 sharedData_800CAA98_0_s01[0xD6C] = {
     0x00, 0x10, 0x00, 0x0C, 0x00, 0x18, 0x00, 0x10, 0x00, 0x20, 0x00, 0x14, 0x01, 0x02, 0x00, 0x00,
     0x02, 0x02, 0x01, 0x02, 0x02, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0xAE, 0x07, 0xB9, 0xFE, 0xF5, 0x08, 0x34, 0xFB, 0x3D, 0x0A
+    0x00, 0x00, 0xAE, 0x07, 0xB9, 0xFE, 0xF5, 0x08, 0x34, 0xFB, 0x3D, 0x0A,
+    /* Last 12 bytes (offsets 0xD6C..0xD77) — extracted from disc 2026-05-06.
+     * unk_D6C[4] = 0x00 0x00 0x99 0x05 (last byte 0x05 = 5)
+     * field_D70[0][0..1] = 0x0000, 0x0000
+     * field_D70[1][0..1] = 0x0000, 0x0999 = 2457 — the AS hitbox radius for
+     *                                              one of the active anims */
+    0x00, 0x00, 0x99, 0x05,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x99, 0x09
 };
 u8 sharedData_800CB088_3_s01[256] = {0};
 u8 sharedData_800CB0A0_3_s01[256] = {0};
