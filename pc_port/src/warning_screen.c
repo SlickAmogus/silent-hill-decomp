@@ -67,7 +67,6 @@ static void Warn_DrawImage(void)
     for (i = 0; i < 3; i++)
     {
         POLY_FT4*  poly = (POLY_FT4*)GsOUT_PACKET_P;
-        DR_TPAGE*  tp;
         s16 x0 = s_quadX[i];
         s16 x1 = (s16)(s_quadX[i] + s_quadW);
         s16 y0 = s_quadY;
@@ -76,7 +75,7 @@ static void Warn_DrawImage(void)
         addPrimFast(addr, poly, 9);
         setPolyFT4(poly);
         setRGB0(poly, 0x80, 0x80, 0x80);
-        /* Vertex layout for POLY_FT4: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right. */
+        /* Vertex layout for POLY_FT4: 0=TL, 1=TR, 2=BL, 3=BR. */
         poly->x0 = x0; poly->y0 = y0;
         poly->x1 = x1; poly->y1 = y0;
         poly->x2 = x0; poly->y2 = y1;
@@ -84,12 +83,12 @@ static void Warn_DrawImage(void)
         /* Sample each tpage's 128 px of real data, full 224 rows. */
         setUV4(poly, 0, 0,  128, 0,  0, 224,  128, 224);
         setClut(poly, s_WarnImg.clutX, s_WarnImg.clutY);
+        /* POLY_FT4 reads its own tpage field (PsyX_GPU.cpp case 0xC sets
+         * activeDrawEnv.tpage = poly->tpage), so a separate DR_TPAGE in
+         * the OT chain wouldn't help — must be on the prim itself. */
+        poly->tpage = getTPageN(1, 0, 13 + i, 0);
 
-        tp = (DR_TPAGE*)((u8*)poly + sizeof(POLY_FT4));
-        setDrawTPage(tp, 0, 1, getTPageN(1, 0, 13 + i, 0));
-        AddPrim(addr, tp);
-
-        GsOUT_PACKET_P = (PACKET*)((u8*)tp + sizeof(DR_TPAGE));
+        GsOUT_PACKET_P = (PACKET*)((u8*)poly + sizeof(POLY_FT4));
     }
 }
 
