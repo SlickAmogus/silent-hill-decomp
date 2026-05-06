@@ -42,6 +42,9 @@ partial class Form1
     private Label filteringLabel;
     private ComboBox comboFiltering;
 
+    private Label uiScalingLabel;
+    private ComboBox comboUiScaling;
+
     private Label loggingLabel;
     private Panel loggingPanel;
     private RadioButton loggingYes;
@@ -101,6 +104,8 @@ partial class Form1
             this.comboFps = new System.Windows.Forms.ComboBox();
             this.filteringLabel = new System.Windows.Forms.Label();
             this.comboFiltering = new System.Windows.Forms.ComboBox();
+            this.uiScalingLabel = new System.Windows.Forms.Label();
+            this.comboUiScaling = new System.Windows.Forms.ComboBox();
             this.loggingLabel = new System.Windows.Forms.Label();
             this.loggingPanel = new System.Windows.Forms.Panel();
             this.loggingYes = new System.Windows.Forms.RadioButton();
@@ -418,7 +423,27 @@ partial class Form1
             this.comboFiltering.Name = "comboFiltering";
             this.comboFiltering.Size = new System.Drawing.Size(120, 21);
             this.comboFiltering.TabIndex = 41;
-            // 
+            //
+            // uiScalingLabel
+            //
+            this.uiScalingLabel.AutoSize = true;
+            this.uiScalingLabel.Location = new System.Drawing.Point(8, 305);
+            this.uiScalingLabel.Name = "uiScalingLabel";
+            this.uiScalingLabel.Size = new System.Drawing.Size(60, 13);
+            this.uiScalingLabel.TabIndex = 46;
+            this.uiScalingLabel.Text = "UI Scaling:";
+            //
+            // comboUiScaling
+            //
+            this.comboUiScaling.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboUiScaling.Items.AddRange(new object[] {
+            "Pillarboxed",
+            "Stretched"});
+            this.comboUiScaling.Location = new System.Drawing.Point(80, 301);
+            this.comboUiScaling.Name = "comboUiScaling";
+            this.comboUiScaling.Size = new System.Drawing.Size(120, 21);
+            this.comboUiScaling.TabIndex = 47;
+            //
             // loggingLabel
             // 
             this.loggingLabel.AutoSize = true;
@@ -552,6 +577,8 @@ partial class Form1
             this.Controls.Add(this.comboFps);
             this.Controls.Add(this.filteringLabel);
             this.Controls.Add(this.comboFiltering);
+            this.Controls.Add(this.uiScalingLabel);
+            this.Controls.Add(this.comboUiScaling);
             this.Controls.Add(this.loggingLabel);
             this.Controls.Add(this.loggingPanel);
             this.Controls.Add(this.consoleLabel);
