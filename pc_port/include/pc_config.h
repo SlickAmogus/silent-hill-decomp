@@ -15,6 +15,7 @@ typedef struct {
     int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
     int pixelAspectMode; /* 1 = CRT NTSC (1.09375), 2 = square (1.0), 3 = 8:7 (1.143) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
+    int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
