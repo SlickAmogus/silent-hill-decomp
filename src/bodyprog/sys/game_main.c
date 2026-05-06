@@ -948,6 +948,24 @@ void MainLoop(void) // 0x80032EE0
     /* SD_Init -> SdInit -> SpuInit -> ResetCallback clears the VSync callback.
      * Re-register it after SD_Init to ensure the callback stays active. */
     VSyncCallback(&Screen_VSyncCallback);
+
+    /* PC graphic-content warning. Runs after all subsystem inits
+     * (GsInitVcount, MemCard, Joy, InitGeom, SD_Init) so it shares
+     * the same boot pipeline as Konami/KCET — no perceptible delay
+     * between warning and the next state. Force hor+ on so the
+     * image stretches to fill the 16:9 window edge-to-edge, the
+     * way Konami/KCET screens do (their bg-color clear paints the
+     * full window even though their prims are 4:3 inner). Restored
+     * to 0 after — game_main's per-frame gate at line 1327 reasserts
+     * the InGame-only rule once the loop starts. */
+    {
+        extern int g_PcHorPlusEnabled;
+        extern void Pc_PlayWarningScreen(void);
+        const int prevHor = g_PcHorPlusEnabled;
+        g_PcHorPlusEnabled = 1;
+        Pc_PlayWarningScreen();
+        g_PcHorPlusEnabled = prevHor;
+    }
 #endif
     // Run game.
     while (true)

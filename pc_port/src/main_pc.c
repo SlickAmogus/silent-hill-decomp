@@ -298,17 +298,12 @@ int main(int argc, char* argv[])
 
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 
-    /* Graphic-content warning ("There are violent and disturbing images
-     * in this game"). Plays before MainLoop so it shows before the
-     * Konami logo, mirroring the PSX boot order. Uses the OT-based
-     * pipeline rather than PSX's immediate-mode DrawPrim because
-     * PsyCross's DrawPrim doesn't present without a full
-     * GsSwapDispBuff+GsDrawOt frame. Skipped if skip_intros=1 in
-     * config.cfg. */
-    {
-        extern void Pc_PlayWarningScreen(void);
-        Pc_PlayWarningScreen();
-    }
+    /* The graphic-content warning ("There are violent and disturbing
+     * images in this game") used to fire here, but it ran before
+     * MainLoop's GsInitVcount/InitGeom/SD_Init so subsequent boot
+     * states (Konami, KCET) saw a noticeable load gap. Moved into
+     * MainLoop's startup phase right before the game-state loop —
+     * see src/bodyprog/sys/game_main.c near the SD_Init block. */
 
     /*
      * On PSX, main() loads BODYPROG.BIN and B_KONAMI.BIN overlays,
