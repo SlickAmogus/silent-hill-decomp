@@ -549,6 +549,18 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
         addPrim(&ot->org[otz], poly);
+        {
+            /* Pickup-TMD diagnostic — log first 64 emitted POLY_GT3 prims so we
+             * can verify they actually land in OT0 (or an OT1 subroot) and
+             * survive the OT0 sanitizer's chain walk. */
+            static int s_tmdGt3Log = 0;
+            if (s_tmdGt3Log < 64) {
+                s_tmdGt3Log++;
+                fprintf(stderr, "[TMDPRIM] GT3 #%d poly=%p otz=%ld bucket=%p ot=%p tpage=0x%x clut=0x%x\n",
+                        s_tmdGt3Log, (void*)poly, otz, (void*)&ot->org[otz], (void*)ot,
+                        poly->tpage, poly->clut);
+            }
+        }
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -596,6 +608,16 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
         addPrim(&ot->org[otz], poly);
+        {
+            /* Pickup-TMD diagnostic — see GT3 sibling above. */
+            static int s_tmdGt4Log = 0;
+            if (s_tmdGt4Log < 64) {
+                s_tmdGt4Log++;
+                fprintf(stderr, "[TMDPRIM] GT4 #%d poly=%p otz=%ld bucket=%p ot=%p tpage=0x%x clut=0x%x\n",
+                        s_tmdGt4Log, (void*)poly, otz, (void*)&ot->org[otz], (void*)ot,
+                        poly->tpage, poly->clut);
+            }
+        }
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }

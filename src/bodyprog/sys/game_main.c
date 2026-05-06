@@ -1410,11 +1410,37 @@ void MainLoop(void) // 0x80032EE0
                  * same wild pointer. We need to splice the chain to end at
                  * the last known-good entry. */
                 OT_TAG* prev = NULL;
+                /* Item-pickup TMD diagnostic: when a pickup is in flight
+                 * (g_PsxSkipFramebufferStore is set during pickup states),
+                 * dump every prim the OT0 walker visits with code/len/bucket.
+                 * Pair with [TMDPRIM] logs in libgs_stub.c — if a TMD prim is
+                 * emitted into a bucket but the walker never visits it, we
+                 * know GsSortOt isn't anchoring the OT1 subroot back into
+                 * the OT0 chain. Capped to a single pickup-pass to keep log
+                 * readable. */
+                int pmapTrace = 0;
+                static int s_pmapTraceUsed = 0;
+                extern int g_PsxSkipFramebufferStore;
+                if (g_PsxSkipFramebufferStore && !s_pmapTraceUsed) {
+                    pmapTrace = 1;
+                    s_pmapTraceUsed = 1;
+                    SH_DBG("[OT-WALK/PICKUP] starting trace — head=%p pkt=[%p..%p) ot=[%p..%p) sub=[%p..%p)",
+                           (void*)cur, (void*)pktLo, (void*)pktHi,
+                           (void*)otLo, (void*)otHi,
+                           (void*)subLo, (void*)subHi);
+                }
                 while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
                                  (curAddr >= otLo  && curAddr < otHi)  ||
                                  (subLo && curAddr >= subLo && curAddr < subHi));
+                    if (pmapTrace && w2 < 200) {
+                        u8 dbgCode = curOk ? ((P_TAG*)cur)->code : 0xFF;
+                        int dbgLen = curOk ? getlen(cur) : -1;
+                        SH_DBG("[OT-WALK/PICKUP] w=%d cur=%p ok=%d code=0x%02x len=%d isend=%d",
+                               w2, (void*)cur, curOk, dbgCode, dbgLen,
+                               curOk ? isendprim(cur) : -1);
+                    }
                     if (!curOk) {
                         static int s_dumpedOnce = 0;
                         if (!s_dumpedOnce) {
