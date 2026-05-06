@@ -30,10 +30,18 @@ endif()
 # Build this BEFORE setting game-specific defines so they don't pollute PsyCross
 # =============================================================================
 
-# Disable PGXP: game C code writes short x0/y0, but PGXP makes VERTTYPE=half in C++.
-# The raw short bit patterns get misinterpreted as half-floats, producing NaN vertices.
-# USE_EXTENDED_PRIM_POINTERS stays ON for 64-bit pointer support in P_TAG.
-add_definitions(-DUSE_PGXP=0)
+# PGXP: compiled in. Runtime-gated by g_PsxUsePgxp (driven by config.cfg
+# `use_pgxp`). When OFF, ApplyVertexPGXP zeroes a_zw so the vertex shader
+# falls through to the 2D-ortho affine path — same look as USE_PGXP=0.
+# When ON, GTE captures FP twins and the cache-lookup-driven Projection3D
+# path produces sub-pixel-accurate, perspective-correct geometry.
+#
+# The original USE_PGXP=0 disable existed because upstream typedef'd
+# VERTTYPE=half in C++ and the bit patterns mismatched the C-side short
+# writes. Fixed in the vendored PsyCross: VERTTYPE is now short in both
+# languages (high-precision data flows via PGXPVData/a_zw, not via the
+# prim XY fields). See PsyCross commit "pgxp: keep VERTTYPE=short in C++".
+add_definitions(-DUSE_PGXP=1)
 
 # Silent Hill doesn't read rendered pixels back from VRAM. Disabling the
 # framebuffer-to-VRAM store prevents rendered pixel data from overwriting
