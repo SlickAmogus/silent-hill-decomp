@@ -1745,6 +1745,31 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
         (*poly)->b0         = ptr->field_12C.b;
 
+#ifdef SH_PC_PORT
+        /* PC simplification: emit a single POLY_FT4 instead of the PSX
+         * 3-prim layered layout. The original used a struct copy
+         * `*(*poly + 2) = *(*poly + 1) = **poly` that propagated the
+         * OT addr field, then poked tpage/clut/color into the second
+         * copy and three sequential addPrim calls. The struct copy +
+         * sequential addPrim was the same pattern as the prior knife
+         * blood-splat bug (commit edd9e2098): later addPrim links wrote
+         * back into the prim's own addr field via aliasing, producing
+         * persistent OT chain corruption that the OT0 sanitizer
+         * masked by re-linking to org[0] — manifesting as huge mid-
+         * distance geometry vanishing on bullet impact (same path as
+         * knife since pistol-on-enemy uses this same blood spawner).
+         * Drop the additive-overlay second prim; visual loses one of
+         * the layered blend passes but no longer trashes adjacent OT
+         * buckets. The bucket-bounds clamp stays — defensive against
+         * the earlier off-by-one guard mismatch. */
+        {
+            s32 _bucket = ptr->field_158 >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+        }
+        *poly = *poly + 1;
+#else
         *(*poly + 2) = *(*poly + 1) = **poly;
 
         (*poly)->tpage          = 0x2B;
@@ -1752,32 +1777,12 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
         (*poly + 1)->b0         = ptr->field_130.b;
 
-#ifdef SH_PC_PORT
-        /* Bounds-clamp OT bucket. The early-return guard at line 1539
-         * checks `(field_158 - 8) >> 3 < OT_SIZE` but addPrim here
-         * uses `field_158 >> 3` (no -8), so for field_158 near upper
-         * bound the index can be one bucket past what the guard
-         * tested. addPrim writes prim data into wrong memory inside
-         * the OT array, producing the persistent `0x...NHS.` bad
-         * nextPtr corruption (POLY_FT4 vertex bytes from this prim
-         * landing in another OT entry's addr field). User reports
-         * geometry disappearing during knife combat — this is the
-         * corruption path that survived the func_80060044 fix. */
-        {
-            s32 _bucket = ptr->field_158 >> 3;
-            if (_bucket < 0) _bucket = 0;
-            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 1);
-            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 2);
-        }
-#else
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly);
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly + 1);
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_158 >> 3], *poly + 2);
-#endif
 
         *poly = *poly + 3;
+#endif
     }
     else
     {
