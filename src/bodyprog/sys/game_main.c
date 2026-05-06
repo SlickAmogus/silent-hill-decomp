@@ -1323,18 +1323,9 @@ void MainLoop(void) // 0x80032EE0
          * pickup tick" signal — it's already set by game logic before
          * we get here in MainLoop. (auto-clears in PsyX_EndScene.)
          *
-         * Result: item pickups stay 16:9, map pickup goes to 4:3.
-         *
-         * UI scaling override: when g_PcConfig.uiScaling == 0 (pillarboxed,
-         * the default), force horplus off so the entire game renders at
-         * 4:3 with black bars on the sides. Set ui_scaling=stretched in
-         * config.cfg to opt back into hor+ widescreen during gameplay. */
-        if (g_PcConfig.uiScaling == 0) {
-            g_PcHorPlusEnabled = 0;
-        } else {
-            g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
-                                  !g_PsxSkipFramebufferStore) ? 1 : 0;
-        }
+         * Result: item pickups stay 16:9, map pickup goes to 4:3. */
+        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
+                              !g_PsxSkipFramebufferStore) ? 1 : 0;
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
