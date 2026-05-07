@@ -17,6 +17,130 @@ public partial class Form1 : Form
         this.Icon = SilentHillPC_Launcher.Properties.Resources.launchericon;
         PopulateDisplayOptions();
         LoadConfig();
+        SetupTooltips();
+    }
+
+    /// <summary>
+    /// Hover tooltips for each option. Resolution/refresh-rate are
+    /// self-explanatory and skipped. Tooltip text is intentionally short —
+    /// long enough to explain non-obvious behavior, short enough to read at
+    /// a glance.
+    /// </summary>
+    private void SetupTooltips()
+    {
+        var tip = new ToolTip
+        {
+            AutoPopDelay = 12000,  // keep visible up to 12s while hovered
+            InitialDelay = 400,
+            ReshowDelay  = 200,
+            ShowAlways   = true,
+        };
+
+        void Set(Control c, string text)
+        {
+            if (c == null) return;
+            tip.SetToolTip(c, text);
+            // Radio buttons sit inside panels; attach to the panel too so
+            // hovering between buttons doesn't drop the tooltip.
+            if (c.Parent is Panel)
+                tip.SetToolTip(c.Parent, text);
+        }
+
+        const string fullscreenTip =
+            "Run the game fullscreen at the chosen resolution.\n" +
+            "Off = windowed at the chosen resolution.";
+        Set(fullscreenLabel,    fullscreenTip);
+        Set(radioFullscreenYes, fullscreenTip);
+        Set(radioFullscreenNo,  fullscreenTip);
+
+        const string vsyncTip =
+            "Synchronize frame presentation to your monitor's refresh rate.\n" +
+            "On = no tearing, may add a frame of input latency.\n" +
+            "Off = lowest latency, possible tearing.";
+        Set(vsyncLabel,     vsyncTip);
+        Set(radioVsyncYes,  vsyncTip);
+        Set(radioVsyncNo,   vsyncTip);
+
+        const string fpsTip =
+            "Maximum frames per second. 0 = unlimited.\n" +
+            "Game logic ticks at 30 Hz internally; higher caps just refresh\n" +
+            "the screen more often (smoother input + camera sampling).";
+        Set(fpsLabel,  fpsTip);
+        Set(comboFps,  fpsTip);
+
+        const string filteringTip =
+            "Off = crisp PSX pixels, no smoothing.\n" +
+            "Dithering = recreates the PSX 24→15-bit dither pattern (recommended).\n" +
+            "Bilinear = blurs textures; can hide pixel-art detail.";
+        Set(filteringLabel, filteringTip);
+        Set(comboFiltering, filteringTip);
+
+        const string pgxpTip =
+            "WORK IN PROGRESS — leave Off for now.\n" +
+            "PGXP gives sub-pixel-precision GTE coords (no PSX vertex jitter)\n" +
+            "and perspective-correct texture mapping. Many prim emit sites\n" +
+            "are still being migrated, so most of the game looks worse with\n" +
+            "this on until the wiring is finished.";
+        Set(pgxpLabel,  pgxpTip);
+        Set(pgxpYes,    pgxpTip);
+        Set(pgxpNo,     pgxpTip);
+
+        const string cullingTip =
+            "Disable the game's distance/frustum culling.\n" +
+            "On = renders everything regardless of distance (debug aid;\n" +
+            "      useful when tracking down vanishing geometry).\n" +
+            "Off = original PSX behavior (recommended).";
+        Set(cullLabel,        cullingTip);
+        Set(radioCullingYes,  cullingTip);
+        Set(radioCullingNo,   cullingTip);
+
+        const string preloadTip =
+            "Preload all map chunks at level start instead of streaming\n" +
+            "them in as you walk. Eliminates pop-in but uses more memory\n" +
+            "and lengthens the initial load. Off = original streaming.";
+        Set(chunksLabel,      preloadTip);
+        Set(radioPreloadYes,  preloadTip);
+        Set(radioPreloadNo,   preloadTip);
+
+        const string introTip =
+            "Skip the boot logos and the intro FMV — jump straight to the\n" +
+            "main menu. Convenient during testing.";
+        Set(introLabel,  introTip);
+        Set(introYes,    introTip);
+        Set(introNo,     introTip);
+
+        const string loggingTip =
+            "Write SH_DBG output to SilentHill.log next to the executable.\n" +
+            "Required for diagnosing crashes/regressions; small disk-write\n" +
+            "overhead. Leave on if you might report a bug.";
+        Set(loggingLabel,  loggingTip);
+        Set(loggingYes,    loggingTip);
+        Set(loggingNo,     loggingTip);
+
+        const string consoleTip =
+            "Open a secondary console window that mirrors SH_DBG_ECHO lines\n" +
+            "live as the game runs. Useful for watching state transitions\n" +
+            "without tailing the log file.";
+        Set(consoleLabel,  consoleTip);
+        Set(consoleYes,    consoleTip);
+        Set(consoleNo,     consoleTip);
+
+        const string looseTip =
+            "Allow the game to load replacement assets from\n" +
+            "gamedata/load/{folder}/{name}.{ext} instead of the packed\n" +
+            "originals. Enables texture mods. Off = packed assets only.";
+        Set(looseLabel,  looseTip);
+        Set(looseYes,    looseTip);
+        Set(looseNo,     looseTip);
+
+        const string levelTip =
+            "Which map to load when you start a New Game. Default map0_s00\n" +
+            "is the intro alley. Useful for jumping straight to a specific\n" +
+            "scene during testing.";
+        Set(levelLabel,  levelTip);
+        Set(comboMap,    levelTip);
+
+        Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
     }
 
     /// <summary>
