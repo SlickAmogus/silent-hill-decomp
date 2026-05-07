@@ -1955,19 +1955,12 @@ void func_800DD0CC(void) // 0x800DD0CC
 
     D_800DFB40 = MAX(Q12(0.0f), Q12_MULT((FP_MULTIPLY(vecs[0], Q12(4.5f), 6) + Q12(2.5f)), Math_Sin(vecs[1])) + Q12(4.0f));
 
-#ifdef SH_PC_PORT
-    /* Road-node camera clips into narrow alley walls on PC.
-     * Use a simple follow camera: 2.5u BEHIND Harry, 1.4u above, chest lookat. */
-    {
-        q3_12  rotY = g_SysWork.playerWork.player.rotation.vy;
-        /* Subtract sin/cos to place camera BEHIND Harry (opposite facing direction) */
-        q19_12 camX = g_SysWork.playerWork.player.position.vx - Q12_MULT(Math_Sin(rotY), Q12(2.5f));
-        q19_12 camY = g_SysWork.playerWork.player.position.vy - Q12(1.4f);
-        q19_12 camZ = g_SysWork.playerWork.player.position.vz - Q12_MULT(Math_Cos(rotY), Q12(2.5f));
-        Camera_PositionSet(NULL, camX, camY, camZ, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
-        Camera_LookAtSet(&g_SysWork.playerWork.player.position,
-                         Q12(0.0f), Q12(-0.85f), Q12(0.0f),
-                         Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), false);
-    }
-#endif
+    /* alley3 (after EventFlag_17 / lighter pickup) is supposed to be a fixed
+     * top-down view driven by road-node 66 (fix_ang_x=275°, fix_ang_y=22°,
+     * lim_rd_max_hy=-6.4). A previous PC port hack here forced a follow cam
+     * tracking Harry "because the road-node camera clipped into walls", but
+     * that turned the dramatic fixed top-down into a generic third-person
+     * follow — see [BAD#16] in the camera audit log. The road-node clipping
+     * complaint was likely a chunk-loading symptom; let the road system run
+     * unmodified so the fixed view is preserved. */
 }
