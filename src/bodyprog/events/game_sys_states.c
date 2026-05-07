@@ -906,16 +906,29 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     {
         g_SysWork.processFlags    = ProcessFlag_OverlayTransition;
 #ifdef SH_PC_PORT
+        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: pre savegame write, g_SavegamePtr=%p",
+               (void*)g_SavegamePtr);
+        fflush(g_ShDebugLog);
         g_SavegamePtr->mapOverlayId_A4 = _eventData_mapIdx;
+        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: pre GameBoot_MapLoad mapIdx=%u",
+               (unsigned)_eventData_mapIdx);
+        fflush(g_ShDebugLog);
 #else
         g_SavegamePtr->mapOverlayId_A4 = g_MapEventData->mapIdx;
 #endif
         GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+#ifdef SH_PC_PORT
+        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: post GameBoot_MapLoad");
+        fflush(g_ShDebugLog);
+#endif
     }
     else
     {
         g_SysWork.processFlags = ProcessFlag_RoomTransition;
 #ifdef SH_PC_PORT
+        SH_DBG("[DOOR-ENTRY] RoomTransition branch: pre Bgm_TrackChange mapIdx=%u",
+               (unsigned)_eventData_mapIdx);
+        fflush(g_ShDebugLog);
         Bgm_TrackChange(_eventData_mapIdx);
         if (g_MapOverlayHeader.mapPointsOfInterest_1C[_eventData_eventParam].field_4_5 != 0)
         {
