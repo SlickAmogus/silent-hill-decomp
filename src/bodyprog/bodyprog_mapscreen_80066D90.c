@@ -740,11 +740,23 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     temp_v0_7 = Math_AngleNormalizeSigned(angle);
 
     sp10[0] = temp_s2 + FP_FROM(Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
+#ifdef SH_PC_PORT
+    /* PC: drop *2 Y multiplier since the map texture's tile Y stride
+     * was halved (PSX << 13 → PC << 12 in func_800692A4). Without
+     * matching this, the player position arrow rendered at 2x the
+     * Y of the map texture, putting the red triangle off-axis. */
+    sp10[1] = temp_s1 + FP_FROM(Math_Cos(temp_v0_7) * -6, Q12_SHIFT);
+    sp10[2] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * 4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
+    sp10[3] = temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * 4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT);
+    sp10[4] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * -4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
+    sp10[5] = temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * -4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT);
+#else
     sp10[1] = (temp_s1 + FP_FROM(Math_Cos(temp_v0_7) * -6, Q12_SHIFT)) * 2;
     sp10[2] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * 4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
     sp10[3] = (temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * 4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT)) * 2;
     sp10[4] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * -4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
     sp10[5] = (temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * -4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT)) * 2;
+#endif
 
     line = (LINE_F4*)GsOUT_PACKET_P;
     setLineF4(line);
@@ -972,8 +984,14 @@ void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
     s32 tile_y_s1;
     POLY_FT4* poly;
 
+    /* Original PSX values: { -160 }*4 X starts and { -240 }*3 Y starts.
+     * The Y starts at -240 because the PSX map screen ran in interlaced
+     * mode (320x480 effective), so prims were emitted in 0..480 doubled-Y
+     * space. PC PsyCross has no interlace; the ortho is 240-tall. With
+     * the PSX values, only ~half the map shows because Y range -240..272
+     * overflows the 0..240 ortho. Halve the start to -120 so prims fit. */
     s16 D_80028B2C[] = { -160, -160, -160, -160 };
-    s16 D_80028B34[] = { -240, -240, -240 };
+    s16 D_80028B34[] = { -120, -120, -120 };
 
     /* Bounds of the scaled 320x240 image in screen space. */
     right_edge_sp28  = Q12_MULT_PRECISE(scale_arg2, 320) + x_arg0 - 1;
@@ -1013,7 +1031,12 @@ void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
             y_relative_t0 = clamped_top_t4 - (tile_y_s1 * 128);
 
             D_80028B2C[tile_x_s8 + 1] = D_80028B2C[tile_x_s8] + ((clamped_right_sp88 << 0xC) / scale_arg2);
-            D_80028B34[tile_y_s1 + 1] = D_80028B34[tile_y_s1] + ((clamped_bottom_sp80 << 13) / scale_arg2);
+            /* PC: use << 12 stride for Y (matching X), not the PSX
+             * << 13 stride that doubled Y for interlaced mode. With
+             * progressive ortho, the doubled Y stride pushed each tile
+             * to be 256 tall instead of 128, overflowing the 240-tall
+             * ortho and visually showing only ~half the map. */
+            D_80028B34[tile_y_s1 + 1] = D_80028B34[tile_y_s1] + ((clamped_bottom_sp80 << 12) / scale_arg2);
 
             setPolyFT4(poly);
 
