@@ -9119,17 +9119,18 @@ void Player_Controller(void) // 0x8007F32C
     if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
         g_SysWork.playerWork.extra.lowerBodyState >= PlayerLowerBodyState_Aim
 #ifdef SH_PC_PORT
-        /* Require upper body to be fully in Aim (or AimTargetLock) before
-         * accepting fire input. lowerBodyState >= Aim alone is satisfied
-         * mid-raising, so tapping fire too quickly after shift could land
-         * during the AimStart animation: input gets latched, the state
-         * machine then jumps to firing while keyframes are still
-         * processing the "raising" animation, and the gun visually locks
-         * up — no further fire allowed until you re-aim. Gating on the
-         * upperBody Aim/AimTargetLock states matches the player visibly
-         * having raised the gun, which is what the user wants. */
-        && (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Aim ||
-            g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_AimTargetLock)
+        /* Reject fire input ONLY during the gun-raising animations.
+         * Original gate was a positive-list "Aim || AimTargetLock"
+         * but that excluded the AimTargetLockSwitch (23) state that
+         * auto-aim cycles through every time a locked enemy moves
+         * (constantly with a flying AS), making fire feel broken in
+         * combat — user observed "shooting only seems to work outside
+         * of combat". Negative-list approach: allow fire in every
+         * upper-body state >= Aim EXCEPT the two raising states
+         * (AimStart=21, AimStartTargetLock=22) which are gun-raising
+         * animations where the firing pose isn't visually ready. */
+        && g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_AimStart
+        && g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_AimStartTargetLock
 #endif
         )
     {
