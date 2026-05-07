@@ -88,24 +88,37 @@ void GameBoot_PlayerInit(void) // 0x80035178
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: mapIdx=%d (%s)", mapIdx, MapRegistry_GetName(mapIdx));
+    /* fflush after every SH_DBG in this function. The death-transition
+     * crash (mapIdx=1 from end-of-alley sequence) blows up somewhere
+     * inside this function but the 64KB _IOLBF buffer + missing
+     * SetUnhandledExceptionFilter means we lose every SH_DBG between
+     * the SysState_LoadArea snapshot and the segfault. Forcing a flush
+     * per line costs us perf only on this one rare path; localizing
+     * the crash is worth it. */
+    SH_DBG("[SH] GameBoot_MapLoad: ENTER mapIdx=%d (%s)", mapIdx, MapRegistry_GetName(mapIdx));
+    fflush(g_ShDebugLog);
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
+    SH_DBG("[SH] GameBoot_MapLoad: post-MapRegistry_Load");
+    fflush(g_ShDebugLog);
     /* Still read the overlay file — on PC this is a no-op but keeps the
      * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: Map_EffectTexturesLoad");
+    SH_DBG("[SH] GameBoot_MapLoad: pre Map_EffectTexturesLoad");
+    fflush(g_ShDebugLog);
 #endif
     Map_EffectTexturesLoad(mapIdx);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: GameFs_PlayerMapAnimLoad");
+    SH_DBG("[SH] GameBoot_MapLoad: pre GameFs_PlayerMapAnimLoad");
+    fflush(g_ShDebugLog);
 #endif
     GameFs_PlayerMapAnimLoad(mapIdx);
 #ifdef SH_PC_PORT
     SH_DBG("[SH] GameBoot_MapLoad: post-PlayerMapAnimLoad processFlags=0x%X weaponAttack=%d",
            (unsigned)g_SysWork.processFlags, (int)g_SysWork.playerCombat.weaponAttack);
+    fflush(g_ShDebugLog);
 #endif
 
     // If the player spawns in the map with a weapon equipped (either because it's a demo
@@ -116,19 +129,23 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
                                        ProcessFlag_Continue | ProcessFlag_BootDemo))
     {
 #ifdef SH_PC_PORT
-        SH_DBG("[SH] GameBoot_MapLoad: WorldGfx_PlayerPrevHeldItem");
+        SH_DBG("[SH] GameBoot_MapLoad: pre WorldGfx_PlayerPrevHeldItem");
+        fflush(g_ShDebugLog);
 #endif
         WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
 #ifdef SH_PC_PORT
         SH_DBG("[SH] GameBoot_MapLoad: post-PlayerPrevHeldItem");
+        fflush(g_ShDebugLog);
 #endif
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: Gfx_PlayerHeldItemAttach weap=%d", (int)g_SysWork.playerCombat.weaponAttack);
+    SH_DBG("[SH] GameBoot_MapLoad: pre Gfx_PlayerHeldItemAttach weap=%d", (int)g_SysWork.playerCombat.weaponAttack);
+    fflush(g_ShDebugLog);
 #endif
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
 #ifdef SH_PC_PORT
     SH_DBG("[SH] GameBoot_MapLoad: complete");
+    fflush(g_ShDebugLog);
 #endif
 }
