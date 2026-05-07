@@ -46,7 +46,6 @@ partial class Form1
     private Panel pgxpPanel;
     private RadioButton pgxpYes;
     private RadioButton pgxpNo;
-    private ToolTip pgxpTooltip;
 
     private Label loggingLabel;
     private Panel loggingPanel;
@@ -62,7 +61,6 @@ partial class Form1
     private Panel loosePanel;
     private RadioButton looseYes;
     private RadioButton looseNo;
-    private ToolTip looseTooltip;
 
 
 
@@ -111,7 +109,6 @@ partial class Form1
             this.pgxpPanel = new System.Windows.Forms.Panel();
             this.pgxpYes = new System.Windows.Forms.RadioButton();
             this.pgxpNo = new System.Windows.Forms.RadioButton();
-            this.pgxpTooltip = new System.Windows.Forms.ToolTip(this.components);
             this.loggingLabel = new System.Windows.Forms.Label();
             this.loggingPanel = new System.Windows.Forms.Panel();
             this.loggingYes = new System.Windows.Forms.RadioButton();
@@ -130,6 +127,7 @@ partial class Form1
             this.preloadPanel.SuspendLayout();
             this.introPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
+            this.pgxpPanel.SuspendLayout();
             this.loggingPanel.SuspendLayout();
             this.consolePanel.SuspendLayout();
             this.loosePanel.SuspendLayout();
@@ -268,7 +266,7 @@ partial class Form1
             // comboMap
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(8, 345);
+            this.comboMap.Location = new System.Drawing.Point(7, 360);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(200, 21);
             this.comboMap.TabIndex = 11;
@@ -276,7 +274,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(272, 345);
+            this.btnPlay.Location = new System.Drawing.Point(270, 360);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(116, 23);
             this.btnPlay.TabIndex = 12;
@@ -361,7 +359,7 @@ partial class Form1
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(8, 329);
+            this.levelLabel.Location = new System.Drawing.Point(7, 344);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(36, 13);
             this.levelLabel.TabIndex = 15;
@@ -428,6 +426,40 @@ partial class Form1
             this.comboFiltering.Name = "comboFiltering";
             this.comboFiltering.Size = new System.Drawing.Size(120, 21);
             this.comboFiltering.TabIndex = 41;
+            // 
+            // pgxpLabel
+            // 
+            this.pgxpLabel.AutoSize = true;
+            this.pgxpLabel.Location = new System.Drawing.Point(8, 304);
+            this.pgxpLabel.Name = "pgxpLabel";
+            this.pgxpLabel.Size = new System.Drawing.Size(61, 13);
+            this.pgxpLabel.TabIndex = 46;
+            this.pgxpLabel.Text = "Use PGXP:";
+            // 
+            // pgxpPanel
+            // 
+            this.pgxpPanel.Controls.Add(this.pgxpYes);
+            this.pgxpPanel.Controls.Add(this.pgxpNo);
+            this.pgxpPanel.Location = new System.Drawing.Point(80, 295);
+            this.pgxpPanel.Name = "pgxpPanel";
+            this.pgxpPanel.Size = new System.Drawing.Size(120, 30);
+            this.pgxpPanel.TabIndex = 49;
+            // 
+            // pgxpYes
+            // 
+            this.pgxpYes.Location = new System.Drawing.Point(5, 5);
+            this.pgxpYes.Name = "pgxpYes";
+            this.pgxpYes.Size = new System.Drawing.Size(49, 24);
+            this.pgxpYes.TabIndex = 47;
+            this.pgxpYes.Text = "Yes";
+            // 
+            // pgxpNo
+            // 
+            this.pgxpNo.Location = new System.Drawing.Point(59, 5);
+            this.pgxpNo.Name = "pgxpNo";
+            this.pgxpNo.Size = new System.Drawing.Size(45, 24);
+            this.pgxpNo.TabIndex = 48;
+            this.pgxpNo.Text = "No";
             // 
             // loggingLabel
             // 
@@ -530,50 +562,10 @@ partial class Form1
             this.looseNo.Size = new System.Drawing.Size(45, 24);
             this.looseNo.TabIndex = 44;
             this.looseNo.Text = "No";
-            //
-            // pgxpLabel
-            //
-            this.pgxpLabel.AutoSize = true;
-            this.pgxpLabel.Location = new System.Drawing.Point(214, 317);
-            this.pgxpLabel.Name = "pgxpLabel";
-            this.pgxpLabel.Size = new System.Drawing.Size(64, 13);
-            this.pgxpLabel.TabIndex = 46;
-            this.pgxpLabel.Text = "Use PGXP:";
-            this.pgxpTooltip.SetToolTip(this.pgxpLabel,
-                "Sub-pixel-precision GTE coords + perspective-correct textures. Off = PSX wobble. WORK IN PROGRESS — expect glitches.");
-            //
-            // pgxpPanel
-            //
-            this.pgxpPanel.Controls.Add(this.pgxpYes);
-            this.pgxpPanel.Controls.Add(this.pgxpNo);
-            this.pgxpPanel.Location = new System.Drawing.Point(299, 308);
-            this.pgxpPanel.Name = "pgxpPanel";
-            this.pgxpPanel.Size = new System.Drawing.Size(138, 30);
-            this.pgxpPanel.TabIndex = 49;
-            //
-            // pgxpYes
-            //
-            this.pgxpYes.Location = new System.Drawing.Point(5, 5);
-            this.pgxpYes.Name = "pgxpYes";
-            this.pgxpYes.Size = new System.Drawing.Size(49, 24);
-            this.pgxpYes.TabIndex = 47;
-            this.pgxpYes.Text = "Yes";
-            this.pgxpTooltip.SetToolTip(this.pgxpYes,
-                "Sub-pixel-precision GTE coords + perspective-correct textures. WORK IN PROGRESS.");
-            //
-            // pgxpNo
-            //
-            this.pgxpNo.Location = new System.Drawing.Point(59, 5);
-            this.pgxpNo.Name = "pgxpNo";
-            this.pgxpNo.Size = new System.Drawing.Size(45, 24);
-            this.pgxpNo.TabIndex = 48;
-            this.pgxpNo.Text = "No";
-            this.pgxpTooltip.SetToolTip(this.pgxpNo,
-                "Affine textures (PSX wobble look).");
-            //
+            // 
             // Form1
-            //
-            this.ClientSize = new System.Drawing.Size(400, 410);
+            // 
+            this.ClientSize = new System.Drawing.Size(400, 392);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -613,11 +605,10 @@ partial class Form1
             this.preloadPanel.ResumeLayout(false);
             this.introPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
+            this.pgxpPanel.ResumeLayout(false);
             this.loggingPanel.ResumeLayout(false);
             this.consolePanel.ResumeLayout(false);
             this.loosePanel.ResumeLayout(false);
-            this.pgxpPanel.SuspendLayout();
-            this.pgxpPanel.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
