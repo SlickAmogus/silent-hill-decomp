@@ -428,19 +428,77 @@ void DebugCamera_Update(void)
             npslPrev = cur;
         }
 
+        /* Scene-baseline cam corrections (built up from in-game tuning).
+         * When Harry is within `radius` of one of these world positions on
+         * the matching map, the listed nudge gets applied EVERY FRAME on
+         * top of vcMoveAndSetCamera's natural cam — same shape as the
+         * numpad runtime nudge, but baked in. The runtime nudge stacks
+         * on top, so the user can still fine-tune at runtime.
+         *
+         * Each entry is one fixed-cam tuning the user logged via the
+         * Number-key 4 / 5 BAD/GOOD pair. Adding more entries = adding
+         * more rows here. radius is in PSX Q12 world units (~1m=4096). */
+        struct CamCorrection {
+            int     mapId;          /* mapOverlayId_A4 */
+            VECTOR3 harryPos;       /* center of correction zone */
+            s32     radius2;        /* squared radius (Q12)^2; uses XZ only */
+            VECTOR3 posDelta;       /* pos nudge */
+            s32     yawDelta;       /* yaw nudge (Q3.12) */
+            s32     pitchDelta;     /* pitch nudge (Y bias) */
+        };
+        static const struct CamCorrection s_camCorrections[] = {
+            /* map0_s01 alley near AS room — user-logged GOOD vs BAD pair
+             * (SilentHill.log lines 103870/150358). User confirmed the
+             * default cam at this position was bad and the nudged version
+             * looks correct. radius ≈ 2m (Q12(2.0)^2). */
+            {
+                .mapId      = 1,
+                .harryPos   = { 18815, 0, 1088743 },
+                .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
+                .posDelta   = { -1818, 612, -252 },
+                .yawDelta   = -72,
+                .pitchDelta = 3774,
+            },
+        };
+        VECTOR3 sceneNudgePos = {0, 0, 0};
+        s32     sceneNudgeYaw   = 0;
+        s32     sceneNudgePitch = 0;
+        {
+            const VECTOR3* hp = &g_SysWork.playerWork.player.position;
+            int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
+            for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
+                const struct CamCorrection* cc = &s_camCorrections[i];
+                if (cc->mapId != curMap) continue;
+                s64 dx = hp->vx - cc->harryPos.vx;
+                s64 dz = hp->vz - cc->harryPos.vz;
+                /* Q12 distance squared scaled down to fit s32. */
+                s32 d2 = (s32)(((dx * dx) + (dz * dz)) >> 12);
+                if (d2 > cc->radius2) continue;
+                sceneNudgePos   = cc->posDelta;
+                sceneNudgeYaw   = cc->yawDelta;
+                sceneNudgePitch = cc->pitchDelta;
+                break;
+            }
+        }
+
         /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
          * lookAt is rotated around cam_pos by the yaw nudge so the camera
-         * "swings" rather than parallel-translating. */
-        if (g_PcCamNudgePos.vx | g_PcCamNudgePos.vy | g_PcCamNudgePos.vz |
-            g_PcCamNudgeYaw   | g_PcCamNudgePitch)
+         * "swings" rather than parallel-translating. Combine the
+         * scene-baseline correction with the runtime numpad nudge. */
+        s32 effPosX  = g_PcCamNudgePos.vx + sceneNudgePos.vx;
+        s32 effPosY  = g_PcCamNudgePos.vy + sceneNudgePos.vy;
+        s32 effPosZ  = g_PcCamNudgePos.vz + sceneNudgePos.vz;
+        s32 effYaw   = g_PcCamNudgeYaw    + sceneNudgeYaw;
+        s32 effPitch = g_PcCamNudgePitch  + sceneNudgePitch;
+        if (effPosX | effPosY | effPosZ | effYaw | effPitch)
         {
             VECTOR3 newCam, newLook;
             VECTOR3 dl;
             s32 syN, cyN, dx, dz;
 
-            newCam.vx = vcWork.cam_pos.vx + g_PcCamNudgePos.vx;
-            newCam.vy = vcWork.cam_pos.vy + g_PcCamNudgePos.vy;
-            newCam.vz = vcWork.cam_pos.vz + g_PcCamNudgePos.vz;
+            newCam.vx = vcWork.cam_pos.vx + effPosX;
+            newCam.vy = vcWork.cam_pos.vy + effPosY;
+            newCam.vz = vcWork.cam_pos.vz + effPosZ;
 
             /* Original lookAt relative to cam */
             dl.vx = vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx;
@@ -448,13 +506,13 @@ void DebugCamera_Update(void)
             dl.vz = vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz;
 
             /* Rotate XZ component of dl by yaw nudge */
-            syN = Math_Sin(g_PcCamNudgeYaw);
-            cyN = Math_Cos(g_PcCamNudgeYaw);
+            syN = Math_Sin(effYaw);
+            cyN = Math_Cos(effYaw);
             dx  = (s32)(((s64)dl.vx * cyN + (s64)dl.vz * syN) >> 12);
             dz  = (s32)((-(s64)dl.vx * syN + (s64)dl.vz * cyN) >> 12);
 
             newLook.vx = newCam.vx + dx;
-            newLook.vy = newCam.vy + dl.vy + g_PcCamNudgePitch; /* crude pitch as Y bias */
+            newLook.vy = newCam.vy + dl.vy + effPitch; /* crude pitch as Y bias */
             newLook.vz = newCam.vz + dz;
 
             Vw_SetLookAtMatrix(&newCam, &newLook);
@@ -464,10 +522,12 @@ void DebugCamera_Update(void)
             {
                 static int tickCounter = 0;
                 if ((++tickCounter & 0x3F) == 0) {
-                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d",
+                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d (scene=%d,%d,%d / %d,%d)",
                         (long)newCam.vx, (long)newCam.vy, (long)newCam.vz,
                         (long)newLook.vx, (long)newLook.vy, (long)newLook.vz,
-                        (int)g_PcCamNudgeYaw);
+                        (int)effYaw,
+                        (int)sceneNudgePos.vx, (int)sceneNudgePos.vy, (int)sceneNudgePos.vz,
+                        (int)sceneNudgeYaw, (int)sceneNudgePitch);
                 }
             }
         }
