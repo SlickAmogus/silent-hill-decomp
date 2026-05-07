@@ -91,10 +91,23 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
     # from this link and rely solely on the exe's import lib. */
     target_link_options(${MAP_NAME} PRIVATE
         "LINKER:--allow-multiple-definition"
+        # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
+        # generated .def listing every global, but on this CMake/MinGW
+        # combo it silently does nothing for the map DLLs — the resulting
+        # build.ninja link rule has neither `--export-all-symbols` nor a
+        # generated def file, and DllLoader_GetSymbol fails with
+        # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
+        # at runtime. Falling back to the global ld flag bypasses CMake's
+        # auto-export machinery and exports every TU-global in the DLL.
+        # Same flag the main exe uses; identical behavior to the old
+        # working state. */
+        "LINKER:--export-all-symbols"
     )
 
     # Export the g_MapOverlayHeader_<name> symbol from the DLL.
-    # WINDOWS_EXPORT_ALL_SYMBOLS auto-generates a .def file on MinGW/MSVC.
+    # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
+    # MinGW/MSVC in theory; in practice we use --export-all-symbols
+    # above (see comment) since the auto-def path silently no-ops here.
     set_target_properties(${MAP_NAME} PROPERTIES
         PREFIX ""                        # No "lib" prefix
         OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll
