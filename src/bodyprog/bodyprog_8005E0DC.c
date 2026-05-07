@@ -1327,9 +1327,25 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * (bodyprog_8005E0DC.c:2610-2632): visual is slightly less
              * "layered" than PSX but doesn't trash adjacent geometry.
              *
-             * Color setup: func_80055A90 was already called above
-             * (line 1307) with var_a2 fade; field_130 is the additive
-             * primary color. Use it directly. */
+             * Color: func_80055A90 above filled field_130 with the
+             * FOG-tinted color (gte_dpcs blends fogColor_1C toward 0,0,0
+             * far color). In dark map areas fogColor is near-black, so
+             * field_130 was near-black too, and the textured POLY_FT4
+             * modulated to fully black blood — the user just hit this.
+             * Switch to func_80055E90 (the muzzle-flash pattern), which
+             * pulls from worldTintColor_28 instead of fogColor and stays
+             * usable in low-fog areas. Then bias the result toward red
+             * so the blood is visibly red regardless of map tint. */
+            func_80055E90(&ptr->field_130, var_a2);
+            {
+                int r = (int)ptr->field_130.r + 96;  /* red boost */
+                int g = (int)ptr->field_130.g >> 2;  /* desaturate green */
+                int b = (int)ptr->field_130.b >> 2;  /* desaturate blue */
+                if (r > 255) r = 255;
+                ptr->field_130.r = (u8)r;
+                ptr->field_130.g = (u8)g;
+                ptr->field_130.b = (u8)b;
+            }
             *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
             (*poly)->b0         = ptr->field_130.b;
 
