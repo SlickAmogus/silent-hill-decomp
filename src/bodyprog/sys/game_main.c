@@ -29,6 +29,7 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/demo.h"
 #include "bodyprog/events/events_main.h"
+#include "bodyprog/screen/background_draw.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/screen/vsync.h"
