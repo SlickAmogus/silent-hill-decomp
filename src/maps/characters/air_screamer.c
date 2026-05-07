@@ -8469,38 +8469,44 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     sharedFunc_800D598C_0_s01(airScreamer);
 
 #ifdef SH_PC_PORT
-    /* PC: damage application during the swoop (HoverBiteAttack). The
-     * AS file is the only enemy that doesn't call func_8008A0E4 anywhere
-     * — every other enemy (stalker, larval_stalker, romper, groaner,
-     * bloodsucker, hanged_scratcher, creeper, puppet_nurse) routes
-     * damage through it. Result on PC: the swoop animation completes
-     * but Harry takes no damage and has no flinch — visually it looks
-     * like the AS is bouncing off an invisible wall. The original PSX
-     * binary almost certainly had this call in a state we haven't
-     * decompiled yet (one of Control_44/Control_46/Control_49 area —
-     * AirScreamerFlag_5 is set at swoop start but only read by reset
-     * code, indicating an orphaned register-read path).
-     *
-     * Replicating the stalker pattern here: when the AS is mid-bite
-     * (StateStep_1 = animation has reached HoverBiteAttack and is
-     * past the wind-up keyframe), poll func_8008A0E4 from the AS body
-     * position. Use field_44.field_8 == NO_VALUE as the "this swoop
-     * hasn't landed yet" sentinel — func_8008A0E4 itself sets it on
-     * a successful hit, so subsequent calls during the same swoop
-     * naturally short-circuit. Damage amount is a fixed Q12(8.0f) per
-     * hit (about a stalker swipe; tunable). */
-    if (airScreamer->model.stateStep == AirScreamerStateStep_1 &&
-        airScreamer->field_44.field_8 == NO_VALUE)
+    /* PC: damage application during the swoop (HoverBiteAttack).
+     * The AS file is the only enemy that doesn't call func_8008A0E4
+     * (the bodyprog cone-attack dispatcher used by every other enemy).
+     * We replicate the bloodsucker pattern: call A0E4 unconditionally
+     * during the active hit window of the swoop animation. A0E4 sets
+     * up the cone params then internally calls A3E0 → BF84 → B714 to
+     * apply damage as a side effect. Don't gate on the return value:
+     * for non-Harry attackers it returns NO_VALUE/0 based on whether
+     * the player was ALREADY taking damage going in, which is not
+     * what we want. Just rely on the side-effect path. Logging is
+     * unconditional so we can confirm the call runs and observe what
+     * A0E4 sees. */
     {
-        VECTOR3 _bitePos;
-        _bitePos.vx = airScreamer->position.vx;
-        _bitePos.vy = airScreamer->position.vy;
-        _bitePos.vz = airScreamer->position.vz;
-        if (func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Tap),
-                          airScreamer, &_bitePos, &g_SysWork.playerWork.player,
-                          airScreamer->rotation.vy, Q12_ANGLE(90.0f)) != NO_VALUE)
+        static int _swoopLogN = 0;
+        s32 hitRet = -999;
+        if (airScreamer->model.stateStep == AirScreamerStateStep_1 ||
+            airScreamer->model.stateStep == AirScreamerStateStep_2 ||
+            airScreamer->model.stateStep == AirScreamerStateStep_3)
         {
-            g_SysWork.playerWork.player.damage.amount_C += Q12(8.0f);
+            VECTOR3 _bitePos;
+            _bitePos.vx = airScreamer->position.vx;
+            _bitePos.vy = airScreamer->position.vy;
+            _bitePos.vz = airScreamer->position.vz;
+            hitRet = func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Tap),
+                                   airScreamer, &_bitePos, &g_SysWork.playerWork.player,
+                                   airScreamer->rotation.vy, Q12_ANGLE(180.0f));
+            if (_swoopLogN < 200) {
+                SH_DBG("[AS-HIT] C46 step=%d kf=%d animSt=0x%x f44.f0=%d f44.f8=%d hitRet=%d preHP=%d preDmg=%d",
+                       (int)airScreamer->model.stateStep,
+                       (int)airScreamer->model.anim.keyframeIdx,
+                       (unsigned)airScreamer->model.anim.status,
+                       (int)airScreamer->field_44.field_0,
+                       (int)airScreamer->field_44.field_8,
+                       (int)hitRet,
+                       (int)g_SysWork.playerWork.player.health,
+                       (int)g_SysWork.playerWork.player.damage.amount_C);
+                _swoopLogN++;
+            }
         }
     }
 #endif
