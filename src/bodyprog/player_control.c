@@ -2748,7 +2748,32 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
     player->headingAngle     = Q12_ANGLE_NORM_U((player->rotation.vy + g_Player_HeadingAngle) + Q12_ANGLE(360.0f));
     player->moveSpeed        = D_800C4550;
     player->fallSpeed       += g_GravitySpeed;
+#ifdef SH_PC_PORT
+    /* PC shim sets player->rotation.vy directly (line ~1251/1254 in the
+     * switch above) without routing through D_800C454C, so the PSX
+     * rotationSpeed = (D_800C454C << 8) / dt formula sees a zero delta
+     * and chara_ang_spd_y stays at 0. That makes
+     * vcMakeIdealCamPosUseVC_ROAD_DATA's chase-cam orbit always take the
+     * snap branch (delta_angle = ±12°) — the camera can never enter the
+     * smooth CLAMP path. Symptom: subtle alley swivels become hard
+     * +12°/-12° flips ("very high sensitivity, overshoots out of bounds"
+     * complaint). Track previous-frame rotation per-player and recompute
+     * rotationSpeed.vy from the actual frame-to-frame delta. */
+    {
+        static s16 s_pcPlayerPrevRotY = 0;
+        static int s_pcPlayerPrevValid = 0;
+        if (s_pcPlayerPrevValid && g_DeltaTime != 0) {
+            s32 dRot = (s32)(s16)(player->rotation.vy - s_pcPlayerPrevRotY);
+            player->rotationSpeed.vy = (s16)((dRot << 8) / g_DeltaTime);
+        } else {
+            player->rotationSpeed.vy = 0;
+        }
+        s_pcPlayerPrevRotY = player->rotation.vy;
+        s_pcPlayerPrevValid = 1;
+    }
+#else
     player->rotationSpeed.vy = (D_800C454C << 8) / g_DeltaTime;
+#endif
     coords->flg             = false;
 
     Math_RotMatrixZxyNegGte(&player->rotation, &coords->coord);
