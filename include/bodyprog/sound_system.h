@@ -513,6 +513,12 @@ void Sd_KdtLoad_LoadCheck(void);
 
 void Sd_TaskPoolExecute(void);
 
+#ifdef SH_PC_PORT
+/* PC-only: batch Sd_TaskPoolExecute calls so VAB/KDT loaders don't tick
+ * one sub-state per frame. See sd_call.c for full notes. */
+void Sd_TaskPoolDrain(void);
+#endif
+
 void func_800485C0(s32 idx);
 
 /** @brief Executes a new primitive command and checks the status against the previous.
