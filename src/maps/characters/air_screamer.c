@@ -8489,6 +8489,18 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
             airScreamer->model.stateStep == AirScreamerStateStep_3)
         {
             VECTOR3 _bitePos;
+            /* Reset field_44.field_0 sentinel before each call.
+             * func_8008A3E0 (called inside A0E4) early-returns when
+             * field_0 == 0 OR == NO_VALUE (-1). Once an AS attack
+             * "completes" internally, field_0 is set to NO_VALUE and
+             * survives across frames — the func_8008A0E4 prologue does
+             * NOT reset it because the (!var_t1) branch fails when
+             * old value is -1 (truthy). Following the bloodsucker
+             * pattern (bloodsucker.c:299) — explicit field_0 = 1
+             * forces the cone-collision path to actually run on each
+             * dispatch, allowing the internal A3E0 → DA08/BF84 → B714
+             * chain to apply damage when Harry is in cone range. */
+            airScreamer->field_44.field_0 = 1;
             _bitePos.vx = airScreamer->position.vx;
             _bitePos.vy = airScreamer->position.vy;
             _bitePos.vz = airScreamer->position.vz;
