@@ -9117,7 +9117,21 @@ void Player_Controller(void) // 0x8007F32C
     }
 
     if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
-        g_SysWork.playerWork.extra.lowerBodyState >= PlayerLowerBodyState_Aim)
+        g_SysWork.playerWork.extra.lowerBodyState >= PlayerLowerBodyState_Aim
+#ifdef SH_PC_PORT
+        /* Require upper body to be fully in Aim (or AimTargetLock) before
+         * accepting fire input. lowerBodyState >= Aim alone is satisfied
+         * mid-raising, so tapping fire too quickly after shift could land
+         * during the AimStart animation: input gets latched, the state
+         * machine then jumps to firing while keyframes are still
+         * processing the "raising" animation, and the gun visually locks
+         * up — no further fire allowed until you re-aim. Gating on the
+         * upperBody Aim/AimTargetLock states matches the player visibly
+         * having raised the gun, which is what the user wants. */
+        && (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Aim ||
+            g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_AimTargetLock)
+#endif
+        )
     {
         g_Player_IsShooting  = g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.action;
         g_Player_IsAttacking = g_Player_IsShooting;
