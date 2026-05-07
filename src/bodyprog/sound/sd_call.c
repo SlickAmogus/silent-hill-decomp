@@ -1967,7 +1967,7 @@ void Sd_TaskPoolDrain(void)
     if (g_Sd_AudioWork.xaAudioIdx_4 != 0)
         return;
 
-    for (drain = 0; drain < 4096; drain++)
+    for (drain = 0; drain < 512; drain++)
     {
         if (g_Sd_TaskPool[0] == 0)
             return;
