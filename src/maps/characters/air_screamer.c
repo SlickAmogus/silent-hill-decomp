@@ -8468,6 +8468,43 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     sharedFunc_800D529C_0_s01(airScreamer, Q12(1.0f), func_80080478(&airScreamer->position, &g_SysWork.playerWork.player.position));
     sharedFunc_800D598C_0_s01(airScreamer);
 
+#ifdef SH_PC_PORT
+    /* PC: damage application during the swoop (HoverBiteAttack). The
+     * AS file is the only enemy that doesn't call func_8008A0E4 anywhere
+     * — every other enemy (stalker, larval_stalker, romper, groaner,
+     * bloodsucker, hanged_scratcher, creeper, puppet_nurse) routes
+     * damage through it. Result on PC: the swoop animation completes
+     * but Harry takes no damage and has no flinch — visually it looks
+     * like the AS is bouncing off an invisible wall. The original PSX
+     * binary almost certainly had this call in a state we haven't
+     * decompiled yet (one of Control_44/Control_46/Control_49 area —
+     * AirScreamerFlag_5 is set at swoop start but only read by reset
+     * code, indicating an orphaned register-read path).
+     *
+     * Replicating the stalker pattern here: when the AS is mid-bite
+     * (StateStep_1 = animation has reached HoverBiteAttack and is
+     * past the wind-up keyframe), poll func_8008A0E4 from the AS body
+     * position. Use field_44.field_8 == NO_VALUE as the "this swoop
+     * hasn't landed yet" sentinel — func_8008A0E4 itself sets it on
+     * a successful hit, so subsequent calls during the same swoop
+     * naturally short-circuit. Damage amount is a fixed Q12(8.0f) per
+     * hit (about a stalker swipe; tunable). */
+    if (airScreamer->model.stateStep == AirScreamerStateStep_1 &&
+        airScreamer->field_44.field_8 == NO_VALUE)
+    {
+        VECTOR3 _bitePos;
+        _bitePos.vx = airScreamer->position.vx;
+        _bitePos.vy = airScreamer->position.vy;
+        _bitePos.vz = airScreamer->position.vz;
+        if (func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Tap),
+                          airScreamer, &_bitePos, &g_SysWork.playerWork.player,
+                          airScreamer->rotation.vy, Q12_ANGLE(90.0f)) != NO_VALUE)
+        {
+            g_SysWork.playerWork.player.damage.amount_C += Q12(8.0f);
+        }
+    }
+#endif
+
     switch (Ai_AirScreamer_DamageTake(airScreamer, Q12(1.0f)))
     {
         case AirScreamerDamage_None:
