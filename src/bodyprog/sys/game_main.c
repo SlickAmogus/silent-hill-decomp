@@ -1128,32 +1128,11 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("Sd_TaskPoolExecute");
         Sd_TaskPoolExecute();
 #ifdef SH_PC_PORT
-        /* PC-only boot speedup: VAB/KDT loaders advance one state per frame on
-         * PSX because each state was gated by async DMA / SPU upload. On PC the
-         * I/O is synchronous and completes inside the same call, so what should
-         * be a few hundred ms of state-machine stepping inflates to ~5+ s of
-         * frame-paced ticking — visible as a long pause between the warning
-         * screen and Konami logo (and again at every load screen). Drain the
-         * task pool while it's busy with a loader task; bail when it idles.
-         * Capped so a stuck task can't lock the frame. Skipped while XA is
-         * playing — extra ticks would advance fade/timer fields too. */
-        if (g_Sd_AudioWork.xaAudioIdx_4 == 0)
-        {
-            int drain;
-            for (drain = 0; drain < 64; drain++)
-            {
-                u8  prevTask  = g_Sd_TaskPool[0];
-                s32 prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
-                if (prevTask == 0) break; /* idle */
-                Sd_TaskPoolExecute();
-                /* The loader micro-state advances 0→1→…→9→0 across calls.
-                 * If neither task slot nor sub-state moved, the loader is
-                 * waiting on real I/O we can't shortcut from here — stop. */
-                if (g_Sd_TaskPool[0] == prevTask &&
-                    g_Sd_AudioStreamingStates.audioLoadState_0 == prevState)
-                    break;
-            }
-        }
+        /* PC-only: drain queued loader task in one frame instead of one
+         * sub-state per frame (kills the 15s warning→Konami pause).
+         * Helper lives in sd_call.c because g_Sd_TaskPool /
+         * g_Sd_AudioStreamingStates are static there. */
+        Sd_TaskPoolDrain();
         XaPlayer_Update();
 #endif
 
