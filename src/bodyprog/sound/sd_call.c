@@ -1937,14 +1937,29 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
 #ifdef SH_PC_PORT
 /* PC-only boot speedup: VAB/KDT loaders advance one sub-state per call on
  * PSX because each was gated by async DMA / SPU upload. On PC the I/O is
- * synchronous, so without batching the boot sits at 30Hz × ~13 states ×
- * ~20 VABs = a multi-second pause between warning screen and Konami logo
- * (and again at every load screen). Run the task pool while there's a
- * loader queued AND the sub-state is still advancing; bail when the
- * state goes idle, the state stops moving (real I/O block), or 64-iter
- * cap hits. Skipped while XA voice is playing so we don't fast-forward
- * fade timers. Lives here (not game_main.c) because g_Sd_TaskPool /
- * g_Sd_AudioWork / g_Sd_AudioStreamingStates are static to this file. */
+ * synchronous (PsyCross CdSync always returns CdlComplete; CdReadSync
+ * reads one sector per call out of an in-memory disc image), so without
+ * batching the boot sits at 30Hz × ~13 states × ~20 VABs = the 15+ s
+ * pause between warning screen and Konami logo (and again at every load
+ * screen).
+ *
+ * Earlier version of this drain bailed when audioLoadState_0 stayed the
+ * same across two iterations, on the theory that "no state change" meant
+ * the loader was blocked on real I/O. That was wrong: state 5
+ * (AudioLoadState_CheckLoad) intentionally sits there draining the
+ * sector queue one sector per Sd_VabLoad call — count goes N→N-1→…→0,
+ * but state stays 5 the whole time. Bailing on first match meant we
+ * only drained ~5 sectors per frame, leaving multi-MB VABs to crawl
+ * over many frames.
+ *
+ * Now: keep ticking the pool until task slot goes idle or the
+ * iteration cap hits. The cap is generous because each iteration
+ * either advances state or drains one 2KB sector, so 4096 covers an
+ * 8 MB VAB. A truly stuck state machine still gets cut off.
+ *
+ * Skipped while XA voice is playing so we don't fast-forward fade
+ * timers. Lives here (not game_main.c) because g_Sd_TaskPool /
+ * g_Sd_AudioWork are static to this file. */
 void Sd_TaskPoolDrain(void)
 {
     int drain;
@@ -1952,16 +1967,11 @@ void Sd_TaskPoolDrain(void)
     if (g_Sd_AudioWork.xaAudioIdx_4 != 0)
         return;
 
-    for (drain = 0; drain < 64; drain++)
+    for (drain = 0; drain < 4096; drain++)
     {
-        u8  prevTask  = g_Sd_TaskPool[0];
-        s32 prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
-        if (prevTask == 0)
-            return; /* idle */
+        if (g_Sd_TaskPool[0] == 0)
+            return;
         Sd_TaskPoolExecute();
-        if (g_Sd_TaskPool[0] == prevTask &&
-            g_Sd_AudioStreamingStates.audioLoadState_0 == prevState)
-            return; /* loader is waiting on something we can't shortcut */
     }
 }
 #endif
