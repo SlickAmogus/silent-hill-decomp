@@ -1183,8 +1183,9 @@ void SysState_EventCallback_Update(void) // 0x8003A3C8
         g_SysWork.sysState = SysState_Gameplay;
         return;
     }
-    SH_DBG("[SS] EventCallFunc param=%d func=%p", g_MapEventParam,
-            (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam]);
+    SH_DBG("[SS] EventCallFunc param=%d func=%p step0=%d step1=%d step2=%d", g_MapEventParam,
+            (void*)g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam],
+            (int)g_SysWork.sysStateSteps[0], (int)g_SysWork.sysStateSteps[1], (int)g_SysWork.sysStateSteps[2]);
     if (g_MapOverlayHeader.mapEventFuncs_20[g_MapEventParam] == NULL) {
         SH_DBG("[SS] EventCallFunc NULL — skip");
         g_SysWork.sysState = SysState_Gameplay;

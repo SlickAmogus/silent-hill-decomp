@@ -4333,11 +4333,20 @@ void func_80054A04(u8 itemId) // 0x80054A04
 bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
 {
 #ifdef SH_PC_PORT
-    static int _pickAnimLogCount = 0;
-    if (_pickAnimLogCount < 3) {
-        SH_DBG("[PICKUP] Gfx_PickupItemAnimate itemId=%d state=%d scale=%d",
-               (int)itemId, (int)g_Items_PickupAnimState, (int)g_Items_PickupScale);
-        _pickAnimLogCount++;
+    /* Log per-itemId so we capture every distinct pickup. Earlier
+     * static cap of 3 silenced everything after the first item, and
+     * we've observed pickups (KeyOfWoodman / "doghouse key") freezing
+     * mid-animation with no visibility into state. */
+    static u8  _pickAnimLastItem = 255;
+    static int _pickAnimSameItemCount = 0;
+    if (itemId != _pickAnimLastItem) {
+        _pickAnimLastItem = itemId;
+        _pickAnimSameItemCount = 0;
+    }
+    if (_pickAnimSameItemCount < 8) {
+        SH_DBG("[PICKUP] Gfx_PickupItemAnimate itemId=%d state=%d scale=%d dt=%d",
+               (int)itemId, (int)g_Items_PickupAnimState, (int)g_Items_PickupScale, (int)g_DeltaTimeRaw);
+        _pickAnimSameItemCount++;
     }
 #endif
     q19_12         scale;
