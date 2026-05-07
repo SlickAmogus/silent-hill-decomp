@@ -2267,12 +2267,25 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     road_data = w_p->cur_near_road.road_p;
 
 #ifdef SH_PC_PORT
-    /* PSX clamps camera Y between lim_rd_min_hy (ceiling) and
-     * lim_rd_max_hy (floor). PC skips the floor clamp -- the road
-     * data is calibrated for a world-Y baseline that differs from
-     * our ground-at-zero convention; applying max_hy raised the
-     * camera ~0.4 units above where it should sit. */
-    {
+    /* PSX clamps camera Y between lim_rd_min_hy (high) and
+     * lim_rd_max_hy (low). PC originally skipped the lower-bound (floor)
+     * clamp because the road data spawn-area calibration was 0.4u "too
+     * high" (Q4(-2.5) max_hy holding cam at -10240 instead of the ideal
+     * -8601). Removing the clamp wholesale was too aggressive: in narrow
+     * alley nodes where max_hy and min_hy are tight (e.g. node 63 in
+     * map0_s00 alley2: [-4.5, -0.3]), the camera would fall to
+     * chara_top_y - 0.4 (~Q12(-1.4)) and skim along the ground. The
+     * user-flagged BAD#5 in the alley audit is exactly that case.
+     *
+     * Restore the full CLAMP only for narrow road areas (TINY/SMALL),
+     * where the road designers explicitly cared about cam height. WIDE
+     * areas keep the looser PSX-skipping behaviour that fixed the spawn
+     * regression. */
+    if (cur_rd_area_size <= VC_AREA_SMALL) {
+        ideal_pos->vy = CLAMP(ideal_pos->vy,
+                              Q4_TO_Q12(road_data->lim_rd_min_hy),
+                              Q4_TO_Q12(road_data->lim_rd_max_hy));
+    } else {
         s32 _camMinHy = Q4_TO_Q12(road_data->lim_rd_min_hy);
         if (ideal_pos->vy < _camMinHy)
             ideal_pos->vy = _camMinHy;
