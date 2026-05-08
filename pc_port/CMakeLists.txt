@@ -30,18 +30,28 @@ endif()
 # Build this BEFORE setting game-specific defines so they don't pollute PsyCross
 # =============================================================================
 
-# PGXP: compiled in. Runtime-gated by g_PsxUsePgxp (driven by config.cfg
-# `use_pgxp`). When OFF, ApplyVertexPGXP zeroes a_zw so the vertex shader
-# falls through to the 2D-ortho affine path — same look as USE_PGXP=0.
-# When ON, GTE captures FP twins and the cache-lookup-driven Projection3D
-# path produces sub-pixel-accurate, perspective-correct geometry.
+# PGXP: COMPILE-TIME OFF. The intent was for this to be compiled in
+# and runtime-gated by g_PsxUsePgxp (driven by config.cfg `use_pgxp`),
+# but flipping USE_PGXP=1 introduced regressions on the runtime-OFF
+# path that runtime gating could not contain:
+#   1. The shader's GTE_PERSPECTIVE_CORRECTION macro is selected at
+#      compile time (#if USE_PGXP) — its 2D path used z=0.5 instead
+#      of z=0.0, producing Z-fight / edge bleed-through.
+#   2. The gte_stsxy* macro family in inline_c.h is also #if USE_PGXP
+#      gated — when on, screen XY values flow through g_FP_SXYZ
+#      (FP-truncated short, NO Lm_G1/Lm_G2 ±1024 clamp) instead of
+#      MFC2() with PSX clamping. Far prims could escape the screen-
+#      space envelope, producing huge-pixelated 2D plane artifacts.
 #
-# The original USE_PGXP=0 disable existed because upstream typedef'd
-# VERTTYPE=half in C++ and the bit patterns mismatched the C-side short
-# writes. Fixed in the vendored PsyCross: VERTTYPE is now short in both
-# languages (high-precision data flows via PGXPVData/a_zw, not via the
-# prim XY fields). See PsyCross commit "pgxp: keep VERTTYPE=short in C++".
-add_definitions(-DUSE_PGXP=1)
+# To make this fully optional in a built binary (the goal), the
+# preprocessor branches above need to become runtime branches that
+# read g_PsxUsePgxp. Until that's done, USE_PGXP=0 here so the
+# runtime config option `use_pgxp = 0` actually behaves as if PGXP
+# isn't present at all.
+#
+# To re-enable for testing: flip back to 1 here, rebuild, set
+# `use_pgxp = 1` in config.cfg.
+add_definitions(-DUSE_PGXP=0)
 
 # Silent Hill doesn't read rendered pixels back from VRAM. Disabling the
 # framebuffer-to-VRAM store prevents rendered pixel data from overwriting
