@@ -670,42 +670,55 @@ s32 sharedFunc_800D2DAC_0_s00(void)
     model    = &g_SysWork.playerWork.player.model;
     animInfo = &g_MapOverlayHeader.harryMapAnimInfos_34[model->anim.status - ANIM_STATUS(38, false)];
 
+#ifdef SH_PC_PORT
+    /* PC: cross-branch stuck-detection. Script state machines poll this
+     * function and only advance when it returns 1. PSX MIPS animation
+     * keyframes naturally advance via DMA + GPU framebuffer reads that
+     * don't translate to PsyCross. Result: Harry's `model.anim.status`
+     * + `keyframeIdx` can sit unchanged for thousands of frames at
+     * scripted interaction points (dog-statue save, KeyOfWoodman pickup,
+     * hospital vines).
+     *
+     * The existing fix below only covered the Anim_PlaybackOnce+
+     * DurationGet>0 branch. Other branches (Anim_BlendLinear → -2,
+     * default → -1, PlaybackOnce+DurationGet<=0 → startKf check)
+     * never trigger any stuck-detection so the freeze still occurs.
+     *
+     * Promote the stuck-detection to function-level: if anim.status +
+     * keyframeIdx are unchanged for N frames, force-return 1 from the
+     * next call so the script advances. The check fires for ANY branch.
+     * 90 frames @ 60fps = 1.5s — long enough that legitimate "wait for
+     * anim" calls (200-400 ms) finish naturally. */
+    {
+        static s32 s_lastKf       = -1;
+        static s32 s_stuckCounter = 0;
+        static s32 s_lastStatus   = -1;
+        if ((s32)model->anim.status != s_lastStatus
+            || (s32)model->anim.keyframeIdx != s_lastKf) {
+            s_lastStatus   = model->anim.status;
+            s_lastKf       = model->anim.keyframeIdx;
+            s_stuckCounter = 0;
+        } else if (++s_stuckCounter > 90) {
+            /* unfreeze — pretend the script's anim wait completed.
+             * Reset counter; the next legitimate anim wait will
+             * accumulate fresh. */
+            static int _bypassLogN = 0;
+            if (_bypassLogN < 20) {
+                SH_DBG("[ANIM-STUCK] bypass — status=%d kf=%d after %d frames; forcing return 1",
+                       (int)model->anim.status, (int)model->anim.keyframeIdx, s_stuckCounter);
+                _bypassLogN++;
+            }
+            s_stuckCounter = 0;
+            return 1;
+        }
+    }
+#endif
+
     if (animInfo->playbackFunc == Anim_PlaybackOnce)
     {
         // Check if anim has started or finished.
         if (Anim_DurationGet(model, animInfo) > Q12(0.0f))
         {
-#ifdef SH_PC_PORT
-            /* PC: the cutscene-anim shim that replaces the original
-             * func_BC for in-cutscene player updates copies DMS pose to
-             * bones but doesn't advance model->anim.keyframeIdx through
-             * the scripted sequence. So this function — used by script
-             * state machines to poll "anim done?" before advancing —
-             * returns 0 forever, leaving Harry frozen at scripted
-             * interaction points (dog statue save, hospital vines,
-             * other crouch/inspect anims).
-             *
-             * Fallback: if keyframeIdx hasn't advanced for ~60 frames
-             * (~250 ms @ 240 fps), report the anim as done. The
-             * player_control.c PUPD logging shows kf stuck for thousands
-             * of frames in stuck cases — 60 is a generous threshold
-             * that won't false-positive on a real running anim. */
-            {
-                static s32 s_lastKf       = -1;
-                static s32 s_stuckCounter = 0;
-                static s32 s_lastStatus   = -1;
-                if ((s32)model->anim.status != s_lastStatus
-                    || (s32)model->anim.keyframeIdx != s_lastKf) {
-                    s_lastStatus   = model->anim.status;
-                    s_lastKf       = model->anim.keyframeIdx;
-                    s_stuckCounter = 0;
-                } else if (++s_stuckCounter > 60) {
-                    /* unfreeze: pretend we hit the end keyframe */
-                    s_stuckCounter = 0;
-                    return 1;
-                }
-            }
-#endif
             return model->anim.keyframeIdx == animInfo->endKeyframeIdx;
         }
         else
