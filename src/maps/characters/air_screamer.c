@@ -8504,7 +8504,15 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
             _bitePos.vx = airScreamer->position.vx;
             _bitePos.vy = airScreamer->position.vy;
             _bitePos.vz = airScreamer->position.vz;
-            hitRet = func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Tap),
+            /* Use Unk69 (bloodsucker bite profile) instead of Unk31 — Unk31
+             * maps to D_800AD4C8[31] which is a NULL entry (Chara_None,
+             * field_10=0) so the cone-collision inner loop runs zero times
+             * (charaId=0 → for(j=0;j>0;j--) skips). Unk69 maps to a real
+             * "vs Harry" profile (field_9=Chara_Harry, field_10=6) used
+             * successfully by bloodsucker.c:301 to damage Harry. The
+             * actual damage values are derived from this entry, so AS
+             * will now apply bloodsucker-tier damage; tunable later. */
+            hitRet = func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap),
                                    airScreamer, &_bitePos, &g_SysWork.playerWork.player,
                                    airScreamer->rotation.vy, Q12_ANGLE(180.0f));
             if (_swoopLogN < 200) {
