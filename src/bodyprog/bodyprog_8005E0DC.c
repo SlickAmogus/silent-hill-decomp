@@ -2521,8 +2521,21 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
          * rendering, not a crash). `addPrimFast` only sets `len`; we
          * never set `code`. Explicitly install POLY_FT4 (0x2C). */
         setPolyFT4(*poly);
-#endif
+        /* Defensive bucket clamp — same defense applied at all other
+         * particle emit sites in this file. Without it, an OOB bucket
+         * index from a corrupted field_1BC writes prim data INTO the
+         * OT array itself, which the OT0 sanitizer then "recovers" by
+         * dropping every mid-distance bucket → user sees geometry
+         * vanish in a radius around the dead AS body. */
+        {
+            s32 _bucket = ptr->field_1BC >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], (*poly), 9);
+        }
+#else
         addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_1BC >> 3], (*poly), 9);
+#endif
         *poly += 1;
     }
 
@@ -2663,7 +2676,12 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
             (*poly)->b0         = db;
         }
 
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
+        {
+            s32 _bucket = ptr->field_150 >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+        }
 
         *poly = *poly + 1;
 #else
@@ -2699,7 +2717,12 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
         *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
         (*poly)->b0         = ptr->field_130.b;
 
-        addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_150 >> 3], *poly);
+        {
+            s32 _bucket = ptr->field_150 >> 3;
+            if (_bucket < 0) _bucket = 0;
+            if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+            addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+        }
 
         *poly = *poly + 1;
     }
