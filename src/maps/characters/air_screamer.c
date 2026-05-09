@@ -8585,6 +8585,33 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     {
         static int _swoopLogN = 0;
         s32 hitRet = -999;
+        /* Per-swoop damage lockout — tracked OUTSIDE the swoop branch so
+         * the prev-step persists across the non-swoop frames between
+         * swoops. Previous version only updated _asPrevSwoopStep INSIDE
+         * the swoop branch, which left the variable holding the LAST
+         * swoop step forever once the AS went idle. The next swoop
+         * entry then saw prevWasSwoop=true (from stale data) → reset
+         * never fired → only one bite per session ever landed. */
+        static u8  _asPrevSwoopStep_v2  = 0;
+        static u8  _asDamagedThisSwoop2 = 0;
+        static s32 _asPrevHarryHP2      = -1;
+        u8 curStep_v2 = airScreamer->model.stateStep;
+        u8 isCurSwoop = (curStep_v2 == AirScreamerStateStep_1 ||
+                         curStep_v2 == AirScreamerStateStep_2 ||
+                         curStep_v2 == AirScreamerStateStep_3);
+        u8 wasInSwoop = (_asPrevSwoopStep_v2 == AirScreamerStateStep_1 ||
+                         _asPrevSwoopStep_v2 == AirScreamerStateStep_2 ||
+                         _asPrevSwoopStep_v2 == AirScreamerStateStep_3);
+        /* Reset damage lockout on swoop ENTRY (curSwoop && !wasInSwoop). */
+        if (isCurSwoop && !wasInSwoop) {
+            _asDamagedThisSwoop2 = 0;
+            SH_DBG("[AS-HIT-PROX] swoop entry — lockout reset (prev=%d cur=%d)",
+                   (int)_asPrevSwoopStep_v2, (int)curStep_v2);
+        }
+        /* Always advance the prev-step tracker so non-swoop frames are
+         * reflected. */
+        _asPrevSwoopStep_v2 = curStep_v2;
+
         if (airScreamer->model.stateStep == AirScreamerStateStep_1 ||
             airScreamer->model.stateStep == AirScreamerStateStep_2 ||
             airScreamer->model.stateStep == AirScreamerStateStep_3)
@@ -8605,30 +8632,18 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
              * once HP drops (from any source), no further AS damage this
              * swoop. State-transition into swoop re-arms for next bite. */
             {
-                static u8  _asPrevSwoopStep   = 0;
-                static u8  _asDamagedThisSwoop = 0;
-                static s32 _asPrevHarryHP     = -1;
-                u8 curStep = airScreamer->model.stateStep;
-                u8 prevWasSwoop = (_asPrevSwoopStep == AirScreamerStateStep_1 ||
-                                   _asPrevSwoopStep == AirScreamerStateStep_2 ||
-                                   _asPrevSwoopStep == AirScreamerStateStep_3);
                 s32 curHp = g_SysWork.playerWork.player.health;
-
-                /* Reset damage flag on swoop entry. */
-                if (!prevWasSwoop) {
-                    _asDamagedThisSwoop = 0;
-                }
 
                 /* HP-delta lockout: any HP drop locks out further hits
                  * this swoop (covers both vanilla cone hits AND the
                  * proximity fallback below). */
-                if (_asPrevHarryHP > 0 && curHp < _asPrevHarryHP &&
-                    !_asDamagedThisSwoop) {
-                    _asDamagedThisSwoop = 1;
+                if (_asPrevHarryHP2 > 0 && curHp < _asPrevHarryHP2 &&
+                    !_asDamagedThisSwoop2) {
+                    _asDamagedThisSwoop2 = 1;
                 }
 
                 /* Re-arm vanilla cone-collision each frame until damage. */
-                if (!_asDamagedThisSwoop) {
+                if (!_asDamagedThisSwoop2) {
                     airScreamer->field_44.field_0 = 1;
                 }
 
@@ -8659,7 +8674,7 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                     s32 dzh = hp->vz - airScreamer->position.vz;
                     s32 distSqr = (s32)((s64)dxh * dxh + (s64)dzh * dzh >> 12);
                     s32 kf = airScreamer->model.anim.keyframeIdx;
-                    if (!_asDamagedThisSwoop &&
+                    if (!_asDamagedThisSwoop2 &&
                         distSqr < Q12(9.0f) /* 3.0f * 3.0f — generous radius */ &&
                         kf >= 8 && kf <= 22 /* widened bite window */)
                     {
@@ -8676,14 +8691,13 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                         pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
                         pl->field_40        = Chara_NpcIdxGet(airScreamer);
 
-                        _asDamagedThisSwoop = 1;
+                        _asDamagedThisSwoop2 = 1;
                         SH_DBG("[AS-HIT-PROX] vanilla path triggered kf=%d distSqr=%d field_40=%d (Player_ReceiveDamage will process)",
                                (int)kf, (int)distSqr, (int)pl->field_40);
                     }
                 }
 
-                _asPrevSwoopStep = curStep;
-                _asPrevHarryHP   = curHp;
+                _asPrevHarryHP2 = curHp;
             }
             _bitePos.vx = airScreamer->position.vx;
             _bitePos.vy = airScreamer->position.vy;
