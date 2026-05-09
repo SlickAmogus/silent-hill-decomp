@@ -363,18 +363,29 @@ void DebugCamera_Update(void)
                 _prevRoomIdx = curRoom;
             }
 
-            /* Numpad 3 (edge-detect): teleport vy to last safe Y. Always
-             * applies even if values match — fallSpeed=0 reset alone helps
-             * by interrupting the falling animation. */
+            /* Numpad 3 (edge-detect): teleport vy to last safe Y AND push
+             * Harry backward Q12(2.5f) world units in the direction he came
+             * from (opposite of facing). Without the X/Z push he'd land on
+             * the same broken floor spot and immediately fall again — log
+             * showed exactly that, vy 32768 → -608 → 32768 → -608 looping. */
             int curKp3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
             if (curKp3 && !prevKp3 && _haveSafeY) {
                 s32 oldY = p->vy;
+                s32 oldX = p->vx;
+                s32 oldZ = p->vz;
+                s32 facing = pl->rotation.vy;
+                s32 sinV = Math_Sin(facing);
+                s32 cosV = Math_Cos(facing);
+                s32 pushDist = Q12(2.5f);
                 p->vy = _lastSafeY;
                 pl->fallSpeed = 0;
-                SH_DBG("[RESCUE-Y] Numpad 3: vy %ld → %ld (X=%ld Z=%ld unchanged) mapId=%d roomIdx=%d",
-                    (long)oldY, (long)_lastSafeY,
-                    (long)p->vx, (long)p->vz,
-                    (int)curMap, (int)curRoom);
+                /* Push backward — sin/cos give forward direction, subtract. */
+                p->vx -= (s32)((s64)sinV * pushDist >> 12);
+                p->vz -= (s32)((s64)cosV * pushDist >> 12);
+                SH_DBG("[RESCUE-Y] Numpad 3: pos (%ld,%ld,%ld) → (%ld,%ld,%ld) yaw=%d (vy reset + 2.5u backward push)",
+                    (long)oldX, (long)oldY, (long)oldZ,
+                    (long)p->vx, (long)p->vy, (long)p->vz,
+                    (int)facing);
             }
             prevKp3 = curKp3;
         }
