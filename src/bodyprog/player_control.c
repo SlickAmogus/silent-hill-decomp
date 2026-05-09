@@ -2630,6 +2630,18 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         case PlayerState_DamageFeetBack:
         case PlayerState_DamagePushBack:
         case PlayerState_DamagePushFront:
+#ifdef SH_PC_PORT
+            {
+                static s32 s_prevDmgState = -1;
+                s32 curDmgState = (s32)g_SysWork.playerWork.extra.state;
+                if (curDmgState != s_prevDmgState) {
+                    SH_DBG("[PLU-DMG] state=%d → calling func_8007FB94 to dispatch damage anim (kf=%d animStatus=0x%x)",
+                           curDmgState, (int)player->model.anim.keyframeIdx,
+                           (unsigned)player->model.anim.status);
+                    s_prevDmgState = curDmgState;
+                }
+            }
+#endif
             switch (g_SysWork.playerWork.extra.state)
             {
                 case PlayerState_DamageTorsoBack:
@@ -7421,6 +7433,29 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
     s32   i;
     s32   sfxId;
     s32   angleState;
+
+#ifdef SH_PC_PORT
+    /* Trace the damage pipeline whenever attackReceived is set. Lets us
+     * verify the AS-HIT-PROX → vanilla state-machine path actually runs
+     * through to Player_ExtraStateSet. Logged once per (attackReceived,
+     * state) edge so we don't spam the log. */
+    {
+        static s8  s_prevAttack = -2;
+        static s32 s_prevState  = -1;
+        s32 curState = (s32)g_SysWork.playerWork.extra.state;
+        if (player->attackReceived != s_prevAttack || curState != s_prevState) {
+            if (player->attackReceived != NO_VALUE) {
+                SH_DBG("[PRD] entry attack=%d state=%d amount=%d field_40=%d disCtl=%d disDmg=%d health=%d",
+                       (int)player->attackReceived, (int)curState,
+                       (int)player->damage.amount_C, (int)player->field_40,
+                       (int)g_Player_DisableControl, (int)g_Player_DisableDamage,
+                       (int)player->health);
+            }
+            s_prevAttack = player->attackReceived;
+            s_prevState  = curState;
+        }
+    }
+#endif
 
     // Set damage SFX according to something.
     sfxId = Sfx_Unk1326;
