@@ -606,6 +606,30 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     attr.volume.left  = Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeLeft_C << 7);
     attr.pitch        = audioPitch;
 
+#ifdef SH_PC_PORT
+    /* Radio (and any other reserved-voice) bug: g_AudioPlayingPitchList
+     * for voices 22/23 reads back as zero on PC (the post-SdUtKeyOnV
+     * SpuGetVoiceAttr cache doesn't populate for these voices), so
+     * audioPitch ends up = 0 + (input_pitch*2) = 0 for the radio's
+     * per-frame proximity update. PsyX_SPUAL_SetVoiceAttr then sees
+     * pitch==0 with mask|SPU_VOICE_PITCH and PAUSES the OpenAL source —
+     * radio static plays for one frame on first proximity check then
+     * goes silent for the rest of the encounter.
+     *
+     * Drop the PITCH bit from the mask when audioPitch is 0 so the
+     * volume change lands but PsyCross doesn't touch the voice's pitch.
+     * The voice keeps the pitch SdUtKeyOnV configured during keyon and
+     * stays AL_PLAYING. Doesn't affect non-radio sfx — those route
+     * through SdVoKeyOn whose post-cache path works correctly. */
+    if (audioPitch == 0) {
+        attr.mask &= ~SPU_VOICE_PITCH;
+        if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
+            SH_DBG("[RADIO_VOL] sfxId=%d audioPitch=0 → drop PITCH bit (mask=0x%x), preserve voice pitch",
+                   (int)sfxId, (unsigned)attr.mask);
+        }
+    }
+#endif
+
     SpuSetVoiceAttr(&attr);
 }
 
