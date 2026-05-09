@@ -7,6 +7,9 @@
 #include "maps/map2/map2_s00.h"
 #include "maps/particle.h"
 #include "maps/characters/player.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800E76B8
 
@@ -2670,8 +2673,25 @@ void func_800EE5D0(void) // 0x800EE5D0
     s32 idx;
 
     idx = func_800EE518();
+#ifdef SH_PC_PORT
+    /* PC: D_800F1CAC is stubbed in pc_port/src/stubs/data_stubs.c as
+     * `u8[256] = {0}`. The header declares it as s_MapPoint2d[3][32]
+     * (768 bytes total). The DLL compiles with the header type, so
+     * sizeof(D_800F1CAC[idx]) = 32 * sizeof(s_MapPoint2d) = 256, and the
+     * memcpy writes 256 zero bytes over the start of charaSpawns_24C —
+     * wiping the first ~21 spawn slots that the header initializer set
+     * up via chara_spawns.h. Result: street enemies don't spawn because
+     * their spawn data was just zeroed. Skip the memcpy so the header's
+     * chara_spawns.h defaults stay intact. The progression-specific
+     * spawn variants (D_800F1CAC[0..2]) aren't decompiled yet — TODO:
+     * extract them from disc_extract/VIN/MAP2_S00.BIN like AS rodata. */
+    SH_DBG("[SPAWN-FIX] func_800EE5D0: skipping memcpy (D_800F1CAC stubbed, preserving chara_spawns.h)");
+    g_SavegamePtr->ovlEnemyStates[10] = g_SavegamePtr->ovlEnemyStates[idx];
+    return;
+#else
     memcpy(g_MapOverlayHeader.charaSpawns_24C, D_800F1CAC[idx], sizeof(D_800F1CAC[idx]));
     g_SavegamePtr->ovlEnemyStates[10] = g_SavegamePtr->ovlEnemyStates[idx];
+#endif
 }
 
 void func_800EE660(void) // 0x800EE660
