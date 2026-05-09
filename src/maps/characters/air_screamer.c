@@ -19,6 +19,15 @@
 
 #define airScreamerProps airScreamer->properties.airScreamer
 
+#ifdef SH_PC_PORT
+/* Post-bite cooldown counter. Armed in Ai_AirScreamer_Update on a
+ * successful AS-BITE proximity hit; consumed in Ai_AirScreamer_Control_47
+ * to gate the C47 → C49 (re-attack) transition until it elapses. Slows
+ * the AS's lunge cadence so the player has time to react. q19_12 seconds
+ * counted down by g_DeltaTime each frame. */
+q19_12 g_AsBiteCooldown = Q12(0.0f);
+#endif
+
 void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
 #ifdef SH_PC_PORT
@@ -83,6 +92,10 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
      * damage trigger fields. Reset the per-bite lockout on the falling
      * edge of "bite anim active" so each fresh bite gets one hit.
      *
+     * On a successful hit we also arm g_AsBiteCooldown (consumed in
+     * Ai_AirScreamer_Control_47) so the AS can't immediately chain into
+     * another bite — gives the player a reaction window between lunges.
+     *
      * field_40 = NPC index → Player_ReceiveDamage uses g_SysWork.npcs
      * [field_40].rotation.vy as the enemy yaw for angleState calc. */
     {
@@ -109,12 +122,15 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
              * state. Q12(9.0) ≈ 3 world units radius² is the same as the
              * old C46 trigger. */
             if (distSqr < Q12(9.0f)) {
+                extern q19_12 g_AsBiteCooldown;
                 pl->damage.amount_C = Q12(15.0f);
                 pl->damage.position = airScreamer->position;
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
                 pl->field_40        = Chara_NpcIdxGet(airScreamer);
                 s_biteDamaged       = 1;
-                SH_DBG("[AS-BITE] hit landed kf=%d distSqr=%d field_40=%d cs=%d (Player_ReceiveDamage will process)",
+                /* Arm post-bite cooldown — consumed in Control_47. */
+                g_AsBiteCooldown    = Q12(1.5f);
+                SH_DBG("[AS-BITE] hit landed kf=%d distSqr=%d field_40=%d cs=%d (Player_ReceiveDamage will process, cooldown=1.5s)",
                        (int)kf, (int)distSqr, (int)pl->field_40,
                        (int)airScreamer->model.controlState);
             }
@@ -8869,6 +8885,22 @@ void Ai_AirScreamer_Control_47(s_SubCharacter* airScreamer)
                 unkAngleDelta = Q12_ANGLE_NORM_S(func_80080478(&airScreamer->position, &airScreamerProps.targetPosition_F8) - airScreamer->rotation.vy);
                 if (unkAngleDelta >= Q12_ANGLE(-8.0f) && unkAngleDelta < Q12_ANGLE(8.0f))
                 {
+#ifdef SH_PC_PORT
+                    /* Post-bite cooldown gate. Without this the AS chains
+                     * Control_47 → Control_49 → bite → Control_47 → ... in
+                     * about a second, faster than the player can react. The
+                     * AS-BITE trigger in Ai_AirScreamer_Update arms this
+                     * counter (in g_DeltaTime-units) on every successful
+                     * bite; we count it down here and block the C47→C49
+                     * re-engagement until it elapses. ~1.5 seconds of extra
+                     * hover gives the player a clean window between lunges. */
+                    extern q19_12 g_AsBiteCooldown;
+                    if (g_AsBiteCooldown > Q12(0.0f)) {
+                        g_AsBiteCooldown -= g_DeltaTime;
+                        if (g_AsBiteCooldown < Q12(0.0f)) g_AsBiteCooldown = Q12(0.0f);
+                        break;  /* still on cooldown — stay in C47 hover */
+                    }
+#endif
                     airScreamer->model.controlState = AirScreamerControl_49;
                     airScreamer->model.stateStep    = AirScreamerStateStep_0;
                 }
