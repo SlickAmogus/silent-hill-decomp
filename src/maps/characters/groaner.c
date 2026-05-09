@@ -21,6 +21,31 @@ void Ai_Groaner_Update(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsCOORDINAT
 {
     u8 prevControlState;
 
+#ifdef SH_PC_PORT
+    /* PC: disable Groaner update entirely. Multiple sharedFunc_800Exxxx
+     * helpers called from this update path dispatch through stubbed
+     * function-pointer tables in pc_port/src/stubs/data_stubs.c
+     * (sharedData_800EEE14_2_s00 = u8[256] = {0}, plus likely peers
+     * for the 800E5EC4 / 800E33DC / 800E5AA4 / 800E6338 / 800E71E8
+     * helpers). Each one trips an INVALID_POINTER_EXECUTE c0000005 the
+     * first time it's reached. User crash dumps confirmed two of them
+     * (800E384C +0x1f7 and 800E5EC4 +0x30b) — disabling 384C alone
+     * just exposes the next one.
+     *
+     * Skip the whole function. Groaners still spawn and render via
+     * Game_NpcRoomInitSpawn / Game_NpcUpdate's draw path, but their
+     * AI doesn't tick (no movement, no attacks). Trade-off the user
+     * explicitly chose so a release build can ship without the streets
+     * crashing on contact with a Groaner. */
+    static int s_logged = 0;
+    if (!s_logged) {
+        SH_DBG("[GROANER] Ai_Groaner_Update disabled on PC (stubbed AI dispatch tables would crash)");
+        s_logged = 1;
+    }
+    (void)prevControlState; (void)anmHdr; (void)coords; (void)groaner;
+    return;
+#endif
+
     // Initialize.
     if (groaner->model.controlState == 0)
     {
