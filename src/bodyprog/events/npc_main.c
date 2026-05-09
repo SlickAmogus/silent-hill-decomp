@@ -752,6 +752,30 @@ void Game_NpcUpdate(void) // 0x80038354
 
     for (l = 0; l < ARRAY_SIZE(D_800BCDA8); l++)
     {
+#ifdef SH_PC_PORT
+        /* One-shot per-slot keyon diagnostic so we can verify the radio
+         * voice actually starts when an enemy first enters range. */
+        static s8 _radioKeyonLogged[2] = { 0, 0 };
+        if (l < 2 && !_radioKeyonLogged[l] &&
+            D_800BCDA8[l].field_0 == NO_VALUE && D_800BCDA8[l].field_1 >= 0) {
+            SH_DBG("[RADIO_KEYON] slot=%d firing SD_Call(0x%04X) field_0=%d field_1=%d field_2=%d",
+                   (int)l, (unsigned)(Sfx_RadioInterferenceLoop + l),
+                   (int)D_800BCDA8[l].field_0, (int)D_800BCDA8[l].field_1,
+                   (int)D_800BCDA8[l].field_2);
+            _radioKeyonLogged[l] = 1;
+        }
+        /* Throttled state-snapshot — every ~1s log the actual D_800BCDA8 values
+         * so we can confirm whether field_0 is stuck at non-NO_VALUE. */
+        {
+            static u32 _radStateTickCnt = 0;
+            if (l == 0 && (++_radStateTickCnt % 60) == 0) {
+                SH_DBG("[RADIO_STATE] tick=%u slot0=(f0=%d,f1=%d,f2=%d) slot1=(f0=%d,f1=%d,f2=%d)",
+                       _radStateTickCnt,
+                       (int)D_800BCDA8[0].field_0, (int)D_800BCDA8[0].field_1, (int)D_800BCDA8[0].field_2,
+                       (int)D_800BCDA8[1].field_0, (int)D_800BCDA8[1].field_1, (int)D_800BCDA8[1].field_2);
+            }
+        }
+#endif
         if (D_800BCDA8[l].field_0 == NO_VALUE)
         {
             if (D_800BCDA8[l].field_1 >= 0)
