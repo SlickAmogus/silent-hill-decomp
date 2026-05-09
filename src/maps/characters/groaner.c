@@ -5,6 +5,9 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/groaner.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #define groanerProps groaner->properties.groaner
 
@@ -317,6 +320,30 @@ extern s_800EEE3C sharedData_800EEE3C_2_s00[];
 void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
 {
     extern void (*sharedData_800EEE14_2_s00[])(s_SubCharacter* chara);
+
+#ifdef SH_PC_PORT
+    /* PC stub: sharedData_800EEE14_2_s00 is declared as `u8[256] = {0}`
+     * in pc_port/src/stubs/data_stubs.c — the real per-controlState AI
+     * dispatch table isn't decompiled yet. Calling the indexed entry
+     * jumps to a NULL function pointer and crashes (INVALID_POINTER_
+     * EXECUTE_c0000005). User crash dump confirmed the chain:
+     *   ntdll!RtlUserThreadStart
+     *     SilentHillPC!main → MainLoop → InGame_Update → Game_NpcUpdate
+     *       → Ai_Groaner_Update +0x5c
+     *         → sharedFunc_800E384C_2_s00 +0x1f7    ← this dispatch
+     *           → 0x0                               ← crashed here
+     *
+     * Skip the entire function until the table is populated. Side
+     * effect: Groaners will spawn and render but won't run their state
+     * AI (no movement, no attacks). User explicitly requested this as
+     * a temporary measure to unblock release builds. */
+    static int s_logged = 0;
+    if (!s_logged) {
+        SH_DBG("[GROANER] sharedFunc_800E384C_2_s00 disabled on PC — sharedData_800EEE14_2_s00 dispatch table is stubbed");
+        s_logged = 1;
+    }
+    return;
+#endif
 
     #define getIndex() \
         ((((g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3) == 0) * 2) + ((g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 0x3) == 2))
