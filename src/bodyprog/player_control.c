@@ -2743,6 +2743,43 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 playerProps.moveDistance_126 = Q12(0.0f);
             }
 
+#ifdef SH_PC_PORT
+            /* PC time-based exit from DamageTorso* / DamageFeet* / DamagePush*
+             * states. PSX exits when the per-map anim hits its end keyframe
+             * via the field_38 lookup above, but on PC the wild AS damage
+             * fires on maps whose HARRY_M*_ANIM_INFOS files don't actually
+             * include the damage anim data (e.g. map2_s00). The anim status
+             * gets set to 0x5352 etc. but no keyframe data exists, so
+             * keyframeIdx never reaches keyframeIdx_6 and Harry is stuck in
+             * DamageTorsoX forever — frozen-in-place / input-broken.
+             *
+             * Force-exit after ~30 frames (~1s @60fps) regardless of the
+             * field_38 keyframe match. Tracks per-(state, controlState)
+             * tuple so re-entry from another bite restarts the countdown. */
+            {
+                static u32 s_dmgStateFrames = 0;
+                static s32 s_dmgPrevState   = -1;
+                s32        s_dmgCurState   = (s32)g_SysWork.playerWork.extra.state;
+                if (s_dmgCurState != s_dmgPrevState) {
+                    s_dmgStateFrames = 0;
+                    s_dmgPrevState   = s_dmgCurState;
+                } else {
+                    s_dmgStateFrames++;
+                }
+                if (s_dmgStateFrames > 30) {
+                    SH_DBG("[PLU-DMG] PC timeout exit: state=%d held %u frames > 30, forcing → None",
+                           s_dmgCurState, s_dmgStateFrames);
+                    player->attackReceived = NO_VALUE;
+                    g_SysWork.targetNpcIdx = NO_VALUE;
+                    playerProps.flags_11C &= ~PlayerFlag_DamageReceived;
+                    Player_ExtraStateSet(player, extra, PlayerState_None);
+                    playerProps.moveDistance_126 = Q12(0.0f);
+                    s_dmgStateFrames = 0;
+                    s_dmgPrevState   = -1;
+                }
+            }
+#endif
+
             D_800C4550       = playerProps.moveDistance_126;
             player->flags |= CharaFlag_Unk4;
             break;
