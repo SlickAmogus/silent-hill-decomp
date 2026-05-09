@@ -8632,12 +8632,26 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                     airScreamer->field_44.field_0 = 1;
                 }
 
-                /* PC proximity hit + reaction. The PC port skips
-                 * Player_LowerBodyUpdate (player_control.c:1571) which is
-                 * where the damage state machine lives, so just setting
-                 * damage.amount_C never triggers a visible hit reaction.
-                 * Apply state transition, HP deduction, and hurt sound
-                 * directly here. */
+                /* PC proximity hit using vanilla damage pipeline.
+                 *
+                 * Properly populate the four fields the vanilla damage
+                 * state machine reads each frame, then leave them alone.
+                 * Player_Update → Player_ReceiveDamage (player_control.c:
+                 * 638, 7417) runs every frame on PC and processes:
+                 *   - attackReceived → switch on weapon-attack id (69 =
+                 *     Unk69 / bloodsucker bite). case 69 falls through to
+                 *     case 68 → case 40-46 which reads
+                 *     g_SysWork.npcs[player->field_40].rotation.vy as the
+                 *     enemy yaw, computes angleState (DamageTorsoFront/
+                 *     Back/Left/Right), and calls Player_ExtraStateSet.
+                 *   - damage.amount_C → HP deduction with map+difficulty
+                 *     scaling (player_control.c:7779-7800).
+                 *
+                 * The next frame, state == DamageTorsoFront → case 2625 in
+                 * Player_LogicUpdate fires → func_8007FB94 looks up
+                 * field_38 entry status_2==0xD2 (map0_s01_anim_info.c:51
+                 * has it) and sets anim.status to the actual damage anim.
+                 * That's the PSX-identical path. */
                 {
                     s_SubCharacter* pl = &g_SysWork.playerWork.player;
                     VECTOR3* hp = &pl->position;
@@ -8649,54 +8663,22 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                         distSqr < Q12(9.0f) /* 3.0f * 3.0f — generous radius */ &&
                         kf >= 8 && kf <= 22 /* widened bite window */)
                     {
-                        s_PlayerExtra* px = &g_SysWork.playerWork.extra;
-                        s32 dmg = Q12(15.0f);
-                        /* HP deduction with difficulty scaling (mirrors the
-                         * skipped player_control.c:7779-7800 logic). */
-                        switch (g_SavegamePtr->gameDifficulty_260)
-                        {
-                            case GameDifficulty_Easy:   dmg = (dmg * 3) >> 2; break;
-                            case GameDifficulty_Normal:                       break;
-                            case GameDifficulty_Hard:   dmg = (dmg * 6) >> 2; break;
-                        }
-                        pl->health -= dmg;
-                        if (pl->health < Q12(0.0f))
-                            pl->health = Q12(0.0f);
-
-                        /* Force damage state + DIRECT KNOCKBACK. The anim
-                         * system is unreliable on PC (per-map damage anim
-                         * lookup fails for map0_s01, and the PC shim
-                         * overwrites anim.status from input each frame), so
-                         * the most visible reaction is a physical position
-                         * shove. Move Harry Q12(1.0f) world units AWAY from
-                         * AS in the AS→Harry direction. Combined with
-                         * fallSpeed=0 reset and the anim/state attempt,
-                         * this is unambiguously a "got hit" reaction. */
-                        {
-                            s32 dist = SquareRoot12(distSqr);
-                            if (dist > 0) {
-                                s32 nx = (s32)(((s64)dxh << 12) / dist);
-                                s32 nz = (s32)(((s64)dzh << 12) / dist);
-                                s32 knock = Q12(1.0f);
-                                pl->position.vx += (s32)((s64)nx * knock >> 12);
-                                pl->position.vz += (s32)((s64)nz * knock >> 12);
-                            }
-                        }
-                        Player_ExtraStateSet(pl, px, PlayerState_DamageTorsoFront);
-                        pl->model.anim.status = ANIM_STATUS(HarryAnim_FallBackward, false);
-                        pl->model.anim.keyframeIdx = 0;
-                        px->model.anim.status = ANIM_STATUS(HarryAnim_FallBackward, false);
-                        px->model.anim.keyframeIdx = 0;
-                        pl->damage.amount_C = Q12(0.0f); /* consumed */
-                        pl->attackReceived  = NO_VALUE;
-
-                        /* Hurt sound. 0x67 is a guess — many SFX IDs are
-                         * unverified on PC; harmless if invalid. */
-                        SD_Call(0x0067);
+                        /* Set the damage trigger fields. Vanilla
+                         * Player_ReceiveDamage will read these and run the
+                         * full PSX-identical state-machine: HP deduction,
+                         * angleState calc, Player_ExtraStateSet, anim
+                         * dispatch. We DO NOT manually clear amount_C /
+                         * attackReceived here — that would let
+                         * Player_ReceiveDamage see them already-cleared
+                         * and skip processing. */
+                        pl->damage.amount_C = Q12(15.0f);
+                        pl->damage.position = airScreamer->position;
+                        pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
+                        pl->field_40        = Chara_NpcIdxGet(airScreamer);
 
                         _asDamagedThisSwoop = 1;
-                        SH_DBG("[AS-HIT-PROX] hit landed kf=%d distSqr=%d dmg=%d postHP=%d (state→DamageTorsoFront)",
-                               (int)kf, (int)distSqr, (int)dmg, (int)pl->health);
+                        SH_DBG("[AS-HIT-PROX] vanilla path triggered kf=%d distSqr=%d field_40=%d (Player_ReceiveDamage will process)",
+                               (int)kf, (int)distSqr, (int)pl->field_40);
                     }
                 }
 
