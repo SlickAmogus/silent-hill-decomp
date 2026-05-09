@@ -105,6 +105,19 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
         u8  isBiteActive = (curStatus == ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true));
         s32 kf = airScreamer->model.anim.keyframeIdx;
 
+        /* Universal post-bite cooldown — count it down here (every frame
+         * the AS Update runs) so it works regardless of which control
+         * state the AS is in. The Control_47 path (cafe AS) is one user;
+         * wild ASes drive the bite from other control states like 25,
+         * which never goes through C47, so a C47-only countdown leaves
+         * them in an uninterrupted bite chain that locks Harry into
+         * back-to-back DamageTorsoX hits with no recovery window — the
+         * "frozen in place / input broken" symptom user reported. */
+        if (g_AsBiteCooldown > Q12(0.0f)) {
+            g_AsBiteCooldown -= g_DeltaTime;
+            if (g_AsBiteCooldown < Q12(0.0f)) g_AsBiteCooldown = Q12(0.0f);
+        }
+
         if (isBiteActive && !s_prevBiteActive) {
             s_biteDamaged = 0;
             SH_DBG("[AS-BITE] bite anim entered — lockout reset (cs=%d ss=%d kf=%d)",
@@ -113,7 +126,7 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
         }
         s_prevBiteActive = isBiteActive;
 
-        if (isBiteActive && !s_biteDamaged) {
+        if (isBiteActive && !s_biteDamaged && g_AsBiteCooldown == Q12(0.0f)) {
             s_SubCharacter* pl = &g_SysWork.playerWork.player;
             s32 dxh = pl->position.vx - airScreamer->position.vx;
             s32 dzh = pl->position.vz - airScreamer->position.vz;
@@ -122,13 +135,14 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
              * state. Q12(9.0) ≈ 3 world units radius² is the same as the
              * old C46 trigger. */
             if (distSqr < Q12(9.0f)) {
-                extern q19_12 g_AsBiteCooldown;
                 pl->damage.amount_C = Q12(15.0f);
                 pl->damage.position = airScreamer->position;
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
                 pl->field_40        = Chara_NpcIdxGet(airScreamer);
                 s_biteDamaged       = 1;
-                /* Arm post-bite cooldown — consumed in Control_47. */
+                /* Arm post-bite cooldown — universal gate, also consumed
+                 * by the legacy Control_47 transition guard (the
+                 * countdown above is what actually drains it now). */
                 g_AsBiteCooldown    = Q12(1.5f);
                 SH_DBG("[AS-BITE] hit landed kf=%d distSqr=%d field_40=%d cs=%d (Player_ReceiveDamage will process, cooldown=1.5s)",
                        (int)kf, (int)distSqr, (int)pl->field_40,
@@ -8886,18 +8900,14 @@ void Ai_AirScreamer_Control_47(s_SubCharacter* airScreamer)
                 if (unkAngleDelta >= Q12_ANGLE(-8.0f) && unkAngleDelta < Q12_ANGLE(8.0f))
                 {
 #ifdef SH_PC_PORT
-                    /* Post-bite cooldown gate. Without this the AS chains
-                     * Control_47 → Control_49 → bite → Control_47 → ... in
-                     * about a second, faster than the player can react. The
-                     * AS-BITE trigger in Ai_AirScreamer_Update arms this
-                     * counter (in g_DeltaTime-units) on every successful
-                     * bite; we count it down here and block the C47→C49
-                     * re-engagement until it elapses. ~1.5 seconds of extra
-                     * hover gives the player a clean window between lunges. */
+                    /* Cafe-AS post-bite cooldown gate. Cooldown countdown
+                     * itself lives in Ai_AirScreamer_Update so it works
+                     * across all control states; this just stops the
+                     * C47→C49 re-engagement during cooldown so the AS
+                     * stays in hover instead of repositioning for a bite
+                     * that won't damage anyway. */
                     extern q19_12 g_AsBiteCooldown;
                     if (g_AsBiteCooldown > Q12(0.0f)) {
-                        g_AsBiteCooldown -= g_DeltaTime;
-                        if (g_AsBiteCooldown < Q12(0.0f)) g_AsBiteCooldown = Q12(0.0f);
                         break;  /* still on cooldown — stay in C47 hover */
                     }
 #endif
