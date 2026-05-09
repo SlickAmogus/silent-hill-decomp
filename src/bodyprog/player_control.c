@@ -7488,6 +7488,33 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
 
     switch (g_SysWork.playerWork.extra.state)
     {
+#ifdef SH_PC_PORT
+        /* PC: don't suppress damage anim for FallForward/FallBackward when
+         * the attack is an active bite (Unk68/Unk69). The PSX-vanilla case
+         * break here was preventing visible reactions during AS combat at
+         * the cafe — Harry frequently gets stuck in FallBackward (state=4)
+         * after the AS-window cutscene transition, and the AS keeps biting
+         * but the player sees no anim because this case `break`s out of the
+         * switch before reaching the case-69 angleState calculation. HP is
+         * still deducted at line 7763, but the user perceives "AS doesn't
+         * damage me." Letting bite attacks fall through into the default
+         * case lets DamageTorsoX play, providing the visual reaction the
+         * vanilla code intended. Other "during-fall" attacks (DamageThrown
+         * etc.) keep the original PSX behavior. */
+        case PlayerState_FallForward:
+        case PlayerState_FallBackward:
+            if (player->attackReceived >= 68 && player->attackReceived < 70) {
+                goto pc_default_damage_path;
+            }
+            break;
+        case PlayerState_EnemyReleasePinnedFront:
+        case PlayerState_EnemyReleasePinnedBack:
+        case PlayerState_DamageThrownFront:
+        case PlayerState_DamageThrownBack:
+        case PlayerState_GetUpFront:
+        case PlayerState_GetUpBack:
+            break;
+#else
         case PlayerState_FallForward:
         case PlayerState_FallBackward:
         case PlayerState_EnemyReleasePinnedFront:
@@ -7497,6 +7524,7 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
         case PlayerState_GetUpFront:
         case PlayerState_GetUpBack:
             break;
+#endif
 
         case PlayerState_Death:
         case PlayerState_InstantDeath:
@@ -7565,6 +7593,9 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
             break;
 
         default:
+#ifdef SH_PC_PORT
+        pc_default_damage_path:
+#endif
             if (g_Player_IsInWalkToRunTransition)
             {
                 D_800C4560 = player->attackReceived;
