@@ -81,6 +81,88 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
     g_Screen_BackgroundImgGamma = Q8(0.5f);
 }
 
+#if 0  /* Disabled — broken on g_PsxSkipFramebufferStore=1 ortho */
+void Screen_BackgroundImgDraw_PcHorStretch(s_FsImageDesc* image)
+{
+    GsOT*     ot       = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
+    PACKET*   packet   = GsOUT_PACKET_P;
+    POLY_FT4* poly;
+    s32 texShift   = image->tPage[0];
+    s32 texPageX   = image->tPage[1];
+    s32 texOffsetY = image->v;
+    s32 numTilesX  = ((g_GameWork.gsScreenWidth - 1) >> (8 - texShift)) + 1;
+    s32 yMax       = (g_GameWork.gsScreenHeight >> 8); /* same loop bound as PSX path */
+    s32 y;
+    s32 x;
+    /* Half-width and half-height of the on-screen quad target (16:9 from
+     * 240 height). Using 213/120 PSX units mirrors the Z-key map fix's
+     * "fit vertically with X stretched" semantics. */
+    const s32 SCREEN_HALF_W = 213;
+    const s32 SCREEN_HALF_H = 120;
+    s32 tileScreenWidth = (SCREEN_HALF_W * 2) / numTilesX;
+
+    for (y = 0; y <= yMax; y++)
+    {
+        for (x = 0; x < numTilesX; x++)
+        {
+            s32 quadL = -SCREEN_HALF_W + x * tileScreenWidth;
+            s32 quadR = quadL + tileScreenWidth;
+            s32 quadT, quadB;
+            s32 vTop, vBot;
+
+            if (y == 0)
+            {
+                quadT = -SCREEN_HALF_H;
+                quadB = quadT + (256 - texOffsetY) * (SCREEN_HALF_H * 2 + numTilesX) /
+                                ((256 - texOffsetY) + 256 * yMax);
+                /* Actually for typical paper-map atlases yMax==0 and we just
+                 * fill the full vertical span. Keep the formula simple. */
+                quadT = -SCREEN_HALF_H;
+                quadB = SCREEN_HALF_H;
+                vTop  = texOffsetY;
+                vBot  = 255;
+            }
+            else
+            {
+                /* Multi-row atlases (rare for cutscene map). Fall back to
+                 * proportional vertical stride matching the PSX path. */
+                quadT = -SCREEN_HALF_H + (256 - texOffsetY) * y;
+                quadB = quadT + 256;
+                vTop  = 0;
+                vBot  = 255;
+            }
+
+            poly = (POLY_FT4*)packet;
+            setPolyFT4(poly);
+            setRGB0Fast(poly, g_Screen_BackgroundImgGamma,
+                              g_Screen_BackgroundImgGamma,
+                              g_Screen_BackgroundImgGamma);
+
+            setXY0Fast(poly, quadL, quadT);
+            setXY1Fast(poly, quadR, quadT);
+            setXY2Fast(poly, quadL, quadB);
+            setXY3Fast(poly, quadR, quadB);
+
+            setUV0AndClutSum(poly, 0,   vTop, getClut(image->clutX, image->clutY));
+            setUV1AndTPageSum(poly, 255, vTop,
+                getTPage(texShift, 0,
+                         (texPageX + (x << texShift)) << 6,
+                         ((texPageX << 4) & 0x100) + (y << 8)));
+            setUV2Sum(poly, 0,   vBot);
+            setUV3Sum(poly, 255, vBot);
+
+            setSemiTrans(poly, 0);
+            addPrim(ot, poly);
+            packet = (PACKET*)(poly + 1);
+        }
+    }
+
+    GsOUT_PACKET_P                  = packet;
+    g_SysWork.bgmStatusFlags        |= BgmStatusFlag_Pause;
+    g_Screen_BackgroundImgGamma     = Q8(0.5f);
+}
+#endif
+
 void Screen_BackgroundImgTransition(s_FsImageDesc* image0, s_FsImageDesc* image1, q3_12 alpha) // 0x800317CC
 {
     volatile int   pad;

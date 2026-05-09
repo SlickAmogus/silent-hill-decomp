@@ -97,6 +97,59 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * the crash is worth it. */
     SH_DBG("[SH] GameBoot_MapLoad: ENTER mapIdx=%d (%s)", mapIdx, MapRegistry_GetName(mapIdx));
     fflush(g_ShDebugLog);
+
+    /* PC-only convenience: when entering a non-tutorial map with an empty
+     * weapon slot (equippedWeapon_AA == 0 = Unequipped), provide the basic
+     * combat loadout. equippedWeapon_AA is the right gate because:
+     *   - GameBoot_SavegameInitialize bzero's it to 0 on a New Game, so
+     *     my code fires on the post-bzero map load.
+     *   - After my auto-equip sets it to InvItemId_Handgun, subsequent
+     *     room transitions see != 0 and skip — no re-fire on transitions.
+     *   - Loaded saves carry their own equipped weapon (Handgun or
+     *     whatever), so we won't overwrite a real save's equipment.
+     *   - The earlier static-flag approach broke when an auto-load
+     *     savegame state ran BEFORE the user clicked New Game: auto-load's
+     *     map load consumed the static, then the user's New Game bzero
+     *     wiped the items but the static stayed set so no re-fire. */
+    SH_DBG("[AUTO-EQUIP-CHECK] mapIdx=%d processFlags=0x%x inventorySlotCount=%d equippedWeapon=%d",
+           mapIdx, (unsigned)g_SysWork.processFlags,
+           (int)g_SavegamePtr->inventorySlotCount_AB,
+           (int)g_SavegamePtr->equippedWeapon_AA);
+    fflush(g_ShDebugLog);
+    /* Clear UnkSysFlag_4 on every non-tutorial map entry. This flag is
+     * set by map2_s00.c:1948 (gated on EventFlag_146 / WaterWorks cutscene
+     * progression) and gates all enemy spawning in Game_NpcRoomInitSpawn.
+     * On a fresh PC playthrough we can't reach the cutscene that clears
+     * it via the normal path, so streets stay enemy-free. Force-clearing
+     * here unblocks spawning on any non-tutorial map. */
+    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
+    {
+        g_SysWork.flags_22A4 &= ~UnkSysFlag_4;
+    }
+
+    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01 &&
+        g_SavegamePtr->equippedWeapon_AA == InvItemId_Unequipped)
+    {
+        s_InventoryItem* items = g_SavegamePtr->items_0;
+        items[0].id_0 = InvItemId_Flashlight;     items[0].count_1 = 1;
+        items[1].id_0 = InvItemId_PocketRadio;    items[1].count_1 = 1;
+        items[2].id_0 = InvItemId_KitchenKnife;   items[2].count_1 = 1;
+        items[3].id_0 = InvItemId_Handgun;        items[3].count_1 = 1;
+        items[4].id_0 = InvItemId_HandgunBullets; items[4].count_1 = 15;
+        g_SavegamePtr->inventorySlotCount_AB = 5;
+
+        g_SavegamePtr->equippedWeapon_AA = InvItemId_Handgun;
+        g_SavegamePtr->itemToggleFlags_AC |= ItemToggleFlag_RadioOn;
+        g_SavegamePtr->itemToggleFlags_AC &= ~ItemToggleFlag_FlashlightOff;
+
+        g_SysWork.playerCombat.weaponAttack         = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+        g_SysWork.playerCombat.weaponInventoryIdx   = 3;
+        g_SysWork.playerCombat.totalWeaponAmmo      = 15;
+
+        SH_DBG("[AUTO-EQUIP] FIRED on non-tutorial map %d: handgun+15+knife+radio+flashlight, equipped handgun",
+               mapIdx);
+        fflush(g_ShDebugLog);
+    }
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
     SH_DBG("[SH] GameBoot_MapLoad: post-MapRegistry_Load");

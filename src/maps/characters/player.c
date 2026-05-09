@@ -668,7 +668,47 @@ s32 sharedFunc_800D2DAC_0_s00(void)
 
     // NOTE: There are 37 base anims for Harry. 38 and beyond are map-specific.
     model    = &g_SysWork.playerWork.player.model;
+#ifdef SH_PC_PORT
+    /* PC: when status < ANIM_STATUS(38, false) (= 76), the original code
+     * indexes harryMapAnimInfos_34[negative] which reads OOB. On PSX
+     * this happened to land in HARRY_BASE_ANIM_INFOS data because the
+     * runtime layout was deterministic; on PC the map info comes from
+     * a DLL .data section that's nowhere near the base anim table, so
+     * reads return garbage and playbackFunc becomes a bad pointer. The
+     * func_E8 dispatch then falls through to `return -1` (neither
+     * Anim_PlaybackOnce nor Anim_BlendLinear) and the script state
+     * machine never advances — that's the dog head key freeze the user
+     * reported. Pickup state machine sets player.anim.status=52 (a base
+     * anim) and waits for func_E8 to return 1.
+     *
+     * Fix: if status < 76, look up in HARRY_BASE_ANIM_INFOS instead. */
+    if ((s32)model->anim.status < ANIM_STATUS(38, false))
+    {
+        extern s_AnimInfo HARRY_BASE_ANIM_INFOS[];
+        animInfo = &HARRY_BASE_ANIM_INFOS[model->anim.status];
+    }
+    else
+    {
+        animInfo = &g_MapOverlayHeader.harryMapAnimInfos_34[model->anim.status - ANIM_STATUS(38, false)];
+    }
+#else
     animInfo = &g_MapOverlayHeader.harryMapAnimInfos_34[model->anim.status - ANIM_STATUS(38, false)];
+#endif
+
+#ifdef SH_PC_PORT
+    /* Entry log (rate-limited) — see whether the lookup hit base or map
+     * table by comparing status to 76. */
+    {
+        static int _entryLogN = 0;
+        if (_entryLogN < 30) {
+            SH_DBG("[D2DAC] enter status=%d kf=%d animInfo=%p playbackFunc=%p (table=%s)",
+                   (int)model->anim.status, (int)model->anim.keyframeIdx,
+                   (void*)animInfo, (void*)(animInfo ? animInfo->playbackFunc : NULL),
+                   (s32)model->anim.status < ANIM_STATUS(38, false) ? "BASE" : "MAP");
+            _entryLogN++;
+        }
+    }
+#endif
 
 #ifdef SH_PC_PORT
     /* PC: cross-branch stuck-detection. Script state machines poll this
@@ -689,6 +729,17 @@ s32 sharedFunc_800D2DAC_0_s00(void)
      * next call so the script advances. The check fires for ANY branch.
      * 90 frames @ 60fps = 1.5s — long enough that legitimate "wait for
      * anim" calls (200-400 ms) finish naturally. */
+    /* Two complementary stuck detectors:
+     *   (A) "frozen" — anim.status + keyframeIdx unchanged for N frames
+     *   (B) "playing but never reaches end" — total consecutive calls
+     *       that returned 0 from the PlaybackOnce branch without ever
+     *       hitting endKeyframeIdx. Necessary for KeyOfWoodman pickup:
+     *       Harry's pickup anim DOES advance keyframeIdx but never lands
+     *       on the exact endKeyframeIdx the function compares to (likely
+     *       a delta-time/keyframe-rate mismatch in the PC anim driver).
+     *       Without (B), counter (A) keeps resetting and we never
+     *       unstick. Threshold for (B) is generous (4s @ 60fps = 240) so
+     *       legitimate brief waits aren't bypassed. */
     {
         static s32 s_lastKf       = -1;
         static s32 s_stuckCounter = 0;
@@ -699,12 +750,9 @@ s32 sharedFunc_800D2DAC_0_s00(void)
             s_lastKf       = model->anim.keyframeIdx;
             s_stuckCounter = 0;
         } else if (++s_stuckCounter > 90) {
-            /* unfreeze — pretend the script's anim wait completed.
-             * Reset counter; the next legitimate anim wait will
-             * accumulate fresh. */
             static int _bypassLogN = 0;
             if (_bypassLogN < 20) {
-                SH_DBG("[ANIM-STUCK] bypass — status=%d kf=%d after %d frames; forcing return 1",
+                SH_DBG("[ANIM-STUCK] (A) frozen bypass — status=%d kf=%d after %d frames; forcing return 1",
                        (int)model->anim.status, (int)model->anim.keyframeIdx, s_stuckCounter);
                 _bypassLogN++;
             }
@@ -716,25 +764,106 @@ s32 sharedFunc_800D2DAC_0_s00(void)
 
     if (animInfo->playbackFunc == Anim_PlaybackOnce)
     {
+        s32 result;
         // Check if anim has started or finished.
         if (Anim_DurationGet(model, animInfo) > Q12(0.0f))
         {
-            return model->anim.keyframeIdx == animInfo->endKeyframeIdx;
+            result = (model->anim.keyframeIdx == animInfo->endKeyframeIdx);
         }
         else
         {
-            return model->anim.keyframeIdx == animInfo->startKeyframeIdx;
+            result = (model->anim.keyframeIdx == animInfo->startKeyframeIdx);
         }
+
+#ifdef SH_PC_PORT
+        {
+            static s32 s_endCounter = 0;
+            static int _endLogN     = 0;
+            static int _entryLogN   = 0;
+            if (result == 1) {
+                s_endCounter = 0;
+            } else {
+                /* Sample every 60th call so we see what's happening. */
+                if (((++s_endCounter) % 60) == 0 && _entryLogN < 20) {
+                    SH_DBG("[ANIM-STUCK] (B) PlaybackOnce wait — status=%d kf=%d startKf=%d endKf=%d count=%d",
+                           (int)model->anim.status, (int)model->anim.keyframeIdx,
+                           (int)animInfo->startKeyframeIdx, (int)animInfo->endKeyframeIdx,
+                           (int)s_endCounter);
+                    _entryLogN++;
+                }
+                if (s_endCounter > 240) {
+                    if (_endLogN < 10) {
+                        SH_DBG("[ANIM-STUCK] (B) endKf-bypass — status=%d kf=%d expected_endKf=%d after %d frames",
+                               (int)model->anim.status, (int)model->anim.keyframeIdx,
+                               (int)animInfo->endKeyframeIdx, (int)s_endCounter);
+                        _endLogN++;
+                    }
+                    s_endCounter = 0;
+                    return 1;
+                }
+            }
+        }
+#endif
+        return result;
     }
 
+#ifdef SH_PC_PORT
+    /* (C) PlaybackLoop / BlendLinear / default-branch stuck-detection.
+     *
+     * Detector (B) above only covers Anim_PlaybackOnce. For non-Once
+     * playback functions (PlaybackLoop, BlendLinear, ...) the function
+     * returns -2 or -1 — script polls forever. Symptom: KeyOfWoodman
+     * (dog head key) pickup at func_800E9A74 step 4 — Harry's anim is
+     * HarryAnim_Idle (status 52/53 = BlendLinear/PlaybackLoop) because
+     * nothing on PC drives the player into the pickup pose, and func_E8
+     * keeps returning -1/-2 → step 4 never completes.
+     *
+     * Detector (A) at the top only resets when (status, kf) actually
+     * change. PlaybackLoop's kf can advance one step every ~50 frames,
+     * which keeps resetting (A) before its 90-frame threshold trips.
+     *
+     * (C) is simpler: count consecutive non-Once invocations. As soon
+     * as we hit Anim_PlaybackOnce or return 1 elsewhere, the counter
+     * resets. The threshold 360 (= 6s @ 60fps) is generous enough that
+     * an anim BlendLinear ramp + actual short PlaybackLoop holds finish
+     * naturally before bypass. */
+    if (animInfo->playbackFunc != Anim_PlaybackOnce)
+    {
+        static s32 s_loopCounter = 0;
+        static int _loopLogN = 0;
+        s_loopCounter++;
+        /* Periodic log so we can confirm (C) is being hit even if threshold
+         * not yet reached. */
+        if ((s_loopCounter % 60) == 0 && _loopLogN < 20) {
+            SH_DBG("[ANIM-STUCK] (C) tick — counter=%d status=%d kf=%d pbFunc=%p",
+                   s_loopCounter, (int)model->anim.status, (int)model->anim.keyframeIdx,
+                   (void*)animInfo->playbackFunc);
+            _loopLogN++;
+        }
+        if (s_loopCounter > 120) {
+            if (_loopLogN < 30) {
+                SH_DBG("[ANIM-STUCK] (C) non-Once bypass — status=%d kf=%d pbFunc=%p after %d frames; forcing return 1",
+                       (int)model->anim.status, (int)model->anim.keyframeIdx,
+                       (void*)animInfo->playbackFunc, s_loopCounter);
+                _loopLogN++;
+            }
+            s_loopCounter = 0;
+            return 1;
+        }
+        if (animInfo->playbackFunc == Anim_BlendLinear) return -2;
+        return -1;
+    }
+    /* PlaybackOnce — reset (C) counter. Note: this branch is unreachable
+     * because the PlaybackOnce path above already returned, but kept for
+     * documentation symmetry. */
+    return -1;
+#else
     if (animInfo->playbackFunc == Anim_BlendLinear)
     {
         return -2;
     }
-    else
-    {
-        return -1;
-    }
+    return -1;
+#endif
 }
 
 bool Player_MoveDistanceIsZero(void)

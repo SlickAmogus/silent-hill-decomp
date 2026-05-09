@@ -78,6 +78,21 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     curCharaSpawn      = g_MapOverlayHeader.charaSpawns_24C[0];
     ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapOverlayId_A4];
 
+#ifdef SH_PC_PORT
+    /* Force-clear UnkSysFlag_4 every frame on non-tutorial maps. Vanilla
+     * sets this flag in map2_s00.c:1948 unless EventFlag_146 / WaterWorks
+     * cutscene event is set, gating ALL enemy spawning. On a fresh PC
+     * playthrough we never reach that cutscene via the normal path so the
+     * flag stays set forever, leaving streets enemy-less. Clearing here
+     * (right before the spawn gate that reads it) guarantees the gate
+     * sees a clean state regardless of when map init re-sets it. */
+    if (g_SavegamePtr->mapOverlayId_A4 != MapIdx_MAP0_S00 &&
+        g_SavegamePtr->mapOverlayId_A4 != MapIdx_MAP0_S01)
+    {
+        g_SysWork.flags_22A4 &= ~UnkSysFlag_4;
+    }
+#endif
+
     if (cond == false)
     {
         func_80037154();
@@ -99,6 +114,39 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 
         pos = (VECTOR3*)curCharaSpawn;
+
+#ifdef SH_PC_PORT
+        /* Per-spawn diagnostic — log non-empty slots when conditions change
+         * (especially when player gets close enough that distance gate
+         * could pass). Logs once per (slot, near/far transition) to avoid
+         * spam while still capturing the moment a spawn would activate. */
+        if (curCharaSpawn->flags_6 != 0) {
+            static u8 _spawnNearLogged[64] = { 0 };
+            int gate7 = !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f));
+            /* Only re-log on transitions: far→near (gate7 went 0→1) or
+             * if first time this slot ever evaluated. */
+            u8 prevState = _spawnNearLogged[i];
+            u8 curState = (gate7 ? 2 : 1); /* 1=far, 2=near */
+            if (prevState != curState) {
+                int gate1 = !(g_SysWork.flags_22A4 & UnkSysFlag_4);
+                int gate2 = HAS_FLAG(ovlEnemiesStatePtr, i) ? 1 : 0;
+                int gate3 = !HAS_FLAG(g_SysWork.field_228C, i) ? 1 : 0;
+                int gate5 = (g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0);
+                int gate6 = func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) ? 1 : 0;
+                int gate8 = (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)));
+                VECTOR3* pp = &g_SysWork.playerWork.player.position;
+                SH_DBG("[SPAWN-GATE] slot=%d %s spawn=(%d,%d) player=(%d,%d) flags=%d diff=%d/%d cond=%d g1=%d g2=%d g3=%d g5=%d g6=%d g7=%d g8=%d",
+                       i, gate7 ? "NEAR" : "far",
+                       (int)curCharaSpawn->positionX_0, (int)curCharaSpawn->positionZ_8,
+                       (int)pp->vx, (int)pp->vz,
+                       (int)curCharaSpawn->flags_6,
+                       (int)g_SavegamePtr->gameDifficulty_260, (int)curCharaSpawn->gameDifficultyMin_7_0,
+                       (int)cond,
+                       gate1, gate2, gate3, gate5, gate6, gate7, gate8);
+                _spawnNearLogged[i] = curState;
+            }
+        }
+#endif
 
         if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) &&
             HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
@@ -335,12 +383,16 @@ void Game_NpcUpdate(void) // 0x80038354
                 /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
                  * baseline working set; Cybil + AirScreamer added because
                  * render-only path never produced a visible model — they need
-                 * AI updates to drive the model state.  When new NPCs crash,
-                 * narrow this list rather than going back to a blanket skip. */
+                 * AI updates to drive the model state. Groaner (dog) added
+                 * for map2_s00 streets; LarvalStalker for map2_s00/s01 small
+                 * grey-children. When new NPCs crash, narrow this list rather
+                 * than going back to a blanket skip. */
                 bool isFullAiNpc = (npc->model.charaId == Chara_Cheryl ||
                                     npc->model.charaId == Chara_GreyChild ||
                                     npc->model.charaId == Chara_Cybil ||
-                                    npc->model.charaId == Chara_AirScreamer);
+                                    npc->model.charaId == Chara_AirScreamer ||
+                                    npc->model.charaId == Chara_Groaner ||
+                                    npc->model.charaId == Chara_LarvalStalker);
                 /* No render-only set — kept as opt-out for any future NPC that
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;

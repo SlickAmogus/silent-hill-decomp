@@ -1117,6 +1117,46 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                       (g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_0 < 3 ? g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_1 : 0)) *
                      ptr->field_0.field_2C / ptr->field_140;
 
+#ifdef SH_PC_PORT
+    /* PC: clamp the blood-drop half-size on BOTH sides.
+     * Initial findings: log showed field_14C= -84049 (huge NEGATIVE)
+     * — comes through as 0xFFFEB7AF when cast to u16 in setXY*Fast,
+     * producing wildly wrong quad vertices that span the whole screen.
+     * That's the giant black/blue walls/clouds the user kept seeing.
+     * The formula `(numerator) * field_2C / field_140` produces
+     * negatives when `field_2C` (PSX's H register / focal-length-ish)
+     * is computed differently on PC — overflow from intermediate
+     * (numerator * field_2C) likely flipping sign for high z values.
+     * Cap absolute size at 80 either way. Skip the prim entirely when
+     * it would have to be clamped a LOT (>1000 absolute) — those are
+     * pure garbage values, not legit close-camera splats. */
+    {
+        static int _bloodSizeLogN = 0;
+        s32 _origSize = ptr->field_14C;
+        s32 _abs = (_origSize < 0) ? -_origSize : _origSize;
+        if (_abs > 1000) {
+            if (_bloodSizeLogN < 30) {
+                SH_DBG("[BLOOD-SIZE] func_80060044 idx=%d SKIP runaway field_14C=%d (z=%d xy=%d,%d color=%d)",
+                       (int)idx, (int)_origSize,
+                       (int)ptr->field_140, (int)ptr->field_144.vx, (int)ptr->field_144.vy,
+                       (int)g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2);
+                _bloodSizeLogN++;
+            }
+            return false;  /* skip emit — garbage size is the bug */
+        }
+        if (_abs > 80) {
+            if (_bloodSizeLogN < 30) {
+                SH_DBG("[BLOOD-SIZE] func_80060044 idx=%d clamped field_14C=%d→80 (z=%d xy=%d,%d color=%d)",
+                       (int)idx, (int)_origSize,
+                       (int)ptr->field_140, (int)ptr->field_144.vx, (int)ptr->field_144.vy,
+                       (int)g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2);
+                _bloodSizeLogN++;
+            }
+            ptr->field_14C = (_origSize < 0) ? -80 : 80;
+        }
+    }
+#endif
+
     setPolyFT4(*poly);
 
     setXY0Fast(*poly, (u16)ptr->field_144.vx - (u16)ptr->field_14C, ptr->field_144.vy - ptr->field_14C);
@@ -1762,6 +1802,45 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         (*poly)->b0         = ptr->field_12C.b;
 
 #ifdef SH_PC_PORT
+        /* Red-bias + tpage fix for the ground-decal blood. Two issues
+         * the PSX 3-prim emit hid that surface in our single-prim PC
+         * simplification:
+         *   1. tpage is set at line 1791 via the u1-word write to 0x4B
+         *      (some other texture page), then OVERRIDDEN later in the
+         *      PSX path at `(*poly)->tpage = 0x2B` after the struct
+         *      copy. We dropped the struct copy and the override along
+         *      with it, so the prim sampled from page 0x4B and blood
+         *      rendered as an unrelated bluish texture (user reported
+         *      "blood is still blue"). Restore the override.
+         *   2. func_80055A90 fog-blends the color toward fogColor
+         *      → near-black in dark areas. Bias toward red so the
+         *      texture-modulated blood is actually visible as red. */
+        (*poly)->tpage = 0x2B;
+        (*poly)->clut  = (g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
+        {
+            static int _decalLogN = 0;
+            if (_decalLogN < 30) {
+                SH_DBG("[BLOOD-DECAL] func_800611C0 idx=%d origRGB=(%d,%d,%d) bucket=%d field_158=%d color_idx=%d",
+                       (int)idx, (int)ptr->field_12C.r, (int)ptr->field_12C.g, (int)ptr->field_12C.b,
+                       (int)(ptr->field_158 >> 3), (int)ptr->field_158,
+                       (int)g_MapOverlayHeader.unkTable1_4C[idx].field_C.s_1.field_2);
+                _decalLogN++;
+            }
+            {
+                int r = (int)ptr->field_12C.r + 96;
+                int g = (int)ptr->field_12C.g >> 2;
+                int b = (int)ptr->field_12C.b >> 2;
+                if (r > 255) r = 255;
+                ptr->field_12C.r = (u8)r;
+                ptr->field_12C.g = (u8)g;
+                ptr->field_12C.b = (u8)b;
+            }
+            *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+            (*poly)->b0         = ptr->field_12C.b;
+        }
+#endif
+
+#ifdef SH_PC_PORT
         /* PC simplification: emit a single POLY_FT4 instead of the PSX
          * 3-prim layered layout. The original used a struct copy
          * `*(*poly + 2) = *(*poly + 1) = **poly` that propagated the
@@ -2099,6 +2178,63 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
             {
                 func_80055A90(&ptr->field_12C, &ptr->field_130, temp_s2, ptr->field_20C * 0x10);
+
+#ifdef SH_PC_PORT
+                /* PC: simplified single-prim emit (matching state-1 / state-2
+                 * fixes). The PSX 3-prim layered emit
+                 *   *(*poly + 2) = *(*poly + 1) = **poly;
+                 *   addPrim(...); addPrim(... +1); addPrim(... +2);
+                 * was the persistent OT0 corruption source on PC. The
+                 * struct copy pulls poly[0]'s tag bytes (uninitialized
+                 * packet-buffer junk before the first addPrim) into
+                 * poly[1] and poly[2]; subsequent addPrim setaddr writes
+                 * the head pointer correctly but a downstream walker can
+                 * land on a stale chain link if the second/third addPrim
+                 * sequence is interrupted by other code touching the
+                 * same OT bucket.
+                 *
+                 * In testing: state-3 cloud particles spawn around AS
+                 * death (and during knife hits) and this multi-prim emit
+                 * corrupted buckets near AS body — the OT0 sanitizer
+                 * dropped mid-distance buckets, vanishing world geometry
+                 * + Harry's upper-body bones whenever Harry walked near
+                 * the corpse. The user shipped a screenshot showing
+                 * Harry with no head/torso standing where AS died.
+                 *
+                 * Drop the layered + clut overlay; emit just one POLY_FT4
+                 * with the red-biased fog color. Visual is slightly less
+                 * blended but no longer trashes adjacent OT buckets. */
+                {
+                    int r = (int)ptr->field_12C.r + 96;
+                    int g = (int)ptr->field_12C.g >> 2;
+                    int b = (int)ptr->field_12C.b >> 2;
+                    if (r > 255) r = 255;
+                    ptr->field_12C.r = (u8)r;
+                    ptr->field_12C.g = (u8)g;
+                    ptr->field_12C.b = (u8)b;
+                }
+                *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+                (*poly)->b0         = ptr->field_12C.b;
+
+                {
+                    static int _cloudLogN = 0;
+                    if (_cloudLogN < 30) {
+                        SH_DBG("[BLOOD-CLOUD] func_80062708 idx=%d biasedRGB=(%d,%d,%d) bucket=%d (field_20C=%d var_s7=%d)",
+                               (int)idx, (int)ptr->field_12C.r, (int)ptr->field_12C.g, (int)ptr->field_12C.b,
+                               (int)((ptr->field_20C + var_s7) >> 3),
+                               (int)ptr->field_20C, (int)var_s7);
+                        _cloudLogN++;
+                    }
+                }
+
+                {
+                    s32 _bucket = (ptr->field_20C + var_s7) >> 3;
+                    if (_bucket < 0) _bucket = 0;
+                    if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+                }
+                *poly = *poly + 1;
+#else
                 *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
                 (*poly)->b0         = ptr->field_12C.b;
 
@@ -2109,33 +2245,12 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 *(u16*)&(*poly + 1)->r0           = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0                   = ptr->field_130.b;
 
-#ifdef SH_PC_PORT
-                /* Bounds-clamp OT bucket. The early-return guard at the
-                 * top of this function checks `field_20C >> 3 < OT_SIZE`
-                 * but addPrim here uses `(field_20C + var_s7) >> 3` —
-                 * var_s7 can be 0x100 (256) on normal path or 0xC (12)
-                 * on death — pushing the index past 2047 even when the
-                 * guard passed. Same OOB class as func_80060044 was;
-                 * different particle path (this one fires when knife
-                 * hits AS — `func_800622B8(3,...)` → slot 3 → here).
-                 * The bad nextPtr 0x...2E4E4349 ASCII-pattern in the
-                 * recent log decodes to POLY_FT4 vertex bytes from
-                 * this prim landing in another OT entry's addr field. */
-                {
-                    s32 _bucket = (ptr->field_20C + var_s7) >> 3;
-                    if (_bucket < 0) _bucket = 0;
-                    if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 1);
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly + 2);
-                }
-#else
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly);
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly + 1);
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_20C + var_s7) >> 3], *poly + 2);
-#endif
 
                 *poly = *poly + 3;
+#endif
             }
             else
             {

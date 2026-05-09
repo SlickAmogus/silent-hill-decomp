@@ -1555,7 +1555,17 @@ u8 sharedData_800F00EC_2_s00[256] = {0};
 u8 sharedData_800F0268_2_s00[256] = {0};
 u8 sharedData_800F03A8_2_s00[256] = {0};
 u8 sharedData_800F04C0_2_s00[256] = {0};
-u8 sharedData_800F06D4_2_s00[256] = {0};
+/* sharedData_800F06D4_2_s00 is the s_BgmLayerLimits array passed to
+ * Bgm_Update from Map_RoomBgmInit_2_s00.h. The first 8 bytes are layer
+ * limits (0..128, where the layer's volume gets multiplied by limit/128
+ * at bgm_update.c:273). Stubbed to {0} silenced ALL BGM in map2_s00
+ * because every layer's effective limit was 0. Initialise the first 8
+ * to 128 (matching g_Bgm_LayerLimits default) so the streets BGM track
+ * (bgmIdx_14=6) actually plays. */
+u8 sharedData_800F06D4_2_s00[256] = {
+    128, 128, 128, 128, 128, 128, 128, 128, /* 8 layer limits */
+    /* rest stays 0 */
+};
 u8 sharedData_800F216C_2_s00[256] = {0};
 u8 sharedData_800F217C_2_s00[256] = {0};
 u8 sharedData_800F21BC_2_s00[256] = {0};

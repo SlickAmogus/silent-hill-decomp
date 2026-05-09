@@ -455,6 +455,33 @@ void SysState_GamePaused_Update(void) // 0x800391E8
      * Other gameplay sub-states that should pause the world (paper-map
      * screen, cutscene borders, various event states) already do this. */
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+
+    /* PC: render the world while paused. SysState_GamePaused_Update on PSX
+     * relied on the framebuffer surviving from the previous frame — PSX did
+     * not auto-clear, so the last InGame render stayed on screen and we just
+     * drew "PAUSED" text on top. PsyCross with double-buffering + per-frame
+     * GsSortClear does NOT preserve the previous frame, so without an explicit
+     * world render here pause looks like a solid gray screen with PAUSED text.
+     *
+     * Drive a world render once per pause frame: same path that SysState_Gameplay_Update
+     * runs, but SKIP every update path (camera, player, particles, NPCs).
+     * Charas + chunks are at their last update state — re-rendering them is
+     * safe because none of their update timers tick during pause. */
+    {
+        Ipd_CloseRangeChunksInit();
+        Gfx_InGameDraw(1);
+
+        /* Re-render Harry (and his held weapon). Without this Harry vanishes
+         * on the pause frame because his bone matrices need the per-frame
+         * func_8003DA9C call to push prims into the OT. We can't invoke the
+         * full character-update loop (it'd unfreeze him); just push the
+         * render-side call with the state from the last gameplay tick.
+         * (func_8003DA9C signature comes from bodyprog/bodyprog.h.) */
+        if (g_SysWork.playerWork.player.model.anim.flags & AnimFlag_Visible) {
+            func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1,
+                          g_SysWork.playerWork.player.timer_C6, 0);
+        }
+    }
 #endif
 
     D_800A9A68 += g_DeltaTimeRaw;

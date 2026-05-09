@@ -984,14 +984,18 @@ void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
     s32 tile_y_s1;
     POLY_FT4* poly;
 
-    /* Original PSX values: { -160 }*4 X starts and { -240 }*3 Y starts.
-     * The Y starts at -240 because the PSX map screen ran in interlaced
-     * mode (320x480 effective), so prims were emitted in 0..480 doubled-Y
-     * space. PC PsyCross has no interlace; the ortho is 240-tall. With
-     * the PSX values, only ~half the map shows because Y range -240..272
-     * overflows the 0..240 ortho. Halve the start to -120 so prims fit. */
+    /* Original PSX values restored: { -160 }*4 X starts, { -240 }*3 Y starts.
+     * PSX runs the map screen in interlaced mode (320x480 effective);
+     * PsyCross's interlace handling honors the doubled Y so emitting at
+     * -240..+240 maps to the visible 240-tall display correctly when
+     * Screen_Init was called with isInterlaced=true (see line 254 +
+     * line 664). My earlier halve to -120 + <<12 stride introduced
+     * letterbox bars because it left the V/2 texture offset and y_arg1
+     * unhalved, so total Y span fell short of the screen. Reverting to
+     * the original PSX values fixes the bar issue (user confirmed the
+     * first drop-in revision had no bars). */
     s16 D_80028B2C[] = { -160, -160, -160, -160 };
-    s16 D_80028B34[] = { -120, -120, -120 };
+    s16 D_80028B34[] = { -240, -240, -240 };
 
     /* Bounds of the scaled 320x240 image in screen space. */
     right_edge_sp28  = Q12_MULT_PRECISE(scale_arg2, 320) + x_arg0 - 1;
@@ -1031,12 +1035,14 @@ void func_800692A4(u16 x_arg0, u16 y_arg1, u16 scale_arg2) // 0x800692A4
             y_relative_t0 = clamped_top_t4 - (tile_y_s1 * 128);
 
             D_80028B2C[tile_x_s8 + 1] = D_80028B2C[tile_x_s8] + ((clamped_right_sp88 << 0xC) / scale_arg2);
-            /* PC: use << 12 stride for Y (matching X), not the PSX
-             * << 13 stride that doubled Y for interlaced mode. With
-             * progressive ortho, the doubled Y stride pushed each tile
-             * to be 256 tall instead of 128, overflowing the 240-tall
-             * ortho and visually showing only ~half the map. */
-            D_80028B34[tile_y_s1 + 1] = D_80028B34[tile_y_s1] + ((clamped_bottom_sp80 << 12) / scale_arg2);
+            /* Restored PSX <<13 Y stride (matches Y starts at -240). The
+             * earlier <<12 halve combined with -120 starts left letterbox
+             * bars on PC because the V/2 texture offset and y_arg1 weren't
+             * also halved → total Y span fell short of the visible area.
+             * Original PSX values render correctly via PsyCross interlaced
+             * handling — Screen_Init(SCREEN_WIDTH, true) is called before
+             * func_800692A4 in every map-draw path. */
+            D_80028B34[tile_y_s1 + 1] = D_80028B34[tile_y_s1] + ((clamped_bottom_sp80 << 0xD) / scale_arg2);
 
             setPolyFT4(poly);
 

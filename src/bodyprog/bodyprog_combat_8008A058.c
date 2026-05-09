@@ -1681,12 +1681,33 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             if (var_a3 >= 0)
             {
 #ifdef SH_PC_PORT
-                SH_DBG("[B714] calling F6B0: target=%p(id=%d) var_a2=%d var_a3=%d",
-                       (void*)target, target->model.charaId, var_a2, var_a3);
-#endif
+                /* Skip F6B0 when target is already dead. Log shows
+                 * Harry can keep slashing AS body after death (player
+                 * stays in attack anim near corpse, attackReceived=10
+                 * each frame, target->health=0). Each F6B0 call spawns
+                 * 2-3 state-1 blood particles + 1 ground decal. With
+                 * the corpse collapsed near camera the particle z gets
+                 * very small and the sizing math overflows producing
+                 * giant garbage prims (logged field_14C=-84049). That
+                 * was the source of the giant black/blue walls AND the
+                 * OT corruption around the body. Skip the spawn entirely
+                 * when target is already <= 0 HP — no point spraying
+                 * blood from a corpse anyway. */
+                if (target->health <= Q12(0.0f) && target->model.charaId != Chara_Harry) {
+                    static int _deadSkipLogN = 0;
+                    if (_deadSkipLogN < 30) {
+                        SH_DBG("[B714] SKIP F6B0: target dead id=%d health=%d (was about to call F6B0 var_a2=%d var_a3=%d)",
+                               (int)target->model.charaId, (int)target->health, (int)var_a2, (int)var_a3);
+                        _deadSkipLogN++;
+                    }
+                } else {
+                    SH_DBG("[B714] calling F6B0: target=%p(id=%d) var_a2=%d var_a3=%d",
+                           (void*)target, target->model.charaId, var_a2, var_a3);
+                    func_8005F6B0(target, arg2, var_a2, var_a3);
+                    SH_DBG("[B714] F6B0 returned");
+                }
+#else
                 func_8005F6B0(target, arg2, var_a2, var_a3);
-#ifdef SH_PC_PORT
-                SH_DBG("[B714] F6B0 returned");
 #endif
             }
         }
