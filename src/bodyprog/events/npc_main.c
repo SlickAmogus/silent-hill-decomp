@@ -106,6 +106,32 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     groupCharaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
     groupCharaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
 
+#ifdef SH_PC_PORT
+    /* Spawn diagnostic state. _spawnNearLogged[] holds the last logged
+     * near/far state per slot (1=far, 2=near). On map change we reset it
+     * so the new map's spawns log fresh on first encounter, and we keep
+     * a periodic "closest spawn distance" tick so we can see if the
+     * player is approaching ANY spawn at all over time. */
+    static u8  _spawnNearLogged[64] = { 0 };
+    static s8  _spawnLastMapId      = -1;
+    static u32 _spawnTickCounter    = 0;
+    if (_spawnLastMapId != g_SavegamePtr->mapOverlayId_A4) {
+        memset(_spawnNearLogged, 0, sizeof(_spawnNearLogged));
+        _spawnLastMapId = g_SavegamePtr->mapOverlayId_A4;
+        _spawnTickCounter = 0;
+        SH_DBG("[SPAWN-GATE] map changed → mapId=%d, resetting spawn-state cache",
+               (int)_spawnLastMapId);
+    }
+    /* Tick-throttled "closest spawn" log every ~5s so we can observe player
+     * approach. Computed during the loop below — capture nearest distance. */
+    s32 _closestDist  = 0x7FFFFFFF;
+    s32 _closestSlot  = -1;
+    s32 _closestX     = 0;
+    s32 _closestZ     = 0;
+    s8  _closestFlags = 0;
+    int _shouldTickLog = (++_spawnTickCounter % 300 == 0); /* ~5s @60fps */
+#endif
+
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
         if (g_SysWork.npcFlags == ((1 << g_SysWork.npcFlagsId) - 1)) // TODO: Macro for this check?
@@ -121,8 +147,20 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * could pass). Logs once per (slot, near/far transition) to avoid
          * spam while still capturing the moment a spawn would activate. */
         if (curCharaSpawn->flags_6 != 0) {
-            static u8 _spawnNearLogged[64] = { 0 };
-            int gate7 = !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f));
+            VECTOR3* pp = &g_SysWork.playerWork.player.position;
+            int gate7 = !Math_Distance2dCheck(pp, pos, Q12(22.0f));
+            /* Track closest non-empty slot for the periodic tick log. */
+            s32 dx = pp->vx - curCharaSpawn->positionX_0;
+            s32 dz = pp->vz - curCharaSpawn->positionZ_8;
+            /* Q12 squared-distance — keep it as squared to avoid sqrt cost. */
+            s32 distSq = (s32)(((s64)dx * dx + (s64)dz * dz) >> 12);
+            if (distSq < _closestDist) {
+                _closestDist  = distSq;
+                _closestSlot  = i;
+                _closestX     = curCharaSpawn->positionX_0;
+                _closestZ     = curCharaSpawn->positionZ_8;
+                _closestFlags = curCharaSpawn->flags_6;
+            }
             /* Only re-log on transitions: far→near (gate7 went 0→1) or
              * if first time this slot ever evaluated. */
             u8 prevState = _spawnNearLogged[i];
@@ -133,8 +171,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
                 int gate3 = !HAS_FLAG(g_SysWork.field_228C, i) ? 1 : 0;
                 int gate5 = (g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0);
                 int gate6 = func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) ? 1 : 0;
-                int gate8 = (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)));
-                VECTOR3* pp = &g_SysWork.playerWork.player.position;
+                int gate8 = (!cond || Math_Distance2dCheck(pp, pos, Q12(20.0f)));
                 SH_DBG("[SPAWN-GATE] slot=%d %s spawn=(%d,%d) player=(%d,%d) flags=%d diff=%d/%d cond=%d g1=%d g2=%d g3=%d g5=%d g6=%d g7=%d g8=%d",
                        i, gate7 ? "NEAR" : "far",
                        (int)curCharaSpawn->positionX_0, (int)curCharaSpawn->positionZ_8,
@@ -196,6 +233,27 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 #endif
         }
     }
+
+#ifdef SH_PC_PORT
+    /* Periodic tick log: every ~5 seconds, dump player position and the
+     * closest non-empty spawn slot. Lets us trace whether the player is
+     * actually approaching ANY spawn while wandering, even when no slot
+     * crosses the 22u trigger. Helps diagnose "streets are empty" — if
+     * closestDist stays > 22 forever, the player just hasn't walked
+     * close enough yet (or is blocked from doing so). */
+    if (_shouldTickLog && _closestSlot >= 0) {
+        VECTOR3* pp = &g_SysWork.playerWork.player.position;
+        /* _closestDist is squared in Q12 already; rough sqrt for log
+         * readability — log it as squared too so we don't pull in
+         * SquareRoot12 from here. */
+        SH_DBG("[SPAWN-TICK] mapId=%d player=(%d,%d) closestSlot=%d at=(%d,%d) flags=%d distSq_q12=%d (radius_q12=%d)",
+               (int)g_SavegamePtr->mapOverlayId_A4,
+               (int)pp->vx, (int)pp->vz,
+               (int)_closestSlot, (int)_closestX, (int)_closestZ,
+               (int)_closestFlags, (int)_closestDist,
+               (int)(Q12(22) * Q12(22) >> 12));
+    }
+#endif
 }
 
 void Game_NpcUpdate(void) // 0x80038354
