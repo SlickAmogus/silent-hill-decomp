@@ -727,7 +727,36 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
         for (curChara = charas; curChara < &charas[charaCount]; curChara++)
         {
             chara  = *curChara;
+#ifdef SH_PC_PORT
+            /* Air Screamer collision push-radius cap. AS code sets its
+             * own field_D4.radius_0 directly (air_screamer.c:13411 sets
+             * Q12(1.5f) — the wingspan). The keyframe-driven cap I put
+             * in func_80070400 doesn't apply because AS bypasses that
+             * codepath and writes the radius itself. Cap at the COLLISION
+             * READ site so AS's internal "is Harry near my hitbox?"
+             * distance checks (which legitimately use the wingspan)
+             * still see the original value, but the push-collision sphere
+             * uses a smaller value. AS's bite cone uses BF84 separately
+             * so attacks still register. Q12(0.5f) ≈ Stalker-class push.
+             * Log first 20 cap firings to tune. */
+            q19_12 _origRad = chara->field_D4.radius_0;
+            q19_12 _useRad  = _origRad;
+            if ((chara->model.charaId == Chara_AirScreamer ||
+                 chara->model.charaId == Chara_NightFlutter) &&
+                _origRad > Q12(0.5f))
+            {
+                _useRad = Q12(0.5f);
+                static int _capLogN = 0;
+                if (_capLogN < 20) {
+                    SH_DBG("[AS-COLL] read-site cap charaId=%d orig=%d → %d",
+                           (int)chara->model.charaId, (int)_origRad, (int)_useRad);
+                    _capLogN++;
+                }
+            }
+            var_a0 = (_useRad >> 4) + collState.field_4.field_28;
+#else
             var_a0 = (chara->field_D4.radius_0 >> 4) + collState.field_4.field_28;
+#endif
 
             if (chara->field_E1_0 < (u32)collState.field_4.field_0)
             {
@@ -4022,6 +4051,39 @@ void func_80070400(s_SubCharacter* chara, s_Keyframe* keyframe0, s_Keyframe* key
     chara->field_D8.offsetX_0 = FP_FROM((keyframe0->field_C * invAlpha) + (keyframe1->field_C * alpha), Q12_SHIFT);
     chara->field_D8.offsetZ_2 = FP_FROM((keyframe0->field_E * invAlpha) + (keyframe1->field_E * alpha), Q12_SHIFT);
     chara->field_D4.field_2   = FP_FROM((keyframe0->field_A * invAlpha) + (keyframe1->field_A * alpha), Q12_SHIFT);
+
+#ifdef SH_PC_PORT
+    /* Air Screamer collision-orb cap. AS's anim keyframes encode a wide
+     * radius (probably the full wingspan) which on PC manifests as a
+     * giant invisible "orb" around the bird that blocks Harry from
+     * squeezing past. The same radius is used for push-collision AND
+     * sphere overlap checks but NOT for attack hit detection (that goes
+     * through BF84 with cone params), so capping the push radius is
+     * safe — AS bites can still register through the cone collision
+     * path. User reported the orb pushed Harry around the room without
+     * landing actual hits.
+     *
+     * Cap at Q12(0.5f) — a typical chara push radius (cf. map7_s03
+     * Stalker variants at 0.3-0.5). Apply to AS-class enemies only
+     * so other big enemies (Floatstinger, Twinfeeler) are not affected
+     * unless symptoms surface there too. Log first 20 cap firings so
+     * we can see how often the original radius would have applied. */
+    if (chara->model.charaId == Chara_AirScreamer ||
+        chara->model.charaId == Chara_NightFlutter)
+    {
+        const q19_12 _maxR = Q12(0.5f);
+        if (chara->field_D4.radius_0 > _maxR) {
+            static int _capLogN = 0;
+            if (_capLogN < 20) {
+                SH_DBG("[AS-COLL] radius cap charaId=%d orig=%d → %d (kf0.f8=%d kf1.f8=%d alpha=%d)",
+                       (int)chara->model.charaId, (int)chara->field_D4.radius_0, (int)_maxR,
+                       (int)keyframe0->field_8, (int)keyframe1->field_8, (int)alpha);
+                _capLogN++;
+            }
+            chara->field_D4.radius_0 = _maxR;
+        }
+    }
+#endif
 }
 
 void func_800705E4(GsCOORDINATE2* coord, s32 idx, q19_12 scaleX, q19_12 scaleY, q19_12 scaleZ) // 0x800705E4

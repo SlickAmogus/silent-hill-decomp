@@ -8469,6 +8469,107 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     sharedFunc_800D598C_0_s01(airScreamer);
 
 #ifdef SH_PC_PORT
+    /* PC: force forward target speed during the swoop bite. The
+     * accel-into-moveSpeed integration in sharedFunc_800D6EC4 reads
+     * field_B4[0][2] (target). cs=46 (this control function) doesn't
+     * write the target field anywhere — it relies on a chain of helpers
+     * that on PSX walked through sharedData_800CAA98_0_s01.field_380[N]
+     * to seed the accel/target pair, but on PC the rodata reformatter
+     * leaves field_380[2][0] (target speed) at 0 even though
+     * field_380[2][1] (accel) is correctly populated to 20480. Net effect:
+     * accel is 20480, target=0, integrator approaches 0 from 0 = no
+     * motion. AS animates the swoop in place, never reaches Harry.
+     *
+     * Override: when in the active swoop window (stateStep 1/2/3 with
+     * HoverBiteAttack anim), write a positive target speed directly.
+     * 8192 = Q12(2.0f) matches the cs=47 (hover-follow) target observed
+     * in the [ASMOV] log, which is a known-good forward speed. */
+    if ((airScreamer->model.stateStep == AirScreamerStateStep_1 ||
+         airScreamer->model.stateStep == AirScreamerStateStep_2 ||
+         airScreamer->model.stateStep == AirScreamerStateStep_3) &&
+        ANIM_STATUS(ANIM_STATUS_IDX_GET(animStatus), true) ==
+            ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true))
+    {
+        static int _swoopSpdLogN = 0;
+        if (_swoopSpdLogN < 30) {
+            SH_DBG("[ASMOV-FIX] swoop forcing: pre B4_0_2=%d B4_0_1=%d B4_0_0=%d B4_0_3=%d step=%d kf=%d moveSpd=%d",
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][2],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][1],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][0],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][3],
+                   (int)airScreamer->model.stateStep,
+                   (int)airScreamer->model.anim.keyframeIdx,
+                   (int)airScreamer->moveSpeed);
+            _swoopSpdLogN++;
+        }
+        /* Force smooth integrator mode (sharedFunc_800D7120) and target=Q12(2.0f).
+         * sharedFunc_800D598C unconditionally sets [0][0]=1 every frame, which
+         * would route through 71F0 brake-mode and cap target to ~1 because
+         * [0][3] (brake distance) is 0. Override [0][0]=0 every frame to ensure
+         * smooth ramp toward target. */
+        sharedData_800E21D0_0_s01.field_B4[0][0] = 0;
+        sharedData_800E21D0_0_s01.field_B4[0][2] = Q12(2.0f);
+        sharedData_800E21D0_0_s01.field_B4[0][1] = Q12(5.0f); /* accel = 20480 */
+
+        /* PC: direct-translate AS toward Harry every swoop frame on top of
+         * the normal moveSpeed→position pipeline. AS-HIT log shows the
+         * vanilla path closes ~30 raw Q12 units/frame which is slower than
+         * Harry's run (~37/frame), so AS never catches a moving player.
+         * Adding a constant delta of Q12(0.10f) per frame in the
+         * AS-toward-Harry direction (≈410 raw units/frame) overrides the
+         * speed deficit cleanly without disabling collision (so AS still
+         * stops at walls / ceilings).  Y axis is left to the normal
+         * fallSpeed path; this only fixes the XZ plane closing. */
+        {
+            VECTOR3* hp = &g_SysWork.playerWork.player.position;
+            s32 dx = hp->vx - airScreamer->position.vx;
+            s32 dz = hp->vz - airScreamer->position.vz;
+            s32 distSqr = (s32)((s64)dx * dx + (s64)dz * dz >> 12);
+
+            /* Always rotate AS to face Harry during the swoop so the
+             * 180° cone actually points at him. Without this AS commits
+             * to its starting yaw and Harry can be way off-axis by the
+             * time the cone fires (log showed Harry at angle -81° from
+             * AS while cone faced +167°, so cone never connected). PSX
+             * vanilla likely committed yaw on swoop entry and missed
+             * if Harry dodged; tracking continuously is more aggressive
+             * but reliably lands hits. */
+            airScreamer->rotation.vy = ratan2(dx, dz);
+
+            /* Only translate while AS is FAR from Harry. Outer ring (>Q12(2.0f))
+             * gets a forward push so AS visibly approaches; inside Q12(2.0f)
+             * the nudge stops so AS doesn't overshoot and shove Harry around
+             * via collision overlap. The vanilla cone-collision damage path
+             * fires inside that radius, so we don't need to keep closing. */
+            if (distSqr > Q12(4.0f) /* 2.0f * 2.0f */)
+            {
+                s32 dist = SquareRoot12(distSqr);
+                if (dist > 0)
+                {
+                    s32 nx = (s32)(((s64)dx << 12) / dist);
+                    s32 nz = (s32)(((s64)dz << 12) / dist);
+                    /* Q12(0.10f) ≈ 0.1 world units/frame ≈ 3 world units/sec.
+                     * Slower than Harry's run, but combined with the cone hit
+                     * window's Q12(0.6f) reach it's enough to land bites when
+                     * Harry isn't actively running away. Goal: PSX-shaped
+                     * approach, not a homing missile. */
+                    s32 step = Q12(0.10f);
+                    airScreamer->position.vx += (s32)((s64)nx * step >> 12);
+                    airScreamer->position.vz += (s32)((s64)nz * step >> 12);
+                    static int _nudgeLogN = 0;
+                    if (_nudgeLogN < 30) {
+                        SH_DBG("[ASMOV-NUDGE] dx=%d dz=%d dist=%d step=%d → ASpos=(%d,%d,%d)",
+                               (int)dx, (int)dz, (int)dist, (int)step,
+                               (int)airScreamer->position.vx,
+                               (int)airScreamer->position.vy,
+                               (int)airScreamer->position.vz);
+                        _nudgeLogN++;
+                    }
+                }
+            }
+        }
+    }
+
     /* PC: damage application during the swoop (HoverBiteAttack).
      * The AS file is the only enemy that doesn't call func_8008A0E4
      * (the bodyprog cone-attack dispatcher used by every other enemy).
@@ -8489,42 +8590,125 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
             airScreamer->model.stateStep == AirScreamerStateStep_3)
         {
             VECTOR3 _bitePos;
-            /* Reset field_44.field_0 sentinel before each call.
-             * func_8008A3E0 (called inside A0E4) early-returns when
-             * field_0 == 0 OR == NO_VALUE (-1). Once an AS attack
-             * "completes" internally, field_0 is set to NO_VALUE and
-             * survives across frames — the func_8008A0E4 prologue does
-             * NOT reset it because the (!var_t1) branch fails when
-             * old value is -1 (truthy). Following the bloodsucker
-             * pattern (bloodsucker.c:299) — explicit field_0 = 1
-             * forces the cone-collision path to actually run on each
-             * dispatch, allowing the internal A3E0 → DA08/BF84 → B714
-             * chain to apply damage when Harry is in cone range. */
-            airScreamer->field_44.field_0 = 1;
+            /* Arm the cone-collision sentinel + apply proximity-based
+             * fallback damage. The vanilla cone-collision (A0E4→A3E0→BF84
+             * →B714) frequently fails to land hits on PC: log shows f44.f0
+             * stays at 3 throughout the swoop with no transition to -1
+             * (the "consumed" state), and Harry's HP never drops despite
+             * AS being adjacent. Best guess: collision push-back keeps AS
+             * outside the cone's effective reach, or the bite radius in
+             * the Unk69 profile is too small for the actual AS-Harry gap.
+             *
+             * PC fallback: if AS is within Q12(1.5f) of Harry during the
+             * active swoop hit window (kf 12-18), subtract Q12(15.0f) HP
+             * directly. HP-delta lockout ensures one hit per swoop —
+             * once HP drops (from any source), no further AS damage this
+             * swoop. State-transition into swoop re-arms for next bite. */
+            {
+                static u8  _asPrevSwoopStep   = 0;
+                static u8  _asDamagedThisSwoop = 0;
+                static s32 _asPrevHarryHP     = -1;
+                u8 curStep = airScreamer->model.stateStep;
+                u8 prevWasSwoop = (_asPrevSwoopStep == AirScreamerStateStep_1 ||
+                                   _asPrevSwoopStep == AirScreamerStateStep_2 ||
+                                   _asPrevSwoopStep == AirScreamerStateStep_3);
+                s32 curHp = g_SysWork.playerWork.player.health;
+
+                /* Reset damage flag on swoop entry. */
+                if (!prevWasSwoop) {
+                    _asDamagedThisSwoop = 0;
+                }
+
+                /* HP-delta lockout: any HP drop locks out further hits
+                 * this swoop (covers both vanilla cone hits AND the
+                 * proximity fallback below). */
+                if (_asPrevHarryHP > 0 && curHp < _asPrevHarryHP &&
+                    !_asDamagedThisSwoop) {
+                    _asDamagedThisSwoop = 1;
+                }
+
+                /* Re-arm vanilla cone-collision each frame until damage. */
+                if (!_asDamagedThisSwoop) {
+                    airScreamer->field_44.field_0 = 1;
+                }
+
+                /* PC proximity hit + reaction. The PC port skips
+                 * Player_LowerBodyUpdate (player_control.c:1571) which is
+                 * where the damage state machine lives, so just setting
+                 * damage.amount_C never triggers a visible hit reaction.
+                 * Apply state transition, HP deduction, and hurt sound
+                 * directly here. */
+                {
+                    s_SubCharacter* pl = &g_SysWork.playerWork.player;
+                    VECTOR3* hp = &pl->position;
+                    s32 dxh = hp->vx - airScreamer->position.vx;
+                    s32 dzh = hp->vz - airScreamer->position.vz;
+                    s32 distSqr = (s32)((s64)dxh * dxh + (s64)dzh * dzh >> 12);
+                    s32 kf = airScreamer->model.anim.keyframeIdx;
+                    if (!_asDamagedThisSwoop &&
+                        distSqr < Q12(2.25f) /* 1.5f * 1.5f */ &&
+                        kf >= 12 && kf <= 18)
+                    {
+                        s_PlayerExtra* px = &g_SysWork.playerWork.extra;
+                        s32 dmg = Q12(15.0f);
+                        /* HP deduction with difficulty scaling (mirrors the
+                         * skipped player_control.c:7779-7800 logic). */
+                        switch (g_SavegamePtr->gameDifficulty_260)
+                        {
+                            case GameDifficulty_Easy:   dmg = (dmg * 3) >> 2; break;
+                            case GameDifficulty_Normal:                       break;
+                            case GameDifficulty_Hard:   dmg = (dmg * 6) >> 2; break;
+                        }
+                        pl->health -= dmg;
+                        if (pl->health < Q12(0.0f))
+                            pl->health = Q12(0.0f);
+
+                        /* Force damage state — Harry recoils visibly. Pick
+                         * Front-torso since AS swoops in from above-ahead. */
+                        Player_ExtraStateSet(pl, px, PlayerState_DamageTorsoFront);
+                        pl->damage.amount_C = Q12(0.0f); /* consumed */
+                        pl->attackReceived  = NO_VALUE;
+
+                        /* Hurt sound (Harry's pain SFX; matches the bite
+                         * impact in vanilla). 0x67 = Sfx_HarryHurt typical. */
+                        SD_Call(0x0067);
+
+                        _asDamagedThisSwoop = 1;
+                        SH_DBG("[AS-HIT-PROX] hit landed kf=%d distSqr=%d dmg=%d postHP=%d (state→DamageTorsoFront)",
+                               (int)kf, (int)distSqr, (int)dmg, (int)pl->health);
+                    }
+                }
+
+                _asPrevSwoopStep = curStep;
+                _asPrevHarryHP   = curHp;
+            }
             _bitePos.vx = airScreamer->position.vx;
             _bitePos.vy = airScreamer->position.vy;
             _bitePos.vz = airScreamer->position.vz;
-            /* Use Unk69 (bloodsucker bite profile) instead of Unk31 — Unk31
-             * maps to D_800AD4C8[31] which is a NULL entry (Chara_None,
-             * field_10=0) so the cone-collision inner loop runs zero times
-             * (charaId=0 → for(j=0;j>0;j--) skips). Unk69 maps to a real
-             * "vs Harry" profile (field_9=Chara_Harry, field_10=6) used
-             * successfully by bloodsucker.c:301 to damage Harry. The
-             * actual damage values are derived from this entry, so AS
-             * will now apply bloodsucker-tier damage; tunable later. */
+            /* Use Unk69 (bloodsucker bite profile) — vs Harry. */
             hitRet = func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap),
                                    airScreamer, &_bitePos, &g_SysWork.playerWork.player,
                                    airScreamer->rotation.vy, Q12_ANGLE(180.0f));
-            if (_swoopLogN < 200) {
-                SH_DBG("[AS-HIT] C46 step=%d kf=%d animSt=0x%x f44.f0=%d f44.f8=%d hitRet=%d preHP=%d preDmg=%d",
+            if (_swoopLogN < 50) {
+                /* Log AS pos vs player pos so we can see if Harry is
+                 * actually inside the bite cone or if AS swoop is
+                 * mistargeting. dx/dz reveal the relative offset; the
+                 * bbox-reject bug shows up as "AS swoops past, BF84-NHP
+                 * keeps rejecting because Harry is outside cone angle". */
+                VECTOR3* pp = &g_SysWork.playerWork.player.position;
+                SH_DBG("[AS-HIT] C46 step=%d kf=%d animSt=0x%x f44.f0=%d hitRet=%d preHP=%d "
+                       "ASpos=(%d,%d,%d) yaw=%d HARRYpos=(%d,%d,%d) dx=%d dz=%d",
                        (int)airScreamer->model.stateStep,
                        (int)airScreamer->model.anim.keyframeIdx,
                        (unsigned)airScreamer->model.anim.status,
                        (int)airScreamer->field_44.field_0,
-                       (int)airScreamer->field_44.field_8,
                        (int)hitRet,
                        (int)g_SysWork.playerWork.player.health,
-                       (int)g_SysWork.playerWork.player.damage.amount_C);
+                       (int)airScreamer->position.vx, (int)airScreamer->position.vy, (int)airScreamer->position.vz,
+                       (int)airScreamer->rotation.vy,
+                       (int)pp->vx, (int)pp->vy, (int)pp->vz,
+                       (int)(pp->vx - airScreamer->position.vx),
+                       (int)(pp->vz - airScreamer->position.vz));
                 _swoopLogN++;
             }
         }
@@ -11425,11 +11609,38 @@ void sharedFunc_800D598C_0_s01(s_SubCharacter* airScreamer)
     element2 = ptr->field_380[7][0]; // Hardcoded 7 instead of `idx0`.
     element3 = ptr->field_380[7][1];
 
+#ifdef SH_PC_PORT
+    {
+        static int _598Clog = 0;
+        if (_598Clog < 12) {
+            SH_DBG("[598C] elem2=%d elem3=%d ptr=%p f380_7_0=%d f380_7_1=%d preB4_0_2=%d",
+                   (int)element2, (int)element3, (void*)ptr,
+                   (int)ptr->field_380[7][0], (int)ptr->field_380[7][1],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][2]);
+            _598Clog++;
+        }
+    }
+#endif
+
     idx3                                        = 0;
     sharedData_800E21D0_0_s01.field_B4[idx3][2] = element2;
     sharedData_800E21D0_0_s01.field_B4[idx3][1] = element3;
     sharedData_800E21D0_0_s01.field_B4[idx3][3] = 0;
     sharedData_800E21D0_0_s01.field_B4[idx3][0] = 1;
+
+#ifdef SH_PC_PORT
+    {
+        static int _598Cpost = 0;
+        if (_598Cpost < 12) {
+            SH_DBG("[598C-POST] B4_0_2=%d B4_0_1=%d B4_0_0=%d B4_0_3=%d",
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][2],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][1],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][0],
+                   (int)sharedData_800E21D0_0_s01.field_B4[0][3]);
+            _598Cpost++;
+        }
+    }
+#endif
 
     element4 = ptr->field_380[idx2][0];
     element5 = ptr->field_380[idx2][1];

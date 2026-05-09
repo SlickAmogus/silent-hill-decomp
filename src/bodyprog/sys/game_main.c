@@ -311,6 +311,75 @@ void DebugCamera_Update(void)
         prevKey5 = cur5;
     }
 
+    /* Number key 6: log Harry's current world position (works in any cam
+     * mode, not just TPS). Useful for capturing fall-through-floor or
+     * stuck-collision spots so we can build a fix from real coordinates. */
+    {
+        static int prevKey6 = 0;
+        int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
+        if (cur6 && !prevKey6) {
+            VECTOR3* p = &g_SysWork.playerWork.player.position;
+            SH_DBG("[POS-LOG] mapId=%d harryPos=(%ld,%ld,%ld) yaw=%d health=%ld fallSpeed=%ld",
+                (int)g_SavegamePtr->mapOverlayId_A4,
+                (long)p->vx, (long)p->vy, (long)p->vz,
+                (int)g_SysWork.playerWork.player.rotation.vy,
+                (long)g_SysWork.playerWork.player.health,
+                (long)g_SysWork.playerWork.player.fallSpeed);
+        }
+        prevKey6 = cur6;
+    }
+
+    /* Room-enter logging + Numpad 3 rescue-Y teleport.
+     *
+     * On room-index transition, snapshot Harry's current Y as the rescue
+     * target. Numpad 3 teleports vy back to that snapshot. We deliberately
+     * do NOT continuously refresh on fallSpeed==0 — fallSpeed momentarily
+     * hits 0 mid-fall (after collision detection fails and Harry teleports
+     * to a fall-through position), which would overwrite the safe Y with
+     * the very Y we want to escape from. The room-enter snapshot is the
+     * authoritative "last known good ground Y" and only updates on actual
+     * room boundaries. */
+    {
+        static s32 _lastSafeY      = 0;
+        static int _haveSafeY      = 0;
+        static s8  _prevRoomIdx    = -1;
+        static s8  _prevMapId      = -1;
+        static int prevKp3         = 0;
+
+        if (g_GameWork.gameState == GameState_InGame) {
+            VECTOR3*  p   = &g_SysWork.playerWork.player.position;
+            s_SubCharacter* pl = &g_SysWork.playerWork.player;
+            s8 curRoom    = g_SavegamePtr->mapRoomIdx_A5;
+            s8 curMap     = g_SavegamePtr->mapOverlayId_A4;
+
+            /* Snapshot rescue Y on map or room change. */
+            if (curMap != _prevMapId || curRoom != _prevRoomIdx) {
+                SH_DBG("[ROOM-ENTER] mapId=%d roomIdx=%d harryPos=(%ld,%ld,%ld) — saving Y=%ld as rescue target",
+                    (int)curMap, (int)curRoom,
+                    (long)p->vx, (long)p->vy, (long)p->vz, (long)p->vy);
+                _lastSafeY = p->vy;
+                _haveSafeY = 1;
+                _prevMapId   = curMap;
+                _prevRoomIdx = curRoom;
+            }
+
+            /* Numpad 3 (edge-detect): teleport vy to last safe Y. Always
+             * applies even if values match — fallSpeed=0 reset alone helps
+             * by interrupting the falling animation. */
+            int curKp3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
+            if (curKp3 && !prevKp3 && _haveSafeY) {
+                s32 oldY = p->vy;
+                p->vy = _lastSafeY;
+                pl->fallSpeed = 0;
+                SH_DBG("[RESCUE-Y] Numpad 3: vy %ld → %ld (X=%ld Z=%ld unchanged) mapId=%d roomIdx=%d",
+                    (long)oldY, (long)_lastSafeY,
+                    (long)p->vx, (long)p->vz,
+                    (int)curMap, (int)curRoom);
+            }
+            prevKp3 = curKp3;
+        }
+    }
+
     /* F-key debug hotkeys removed: F4 (handgun) was freezing controls and
      * the test map already has knife + pistol pickups, so the bindings
      * are unnecessary here. Re-add when an in-progress later-map test
@@ -458,6 +527,40 @@ void DebugCamera_Update(void)
                 .posDelta   = { -1818, 612, -252 },
                 .yawDelta   = -72,
                 .pitchDelta = 3774,
+            },
+            /* map2_s00 cafe Bachman corner near KeyOfWoodman pickup — user
+             * logged BAD/GOOD pair from SilentHill.log: BAD had pitchN=0
+             * (camera tilted up at ceiling), GOOD had pitchN=-26112
+             * (camera tilts down to frame Harry). Harry's pos at the
+             * freeze: (-781992, 0, 1543104). The camera at this scene
+             * has lookAt.vy=+2048 by default — adding pitchDelta=-26112
+             * shifts look.vy to -24064 in +Y=up convention so camera
+             * pitches downward to look at Harry. radius ≈ 4m (this is a
+             * fairly large interior so the same fixed-cam shot covers a
+             * wide area in cafe). */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { -781992, 0, 1543104 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 0, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -26112,
+            },
+            /* map2_s00 alleyway — user logged BAD vs GOOD pair: camera was
+             * "way too far up" through the whole alley. Default cam needs
+             * to drop Y by 3927 and pitch DOWN by 7956 (PSX +Y = down, so
+             * positive posY pushes cam down; negative pitch pushes lookAt
+             * up so cam pitches down to look at Harry). Generous radius
+             * because the alleyway is long; same fixed-cam shot covers a
+             * decent stretch. If parts of the alley still need different
+             * tuning, add more rows. */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { 232058, 0, 402043 },
+                .radius2    = (s32)((s64)Q12(6.0f) * Q12(6.0f) >> 12),
+                .posDelta   = { 0, 3927, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -7956,
             },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};

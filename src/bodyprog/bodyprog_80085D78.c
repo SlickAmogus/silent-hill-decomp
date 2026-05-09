@@ -171,6 +171,24 @@ void func_80085DC0(bool arg0, s32 sysStateStep) // 0x80085DC0
 void func_80085DF0(void) // 0x80085DF0
 {
     g_SysWork.timer_2C += g_DeltaTimeRaw;
+#ifdef SH_PC_PORT
+    /* Diagnostic for the doghouse-note / dog head freeze. The latest
+     * log shows EventCallFunc param=11 (MapEvent_DoghouseNote) stuck
+     * at step0=1, which is THIS function. Either the moveDist check is
+     * lying or g_DeltaTimeRaw is 0 so the 1s timeout never trips. */
+    {
+        static int _85df0LogN = 0;
+        if (_85df0LogN < 30) {
+            void* mdz = (void*)g_MapOverlayHeader.playerMoveDistIsZero_EC;
+            SH_DBG("[85DF0] timer_2C=%d (Q12=%.2f) deltaRaw=%d mdz_func=%p mdz_ret=%p moveDist=%d",
+                   (int)g_SysWork.timer_2C, (float)g_SysWork.timer_2C / 4096.0f,
+                   (int)g_DeltaTimeRaw, mdz,
+                   mdz ? (void*)g_MapOverlayHeader.playerMoveDistIsZero_EC() : NULL,
+                   (int)g_SysWork.playerWork.player.properties.player.moveDistance_126);
+            _85df0LogN++;
+        }
+    }
+#endif
     if (g_MapOverlayHeader.playerMoveDistIsZero_EC() != NULL || g_SysWork.timer_2C > Q12(1.0f))
     {
         SysWork_StateStepIncrement(0);
@@ -256,7 +274,26 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
         case 1:
             if (chara == &g_SysWork.playerWork.player)
             {
+#ifdef SH_PC_PORT
+                {
+                    static int _85eb8c1LogN = 0;
+                    if (_85eb8c1LogN < 30) {
+                        SH_DBG("[85EB8] case1 PLAYER calling func_E8=%p chara=%p",
+                               (void*)g_MapOverlayHeader.func_E8, (void*)chara);
+                        _85eb8c1LogN++;
+                    }
+                }
+#endif
                 keyframeState = g_MapOverlayHeader.func_E8(chara);
+#ifdef SH_PC_PORT
+                {
+                    static int _85eb8c1RetLogN = 0;
+                    if (_85eb8c1RetLogN < 30) {
+                        SH_DBG("[85EB8] case1 PLAYER func_E8 returned %d", (int)keyframeState);
+                        _85eb8c1RetLogN++;
+                    }
+                }
+#endif
                 if (keyframeState == 1)
                 {
                     func_80085D78(reset);

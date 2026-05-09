@@ -288,10 +288,11 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
 #ifdef SH_PC_PORT
     {
         static int bgm_upd_count = 0;
-        if (bgm_upd_count < 30) {
-            SH_DBG("[SH_BGM] Bgm_Update #%d: active=%d st=%d fE=%d c0=%d fl=0x%x lv0=%d outV0=%d isMp=%d",
+        if (bgm_upd_count < 30 || bgm_upd_count % 60 == 0) {
+            SH_DBG("[SH_BGM] Bgm_Update #%d: active=%d st=%d fE=%d c0=%d fl=0x%x lv0=%d outV0=%d isMp=%d mapId=%d roomIdx=%d",
                     bgm_upd_count, isBgmLayerActive, D_800A99A0, temp_s2, cond0, flagsCpy,
-                    bgmLayerVolumes[0], bgmLayerVolumes[0], 0);
+                    bgmLayerVolumes[0], bgmLayerVolumes[0], 0,
+                    (int)g_SavegamePtr->mapOverlayId_A4, (int)g_SavegamePtr->mapRoomIdx_A5);
             bgm_upd_count++;
         }
     }
