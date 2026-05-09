@@ -8646,8 +8646,8 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                     s32 distSqr = (s32)((s64)dxh * dxh + (s64)dzh * dzh >> 12);
                     s32 kf = airScreamer->model.anim.keyframeIdx;
                     if (!_asDamagedThisSwoop &&
-                        distSqr < Q12(2.25f) /* 1.5f * 1.5f */ &&
-                        kf >= 12 && kf <= 18)
+                        distSqr < Q12(9.0f) /* 3.0f * 3.0f — generous radius */ &&
+                        kf >= 8 && kf <= 22 /* widened bite window */)
                     {
                         s_PlayerExtra* px = &g_SysWork.playerWork.extra;
                         s32 dmg = Q12(15.0f);
@@ -8663,14 +8663,28 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                         if (pl->health < Q12(0.0f))
                             pl->health = Q12(0.0f);
 
-                        /* Force damage state — Harry recoils visibly. Pick
-                         * Front-torso since AS swoops in from above-ahead. */
+                        /* Force damage state. NB: the per-map anim path
+                         * (Player_LogicUpdate's PlayerState_DamageTorsoFront
+                         * case calls func_8007FB94 which looks up field_38
+                         * for an entry with status_2 == ANIM_STATUS(105,
+                         * false)). map0_s01 (cafe) doesn't have the damage
+                         * anim mapped in field_38, so the lookup silently
+                         * fails and no anim plays. Bypass: directly write
+                         * the anim status on both player + extra to a base
+                         * anim that's guaranteed loaded. HarryAnim_FallBackward
+                         * (23) reads as a knocked-off-balance recoil — best
+                         * available "got hit" feedback without per-map
+                         * damage anims. Reset stateStep so the anim restarts. */
                         Player_ExtraStateSet(pl, px, PlayerState_DamageTorsoFront);
+                        pl->model.anim.status = ANIM_STATUS(HarryAnim_FallBackward, false);
+                        pl->model.anim.keyframeIdx = 0;
+                        px->model.anim.status = ANIM_STATUS(HarryAnim_FallBackward, false);
+                        px->model.anim.keyframeIdx = 0;
                         pl->damage.amount_C = Q12(0.0f); /* consumed */
                         pl->attackReceived  = NO_VALUE;
 
-                        /* Hurt sound (Harry's pain SFX; matches the bite
-                         * impact in vanilla). 0x67 = Sfx_HarryHurt typical. */
+                        /* Hurt sound. 0x67 is a guess — many SFX IDs are
+                         * unverified on PC; harmless if invalid. */
                         SD_Call(0x0067);
 
                         _asDamagedThisSwoop = 1;
