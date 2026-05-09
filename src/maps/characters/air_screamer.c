@@ -67,6 +67,59 @@ void Ai_AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsC
     sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
     sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
     sharedFunc_800D81B0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-81B0 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
+
+    /* PC universal AS bite-damage trigger.
+     *
+     * The first attempt put proximity damage in Ai_AirScreamer_Control_46
+     * only. That fires once on the AS's INITIAL swoop, but after the first
+     * hit AS transitions through Control_47/48/49 for all subsequent
+     * bites — Control_49 owns AirScreamerAnim_HoverBiteAttack — and the
+     * old code never ran in those states.
+     *
+     * Move the trigger to the per-frame Update path and gate it on the
+     * BITE ANIMATION rather than controlState. Whenever the AS's anim is
+     * the active HoverBiteAttack and its keyframe is in the "fangs out"
+     * window, check Harry's XZ proximity and populate the four vanilla-
+     * damage trigger fields. Reset the per-bite lockout on the falling
+     * edge of "bite anim active" so each fresh bite gets one hit.
+     *
+     * field_40 = NPC index → Player_ReceiveDamage uses g_SysWork.npcs
+     * [field_40].rotation.vy as the enemy yaw for angleState calc. */
+    {
+        static u8  s_prevBiteActive = 0;
+        static u8  s_biteDamaged    = 0;
+        u32 curStatus = (u32)airScreamer->model.anim.status;
+        u8  isBiteActive = (curStatus == ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true));
+        s32 kf = airScreamer->model.anim.keyframeIdx;
+
+        if (isBiteActive && !s_prevBiteActive) {
+            s_biteDamaged = 0;
+            SH_DBG("[AS-BITE] bite anim entered — lockout reset (cs=%d ss=%d kf=%d)",
+                   (int)airScreamer->model.controlState,
+                   (int)airScreamer->model.stateStep, (int)kf);
+        }
+        s_prevBiteActive = isBiteActive;
+
+        if (isBiteActive && !s_biteDamaged) {
+            s_SubCharacter* pl = &g_SysWork.playerWork.player;
+            s32 dxh = pl->position.vx - airScreamer->position.vx;
+            s32 dzh = pl->position.vz - airScreamer->position.vz;
+            s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
+            /* Wide window since HoverBiteAttack kf range varies by control
+             * state. Q12(9.0) ≈ 3 world units radius² is the same as the
+             * old C46 trigger. */
+            if (distSqr < Q12(9.0f)) {
+                pl->damage.amount_C = Q12(15.0f);
+                pl->damage.position = airScreamer->position;
+                pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
+                pl->field_40        = Chara_NpcIdxGet(airScreamer);
+                s_biteDamaged       = 1;
+                SH_DBG("[AS-BITE] hit landed kf=%d distSqr=%d field_40=%d cs=%d (Player_ReceiveDamage will process)",
+                       (int)kf, (int)distSqr, (int)pl->field_40,
+                       (int)airScreamer->model.controlState);
+            }
+        }
+    }
 #else
     sharedFunc_800D21E4_0_s01(anmHdr, coords);
     sharedFunc_800D2200_0_s01(airScreamer);
