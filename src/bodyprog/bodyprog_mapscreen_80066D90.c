@@ -740,23 +740,19 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     temp_v0_7 = Math_AngleNormalizeSigned(angle);
 
     sp10[0] = temp_s2 + FP_FROM(Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
-#ifdef SH_PC_PORT
-    /* PC: drop *2 Y multiplier since the map texture's tile Y stride
-     * was halved (PSX << 13 → PC << 12 in func_800692A4). Without
-     * matching this, the player position arrow rendered at 2x the
-     * Y of the map texture, putting the red triangle off-axis. */
-    sp10[1] = temp_s1 + FP_FROM(Math_Cos(temp_v0_7) * -6, Q12_SHIFT);
-    sp10[2] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * 4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
-    sp10[3] = temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * 4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT);
-    sp10[4] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * -4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
-    sp10[5] = temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * -4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT);
-#else
+    /* Restore the PSX *2 Y multiplier on PC. An earlier comment claimed the
+     * map texture's tile Y stride was halved (<<13 → <<12), but that change
+     * was reverted in func_800692A4 — Y stride is back to PSX's <<13, so the
+     * texture still spans Y=-240..+240 (480 effective). temp_s1 is computed
+     * in 240-tall space, so without *2 the player arrow tracks Harry at HALF
+     * speed in Y (visible as the marker drifting away as you walk north or
+     * south). Destination markers already do their own <<1 doubling so they
+     * stay aligned. */
     sp10[1] = (temp_s1 + FP_FROM(Math_Cos(temp_v0_7) * -6, Q12_SHIFT)) * 2;
     sp10[2] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * 4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
     sp10[3] = (temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * 4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT)) * 2;
     sp10[4] = temp_s2 + FP_FROM(Math_Cos(temp_v0_7) * -4 - Math_Sin(temp_v0_7) * 6, Q12_SHIFT);
     sp10[5] = (temp_s1 + FP_FROM(Math_Sin(temp_v0_7) * -4 + Math_Cos(temp_v0_7) * 6, Q12_SHIFT)) * 2;
-#endif
 
     line = (LINE_F4*)GsOUT_PACKET_P;
     setLineF4(line);
