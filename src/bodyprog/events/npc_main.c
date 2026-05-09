@@ -185,6 +185,35 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 #endif
 
+#ifdef SH_PC_PORT
+        /* Mirror the spawn condition exactly so we can see WHICH gate is
+         * the actual blocker. Diagnoses the case where SPAWN-GATE shows
+         * all gates passing (g1..g8 = 1) but no NPC_SPAWN follows — the
+         * difference must be a re-evaluation race, an aliasing issue,
+         * or the npcFlags-full break above the loop. Logs once per slot
+         * per second when the slot looks spawnable. */
+        if (curCharaSpawn->flags_6 != 0) {
+            int dbg_g1 = !(g_SysWork.flags_22A4 & UnkSysFlag_4);
+            int dbg_g2 = HAS_FLAG(ovlEnemiesStatePtr, i) ? 1 : 0;
+            int dbg_g3 = !HAS_FLAG(g_SysWork.field_228C, i) ? 1 : 0;
+            int dbg_g5 = (g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0);
+            int dbg_g6 = func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) ? 1 : 0;
+            int dbg_g7 = !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f));
+            int dbg_g8 = (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)));
+            int allPass = dbg_g1 && dbg_g2 && dbg_g3 && dbg_g5 && dbg_g6 && dbg_g7 && dbg_g8;
+            int npcFlagsFull = (g_SysWork.npcFlags == ((1 << g_SysWork.npcFlagsId) - 1));
+            if (allPass) {
+                static u32 _allPassTick[64] = { 0 };
+                if (_allPassTick[i] == 0 || (_spawnTickCounter - _allPassTick[i]) > 60) {
+                    SH_DBG("[SPAWN-FIRE?] slot=%d allPass! npcFlags=0x%x flagsId=%d full=%d vblanks=%d ABOUT TO TRY SPAWN",
+                           i, (unsigned)g_SysWork.npcFlags, (int)g_SysWork.npcFlagsId,
+                           npcFlagsFull, (int)g_VBlanks);
+                    _allPassTick[i] = _spawnTickCounter;
+                }
+            }
+        }
+#endif
+
         if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) &&
             HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
             curCharaSpawn->flags_6 != 0 &&
@@ -193,6 +222,9 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f)) &&
             (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f))))
         {
+#ifdef SH_PC_PORT
+            SH_DBG("[SPAWN-FIRE!] slot=%d gates passed → entering spawn block, npcIdx will be assigned", i);
+#endif
             while (HAS_FLAG(&g_SysWork.npcFlags, npcIdx))
             {
                 npcIdx++;
