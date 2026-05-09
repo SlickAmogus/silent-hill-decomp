@@ -8663,18 +8663,25 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                         if (pl->health < Q12(0.0f))
                             pl->health = Q12(0.0f);
 
-                        /* Force damage state. NB: the per-map anim path
-                         * (Player_LogicUpdate's PlayerState_DamageTorsoFront
-                         * case calls func_8007FB94 which looks up field_38
-                         * for an entry with status_2 == ANIM_STATUS(105,
-                         * false)). map0_s01 (cafe) doesn't have the damage
-                         * anim mapped in field_38, so the lookup silently
-                         * fails and no anim plays. Bypass: directly write
-                         * the anim status on both player + extra to a base
-                         * anim that's guaranteed loaded. HarryAnim_FallBackward
-                         * (23) reads as a knocked-off-balance recoil — best
-                         * available "got hit" feedback without per-map
-                         * damage anims. Reset stateStep so the anim restarts. */
+                        /* Force damage state + DIRECT KNOCKBACK. The anim
+                         * system is unreliable on PC (per-map damage anim
+                         * lookup fails for map0_s01, and the PC shim
+                         * overwrites anim.status from input each frame), so
+                         * the most visible reaction is a physical position
+                         * shove. Move Harry Q12(1.0f) world units AWAY from
+                         * AS in the AS→Harry direction. Combined with
+                         * fallSpeed=0 reset and the anim/state attempt,
+                         * this is unambiguously a "got hit" reaction. */
+                        {
+                            s32 dist = SquareRoot12(distSqr);
+                            if (dist > 0) {
+                                s32 nx = (s32)(((s64)dxh << 12) / dist);
+                                s32 nz = (s32)(((s64)dzh << 12) / dist);
+                                s32 knock = Q12(1.0f);
+                                pl->position.vx += (s32)((s64)nx * knock >> 12);
+                                pl->position.vz += (s32)((s64)nz * knock >> 12);
+                            }
+                        }
                         Player_ExtraStateSet(pl, px, PlayerState_DamageTorsoFront);
                         pl->model.anim.status = ANIM_STATUS(HarryAnim_FallBackward, false);
                         pl->model.anim.keyframeIdx = 0;
