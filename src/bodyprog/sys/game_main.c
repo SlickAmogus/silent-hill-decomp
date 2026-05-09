@@ -573,6 +573,20 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -7956,
             },
+            /* map2_s00 streets fixed-cam near (460000,0,886000) — user logged
+             * BAD/GOOD pair; default cam misframed Harry. The vy lift is the
+             * "z/vertical" value from the user's second GOOD log entry (2907,
+             * adjusted down from the first GOOD's 5355). yawN/pitchN are the
+             * user's tuned rotation (yaw -60 nudges right, pitch -10251 lifts
+             * lookAt up so cam pitches downward). radius ≈ 2m. */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { 459965, 0, 886197 },
+                .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
+                .posDelta   = { 57, 2907, 78 },
+                .yawDelta   = -60,
+                .pitchDelta = -10251,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;

@@ -336,6 +336,12 @@ void DebugConsole_Update(void)
 {
     int sc;
 
+    /* Debug console is currently broken / non-functional — disable entirely
+     * so the ~ (tilde/grave) key is free for other use and the console code
+     * never opens. Re-enable by removing this early return when the console
+     * is fixed. */
+    return;
+
     if (!g_sdlKeyboardState) return;
 
     /* Toggle with ~ (grave/tilde key) */
@@ -464,6 +470,9 @@ void DebugConsole_Render(void)
     float conHeight;
     char line[CON_MAX_LINE + 4];
     GLint viewport[4];
+
+    /* Console disabled — never render anything. See DebugConsole_Update. */
+    return;
 
     if (!con_open) return;
 
