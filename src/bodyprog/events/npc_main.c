@@ -214,16 +214,40 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 #endif
 
+#ifdef SH_PC_PORT
+        /* Per-slot post-spawn cooldown. Without it the spawn loop and the
+         * Game_NpcUpdate despawn check (line ~439, despawn at >40u) form
+         * an oscillator on PC: spawn fires while player is <22u, despawn
+         * fires same frame because of how player position evaluates against
+         * the npc->position chain on PC, NPC slot is freed, next frame
+         * spawns again. Repeats thousands of times → eventually corrupts
+         * downstream state and crashes after Player_UpperBodyUpdate.
+         *
+         * Fix: once a slot has spawned, hold off re-spawning it for at
+         * least 600 ticks (~10s @60fps) regardless of despawn — the slot
+         * gets a real lifecycle. Despawn still works to clear it; the
+         * cooldown just prevents the immediate respawn. */
+        static u32 _slotSpawnCooldown[64] = { 0 };
+        if (_slotSpawnCooldown[i] > 0) {
+            _slotSpawnCooldown[i]--;
+        }
+#endif
+
         if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) &&
             HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
             curCharaSpawn->flags_6 != 0 &&
             g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&
             func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) &&
             !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f)) &&
-            (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f))))
+            (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)))
+#ifdef SH_PC_PORT
+            && _slotSpawnCooldown[i] == 0
+#endif
+            )
         {
 #ifdef SH_PC_PORT
             SH_DBG("[SPAWN-FIRE!] slot=%d gates passed → entering spawn block, npcIdx will be assigned", i);
+            _slotSpawnCooldown[i] = 600;  /* ~10s @60fps */
 #endif
             while (HAS_FLAG(&g_SysWork.npcFlags, npcIdx))
             {
