@@ -869,7 +869,11 @@ u8 g_EventThing_KitchenKnife[256] = {0};
 u8 g_EventThing_Map[256] = {0};
 u8 g_EventThing_PocketRadio[256] = {0};
 u8 g_GeneratorMakeNoise[256] = {0};
-u8 g_Gfx_LockTimFileIdxs[256] = {0};
+/* g_Gfx_LockTimFileIdxs is now provided per-map via
+ * pc_port/build_gen/extracted_data/map2_s00_extracted_data.c (extracted from
+ * VIN/MAP2_S00.BIN by tools/extract_map_data.py). The previous all-zeros stub
+ * caused Fs_QueueStartReadTim(0, ...) on step 6 of the eclipse-door key
+ * insertion (func_800E9DD8), crashing progression on Levin Street. */
 u8 g_Gfx_PaperMapMarkingAlpha[256] = {0};
 u8 g_MainImg0[256] = {0};
 /* g_Cutscene_MapMsgAudioCmds[0-2] and g_Cutscene_MapMsgAudioIdx[0-2] now
