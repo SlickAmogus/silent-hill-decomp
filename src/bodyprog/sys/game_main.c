@@ -587,6 +587,18 @@ void DebugCamera_Update(void)
                 .yawDelta   = -60,
                 .pitchDelta = -10251,
             },
+            /* map2_s00 Cheryl-chase alley return — user logged BAD/GOOD pair;
+             * default cam was "too high up". vy lift 2142 drops cam down,
+             * pitchN -12393 lifts lookAt up so cam pitches downward to frame
+             * Harry. radius ≈ 4m to cover the alley return walk. */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { -254870, 0, 412756 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 2142, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -12393,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;
