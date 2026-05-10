@@ -599,6 +599,18 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -12393,
             },
+            /* map0_s00 starting area near (-24864, 0, 624736) — user logged
+             * BAD/GOOD pair; default cam misframed Harry. vy lift 3213 drops
+             * cam down, pitchN -8517 lifts lookAt up so cam pitches downward
+             * to frame Harry. radius ≈ 4m. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -24864, 0, 624736 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 3213, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -8517,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;
