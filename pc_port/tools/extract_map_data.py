@@ -51,6 +51,11 @@ TARGETS = {
     "g_Cutscene_CameraPosition":        ("VECTOR3", 12),
     "g_Cutscene_CameraLookAtTarget":    ("VECTOR3", 12),
     "g_Cutscene_CameraPositionTarget":  ("VECTOR3", 12),
+    # door-of-eclipse lock TIM file indices (map2_s00) — 8 entries, indexed
+    # by (LionOpen?4:0)+(WoodmanOpen?2:0)+(ScarecrowOpen?1:0). Without this
+    # the eclipse-door key insertion crashes on step 6 (Fs_QueueStartReadTim
+    # with file enum 0 from the all-zero stub).
+    "g_Gfx_LockTimFileIdxs":            ("s16",   2),
 }
 
 # Symbols that are scalars (single value, not arrays) regardless of inferred size.
@@ -70,6 +75,7 @@ SCALAR_SYMBOLS = {
 TYPE_INFO = {
     "u8":      ("0x%02X",   "B", 1),
     "u16":     ("0x%04X",   "H", 2),
+    "s16":     ("%d",       "h", 2),
     "s32":     ("%d",       "i", 4),
     "VECTOR3": (None,       None, 12),
 }
@@ -252,6 +258,20 @@ def main():
 
         out_text = generate_c(map_name, found, bin_fname)
         out_path = OUT_DIR / f"{map_name}_extracted_data.c"
+
+        # Safety: if the existing file is marked "MANUALLY MAINTAINED" in its
+        # header, skip the rewrite. Some extracted files have been hand-edited
+        # to add extra symbols not in TARGETS (e.g. map0_s00 has D_800DFAC4
+        # for the alley camera warp flag) and a blind regen would drop them.
+        if out_path.exists():
+            try:
+                existing = out_path.read_text(encoding="utf-8", errors="ignore")
+                if "MANUALLY MAINTAINED" in existing[:500]:
+                    print(f"  [{map_name}] manually maintained — skipping regen")
+                    continue
+            except OSError:
+                pass
+
         out_path.write_text(out_text, encoding="utf-8")
         total_extracted += len(found)
         print(f"  [{map_name}] {len(found):2d} syms -> {out_path.name}")
