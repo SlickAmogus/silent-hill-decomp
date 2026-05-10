@@ -1122,7 +1122,18 @@ void func_800E9DD8(void) // 0x800E9DD8
     s32  idx;
     s32  tim;
     s32  tim2;
+#ifdef SH_PC_PORT
+    /* tmp0 is used to swap pointer-typed D_800F22A0/A4/A8 in step 9. On
+     * MIPS pointers were 32-bit so s32 worked, but on x86-64 a pointer
+     * truncated through s32 loses its upper 32 bits and the next
+     * Fs_QueueStartReadTim(... D_800F22A8) at step 6 of the next key
+     * insertion crashes when dereferencing the bad pointer. The eclipse
+     * door's first key worked because no swap had happened yet; the
+     * second key crashed after step 9 had run between them. */
+    s_FsImageDesc* tmp0;
+#else
     s32  tmp0;
+#endif
     s32  locksLeft;
     s16 *timPtr;
 
