@@ -636,6 +636,19 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -5253,
             },
+            /* map0_s00 Cheryl-chase alley (original) near (-254027, 0, 412725)
+             * — user logged BAD/GOOD pair. Note: same coord range as the
+             * map2_s00 Cheryl-chase return entry above but on a different map
+             * id. vy lift 1734 drops cam down, pitchN -7956 lifts lookAt up
+             * so cam pitches downward. radius ≈ 4m. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -254027, 0, 412725 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 1734, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -7956,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;
