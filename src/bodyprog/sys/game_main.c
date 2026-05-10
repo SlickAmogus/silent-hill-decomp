@@ -651,11 +651,12 @@ void DebugCamera_Update(void)
             },
             /* map0_s00 alley2 first spot near (-374366, 0, 1002514) — user
              * logged BAD/GOOD pair. Cam needed XYZ shift + yaw rotation but
-             * no pitch adjustment. radius ≈ 4m. */
+             * no pitch adjustment. Radius reduced to 1.5m so it doesn't
+             * overlap the third alley2 entry below (~3.5m away). */
             {
                 .mapId      = 0,                        /* map0_s00 */
                 .harryPos   = { -374366, 0, 1002514 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
                 .posDelta   = { 5809, 1377, -16999 },
                 .yawDelta   = -1848,
                 .pitchDelta = 0,
@@ -663,13 +664,27 @@ void DebugCamera_Update(void)
             /* map0_s00 alley2 second spot near (-372441, 0, 959711) — user
              * logged BAD/GOOD pair. Different shot from the first alley2
              * entry; vy lift -4080 raises cam (PSX +Y=down so negative=up).
-             * radius ≈ 4m. */
+             * radius ≈ 4m (well separated from other alley2 entries). */
             {
                 .mapId      = 0,                        /* map0_s00 */
                 .harryPos   = { -372441, 0, 959711 },
                 .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
                 .posDelta   = { 1061, -4080, 347 },
                 .yawDelta   = -195,
+                .pitchDelta = 0,
+            },
+            /* map0_s00 alley2 third spot near (-386989, -112, 1009478) —
+             * user logged BAD/GOOD pair. ~3.5m from alley2 first spot, so
+             * both entries use 1.5m radius to avoid overlap (first-match
+             * wins in the lookup loop, so two overlapping zones would let
+             * the older entry override this one). vz nudge +18418 pushes
+             * cam back, vx -8482 shifts left, yaw +6441 rotates view. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -386989, -112, 1009478 },
+                .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
+                .posDelta   = { -8482, 0, 18418 },
+                .yawDelta   = 6441,
                 .pitchDelta = 0,
             },
         };
