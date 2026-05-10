@@ -673,6 +673,32 @@ void DebugCamera_Update(void)
                 .yawDelta   = -195,
                 .pitchDelta = 0,
             },
+            /* map2_s00 post-eclipse-door area near (604979, -528, 1542144) —
+             * user logged BAD/GOOD pair right after going through the eclipse
+             * door. Default cam framed too low / pitched up; vy lift 6885
+             * drops cam down, pitchN -15759 lifts lookAt up so cam pitches
+             * downward to frame Harry. radius ≈ 4m. */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { 604979, -528, 1542144 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 6885, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -15759,
+            },
+            /* map2_s00 post-eclipse-door second spot near (580336, 0, 1549057)
+             * — user logged BAD/GOOD pair just past the first post-eclipse
+             * correction (~6m away, doesn't overlap). Only pitch needed
+             * tuning this time: pitchN -13311 lifts lookAt up so cam pitches
+             * downward to frame Harry. No position or yaw nudge. radius ≈ 4m. */
+            {
+                .mapId      = 10,                       /* map2_s00 */
+                .harryPos   = { 580336, 0, 1549057 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, 0, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -13311,
+            },
             /* map0_s00 alley2 third spot near (-386989, -112, 1009478) —
              * user logged BAD/GOOD pair. ~3.5m from alley2 first spot, so
              * both entries use 1.5m radius to avoid overlap (first-match
