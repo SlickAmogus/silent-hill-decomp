@@ -649,6 +649,29 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -7956,
             },
+            /* map0_s00 alley2 first spot near (-374366, 0, 1002514) — user
+             * logged BAD/GOOD pair. Cam needed XYZ shift + yaw rotation but
+             * no pitch adjustment. radius ≈ 4m. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -374366, 0, 1002514 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 5809, 1377, -16999 },
+                .yawDelta   = -1848,
+                .pitchDelta = 0,
+            },
+            /* map0_s00 alley2 second spot near (-372441, 0, 959711) — user
+             * logged BAD/GOOD pair. Different shot from the first alley2
+             * entry; vy lift -4080 raises cam (PSX +Y=down so negative=up).
+             * radius ≈ 4m. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -372441, 0, 959711 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 1061, -4080, 347 },
+                .yawDelta   = -195,
+                .pitchDelta = 0,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;
