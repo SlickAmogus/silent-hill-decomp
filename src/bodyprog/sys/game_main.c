@@ -611,6 +611,19 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -8517,
             },
+            /* map0_s00 second starting-area shot near (-27102, 0, 607676) —
+             * user logged BAD + two GOODs; using the second GOOD (final
+             * tuned values). vy nudge -357 (almost no vertical change),
+             * pitchN -7140 lifts lookAt up so cam pitches downward to
+             * frame Harry. radius ≈ 4m. */
+            {
+                .mapId      = 0,                        /* map0_s00 */
+                .harryPos   = { -27102, 0, 607676 },
+                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .posDelta   = { 0, -357, 0 },
+                .yawDelta   = 0,
+                .pitchDelta = -7140,
+            },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
         s32     sceneNudgeYaw   = 0;
