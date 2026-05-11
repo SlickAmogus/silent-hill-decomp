@@ -1687,6 +1687,14 @@ void MainLoop(void) // 0x80032EE0
         g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
                               !g_PsxSkipFramebufferStore) ? 1 : 0;
 
+        /* Suppress dither on 2D-only states (logos, menus, map screen,
+         * inventory, options, save/load). Dither makes flat-shaded UI
+         * art look chewed-up at high resolution. Keep it for 3D gameplay
+         * + cutscenes (InGame state covers both). Read by PsyCross via
+         * extern int g_PsxDitherSuppressed in PsyX_render.cpp. */
+        extern int g_PsxDitherSuppressed;
+        g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
+
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path

@@ -1204,7 +1204,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * code at the end of Player_LogicUpdate copies D_800C4550 to
              * moveSpeed, applies gravity, and sets the rotation matrix. */
             {
-                q3_12 turnSpeed = Q12_ANGLE(2.0f);
+                /* Turn speed: 120°/sec target (matches 60fps Q12_ANGLE(2.0f)
+                 * per-frame behavior). Scale by deltaTime so 30fps gets ~4°
+                 * per frame and 60fps gets ~2°, both equating to ~120°/sec.
+                 * Was previously hardcoded Q12_ANGLE(2.0f) which made 30fps
+                 * feel half as responsive as 60fps. */
+                q3_12 turnSpeed = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(4.0f));
 
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
