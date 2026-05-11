@@ -441,58 +441,58 @@ void DebugCamera_Update(void)
 
         /* Read numpad nudge keys (held = continuous). Camera-relative
          * forward/strafe uses the cam's current yaw so 8 always pushes
-         * "into the screen". FPS-independent: each delta is scaled by
-         * TIMESTEP_SCALE_60_FPS so wall-time speed is uniform across fps. */
+         * "into the screen". Deltas are NOT scaled by g_DeltaTime — the
+         * base constants (esp. PC_NUDGE_TURN_SPEED=3) are small enough
+         * that integer division by TIMESTEP_60_FPS at high fps rounds
+         * them to 0, silently killing KP_7/9. Reverted to direct
+         * constants so the keys always do something. */
         {
             s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
             s32 sinY   = Math_Sin(camYaw);
             s32 cosY   = Math_Cos(camYaw);
-            s32 nudgeMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_MOVE_SPEED);
-            s32 nudgeTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_TURN_SPEED);
-            s32 nudgeVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_VERT_SPEED);
 
             /* Numpad 8/5: forward / back (cam-relative XZ) */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-                g_PcCamNudgePos.vx += (s32)((s64)nudgeMoveSpeed * sinY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)nudgeMoveSpeed * sinY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
             }
             /* Numpad 4/6: strafe left / right */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)nudgeMoveSpeed * cosY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-                g_PcCamNudgePos.vx += (s32)((s64)nudgeMoveSpeed * cosY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
             }
             /* Numpad 7/9: turn left / right (yaw) */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
-                g_PcCamNudgeYaw -= nudgeTurnSpeed;
+                g_PcCamNudgeYaw -= PC_NUDGE_TURN_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
-                g_PcCamNudgeYaw += nudgeTurnSpeed;
+                g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
             }
             /* Numpad +/-: tilt up / down (pitch). Matches debug cam.
              * The pitch nudge biases the lookAt Y at the apply site
              * (search g_PcCamNudgePitch). PSX +Y = down → KP_PLUS goes
              * up by subtracting from Y. */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-                g_PcCamNudgePitch -= nudgeVertSpeed;
+                g_PcCamNudgePitch -= PC_NUDGE_VERT_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-                g_PcCamNudgePitch += nudgeVertSpeed;
+                g_PcCamNudgePitch += PC_NUDGE_VERT_SPEED;
             }
             /* Page Up / Page Down: vertical move (camera-Y) — also
              * matches debug cam's vertical bindings. */
             if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
-                g_PcCamNudgePos.vy -= nudgeVertSpeed;
+                g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
-                g_PcCamNudgePos.vy += nudgeVertSpeed;
+                g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
             }
         }
 
@@ -653,18 +653,6 @@ void DebugCamera_Update(void)
                 .yawDelta   = 0,
                 .pitchDelta = -7956,
             },
-            /* map0_s00 alley2 first spot near (-374366, 0, 1002514) — user
-             * logged BAD/GOOD pair. Cam needed XYZ shift + yaw rotation but
-             * no pitch adjustment. Radius reduced to 1.5m so it doesn't
-             * overlap the third alley2 entry below (~3.5m away). */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -374366, 0, 1002514 },
-                .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
-                .posDelta   = { 5809, 1377, -16999 },
-                .yawDelta   = -1848,
-                .pitchDelta = 0,
-            },
             /* map0_s00 alley2 second spot near (-372441, 0, 959711) — user
              * logged BAD/GOOD pair. Different shot from the first alley2
              * entry; vy lift -4080 raises cam (PSX +Y=down so negative=up).
@@ -702,20 +690,6 @@ void DebugCamera_Update(void)
                 .posDelta   = { 0, 0, 0 },
                 .yawDelta   = 0,
                 .pitchDelta = -13311,
-            },
-            /* map0_s00 alley2 third spot near (-386989, -112, 1009478) —
-             * user logged BAD/GOOD pair. ~3.5m from alley2 first spot, so
-             * both entries use 1.5m radius to avoid overlap (first-match
-             * wins in the lookup loop, so two overlapping zones would let
-             * the older entry override this one). vz nudge +18418 pushes
-             * cam back, vx -8482 shifts left, yaw +6441 rotates view. */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -386989, -112, 1009478 },
-                .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
-                .posDelta   = { -8482, 0, 18418 },
-                .yawDelta   = 6441,
-                .pitchDelta = 0,
             },
         };
         VECTOR3 sceneNudgePos = {0, 0, 0};
