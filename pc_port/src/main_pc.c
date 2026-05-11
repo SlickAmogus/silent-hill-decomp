@@ -125,17 +125,24 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    /* Open the log file FIRST so any SH_DBG before config-load reaches it. */
-    SH_DebugLogInit();
+    /* Log file is NOT opened until after config load. SH_DBG calls before
+     * that point are silently no-ops (the macro short-circuits on a NULL
+     * handle). Avoids creating SilentHill.log when enable_log=0. */
     atexit(Sh_LogAtExitFlush);
-    SH_DBG("[SH] main() entered");
 
     PrintBanner();
-    SH_DBG("[SH] sizeof(s_WorldGfxWork) = %zu", sizeof(s_WorldGfxWork));
     ParseArgs(argc, argv);
 
     /* Load config file */
     PcConfig_Load("config.cfg");
+
+    /* Now that we know whether logging is enabled, open the log file (or
+     * leave g_ShDebugLog NULL so SH_DBG stays a no-op). */
+    if (g_PcConfig.enableLog) {
+        SH_DebugLogInit();
+        SH_DBG("[SH] main() entered (log opened post-config)");
+        SH_DBG("[SH] sizeof(s_WorldGfxWork) = %zu", sizeof(s_WorldGfxWork));
+    }
 
     /* Apply pixel-aspect mode to PsyCross's runtime PAR global. */
     {
@@ -159,10 +166,18 @@ int main(int argc, char* argv[])
         setvbuf(stderr, NULL, _IONBF, 0);
         SH_DBG_ECHO("[SH] show_console=1 — console window left visible, SH_DBG_ECHO mirrored to stdout");
     } else {
-        freopen("SilentHill.log", "a", stdout);
-        freopen("SilentHill.log", "a", stderr);
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
+        /* Only redirect stdout/stderr to the log when logging is enabled.
+         * With enable_log=0 there's no log file, and dumping these streams
+         * to one would create SilentHill.log via stdio's lazy fopen. Without
+         * redirection they go to the (about-to-be-hidden) console handle,
+         * which is fine — Windows discards the writes when the console is
+         * hidden via ShowWindow. */
+        if (g_PcConfig.enableLog) {
+            freopen("SilentHill.log", "a", stdout);
+            freopen("SilentHill.log", "a", stderr);
+            setvbuf(stdout, NULL, _IONBF, 0);
+            setvbuf(stderr, NULL, _IONBF, 0);
+        }
         /* Hide console window — raw Win32 to avoid windows.h conflicts */
         {
             typedef void* HWND;
@@ -215,16 +230,26 @@ int main(int argc, char* argv[])
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
 
     /* Redirect PsyCross log into our SilentHill.log (g_ShDebugLog) instead
-     * of a separate "Silent Hill.log" file.  Pointing at g_ShDebugLog
-     * directly (not stdout) means PsyCross logs always reach the file even
-     * in show_console=1 mode where stdout stays connected to the console. */
+     * of a separate "Silent Hill.log" file. Only do this when enable_log=1
+     * so PsyCross doesn't open its own "Silent Hill.log" when our log is
+     * disabled. With logging off, close any handle PsyCross opened on its
+     * own and point g_logStream at /dev/null-equivalent (NULL) so its log
+     * writes become no-ops. */
     {
         extern FILE* g_logStream;
-        if (g_logStream && g_logStream != g_ShDebugLog) {
-            fclose(g_logStream);
-            remove("Silent Hill.log");
+        if (g_PcConfig.enableLog) {
+            if (g_logStream && g_logStream != g_ShDebugLog) {
+                fclose(g_logStream);
+                remove("Silent Hill.log");
+            }
+            g_logStream = g_ShDebugLog;
+        } else {
+            if (g_logStream) {
+                fclose(g_logStream);
+                remove("Silent Hill.log");
+                g_logStream = NULL;
+            }
         }
-        g_logStream = g_ShDebugLog;
     }
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
