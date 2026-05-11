@@ -52,11 +52,29 @@ static s_FsImageDesc s_WarnImg = {
  */
 static void Warn_DrawImage(void)
 {
-    /* Three quad x-positions evenly dividing fb 0..640 (with ofs.x=320,
-     * raw -320..+320 = fb 0..640): -320, -107, +107. Last quad widened
-     * by 1 (214) to close the rounding gap from 213+213+213=639. */
-    static const s16 s_quadX[3] = { -320, -107, +107 };
-    static const s16 s_quadW[3] = { 213, 214, 213 };
+    /* The 2ZANKO_E image is 352 px wide total — but it's stored with 32 px
+     * of left padding inside tpage 13. Layout in VRAM (8-bit color, tpage
+     * width = 128 px):
+     *   tpage 13: u=0..31 = padding (zeros), u=32..127 = image px 0..95
+     *   tpage 14: u=0..127 = image px 96..223
+     *   tpage 15: u=0..127 = image px 224..351
+     * Total visible image width = 96 + 128 + 128 = 352 source px.
+     *
+     * Quad widths are PROPORTIONAL to source-width per tpage so the stretch
+     * factor is uniform across all three quads. Total stretched to fb 640:
+     *   96/352 × 640 ≈ 175  (quad 0 — narrowed because only 96 source px)
+     *   128/352 × 640 ≈ 232.7 → 233
+     *   128/352 × 640 ≈ 232.7 → 232 (rounded down to hit 640 total)
+     *
+     * Previous version used uniform 213-wide quads with setUV4(0,0..) on
+     * all three, which sampled the 32 px of padding on quad 0 → ~53 px
+     * black pillarbox on the left of the visible window. */
+    static const s16 s_quadX[3] = { -320, -145,  +88 };
+    static const s16 s_quadW[3] = {  175,  233,  232 };
+    /* Per-quad source UV start. Quad 0 skips the 32 px of left padding
+     * by sampling from u=32. Quads 1 and 2 start at u=0 (full tpage). */
+    static const u8  s_quadU0[3] = { 32, 0, 0 };
+    static const u8  s_quadU1[3] = { 128, 128, 128 };
     /* Vertical: cover fb 0..480 (matches the fade tile's
      * setWH(SCREEN_WIDTH*2, SCREEN_HEIGHT*2) at xy(-SCREEN_WIDTH,-SCREEN_HEIGHT)).
      * Screen_Init(640, true) puts gs_screen_h at 448 (interlaced) and
@@ -77,6 +95,8 @@ static void Warn_DrawImage(void)
         s16 x1 = (s16)(s_quadX[i] + s_quadW[i]);
         s16 y0 = s_quadY;
         s16 y1 = (s16)(s_quadY + s_quadH);
+        u8  u0 = s_quadU0[i];
+        u8  u1 = s_quadU1[i];
 
         addPrimFast(addr, poly, 9);
         setPolyFT4(poly);
@@ -86,8 +106,8 @@ static void Warn_DrawImage(void)
         poly->x1 = x1; poly->y1 = y0;
         poly->x2 = x0; poly->y2 = y1;
         poly->x3 = x1; poly->y3 = y1;
-        /* Sample each tpage's 128 px of real data, full 224 rows. */
-        setUV4(poly, 0, 0,  128, 0,  0, 224,  128, 224);
+        /* Sample each tpage's image data (skipping padding on quad 0). */
+        setUV4(poly, u0, 0,  u1, 0,  u0, 224,  u1, 224);
         setClut(poly, s_WarnImg.clutX, s_WarnImg.clutY);
         /* POLY_FT4 reads its own tpage field (PsyX_GPU.cpp case 0xC sets
          * activeDrawEnv.tpage = poly->tpage), so a separate DR_TPAGE in
