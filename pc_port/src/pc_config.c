@@ -19,7 +19,7 @@ s_PcConfig g_PcConfig = {
     .pixelAspectMode = 1, /* 1=CRT NTSC (1.09375), 2=square (1.0), 3=8:7 (1.143) */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
-    .enableLog      = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
+    .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .mapName        = "map0_s00"
 };
 
@@ -140,9 +140,9 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.usePgxp = (atoi(value) != 0);
         }
-        else if (strcmp(key, "enable_log") == 0)
+        else if (strcmp(key, "enable_debug_log") == 0)
         {
-            g_PcConfig.enableLog = (atoi(value) != 0);
+            g_PcConfig.enableDebugLog = (atoi(value) != 0);
         }
         else if (strcmp(key, "map") == 0)
         {

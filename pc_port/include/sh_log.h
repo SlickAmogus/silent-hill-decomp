@@ -27,7 +27,7 @@ void SH_DebugLogInit(void);
 #endif
 
 /* SH_DBG short-circuits when g_ShDebugLog is NULL — the log file is only
- * opened (via SH_DebugLogInit) when config has enable_log=1. That keeps
+ * opened (via SH_DebugLogInit) when config has enable_debug_log=1. That keeps
  * SilentHill.log from ever being created in release builds and turns
  * SH_DBG into a near-zero-cost branch when logging is disabled.
  *
@@ -45,7 +45,7 @@ void SH_DebugLogInit(void);
 /* Like SH_DBG but also prints to stdout when show_console is on — use for
  * lines you want to watch live in the console window during a session.
  * Echo path runs even with the log file closed, so user-facing console
- * output isn't silenced by enable_log=0. */
+ * output isn't silenced by enable_debug_log=0. */
 #define SH_DBG_ECHO(fmt, ...) do { \
     if (g_ShDebugLog) { \
         fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \

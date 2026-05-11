@@ -16,7 +16,7 @@ typedef struct {
     int pixelAspectMode; /* 1 = CRT NTSC (1.09375), 2 = square (1.0), 3 = 8:7 (1.143) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
-    int enableLog;       /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG is a no-op */
+    int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
