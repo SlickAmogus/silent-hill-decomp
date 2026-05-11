@@ -1,5 +1,6 @@
 #include "xa_player.h"
 #include "sh_log.h"
+#include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,25 @@
 #include <AL/alc.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+/* Resolved from main_pc.c (where -data sets it). */
+extern const char* PcPort_GetGameDataPath(void);
+
+/* BIN/CUE disc image sector geometry. Each "raw" sector on a PSX BIN/CUE
+ * image is 2352 bytes:
+ *   12 bytes sync pattern
+ *    4 bytes header (min/sec/frame/mode)
+ *    8 bytes Mode 2 subheader (file, channel, submode, coding, dup×4)
+ * 2316 bytes user data
+ *    8 bytes EDC + Q parity (or unused for Form 2)
+ * The XA decoder operates on the 2336-byte slice that starts at the
+ * subheader (i.e. offset +16 into the raw sector) — matching the layout
+ * of disc_extract/XA/*.xa (which are pre-extracted disc sectors with the
+ * 16-byte sync+header stripped). So to read XA sector K of fileIdx N
+ * from the disc image, seek to:
+ *   (g_FileXaLoc[N] + K) * 2352 + 16     and read 2336 bytes. */
+#define BIN_SECTOR_SIZE     2352
+#define BIN_SECTOR_HDR_SIZE 16
 
 // Minimal struct definitions matching decomp layout
 typedef struct {
@@ -31,19 +51,29 @@ extern s_XaItemData g_XaItemData[727];
 // PC wrapper to signal playback finished
 extern void Xa_SignalPlaybackFinished(void);
 
-// XA file mapping: xaFileIdx_0 → filename
-static const char* const g_XaFileNames[] = {
-    NULL,        // 0: invalid
-    "05_02152",  // 1
-    "10_04432",  // 2
-    "15_07496",  // 3
-    "20_06552",  // 4
-    "25_03904",  // 5
-    "30_04056",  // 6
-    "35_26008",  // 7
-    "40_10384",  // 8
-    "45_28784",  // 9
-};
+/* Shared disc-image handle for XA streaming. Opened lazily on the first
+ * playback (rather than at init) so the player still loads gracefully
+ * when there's no disc image (e.g. headless tests). */
+static FILE* s_BinFile = NULL;
+
+/* Lazily open <gamedata>/Silent Hill (USA).bin. Returns 1 on success.
+ * Idempotent — safe to call before every read. */
+static int EnsureBinOpen(void) {
+    if (s_BinFile) return 1;
+
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/Silent Hill (USA).bin",
+             PcPort_GetGameDataPath());
+
+    s_BinFile = fopen(path, "rb");
+    if (!s_BinFile) {
+        SH_DBG("[XA] Failed to open disc image: %s — voices will be silent",
+               path);
+        return 0;
+    }
+    SH_DBG("[XA] Disc image opened: %s", path);
+    return 1;
+}
 
 /* XA-ADPCM filter tables. NOTE: XA has 5 filters (0..4), unlike SPU which has 4.
  * Values from PSX documentation / DuckStation cdrom.cpp DecodeXAADPCMChunks. */
@@ -70,6 +100,11 @@ typedef struct {
     int16_t* pcmBuffer;  // temp decode buffer
 
     uint16_t xaIdx;
+    /* Disc-absolute sector where this XA file's data begins. Pulled from
+     * g_FileXaLoc[fileIdx] at Play time. currentSector is XA-file-relative
+     * (sector 0 = first sector of the XA file), so the disc offset for a
+     * read is (baseSector + currentSector + s) * 2352 + 16. */
+    uint32_t baseSector;
     uint32_t totalSectors;
     uint32_t remainingSectors;
     uint32_t currentSector;
@@ -239,8 +274,10 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
                outStart[2012], outStart[2013], outStart[2014], outStart[2015]);
     }
 
-    /* DEBUG: dump decoded PCM to a .wav file (first 8 sectors of the very first track).
-     * Lets us listen to the raw decoded output independently of OpenAL playback. */
+#ifdef SH_XA_DUMP
+    /* DEBUG: dump decoded PCM to a .wav file (first 8 sectors of the very first
+     * track). Lets us listen to the raw decoded output independently of OpenAL.
+     * Compile with -DSH_XA_DUMP to enable; off in release. */
     static FILE*    s_WavFile      = NULL;
     static int      s_WavSectors   = 0;
     static uint32_t s_WavDataBytes = 0;
@@ -285,6 +322,7 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
             }
         }
     }
+#endif
 
     /* DEBUG: force mono — duplicate L into R channel.
      * If voice becomes clean with this enabled, R-channel decode is broken. */
@@ -297,39 +335,40 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
     return written;
 }
 
-// Find XA file by index, trying multiple search paths
-static FILE* OpenXaFile(int fileIdx) {
-    if (fileIdx < 1 || fileIdx > 9 || !g_XaFileNames[fileIdx]) {
+/* Begin streaming XA file `fileIdx` (1..9). Validates the index, ensures
+ * the BIN is open, and returns the disc-absolute base sector for the XA
+ * file. Returns 0 on failure (caller should bail). g_FileXaLoc[0] is a
+ * sentinel zero so a 0 return on success is impossible for valid indices. */
+static uint32_t BeginXaStream(int fileIdx) {
+    if (fileIdx < 1 || fileIdx > 9) {
         SH_DBG("[XA] Invalid file index: %d", fileIdx);
-        return NULL;
+        return 0;
     }
-
-    const char* filename = g_XaFileNames[fileIdx];
-    /* Search paths walk up from the build dir. The exe normally runs from
-     * pc_port/build/, with disc_extract at silenthill/disc_extract/ —
-     * three levels up. Extra levels guard against subdir builds. */
-    const char* searchDirs[] = {
-        "disc_extract/XA/",
-        "../disc_extract/XA/",
-        "../../disc_extract/XA/",
-        "../../../disc_extract/XA/",
-        "../../../../disc_extract/XA/",
-    };
-    const int numDirs = sizeof(searchDirs) / sizeof(searchDirs[0]);
-
-    for (int d = 0; d < numDirs; d++) {
-        char path[512];
-        snprintf(path, sizeof(path), "%s%s", searchDirs[d], filename);
-        FILE* f = fopen(path, "rb");
-        if (f) {
-            SH_DBG("[XA] Opened file: %s", path);
-            return f;
-        }
+    if (!EnsureBinOpen()) {
+        return 0;
     }
+    uint32_t baseSector = g_FileXaLoc[fileIdx];
+    if (baseSector == 0) {
+        SH_DBG("[XA] g_FileXaLoc[%d] is zero — table not populated?", fileIdx);
+        return 0;
+    }
+    SH_DBG("[XA] Streaming fileIdx=%d from disc sector %u (0x%X)",
+           fileIdx, baseSector, baseSector);
+    return baseSector;
+}
 
-    SH_DBG("[XA] Failed to open file index %d (%s) — tried %d paths starting from cwd",
-           fileIdx, filename, numDirs);
-    return NULL;
+/* Read one 2336-byte XA logical sector from the BIN. sectorIndex is the
+ * sector offset within the XA file (0 = first sector of the file).
+ * Returns 1 on success. */
+static int ReadXaSectorFromBin(uint32_t baseSector, uint32_t sectorIndex,
+                               uint8_t* outBuf /*[XA_SECTOR_SIZE]*/) {
+    if (!s_BinFile) return 0;
+    long offset = (long)(baseSector + sectorIndex) * BIN_SECTOR_SIZE
+                + BIN_SECTOR_HDR_SIZE;
+    if (fseek(s_BinFile, offset, SEEK_SET) != 0) {
+        return 0;
+    }
+    return fread(outBuf, 1, XA_SECTOR_SIZE, s_BinFile) == XA_SECTOR_SIZE;
 }
 
 // Calculate number of sectors to read based on VSync frames
@@ -365,23 +404,22 @@ void XaPlayer_Play(uint16_t xaIdx) {
         XaPlayer_Stop();
     }
 
-    // Open file
-    FILE* file = OpenXaFile(fileIdx);
-    if (!file) {
-        SH_DBG("[XA] Failed to open file index %u", fileIdx);
+    // Resolve disc base sector for this XA file (and open the BIN if needed)
+    uint32_t baseSector = BeginXaStream(fileIdx);
+    if (!baseSector) {
+        SH_DBG("[XA] Failed to start stream for file index %u", fileIdx);
         return;
     }
 
     // Peek the first sector's subheader to learn the audio format AND the
     // (file, channel) filter — XA streams are multiplexed across many channels.
-    uint32_t firstByteOffset = item->sector_4_bits * XA_SECTOR_SIZE;
-    fseek(file, firstByteOffset, SEEK_SET);
-    uint8_t headBuf[8];
-    if (fread(headBuf, 1, 8, file) != 8) {
-        SH_DBG("[XA] Cannot read first sector subheader (sector=%u)", item->sector_4_bits);
-        fclose(file);
+    uint8_t firstSector[XA_SECTOR_SIZE];
+    if (!ReadXaSectorFromBin(baseSector, item->sector_4_bits, firstSector)) {
+        SH_DBG("[XA] Cannot read first sector subheader (xaSector=%u, baseSector=%u)",
+               item->sector_4_bits, baseSector);
         return;
     }
+    const uint8_t* headBuf = firstSector; /* first 8 bytes = subheader */
     int isStereo, srCode, bitDepth;
     ParseXaSubheader(headBuf[3], &isStereo, &srCode, &bitDepth);
     int sampleRate = (srCode == 0) ? 37800 : 18900;
@@ -398,7 +436,8 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
     SH_DBG("[XA] Will read %u sectors (duration %u frames)", numSectors, item->audioLength_8_bits);
 
-    g_XaPlayer.file = file;
+    g_XaPlayer.file = s_BinFile;   /* shared — never fclose'd per track */
+    g_XaPlayer.baseSector = baseSector;
     g_XaPlayer.xaIdx = xaIdx;
     g_XaPlayer.currentSector = item->sector_4_bits;
     g_XaPlayer.totalSectors = numSectors;
@@ -467,14 +506,12 @@ static void FillBuffer(ALuint buffer) {
                             XA_SECTORS_PER_BUFFER : g_XaPlayer.remainingSectors;
 
     for (int s = 0; s < sectorsThisBuffer; s++) {
-        // Seek to sector in file
-        uint32_t byteOffset = (g_XaPlayer.currentSector + s) * XA_SECTOR_SIZE;
-        fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
-
-        // Read sector
         uint8_t sectorData[XA_SECTOR_SIZE];
-        if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
-            SH_DBG("[XA] Short read at sector %u", g_XaPlayer.currentSector + s);
+        if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
+                                 g_XaPlayer.currentSector + s,
+                                 sectorData)) {
+            SH_DBG("[XA] Short read at xaSector %u (base=%u)",
+                   g_XaPlayer.currentSector + s, g_XaPlayer.baseSector);
             g_XaPlayer.isPlaying = 0;
             return;
         }
@@ -514,13 +551,13 @@ static int FillAndUploadOne(ALuint alBuffer) {
     int scanCap = wantedMatches * 32;
 
     while (matchedCount < wantedMatches && scanCap-- > 0) {
-        uint32_t byteOffset = g_XaPlayer.currentSector * XA_SECTOR_SIZE;
-        fseek(g_XaPlayer.file, byteOffset, SEEK_SET);
-
         uint8_t sectorData[XA_SECTOR_SIZE];
-        if (fread(sectorData, 1, XA_SECTOR_SIZE, g_XaPlayer.file) != XA_SECTOR_SIZE) {
-            SH_DBG("[XA] EOF/short read at sector %u (matched %d/%d)",
-                   g_XaPlayer.currentSector, matchedCount, wantedMatches);
+        if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
+                                 g_XaPlayer.currentSector,
+                                 sectorData)) {
+            SH_DBG("[XA] EOF/short read at xaSector %u (base=%u, matched %d/%d)",
+                   g_XaPlayer.currentSector, g_XaPlayer.baseSector,
+                   matchedCount, wantedMatches);
             g_XaPlayer.remainingSectors = 0;
             break;
         }
@@ -593,7 +630,9 @@ void XaPlayer_Update(void) {
     if (g_XaPlayer.remainingSectors == 0 && sourceState == AL_STOPPED) {
         SH_DBG("[XA] Playback finished");
         g_XaPlayer.isPlaying = 0;
-        if (g_XaPlayer.file) { fclose(g_XaPlayer.file); g_XaPlayer.file = NULL; }
+        /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
+         * here. The BIN handle is held for the lifetime of the process. */
+        g_XaPlayer.file = NULL;
         Xa_SignalPlaybackFinished();
     }
 }
