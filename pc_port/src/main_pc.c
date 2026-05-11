@@ -84,6 +84,14 @@ static void Sh_LogAtExitFlush(void) {
 /* Game data path - where the extracted game files are located */
 static char g_GameDataPath[512] = "./gamedata";
 
+/* Public accessor — used by xa_player.c (and anything else that needs to
+ * locate the disc image at runtime) so we don't sprinkle search-path arrays
+ * across the codebase. Always returns a NUL-terminated path. */
+const char* PcPort_GetGameDataPath(void)
+{
+    return g_GameDataPath;
+}
+
 static void PrintBanner(void)
 {
     printf("==============================================\n");
