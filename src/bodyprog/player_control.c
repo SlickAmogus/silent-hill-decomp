@@ -2758,29 +2758,32 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * keyframeIdx never reaches keyframeIdx_6 and Harry is stuck in
              * DamageTorsoX forever — frozen-in-place / input-broken.
              *
-             * Force-exit after ~30 frames (~1s @60fps) regardless of the
-             * field_38 keyframe match. Tracks per-(state, controlState)
-             * tuple so re-entry from another bite restarts the countdown. */
+             * Force-exit after 0.5 seconds of wall time regardless of the
+             * field_38 keyframe match. Time-based (g_DeltaTime accumulator)
+             * so 30fps and 60fps both exit at the same wall-time — the
+             * old 30-frame counter exited in 0.5s @60fps but 1.0s @30fps.
+             * Tracks per-state so re-entry from another bite restarts the
+             * countdown. */
             {
-                static u32 s_dmgStateFrames = 0;
-                static s32 s_dmgPrevState   = -1;
-                s32        s_dmgCurState   = (s32)g_SysWork.playerWork.extra.state;
+                static q19_12 s_dmgStateTime = 0;
+                static s32    s_dmgPrevState = -1;
+                s32           s_dmgCurState  = (s32)g_SysWork.playerWork.extra.state;
                 if (s_dmgCurState != s_dmgPrevState) {
-                    s_dmgStateFrames = 0;
-                    s_dmgPrevState   = s_dmgCurState;
+                    s_dmgStateTime = 0;
+                    s_dmgPrevState = s_dmgCurState;
                 } else {
-                    s_dmgStateFrames++;
+                    s_dmgStateTime += g_DeltaTime;
                 }
-                if (s_dmgStateFrames > 30) {
-                    SH_DBG("[PLU-DMG] PC timeout exit: state=%d held %u frames > 30, forcing → None",
-                           s_dmgCurState, s_dmgStateFrames);
+                if (s_dmgStateTime > Q12(0.5f)) {
+                    SH_DBG("[PLU-DMG] PC timeout exit: state=%d held %ld Q12-sec > 0.5s, forcing → None",
+                           s_dmgCurState, (long)s_dmgStateTime);
                     player->attackReceived = NO_VALUE;
                     g_SysWork.targetNpcIdx = NO_VALUE;
                     playerProps.flags_11C &= ~PlayerFlag_DamageReceived;
                     Player_ExtraStateSet(player, extra, PlayerState_None);
                     playerProps.moveDistance_126 = Q12(0.0f);
-                    s_dmgStateFrames = 0;
-                    s_dmgPrevState   = -1;
+                    s_dmgStateTime = 0;
+                    s_dmgPrevState = -1;
                 }
             }
 #endif
@@ -7347,12 +7350,15 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
     }
 
     /* Clamp ground-height delta to prevent fall-through and ceiling-teleport
-     * at cell boundaries on PC. Down: 2.0 units/frame. Up: 1.5 (stairs OK). */
+     * at cell boundaries on PC. At 60fps: Down 2.0 units/frame, Up 1.5
+     * (steepest climbable stair). Scaled by deltaTime so 30fps gets 4.0/3.0
+     * per frame and matches the same wall-time max climb rate — otherwise
+     * stairs walkable at 60fps would block the player at 30fps. */
     {
         q19_12 prevGround = player->properties.player.positionY_EC;
         q19_12 newGround  = D_800C4590.field_C;
-        q19_12 maxDownDelta = Q12(2.0f);
-        q19_12 maxUpDelta   = Q12(1.5f);
+        q19_12 maxDownDelta = TIMESTEP_SCALE_60_FPS(g_DeltaTime, Q12(2.0f));
+        q19_12 maxUpDelta   = TIMESTEP_SCALE_60_FPS(g_DeltaTime, Q12(1.5f));
 
         if (prevGround != 0) {
             s32 delta = newGround - prevGround;

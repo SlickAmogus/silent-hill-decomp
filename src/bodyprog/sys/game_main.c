@@ -306,21 +306,6 @@ void DebugCamera_Update(void)
                 (int)pitch, (int)yaw, (int)vcWork.geom_screen_dist,
                 (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
                 (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
-            /* Copy-paste-ready CamCorrection summary. Only logs the rot+height
-             * fields we're allowed to tune (vy / yawDelta / pitchDelta).
-             * vx,vz are deliberately omitted — see numpad nudge comment.
-             * On GOOD, the user can paste this directly into s_camCorrections. */
-            if (cur5 && !prevKey5) {
-                SH_DBG("[CAM-CORR-READY] map=%d harryPos={%ld,%ld,%ld} "
-                       "posDelta={0,%ld,0} yawDelta=%d pitchDelta=%d",
-                    (int)g_SavegamePtr->mapOverlayId_A4,
-                    (long)g_SysWork.playerWork.player.position.vx,
-                    (long)g_SysWork.playerWork.player.position.vy,
-                    (long)g_SysWork.playerWork.player.position.vz,
-                    (long)g_PcCamNudgePos.vy,
-                    (int)g_PcCamNudgeYaw,
-                    (int)g_PcCamNudgePitch);
-            }
         }
         prevKey4 = cur4;
         prevKey5 = cur5;
@@ -454,53 +439,61 @@ void DebugCamera_Update(void)
             prevKey3 = cur3;
         }
 
-        /* Read numpad nudge keys (held = continuous).
-         *
-         * Bindings are deliberately rotation+height ONLY — no horizontal
-         * (PSX XZ / world floor-plane) translation. Reasoning: a single
-         * CamCorrection zone often contains multiple distinct VC_ROAD_DATA
-         * fixed-cam shots, and an XZ delta is shot-specific (each shot has
-         * its own cam world position). Adjusting XZ fixes one shot and
-         * breaks neighbors. Height + rotation are far closer to "universal"
-         * across nearby shots, so we restrict tuning to those axes.
-         *
-         *   KP_8 / KP_5 = pitch up / down (lifts/lowers the lookAt Y bias)
-         *   KP_4 / KP_6 = yaw   left / right
-         *   KP_7 / KP_9 = reserved for roll (NOT implemented — Vw_SetLookAt-
-         *                  Matrix is eye+target only, would need a post-
-         *                  multiplied roll matrix at the apply site)
-         *   KP_+ / KP_- = height up / down (PSX +Y=down, KP_+ raises cam)
-         *   PgUp / PgDn = height alias (kept for backwards compat) */
+        /* Read numpad nudge keys (held = continuous). Camera-relative
+         * forward/strafe uses the cam's current yaw so 8 always pushes
+         * "into the screen". FPS-independent: each delta is scaled by
+         * TIMESTEP_SCALE_60_FPS so wall-time speed is uniform across fps. */
+        {
+            s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
+            s32 sinY   = Math_Sin(camYaw);
+            s32 cosY   = Math_Cos(camYaw);
+            s32 nudgeMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_MOVE_SPEED);
+            s32 nudgeTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_TURN_SPEED);
+            s32 nudgeVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, PC_NUDGE_VERT_SPEED);
 
-        /* KP_8 / KP_5: pitch up / down */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-            g_PcCamNudgePitch -= PC_NUDGE_VERT_SPEED;
-        }
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-            g_PcCamNudgePitch += PC_NUDGE_VERT_SPEED;
-        }
-        /* KP_4 / KP_6: yaw left / right */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-            g_PcCamNudgeYaw -= PC_NUDGE_TURN_SPEED;
-        }
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-            g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
-        }
-        /* KP_7 / KP_9: reserved for roll — no-op for now. */
-
-        /* KP_+ / KP_-: height up / down (PSX +Y = down → KP_+ raises) */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-            g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
-        }
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-            g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
-        }
-        /* PageUp / PageDown: height alias */
-        if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
-            g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
-        }
-        if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
-            g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
+            /* Numpad 8/5: forward / back (cam-relative XZ) */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
+                g_PcCamNudgePos.vx += (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
+                g_PcCamNudgePos.vx -= (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+            }
+            /* Numpad 4/6: strafe left / right */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
+                g_PcCamNudgePos.vx -= (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
+                g_PcCamNudgePos.vx += (s32)((s64)nudgeMoveSpeed * cosY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)nudgeMoveSpeed * sinY >> 12);
+            }
+            /* Numpad 7/9: turn left / right (yaw) */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
+                g_PcCamNudgeYaw -= nudgeTurnSpeed;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
+                g_PcCamNudgeYaw += nudgeTurnSpeed;
+            }
+            /* Numpad +/-: tilt up / down (pitch). Matches debug cam.
+             * The pitch nudge biases the lookAt Y at the apply site
+             * (search g_PcCamNudgePitch). PSX +Y = down → KP_PLUS goes
+             * up by subtracting from Y. */
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
+                g_PcCamNudgePitch -= nudgeVertSpeed;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
+                g_PcCamNudgePitch += nudgeVertSpeed;
+            }
+            /* Page Up / Page Down: vertical move (camera-Y) — also
+             * matches debug cam's vertical bindings. */
+            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
+                g_PcCamNudgePos.vy -= nudgeVertSpeed;
+            }
+            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
+                g_PcCamNudgePos.vy += nudgeVertSpeed;
+            }
         }
 
         /* Numpad /: print current nudged camera (works in normal cam) */
@@ -546,8 +539,7 @@ void DebugCamera_Update(void)
                 .mapId      = 1,
                 .harryPos   = { 18815, 0, 1088743 },
                 .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
-                /* horizontal stripped (was vx=-1818, vz=-252); height kept */
-                .posDelta   = { 0, 612, 0 },
+                .posDelta   = { -1818, 612, -252 },
                 .yawDelta   = -72,
                 .pitchDelta = 3774,
             },
@@ -595,8 +587,7 @@ void DebugCamera_Update(void)
                 .mapId      = 10,                       /* map2_s00 */
                 .harryPos   = { 459965, 0, 886197 },
                 .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
-                /* horizontal stripped (was vx=57, vz=78 — tiny); height kept */
-                .posDelta   = { 0, 2907, 0 },
+                .posDelta   = { 57, 2907, 78 },
                 .yawDelta   = -60,
                 .pitchDelta = -10251,
             },
@@ -670,10 +661,7 @@ void DebugCamera_Update(void)
                 .mapId      = 0,                        /* map0_s00 */
                 .harryPos   = { -374366, 0, 1002514 },
                 .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
-                /* horizontal stripped (was vx=+5809, vz=-16999 — big shift,
-                 * shot-specific); kept only yaw + small height. If this spot
-                 * regresses, re-log with pitch/yaw/height only. */
-                .posDelta   = { 0, 1377, 0 },
+                .posDelta   = { 5809, 1377, -16999 },
                 .yawDelta   = -1848,
                 .pitchDelta = 0,
             },
@@ -685,8 +673,7 @@ void DebugCamera_Update(void)
                 .mapId      = 0,                        /* map0_s00 */
                 .harryPos   = { -372441, 0, 959711 },
                 .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                /* horizontal stripped (was vx=1061, vz=347 — small); height kept */
-                .posDelta   = { 0, -4080, 0 },
+                .posDelta   = { 1061, -4080, 347 },
                 .yawDelta   = -195,
                 .pitchDelta = 0,
             },
@@ -726,10 +713,7 @@ void DebugCamera_Update(void)
                 .mapId      = 0,                        /* map0_s00 */
                 .harryPos   = { -386989, -112, 1009478 },
                 .radius2    = (s32)((s64)Q12(1.5f) * Q12(1.5f) >> 12),
-                /* horizontal stripped (was vx=-8482, vz=+18418 — big shift,
-                 * shot-specific); only yaw nudge survives. May regress; re-log
-                 * with pitch/yaw/height only if so. */
-                .posDelta   = { 0, 0, 0 },
+                .posDelta   = { -8482, 0, 18418 },
                 .yawDelta   = 6441,
                 .pitchDelta = 0,
             },
@@ -919,58 +903,66 @@ void DebugCamera_Update(void)
     s32 sinY = Math_Sin(g_DebugCamAngleY);
     s32 cosY = Math_Cos(g_DebugCamAngleY);
 
+    /* Frame-rate independence: TIMESTEP_SCALE_60_FPS preserves the 60fps
+     * base value (1×) and doubles at 30fps so wall-time speed is uniform.
+     * Without this, holding e.g. KP_8 at 30fps would move the debug cam
+     * half as fast as at 60fps. */
+    s32 dbgMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_MOVE_SPEED);
+    s32 dbgTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_TURN_SPEED);
+    s32 dbgVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_VERT_SPEED);
+
     /* Numpad 8: forward */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-        g_DebugCamPos.vx += (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
-        g_DebugCamPos.vz += (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        g_DebugCamPos.vx += (s32)((s64)dbgMoveSpeed * sinY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)dbgMoveSpeed * cosY >> 12);
         moved = 1;
     }
     /* Numpad 5: backward */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-        g_DebugCamPos.vx -= (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
-        g_DebugCamPos.vz -= (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
+        g_DebugCamPos.vx -= (s32)((s64)dbgMoveSpeed * sinY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)dbgMoveSpeed * cosY >> 12);
         moved = 1;
     }
     /* Numpad 4: strafe left */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-        g_DebugCamPos.vx -= (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
-        g_DebugCamPos.vz += (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        g_DebugCamPos.vx -= (s32)((s64)dbgMoveSpeed * cosY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)dbgMoveSpeed * sinY >> 12);
         moved = 1;
     }
     /* Numpad 6: strafe right */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-        g_DebugCamPos.vx += (s32)((s64)DBG_CAM_MOVE_SPEED * cosY >> 12);
-        g_DebugCamPos.vz -= (s32)((s64)DBG_CAM_MOVE_SPEED * sinY >> 12);
+        g_DebugCamPos.vx += (s32)((s64)dbgMoveSpeed * cosY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)dbgMoveSpeed * sinY >> 12);
         moved = 1;
     }
     /* Numpad 7: turn left */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
-        g_DebugCamAngleY -= DBG_CAM_TURN_SPEED;
+        g_DebugCamAngleY -= dbgTurnSpeed;
         moved = 1;
     }
     /* Numpad 9: turn right */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
-        g_DebugCamAngleY += DBG_CAM_TURN_SPEED;
+        g_DebugCamAngleY += dbgTurnSpeed;
         moved = 1;
     }
     /* Page Up: move up (Y-, PSX Y is inverted) */
     if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
-        g_DebugCamPos.vy -= DBG_CAM_VERT_SPEED;
+        g_DebugCamPos.vy -= dbgVertSpeed;
         moved = 1;
     }
     /* Page Down: move down (Y+) */
     if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
-        g_DebugCamPos.vy += DBG_CAM_VERT_SPEED;
+        g_DebugCamPos.vy += dbgVertSpeed;
         moved = 1;
     }
     /* Numpad +: tilt up (look upward) */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-        g_DebugCamAngleX -= DBG_CAM_TURN_SPEED;
+        g_DebugCamAngleX -= dbgTurnSpeed;
         moved = 1;
     }
     /* Numpad -: tilt down (look downward) */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-        g_DebugCamAngleX += DBG_CAM_TURN_SPEED;
+        g_DebugCamAngleX += dbgTurnSpeed;
         moved = 1;
     }
     /* Numpad /: print debug camera coordinates to log */
