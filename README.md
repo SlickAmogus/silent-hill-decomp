@@ -196,11 +196,6 @@
   | Numpad 2 | Toggle third-person follow camera |
   | Numpad 3 | Teleport Harry to spawn point |
 
-  ### Known Limitations
-
-  - Memory card save/load stubbed
-  - 11 of 42 maps cannot compile as DLLs (non-constant initializers / cross-map shared data)
-  - Only tested on Windows with MSYS2/MinGW64
 
 
   ### Support
