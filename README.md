@@ -199,32 +199,22 @@
   |-----|--------|
   | `1` | Kill Harry (force death animation) |
   | `4` | Log current camera state as **BAD CAMERA POSITION** |
-  | `5` | Log current camera state as **GOOD CAMERA POSITION** + emit copy-paste-ready correction line |
+  | `5` | Log current camera state as **GOOD CAMERA POSITION** |
   | `6` | Log Harry's position |
   | `7` / `8` / `9` / `0` | TPS preset-pose loggers |
 
-  **Numpad keys — free-fly debug camera** (when Numpad `*` is on):
+  **Numpad keys — camera nudges** (same bindings whether debug cam is on or off — moves the active camera):
 
   | Key | Action |
   |-----|--------|
-  | `8` / `5` | Move forward / back |
+  | `8` / `5` | Move forward / back (cam-relative) |
   | `4` / `6` | Strafe left / right |
   | `7` / `9` | Turn left / right (yaw) |
   | `+` / `-` | Tilt up / down (pitch) |
   | PgUp / PgDn | Move up / down (vertical) |
-  | `/` | Print current debug-camera coordinates |
+  | `/` | Print current camera coordinates |
 
-  **Numpad keys — normal-camera nudges** (when Numpad `*` is off; tunes the live fixed cam per-spot):
-
-  | Key | Action |
-  |-----|--------|
-  | `8` / `5` | Pitch up / down |
-  | `4` / `6` | Yaw left / right |
-  | `+` / `-` | Height up / down |
-  | PgUp / PgDn | Height up / down (alias) |
-  | `/` | Print current default + nudged camera state |
-
-  Numpad `3` clears all accumulated nudges. Hold a key for continuous adjustment. After tuning a cam, press top-row `5` (GOOD) to log a copy-paste-ready `CamCorrection` entry.
+  Numpad `3` clears all accumulated nudges (or in gameplay: teleports Harry to spawn). Hold a key for continuous adjustment. After tuning a cam, press top-row `5` (GOOD) to log the camera state for use in a `CamCorrection` entry.
 
 
 
