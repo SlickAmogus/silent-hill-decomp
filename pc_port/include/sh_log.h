@@ -26,22 +26,31 @@ void SH_DebugLogInit(void);
 }
 #endif
 
-/* No fflush per call — that adds ~5us per SH_DBG and combat hit-detection
+/* SH_DBG short-circuits when g_ShDebugLog is NULL — the log file is only
+ * opened (via SH_DebugLogInit) when config has enable_log=1. That keeps
+ * SilentHill.log from ever being created in release builds and turns
+ * SH_DBG into a near-zero-cost branch when logging is disabled.
+ *
+ * No fflush per call — that adds ~5us per SH_DBG and combat hit-detection
  * during a knife swing emits 2000-3000 logs/frame, halving the framerate.
  * Rely on stdio's _IOLBF line buffering (set in SH_DebugLogInit). On
  * unhandled crash, our SetUnhandledExceptionFilter handler in main_pc.c
  * does the final fflush. */
 #define SH_DBG(fmt, ...) do { \
-    if (!g_ShDebugLog) SH_DebugLogInit(); \
-    fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
+    if (g_ShDebugLog) { \
+        fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
+    } \
 } while (0)
 
 /* Like SH_DBG but also prints to stdout when show_console is on — use for
- * lines you want to watch live in the console window during a session. */
+ * lines you want to watch live in the console window during a session.
+ * Echo path runs even with the log file closed, so user-facing console
+ * output isn't silenced by enable_log=0. */
 #define SH_DBG_ECHO(fmt, ...) do { \
-    if (!g_ShDebugLog) SH_DebugLogInit(); \
-    fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
-    fflush(g_ShDebugLog); \
+    if (g_ShDebugLog) { \
+        fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
+        fflush(g_ShDebugLog); \
+    } \
     if (g_ShDebugEchoStdout) { \
         printf(fmt "\n", ##__VA_ARGS__); \
         fflush(stdout); \
