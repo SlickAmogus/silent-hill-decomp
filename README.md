@@ -8,18 +8,17 @@
 
   ### Status
 
-  - **Boot**: warning screen → logos → FMV intro → main menu → options / save / load
-  - **New Game → in-game**: loading screen, opening cutscene, Cybil meeting, Cheryl chase
-  - **Progression**: through eclipse door into the school; further areas in progress
-  - **3D world**: textured environment, fog, snow, geometry; Harry rendered (23 bones)
-  - **Player movement**: collision-based walk / run / jump-back, stairs work at any framerate
-  - **Combat**: aim + fire (handgun, knife), muzzle flash, blood splats; Air Screamer fight playable
-  - **NPCs**: Grey Children, Air Screamer, Larval Stalkers spawn (some with placeholder AI)
-  - **Camera**: PSX fixed-camera system functional; per-spot height + pitch corrections being patched in
-  - **Audio**: SFX + ambient via OpenAL; XA voices stream directly from disc image (no extraction); BGM loads
-  - **Graphics**: 16:9 hor+ widescreen, arbitrary resolutions, configurable FPS cap, optional PGXP (WIP)
-  - **Maps**: 31 of 42 compile as DLLs (rest blocked by non-constant initializers / cross-map shared data)
-  - **Memory card**: save/load stubbed — interacting with save points behaves oddly
+  - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly
+  - **New Game**: loading screen plays (Harry running animation), transitions into gameplay
+  - **Opening cutscene**: fully working — DMS camera, text, Harry visible with animations, ambient audio. Camera just needs adjustment.
+  - **In-game 3D world**: rendering working — textured environment, fog, snow particles, trees, buildings, lamp posts, ground geometry
+  - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height working, stairs working.
+  - **Camera**: PSX fixed-camera system functional but still needs adjustment; controllable with debug mode
+  - **Audio**: SFX working via OpenAL; BGM loads; some sound effects working
+  - **Map overlays**: 31 of 42 maps compile and load as DLLs; map1_s00 (Midwich Elementary) confirmed working
+  - **NPC AI**: enabled, grey children now spawn
+  - **Memory card**: save/load stubbed. Interacting with save points will cause odd behavior.
+  - **Graphics**: Supports high resolutions, 16:9, high refresh rates, and uncapped FPS. Press numpad 0 to toggle FPS cap.
 
 
   <!-- Main menu screenshot -->
