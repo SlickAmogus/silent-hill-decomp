@@ -749,13 +749,14 @@ void DebugCamera_Update(void)
                 .posDelta   = { 0, 0, 0 },
                 .lookAtDelta = { -4104, -55, 4891 },
             },
-            /* map2_s00 post-cafe (dog-head area) — tuned at
-             * (-783519,0,1547256). LookAt downward tilt. */
+            /* map2_s00 post-cafe (dog-head area) — re-tuned at
+             * (-782669,0,1548013). LookAt downward tilt. Previous anchor at
+             * (-783519,0,1547256) didn't activate in this road region. */
             {
                 .mapId      = 10,
-                .harryPos   = { -783519, 0, 1547256 },
+                .harryPos   = { -782669, 0, 1548013 },
                 .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { -174, -24660, 349 },
+                .lookAtDelta = { -151, -25446, 588 },
             },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
