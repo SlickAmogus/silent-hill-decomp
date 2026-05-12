@@ -29,3 +29,6 @@ sh_stderr.txt
 sh_perf.txt
 sh_gdb.txt
 pc_port/build_gen/
+
+# FMV tools
+pc_port/tools/mdec_test.exe
