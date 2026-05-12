@@ -454,7 +454,7 @@ void DebugCamera_Update(void)
     if (!g_DebugCamEnabled && !g_DebugThirdPersonCam &&
         g_GameWork.gameState == GameState_InGame)
     {
-        #define PC_NUDGE_MOVE_SPEED  102   /* Q12(~0.025) — ~5x slower than debug 512 */
+        #define PC_NUDGE_MOVE_SPEED  48    /* Q12(~0.012) — ~0.7m/s at 60fps, fine for tuning */
         #define PC_NUDGE_TURN_SPEED  3     /* ~5x slower than debug 16 */
         #define PC_NUDGE_VERT_SPEED  51    /* ~5x slower than debug 256 */
 
@@ -464,6 +464,25 @@ void DebugCamera_Update(void)
         g_DefaultCam.pos    = vcWork.cam_pos;
         g_DefaultCam.lookAt = vcWork.watch_tgt_pos;
         g_DefaultCam.valid  = 1;
+
+        /* Auto-clear accumulated nudges on map transition so a follow-cam
+         * entry or yaw/pitch from one map doesn't bleed into the next. */
+        {
+            static int s_prevMapForNudgeReset = -1;
+            int curMapNow = (int)g_SavegamePtr->mapOverlayId_A4;
+            if (curMapNow != s_prevMapForNudgeReset) {
+                if (s_prevMapForNudgeReset != -1) {
+                    g_PcCamNudgePos.vx = 0;
+                    g_PcCamNudgePos.vy = 0;
+                    g_PcCamNudgePos.vz = 0;
+                    g_PcCamNudgeYaw    = 0;
+                    g_PcCamNudgePitch  = 0;
+                    SH_DBG("[CAM-RESET] map %d → %d, nudges cleared",
+                        s_prevMapForNudgeReset, curMapNow);
+                }
+                s_prevMapForNudgeReset = curMapNow;
+            }
+        }
 
         /* Numpad 3: reset nudge accumulator (held = repeats; cheap) */
         {
@@ -490,20 +509,29 @@ void DebugCamera_Update(void)
          * them to 0, silently killing KP_7/9. Reverted to direct
          * constants so the keys always do something. */
         {
-            /* World-axis movement: KP_8 = +Z, KP_5 = -Z, KP_4 = -X, KP_6 = +X.
-             * Predictable regardless of cam orientation — yaw/pitch tuning
-             * doesn't rotate the strafe direction. */
+            /* Cam-relative movement: KP_8 always pushes into the screen,
+             * KP_4/6 strafe along the cam's left/right, regardless of
+             * which way the cam is facing in world space. Uses the
+             * cam's CURRENT yaw (baseline + accumulated yaw nudge) so
+             * direction follows the live view. */
+            s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
+            s32 sinY   = Math_Sin(camYaw);
+            s32 cosY   = Math_Cos(camYaw);
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-                g_PcCamNudgePos.vz += PC_NUDGE_MOVE_SPEED;
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-                g_PcCamNudgePos.vz -= PC_NUDGE_MOVE_SPEED;
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-                g_PcCamNudgePos.vx -= PC_NUDGE_MOVE_SPEED;
+                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-                g_PcCamNudgePos.vx += PC_NUDGE_MOVE_SPEED;
+                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
             }
             /* Numpad 7/9: turn left / right (yaw) */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
@@ -576,6 +604,14 @@ void DebugCamera_Update(void)
             VECTOR3 harryPos;       /* anchor; matched via active road's lim_sw containment */
             VECTOR3 posDelta;       /* world-space cam pos translation */
             VECTOR3 lookAtDelta;    /* world-space lookAt translation */
+            int     forceApply;     /* 1 = trigger override even with zero deltas
+                                     * (suppresses cam-pipeline jitter by replacing
+                                     *  flickering view matrix with stable copy) */
+            int     followMode;     /* 1 = override fixed cam with a follow cam:
+                                     * place cam behind Harry's facing direction
+                                     * (TP_DIST back, TP_HEIGHT up) looking at his
+                                     *  chest. posDelta/lookAtDelta still stack
+                                     *  on top in world space. */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -640,9 +676,71 @@ void DebugCamera_Update(void)
                 .posDelta   = { 0, 12342, 0 },
                 .lookAtDelta = { 2874, -11368, -110 },
             },
+            /* map0_s00 alley3 — tuned at (-1093785,0,1019391),
+             * height lift +9078 (~2.22m). */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1093785, 0, 1019391 },
+                .posDelta   = { 0, 9078, 0 },
+                .lookAtDelta = { 0, 0, 0 },
+            },
+            /* map0_s00 alley3 (lighter scene entry) — tuned at
+             * (-1106865,0,1044681). Mostly a lookAt redirect with
+             * small pos nudge. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1106865, 0, 1044681 },
+                .posDelta   = { 135, 0, -705 },
+                .lookAtDelta = { 1165, -2900, 7448 },
+            },
+            /* map0_s00 alley3 next shot (refined) — tuned at
+             * (-1065294,0,985368). Pos shift + lookAt redirect.
+             * Placed BEFORE the -1062321 entry so this wins in lim_sw
+             * matching if both anchors fall in the same shot region. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1065294, 0, 985368 },
+                .posDelta   = { -1080, 10965, -413 },
+                .lookAtDelta = { 6433, -3038, 1284 },
+            },
+            /* map0_s00 alley3 next shot — tuned at (-1062321,0,993880).
+             * LookAt redirect (cam pos unchanged). */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1062321, 0, 993880 },
+                .posDelta   = { 0, 0, 0 },
+                .lookAtDelta = { -6937, -32319, -6508 },
+            },
+            /* map0_s00 alley3 final shot (refined) — tuned at
+             * (-1031091,0,934787). Strong pos + lookAt shift. Placed
+             * BEFORE the -1030552 entry so this wins. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1031091, 0, 934787 },
+                .posDelta   = { -1080, 10965, -413 },
+                .lookAtDelta = { 772, -10259, 9005 },
+            },
+            /* map0_s00 alley3 final shot — tuned at (-1030552,0,933245).
+             * Small lookAt downward + Z forward shift. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1030552, 0, 933245 },
+                .posDelta   = { 0, 0, 0 },
+                .lookAtDelta = { 42, -4550, 8375 },
+            },
+            /* map0_s01 cafe entry — tuned at (16803,0,1093738).
+             * Pos shift -2688 vx (-0.66m). */
+            {
+                .mapId      = 1,
+                .harryPos   = { 16803, 0, 1093738 },
+                .posDelta   = { -2688, 0, -56 },
+                .lookAtDelta = { 0, 0, 0 },
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
+        int     sceneForceApply  = 0;
+        int     sceneFollowMode  = 0;
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
             VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
@@ -662,6 +760,8 @@ void DebugCamera_Update(void)
                     if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
                     sceneNudgePos    = cc->posDelta;
                     sceneNudgeLookAt = cc->lookAtDelta;
+                    sceneForceApply  = cc->forceApply;
+                    sceneFollowMode  = cc->followMode;
                     break;
                 }
             }
@@ -686,22 +786,49 @@ void DebugCamera_Update(void)
         s32 effYaw   = g_PcCamNudgeYaw;
         s32 effPitch = g_PcCamNudgePitch;
         if (effPosX | effPosY | effPosZ | effYaw | effPitch
-            | sceneNudgeLookAt.vx | sceneNudgeLookAt.vy | sceneNudgeLookAt.vz)
+            | sceneNudgeLookAt.vx | sceneNudgeLookAt.vy | sceneNudgeLookAt.vz
+            | sceneForceApply | sceneFollowMode)
         {
             VECTOR3 newCam, newLook;
             VECTOR3 dl;
-
-            newCam.vx = vcWork.cam_pos.vx + effPosX;
-            newCam.vy = vcWork.cam_pos.vy + effPosY;
-            newCam.vz = vcWork.cam_pos.vz + effPosZ;
-
-            /* Start with the baseline lookAt translated by the scene
-             * delta — that's the WYSIWYG correction. Rotation deltas
-             * from the runtime nudge keys are applied on top. */
             VECTOR3 baseLook;
-            baseLook.vx = vcWork.watch_tgt_pos.vx + sceneNudgeLookAt.vx;
-            baseLook.vy = vcWork.watch_tgt_pos.vy + sceneNudgeLookAt.vy;
-            baseLook.vz = vcWork.watch_tgt_pos.vz + sceneNudgeLookAt.vz;
+
+            /* Follow-cam override: when sceneFollowMode is set, replace the
+             * cam-pipeline baseline with a chase-cam derived from Harry's
+             * facing direction. Cam sits ~2.5m behind Harry's body yaw,
+             * lifted by 1.4m, looking at his chest. posDelta + lookAtDelta
+             * still stack on top in world space so they're tunable. */
+            if (sceneFollowMode) {
+                s_SubCharacter* fc_hr = &g_SysWork.playerWork.player;
+                s32 fcYaw = fc_hr->rotation.vy;
+                s32 fcSin = Math_Sin(fcYaw);
+                s32 fcCos = Math_Cos(fcYaw);
+                #define FC_DIST       Q12(2.5f)
+                #define FC_HEIGHT     Q12(-1.4f)  /* PSX -Y up */
+                #define FC_LOOK_OFS_Y Q12(-0.85f)
+                /* Behind Harry: subtract DIST along forward (sin/cos = forward). */
+                newCam.vx = fc_hr->position.vx - (s32)((s64)FC_DIST * fcSin >> 12) + effPosX;
+                newCam.vy = fc_hr->position.vy + FC_HEIGHT + effPosY;
+                newCam.vz = fc_hr->position.vz - (s32)((s64)FC_DIST * fcCos >> 12) + effPosZ;
+                /* Look at Harry's chest (Y-up convention). */
+                baseLook.vx = fc_hr->position.vx + sceneNudgeLookAt.vx;
+                baseLook.vy = fc_hr->position.vy + FC_LOOK_OFS_Y + sceneNudgeLookAt.vy;
+                baseLook.vz = fc_hr->position.vz + sceneNudgeLookAt.vz;
+                #undef FC_DIST
+                #undef FC_HEIGHT
+                #undef FC_LOOK_OFS_Y
+            } else {
+                newCam.vx = vcWork.cam_pos.vx + effPosX;
+                newCam.vy = vcWork.cam_pos.vy + effPosY;
+                newCam.vz = vcWork.cam_pos.vz + effPosZ;
+
+                /* Start with the baseline lookAt translated by the scene
+                 * delta — that's the WYSIWYG correction. Rotation deltas
+                 * from the runtime nudge keys are applied on top. */
+                baseLook.vx = vcWork.watch_tgt_pos.vx + sceneNudgeLookAt.vx;
+                baseLook.vy = vcWork.watch_tgt_pos.vy + sceneNudgeLookAt.vy;
+                baseLook.vz = vcWork.watch_tgt_pos.vz + sceneNudgeLookAt.vz;
+            }
 
             if (effYaw | effPitch) {
                 /* Rotate (baseLook - newCam) around newCam by yaw+pitch. */
