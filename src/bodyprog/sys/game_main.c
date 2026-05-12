@@ -612,6 +612,11 @@ void DebugCamera_Update(void)
                                      * (TP_DIST back, TP_HEIGHT up) looking at his
                                      *  chest. posDelta/lookAtDelta still stack
                                      *  on top in world space. */
+            int     disableMode;    /* 1 = matching entry suppresses ALL corrections
+                                     * for this frame. Use for areas like the
+                                     * end-of-alley3 gray-children spawn where we
+                                     * want vanilla cam behaviour even though the
+                                     * road region overlaps with a tuned shot. */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -736,11 +741,20 @@ void DebugCamera_Update(void)
                 .posDelta   = { -2688, 0, -56 },
                 .lookAtDelta = { 0, 0, 0 },
             },
+            /* map0_s00 alley3 post-spawn shot — tuned at
+             * (-1028587,0,895221). LookAt redirect only. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -1028587, 0, 895221 },
+                .posDelta   = { 0, 0, 0 },
+                .lookAtDelta = { -4104, -55, 4891 },
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
         int     sceneForceApply  = 0;
         int     sceneFollowMode  = 0;
+        int     sceneDisable     = 0;
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
             VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
@@ -750,19 +764,33 @@ void DebugCamera_Update(void)
                 s32 maxHx = Q4_TO_Q12(curRoad->lim_sw.max_hx);
                 s32 minHz = Q4_TO_Q12(curRoad->lim_sw.min_hz);
                 s32 maxHz = Q4_TO_Q12(curRoad->lim_sw.max_hz);
+                /* First pass: any disable-mode entry that matches this road?
+                 * If yes, suppress ALL corrections for this frame. */
                 for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
                     const struct CamCorrection* cc = &s_camCorrections[i];
+                    if (!cc->disableMode) continue;
                     if (cc->mapId != curMap) continue;
-                    /* Anchor harryPos must lie inside the current active
-                     * road's switch area — means we're in the same shot
-                     * that was active when the user tuned this entry. */
                     if (cc->harryPos.vx < minHx || cc->harryPos.vx > maxHx) continue;
                     if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
-                    sceneNudgePos    = cc->posDelta;
-                    sceneNudgeLookAt = cc->lookAtDelta;
-                    sceneForceApply  = cc->forceApply;
-                    sceneFollowMode  = cc->followMode;
+                    sceneDisable = 1;
                     break;
+                }
+                if (!sceneDisable) {
+                    for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
+                        const struct CamCorrection* cc = &s_camCorrections[i];
+                        if (cc->disableMode) continue;
+                        if (cc->mapId != curMap) continue;
+                        /* Anchor harryPos must lie inside the current active
+                         * road's switch area — means we're in the same shot
+                         * that was active when the user tuned this entry. */
+                        if (cc->harryPos.vx < minHx || cc->harryPos.vx > maxHx) continue;
+                        if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
+                        sceneNudgePos    = cc->posDelta;
+                        sceneNudgeLookAt = cc->lookAtDelta;
+                        sceneForceApply  = cc->forceApply;
+                        sceneFollowMode  = cc->followMode;
+                        break;
+                    }
                 }
             }
         }

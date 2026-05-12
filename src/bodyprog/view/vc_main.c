@@ -2201,17 +2201,28 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     base_angle  = w_p->chara_eye_ang_y + Q12_ANGLE(180.0f);
     delta_angle = Math_AngleNormalize(w_p->cam_chara2ideal_ang_y - base_angle);
 
+#ifdef SH_PC_PORT
+    /* PSX hard-coded the per-FRAME yaw step at 12° (30fps × 12° = 360°/s).
+     * On PC at 60fps/144fps/uncapped that becomes 720°/s, 1728°/s, … —
+     * the cam "snaps" with Harry instead of trailing smoothly. Scale by
+     * g_DeltaTime so the rate stays 360°/s regardless of frame rate. */
+    q3_12 frameAngleStep = (q3_12)TIMESTEP_SCALE_30_FPS(g_DeltaTime, ANGLE_DELTA_RANGE);
+    if (frameAngleStep <= 0) frameAngleStep = 1; /* never round to zero */
+#else
+    q3_12 frameAngleStep = ANGLE_DELTA_RANGE;
+#endif
+
     if (abs(w_p->chara_ang_spd_y) > Q12_ANGLE(20.0f))
     {
-        delta_angle = CLAMP(delta_angle, -ANGLE_DELTA_RANGE, ANGLE_DELTA_RANGE);
+        delta_angle = CLAMP(delta_angle, -frameAngleStep, frameAngleStep);
     }
     else if (delta_angle >= Q12_ANGLE(0.0f))
     {
-        delta_angle = ANGLE_DELTA_RANGE;
+        delta_angle = frameAngleStep;
     }
     else
     {
-        delta_angle = -ANGLE_DELTA_RANGE;
+        delta_angle = -frameAngleStep;
     }
 
     w_p->cam_chara2ideal_ang_y = Math_AngleNormalize(delta_angle + base_angle);
