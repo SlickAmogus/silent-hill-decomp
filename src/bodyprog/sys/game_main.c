@@ -749,6 +749,14 @@ void DebugCamera_Update(void)
                 .posDelta   = { 0, 0, 0 },
                 .lookAtDelta = { -4104, -55, 4891 },
             },
+            /* map2_s00 post-cafe (dog-head area) — tuned at
+             * (-783519,0,1547256). LookAt downward tilt. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -783519, 0, 1547256 },
+                .posDelta   = { 0, 0, 0 },
+                .lookAtDelta = { -174, -24660, 349 },
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
