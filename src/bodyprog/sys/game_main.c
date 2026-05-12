@@ -148,8 +148,17 @@ typedef struct {
 
 static VECTOR3       g_PcCamNudgePos     = {0, 0, 0};
 static s32           g_PcCamNudgeYaw     = 0; /* Q3.12 added to cam yaw */
-static s32           g_PcCamNudgePitch   = 0; /* Q3.12 added to cam pitch */
+static s32           g_PcCamNudgePitch   = 0; /* Q3.12 added to cam pitch (TRUE rotation) */
 static s_DefaultCamera g_DefaultCam      = {{0,0,0}, {0,0,0}, 0};
+
+/* Post-nudge cam state — written by the apply site after computing newCam
+ * and newLook (the values actually passed to Vw_SetLookAtMatrix this frame).
+ * Read by the BAD/GOOD log so [CAM-GOOD-FINAL] shows the exact on-screen
+ * camera the user is looking at. g_PcCamAppliedValid is 0 when no nudge
+ * was applied this frame (fall back to vcWork for the log). */
+static VECTOR3       g_PcCamAppliedPos    = {0, 0, 0};
+static VECTOR3       g_PcCamAppliedLookAt = {0, 0, 0};
+static int           g_PcCamAppliedValid  = 0;
 
 void DebugCamera_Update(void)
 {
@@ -306,6 +315,40 @@ void DebugCamera_Update(void)
                 (int)pitch, (int)yaw, (int)vcWork.geom_screen_dist,
                 (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
                 (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
+            /* WYSIWYG: log the POST-NUDGE cam pos/lookAt that were actually
+             * passed to Vw_SetLookAtMatrix this frame. This is the exact
+             * on-screen camera the user sees. If g_PcCamAppliedValid is 0
+             * (no nudges applied this frame), the post-nudge state equals
+             * the pre-nudge baseline above. Also emit the pos/lookAt
+             * deltas in WORLD-SPACE so the user can paste them directly
+             * into a new s_camCorrections entry. */
+            if (!g_DebugCamEnabled && !g_DebugThirdPersonCam) {
+                VECTOR3 finalPos, finalLook;
+                if (g_PcCamAppliedValid) {
+                    finalPos  = g_PcCamAppliedPos;
+                    finalLook = g_PcCamAppliedLookAt;
+                } else {
+                    finalPos  = camPos;
+                    finalLook = lookAt;
+                }
+                /* Baseline = the pristine vcMoveAndSetCamera output snapshot
+                 * taken before nudge application (g_DefaultCam). Deltas are
+                 * what should be stored as posDelta / lookAtDelta. */
+                VECTOR3 basePos  = g_DefaultCam.valid ? g_DefaultCam.pos    : camPos;
+                VECTOR3 baseLook = g_DefaultCam.valid ? g_DefaultCam.lookAt : lookAt;
+                SH_DBG("[%s-FINAL] pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) (actual on-screen cam)",
+                    tag,
+                    (long)finalPos.vx, (long)finalPos.vy, (long)finalPos.vz,
+                    (long)finalLook.vx, (long)finalLook.vy, (long)finalLook.vz);
+                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={%ld,%ld,%ld} (paste into s_camCorrections[])",
+                    tag,
+                    (long)(finalPos.vx  - basePos.vx),
+                    (long)(finalPos.vy  - basePos.vy),
+                    (long)(finalPos.vz  - basePos.vz),
+                    (long)(finalLook.vx - baseLook.vx),
+                    (long)(finalLook.vy - baseLook.vy),
+                    (long)(finalLook.vz - baseLook.vz));
+            }
         }
         prevKey4 = cur4;
         prevKey5 = cur5;
@@ -447,27 +490,20 @@ void DebugCamera_Update(void)
          * them to 0, silently killing KP_7/9. Reverted to direct
          * constants so the keys always do something. */
         {
-            s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
-            s32 sinY   = Math_Sin(camYaw);
-            s32 cosY   = Math_Cos(camYaw);
-
-            /* Numpad 8/5: forward / back (cam-relative XZ) */
+            /* World-axis movement: KP_8 = +Z, KP_5 = -Z, KP_4 = -X, KP_6 = +X.
+             * Predictable regardless of cam orientation — yaw/pitch tuning
+             * doesn't rotate the strafe direction. */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz += PC_NUDGE_MOVE_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
+                g_PcCamNudgePos.vz -= PC_NUDGE_MOVE_SPEED;
             }
-            /* Numpad 4/6: strafe left / right */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vx -= PC_NUDGE_MOVE_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
+                g_PcCamNudgePos.vx += PC_NUDGE_MOVE_SPEED;
             }
             /* Numpad 7/9: turn left / right (yaw) */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
@@ -476,15 +512,18 @@ void DebugCamera_Update(void)
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
                 g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
             }
-            /* Numpad +/-: tilt up / down (pitch). Matches debug cam.
-             * The pitch nudge biases the lookAt Y at the apply site
-             * (search g_PcCamNudgePitch). PSX +Y = down → KP_PLUS goes
-             * up by subtracting from Y. */
+            /* Numpad +/-: tilt cam pitch. NOW a true rotation around the
+             * cam-local X axis (matching the yaw rotation), units are
+             * Q3.12 angle deltas. Empirically: KP_+ → pitchN negative
+             * → cam tilts DOWN (lookAt drops toward ground); KP_- →
+             * pitchN positive → cam tilts UP (lookAt rises toward sky).
+             * Speed matches yaw (PC_NUDGE_TURN_SPEED) so both rotation
+             * axes feel equally responsive. */
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-                g_PcCamNudgePitch -= PC_NUDGE_VERT_SPEED;
+                g_PcCamNudgePitch -= PC_NUDGE_TURN_SPEED;
             }
             if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-                g_PcCamNudgePitch += PC_NUDGE_VERT_SPEED;
+                g_PcCamNudgePitch += PC_NUDGE_TURN_SPEED;
             }
             /* Page Up / Page Down: vertical move (camera-Y) — also
              * matches debug cam's vertical bindings. */
@@ -513,239 +552,195 @@ void DebugCamera_Update(void)
         }
 
         /* Scene-baseline cam corrections (built up from in-game tuning).
-         * When Harry is within `radius` of one of these world positions on
-         * the matching map, the listed nudge gets applied EVERY FRAME on
-         * top of vcMoveAndSetCamera's natural cam — same shape as the
-         * numpad runtime nudge, but baked in. The runtime nudge stacks
-         * on top, so the user can still fine-tune at runtime.
          *
-         * Each entry is one fixed-cam tuning the user logged via the
-         * Number-key 4 / 5 BAD/GOOD pair. Adding more entries = adding
-         * more rows here. radius is in PSX Q12 world units (~1m=4096). */
+         * Matching: the anchor `harryPos` is tested against the currently
+         * active road's switch area (`lim_sw`). If the anchor is inside
+         * the same road region Harry is currently in, the same fixed-cam
+         * shot is active → apply this correction. One tuning therefore
+         * covers the entire spatial extent of a fixed-cam shot
+         * automatically (no manual radius needed).
+         *
+         * Stored as world-space pos + lookAt DELTAS (VECTOR3 each), not
+         * yaw/pitch rotation. Same baseline + same delta = identical
+         * final cam — what the user tunes is exactly what they see
+         * next time.
+         *
+         * Workflow:
+         *   1. Top-row 4 at the bad spot — logs baseline.
+         *   2. Numpad to nudge cam to correct view.
+         *   3. Top-row 5 — logs [GOOD-DELTA] with deltas.
+         *   4. Paste those deltas + the harry= line's coords into a
+         *      new entry here. */
         struct CamCorrection {
             int     mapId;          /* mapOverlayId_A4 */
-            VECTOR3 harryPos;       /* center of correction zone */
-            s32     radius2;        /* squared radius (Q12)^2; uses XZ only */
-            VECTOR3 posDelta;       /* pos nudge */
-            s32     yawDelta;       /* yaw nudge (Q3.12) */
-            s32     pitchDelta;     /* pitch nudge (Y bias) */
+            VECTOR3 harryPos;       /* anchor; matched via active road's lim_sw containment */
+            VECTOR3 posDelta;       /* world-space cam pos translation */
+            VECTOR3 lookAtDelta;    /* world-space lookAt translation */
         };
         static const struct CamCorrection s_camCorrections[] = {
-            /* map0_s01 alley near AS room — user-logged GOOD vs BAD pair
-             * (SilentHill.log lines 103870/150358). User confirmed the
-             * default cam at this position was bad and the nudged version
-             * looks correct. radius ≈ 2m (Q12(2.0)^2). */
+            /* map0_s00 intro / first-street fixed cam — cam was way underground
+             * looking up at the sky/treetops. Tuned at (-24864,0,626512),
+             * vy lift +4182 (~1.0m). */
             {
-                .mapId      = 1,
-                .harryPos   = { 18815, 0, 1088743 },
-                .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
-                .posDelta   = { -1818, 612, -252 },
-                .yawDelta   = -72,
-                .pitchDelta = 3774,
+                .mapId      = 0,
+                .harryPos   = { -24864, 0, 626512 },
+                .posDelta   = { 0, 4182, 0 },
+                .lookAtDelta = { 0, 0, 0 },
             },
-            /* map2_s00 cafe Bachman corner near KeyOfWoodman pickup — user
-             * logged BAD/GOOD pair from SilentHill.log: BAD had pitchN=0
-             * (camera tilted up at ceiling), GOOD had pitchN=-26112
-             * (camera tilts down to frame Harry). Harry's pos at the
-             * freeze: (-781992, 0, 1543104). The camera at this scene
-             * has lookAt.vy=+2048 by default — adding pitchDelta=-26112
-             * shifts look.vy to -24064 in +Y=up convention so camera
-             * pitches downward to look at Harry. radius ≈ 4m (this is a
-             * fairly large interior so the same fixed-cam shot covers a
-             * wide area in cafe). */
+            /* map0_s00 street approach to alley2 door — tuned at
+             * (-117980,0,512660), vy lift +3621 (~0.88m). Should hold until
+             * the alley2-door boundary where the road switches. */
             {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { -781992, 0, 1543104 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .mapId      = 0,
+                .harryPos   = { -117980, 0, 512660 },
+                .posDelta   = { 0, 3621, 0 },
+                .lookAtDelta = { 0, 0, 0 },
+            },
+            /* map0_s00 Cheryl-chase alley (before alley2) — tuned at
+             * (-246105,0,440531), vy lift +2244 (~0.55m). */
+            {
+                .mapId      = 0,
+                .harryPos   = { -246105, 0, 440531 },
+                .posDelta   = { 0, 2244, 0 },
+                .lookAtDelta = { 0, 0, 0 },
+            },
+            /* map0_s00 alley2 first fixed-cam — tuned at (-374949,0,1000840).
+             * Pure lookAt tilt (no pos shift): lookAt vy down 24103 (~5.9m)
+             * to tilt cam downward and frame Harry. */
+            {
+                .mapId      = 0,
+                .harryPos   = { -374949, 0, 1000840 },
                 .posDelta   = { 0, 0, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -26112,
+                .lookAtDelta = { 59, -24103, -122 },
             },
-            /* map2_s00 alleyway — user logged BAD vs GOOD pair: camera was
-             * "way too far up" through the whole alley. Default cam needs
-             * to drop Y by 3927 and pitch DOWN by 7956 (PSX +Y = down, so
-             * positive posY pushes cam down; negative pitch pushes lookAt
-             * up so cam pitches down to look at Harry). Generous radius
-             * because the alleyway is long; same fixed-cam shot covers a
-             * decent stretch. If parts of the alley still need different
-             * tuning, add more rows. */
+            /* map0_s00 alley2 second fixed-cam — tuned at (-375040,0,995624).
+             * Baseline cam differs from the first entry (different shot
+             * region), so this is a separate fixed-cam shot. lookAtDelta
+             * similar shape (downward tilt). */
             {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { 232058, 0, 402043 },
-                .radius2    = (s32)((s64)Q12(6.0f) * Q12(6.0f) >> 12),
-                .posDelta   = { 0, 3927, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -7956,
-            },
-            /* map2_s00 streets fixed-cam near (460000,0,886000) — user logged
-             * BAD/GOOD pair; default cam misframed Harry. The vy lift is the
-             * "z/vertical" value from the user's second GOOD log entry (2907,
-             * adjusted down from the first GOOD's 5355). yawN/pitchN are the
-             * user's tuned rotation (yaw -60 nudges right, pitch -10251 lifts
-             * lookAt up so cam pitches downward). radius ≈ 2m. */
-            {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { 459965, 0, 886197 },
-                .radius2    = (s32)((s64)Q12(2.0f) * Q12(2.0f) >> 12),
-                .posDelta   = { 57, 2907, 78 },
-                .yawDelta   = -60,
-                .pitchDelta = -10251,
-            },
-            /* map2_s00 Cheryl-chase alley return — user logged BAD/GOOD pair;
-             * default cam was "too high up". vy lift 2142 drops cam down,
-             * pitchN -12393 lifts lookAt up so cam pitches downward to frame
-             * Harry. radius ≈ 4m to cover the alley return walk. */
-            {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { -254870, 0, 412756 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, 2142, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -12393,
-            },
-            /* map0_s00 starting area near (-24864, 0, 624736) — user logged
-             * BAD/GOOD pair; default cam misframed Harry. vy lift 3213 drops
-             * cam down, pitchN -8517 lifts lookAt up so cam pitches downward
-             * to frame Harry. radius ≈ 4m. */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -24864, 0, 624736 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, 3213, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -8517,
-            },
-            /* map0_s00 second starting-area shot near (-27102, 0, 607676) —
-             * user logged BAD + two GOODs; using the second GOOD (final
-             * tuned values). vy nudge -357 (almost no vertical change),
-             * pitchN -7140 lifts lookAt up so cam pitches downward to
-             * frame Harry. radius ≈ 4m. */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -27102, 0, 607676 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, -357, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -7140,
-            },
-            /* map0_s00 third starting-area shot near (-119042, 0, 511604) —
-             * user logged BAD/GOOD pair. vy lift 1530 drops cam down,
-             * pitchN -5253 lifts lookAt up so cam pitches downward to
-             * frame Harry. radius ≈ 4m. */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -119042, 0, 511604 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, 1530, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -5253,
-            },
-            /* map0_s00 Cheryl-chase alley (original) near (-254027, 0, 412725)
-             * — user logged BAD/GOOD pair. Note: same coord range as the
-             * map2_s00 Cheryl-chase return entry above but on a different map
-             * id. vy lift 1734 drops cam down, pitchN -7956 lifts lookAt up
-             * so cam pitches downward. radius ≈ 4m. */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -254027, 0, 412725 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, 1734, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -7956,
-            },
-            /* map0_s00 alley2 second spot near (-372441, 0, 959711) — user
-             * logged BAD/GOOD pair. Different shot from the first alley2
-             * entry; vy lift -4080 raises cam (PSX +Y=down so negative=up).
-             * radius ≈ 4m (well separated from other alley2 entries). */
-            {
-                .mapId      = 0,                        /* map0_s00 */
-                .harryPos   = { -372441, 0, 959711 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 1061, -4080, 347 },
-                .yawDelta   = -195,
-                .pitchDelta = 0,
-            },
-            /* map2_s00 post-eclipse-door area near (604979, -528, 1542144) —
-             * user logged BAD/GOOD pair right after going through the eclipse
-             * door. Default cam framed too low / pitched up; vy lift 6885
-             * drops cam down, pitchN -15759 lifts lookAt up so cam pitches
-             * downward to frame Harry. radius ≈ 4m. */
-            {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { 604979, -528, 1542144 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
-                .posDelta   = { 0, 6885, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -15759,
-            },
-            /* map2_s00 post-eclipse-door second spot near (580336, 0, 1549057)
-             * — user logged BAD/GOOD pair just past the first post-eclipse
-             * correction (~6m away, doesn't overlap). Only pitch needed
-             * tuning this time: pitchN -13311 lifts lookAt up so cam pitches
-             * downward to frame Harry. No position or yaw nudge. radius ≈ 4m. */
-            {
-                .mapId      = 10,                       /* map2_s00 */
-                .harryPos   = { 580336, 0, 1549057 },
-                .radius2    = (s32)((s64)Q12(4.0f) * Q12(4.0f) >> 12),
+                .mapId      = 0,
+                .harryPos   = { -375040, 0, 995624 },
                 .posDelta   = { 0, 0, 0 },
-                .yawDelta   = 0,
-                .pitchDelta = -13311,
+                .lookAtDelta = { 649, -22805, -1229 },
+            },
+            /* map0_s00 alley2 third fixed-cam — tuned at (-373844,0,964688).
+             * Pure Z-pos shift -1734 (~0.42m back along Z). */
+            {
+                .mapId      = 0,
+                .harryPos   = { -373844, 0, 964688 },
+                .posDelta   = { 0, 0, -1734 },
+                .lookAtDelta = { 0, 0, 0 },
+            },
+            /* map0_s00 alley2 fourth (final) fixed-cam — tuned at
+             * (-435081,0,929665). Big lift (+12342 vy ~3m) plus lookAt
+             * tilt (vy -11368 ~2.8m). */
+            {
+                .mapId      = 0,
+                .harryPos   = { -435081, 0, 929665 },
+                .posDelta   = { 0, 12342, 0 },
+                .lookAtDelta = { 2874, -11368, -110 },
             },
         };
-        VECTOR3 sceneNudgePos = {0, 0, 0};
-        s32     sceneNudgeYaw   = 0;
-        s32     sceneNudgePitch = 0;
+        VECTOR3 sceneNudgePos    = {0, 0, 0};
+        VECTOR3 sceneNudgeLookAt = {0, 0, 0};
         {
-            const VECTOR3* hp = &g_SysWork.playerWork.player.position;
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
-            for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
-                const struct CamCorrection* cc = &s_camCorrections[i];
-                if (cc->mapId != curMap) continue;
-                s64 dx = hp->vx - cc->harryPos.vx;
-                s64 dz = hp->vz - cc->harryPos.vz;
-                /* Q12 distance squared scaled down to fit s32. */
-                s32 d2 = (s32)(((dx * dx) + (dz * dz)) >> 12);
-                if (d2 > cc->radius2) continue;
-                sceneNudgePos   = cc->posDelta;
-                sceneNudgeYaw   = cc->yawDelta;
-                sceneNudgePitch = cc->pitchDelta;
-                break;
+            VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
+            /* lim_sw is in q11_4 — convert to Q12 to compare with VECTOR3. */
+            if (curRoad) {
+                s32 minHx = Q4_TO_Q12(curRoad->lim_sw.min_hx);
+                s32 maxHx = Q4_TO_Q12(curRoad->lim_sw.max_hx);
+                s32 minHz = Q4_TO_Q12(curRoad->lim_sw.min_hz);
+                s32 maxHz = Q4_TO_Q12(curRoad->lim_sw.max_hz);
+                for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
+                    const struct CamCorrection* cc = &s_camCorrections[i];
+                    if (cc->mapId != curMap) continue;
+                    /* Anchor harryPos must lie inside the current active
+                     * road's switch area — means we're in the same shot
+                     * that was active when the user tuned this entry. */
+                    if (cc->harryPos.vx < minHx || cc->harryPos.vx > maxHx) continue;
+                    if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
+                    sceneNudgePos    = cc->posDelta;
+                    sceneNudgeLookAt = cc->lookAtDelta;
+                    break;
+                }
             }
         }
 
         /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
-         * lookAt is rotated around cam_pos by the yaw nudge so the camera
-         * "swings" rather than parallel-translating. Combine the
-         * scene-baseline correction with the runtime numpad nudge. */
+         *
+         * Two contributors:
+         *   1. Runtime numpad keys (g_PcCamNudgeYaw/Pitch) — applied as
+         *      TRUE rotation around the cam-X / cam-Y axes so dragging
+         *      feels intuitive while tuning.
+         *   2. Scene baseline correction (s_camCorrections[i]) — applied
+         *      as a pure WORLD-SPACE lookAt + pos translation. Same
+         *      baseline + same delta = identical visual, so what the
+         *      user tunes is what they get back next session.
+         *
+         * Order: first apply rotation (runtime nudges), then add the
+         * scene lookAt translation on top. */
         s32 effPosX  = g_PcCamNudgePos.vx + sceneNudgePos.vx;
         s32 effPosY  = g_PcCamNudgePos.vy + sceneNudgePos.vy;
         s32 effPosZ  = g_PcCamNudgePos.vz + sceneNudgePos.vz;
-        s32 effYaw   = g_PcCamNudgeYaw    + sceneNudgeYaw;
-        s32 effPitch = g_PcCamNudgePitch  + sceneNudgePitch;
-        if (effPosX | effPosY | effPosZ | effYaw | effPitch)
+        s32 effYaw   = g_PcCamNudgeYaw;
+        s32 effPitch = g_PcCamNudgePitch;
+        if (effPosX | effPosY | effPosZ | effYaw | effPitch
+            | sceneNudgeLookAt.vx | sceneNudgeLookAt.vy | sceneNudgeLookAt.vz)
         {
             VECTOR3 newCam, newLook;
             VECTOR3 dl;
-            s32 syN, cyN, dx, dz;
 
             newCam.vx = vcWork.cam_pos.vx + effPosX;
             newCam.vy = vcWork.cam_pos.vy + effPosY;
             newCam.vz = vcWork.cam_pos.vz + effPosZ;
 
-            /* Original lookAt relative to cam */
-            dl.vx = vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx;
-            dl.vy = vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy;
-            dl.vz = vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz;
+            /* Start with the baseline lookAt translated by the scene
+             * delta — that's the WYSIWYG correction. Rotation deltas
+             * from the runtime nudge keys are applied on top. */
+            VECTOR3 baseLook;
+            baseLook.vx = vcWork.watch_tgt_pos.vx + sceneNudgeLookAt.vx;
+            baseLook.vy = vcWork.watch_tgt_pos.vy + sceneNudgeLookAt.vy;
+            baseLook.vz = vcWork.watch_tgt_pos.vz + sceneNudgeLookAt.vz;
 
-            /* Rotate XZ component of dl by yaw nudge */
-            syN = Math_Sin(effYaw);
-            cyN = Math_Cos(effYaw);
-            dx  = (s32)(((s64)dl.vx * cyN + (s64)dl.vz * syN) >> 12);
-            dz  = (s32)((-(s64)dl.vx * syN + (s64)dl.vz * cyN) >> 12);
+            if (effYaw | effPitch) {
+                /* Rotate (baseLook - newCam) around newCam by yaw+pitch. */
+                dl.vx = baseLook.vx - newCam.vx;
+                dl.vy = baseLook.vy - newCam.vy;
+                dl.vz = baseLook.vz - newCam.vz;
 
-            newLook.vx = newCam.vx + dx;
-            newLook.vy = newCam.vy + dl.vy + effPitch; /* crude pitch as Y bias */
-            newLook.vz = newCam.vz + dz;
+                s32 horizDist = SquareRoot0(dl.vx * dl.vx + dl.vz * dl.vz);
+                s32 baseYaw   = ratan2(dl.vx, dl.vz);
+                s32 basePitch = ratan2(-dl.vy, horizDist);
+
+                s32 newYaw   = baseYaw   + effYaw;
+                s32 newPitch = basePitch + effPitch;
+
+                s32 dist3D = SquareRoot0(horizDist * horizDist + dl.vy * dl.vy);
+
+                s32 cp = Math_Cos(newPitch);
+                s32 sp = Math_Sin(newPitch);
+                s32 cy = Math_Cos(newYaw);
+                s32 sy = Math_Sin(newYaw);
+
+                s32 newHorizDist = (s32)(((s64)dist3D * cp) >> 12);
+                s32 newDlY = -(s32)(((s64)dist3D * sp) >> 12);
+                s32 newDlX = (s32)(((s64)newHorizDist * sy) >> 12);
+                s32 newDlZ = (s32)(((s64)newHorizDist * cy) >> 12);
+
+                newLook.vx = newCam.vx + newDlX;
+                newLook.vy = newCam.vy + newDlY;
+                newLook.vz = newCam.vz + newDlZ;
+            } else {
+                /* No rotation — pure translation. */
+                newLook = baseLook;
+            }
+
+            /* Stash applied state for the BAD/GOOD log so it can report
+             * the actual on-screen cam (not just the pre-nudge baseline). */
+            g_PcCamAppliedPos    = newCam;
+            g_PcCamAppliedLookAt = newLook;
+            g_PcCamAppliedValid  = 1;
 
             Vw_SetLookAtMatrix(&newCam, &newLook);
             vwSetViewInfo();
@@ -754,14 +749,19 @@ void DebugCamera_Update(void)
             {
                 static int tickCounter = 0;
                 if ((++tickCounter & 0x3F) == 0) {
-                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d (scene=%d,%d,%d / %d,%d)",
+                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d (scenePos=%d,%d,%d look=%d,%d,%d)",
                         (long)newCam.vx, (long)newCam.vy, (long)newCam.vz,
                         (long)newLook.vx, (long)newLook.vy, (long)newLook.vz,
                         (int)effYaw,
                         (int)sceneNudgePos.vx, (int)sceneNudgePos.vy, (int)sceneNudgePos.vz,
-                        (int)sceneNudgeYaw, (int)sceneNudgePitch);
+                        (int)sceneNudgeLookAt.vx, (int)sceneNudgeLookAt.vy, (int)sceneNudgeLookAt.vz);
                 }
             }
+        }
+        else
+        {
+            /* No nudge / no scene correction — log fallback uses vcWork. */
+            g_PcCamAppliedValid = 0;
         }
 
         #undef PC_NUDGE_MOVE_SPEED
