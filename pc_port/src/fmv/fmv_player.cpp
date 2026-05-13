@@ -13,6 +13,8 @@
 
 #include "fmv_player.h"
 #include "ReadAVI.h"
+#include "mdec.h"
+#include "str_demux.h"
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
@@ -29,50 +31,60 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern "C" const char* PcPort_GetGameDataPath(void);
+
 /* PsyCross internal - needed for direct buffer swap */
 extern SDL_Window* g_window;
 
-/* File ID to filename mapping.
- * The numbers after the prefix are PSX sector counts from the file table.
- * Users convert STR files from disc to AVI using jPSXdec. */
+/* File ID to filename + disc-sector mapping.
+ *
+ * `name`         — base filename (used to locate optional AVI override).
+ * `base_sector`  — disc-absolute sector where this file's data begins.
+ * `n_sectors`    — total sectors the file spans on disc (== the suffix in `name`).
+ *
+ * Sector offsets are pulled from filetable.c.inc (entries 2044..2073, the
+ * XA/MOVIE block on Silent Hill USA). The PSX SDK packed XA dialog audio
+ * and STR FMV video into the same sector layout — entries 0..8 are pure
+ * audio (in-game voice lines, played via xa_player), entries 9..29 are
+ * video+audio cutscenes. The demuxer transparently skips audio sectors
+ * when reading a video stream, so the same table feeds both paths. */
 typedef struct {
-    const char* name;   /* base filename without extension */
+    const char* name;
+    uint32_t    base_sector;
+    uint32_t    n_sectors;
 } FmvFileEntry;
 
-/* Map of XA file names extracted from the file enum.
- * Index 0 = first XA file in the enum. The caller passes
- * a file_idx from fileenum.h; we subtract the base to index here. */
 static const FmvFileEntry s_fmvFiles[] = {
-    { "05_02152" },  /* 0  - in-game cutscene */
-    { "10_04432" },  /* 1 */
-    { "15_07496" },  /* 2 */
-    { "20_06552" },  /* 3 */
-    { "25_03904" },  /* 4 */
-    { "30_04056" },  /* 5 */
-    { "35_26008" },  /* 6 */
-    { "40_10384" },  /* 7 */
-    { "45_28784" },  /* 8 */
-    { "C1_20670" },  /* 9  - intro (US) */
-    { "C2_20670" },  /* 10 - intro (JP) */
-    { "M1_03500" },  /* 11 - opening */
-    { "M2_01190" },  /* 12 */
-    { "M3_02570" },  /* 13 */
-    { "M4_02490" },  /* 14 */
-    { "M5_03140" },  /* 15 */
-    { "M6_02112" },  /* 16 */
-    { "M7_01536" },  /* 17 */
-    { "M8_03039" },  /* 18 */
-    { "M9_01730" },  /* 19 */
-    { "MA_03590" },  /* 20 */
-    { "MB_04850" },  /* 21 */
-    { "MC_01930" },  /* 22 */
-    { "MD_03780" },  /* 23 */
-    { "ME_03300" },  /* 24 */
-    { "Z1_16180" },  /* 25 */
-    { "Z3_02340" },  /* 26 */
-    { "Z4_01590" },  /* 27 */
-    { "ZC_14392" },  /* 28 */
-    { "ZZ_14239" },  /* 29 */
+    { "05_02152", 0x099bf,  2152 },  /* 0  - in-game voice line (XA-only) */
+    { "10_04432", 0x0a227,  4432 },  /* 1 */
+    { "15_07496", 0x0b377,  7496 },  /* 2 */
+    { "20_06552", 0x0d0bf,  6552 },  /* 3 */
+    { "25_03904", 0x0ea57,  3904 },  /* 4 */
+    { "30_04056", 0x0f997,  4056 },  /* 5 */
+    { "35_26008", 0x1096f, 26008 },  /* 6 */
+    { "40_10384", 0x16f07, 10384 },  /* 7 */
+    { "45_28784", 0x19797, 28784 },  /* 8 */
+    { "C1_20670", 0x20807, 20670 },  /* 9  - intro (US) */
+    { "C2_20670", 0x258c5, 20670 },  /* 10 - intro (JP) */
+    { "M1_03500", 0x2a983,  3500 },  /* 11 - opening */
+    { "M2_01190", 0x2b72f,  1190 },  /* 12 */
+    { "M3_02570", 0x2bbd5,  2570 },  /* 13 */
+    { "M4_02490", 0x2c5df,  2490 },  /* 14 */
+    { "M5_03140", 0x2cf99,  3140 },  /* 15 */
+    { "M6_02112", 0x2dbdd,  2112 },  /* 16 */
+    { "M7_01536", 0x2e41d,  1536 },  /* 17 */
+    { "M8_03039", 0x2ea1d,  3039 },  /* 18 */
+    { "M9_01730", 0x2f5fc,  1730 },  /* 19 */
+    { "MA_03590", 0x2fcbe,  3590 },  /* 20 */
+    { "MB_04850", 0x30ac4,  4850 },  /* 21 */
+    { "MC_01930", 0x31db6,  1930 },  /* 22 */
+    { "MD_03780", 0x32540,  3780 },  /* 23 */
+    { "ME_03300", 0x33404,  3300 },  /* 24 */
+    { "Z1_16180", 0x340e8, 16180 },  /* 25 */
+    { "Z3_02340", 0x3801c,  2340 },  /* 26 */
+    { "Z4_01590", 0x38940,  1590 },  /* 27 */
+    { "ZC_14392", 0x38f76, 14392 },  /* 28 */
+    { "ZZ_14239", 0x3c7ae, 14239 },  /* 29 */
 };
 
 #define FMV_FILE_COUNT (sizeof(s_fmvFiles) / sizeof(s_fmvFiles[0]))
@@ -377,6 +389,150 @@ static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, 
     return dev;
 }
 
+/* Open <gamedata>/Silent Hill (USA).bin. Caller owns the FILE*. */
+static FILE* OpenDiscImage(void)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/Silent Hill (USA).bin",
+             PcPort_GetGameDataPath());
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        printf("[FMV] Failed to open disc image: %s\n", path);
+    }
+    return f;
+}
+
+/* Poll skip keys, drain SDL events, and return 1 if the user wants to bail. */
+static int PollSkipOrQuit(int* out_quit)
+{
+    SDL_PumpEvents();
+
+    SDL_Event evt;
+    while (SDL_PollEvent(&evt)) {
+        if (evt.type == SDL_QUIT) {
+            if (out_quit) *out_quit = 1;
+            return 1;
+        }
+    }
+
+    const Uint8* keystate = SDL_GetKeyboardState(NULL);
+    return (keystate[SDL_SCANCODE_RETURN] ||
+            keystate[SDL_SCANCODE_ESCAPE] ||
+            keystate[SDL_SCANCODE_SPACE]);
+}
+
+/* Play an FMV directly from the BIN disc image using the MDEC software
+ * decoder. Audio is *not* decoded here yet — XA dialogue tracks have their
+ * own pipeline (xa_player) and FMV soundtrack sync is a follow-up. Returns
+ * 0 on completion / user skip, -1 on open failure. */
+static int PlayFromBin(int table_idx, int max_frames)
+{
+    const FmvFileEntry& e = s_fmvFiles[table_idx];
+
+    FILE* bin = OpenDiscImage();
+    if (!bin) return -1;
+
+    str_stream_t stream;
+    if (!str_open(&stream, bin, e.base_sector, e.n_sectors)) {
+        printf("[FMV] str_open failed for %s\n", e.name);
+        fclose(bin);
+        return -1;
+    }
+
+    FMV_Init();
+
+    /* Allocate persistent decode state: a 16k-halfword bitstream buffer
+     * (matches STR_FRAME_BS_MAX_HALFWORDS), the MDEC context (lazy IDCT/
+     * VLC tables), and the RGB output. */
+    static uint16_t bs[STR_FRAME_BS_MAX_HALFWORDS];
+    mdec_ctx_t ctx;
+    int ctx_initialized = 0;
+    uint8_t* rgb = NULL;
+    int rgb_w = 0, rgb_h = 0;
+
+    str_frame_info_t info;
+    size_t bs_halfwords = 0;
+
+    timerCtx_t fmvTimer;
+    Util_InitHPCTimer(&fmvTimer);
+    double nextFrameDelay = 0.0;
+    int done_frames = 0;
+    int want_quit = 0;
+
+    Util_GetHPCTime(&fmvTimer, 1);
+
+    /* Flush stale keys */
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_KEYDOWN);
+    SDL_FlushEvent(SDL_KEYUP);
+
+    while (1) {
+        if (PollSkipOrQuit(&want_quit)) {
+            printf("[FMV] Skipped at frame %d\n", done_frames);
+            break;
+        }
+
+        double delta = Util_GetHPCTime(&fmvTimer, 1);
+        if (delta > 1.0) delta = 0.0;
+        nextFrameDelay -= delta;
+
+        if (nextFrameDelay > 0) {
+            SDL_Delay(1);
+            continue;
+        }
+
+        int r = str_read_frame(&stream, bs, &info, &bs_halfwords);
+        if (r <= 0) break; /* EOF or error */
+
+        if (max_frames > 0 && done_frames >= max_frames) break;
+
+        /* (Re)allocate RGB buffer if dimensions changed (shouldn't for a
+         * single FMV, but cheap to be defensive). */
+        if (info.width != rgb_w || info.height != rgb_h) {
+            ::free(rgb);
+            rgb = (uint8_t*)calloc((size_t)info.width * info.height * 3u, 1);
+            rgb_w = info.width;
+            rgb_h = info.height;
+            if (!ctx_initialized) {
+                mdec_init(&ctx, info.width, info.height);
+                ctx_initialized = 1;
+            }
+        }
+        if (!rgb) break;
+
+        int mb = mdec_decode_frame(&ctx,
+                                   (const uint8_t*)bs,
+                                   bs_halfwords * 2u,
+                                   rgb);
+        if (mb < 0) {
+            /* Decode failure — emit a blank frame so timing still ticks. */
+            memset(rgb, 0, (size_t)info.width * info.height * 3u);
+        }
+
+        /* Move into the persistent decode buffer for DrawVideoFrame, then
+         * blit. We copy because s_decodeBuffer is what DrawVideoFrame
+         * uploads to GL — keeping that contract stable. */
+        size_t bytes = (size_t)info.width * info.height * 3u;
+        if (bytes <= (size_t)DECODE_BUFFER_SIZE) {
+            memcpy(s_decodeBuffer, rgb, bytes);
+            DrawVideoFrame(info.width, info.height);
+        }
+
+        /* PSX STR videos target 15fps (every other NTSC frame). */
+        nextFrameDelay += 1.0 / 15.0;
+        done_frames++;
+
+        if (want_quit) break;
+    }
+
+    ::free(rgb);
+    fclose(bin);
+
+    printf("[FMV] BIN playback complete (%d frames from %s)\n",
+           done_frames, e.name);
+    return 0;
+}
+
 extern "C" int FMV_Play(int file_idx, int max_frames)
 {
     int table_idx = file_idx - FIRST_XA_FILE_IDX;
@@ -388,9 +544,12 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
     const char* basename = s_fmvFiles[table_idx].name;
     char filepath[512];
 
+    /* Try AVI override first — users can drop upscaled MJPG AVIs under
+     * gamedata/fmv/ to replace any cutscene. If no override exists we
+     * fall back to decoding the original STR straight from the BIN. */
     if (FindAviFile(basename, filepath, sizeof(filepath)) != 0) {
-        printf("[FMV] AVI file not found for '%s' (file_idx=%d)\n", basename, file_idx);
-        return -1;
+        printf("[FMV] No AVI override for '%s' — decoding from BIN\n", basename);
+        return PlayFromBin(table_idx, max_frames);
     }
 
     printf("[FMV] Playing: %s\n", filepath);
