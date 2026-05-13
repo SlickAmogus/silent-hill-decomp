@@ -1,15 +1,20 @@
-/* mdec.h - PSX Motion Decoder for STR FMV decoding.
+/* mdec.h — PSX MDEC (Motion Decoder) for STR FMV decoding.
  *
- * Ported from DuckStation's src/core/mdec.cpp (Old/scalar paths).
- * Hardware-emulation state stripped; input is a raw MDEC bitstream
- * (sequence of u16 halfwords) and output is a 24-bit RGB frame.
+ * Decodes a complete VLC-compressed MDEC bitstream (as produced by
+ * str_read_frame() — i.e., the raw bytes after the per-sector CDSECTOR
+ * header) into a tightly packed RGB24 frame buffer.
  *
- * Usage:
- *     mdec_ctx_t ctx;
- *     mdec_init(&ctx, 320, 240);
- *     mdec_set_quant(&ctx, q_table);
- *     mdec_set_scale_matrix(&ctx, scale_matrix);
- *     mdec_decode_frame(&ctx, bitstream, bs_halfwords, rgb_out);
+ * The bitstream format is essentially intra-only MPEG-1:
+ *   bytes 0..3   preamble (last 2 bytes are 0x3800 marker)
+ *   bytes 4..5   qscale (uint16, big-endian after halfword bswap)
+ *   bytes 6..7   version (uint16; 1 or 2 supported, 3+ uses different DC)
+ *   bytes 8..    VLC-coded macroblocks (MPEG-1 intra RL VLC + escapes + EOB)
+ *
+ * Macroblock layout: 6 blocks per macroblock (Cr, Cb, Y0, Y1, Y2, Y3),
+ * decoded in column-major order (top-to-bottom first).
+ *
+ * Reference: FFmpeg libavcodec/mdec.c (LGPL) and the PSX-spec docs at
+ * psx-spx.consoledev.net.
  */
 #ifndef MDEC_H
 #define MDEC_H
@@ -22,35 +27,19 @@ extern "C" {
 #endif
 
 typedef struct {
-    int     width;             /* frame width in pixels (multiple of 16) */
-    int     height;            /* frame height in pixels (multiple of 16) */
-    uint8_t iq_y[64];          /* Y quantization table */
-    uint8_t iq_uv[64];         /* Chroma quantization table */
-    int16_t scale_table[64];   /* IDCT scale matrix */
-    int     output_signed;     /* 0=unsigned 0..255, 1=signed -128..127 */
+    int width;          /* frame width in pixels (multiple of 16) */
+    int height;         /* frame height in pixels (multiple of 16) */
+    int output_signed;  /* 0 = unsigned 0..255, 1 = signed -128..127 */
 } mdec_ctx_t;
 
-/* Initialize with default tables (standard STR quant + IDCT cosine matrix).
- * Width/height must be multiples of 16. */
+/* Initialize a frame context. Width/height must be multiples of 16. */
 void mdec_init(mdec_ctx_t* ctx, int width, int height);
 
-/* Override quant tables. Most STR frames use the standard table set by
- * mdec_init; only override if your bitstream has custom ones. */
-void mdec_set_quant_y(mdec_ctx_t* ctx, const uint8_t qt[64]);
-void mdec_set_quant_uv(mdec_ctx_t* ctx, const uint8_t qt[64]);
-void mdec_set_scale_matrix(mdec_ctx_t* ctx, const int16_t st[64]);
-
-/* Decode a complete frame from the bitstream into rgb_out.
- *
- *   bs              — bitstream halfword array (after any STR frame header)
- *   bs_halfwords    — length of bs in u16 units
- *   rgb_out         — output buffer, 3 bytes/pixel (R,G,B), tightly packed,
- *                     size = width * height * 3 bytes
- *
- * Returns the number of macroblocks decoded, or -1 on bitstream error
- * (truncated / malformed). */
-int mdec_decode_frame(const mdec_ctx_t* ctx,
-                      const uint16_t* bs, size_t bs_halfwords,
+/* Decode one full VLC-encoded MDEC frame into rgb_out (3 bytes/pixel,
+ * R, G, B). Returns number of macroblocks decoded, or -1 on bitstream
+ * error. */
+int mdec_decode_frame(mdec_ctx_t* ctx,
+                      const uint8_t* bytes, size_t n_bytes,
                       uint8_t* rgb_out);
 
 #ifdef __cplusplus

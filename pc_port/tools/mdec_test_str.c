@@ -81,7 +81,12 @@ int main(int argc, char** argv) {
     uint8_t* rgb = (uint8_t*)calloc(1, rgb_bytes);
     if (!rgb) { perror("malloc rgb"); fclose(bin); return 1; }
 
-    int mb_done = mdec_decode_frame(&ctx, bs, bs_halfwords, rgb);
+    /* mdec_decode_frame takes raw bytes (the VLC bitstream). bs is a
+     * uint16_t array but we treat it as bytes — bs_halfwords * 2 = bytes. */
+    int mb_done = mdec_decode_frame(&ctx,
+                                    (const uint8_t*)bs,
+                                    bs_halfwords * 2,
+                                    rgb);
     fprintf(stderr, "[mdec_test_str] decoded %d macroblocks\n", mb_done);
 
     FILE* fout = fopen(out_path, "wb");

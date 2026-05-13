@@ -108,9 +108,12 @@ int str_read_frame(str_stream_t* s,
         sectors_seen++;
 
         if (sectors_seen >= sectors_total) {
-            /* Trim padding past frame_size so the decoder doesn't walk into junk. */
-            size_t valid = (frame_sz < bs_byte_pos) ? frame_sz : bs_byte_pos;
-            *bs_halfwords_out = valid / 2;
+            /* frame_sz is in 16-bit halfwords per per-sector header (verified
+             * empirically against C1 — using bytes truncates intra frames mid-
+             * macroblock; treating as halfwords feeds the full bitstream). */
+            size_t valid_bytes = (size_t)frame_sz * 2u;
+            if (valid_bytes > bs_byte_pos) valid_bytes = bs_byte_pos;
+            *bs_halfwords_out = valid_bytes / 2;
             return 1;
         }
     }
