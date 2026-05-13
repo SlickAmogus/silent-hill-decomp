@@ -32,3 +32,4 @@ pc_port/build_gen/
 
 # FMV tools
 pc_port/tools/mdec_test.exe
+pc_port/tools/mdec_test_str.exe
