@@ -15,6 +15,7 @@
 #include "ReadAVI.h"
 #include "mdec.h"
 #include "str_demux.h"
+#include "sh_log.h"
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
@@ -30,8 +31,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 extern "C" const char* PcPort_GetGameDataPath(void);
+
+/* FMV diagnostics need to survive the brief tick=23 MovieIntro state — if
+ * the game exits before the next stdout flush, plain printf output never
+ * hits the log file. Redirect every [FMV] line through SH_DBG (which
+ * writes to the line-buffered, exception-handler-flushed g_ShDebugLog). */
+#undef printf
+#define printf(...) SH_DBG_PRINTF_TRAILING_NEWLINE(__VA_ARGS__)
+static inline void SH_DBG_PRINTF_TRAILING_NEWLINE(const char* fmt, ...) {
+    if (!g_ShDebugLog) return;
+    va_list ap; va_start(ap, fmt);
+    vfprintf(g_ShDebugLog, fmt, ap);
+    va_end(ap);
+    fflush(g_ShDebugLog);
+}
 
 /* PsyCross internal - needed for direct buffer swap */
 extern SDL_Window* g_window;
@@ -349,6 +365,169 @@ extern "C" void FMV_Shutdown(void)
     }
 }
 
+/* ===== XA-ADPCM decoder for FMV audio =====
+ *
+ * Silent Hill FMVs interleave 4-bit XA-ADPCM stereo audio sectors with the
+ * MDEC video sectors. The demuxer (str_demux) forwards every audio sector
+ * to FmvAudio_OnSector via the registered callback; we decode the 18 sound
+ * groups into 4032 interleaved int16 samples and push them to SDL's audio
+ * queue. Format constants and decode logic mirror xa_player.c's standalone
+ * implementation — we keep separate ADPCM filter state so the FMV path
+ * does not collide with in-game XA voice playback. */
+static const int16_t s_fmvXaFilterPos[16] = {0, 60, 115,  98, 122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static const int16_t s_fmvXaFilterNeg[16] = {0,  0, -52, -55, -60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+#define FMV_XA_PAYLOAD_OFFSET     8
+#define FMV_XA_GROUPS_PER_SECTOR  18
+#define FMV_XA_GROUP_SIZE         128
+#define FMV_XA_SAMPLES_PER_SECTOR 4032   /* int16 count: 18 groups × 4 stereo pairs × 28 samples × 2ch */
+
+typedef struct {
+    SDL_AudioDeviceID dev;
+    int               sampleRate;
+    int               isStereo;
+    int               isOpen;
+    int32_t           lastSamples[2][2]; /* [channel][prev0=newer, prev1=older] */
+    int               sectorsDecoded;
+} FmvAudioState;
+
+static FmvAudioState s_fmvAudio;
+
+static inline int16_t FmvClampS16(int32_t v) {
+    if (v > 32767)  return 32767;
+    if (v < -32768) return -32768;
+    return (int16_t)v;
+}
+
+/* Decode 28 ADPCM samples from one 4-bit sub-block of a sound group.
+ * Identical to xa_player.c's DecodeSubblock4bit — see that file for full
+ * notes on group layout. Briefly: 8 header bytes describe the 8 sub-blocks
+ * (shift in low nibble, filter idx in high nibble) and 28 little-endian
+ * u32 words pack 8 nibbles each (one per sub-block). prev[] is the IIR
+ * history (UNCLAMPED — clamping only happens on the emitted s16). */
+static void FmvDecodeSubblock4bit(const uint8_t* group, int sb,
+                                  int32_t prev[2], int16_t out[28])
+{
+    const uint8_t* headers = group + 4;
+    const uint8_t* words   = group + 16;
+
+    int     shift     = headers[sb] & 0xF;
+    int     filterIdx = (headers[sb] >> 4) & 0x7;
+    int16_t fpos      = s_fmvXaFilterPos[filterIdx];
+    int16_t fneg      = s_fmvXaFilterNeg[filterIdx];
+    int     byteIdx   = sb >> 1;
+    int     nibShift  = (sb & 1) ? 4 : 0;
+
+    for (int w = 0; w < 28; w++) {
+        uint8_t b      = words[w * 4 + byteIdx];
+        int     nibble = (b >> nibShift) & 0xF;
+        int32_t s      = ((int16_t)(nibble << 12)) >> shift;
+        s += ((int32_t)prev[0] * fpos + (int32_t)prev[1] * fneg + 32) >> 6;
+        prev[1] = prev[0];
+        prev[0] = s;
+        out[w]  = FmvClampS16(s);
+    }
+}
+
+/* Decode one 2336-byte XA sector. Returns int16 sample count written.
+ * Layout: 18 sound groups, each 128 bytes, starting at offset 8 (after
+ * the 8-byte XA subheader). For 4-bit stereo, each group emits 8 sub-blocks
+ * = 4 stereo pairs × 28 samples × 2 channels = 224 int16 per group →
+ * 4032 int16 per sector. */
+static int FmvDecodeXaSector(const uint8_t* sector, int16_t* pcmOut)
+{
+    uint8_t coding   = sector[3];
+    int     isStereo = coding & 1;
+    int     bitDepth = (coding >> 4) & 1;
+
+    if (bitDepth != 0) {
+        /* 8-bit XA is rare and not used by Silent Hill FMVs — bail. */
+        return 0;
+    }
+
+    int     written = 0;
+    int16_t* out    = pcmOut;
+
+    for (int g = 0; g < FMV_XA_GROUPS_PER_SECTOR; g++) {
+        const uint8_t* group = sector + FMV_XA_PAYLOAD_OFFSET + g * FMV_XA_GROUP_SIZE;
+
+        if (isStereo) {
+            for (int p = 0; p < 4; p++) {
+                int16_t l[28], r[28];
+                FmvDecodeSubblock4bit(group, 2 * p,     s_fmvAudio.lastSamples[0], l);
+                FmvDecodeSubblock4bit(group, 2 * p + 1, s_fmvAudio.lastSamples[1], r);
+                for (int s = 0; s < 28; s++) {
+                    *out++ = l[s];
+                    *out++ = r[s];
+                }
+                written += 56;
+            }
+        } else {
+            for (int sb = 0; sb < 8; sb++) {
+                int16_t s[28];
+                FmvDecodeSubblock4bit(group, sb, s_fmvAudio.lastSamples[0], s);
+                for (int i = 0; i < 28; i++) *out++ = s[i];
+                written += 28;
+            }
+        }
+    }
+
+    return written;
+}
+
+/* str_demux audio sector callback. Lazily opens an SDL audio device on
+ * the first sector (using its subheader to learn rate/channels), then
+ * decodes and queues PCM. Must be C-linkage so it can be assigned to
+ * str_audio_cb_t (declared inside extern "C"). */
+extern "C" {
+static void FmvAudio_OnSector(const uint8_t* sector, void* user)
+{
+    FmvAudioState* st = (FmvAudioState*)user;
+
+    if (!st->isOpen) {
+        uint8_t coding     = sector[3];
+        int     isStereo   = coding & 1;
+        int     srCode     = (coding >> 2) & 3;
+        int     sampleRate = (srCode == 0) ? 37800 : 18900;
+
+        if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO)) {
+            if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+                printf("[FMV] SDL audio init failed: %s\n", SDL_GetError());
+                return;
+            }
+        }
+
+        SDL_AudioSpec want, got;
+        SDL_memset(&want, 0, sizeof(want));
+        want.freq     = sampleRate;
+        want.format   = AUDIO_S16LSB;
+        want.channels = (Uint8)(isStereo ? 2 : 1);
+        want.samples  = 4096;
+
+        st->dev = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
+        if (st->dev == 0) {
+            printf("[FMV] SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+            return;
+        }
+        st->sampleRate = got.freq;
+        st->isStereo   = (got.channels == 2);
+        st->isOpen     = 1;
+        SDL_PauseAudioDevice(st->dev, 0);
+        printf("[FMV] XA audio opened: %d Hz %s (coding=0x%02X)\n",
+               sampleRate, isStereo ? "stereo" : "mono", coding);
+    }
+
+    if (st->dev == 0) return;
+
+    int16_t pcm[FMV_XA_SAMPLES_PER_SECTOR];
+    int     n = FmvDecodeXaSector(sector, pcm);
+    if (n > 0) {
+        SDL_QueueAudio(st->dev, pcm, (Uint32)(n * (int)sizeof(int16_t)));
+        st->sectorsDecoded++;
+    }
+}
+} /* extern "C" */
+
 /* Determine SDL audio format from AVI audio stream info */
 static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, SDL_AudioSpec* obtained)
 {
@@ -439,6 +618,14 @@ static int PlayFromBin(int table_idx, int max_frames)
         return -1;
     }
 
+    /* Reset FMV audio state and register the audio-sector callback. The
+     * demuxer calls this for every audio sector encountered while reading
+     * the next video frame; the callback lazily opens an SDL audio device
+     * on the first sector and queues decoded PCM thereafter. */
+    SDL_memset(&s_fmvAudio, 0, sizeof(s_fmvAudio));
+    stream.audio_cb   = &FmvAudio_OnSector;
+    stream.audio_user = &s_fmvAudio;
+
     FMV_Init();
 
     /* Allocate persistent decode state: a 16k-halfword bitstream buffer
@@ -509,6 +696,18 @@ static int PlayFromBin(int table_idx, int max_frames)
             memset(rgb, 0, (size_t)info.width * info.height * 3u);
         }
 
+        /* Sample some center pixels every 30 frames to verify the decoder is
+         * actually producing varied content at runtime (not just in offline
+         * tests). If these are all zero we know the on-screen black is the
+         * decoder; if non-zero, it's the upload/draw path. */
+        if ((done_frames % 30) == 0) {
+            const uint8_t* p = rgb + ((size_t)(info.height/2) * info.width + info.width/2) * 3u;
+            SH_DBG("[FMV] frame %d mb=%d center pixels: "
+                   "(%02x %02x %02x) (%02x %02x %02x) (%02x %02x %02x)",
+                   done_frames, mb,
+                   p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+        }
+
         /* Move into the persistent decode buffer for DrawVideoFrame, then
          * blit. We copy because s_decodeBuffer is what DrawVideoFrame
          * uploads to GL — keeping that contract stable. */
@@ -527,6 +726,25 @@ static int PlayFromBin(int table_idx, int max_frames)
 
     ::free(rgb);
     fclose(bin);
+
+    /* Wait for skip keys to release before returning so the still-held key
+     * doesn't carry into the next state's first Joy_Update (Enter → phantom
+     * Confirm on the title). Same protection as the AVI path. */
+    {
+        int wait_frames = 0;
+        while (wait_frames < 30) {
+            SDL_PumpEvents();
+            const Uint8* ks = SDL_GetKeyboardState(NULL);
+            if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
+                !ks[SDL_SCANCODE_SPACE])
+                break;
+            SDL_Delay(16);
+            wait_frames++;
+        }
+        SDL_PumpEvents();
+        SDL_FlushEvent(SDL_KEYDOWN);
+        SDL_FlushEvent(SDL_KEYUP);
+    }
 
     printf("[FMV] BIN playback complete (%d frames from %s)\n",
            done_frames, e.name);

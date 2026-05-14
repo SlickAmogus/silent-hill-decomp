@@ -35,6 +35,8 @@ int str_open(str_stream_t* s, FILE* bin, uint32_t base_sector, uint32_t total_se
     s->base_sector   = base_sector;
     s->total_sectors = total_sectors;
     s->cur_sector    = 0;
+    s->audio_cb      = 0;
+    s->audio_user    = 0;
     return 1;
 }
 
@@ -63,11 +65,15 @@ int str_read_frame(str_stream_t* s,
             return 0;
         }
 
-        /* Skip audio sectors (submode bit 2 set). FMV files interleave
-         * XA audio sectors among the video data sectors; the demuxer
-         * only consumes video. The xa_player path handles audio. */
+        /* FMV files interleave XA audio sectors among the video data
+         * sectors. Forward audio sectors to the registered callback (if
+         * any) so the player can decode XA-ADPCM in sync with the video,
+         * then skip them in the video demux path. */
         uint8_t submode = sector[2];
-        if (submode & 0x04) continue;
+        if (submode & 0x04) {
+            if (s->audio_cb) s->audio_cb(sector, s->audio_user);
+            continue;
+        }
 
         const uint8_t* hdr   = sector + STR_SUBHEADER_SIZE;
         const uint8_t* chunk = hdr   + STR_CDSECTOR_HEADER_SIZE;

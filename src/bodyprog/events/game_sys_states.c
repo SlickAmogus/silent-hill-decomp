@@ -406,6 +406,10 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 
     if (g_MapEventSysState != SysState_Invalid)
     {
+#ifdef SH_PC_PORT
+        SH_DBG("[GP-STATE-TXN] Gameplay -> sysState=%d (param=%d)",
+               (int)g_MapEventSysState, (int)g_MapEventParam);
+#endif
         SysWork_StateSetNext(g_MapEventSysState);
     }
     else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.pause)
@@ -776,6 +780,19 @@ void SysState_Fmv_Update(void) // 0x80039A58
     #define BASE_AUDIO_FILE_IDX FILE_XA_ZC_14392
 
     static RECT D_800A9A6C = { 320, 256, 160, 240 };
+
+#ifdef SH_PC_PORT
+    {
+        static int s_lastLoggedStep = -1;
+        int curStep = (int)g_SysWork.sysStateSteps[0];
+        if (curStep != s_lastLoggedStep) {
+            SH_DBG("[FMV-STATE] step=%d D_800A9A0C=%d g_MapEventParam=%d (file_idx=%d)",
+                   curStep, (int)D_800A9A0C, (int)g_MapEventParam,
+                   (int)(BASE_AUDIO_FILE_IDX - g_MapEventParam));
+            s_lastLoggedStep = curStep;
+        }
+    }
+#endif
 
     switch (g_SysWork.sysStateSteps[0])
     {

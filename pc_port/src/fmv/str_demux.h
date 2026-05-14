@@ -48,11 +48,18 @@ typedef struct {
     uint32_t frame_size;    /* total MDEC bitstream bytes for this frame */
 } str_frame_info_t;
 
+/* Callback invoked once for each XA audio sector encountered while looking
+ * for the next video frame. The buffer is the full 2336-byte logical sector
+ * (subheader at +0, XA payload starts at +24/+32 depending on layout). */
+typedef void (*str_audio_cb_t)(const uint8_t* sector_2336, void* user);
+
 typedef struct {
     FILE*    bin;
     uint32_t base_sector;
     uint32_t total_sectors;
     uint32_t cur_sector;
+    str_audio_cb_t audio_cb;
+    void*    audio_user;
 } str_stream_t;
 
 #define STR_FRAME_BS_MAX_HALFWORDS 16384
@@ -62,8 +69,14 @@ typedef struct {
 #define STR_LOGICAL_SECTOR_BYTES   2336
 #define STR_SUBHEADER_SIZE            8
 #define STR_CDSECTOR_HEADER_SIZE     32
-#define STR_VIDEO_CHUNK_BYTES       (STR_LOGICAL_SECTOR_BYTES - STR_SUBHEADER_SIZE - STR_CDSECTOR_HEADER_SIZE - 4)
-/* = 2336 - 8 - 32 - 4 (EDC) = 2292 */
+/* PSX STR standard chunk size is 2016 bytes per sector, NOT 2292.
+ * The bytes between the chunk end and the EDC (2336-8-32-2016-4 = 276 bytes)
+ * are padding/reserved and NOT part of the frame bitstream. Including them
+ * (as we did before) injected 276 bytes of non-bitstream data per sector
+ * into the decoder, causing chroma corruption from sector 2 onwards
+ * (matched against jpsxdec's extracted bitstream — first 2016 bytes
+ * identical, then mine differed). */
+#define STR_VIDEO_CHUNK_BYTES       2016
 
 int str_open(str_stream_t* s, FILE* bin, uint32_t base_sector, uint32_t total_sectors);
 
