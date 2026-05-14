@@ -32,7 +32,6 @@
  ### Short Instructions
 -Extract somewhere on your PC<br>
 -Put your game data inside the gamedata folder and name it Silent Hill (USA).bin<br>
--(Optional) Use jpsxdec (https://github.com/m35/jpsxdec/releases/tag/v2.0) to extract the FMVs from the game image. The files will be listed as "HILL" but should be in order according to the table at the github link.<br>
 -Run SilentHillPC_Launcher to configure the game, or just run SIlentHillPC. You may need to run the game once before the launcher will work because of smartscreen.<br>
 
 
@@ -100,55 +99,6 @@
   ```
   silent-hill-decomp/pc_port/build/gamedata/Silent Hill (USA).bin
   ```
-
-  ### Extracting FMVs
-
-  Silent Hill stores its FMV cutscenes as raw PSX STR (Streaming) data interleaved with XA audio on the disc image. These are **not** regular files in the filesystem — they are located at specific disc sectors referenced by the file table.
-
-  To extract the FMVs, you can use tools like **jPSXdec** (https://github.com/m35/jpsxdec) which can scan a BIN/CUE and detect/extract all STR video streams and XA audio streams automatically.
-
-  With jPSXdec:
-  1. Open the BIN file in jPSXdec
-  2. It will index all streams on the disc
-  3. Select the video streams and extract them as AVI into gamedata\FMV. The files will be listed as "HILL" but should be in order according to the table below, starting with C1_20670.
-  4. XA audio streams can be extracted as WAV files (not necessary for FMV playback)
-
-  The XA streams (interleaved audio/video) in the file table are:
-
-  | Index | File ID | Description |
-  |-------|---------|-------------|
-  | 2044 | XA/05_02152 | XA stream |
-  | 2045 | XA/10_04432 | XA stream |
-  | 2046 | XA/15_07496 | XA stream |
-  | 2047 | XA/20_06552 | XA stream |
-  | 2048 | XA/25_03904 | XA stream |
-  | 2049 | XA/30_04056 | XA stream |
-  | 2050 | XA/35_26008 | XA stream |
-  | 2051 | XA/40_10384 | XA stream |
-  | 2052 | XA/45_28784 | XA stream |
-  | 2053 | XA/C1_20670 | Intro cinematic (part 1) |
-  | 2054 | XA/C2_20670 | Intro cinematic (part 2) |
-  | 2055 | XA/M1_03500 | In-game movie 1 |
-  | 2056 | XA/M2_01190 | In-game movie 2 |
-  | 2057 | XA/M3_02570 | In-game movie 3 |
-  | 2058 | XA/M4_02490 | In-game movie 4 |
-  | 2059 | XA/M5_03140 | In-game movie 5 |
-  | 2060 | XA/M6_02112 | In-game movie 6 |
-  | 2061 | XA/M7_01536 | In-game movie 7 |
-  | 2062 | XA/M8_03039 | In-game movie 8 |
-  | 2063 | XA/M9_01730 | In-game movie 9 |
-  | 2064 | XA/MA_03590 | In-game movie A |
-  | 2065 | XA/MB_04850 | In-game movie B |
-  | 2066 | XA/MC_01930 | In-game movie C |
-  | 2067 | XA/MD_03780 | In-game movie D |
-  | 2068 | XA/ME_03300 | In-game movie E |
-  | 2069 | XA/Z1_16180 | Ending movie 1 |
-  | 2070 | XA/Z3_02340 | Ending movie 3 |
-  | 2071 | XA/Z4_01590 | Ending movie 4 |
-  | 2072 | XA/ZC_14392 | Ending cinematic |
-  | 2073 | XA/ZZ_14239 | Final ending |
-
-  The numbers after the underscore (e.g. `03500` in `M1_03500`) represent the sector count/size of the stream on disc.
 
   ### Game File Table
 
