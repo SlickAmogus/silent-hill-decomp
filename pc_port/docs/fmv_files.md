@@ -9,8 +9,8 @@ jPSXdec lists every stream as `HILL[xxx]`. Match them to the table below
 in disc order — the first video stream is `C1_20670`, second is
 `C2_20670`, etc. Save each AVI with the base filename in the second
 column (e.g. `C1_20670.avi`). The PC port will pick those up
-automatically as overrides; without them it decodes straight from the
-BIN, which still works but lacks audio for the cutscenes.
+automatically as overrides; without them it decodes the original
+streams straight from the BIN.
 
 ## Stream table
 
@@ -66,5 +66,5 @@ unless you want to replace them.
 
 The PC port has a built-in MDEC software decoder. If an AVI override
 isn't present, it decodes the original PSX stream straight from the BIN
-and plays the XA audio through SDL. The result is identical content,
-just at the original 320×240 resolution.
+and plays the interleaved XA audio through SDL. The result is identical
+content, just at the original 320×240 resolution.
