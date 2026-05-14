@@ -601,7 +601,8 @@ void DebugCamera_Update(void)
          *      new entry here. */
         struct CamCorrection {
             int     mapId;          /* mapOverlayId_A4 */
-            VECTOR3 harryPos;       /* anchor; matched via active road's lim_sw containment */
+            VECTOR3 harryPos;       /* anchor; matched via active road containment
+                                     * OR (if matchXzRadius>0) by XZ distance to Harry */
             VECTOR3 posDelta;       /* world-space cam pos translation */
             VECTOR3 lookAtDelta;    /* world-space lookAt translation */
             int     forceApply;     /* 1 = trigger override even with zero deltas
@@ -617,6 +618,11 @@ void DebugCamera_Update(void)
                                      * end-of-alley3 gray-children spawn where we
                                      * want vanilla cam behaviour even though the
                                      * road region overlaps with a tuned shot. */
+            s32     matchXzRadius;  /* Q12: if >0, use XZ-distance match instead
+                                     * of road containment. Required for shots
+                                     * driven by non-road cam systems (cutscene,
+                                     * event, through-door) where cur_near_road
+                                     * is NULL or unrelated to the active shot. */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -750,13 +756,16 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -4104, -55, 4891 },
             },
             /* map2_s00 post-cafe (dog-head area) — re-tuned at
-             * (-782669,0,1548013). LookAt downward tilt. Previous anchor at
-             * (-783519,0,1547256) didn't activate in this road region. */
+             * (-781019,0,1541111). This shot is driven by a non-road cam
+             * system (cur_near_road containment never matched), so use
+             * matchXzRadius=Q12(4) — same shape as the original 2fe61e050
+             * 4m-radius match that worked. */
             {
                 .mapId      = 10,
-                .harryPos   = { -782669, 0, 1548013 },
+                .harryPos   = { -781019, 0, 1541111 },
                 .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { -151, -25446, 588 },
+                .lookAtDelta = { -1096, -31250, 3177 },
+                .matchXzRadius = Q12(4.0f),
             },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
@@ -766,42 +775,65 @@ void DebugCamera_Update(void)
         int     sceneDisable     = 0;
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
+            const VECTOR3* hp = &g_SysWork.playerWork.player.position;
             VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
-            /* lim_sw is in q11_4 — convert to Q12 to compare with VECTOR3. */
+            /* Bounds are in q11_4 — convert to Q12 for VECTOR3 compare.
+             * Match against the UNION of lim_sw (switch trigger area) and
+             * lim_rd (full road/cam area). lim_sw alone misses anchors that
+             * live in the larger cam zone once Harry has crossed the entry
+             * strip. Some shots (cutscene / through-door / event cams) don't
+             * use cur_near_road at all — those entries use matchXzRadius
+             * for a road-independent XZ-distance match. */
+            s32 minHx_sw = 0, maxHx_sw = 0, minHz_sw = 0, maxHz_sw = 0;
+            s32 minHx_rd = 0, maxHx_rd = 0, minHz_rd = 0, maxHz_rd = 0;
             if (curRoad) {
-                s32 minHx = Q4_TO_Q12(curRoad->lim_sw.min_hx);
-                s32 maxHx = Q4_TO_Q12(curRoad->lim_sw.max_hx);
-                s32 minHz = Q4_TO_Q12(curRoad->lim_sw.min_hz);
-                s32 maxHz = Q4_TO_Q12(curRoad->lim_sw.max_hz);
-                /* First pass: any disable-mode entry that matches this road?
-                 * If yes, suppress ALL corrections for this frame. */
+                minHx_sw = Q4_TO_Q12(curRoad->lim_sw.min_hx);
+                maxHx_sw = Q4_TO_Q12(curRoad->lim_sw.max_hx);
+                minHz_sw = Q4_TO_Q12(curRoad->lim_sw.min_hz);
+                maxHz_sw = Q4_TO_Q12(curRoad->lim_sw.max_hz);
+                minHx_rd = Q4_TO_Q12(curRoad->lim_rd.min_hx);
+                maxHx_rd = Q4_TO_Q12(curRoad->lim_rd.max_hx);
+                minHz_rd = Q4_TO_Q12(curRoad->lim_rd.min_hz);
+                maxHz_rd = Q4_TO_Q12(curRoad->lim_rd.max_hz);
+            }
+
+            /* Single match predicate per entry: XZ-radius if requested,
+             * otherwise road-containment (lim_sw ∪ lim_rd). */
+            #define MATCH_ENTRY(cc) ( \
+                (cc)->matchXzRadius > 0 \
+                    ? ((((s64)(hp->vx - (cc)->harryPos.vx) * (hp->vx - (cc)->harryPos.vx)) + \
+                        ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
+                       <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
+                    : (curRoad && ( \
+                        ((cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
+                         (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw) || \
+                        ((cc)->harryPos.vx >= minHx_rd && (cc)->harryPos.vx <= maxHx_rd && \
+                         (cc)->harryPos.vz >= minHz_rd && (cc)->harryPos.vz <= maxHz_rd))))
+
+            /* First pass: any disable-mode entry that matches?
+             * If yes, suppress ALL corrections for this frame. */
+            for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
+                const struct CamCorrection* cc = &s_camCorrections[i];
+                if (!cc->disableMode) continue;
+                if (cc->mapId != curMap) continue;
+                if (!MATCH_ENTRY(cc)) continue;
+                sceneDisable = 1;
+                break;
+            }
+            if (!sceneDisable) {
                 for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
                     const struct CamCorrection* cc = &s_camCorrections[i];
-                    if (!cc->disableMode) continue;
+                    if (cc->disableMode) continue;
                     if (cc->mapId != curMap) continue;
-                    if (cc->harryPos.vx < minHx || cc->harryPos.vx > maxHx) continue;
-                    if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
-                    sceneDisable = 1;
+                    if (!MATCH_ENTRY(cc)) continue;
+                    sceneNudgePos    = cc->posDelta;
+                    sceneNudgeLookAt = cc->lookAtDelta;
+                    sceneForceApply  = cc->forceApply;
+                    sceneFollowMode  = cc->followMode;
                     break;
                 }
-                if (!sceneDisable) {
-                    for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
-                        const struct CamCorrection* cc = &s_camCorrections[i];
-                        if (cc->disableMode) continue;
-                        if (cc->mapId != curMap) continue;
-                        /* Anchor harryPos must lie inside the current active
-                         * road's switch area — means we're in the same shot
-                         * that was active when the user tuned this entry. */
-                        if (cc->harryPos.vx < minHx || cc->harryPos.vx > maxHx) continue;
-                        if (cc->harryPos.vz < minHz || cc->harryPos.vz > maxHz) continue;
-                        sceneNudgePos    = cc->posDelta;
-                        sceneNudgeLookAt = cc->lookAtDelta;
-                        sceneForceApply  = cc->forceApply;
-                        sceneFollowMode  = cc->followMode;
-                        break;
-                    }
-                }
             }
+            #undef MATCH_ENTRY
         }
 
         /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
