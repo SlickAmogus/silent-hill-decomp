@@ -25,18 +25,27 @@
 #include <stdlib.h>
 
 /* Decode tracing: 0 = off, 1 = per-coefficient, 2 = errors only. */
-#define MDEC_TRACE 0
+#define MDEC_TRACE 2
 
 #if MDEC_TRACE
 #  include <stdio.h>
+#  include <stdarg.h>
+extern FILE* g_ShDebugLog;
+static inline void mdec_trace(const char* fmt, ...) {
+    if (!g_ShDebugLog) return;
+    va_list ap; va_start(ap, fmt);
+    vfprintf(g_ShDebugLog, fmt, ap);
+    va_end(ap);
+    fflush(g_ShDebugLog);
+}
 #endif
 
 #if MDEC_TRACE == 1
-#  define TRACE(...) fprintf(stderr, __VA_ARGS__)
-#  define TRACE_ERR(...) fprintf(stderr, __VA_ARGS__)
+#  define TRACE(...) mdec_trace(__VA_ARGS__)
+#  define TRACE_ERR(...) mdec_trace(__VA_ARGS__)
 #elif MDEC_TRACE == 2
 #  define TRACE(...) ((void)0)
-#  define TRACE_ERR(...) fprintf(stderr, __VA_ARGS__)
+#  define TRACE_ERR(...) mdec_trace(__VA_ARGS__)
 #else
 #  define TRACE(...) ((void)0)
 #  define TRACE_ERR(...) ((void)0)
@@ -58,8 +67,7 @@ static const uint8_t s_zigzag[64] = {
     53, 60, 61, 54, 47, 55, 62, 63
 };
 
-/* MPEG-1 default intra quantization matrix (in zigzag scan order — no,
- * the table is in NATURAL order; the decoder uses scantable[i] to map). */
+/* MPEG-1 default LUMA intra quantization matrix (natural order). */
 static const uint8_t s_intra_matrix[64] = {
      8, 16, 19, 22, 26, 27, 29, 34,
     16, 16, 22, 24, 27, 29, 34, 37,
@@ -71,18 +79,49 @@ static const uint8_t s_intra_matrix[64] = {
     27, 29, 35, 38, 46, 56, 69, 83
 };
 
-/* IDCT cosine matrix (Q15 scale, separable 1D used twice). Same as the
- * standard PSX MDEC scale_table — gives identical numerics to the PSX
- * hardware IDCT to within rounding. */
+/* MPEG-1 default CHROMA intra quantization matrix (all 16s). PSX BIOS
+ * DecDCTReset(0) loads this as the iq_uv table; without using it, chroma
+ * coefficients are dequantized using the luma matrix (8..83), which makes
+ * high-frequency chroma 2-5x stronger than intended and produces visible
+ * color-blocking artifacts on natural-image FMVs. */
+static const uint8_t s_chroma_matrix[64] = {
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+};
+
+/* IDCT cosine matrix (Q15 scale, separable 1D used twice). This is the
+ * TRANSPOSE of the standard forward-DCT matrix `M` — DuckStation's
+ * IDCT_Old computes `SCALE * BLK * SCALE^T`, which for that to equal the
+ * standard inverse `M^T * F * M` requires `SCALE = M^T`.
+ *
+ * Storing `M` directly (rows of basis cosines indexed by frequency k)
+ * makes DC-only blocks decode to a non-uniform block — each pixel is
+ * scaled by `M[y,0] * M[x,0]`, which only equals `a(0)^2` at the (0,0)
+ * corner. That mismatch shows up as the "tiny squares with bright
+ * highlight per cell" pattern. Transposing fixes it.
+ *
+ * Row k of M^T = column k of M = the basis vector for frequency k:
+ *   M^T[k, n] = a(k) * cos((2n+1)*k*pi/16)
+ * with `a(0) = 1/sqrt(2)`, `a(k>0) = 1`, scaled to Q15 (×32768).
+ * (Note: row 0 stays constant 23170; only rows 1..7 differ from the
+ * forward matrix, since column k of M = a(k) * cos((2*0+1)*k*pi/16),
+ * a(0)*cos((2*1+1)*k*pi/16), … instead of M[k, j] for fixed k.) */
 static const int16_t s_scale_table[64] = {
-     23170,  23170,  23170,  23170,  23170,  23170,  23170,  23170,
-     32138,  27246,  18205,   6393,  -6393, -18205, -27246, -32138,
-     30274,  12540, -12540, -30274, -30274, -12540,  12540,  30274,
-     27246,  -6393, -32138, -18205,  18205,  32138,   6393, -27246,
-     23170, -23170, -23170,  23170,  23170, -23170, -23170,  23170,
-     18205, -32138,   6393,  27246, -27246,  -6393,  32138, -18205,
-     12540, -30274,  30274, -12540, -12540,  30274, -30274,  12540,
-      6393, -18205,  27246, -32138,  32138, -27246,  18205,  -6393
+    /* M^T[k, n] for k=0..7, n=0..7 */
+     23170,  32138,  30274,  27246,  23170,  18205,  12540,   6393,
+     23170,  27246,  12540,  -6393, -23170, -32138, -30274, -18205,
+     23170,  18205, -12540, -32138, -23170,   6393,  30274,  27246,
+     23170,   6393, -30274, -18205,  23170,  27246, -12540, -32138,
+     23170,  -6393, -30274,  18205,  23170, -27246, -12540,  32138,
+     23170, -18205, -12540,  32138, -23170,  -6393,  30274, -27246,
+     23170, -27246,  12540,   6393, -23170,  32138, -30274,  18205,
+     23170, -32138,  30274, -27246,  23170, -18205,  12540,  -6393
 };
 
 /* MPEG-1 run/level/code/bits tables for intra blocks.
@@ -180,6 +219,10 @@ typedef struct {
 static vlc_lut_entry_t s_vlc_lut[65536];
 static int s_vlc_lut_built = 0;
 
+/* Diagnostic: nonzero = we already reported a desync this frame. */
+static int s_desync_logged_this_frame;
+static int s_frame_index;
+
 static void build_vlc_lut(void) {
     if (s_vlc_lut_built) return;
     for (int i = 0; i < 65536; i++) s_vlc_lut[i].flags = 0x80; /* invalid */
@@ -255,16 +298,24 @@ static uint32_t br_peek16(bitreader_t* br) {
     return br->cache >> 16;
 }
 
+/* Shifting a uint32_t by 32 is undefined in C and on x86-64 silently turns
+ * into a no-op (count masked to 5 bits) — which leaves stale preamble bits
+ * in the cache and corrupts the next read. Use 64-bit math for the shift,
+ * then truncate back to 32 bits. */
+static inline uint32_t shl32_safe(uint32_t v, int n) {
+    return (uint32_t)(((uint64_t)v << n) & 0xFFFFFFFFu);
+}
+
 static void br_skip(bitreader_t* br, int n) {
-    br->cache <<= n;
+    br->cache = shl32_safe(br->cache, n);
     br->cache_bits -= n;
 }
 
-/* Read n bits (1..24) unsigned. */
+/* Read n bits (1..32) unsigned. */
 static uint32_t br_get_ubits(bitreader_t* br, int n) {
     br_fill_cache(br);
-    uint32_t v = br->cache >> (32 - n);
-    br->cache <<= n;
+    uint32_t v = (n == 32) ? br->cache : (br->cache >> (32 - n));
+    br->cache = shl32_safe(br->cache, n);
     br->cache_bits -= n;
     return v;
 }
@@ -286,21 +337,23 @@ static inline int clampi(int v, int lo, int hi) {
 
 /* Decode one 8x8 block: read DC, then AC coefficients via VLC, fill blk[64]
  * with dequantized DCT coefficients in NATURAL (not zigzag) order.
+ * `qt` is the quant table (luma or chroma) for this block.
  *
  * Returns 0 on success, -1 on bitstream error / damaged stream. */
-static int decode_block_intra(bitreader_t* br, int16_t* blk, int qscale, int version)
+static int decode_block_intra(bitreader_t* br, int16_t* blk, int qscale, int version,
+                              const uint8_t* qt)
 {
     memset(blk, 0, 64 * sizeof(int16_t));
 
-    /* DC coefficient (PSX MDEC v1/v2). Per DuckStation::DecodeRLE_Old, the
-     * 10-bit signed DC is dequantized by multiplying by the intra-matrix DC
-     * weight (intra_matrix[0]==8) and clamped to 11-bit signed range. This
-     * yields IDCT output centered at 0 (signed -128..127), matching our
-     * yuv_to_rgb_tile which expects signed Cr/Cb/Y. */
+    /* DC coefficient (PSX MDEC v1/v2). FFmpeg's formula is
+     *   block[0] = 2 * sext10 + 1024
+     * which centers DC at 1024 (mid-gray). Subtracting 1024 gives us a
+     * value centered at 0 (matching our DuckStation-style IDCT which
+     * outputs signed -128..127). This produces visually correct output
+     * matching jpsxdec — the DuckStation-style `sext10 * qt[0]` formula
+     * over-saturates mid-dark Y values to pure black. */
     if (version <= 2) {
-        int dc = br_get_sbits(br, 10) * (int)s_intra_matrix[0];
-        if (dc < -1024) dc = -1024;
-        if (dc >  1023) dc =  1023;
+        int dc = 2 * (int)br_get_sbits(br, 10);
         blk[0] = (int16_t)dc;
     } else {
         /* Version 3+ uses a differential DC encoding we don't currently
@@ -318,10 +371,11 @@ static int decode_block_intra(bitreader_t* br, int16_t* blk, int qscale, int ver
         uint32_t peek = br_peek16(br);
         vlc_lut_entry_t e = s_vlc_lut[peek];
         if (e.flags & 0x80) {
-            /* Invalid VLC. Treat as end-of-block (matches PSX MDEC tolerance
-             * for malformed streams and tail padding zeros). */
-            TRACE("  [blk] invalid VLC peek=0x%04x treated as EOB (ac=%d coef=%d)\n",
-                  peek, ac_count, coef);
+            if (!s_desync_logged_this_frame) {
+                TRACE_ERR("[mdec] DESYNC frame=%d peek=0x%04x byte_pos=%zu cache_bits=%d ac=%d coef=%d\n",
+                          s_frame_index, peek, br->byte_pos, br->cache_bits, ac_count, coef);
+                s_desync_logged_this_frame = 1;
+            }
             break;
         }
         ac_count++;
@@ -367,28 +421,38 @@ static int decode_block_intra(bitreader_t* br, int16_t* blk, int qscale, int ver
         int j = s_zigzag[coef];
 
         /* Dequantize. The escape path uses round-to-odd to match the
-         * MPEG-1 standard; the regular path just multiplies and shifts. */
+         * MPEG-1 standard; the regular path just multiplies and shifts.
+         * Both paths clamp to 11-bit signed before storing — PSX MDEC
+         * hardware saturates the dequantized AC to [-1024, 1023], and
+         * skipping the clamp causes our 9-bit-truncating IDCT to wrap
+         * (high-quantization escape values overflow 9 bits, sign-extend
+         * to negative, and produce the "green tile" garbage that an
+         * unsaturated decoder shows on the right half of the frame). */
+        int dq;
         if (is_escape) {
             int aq;
             if (level < 0) {
-                aq = (-level * qscale * (int)s_intra_matrix[j]) >> 3;
+                aq = (-level * qscale * (int)qt[j]) >> 3;
                 aq = (aq - 1) | 1;
-                blk[j] = (int16_t)(-aq);
+                dq = -aq;
             } else {
-                aq = (level * qscale * (int)s_intra_matrix[j]) >> 3;
+                aq = (level * qscale * (int)qt[j]) >> 3;
                 aq = (aq - 1) | 1;
-                blk[j] = (int16_t)aq;
+                dq = aq;
             }
         } else {
-            int dq = (level * qscale * (int)s_intra_matrix[j]) >> 3;
-            blk[j] = (int16_t)dq;
+            dq = (level * qscale * (int)qt[j]) >> 3;
         }
+        if (dq < -1024) dq = -1024;
+        if (dq >  1023) dq =  1023;
+        blk[j] = (int16_t)dq;
     }
     return 0;
 }
 
-/* Separable IDCT, scalar. Output values are clamped to 9-bit signed and
- * stored back into blk[0..63]. */
+/* Separable IDCT, scalar. Output: 9-bit signed wrap, then clamp to
+ * [-128, 127]. This matches DuckStation::MDEC::IDCT_Old exactly — the
+ * 9-bit wrap is hardware-accurate behavior. */
 static void idct_block(int16_t* blk)
 {
     int64_t temp[64];
@@ -407,8 +471,7 @@ static void idct_block(int16_t* blk)
                 sum += temp[u + y * 8] * (int32_t)s_scale_table[x * 8 + u];
 
             int32_t v = (int32_t)((sum >> 32) + ((sum >> 31) & 1));
-            /* Sign-extend to 9 bits then clamp to [-128, 127]. */
-            v = (v << 23) >> 23;
+            v = (v << 23) >> 23;  /* 9-bit sign-extend (hardware wrap) */
             blk[x + y * 8] = (int16_t)clampi(v, -128, 127);
         }
     }
@@ -459,8 +522,17 @@ int mdec_decode_frame(mdec_ctx_t* ctx,
                       const uint8_t* bytes, size_t n_bytes,
                       uint8_t* rgb_out)
 {
-    if (!ctx || !bytes || !rgb_out) return -1;
-    if (n_bytes < 8) return -1;
+    s_desync_logged_this_frame = 0;
+    s_frame_index++;
+    if (!ctx || !bytes || !rgb_out) {
+        TRACE_ERR("[mdec] null arg: ctx=%p bytes=%p rgb=%p\n",
+                  (void*)ctx, (void*)bytes, (void*)rgb_out);
+        return -1;
+    }
+    if (n_bytes < 8) {
+        TRACE_ERR("[mdec] n_bytes too small: %zu\n", n_bytes);
+        return -1;
+    }
     build_vlc_lut();
 
     /* The bitstream is stored as little-endian uint16, but bits within
@@ -483,7 +555,19 @@ int mdec_decode_frame(mdec_ctx_t* ctx,
 
     int qscale = (int)br_get_ubits(&br, 16);
     int version = (int)br_get_ubits(&br, 16);
+    {
+        static int s_loggedHeader = 0;
+        if (s_loggedHeader < 3) {
+            TRACE_ERR("[mdec] hdr n_bytes=%zu first8=%02x %02x %02x %02x %02x %02x %02x %02x qscale=%d version=%d ctx=%dx%d\n",
+                      n_bytes,
+                      swap[0], swap[1], swap[2], swap[3],
+                      swap[4], swap[5], swap[6], swap[7],
+                      qscale, version, ctx->width, ctx->height);
+            s_loggedHeader++;
+        }
+    }
     if (qscale <= 0 || version > 2) {
+        TRACE_ERR("[mdec] bad header: qscale=%d version=%d\n", qscale, version);
         free(swap);
         return -1;
     }
@@ -500,7 +584,17 @@ int mdec_decode_frame(mdec_ctx_t* ctx,
             static const int decode_order[6] = { 5, 4, 0, 1, 2, 3 };
             for (int i = 0; i < 6; i++) {
                 int b = decode_order[i];
-                if (decode_block_intra(&br, blocks[b], qscale, version) < 0) {
+                /* Use the same matrix for Y and chroma — matches DuckStation
+                 * default and produces visually correct output (separate
+                 * chroma matrix tested but made colors more wrong). */
+                const uint8_t* qt = s_intra_matrix;
+                if (decode_block_intra(&br, blocks[b], qscale, version, qt) < 0) {
+                    static int s_loggedBlockFail = 0;
+                    if (s_loggedBlockFail < 3) {
+                        TRACE_ERR("[mdec] decode_block_intra failed mb=(%d,%d) i=%d b=%d byte_pos=%zu\n",
+                                  mb_x, mb_y, i, b, br.byte_pos);
+                        s_loggedBlockFail++;
+                    }
                     free(swap);
                     return -1;
                 }
