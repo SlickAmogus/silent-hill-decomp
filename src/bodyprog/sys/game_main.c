@@ -773,42 +773,55 @@ void DebugCamera_Update(void)
         int     sceneForceApply  = 0;
         int     sceneFollowMode  = 0;
         int     sceneDisable     = 0;
+        /* Skip the entire correction table when the camera is being driven
+         * by event/cutscene code (vcUserCamTarget sets VC_USER_CAM_F). In
+         * that mode the camera position is whatever the cutscene script
+         * commands — applying road-cam corrections on top would translate
+         * a DMS-driven cutscene cam by our hand-tuned road delta, which
+         * is what was pushing the cafe pre-Air-Screamer interior shot out
+         * through the wall. The correction system only makes sense for
+         * the road/chase cam, never for cinematic cameras. */
+        const int sceneCutsceneCam = (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) != 0;
+        if (!sceneCutsceneCam)
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
             const VECTOR3* hp = &g_SysWork.playerWork.player.position;
             VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
             /* Bounds are in q11_4 — convert to Q12 for VECTOR3 compare.
-             * Match against the UNION of lim_sw (switch trigger area) and
-             * lim_rd (full road/cam area). lim_sw alone misses anchors that
-             * live in the larger cam zone once Harry has crossed the entry
-             * strip. Some shots (cutscene / through-door / event cams) don't
-             * use cur_near_road at all — those entries use matchXzRadius
-             * for a road-independent XZ-distance match. */
+             * Match against lim_sw (switch trigger area) — same as Harry's
+             * actual shot-trigger region. Earlier we also UNIONed in lim_rd,
+             * but lim_rd often extends into adjacent rooms (e.g. the cafe
+             * exterior lim_rd reaches into the interior), causing the cafe-
+             * entry correction to fire during the pre-AS interior cutscene.
+             * Shots whose cam isn't driven by cur_near_road at all (cutscene
+             * / event / through-door) use matchXzRadius for a road-
+             * independent XZ-distance match instead. */
             s32 minHx_sw = 0, maxHx_sw = 0, minHz_sw = 0, maxHz_sw = 0;
-            s32 minHx_rd = 0, maxHx_rd = 0, minHz_rd = 0, maxHz_rd = 0;
             if (curRoad) {
                 minHx_sw = Q4_TO_Q12(curRoad->lim_sw.min_hx);
                 maxHx_sw = Q4_TO_Q12(curRoad->lim_sw.max_hx);
                 minHz_sw = Q4_TO_Q12(curRoad->lim_sw.min_hz);
                 maxHz_sw = Q4_TO_Q12(curRoad->lim_sw.max_hz);
-                minHx_rd = Q4_TO_Q12(curRoad->lim_rd.min_hx);
-                maxHx_rd = Q4_TO_Q12(curRoad->lim_rd.max_hx);
-                minHz_rd = Q4_TO_Q12(curRoad->lim_rd.min_hz);
-                maxHz_rd = Q4_TO_Q12(curRoad->lim_rd.max_hz);
             }
 
             /* Single match predicate per entry: XZ-radius if requested,
-             * otherwise road-containment (lim_sw ∪ lim_rd). */
+             * otherwise BOTH the anchor AND Harry's current XZ must lie in
+             * the road's switch-trigger area (lim_sw). Checking only the
+             * anchor (older form) caused corrections to fire any time Harry
+             * stood on the same road — including during cutscenes where the
+             * camera is driven by event data rather than the road shot. The
+             * lim_sw containment check on Harry's CURRENT position narrows
+             * the match to the actual switch-trigger zone of that shot. */
             #define MATCH_ENTRY(cc) ( \
                 (cc)->matchXzRadius > 0 \
                     ? ((((s64)(hp->vx - (cc)->harryPos.vx) * (hp->vx - (cc)->harryPos.vx)) + \
                         ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
                        <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
-                    : (curRoad && ( \
-                        ((cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
-                         (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw) || \
-                        ((cc)->harryPos.vx >= minHx_rd && (cc)->harryPos.vx <= maxHx_rd && \
-                         (cc)->harryPos.vz >= minHz_rd && (cc)->harryPos.vz <= maxHz_rd))))
+                    : (curRoad && \
+                        (cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
+                        (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw && \
+                        hp->vx >= minHx_sw && hp->vx <= maxHx_sw && \
+                        hp->vz >= minHz_sw && hp->vz <= maxHz_sw))
 
             /* First pass: any disable-mode entry that matches?
              * If yes, suppress ALL corrections for this frame. */
