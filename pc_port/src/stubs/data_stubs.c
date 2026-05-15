@@ -782,7 +782,8 @@ u8 FLAUROS_ANIM_INFOS[256] = {0};
 u8 FLOATSTINGER_ANIM_INFOS[256] = {0};
 u8 GHOST_CHILD_ALESSA_ANIM_INFOS[256] = {0};
 u8 GHOST_DOCTOR_ANIM_INFOS[256] = {0};
-u8 GROANER_ANIM_INFOS[256] = {0};
+/* GROANER_ANIM_INFOS is defined in pc_port/src/groaner_anim_infos.c with
+ * proper s_AnimInfo layout — data_stubs.c can't see the type. */
 u8 HANGED_SCRATCHER_ANIM_INFOS[256] = {0};
 u8 INCUBATOR_ANIM_INFOS[256] = {0};
 u8 INCUBUS_ANIM_INFOS[256] = {0};
@@ -1532,33 +1533,14 @@ u8 sharedData_800ED430_2_s02[256] = {0};
 u8 sharedData_800ED43C_2_s02[256] = {0};
 u8 sharedData_800ED458_4_s02[256] = {0};
 u8 sharedData_800EEAC4_2_s00[256] = {0};
-u8 sharedData_800EEE14_2_s00[256] = {0};
-u8 sharedData_800EEE3C_2_s00[256] = {0};
-u8 sharedData_800EEE54_2_s00[256] = {0};
-u8 sharedData_800EF0AC_2_s00[256] = {0};
-u8 sharedData_800EF19C_2_s00[256] = {0};
-u8 sharedData_800EF1B0_2_s00[256] = {0};
-u8 sharedData_800EF250_2_s00[256] = {0};
-u8 sharedData_800EF28C_2_s00[256] = {0};
-u8 sharedData_800EF368_2_s00[256] = {0};
-u8 sharedData_800EF4BC_2_s00[256] = {0};
-u8 sharedData_800EF4D0_2_s00[256] = {0};
-u8 sharedData_800EF624_2_s00[256] = {0};
-u8 sharedData_800EF638_2_s00[256] = {0};
-u8 sharedData_800EF7A0_2_s00[256] = {0};
-u8 sharedData_800EF7B4_2_s00[256] = {0};
-u8 sharedData_800EFA84_2_s00[256] = {0};
-u8 sharedData_800EFCDC_2_s00[256] = {0};
+/* sharedData_800EEE14..800EFCDC (Chara_Groaner AI dispatch + keyframe data)
+ * are now provided by pc_port/src/groaner_rodata.c, populated with real
+ * values extracted from disc_extract/VIN/MAP2_S00.BIN. */
 u8 sharedData_800EFCFC_6_s00[256] = {0};
 u8 sharedData_800EFD04_6_s00[256] = {0};
 u8 sharedData_800EFD08_6_s00[256] = {0};
 u8 sharedData_800EFD34_6_s00[256] = {0};
-u8 sharedData_800EFF48_2_s00[256] = {0};
-u8 sharedData_800F0038_2_s00[256] = {0};
-u8 sharedData_800F00EC_2_s00[256] = {0};
-u8 sharedData_800F0268_2_s00[256] = {0};
-u8 sharedData_800F03A8_2_s00[256] = {0};
-u8 sharedData_800F04C0_2_s00[256] = {0};
+/* sharedData_800EFF48..800F04C0 also provided by groaner_rodata.c. */
 /* sharedData_800F06D4_2_s00 is the s_BgmLayerLimits array passed to
  * Bgm_Update from Map_RoomBgmInit_2_s00.h. The first 8 bytes are layer
  * limits (0..128, where the layer's volume gets multiplied by limit/128
