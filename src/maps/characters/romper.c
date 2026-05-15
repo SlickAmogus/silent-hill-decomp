@@ -1758,3 +1758,11 @@ void sharedFunc_800E9714_2_s02(s_SubCharacter* romper)
 }
 
 #undef romperProps
+
+#ifdef SH_PC_PORT
+/* PC port: pull in the dispatch table extracted from
+ * disc_extract/VIN/MAP2_S02.BIN. Each map DLL that #includes romper.c
+ * (map2_s02, map4_s02, map5_s01, map6_s00) gets its own copy because
+ * the table references Ai_Romper_Control_* defined earlier in this TU. */
+#include "romper_rodata.inc"
+#endif
