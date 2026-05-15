@@ -5,7 +5,8 @@ typedef unsigned char u8;
 typedef signed int s32;
 
 u8 ALESSA_ANIM_INFOS[256] = {0};
-u8 BLOODSUCKER_ANIM_INFOS[256] = {0};
+/* BLOODSUCKER_ANIM_INFOS is defined in pc_port/src/bloodsucker_anim_infos.c
+ * (extracted from disc_extract/VIN/MAP3_S03.BIN, 30 entries). */
 u8 BLOODY_INCUBATOR_ANIM_INFOS[256] = {0};
 u8 BLOODY_LISA_ANIM_INFOS[256] = {0};
 u8 CAT_ANIM_INFOS[256] = {0};

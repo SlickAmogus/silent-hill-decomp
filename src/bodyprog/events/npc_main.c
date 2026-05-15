@@ -506,7 +506,8 @@ void Game_NpcUpdate(void) // 0x80038354
                                     npc->model.charaId == Chara_Cybil ||
                                     npc->model.charaId == Chara_AirScreamer ||
                                     npc->model.charaId == Chara_Groaner ||
-                                    npc->model.charaId == Chara_LarvalStalker);
+                                    npc->model.charaId == Chara_LarvalStalker ||
+                                    npc->model.charaId == Chara_Bloodsucker);
                 /* No render-only set — kept as opt-out for any future NPC that
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;
