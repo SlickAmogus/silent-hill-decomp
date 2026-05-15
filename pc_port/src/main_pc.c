@@ -241,6 +241,8 @@ int main(int argc, char* argv[])
     HangedScratcherAnimInfos_Init();
     extern void CreeperAnimInfos_Init(void);
     CreeperAnimInfos_Init();
+    extern void SplitHeadAnimInfos_Init(void);
+    SplitHeadAnimInfos_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)

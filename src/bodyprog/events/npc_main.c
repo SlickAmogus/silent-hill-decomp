@@ -516,7 +516,8 @@ void Game_NpcUpdate(void) // 0x80038354
                                     npc->model.charaId == Chara_Dahlia ||
                                     npc->model.charaId == Chara_PuppetNurse ||
                                     npc->model.charaId == Chara_HangedScratcher ||
-                                    npc->model.charaId == Chara_Creeper);
+                                    npc->model.charaId == Chara_Creeper ||
+                                    npc->model.charaId == Chara_SplitHead);
                 /* No render-only set — kept as opt-out for any future NPC that
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;

@@ -801,7 +801,7 @@ u8 PARASITE_ANIM_INFOS[256] = {0};
 u8 ROPMER_ANIM_INFOS[256] = {0};
 /* ReadTIM - implemented in libgpu_stub.c */
 /* SDL_main - defined in main.c via SDL's macro or explicitly */
-u8 SPLIT_HEAD_ANIM_INFOS[256] = {0};
+/* SPLIT_HEAD_ANIM_INFOS    -> pc_port/src/split_head_anim_infos.c */
 /* STALKER_ANIM_INFOS defined in map0_s00_anim_info.c with real PC function pointers */
 /* SetDrawOffset - implemented in func_stubs.c */
 /* SetDrawStp - implemented in func_stubs.c */
@@ -836,7 +836,8 @@ u8 fst_min[256] = {0};
 u8 g_ActiveBufferIdx[256] = {0};
 /* g_Ai_AirScreamer_ControlFuncs now defined in src/maps/characters/air_screamer.c */
 u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
-u8 g_Ai_SplitHead_ControlFuncs[256] = {0};
+/* g_Ai_SplitHead_ControlFuncs now defined per-DLL in src/maps/characters/split_head.c
+ * via split_head_rodata.inc */
 /* g_Cutscene_CameraLookAt and g_Cutscene_CameraPosition (no -Target suffix)
  * are provided per-map via pc_port/build_gen/extracted_data/<map>_extracted_data.c.
  * The -Target variants are runtime working storage written by Dms code, so
