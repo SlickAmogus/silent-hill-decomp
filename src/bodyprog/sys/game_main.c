@@ -767,32 +767,12 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -1096, -31250, 3177 },
                 .matchXzRadius = Q12(4.0f),
             },
-            /* map2_s00 post-cafe town street — tuned at (61757,0,151703).
-             * Single fixed-cam shot covers a wider road region; user
-             * marked the worst spot. Camera was too high looking too
-             * straight forward — lift down +1224 vy (~0.3m) and tilt
-             * lookAt down -14522 vy (~3.5m) so the camera looks at Harry. */
-            {
-                .mapId      = 10,
-                .harryPos   = { 61757, 0, 151703 },
-                .posDelta   = { 0, 1224, 0 },
-                .lookAtDelta = { -51, -14522, -483 },
-            },
-            /* map2_s00 next street shot — tuned at (235662,0,-68815). Same
-             * "too high, too flat" symptom as the previous one. */
-            {
-                .mapId      = 10,
-                .harryPos   = { 235662, 0, -68815 },
-                .posDelta   = { 0, 3213, 0 },
-                .lookAtDelta = { -8, -5604, -461 },
-            },
-            /* map2_s00 further-down street shot — tuned at (119832,-608,639145). */
-            {
-                .mapId      = 10,
-                .harryPos   = { 119832, -608, 639145 },
-                .posDelta   = { 0, 2142, 0 },
-                .lookAtDelta = { -1087, -5300, -541 },
-            },
+            /* Three map2_s00 post-cafe street corrections (61757/235662/119832)
+             * were tried via plain road-containment match but caused camera
+             * jumping/fighting as Harry runs along the road — the adjacent
+             * shot regions overlap and each entry triggered as the player
+             * crossed boundaries. Reverted until we can identify a more
+             * precise match (probably matchXzRadius per shot anchor). */
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
