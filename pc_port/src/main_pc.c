@@ -219,6 +219,9 @@ int main(int argc, char* argv[])
     extern void GroanerAnimInfos_Init(void);
     GroanerAnimInfos_Init();
 
+    extern void BloodsuckerAnimInfos_Init(void);
+    BloodsuckerAnimInfos_Init();
+
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
     g_OvlDynamic  = PSX_ADDR(0x000CBAA8);
