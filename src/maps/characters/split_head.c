@@ -1891,3 +1891,12 @@ void sharedFunc_800D4594_1_s05(s_sharedFunc_800D4594_1_s05* arg0, q19_12 posX, q
 }
 
 #undef splitHeadProps
+
+#ifdef SH_PC_PORT
+/* PC port: pull in the dispatch table extracted from
+ * disc_extract/VIN/MAP1_S05.BIN. Each map DLL that #includes split_head.c
+ * (map1_s05, map1_s06) gets its own copy because the table references
+ * Ai_SplitHead_Control_1..8 defined earlier in this TU (the exe import
+ * lib can't see DLL-internal functions). */
+#include "split_head_rodata.inc"
+#endif
