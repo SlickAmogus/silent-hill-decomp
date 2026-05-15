@@ -212,6 +212,13 @@ int main(int argc, char* argv[])
     extern void AsRodata_Reformat(void);
     AsRodata_Reformat();
 
+    /* Populate GROANER_ANIM_INFOS — its playbackFunc fields point to
+     * Anim_BlendLinear / Anim_PlaybackOnce / Anim_PlaybackLoop, which
+     * MinGW won't accept in a static initializer (treats function
+     * symbols from another TU as non-constant). Built at runtime. */
+    extern void GroanerAnimInfos_Init(void);
+    GroanerAnimInfos_Init();
+
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
     g_OvlDynamic  = PSX_ADDR(0x000CBAA8);

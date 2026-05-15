@@ -22,28 +22,16 @@ void Ai_Groaner_Update(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsCOORDINAT
     u8 prevControlState;
 
 #ifdef SH_PC_PORT
-    /* PC: disable Groaner update entirely. Multiple sharedFunc_800Exxxx
-     * helpers called from this update path dispatch through stubbed
-     * function-pointer tables in pc_port/src/stubs/data_stubs.c
-     * (sharedData_800EEE14_2_s00 = u8[256] = {0}, plus likely peers
-     * for the 800E5EC4 / 800E33DC / 800E5AA4 / 800E6338 / 800E71E8
-     * helpers). Each one trips an INVALID_POINTER_EXECUTE c0000005 the
-     * first time it's reached. User crash dumps confirmed two of them
-     * (800E384C +0x1f7 and 800E5EC4 +0x30b) — disabling 384C alone
-     * just exposes the next one.
-     *
-     * Skip the whole function. Groaners still spawn and render via
-     * Game_NpcRoomInitSpawn / Game_NpcUpdate's draw path, but their
-     * AI doesn't tick (no movement, no attacks). Trade-off the user
-     * explicitly chose so a release build can ship without the streets
-     * crashing on contact with a Groaner. */
-    static int s_logged = 0;
-    if (!s_logged) {
-        SH_DBG("[GROANER] Ai_Groaner_Update disabled on PC (stubbed AI dispatch tables would crash)");
-        s_logged = 1;
+    /* The dispatch table sharedData_800EEE14_2_s00 and the per-keyframe
+     * data tables are now populated by pc_port/src/groaner_rodata.c
+     * (extracted from disc_extract/VIN/MAP2_S00.BIN). AI re-enabled —
+     * if a Groaner crash recurs, capture a fresh dump for the next
+     * call site we missed. */
+    static int s_loggedOn = 0;
+    if (!s_loggedOn) {
+        SH_DBG("[GROANER] Ai_Groaner_Update enabled (rodata extracted from disc)");
+        s_loggedOn = 1;
     }
-    (void)prevControlState; (void)anmHdr; (void)coords; (void)groaner;
-    return;
 #endif
 
     // Initialize.
@@ -346,32 +334,23 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
 {
     extern void (*sharedData_800EEE14_2_s00[])(s_SubCharacter* chara);
 
-#ifdef SH_PC_PORT
-    /* PC stub: sharedData_800EEE14_2_s00 is declared as `u8[256] = {0}`
-     * in pc_port/src/stubs/data_stubs.c — the real per-controlState AI
-     * dispatch table isn't decompiled yet. Calling the indexed entry
-     * jumps to a NULL function pointer and crashes (INVALID_POINTER_
-     * EXECUTE_c0000005). User crash dump confirmed the chain:
-     *   ntdll!RtlUserThreadStart
-     *     SilentHillPC!main → MainLoop → InGame_Update → Game_NpcUpdate
-     *       → Ai_Groaner_Update +0x5c
-     *         → sharedFunc_800E384C_2_s00 +0x1f7    ← this dispatch
-     *           → 0x0                               ← crashed here
-     *
-     * Skip the entire function until the table is populated. Side
-     * effect: Groaners will spawn and render but won't run their state
-     * AI (no movement, no attacks). User explicitly requested this as
-     * a temporary measure to unblock release builds. */
-    static int s_logged = 0;
-    if (!s_logged) {
-        SH_DBG("[GROANER] sharedFunc_800E384C_2_s00 disabled on PC — sharedData_800EEE14_2_s00 dispatch table is stubbed");
-        s_logged = 1;
-    }
-    return;
-#endif
+    /* Dispatch table now populated from disc (groaner_rodata.c). Entry 0
+     * is intentionally NULL on PSX — Ai_Groaner_Init handles
+     * controlState==0 before this dispatch ever runs. Guard PC anyway
+     * so a stray init-state Groaner doesn't NULL-call. */
 
     #define getIndex() \
         ((((g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3) == 0) * 2) + ((g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 0x3) == 2))
+
+#ifdef SH_PC_PORT
+    /* MIPS-style left-to-right argument evaluation is unspecified on
+     * x86-64. The PSX source calls getIndex() twice in the func_8006FD90
+     * arg list below; cache the result so it's only computed once and
+     * we don't depend on evaluation order. */
+    s32 _gIdx = getIndex();
+    #undef getIndex
+    #define getIndex() (_gIdx)
+#endif
 
     if (func_80070360(groaner, Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
             g_SysWork.playerWork.player.position.vz - groaner->position.vz), UNK_VAL) != 0 ||
@@ -395,7 +374,15 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
         groaner->field_44.field_0 = 0;
     }
 
-    sharedData_800EEE14_2_s00[groaner->model.controlState](groaner);
+    /* Entry 0 is NULL on PSX (the init state, handled by Ai_Groaner_Init
+     * before this dispatch). On x86-64 calling NULL is a segfault; on
+     * PSX MIPS it's a fast trap that the original execution never
+     * actually hits because controlState advances to >=1 in Init. Guard
+     * just in case. */
+    if (sharedData_800EEE14_2_s00[groaner->model.controlState] != NULL)
+    {
+        sharedData_800EEE14_2_s00[groaner->model.controlState](groaner);
+    }
 }
 
 void sharedFunc_800E39D8_2_s00(s_SubCharacter* groaner)
@@ -2083,3 +2070,13 @@ void sharedFunc_800E71E8_2_s00(s_SubCharacter* groaner)
 }
 
 #undef groanerProps
+
+#ifdef SH_PC_PORT
+/* PC port: pull in the dispatch table + keyframe data we extracted from
+ * disc_extract/VIN/MAP2_S00.BIN. Each map DLL that #includes groaner.c
+ * gets its own copy of these definitions, which is required because
+ * the dispatch table points to sharedFunc_800Exxxx functions defined
+ * earlier in this same translation unit (the exe import lib can't see
+ * DLL-internal functions). */
+#include "groaner_rodata.inc"
+#endif
