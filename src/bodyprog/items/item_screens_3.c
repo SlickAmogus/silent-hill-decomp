@@ -4297,13 +4297,21 @@ void func_80054A04(u8 itemId) // 0x80054A04
      * shows no model" symptom. */
     {
         s_TmdFile* _tmd = (s_TmdFile*)FS_BUFFER_5;
+        SH_DBG("[PICKUP-TMD] itemId=%d _tmd=%p", (int)itemId, (void*)_tmd);
         if (_tmd != NULL) {
             unsigned long*     _hdr = (unsigned long*)&_tmd->flags;
             struct TMD_STRUCT* _obj;
+            SH_DBG("[PICKUP-TMD] _tmd->flags=0x%08lX nobj=%lu (raw read)",
+                   (unsigned long)*_hdr, (unsigned long)(_hdr[2]));
             GsMapModelingData(_hdr);
             _obj = GsGetTMDObject(_hdr, 0);
+            SH_DBG("[PICKUP-TMD] GsGetTMDObject -> _obj=%p", (void*)_obj);
             if (_obj != NULL) {
                 GsLinkObject4_PC(_obj, &D_800C3E08);
+                SH_DBG("[PICKUP-TMD] post-link D_800C3E08.tmd=%p attribute=0x%lX",
+                       (void*)D_800C3E08.tmd, (unsigned long)D_800C3E08.attribute);
+            } else {
+                SH_DBG("[PICKUP-TMD] GsGetTMDObject returned NULL — TMD will render invisible");
             }
         }
         D_800C3E08.coord2 = &g_Items_Coords[9];
