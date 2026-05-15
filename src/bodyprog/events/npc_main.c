@@ -223,10 +223,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * spawns again. Repeats thousands of times → eventually corrupts
          * downstream state and crashes after Player_UpperBodyUpdate.
          *
-         * Fix: once a slot has spawned, hold off re-spawning it for at
-         * least 600 ticks (~10s @60fps) regardless of despawn — the slot
-         * gets a real lifecycle. Despawn still works to clear it; the
-         * cooldown just prevents the immediate respawn. */
+         * Fix: once a slot has spawned, hold off re-spawning it for 60
+         * ticks (~1s @60fps). Enough to break the same-frame oscillator
+         * but short enough to preserve vanilla PSX spawn density — the
+         * original 600-tick value was suppressing town enemies way more
+         * than the original game. Despawn still works to clear the slot;
+         * the cooldown just prevents the immediate respawn race. */
         static u32 _slotSpawnCooldown[64] = { 0 };
         if (_slotSpawnCooldown[i] > 0) {
             _slotSpawnCooldown[i]--;
@@ -247,7 +249,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         {
 #ifdef SH_PC_PORT
             SH_DBG("[SPAWN-FIRE!] slot=%d gates passed → entering spawn block, npcIdx will be assigned", i);
-            _slotSpawnCooldown[i] = 600;  /* ~10s @60fps */
+            _slotSpawnCooldown[i] = 60;  /* ~1s @60fps -- minimal oscillator guard */
 #endif
             while (HAS_FLAG(&g_SysWork.npcFlags, npcIdx))
             {

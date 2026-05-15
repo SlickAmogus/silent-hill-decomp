@@ -767,6 +767,17 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -1096, -31250, 3177 },
                 .matchXzRadius = Q12(4.0f),
             },
+            /* map2_s00 post-cafe town street — tuned at (61757,0,151703).
+             * Single fixed-cam shot covers a wider road region; user
+             * marked the worst spot. Camera was too high looking too
+             * straight forward — lift down +1224 vy (~0.3m) and tilt
+             * lookAt down -14522 vy (~3.5m) so the camera looks at Harry. */
+            {
+                .mapId      = 10,
+                .harryPos   = { 61757, 0, 151703 },
+                .posDelta   = { 0, 1224, 0 },
+                .lookAtDelta = { -51, -14522, -483 },
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
