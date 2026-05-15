@@ -138,12 +138,29 @@ s_EventData MAP_EVENTS[201] = {
         .eventParam       = 2, // `func_800E7B74`
     },
     {
+#ifdef SH_PC_PORT
+        /* POI 156 is positioned at the convenience-store doorway in
+         * map2_s00 streets, but in the decomp data it was wired as a
+         * HealthDrink5 pickup that never fires (user reports pressing C
+         * does nothing). The original PSX game lets you enter this
+         * building. Best guess: load MAP1_S06 (matches the eventParam
+         * shape of the other MAP1_S06 doors at POIs 45/46). Revert if
+         * this turns out to be the wrong interior. */
+        .triggerType      = TriggerType_TouchObbFacing,
+        .activationType   = TriggerActivationType_Button,
+        .pointOfInterestIdx = 156,
+        .sysState         = SysState_LoadOverlay,
+        .eventParam       = 48,
+        .sfxPairIdx_8_19  = SfxPairIdx_2,
+        .mapIdx           = MapIdx_MAP1_S06,
+#else
         .disabledEventFlag  = EventFlag_M2S00_HealthDrink5,
         .triggerType      = TriggerType_TouchFacing,
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 156,
         .sysState         = SysState_EventCallback,
         .eventParam       = 2, // `func_800E7B74`
+#endif
     },
     {
         .disabledEventFlag  = EventFlag_M2S00_HandgunBullets10,

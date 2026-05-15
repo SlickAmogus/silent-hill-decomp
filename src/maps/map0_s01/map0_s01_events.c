@@ -976,7 +976,19 @@ void Map_WorldObjectsInit(void) // 0x800DC9C8
         if (Savegame_EventFlagGet(EventFlag_M0S01_PickupMap))
         {
             Chara_ProcessLoads();
+#ifdef SH_PC_PORT
+            /* Q12(1048566.0f) = (s32)(1048566.0f * 4096) on PSX wraps modulo
+             * 2^32 to -4096 raw (≈ -1 world unit, well within range of Harry).
+             * On x86-64 with SSE the float→s32 cast of a value > INT_MAX
+             * SATURATES to INT_MIN instead, putting the AS ~524k world units
+             * away. Game_NpcUpdate's SQUARE(40) 2D-distance check then
+             * despawns npcs[0] on the next frame and the breakthrough event
+             * has no AS to drive, so AS never breaks through the window on
+             * save reload. Use the PSX-equivalent wrapped value directly. */
+            Chara_Spawn(Chara_AirScreamer, 0, Q12(-1.0f), Q12(280.0f), Q12_ANGLE(0.0f), 12);
+#else
             Chara_Spawn(Chara_AirScreamer, 0, Q12(1048566.0f), Q12(280.0f), Q12_ANGLE(0.0f), 12);
+#endif
             func_800D3A3C(&g_SysWork.npcs[0]);
 
             Fs_QueueStartRead(FILE_ANIM_CAFE2_DMS, FS_BUFFER_11);
