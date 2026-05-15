@@ -10,7 +10,7 @@ u8 BLOODY_INCUBATOR_ANIM_INFOS[256] = {0};
 /* BLOODY_LISA_ANIM_INFOS -> pc_port/src/bloody_lisa_anim_infos.c */
 u8 CAT_ANIM_INFOS[256] = {0};
 /* CHERYL_ANIM_INFOS provided by cheryl_anim_info.c */
-u8 CREEPER_ANIM_INFOS[256] = {0};
+/* CREEPER_ANIM_INFOS      -> pc_port/src/creeper_anim_infos.c */
 /* CYBIL_ANIM_INFOS provided by cybil_anim_info.c */
 /* DAHLIA_ANIM_INFOS      -> pc_port/src/dahlia_anim_infos.c */
 u8 D_80028544[256] = {0};
@@ -784,11 +784,11 @@ u8 FLOATSTINGER_ANIM_INFOS[256] = {0};
 u8 GHOST_DOCTOR_ANIM_INFOS[256] = {0};
 /* GROANER_ANIM_INFOS is defined in pc_port/src/groaner_anim_infos.c with
  * proper s_AnimInfo layout — data_stubs.c can't see the type. */
-u8 HANGED_SCRATCHER_ANIM_INFOS[256] = {0};
+/* HANGED_SCRATCHER_ANIM_INFOS -> pc_port/src/hanged_scratcher_anim_infos.c */
 u8 INCUBATOR_ANIM_INFOS[256] = {0};
 u8 INCUBUS_ANIM_INFOS[256] = {0};
 /* KAUFMANN_ANIM_INFOS -> pc_port/src/kaufmann_anim_infos.c */
-u8 LARVAL_STALKER_ANIM_INFOS[256] = {0};
+/* LARVAL_STALKER_ANIM_INFOS -> pc_port/src/larval_stalker_anim_infos.c */
 /* LISA_ANIM_INFOS -> pc_port/src/lisa_anim_infos.c */
 u8 LITTLE_INCUBUS_ANIM_INFOS[256] = {0};
 u8 LOCKER_DEAD_BODY_ANIM_INFOS[256] = {0};

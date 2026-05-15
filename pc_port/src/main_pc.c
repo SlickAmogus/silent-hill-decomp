@@ -235,6 +235,12 @@ int main(int argc, char* argv[])
     DahliaAnimInfos_Init();
     extern void PuppetNurseData_Init(void);
     PuppetNurseData_Init();
+    extern void LarvalStalkerAnimInfos_Init(void);
+    LarvalStalkerAnimInfos_Init();
+    extern void HangedScratcherAnimInfos_Init(void);
+    HangedScratcherAnimInfos_Init();
+    extern void CreeperAnimInfos_Init(void);
+    CreeperAnimInfos_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
