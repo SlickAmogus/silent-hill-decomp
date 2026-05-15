@@ -798,7 +798,7 @@ u8 MONSTER_CYBIL_ANIM_INFOS[256] = {0};
 /* OpenTIM - implemented in libgpu_stub.c */
 /* OuterProduct12 - implemented in func_stubs.c */
 u8 PARASITE_ANIM_INFOS[256] = {0};
-u8 ROPMER_ANIM_INFOS[256] = {0};
+/* ROPMER_ANIM_INFOS         -> pc_port/src/romper_anim_infos.c */
 /* ReadTIM - implemented in libgpu_stub.c */
 /* SDL_main - defined in main.c via SDL's macro or explicitly */
 /* SPLIT_HEAD_ANIM_INFOS    -> pc_port/src/split_head_anim_infos.c */
@@ -924,7 +924,8 @@ u8 g_PuppetNurse_AnimStatus2[256] = {0};
 u8 g_PuppetNurse_AnimStatus3[256] = {0};
 u8 g_PuppetNurse_AnimStatus4[256] = {0};
 u8 g_PuppetNurse_ModelStates0[256] = {0};
-u8 g_Romper_ControlFuncs[256] = {0};
+/* g_Romper_ControlFuncs now defined per-DLL in src/maps/characters/romper.c
+ * via romper_rodata.inc */
 u8 g_Screen_FadeStatus[256] = {0};
 /* g_Cutscene_Timer[0-3] now provided per-map via
  * pc_port/build_gen/extracted_data/<map>_extracted_data.c */

@@ -243,6 +243,8 @@ int main(int argc, char* argv[])
     CreeperAnimInfos_Init();
     extern void SplitHeadAnimInfos_Init(void);
     SplitHeadAnimInfos_Init();
+    extern void RopmerAnimInfos_Init(void);
+    RopmerAnimInfos_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
