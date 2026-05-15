@@ -154,10 +154,20 @@ void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, 
     q23_8 balance;
 
 #ifdef SH_PC_PORT
+    /* PC: restore distance-based volume falloff. Old PC path skipped
+     * func_8005D9B8 entirely, leaving positional SFX at full volume
+     * regardless of distance — Air Screamer wing flaps were audible
+     * across the whole map, footsteps from other NPCs too loud, etc.
+     * Stereo balance still forced to 0 (PSX path uses GTE-based
+     * Vc_StereoBalanceGet which may not work cleanly here). */
     balance = 0;
     if (vol > Q8_CLAMPED(1.0f)) vol = Q8_CLAMPED(1.0f);
     else if (vol < Q8_CLAMPED(0.0f)) vol = Q8_CLAMPED(0.0f);
-    volCpy = vol;
+    if (!(soundType & (1 << 1)))
+        volCpy = func_8005D9B8((VECTOR3*)pos, vol);
+    else
+        volCpy = vol;
+    if (volCpy > Q8_CLAMPED(1.0f)) volCpy = Q8_CLAMPED(1.0f);
     if (soundType & (1 << 2))
         Sd_SfxAttributesUpdate(sfxId, balance, ~volCpy, pitch);
     else
