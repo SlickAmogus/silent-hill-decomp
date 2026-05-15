@@ -233,6 +233,8 @@ int main(int argc, char* argv[])
     KaufmannAnimInfos_Init();
     extern void DahliaAnimInfos_Init(void);
     DahliaAnimInfos_Init();
+    extern void PuppetNurseData_Init(void);
+    PuppetNurseData_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)

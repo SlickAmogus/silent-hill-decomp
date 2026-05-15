@@ -1328,11 +1328,11 @@ u8 sharedData_800D4D0C_3_s01[256] = {0};
 u8 sharedData_800D4D10_3_s01[256] = {0};
 u8 sharedData_800D4D14_3_s01[256] = {0};
 u8 sharedData_800D4D18_3_s01[256] = {0};
-u8 sharedData_800D5710_3_s03[256] = {0};
+/* sharedData_800D5710_3_s03 -> pc_port/src/puppet_nurse_data.c (s_800D5710[4]) */
 u8 sharedData_800D5880_1_s05[256] = {0};
 u8 sharedData_800D5884_1_s05[256] = {0};
 u8 sharedData_800D5A8C_1_s05[256] = {0};
-u8 sharedData_800D5A8C_3_s03[256] = {0};
+/* sharedData_800D5A8C_3_s03 -> pc_port/src/puppet_nurse_data.c (s_D_800D5A8C[3]) */
 u8 sharedData_800D5A90_1_s05[256] = {0};
 u8 sharedData_800D5AAE_1_s05[256] = {0};
 u8 sharedData_800D5AAF_1_s05[256] = {0};
