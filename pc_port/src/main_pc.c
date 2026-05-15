@@ -221,6 +221,18 @@ int main(int argc, char* argv[])
 
     extern void BloodsuckerAnimInfos_Init(void);
     BloodsuckerAnimInfos_Init();
+    extern void BloodyLisaAnimInfos_Init(void);
+    BloodyLisaAnimInfos_Init();
+    extern void AlessaAnimInfos_Init(void);
+    AlessaAnimInfos_Init();
+    extern void GhostChildAlessaAnimInfos_Init(void);
+    GhostChildAlessaAnimInfos_Init();
+    extern void LisaAnimInfos_Init(void);
+    LisaAnimInfos_Init();
+    extern void KaufmannAnimInfos_Init(void);
+    KaufmannAnimInfos_Init();
+    extern void DahliaAnimInfos_Init(void);
+    DahliaAnimInfos_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)

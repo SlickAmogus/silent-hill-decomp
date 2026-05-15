@@ -4,16 +4,15 @@
 typedef unsigned char u8;
 typedef signed int s32;
 
-u8 ALESSA_ANIM_INFOS[256] = {0};
-/* BLOODSUCKER_ANIM_INFOS is defined in pc_port/src/bloodsucker_anim_infos.c
- * (extracted from disc_extract/VIN/MAP3_S03.BIN, 30 entries). */
+/* ALESSA_ANIM_INFOS      -> pc_port/src/alessa_anim_infos.c */
+/* BLOODSUCKER_ANIM_INFOS -> pc_port/src/bloodsucker_anim_infos.c */
 u8 BLOODY_INCUBATOR_ANIM_INFOS[256] = {0};
-u8 BLOODY_LISA_ANIM_INFOS[256] = {0};
+/* BLOODY_LISA_ANIM_INFOS -> pc_port/src/bloody_lisa_anim_infos.c */
 u8 CAT_ANIM_INFOS[256] = {0};
 /* CHERYL_ANIM_INFOS provided by cheryl_anim_info.c */
 u8 CREEPER_ANIM_INFOS[256] = {0};
 /* CYBIL_ANIM_INFOS provided by cybil_anim_info.c */
-u8 DAHLIA_ANIM_INFOS[256] = {0};
+/* DAHLIA_ANIM_INFOS      -> pc_port/src/dahlia_anim_infos.c */
 u8 D_80028544[256] = {0};
 /* D_800294F4 now defined in pc_port/src/d_800294f4_data.c with real
  * binary-extracted weapon anim keyframe data. The prior zero-stub here
@@ -781,16 +780,16 @@ u8 D_800F574C[256] = {0};
 /* ExitCriticalSection: handled in libapi_stub.c */
 u8 FLAUROS_ANIM_INFOS[256] = {0};
 u8 FLOATSTINGER_ANIM_INFOS[256] = {0};
-u8 GHOST_CHILD_ALESSA_ANIM_INFOS[256] = {0};
+/* GHOST_CHILD_ALESSA_ANIM_INFOS -> pc_port/src/ghost_child_alessa_anim_infos.c */
 u8 GHOST_DOCTOR_ANIM_INFOS[256] = {0};
 /* GROANER_ANIM_INFOS is defined in pc_port/src/groaner_anim_infos.c with
  * proper s_AnimInfo layout — data_stubs.c can't see the type. */
 u8 HANGED_SCRATCHER_ANIM_INFOS[256] = {0};
 u8 INCUBATOR_ANIM_INFOS[256] = {0};
 u8 INCUBUS_ANIM_INFOS[256] = {0};
-u8 KAUFMANN_ANIM_INFOS[256] = {0};
+/* KAUFMANN_ANIM_INFOS -> pc_port/src/kaufmann_anim_infos.c */
 u8 LARVAL_STALKER_ANIM_INFOS[256] = {0};
-u8 LISA_ANIM_INFOS[256] = {0};
+/* LISA_ANIM_INFOS -> pc_port/src/lisa_anim_infos.c */
 u8 LITTLE_INCUBUS_ANIM_INFOS[256] = {0};
 u8 LOCKER_DEAD_BODY_ANIM_INFOS[256] = {0};
 /* Lzc - implemented in func_stubs.c */
