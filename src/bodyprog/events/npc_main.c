@@ -136,10 +136,35 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     {
         if (g_SysWork.npcFlags == ((1 << g_SysWork.npcFlagsId) - 1)) // TODO: Macro for this check?
         {
+#ifdef SH_PC_PORT
+            /* Hit the concurrent-NPC cap. Throttled log so we know if
+             * this is the bottleneck. */
+            static u32 _lastCapLog = 0;
+            if (_spawnTickCounter - _lastCapLog > 300) {
+                SH_DBG("[SPAWN-CAP] npcFlags=0x%x flagsId=%d full (mask=0x%x) — slot=%d unreachable; raise NPC_COUNT_MAX or map flagsId override",
+                       (unsigned)g_SysWork.npcFlags, (int)g_SysWork.npcFlagsId,
+                       (unsigned)((1 << g_SysWork.npcFlagsId) - 1), i);
+                _lastCapLog = _spawnTickCounter;
+            }
+#endif
             break;
         }
 
+#ifdef SH_PC_PORT
+        /* CRITICAL: s_SpawnInfo is 12 bytes on PSX but 16 bytes on MinGW
+         * x86-64. The s32:4 bitfield (gameDifficultyMin_7_0) forces gcc to
+         * allocate a new s32 storage unit at offset 8, pushing positionZ_8
+         * to offset 12. STATIC_ASSERT_SIZEOF is a no-op on PC so this size
+         * change went silent. The old `pos = (VECTOR3*)curCharaSpawn` cast
+         * made pos->vz read the bitfield slot (≈0 for Easy) instead of
+         * positionZ_8 — every distance check saw Z=0, firing spawns at
+         * coordinates totally unrelated to the actual spawn point. Build
+         * a proper VECTOR3 with the correctly-typed fields and use that. */
+        VECTOR3 spawnPos = { curCharaSpawn->positionX_0, 0, curCharaSpawn->positionZ_8 };
+        pos = &spawnPos;
+#else
         pos = (VECTOR3*)curCharaSpawn;
+#endif
 
 #ifdef SH_PC_PORT
         /* Per-spawn diagnostic — log non-empty slots when conditions change
@@ -232,6 +257,21 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         static u32 _slotSpawnCooldown[64] = { 0 };
         if (_slotSpawnCooldown[i] > 0) {
             _slotSpawnCooldown[i]--;
+        }
+        /* Log when cooldown is blocking a slot that otherwise wants to spawn. */
+        if (curCharaSpawn->flags_6 != 0 && _slotSpawnCooldown[i] > 0 &&
+            !HAS_FLAG(g_SysWork.field_228C, i)) {
+            /* Quick mirror of the distance gate to know if cooldown is the
+             * actual blocker (player IS in range but cooldown gates). */
+            int near22 = !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f));
+            if (near22) {
+                static u32 _cdLog[64] = { 0 };
+                if (_cdLog[i] == 0 || (_spawnTickCounter - _cdLog[i]) > 60) {
+                    SH_DBG("[SPAWN-COOLDOWN] slot=%d in range (player <22u) but cooldown=%u ticks remaining",
+                           i, (unsigned)_slotSpawnCooldown[i]);
+                    _cdLog[i] = _spawnTickCounter;
+                }
+            }
         }
 #endif
 
@@ -464,6 +504,13 @@ void Game_NpcUpdate(void) // 0x80038354
 
                 if (new_var > ((var_t5 == 0 && npc->health < Q12(0.0f)) ? SQUARE(24) : SQUARE(40)))
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[NPC-DESPAWN] npcSlot=%d charaId=%d spawnSlot=%d distSq=%d (radius=%d) deadFastTrack=%d",
+                           (int)k, (int)npc->model.charaId, (int)npc->field_40,
+                           (int)new_var,
+                           (var_t5 == 0 && npc->health < Q12(0.0f)) ? 576 : 1600,
+                           (int)(npc->health < Q12(0.0f)));
+#endif
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
                     CLEAR_FLAG(g_SysWork.field_228C, npc->field_40);
