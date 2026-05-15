@@ -457,6 +457,30 @@ void Game_NpcUpdate(void) // 0x80038354
                     var_t5 = (g_MapOverlayHeader.mapInfo->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)) > 0;
                 }
 
+#ifdef SH_PC_PORT
+                /* Once-per-second per-NPC tracking trace. Logs why an alive
+                 * NPC is or isn't being inserted into field_0[] (the radio's
+                 * NPC tracker). Helps diagnose silent radio: if temp_t3
+                 * stays > 1024 the NPC is out of radio range; if health
+                 * stays <=0 the NPC never got Init'd; etc. */
+                {
+                    static u32 _trkTick[6] = { 0 };
+                    static u32 _trkCounter = 0;
+                    if (k == 0) _trkCounter++;
+                    if (k < 6 && (_trkCounter - _trkTick[k]) > 60) {
+                        SH_DBG("[NPC-TRACK] npc=%d charaId=%d health=%d flags=0x%x pos=(%d,%d) temp_t3=%d field_4[0]=%d health_gate=%d insertRange=%d despawnRange=%d",
+                               (int)k, (int)npc->model.charaId,
+                               (int)npc->health, (unsigned)npc->flags,
+                               (int)npc->position.vx, (int)npc->position.vz,
+                               (int)temp_t3, (int)field_0[0].field_4,
+                               (int)(npc->health > Q12(0.0f)),
+                               (int)(temp_t3 < field_0[0].field_4),
+                               (int)(temp_t3 < SQUARE(40)));
+                        _trkTick[k] = _trkCounter;
+                    }
+                }
+#endif
+
                 for (j = 0; j < 3; j++)
                 {
                     if (npc->health <= Q12(0.0f) || npc->flags & CharaFlag_Unk9 || temp_t3 >= field_0[j].field_4)
@@ -493,7 +517,19 @@ void Game_NpcUpdate(void) // 0x80038354
                     temp_t1 = (uintptr_t)npc - (uintptr_t)g_SysWork.npcs;
                     temp2   = ((((temp_t1 * 0x7E8) - (temp_t1 * 0xFD)) * 4) + temp_t1) * -0x3FFFF;
 
+#ifdef SH_PC_PORT
+                    /* The MIPS-compiler reciprocal-multiply above computes
+                     * `temp_t1 / sizeof(s_SubCharacter)` to recover the NPC
+                     * array index k. The constants (0x7E8, 0xFD, -0x3FFFF)
+                     * are baked for PSX struct sizes; on PC s_SubCharacter
+                     * is larger so the formula gives garbage. Just use k
+                     * directly — it IS the array index. */
+                    field_0[j].bitIdx_0   = (s8)k;
+                    SH_DBG("[NPC-INSERT] field_0[%d] = npc[%d] charaId=%d temp_t3=%d (radio should fire)",
+                           (int)j, (int)k, (int)npc->model.charaId, (int)temp_t3);
+#else
                     field_0[j].bitIdx_0   = temp2 >> 3;
+#endif
                     field_0[j].field_4    = temp_t3;
                     field_0[j].field_8.vx = npc->position.vx;
                     field_0[j].field_8.vz = npc->position.vz;
