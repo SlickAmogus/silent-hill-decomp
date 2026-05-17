@@ -239,6 +239,8 @@ typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p; u_short n0,v0; u_short n1,v1; u_short n2,v2; } TMD_P_TG3;
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p0; u_char tu3,tv3; u_short p1; u_short n0,v0; u_short v1,v2; u_short v3,p2; } TMD_P_TF4;
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p0; u_char tu3,tv3; u_short p1; u_short n0,v0; u_short n1,v1; u_short n2,v2; u_short n3,v3; } TMD_P_TG4;
+typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p0; u_char tu3,tv3; u_short p1; u_char r0,g0,b0,code; u_short v0,v1; u_short v2,v3; } TMD_P_NTF4;
+typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p0; u_char tu3,tv3; u_short p1; u_char r0,g0,b0,code; u_char r1,g1,b1,p2; u_char r2,g2,b2,p3; u_char r3,g3,b3,p4; u_short v0,v1; u_short v2,v3; } TMD_P_NTG4;
 
 /* TMD cache — 64-bit compatible TMD parsing */
 extern void GsMapModelingData(unsigned long *p);
@@ -264,6 +266,8 @@ extern void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT*
 extern void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
  
 
 /* View */
