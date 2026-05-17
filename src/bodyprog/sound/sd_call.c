@@ -538,11 +538,29 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     {
         voiceIdx   = 22;
         attr.voice = 1 << 22;
+#ifdef SH_PC_PORT
+        /* Radio keyon miss: D_800BCDA8[].field_0 starts at BSS-zero (0) rather
+         * than NO_VALUE (-1) before func_80037154 runs, so the keyon branch in
+         * npc_main.c never fires. Detect the stopped state here and restart the
+         * voice so the radio static is audible. */
+        if (!SpuGetKeyStatus(attr.voice)) {
+            SH_DBG("[RADIO_RESTART] voice 22 stopped (keyon missed) — restarting");
+            Sd_PlaySfx(sfxId, 0, 0);
+            return;
+        }
+#endif
     }
     else if (sfxId == Sfx_RadioStaticLoop)
     {
         voiceIdx   = 23;
         attr.voice = 1 << 23;
+#ifdef SH_PC_PORT
+        if (!SpuGetKeyStatus(attr.voice)) {
+            SH_DBG("[RADIO_RESTART] voice 23 stopped (keyon missed) — restarting");
+            Sd_PlaySfx(sfxId, 0, 0);
+            return;
+        }
+#endif
     }
     else
     {
