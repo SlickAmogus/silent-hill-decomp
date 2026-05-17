@@ -420,6 +420,15 @@ void DebugCamera_Update(void)
                 s32 sinV = Math_Sin(facing);
                 s32 cosV = Math_Cos(facing);
                 s32 pushDist = Q12(2.5f);
+                /* Log the FALL position before teleporting — user uses this
+                 * to capture where Harry landed (= broken floor spot). Pair
+                 * with HARRY POSITION LOGGED (Numpad .) which captures the
+                 * spot where the fall STARTED. Use a unique searchable tag. */
+                SH_DBG("HARRY FALL POSITION mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d",
+                    (int)g_SavegamePtr->mapOverlayId_A4,
+                    (int)g_SavegamePtr->mapRoomIdx_A5,
+                    (long)oldX, (long)oldY, (long)oldZ,
+                    (int)facing);
                 p->vy = _lastSafeY;
                 pl->fallSpeed = 0;
                 /* Push backward — sin/cos give forward direction, subtract. */
@@ -767,12 +776,56 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -1096, -31250, 3177 },
                 .matchXzRadius = Q12(4.0f),
             },
-            /* Three map2_s00 post-cafe street corrections (61757/235662/119832)
-             * were tried via plain road-containment match but caused camera
-             * jumping/fighting as Harry runs along the road — the adjacent
-             * shot regions overlap and each entry triggered as the player
-             * crossed boundaries. Reverted until we can identify a more
-             * precise match (probably matchXzRadius per shot anchor). */
+            /* map2_s00 post-cafe alley1/alley2 — these are the alley scenes
+             * AFTER Cybil's cafe (different geometry from the intro alleys
+             * in map0_s00). All use matchXzRadius=Q12(4) per anchor so
+             * adjacent shots don't fight over the same road region (plain
+             * road-containment match made cameras jump as Harry crossed
+             * boundaries). Captured via GOOD CAMERA POSITION-DELTA log. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -252889, 0, 418482 },
+                .posDelta   = { 0, 2856, 0 },
+                .lookAtDelta = { 2, -8756, -477 },
+                .matchXzRadius = Q12(4.0f),
+            },
+            {
+                .mapId      = 10,
+                .harryPos   = { -374402, 0, 1000607 },
+                .posDelta   = { 0, 2856, 0 },
+                .lookAtDelta = { 33, -18382, -72 },
+                .matchXzRadius = Q12(4.0f),
+            },
+            {
+                .mapId      = 10,
+                .harryPos   = { -374789, 0, 962496 },
+                .posDelta   = { 0, 3366, 0 },
+                .lookAtDelta = { -23, -8655, -1318 },
+                .matchXzRadius = Q12(4.0f),
+            },
+            {
+                .mapId      = 10,
+                .harryPos   = { -405698, 0, 937941 },
+                .posDelta   = { -842, 3366, -2456 },
+                .lookAtDelta = { 3656, -3300, -276 },
+                .matchXzRadius = Q12(4.0f),
+            },
+            /* Second-to-last log entry had two corrections at this same shot;
+             * user said to use the second. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -452387, 0, 922174 },
+                .posDelta   = { -842, 3366, -2456 },
+                .lookAtDelta = { 3568, -33652, -4433 },
+                .matchXzRadius = Q12(4.0f),
+            },
+            {
+                .mapId      = 10,
+                .harryPos   = { -778240, 0, 1243546 },
+                .posDelta   = { -842, 3366, -2456 },
+                .lookAtDelta = { 2923, -1299, 1496 },
+                .matchXzRadius = Q12(4.0f),
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
@@ -1831,12 +1884,34 @@ void MainLoop(void) // 0x80032EE0
         GsSwapDispBuff();
         ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
-        /* Numpad .: toggle fog on/off (only active during debug camera) */
+        /* Numpad .: (1) always logs Harry's detailed position with a unique
+         * searchable "HARRY POSITION LOGGED" tag — used to mark spots where
+         * Harry falls through the floor. Pair with Numpad 3's HARRY FALL
+         * POSITION which records where he LANDS. (2) During debug camera
+         * mode, also toggles fog on/off. */
         if (g_sdlKeyboardState && g_GameWork.gameState == 11) {
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
-            if (cur && !g_DebugFogTogglePrev && g_DebugCamEnabled) {
-                g_DebugFogDisabled = !g_DebugFogDisabled;
-                SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
+            if (cur && !g_DebugFogTogglePrev) {
+                VECTOR3 camPos;
+                if (g_DebugCamEnabled)              camPos = g_DebugCamPos;
+                else if (g_DebugThirdPersonCam)     vcGetNowCamPos(&camPos);
+                else                                camPos = vcWork.cam_pos;
+                SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d",
+                    (int)g_SavegamePtr->mapOverlayId_A4,
+                    (int)g_SavegamePtr->mapRoomIdx_A5,
+                    (long)g_SysWork.playerWork.player.position.vx,
+                    (long)g_SysWork.playerWork.player.position.vy,
+                    (long)g_SysWork.playerWork.player.position.vz,
+                    (int)g_SysWork.playerWork.player.rotation.vy,
+                    (int)g_SysWork.playerWork.player.rotation.vx,
+                    (long)g_SysWork.playerWork.player.moveSpeed,
+                    (long)camPos.vx, (long)camPos.vy, (long)camPos.vz,
+                    (int)vcWork.cam_mat_ang.vy,
+                    (int)vcWork.cam_mat_ang.vx);
+                if (g_DebugCamEnabled) {
+                    g_DebugFogDisabled = !g_DebugFogDisabled;
+                    SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
+                }
             }
             g_DebugFogTogglePrev = cur;
 
