@@ -340,11 +340,29 @@ void DebugCamera_Update(void)
                     tag,
                     (long)finalPos.vx, (long)finalPos.vy, (long)finalPos.vz,
                     (long)finalLook.vx, (long)finalLook.vy, (long)finalLook.vz);
-                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={%ld,%ld,%ld} (paste into s_camCorrections[])",
+                /* WYSIWYG paste line: output the RAW runtime nudges, not
+                 * the on-screen delta. The on-screen lookAt delta has the
+                 * pitch/yaw rotation baked into translation, which only
+                 * reproduces the same view if the baseline cam is identical
+                 * — fine for fixed cams, broken for tracking cams or any
+                 * shot where Harry moves within the trigger region.
+                 *
+                 * Store rotation as rotation (yawDelta/pitchDelta), pos as
+                 * pos. lookAtDelta stays 0 in new captures because there
+                 * is no runtime keybind that translates lookAt directly. */
+                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={0,0,0} yawDelta=%d pitchDelta=%d (paste into s_camCorrections[])",
                     tag,
-                    (long)(finalPos.vx  - basePos.vx),
-                    (long)(finalPos.vy  - basePos.vy),
-                    (long)(finalPos.vz  - basePos.vz),
+                    (long)g_PcCamNudgePos.vx,
+                    (long)g_PcCamNudgePos.vy,
+                    (long)g_PcCamNudgePos.vz,
+                    (int)g_PcCamNudgeYaw,
+                    (int)g_PcCamNudgePitch);
+                /* Keep the old translation-baked form too, marked DEPRECATED,
+                 * so we can spot at a glance whether the old format crept
+                 * back into a paste. Compares on-screen delta vs new raw
+                 * nudge form — they SHOULD differ when pitch/yaw are non-0. */
+                SH_DBG("[%s-DELTA-LEGACY] (old baked form, do NOT use) lookAtDelta_baked={%ld,%ld,%ld}",
+                    tag,
                     (long)(finalLook.vx - baseLook.vx),
                     (long)(finalLook.vy - baseLook.vy),
                     (long)(finalLook.vz - baseLook.vz));
@@ -628,6 +646,16 @@ void DebugCamera_Update(void)
                                      * OR (if matchXzRadius>0) by XZ distance to Harry */
             VECTOR3 posDelta;       /* world-space cam pos translation */
             VECTOR3 lookAtDelta;    /* world-space lookAt translation */
+            s32     yawDelta;       /* extra yaw rotation around cam-Y, applied
+                                     * AFTER posDelta — same units as the
+                                     * runtime numpad-7/9 nudge keys. Stored as
+                                     * raw nudge value so what the row-5 logger
+                                     * records is what gets re-applied (no
+                                     * baseline-dependent baking). */
+            s32     pitchDelta;     /* extra pitch rotation around cam-X. Same
+                                     * semantics as yawDelta. Critical for any
+                                     * tuned cam that needed numpad-./numpad-0
+                                     * tilt at capture time. */
             int     forceApply;     /* 1 = trigger override even with zero deltas
                                      * (suppresses cam-pipeline jitter by replacing
                                      *  flickering view matrix with stable copy) */
@@ -790,59 +818,17 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -1096, -31250, 3177 },
                 .matchXzRadius = Q12(4.0f),
             },
-            /* map2_s00 post-cafe alley1/alley2 — these are the alley scenes
-             * AFTER Cybil's cafe (different geometry from the intro alleys
-             * in map0_s00). All use matchXzRadius=Q12(4) per anchor so
-             * adjacent shots don't fight over the same road region (plain
-             * road-containment match made cameras jump as Harry crossed
-             * boundaries). Captured via GOOD CAMERA POSITION-DELTA log. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -252889, 0, 418482 },
-                .posDelta   = { 0, 2856, 0 },
-                .lookAtDelta = { 2, -8756, -477 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            {
-                .mapId      = 10,
-                .harryPos   = { -374402, 0, 1000607 },
-                .posDelta   = { 0, 2856, 0 },
-                .lookAtDelta = { 33, -18382, -72 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            {
-                .mapId      = 10,
-                .harryPos   = { -374789, 0, 962496 },
-                .posDelta   = { 0, 3366, 0 },
-                .lookAtDelta = { -23, -8655, -1318 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            {
-                .mapId      = 10,
-                .harryPos   = { -405698, 0, 937941 },
-                .posDelta   = { -842, 3366, -2456 },
-                .lookAtDelta = { 3656, -3300, -276 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            /* Second-to-last log entry had two corrections at this same shot;
-             * user said to use the second. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -452387, 0, 922174 },
-                .posDelta   = { -842, 3366, -2456 },
-                .lookAtDelta = { 3568, -33652, -4433 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            {
-                .mapId      = 10,
-                .harryPos   = { -778240, 0, 1243546 },
-                .posDelta   = { -842, 3366, -2456 },
-                .lookAtDelta = { 2923, -1299, 1496 },
-                .matchXzRadius = Q12(4.0f),
-            },
+            /* The six map2_s00 post-cafe alley corrections were reverted
+             * because lookAtDelta captured by the row-5 logger had pitch/
+             * yaw rotation baked into it as translation, which only
+             * reproduces correctly when the cam baseline is identical at
+             * apply-time. Fixed by adding yawDelta+pitchDelta fields below
+             * — re-capture with the new logger format. */
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
+        s32     sceneNudgeYaw    = 0;
+        s32     sceneNudgePitch  = 0;
         int     sceneForceApply  = 0;
         int     sceneFollowMode  = 0;
         int     sceneDisable     = 0;
@@ -914,6 +900,8 @@ void DebugCamera_Update(void)
                     if (!MATCH_ENTRY(cc)) continue;
                     sceneNudgePos    = cc->posDelta;
                     sceneNudgeLookAt = cc->lookAtDelta;
+                    sceneNudgeYaw    = cc->yawDelta;
+                    sceneNudgePitch  = cc->pitchDelta;
                     sceneForceApply  = cc->forceApply;
                     sceneFollowMode  = cc->followMode;
                     break;
@@ -938,8 +926,8 @@ void DebugCamera_Update(void)
         s32 effPosX  = g_PcCamNudgePos.vx + sceneNudgePos.vx;
         s32 effPosY  = g_PcCamNudgePos.vy + sceneNudgePos.vy;
         s32 effPosZ  = g_PcCamNudgePos.vz + sceneNudgePos.vz;
-        s32 effYaw   = g_PcCamNudgeYaw;
-        s32 effPitch = g_PcCamNudgePitch;
+        s32 effYaw   = g_PcCamNudgeYaw   + sceneNudgeYaw;
+        s32 effPitch = g_PcCamNudgePitch + sceneNudgePitch;
         if (effPosX | effPosY | effPosZ | effYaw | effPitch
             | sceneNudgeLookAt.vx | sceneNudgeLookAt.vy | sceneNudgeLookAt.vz
             | sceneForceApply | sceneFollowMode)
