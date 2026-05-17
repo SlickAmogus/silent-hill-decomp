@@ -3185,11 +3185,26 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 *rand                      = Rng_Rand16();
                 localRand                  = *rand;
                 localPart->movement_18.vz += Rng_GenerateIntFromInput(localRand, -7, 7);
-                localPart->movement_18.vy += Rng_GenerateIntFromInput(*rand, -1, 3);
 #ifdef SH_PC_PORT
-                /* Cap to ~30fps terminal velocity (~186-190) so higher fps
-                 * doesn't accumulate extra vy per real-time second. */
-                if (localPart->movement_18.vy > 200) localPart->movement_18.vy = 200;
+                /* vy accumulates Rng[-1,3] every frame, independent of fps.
+                 * At 60fps vy grows 2x/sec → snow falls faster than at 30fps.
+                 * Fix: scale the accumulation by deltaTime using position1_C.vy
+                 * (zero-initialized on spawn, unused for snow) as a credit bucket.
+                 * This keeps vy growth rate constant at ~30 increments/real-sec. */
+                {
+                    s32 rng = Rng_GenerateIntFromInput(*rand, -1, 3);
+                    localPart->position1_C.vy += TIMESTEP_SCALE_30_FPS(*deltaTime, rng * 256);
+                    while (localPart->position1_C.vy >= 256) {
+                        localPart->movement_18.vy++;
+                        localPart->position1_C.vy -= 256;
+                    }
+                    while (localPart->position1_C.vy <= -256) {
+                        localPart->movement_18.vy--;
+                        localPart->position1_C.vy += 256;
+                    }
+                }
+#else
+                localPart->movement_18.vy += Rng_GenerateIntFromInput(*rand, -1, 3);
 #endif
             }
             else
