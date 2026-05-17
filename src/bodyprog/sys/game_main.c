@@ -916,6 +916,13 @@ void DebugCamera_Update(void)
                 .pitchDelta = 1260,
                 .matchXzRadius = Q12(3.0f),
             },
+            /* map2_s00 main road (negative-Z zone) — wide road shot tuned at
+             * (-545362,0,-30651). No matchXzRadius → uses road lim_sw bounds. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -545362, 0, -30651 },
+                .pitchDelta = 234,
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
