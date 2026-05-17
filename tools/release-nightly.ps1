@@ -61,6 +61,14 @@ if (Test-Path $cfg) {
     $localFiles["config.cfg"] = Get-Sha256 $cfg
 }
 
+# CHANGELOG.md -- always include so the launcher's "View Changelog" button works
+$changelogSrc = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
+if (Test-Path $changelogSrc) {
+    $localFiles["CHANGELOG.md"] = Get-Sha256 $changelogSrc
+} else {
+    Write-Host "Warning: CHANGELOG.md not found at $changelogSrc — skipping." -ForegroundColor Yellow
+}
+
 Write-Host "Local files: $($localFiles.Count) entries hashed" -ForegroundColor Cyan
 
 # ---- Fetch existing manifest (if any release exists) ------------------------
@@ -202,6 +210,7 @@ $uploadAssets = @()
 foreach ($path in $changed) {
     $src = if ($path -eq "SilentHillPC.exe") { $exe }
            elseif ($path -eq "config.cfg") { $cfg }
+           elseif ($path -eq "CHANGELOG.md") { $changelogSrc }
            else { Join-Path $BuildDir $path }
     $assetName = $path -replace '/', '__'
     $dst = Join-Path $stagingDir $assetName
