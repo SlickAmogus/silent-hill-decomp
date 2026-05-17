@@ -423,12 +423,26 @@ void DebugCamera_Update(void)
                 /* Log the FALL position before teleporting — user uses this
                  * to capture where Harry landed (= broken floor spot). Pair
                  * with HARRY POSITION LOGGED (Numpad .) which captures the
-                 * spot where the fall STARTED. Use a unique searchable tag. */
-                SH_DBG("HARRY FALL POSITION mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d",
-                    (int)g_SavegamePtr->mapOverlayId_A4,
-                    (int)g_SavegamePtr->mapRoomIdx_A5,
-                    (long)oldX, (long)oldY, (long)oldZ,
-                    (int)facing);
+                 * spot where the fall STARTED. Use a unique searchable tag.
+                 *
+                 * Also probe collision at the current XZ to expose the slope
+                 * angles (field_4=X-slope, field_6=Z-slope) and the IPD
+                 * ground-validity count (field_8). groundH=Q12(8) means the
+                 * IPD cell returned the void-ground sentinel — Harry is over
+                 * a hole/missing collision data. */
+                {
+                    s_Collision _fallColl;
+                    Collision_Get(&_fallColl, oldX, oldZ);
+                    SH_DBG("HARRY FALL POSITION mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
+                        (int)g_SavegamePtr->mapOverlayId_A4,
+                        (int)g_SavegamePtr->mapRoomIdx_A5,
+                        (long)oldX, (long)oldY, (long)oldZ,
+                        (int)facing,
+                        (long)_fallColl.groundHeight_0,
+                        (int)_fallColl.field_4, (int)_fallColl.field_6,
+                        (int)_fallColl.field_8,
+                        (int)(_fallColl.groundHeight_0 == Q12(8.0f)));
+                }
                 p->vy = _lastSafeY;
                 pl->fallSpeed = 0;
                 /* Push backward — sin/cos give forward direction, subtract. */
@@ -1893,10 +1907,14 @@ void MainLoop(void) // 0x80032EE0
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
             if (cur && !g_DebugFogTogglePrev) {
                 VECTOR3 camPos;
+                s_Collision _hereColl;
                 if (g_DebugCamEnabled)              camPos = g_DebugCamPos;
                 else if (g_DebugThirdPersonCam)     vcGetNowCamPos(&camPos);
                 else                                camPos = vcWork.cam_pos;
-                SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d",
+                Collision_Get(&_hereColl,
+                    g_SysWork.playerWork.player.position.vx,
+                    g_SysWork.playerWork.player.position.vz);
+                SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
                     (int)g_SavegamePtr->mapOverlayId_A4,
                     (int)g_SavegamePtr->mapRoomIdx_A5,
                     (long)g_SysWork.playerWork.player.position.vx,
@@ -1907,7 +1925,11 @@ void MainLoop(void) // 0x80032EE0
                     (long)g_SysWork.playerWork.player.moveSpeed,
                     (long)camPos.vx, (long)camPos.vy, (long)camPos.vz,
                     (int)vcWork.cam_mat_ang.vy,
-                    (int)vcWork.cam_mat_ang.vx);
+                    (int)vcWork.cam_mat_ang.vx,
+                    (long)_hereColl.groundHeight_0,
+                    (int)_hereColl.field_4, (int)_hereColl.field_6,
+                    (int)_hereColl.field_8,
+                    (int)(_hereColl.groundHeight_0 == Q12(8.0f)));
                 if (g_DebugCamEnabled) {
                     g_DebugFogDisabled = !g_DebugFogDisabled;
                     SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
