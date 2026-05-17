@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using SilentHillPC_Launcher;
 
 public partial class Form1 : Form
 {
@@ -351,6 +354,90 @@ public partial class Form1 : Form
 
         Process.Start(exePath);
         Close();
+    }
+
+    // ------------------------------------------------------------------
+    // Check-for-Updates handler. Pulls version.json from the nightly repo
+    // (UpdateChecker.cs), diffs SHA-256 hashes against local files, and
+    // downloads only the changed ones. Safe to run while game exe isn't
+    // executing — the launcher always runs before the game, so file
+    // overwrites of SilentHillPC.exe don't hit a "file in use" lock.
+    // ------------------------------------------------------------------
+    private async void btnUpdate_Click(object sender, EventArgs e)
+    {
+        string installDir = AppDomain.CurrentDomain.BaseDirectory;
+        btnUpdate.Enabled = false;
+        btnPlay.Enabled   = false;
+        lblUpdateStatus.Text = "Checking for updates...";
+        progUpdate.Style   = ProgressBarStyle.Marquee;
+        progUpdate.Visible = true;
+
+        try
+        {
+            var plan = await UpdateChecker.CheckAsync(installDir);
+
+            if (!plan.HasUpdate)
+            {
+                lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
+                progUpdate.Visible = false;
+                return;
+            }
+
+            // Build a human summary for the confirm dialog. Cap at ~10 files
+            // so we don't blow out a MessageBox on a large changeset.
+            var sb = new StringBuilder();
+            sb.AppendLine($"Update available: {plan.RemoteVersion}");
+            sb.AppendLine($"Built: {plan.BuildDate}");
+            sb.AppendLine();
+            sb.AppendLine($"{plan.Changed.Count} file(s) to download:");
+            int i = 0;
+            foreach (var f in plan.Changed)
+            {
+                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
+                else { sb.AppendLine($"  • ... and {plan.Changed.Count - 10} more"); break; }
+            }
+            sb.AppendLine();
+            sb.AppendLine("Download and install now?");
+
+            var resp = MessageBox.Show(this, sb.ToString(), "Update available",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (resp != DialogResult.Yes)
+            {
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                progUpdate.Visible = false;
+                return;
+            }
+
+            progUpdate.Style = ProgressBarStyle.Continuous;
+            progUpdate.Minimum = 0;
+            progUpdate.Maximum = 100;
+
+            await UpdateChecker.ApplyAsync(installDir, plan, (frac, msg) =>
+            {
+                // Marshal back to UI thread — the progress callback fires on
+                // whatever thread HttpClient happens to be on.
+                BeginInvoke((Action)(() =>
+                {
+                    if (frac >= 0 && frac <= 1)
+                        progUpdate.Value = (int)(frac * 100);
+                    lblUpdateStatus.Text = msg ?? "";
+                }));
+            });
+
+            lblUpdateStatus.Text = $"Updated to {plan.RemoteVersion}.";
+        }
+        catch (Exception ex)
+        {
+            lblUpdateStatus.Text = "Update failed (see message).";
+            MessageBox.Show(this, "Update failed:\n\n" + ex.Message, "Update error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            btnUpdate.Enabled = true;
+            btnPlay.Enabled   = true;
+            progUpdate.Visible = false;
+        }
     }
 
     private void ApplyDarkMode()
