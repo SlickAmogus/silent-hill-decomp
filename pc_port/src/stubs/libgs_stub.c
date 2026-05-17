@@ -812,6 +812,14 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         }
 
         otz = p >> shift;
+        {
+            static int _ntf3d = 0;
+            if (_ntf3d < 6) { _ntf3d++;
+                SH_DBG("[NTF3-DIAG] i=%d p=%ld otz=%ld limit=%d fce=%d — %s",
+                       i, p, otz, (1 << ot->length), (prim->dummy & 2) ? 1 : 0,
+                       (otz > 0 && otz < (1 << ot->length)) ? "EMIT" : "CLIP");
+            }
+        }
         if (otz <= 0 || otz >= (1 << ot->length)) continue;
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
