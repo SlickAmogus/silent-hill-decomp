@@ -113,6 +113,8 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
 void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 
 void GsInit3D(void)
 {
@@ -126,10 +128,7 @@ void GsInit3D(void)
 
     /* Populate GsFCALL4 dispatch table used by GsSortObject4J.
      * PC has no DIV variants and no separate NORMAL/FOG/LOFF paths — all
-     * LMODE slots and both DIV slots point at the same implementation.
-     * Textured no-light variants (nt*) intentionally left NULL; the
-     * dispatcher null-checks before calling and just skips unknown prim
-     * types — items and weapons we need for the inventory are all lit. */
+     * LMODE slots and both DIV slots point at the same implementation. */
     memset(&GsFCALL4, 0, sizeof(GsFCALL4));
     {
         int d, l;
@@ -150,6 +149,8 @@ void GsInit3D(void)
             GsFCALL4.ng4[d]  = (void(*)())GsTMDfastNG4;
             GsFCALL4.ntf3[d] = (void(*)())GsTMDfastNTF3;
             GsFCALL4.ntg3[d] = (void(*)())GsTMDfastNTG3;
+            GsFCALL4.ntf4[d] = (void(*)())GsTMDfastNTF4;
+            GsFCALL4.ntg4[d] = (void(*)())GsTMDfastNTG4;
         }
     }
 }
@@ -812,14 +813,6 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         }
 
         otz = p >> shift;
-        {
-            static int _ntf3d = 0;
-            if (_ntf3d < 6) { _ntf3d++;
-                SH_DBG("[NTF3-DIAG] i=%d p=%ld otz=%ld limit=%d fce=%d — %s",
-                       i, p, otz, (1 << ot->length), (prim->dummy & 2) ? 1 : 0,
-                       (otz > 0 && otz < (1 << ot->length)) ? "EMIT" : "CLIP");
-            }
-        }
         if (otz <= 0 || otz >= (1 << ot->length)) continue;
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
@@ -868,6 +861,81 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
         addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
+    }
+}
+
+/* No-light textured flat quad */
+void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NTF4 *prim = (TMD_P_NTF4*)op;
+    SVECTOR    *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        POLY_FT4 *poly;
+
+        RotTransPers4(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2], &vtx[prim->v3],
+                      &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
+        if (!(prim->dummy & 2)) {
+            nclip = NormalClip(sxy0, sxy1, sxy2);
+            if (nclip <= 0) continue;
+        }
+
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+
+        poly = (POLY_FT4*)GsOUT_PACKET_P;
+        setPolyFT4(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
+                     prim->tu2, prim->tv2, prim->tu3, prim->tv3);
+        poly->tpage = prim->tpage;
+        poly->clut  = prim->clut;
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT4);
+    }
+}
+
+/* No-light textured gouraud quad */
+void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
+{
+    TMD_P_NTG4 *prim = (TMD_P_NTG4*)op;
+    SVECTOR    *vtx  = (SVECTOR*)vp;
+    int i;
+    (void)pk; (void)scratch;
+
+    for (i = 0; i < n; i++, prim++) {
+        long sxy0, sxy1, sxy2, sxy3, p, flg, otz, nclip;
+        POLY_GT4 *poly;
+
+        RotTransPers4(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2], &vtx[prim->v3],
+                      &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
+        if (!(prim->dummy & 2)) {
+            nclip = NormalClip(sxy0, sxy1, sxy2);
+            if (nclip <= 0) continue;
+        }
+
+        otz = p >> shift;
+        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+
+        poly = (POLY_GT4*)GsOUT_PACKET_P;
+        setPolyGT4(poly);
+        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB1(poly, prim->r1, prim->g1, prim->b1);
+        setRGB2(poly, prim->r2, prim->g2, prim->b2);
+        setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
+                     prim->tu2, prim->tv2, prim->tu3, prim->tv3);
+        poly->tpage = prim->tpage;
+        poly->clut  = prim->clut;
+        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
+        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
+        addPrim(&ot->org[otz], poly);
+        GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
 
@@ -1179,10 +1247,10 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
             next += ilen * 4;
         }
  
-        lsc = flag & 1;         /* light source calculation */
-        iip = mode & 1;         /* gouraud */
-        qd  = (mode >> 1) & 1;  /* quad */
-        tme = (mode >> 2) & 1;  /* textured */
+        lsc = flag & 1;          /* light source calculation — flag bit 0 */
+        iip = (mode >> 4) & 1;  /* gouraud — mode bit 4 = IIP */
+        qd  = (mode >> 3) & 1;  /* quad — mode bit 3 = QD */
+        tme = (mode >> 2) & 1;  /* textured — mode bit 2 = TME */
  
         if (lsc) {
             /* Lit primitives — dispatch through GsFCALL4 */
