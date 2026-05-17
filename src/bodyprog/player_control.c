@@ -2538,7 +2538,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 extra->model.anim.time = Q12(g_MapOverlayHeader.field_38[D_800AF220].time);
                 Player_AnimFlagsSet(AnimFlag_Unlocked | AnimFlag_Visible);
                 player->model.stateStep = 2; /* prevent re-reset next frame */
-                extra->model.stateStep = 2; /* prevent re-entry */
+                extra->model.stateStep = 2;
+            }
+            /* Re-assert Unlocked every frame — something in the anim path clears
+             * flags between calls, stalling kf advancement (kf frozen at 688). */
+            if (player->model.stateStep == 2) {
+                Player_AnimFlagsSet(AnimFlag_Unlocked | AnimFlag_Visible);
             }
 #endif
             player->field_D4.field_2 = Q12(0.0f);
