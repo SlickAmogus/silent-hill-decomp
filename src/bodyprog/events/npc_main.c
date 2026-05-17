@@ -483,10 +483,27 @@ void Game_NpcUpdate(void) // 0x80038354
 
                 for (j = 0; j < 3; j++)
                 {
+#ifdef SH_PC_PORT
+                    /* Drop the health>0 gate on PC. NPCs spawn with
+                     * health=0 — their Ai_Init runs LATER in the same
+                     * Game_NpcUpdate iteration to set the real value.
+                     * Vanilla PSX gets away with this because AS often
+                     * hovers near spawn long enough to re-enter the
+                     * tracking radius the next frame; on PC the AI
+                     * tends to move the NPC further per tick, so we
+                     * miss the tracking window entirely and the radio
+                     * never fires. Tracking dead/recently-spawned NPCs
+                     * is harmless — the radio just plays static. */
+                    if (npc->flags & CharaFlag_Unk9 || temp_t3 >= field_0[j].field_4)
+                    {
+                        continue;
+                    }
+#else
                     if (npc->health <= Q12(0.0f) || npc->flags & CharaFlag_Unk9 || temp_t3 >= field_0[j].field_4)
                     {
                         continue;
                     }
+#endif
 
                     if (var_t5 != 0)
                     {
