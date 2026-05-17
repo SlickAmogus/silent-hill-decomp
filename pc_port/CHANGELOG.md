@@ -1,12 +1,5 @@
 # Silent Hill PC Port — Changelog
 
-Auto-updated by `tools/release-nightly.ps1` on each release. The script
-prepends new sections directly above the `<!-- next-release-here -->`
-marker, so the newest release is always at the top.
-
-The base PSX decompilation comes from
-[Vatuu/silent-hill-decomp](https://github.com/Vatuu/silent-hill-decomp).
-Everything below describes only the PC port work on top.
 
 <!-- next-release-here -->
 
@@ -27,23 +20,17 @@ auto-update rollout.
 - Per-vertex shader fog replacing the original PSX overlay system; fixes
   the seam line on top of the screen.
 - 16:9 hor+ widescreen with per-shot pixel-aspect culling correction.
-- PGXP (subpixel precision + perspective-correct interpolation) is wired
-  through the GTE + prim-emit pipeline; runtime-gated via `use_pgxp`
-  config flag (default off).
-- High-resolution loose TIM override system: drop textures into
-  `gamedata/load/` to replace originals.
 
 ### Player
 - Harry's full body renders with all 23 bones and gouraud shading.
 - Movement: walk + run via collision-based path. Wall collision and
-  floor height fully working in most areas. Camera-relative WASD.
-- TPS (third-person) follow-cam toggle on numpad `2`. Spherical orbit
-  with far-look-at to eliminate Q12→Q8 jitter.
+  floor height fully working in most areas. 
+- TPS (third-person) follow-cam toggle on numpad `2`. WIP
 - Aim + fire system: handgun and knife work; muzzle flash and blood
   splat re-enabled safely.
 
 ### Combat & enemies
-- Air Screamer (bird boss): AI, animation, swoop attack, hit-take,
+- Air Screamer (bird enemy): AI, animation, swoop attack, hit-take,
   death-and-fade all working. Cafe-window break cutscene plays.
 - Groaner (dog): full AI from disc-extracted rodata.
 - Bloodsucker, Romper, SplitHead, Creeper, HangedScratcher, LarvalStalker,
@@ -64,9 +51,6 @@ auto-update rollout.
 - 3D audio: distance-based volume falloff restored (was previously
   full-volume regardless of distance — Air Screamer wing flap could be
   heard across the entire map).
-- Radio static near enemies works (silent up until this release because
-  a MIPS-compiler reciprocal-multiply for the NPC array index was baked
-  for PSX `sizeof(s_SubCharacter)`).
 
 ### Cameras
 - WYSIWYG `s_camCorrections[]` system with road-region matching and
@@ -87,8 +71,7 @@ auto-update rollout.
 - Enter-key input bleed from FMV skip into the next state fixed.
 
 ### Map system
-- 31/42 maps build as runtime-loaded DLLs; 11 skipped (non-constant
-  initializers / cross-map shared data).
+- 42/42 maps compile successfully.
 - PSX-address sanitizer scrubs raw `0x80XXXXXX` function pointers from
   DLL map headers.
 
@@ -106,9 +89,6 @@ auto-update rollout.
 ### Known issues at v2026.05.16.1
 - Some areas show garbage / chunky-pixel textures on walls.
 - Map item screens have rendering issues (item TMD invisible during
-  some pickups).
-- White center cursor occasionally visible.
+   pickups).
 - Falling-through-floor in certain spots (under active diagnosis).
 - Handgun bullets pickup model invisible (under active diagnosis).
-- "Continue" save crash (under active diagnosis).
-- Sluggish intro FMV playback.
