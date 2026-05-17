@@ -1176,8 +1176,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * into HasActionInput (only Cross/run do that on PSX). */
             {
                 u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim;
-                bool aimHeld   = (g_Controller0->btnsHeld_C & aimBtn) != 0;
+                bool aimHeld;
                 bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
+                if (g_DebugThirdPersonCam) {
+                    Uint32 mb = SDL_GetMouseState(NULL, NULL);
+                    aimHeld = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+                } else {
+                    aimHeld = (g_Controller0->btnsHeld_C & aimBtn) != 0;
+                }
                 if (!aimHeld || !hasWeapon)
                 {
                     if (!(g_Player_HasMoveInput | g_Player_HasActionInput))
@@ -1504,17 +1510,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         s_prevFireHeld = fireHeld;
                     }
 
-                    /* TPS mode reads mouse buttons; Player_Controller only
-                     * reads PsyCross keyboard mappings. Override the input
-                     * flags Player_Controller set if we're in TPS so the
-                     * upper-body state machine sees the mouse state. */
-                    if (g_DebugThirdPersonCam) {
-                        g_Player_IsAiming = aimHeld && hasWeapon;
-                        if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
-                            extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
-                            g_Player_IsShooting  = fireHeld;
-                            g_Player_IsAttacking = fireHeld;
-                        }
+                    /* Player_Controller does not set g_Player_IsAiming from
+                     * R2 in the state path we use on PC — do it here for
+                     * both camera modes.  TPS uses mouse; non-TPS uses the
+                     * PsyCross keyboard mapping (RCTRL = R2). */
+                    g_Player_IsAiming = aimHeld && hasWeapon;
+                    if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+                        extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
+                        g_Player_IsShooting  = fireHeld;
+                        g_Player_IsAttacking = fireHeld;
                     }
 
                     if (g_Player_IsAiming && hasWeapon) {
