@@ -3186,6 +3186,11 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localRand                  = *rand;
                 localPart->movement_18.vz += Rng_GenerateIntFromInput(localRand, -7, 7);
                 localPart->movement_18.vy += Rng_GenerateIntFromInput(*rand, -1, 3);
+#ifdef SH_PC_PORT
+                /* Cap to ~30fps terminal velocity (~186-190) so higher fps
+                 * doesn't accumulate extra vy per real-time second. */
+                if (localPart->movement_18.vy > 200) localPart->movement_18.vy = 200;
+#endif
             }
             else
             {
