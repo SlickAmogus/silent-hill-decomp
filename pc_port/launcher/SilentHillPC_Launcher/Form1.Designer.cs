@@ -13,6 +13,7 @@ partial class Form1
     private ComboBox comboMap;
     private Button btnPlay;
     private Button btnUpdate;
+    private Button btnChangelog;
     private Label  lblUpdateStatus;
     private ProgressBar progUpdate;
 
@@ -94,6 +95,7 @@ partial class Form1
             this.comboMap = new System.Windows.Forms.ComboBox();
             this.btnPlay = new System.Windows.Forms.Button();
             this.btnUpdate = new System.Windows.Forms.Button();
+            this.btnChangelog = new System.Windows.Forms.Button();
             this.lblUpdateStatus = new System.Windows.Forms.Label();
             this.progUpdate = new System.Windows.Forms.ProgressBar();
             this.comboResolution = new System.Windows.Forms.ComboBox();
@@ -272,7 +274,7 @@ partial class Form1
             // comboMap
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(7, 360);
+            this.comboMap.Location = new System.Drawing.Point(9, 360);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(200, 21);
             this.comboMap.TabIndex = 11;
@@ -280,39 +282,48 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(270, 360);
+            this.btnPlay.Location = new System.Drawing.Point(269, 364);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(116, 23);
             this.btnPlay.TabIndex = 12;
             this.btnPlay.Text = "Play";
             this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
-            //
+            // 
             // btnUpdate
-            //
-            this.btnUpdate.Location = new System.Drawing.Point(14, 360);
+            // 
+            this.btnUpdate.Location = new System.Drawing.Point(270, 314);
             this.btnUpdate.Name = "btnUpdate";
-            this.btnUpdate.Size = new System.Drawing.Size(120, 23);
+            this.btnUpdate.Size = new System.Drawing.Size(112, 23);
             this.btnUpdate.TabIndex = 13;
             this.btnUpdate.Text = "Check for Updates";
             this.btnUpdate.UseVisualStyleBackColor = true;
             this.btnUpdate.Click += new System.EventHandler(this.btnUpdate_Click);
-            //
+            // 
+            // btnChangelog
+            // 
+            this.btnChangelog.Location = new System.Drawing.Point(270, 339);
+            this.btnChangelog.Name = "btnChangelog";
+            this.btnChangelog.Size = new System.Drawing.Size(112, 23);
+            this.btnChangelog.TabIndex = 16;
+            this.btnChangelog.Text = "View Changelog";
+            this.btnChangelog.UseVisualStyleBackColor = true;
+            this.btnChangelog.Click += new System.EventHandler(this.btnChangelog_Click);
+            // 
             // lblUpdateStatus
-            //
-            this.lblUpdateStatus.AutoSize = false;
+            // 
             this.lblUpdateStatus.Location = new System.Drawing.Point(14, 390);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
             this.lblUpdateStatus.TabIndex = 14;
-            this.lblUpdateStatus.Text = "";
-            //
+            // 
             // progUpdate
-            //
-            this.progUpdate.Location = new System.Drawing.Point(140, 363);
+            // 
+            this.progUpdate.Location = new System.Drawing.Point(9, 364);
             this.progUpdate.Name = "progUpdate";
-            this.progUpdate.Size = new System.Drawing.Size(120, 16);
+            this.progUpdate.Size = new System.Drawing.Size(228, 16);
             this.progUpdate.TabIndex = 15;
             this.progUpdate.Visible = false;
+            this.progUpdate.Click += new System.EventHandler(this.progUpdate_Click);
             // 
             // comboResolution
             // 
@@ -611,6 +622,7 @@ partial class Form1
             this.Controls.Add(this.comboMap);
             this.Controls.Add(this.btnPlay);
             this.Controls.Add(this.btnUpdate);
+            this.Controls.Add(this.btnChangelog);
             this.Controls.Add(this.lblUpdateStatus);
             this.Controls.Add(this.progUpdate);
             this.Controls.Add(this.resolutionLabel);
