@@ -56,7 +56,7 @@ Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
     $localFiles[$rel] = Get-Sha256 $_.FullName
 }
 
-# config.cfg is optional in releases — only include if present
+# config.cfg is optional in releases -- only include if present
 if (Test-Path $cfg) {
     $localFiles["config.cfg"] = Get-Sha256 $cfg
 }
@@ -103,7 +103,7 @@ foreach ($path in $localFiles.Keys) {
     }
 }
 
-# Also flag removed files (in prev manifest but not local) — these get dropped
+# Also flag removed files (in prev manifest but not local) -- these get dropped
 $removed = @()
 foreach ($path in $prevHashes.Keys) {
     if (-not $localFiles.ContainsKey($path)) {
@@ -124,13 +124,35 @@ if ($changed.Count -eq 0 -and $removed.Count -eq 0) {
     exit 0
 }
 
+# ---- Compute changelog: commits since the previous release's git_commit --
+
+$curCommitFull  = (git rev-parse HEAD).Trim()
+$curCommitShort = (git rev-parse --short HEAD).Trim()
+
+$commitLog = @()
+if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
+    # Pretty format: "- <subject>" per commit, oldest first reversed to newest first
+    $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        # Likely the previous commit isn't in our local tree (we did a force-push
+        # or rebased away). Fall back to "no commit history" rather than abort.
+        Write-Host "Warning: couldn't compute commit log since $($prevManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
+        $commitLog = @()
+    } elseif (-not $commitLog) {
+        $commitLog = @()
+    } elseif ($commitLog -is [string]) {
+        # PowerShell returns either array or single string depending on count
+        $commitLog = @($commitLog)
+    }
+}
+
 # ---- Compute next version (YYYY.MM.DD.N) ------------------------------------
 
 $today = (Get-Date).ToString("yyyy.MM.dd")
 $counter = 1
 
 if ($prevReleaseTag) {
-    # Tag format: vYYYY.MM.DD.N — strip leading 'v', parse.
+    # Tag format: vYYYY.MM.DD.N -- strip leading 'v', parse.
     $prev = $prevReleaseTag.TrimStart('v')
     if ($prev -match "^$([regex]::Escape($today))\.(\d+)$") {
         $counter = [int]$matches[1] + 1
@@ -152,12 +174,23 @@ if ($DryRun) {
 # ---- Create release + upload changed files ----------------------------------
 
 if (-not $Notes) {
-    $Notes = "Nightly build $newVersion.`n`n**Changed files:**`n"
-    $changed | ForEach-Object { $Notes += "- ``$_```n" }
-    if ($removed.Count -gt 0) {
-        $Notes += "`n**Removed:**`n"
-        $removed | ForEach-Object { $Notes += "- ``$_```n" }
+    $sb = [System.Text.StringBuilder]::new()
+    [void]$sb.AppendLine("Nightly build **$newVersion** -- built from ``$curCommitShort`` on $((Get-Date).ToString('yyyy-MM-dd HH:mm')).")
+    [void]$sb.AppendLine()
+    if ($commitLog.Count -gt 0) {
+        $prevTagDisplay = if ($prevReleaseTag) { $prevReleaseTag } else { "first release" }
+        [void]$sb.AppendLine("### Commits since $prevTagDisplay")
+        $commitLog | ForEach-Object { [void]$sb.AppendLine($_) }
+        [void]$sb.AppendLine()
     }
+    [void]$sb.AppendLine("### Changed files ($($changed.Count))")
+    $changed | ForEach-Object { [void]$sb.AppendLine("- ``$_``") }
+    if ($removed.Count -gt 0) {
+        [void]$sb.AppendLine()
+        [void]$sb.AppendLine("### Removed files")
+        $removed | ForEach-Object { [void]$sb.AppendLine("- ``$_``") }
+    }
+    $Notes = $sb.ToString()
 }
 
 # Stage changed files in a temp dir with sanitized names for upload.
@@ -176,7 +209,7 @@ foreach ($path in $changed) {
     $uploadAssets += $dst
 }
 
-# Create the release first (without manifest — we'll upload manifest after we
+# Create the release first (without manifest -- we'll upload manifest after we
 # know the asset URLs).
 Write-Host "Creating release $newTag..." -ForegroundColor Cyan
 gh release create $newTag `
@@ -212,6 +245,7 @@ $manifest = [ordered]@{
     version    = $newVersion
     tag        = $newTag
     build_date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    git_commit = $curCommitFull
     files      = $newFiles
 }
 
@@ -223,6 +257,46 @@ gh release upload $newTag --repo $Repo $manifestPath --clobber
 
 # Cleanup
 Remove-Item -Recurse -Force $stagingDir
+
+# ---- Prepend release section to local CHANGELOG.md --------------------------
+# Insert above the "<!-- next-release-here -->" marker so the newest release
+# is always at the top. We don't auto-commit; the user reviews and pushes.
+$changelogPath = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
+if (Test-Path $changelogPath) {
+    $existing = Get-Content $changelogPath -Raw
+    $marker = "<!-- next-release-here -->"
+    if ($existing -match [regex]::Escape($marker)) {
+        $section = [System.Text.StringBuilder]::new()
+        [void]$section.AppendLine("## [$newTag] -- $((Get-Date).ToString('yyyy-MM-dd'))")
+        [void]$section.AppendLine()
+        [void]$section.AppendLine("Built from ``$curCommitShort``.")
+        [void]$section.AppendLine()
+        if ($commitLog.Count -gt 0) {
+            [void]$section.AppendLine("### Commits")
+            $commitLog | ForEach-Object { [void]$section.AppendLine($_) }
+            [void]$section.AppendLine()
+        }
+        [void]$section.AppendLine("### Files changed ($($changed.Count))")
+        $changed | ForEach-Object { [void]$section.AppendLine("- ``$_``") }
+        if ($removed.Count -gt 0) {
+            [void]$section.AppendLine()
+            [void]$section.AppendLine("### Files removed")
+            $removed | ForEach-Object { [void]$section.AppendLine("- ``$_``") }
+        }
+        [void]$section.AppendLine()
+
+        # Insert the new section ABOVE the marker -- keeps the marker
+        # available for the next release.
+        $newContent = $existing -replace [regex]::Escape($marker), ($section.ToString() + $marker)
+        Set-Content $changelogPath $newContent -Encoding UTF8 -NoNewline
+        Write-Host "CHANGELOG.md updated locally. Review + commit when ready:" -ForegroundColor Cyan
+        Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
+    } else {
+        Write-Host "Warning: CHANGELOG.md exists but '$marker' marker missing. Skipping prepend." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Note: pc_port/CHANGELOG.md not found. Skipping changelog update." -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "Done. Release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
