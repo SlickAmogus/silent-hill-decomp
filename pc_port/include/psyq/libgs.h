@@ -233,6 +233,8 @@ typedef struct { u_char out, in, dummy, cd; u_char r0,g0,b0,code; u_short n0,v0;
 typedef struct { u_char out, in, dummy, cd; u_char r0,g0,b0,code; u_short v0,v1;  u_short v2,v3; }                                                   TMD_P_NF4;
 typedef struct { u_char out, in, dummy, cd; u_char r0,g0,b0,code; u_char r1,g1,b1,p1; u_char r2,g2,b2,p2; u_char r3,g3,b3,p3; u_short v0,v1; u_short v2,v3; } TMD_P_NG4;
 
+typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p; u_char r0,g0,b0,code; u_short v0,v1; u_short v2,p2; }            TMD_P_NTF3;
+typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p; u_char r0,g0,b0,code; u_char r1,g1,b1,p1; u_char r2,g2,b2,p2; u_short v0,v1; u_short v2,p3; } TMD_P_NTG3;
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p; u_short n0,v0; u_short v1,v2; }              TMD_P_TF3;
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p; u_short n0,v0; u_short n1,v1; u_short n2,v2; } TMD_P_TG3;
 typedef struct { u_char out, in, dummy, cd; u_char tu0,tv0; u_short clut; u_char tu1,tv1; u_short tpage; u_char tu2,tv2; u_short p0; u_char tu3,tv3; u_short p1; u_short n0,v0; u_short v1,v2; u_short v3,p2; } TMD_P_TF4;
@@ -252,6 +254,7 @@ extern void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int 
 extern void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 
 /* TMD rendering functions — no light */
@@ -259,6 +262,8 @@ extern void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT*
 extern void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
 extern void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
+extern void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch);
  
 
 /* View */
