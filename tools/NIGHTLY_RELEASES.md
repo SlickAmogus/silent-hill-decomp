@@ -1,0 +1,89 @@
+# Nightly Build Releases
+
+Auto-update system for the Silent Hill PC port. Per-file SHA-256 deltas,
+hosted on a standalone GitHub repo so the main decomp's watchers don't get
+spammed.
+
+## One-time setup
+
+1. **Create the nightly repo on GitHub:**
+   - Owner/name: `SlickAmogus/silent-hill-pc-nightly`
+   - Public, standalone (NOT a fork of silent-hill-decomp)
+   - README pointing back to the main repo is enough; no code lives here
+   - The launcher hardcodes this name. If you change it, update
+     `RepoOwner` / `RepoName` in `pc_port/launcher/.../UpdateChecker.cs`.
+
+2. **Install GitHub CLI** (`gh`) and authenticate:
+   ```
+   gh auth login
+   ```
+   The release script requires `gh` in PATH (already installed on the
+   build machine — `C:\Program Files\GitHub CLI\gh.exe`).
+
+## Publishing a nightly
+
+After a clean local build (`cmake --build build`):
+
+```powershell
+.\tools\release-nightly.ps1            # publishes if anything changed
+.\tools\release-nightly.ps1 -DryRun    # shows what would happen, uploads nothing
+```
+
+The script:
+- Hashes `SilentHillPC.exe` + every file in `build/maps/` + `build/config.cfg`
+- Pulls the previous release's `version.json` from the nightly repo
+- Diffs hashes; if nothing changed, exits without creating a release
+- Computes the next version: `YYYY.MM.DD.N` (N = next counter for today)
+- Creates a pre-release tag `vYYYY.MM.DD.N` on the nightly repo
+- Uploads ONLY the changed files as release assets
+- Generates a new `version.json` that points unchanged files at their
+  previous release's URL, changed files at the new release's URL
+- Uploads `version.json` as the release manifest
+
+## How the launcher consumes it
+
+`UpdateChecker.cs` hits the stable GitHub URL:
+```
+https://github.com/SlickAmogus/silent-hill-pc-nightly/releases/latest/download/version.json
+```
+GitHub auto-redirects this to whichever release is newest. The launcher
+then:
+1. Parses the manifest (JSON)
+2. SHA-256-hashes each local file
+3. Builds a list of files whose hash differs (or that are missing locally)
+4. Confirms with the user (file count + size + version label)
+5. Downloads only the changed files into a temp dir
+6. Verifies each download's hash against the manifest
+7. Atomically replaces the local files (`config.cfg` is preserved if it
+   already exists — we never overwrite user-tuned config)
+
+The launcher has the "Check for Updates" button at the bottom-left of
+Form1; click it to run the flow.
+
+## Why watchers don't get spammed
+
+GitHub release notifications fire to repository watchers, regardless of
+the "pre-release" flag. Putting nightly releases on a separate repo
+(`silent-hill-pc-nightly`) means only people who explicitly star/watch
+THAT repo get pinged. Watchers of the main decomp repo only see the
+manual milestone releases you make there.
+
+This is the same pattern VS Code (Insiders), Discord (Canary), and
+Chromium (Canary) use.
+
+## Troubleshooting
+
+**"gh: command not found"** — `gh auth status` should succeed. If not,
+re-install from https://cli.github.com/ and run `gh auth login`.
+
+**"Nothing to release"** — Either you haven't rebuilt since the last
+release, or no files actually changed. Use `-DryRun` to verify.
+
+**Launcher reports "Update failed: 404"** — The nightly repo probably
+has no releases yet. Publish a first one with `release-nightly.ps1`
+(it'll happily create the very first release).
+
+**Launcher reports "Hash mismatch"** — A downloaded file's SHA-256 didn't
+match the manifest. Either the manifest is stale (re-run the release
+script to regenerate) or the asset got corrupted in transit (retry).
+No files are replaced on hash failure — partial updates are impossible.

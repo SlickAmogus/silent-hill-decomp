@@ -12,6 +12,9 @@ partial class Form1
     private RadioButton radioVsyncNo;
     private ComboBox comboMap;
     private Button btnPlay;
+    private Button btnUpdate;
+    private Label  lblUpdateStatus;
+    private ProgressBar progUpdate;
 
     private ComboBox comboResolution;
     private ComboBox comboRefresh;
@@ -90,6 +93,9 @@ partial class Form1
             this.introPanel = new System.Windows.Forms.Panel();
             this.comboMap = new System.Windows.Forms.ComboBox();
             this.btnPlay = new System.Windows.Forms.Button();
+            this.btnUpdate = new System.Windows.Forms.Button();
+            this.lblUpdateStatus = new System.Windows.Forms.Label();
+            this.progUpdate = new System.Windows.Forms.ProgressBar();
             this.comboResolution = new System.Windows.Forms.ComboBox();
             this.comboRefresh = new System.Windows.Forms.ComboBox();
             this.banner = new System.Windows.Forms.PictureBox();
@@ -280,6 +286,33 @@ partial class Form1
             this.btnPlay.TabIndex = 12;
             this.btnPlay.Text = "Play";
             this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
+            //
+            // btnUpdate
+            //
+            this.btnUpdate.Location = new System.Drawing.Point(14, 360);
+            this.btnUpdate.Name = "btnUpdate";
+            this.btnUpdate.Size = new System.Drawing.Size(120, 23);
+            this.btnUpdate.TabIndex = 13;
+            this.btnUpdate.Text = "Check for Updates";
+            this.btnUpdate.UseVisualStyleBackColor = true;
+            this.btnUpdate.Click += new System.EventHandler(this.btnUpdate_Click);
+            //
+            // lblUpdateStatus
+            //
+            this.lblUpdateStatus.AutoSize = false;
+            this.lblUpdateStatus.Location = new System.Drawing.Point(14, 390);
+            this.lblUpdateStatus.Name = "lblUpdateStatus";
+            this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
+            this.lblUpdateStatus.TabIndex = 14;
+            this.lblUpdateStatus.Text = "";
+            //
+            // progUpdate
+            //
+            this.progUpdate.Location = new System.Drawing.Point(140, 363);
+            this.progUpdate.Name = "progUpdate";
+            this.progUpdate.Size = new System.Drawing.Size(120, 16);
+            this.progUpdate.TabIndex = 15;
+            this.progUpdate.Visible = false;
             // 
             // comboResolution
             // 
@@ -577,6 +610,9 @@ partial class Form1
             this.Controls.Add(this.banner);
             this.Controls.Add(this.comboMap);
             this.Controls.Add(this.btnPlay);
+            this.Controls.Add(this.btnUpdate);
+            this.Controls.Add(this.lblUpdateStatus);
+            this.Controls.Add(this.progUpdate);
             this.Controls.Add(this.resolutionLabel);
             this.Controls.Add(this.refreshLabel);
             this.Controls.Add(this.fullscreenPanel);
