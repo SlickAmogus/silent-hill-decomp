@@ -160,6 +160,11 @@ static VECTOR3       g_PcCamAppliedPos    = {0, 0, 0};
 static VECTOR3       g_PcCamAppliedLookAt = {0, 0, 0};
 static int           g_PcCamAppliedValid  = 0;
 
+/* KP_0: "raw cam mode" — zeroes manual nudge AND bypasses s_camCorrections so
+ * the user sees the engine's unmodified camera output. Lets them take an
+ * accurate BAD snapshot before adjusting. Toggle on/off with KP_0. */
+static int           g_DebugRawCamMode    = 0;
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
@@ -542,6 +547,35 @@ void DebugCamera_Update(void)
             prevKey3 = cur3;
         }
 
+        /* Numpad 0: toggle "raw cam mode" — zeros nudge AND bypasses
+         * s_camCorrections so the unmodified engine camera is visible.
+         * Use to get a clean BAD snapshot before adjusting: press KP_0
+         * (camera snaps to raw default), log BAD (top-row 4), adjust
+         * with numpad, log GOOD (top-row 5), press KP_0 again to
+         * restore corrections. Logs current g_DefaultCam on activation
+         * so you can see the engine baseline in the log. */
+        {
+            static int prevKp0 = 0;
+            int curKp0 = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
+            if (curKp0 && !prevKp0) {
+                g_DebugRawCamMode = !g_DebugRawCamMode;
+                g_PcCamNudgePos.vx = 0;
+                g_PcCamNudgePos.vy = 0;
+                g_PcCamNudgePos.vz = 0;
+                g_PcCamNudgeYaw    = 0;
+                g_PcCamNudgePitch  = 0;
+                if (g_DebugRawCamMode) {
+                    SH_DBG("[CAM-RAW-ON] raw cam mode — corrections bypassed, nudge zeroed");
+                    SH_DBG("[CAM-RAW-BASELINE] engine cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) (pre-correction, pre-nudge)",
+                        (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
+                        (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
+                } else {
+                    SH_DBG("[CAM-RAW-OFF] raw cam mode off — corrections re-enabled");
+                }
+            }
+            prevKp0 = curKp0;
+        }
+
         /* Read numpad nudge keys (held = continuous). Camera-relative
          * forward/strafe uses the cam's current yaw so 8 always pushes
          * "into the screen". Deltas are NOT scaled by g_DeltaTime — the
@@ -818,12 +852,70 @@ void DebugCamera_Update(void)
                 .lookAtDelta = { -1096, -31250, 3177 },
                 .matchXzRadius = Q12(4.0f),
             },
-            /* The six map2_s00 post-cafe alley corrections were reverted
-             * because lookAtDelta captured by the row-5 logger had pitch/
-             * yaw rotation baked into it as translation, which only
-             * reproduces correctly when the cam baseline is identical at
-             * apply-time. Fixed by adding yawDelta+pitchDelta fields below
-             * — re-capture with the new logger format. */
+            /* map2_s00 post-cafe alley1 shot A — tuned at (-254316,0,430860).
+             * Lift +2958 vy (~0.72m) + pitch tilt 87. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -254316, 0, 430860 },
+                .posDelta   = { 0, 2958, 0 },
+                .pitchDelta = 87,
+            },
+            /* map2_s00 post-cafe alley1 shot B — tuned at (-234740,0,189733).
+             * Lift +510 vy (~0.12m) + pitch tilt 87. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -234740, 0, 189733 },
+                .posDelta   = { 0, 510, 0 },
+                .pitchDelta = 87,
+            },
+            /* map2_s00 post-cafe alley2 shot A — tuned at (-374003,0,998897).
+             * Captured clean from raw baseline (KP_0): no pos shift, pitch +1074. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -374003, 0, 998897 },
+                .posDelta   = { 0, 0, 0 },
+                .pitchDelta = 1074,
+            },
+            /* map2_s00 post-cafe alley2 shot B — tuned at (-375543,0,964828).
+             * Lift +510 vy + pitch tilt 192. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -375543, 0, 964828 },
+                .posDelta   = { 0, 510, 0 },
+                .pitchDelta = 192,
+            },
+            /* map2_s00 post-cafe alley2 transition — re-tuned at (-453319,0,919542).
+             * Lift +6273 vy, yaw +1632, pitch -2013. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -453319, 0, 919542 },
+                .posDelta   = { 0, 6273, 0 },
+                .yawDelta   = 1632,
+                .pitchDelta = -2013,
+            },
+            /* map2_s00 further alley — tuned at (-778240,0,1243546).
+             * Lift +3162 vy + pitch tilt 192. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -778240, 0, 1243546 },
+                .posDelta   = { 0, 3162, 0 },
+                .pitchDelta = 192,
+            },
+            /* map2_s00 further alley shot — tuned at (-765606,-32,1232188).
+             * Pitch tilt +339. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -765606, -32, 1232188 },
+                .pitchDelta = 339,
+            },
+            /* map2_s00 alley2 transition follow — tuned at (-450765,0,920174).
+             * Pitch tilt +1260. */
+            {
+                .mapId      = 10,
+                .harryPos   = { -450765, 0, 920174 },
+                .pitchDelta = 1260,
+                .matchXzRadius = Q12(3.0f),
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};
@@ -841,7 +933,7 @@ void DebugCamera_Update(void)
          * through the wall. The correction system only makes sense for
          * the road/chase cam, never for cinematic cameras. */
         const int sceneCutsceneCam = (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) != 0;
-        if (!sceneCutsceneCam)
+        if (!sceneCutsceneCam && !g_DebugRawCamMode)
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
             const VECTOR3* hp = &g_SysWork.playerWork.player.position;
