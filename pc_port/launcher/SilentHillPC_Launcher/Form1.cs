@@ -179,6 +179,7 @@ public partial class Form1 : Form
         Set(comboMap,    levelTip);
 
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
+        Set(btnChangelog, "Show the release changelog (reads CHANGELOG.md next to the launcher).");
     }
 
     /// <summary>
@@ -475,6 +476,60 @@ public partial class Form1 : Form
         }
     }
 
+    private void btnChangelog_Click(object sender, EventArgs e)
+    {
+        string changelogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CHANGELOG.md");
+        string text;
+        if (File.Exists(changelogPath))
+        {
+            text = File.ReadAllText(changelogPath, System.Text.Encoding.UTF8);
+        }
+        else
+        {
+            text = "CHANGELOG.md not found next to the launcher.\n\n" +
+                   "Run 'Check for Updates' to download the latest build which includes the changelog.";
+        }
+
+        var dlg = new Form
+        {
+            Text            = "Silent Hill PC Port — Changelog",
+            Size            = new Size(680, 520),
+            MinimumSize     = new Size(400, 300),
+            StartPosition   = FormStartPosition.CenterParent,
+            BackColor       = Color.FromArgb(30, 30, 30),
+            ForeColor       = Color.White,
+            Font            = new Font("Consolas", 9f),
+        };
+
+        var tb = new RichTextBox
+        {
+            Dock        = DockStyle.Fill,
+            ReadOnly    = true,
+            Text        = text,
+            BackColor   = Color.FromArgb(30, 30, 30),
+            ForeColor   = Color.White,
+            BorderStyle = BorderStyle.None,
+            ScrollBars  = RichTextBoxScrollBars.Vertical,
+            Font        = new Font("Consolas", 9f),
+            WordWrap    = true,
+        };
+
+        var closeBtn = new Button
+        {
+            Text      = "Close",
+            Dock      = DockStyle.Bottom,
+            Height    = 28,
+            BackColor = Color.FromArgb(60, 60, 60),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+        };
+        closeBtn.Click += (s2, e2) => dlg.Close();
+
+        dlg.Controls.Add(tb);
+        dlg.Controls.Add(closeBtn);
+        dlg.ShowDialog(this);
+    }
+
     private void ApplyDarkMode()
     {
         Color back = Color.FromArgb(30, 30, 30);
@@ -555,6 +610,11 @@ public partial class Form1 : Form
     }
 
     private void preloadPanel_Paint(object sender, PaintEventArgs e)
+    {
+
+    }
+
+    private void progUpdate_Click(object sender, EventArgs e)
     {
 
     }
