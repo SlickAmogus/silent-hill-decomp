@@ -21,6 +21,41 @@ public partial class Form1 : Form
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
+        this.Shown += (s, e) => SilentAutoCheckForUpdates();
+    }
+
+    /// <summary>
+    /// Fire-and-forget update probe on launcher startup. Doesn't pop a
+    /// dialog or block anything — just updates lblUpdateStatus so the
+    /// user sees "Update available: X" or "Up to date" without clicking.
+    /// Click "Check for Updates" to actually run the install flow.
+    ///
+    /// Failures are silent (no network, no remote, etc.) — startup
+    /// shouldn't yell at users about a missing connection.
+    /// </summary>
+    private async void SilentAutoCheckForUpdates()
+    {
+        try
+        {
+            lblUpdateStatus.Text = "Checking for updates...";
+            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory);
+            if (plan.HasUpdate)
+            {
+                lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion} ({plan.Changed.Count} file(s))";
+                lblUpdateStatus.ForeColor = Color.LightGreen;
+                btnUpdate.Text = "Update available!";
+            }
+            else
+            {
+                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                lblUpdateStatus.ForeColor = Color.LightGray;
+            }
+        }
+        catch
+        {
+            // Silent — no internet, no nightly repo yet, etc.
+            lblUpdateStatus.Text = "";
+        }
     }
 
     /// <summary>
