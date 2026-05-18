@@ -1,4 +1,17 @@
 #include "bodyprog/bodyprog.h"
+#include "maps/map1/map1_s00.h"
+
+#ifdef SH_PC_PORT
+/* Data-segment values from MAP1_S00.BIN offset 0x141A4 (load base 0x800C9578 → PSX 0x800DD71C).
+ * In the DLL build this symbol is BSS (zero); supply the real values from the binary. */
+s_WorldObjectPose g_CommonWorldObjectPoses[5] = {
+    { { 244654, -2048,  75243 }, { 0, 386, 0 } }, /* [0] BULLET_N pickup 0 */
+    { { 422092, -2252, 569344 }, { 0, 182, 0 } }, /* [1] BULLET_N pickup 1 */
+    { { 578355, -2826, 430489 }, { 0, 113, 0 } }, /* [2] BULLET_N pickup 2 */
+    { { 250961, -3563, 586956 }, { 0,   0, 0 } }, /* [3] DRINK_NE          */
+    { { 247971, -3686, 583680 }, { 0, 170, 0 } }, /* [4] AIDKIT_N          */
+};
+#endif
 
 s_EventData MAP_EVENTS[101] = {
     {

@@ -2215,7 +2215,10 @@ void MainLoop(void) // 0x80032EE0
                          * remain stripped. */
                         if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
                             hi != 0x60 && hi != 0x70 && hi != 0xA0 &&
-                            codeFull != 0xE1)) {
+                            codeFull != 0xE1 &&
+                            /* textured/quad poly types emitted by NTG3/NTG4/TG3/TG4 */
+                            hi != 0x24 && hi != 0x28 && hi != 0x2C &&
+                            hi != 0x34 && hi != 0x38 && hi != 0x3C)) {
                             setlen(cur, 0);
                         }
                     }

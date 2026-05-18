@@ -2,7 +2,7 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/math/math.h"
 #ifdef SH_PC_PORT
-#include "psx_memory.h"  /* PSX_ADDR() for OT1 second-buffer pointer */
+#include "psx_memory.h"  /* PSX_ADDR() macro */
 #endif
 
 s32      g_VBlanks;
@@ -64,16 +64,22 @@ GsOT g_OrderingTable0[2] = {
     { 11, &g_OtTags1[1][1], 0, 0, 0 }
 };
 
-GsOT g_OrderingTable1[2] = {
-    { 9, (GsOT_TAG*)FS_BUFFER_1, 0, 0, 0 },
 #ifdef SH_PC_PORT
-    /* On PSX the second buffer was at the raw address 0x801E2E00 (back-to-back
-     * with FS_BUFFER_1 = 0x801E2600). On 64-bit PC that raw integer is a tiny
-     * bogus pointer — GsClearOt/GsSortOt crash dereferencing it. The picked-up
-     * inventory item render hits this on the second framebuffer (e.g. health
-     * drink pickup). Route through PSX_ADDR so it lands inside g_PsxRam. */
-    { 9, (GsOT_TAG*)PSX_ADDR(0x001E2E00), 0, 0, 0 }
+/* OT1 has length=9 → 512 entries. PSX entries are 4 bytes (2KB total), but
+ * PC GsOT_TAG is 12 bytes (6KB total). The two PSX RAM buffers are only 2KB
+ * apart (FS_BUFFER_1 = 0x1E2600, second = 0x1E2E00), so PC overflows by 4KB
+ * into adjacent PSX RAM every frame, corrupting game state. Use dedicated
+ * static arrays instead. */
+#define OT1_ENTRY_COUNT (1 << 9)
+static GsOT_TAG g_OtTags_Ot1[2][OT1_ENTRY_COUNT];
+#endif
+
+GsOT g_OrderingTable1[2] = {
+#ifdef SH_PC_PORT
+    { 9, g_OtTags_Ot1[0], 0, 0, 0 },
+    { 9, g_OtTags_Ot1[1], 0, 0, 0 },
 #else
+    { 9, (GsOT_TAG*)FS_BUFFER_1, 0, 0, 0 },
     { 9, (GsOT_TAG*)0x801E2E00, 0, 0, 0 }
 #endif
 };

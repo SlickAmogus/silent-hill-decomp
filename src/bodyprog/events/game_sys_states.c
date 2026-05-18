@@ -171,7 +171,21 @@ void GameState_InGame_Update(void) // 0x80038BD4
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
+#ifdef SH_PC_PORT
+        {
+            int _ss = (int)g_SysWork.sysState;
+            int _ssMax = (int)(sizeof(g_SysStateFuncs) / sizeof(g_SysStateFuncs[0]));
+            SH_DBG("[SYSSTATE] dispatch sysState=%d mapEventData=%p", _ss, (void*)g_MapEventData);
+            if (_ss < 0 || _ss >= _ssMax) {
+                SH_DBG("[SYSSTATE] OOB sysState=%d max=%d — reset to Gameplay", _ss, _ssMax);
+                g_SysWork.sysState = SysState_Gameplay;
+            } else {
+                g_SysStateFuncs[_ss]();
+            }
+        }
+#else
         g_SysStateFuncs[g_SysWork.sysState]();
+#endif
 
         if (g_SysWork.sysState == SysState_Gameplay)
         {
@@ -1208,15 +1222,21 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
 void SysState_EventCallback_Update(void) // 0x8003A3C8
 {
 #ifdef SH_PC_PORT
+    SH_DBG("[ECB] enter mapEventData=%p", (void*)g_MapEventData);
     if (g_MapEventData == NULL) {
         g_SysWork.sysState = SysState_Gameplay;
         return;
     }
+    SH_DBG("[ECB] flags_8_13=%d disabledEventFlag=%d",
+           (int)g_MapEventData->flags_8_13, (int)g_MapEventData->disabledEventFlag);
 #endif
     if (g_MapEventData->flags_8_13 != EventParamUnkState_None)
     {
         Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
     }
+#ifdef SH_PC_PORT
+    SH_DBG("[ECB] post-EventFlagSetAlt");
+#endif
 
     g_DeltaTime = g_DeltaTimeCpy;
 #ifdef SH_PC_PORT

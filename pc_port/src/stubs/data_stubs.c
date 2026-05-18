@@ -844,7 +844,10 @@ u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
  * we keep them as zero-init shared stubs here. */
 u8 g_Cutscene_CameraLookAtTarget[256] = {0};
 u8 g_Cutscene_CameraPositionTarget[256] = {0};
-u8 g_CommonWorldObjectPoses[256] = {0};
+/* g_CommonWorldObjectPoses: NOT defined here — each map DLL defines it
+ * locally in build_gen/extracted_data/<map>_extracted_data.c with correct
+ * binary-extracted values. A zero stub here would be exported by the EXE
+ * and silently override every DLL's own initialized copy via refptr. */
 u8 g_CommonWorldObjects[256] = {0};
 u8 g_CutsceneCameraLookAtTarget[256] = {0};
 u8 g_CutsceneCameraPositionTarget[256] = {0};
