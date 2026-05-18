@@ -157,15 +157,9 @@ namespace SilentHillPC_Launcher
                         continue;
                     }
 
-                    // Backup→move to make the swap atomic-ish on Windows.
-                    string bak = dst + ".bak";
-                    try { if (File.Exists(bak)) File.Delete(bak); } catch { }
-                    if (File.Exists(dst))
-                    {
-                        try { File.Move(dst, bak); } catch { File.Delete(dst); }
-                    }
-                    File.Move(tmpFile, dst);
-                    try { if (File.Exists(bak)) File.Delete(bak); } catch { /* leave .bak for next run */ }
+                    // File.Move fails across drives (temp dir vs install dir may differ).
+                    // Copy then delete is safe on all configurations.
+                    File.Copy(tmpFile, dst, overwrite: true);
                 }
 
                 progress?.Invoke(1.0, $"Updated to {plan.RemoteVersion}");
