@@ -266,41 +266,45 @@ gh release upload $newTag --repo $Repo $manifestPath --clobber
 Remove-Item -Recurse -Force $stagingDir
 
 # ---- Prepend release section to local CHANGELOG.md --------------------------
-# Insert above the "<!-- next-release-here -->" marker so the newest release
-# is always at the top. We don't auto-commit; the user reviews and pushes.
+# Insert at the top (after the first "# ..." heading line) so the newest
+# release is always first. No marker needed. We don't auto-commit.
 $changelogPath = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
 if (Test-Path $changelogPath) {
-    $existing = Get-Content $changelogPath -Raw
-    $marker = "<!-- next-release-here -->"
-    if ($existing -match [regex]::Escape($marker)) {
-        $section = [System.Text.StringBuilder]::new()
-        [void]$section.AppendLine("## [$newTag] -- $((Get-Date).ToString('yyyy-MM-dd'))")
-        [void]$section.AppendLine()
-        [void]$section.AppendLine("Built from ``$curCommitShort``.")
-        [void]$section.AppendLine()
-        if ($commitLog.Count -gt 0) {
-            [void]$section.AppendLine("### Commits")
-            $commitLog | ForEach-Object { [void]$section.AppendLine($_) }
-            [void]$section.AppendLine()
-        }
-        [void]$section.AppendLine("### Files changed ($($changed.Count))")
-        $changed | ForEach-Object { [void]$section.AppendLine("- ``$_``") }
-        if ($removed.Count -gt 0) {
-            [void]$section.AppendLine()
-            [void]$section.AppendLine("### Files removed")
-            $removed | ForEach-Object { [void]$section.AppendLine("- ``$_``") }
-        }
-        [void]$section.AppendLine()
-
-        # Insert the new section ABOVE the marker -- keeps the marker
-        # available for the next release.
-        $newContent = $existing -replace [regex]::Escape($marker), ($section.ToString() + $marker)
-        Set-Content $changelogPath $newContent -Encoding UTF8 -NoNewline
-        Write-Host "CHANGELOG.md updated locally. Review + commit when ready:" -ForegroundColor Cyan
-        Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
-    } else {
-        Write-Host "Warning: CHANGELOG.md exists but '$marker' marker missing. Skipping prepend." -ForegroundColor Yellow
+    $existingBytes = [System.IO.File]::ReadAllBytes($changelogPath)
+    # Strip UTF-8 BOM if present (PS5.1 Set-Content adds one)
+    $bomStart = 0
+    if ($existingBytes.Length -ge 3 -and $existingBytes[0] -eq 0xEF -and $existingBytes[1] -eq 0xBB -and $existingBytes[2] -eq 0xBF) {
+        $bomStart = 3
     }
+    $existing = [System.Text.Encoding]::UTF8.GetString($existingBytes, $bomStart, $existingBytes.Length - $bomStart)
+
+    # Build the new entry: just date + commit messages.
+    $section = [System.Text.StringBuilder]::new()
+    [void]$section.AppendLine("## $newTag -- $((Get-Date).ToString('yyyy-MM-dd'))")
+    if ($commitLog.Count -gt 0) {
+        $commitLog | ForEach-Object { [void]$section.AppendLine($_) }
+    } else {
+        [void]$section.AppendLine("- (no commits since last release)")
+    }
+    [void]$section.AppendLine()
+
+    # Find end of first heading line ("# ...") and inject the new entry after it.
+    $lines = $existing -split "`n"
+    $headingIdx = -1
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        if ($lines[$i] -match '^# ') { $headingIdx = $i; break }
+    }
+    if ($headingIdx -ge 0) {
+        $afterHeading = ($lines[($headingIdx + 1)..($lines.Length - 1)] -join "`n").TrimStart("`n")
+        $newContent = $lines[$headingIdx] + "`n`n" + $section.ToString() + $afterHeading
+    } else {
+        # No heading found -- just prepend.
+        $newContent = $section.ToString() + $existing
+    }
+
+    [System.IO.File]::WriteAllText($changelogPath, $newContent)
+    Write-Host "CHANGELOG.md updated locally. Review + commit when ready:" -ForegroundColor Cyan
+    Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
 } else {
     Write-Host "Note: pc_port/CHANGELOG.md not found. Skipping changelog update." -ForegroundColor Yellow
 }
