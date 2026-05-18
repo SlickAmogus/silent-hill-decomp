@@ -226,7 +226,6 @@ gh release create $newTag `
     --repo $Repo `
     --title "Nightly $newVersion" `
     --notes $Notes `
-    --prerelease `
     @uploadAssets
 
 # ---- Build new manifest -----------------------------------------------------
