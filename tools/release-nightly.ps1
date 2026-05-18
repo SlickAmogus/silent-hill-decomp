@@ -37,7 +37,6 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 
 $exe  = Join-Path $BuildDir "SilentHillPC.exe"
 $maps = Join-Path $BuildDir "maps"
-$cfg  = Join-Path $BuildDir "config.cfg"
 
 if (-not (Test-Path $exe))  { throw "SilentHillPC.exe not found at $exe. Run cmake --build first." }
 if (-not (Test-Path $maps)) { throw "maps/ folder not found at $maps." }
@@ -56,10 +55,6 @@ Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
     $localFiles[$rel] = Get-Sha256 $_.FullName
 }
 
-# config.cfg is optional in releases -- only include if present
-if (Test-Path $cfg) {
-    $localFiles["config.cfg"] = Get-Sha256 $cfg
-}
 
 # CHANGELOG.md -- always include so the launcher's "View Changelog" button works
 $changelogSrc = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
