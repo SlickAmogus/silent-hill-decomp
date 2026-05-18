@@ -184,8 +184,15 @@ namespace SilentHillPC_Launcher
             {
                 resp.EnsureSuccessStatusCode();
                 var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
-                var ser   = new DataContractJsonSerializer(typeof(Manifest));
-                using (var ms = new MemoryStream(bytes))
+
+                // Strip UTF-8 BOM if present (PS5.1 Set-Content -Encoding UTF8 adds one;
+                // DataContractJsonSerializer doesn't skip it and chokes on the first byte).
+                int start = 0;
+                if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                    start = 3;
+
+                var ser = new DataContractJsonSerializer(typeof(Manifest));
+                using (var ms = new MemoryStream(bytes, start, bytes.Length - start))
                 {
                     return (Manifest)ser.ReadObject(ms);
                 }

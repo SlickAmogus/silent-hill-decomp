@@ -259,7 +259,10 @@ $manifest = [ordered]@{
 }
 
 $manifestPath = Join-Path $stagingDir "version.json"
-$manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding UTF8
+# Write without BOM -- PS5.1's Set-Content -Encoding UTF8 adds a BOM that
+# DataContractJsonSerializer can't handle, producing "unexpected character 'T'".
+$jsonContent = $manifest | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText($manifestPath, $jsonContent)
 
 Write-Host "Uploading version.json..." -ForegroundColor Cyan
 gh release upload $newTag --repo $Repo $manifestPath --clobber
