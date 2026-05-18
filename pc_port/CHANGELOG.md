@@ -12,6 +12,9 @@
 - tools: remove --prerelease from nightly releases
 - tools/launcher: fix UTF-8 BOM causing manifest deserialization failure
 - tools: exclude config.cfg from nightly manifest
+- pc-port: fix inventory TMD rendering, handgun ammo pickups
+- pc-port: positional audio fixes, fixed radio sounds for monsters
+- pc-port: added a lot of post-cafe camera fixes
 
 ## v2026.05.17.1 — 2026-05-17
 Initial nightly release.
