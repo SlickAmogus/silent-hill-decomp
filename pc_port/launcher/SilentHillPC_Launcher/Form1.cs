@@ -460,7 +460,9 @@ public partial class Form1 : Form
                 }));
             });
 
-            lblUpdateStatus.Text = $"Updated to {plan.RemoteVersion}.";
+            lblUpdateStatus.Text      = $"Up to date ({plan.RemoteVersion}).";
+            lblUpdateStatus.ForeColor = Color.LightGray;
+            btnUpdate.Text            = "Check for Updates";
         }
         catch (Exception ex)
         {
@@ -470,8 +472,8 @@ public partial class Form1 : Form
         }
         finally
         {
-            btnUpdate.Enabled = true;
-            btnPlay.Enabled   = true;
+            btnUpdate.Enabled  = true;
+            btnPlay.Enabled    = true;
             progUpdate.Visible = false;
         }
     }
