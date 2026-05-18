@@ -179,20 +179,10 @@ if ($DryRun) {
 
 if (-not $Notes) {
     $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.AppendLine("Nightly build **$newVersion** -- built from ``$curCommitShort`` on $((Get-Date).ToString('yyyy-MM-dd HH:mm')).")
-    [void]$sb.AppendLine()
     if ($commitLog.Count -gt 0) {
-        $prevTagDisplay = if ($prevReleaseTag) { $prevReleaseTag } else { "first release" }
-        [void]$sb.AppendLine("### Commits since $prevTagDisplay")
         $commitLog | ForEach-Object { [void]$sb.AppendLine($_) }
-        [void]$sb.AppendLine()
-    }
-    [void]$sb.AppendLine("### Changed files ($($changed.Count))")
-    $changed | ForEach-Object { [void]$sb.AppendLine("- ``$_``") }
-    if ($removed.Count -gt 0) {
-        [void]$sb.AppendLine()
-        [void]$sb.AppendLine("### Removed files")
-        $removed | ForEach-Object { [void]$sb.AppendLine("- ``$_``") }
+    } else {
+        [void]$sb.AppendLine("(no commits since last release)")
     }
     $Notes = $sb.ToString()
 }
