@@ -1,6 +1,72 @@
 # Silent Hill PC Port — Changelog
 
 
+## [v2026.05.17.1] -- 2026-05-17
+
+Built from `0017b3079`.
+
+### Files changed (45)
+- `maps/map2_s03.dll`
+- `maps/map4_s03.dll`
+- `maps/map1_s05.dll`
+- `maps/map4_s04.dll`
+- `maps/map0_s01.dll`
+- `maps/map3_s02.dll`
+- `maps/map1_s00.dll`
+- `maps/map4_s01.dll`
+- `maps/map3_s03.dll`
+- `maps/map4_s00.dll`
+- `maps/map7_s00.dll`
+- `maps/map4_s06.dll`
+- `maps/map1_s03.dll`
+- `maps/map6_s05.dll`
+- `maps/map1_s06.dll`
+- `maps/map5_s03.dll`
+- `config.cfg`
+- `maps/map3_s04.dll`
+- `maps/map1_s04.dll`
+- `maps/map5_s02.dll`
+- `maps/map5_s00.dll`
+- `maps/map7_s01.dll`
+- `CHANGELOG.md`
+- `maps/map5_s01.dll`
+- `maps/map4_s05.dll`
+- `maps/map3_s06.dll`
+- `maps/map6_s01.dll`
+- `maps/map0_s02.dll`
+- `maps/map4_s02.dll`
+- `maps/map7_s03.dll`
+- `maps/map6_s02.dll`
+- `maps/map2_s02.dll`
+- `maps/map3_s05.dll`
+- `maps/map7_s02.dll`
+- `maps/map6_s03.dll`
+- `SilentHillPC.exe`
+- `maps/map2_s00.dll`
+- `maps/map2_s01.dll`
+- `maps/map1_s02.dll`
+- `maps/map3_s00.dll`
+- `maps/map6_s04.dll`
+- `maps/map3_s01.dll`
+- `maps/map2_s04.dll`
+- `maps/map1_s01.dll`
+- `maps/map6_s00.dll`
+
+## [v2026.05.17.2] -- 2026-05-17
+
+Built from `61083a503`.
+
+### Commits
+- tools: remove --prerelease from nightly releases
+- tools/launcher: fix UTF-8 BOM causing manifest deserialization failure
+- tools: exclude config.cfg from nightly manifest
+
+### Files changed (1)
+- `CHANGELOG.md`
+
+### Files removed
+- `config.cfg`
+
 <!-- next-release-here -->
 
 ## [v2026.05.16.1] — Initial nightly release
@@ -44,7 +110,7 @@ auto-update rollout.
   cooldown from 10s to 1s.
 
 ### Audio
-- SFX via PsyCross SPU → OpenAL.
+- SFX via PsyCross SPU â†’ OpenAL.
 - Ambient SFX VAB loads properly.
 - BGM loads correctly.
 - XA voice streaming from the original disc image.
