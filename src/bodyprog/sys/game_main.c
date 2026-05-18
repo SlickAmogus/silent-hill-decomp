@@ -42,6 +42,7 @@ extern const unsigned char* g_sdlKeyboardState;
 
 #include "bodyprog/memcard.h"
 #include "bodyprog/sys/game_main.h"
+#include "bodyprog/item_screens.h"
 #include "screens/saveload.h"
 
 
@@ -111,6 +112,8 @@ int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam onl
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
+int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max each frame */
+int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
@@ -231,13 +234,16 @@ void DebugCamera_Update(void)
     }
 #endif
 
-    /* Numpad 1: toggle wall collision (edge-triggered) */
+    /* Numpad 1: (unbound — collision toggle moved to top-row 0) */
+
+    /* Top-row 0: toggle wall collision (noclip) */
     {
         static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_1];
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_0];
         if (cur && !prevKey) {
             g_DebugNoWallCollision = !g_DebugNoWallCollision;
-            SH_DBG("[DEBUG] Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
+            Sd_PlaySfx(g_DebugNoWallCollision ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG("[DEBUG] Key 0: Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
         }
         prevKey = cur;
     }
@@ -393,6 +399,48 @@ void DebugCamera_Update(void)
                 (long)g_SysWork.playerWork.player.fallSpeed);
         }
         prevKey6 = cur6;
+    }
+
+    /* Top-row 7: toggle invincibility (health locked to max each frame) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_7];
+        if (cur && !prevKey) {
+            g_DebugInvincible = !g_DebugInvincible;
+            Sd_PlaySfx(g_DebugInvincible ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG("[DEBUG] Key 7: Invincibility: %s", g_DebugInvincible ? "ON" : "OFF");
+        }
+        prevKey = cur;
+    }
+    /* Top-row 8: give 15 handgun bullets */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_8];
+        if (cur && !prevKey) {
+            Inventory_AddSpecialItem(0xC0, 15);
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            SH_DBG("[DEBUG] Key 8: Added 15 handgun bullets");
+        }
+        prevKey = cur;
+    }
+    /* Top-row 9: toggle no-target (enemies ignore Harry via CharaFlag_Unk4) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_9];
+        if (cur && !prevKey) {
+            g_DebugNoTarget = !g_DebugNoTarget;
+            Sd_PlaySfx(g_DebugNoTarget ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG("[DEBUG] Key 9: No-target: %s", g_DebugNoTarget ? "ON (enemies ignore Harry)" : "OFF");
+        }
+        prevKey = cur;
+    }
+
+    /* Per-frame cheat enforcement: invincibility + no-target */
+    if (g_GameWork.gameState == GameState_InGame) {
+        if (g_DebugInvincible)
+            g_SysWork.playerWork.player.health = Q12(100.0f);
+        if (g_DebugNoTarget)
+            g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;
     }
 
     /* Room-enter logging + Numpad 3 rescue-Y teleport.

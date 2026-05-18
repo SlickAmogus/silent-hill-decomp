@@ -2815,7 +2815,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
             g_Items_Coords[7].coord.t[0] = Q8(0.0f);
 #ifdef SH_PC_PORT
-            g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+            g_Items_Coords[7].coord.t[1] = Q8(-5.5f);
 #else
             g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
 #endif
@@ -2865,7 +2865,7 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
             g_Items_Coords[7].coord.t[0] = Q8(0.0f);
 #ifdef SH_PC_PORT
-            g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+            g_Items_Coords[7].coord.t[1] = Q8(-5.5f);
 #else
             g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
 #endif
@@ -4001,7 +4001,7 @@ void Gfx_Items_Draw(void) // 0x80054200
 
         g_Items_Coords[7].coord.t[0] = Q8(0.0f);
 #ifdef SH_PC_PORT
-        g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+        g_Items_Coords[7].coord.t[1] = Q8(-5.5f);
 #else
         g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
 #endif

@@ -274,7 +274,7 @@ partial class Form1
             // comboMap
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(9, 360);
+            this.comboMap.Location = new System.Drawing.Point(9, 344);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(200, 21);
             this.comboMap.TabIndex = 11;
@@ -318,7 +318,7 @@ partial class Form1
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(9, 364);
+            this.progUpdate.Location = new System.Drawing.Point(3, 373);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(228, 16);
             this.progUpdate.TabIndex = 15;
@@ -403,7 +403,7 @@ partial class Form1
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(7, 344);
+            this.levelLabel.Location = new System.Drawing.Point(8, 327);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(36, 13);
             this.levelLabel.TabIndex = 15;
