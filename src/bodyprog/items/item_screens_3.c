@@ -518,6 +518,19 @@ const char* g_ItemDescriptions[] = {
 #endif
 };
 
+#ifdef SH_PC_PORT
+static const char* s_ItemName(u8 id) {
+    int idx = (int)id - 32;
+    int n   = (int)(sizeof(INVENTORY_ITEM_NAMES) / sizeof(INVENTORY_ITEM_NAMES[0]));
+    return (idx >= 0 && idx < n && INVENTORY_ITEM_NAMES[idx]) ? INVENTORY_ITEM_NAMES[idx] : "";
+}
+static const char* s_ItemDesc(u8 id) {
+    int idx = (int)id - 32;
+    int n   = (int)(sizeof(g_ItemDescriptions) / sizeof(g_ItemDescriptions[0]));
+    return (idx >= 0 && idx < n && g_ItemDescriptions[idx]) ? g_ItemDescriptions[idx] : "";
+}
+#endif
+
 // TODO: `Items_` subsystem globals and funcs could be part of `Inventory_` instead, not sure yet.
 
 s32 D_800AE178 = 0;
@@ -1347,8 +1360,12 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
                 continue;
             }
 #endif
-            g_Items_Transforms[i].rotate.vx = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[D_800C3E18[i]].id_0 - 32].vx;
-            g_Items_Transforms[i].rotate.vz = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[D_800C3E18[i]].id_0 - 32].vy;
+            {
+                int _id = (int)g_SavegamePtr->items_0[D_800C3E18[i]].id_0 - 32;
+                int _n  = (int)(sizeof(INVENTORY_ITEM_ROTATIONS) / sizeof(INVENTORY_ITEM_ROTATIONS[0]));
+                g_Items_Transforms[i].rotate.vx = (_id >= 0 && _id < _n) ? INVENTORY_ITEM_ROTATIONS[_id].vx : 0;
+                g_Items_Transforms[i].rotate.vz = (_id >= 0 && _id < _n) ? INVENTORY_ITEM_ROTATIONS[_id].vy : 0;
+            }
 
             ItemScreen_ItemRotate(&g_Items_Coords[i].param->rotate, &g_Items_Coords[i]);
             func_800548D8(i);
@@ -1368,8 +1385,12 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
             if (g_Items_Coords[7].param != NULL)
             {
 #endif
-            g_Items_Transforms[7].rotate.vx = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 - 32].vx;
-            g_Items_Transforms[7].rotate.vz = INVENTORY_ITEM_ROTATIONS[g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 - 32].vy;
+            {
+                int _id = (int)g_SavegamePtr->items_0[g_Inventory_EquippedItemIdx].id_0 - 32;
+                int _n  = (int)(sizeof(INVENTORY_ITEM_ROTATIONS) / sizeof(INVENTORY_ITEM_ROTATIONS[0]));
+                g_Items_Transforms[7].rotate.vx = (_id >= 0 && _id < _n) ? INVENTORY_ITEM_ROTATIONS[_id].vx : 0;
+                g_Items_Transforms[7].rotate.vz = (_id >= 0 && _id < _n) ? INVENTORY_ITEM_ROTATIONS[_id].vy : 0;
+            }
 
             ItemScreen_ItemRotate(&g_Items_Coords[7].param->rotate, &g_Items_Coords[7]);
             func_800548D8(7);
@@ -2337,7 +2358,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 0:
             g_Inventory_ItemNameTimer++;
             Gfx_StringSetPosition(68, 200);
-            if (Gfx_StringDraw(INVENTORY_ITEM_NAMES[g_SavegamePtr->items_0[idx].id_0 - 32], g_Inventory_ItemNameTimer) == true)
+            if (Gfx_StringDraw(s_ItemName(g_SavegamePtr->items_0[idx].id_0), g_Inventory_ItemNameTimer) == true)
             {
                 g_Inventory_ItemNameTimer   = 100;
                 SysWork_StateStepIncrement(1);
@@ -2347,7 +2368,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 1:
             g_Inventory_DescriptionRollTimer += 2;
             Gfx_StringSetPosition(68, 200);
-            Gfx_StringDraw(INVENTORY_ITEM_NAMES[g_SavegamePtr->items_0[idx].id_0 - 32], 100);
+            Gfx_StringDraw(s_ItemName(g_SavegamePtr->items_0[idx].id_0), 100);
 
             if (idx == g_Inventory_SelectedItemIdx)
             {
@@ -2356,7 +2377,7 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
 
             Gfx_StringSetPosition(30, 232);
 
-            if (Gfx_StringDraw(g_ItemDescriptions[g_SavegamePtr->items_0[idx].id_0 - 32], g_Inventory_DescriptionRollTimer) == true)
+            if (Gfx_StringDraw(s_ItemDesc(g_SavegamePtr->items_0[idx].id_0), g_Inventory_DescriptionRollTimer) == true)
             {
                 g_Inventory_DescriptionRollTimer = 100;
                 SysWork_StateStepIncrement(1);
@@ -2367,13 +2388,13 @@ void Gfx_Inventory_ItemDescriptionDraw(s32* selectedItemId) // 0x8005192C
         case 3:
         case 4:
             Gfx_StringSetPosition(68, 200);
-            Gfx_StringDraw(INVENTORY_ITEM_NAMES[g_SavegamePtr->items_0[idx].id_0 - 32], 100);
+            Gfx_StringDraw(s_ItemName(g_SavegamePtr->items_0[idx].id_0), 100);
             Gfx_StringSetPosition(30, 232);
 
             switch (g_SysWork.sysStateSteps[1])
             {
                 case 2:
-                    Gfx_StringDraw(g_ItemDescriptions[g_SavegamePtr->items_0[idx].id_0 - 32], 100);
+                    Gfx_StringDraw(s_ItemDesc(g_SavegamePtr->items_0[idx].id_0), 100);
                     break;
 
                 case 3:
@@ -2793,7 +2814,11 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             g_Items_Coords[7].coord.t[0] = Q8(0.0f);
+#ifdef SH_PC_PORT
+            g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+#else
             g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
+#endif
             g_Items_Coords[7].coord.t[2] = Q8(0.0f);
             break;
 
@@ -2839,7 +2864,11 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             }
 
             g_Items_Coords[7].coord.t[0] = Q8(0.0f);
+#ifdef SH_PC_PORT
+            g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+#else
             g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
+#endif
             g_Items_Coords[7].coord.t[2] = Q8(0.0f);
             break;
 
@@ -3971,7 +4000,11 @@ void Gfx_Items_Draw(void) // 0x80054200
         }
 
         g_Items_Coords[7].coord.t[0] = Q8(0.0f);
-        g_Items_Coords[7].coord.t[1] = Q8(-2.5);
+#ifdef SH_PC_PORT
+        g_Items_Coords[7].coord.t[1] = Q8(-4.0f);
+#else
+        g_Items_Coords[7].coord.t[1] = Q8(-2.5f);
+#endif
         g_Items_Coords[7].coord.t[2] = Q8(0.0f);
     }
     else
@@ -4378,8 +4411,12 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
             transform = &g_Items_Transforms[0];
             scale     = g_Items_PickupScale << 12;
 
-            rotX = INVENTORY_ITEM_ROTATIONS[itemId - 32].vx;
-            rotZ = INVENTORY_ITEM_ROTATIONS[itemId - 32].vy;
+            {
+                int _rotIdx = (int)itemId - 32;
+                int _rotMax = (int)(sizeof(INVENTORY_ITEM_ROTATIONS) / sizeof(INVENTORY_ITEM_ROTATIONS[0]));
+                rotX = (_rotIdx >= 0 && _rotIdx < _rotMax) ? INVENTORY_ITEM_ROTATIONS[_rotIdx].vx : 0;
+                rotZ = (_rotIdx >= 0 && _rotIdx < _rotMax) ? INVENTORY_ITEM_ROTATIONS[_rotIdx].vy : 0;
+            }
 
             // Double scale via `<< 12` then `>> 11`.
             transform[9].scale.vz = scale >> 11;

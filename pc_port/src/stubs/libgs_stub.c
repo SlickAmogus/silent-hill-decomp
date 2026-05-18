@@ -11,6 +11,7 @@
 #include <libetc.h>
 #include <libcd.h>     /* CdlLOC for StGetBackloc stub */
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <SDL.h>
 #include <PsyX/common/glad.h>
@@ -53,6 +54,7 @@ static long gs_ambient_r = 0, gs_ambient_g = 0, gs_ambient_b = 0;
 static int gs_light_mode = 0;
 static GsF_LIGHT gs_lights[3];
 static MATRIX gs_light_matrix;
+static long gs_last_ls_t[3] = {0, 0, 0}; /* last translation from GsSetLsMatrix */
 
 /* VCount emulation - simulate PSX H-blank counter using real time */
 #include <SDL.h>
@@ -125,6 +127,14 @@ void GsInit3D(void)
      * Setting geom offset to (0, 0) avoids double-centering. */
     SetGeomOffset(0, 0);
     SetGeomScreen(240);
+    /* PsyCross InitGeom() defaults DQA=-98/DQB=340, calibrated for a PSX scene
+     * where SZ3 ≈ H.  The item camera uses H=1000 with SZ3≈10240, giving
+     * MAC0 = 340 + (-98)*6250 = -612160 → IR0=0 → otz=0 → all TMD primitives
+     * fail the depth test.  Override with positive DQA so closer items get higher
+     * IR0 (higher OT bucket = rendered in front) and DQB that centres the range
+     * around a typical item distance of z=10240. */
+    SetDQA(1024);
+    SetDQB(1988608);
 
     /* Populate GsFCALL4 dispatch table used by GsSortObject4J.
      * PC has no DIV variants and no separate NORMAL/FOG/LOFF paths — all
@@ -295,16 +305,21 @@ void GsSetProjection(long h)
 
 /* =====================================================================
  * TMD cache — resolves 32-bit PSX TMD layout to 64-bit TMD_STRUCT
+ *
+ * GsMapModelingData copies vert/norm/prim data into malloc'd storage so
+ * the source buffer (FS_BUFFER_5 / PSX RAM) can be safely reused before
+ * the pickup animation finishes rendering.
  * ===================================================================== */
-#define GS_TMD_CACHE_SLOTS  8
+#define GS_TMD_CACHE_SLOTS  64
 #define GS_TMD_MAX_OBJS    48
- 
+
 typedef struct {
-    u_long          *base;  /* key: pointer passed to GsMapModelingData */
+    u_long          *base;       /* key: pointer passed to GsMapModelingData */
     int              nobj;
     struct TMD_STRUCT objs[GS_TMD_MAX_OBJS];
+    u8              *data_copy;  /* malloc'd copy of all vert/norm/prim data */
 } GsTmdCacheEntry;
- 
+
 static GsTmdCacheEntry gs_tmd_cache[GS_TMD_CACHE_SLOTS];
 static int gs_tmd_cache_count = 0;
  
@@ -312,7 +327,9 @@ struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
 {
     int i;
     SH_DBG("[GSGET] base=%p idx=%d cache_count=%d", (void*)base, index, gs_tmd_cache_count);
-    for (i = 0; i < gs_tmd_cache_count; i++) {
+    /* Search newest-first so the most recent GsMapModelingData wins for a
+     * given base pointer (FS_BUFFER_8 is reused across all inventory items). */
+    for (i = gs_tmd_cache_count - 1; i >= 0; i--) {
         if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj) {
             struct TMD_STRUCT *o = &gs_tmd_cache[i].objs[index];
             SH_DBG("[GSGET] hit slot=%d nobj=%d vertop=%p vern=%lu primtop=%p primn=%lu",
@@ -345,17 +362,18 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         long sxy0, sxy1, sxy2, p, flg, otz, nclip;
         CVECTOR col_in, col_out;
         POLY_F3 *poly;
- 
+
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
+        otz = p >> shift;
         if (nclip <= 0) continue;
- 
+
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
- 
-        otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
@@ -390,7 +408,8 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                         &col_in, &c0, &c1, &c2);
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
@@ -427,7 +446,8 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
@@ -464,7 +484,8 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                         &col_in, &c0, &c1, &c2);
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
@@ -505,7 +526,8 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
@@ -527,12 +549,12 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
     SVECTOR   *nrm  = (SVECTOR*)np;
     int i;
     (void)pk; (void)scratch;
- 
+
     for (i = 0; i < n; i++, prim++) {
         long sxy0, sxy1, sxy2, p, flg, otz, nclip;
         CVECTOR col_in, c0, c1, c2;
         POLY_GT3 *poly;
- 
+
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
@@ -543,7 +565,8 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                         &col_in, &c0, &c1, &c2);
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
@@ -555,18 +578,6 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
         addPrim(&ot->org[otz], poly);
-        {
-            /* Pickup-TMD diagnostic — log first 64 emitted POLY_GT3 prims so we
-             * can verify they actually land in OT0 (or an OT1 subroot) and
-             * survive the OT0 sanitizer's chain walk. */
-            static int s_tmdGt3Log = 0;
-            if (s_tmdGt3Log < 64) {
-                s_tmdGt3Log++;
-                fprintf(stderr, "[TMDPRIM] GT3 #%d poly=%p otz=%ld bucket=%p ot=%p tpage=0x%x clut=0x%x\n",
-                        s_tmdGt3Log, (void*)poly, otz, (void*)&ot->org[otz], (void*)ot,
-                        poly->tpage, poly->clut);
-            }
-        }
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -596,7 +607,8 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
@@ -637,7 +649,8 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                         &col_in, &c0, &c1, &c2);
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
@@ -652,16 +665,6 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
         addPrim(&ot->org[otz], poly);
-        {
-            /* Pickup-TMD diagnostic — see GT3 sibling above. */
-            static int s_tmdGt4Log = 0;
-            if (s_tmdGt4Log < 64) {
-                s_tmdGt4Log++;
-                fprintf(stderr, "[TMDPRIM] GT4 #%d poly=%p otz=%ld bucket=%p ot=%p tpage=0x%x clut=0x%x\n",
-                        s_tmdGt4Log, (void*)poly, otz, (void*)&ot->org[otz], (void*)ot,
-                        poly->tpage, poly->clut);
-            }
-        }
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
@@ -684,7 +687,8 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         if (nclip <= 0) continue;
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
@@ -713,7 +717,8 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         if (nclip <= 0) continue;
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
@@ -745,7 +750,8 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         if (nclip <= 0) continue;
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
@@ -776,7 +782,8 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         if (nclip <= 0) continue;
  
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
@@ -813,7 +820,8 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         }
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
@@ -827,13 +835,93 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
     }
 }
 
+/* SH NTG3 (no-light textured gouraud triangle) format, ilen=6, total=28 bytes.
+ * ilen excludes the 4-byte header; total = (1+ilen)*4 = 28.
+ * Layout after the UV section: interleaved (normal_idx, vertex_idx) pairs —
+ * even in no-light mode the normals are stored but unused. */
+typedef struct {
+    u_char olen, ilen, flag, mode;  /* 4 bytes: header */
+    u_char tu0, tv0; u_short clut;  /* 4 bytes */
+    u_char tu1, tv1; u_short tpage; /* 4 bytes */
+    u_char tu2, tv2; u_short pad;   /* 4 bytes */
+    u_short n0, v0;                 /* 4 bytes: normal0 idx + vertex0 idx */
+    u_short n1, v1;                 /* 4 bytes: normal1 idx + vertex1 idx */
+    u_short n2, v2;                 /* 4 bytes: normal2 idx + vertex2 idx */
+} TMD_P_NTG3_SH; /* 28 bytes total = (1+ilen)*4 */
+
 /* No-light textured gouraud triangle */
 void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
-    TMD_P_NTG3 *prim = (TMD_P_NTG3*)op;
-    SVECTOR    *vtx  = (SVECTOR*)vp;
+    TMD_P_NTG3_SH *prim = (TMD_P_NTG3_SH*)op;
+    SVECTOR       *vtx  = (SVECTOR*)vp;
     int i;
     (void)pk; (void)scratch;
+
+#ifdef SH_PC_PORT
+    {
+        static int s_dumped = 0;
+        if (!s_dumped) {
+            const u8* b = (const u8*)op;
+            s_dumped = 1;
+            SH_DBG("[NTG3-DUMP] n=%d shift=%d otlen=%d", n, shift, ot ? ot->length : -1);
+            SH_DBG("[NTG3-DUMP] b[0..7] = %02x %02x %02x %02x  %02x %02x %02x %02x",
+                   b[0],b[1],b[2],b[3], b[4],b[5],b[6],b[7]);
+            SH_DBG("[NTG3-DUMP] b[8..15]= %02x %02x %02x %02x  %02x %02x %02x %02x",
+                   b[8],b[9],b[10],b[11], b[12],b[13],b[14],b[15]);
+            SH_DBG("[NTG3-DUMP] b[16..23]=%02x %02x %02x %02x  %02x %02x %02x %02x",
+                   b[16],b[17],b[18],b[19], b[20],b[21],b[22],b[23]);
+            SH_DBG("[NTG3-DUMP] b[24..31]=%02x %02x %02x %02x  %02x %02x %02x %02x",
+                   b[24],b[25],b[26],b[27], b[28],b[29],b[30],b[31]);
+            SH_DBG("[NTG3-DUMP] sh-struct: olen=%d ilen=%d flag=%02x mode=%02x tu0=%d tv0=%d clut=%04x",
+                   (int)prim->olen, (int)prim->ilen, (unsigned)prim->flag, (unsigned)prim->mode,
+                   (int)prim->tu0, (int)prim->tv0, (unsigned)prim->clut);
+            SH_DBG("[NTG3-DUMP] sh-struct: tu1=%d tv1=%d tpage=%04x tu2=%d tv2=%d v0=%d v1=%d v2=%d",
+                   (int)prim->tu1, (int)prim->tv1, (unsigned)prim->tpage,
+                   (int)prim->tu2, (int)prim->tv2,
+                   (int)prim->v0, (int)prim->v1, (int)prim->v2);
+            /* Also decode as NTF3-layout (v0 at byte 20) for comparison */
+            {
+                u_short ntf3_v0 = (u_short)(b[20] | (b[21]<<8));
+                u_short ntf3_v1 = (u_short)(b[22] | (b[23]<<8));
+                u_short ntf3_v2 = (u_short)(b[24] | (b[25]<<8));
+                SH_DBG("[NTG3-DUMP] ntf3-layout v0=%d v1=%d v2=%d (bytes20/22/24)",
+                       (int)ntf3_v0, (int)ntf3_v1, (int)ntf3_v2);
+            }
+            /* Also decode as NTG3-layout (v0 at byte 28) */
+            {
+                u_short ntg3_v0 = (u_short)(b[28] | (b[29]<<8));
+                u_short ntg3_v1 = (u_short)(b[30] | (b[31]<<8));
+                u_short ntg3_v2 = (u_short)(b[32] | (b[33]<<8));
+                SH_DBG("[NTG3-DUMP] ntg3-layout v0=%d v1=%d v2=%d (bytes28/30/32)",
+                       (int)ntg3_v0, (int)ntg3_v1, (int)ntg3_v2);
+            }
+            /* How many vertices are in the vtx array? Log first 4 */
+            {
+                SVECTOR *v = (SVECTOR*)vp;
+                SH_DBG("[NTG3-DUMP] vtx[0]={%d,%d,%d} vtx[1]={%d,%d,%d} vtx[2]={%d,%d,%d} vtx[3]={%d,%d,%d}",
+                       (int)v[0].vx,(int)v[0].vy,(int)v[0].vz,
+                       (int)v[1].vx,(int)v[1].vy,(int)v[1].vz,
+                       (int)v[2].vx,(int)v[2].vy,(int)v[2].vz,
+                       (int)v[3].vx,(int)v[3].vy,(int)v[3].vz);
+            }
+        }
+    }
+    /* Log first prim's nclip/otz */
+    {
+        static int s_primLog = 0;
+        if (s_primLog < 3 && n > 0) {
+            long sxy0t, sxy1t, sxy2t, pt, flgt, otzt, nclipt;
+            s_primLog++;
+            RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
+                          &sxy0t, &sxy1t, &sxy2t, &pt, &flgt);
+            nclipt = NormalClip(sxy0t, sxy1t, sxy2t);
+            otzt = pt >> shift;
+            SH_DBG("[NTG3-PRIM] v0=%d v1=%d v2=%d sxy0=%08lx sxy1=%08lx sxy2=%08lx p=%ld nclip=%ld otz=%ld",
+                   (int)prim->v0, (int)prim->v1, (int)prim->v2,
+                   (long)sxy0t, (long)sxy1t, (long)sxy2t, (long)pt, (long)nclipt, (long)otzt);
+        }
+    }
+#endif
 
     for (i = 0; i < n; i++, prim++) {
         long sxy0, sxy1, sxy2, p, flg, otz, nclip;
@@ -841,20 +929,22 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
-        /* FCE (flag bit 1): double-sided — skip back-face cull */
-        if (!(prim->dummy & 2)) {
+        if (!(prim->flag & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
             if (nclip <= 0) continue;
         }
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
+        /* No per-vertex colours in data; use neutral 0x80 (= 100% modulation). */
+        setRGB0(poly, 0x80, 0x80, 0x80);
+        setRGB1(poly, 0x80, 0x80, 0x80);
+        setRGB2(poly, 0x80, 0x80, 0x80);
+        poly->p1 = 0; poly->p2 = 0;
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
@@ -884,7 +974,8 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         }
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
@@ -920,7 +1011,8 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         }
 
         otz = p >> shift;
-        if (otz <= 0 || otz >= (1 << ot->length)) continue;
+        if (otz <= 0) continue;
+        if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
@@ -928,6 +1020,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         setRGB1(poly, prim->r1, prim->g1, prim->b1);
         setRGB2(poly, prim->r2, prim->g2, prim->b2);
         setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        poly->p1 = 0; poly->p2 = 0; poly->p3 = 0; /* zero fog bytes */
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
@@ -1151,41 +1244,81 @@ void GsMapModelingData(unsigned long *p)
     u8    *obj_table;
     int    i, slot;
     GsTmdCacheEntry *entry;
- 
+    u32    data_start, data_end;
+    size_t copy_size;
+
     if (!p) return;
     /* p[0] = flags, p[1] = nobj */
     nobj = p[1];
     if (nobj == 0 || nobj > GS_TMD_MAX_OBJS) return;
- 
+
     /* Object table starts right after flags + nobj (2 u_longs = 8 bytes) */
     obj_table = (u8*)&p[2];
- 
-    /* Find existing slot or allocate new one */
-    slot = -1;
-    for (i = 0; i < gs_tmd_cache_count; i++) {
-        if (gs_tmd_cache[i].base == p) { slot = i; break; }
+
+    /* Always allocate a fresh slot. Reusing a slot for the same base pointer
+     * would overwrite objs[] in-place and invalidate existing GsDOBJ2.tmd
+     * pointers — this causes all inventory items to show the last-loaded model
+     * when they all share FS_BUFFER_8. On eviction (cache full), recycle from
+     * slot 0 (oldest). Links from evicted slots render garbage for one frame
+     * before the inventory re-links on next open — acceptable trade-off. */
+    if (gs_tmd_cache_count >= GS_TMD_CACHE_SLOTS) {
+        /* Evict oldest (slot 0). Clear its data_copy before shifting so the
+         * moved slot[gs_tmd_cache_count-1] doesn't alias a freed pointer. */
+        if (gs_tmd_cache[0].data_copy) { free(gs_tmd_cache[0].data_copy); gs_tmd_cache[0].data_copy = NULL; }
+        memmove(&gs_tmd_cache[0], &gs_tmd_cache[1], (GS_TMD_CACHE_SLOTS - 1) * sizeof(GsTmdCacheEntry));
+        gs_tmd_cache_count--;
+        gs_tmd_cache[gs_tmd_cache_count].data_copy = NULL; /* avoid double-free */
     }
-    if (slot < 0) {
-        if (gs_tmd_cache_count >= GS_TMD_CACHE_SLOTS) slot = 0;
-        else slot = gs_tmd_cache_count++;
-    }
- 
+    slot = gs_tmd_cache_count++;
+
     entry = &gs_tmd_cache[slot];
+    entry->data_copy = NULL;
+
     entry->base = p;
     entry->nobj = (int)nobj;
- 
-    /* Parse raw 28-byte TMD objects (7 × u32).
-     * On PSX, TMD_STRUCT has 32-bit pointer fields matching the file layout.
-     * On 64-bit PC, pointer fields are 8 bytes, so we parse manually. */
+
+    /* Compute the extent of all data blocks so we can copy them.
+     * Each object entry is 7 × u32 = 28 bytes; offsets are from obj_table.
+     * Add a conservative 64-byte-per-prim pad for variable-length packets. */
+    data_start = 0xFFFFFFFF;
+    data_end   = 0;
     for (i = 0; i < (int)nobj; i++) {
         u32 *raw = (u32*)(obj_table + i * 28);
+        u32 vert_end = raw[0] + raw[1] * 8;
+        u32 norm_end = raw[2] + raw[3] * 8;
+        u32 prim_end = raw[4] + raw[5] * 64; /* 64-byte upper bound per prim */
+        if (raw[0] < data_start) data_start = raw[0];
+        if (raw[2] < data_start) data_start = raw[2];
+        if (raw[4] < data_start) data_start = raw[4];
+        if (vert_end > data_end) data_end = vert_end;
+        if (norm_end > data_end) data_end = norm_end;
+        if (prim_end > data_end) data_end = prim_end;
+    }
+    copy_size = (data_start < data_end) ? (size_t)(data_end - data_start) : 0;
+
+    /* Include the object table itself in the copy (offsets are relative to
+     * obj_table, so the copy base is obj_table). */
+    copy_size += (size_t)nobj * 28;
+    if (copy_size == 0) copy_size = 4096;
+
+    entry->data_copy = (u8*)malloc(copy_size);
+    if (entry->data_copy) {
+        memcpy(entry->data_copy, obj_table, copy_size);
+        SH_DBG("[GSMAP] copied %zu bytes of TMD data for %d objects", copy_size, (int)nobj);
+    }
+
+    /* Parse raw 28-byte TMD objects (7 × u32).
+     * Pointers resolve into data_copy so they survive buffer reuse. */
+    for (i = 0; i < (int)nobj; i++) {
+        u32 *raw = (u32*)(obj_table + i * 28);
+        u8  *base = entry->data_copy ? entry->data_copy : obj_table;
         /* raw[0..6] = vertop_off, vern, nortop_off, norn, primtop_off, primn, scale
-         * Offsets are relative to the object table start. */
-        entry->objs[i].vertop  = (u_long*)(obj_table + raw[0]);
+         * Offsets are relative to the object table (obj_table == base of copy). */
+        entry->objs[i].vertop  = (u_long*)(base + raw[0]);
         entry->objs[i].vern    = raw[1];
-        entry->objs[i].nortop  = (u_long*)(obj_table + raw[2]);
+        entry->objs[i].nortop  = (u_long*)(base + raw[2]);
         entry->objs[i].norn    = raw[3];
-        entry->objs[i].primtop = (u_long*)(obj_table + raw[4]);
+        entry->objs[i].primtop = (u_long*)(base + raw[4]);
         entry->objs[i].primn   = raw[5];
         entry->objs[i].scale   = raw[6];
     }
@@ -1196,6 +1329,9 @@ void GsSetLsMatrix(MATRIX *m)
     if (m) {
         SetRotMatrix(m);
         SetTransMatrix(m);
+        gs_last_ls_t[0] = m->t[0];
+        gs_last_ls_t[1] = m->t[1];
+        gs_last_ls_t[2] = m->t[2];
     }
 }
 
@@ -1214,7 +1350,10 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     int      lmode   = gs_light_mode;
     PACKET  *pk;
 
-    if (!obj || !obj->tmd || !ot) { return; }
+    if (!obj || !obj->tmd || !ot) {
+        SH_DBG("[SOJ4J] early-ret obj=%p tmd=%p ot=%p", (void*)obj, obj?(void*)obj->tmd:NULL, (void*)ot);
+        return;
+    }
 
     tmd = (struct TMD_STRUCT*)obj->tmd;
     vp  = (SVECTOR*)tmd->vertop;
@@ -1223,9 +1362,13 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     primn = (int)tmd->primn;
     pk  = GsOUT_PACKET_P;
 
-    if (!vp || !pp) { return; }
+    SH_DBG("[SOJ4J] obj=%p tmd=%p vp=%p pp=%p primn=%d", (void*)obj,(void*)tmd,(void*)vp,(void*)pp,primn);
+    if (!vp || !pp) {
+        SH_DBG("[SOJ4J] early-ret null vp=%p pp=%p", (void*)vp,(void*)pp);
+        return;
+    }
     if (lmode < 0 || lmode > 2) lmode = 0;
- 
+
     while (primn > 0) {
         u8 olen = pp[0];
         u8 ilen = pp[1];
@@ -1238,13 +1381,14 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
  
         if (ilen == 0) break;
  
-        /* Count consecutive same-type primitives */
+        /* Count consecutive same-type primitives.
+         * ilen excludes the 4-byte header: total prim size = (1+ilen)*4. */
         batch = 1;
-        next  = pp + ilen * 4;
+        next  = pp + (1 + ilen) * 4;
         while (batch < primn) {
             if (next[1] != ilen || next[3] != mode || next[2] != flag) break;
             batch++;
-            next += ilen * 4;
+            next += (1 + ilen) * 4;
         }
  
         lsc = flag & 1;          /* light source calculation — flag bit 0 */
@@ -1252,6 +1396,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         qd  = (mode >> 3) & 1;  /* quad — mode bit 3 = QD */
         tme = (mode >> 2) & 1;  /* textured — mode bit 2 = TME */
  
+        {
         if (lsc) {
             /* Lit primitives — dispatch through GsFCALL4 */
             tmd_func_lit fn = NULL;
@@ -1298,6 +1443,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
                            tme, qd, iip, mode, (unsigned)pp[2]);
                 }
             }
+        }
         }
  
         pk = GsOUT_PACKET_P;

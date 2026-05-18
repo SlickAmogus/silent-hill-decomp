@@ -1,4 +1,7 @@
 #include "inline_no_dmpsx.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #include <psyq/gtemac.h>
 
@@ -792,6 +795,30 @@ void Map_WorldObjectsInit(void)
     WorldObject_ModelNameSet(&g_CommonWorldObjects[3], D_800A99E4[5]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[4], D_800A99E4[6]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[5], D_800A99E4[7]);
+
+#ifdef SH_PC_PORT
+    SH_DBG("[M1S00-INIT] Map_WorldObjectsInit called, poses=%p vx_before=%d",
+           (void*)g_CommonWorldObjectPoses,
+           (int)g_CommonWorldObjectPoses[0].position.vx);
+    /* Runtime init of world-item poses from MAP1_S00.BIN offset 0x141A4
+     * (PSX addr 0x800DD71C, load base 0x800C9578). Static C initializer in
+     * map1_s00_events_data.c is unreachable at DLL link time because the exe
+     * also exports g_CommonWorldObjectPoses via data_stubs.c; runtime write
+     * wins regardless of which symbol copy the DLL resolves. */
+    g_CommonWorldObjectPoses[0].position.vx = 244654; g_CommonWorldObjectPoses[0].position.vy = -2048;  g_CommonWorldObjectPoses[0].position.vz = 75243;
+    g_CommonWorldObjectPoses[0].rotation_C.vx = 0;    g_CommonWorldObjectPoses[0].rotation_C.vy = 386;  g_CommonWorldObjectPoses[0].rotation_C.vz = 0;
+    g_CommonWorldObjectPoses[1].position.vx = 422092; g_CommonWorldObjectPoses[1].position.vy = -2252;  g_CommonWorldObjectPoses[1].position.vz = 569344;
+    g_CommonWorldObjectPoses[1].rotation_C.vx = 0;    g_CommonWorldObjectPoses[1].rotation_C.vy = 182;  g_CommonWorldObjectPoses[1].rotation_C.vz = 0;
+    g_CommonWorldObjectPoses[2].position.vx = 578355; g_CommonWorldObjectPoses[2].position.vy = -2826;  g_CommonWorldObjectPoses[2].position.vz = 430489;
+    g_CommonWorldObjectPoses[2].rotation_C.vx = 0;    g_CommonWorldObjectPoses[2].rotation_C.vy = 113;  g_CommonWorldObjectPoses[2].rotation_C.vz = 0;
+    g_CommonWorldObjectPoses[3].position.vx = 250961; g_CommonWorldObjectPoses[3].position.vy = -3563;  g_CommonWorldObjectPoses[3].position.vz = 586956;
+    g_CommonWorldObjectPoses[3].rotation_C.vx = 0;    g_CommonWorldObjectPoses[3].rotation_C.vy = 0;    g_CommonWorldObjectPoses[3].rotation_C.vz = 0;
+    g_CommonWorldObjectPoses[4].position.vx = 247971; g_CommonWorldObjectPoses[4].position.vy = -3686;  g_CommonWorldObjectPoses[4].position.vz = 583680;
+    g_CommonWorldObjectPoses[4].rotation_C.vx = 0;    g_CommonWorldObjectPoses[4].rotation_C.vy = 170;  g_CommonWorldObjectPoses[4].rotation_C.vz = 0;
+    SH_DBG("[M1S00-INIT] poses written: [0].vx=%d [1].vx=%d",
+           (int)g_CommonWorldObjectPoses[0].position.vx,
+           (int)g_CommonWorldObjectPoses[1].position.vx);
+#endif
 }
 
 void Map_WorldObjectsUpdate(void)
@@ -943,6 +970,19 @@ void Map_WorldObjectsUpdate(void)
     {
         if (!Savegame_EventFlagGet(EventFlag_M1S00_HandgunBullets0))
         {
+#ifdef SH_PC_PORT
+            {
+                static u8 s_posLogged = 0;
+                if (!s_posLogged) {
+                    s_posLogged = 1;
+                    SH_DBG("[WOBJ-DIAG] poses=%p vx=%d vy=%d vz=%d",
+                           (void*)g_CommonWorldObjectPoses,
+                           (int)g_CommonWorldObjectPoses[0].position.vx,
+                           (int)g_CommonWorldObjectPoses[0].position.vy,
+                           (int)g_CommonWorldObjectPoses[0].position.vz);
+                }
+            }
+#endif
             WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
         }
     }

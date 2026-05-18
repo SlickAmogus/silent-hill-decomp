@@ -10,6 +10,7 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include <PsyX/PsyX_public.h>
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -150,7 +151,14 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
      * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
      * that used to kill the process with SIGFPE. */
     if (arg1->coord2 == NULL) return;
-    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
+    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) {
+        static u8 s_scale0logged[16] = {0};
+        if (displayItemIdx < 16 && !s_scale0logged[displayItemIdx]) {
+            s_scale0logged[displayItemIdx] = 1;
+            SH_DBG("[ITEM-SCALE0] idx=%d tmd=%p", displayItemIdx, (void*)arg1->tmd);
+        }
+        return;
+    }
     /* Diagnostic: log when item TMD is missing — manifests as a blue
      * wireframe outline in inventory preview. Once-per-idx-per-session so
      * we don't spam (capped at 8 distinct hits). */
@@ -203,6 +211,27 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     }
 
     GsSetLightMatrix(&viewMat);
+#ifdef SH_PC_PORT
+    {
+        /* Correct for the horizontal stretch introduced when PsyCross maps
+         * PSX pixel coords (320×240, 4:3) onto a wider-than-4:3 viewport.
+         * Scale row-0 of the ls matrix (view-space X axis) and the X
+         * translation by psxAspect/screenAspect so items appear with the
+         * same proportions they had on the original 4:3 display.
+         * The 2D background is unaffected — it goes through a separate path. */
+        int _sw, _sh;
+        PsyX_GetScreenSize(&_sw, &_sh);
+        float _dispAspect = (float)_sw / (float)_sh;
+        float _psxAspect = 320.0f / 240.0f;
+        if (_dispAspect > _psxAspect) {
+            float _corr = _psxAspect / _dispAspect;
+            int _j;
+            for (_j = 0; _j < 3; _j++)
+                localToScreenMat.m[0][_j] = (s16)((float)localToScreenMat.m[0][_j] * _corr);
+            localToScreenMat.t[0] = (s32)((float)localToScreenMat.t[0] * _corr);
+        }
+    }
+#endif
     GsSetLsMatrix(&localToScreenMat);
 
     if (arg2 == 2)

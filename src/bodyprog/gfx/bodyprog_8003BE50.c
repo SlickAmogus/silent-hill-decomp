@@ -602,6 +602,37 @@ void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
 
     Math_RotMatrixZxyNeg(&rot, &coord.coord);
     Vw_CoordToWorldAndViewMatrices(&coord, &mats[1], &mats[0]);
+
+#ifdef SH_PC_PORT
+    if (mats[0].t[2] < 0 && obj->model != NULL)
+    {
+        static u8 s_behindCamLogged[16] = {0};
+        static u8 s_logCount = 0;
+        if (s_logCount < 16)
+        {
+            u8 i;
+            bool already = false;
+            for (i = 0; i < s_logCount; i++)
+            {
+                if (obj->model->modelInfo.modelHdr != NULL &&
+                    s_behindCamLogged[i] == (u8)(uintptr_t)obj->model)
+                    { already = true; break; }
+            }
+            if (!already)
+            {
+                const char* name = "?";
+                if (obj->model->modelInfo.modelHdr != NULL)
+                    name = (const char*)&obj->model->metadata_10.name_0;
+                SH_DBG("[WOBJ-BEHIND] model=%s Q8pos=(%d,%d,%d) viewZ=%d",
+                       name,
+                       (int)obj->positionX_4, (int)obj->positionY_4, (int)obj->positionZ_8,
+                       (int)mats[0].t[2]);
+                if (s_logCount < 16) s_behindCamLogged[s_logCount++] = (u8)(uintptr_t)obj->model;
+            }
+        }
+    }
+#endif
+
     func_8003CC7C(obj->model, &mats[0], &mats[1]);
 }
 

@@ -56,6 +56,38 @@ TARGETS = {
     # the eclipse-door key insertion crashes on step 6 (Fs_QueueStartReadTim
     # with file enum 0 from the all-zero stub).
     "g_Gfx_LockTimFileIdxs":            ("s16",   2),
+    # per-map inventory item ID list (null-terminated u8 array).
+    # MapOverlayHeader.loadableItems_2C points here; Gfx_Items_Draw uses it to
+    # match inventory items to TMD model slots.  Without a local definition the
+    # DLL inherits map0_s00's 8-item EXE export, causing all inventory items on
+    # every other map to render with stale (wrong) 3-D models.
+    "LOADABLE_INVENTORY_ITEMS":         ("u8",    1),
+    # per-map world item pose array (s_WorldObjectPose[] — position + rotation).
+    # Declared extern in map headers; data lives only in the PSX overlay binary.
+    # Without a local definition all world pickups spawn at (0,0,0) and are
+    # invisible because they're behind the camera from the player spawn point.
+    "g_CommonWorldObjectPoses":         ("s_WorldObjectPose", 20),
+}
+
+# Symbols whose size is determined by scanning for a null terminator in the binary
+# rather than by the sym-file size annotation or next-symbol gap inference.
+NULL_TERM_SYMBOLS = {
+    "LOADABLE_INVENTORY_ITEMS",
+}
+
+# (map_name, symbol_name) pairs to skip — these maps define the symbol in their
+# own source files and would get a duplicate-symbol link error if we also emit
+# it from the extracted_data.c.
+SKIP_SYMBOL_FOR_MAP = {
+    # LOADABLE_INVENTORY_ITEMS — defined in _anim_info.c for these maps
+    ("map0_s01", "LOADABLE_INVENTORY_ITEMS"),
+    ("map1_s04", "LOADABLE_INVENTORY_ITEMS"),
+    ("map2_s01", "LOADABLE_INVENTORY_ITEMS"),
+    ("map2_s03", "LOADABLE_INVENTORY_ITEMS"),
+    ("map2_s04", "LOADABLE_INVENTORY_ITEMS"),
+    ("map5_s03", "LOADABLE_INVENTORY_ITEMS"),
+    # g_CommonWorldObjectPoses — defined in map source files for these maps
+    ("map1_s00", "g_CommonWorldObjectPoses"),  # map1_s00_events_data.c (real definition)
 }
 
 # Symbols that are scalars (single value, not arrays) regardless of inferred size.
@@ -73,11 +105,12 @@ SCALAR_SYMBOLS = {
 
 # C type name to printf-style format and packing helpers
 TYPE_INFO = {
-    "u8":      ("0x%02X",   "B", 1),
-    "u16":     ("0x%04X",   "H", 2),
-    "s16":     ("%d",       "h", 2),
-    "s32":     ("%d",       "i", 4),
-    "VECTOR3": (None,       None, 12),
+    "u8":             ("0x%02X",   "B", 1),
+    "u16":            ("0x%04X",   "H", 2),
+    "s16":            ("%d",       "h", 2),
+    "s32":            ("%d",       "i", 4),
+    "VECTOR3":        (None,       None, 12),
+    "s_WorldObjectPose": (None,    None, 20),
 }
 
 # ---------- parsing ----------
@@ -159,6 +192,21 @@ def emit_vector3(data):
     vx, vy, vz = struct.unpack("<iii", data[:12])
     return f"{{ {vx}, {vy}, {vz} }}"
 
+def emit_world_object_pose_array(data, n):
+    """Format n s_WorldObjectPose elements as a C initializer body.
+    Layout: VECTOR3 position (3×s32, 12 bytes) + SVECTOR3 rotation (3×s16, 6 bytes) + 2 pad = 20 bytes.
+    """
+    lines = []
+    for i in range(n):
+        ofs = i * 20
+        if ofs + 18 > len(data):
+            break
+        px, py, pz = struct.unpack_from("<3i", data, ofs)
+        rx, ry, rz = struct.unpack_from("<3h", data, ofs + 12)
+        comma = "," if i < n - 1 else ""
+        lines.append(f"    {{ {{ {px}, {py}, {pz} }}, {{ {rx}, {ry}, {rz} }} }}{comma}")
+    return "\n".join(lines)
+
 def extract_map(map_name, sym_path, bin_path):
     load_base, syms = parse_sym_file(sym_path)
     if load_base is None:
@@ -175,10 +223,25 @@ def extract_map(map_name, sym_path, bin_path):
     for name, va, decl_size in syms:
         if name not in TARGETS:
             continue
+        if (map_name, name) in SKIP_SYMBOL_FOR_MAP:
+            print(f"  [{map_name}] {name}: skipped (local definition exists in source)")
+            continue
         c_type, _ = TARGETS[name]
-        size = infer_size(name, va, decl_size, syms)
         ofs = va - load_base
-        if ofs < 0 or ofs + size > len(binary):
+        if ofs < 0 or ofs >= len(binary):
+            print(f"  [{map_name}] {name}: offset 0x{ofs:X} out of binary bounds",
+                  file=sys.stderr)
+            continue
+        if name in NULL_TERM_SYMBOLS:
+            # Find the null terminator and use that as the actual size.
+            null_pos = binary.find(b'\x00', ofs)
+            if null_pos == -1 or null_pos - ofs > 128:
+                size = 128  # safety cap
+            else:
+                size = null_pos - ofs + 1  # include null terminator
+        else:
+            size = infer_size(name, va, decl_size, syms)
+        if ofs + size > len(binary):
             print(f"  [{map_name}] {name}: offset 0x{ofs:X}+{size} out of binary bounds",
                   file=sys.stderr)
             continue
@@ -196,15 +259,22 @@ C_HEADER = """\
  * Source: disc_extract/VIN/{BINFILE}
  * Map: {MAPNAME}
  *
- * Per-map cutscene data extracted from the original PSX map overlay binary.
- * In the upstream decomp these are `extern` declared in include/maps/{family}/{map}.h
- * but their data lives only in the PSX overlay binary, not in C source.
+ * Per-map data extracted from the original PSX map overlay binary.
+ * In the upstream decomp these are `extern` declared in map headers but their
+ * data lives only in the PSX overlay binary, not in C source.
  * This file provides them as local definitions so the map DLL is self-contained.
  */
 
 #include <assert.h>  /* C11 static_assert macro */
 #include "common.h"
-#include "game.h"  /* VECTOR3 */
+#include "game.h"  /* VECTOR3, SVECTOR3 */
+
+/* Minimal typedef for s_WorldObjectPose — full definition is in maps/shared.h.
+ * Guarded so it doesn't conflict if a map's header is pulled in transitively. */
+#ifndef S_WORLD_OBJECT_POSE_FWDDECL
+#define S_WORLD_OBJECT_POSE_FWDDECL
+typedef struct {{ VECTOR3 position; SVECTOR3 rotation_C; }} s_WorldObjectPose;
+#endif
 
 """
 
@@ -217,6 +287,12 @@ def generate_c(map_name, found, bin_filename):
 
         if c_type == "VECTOR3":
             text += f"VECTOR3 {name} = {emit_vector3(data)};\n\n"
+            continue
+
+        if c_type == "s_WorldObjectPose":
+            n = size // 20
+            body = emit_world_object_pose_array(data, n)
+            text += f"s_WorldObjectPose {name}[{n}] = {{\n{body}\n}};\n\n"
             continue
 
         if name in SCALAR_SYMBOLS:
