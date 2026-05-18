@@ -177,4 +177,5 @@
 
 <br/><br/>
 
+Silent Hill is © Konami and this does not contain any game assets. You must provide a legally obtained dump of Silent Hill for PSX to use.
 
