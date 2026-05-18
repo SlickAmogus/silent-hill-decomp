@@ -11,7 +11,7 @@
 #   - Uploads the new manifest as version.json.
 #
 # Usage:
-#   .\tools\release-nightly.ps1 [-DryRun] [-BuildDir <path>] [-Notes <string>]
+#   .\tools\release-nightly.ps1 [-DryRun] [-BuildDir path] [-Notes string]
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -66,7 +66,7 @@ $changelogSrc = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
 if (Test-Path $changelogSrc) {
     $localFiles["CHANGELOG.md"] = Get-Sha256 $changelogSrc
 } else {
-    Write-Host "Warning: CHANGELOG.md not found at $changelogSrc — skipping." -ForegroundColor Yellow
+    Write-Host "Warning: CHANGELOG.md not found at $changelogSrc - skipping." -ForegroundColor Yellow
 }
 
 Write-Host "Local files: $($localFiles.Count) entries hashed" -ForegroundColor Cyan
@@ -77,7 +77,7 @@ $prevManifest = $null
 $prevReleaseTag = $null
 try {
     # gh release view --json returns release metadata. We want the manifest asset.
-    $latest = gh release view --repo $Repo --json tagName,assets 2>$null | ConvertFrom-Json
+    $latest = gh release view --repo $Repo --json tagName,assets | ConvertFrom-Json
     if ($latest) {
         $prevReleaseTag = $latest.tagName
         $manifestAsset = $latest.assets | Where-Object { $_.name -eq "version.json" }
@@ -86,7 +86,8 @@ try {
             gh release download $prevReleaseTag --repo $Repo --pattern "version.json" --output $tmpManifest --clobber | Out-Null
             $prevManifest = Get-Content $tmpManifest -Raw | ConvertFrom-Json
             Remove-Item $tmpManifest -Force
-            Write-Host "Previous release: $prevReleaseTag ($($prevManifest.files.Count) files in manifest)" -ForegroundColor Cyan
+            $prevFileCount = if ($prevManifest -and $prevManifest.files) { $prevManifest.files.Count } else { 0 }
+            Write-Host "Previous release: $prevReleaseTag ($prevFileCount files in manifest)" -ForegroundColor Cyan
         }
     }
 } catch {
@@ -132,18 +133,18 @@ if ($changed.Count -eq 0 -and $removed.Count -eq 0) {
     exit 0
 }
 
-# ---- Compute changelog: commits since the previous release's git_commit --
+# ---- Compute changelog: commits since the previous release's git_commit -----
 
 $curCommitFull  = (git rev-parse HEAD).Trim()
 $curCommitShort = (git rev-parse --short HEAD).Trim()
 
 $commitLog = @()
 if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
-    # Pretty format: "- <subject>" per commit, oldest first reversed to newest first
-    $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse 2>&1)
+    # Pretty format: one line per commit, oldest first
+    $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
     if ($LASTEXITCODE -ne 0) {
-        # Likely the previous commit isn't in our local tree (we did a force-push
-        # or rebased away). Fall back to "no commit history" rather than abort.
+        # Likely the previous commit isn't in our local tree (force-push or rebase).
+        # Fall back to empty rather than abort.
         Write-Host "Warning: couldn't compute commit log since $($prevManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
         $commitLog = @()
     } elseif (-not $commitLog) {
@@ -231,7 +232,7 @@ gh release create $newTag `
 # ---- Build new manifest -----------------------------------------------------
 
 # Asset URLs follow the pattern:
-#   https://github.com/<owner>/<repo>/releases/download/<tag>/<assetName>
+#   https://github.com/owner/repo/releases/download/tag/assetName
 $baseUrl = "https://github.com/$Repo/releases/download/$newTag"
 
 $newFiles = @()
