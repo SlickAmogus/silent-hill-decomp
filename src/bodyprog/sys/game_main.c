@@ -10,6 +10,7 @@ extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
 extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
+int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -2098,7 +2099,8 @@ void MainLoop(void) // 0x80032EE0
          *
          * Result: item pickups stay 16:9, map pickup goes to 4:3. */
         g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
-                              !g_PsxSkipFramebufferStore) ? 1 : 0;
+                              !g_PsxSkipFramebufferStore &&
+                              !g_PcMapScreenActive) ? 1 : 0;
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
