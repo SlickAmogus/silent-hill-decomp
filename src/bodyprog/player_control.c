@@ -1323,19 +1323,29 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
                 }
 
-                /* Set walk/run animation on both lower body (player) and upper body (extra).
-                 * Skip when aiming — aim block below handles its own animation.
-                 * Player_AnimUpdate plays player->model with lower-body bone mask
-                 * and extra->model with upper-body bone mask.
-                 * Backward uses HarryAnim_WalkBackward; no run backward in original. */
+                /* Set walk/run animation on lower body (player) and, when not
+                 * aiming, upper body (extra) too.  When Harry is aiming the
+                 * upper-body state machine manages extra->model independently
+                 * (aim-pose, attack, etc.).  Writing walk/idle into extra->model
+                 * while aiming would overwrite the HandgunAim animation, make
+                 * Harry look un-readied, and break the attack-gating check that
+                 * expects HandgunAim_active at the ready keyframe.
+                 * Player_AnimUpdate plays player->model with the lower-body bone
+                 * mask and extra->model with the upper-body bone mask.
+                 * Backward uses HarryAnim_WalkBackward; no run-backward in original. */
+                {
+                bool aimingNow = g_Player_IsAiming &&
+                                 (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
                 if (g_Player_IsMovingForward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
                         player->model.anim.status = ANIM_STATUS(targetWalk, false);
                         player->model.stateStep = 0;
-                        extra->model.anim.status = ANIM_STATUS(targetWalk, false);
-                        extra->model.stateStep = 0;
+                        if (!aimingNow) {
+                            extra->model.anim.status = ANIM_STATUS(targetWalk, false);
+                            extra->model.stateStep = 0;
+                        }
                     }
                 } else if (g_Player_IsMovingBackward) {
                     /* Don't override jump-back while it's still playing */
@@ -1344,8 +1354,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             player->model.anim.status != ANIM_STATUS(HarryAnim_WalkBackward, false)) {
                             player->model.anim.status = ANIM_STATUS(HarryAnim_WalkBackward, false);
                             player->model.stateStep = 0;
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_WalkBackward, false);
-                            extra->model.stateStep = 0;
+                            if (!aimingNow) {
+                                extra->model.anim.status = ANIM_STATUS(HarryAnim_WalkBackward, false);
+                                extra->model.stateStep = 0;
+                            }
                         }
                     }
                 } else if (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap ||
@@ -1367,8 +1379,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.anim.status != wantInactive) {
                         player->model.anim.status = wantInactive;
                         player->model.stateStep = 0;
-                        extra->model.anim.status = wantInactive;
-                        extra->model.stateStep = 0;
+                        if (!aimingNow) {
+                            extra->model.anim.status = wantInactive;
+                            extra->model.stateStep = 0;
+                        }
                         s_prevSidestepKF = -1;
                         s_prevSidestepStatus = wantInactive;
                     }
@@ -1402,26 +1416,33 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.anim.status != ANIM_STATUS(HarryAnim_TurnLeft, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_TurnLeft, false);
                         player->model.stateStep = 0;
-                        extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnLeft, false);
-                        extra->model.stateStep = 0;
+                        if (!aimingNow) {
+                            extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnLeft, false);
+                            extra->model.stateStep = 0;
+                        }
                     }
                 } else if (g_Player_IsTurningRight) {
                     if (player->model.anim.status != ANIM_STATUS(HarryAnim_TurnRight, true) &&
                         player->model.anim.status != ANIM_STATUS(HarryAnim_TurnRight, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_TurnRight, false);
                         player->model.stateStep = 0;
-                        extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnRight, false);
-                        extra->model.stateStep = 0;
+                        if (!aimingNow) {
+                            extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnRight, false);
+                            extra->model.stateStep = 0;
+                        }
                     }
                 } else {
                     if (player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
                         player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
                         player->model.stateStep = 0;
-                        extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
-                        extra->model.stateStep = 0;
+                        if (!aimingNow) {
+                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model.stateStep = 0;
+                        }
                     }
                 }
+                } /* end aimingNow block */
 
                 /* ── Aim / Fire ──
                  * Read R2 (aim) and Cross (fire) from controller state.
@@ -1450,6 +1471,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     } else {
                         aimHeld  = (g_Controller0->btnsHeld_C & aimBtn)  != 0;
                         fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
+                    }
+
+                    /* Sprint overrides weapon ready: running and aiming at
+                     * the same time produces the sprint-in-place bug (D_800C4550
+                     * zeroed by aim path, run anim still plays).  Cancel aim
+                     * when the run button is held. */
+                    if (g_Player_IsRunning) {
+                        aimHeld = false;
+                        g_Player_IsAiming = false;
                     }
 
                     /* Edge-log key state changes so we can see in the log
