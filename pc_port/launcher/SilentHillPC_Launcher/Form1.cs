@@ -465,6 +465,8 @@ public partial class Form1 : Form
             lblUpdateStatus.Text      = $"Up to date ({plan.RemoteVersion}).";
             lblUpdateStatus.ForeColor = Color.LightGray;
             btnUpdate.Text            = "Check for Updates";
+            MessageBox.Show(this, "Update complete!", "Update",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

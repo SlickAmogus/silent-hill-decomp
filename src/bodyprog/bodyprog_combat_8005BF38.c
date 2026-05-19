@@ -234,6 +234,12 @@ void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 
 
         if (arg5 < 3)
         {
+#ifdef SH_PC_PORT
+            /* Direct melee: skip NPCs more than 2 world-units above Harry
+             * so the Air Screamer can't be hit while flying overhead. */
+            if (arg5 == 0 && sp60.vy - temp_t8 < -Q12(2.0f))
+                continue;
+#endif
             if (SQUARE(arg4 >> 6) < (SQUARE((temp_s7 - sp60.vx) >> 6) + SQUARE((temp_t8 - sp60.vy) >> 6) + SQUARE((temp_s6 - sp60.vz) >> 6)))
             {
                 continue;
