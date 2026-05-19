@@ -85,6 +85,8 @@ if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_com
     } elseif ($commitLog -is [string]) {
         $commitLog = @($commitLog)
     }
+    # Strip meta-commits that are just changelog bookkeeping (e.g. "changelog: v2026.05.18.2").
+    $commitLog = @($commitLog | Where-Object { $_ -notmatch '^- changelog:' })
 }
 
 # ---- Compute next version (YYYY.MM.DD.N) ------------------------------------
