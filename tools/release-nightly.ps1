@@ -241,14 +241,26 @@ foreach ($path in $changed) {
     $uploadAssets += $dst
 }
 
+# Write notes to a file and use --notes-file.
+# --notes "$Notes" breaks in PS5.1 when the string contains embedded double
+# quotes (e.g. commit subjects like `show "You're up to date!" dialog`) —
+# PS5.1 splits on the quotes and gh receives stray tokens as file-glob args,
+# causing "no matches found for `up`" and a silent empty release.
+$notesFile = Join-Path $stagingDir "release_notes.txt"
+[System.IO.File]::WriteAllText($notesFile, $Notes)
+
 # Create the release first (without manifest -- we'll upload manifest after we
 # know the asset URLs).
 Write-Host "Creating release $newTag..." -ForegroundColor Cyan
 gh release create $newTag `
     --repo $Repo `
     --title "Nightly $newVersion" `
-    --notes $Notes `
+    --notes-file $notesFile `
     @uploadAssets
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -Recurse -Force $stagingDir
+    throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published."
+}
 
 # ---- Build new manifest -----------------------------------------------------
 
@@ -285,6 +297,10 @@ $jsonContent = $manifest | ConvertTo-Json -Depth 5
 
 Write-Host "Uploading version.json..." -ForegroundColor Cyan
 gh release upload $newTag --repo $Repo $manifestPath --clobber
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -Recurse -Force $stagingDir
+    throw "gh release upload version.json failed (exit $LASTEXITCODE)."
+}
 
 # Cleanup
 Remove-Item -Recurse -Force $stagingDir
