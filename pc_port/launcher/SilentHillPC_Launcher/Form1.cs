@@ -416,6 +416,8 @@ public partial class Form1 : Form
             {
                 lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
                 progUpdate.Visible = false;
+                MessageBox.Show(this, "You're up to date!", "Check for Updates",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
