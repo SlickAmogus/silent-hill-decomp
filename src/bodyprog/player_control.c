@@ -1518,9 +1518,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
 
                     if (g_Player_IsAiming && hasWeapon) {
-                        D_800C4550 = Q12(0.0f);
+                        if (g_Player_IsRunning)
+                            D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                    }
+
+                    if (!aimHeld) {
+                        /* Flush PSX shift-register attack bits on aim release
+                         * so Harry stops swinging immediately when Shift is released. */
+                        g_Player_IsHoldAttack = 0;
+                        g_Player_IsAttacking  = 0;
                     }
                 }
 
