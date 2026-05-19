@@ -1328,10 +1328,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * Player_AnimUpdate plays player->model with lower-body bone mask
                  * and extra->model with upper-body bone mask.
                  * Backward uses HarryAnim_WalkBackward; no run backward in original. */
-                if (((g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.aim) != 0) &&
-                    (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE)) {
-                    /* Aiming — movement anims handled by aim block below */
-                } else if (g_Player_IsMovingForward) {
+                if (g_Player_IsMovingForward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
