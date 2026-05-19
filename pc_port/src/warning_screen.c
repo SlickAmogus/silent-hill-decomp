@@ -22,7 +22,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 
-extern void PsyX_EndScene(void);
+extern void PsyX_EndScene(void); /* forward decl — defined in PsyX_main.cpp */
 
 /* TIM lives at VRAM tpage row 0 columns 13/14/15, CLUT at (768, 480). */
 static s_FsImageDesc s_WarnImg = {
