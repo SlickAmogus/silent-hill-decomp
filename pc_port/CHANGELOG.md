@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.19.3 -- 2026-05-19
+- pc-port: fix leg animation when aiming + walking
+- pc-port: fix weapon-ready state during movement + sprint-overrides-aim
+
 ## v2026.05.19.2 -- 2026-05-19
 - tools: filter changelog meta-commits from nightly release notes
 - pc-port: combat fixes + launcher update dialog
