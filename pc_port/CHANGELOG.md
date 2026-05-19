@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.17.5 -- 2026-05-17
+- changelog: restore initial release snapshot section
+- changelog: update v2026.05.17.2 entry with additional fixes
+
 ## v2026.05.17.4 -- 2026-05-17
 - tools/changelog: simplify format to date + commits, newest first
 - tools: simplify GitHub release notes to commits only

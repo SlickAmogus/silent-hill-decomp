@@ -52,28 +52,29 @@ static s_FsImageDesc s_WarnImg = {
  */
 static void Warn_DrawImage(void)
 {
-    /* The 2ZANKO_E image is 352 px wide total — but it's stored with 32 px
-     * of left padding inside tpage 13. Layout in VRAM (8-bit color, tpage
-     * width = 128 px):
-     *   tpage 13: u=0..31 = padding (zeros), u=32..127 = image px 0..95
-     *   tpage 14: u=0..127 = image px 96..223
-     *   tpage 15: u=0..127 = image px 224..351
-     * Total visible image width = 96 + 128 + 128 = 352 source px.
+    /* The 2ZANKO_E image is 320 px wide total. s_WarnImg.u=32 is in 16-bit
+     * VRAM units, placing the TIM at VRAM X = 32 + (13<<6) = 864. Tpage 13
+     * base = 13*64 = 832 VRAM units = 13*128 = 1664 8bpp texels. The TIM
+     * pixel data starts at VRAM X=864, which is 864-832=32 VRAM units =
+     * 64 8bpp texels from tpage 13's base.
+     *
+     * Layout in VRAM (8-bit color, tpage width = 128 8bpp texels):
+     *   tpage 13: u=0..63  = empty VRAM (before TIM data)
+     *             u=64..127 = image px 0..63
+     *   tpage 14: u=0..127  = image px 64..191
+     *   tpage 15: u=0..127  = image px 192..319
+     * Total visible image width = 64 + 128 + 128 = 320 source px.
      *
      * Quad widths are PROPORTIONAL to source-width per tpage so the stretch
      * factor is uniform across all three quads. Total stretched to fb 640:
-     *   96/352 × 640 ≈ 175  (quad 0 — narrowed because only 96 source px)
-     *   128/352 × 640 ≈ 232.7 → 233
-     *   128/352 × 640 ≈ 232.7 → 232 (rounded down to hit 640 total)
-     *
-     * Previous version used uniform 213-wide quads with setUV4(0,0..) on
-     * all three, which sampled the 32 px of padding on quad 0 → ~53 px
-     * black pillarbox on the left of the visible window. */
-    static const s16 s_quadX[3] = { -320, -145,  +88 };
-    static const s16 s_quadW[3] = {  175,  233,  232 };
-    /* Per-quad source UV start. Quad 0 skips the 32 px of left padding
-     * by sampling from u=32. Quads 1 and 2 start at u=0 (full tpage). */
-    static const u8  s_quadU0[3] = { 32, 0, 0 };
+     *   64/320 × 640 = 128  (quad 0 — narrowed because only 64 source px)
+     *   128/320 × 640 = 256 (quad 1)
+     *   128/320 × 640 = 256 (quad 2) */
+    static const s16 s_quadX[3] = { -320, -192,  +64 };
+    static const s16 s_quadW[3] = {  128,  256,  256 };
+    /* Per-quad source UV start. Quad 0 skips the 64 px of empty VRAM
+     * by sampling from u=64. Quads 1 and 2 start at u=0 (full tpage). */
+    static const u8  s_quadU0[3] = { 64, 0, 0 };
     static const u8  s_quadU1[3] = { 128, 128, 128 };
     /* Vertical: cover fb 0..480 (matches the fade tile's
      * setWH(SCREEN_WIDTH*2, SCREEN_HEIGHT*2) at xy(-SCREEN_WIDTH,-SCREEN_HEIGHT)).
@@ -171,7 +172,10 @@ void Pc_PlayWarningScreen(void)
         return;
     }
 
-    SH_DBG("[WARNSCR] enter — initializing screen");
+    {
+        extern int g_PcHorPlusEnabled;
+        SH_DBG("[WARNSCR] enter — g_PcHorPlusEnabled=%d", g_PcHorPlusEnabled);
+    }
 
     /* Match the Konami-logo screen setup exactly: 640×480 interlaced
      * progressive-after-Screen_Init clip (drawenv.clip.h forced to 224).
