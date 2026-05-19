@@ -1,43 +1,20 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.19.2 -- 2026-05-19
+- tools: filter changelog meta-commits from nightly release notes
+- pc-port: combat fixes + launcher update dialog
+
+## v2026.05.19.1 -- 2026-05-19
+- pc-port: fix map gray bars, radio static after kill, menu bilinear
+
 ## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
 - tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found
+- launcher: show "You're up to date!" dialog when no updates found (launcher does not patch itself, will be uploaded separately at some point)
 - pc-port: clarify PsyX_EndScene forward decl comment
 - tools: fix release script broken by embedded quotes in commit messages
 
-## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
-- tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found
-- pc-port: clarify PsyX_EndScene forward decl comment
-
-## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
-- tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found
-- pc-port: clarify PsyX_EndScene forward decl comment
-
-## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
-- tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found
-- pc-port: clarify PsyX_EndScene forward decl comment
-
-## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
-- tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found
-- pc-port: clarify PsyX_EndScene forward decl comment
-
-## v2026.05.18.2 -- 2026-05-18
-- changelog: v2026.05.18.1
-- tools: update CHANGELOG.md before upload so released copy has current notes
-- launcher: show "You're up to date!" dialog when no updates found (will be uploaded manually, does not update with launcher)
-
 ## v2026.05.18.1 -- 2026-05-18
-- pc-port: fix warning screen 176px black bar on left
+- pc-port: fix content warning screen 176px black bar on left
 
 ## v2026.05.17.5 -- 2026-05-17
 - changelog: restore initial release snapshot section
