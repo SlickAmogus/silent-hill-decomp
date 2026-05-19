@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.18.1 -- 2026-05-18
+- Include copyright notice for Silent Hill
+- pc-port: fix warning screen 176px black bar on left
+
 ## v2026.05.17.5 -- 2026-05-17
 - changelog: restore initial release snapshot section
 - changelog: update v2026.05.17.2 entry with additional fixes
