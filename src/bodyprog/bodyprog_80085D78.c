@@ -21,6 +21,7 @@
 
 #ifdef SH_PC_PORT
 extern int g_PcHorPlusEnabled;
+extern int g_PcMapScreenActive;
 #endif
 
 VECTOR3 D_800C4640[2][8];
@@ -701,6 +702,9 @@ void func_800867B4(s32 state, s32 paperMapFileIdx) // 0x800867B4
             Screen_Init(SCREEN_WIDTH, true);
             GsSwapDispBuff();
             Fs_QueueWaitForEmpty();
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 1;
+#endif
             break;
 
         case 1:
@@ -718,6 +722,9 @@ void func_800867B4(s32 state, s32 paperMapFileIdx) // 0x800867B4
             LoadImage(&D_8002AB10, IMAGE_BUFFER_2);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 0;
+#endif
             break;
     }
 }
@@ -1305,7 +1312,9 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
             DrawSync(SyncMode_Wait);
             Fs_QueueStartReadTim(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[mapFlagIdx], FS_BUFFER_2, &g_PaperMapImg);
             Screen_Init(SCREEN_WIDTH, true);
-
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 1;
+#endif
             g_IntervalVBlanks = 1;
 
             GsSwapDispBuff();
@@ -1372,6 +1381,9 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
             LoadImage(&RECT, IMAGE_BUFFER);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 0;
+#endif
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
 
             g_MapOverlayHeader.playerControlUnfreeze_CC(0);

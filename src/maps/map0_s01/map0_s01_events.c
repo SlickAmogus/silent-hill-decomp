@@ -800,7 +800,9 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
             DrawSync(SyncMode_Wait);
             Fs_QueueStartReadTim(FILE_TIM_MP_0TOWN_TIM + D_800A99B5, FS_BUFFER_2, &g_PaperMapImg);
             Screen_Init(SCREEN_WIDTH, true);
-
+#ifdef SH_PC_PORT
+            { extern int g_PcMapScreenActive; g_PcMapScreenActive = 1; }
+#endif
             g_IntervalVBlanks = 1;
 
             GsSwapDispBuff();
@@ -822,6 +824,9 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
             LoadImage(&IMG_BUFFER_RECT, IMAGE_BUFFER);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            { extern int g_PcMapScreenActive; g_PcMapScreenActive = 0; }
+#endif
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
             SysWork_StateStepReset();
             break;
@@ -847,6 +852,9 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
             LoadImage(&IMG_BUFFER_RECT, IMAGE_BUFFER);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            { extern int g_PcMapScreenActive; g_PcMapScreenActive = 0; }
+#endif
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
             SysWork_StateStepIncrement(0);
 
