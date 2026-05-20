@@ -1477,9 +1477,57 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * the same time produces the sprint-in-place bug (D_800C4550
                      * zeroed by aim path, run anim still plays).  Cancel aim
                      * when the run button is held. */
+                    static bool s_sprintCancelledAim = false;
                     if (g_Player_IsRunning) {
                         aimHeld = false;
                         g_Player_IsAiming = false;
+                        if (hasWeapon) s_sprintCancelledAim = true;
+                    }
+                    /* When sprint ends while the weapon-ready button is still
+                     * physically held, skip the AimStop→AimStart animation delay
+                     * and snap straight back to Aim.  Without this, Harry plays
+                     * the full lower-weapon then raise-weapon sequence (~30 frames)
+                     * before attacks are allowed again. */
+                    else if (s_sprintCancelledAim && !g_Player_IsRunning &&
+                             (g_Controller0->btnsHeld_C & aimBtn) && hasWeapon)
+                    {
+                        s_sprintCancelledAim = false;
+                        aimHeld = true;
+                        g_Player_IsAiming = true;
+                        g_SysWork.playerCombat.isAiming = true;
+                        /* Only snap upper body state for ranged weapons — melee
+                         * weapons (knife, pipe) have no Aim state and snapping
+                         * to it causes the arm-swinging-in-place bug. */
+                        bool isRanged = (g_SavegamePtr->equippedWeapon_AA >= InvItemId_Handgun);
+                        if (isRanged) {
+                            e_PlayerUpperBodyState ubs = g_SysWork.playerWork.extra.upperBodyState;
+                            if (ubs != PlayerUpperBodyState_Aim &&
+                                ubs != PlayerUpperBodyState_Attack &&
+                                ubs != PlayerUpperBodyState_AimTargetLock)
+                            {
+                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                                extra->model.stateStep    = 0;
+                                extra->model.controlState = 0;
+                                SH_DBG("[AIM-SNAP] sprint ended, weapon still held — snap to Aim (was ubs=%d)", (int)ubs);
+                            }
+                        } else {
+                            /* Melee: no Aim state, but RunForward upper-body must be
+                             * cleared so the idle pose takes over instead of leaving
+                             * Harry swinging his arms in place. */
+                            e_PlayerUpperBodyState ubsMelee = g_SysWork.playerWork.extra.upperBodyState;
+                            if (ubsMelee == PlayerUpperBodyState_RunForward) {
+                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_None;
+                                extra->model.stateStep    = 0;
+                                extra->model.controlState = 0;
+                                SH_DBG("[AIM-SNAP] sprint ended, melee held — cleared RunForward to None");
+                            } else {
+                                SH_DBG("[AIM-SNAP] sprint ended, melee held — ubs=%d, no change", (int)ubsMelee);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        s_sprintCancelledAim = false;
                     }
 
                     /* Edge-log key state changes so we can see in the log
@@ -1551,9 +1599,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
                     }
 
-                    if (!aimHeld) {
-                        /* Flush PSX shift-register attack bits on aim release
-                         * so Harry stops swinging immediately when Shift is released. */
+                    /* Flush PSX shift-register attack bits ONCE when weapon-ready
+                     * is released (edge: was held → now not held).  Flushing every
+                     * frame aimHeld==0 was wrong: sprint (D key) briefly sets
+                     * aimHeld=false, which reset IsHoldAttack to 0 mid-hold and
+                     * made swipe impossible; and it prevented attacks from working
+                     * during the sprint-return frame before aimHeld recovered. */
+                    if (s_prevAimHeld && !aimHeld) {
+                        SH_DBG("[AIM-FLUSH] aim released — flushing IsAttacking=%d IsHoldAttack=%d",
+                               (int)g_Player_IsAttacking, (int)g_Player_IsHoldAttack);
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
                     }
@@ -2576,9 +2630,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 extra->model.stateStep = 2;
             }
             /* Re-assert Unlocked every frame — something in the anim path clears
-             * flags between calls, stalling kf advancement (kf frozen at 688). */
+             * flags between calls, stalling kf advancement (kf frozen at 688).
+             * Also sync player->model kf from extra->model: the renderer ticks
+             * extra but not player in this state, so the GameOver check at
+             * line 2651 (which reads player->model.anim.keyframeIdx) never fires
+             * without this copy. */
             if (player->model.stateStep == 2) {
                 Player_AnimFlagsSet(AnimFlag_Unlocked | AnimFlag_Visible);
+                if (extra->model.anim.keyframeIdx > player->model.anim.keyframeIdx) {
+                    player->model.anim.keyframeIdx = extra->model.anim.keyframeIdx;
+                    player->model.anim.time        = extra->model.anim.time;
+                }
             }
 #endif
             player->field_D4.field_2 = Q12(0.0f);
@@ -3179,6 +3241,12 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
             playerProps.flags_11C &= ~PlayerFlag_Unk6;
 
+#ifdef SH_PC_PORT
+            SH_DBG("[MELEE-CS0] IsAttacking=%d IsShooting=%d IsHoldAttack=%d weaponAttack=%d",
+                   (int)g_Player_IsAttacking, (int)g_Player_IsShooting,
+                   (int)g_Player_IsHoldAttack, (int)g_SysWork.playerCombat.weaponAttack);
+#endif
+
             if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
                 g_Player_MeleeAttackType    = 0;
@@ -3338,6 +3406,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 if (extra->model.stateStep == 0)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[MELEE-SS0] SWIPE IsAttacking=%d weaponAttack=%d animIdx=%d",
+                           (int)g_Player_IsAttacking, (int)g_SysWork.playerCombat.weaponAttack,
+                           (int)(g_Player_EquippedWeaponInfo.animAttack_7 - 4));
+#endif
                     extra->model.anim.status = g_Player_EquippedWeaponInfo.animAttack_7 - 4;
                     extra->model.stateStep++;
                 }
@@ -3347,6 +3420,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 if (extra->model.stateStep == 0)
                 {
+#ifdef SH_PC_PORT
+                    SH_DBG("[MELEE-SS0] STAB IsAttacking=%d weaponAttack=%d animIdx=%d",
+                           (int)g_Player_IsAttacking, (int)g_SysWork.playerCombat.weaponAttack,
+                           (int)g_Player_EquippedWeaponInfo.animAttack_7);
+#endif
                     extra->model.anim.status = g_Player_EquippedWeaponInfo.animAttack_7;
                     extra->model.stateStep++;
                 }
@@ -3462,19 +3540,31 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         bool pcAttackDone = false;
         {
             u8 st = extra->model.anim.status;
-            if ((st == ANIM_STATUS(HarryAnim_Unk30, true) ||
-                 st == ANIM_STATUS(HarryAnim_Unk36, true) ||
-                 st == ANIM_STATUS(HarryAnim_HandgunRecoil, true) ||
-                 st == ANIM_STATUS(HarryAnim_Unk29, true) ||
-                 st == ANIM_STATUS(HarryAnim_Unk34, true)) &&
-                st < 76)
+            /* Anim_PlaybackOnce transitions status AND sets kf=endKf atomically.
+             * On the frame the fire anim (73=Unk36 true) ends, we see the blend
+             * target status (60=Unk30 false) but kf is still at the fire anim's
+             * end frame. Remap blend-phase statuses to their source fire anim so
+             * the endKf lookup is correct. */
+            u8 lookupSt = st;
+            if (st == ANIM_STATUS(HarryAnim_Unk30, false) ||
+                st == ANIM_STATUS(HarryAnim_Unk36, false))
             {
-                const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[st];
+                lookupSt = ANIM_STATUS(HarryAnim_Unk36, true);
+            }
+            if ((lookupSt == ANIM_STATUS(HarryAnim_Unk30, true) ||
+                 lookupSt == ANIM_STATUS(HarryAnim_Unk36, true) ||
+                 lookupSt == ANIM_STATUS(HarryAnim_HandgunRecoil, true) ||
+                 lookupSt == ANIM_STATUS(HarryAnim_Unk29, true) ||
+                 lookupSt == ANIM_STATUS(HarryAnim_Unk34, true)) &&
+                lookupSt < 76)
+            {
+                const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[lookupSt];
                 bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
                 s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
                 if (doneKf > 0 && extra->model.anim.keyframeIdx == doneKf)
                 {
                     pcAttackDone = true;
+                    SH_DBG("[ATTACK-DONE] st=%d lookupSt=%d kf=%d -> pcAttackDone", (int)st, (int)lookupSt, (int)doneKf);
                 }
             }
         }
@@ -4535,6 +4625,18 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
                 extra->model.stateStep++;
+#ifdef SH_PC_PORT
+                /* On PSX the animation system handles the transition to the
+                 * HandgunRecoil keyframe range automatically. On PC, explicitly
+                 * snap keyframeIdx to the start so the reload plays correctly
+                 * and the completion check (keyframeIdx == D_800AF626) can fire. */
+                if (D_800AF624 > 0)
+                {
+                    extra->model.anim.keyframeIdx = D_800AF624;
+                    extra->model.anim.time        = Q12((s32)D_800AF624);
+                }
+                SH_DBG("[RELOAD_START] kfStart=%d kfEnd=%d", (int)D_800AF624, (int)D_800AF626);
+#endif
             }
 
             if ((D_800AF624 + g_Player_EquippedWeaponInfo.field_9) <= extra->model.anim.keyframeIdx &&
@@ -4546,7 +4648,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 playerProps.flags_11C |= PlayerFlag_Unk2;
             }
 
-            if (extra->model.anim.keyframeIdx == D_800AF626)
+            if (extra->model.anim.keyframeIdx == D_800AF626
+#ifdef SH_PC_PORT
+                || (D_800AF626 > 0 && extra->model.anim.keyframeIdx >= D_800AF626)
+#endif
+                )
             {
                 g_Player_TargetNpcIdx                                       = NO_VALUE;
                 g_SysWork.playerWork.extra.upperBodyState             = PlayerUpperBodyState_Aim;
@@ -4978,8 +5084,19 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     }
                 }
 
-                extra->model.stateStep = 0;
-                extra->model.controlState     = 0;
+#ifdef SH_PC_PORT
+                /* Don't reset extra->model.stateStep when Reload was just set:
+                 * Player_UpperBodyMainUpdate uses stateStep to gate the reload
+                 * animation init (stateStep==0 → setup, stateStep==1 → wait for
+                 * completion).  Resetting it every frame caused the setup block to
+                 * re-run each frame, preventing the animation from ever advancing
+                 * to the completion keyframe. */
+                if (g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
+#endif
+                {
+                    extra->model.stateStep = 0;
+                    extra->model.controlState     = 0;
+                }
             }
             else
             {
@@ -9020,6 +9137,20 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
     {
         D_800C44F0[i] = D_800294F4[i + relKeyframeIdx];
     }
+
+#ifdef SH_PC_PORT
+    /* D_800AF624/D_800AF626 are the start/end keyframes of the HandgunRecoil
+     * (reload) animation. On PSX these were ROM-initialized; in the decomp they
+     * default to 0. Derive them here from the freshly-loaded HARRY_BASE_ANIM_INFOS
+     * so the Reload state can advance to the correct completion keyframe. */
+    if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+    {
+        D_800AF624 = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].startKeyframeIdx;
+        D_800AF626 = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx;
+        SH_DBG("[RELOAD_KF] weap=%d reloadStart=%d reloadEnd=%d",
+               (int)g_SysWork.playerCombat.weaponAttack, (int)D_800AF624, (int)D_800AF626);
+    }
+#endif
 
     if (g_SysWork.playerCombat.weaponAttack != NO_VALUE && g_Player_LastWeaponSelected != g_SysWork.playerCombat.weaponAttack)
     {
