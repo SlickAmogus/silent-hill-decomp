@@ -3391,6 +3391,21 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     {
                         extra->model.anim.status = g_Player_EquippedWeaponInfo.animAttack_7 - 12;
                         extra->model.stateStep++;
+#ifdef SH_PC_PORT
+                        /* PSX anim system resets kf to startKf when status changes.
+                         * PC doesn't: kf stays at the previous cycle's endKf and
+                         * pcAttackDone fires immediately on frame 1. Reset manually. */
+                        if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
+                        {
+                            s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                            if (pcFireStartKf > 0)
+                            {
+                                extra->model.anim.keyframeIdx = pcFireStartKf;
+                                extra->model.anim.time        = Q12((s32)pcFireStartKf);
+                                SH_DBG("[GUN-FIRE-START-LOCK] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
+                            }
+                        }
+#endif
                     }
                 }
                 else
@@ -3399,6 +3414,18 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     {
                         extra->model.anim.status = g_Player_EquippedWeaponInfo.animAttack_7;
                         extra->model.stateStep++;
+#ifdef SH_PC_PORT
+                        if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
+                        {
+                            s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                            if (pcFireStartKf > 0)
+                            {
+                                extra->model.anim.keyframeIdx = pcFireStartKf;
+                                extra->model.anim.time        = Q12((s32)pcFireStartKf);
+                                SH_DBG("[GUN-FIRE-START] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
+                            }
+                        }
+#endif
                     }
                 }
             }
@@ -4635,9 +4662,28 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     extra->model.anim.keyframeIdx = D_800AF624;
                     extra->model.anim.time        = Q12((s32)D_800AF624);
                 }
-                SH_DBG("[RELOAD_START] kfStart=%d kfEnd=%d", (int)D_800AF624, (int)D_800AF626);
+                SH_DBG("[RELOAD_START] blendStatus=%d kfNow=%d kfBlendEnd=%d kfActiveEnd=%d",
+                       (int)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
+                       (int)HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx,
+                       (int)D_800AF626);
 #endif
             }
+
+#ifdef SH_PC_PORT
+            /* PSX plays keyframe track continuously through blend (false=62) into
+             * active reload (true=63). On PC the anim system may stop at blend end.
+             * Explicitly advance status when blend kf range is exhausted. */
+            if (extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false))
+            {
+                s16 pcBlendEnd = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx;
+                if (pcBlendEnd > 0 && extra->model.anim.keyframeIdx >= pcBlendEnd)
+                {
+                    extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, true);
+                    SH_DBG("[RELOAD_BLEND_DONE] kf=%d -> advancing to active reload st=%d",
+                           (int)extra->model.anim.keyframeIdx, (int)extra->model.anim.status);
+                }
+            }
+#endif
 
             if ((D_800AF624 + g_Player_EquippedWeaponInfo.field_9) <= extra->model.anim.keyframeIdx &&
                 !(playerProps.flags_11C & PlayerFlag_Unk2))
@@ -4657,6 +4703,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 g_Player_TargetNpcIdx                                       = NO_VALUE;
                 g_SysWork.playerWork.extra.upperBodyState             = PlayerUpperBodyState_Aim;
                 g_SysWork.targetNpcIdx                                 = NO_VALUE;
+#ifdef SH_PC_PORT
+                SH_DBG("[RELOAD_DONE] kf=%d st=%d D_800AF626=%d",
+                       (int)extra->model.anim.keyframeIdx, (int)extra->model.anim.status, (int)D_800AF626);
+#endif
                 g_SysWork.playerWork.extra.state                      = PlayerState_None;
                 playerProps.flags_11C &= ~PlayerFlag_Unk2;
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_HandgunAim, true);
@@ -9146,9 +9196,15 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
     if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
     {
         D_800AF624 = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].startKeyframeIdx;
-        D_800AF626 = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx;
-        SH_DBG("[RELOAD_KF] weap=%d reloadStart=%d reloadEnd=%d",
-               (int)g_SysWork.playerCombat.weaponAttack, (int)D_800AF624, (int)D_800AF626);
+        /* Use the ACTIVE reload anim (true=63) end kf, not the blend (false=62).
+         * The blend plays first (kf 595→605), then the active reload (605→endKf).
+         * Using the blend's endKf=605 fired completion at the TRANSITION, before
+         * the actual reload animation (63) played at all. */
+        D_800AF626 = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, true)].endKeyframeIdx;
+        SH_DBG("[RELOAD_KF] weap=%d blendStart=%d blendEnd=%d activeEnd=%d",
+               (int)g_SysWork.playerCombat.weaponAttack, (int)D_800AF624,
+               (int)HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx,
+               (int)D_800AF626);
     }
 #endif
 

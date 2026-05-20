@@ -1,6 +1,8 @@
 # TriggerZone System
 
-TriggerZones are axis-aligned rectangular boxes in world space that define **elevated or depressed floor regions** — raised platforms, stairs, sunken areas, and similar geometry that must respond differently to character movement than the surrounding floor. Despite the name, they do not fire events or cutscenes; they are purely a movement-height system.
+TriggerZones are axis-aligned rectangular boxes in world space that define **raised floor regions** — platforms, steps, curbs, and similar geometry whose floor sits above the surrounding ground level and must respond differently to character movement. Despite the name, they do not fire events or cutscenes; they are purely a movement-height system.
+
+> **Coordinate convention**: Silent Hill uses **−Y = up**. A more negative Y value means higher elevation. All floor_Y values produced by the height formula are negative; a larger magnitude (more negative) means a higher raised floor.
 
 ## Index
 
@@ -47,7 +49,7 @@ The entire record is packed into **4 bytes** — a single PSX word. The bitfield
 | positionZ | 10 | yes | −512 … 511 | −512 m … 511 m |
 | sizeX | 4 | no | 0 … 15 | 0 … 15 m |
 | sizeZ | 4 | no | 0 … 15 | 0 … 15 m |
-| height | 3 | no | 0 … 7 | 0.0 … 3.5 m elevation |
+| height | 3 | no | 0 … 7 | 0.0 … 3.5 m above ground level (see §7) |
 
 The zone occupies world X in `[positionX, positionX + sizeX]` and Z in `[positionZ, positionZ + sizeZ]`.
 
@@ -236,9 +238,9 @@ q19_12 func_8006F620(VECTOR3* pos, s_CollisionQuery* collQuery,
 
 Used by NPCs that move in 3D (Air Screamer). For each active zone:
 1. Computes zone floor Y (`-Q12(height) >> 1 - Q12(1.5f)`).
-2. **Skips** the zone if the entity is **above** it (`posY - zoneHeight >= 0`).
+2. **Skips** the zone if the entity is **below** it (`posY - zoneHeight >= 0`). In −Y=up terms this means the entity's Y is less negative than the zone floor's Y — i.e., the entity has lower elevation than the raised floor and the platform is above it, so it is irrelevant for aerial navigation.
 3. Calls `func_8006F8FC` for XZ distance; skips if farther than `dist`.
-4. Returns a steering vector pulling the entity away from nearby zones below it.
+4. Returns a steering vector pulling the entity away from nearby zones whose floor is at or below the entity's altitude.
 
 ---
 
@@ -281,7 +283,7 @@ Examples:
 | 4 | −3.5 |
 | 7 | −5.0 |
 
-Higher `height` values represent more deeply **sunken** zones (larger negative Y), not raised ones. A zone at height=0 sits at Y=−1.5, which is approximately ground level.
+Because **−Y is up**, a more negative floor_Y means a **higher** raised floor. Higher `height` values produce zones whose floor sits further above ground level. A zone at height=0 sits at Y=−1.5, which is approximately ground level (the `−Q12(1.5f)` bias). A zone at height=7 (Y=−5.0) is 3.5 m above ground — the tallest step the system can represent with 3 bits.
 
 ---
 
