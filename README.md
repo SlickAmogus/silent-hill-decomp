@@ -1,33 +1,35 @@
-## About this fork
+## Silent Hill AI-Assisted PC Port
 
-  This is an experimental PC port built on top of the PSX decompilation using PsyCross as a PSX hardware abstraction layer (SDL2 + OpenGL + OpenAL), made with Claude and with help from REDRIVER2's source code.<br/>
+  This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance with Claude Opus 4.6 and 4.7.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
-  REDRIVER2: https://github.com/OpenDriver2/REDRIVER2
 
-  I'm going to get it playable as possible, but I'm not sure yet how fleshed out it will be and there are no guarantees. I'm hoping this will be of help to other efforts like Silent Engine (https://github.com/Sezzary/SilentEngine), which is a non-AI multiplatform port in the works.
+  I'm going to get it playable as possible, and I'm aiming to get the full game playable from start to finish. Aside from that, there will be as many optional PC enhancements as possible and potentially support for custom assets. 
+  
+  Beyond that, the port that will be more fleshed out in the long run will be Silent Engine (https://github.com/Sezzary/SilentEngine), which is a non-AI multiplatform port in the works. However, I'm hoping this one can help hold people over in the meantime.
 
   ### Status
 
   - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly
-  - **New Game**: loading screen plays (Harry running animation), transitions into gameplay
-  - **Opening cutscene**: fully working — DMS camera, text, Harry visible with animations, ambient audio. Camera just needs adjustment.
   - **In-game 3D world**: rendering working — textured environment, fog, snow particles, trees, buildings, lamp posts, ground geometry
   - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height working, stairs working.
-  - **Camera**: PSX fixed-camera system functional but still needs adjustment; controllable with debug mode
-  - **Audio**: SFX working via OpenAL; BGM loads; some sound effects working
-  - **Map overlays**: 31 of 42 maps compile and load as DLLs; map1_s00 (Midwich Elementary) confirmed working
-  - **NPC AI**: enabled, grey children now spawn
-  - **Memory card**: save/load stubbed. Interacting with save points will cause odd behavior.
-  - **Graphics**: Supports high resolutions, 16:9, high refresh rates, and uncapped FPS. Press numpad 0 to toggle FPS cap.
-
+  - **Camera**: PSX fixed-camera system functional but isn't perfect; adjustable with numpad keys
+  - **Audio**: SFX and BGM all working. Voices working.
+  - **Map overlays**: All maps compile, most can be loaded.
+  - **NPC AI**: Enabled, grey children, air screamers, and groaners confirmed working.
+  - **Memory card**: save/load fully working, may still have progression bugs that will be fixed as they are found.
+  - **Graphics**: Supports high resolutions, 16:9, high refresh rates, and uncapped FPS. Graphic settings adjustable in launcher.
+  - **Updates**: Latest launcher can check for and install updates. Nightly builds posted at repo here: https://github.com/SlickAmogus/silent-hill-pc-nightly
 
   <!-- Main menu screenshot -->
   <img width="636" height="503" alt="image" src="https://github.com/user-attachments/assets/48f597c2-e629-463d-a516-998ed646dc88" />
 
+<img width="1920" height="1080" alt="Build Screenshot 2026 05 19 - 01 31 25 75" src="https://github.com/user-attachments/assets/3cb30c50-cbc2-4026-ab2d-c5717239f398" />
+
+<img width="1920" height="1080" alt="Build Screenshot 2026 05 17 - 20 00 56 26" src="https://github.com/user-attachments/assets/96d6d279-3d52-446b-9837-96e3934e021d" />
+
+<img width="1920" height="1080" alt="Build 2026 04 06 - 01 09 37 03_1 mp4_snapshot_01 30 483" src="https://github.com/user-attachments/assets/0aeeacaa-99b4-41ef-8b6f-65b6e7d1d14f" />
 
   <!-- In-game world screenshot -->
-  <img width="631" height="475" alt="image" src="https://github.com/user-attachments/assets/45c7d367-bb16-4e61-b220-94d115aaefe6" />
-
 
  ### Short Instructions
 -Extract somewhere on your PC<br>
@@ -41,15 +43,15 @@
   |------------|----------|
   | Cross | C |
   | Circle | V |
-  | Triangle | F |
-  | Square | D |
+  | Triangle | Z |
+  | Square | X |
   | Start | Enter |
   | Select | Space |
   | D-Pad | Arrow keys |
   | L1 | A |
-  | R1 | S |
-  | L2 | Q |
-  | R2 | W |
+  | R1 | D |
+  | L2 | RSHIFT |
+  | R2 | LSHIFT |
 
 
   ### Building Prerequisites
