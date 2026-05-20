@@ -1,6 +1,6 @@
 ## Silent Hill AI-Assisted PC Port
 
-  This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance with Claude Opus 4.6 and 4.7.<br/>
+  This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance from Claude Opus 4.6 and 4.7.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
 
   I'm going to get it playable as possible, and I'm aiming to get the full game playable from start to finish. Aside from that, there will be as many optional PC enhancements as possible and potentially support for custom assets. 
