@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.21.1 -- 2026-05-21
+- Revise README with project details and instructions
+- pc-port: fix melee sprint-cancel arm-swing + handgun fire-completion race
+- Fix wording in project description
+- fix gun fire/reload regressions; correct trigger_zones.md Y-axis
+
 ## v2026.05.19.3 -- 2026-05-19
 - pc-port: fix leg animation when aiming + walking
 - pc-port: fix weapon-ready state during movement + sprint-overrides-aim
