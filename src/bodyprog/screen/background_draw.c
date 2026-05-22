@@ -61,9 +61,15 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
 
             tileX = x << 8;
 
+#ifdef SH_PC_PORT
+            setXY0Fast(sprt,
+                       (tileX - (g_GameWork.gsScreenWidth >> 1)) - (image->u << (2 - texShift)) - 1,
+                       baseYOffset + ((256 - texOffsetY) * y));
+#else
             setXY0Fast(sprt,
                        (tileX - (g_GameWork.gsScreenWidth >> 1)) - (image->u << (2 - texShift)),
                        baseYOffset + ((256 - texOffsetY) * y));
+#endif
 
             packet += sizeof(SPRT);
             tPage   = (DR_TPAGE*)packet;
