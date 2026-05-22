@@ -1261,14 +1261,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 }
                 player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + Q12_ANGLE(360.0f));
 
+                /* Shared flag: set by jump-back block, read by anim-state block
+                 * to suppress normal animation overrides during the hop. */
+                bool jumpBackActive = false;
+
                 /* Jump back edge detection — only fire on press, not hold.
                  * After jump-back anim finishes, transition to walk-back (if
                  * still held) or idle (if released). Must release+press to
-                 * jump again. */
+                 * jump again. Movement is keyframe-delta-driven like sidestep:
+                 * no movement during the brace/blend phase, position advances
+                 * in proportion to keyframe progress during the active hop. */
                 {
-                    static u16 s_prevBack = 0;
-                    static u8  s_jumpBackActive = 0;
-                    static u16 s_jumpBackFrames = 0;
+                    static u16    s_prevBack = 0;
+                    static u8     s_jumpBackActive = 0;
+                    static u16    s_jumpBackFrames = 0;
+                    static q19_12 s_prevJumpBackTime = -1;
                     /* Require pure-backward input to start a jumpback: if
                      * forward is also held, other branches will stomp the
                      * anim and active would stick forever. */
@@ -1279,19 +1286,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     if (backEdge && g_Player_IsRunning && !s_jumpBackActive) {
                         s_jumpBackActive = 1;
                         s_jumpBackFrames = 0;
+                        s_prevJumpBackTime = -1;
                         player->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         player->model.stateStep = 0;
                         extra->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         extra->model.stateStep = 0;
                     }
-                    /* Jump back ends when the active anim completes (kf at
-                     * end) OR on a hard timeout, OR if the player stops
-                     * holding back. The previous check ended the flag the
-                     * instant status transitioned to ACTIVE — but that's
-                     * just blend->playback handoff, the actual jump body
-                     * hasn't played yet. Wait for the active anim to
-                     * finish (kf == endKeyframeIdx) so the full jump-back
-                     * animation completes. */
+                    /* End when the active anim finishes (keyframe reaches
+                     * endKeyframeIdx) or on a safety timeout. Do NOT cancel
+                     * based on player input: once triggered the hop commits
+                     * and plays to completion regardless of button release. */
                     if (s_jumpBackActive) {
                         s_jumpBackFrames++;
                         bool animFinished = false;
@@ -1304,16 +1308,36 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 animFinished = true;
                             }
                         }
-                        if (animFinished ||
-                            s_jumpBackFrames > 60 ||
-                            !g_Player_IsMovingBackward) {
+                        if (animFinished || s_jumpBackFrames > 180) {
                             s_jumpBackActive = 0;
                             s_jumpBackFrames = 0;
+                            s_prevJumpBackTime = -1;
                         }
                     }
 
                     if (s_jumpBackActive) {
-                        D_800C4550 = Q12(-3.5f);
+                        bool inHopPhase = (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true));
+                        if (inHopPhase) {
+                            /* Time-delta movement: use fractional anim.time so
+                             * position advances continuously each frame (no 6-frame
+                             * stutter from integer keyframeIdx truncation). */
+                            q19_12 curTime = player->model.anim.time;
+                            q19_12 dTime   = 0;
+                            if (s_prevJumpBackTime >= 0) {
+                                dTime = curTime - s_prevJumpBackTime;
+                                if (dTime < 0) dTime = 0;
+                            }
+                            s_prevJumpBackTime = curTime;
+                            if (dTime > 0) {
+                                q19_12 step = Q12_MULT_PRECISE(Q12(0.22f), dTime);
+                                player->position.vx -= Q12_MULT(step, Math_Sin(player->rotation.vy));
+                                player->position.vz -= Q12_MULT(step, Math_Cos(player->rotation.vy));
+                            }
+                        } else {
+                            /* Brace/blend phase: no positional advance; reset time tracking. */
+                            s_prevJumpBackTime = -1;
+                        }
+                        D_800C4550 = Q12(0.0f);
                     } else if (g_Player_IsMovingForward) {
                         D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
                     } else if (g_Player_IsMovingBackward) {
@@ -1321,6 +1345,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     } else {
                         D_800C4550 = Q12(0.0f);
                     }
+
+                    jumpBackActive = (bool)s_jumpBackActive;
                 }
 
                 /* Set walk/run animation on lower body (player) and, when not
@@ -1336,13 +1362,24 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 {
                 bool aimingNow = g_Player_IsAiming &&
                                  (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
-                if (g_Player_IsMovingForward) {
+                /* Also protect extra->model.anim.status when a gun attack is in
+                 * progress even if aim isn't currently held. Without this, walking
+                 * backward after a quick-fire sets extra's status to WalkBackward,
+                 * blinding pcAttackDone to the fire anim end → weaponAttack never
+                 * clears → stuck-in-shooting-pose. Treat any active gun-type attack
+                 * like aim for the purpose of extra anim ownership. */
+                bool inGunAttack = (g_SysWork.playerCombat.weaponAttack >=
+                                    WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+                /* While jump-back is active, suppress normal anim-state assignments
+                 * so the hop plays to completion even if the player releases the
+                 * back button or briefly touches another direction. */
+                if (!jumpBackActive) if (g_Player_IsMovingForward) {
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
                         player->model.anim.status = ANIM_STATUS(targetWalk, false);
                         player->model.stateStep = 0;
-                        if (!aimingNow) {
+                        if (!aimingNow && !inGunAttack) {
                             extra->model.anim.status = ANIM_STATUS(targetWalk, false);
                             extra->model.stateStep = 0;
                         }
@@ -1354,7 +1391,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             player->model.anim.status != ANIM_STATUS(HarryAnim_WalkBackward, false)) {
                             player->model.anim.status = ANIM_STATUS(HarryAnim_WalkBackward, false);
                             player->model.stateStep = 0;
-                            if (!aimingNow) {
+                            if (!aimingNow && !inGunAttack) {
                                 extra->model.anim.status = ANIM_STATUS(HarryAnim_WalkBackward, false);
                                 extra->model.stateStep = 0;
                             }
@@ -1372,36 +1409,34 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                             : ANIM_STATUS(HarryAnim_SidestepRight, true);
                     s32 wantInactive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  false)
                                               : ANIM_STATUS(HarryAnim_SidestepRight, false);
-                    static s16 s_prevSidestepKF = -1;
-                    static s32 s_prevSidestepStatus = -1;
+                    static q19_12 s_prevSidestepTime = -1;
 
                     if (player->model.anim.status != wantActive &&
                         player->model.anim.status != wantInactive) {
                         player->model.anim.status = wantInactive;
                         player->model.stateStep = 0;
-                        if (!aimingNow) {
+                        if (!aimingNow && !inGunAttack) {
                             extra->model.anim.status = wantInactive;
                             extra->model.stateStep = 0;
                         }
-                        s_prevSidestepKF = -1;
-                        s_prevSidestepStatus = wantInactive;
+                        s_prevSidestepTime = -1;
                     }
 
                     {
-                        s16 curKF = player->model.anim.keyframeIdx;
-                        s16 dKF = 0;
-                        if (s_prevSidestepKF >= 0 &&
-                            s_prevSidestepStatus == player->model.anim.status &&
-                            curKF >= s_prevSidestepKF) {
-                            dKF = curKF - s_prevSidestepKF;
+                        /* Time-delta movement: fractional anim.time advances
+                         * continuously so sidestep is smooth. PlaybackLoop can
+                         * wrap time back to 0, so handle negative dTime. */
+                        q19_12 curTime = player->model.anim.time;
+                        q19_12 dTime   = 0;
+                        if (s_prevSidestepTime >= 0) {
+                            dTime = curTime - s_prevSidestepTime;
+                            if (dTime < 0) dTime += Q12(25);
+                            if (dTime < 0 || dTime > Q12(2)) dTime = 0;
                         }
-                        s_prevSidestepKF = curKF;
-                        s_prevSidestepStatus = player->model.anim.status;
+                        s_prevSidestepTime = curTime;
 
-                        if (dKF > 0) {
-                            /* ~0.024 world units per keyframe → ~0.6u per
-                             * 25-keyframe step cycle. Tune to taste. */
-                            q19_12 step = Q12(0.024f) * dKF;
+                        if (dTime > 0) {
+                            q19_12 step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
                             if (isLeft) {
                                 player->position.vx -= Q12_MULT(step, Math_Cos(player->rotation.vy));
                                 player->position.vz += Q12_MULT(step, Math_Sin(player->rotation.vy));
@@ -1416,7 +1451,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.anim.status != ANIM_STATUS(HarryAnim_TurnLeft, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_TurnLeft, false);
                         player->model.stateStep = 0;
-                        if (!aimingNow) {
+                        if (!aimingNow && !inGunAttack) {
                             extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnLeft, false);
                             extra->model.stateStep = 0;
                         }
@@ -1426,7 +1461,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.anim.status != ANIM_STATUS(HarryAnim_TurnRight, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_TurnRight, false);
                         player->model.stateStep = 0;
-                        if (!aimingNow) {
+                        if (!aimingNow && !inGunAttack) {
                             extra->model.anim.status = ANIM_STATUS(HarryAnim_TurnRight, false);
                             extra->model.stateStep = 0;
                         }
@@ -1436,7 +1471,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
                         player->model.stateStep = 0;
-                        if (!aimingNow) {
+                        if (!aimingNow && !inGunAttack) {
                             extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
                             extra->model.stateStep = 0;
                         }
@@ -3688,6 +3723,13 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             D_800C4554                                                  = NO_VALUE;
             playerProps.field_104  = 0;
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
+#ifdef SH_PC_PORT
+            /* Reset to aim-ready so the Aim state's pcAtEndOfActive
+             * doesn't see the fire-anim end kf and immediately re-fire. */
+            extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunAim, true);
+            extra->model.anim.keyframeIdx = D_800C44F0[0].field_6;
+            extra->model.anim.time        = Q12(extra->model.anim.keyframeIdx);
+#endif
             return true;
         }
 
