@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.22.2 -- 2026-05-22
+- pc-port: fix inventory screen flicker
+- pc-port: fix jump-back delta-time movement, sidestep smoothing, gun-attack anim ownership
+- pc-port: fix screen fade DR_MODE routing; whitelist LINE_F2/G2 in OT sanitizer
+- pc-port: fix main menu background left-edge white line
+
 ## v2026.05.22.1 -- 2026-05-22
 - (no commits since last release)
 
