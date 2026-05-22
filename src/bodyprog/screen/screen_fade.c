@@ -9,6 +9,10 @@
 #include "bodyprog/math/math.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 const s32 rodataPad_80024CA0 = 0;
 s32       __pad_bss_800B5C2C;
 
@@ -36,9 +40,9 @@ static void Screen_FadeInitStatics(void)
     if (s_fadeStaticsInited) return;
     s_fadeStaticsInited = 1;
     for (int i = 0; i < 2; i++) {
-        setlen(&D_800A8E5C[i], 3);
+        setcode(&D_800A8E5C[i], 0xE1); // P_TAG code byte — ParsePrimitive dispatches 0xE0 → ProcessDrawEnv
+        setlen(&D_800A8E5C[i], 1);     // 1 long: codePtr[0]=code[0]=0xE1000240 (primSubType=1 → tpage=64, BM_SUBTRACT)
         D_800A8E5C[i].code[0] = 0xE1000240;
-        D_800A8E5C[i].code[1] = 0x0;
 
         setlen(&D_800A8E74[i], 3);
         D_800A8E74[i].r0   = 255;
@@ -76,10 +80,10 @@ void Screen_FadeDrawModeSet(DR_MODE* drMode) // 0x800325A4
         SetDrawMode(drMode, 0, 1, 64, NULL);
     }
 #ifdef SH_PC_PORT
-    /* setDrawMode sets len=3, but DR_MODE only has 2 u_ints of payload (code[0], code[1]).
-     * PsyCross's parser uses len to bound its inner loop. With tw=NULL, code[1]=0 acts
-     * as a terminator, but the parser still tries to parse the remaining difference.
-     * Set len to 1 since only code[0] is meaningful when tw is NULL. */
+    /* setDrawMode does NOT set the P_TAG .code byte. Without setcode, ParsePrimitive
+     * routes on code&0xF0=0x00 instead of 0xE0, so ProcessDrawEnv never runs and
+     * activeDrawEnv.tpage stays 0 → BM_AVERAGE → opaque white TILE flash. */
+    setcode(drMode, 0xE1);
     setlen(drMode, 1);
 #endif
 }
@@ -211,4 +215,7 @@ void Screen_FadeUpdate(void) // 0x8003260C
     ot = &g_OtTags0[g_ActiveBufferIdx][5];
     AddPrim(ot, tile);
     AddPrim(ot, drMode);
+#ifdef SH_PC_PORT
+    SH_DBG("[FADE] status=%d progress=%d tileRGB=(%d,%d,%d)", g_Screen_FadeStatus, g_ScreenFadeProgress, tile->r0, tile->g0, tile->b0);
+#endif
 }

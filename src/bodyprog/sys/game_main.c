@@ -2264,6 +2264,9 @@ void MainLoop(void) // 0x80032EE0
                          * garbage. Other 0xE_ codes (DR_MODE multi-byte family)
                          * remain stripped. */
                         if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
+                            /* LINE_F2 (0x42) and LINE_G2 (0x52) used by inventory
+                             * selection-box borders in item_screens_3.c */
+                            hi != 0x40 && hi != 0x50 &&
                             hi != 0x60 && hi != 0x70 && hi != 0xA0 &&
                             codeFull != 0xE1 &&
                             /* textured/quad poly types emitted by NTG3/NTG4/TG3/TG4 */
@@ -2364,6 +2367,7 @@ void MainLoop(void) // 0x80032EE0
                 if (len2 > 0) {
                     u8 hi2 = ((P_TAG*)cur2)->code & 0xF0;
                     if (len2 > 32 || (hi2 != 0x00 && hi2 != 0x20 && hi2 != 0x30 &&
+                        hi2 != 0x40 && hi2 != 0x50 &&
                         hi2 != 0x60 && hi2 != 0x70 && hi2 != 0xA0 && hi2 != 0xE0)) {
                         setlen(cur2, 0);
                     }
