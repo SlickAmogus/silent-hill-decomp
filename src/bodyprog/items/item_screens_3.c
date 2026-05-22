@@ -1730,6 +1730,7 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
 
     if (*arg0 == 8 || g_GameWork.gameStateSteps[1] == 0xF)
     {
+#ifndef SH_PC_PORT
         poly_g4 = (POLY_G4*)GsOUT_PACKET_P;
 
         setPolyG4(poly_g4);
@@ -1782,6 +1783,7 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
 
         addPrim(&ot1->org[5], poly_g4);
         GsOUT_PACKET_P = (PACKET*)poly_g4 + sizeof(POLY_G4);
+#endif
 
         Gfx_Primitive2dTextureSet(0, 0, 5, 2);
 

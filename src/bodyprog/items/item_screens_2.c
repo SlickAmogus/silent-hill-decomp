@@ -142,7 +142,11 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
             Screen_RectInterlacedClear(0, 0x20, 0x140, 0x1C0, 0u, 0u, 0u);
             Screen_Init(SCREEN_WIDTH, true);
 
+#ifdef SH_PC_PORT
+            g_IntervalVBlanks = 2;
+#else
             g_IntervalVBlanks = 1;
+#endif
             ScreenFade_Start(true, true, false);
             g_ScreenFadeTimestep = Q12(3.0f);
 
@@ -303,7 +307,11 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
             Screen_RectInterlacedClear(0, 32, SCREEN_WIDTH, FRAMEBUFFER_HEIGHT_INTERLACED, 0, 0, 0);
             Screen_Init(SCREEN_WIDTH, true);
 
-            g_IntervalVBlanks                  = 1;
+#ifdef SH_PC_PORT
+            g_IntervalVBlanks = 2;
+#else
+            g_IntervalVBlanks = 1;
+#endif
 
             ScreenFade_Start(true, true, false);
             g_ScreenFadeTimestep               = Q12(3.0f);
