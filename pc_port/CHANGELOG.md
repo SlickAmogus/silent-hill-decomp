@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.22.1 -- 2026-05-22
+- (no commits since last release)
+
 ## v2026.05.21.1 -- 2026-05-21
 - Revise README with project details and instructions
 - pc-port: fix melee sprint-cancel arm-swing + handgun fire-completion race
