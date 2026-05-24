@@ -22,7 +22,7 @@ extern VC_WORK vcWork;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern void vcGetNowWatchPos(VECTOR3* watch_pos);
 extern const unsigned char* g_sdlKeyboardState;
-#include "debug_console.h"
+#include "dbg_overlay.h"
 #include "map_registry.h"
 #endif
 #include <psyq/libetc.h>
@@ -1699,7 +1699,7 @@ void MainLoop(void) // 0x80032EE0
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post PsyX_UpdateInput\n"); fflush(g_ShDebugLog); } }
-        DebugConsole_Update();
+        DbgOverlay_Update();
         { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post DebugConsole_Update\n"); fflush(g_ShDebugLog); } }
 #endif
         // Update input.
@@ -2393,8 +2393,8 @@ void MainLoop(void) // 0x80032EE0
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
         ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
-        ML_TRACE("DebugConsole_Render");
-        DebugConsole_Render();
+        ML_TRACE("DbgOverlay_Render");
+        DbgOverlay_Render();
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");
