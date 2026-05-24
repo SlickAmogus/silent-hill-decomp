@@ -167,12 +167,12 @@ static void log_mark(char letter, int idx, VECTOR3* hpos, VECTOR3* cpos)
     float cy = cpos->vy / 4096.0f;
     float cz = cpos->vz / 4096.0f;
 
-    SH_DBG("======== MARK-%c%d ========", letter, idx);
-    SH_DBG("  Harry  : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
-           hx, hy, hz, (int)hpos->vx, (int)hpos->vy, (int)hpos->vz);
-    SH_DBG("  Camera : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
-           cx, cy, cz, (int)cpos->vx, (int)cpos->vy, (int)cpos->vz);
-    SH_DBG("========================");
+    SH_DBG_ECHO("======== MARK-%c%d ========", letter, idx);
+    SH_DBG_ECHO("  Harry  : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+                hx, hy, hz, (int)hpos->vx, (int)hpos->vy, (int)hpos->vz);
+    SH_DBG_ECHO("  Camera : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+                cx, cy, cz, (int)cpos->vx, (int)cpos->vy, (int)cpos->vz);
+    SH_DBG_ECHO("========================");
 }
 
 /* ========================================
