@@ -1694,27 +1694,15 @@ void MainLoop(void) // 0x80032EE0
         g_TickCount++;
 
 #ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] === iteration tick=%u start ===\n", (unsigned)g_TickCount); fflush(g_ShDebugLog); } }
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post PsyX_UpdateInput\n"); fflush(g_ShDebugLog); } }
         DbgOverlay_Update();
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post DebugConsole_Update\n"); fflush(g_ShDebugLog); } }
 #endif
         // Update input.
         Joy_ReadP1();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Joy_ReadP1\n"); fflush(g_ShDebugLog); } }
-#endif
         Demo_ControllerDataUpdate();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Demo_ControllerDataUpdate\n"); fflush(g_ShDebugLog); } }
-#endif
         Joy_ControllerDataUpdate();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post Joy_ControllerDataUpdate\n"); fflush(g_ShDebugLog); } }
-#endif
 
         if (MainLoop_ShouldWarmReset() == 2)
         {
