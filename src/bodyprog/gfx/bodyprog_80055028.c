@@ -115,11 +115,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     GsOT*    ot;
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
-#ifdef SH_PC_PORT
-    SH_DBG("[2D_FX] field_0=%d field_2=%d field_50=%d brightness=%d",
-            g_WorldEnvWork.field_0, g_WorldEnvWork.field_2,
-            g_WorldEnvWork.field_50, g_WorldEnvWork.screenBrightness_8);
-#endif
 
 #ifdef SH_PC_PORT
     /* Skip lens flare effect on PC */
@@ -143,9 +138,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     }
 #endif
 
-#ifdef SH_PC_PORT
-    SH_DBG("[2D_FX] brightness check");
-#endif
     if (g_WorldEnvWork.screenBrightness_8 > 0)
     {
         poly            = (POLY_G4*)GsOUT_PACKET_P;
@@ -222,7 +214,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
         AddPrim(&ot->org[ORDERING_TABLE_SIZE - 1], poly);
     }
-    SH_DBG("[2D_FX] done");
 #else
     packet2 = GsOUT_PACKET_P;
     packet  = packet2;

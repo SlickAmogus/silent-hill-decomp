@@ -181,15 +181,27 @@ static void log_mark(char letter, int idx, VECTOR3* hpos, VECTOR3* cpos)
 
 void DbgOverlay_Update(void)
 {
+    static int s_inited = 0;
+    static int s_key_logged = 0;
     VECTOR3 hpos, cpos;
     s_SubCharacter* player;
     int cur_a, cur_b;
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    if (!s_inited) {
+        SH_DBG_ECHO("[DBG] DbgOverlay_Update active ks=%p", (void*)ks);
+        s_inited = 1;
+    }
     if (!ks) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
     cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
+
+    if ((cur_a || cur_b) && !s_key_logged) {
+        SH_DBG_ECHO("[DBG] raw key: [=%d ]=%d scancodes=%d/%d",
+                    cur_a, cur_b, SDL_SCANCODE_LEFTBRACKET, SDL_SCANCODE_RIGHTBRACKET);
+        s_key_logged = 1;
+    }
 
     if (cur_a && !s_prev_a && s_a_count < MAX_MARKS) {
         player = &g_SysWork.playerWork.player;
