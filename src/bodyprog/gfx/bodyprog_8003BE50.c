@@ -454,17 +454,8 @@ void Gfx_InGameDraw(s32 arg0) // 0x8003C878
     }
 #endif
 
-#ifdef SH_PC_PORT
-    SH_DBG("[INGAMEDRAW] pre-ChunkCheckDraw");
-#endif
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
-#ifdef SH_PC_PORT
-    SH_DBG("[INGAMEDRAW] pre-2dEffectsDraw");
-#endif
     Gfx_2dEffectsDraw();
-#ifdef SH_PC_PORT
-    SH_DBG("[INGAMEDRAW] done");
-#endif
 }
 
 // ========================================
@@ -568,10 +559,6 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
 
-#ifdef SH_PC_PORT
-    SH_DBG("[WOD] enter count=%d sizeof_obj=%d", worldGfxWork->objectCount, (int)sizeof(s_WorldObject));
-#endif
-
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)
     {
@@ -602,36 +589,6 @@ void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
 
     Math_RotMatrixZxyNeg(&rot, &coord.coord);
     Vw_CoordToWorldAndViewMatrices(&coord, &mats[1], &mats[0]);
-
-#ifdef SH_PC_PORT
-    if (mats[0].t[2] < 0 && obj->model != NULL)
-    {
-        static u8 s_behindCamLogged[16] = {0};
-        static u8 s_logCount = 0;
-        if (s_logCount < 16)
-        {
-            u8 i;
-            bool already = false;
-            for (i = 0; i < s_logCount; i++)
-            {
-                if (obj->model->modelInfo.modelHdr != NULL &&
-                    s_behindCamLogged[i] == (u8)(uintptr_t)obj->model)
-                    { already = true; break; }
-            }
-            if (!already)
-            {
-                const char* name = "?";
-                if (obj->model->modelInfo.modelHdr != NULL)
-                    name = (const char*)&obj->model->metadata_10.name_0;
-                SH_DBG("[WOBJ-BEHIND] model=%s Q8pos=(%d,%d,%d) viewZ=%d",
-                       name,
-                       (int)obj->positionX_4, (int)obj->positionY_4, (int)obj->positionZ_8,
-                       (int)mats[0].t[2]);
-                if (s_logCount < 16) s_behindCamLogged[s_logCount++] = (u8)(uintptr_t)obj->model;
-            }
-        }
-    }
-#endif
 
     func_8003CC7C(obj->model, &mats[0], &mats[1]);
 }
@@ -1398,20 +1355,6 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q
     {
         return;
     }
-
-#ifdef SH_PC_PORT
-    {
-        static int render_dbg = 0;
-        if (charaId == Chara_Harry && render_dbg < 5) {
-            SH_DBG("[RENDER] Harry: env0=%d fog=%d bright=%d tint=(%d,%d,%d) coord=(%d,%d,%d)",
-                    g_WorldEnvWork.field_0, g_WorldEnvWork.isFogEnabled_1,
-                    g_WorldEnvWork.screenBrightness_8,
-                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
-                    boneCoords[0].coord.t[0], boneCoords[0].coord.t[1], boneCoords[0].coord.t[2]);
-            render_dbg++;
-        }
-    }
-#endif
 
     timer = CLAMP(timer, Q12(0.0f), Q12(1.0f));
 

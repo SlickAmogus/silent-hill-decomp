@@ -118,7 +118,7 @@ int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore 
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
-int g_SH_AlwaysMlTrace = 1;      /* 1 = unconditional ML_TRACE every frame; flip to 0 once silent crashes are diagnosed */
+int g_SH_AlwaysMlTrace = 0;      /* 1 = unconditional ML_TRACE every frame; flip to 0 once silent crashes are diagnosed */
 int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
 static int g_DebugCamInited = 0;
 static int g_DebugCamTogglePrev = 0; /* for edge detection on toggle key */
@@ -1509,21 +1509,9 @@ void GameState_Boot_Update(void) // 0x80032D1C
             break;
     }
 
-#ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] step=%d pre func_80033548\n", (int)g_GameWork.gameStateSteps[0]); fflush(g_ShDebugLog); } }
-#endif
     func_80033548();
-#ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post func_80033548 / pre Screen_BackgroundImgDraw\n"); fflush(g_ShDebugLog); } }
-#endif
     Screen_BackgroundImgDraw(&g_MainImg0);
-#ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post Screen_BackgroundImgDraw / pre func_80089090\n"); fflush(g_ShDebugLog); } }
-#endif
     func_80089090(1);
-#ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT] post func_80089090 — frame done\n"); fflush(g_ShDebugLog); } }
-#endif
 }
 
 #ifdef SH_PC_PORT
@@ -1742,26 +1730,14 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre GsClearOt OT0/OT2\n"); fflush(g_ShDebugLog); } }
-#endif
         GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
         GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post GsClearOt\n"); fflush(g_ShDebugLog); } }
-#endif
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] tick=%u gameState=%d pre GameStateUpdate\n", (unsigned)g_TickCount, (int)g_GameWork.gameState); fflush(g_ShDebugLog); } }
-#endif
         PC_OT_SCAN("pre-GameStateUpdate");
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] post GameStateUpdate\n"); fflush(g_ShDebugLog); } }
-#endif
         PC_OT_SCAN("post-GameStateUpdate");
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
@@ -1787,23 +1763,13 @@ void MainLoop(void) // 0x80032EE0
                 if (!canaryOk) {
                     SH_DBG("[CANARY] *** PACKET BUF 1 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd1[i], pktUsed, PC_PKTBUF_SIZE);
                 }
-                SH_DBG("[PKTBUF] used=%td/%d (%.1f%%)", pktUsed, PC_PKTBUF_SIZE, (double)pktUsed * 100.0 / PC_PKTBUF_SIZE);
             }
         }
 #endif
 
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_Update\n"); fflush(g_ShDebugLog); } }
-#endif
         Demo_Update();
         PC_OT_SCAN("post-Demo_Update");
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre Demo_GameRandSeedSet\n"); fflush(g_ShDebugLog); } }
-#endif
         Demo_GameRandSeedSet();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[MAIN] pre WarmReset check\n"); fflush(g_ShDebugLog); } }
-#endif
 
         if (MainLoop_ShouldWarmReset() == 2)
         {
