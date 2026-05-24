@@ -215,7 +215,4 @@ void Screen_FadeUpdate(void) // 0x8003260C
     ot = &g_OtTags0[g_ActiveBufferIdx][5];
     AddPrim(ot, tile);
     AddPrim(ot, drMode);
-#ifdef SH_PC_PORT
-    SH_DBG("[FADE] status=%d progress=%d tileRGB=(%d,%d,%d)", g_Screen_FadeStatus, g_ScreenFadeProgress, tile->r0, tile->g0, tile->b0);
-#endif
 }

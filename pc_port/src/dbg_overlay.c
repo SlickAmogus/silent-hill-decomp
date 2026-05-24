@@ -5,12 +5,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <SDL_scancode.h>
+#include <SDL_keyboard.h>
 #include <PsyX/common/glad.h>
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
 
-extern const unsigned char* g_sdlKeyboardState;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 
 /* ========================================
@@ -185,10 +185,11 @@ void DbgOverlay_Update(void)
     s_SubCharacter* player;
     int cur_a, cur_b;
 
-    if (!g_sdlKeyboardState) return;
+    const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    if (!ks) return;
 
-    cur_a = g_sdlKeyboardState[SDL_SCANCODE_LEFTBRACKET];
-    cur_b = g_sdlKeyboardState[SDL_SCANCODE_RIGHTBRACKET];
+    cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
+    cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
 
     if (cur_a && !s_prev_a && s_a_count < MAX_MARKS) {
         player = &g_SysWork.playerWork.player;

@@ -1595,24 +1595,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                (unsigned)g_Controller0->btnsHeld_C);
                         s_prevSdlLctrl = sdlLctrl;
                     }
-                    if (aimHeld != s_prevAimHeld) {
-                        SH_DBG("[AIM] aimHeld=%d hasWeapon=%d weaponAttack=%d state=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x SDL[RCTRL=%d LCTRL=%d]",
-                               (int)aimHeld, (int)hasWeapon,
-                               (int)g_SysWork.playerCombat.weaponAttack,
-                               (int)playerExtra.state,
-                               (unsigned)g_Controller0->btnsHeld_C,
-                               (unsigned)aimBtn, (unsigned)fireBtn,
-                               sdlRctrl, sdlLctrl);
-                        s_prevAimHeld = aimHeld;
-                    }
-                    if (fireHeld != s_prevFireHeld) {
-                        SH_DBG("[AIM] fireHeld=%d aimHeld=%d hasWeapon=%d btnsHeld_C=0x%04x aimBtn=0x%04x fireBtn=0x%04x SDL[RCTRL=%d LCTRL=%d C=%d]",
-                               (int)fireHeld, (int)aimHeld, (int)hasWeapon,
-                               (unsigned)g_Controller0->btnsHeld_C,
-                               (unsigned)aimBtn, (unsigned)fireBtn,
-                               sdlRctrl, sdlLctrl, sdlC);
-                        s_prevFireHeld = fireHeld;
-                    }
 
                     /* TPS mode reads mouse buttons; Player_Controller only
                      * reads PsyCross keyboard mappings. Override the input
@@ -1646,6 +1628,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
                     }
+                    s_prevAimHeld  = aimHeld;
+                    s_prevFireHeld = fireHeld;
                 }
 
                 /* Set lowerBodyState for footstep sound triggers
@@ -1682,19 +1666,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * where the next bug lives without symbols. */
                 if (playerExtra.state < (u32)PlayerState_Idle)
                 {
-                    SH_DBG_ECHO("[UB] pre upState=%d state=%d aim=%d shoot=%d weap=%d kf=%d aStatus=0x%x",
-                                (int)extra->upperBodyState,
-                                (int)playerExtra.state,
-                                (int)g_Player_IsAiming,
-                                (int)g_Player_IsShooting,
-                                (int)g_SysWork.playerCombat.weaponAttack,
-                                (int)extra->model.anim.keyframeIdx,
-                                (unsigned)extra->model.anim.status);
                     Player_UpperBodyUpdate(player, extra);
-                    SH_DBG_ECHO("[UB] post upState=%d kf=%d aStatus=0x%x",
-                                (int)extra->upperBodyState,
-                                (int)extra->model.anim.keyframeIdx,
-                                (unsigned)extra->model.anim.status);
                 }
             }
 #else
@@ -3275,12 +3247,6 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
             playerProps.flags_11C &= ~PlayerFlag_Unk6;
-
-#ifdef SH_PC_PORT
-            SH_DBG("[MELEE-CS0] IsAttacking=%d IsShooting=%d IsHoldAttack=%d weaponAttack=%d",
-                   (int)g_Player_IsAttacking, (int)g_Player_IsShooting,
-                   (int)g_Player_IsHoldAttack, (int)g_SysWork.playerCombat.weaponAttack);
-#endif
 
             if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
@@ -7540,27 +7506,6 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
     }
 
 #ifdef SH_PC_PORT
-    {
-        static int _c0d8_dbg = 0;
-        if (player->moveSpeed != 0 && _c0d8_dbg < 20) {
-            SH_DBG("[C0D8] moveSpd=%d heading=%d offset=(%d,%d,%d) dt=%d",
-                    player->moveSpeed, player->headingAngle,
-                    offset.vx, offset.vy, offset.vz, g_DeltaTime);
-            _c0d8_dbg++;
-        }
-    }
-#endif
-
-#ifdef SH_PC_PORT
-    {
-        static int _posDbg = 0;
-        if (_posDbg < 30) {
-            SH_DBG("[C0D8] PRE pos=(%d,%d,%d) offset=(%d,%d,%d) moveSpd=%d",
-                    player->position.vx, player->position.vy, player->position.vz,
-                    offset.vx, offset.vy, offset.vz, player->moveSpeed);
-        }
-        _posDbg++;
-    }
     /* Wall collision with debug toggle. With the IPD_COLL_FIELD34_OFS fix,
      * func_8006CC44 inside Collision_WallDetect should now return correct
      * ground heights. Let WallDetect compute its own field_C. */
@@ -7575,15 +7520,6 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
             D_800C4590.field_10 = 0;
             D_800C4590.field_18 = 0xFFFF0000;
         }
-    }
-    {
-        static int _posDbg2 = 0;
-        if (_posDbg2 < 30) {
-            SH_DBG("[C0D8] POST collResult=(%d,%d,%d) groundH=%d field_14=%d",
-                    D_800C4590.offset_0.vx, D_800C4590.offset_0.vy, D_800C4590.offset_0.vz,
-                    D_800C4590.field_C, D_800C4590.field_14);
-        }
-        _posDbg2++;
     }
 #else
     Collision_WallDetect(&D_800C4590, &offset, player);
@@ -8537,12 +8473,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
     #define playerExtra  g_SysWork.playerWork.extra
     #define playerCombat g_SysWork.playerCombat
 
-#ifdef SH_PC_PORT
-    SH_DBG("[CU] enter weap=%d lbState=%d state=%d gasTimer=%d",
-           (int)playerCombat.weaponAttack, (int)playerExtra.lowerBodyState,
-           (int)playerExtra.state, (int)playerProps.gasWeaponPowerTimer_114);
-#endif
-
     model = &playerExtra.model;
 
     if (playerExtra.lowerBodyState < PlayerLowerBodyState_Aim)
@@ -8574,9 +8504,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         }
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[CU] post-bone-copy");
-#endif
     if (playerProps.gasWeaponPowerTimer_114 != Q12(0.0f))
     {
         g_SysWork.timer_2C++;
@@ -8584,20 +8511,10 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         if (playerProps.moveDistance_126 >= Q12(3.1739f) ||
             (g_SysWork.timer_2C & (1 << 0)))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[CU] pre-6342C call (gas weapon spawn)");
-#endif
             func_8006342C(g_SavegamePtr->equippedWeapon_AA - InvItemId_KitchenKnife,
                           Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), coord);
-#ifdef SH_PC_PORT
-            SH_DBG("[CU] post-6342C call");
-#endif
         }
     }
-#ifdef SH_PC_PORT
-    SH_DBG("[CU] pre-main-combat");
-#endif
-
     if (!(playerExtra.state >= PlayerState_Unk7 && playerExtra.state < PlayerState_Unk51) &&
         ((playerExtra.state >= PlayerState_None && playerExtra.state < PlayerState_Idle) ||
         playerExtra.state == PlayerState_KickEnemy ||
@@ -8635,14 +8552,7 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
 
             if (player->field_44.field_0 > 0)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[FIRE] pre-6342C weaponAttack=%d unkAngle=%d rotX=%d coord=%p",
-                       (int)playerCombat.weaponAttack, (int)unkAngle, (int)unkRot.vx, (void*)coord);
-#endif
                 func_8006342C(playerCombat.weaponAttack, unkAngle, unkRot.vx, coord);
-#ifdef SH_PC_PORT
-                SH_DBG("[FIRE] post-6342C");
-#endif
             }
         }
         else
@@ -8729,9 +8639,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             unkRot.vy = ratan2(temp_s0, sp70.vy - Q12_TO_Q8(playerCombat.field_0.vy));
         }
 
-#ifdef SH_PC_PORT
-        SH_DBG("[CU] pre-HyperBlaster-check");
-#endif
         if (playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap) &&
             playerCombat.isAiming &&
             model->anim.status >= ANIM_STATUS(HarryAnim_HandgunAim, true) && model->anim.keyframeIdx >= 574)
@@ -8766,9 +8673,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             }
         }
 
-#ifdef SH_PC_PORT
-        SH_DBG("[CU] pre-Chainsaw-RockDrill-check");
-#endif
         if (playerExtra.state < PlayerState_Idle)
         {
             if ((playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw, AttackInputType_Tap) &&
@@ -8807,9 +8711,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
         {
 #ifdef SH_PC_PORT
             extern int g_SH_PostFireTrace;
-            SH_DBG("[FIRE] CombatUpdate dispatch: weaponAttack=%d field_44.0=%d D_800C4554=%d D_800C4556=%d",
-                   (int)playerCombat.weaponAttack, (int)player->field_44.field_0,
-                   (int)D_800C4554, (int)D_800C4556);
             if (player->field_44.field_0 > 0) {
                 g_SH_PostFireTrace = 8;
             }
@@ -8829,9 +8730,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             {
                 func_8008A0E4(player->field_44.field_0, playerCombat.weaponAttack, player, &playerCombat.field_0, &g_SysWork.npcs[0], unkRot.vx, unkRot.vy);
             }
-#ifdef SH_PC_PORT
-            SH_DBG("[FIRE] CombatUpdate post-A0E4");
-#endif
             D_800C42D2 = unkRot.vx;
             D_800C42D0 = unkRot.vy;
         }

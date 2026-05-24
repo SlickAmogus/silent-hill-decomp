@@ -835,9 +835,6 @@ void Map_MakeIpdGrid(s_Map* map, char* mapTag, e_FsFile fileIdxStart) // 0x80042
                 {
                     col         = &map->ipdGridCenter_42C[z];
                     col->idx[x] = i;
-#ifdef SH_PC_PORT
-                    SH_DBG("[IPD-GRID] cell(%d,%d) = fileIdx %d  file='%s'", x, z, i, sp10);
-#endif
                 }
             }
         }
@@ -1000,8 +997,6 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
     geomZ = Q12_TO_Q8(posZ);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[4287C] globalLm lmHdr=%p queueIdx=%d", (void*)globalLm->lmHdr, globalLm->queueIdx);
-    fflush(g_ShDebugLog);
     /* PC: belt-and-suspenders null guards. Crash dump 2026-05-02 02:08
      * (FAILURE_BUCKET_ID INVALID_POINTER_READ at func_8004287C+0x337,
      * `mov rax, qword ptr [rax]`) hit during GameBoot_InGameInit on
@@ -1009,8 +1004,6 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
      * populating at this point — some slots have queueIdx set but
      * ipdHdr / ipdHdr->lmHdr / etc. not yet ready. */
     if (globalLm->lmHdr == NULL) {
-        SH_DBG("[4287C] globalLm->lmHdr is NULL — bail");
-        fflush(g_ShDebugLog);
         return 0;
     }
 #endif
@@ -1040,12 +1033,6 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
          * thinks the read is done but the post-read fixup hasn't
          * run yet. */
         if (curChunk->ipdHdr == NULL) {
-            static int s_loggedNull4287 = 0;
-            if (s_loggedNull4287 < 4) {
-                SH_DBG("[4287C] curChunk->ipdHdr=NULL slot=%td queueIdx=%d — skip",
-                       curChunk - g_Map.ipdActive_15C, curChunk->queueIdx);
-                s_loggedNull4287++;
-            }
             continue;
         }
 #endif
@@ -1082,12 +1069,6 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
                  * inserts only when there's room; we drop further
                  * matches outside the 4 nearest. */
                 if (chunkIdx >= 4) {
-                    static int s_loggedOob4287 = 0;
-                    if (s_loggedOob4287 < 4) {
-                        SH_DBG("[4287C] chunkIdx=%d already at max — skipping further matches",
-                               chunkIdx);
-                        s_loggedOob4287++;
-                    }
                     continue;
                 }
 #endif
@@ -1124,13 +1105,6 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
          * dump 2026-05-02 03:36 hit func_8004287C+0x422 here with
          * `mov rax, qword ptr [rax]` reading lmHdr through a NULL. */
         if (curChunk->ipdHdr == NULL || curChunk->ipdHdr->lmHdr == NULL) {
-            static int s_loggedNull4287_lm = 0;
-            if (s_loggedNull4287_lm < 4) {
-                SH_DBG("[4287C] chunks[%d]->ipdHdr=%p lmHdr=%p — skip",
-                       k, (void*)curChunk->ipdHdr,
-                       curChunk->ipdHdr ? (void*)curChunk->ipdHdr->lmHdr : NULL);
-                s_loggedNull4287_lm++;
-            }
             continue;
         }
 #endif
@@ -1413,19 +1387,8 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
         }
         chunkLoadCallsSinceCellChange++;
         if (s_chunkScanShouldLog) {
-            s32 cx, cz;
             SH_DBG("[CHUNK-SCAN] Map_ChunkLoad #%d: playerCell=(%d,%d) ext=%d posQ12=(%d,%d) cellChanged=%d",
                    totalCalls, cellX0, cellZ0, map->isExterior_588, posX0, posZ0, cellChanged);
-            for (cz = -4; cz <= 4; cz++) {
-                for (cx = -4; cx <= 4; cx++) {
-                    s32 idx = Map_IpdIdxGet(cellX0 + cx, cellZ0 + cz);
-                    if (idx != NO_VALUE) {
-                        SH_DBG("[CHUNK-SCAN]   grid[%d,%d] = fileIdx %d present=%d",
-                               cellX0+cx, cellZ0+cz, idx,
-                               Map_IsIpdPresent(map->ipdActive_15C, cellX0+cx, cellZ0+cz));
-                    }
-                }
-            }
         }
     }
 #endif
@@ -1457,18 +1420,6 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
                 projCellX = cellX0 + x;
 
                 chunkIdx = Map_IpdIdxGet(projCellX, projCellZ);
-#ifdef SH_PC_PORT
-                if (s_chunkScanShouldLog) {
-                    bool hasIdx = (chunkIdx != NO_VALUE);
-                    bool distOk = hasIdx ? (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f)) : false;
-                    bool present = hasIdx ? Map_IsIpdPresent(map->ipdActive_15C, projCellX, projCellZ) : false;
-                    if (hasIdx) {
-                        SH_DBG("[CHUNK-SCAN]   scan(%d,%d): fileIdx=%d distOk=%d alreadyPresent=%d => %s",
-                               projCellX, projCellZ, chunkIdx, distOk, present,
-                               (hasIdx && distOk && !present) ? "LOAD" : "SKIP");
-                    }
-                }
-#endif
                 if (chunkIdx != NO_VALUE &&
 #ifdef SH_PC_PORT
                     (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior_588) <= Q12(0.0f)) &&
@@ -1851,7 +1802,6 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     {
         int drawCount = 0;
         int drawLimit = g_DebugCamEnabled ? 16 : PC_MAX_IPD_CHUNKS;
-        static int logCooldown = 0;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
 #endif
     for (; curChunk < &g_Map.ipdActive_15C[g_Map.ipdActiveSize_158]; curChunk++)
@@ -1872,29 +1822,6 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
-        if (++logCooldown >= 60) {
-            SH_DBG("[IPD] ChunkCheckDraw: total=%d loaded=%d cellMatch=%d drawn=%d cellXZ=(%d,%d) ext=%d globalLmQ=%d globalLmLoaded=%d",
-                   totalChunks, loadedChunks, cellMatchChunks, drawCount,
-                   g_Map.cellX_580, g_Map.cellZ_584, g_Map.isExterior_588,
-                   Fs_QueueEntryLoadStatusGet(g_Map.globalLm_138.queueIdx),
-                   (g_Map.globalLm_138.lmHdr ? g_Map.globalLm_138.lmHdr->isLoaded : -1));
-            /* Log first loaded chunk details */
-            if (drawCount > 0) {
-                s_IpdChunk* c = &g_Map.ipdActive_15C[0];
-                int i;
-                for (i = 0; i < g_Map.ipdActiveSize_158; i++, c++) {
-                    if (IpdHeader_LoadStateGet(c) >= StaticModelLoadState_Loaded) {
-                        SH_DBG("[IPD]   chunk[%d]: cell=(%d,%d) models=%d isLoaded=%d qIdx=%d",
-                               i, c->cellX, c->cellZ,
-                               c->ipdHdr ? c->ipdHdr->modelCount : -1,
-                               c->ipdHdr ? c->ipdHdr->isLoaded : -1,
-                               c->queueIdx);
-                        break;
-                    }
-                }
-            }
-            logCooldown = 0;
-        }
     }
 #endif
 }
@@ -2243,17 +2170,6 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
 #endif
     {
     temp_fp = &ipdHdr->textureCount + (subcellZ * 10) + (subcellX * 2);
-#ifdef SH_PC_PORT
-    {
-        static int subcellLogCD = 0;
-        if (++subcellLogCD >= 120) {
-            SH_DBG("[IPD-DRAW] subcell=(%d,%d) temp_fp[0]=%d temp_fp[1]=%d bufCount=%d orderCount=%d",
-                   subcellX, subcellZ, temp_fp[0], temp_fp[1],
-                   ipdHdr->modelBufferCount, ipdHdr->modelOrderCount);
-            subcellLogCD = 0;
-        }
-    }
-#endif
     for (i = temp_fp[0]; i < (temp_fp[1] + temp_fp[0]); i++)
     {
         ipdModelBuf = &ipdHdr->modelBuffers[ipdHdr->modelOrderList[i]];
