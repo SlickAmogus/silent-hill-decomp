@@ -57,7 +57,7 @@ void SH_DebugLogInit(void);
         fflush(stdout); \
     } \
     if (g_ShOverlayPushLine) { \
-        char _sh_echo_buf[32]; \
+        char _sh_echo_buf[64]; \
         snprintf(_sh_echo_buf, sizeof(_sh_echo_buf), fmt, ##__VA_ARGS__); \
         g_ShOverlayPushLine(_sh_echo_buf); \
     } \
