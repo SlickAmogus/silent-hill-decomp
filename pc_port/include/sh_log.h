@@ -6,8 +6,22 @@
 
 #include <stdio.h>
 
-#define SH_LOG(fmt, ...) printf("[SH] " fmt "\n", ##__VA_ARGS__)
-#define SH_WARN(fmt, ...) printf("[SH WARN] " fmt "\n", ##__VA_ARGS__)
+#define SH_LOG(fmt, ...) do { \
+    printf("[SH] " fmt "\n", ##__VA_ARGS__); \
+    if (g_ShOverlayPushLine) { \
+        char _sh_log_buf[64]; \
+        snprintf(_sh_log_buf, sizeof(_sh_log_buf), "[SH] " fmt, ##__VA_ARGS__); \
+        g_ShOverlayPushLine(_sh_log_buf); \
+    } \
+} while (0)
+#define SH_WARN(fmt, ...) do { \
+    printf("[SH WARN] " fmt "\n", ##__VA_ARGS__); \
+    if (g_ShOverlayPushLine) { \
+        char _sh_warn_buf[64]; \
+        snprintf(_sh_warn_buf, sizeof(_sh_warn_buf), "[SH WARN] " fmt, ##__VA_ARGS__); \
+        g_ShOverlayPushLine(_sh_warn_buf); \
+    } \
+} while (0)
 #define SH_ERR(fmt, ...) fprintf(stderr, "[SH ERROR] " fmt "\n", ##__VA_ARGS__)
 
 /* Debug log — writes to a fopen'd SilentHill.log handle (g_ShDebugLog).

@@ -1,6 +1,7 @@
 #include "map_registry.h"
 #include "map_overlay_loader.h"
 #include "pc_config.h"
+#include "sh_log.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -176,7 +177,7 @@ void MapRegistry_Load(e_MapIdx id)
         g_pMapOverlayHeader = &g_StubHeaders[id];
     }
 
-    fprintf(stderr, "[MapRegistry] Active map: %s (overlay %d, mapType %d)\n",
+    SH_DBG_ECHO("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
         MapRegistry_GetName(id), id,
         (int)(g_pMapOverlayHeader->mapInfo - MAP_INFOS));
 }
