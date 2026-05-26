@@ -2347,7 +2347,6 @@ void MainLoop(void) // 0x80032EE0
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
         ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
-        ML_TRACE("DbgOverlay_Render");
         DbgOverlay_Render();
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
