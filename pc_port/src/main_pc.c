@@ -52,6 +52,7 @@ extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
  * config is parsed. */
 FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
+void (*g_ShOverlayPushLine)(const char* line) = NULL;
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
@@ -155,36 +156,35 @@ int main(int argc, char* argv[])
         }
     }
 
-    /* Console window: hide by default + redirect stdout/stderr -> log so
-     * stray printf/fprintf get captured.  When show_console=1, leave the
-     * console window visible and let stdout/stderr stay pointed at it.
-     * SH_DBG always writes to g_ShDebugLog (a separately-fopen'd FILE*)
-     * so the log file gets the full stream either way. */
-    if (g_PcConfig.showConsole) {
-        g_ShDebugEchoStdout = 1;
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
-        SH_DBG_ECHO("[SH] show_console=1 — console window left visible, SH_DBG_ECHO mirrored to stdout");
-    } else {
-        /* Only redirect stdout/stderr to the log when logging is enabled.
-         * With enable_debug_log=0 there's no log file, and dumping these streams
-         * to one would create SilentHill.log via stdio's lazy fopen. Without
-         * redirection they go to the (about-to-be-hidden) console handle,
-         * which is fine — Windows discards the writes when the console is
-         * hidden via ShowWindow. */
-        if (g_PcConfig.enableDebugLog) {
-            freopen("SilentHill.log", "a", stdout);
-            freopen("SilentHill.log", "a", stderr);
+    /* Console modes:
+     *   0 = off       — hide window, no echo
+     *   1 = external  — show console window, echo SH_DBG_ECHO to stdout
+     *   2 = ingame    — hide window, push [ ] marker output to overlay
+     *   3 = both      — show console window + overlay gets SH_DBG_ECHO too */
+    {
+        int show = g_PcConfig.showConsole;
+        if (show == 1 || show == 3) {
+            g_ShDebugEchoStdout = 1;
             setvbuf(stdout, NULL, _IONBF, 0);
             setvbuf(stderr, NULL, _IONBF, 0);
+        } else {
+            if (g_PcConfig.enableDebugLog) {
+                freopen("SilentHill.log", "a", stdout);
+                freopen("SilentHill.log", "a", stderr);
+                setvbuf(stdout, NULL, _IONBF, 0);
+                setvbuf(stderr, NULL, _IONBF, 0);
+            }
+            {
+                typedef void* HWND;
+                extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
+                extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
+                HWND con = GetConsoleWindow();
+                if (con) ShowWindow(con, /*SW_HIDE*/ 0);
+            }
         }
-        /* Hide console window — raw Win32 to avoid windows.h conflicts */
-        {
-            typedef void* HWND;
-            extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
-            extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
-            HWND con = GetConsoleWindow();
-            if (con) ShowWindow(con, /*SW_HIDE*/ 0);
+        if (show == 2 || show == 3) {
+            extern void DbgOverlay_PushLine(const char* line);
+            g_ShOverlayPushLine = DbgOverlay_PushLine;
         }
     }
     int windowWidth = g_PcConfig.windowWidth;

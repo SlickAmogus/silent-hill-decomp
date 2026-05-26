@@ -9,6 +9,7 @@
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
+#include "pc_config.h"
 
 #include <PsyX/common/glad.h>
 
@@ -256,6 +257,12 @@ static void overlay_update_texture(void)
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
+void DbgOverlay_PushLine(const char* line)
+{
+    push_console(line);
+    s_console_dirty = 1;
+}
+
 void DbgOverlay_Update(void)
 {
     static int s_mark_a = 0;
@@ -264,6 +271,8 @@ void DbgOverlay_Update(void)
     s_SubCharacter* player;
     int cur_a, cur_b;
     char line[LINE_LEN];
+
+    if (g_PcConfig.showConsole < 2) return;
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
