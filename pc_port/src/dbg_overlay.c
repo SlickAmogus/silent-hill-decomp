@@ -17,8 +17,8 @@ extern int g_windowWidth;
 extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 
-#define MAX_CONSOLE 10
-#define LINE_LEN    32
+#define MAX_CONSOLE 20
+#define LINE_LEN    64
 #define GLYPH_W     8
 #define GLYPH_H     8
 #define SCALE       2
@@ -235,7 +235,7 @@ static void overlay_update_texture(void)
     memset(pixels, 0, sizeof(pixels));
 
     for (line = 0; line < s_console_count; line++) {
-        const char* str = s_console[line];
+        const char* str = s_console[s_console_count - 1 - line];
         for (cx = 0; *str && cx < LINE_LEN; cx++, str++) {
             unsigned int ch = (unsigned char)*str;
             if (ch >= 128) continue;
