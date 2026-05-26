@@ -20,7 +20,8 @@
 extern "C" {
 #endif
 extern FILE* g_ShDebugLog;
-extern int   g_ShDebugEchoStdout;   /* set by main_pc.c after PcConfig_Load */
+extern int   g_ShDebugEchoStdout;              /* set by main_pc.c after PcConfig_Load */
+extern void (*g_ShOverlayPushLine)(const char*); /* NULL, or DbgOverlay_PushLine when show_console>=2 */
 void SH_DebugLogInit(void);
 #ifdef __cplusplus
 }
@@ -54,6 +55,11 @@ void SH_DebugLogInit(void);
     if (g_ShDebugEchoStdout) { \
         printf(fmt "\n", ##__VA_ARGS__); \
         fflush(stdout); \
+    } \
+    if (g_ShOverlayPushLine) { \
+        char _sh_echo_buf[32]; \
+        snprintf(_sh_echo_buf, sizeof(_sh_echo_buf), fmt, ##__VA_ARGS__); \
+        g_ShOverlayPushLine(_sh_echo_buf); \
     } \
 } while (0)
 

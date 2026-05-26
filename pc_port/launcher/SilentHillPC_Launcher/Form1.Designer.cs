@@ -57,9 +57,7 @@ partial class Form1
     private RadioButton loggingNo;
 
     private Label consoleLabel;
-    private Panel consolePanel;
-    private RadioButton consoleYes;
-    private RadioButton consoleNo;
+    private ComboBox comboConsole;
 
     private Label looseLabel;
     private Panel loosePanel;
@@ -122,9 +120,7 @@ partial class Form1
             this.loggingYes = new System.Windows.Forms.RadioButton();
             this.loggingNo = new System.Windows.Forms.RadioButton();
             this.consoleLabel = new System.Windows.Forms.Label();
-            this.consolePanel = new System.Windows.Forms.Panel();
-            this.consoleYes = new System.Windows.Forms.RadioButton();
-            this.consoleNo = new System.Windows.Forms.RadioButton();
+            this.comboConsole = new System.Windows.Forms.ComboBox();
             this.looseLabel = new System.Windows.Forms.Label();
             this.loosePanel = new System.Windows.Forms.Panel();
             this.looseYes = new System.Windows.Forms.RadioButton();
@@ -137,7 +133,6 @@ partial class Form1
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.pgxpPanel.SuspendLayout();
             this.loggingPanel.SuspendLayout();
-            this.consolePanel.SuspendLayout();
             this.loosePanel.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -540,38 +535,26 @@ partial class Form1
             this.loggingNo.Text = "No";
             // 
             // consoleLabel
-            // 
+            //
             this.consoleLabel.AutoSize = true;
             this.consoleLabel.Location = new System.Drawing.Point(214, 253);
             this.consoleLabel.Name = "consoleLabel";
             this.consoleLabel.Size = new System.Drawing.Size(78, 13);
             this.consoleLabel.TabIndex = 36;
-            this.consoleLabel.Text = "Show Console:";
-            // 
-            // consolePanel
-            // 
-            this.consolePanel.Controls.Add(this.consoleYes);
-            this.consolePanel.Controls.Add(this.consoleNo);
-            this.consolePanel.Location = new System.Drawing.Point(299, 244);
-            this.consolePanel.Name = "consolePanel";
-            this.consolePanel.Size = new System.Drawing.Size(138, 30);
-            this.consolePanel.TabIndex = 39;
-            // 
-            // consoleYes
-            // 
-            this.consoleYes.Location = new System.Drawing.Point(5, 5);
-            this.consoleYes.Name = "consoleYes";
-            this.consoleYes.Size = new System.Drawing.Size(49, 24);
-            this.consoleYes.TabIndex = 37;
-            this.consoleYes.Text = "Yes";
-            // 
-            // consoleNo
-            // 
-            this.consoleNo.Location = new System.Drawing.Point(59, 5);
-            this.consoleNo.Name = "consoleNo";
-            this.consoleNo.Size = new System.Drawing.Size(45, 24);
-            this.consoleNo.TabIndex = 38;
-            this.consoleNo.Text = "No";
+            this.consoleLabel.Text = "Debug Console:";
+            //
+            // comboConsole
+            //
+            this.comboConsole.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboConsole.Items.AddRange(new object[] {
+            "Off",
+            "External",
+            "Ingame",
+            "Ingame + External"});
+            this.comboConsole.Location = new System.Drawing.Point(299, 249);
+            this.comboConsole.Name = "comboConsole";
+            this.comboConsole.Size = new System.Drawing.Size(138, 21);
+            this.comboConsole.TabIndex = 37;
             // 
             // looseLabel
             // 
@@ -639,7 +622,7 @@ partial class Form1
             this.Controls.Add(this.loggingLabel);
             this.Controls.Add(this.loggingPanel);
             this.Controls.Add(this.consoleLabel);
-            this.Controls.Add(this.consolePanel);
+            this.Controls.Add(this.comboConsole);
             this.Controls.Add(this.looseLabel);
             this.Controls.Add(this.loosePanel);
             this.Controls.Add(this.pgxpLabel);
@@ -655,7 +638,6 @@ partial class Form1
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.pgxpPanel.ResumeLayout(false);
             this.loggingPanel.ResumeLayout(false);
-            this.consolePanel.ResumeLayout(false);
             this.loosePanel.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();

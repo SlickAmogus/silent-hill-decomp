@@ -117,7 +117,9 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "show_console") == 0)
         {
-            g_PcConfig.showConsole = (atoi(value) != 0);
+            int v = atoi(value);
+            if (v < 0 || v > 3) v = 0;
+            g_PcConfig.showConsole = v;
         }
         else if (strcmp(key, "psx_dither") == 0)
         {

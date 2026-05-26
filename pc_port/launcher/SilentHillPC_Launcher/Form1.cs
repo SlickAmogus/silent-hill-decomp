@@ -156,12 +156,12 @@ public partial class Form1 : Form
         Set(loggingNo,     loggingTip);
 
         const string consoleTip =
-            "Open a secondary console window that mirrors SH_DBG_ECHO lines\n" +
-            "live as the game runs. Useful for watching state transitions\n" +
-            "without tailing the log file.";
-        Set(consoleLabel,  consoleTip);
-        Set(consoleYes,    consoleTip);
-        Set(consoleNo,     consoleTip);
+            "Off: no console output.\n" +
+            "External: secondary console window mirrors SH_DBG_ECHO lines live.\n" +
+            "Ingame: [ and ] key markers appear as an in-game overlay.\n" +
+            "Ingame + External: overlay gets SH_DBG_ECHO too, plus external window.";
+        Set(consoleLabel,   consoleTip);
+        Set(comboConsole,   consoleTip);
 
         const string looseTip =
             "Allow the game to load replacement assets from\n" +
@@ -247,9 +247,11 @@ public partial class Form1 : Form
         loggingYes.Checked = config.Get("enable_debug_log", "0") == "1";
         loggingNo.Checked = !loggingYes.Checked;
 
-        // show secondary console window (mirrors SH_DBG_ECHO lines live)
-        consoleYes.Checked = config.Get("show_console", "0") == "1";
-        consoleNo.Checked = !consoleYes.Checked;
+        // debug console mode: 0=off, 1=external, 2=ingame, 3=ingame+external
+        int consoleMode;
+        if (!int.TryParse(config.Get("show_console", "0"), out consoleMode) || consoleMode < 0 || consoleMode > 3)
+            consoleMode = 0;
+        comboConsole.SelectedIndex = consoleMode;
 
         // allow loose files (texture mod support: gamedata/load/{folder}/{name}.{ext})
         looseYes.Checked = config.Get("allow_loose_files", "0") == "1";
@@ -357,8 +359,8 @@ public partial class Form1 : Form
         // enable debug logging
         config.Set("enable_debug_log", loggingYes.Checked ? "1" : "0");
 
-        // show secondary console window
-        config.Set("show_console", consoleYes.Checked ? "1" : "0");
+        // debug console mode (0=off, 1=external, 2=ingame, 3=ingame+external)
+        config.Set("show_console", comboConsole.SelectedIndex.ToString());
 
         // allow loose files (texture mod support)
         config.Set("allow_loose_files", looseYes.Checked ? "1" : "0");
