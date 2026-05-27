@@ -38,6 +38,7 @@
  */
 
 #include "game.h"
+#include "sh_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,18 +95,16 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 {
     u8* raw = (u8*)dmsHdr;
 
-    printf("[SH] DmsFixOffsets_PC ENTER: raw[0]=%d raw[1]=%d raw[2]=%d raw[3]=%d ptr=%p\n",
+    SH_DBG("[DMS] FixOffsets ENTER: raw[0]=%d raw[1]=%d raw[2]=%d raw[3]=%d ptr=%p",
            raw[0], raw[1], raw[2], raw[3], (void*)dmsHdr);
-    printf("[SH]   raw bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+    SH_DBG("[DMS]   raw bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
            raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7],
            raw[8], raw[9], raw[10], raw[11]);
-    fflush(stdout);
 
     /* Check if already reformatted (isLoaded is at byte 0 in both layouts) */
     if (raw[0] == 1)
     {
-        printf("[SH] DmsFixOffsets_PC: already loaded, skipping\n");
-        fflush(stdout);
+        SH_DBG("[DMS] FixOffsets: already loaded, skipping");
         return;
     }
 
@@ -120,16 +119,15 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     s32 originVz       = (s32)rd32(&raw[20]);
     u32 charactersOff  = rd32(&raw[24]);
 
-    printf("[SH] DmsFixOffsets_PC: chars=%d intervals=%d origin=(%d,%d,%d) intOff=0x%x charOff=0x%x\n",
+    SH_DBG("[DMS] FixOffsets: chars=%d intervals=%d origin=(%d,%d,%d) intOff=0x%x charOff=0x%x",
            characterCount, intervalCount, originVx, originVy, originVz, intervalOff, charactersOff);
-    fflush(stdout);
 
     /* Parse camera entry (immediately after PSX header at offset 0x1C) */
     s_DmsEntry camera;
     memset(&camera, 0, sizeof(camera));
     ParseDmsEntry(&camera, &raw[PSX_SIZEOF_DMS_HEADER], raw);
 
-    printf("  camera: keyframes=%d svecs=%d name=%.4s\n",
+    SH_DBG("[DMS]   camera: keyframes=%d svecs=%d name=%.4s",
            camera.keyframeCount, camera.svectorCount, camera.name);
 
     /* Parse character entries from PSX layout (16 bytes each) into heap */
@@ -142,7 +140,7 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
             ParseDmsEntry(&characters[i],
                           raw + charactersOff + i * PSX_SIZEOF_DMS_ENTRY,
                           raw);
-            printf("  character[%d]: name=%.4s keyframes=%d svecs=%d\n",
+            SH_DBG("[DMS]   character[%d]: name=%.4s keyframes=%d svecs=%d",
                    i, characters[i].name, characters[i].keyframeCount,
                    characters[i].svectorCount);
         }
@@ -201,6 +199,5 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     memset(dmsHdr, 0, sizeof(s_DmsHeader));
     *dmsHdr = *g_DmsHeapHeader;
 
-    printf("[SH] DmsFixOffsets_PC: done — all DMS data heap-backed\n");
-    fflush(stdout);
+    SH_DBG("[DMS] FixOffsets: done");
 }
