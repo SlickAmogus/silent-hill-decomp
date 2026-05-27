@@ -158,9 +158,9 @@ int main(int argc, char* argv[])
 
     /* Console modes:
      *   0 = off       — hide window, no echo
-     *   1 = external  — show console window, echo SH_DBG_ECHO to stdout
-     *   2 = ingame    — hide window, push [ ] marker output to overlay
-     *   3 = both      — show console window + overlay gets SH_DBG_ECHO too */
+     *   1 = external  — show console window, SH_DBG_ECHO/SH_LOG to stdout
+     *   2 = ingame    — overlay only: SH_DBG_ECHO/SH_LOG + [ ] markers, no window
+     *   3 = both      — overlay + console window (same overlay content as 2) */
     {
         int show = g_PcConfig.showConsole;
         if (show == 1 || show == 3) {
