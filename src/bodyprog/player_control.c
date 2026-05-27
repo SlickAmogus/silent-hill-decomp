@@ -7538,14 +7538,18 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
      * at cell boundaries on PC. At 60fps: Down 2.0 units/frame, Up 1.5
      * (steepest climbable stair). Scaled by deltaTime so 30fps gets 4.0/3.0
      * per frame and matches the same wall-time max climb rate — otherwise
-     * stairs walkable at 60fps would block the player at 30fps. */
+     * stairs walkable at 60fps would block the player at 30fps.
+     * Q12(8.0f) is the "no floor found" sentinel from Collision_Get — treat
+     * it as "keep current floor" so Harry doesn't sink into mesh gaps. */
     {
         q19_12 prevGround = player->properties.player.positionY_EC;
         q19_12 newGround  = D_800C4590.field_C;
         q19_12 maxDownDelta = TIMESTEP_SCALE_60_FPS(g_DeltaTime, Q12(2.0f));
         q19_12 maxUpDelta   = TIMESTEP_SCALE_60_FPS(g_DeltaTime, Q12(1.5f));
 
-        if (prevGround != 0) {
+        if (newGround == Q12(8.0f)) {
+            D_800C4590.field_C = prevGround;
+        } else {
             s32 delta = newGround - prevGround;
             if (delta > maxDownDelta) {
                 D_800C4590.field_C = prevGround + maxDownDelta;

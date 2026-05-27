@@ -81,7 +81,7 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
      * and triggers spurious item pickups (KeyOfWoodman dog-head freeze).
      * Likely a bitfield sign-extension or struct alignment difference
      * vs PSX. Cap iteration to MAX_MAP_EVENTS so we don't walk wild. */
-    const int MAX_MAP_EVENTS = 128;
+    const int MAX_MAP_EVENTS = 256; /* map7_s02 has 251 events, the largest across all maps */
     int _eventIdx = -1;
 #endif
 
