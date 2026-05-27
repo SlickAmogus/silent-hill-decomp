@@ -1,5 +1,18 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.27.1 -- 2026-05-27
+- pc-port: replace dead debug console with dbg_overlay marker system
+- dbg_overlay: fix marker logging; strip per-frame log spam
+- logging: strip per-frame SH_DBG spam; fix dbg_overlay key detection
+- logging: remove remaining [2D_FX] spam; add one-shot overlay diagnostics
+- dbg_overlay: fix rendering ΓÇö correct UV orientation, LSB font bit order, GL init timing
+- Add ingame debug overlay with 4-mode show_console config
+- dbg_overlay: increase LINE_LEN/MAX_CONSOLE, fix line render order
+- sh_log: route SH_LOG/SH_WARN to ingame overlay; fix MapRegistry fprintf
+- Remove stale diagnostic logging (GameBoot steps, DMS, RADIO_SPU)
+- main_pc: fix stale show_console comment for mode 2
+- map2_s00: fix event cap, dead-end crosses, gas station, floor fall-through
+
 ## v2026.05.22.2 -- 2026-05-22
 - pc-port: fix inventory screen flicker
 - pc-port: fix jump-back delta-time movement, sidestep smoothing, gun-attack anim ownership
