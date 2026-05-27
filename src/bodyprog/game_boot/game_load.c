@@ -81,17 +81,6 @@ void GameBoot_GameStartup(void) // 0x80034964
     // should be triggered.
     static s32 demoLoadAttempCount;
 
-#ifdef SH_PC_PORT
-    {
-        static s32 prevLoadStep = -1;
-        if (g_GameWork.gameStateSteps[0] != prevLoadStep) {
-            printf("[SH] GameBoot_GameStartup step=%d\n", g_GameWork.gameStateSteps[0]);
-            fflush(stdout);
-            prevLoadStep = g_GameWork.gameStateSteps[0];
-        }
-    }
-#endif
-
     switch (g_GameWork.gameStateSteps[0])
     {
         case 0:
