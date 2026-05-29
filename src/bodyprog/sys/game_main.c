@@ -2295,8 +2295,10 @@ void MainLoop(void) // 0x80032EE0
             OT_TAG* prev2 = NULL;
             while (cur2 && w3 < 4096) {
                 uintptr_t curAddr2 = (uintptr_t)cur2;
-                int curOk2 = ((curAddr2 >= pktLo2 && curAddr2 < pktHi2) ||
-                              (curAddr2 >= otLo2  && curAddr2 < otHi2));
+                /* Accept heap packet buffer, OT array, OR any static/BSS primitive
+                 * (e.g. screen fade DR_MODE/TILE in D_800A8E5C/D_800A8E74).
+                 * Only reject null, very-low, or kernel-space addresses. */
+                int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= (uintptr_t)0x7FFFFFFFFFFF);
                 if (!curOk2) {
                     static int s_ot2DumpedOnce = 0;
                     if (!s_ot2DumpedOnce) {
@@ -2306,9 +2308,6 @@ void MainLoop(void) // 0x80032EE0
                                (void*)pktLo2, (void*)pktHi2,
                                (void*)otLo2, (void*)otHi2);
                     }
-                    /* Skip past corrupt prim — see OT0 sanitizer above for
-                     * rationale. Jump to ot2->org[0] (closest-to-camera
-                     * bucket) to preserve nearest-camera geometry. */
                     if (prev2 != NULL) {
                         setaddr(prev2, &ot2->org[0]);
                     } else {
