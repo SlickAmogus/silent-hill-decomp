@@ -219,7 +219,9 @@ void GsDrawOt(GsOT *ot)
     {
 #ifdef SH_PC_PORT
         extern int g_currentOTBucketCount;
+        extern void PsyX_ClearGteDepthTable(void);
         g_currentOTBucketCount = 1 << ot->length;
+        PsyX_ClearGteDepthTable();
 
         glClearDepth(1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
