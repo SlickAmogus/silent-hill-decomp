@@ -2088,7 +2088,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &sp10);
 
-#ifndef SH_PC_PORT
                     if (sp10 <= 0)
                     {
                         gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2100,7 +2099,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                             continue;
                         }
                     }
-#endif
 
                     temp_a3 = scratchData->field_380.s_0.field_0;
                     temp_a2 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2296,7 +2294,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_nclip();
                 gte_stopz(&sp14);
 
-#ifndef SH_PC_PORT
                 if (sp14 <= 0)
                 {
                     gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2308,7 +2305,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         continue;
                     }
                 }
-#endif
 
                 temp_a3_2 = scratchData->field_380.s_0.field_0;
                 temp_a2_3 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2423,7 +2419,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             gte_nclip();
             gte_stopz(&sp18);
 
-#ifndef SH_PC_PORT
             if (sp18 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2435,7 +2430,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     continue;
                 }
             }
-#endif
 
             temp_a3_4 = scratchData->field_380.s_0.field_0;
             temp_a2_5 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2644,7 +2638,6 @@ __block1530:
         gte_nclip();
         gte_stopz(&sp1C);
 
-#ifndef SH_PC_PORT
         if (sp1C <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2656,7 +2649,6 @@ __block1530:
                 continue;
             }
         }
-#endif
 
         temp_a3_3 = scratchData->field_380.s_0.field_0;
         temp_a2_4 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2842,7 +2834,6 @@ __block19CC:
         gte_nclip();
         gte_stopz(&sp20);
 
-#ifndef SH_PC_PORT
         if (sp20 <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2854,7 +2845,6 @@ __block19CC:
                 continue;
             }
         }
-#endif
 
         temp_a3_5 = scratchData->field_380.s_0.field_0;
         temp_a2_7 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
