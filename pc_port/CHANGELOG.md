@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.29.1 -- 2026-05-29
+- gfx: bypass preloadChunks for interior maps; disable backface cull on PC
+
 ## v2026.05.27.1 -- 2026-05-27
 - pc-port: replace dead debug console with dbg_overlay marker system
 - dbg_overlay: fix marker logging; strip per-frame log spam
