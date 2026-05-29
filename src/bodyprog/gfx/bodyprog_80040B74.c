@@ -691,11 +691,14 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
     }
 
 #ifdef SH_PC_PORT
+    {
+    /* Preload only applies to exterior maps — interior maps use PSX streaming. */
+    bool _usePreload = g_PcConfig.preloadChunks && isExterior;
     /* On PC with preloading, only clear+rebuild when the map TAG changes
      * (actual map transition). Don't clear on same-map calls — our
      * ipdActiveSize (256) != PSX activeIpdCount (2-4) would always trigger. */
-    if ((g_PcConfig.preloadChunks && strcmp(mapTag, g_Map.mapTag_144) != 0) ||
-        (!g_PcConfig.preloadChunks && (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0)))
+    if ((_usePreload && strcmp(mapTag, g_Map.mapTag_144) != 0) ||
+        (!_usePreload && (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0)))
 #else
     if (g_Map.ipdActiveSize_158 != activeIpdCount || strcmp(mapTag, g_Map.mapTag_144) != 0)
 #endif
@@ -703,7 +706,7 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
         Ipd_ActiveChunksClear(&g_Map, activeIpdCount);
 
 #ifdef SH_PC_PORT
-        g_Map.ipdActiveSize_158 = PC_MAX_IPD_CHUNKS;
+        g_Map.ipdActiveSize_158 = _usePreload ? PC_MAX_IPD_CHUNKS : activeIpdCount;
 #else
         g_Map.ipdActiveSize_158 = activeIpdCount;
 #endif
@@ -713,6 +716,9 @@ void Ipd_MapFileInfoSet(char* mapTag, e_FsFile plmIdx, s32 activeIpdCount, bool 
         g_Map.mapTagSize_148 = strlen(mapTag);
         Map_MakeIpdGrid(&g_Map, mapTag, ipdFileIdx);
     }
+#ifdef SH_PC_PORT
+    }
+#endif
 }
 
 void Ipd_ActiveChunksClear(s_Map* map, s32 arg1) // 0x80042300
@@ -1148,7 +1154,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     }
 
 #ifdef SH_PC_PORT
-    if (g_PcConfig.preloadChunks)
+    if (g_PcConfig.preloadChunks && g_Map.isExterior_588)
     {
         /* PC: Load ALL IPD chunks for the entire map at once.
          * Scan the full grid (-8..+10 in Z, -8..+7 in X) and load every
@@ -1524,13 +1530,7 @@ void Ipd_ChunkMaterialsApply(s_Map* map) // 0x800433B8
     s_IpdChunk* curChunk;
 
 #ifdef SH_PC_PORT
-    /* With preloading + debug camera, expand texture radius to ±1 cell (3x3 = 9 chunks)
-     * so you can see further when flying around. Normal gameplay uses PSX default (own cell only).
-     * Distance: 0 = inside cell, positive = outside. CHUNK_CELL_SIZE = Q12(40). */
-    /* Expand texture radius in debug cam, but not when fog is disabled
-     * (toggling fog changes the lighting pipeline which crashes with
-     * multiple chunks' worth of stale GTE state). */
-    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_Map.isExterior_588 && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
 #else
     #define _matDist Q12(0.0f)
 #endif
@@ -1888,6 +1888,14 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
         /* LmHeader_FixOffsets now uses PC reformatter */
         LmHeader_FixOffsets(ipdHdr->lmHdr);
         {
+            /* lmHdr lives in PSX RAM — subsequent chunk loads at overlapping
+             * addresses overwrite the fixed-up modelHdrs/materials pointers.
+             * Copy to heap so the struct survives other chunks loading. */
+            s_LmHeader* heapLmHdr = (s_LmHeader*)malloc(sizeof(s_LmHeader));
+            *heapLmHdr = *ipdHdr->lmHdr;
+            ipdHdr->lmHdr = heapLmHdr;
+        }
+        {
             /* Find which chunk slot this belongs to for logging */
             s32 slot = -1, si;
             for (si = 0; si < g_Map.ipdActiveSize_158; si++) {
@@ -1910,11 +1918,7 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
 #endif
     func_8008E4EC(ipdHdr->lmHdr);
 #ifdef SH_PC_PORT
-    /* When preloading, skip material loading here — loading 129 chunks'
-     * textures at once overwhelms the PSX VRAM texture system.
-     * Let Ipd_ChunkMaterialsApply handle per-frame texture streaming
-     * for nearby chunks (Harry follows debug camera for this). */
-    if (!g_PcConfig.preloadChunks)
+    if (!(g_PcConfig.preloadChunks && g_Map.isExterior_588))
 #endif
     {
         Ipd_MaterialsLoad(ipdHdr, fullPageActiveTexs, halfPageActiveTexs, fileIdx);
@@ -2163,6 +2167,36 @@ void Gfx_IpdChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, s
                             Gfx_BillboardDraw(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4);
                             break;
                     }
+                }
+            }
+        }
+    } else if (!g_Map.isExterior_588) {
+        /* Interior maps: PSX subcell visibility rectangles were baked for
+         * fixed-angle cameras. TPS camera orbits Harry and can fall outside
+         * those rectangles, causing in-frustum model buffers to be dropped.
+         * Skip subcell prefilter entirely; func_80057090 handles per-model
+         * culling. Same approach as the debug-cam path above. */
+        for (i = 0; i < ipdHdr->modelBufferCount; i++)
+        {
+            ipdModelBuf = &ipdHdr->modelBuffers[i];
+            for (curBufC = ipdModelBuf->field_C; curBufC < &ipdModelBuf->field_C[ipdModelBuf->field_0]; curBufC++)
+            {
+                modelInfo.modelHdr = curBufC->modelHdr;
+                if (modelInfo.modelHdr != NULL)
+                {
+                    modelCoord.workm       = curBufC->mat;
+                    modelCoord.workm.t[0] += cellBoundX;
+                    modelCoord.workm.t[2] += cellBoundZ;
+                    Vw_CoordToWorldAndViewMatrices(&modelCoord, &worldMat, &viewMat);
+                    func_80057090(&modelInfo, ot, arg4, &viewMat, &worldMat, 0);
+                }
+            }
+            for (curUnk = ipdModelBuf->field_10; curUnk < &ipdModelBuf->field_10[ipdModelBuf->field_1]; curUnk++)
+            {
+                switch ((s8)curUnk->pad)
+                {
+                    case 0: Gfx_BillboardDraw(1, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4); break;
+                    case 1: Gfx_BillboardDraw(2, Q8_TO_Q12(curUnk->vx + cellBoundX), Q8_TO_Q12(curUnk->vy), Q8_TO_Q12(curUnk->vz + cellBoundZ), ot, arg4); break;
                 }
             }
         }

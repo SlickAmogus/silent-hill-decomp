@@ -2026,6 +2026,19 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
     prim = meshHdr->primitives_4;
 
+#ifdef SH_PC_PORT
+    if (!g_WorldEnvWork.isFogEnabled_1 && g_WorldEnvWork.field_0 != 0) {
+        static int _nfLog = 0;
+        if (_nfLog < 8) {
+            SH_DBG("[NOFOG-DRAW] primCnt=%d field_1C=%d field_0=%d isFogEnabled=%d",
+                meshHdr->primitiveCount_0,
+                scratchData->field_380.s_0.field_1C,
+                g_WorldEnvWork.field_0, g_WorldEnvWork.isFogEnabled_1);
+            _nfLog++;
+        }
+    }
+#endif
+
     if (g_WorldEnvWork.field_0 != 0)
     {
         if (g_WorldEnvWork.isFogEnabled_1 != 0)
@@ -2075,6 +2088,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &sp10);
 
+#ifndef SH_PC_PORT
                     if (sp10 <= 0)
                     {
                         gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2086,6 +2100,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                             continue;
                         }
                     }
+#endif
 
                     temp_a3 = scratchData->field_380.s_0.field_0;
                     temp_a2 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2281,6 +2296,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_nclip();
                 gte_stopz(&sp14);
 
+#ifndef SH_PC_PORT
                 if (sp14 <= 0)
                 {
                     gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2292,6 +2308,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         continue;
                     }
                 }
+#endif
 
                 temp_a3_2 = scratchData->field_380.s_0.field_0;
                 temp_a2_3 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2406,6 +2423,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             gte_nclip();
             gte_stopz(&sp18);
 
+#ifndef SH_PC_PORT
             if (sp18 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2417,6 +2435,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     continue;
                 }
             }
+#endif
 
             temp_a3_4 = scratchData->field_380.s_0.field_0;
             temp_a2_5 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2568,8 +2587,17 @@ __block1530:
 {
     poly0 = GsOUT_PACKET_P;
 
+#ifdef SH_PC_PORT
+    {
+    static int _b1530Log = 0;
+    int _b1530Total = 0, _b1530ZeroZ = 0, _b1530FarZ = 0, _b1530Nclip = 0, _b1530Emitted = 0;
+#endif
+
     for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
     {
+#ifdef SH_PC_PORT
+        _b1530Total++;
+#endif
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 
         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
@@ -2591,6 +2619,9 @@ __block1530:
 
         if (scratchData->field_380.s_0.field_18 <= 0)
         {
+#ifdef SH_PC_PORT
+            _b1530ZeroZ++;
+#endif
             continue;
         }
 
@@ -2601,6 +2632,9 @@ __block1530:
 
         if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
         {
+#ifdef SH_PC_PORT
+            _b1530FarZ++;
+#endif
             continue;
         }
 
@@ -2610,6 +2644,7 @@ __block1530:
         gte_nclip();
         gte_stopz(&sp1C);
 
+#ifndef SH_PC_PORT
         if (sp1C <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2621,6 +2656,7 @@ __block1530:
                 continue;
             }
         }
+#endif
 
         temp_a3_3 = scratchData->field_380.s_0.field_0;
         temp_a2_4 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2694,12 +2730,32 @@ __block1530:
             *(u16*)&poly0->u2 = prim->field_8;
             *(u16*)&poly0->u3 = prim->field_A;
 
+#ifdef SH_PC_PORT
+            /* PSX command byte 0x3C lands in p1/p2/p3 which PsyCross reads as
+             * per-vertex fog factor. Zero them so no-fog maps render unfogged. */
+            poly0->p1 = 0;
+            poly0->p2 = 0;
+            poly0->p3 = 0;
+#endif
+
             setlen(poly0, 12);
 
             addPrim(&tag[(scratchData->field_380.s_0.field_18 >> arg3) >> 2], poly0);
+#ifdef SH_PC_PORT
+            _b1530Emitted++;
+#endif
             poly0++;
         }
     }
+#ifdef SH_PC_PORT
+    if (_b1530Log < 8 && _b1530Total > 0) {
+        SH_DBG("[BLOCK1530] total=%d emitted=%d zeroZ=%d farZ=%d nclip=%d field_1C=%d",
+            _b1530Total, _b1530Emitted, _b1530ZeroZ, _b1530FarZ, _b1530Nclip,
+            scratchData->field_380.s_0.field_1C);
+        _b1530Log++;
+    }
+    }
+#endif
     GsOUT_PACKET_P = poly0;
     return;
 }
@@ -2786,6 +2842,7 @@ __block19CC:
         gte_nclip();
         gte_stopz(&sp20);
 
+#ifndef SH_PC_PORT
         if (sp20 <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2794,12 +2851,10 @@ __block19CC:
 
             if (sp20 >= 0)
             {
-#ifdef SH_PC_PORT
-                pc_primIdx++;
-#endif
                 continue;
             }
         }
+#endif
 
         temp_a3_5 = scratchData->field_380.s_0.field_0;
         temp_a2_7 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
