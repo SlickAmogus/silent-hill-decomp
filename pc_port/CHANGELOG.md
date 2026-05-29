@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.29.2 -- 2026-05-29
+- gfx: revert backface cull disable in Gfx_MeshDraw
+
 ## v2026.05.29.1 -- 2026-05-29
 - gfx: bypass preloadChunks for interior maps; disable backface cull on PC
 
