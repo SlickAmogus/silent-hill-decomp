@@ -218,9 +218,9 @@ void GsDrawOt(GsOT *ot)
     if (ot && ot->tag)
     {
 #ifdef SH_PC_PORT
-        /* PsyCross bug: PsyX_EndScene is never called (commented out in DrawSync),
-         * so GR_BeginScene only runs on the first frame. Clear depth/stencil each
-         * draw call so geometry renders correctly. */
+        extern int g_currentOTBucketCount;
+        g_currentOTBucketCount = 1 << ot->length;
+
         glClearDepth(1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
