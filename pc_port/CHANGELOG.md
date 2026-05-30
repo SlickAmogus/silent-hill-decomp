@@ -1,5 +1,16 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.30.1 -- 2026-05-30
+- gfx: wire OT bucket count into PsyCross depth tracking
+- gfx: bump PsyCross ΓÇö fix OT depth direction
+- gfx: bump PsyCross ΓÇö fix a_zw attrib binding in non-PGXP path
+- PsyCross: advance submodule to 99417e8
+- PsyCross: bucket-accurate OT depth assignment
+- pc_port: per-vertex GTE SZ depth + clear table in GsDrawOt
+- pc_port: bump PsyCross to b22793b (global SZ depth scale)
+- gfx: quantise mesh depth to 64-unit SZ buckets; map0_s02 camera fixes
+- combat: fix weapon-fire and melee-attack gate stuck on PC
+
 ## v2026.05.29.2 -- 2026-05-29
 - gfx: revert backface cull disable in Gfx_MeshDraw
 
