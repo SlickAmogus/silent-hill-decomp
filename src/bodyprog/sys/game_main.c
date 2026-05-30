@@ -435,6 +435,44 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
+    /* Top-row -: give Chainsaw + 1 Gasoline Tank (skip gas if already in inventory) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
+        if (cur && !prevKey) {
+            bool hasGas = false;
+            for (int i = 0; i < INVENTORY_ITEM_COUNT_MAX; i++) {
+                if (g_SavegamePtr->items_0[i].id_0 == InvItemId_GasolineTank) {
+                    hasGas = true;
+                    break;
+                }
+            }
+            Inventory_AddSpecialItem(InvItemId_Chainsaw, 1);
+            if (!hasGas) Inventory_AddSpecialItem(InvItemId_GasolineTank, 1);
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            SH_DBG("[DEBUG] Key -: Added Chainsaw%s", hasGas ? "" : " + Gasoline Tank");
+        }
+        prevKey = cur;
+    }
+    /* Top-row =: give Rock Drill + 1 Gasoline Tank (skip gas if already in inventory) */
+    {
+        static int prevKey = 0;
+        int cur = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
+        if (cur && !prevKey) {
+            bool hasGas = false;
+            for (int i = 0; i < INVENTORY_ITEM_COUNT_MAX; i++) {
+                if (g_SavegamePtr->items_0[i].id_0 == InvItemId_GasolineTank) {
+                    hasGas = true;
+                    break;
+                }
+            }
+            Inventory_AddSpecialItem(InvItemId_RockDrill, 1);
+            if (!hasGas) Inventory_AddSpecialItem(InvItemId_GasolineTank, 1);
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            SH_DBG("[DEBUG] Key =: Added Rock Drill%s", hasGas ? "" : " + Gasoline Tank");
+        }
+        prevKey = cur;
+    }
 
     /* Per-frame cheat enforcement: invincibility + no-target */
     if (g_GameWork.gameState == GameState_InGame) {
