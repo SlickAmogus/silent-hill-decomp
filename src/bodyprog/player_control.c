@@ -3194,17 +3194,33 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
 #ifdef SH_PC_PORT
     /* Multi-tap click queue. Counts NEW action-button presses (rising edge
-     * via joy.c's btnsClicked) GLOBALLY across every frame — including
-     * Aim/idle, so a fast double-tap (both presses before the slash anim
-     * even starts) doesn't lose the second press. Slash-start consumes
-     * one queued click (the press that triggered the gate); a multi-tap
-     * firing consumes another (the combo trigger). Replaces the previous
-     * boolean latch which only watched btnsClicked inside CombatAnimUpdate,
-     * missing presses that happened during Aim state. Capped to avoid
-     * unbounded growth if the player mashes outside of combat states. */
+     * via joy.c's btnsClicked) so a fast double-tap (both presses before
+     * the slash anim even starts) doesn't lose the second press. Slash-start
+     * consumes one queued click (the press that triggered the gate); a
+     * multi-tap firing consumes another (the combo trigger).
+     *
+     * Gates:
+     *   - Only count when a melee weapon is equipped (multi-tap is melee-only;
+     *     handgun has its own continuous-fire gate, not this queue).
+     *   - Drop the click when running — clicks while running shouldn't queue
+     *     up and dispense as extra swings the moment the player stops sprinting.
+     *   - Clear stale queue whenever no melee weapon is equipped, so a
+     *     previously-buffered click can't carry across weapon swaps. */
     static int s_pcMtClickQueue = 0;
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.action) {
-        if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
+    {
+        s8 wa = g_SysWork.playerCombat.weaponAttack;
+        bool meleeReady = (wa != (s8)NO_VALUE) &&
+                          (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+        /* Actively clear the queue when conditions don't allow multi-tap.
+         * Suppressing increments isn't enough — a click pressed BEFORE the
+         * user starts sprinting would already be queued, then dispense the
+         * moment sprint ends. Same for weapon swaps. Clearing each frame
+         * the gate fails guarantees no stale clicks survive a state change. */
+        if (!meleeReady || g_Player_IsRunning) {
+            s_pcMtClickQueue = 0;
+        } else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.action) {
+            if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
+        }
     }
 #endif
 
@@ -3442,10 +3458,22 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 #ifdef SH_PC_PORT
                         /* PSX anim system resets kf to startKf when status changes.
                          * PC doesn't: kf stays at the previous cycle's endKf and
-                         * pcAttackDone fires immediately on frame 1. Reset manually. */
+                         * pcAttackDone fires immediately on frame 1. Reset manually.
+                         * Handgun's animAttack_7 is a blend-phase status whose
+                         * startKf is NO_VALUE; fall back to the matching active
+                         * phase's startKf so the recoil actually starts from the
+                         * top of the kf range rather than wherever it was held. */
                         if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
                         {
                             s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                            if (pcFireStartKf <= 0 && (extra->model.anim.status & 1) == 0)
+                            {
+                                u8 activeSt = (u8)(extra->model.anim.status | 1);
+                                if (activeSt < 76)
+                                {
+                                    pcFireStartKf = HARRY_BASE_ANIM_INFOS[activeSt].startKeyframeIdx;
+                                }
+                            }
                             if (pcFireStartKf > 0)
                             {
                                 extra->model.anim.keyframeIdx = pcFireStartKf;
@@ -3466,6 +3494,14 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
                         {
                             s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                            if (pcFireStartKf <= 0 && (extra->model.anim.status & 1) == 0)
+                            {
+                                u8 activeSt = (u8)(extra->model.anim.status | 1);
+                                if (activeSt < 76)
+                                {
+                                    pcFireStartKf = HARRY_BASE_ANIM_INFOS[activeSt].startKeyframeIdx;
+                                }
+                            }
                             if (pcFireStartKf > 0)
                             {
                                 extra->model.anim.keyframeIdx = pcFireStartKf;
@@ -3722,6 +3758,27 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     playerProps.flags_11C &= ~PlayerFlag_Unk2;
                     playerProps.flags_11C &= ~PlayerFlag_Shooting;
                     g_SysWork.playerCombat.weaponAttack                = WEAPON_ATTACK(WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack), AttackInputType_Tap);
+#ifdef SH_PC_PORT
+                    /* Melee single-tap = single swing: after a melee swing
+                     * completes, drain the attack shift register so a stale
+                     * IsShooting bit (which persists ~2 game ticks past button
+                     * release in the 2-bit register) can't re-open the fire
+                     * gate via pcAtEndOfActive and dispatch a phantom STAB
+                     * follow-up. The next swing now requires a fresh button
+                     * click. Chainsaw / RockDrill keep their continuous-attack
+                     * behavior — they reach this branch only when the user has
+                     * stopped pressing, so draining their register is harmless.
+                     * Gun follow-ups (Unk36 → Unk30) use the line ~3770 branch,
+                     * not this one, so this clear doesn't affect handgun. */
+                    {
+                        u8 wid = (u8)WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack);
+                        if (wid < EquippedWeaponId_Handgun) {
+                            g_Player_IsShooting   = 0;
+                            g_Player_IsAttacking  = 0;
+                            g_Player_IsHoldAttack = 0;
+                        }
+                    }
+#endif
                     return true;
                 }
             }
@@ -3765,12 +3822,21 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             playerProps.field_104  = 0;
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
 #ifdef SH_PC_PORT
-            /* Reset to aim-ready. Use endKf (not D_800C44F0[0].field_6=592) so
-             * the rendering frame matches the aim hold pose — field_6 is outside
-             * the PC animation range (570-579) and shows a 1-frame snap. */
-            extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunAim, true);
-            extra->model.anim.keyframeIdx = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunAim, true)].endKeyframeIdx;
-            extra->model.anim.time        = Q12(extra->model.anim.keyframeIdx);
+            /* PSX continuous-fire cadence: on PSX the Aim state handler runs
+             * for at least one frame between attack cycles and sets
+             * PlayerFlag_Unk11 (status was mid-attack-anim AND fire still held),
+             * which routes the next fire through the shorter Unk30 recoil
+             * (kf 594→604, just the gun-extension portion) instead of the full
+             * Unk36 (kf 582→604, gun raise + extend + recoil). On PC, the fire
+             * gate's pc-override re-dispatches the next fire BEFORE the Aim
+             * handler ever runs — Unk11 never gets set, every cycle replays
+             * Unk36, and we used to snap status back to HandgunAim kf=579 (gun
+             * yanked close to body) producing the visible jerk between shots.
+             * Set Unk11 here directly so follow-up shots use Unk30 (gun stays
+             * extended) and skip the snap entirely. */
+            if (g_Player_IsAttacking || g_Player_IsShooting) {
+                playerProps.flags_11C |= PlayerFlag_Unk11;
+            }
 #endif
             return true;
         }
@@ -9248,6 +9314,16 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
     {
         D_800C44F0[i] = D_800294F4[i + relKeyframeIdx];
     }
+
+#ifdef SH_PC_PORT
+    /* Handgun continuous-fire cadence: the patched Unk36(true) active recoil
+     * (slot 73) ships with duration=Q12(25.0f) over kf 582→604. PC plays the
+     * full anim through the damage window (594-599) which makes the cycle feel
+     * roughly twice as slow as PSX. Bump the duration ~1.7× so timestep is
+     * larger and the recoil plays through faster while still covering the
+     * damage-window keyframes. Handgun-only — other guns may have different
+     * intended cadence. */
+#endif
 
 #ifdef SH_PC_PORT
     /* D_800AF624/D_800AF626 are the start/end keyframes of the HandgunRecoil
