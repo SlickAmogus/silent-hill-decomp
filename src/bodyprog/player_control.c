@@ -2973,6 +2973,23 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
     #undef playerExtra
 }
 
+#ifdef SH_PC_PORT
+/* Melee dispatch "needs release" latch.
+ *
+ * Set in Player_CombatAnimUpdate's melee pcAttackDone branch when a swing
+ * completes AND the action button is no longer held — i.e. the user has
+ * already released, so the swing's leftover shift-register IsShooting tap-
+ * detection bits should not be allowed to dispatch a phantom follow-up.
+ *
+ * Cleared on every fresh rising edge of the action button, so an
+ * intentional new tap re-arms dispatch immediately.
+ *
+ * NOT set when the user is still holding at swing completion — that path
+ * is continuous-hold (refill IsAttacking, keep swinging), which is exactly
+ * what we want for hold-to-jab. */
+static bool s_pcMeleeNeedsRelease = false;
+#endif
+
 void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState upperState, s32 unused, s32 arg3) // 0x80073FC0
 {
     e_PlayerUpperBodyState prevState;
@@ -3221,6 +3238,12 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         bool meleeReady = (wa != (s8)NO_VALUE) &&
                           (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
         u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
+
+        /* Fresh rising edge re-arms melee dispatch (clears the post-swing
+         * "needs release" latch). See latch comment near declaration. */
+        if (g_Controller0->btnsClicked_10 & actionMask) {
+            s_pcMeleeNeedsRelease = false;
+        }
 
         /* Actively clear the queue when conditions don't allow multi-tap.
          * Suppressing increments isn't enough — a click pressed BEFORE the
@@ -3788,6 +3811,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                             g_Player_IsAttacking   = 0;
                             g_Player_IsHoldAttack  = 0;
                             s_pcMtClickQueue       = 0;
+                            /* Only latch dispatch-blocked if the user has
+                             * already released — continuous-hold (button
+                             * still down at swing end) must keep dispatching
+                             * via the shift-register refill path. */
+                            if (!(g_Controller0->btnsHeld_C &
+                                  g_GameWorkPtr->config.controllerConfig.action))
+                            {
+                                s_pcMeleeNeedsRelease = true;
+                            }
                         }
                     }
 #endif
@@ -5151,7 +5183,14 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
             if ((g_Player_IsAttacking || g_Player_IsShooting) &&
                 g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_AimQuickTurnRight &&
-                g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_AimQuickTurnLeft)
+                g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_AimQuickTurnLeft
+#ifdef SH_PC_PORT
+                /* Block phantom lingering-bit dispatch on melee only.
+                 * Cleared by a fresh rising edge (see top of UpperBodyMain). */
+                && !(s_pcMeleeNeedsRelease &&
+                     g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+#endif
+                )
             {
                 if (g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
