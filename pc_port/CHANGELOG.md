@@ -1,5 +1,12 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.30.2 -- 2026-05-30
+- combat: fix melee attack in TPS mode; bypass PSX shift-register for mouse
+- combat: knife now behaves like the real PSX game
+- combat: smooth handgun continuous fire + fix knife double-swing
+- combat: continuous knife hold; clean reload; R/M/I PC hotkeys
+- combat: selective melee release-latch; drop I/M open hotkeys
+
 ## v2026.05.30.1 -- 2026-05-30
 - gfx: wire OT bucket count into PsyCross depth tracking
 - gfx: bump PsyCross ΓÇö fix OT depth direction
