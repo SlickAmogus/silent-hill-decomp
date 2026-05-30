@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.30.3 -- 2026-05-30
+- debug: top-row -/= give Chainsaw / Rock Drill (+ Gasoline if missing)
+
 ## v2026.05.30.2 -- 2026-05-30
 - combat: fix melee attack in TPS mode; bypass PSX shift-register for mouse
 - combat: knife now behaves like the real PSX game
