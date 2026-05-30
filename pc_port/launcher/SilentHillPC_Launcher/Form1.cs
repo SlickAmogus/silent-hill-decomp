@@ -626,4 +626,9 @@ public partial class Form1 : Form
     {
 
     }
+
+    private void consoleLabel_Click(object sender, EventArgs e)
+    {
+
+    }
 }

@@ -345,7 +345,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(400, 111);
+            this.banner.Size = new System.Drawing.Size(401, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -535,23 +535,24 @@ partial class Form1
             this.loggingNo.Text = "No";
             // 
             // consoleLabel
-            //
+            // 
             this.consoleLabel.AutoSize = true;
             this.consoleLabel.Location = new System.Drawing.Point(214, 253);
             this.consoleLabel.Name = "consoleLabel";
-            this.consoleLabel.Size = new System.Drawing.Size(78, 13);
+            this.consoleLabel.Size = new System.Drawing.Size(48, 13);
             this.consoleLabel.TabIndex = 36;
-            this.consoleLabel.Text = "Debug Console:";
-            //
+            this.consoleLabel.Text = "Console:";
+            this.consoleLabel.Click += new System.EventHandler(this.consoleLabel_Click);
+            // 
             // comboConsole
-            //
+            // 
             this.comboConsole.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboConsole.Items.AddRange(new object[] {
             "Off",
             "External",
             "Ingame",
             "Ingame + External"});
-            this.comboConsole.Location = new System.Drawing.Point(299, 249);
+            this.comboConsole.Location = new System.Drawing.Point(262, 249);
             this.comboConsole.Name = "comboConsole";
             this.comboConsole.Size = new System.Drawing.Size(138, 21);
             this.comboConsole.TabIndex = 37;
@@ -592,7 +593,7 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(400, 392);
+            this.ClientSize = new System.Drawing.Size(401, 392);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);

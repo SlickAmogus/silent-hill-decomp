@@ -972,6 +972,22 @@ void DebugCamera_Update(void)
                 .harryPos   = { -545362, 0, -30651 },
                 .pitchDelta = 234,
             },
+            /* map0_s02 convenience-store — B1 bad spot at harry(-591005,0,89984).
+             * Camera baseline Z 89088; B2 reference shows Z 87440 → shift -1648. */
+            {
+                .mapId         = 2,
+                .harryPos      = { -591005, 0, 89984 },
+                .posDelta      = { 0, 0, -1648 },
+                .matchXzRadius = Q12(3.0f),
+            },
+            /* map0_s02 convenience-store — B3 bad spot at harry(-582263,0,82444).
+             * Camera baseline Z 82445; B4 reference shows Z 82281 → shift -164. */
+            {
+                .mapId         = 2,
+                .harryPos      = { -582263, 0, 82444 },
+                .posDelta      = { 0, 0, -164 },
+                .matchXzRadius = Q12(3.0f),
+            },
         };
         VECTOR3 sceneNudgePos    = {0, 0, 0};
         VECTOR3 sceneNudgeLookAt = {0, 0, 0};

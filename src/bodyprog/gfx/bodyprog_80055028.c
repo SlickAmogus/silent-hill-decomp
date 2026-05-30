@@ -1984,7 +1984,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 0.5f);
+        s32 halfW = (s32)(visibleHalfW + 16.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
         scratchData->field_380.s_0.field_0 = halfW;
     }
@@ -2051,7 +2051,15 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
                 {
                     *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
-
+#ifdef SH_PC_PORT
+                    PsyX_SetNextPrimSz(
+                        (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_10],
+                        (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_11],
+                        (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_12],
+                        (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
+                        arg3
+                    );
+#endif
                     scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
                     if (scratchData->field_380.s_0.field_18 < scratchData->field_18C[scratchData->field_380.s_0.field_11])
@@ -2255,7 +2263,15 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
             {
                 *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
-
+#ifdef SH_PC_PORT
+                PsyX_SetNextPrimSz(
+                    (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_10],
+                    (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_11],
+                    (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_12],
+                    (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
+                    arg3
+                );
+#endif
                 scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
                 if (scratchData->field_380.s_0.field_18 < scratchData->field_18C[scratchData->field_380.s_0.field_11])
@@ -2380,7 +2396,15 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
         {
             *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
-
+#ifdef SH_PC_PORT
+            PsyX_SetNextPrimSz(
+                (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_10],
+                (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_11],
+                (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_12],
+                (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
+                arg3
+            );
+#endif
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
             if (scratchData->field_380.s_0.field_18 < scratchData->field_18C[scratchData->field_380.s_0.field_11])
@@ -2593,7 +2617,15 @@ __block1530:
         _b1530Total++;
 #endif
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
-
+#ifdef SH_PC_PORT
+        PsyX_SetNextPrimSz(
+            (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_10],
+            (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_11],
+            (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_12],
+            (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
+            arg3
+        );
+#endif
         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
         if (scratchData->field_380.s_0.field_18 < scratchData->field_18C[scratchData->field_380.s_0.field_11])
@@ -2966,7 +2998,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 0.5f);
+        s32 halfW = (s32)(visibleHalfW + 16.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
         scratchData->field_380.s_0.field_0 = halfW;
     }
