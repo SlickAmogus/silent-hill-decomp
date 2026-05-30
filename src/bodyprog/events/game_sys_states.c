@@ -2,8 +2,6 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
-#include "pc_combat.h"
-#include <SDL2/SDL.h>
 #include <stdio.h>
 #endif
 
@@ -377,21 +375,6 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     {
         return;
     }
-#ifdef SH_PC_PORT
-    /* PC convenience hotkeys: I=inventory, M=map. Live outside the PSX
-     * controller mapping so the PSX buttons keep their original meanings
-     * (Select still opens inventory, Triangle still opens map). Rising-edge
-     * tracked to match PSX btnsClicked semantics. */
-    else if (PC_KeyboardKeyClicked(SDL_SCANCODE_I))
-    {
-        SysWork_StateSetNext(SysState_StatusMenu);
-    }
-    else if (PC_KeyboardKeyClicked(SDL_SCANCODE_M))
-    {
-        SysWork_StateSetNext(SysState_MapScreen);
-        g_SysWork.isMgsStringSet = false;
-    }
-#endif
     else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.item)
     {
         SysWork_StateSetNext(SysState_StatusMenu);

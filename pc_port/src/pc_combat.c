@@ -1,20 +1,28 @@
 #include <SDL2/SDL.h>
 #include "game.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/screen/screen_data.h"
 #include "bodyprog/player.h"
 #include "pc_combat.h"
 
 extern const unsigned char* g_sdlKeyboardState;
 
-/* Returns true the frame `sdlScancode` transitions 0→1. Tracks previous
- * state per scancode in a small static cache. Used by PC convenience
- * hotkeys that live outside the PSX controller mapping. */
+/* Returns true on the frame `sdlScancode` transitions 0→1.
+ *
+ * Frame-stable: prev-state is sampled at most once per VBlank, so multiple
+ * callers in the same frame all see the same rising-edge result. Without
+ * this, a press that opens the inventory in gameplay state would also fire
+ * a "rising edge" again the first time the inventory state queries it
+ * (since each fresh slot starts with prev=0), instantly closing it. */
 bool PC_KeyboardKeyClicked(int sdlScancode)
 {
     #define PC_KEY_CACHE_SIZE 8
-    static int  s_keys[PC_KEY_CACHE_SIZE] = {0};
-    static bool s_prev[PC_KEY_CACHE_SIZE] = {0};
-    static int  s_count                   = 0;
+    static int  s_keys[PC_KEY_CACHE_SIZE]   = {0};
+    static bool s_prev[PC_KEY_CACHE_SIZE]   = {0};
+    static bool s_edge[PC_KEY_CACHE_SIZE]   = {0};
+    static s32  s_frame[PC_KEY_CACHE_SIZE]  = {0};
+    static int  s_count                     = 0;
+    static bool s_initFrames                = false;
 
     if (!g_sdlKeyboardState) return false;
 
@@ -25,14 +33,24 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
     if (slot < 0) {
         if (s_count >= PC_KEY_CACHE_SIZE) return false;
         slot = s_count++;
-        s_keys[slot] = sdlScancode;
-        s_prev[slot] = false;
+        s_keys[slot]  = sdlScancode;
+        /* Seed prev with current held state — if the key is already down
+         * when first queried, that's NOT a rising edge. */
+        s_prev[slot]  = g_sdlKeyboardState[sdlScancode] != 0;
+        s_edge[slot]  = false;
+        s_frame[slot] = g_VBlanks;
+        return false;
     }
 
-    bool nowHeld   = g_sdlKeyboardState[sdlScancode] != 0;
-    bool risingEdge = nowHeld && !s_prev[slot];
-    s_prev[slot] = nowHeld;
-    return risingEdge;
+    /* Resample only once per frame (per slot). Other call sites in the
+     * same frame get the cached edge result. */
+    if (s_frame[slot] != g_VBlanks) {
+        bool nowHeld = g_sdlKeyboardState[sdlScancode] != 0;
+        s_edge[slot] = nowHeld && !s_prev[slot];
+        s_prev[slot] = nowHeld;
+        s_frame[slot] = g_VBlanks;
+    }
+    return s_edge[slot];
 }
 
 /* Returns true on the rising edge of the manual-reload key (R) while a gun
