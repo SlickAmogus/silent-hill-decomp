@@ -1606,6 +1606,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
                             g_Player_IsShooting  = fireHeld;
                             g_Player_IsAttacking = fireHeld;
+                        } else if (hasWeapon && extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
+                            // Melee in TPS: left-mouse = attack. Bypass the PSX 4-frame
+                            // shift register so the attack fires on press, not after hold.
+                            g_Player_IsHoldAttack = fireHeld ? 0x1F : 0;
+                            g_Player_IsAttacking  = fireHeld ? 1    : 0;
                         }
                     }
 
