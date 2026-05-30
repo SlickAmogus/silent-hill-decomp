@@ -3193,13 +3193,22 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
     static s32 D_800C44D4;
 
 #ifdef SH_PC_PORT
-    /* Multi-tap click queue. Counts NEW action-button presses (rising edge
-     * via joy.c's btnsClicked) so a fast double-tap (both presses before
-     * the slash anim even starts) doesn't lose the second press. Slash-start
-     * consumes one queued click (the press that triggered the gate); a
-     * multi-tap firing consumes another (the combo trigger).
+    /* Multi-tap click queue + post-swing release latch.
      *
-     * Gates:
+     * Click queue: counts NEW action-button presses (rising edge via joy.c's
+     * btnsClicked) so a fast double-tap (both presses before the slash anim
+     * even starts) doesn't lose the second press. Slash-start consumes one
+     * queued click; the multi-tap window mid-swing consumes another.
+     *
+     * Release latch: PSX's shift register IsHoldAttack refills as long as
+     * the user holds the action button, which lets the fire gate dispatch
+     * a "phantom" follow-up swing after a real mash if the user holds C
+     * slightly past the swing end. Latch a "needs release" flag on every
+     * melee swing's pcAttackDone (see line ~3760), require it cleared
+     * (action button physically lifted) before the next melee dispatch.
+     * Intentional mashing still works — each release+press cycle re-arms.
+     *
+     * Click-queue gates:
      *   - Only count when a melee weapon is equipped (multi-tap is melee-only;
      *     handgun has its own continuous-fire gate, not this queue).
      *   - Drop the click when running — clicks while running shouldn't queue
@@ -3211,6 +3220,8 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         s8 wa = g_SysWork.playerCombat.weaponAttack;
         bool meleeReady = (wa != (s8)NO_VALUE) &&
                           (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+        u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
+
         /* Actively clear the queue when conditions don't allow multi-tap.
          * Suppressing increments isn't enough — a click pressed BEFORE the
          * user starts sprinting would already be queued, then dispense the
@@ -3218,7 +3229,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
          * the gate fails guarantees no stale clicks survive a state change. */
         if (!meleeReady || g_Player_IsRunning) {
             s_pcMtClickQueue = 0;
-        } else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.action) {
+        } else if (g_Controller0->btnsClicked_10 & actionMask) {
             if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
         }
     }
@@ -3773,9 +3784,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     {
                         u8 wid = (u8)WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack);
                         if (wid < EquippedWeaponId_Handgun) {
-                            g_Player_IsShooting   = 0;
-                            g_Player_IsAttacking  = 0;
-                            g_Player_IsHoldAttack = 0;
+                            g_Player_IsShooting    = 0;
+                            g_Player_IsAttacking   = 0;
+                            g_Player_IsHoldAttack  = 0;
+                            s_pcMtClickQueue       = 0;
                         }
                     }
 #endif
@@ -4867,9 +4879,28 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 #endif
                 g_SysWork.playerWork.extra.state                      = PlayerState_None;
                 playerProps.flags_11C &= ~PlayerFlag_Unk2;
+#ifdef SH_PC_PORT
+                /* PSX sets status=HandgunAim(true) + kf=588 and renders the
+                 * .ANM directly at kf=588 (the post-reload settled pose).
+                 * On PC, HandgunAim active's kf range is 570-579 — kf=588 is
+                 * out of range and Anim_PlaybackOnce clamps it to 579 next
+                 * frame, jumping the visual back to the gun-close-to-body
+                 * pose and making the reload look cut short.
+                 *
+                 * Use Unk34(true) instead: that anim's kf range covers 580-592
+                 * (forward or backward depending on weapon — handgun has
+                 * Q12(-35) backward), so kf=588 is in range and not clamped.
+                 * The backward dur=Q12(-35) means kf naturally settles from
+                 * 588→580 over ~14 PC frames, giving a smooth "gun comes back
+                 * to ready" tail to the reload instead of a snap. */
+                extra->model.anim.status                              = ANIM_STATUS(HarryAnim_Unk34, true);
+                extra->model.anim.keyframeIdx                         = 588;
+                extra->model.anim.time                                = Q12(588);
+#else
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_HandgunAim, true);
                 extra->model.anim.keyframeIdx                         = 588;
                 extra->model.anim.time                                = Q12(588.0f);
+#endif
 
                 if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Reload)
                 {
@@ -5084,8 +5115,29 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 #ifdef SH_PC_PORT
             if (PC_PlayerManualReloadRequested())
             {
+                /* Make manual reload behave identically to auto-reload. Auto
+                 * enters case Reload from a post-fire state where:
+                 *   1. extra->model.stateStep is 0 (pcAttackDone reset it),
+                 *      letting case Reload's setup block fire (RELOAD_START).
+                 *   2. extra->model.anim.keyframeIdx is ~604 (end of Unk36/
+                 *      Unk30), adjacent to the reload-active startKf=605, so
+                 *      the BlendLinear phase covers a 1-kf gap and is visually
+                 *      invisible.
+                 * Manual reload from idle Aim violates BOTH: stateStep is left
+                 * at 1 from AimStart, and kf=579 (HandgunAim end) is 26 kf
+                 * away from 605. Fix by resetting stateStep AND pre-seeding kf
+                 * to the active reload startKf so the blend phase becomes a
+                 * no-op (start==end), matching auto's behavior exactly. */
+                s16 reloadStartKf = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, true)].startKeyframeIdx;
                 g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Reload;
                 playerProps.flags_11C &= ~PlayerFlag_Unk9;
+                extra->model.stateStep                    = 0;
+                extra->model.controlState                 = 0;
+                if (reloadStartKf > 0)
+                {
+                    extra->model.anim.keyframeIdx = reloadStartKf;
+                    extra->model.anim.time        = Q12((s32)reloadStartKf);
+                }
                 if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Aim ||
                     g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Attack)
                 {
@@ -9314,16 +9366,6 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
     {
         D_800C44F0[i] = D_800294F4[i + relKeyframeIdx];
     }
-
-#ifdef SH_PC_PORT
-    /* Handgun continuous-fire cadence: the patched Unk36(true) active recoil
-     * (slot 73) ships with duration=Q12(25.0f) over kf 582→604. PC plays the
-     * full anim through the damage window (594-599) which makes the cycle feel
-     * roughly twice as slow as PSX. Bump the duration ~1.7× so timestep is
-     * larger and the recoil plays through faster while still covering the
-     * damage-window keyframes. Handgun-only — other guns may have different
-     * intended cadence. */
-#endif
 
 #ifdef SH_PC_PORT
     /* D_800AF624/D_800AF626 are the start/end keyframes of the HandgunRecoil
