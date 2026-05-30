@@ -17,6 +17,7 @@ s_PcConfig g_PcConfig = {
     .showConsole    = 0,
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
     .pixelAspectMode = 1, /* 1=CRT NTSC (1.09375), 2=square (1.0), 3=8:7 (1.143) */
+    .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
@@ -133,6 +134,12 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             if (v < 1 || v > 3) v = 1; /* invalid -> default to CRT */
             g_PcConfig.pixelAspectMode = v;
+        }
+        else if (strcmp(key, "widescreen_mode") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0 || v > 2) v = 0; /* invalid -> default to pillarbox */
+            g_PcConfig.widescreenMode = v;
         }
         else if (strcmp(key, "allow_loose_files") == 0)
         {

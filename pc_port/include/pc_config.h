@@ -14,6 +14,7 @@ typedef struct {
     int showConsole;     /* 0=off, 1=external window, 2=ingame overlay, 3=ingame+external */
     int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
     int pixelAspectMode; /* 1 = CRT NTSC (1.09375), 2 = square (1.0), 3 = 8:7 (1.143) */
+    int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */

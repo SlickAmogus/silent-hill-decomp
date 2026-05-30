@@ -369,6 +369,18 @@ void Anim_PlaybackLoop(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     nextStartTime = Q12(nextStartKeyframeIdx);
     duration      = Q12(keyframeCount);
 
+#ifdef SH_PC_PORT
+    /* Game code sometimes sets anim.time to a value outside the loop range
+     * (e.g. a PSX sentinel keyframe beyond the PC-trimmed endKf). Without
+     * this clamp the while loop below wraps it to a pseudo-random mid-loop
+     * position, causing a visible pose snap on the next frame. */
+    if (model->anim.time >= nextStartTime) {
+        model->anim.time = nextStartTime - Q12(1);
+    } else if (model->anim.time < startTime) {
+        model->anim.time = startTime;
+    }
+#endif
+
     // Get timestep.
     timestep = Anim_TimestepGet(model, animInfo);
 

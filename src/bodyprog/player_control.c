@@ -40,6 +40,10 @@ static void Player_CrashHandler(int sig) {
 #include "bodyprog/sound_system.h"
 #include "bodyprog/sys/joy.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include "pc_combat.h"
+#include "pc_timing.h"
+#endif
 
 s_800C44F0 D_800C44F0[10];
 VECTOR3    g_TargetEnemyPosition;
@@ -1291,6 +1295,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         player->model.stateStep = 0;
                         extra->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         extra->model.stateStep = 0;
+                        /* Drive upper-body via upperBodyState so the RunJumpBackward
+                         * handler (line ~4023) runs each frame and syncs
+                         * extra->model.anim.time = player->model.anim.time. Without
+                         * this, arms stay frozen at the start pose while legs hop. */
+                        g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_JumpBackward;
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_RunJumpBackward;
+                        extra->model.controlState = 0;
                     }
                     /* End when the active anim finishes (keyframe reaches
                      * endKeyframeIdx) or on a safety timeout. Do NOT cancel
@@ -1312,6 +1323,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             s_jumpBackActive = 0;
                             s_jumpBackFrames = 0;
                             s_prevJumpBackTime = -1;
+                            /* Hop done — drop body states back to None so the
+                             * normal walk/idle anim assignments below take over
+                             * (otherwise upperBodyState stays at RunJumpBackward
+                             * forever). */
+                            g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_None;
+                            g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_None;
+                            extra->model.stateStep = 0;
+                            extra->model.controlState = 0;
+                            player->model.stateStep = 0;
+                            player->model.controlState = 0;
                         }
                     }
 
@@ -3171,6 +3192,22 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
     static s32 D_800C44D0;
     static s32 D_800C44D4;
 
+#ifdef SH_PC_PORT
+    /* Multi-tap click queue. Counts NEW action-button presses (rising edge
+     * via joy.c's btnsClicked) GLOBALLY across every frame — including
+     * Aim/idle, so a fast double-tap (both presses before the slash anim
+     * even starts) doesn't lose the second press. Slash-start consumes
+     * one queued click (the press that triggered the gate); a multi-tap
+     * firing consumes another (the combo trigger). Replaces the previous
+     * boolean latch which only watched btnsClicked inside CombatAnimUpdate,
+     * missing presses that happened during Aim state. Capped to avoid
+     * unbounded growth if the player mashes outside of combat states. */
+    static int s_pcMtClickQueue = 0;
+    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.action) {
+        if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
+    }
+#endif
+
     bool Player_CombatAnimUpdate(void) // 0x80074350
     {
         s16 ssp20;
@@ -3249,6 +3286,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         {
             g_Player_MeleeAttackType  = 0;
             g_Player_IsMultiTapAttack = 0;
+#ifdef SH_PC_PORT
+            /* Slash starting — consume the queued click that triggered it
+             * so it doesn't also trigger the multi-tap. */
+            if (s_pcMtClickQueue > 0) s_pcMtClickQueue--;
+#endif
 
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
             playerProps.flags_11C &= ~PlayerFlag_Unk6;
@@ -3579,8 +3621,14 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
              * end frame. Remap blend-phase statuses to their source fire anim so
              * the endKf lookup is correct. */
             u8 lookupSt = st;
-            if (st == ANIM_STATUS(HarryAnim_Unk30, false) ||
-                st == ANIM_STATUS(HarryAnim_Unk36, false))
+            /* Only remap in gun context. Multi-tap melee (knife/pipe) sets
+             * anim.status = animAttack_7 - 2 = Unk30(false)=60 as its STARTING
+             * status, not as a gun-blend-target. Remapping it to Unk36(true)
+             * makes the lookup hit the wrong HARRY_BASE_ANIM_INFOS entry and
+             * pcAttackDone fires prematurely — multi-tap combo aborts mid-swing. */
+            if ((st == ANIM_STATUS(HarryAnim_Unk30, false) ||
+                 st == ANIM_STATUS(HarryAnim_Unk36, false)) &&
+                g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
                 lookupSt = ANIM_STATUS(HarryAnim_Unk36, true);
             }
@@ -3616,14 +3664,35 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 extra->model.anim.status == ANIM_STATUS(HarryAnim_Unk30, true) ||
                 extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true))
             {
-                if (extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6
+                if (
 #ifdef SH_PC_PORT
+                    /* Skip the early field_6 transition during multi-tap so the
+                     * full swing-down anim plays. For knife: kf advances 596→611
+                     * but D_800C44F0[2].field_6=598 — without this gate the
+                     * transition fires only 2 kf into the multi-tap anim, leaving
+                     * Harry with the knife raised at the windup position and
+                     * never showing the actual strike. pcAttackDone (at kf>=611)
+                     * still triggers the transition at the natural anim end. */
+                    (g_Player_MeleeAttackType != 2 && extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
                     || pcAttackDone
+#else
+                    extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6
 #endif
                     )
                 {
                     extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunAim, true);
+#ifdef SH_PC_PORT
+                    /* PC fix: use the aim-hold anim's endKf instead of
+                     * D_800C44F0[0].field_6 (which for melee weapons is
+                     * outside the HandgunAim range — e.g. knife wants
+                     * kf=575 but field_6=587). Setting kf out of range
+                     * shows a 1-frame snap before Anim_PlaybackOnce
+                     * clamps it; the snap looks like the swing got cut
+                     * off mid-way during multi-tap combo. */
+                    extra->model.anim.keyframeIdx = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunAim, true)].endKeyframeIdx;
+#else
                     extra->model.anim.keyframeIdx = D_800C44F0[0].field_6;
+#endif
                     extra->model.anim.time         = Q12(extra->model.anim.keyframeIdx);
 
                     if (playerProps.flags_11C & PlayerFlag_Unk0)
@@ -3696,10 +3765,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             playerProps.field_104  = 0;
             playerProps.flags_11C &= ~PlayerFlag_Shooting;
 #ifdef SH_PC_PORT
-            /* Reset to aim-ready so the Aim state's pcAtEndOfActive
-             * doesn't see the fire-anim end kf and immediately re-fire. */
+            /* Reset to aim-ready. Use endKf (not D_800C44F0[0].field_6=592) so
+             * the rendering frame matches the aim hold pose — field_6 is outside
+             * the PC animation range (570-579) and shows a 1-frame snap. */
             extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunAim, true);
-            extra->model.anim.keyframeIdx = D_800C44F0[0].field_6;
+            extra->model.anim.keyframeIdx = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunAim, true)].endKeyframeIdx;
             extra->model.anim.time        = Q12(extra->model.anim.keyframeIdx);
 #endif
             return true;
@@ -3715,9 +3785,17 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 if (extra->model.anim.keyframeIdx >= keyframeIdx1 &&
                     extra->model.anim.keyframeIdx < keyframeIdx0 &&
                     extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true) &&
+#ifdef SH_PC_PORT
+                    s_pcMtClickQueue > 0 && !g_Player_IsMultiTapAttack)
+#else
                     (g_Player_IsAttacking || g_Player_IsShooting))
+#endif
                 {
                     g_Player_IsMultiTapAttack = true;
+#ifdef SH_PC_PORT
+                    /* Consume the click that triggered this multi-tap. */
+                    s_pcMtClickQueue--;
+#endif
                 }
             }
         }
@@ -4936,6 +5014,22 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                 extra->model.controlState     = 0;
                 break;
             }
+
+#ifdef SH_PC_PORT
+            if (PC_PlayerManualReloadRequested())
+            {
+                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Reload;
+                playerProps.flags_11C &= ~PlayerFlag_Unk9;
+                if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Aim ||
+                    g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Attack)
+                {
+                    g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_Reload;
+                    player->model.stateStep                   = 0;
+                    player->model.controlState                = 0;
+                }
+                break;
+            }
+#endif
 
             if ((g_Player_IsAttacking || g_Player_IsShooting) &&
                 g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_AimQuickTurnRight &&
@@ -9447,20 +9541,33 @@ void Player_Controller(void) // 0x8007F32C
     }
     else
     {
-        attackBtnInput = g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.action;
-
-        g_Player_IsHoldAttack = (g_Player_IsHoldAttack * 2) & 0x1F;
-        g_Player_IsAttacking  = (g_Player_IsAttacking * 2) & 0x3;
-        g_Player_IsShooting   = (g_Player_IsShooting * 2) & 0x3;
-
-        g_Player_IsHoldAttack |= (attackBtnInput & 0xFFFF) != false;
-        g_Player_IsAttacking  |= (g_Player_IsHoldAttack & 0xF) == 0xF;
-
-        g_Player_IsShooting |= g_Player_IsHoldAttack != false && !(g_Player_IsHoldAttack & 0x11);
-
-        if (g_Player_IsShooting)
+#ifdef SH_PC_PORT
+        /* Throttle the attack shift register to PSX game-tick rate (30Hz).
+         * The shift register's 4-bit hold detector assumes one bit per
+         * 1/30s; at PC framerates (60-240Hz) it fills in 17ms instead of
+         * 133ms, so even a quick tap is read as a hold — breaking the
+         * tap=slash / hold=jab distinction from the PSX. Skipping the
+         * shift on sub-tick PC frames leaves the existing values cached
+         * for the gate at line ~4960 to see, matching PSX behavior. */
+        static int s_attackShiftAccum = 0;
+        if (PC_Tick30HzReady(&s_attackShiftAccum))
+#endif
         {
-            g_Player_IsHoldAttack = false;
+            attackBtnInput = g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.action;
+
+            g_Player_IsHoldAttack = (g_Player_IsHoldAttack * 2) & 0x1F;
+            g_Player_IsAttacking  = (g_Player_IsAttacking * 2) & 0x3;
+            g_Player_IsShooting   = (g_Player_IsShooting * 2) & 0x3;
+
+            g_Player_IsHoldAttack |= (attackBtnInput & 0xFFFF) != false;
+            g_Player_IsAttacking  |= (g_Player_IsHoldAttack & 0xF) == 0xF;
+
+            g_Player_IsShooting |= g_Player_IsHoldAttack != false && !(g_Player_IsHoldAttack & 0x11);
+
+            if (g_Player_IsShooting)
+            {
+                g_Player_IsHoldAttack = false;
+            }
         }
     }
 

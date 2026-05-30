@@ -145,15 +145,25 @@ int main(int argc, char* argv[])
         SH_DBG("[SH] sizeof(s_WorldGfxWork) = %zu", sizeof(s_WorldGfxWork));
     }
 
-    /* Apply pixel-aspect mode to PsyCross's runtime PAR global. */
+    /* Apply pixel-aspect mode to PsyCross's runtime PAR global.
+     * Mode 1 (default) = 1.0 = square pixels = matches 320×240 PSX CRT
+     * exactly (since framebuffer aspect 320/240 = 4/3 equals CRT visible
+     * aspect, so PSX pixels are square on CRT). Modes 2/3 are stretches
+     * for users who want non-CRT-accurate "looks". */
     {
         extern float g_PsxPixelAspect;
         switch (g_PcConfig.pixelAspectMode) {
-            case 2:  g_PsxPixelAspect = 1.0f;     break; /* square */
-            case 3:  g_PsxPixelAspect = 1.143f;   break; /* 8:7 */
+            case 2:  g_PsxPixelAspect = 1.09375f; break; /* old "NTSC" guess */
+            case 3:  g_PsxPixelAspect = 1.143f;   break; /* 8:7 (overscan) */
             case 1:
-            default: g_PsxPixelAspect = 1.09375f; break; /* CRT NTSC */
+            default: g_PsxPixelAspect = 1.0f;     break; /* square = PSX CRT */
         }
+    }
+
+    /* Apply widescreen mode to PsyCross. */
+    {
+        extern int g_PcWidescreenMode;
+        g_PcWidescreenMode = g_PcConfig.widescreenMode;
     }
 
     /* Console modes:
