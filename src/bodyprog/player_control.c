@@ -3589,7 +3589,8 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[lookupSt];
                 bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
                 s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
-                if (doneKf > 0 && extra->model.anim.keyframeIdx == doneKf)
+                if (doneKf > 0 && (isBackward ? extra->model.anim.keyframeIdx <= doneKf
+                                             : extra->model.anim.keyframeIdx >= doneKf))
                 {
                     pcAttackDone = true;
                     SH_DBG("[ATTACK-DONE] st=%d lookupSt=%d kf=%d -> pcAttackDone", (int)st, (int)lookupSt, (int)doneKf);
@@ -4976,7 +4977,8 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                                 const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
                                 bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
                                 s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
-                                if (doneKf > 0 && extra->model.anim.keyframeIdx == doneKf)
+                                if (doneKf > 0 && (isBackward ? extra->model.anim.keyframeIdx <= doneKf
+                                                             : extra->model.anim.keyframeIdx >= doneKf))
                                 {
                                     pcAtEndOfActive = true;
                                 }
@@ -5003,6 +5005,21 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                          extra->model.anim.keyframeIdx != D_800C44F0[8].field_6) &&
                         (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk34, true) ||
                          extra->model.anim.keyframeIdx != D_800C44F0[6].field_4);
+#ifdef SH_PC_PORT
+                    // PSX gate uses exact == which PC delta-time can skip. Re-open the
+                    // gate if the animation has reached or passed the unlock keyframe.
+                    if (gunFireGated) {
+                        switch (extra->model.anim.status) {
+                            case ANIM_STATUS(HarryAnim_HandgunAim,    true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[0].field_6; break;
+                            case ANIM_STATUS(HarryAnim_Unk29,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[1].field_6; break;
+                            case ANIM_STATUS(HarryAnim_Unk30,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[2].field_6; break;
+                            case ANIM_STATUS(HarryAnim_HandgunRecoil, true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[3].field_6; break;
+                            case ANIM_STATUS(HarryAnim_Unk32,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[4].field_6; break;
+                            case ANIM_STATUS(HarryAnim_Unk36,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[8].field_6; break;
+                            default: break;
+                        }
+                    }
+#endif
                     if (gunFireGated)
                     {
 #ifdef SH_PC_PORT
@@ -5015,7 +5032,8 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                             const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
                             pcIsBackward = !info->hasVariableDuration && info->duration.constant < 0;
                             pcDoneKf = pcIsBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
-                            if (pcDoneKf > 0 && extra->model.anim.keyframeIdx == pcDoneKf)
+                            if (pcDoneKf > 0 && (pcIsBackward ? extra->model.anim.keyframeIdx <= pcDoneKf
+                                                              : extra->model.anim.keyframeIdx >= pcDoneKf))
                             {
                                 pcAtEndOfActive = true;
                             }
