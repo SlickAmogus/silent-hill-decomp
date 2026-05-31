@@ -119,31 +119,40 @@ static void Warn_DrawImage(void)
     }
 }
 
-/* Subtractive-blend full-screen fade tile. Goes in front of the image,
- * so insert it after the SPRTs in the same OT bucket. */
+/* Subtractive-blend full-screen fade tile. Must render AFTER the image
+ * quads (composite over them, subtracting `fade` from each pixel).
+ *
+ * Chain order with head-insertion: tile is added first, then DR_TPAGE.
+ * That gives chain head-to-tail = [drMode, tile] which renders drMode
+ * first (sets subtractive blend) and then the tile (drawn subtractively).
+ * Matches the canonical Screen_FadeUpdate ordering. The earlier swapped
+ * order [tile, drMode] left the tile drawn with the *previous* draw mode
+ * (opaque white) before the DR_TPAGE took effect — that opaque white was
+ * what the image's transparent texels (STP=1, the silhouette in the
+ * middle of 2ZANKO_E) showed through as a white blob. */
 static void Warn_DrawFadeTile(s32 fade)
 {
     /* Last bucket (0xF) of OT2 — same as Konami fade tile. */
     GsOT_TAG* addr = &g_OtTags0[g_ActiveBufferIdx][0xF];
-    DR_TPAGE* tp = (DR_TPAGE*)GsOUT_PACKET_P;
-    TILE* tile;
+    TILE*     tile = (TILE*)GsOUT_PACKET_P;
+    DR_TPAGE* tp;
 
-    /* DR_TPAGE first to switch GPU into subtractive-blend (abr=2). */
-    setDrawTPage(tp, 0, 1, getTPageN(0, 2, 0, 0));
-    AddPrim(addr, tp);
-
-    tile = (TILE*)((u8*)tp + sizeof(DR_TPAGE));
+    /* Tile primitive first. setTile/setSemiTrans/setRGB0/setWH/setXY0
+     * configure the prim; AddPrim places it on the chain (head). */
     addPrimFast(addr, tile, 3);
     setTile(tile);
     setSemiTrans(tile, 1);
     setRGB0(tile, fade, fade, fade);
-    /* Cover the entire 640×480 framebuffer (centered drawenv has ofs
-     * at (320,240); start at (-SCREEN_WIDTH, -SCREEN_HEIGHT) covers
-     * (-320,-240) to (320,240) which is the whole fb). */
     setWH(tile, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
     setXY0(tile, -SCREEN_WIDTH, -SCREEN_HEIGHT);
 
-    GsOUT_PACKET_P = (PACKET*)((u8*)tile + sizeof(TILE));
+    /* DR_TPAGE second — head-inserted so it ends up BEFORE the tile in
+     * render order. Sets subtractive blend mode for the tile draw. */
+    tp = (DR_TPAGE*)((u8*)tile + sizeof(TILE));
+    setDrawTPage(tp, 0, 1, getTPageN(0, 2, 0, 0));
+    AddPrim(addr, tp);
+
+    GsOUT_PACKET_P = (PACKET*)((u8*)tp + sizeof(DR_TPAGE));
 }
 
 static void Warn_SwapAndDraw(void)
@@ -216,6 +225,21 @@ void Pc_PlayWarningScreen(void)
     {
         Warn_DrawImage();
         Warn_SwapAndDraw();
+    }
+
+    SH_DBG("[WARNSCR] fade-out 0→255 in steps of 4");
+
+    /* Fade-out: tile RGB climbs 0 → 255 in steps of 4 (mirrors the
+     * fade-in cadence in reverse). Subtractive blend dims the image
+     * to solid black; the next boot screen's own fade-in then takes
+     * over from black. */
+    fade = 0;
+    while (fade <= 255)
+    {
+        Warn_DrawImage();
+        Warn_DrawFadeTile(fade);
+        Warn_SwapAndDraw();
+        fade += 4;
     }
 
     SH_DBG("[WARNSCR] done");
