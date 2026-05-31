@@ -3437,6 +3437,35 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 extra->model.anim.status = ANIM_STATUS(HarryAnim_Unk30, false);
                 extra->model.stateStep++;
+#ifdef SH_PC_PORT
+                /* Targeting branch: same kf-carryover issue as the Unk11 path.
+                 * Status is Unk30 BLEND (slot 60, startKf=NO_VALUE) so kf carries
+                 * over from previous cycle's endKf=604, which both skips the
+                 * damage window AND trips pcAttackDone on the dispatch frame.
+                 * Reset kf to (active startKf − 1) = 593 so BlendLinear can
+                 * transition to active first; next frame damage fires correctly. */
+                if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
+                {
+                    s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
+                    if (pcFireStartKf <= 0 && (extra->model.anim.status & 1) == 0)
+                    {
+                        u8 activeSt = (u8)(extra->model.anim.status | 1);
+                        if (activeSt < 76)
+                        {
+                            s16 activeStartKf = HARRY_BASE_ANIM_INFOS[activeSt].startKeyframeIdx;
+                            if (activeStartKf > 1) {
+                                pcFireStartKf = activeStartKf - 1;
+                            }
+                        }
+                    }
+                    if (pcFireStartKf > 0)
+                    {
+                        extra->model.anim.keyframeIdx = pcFireStartKf;
+                        extra->model.anim.time        = Q12((s32)pcFireStartKf);
+                        SH_DBG("[GUN-FIRE-START-TGT] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
+                    }
+                }
+#endif
             }
         }
         else
@@ -3490,13 +3519,29 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         extra->model.anim.status = g_Player_EquippedWeaponInfo.animAttack_7 - 12;
                         extra->model.stateStep++;
 #ifdef SH_PC_PORT
-                        /* PSX anim system resets kf to startKf when status changes.
-                         * PC doesn't: kf stays at the previous cycle's endKf and
-                         * pcAttackDone fires immediately on frame 1. Reset manually.
-                         * Handgun's animAttack_7 is a blend-phase status whose
-                         * startKf is NO_VALUE; fall back to the matching active
-                         * phase's startKf so the recoil actually starts from the
-                         * top of the kf range rather than wherever it was held. */
+                        /* Handgun Unk11 (follow-up) path: animAttack_7-12 is a
+                         * BLEND phase (Unk30 false, slot 60) whose startKf is
+                         * NO_VALUE. Without intervention kf carries over from
+                         * the previous cycle's endKf=604, and that fails in
+                         * two ways:
+                         *   - kf=604 is PAST the damage window (594-599) → the
+                         *     damage trigger on the dispatch frame never fires,
+                         *   - kf=604 >= active endKf=604 → pcAttackDone fires
+                         *     immediately, state→Aim, CombatAnimUpdate stops
+                         *     running before BlendLinear can transition status
+                         *     to active and the damage trigger can re-fire.
+                         *
+                         * Reset kf to (active startKf − 1), i.e. 593 for
+                         * handgun. The dispatch frame then has:
+                         *   - kf < 594 → damage trigger skipped (correct: still
+                         *     in blend, status bit 0 = 0 anyway),
+                         *   - kf < 604 → pcAttackDone skipped, controlState
+                         *     advances normally,
+                         *   - BlendLinear runs in the anim update and sets
+                         *     kf=endKf=594 + status→active(61).
+                         * Next CombatAnimUpdate frame: status=61 active, kf=594
+                         * in damage window → damage fires, combat dispatcher
+                         * keeps field_44.field_0=1, hit applies. */
                         if (extra->model.anim.status > 0 && extra->model.anim.status < 76)
                         {
                             s16 pcFireStartKf = HARRY_BASE_ANIM_INFOS[extra->model.anim.status].startKeyframeIdx;
@@ -3505,7 +3550,10 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                                 u8 activeSt = (u8)(extra->model.anim.status | 1);
                                 if (activeSt < 76)
                                 {
-                                    pcFireStartKf = HARRY_BASE_ANIM_INFOS[activeSt].startKeyframeIdx;
+                                    s16 activeStartKf = HARRY_BASE_ANIM_INFOS[activeSt].startKeyframeIdx;
+                                    if (activeStartKf > 1) {
+                                        pcFireStartKf = activeStartKf - 1;
+                                    }
                                 }
                             }
                             if (pcFireStartKf > 0)
