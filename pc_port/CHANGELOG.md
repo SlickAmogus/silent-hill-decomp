@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.30.4 -- 2026-05-30
+- warning_screen: fix OT order + add fade-out
+- boot: warning screen final timing; fix snow leaking indoors in map0_s02
+
 ## v2026.05.30.3 -- 2026-05-30
 - debug: top-row -/= give Chainsaw / Rock Drill (+ Gasoline if missing)
 
