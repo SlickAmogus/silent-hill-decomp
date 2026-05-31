@@ -3433,7 +3433,19 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                 player->field_2A = player->rotation.vy;
             }
 
-            if (extra->model.stateStep == 0)
+            if (extra->model.stateStep == 0
+#ifdef SH_PC_PORT
+                /* Only START a new shot while the fire button is actually held.
+                 * This targeting branch dispatches off weaponAttack+targetNpcIdx
+                 * alone, bypassing the fire gate's (IsAttacking||IsShooting)
+                 * check at ~line 5232. Once locked + armed it would otherwise
+                 * self-sustain — Harry keeps firing after the player releases C
+                 * (the "fires without holding" latch). lowerBodyState is >= Aim
+                 * during the Attack state, so IsShooting reflects the live button
+                 * (see ~line 9726), making this a faithful release check. */
+                && (g_Player_IsShooting || g_Player_IsAttacking)
+#endif
+               )
             {
                 extra->model.anim.status = ANIM_STATUS(HarryAnim_Unk30, false);
                 extra->model.stateStep++;

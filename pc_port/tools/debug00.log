@@ -1,0 +1,361 @@
+jPSXdec: PSX media decoder (non-commercial) v1.05 (beta)
+Windows 11 10.0
+Java 24.0.2
+2026-05-14 11:11:28
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1947|ID:HILL[726.0]|Sectors:133134-153630|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[726].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1946|ID:HILL[726]|Sectors:133127-153796|Type:Video|Dimensions:320x208|Frame Count:2067|Sector Frames:133127-153787|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-2067
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1947|ID:HILL[726.0]|Sectors:133134-153630|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[726].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1949|ID:HILL[727.0]|Sectors:153804-174300|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[727].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1948|ID:HILL[727]|Sectors:153797-174466|Type:Video|Dimensions:320x208|Frame Count:2067|Sector Frames:153797-174457|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-2067
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1949|ID:HILL[727.0]|Sectors:153804-174300|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[727].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1951|ID:HILL[728.0]|Sectors:174474-177962|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[728].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1950|ID:HILL[728]|Sectors:174467-177966|Type:Video|Dimensions:320x208|Frame Count:350|Sector Frames:174467-177957|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-350
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1951|ID:HILL[728.0]|Sectors:174474-177962|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[728].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1953|ID:HILL[729.0]|Sectors:177974-178118|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[729].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1952|ID:HILL[729]|Sectors:177967-179156|Type:Video|Dimensions:320x208|Frame Count:119|Sector Frames:177967-179147|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-119
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1953|ID:HILL[729.0]|Sectors:177974-178118|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[729].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1955|ID:HILL[730.0]|Sectors:179164-181596|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[730].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1954|ID:HILL[730]|Sectors:179157-181726|Type:Video|Dimensions:320x208|Frame Count:257|Sector Frames:179157-181717|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-257
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1955|ID:HILL[730.0]|Sectors:179164-181596|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[730].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1957|ID:HILL[731.0]|Sectors:181734-184046|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[731].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1956|ID:HILL[731]|Sectors:181727-184216|Type:Video|Dimensions:320x208|Frame Count:249|Sector Frames:181727-184207|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-249
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1957|ID:HILL[731.0]|Sectors:181734-184046|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[731].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1959|ID:HILL[732.0]|Sectors:184224-187280|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[732].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1958|ID:HILL[732]|Sectors:184217-187356|Type:Video|Dimensions:320x208|Frame Count:314|Sector Frames:184217-187347|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-314
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1959|ID:HILL[732.0]|Sectors:184224-187280|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[732].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1961|ID:HILL[733.0]|Sectors:187364-189468|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[733].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1960|ID:HILL[733]|Sectors:187357-189446|Type:Video|Dimensions:320x208|Frame Count:209|Sector Frames:187357-189437|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-209
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1961|ID:HILL[733.0]|Sectors:187364-189468|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[733].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1963|ID:HILL[734.0]|Sectors:189476-191004|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[734].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1962|ID:HILL[734]|Sectors:189469-190968|Type:Video|Dimensions:320x208|Frame Count:150|Sector Frames:189469-190959|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-150
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1963|ID:HILL[734.0]|Sectors:189476-191004|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[734].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1965|ID:HILL[735.0]|Sectors:191012-193796|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[735].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1964|ID:HILL[735]|Sectors:191005-194043|Type:Video|Dimensions:320x208|Frame Count:304|Sector Frames:191005-194035|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-304
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1965|ID:HILL[735.0]|Sectors:191012-193796|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[735].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1967|ID:HILL[736.0]|Sectors:194051-195723|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[736].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1966|ID:HILL[736]|Sectors:194044-195773|Type:Video|Dimensions:320x208|Frame Count:173|Sector Frames:194044-195764|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-173
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1967|ID:HILL[736.0]|Sectors:194051-195723|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[736].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1969|ID:HILL[737.0]|Sectors:195781-199285|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[737].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1968|ID:HILL[737]|Sectors:195774-199363|Type:Video|Dimensions:320x208|Frame Count:359|Sector Frames:195774-199354|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-359
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1969|ID:HILL[737.0]|Sectors:195781-199285|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[737].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1971|ID:HILL[738.0]|Sectors:199371-204115|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[738].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1970|ID:HILL[738]|Sectors:199364-204213|Type:Video|Dimensions:320x208|Frame Count:485|Sector Frames:199364-204204|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-485
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1971|ID:HILL[738.0]|Sectors:199371-204115|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[738].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1973|ID:HILL[739.0]|Sectors:204221-206085|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[739].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1972|ID:HILL[739]|Sectors:204214-206143|Type:Video|Dimensions:320x208|Frame Count:193|Sector Frames:204214-206134|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-193
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1973|ID:HILL[739.0]|Sectors:204221-206085|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[739].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1975|ID:HILL[740.0]|Sectors:206151-209919|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[740].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1974|ID:HILL[740]|Sectors:206144-209923|Type:Video|Dimensions:320x208|Frame Count:378|Sector Frames:206144-209914|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-378
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1975|ID:HILL[740.0]|Sectors:206151-209919|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[740].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1977|ID:HILL[741.0]|Sectors:209931-213107|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[741].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1976|ID:HILL[741]|Sectors:209924-213223|Type:Video|Dimensions:320x208|Frame Count:330|Sector Frames:209924-213214|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-330
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1977|ID:HILL[741.0]|Sectors:209931-213107|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[741].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1979|ID:HILL[742.0]|Sectors:213231-229367|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[742].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1978|ID:HILL[742]|Sectors:213224-229403|Type:Video|Dimensions:320x208|Frame Count:1618|Sector Frames:213224-229394|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-1618
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1979|ID:HILL[742.0]|Sectors:213231-229367|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[742].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1981|ID:HILL[743.0]|Sectors:229411-231563|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[743].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1980|ID:HILL[743]|Sectors:229404-231743|Type:Video|Dimensions:320x208|Frame Count:234|Sector Frames:229404-231734|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-234
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1981|ID:HILL[743.0]|Sectors:229411-231563|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[743].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1983|ID:HILL[744.0]|Sectors:231751-233183|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[744].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1982|ID:HILL[744]|Sectors:231744-233333|Type:Video|Dimensions:320x208|Frame Count:159|Sector Frames:231744-233324|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-159
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1983|ID:HILL[744.0]|Sectors:231751-233183|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[744].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1985|ID:HILL[745.0]|Sectors:233341-247725|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[745].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1984|ID:HILL[745]|Sectors:233334-247543|Type:Video|Dimensions:320x208|Frame Count:1421|Sector Frames:233334-247534|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-1421
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1985|ID:HILL[745.0]|Sectors:233341-247725|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[745].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
+11:11 jpsxdec.i18n.FeedbackStream INFO: Video format: AVI: Compressed (MJPG)
+11:11 jpsxdec.i18n.FeedbackStream INFO: Dimensions: 320x208
+11:11 jpsxdec.i18n.FeedbackStream INFO: Disc speed: 2x (15 fps)
+11:11 jpsxdec.i18n.FeedbackStream INFO: With audio item(s):
+11:11 jpsxdec.i18n.FeedbackStream INFO: #:1987|ID:HILL[746.0]|Sectors:247733-261757|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 jpsxdec.i18n.FeedbackStream INFO: Emulate PSX audio/video sync: No
+11:11 jpsxdec.i18n.FeedbackStream INFO: Saving as: HILL[746].avi
+11:11 save INFO: Filename:C:\Claude\silenthill\Silent Hill (USA).bin|Sector size:2352|Sector count:262115|First sector offset:0
+11:11 save INFO: #:1986|ID:HILL[746]|Sectors:247726-261964|Type:Video|Dimensions:320x208|Frame Count:1424|Sector Frames:247726-261956|Sectors/Frame:10/1|1st frame end sector:9|Disc Speed:2|Header Frames:1-1424
+11:11 save INFO: Video format: AVI: Compressed (MJPG)
+11:11 save INFO: Dimensions: 320x208
+11:11 save INFO: Disc speed: 2x (15 fps)
+11:11 save INFO: With audio item(s):
+11:11 save INFO: #:1987|ID:HILL[746.0]|Sectors:247733-261757|Type:XA|File:1|Channel:1|Stereo?:Yes|Samples/Sec:37800|Bits/Sample:4|Sector stride:8|Disc speed:2x
+11:11 save INFO: Emulate PSX audio/video sync: No
+11:11 save INFO: Saving as: HILL[746].avi
+11:11 jpsxdec.modules.video.save.VDP INFO: Bitstream format: BitStreamUncompressor_STRv2
