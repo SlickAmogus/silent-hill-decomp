@@ -811,16 +811,19 @@ void DebugCamera_Update(void)
                                      * is shared by two opposite-facing fixed
                                      * shots — a tilt that frames Harry from one
                                      * direction over-tilts from the other. */
-            int     spanRoadShot;   /* 1 = whole-shot match: drop the
-                                     * anchor-in-lim_sw requirement, keep only
-                                     * Harry-on-a-road + the camYaw gate. A rail
-                                     * cam shot spans many VC_ROAD_DATA segments,
-                                     * each with its own small lim_sw; the anchor
-                                     * lives in just one, so a per-segment match
-                                     * drops the correction the moment Harry walks
-                                     * into the next segment. Bound the spread
-                                     * with camYawTol (the shot's facing is the
-                                     * stable identifier across all its segments). */
+            int     spanRoadShot;   /* 1 = whole-shot match: test Harry against
+                                     * the explicit spanMin/spanMax box + the
+                                     * camYaw gate, INSTEAD of cur_near_road
+                                     * containment. cur_near_road is the engine's
+                                     * nearest-road pick (keyed on centerline
+                                     * distance, not lim_sw containment), so along
+                                     * a long shot it can flip to an overlapping
+                                     * segment whose lim_sw doesn't hold Harry and
+                                     * the correction drops out. A fixed box over
+                                     * the road's own lim_sw is stable; the camYaw
+                                     * gate splits the two facing directions. */
+            VECTOR3 spanMin;        /* world-space XZ min of the span box (Q12). */
+            VECTOR3 spanMax;        /* world-space XZ max of the span box (Q12). */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -1036,14 +1039,16 @@ void DebugCamera_Update(void)
                 .harryPos   = { -545362, 0, -30651 },
                 .pitchDelta = 234,
             },
-            /* map2_s00 road near cafe — a long -Z-facing rail cam that tracks
-             * Harry down the road across many road segments. Facing ~-Z (cam
-             * yaw ~1965-2012) Harry's body drops below frame; pitchDelta +339
-             * tilts the cam down to frame him. spanRoadShot makes it cover the
-             * whole stretch (not just the anchor's segment); the facing gate
-             * keeps the tilt off the opposite (+Z, cam yaw ~58) shot, which is
-             * already framed correctly. Tuned at (-12774,0,810254) and verified
-             * further down at (-19449,0,729690). */
+            /* map2_s00 cafe→gas-station road — a single long VC_MV_CHASE road
+             * (road_data idx 26: lim_sw x[-11.5,19.5] z[-18,211]). Facing down
+             * the road (-Z, cam yaw ~1965-2047) Harry's body drops below frame;
+             * pitchDelta +339 tilts the cam down to frame him. spanRoadShot +
+             * the spanMin/spanMax box (that road's lim_sw in Q12) cover the
+             * whole stretch regardless of which overlapping segment the engine
+             * picks as cur_near_road. The camYaw gate keeps the tilt off the
+             * opposite facing (turning Harry around), which is already framed
+             * right. Tuned at (-12774,0,810254); verified at (-19449,0,729690)
+             * and the gas-station building at (-21049,0,697595). */
             {
                 .mapId        = 10,
                 .harryPos     = { -12774, 0, 810254 },
@@ -1051,6 +1056,8 @@ void DebugCamera_Update(void)
                 .camYawCenter = 1965,
                 .camYawTol    = 1024,
                 .spanRoadShot = 1,
+                .spanMin      = { -47104, 0, -73728 },
+                .spanMax      = {  79872, 0, 864256 },
             },
             /* map0_s02 convenience-store — B1 bad spot at harry(-591005,0,89984).
              * Camera baseline Z 89088; B2 reference shows Z 87440 → shift -1648. */
@@ -1125,14 +1132,16 @@ void DebugCamera_Update(void)
                                          _d > 2048 ? 4096 - _d : _d; })
             #define MATCH_ENTRY(cc) ( \
                 ((cc)->camYawTol <= 0 || CAM_YAW_DIST(camBaseYaw, (cc)->camYawCenter) <= (cc)->camYawTol) && \
-                ((cc)->matchXzRadius > 0 \
+                ((cc)->spanRoadShot \
+                    ? (hp->vx >= (cc)->spanMin.vx && hp->vx <= (cc)->spanMax.vx && \
+                       hp->vz >= (cc)->spanMin.vz && hp->vz <= (cc)->spanMax.vz) \
+                 : (cc)->matchXzRadius > 0 \
                     ? ((((s64)(hp->vx - (cc)->harryPos.vx) * (hp->vx - (cc)->harryPos.vx)) + \
                         ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
                        <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
                     : (curRoad && \
-                        ((cc)->spanRoadShot || \
-                         ((cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
-                          (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw)) && \
+                        (cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
+                        (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw && \
                         hp->vx >= minHx_sw && hp->vx <= maxHx_sw && \
                         hp->vz >= minHz_sw && hp->vz <= maxHz_sw)))
 
