@@ -121,16 +121,11 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 void GsInit3D(void)
 {
     InitGeom();
-    /* On PSX, GsInit3D sets the GTE projection center to (160, 120) — the
-     * center of the 240-line NTSC display. PsyCross instead adds the draw-env
-     * ofs (160, 112 = framebuffer 224/2) to every vertex, so the GTE geom
-     * offset must make up the 8px difference: 112 + 8 = 120. Earlier this was
-     * (0,0), centering the 3D scene at 112 and rendering everything 8px HIGHER
-     * than PSX — which mis-framed the road/chase cameras (Harry's body dropped
-     * out of frame) and is what the s_camCorrections pitch band-aids were
-     * compensating for. C2_OFY only affects GTE-projected 3D geometry (RTPS),
-     * not 2D HUD/sprites, matching PSX. */
-    SetGeomOffset(0, 8);
+    /* On PSX, GsInit3D sets geom offset to screen center (160, 120).
+     * However, PsyCross adds activeDrawEnv.ofs to every vertex (PsyX_GPU.cpp),
+     * and draw env ofs is already set to screen center (160, 112).
+     * Setting geom offset to (0, 0) avoids double-centering. */
+    SetGeomOffset(0, 0);
     SetGeomScreen(240);
     /* PsyCross InitGeom() defaults DQA=-98/DQB=340, calibrated for a PSX scene
      * where SZ3 ≈ H.  The item camera uses H=1000 with SZ3≈10240, giving
