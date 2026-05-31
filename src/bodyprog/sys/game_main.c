@@ -811,6 +811,16 @@ void DebugCamera_Update(void)
                                      * is shared by two opposite-facing fixed
                                      * shots — a tilt that frames Harry from one
                                      * direction over-tilts from the other. */
+            int     spanRoadShot;   /* 1 = whole-shot match: drop the
+                                     * anchor-in-lim_sw requirement, keep only
+                                     * Harry-on-a-road + the camYaw gate. A rail
+                                     * cam shot spans many VC_ROAD_DATA segments,
+                                     * each with its own small lim_sw; the anchor
+                                     * lives in just one, so a per-segment match
+                                     * drops the correction the moment Harry walks
+                                     * into the next segment. Bound the spread
+                                     * with camYawTol (the shot's facing is the
+                                     * stable identifier across all its segments). */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -1026,18 +1036,21 @@ void DebugCamera_Update(void)
                 .harryPos   = { -545362, 0, -30651 },
                 .pitchDelta = 234,
             },
-            /* map2_s00 road near cafe (positive-Z zone) — one road region is
-             * shared by two opposite-facing fixed shots. Facing ~-Z (cam yaw
-             * 1965) Harry's body drops below frame; tuned at (-12774,0,810254),
-             * pitchDelta +339 tilts the cam down to frame him. The opposite
-             * shot (cam yaw ~58, facing +Z) is already correct, so the facing
-             * gate keeps this tilt off that direction. */
+            /* map2_s00 road near cafe — a long -Z-facing rail cam that tracks
+             * Harry down the road across many road segments. Facing ~-Z (cam
+             * yaw ~1965-2012) Harry's body drops below frame; pitchDelta +339
+             * tilts the cam down to frame him. spanRoadShot makes it cover the
+             * whole stretch (not just the anchor's segment); the facing gate
+             * keeps the tilt off the opposite (+Z, cam yaw ~58) shot, which is
+             * already framed correctly. Tuned at (-12774,0,810254) and verified
+             * further down at (-19449,0,729690). */
             {
                 .mapId        = 10,
                 .harryPos     = { -12774, 0, 810254 },
                 .pitchDelta   = 339,
                 .camYawCenter = 1965,
                 .camYawTol    = 1024,
+                .spanRoadShot = 1,
             },
             /* map0_s02 convenience-store — B1 bad spot at harry(-591005,0,89984).
              * Camera baseline Z 89088; B2 reference shows Z 87440 → shift -1648. */
@@ -1117,8 +1130,9 @@ void DebugCamera_Update(void)
                         ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
                        <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
                     : (curRoad && \
-                        (cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
-                        (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw && \
+                        ((cc)->spanRoadShot || \
+                         ((cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
+                          (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw)) && \
                         hp->vx >= minHx_sw && hp->vx <= maxHx_sw && \
                         hp->vz >= minHz_sw && hp->vz <= maxHz_sw)))
 
