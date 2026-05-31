@@ -2434,6 +2434,22 @@ void Particle_SnowDraw(s_Particle* part)
     localPart = part;
     polyFt3   = (POLY_FT3*)GsOUT_PACKET_P;
 
+#if defined(SH_PC_PORT) && defined(MAP0_S02)
+    /* Snow shouldn't render indoors. Rooms 2/3/4 are the outdoor alleys
+     * (per the snow-boundary setup ~line 930 — those explicitly set
+     * sharedData_800E326C_0_s00.corners_0[]). All other rooms are
+     * indoor (gas station counter, etc.) where the original game's
+     * depth-sort would hide snow behind walls; on PC with the depth
+     * pipeline that doesn't reliably occlude these particles, they
+     * leak visibly through the ceiling. Skip the draw outright. */
+    {
+        u8 room = g_SavegamePtr->mapRoomIdx_A5;
+        if (room != 2 && room != 3 && room != 4) {
+            return;
+        }
+    }
+#endif
+
     if (part->type_1F >= 240)
     {
         part->type_1F += 16;
