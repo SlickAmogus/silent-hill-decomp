@@ -1151,6 +1151,51 @@ void DebugCamera_Update(void)
             #undef CAM_YAW_DIST
         }
 
+#ifdef SH_PC_PORT
+        /* Ease the scene correction toward its target so engaging a
+         * correction (or flipping between the two facings of a shared road
+         * region) glides instead of snapping. The deltas are relative to the
+         * engine baseline, so easing them just slides the cam from the
+         * uncorrected view to the corrected one over a fraction of a second.
+         *
+         * Snap (no ease) when a cutscene/event/raw cam owns the view or a
+         * follow cam is active — those place the cam every frame and must not
+         * carry a lagging residual. Runtime numpad nudges are added after this
+         * and stay instant for tuning feedback. */
+        {
+            static VECTOR3 s_smPos    = {0, 0, 0};
+            static VECTOR3 s_smLookAt = {0, 0, 0};
+            static s32     s_smYaw    = 0;
+            static s32     s_smPitch  = 0;
+
+            if (sceneCutsceneCam || g_DebugRawCamMode || sceneFollowMode) {
+                s_smPos = sceneNudgePos; s_smLookAt = sceneNudgeLookAt;
+                s_smYaw = sceneNudgeYaw; s_smPitch  = sceneNudgePitch;
+            } else {
+                /* alpha = dt * rate, clamped to 1.0. rate 0.25/tick → ~0.4s
+                 * to settle; huge dt (load hitch) clamps to a snap. */
+                s32 a = (s32)(((s64)g_DeltaTime * Q12(0.25f)) >> 12);
+                if (a > Q12(1.0f)) a = Q12(1.0f);
+                if (a < 0)         a = 0;
+                #define SM_LERP(cur, tgt) ((cur) + (s32)((((s64)((tgt) - (cur))) * a) >> 12))
+                s_smPos.vx    = SM_LERP(s_smPos.vx,    sceneNudgePos.vx);
+                s_smPos.vy    = SM_LERP(s_smPos.vy,    sceneNudgePos.vy);
+                s_smPos.vz    = SM_LERP(s_smPos.vz,    sceneNudgePos.vz);
+                s_smLookAt.vx = SM_LERP(s_smLookAt.vx, sceneNudgeLookAt.vx);
+                s_smLookAt.vy = SM_LERP(s_smLookAt.vy, sceneNudgeLookAt.vy);
+                s_smLookAt.vz = SM_LERP(s_smLookAt.vz, sceneNudgeLookAt.vz);
+                s_smYaw       = SM_LERP(s_smYaw,       sceneNudgeYaw);
+                s_smPitch     = SM_LERP(s_smPitch,     sceneNudgePitch);
+                #undef SM_LERP
+            }
+
+            sceneNudgePos    = s_smPos;
+            sceneNudgeLookAt = s_smLookAt;
+            sceneNudgeYaw    = s_smYaw;
+            sceneNudgePitch  = s_smPitch;
+        }
+#endif
+
         /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
          *
          * Two contributors:
