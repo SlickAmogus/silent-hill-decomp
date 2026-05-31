@@ -183,13 +183,19 @@ int main(int argc, char* argv[])
                 freopen("SilentHill.log", "a", stderr);
                 setvbuf(stdout, NULL, _IONBF, 0);
                 setvbuf(stderr, NULL, _IONBF, 0);
+            } else {
+                /* Redirect to NUL so post-FreeConsole printfs don't faultfile a
+                 * stale CONOUT$ handle. */
+                freopen("NUL", "w", stdout);
+                freopen("NUL", "w", stderr);
             }
+            /* Windows Terminal ignores ShowWindow(SW_HIDE) on its hosted
+             * consoles, so the window stays visible. FreeConsole detaches
+             * the process from its console host and the WT tab closes
+             * cleanly regardless of host (conhost or WT). */
             {
-                typedef void* HWND;
-                extern __declspec(dllimport) HWND __stdcall GetConsoleWindow(void);
-                extern __declspec(dllimport) int  __stdcall ShowWindow(HWND, int);
-                HWND con = GetConsoleWindow();
-                if (con) ShowWindow(con, /*SW_HIDE*/ 0);
+                extern __declspec(dllimport) int __stdcall FreeConsole(void);
+                FreeConsole();
             }
         }
         if (show == 2 || show == 3) {
