@@ -196,7 +196,7 @@ void DebugCamera_Update(void)
                  * see him while flying the debug cam — useful for
                  * marking corrected camera positions relative to him.
                  * (Was hidden + teleport-followed in the prior design.) */
-                SH_DBG("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
+                SH_DBG_ECHO("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
                     (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             } else {
@@ -205,7 +205,7 @@ void DebugCamera_Update(void)
                 g_SysWork.playerWork.player.properties.player.positionY_EC = g_DebugCamSavedHarryPosY;
                 g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
                 g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
-                SH_DBG("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
+                SH_DBG_ECHO("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
                     (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             }
         }
@@ -244,7 +244,7 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) {
             g_DebugNoWallCollision = !g_DebugNoWallCollision;
             Sd_PlaySfx(g_DebugNoWallCollision ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG("[DEBUG] Key 0: Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
+            SH_DBG_ECHO("[DEBUG] Key 0: Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
         }
         prevKey = cur;
     }
@@ -256,8 +256,7 @@ void DebugCamera_Update(void)
             g_DebugThirdPersonCam = !g_DebugThirdPersonCam;
             /* Capture/release mouse for TPS mode */
             SDL_SetRelativeMouseMode(g_DebugThirdPersonCam ? SDL_TRUE : SDL_FALSE);
-            SH_DBG("[DEBUG] Third-person camera: %s (mouse %s)", g_DebugThirdPersonCam ? "ON" : "OFF",
-                   g_DebugThirdPersonCam ? "captured" : "released");
+            SH_DBG_ECHO("[DEBUG] Numpad 2: Third-person camera: %s", g_DebugThirdPersonCam ? "ON (mouse captured)" : "OFF (mouse released)");
         }
         prevKey = cur;
     }
@@ -268,7 +267,7 @@ void DebugCamera_Update(void)
         int cur = g_sdlKeyboardState[SDL_SCANCODE_1];
         if (cur && !prevKey) {
             g_SysWork.playerWork.player.health = -Q12(1.0f);
-            SH_DBG("[DEBUG] Key 1: KILL HARRY — health set to -Q12(1.0)");
+            SH_DBG_ECHO("[DEBUG] Key 1: KILL HARRY (health set to -1.0)");
         }
         prevKey = cur;
     }
@@ -312,10 +311,12 @@ void DebugCamera_Update(void)
                 pitch  = (s32)vcWork.cam_mat_ang.vx;
                 mode   = "NORMAL";
             }
-            SH_DBG("[%s] tick=%u map=%d mode=%s harry=(%ld,%ld,%ld) bodyYaw=%d",
+            SH_DBG_ECHO("[%s] tick=%u map=%d mode=%s",
                 tag,
                 (unsigned)SDL_GetTicks(),
-                (int)g_SavegamePtr->mapOverlayId_A4, mode,
+                (int)g_SavegamePtr->mapOverlayId_A4, mode);
+            SH_DBG("[%s] harry=(%ld,%ld,%ld) bodyYaw=%d",
+                tag,
                 (long)g_SysWork.playerWork.player.position.vx,
                 (long)g_SysWork.playerWork.player.position.vy,
                 (long)g_SysWork.playerWork.player.position.vz,
@@ -392,10 +393,11 @@ void DebugCamera_Update(void)
         int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
         if (cur6 && !prevKey6) {
             VECTOR3* p = &g_SysWork.playerWork.player.position;
-            SH_DBG("[POS-LOG] mapId=%d harryPos=(%ld,%ld,%ld) yaw=%d health=%ld fallSpeed=%ld",
+            SH_DBG_ECHO("[POS-LOG] Key 6: mapId=%d harryPos=(%ld,%ld,%ld) yaw=%d",
                 (int)g_SavegamePtr->mapOverlayId_A4,
                 (long)p->vx, (long)p->vy, (long)p->vz,
-                (int)g_SysWork.playerWork.player.rotation.vy,
+                (int)g_SysWork.playerWork.player.rotation.vy);
+            SH_DBG("[POS-LOG] health=%ld fallSpeed=%ld",
                 (long)g_SysWork.playerWork.player.health,
                 (long)g_SysWork.playerWork.player.fallSpeed);
         }
@@ -409,7 +411,7 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) {
             g_DebugInvincible = !g_DebugInvincible;
             Sd_PlaySfx(g_DebugInvincible ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG("[DEBUG] Key 7: Invincibility: %s", g_DebugInvincible ? "ON" : "OFF");
+            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_DebugInvincible ? "ON" : "OFF");
         }
         prevKey = cur;
     }
@@ -420,7 +422,7 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) {
             Inventory_AddSpecialItem(0xC0, 15);
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG("[DEBUG] Key 8: Added 15 handgun bullets");
+            SH_DBG_ECHO("[DEBUG] Key 8: Added 15 handgun bullets");
         }
         prevKey = cur;
     }
@@ -431,7 +433,7 @@ void DebugCamera_Update(void)
         if (cur && !prevKey) {
             g_DebugNoTarget = !g_DebugNoTarget;
             Sd_PlaySfx(g_DebugNoTarget ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG("[DEBUG] Key 9: No-target: %s", g_DebugNoTarget ? "ON (enemies ignore Harry)" : "OFF");
+            SH_DBG_ECHO("[DEBUG] Key 9: No-target: %s", g_DebugNoTarget ? "ON (enemies ignore Harry)" : "OFF");
         }
         prevKey = cur;
     }
@@ -450,7 +452,7 @@ void DebugCamera_Update(void)
             Inventory_AddSpecialItem(InvItemId_Chainsaw, 1);
             if (!hasGas) Inventory_AddSpecialItem(InvItemId_GasolineTank, 1);
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG("[DEBUG] Key -: Added Chainsaw%s", hasGas ? "" : " + Gasoline Tank");
+            SH_DBG_ECHO("[DEBUG] Key -: Added Chainsaw%s", hasGas ? "" : " + Gasoline Tank");
         }
         prevKey = cur;
     }
@@ -469,7 +471,7 @@ void DebugCamera_Update(void)
             Inventory_AddSpecialItem(InvItemId_RockDrill, 1);
             if (!hasGas) Inventory_AddSpecialItem(InvItemId_GasolineTank, 1);
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG("[DEBUG] Key =: Added Rock Drill%s", hasGas ? "" : " + Gasoline Tank");
+            SH_DBG_ECHO("[DEBUG] Key =: Added Rock Drill%s", hasGas ? "" : " + Gasoline Tank");
         }
         prevKey = cur;
     }
@@ -558,7 +560,9 @@ void DebugCamera_Update(void)
                 /* Push backward — sin/cos give forward direction, subtract. */
                 p->vx -= (s32)((s64)sinV * pushDist >> 12);
                 p->vz -= (s32)((s64)cosV * pushDist >> 12);
-                SH_DBG("[RESCUE-Y] Numpad 3: pos (%ld,%ld,%ld) → (%ld,%ld,%ld) yaw=%d (vy reset + 2.5u backward push)",
+                SH_DBG_ECHO("[RESCUE-Y] Numpad 3: teleport vy=%ld→%ld (+ 2.5u push back)",
+                    (long)oldY, (long)p->vy);
+                SH_DBG("[RESCUE-Y] full: pos (%ld,%ld,%ld) → (%ld,%ld,%ld) yaw=%d",
                     (long)oldX, (long)oldY, (long)oldZ,
                     (long)p->vx, (long)p->vy, (long)p->vz,
                     (int)facing);
@@ -627,7 +631,8 @@ void DebugCamera_Update(void)
                 g_PcCamNudgePos.vz = 0;
                 g_PcCamNudgeYaw    = 0;
                 g_PcCamNudgePitch  = 0;
-                SH_DBG("[CAM-RESET] nudges cleared — restored to default cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld)",
+                SH_DBG_ECHO("[CAM-RESET] Numpad 3: cam nudges cleared");
+                SH_DBG("[CAM-RESET] restored to default cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld)",
                     (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
                     (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
             }
@@ -652,12 +657,12 @@ void DebugCamera_Update(void)
                 g_PcCamNudgeYaw    = 0;
                 g_PcCamNudgePitch  = 0;
                 if (g_DebugRawCamMode) {
-                    SH_DBG("[CAM-RAW-ON] raw cam mode — corrections bypassed, nudge zeroed");
+                    SH_DBG_ECHO("[CAM-RAW-ON] Numpad 0: raw cam mode — corrections bypassed, nudge zeroed");
                     SH_DBG("[CAM-RAW-BASELINE] engine cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) (pre-correction, pre-nudge)",
                         (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
                         (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
                 } else {
-                    SH_DBG("[CAM-RAW-OFF] raw cam mode off — corrections re-enabled");
+                    SH_DBG_ECHO("[CAM-RAW-OFF] Numpad 0: raw cam mode off — corrections re-enabled");
                 }
             }
             prevKp0 = curKp0;
@@ -2058,6 +2063,12 @@ void MainLoop(void) // 0x80032EE0
                 Collision_Get(&_hereColl,
                     g_SysWork.playerWork.player.position.vx,
                     g_SysWork.playerWork.player.position.vz);
+                SH_DBG_ECHO("[POS-LOG] Numpad . map=%d room=%d pos=(%ld,%ld,%ld)",
+                    (int)g_SavegamePtr->mapOverlayId_A4,
+                    (int)g_SavegamePtr->mapRoomIdx_A5,
+                    (long)g_SysWork.playerWork.player.position.vx,
+                    (long)g_SysWork.playerWork.player.position.vy,
+                    (long)g_SysWork.playerWork.player.position.vz);
                 SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
                     (int)g_SavegamePtr->mapOverlayId_A4,
                     (int)g_SavegamePtr->mapRoomIdx_A5,
@@ -2076,7 +2087,7 @@ void MainLoop(void) // 0x80032EE0
                     (int)(_hereColl.groundHeight_0 == Q12(8.0f)));
                 if (g_DebugCamEnabled) {
                     g_DebugFogDisabled = !g_DebugFogDisabled;
-                    SH_DBG("[DEBUG] Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
+                    SH_DBG_ECHO("[DEBUG] Numpad . (debug cam) Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
                 }
             }
             g_DebugFogTogglePrev = cur;
