@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.05.31.1 -- 2026-05-31
+- combat: fix continuous handgun fire on locked targets
+- debug: route key-press events to console overlay; document controls
+- launcher: give the game window focus after Play
+- combat: stop locked handgun fire from latching on after button release
+
 ## v2026.05.30.4 -- 2026-05-30
 - warning_screen: fix OT order + add fade-out
 - boot: warning screen final timing; fix snow leaking indoors in map0_s02
