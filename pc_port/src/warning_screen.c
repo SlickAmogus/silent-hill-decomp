@@ -208,39 +208,52 @@ void Pc_PlayWarningScreen(void)
 
     SetDispMask(1);
 
-    /* 64-frame fade-in: fade goes 255 → -1 in steps of 4. */
+    /* Lock frame pacing to 60fps for the warning. Whatever boot stage
+     * ran before may have left g_IntervalVBlanks at 2 (30fps), which
+     * doubles the loop durations below. */
+    g_IntervalVBlanks = 1;
+
+    /* Fade-in: ~0.5s at 60fps. fade goes 255 → -1 in steps of 8 → 32
+     * iterations × ~16ms ≈ 0.5s. */
     fade = 255;
     while (fade >= 0)
     {
-        Warn_DrawImage();
         Warn_DrawFadeTile(fade);
+        Warn_DrawImage();
         Warn_SwapAndDraw();
-        fade -= 4;
+        fade -= 8;
     }
 
-    SH_DBG("[WARNSCR] fade-in done; holding for 60 frames");
+    SH_DBG("[WARNSCR] fade-in done; holding for 180 frames (~3s)");
 
-    /* Hold the fully-faded-in image so the player can read it. */
-    for (holdFrame = 0; holdFrame < 60; holdFrame++)
+    /* Hold the fully-faded-in image — 180 frames at 60fps ≈ 3 seconds. */
+    for (holdFrame = 0; holdFrame < 180; holdFrame++)
     {
         Warn_DrawImage();
         Warn_SwapAndDraw();
     }
 
-    SH_DBG("[WARNSCR] fade-out 0→255 in steps of 4");
+    SH_DBG("[WARNSCR] fade-out 0→255 in steps of 8 (~0.5s)");
 
-    /* Fade-out: tile RGB climbs 0 → 255 in steps of 4 (mirrors the
-     * fade-in cadence in reverse). Subtractive blend dims the image
-     * to solid black; the next boot screen's own fade-in then takes
-     * over from black. */
+    /* Fade-out: ~0.5s at 60fps. fade climbs 0 → 248 in steps of 8 → 32
+     * iterations, matching the fade-in cadence in reverse. Subtractive
+     * blend dims the image to solid black; the next boot screen's own
+     * fade-in then takes over from black. */
     fade = 0;
-    while (fade <= 255)
+    while (fade < 255)
     {
-        Warn_DrawImage();
         Warn_DrawFadeTile(fade);
+        Warn_DrawImage();
         Warn_SwapAndDraw();
-        fade += 4;
+        fade += 8;
     }
+    /* Last frame at fade=255 — guarantees the screen is solidly black
+     * (image - 255 = 0 for every pixel) before we return and the next
+     * boot screen takes over. The loop's `fade += 4` could otherwise
+     * end at fade=252, leaving the brightest image pixels at RGB=3. */
+    Warn_DrawFadeTile(255);
+    Warn_DrawImage();
+    Warn_SwapAndDraw();
 
     SH_DBG("[WARNSCR] done");
 }
