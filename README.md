@@ -133,29 +133,39 @@
   
   ### Debug Controls
 
-  **Mode toggles** (work in any cam mode):
+  Most debug events get echoed to **`SilentHill.log`**. To also see them live in-game, set `show_console` in `config.cfg`:
+  - `0` = off (default)
+  - `1` = external console window (stdout)
+  - `2` = in-game overlay (renders inside the game window)
+  - `3` = both
+
+  **Top-row number keys** (gameplay cheats / loggers):
+
+  | Key | Action |
+  |-----|--------|
+  | `0` | Toggle wall collision (noclip) |
+  | `1` | Kill Harry (force death animation) |
+  | `4` | Log current camera state as **BAD CAMERA POSITION** |
+  | `5` | Log current camera state as **GOOD CAMERA POSITION** (paste `posDelta` / `yawDelta` / `pitchDelta` into a `s_camCorrections[]` entry) |
+  | `6` | Log Harry's position |
+  | `7` | Toggle invincibility (locks HP to max) |
+  | `8` | Give 15 handgun bullets |
+  | `9` | Toggle no-target (enemies ignore Harry via `CharaFlag_Unk4`) |
+  | `-` | Give Chainsaw (+ 1 Gasoline Tank if you don't already have one) |
+  | `=` | Give Rock Drill (+ 1 Gasoline Tank if you don't already have one) |
+  | `` ` `` (backtick) | Open the debug command console (type `HELP` for commands) |
+
+  **Numpad — mode toggles and utilities:**
 
   | Key | Action |
   |-----|--------|
   | Numpad `*` | Toggle free-fly debug camera |
-  | Numpad `0` | Toggle FPS cap |
-  | Numpad `1` | Toggle wall collision (noclip) |
-  | Numpad `2` | Toggle third-person follow camera (uses mouse to look) |
-  | Numpad `3` | Reset (gameplay: teleport Harry to safe spawn / normal-cam: clear nudge accumulator) |
-  | Numpad `.` | Toggle fog |
-  | `` ` `` (backtick) | Open debug console (type `HELP` for commands) |
+  | Numpad `0` | Toggle "raw cam mode" (bypass camera corrections + zero nudges — use to capture a clean BAD baseline) |
+  | Numpad `2` | Toggle third-person follow camera (mouse aims, RMB aim, LMB fire) |
+  | Numpad `3` | In gameplay: rescue-Y teleport (vy back to last safe Y + 2.5u push back). In normal-cam mode: clear nudge accumulator. |
+  | Numpad `.` | Log Harry's position with the `HARRY POSITION LOGGED` tag. Also toggles fog when debug cam is on. |
 
-  **Top-row number keys** (gameplay logging / cheats):
-
-  | Key | Action |
-  |-----|--------|
-  | `1` | Kill Harry (force death animation) |
-  | `4` | Log current camera state as **BAD CAMERA POSITION** |
-  | `5` | Log current camera state as **GOOD CAMERA POSITION** |
-  | `6` | Log Harry's position |
-  | `7` / `8` / `9` / `0` | TPS preset-pose loggers |
-
-  **Numpad keys — camera nudges** (same bindings whether debug cam is on or off — moves the active camera):
+  **Numpad — camera nudges** (move the currently active camera, debug-cam or normal):
 
   | Key | Action |
   |-----|--------|
@@ -166,7 +176,7 @@
   | PgUp / PgDn | Move up / down (vertical) |
   | `/` | Print current camera coordinates |
 
-  Numpad `3` clears all accumulated nudges (or in gameplay: teleports Harry to spawn). Hold a key for continuous adjustment. After tuning a cam, press top-row `5` (GOOD) to log the camera state for use in a `CamCorrection` entry.
+  Hold any nudge key for continuous adjustment. After tuning a cam, press top-row `5` (GOOD) to dump a paste-ready `s_camCorrections[]` delta.
 
 
 
