@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -378,6 +379,18 @@ public partial class Form1 : Form
         config.Save();
     }
 
+    // Win32 focus helpers. Windows' focus-stealing-prevention blocks a newly-
+    // spawned process from taking the foreground unless the parent grants
+    // permission via AllowSetForegroundWindow OR the parent explicitly calls
+    // SetForegroundWindow on the child window once it exists. Use both: the
+    // permission grant covers the case where the game brings itself to front
+    // during SDL init, and the explicit call handles SDL builds that don't.
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
     private void btnPlay_Click(object sender, EventArgs e)
     {
         SaveConfig();
@@ -390,7 +403,33 @@ public partial class Form1 : Form
             return;
         }
 
-        Process.Start(exePath);
+        try
+        {
+            var p = Process.Start(exePath);
+            if (p != null)
+            {
+                // Grant the child process permission to come to the foreground.
+                AllowSetForegroundWindow((uint)p.Id);
+
+                // Wait briefly for the SDL window to be created and message-
+                // loop ready, then explicitly raise it. WaitForInputIdle's
+                // timeout is forgiving — if the game takes longer to init, we
+                // just skip the explicit call; the AllowSetForegroundWindow
+                // permission still lets SDL bring it forward later.
+                try { p.WaitForInputIdle(2000); } catch { }
+                p.Refresh();
+                if (p.MainWindowHandle != IntPtr.Zero)
+                {
+                    SetForegroundWindow(p.MainWindowHandle);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Failed to launch SilentHillPC.exe: " + ex.Message);
+            return;
+        }
+
         Close();
     }
 
