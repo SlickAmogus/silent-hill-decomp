@@ -800,6 +800,17 @@ void DebugCamera_Update(void)
                                      * driven by non-road cam systems (cutscene,
                                      * event, through-door) where cur_near_road
                                      * is NULL or unrelated to the active shot. */
+            s32     camYawCenter;   /* Q12 angle (0-4095). Camera-facing gate:
+                                     * the baseline cam yaw (cam->lookAt) the
+                                     * correction was tuned for. Only meaningful
+                                     * when camYawTol > 0. */
+            s32     camYawTol;      /* Q12 angle tolerance; 0 = no facing gate.
+                                     * When >0, the entry only matches if the
+                                     * live cam yaw is within camYawTol of
+                                     * camYawCenter. Needed where one road region
+                                     * is shared by two opposite-facing fixed
+                                     * shots — a tilt that frames Harry from one
+                                     * direction over-tilts from the other. */
         };
         static const struct CamCorrection s_camCorrections[] = {
             /* map0_s00 intro / first-street fixed cam — cam was way underground
@@ -1015,6 +1026,19 @@ void DebugCamera_Update(void)
                 .harryPos   = { -545362, 0, -30651 },
                 .pitchDelta = 234,
             },
+            /* map2_s00 road near cafe (positive-Z zone) — one road region is
+             * shared by two opposite-facing fixed shots. Facing ~-Z (cam yaw
+             * 1965) Harry's body drops below frame; tuned at (-12774,0,810254),
+             * pitchDelta +339 tilts the cam down to frame him. The opposite
+             * shot (cam yaw ~58, facing +Z) is already correct, so the facing
+             * gate keeps this tilt off that direction. */
+            {
+                .mapId        = 10,
+                .harryPos     = { -12774, 0, 810254 },
+                .pitchDelta   = 339,
+                .camYawCenter = 1965,
+                .camYawTol    = 1024,
+            },
             /* map0_s02 convenience-store — B1 bad spot at harry(-591005,0,89984).
              * Camera baseline Z 89088; B2 reference shows Z 87440 → shift -1648. */
             {
@@ -1070,6 +1094,11 @@ void DebugCamera_Update(void)
                 maxHz_sw = Q4_TO_Q12(curRoad->lim_sw.max_hz);
             }
 
+            /* Baseline cam yaw (cam -> lookAt), for the camYawTol facing gate.
+             * Same convention as the rotation math below (ratan2(dx, dz)). */
+            s32 camBaseYaw = ratan2(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx,
+                                    vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz);
+
             /* Single match predicate per entry: XZ-radius if requested,
              * otherwise BOTH the anchor AND Harry's current XZ must lie in
              * the road's switch-trigger area (lim_sw). Checking only the
@@ -1078,8 +1107,12 @@ void DebugCamera_Update(void)
              * camera is driven by event data rather than the road shot. The
              * lim_sw containment check on Harry's CURRENT position narrows
              * the match to the actual switch-trigger zone of that shot. */
+            /* Angular distance |a-b| folded to 0..2048 (half-circle). */
+            #define CAM_YAW_DIST(a, b) ({ s32 _d = ((a) - (b)) & 0xFFF; \
+                                         _d > 2048 ? 4096 - _d : _d; })
             #define MATCH_ENTRY(cc) ( \
-                (cc)->matchXzRadius > 0 \
+                ((cc)->camYawTol <= 0 || CAM_YAW_DIST(camBaseYaw, (cc)->camYawCenter) <= (cc)->camYawTol) && \
+                ((cc)->matchXzRadius > 0 \
                     ? ((((s64)(hp->vx - (cc)->harryPos.vx) * (hp->vx - (cc)->harryPos.vx)) + \
                         ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
                        <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
@@ -1087,7 +1120,7 @@ void DebugCamera_Update(void)
                         (cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
                         (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw && \
                         hp->vx >= minHx_sw && hp->vx <= maxHx_sw && \
-                        hp->vz >= minHz_sw && hp->vz <= maxHz_sw))
+                        hp->vz >= minHz_sw && hp->vz <= maxHz_sw)))
 
             /* First pass: any disable-mode entry that matches?
              * If yes, suppress ALL corrections for this frame. */
@@ -1115,6 +1148,7 @@ void DebugCamera_Update(void)
                 }
             }
             #undef MATCH_ENTRY
+            #undef CAM_YAW_DIST
         }
 
         /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
