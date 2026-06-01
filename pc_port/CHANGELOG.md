@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.01.2 -- 2026-06-01
+- camera: fix in-place TransposeMatrix corrupting SETTLE-mode cameras
+- docs: document in-place TransposeMatrix camera fix
+
 ## v2026.06.01.1 -- 2026-06-01
 - camera: add facing-direction gate to road cam corrections
 - camera: ease scene corrections in instead of snapping
