@@ -167,6 +167,12 @@ add_executable(SilentHillPC
 set_target_properties(SilentHillPC PROPERTIES ENABLE_EXPORTS ON)
 if(MINGW)
     target_link_options(SilentHillPC PRIVATE "-Wl,--export-all-symbols")
+    # Build as a GUI (windows) subsystem app so Windows doesn't spawn a console
+    # window at launch. We keep the standard C entry (SDL_MAIN_HANDLED is set, so
+    # main() is the real entry); force -emainCRTStartup because the windows
+    # subsystem default entry is WinMainCRTStartup, which we don't provide.
+    # External-console mode calls AllocConsole() at runtime (see main_pc.c).
+    target_link_options(SilentHillPC PRIVATE "-Wl,--subsystem,windows" "-Wl,-emainCRTStartup")
 endif()
 
 # Game-specific defines (only on our target, NOT PsyCross)

@@ -32,6 +32,12 @@ static int  s_console_dirty  = 0;
 static int  s_prev_a = 0;
 static int  s_prev_b = 0;
 
+/* Slide animation: 0 = fully off-screen above the top edge, 1 = at rest.
+ * Eased toward the target each frame in DbgOverlay_Update; the continuous value
+ * makes mashing `~` reverse smoothly instead of snapping. */
+static float s_console_slide = 0.0f;
+#define CONSOLE_SLIDE_STEP 0.18f
+
 /* GL overlay resources, initialised once on first Render call */
 static GLuint s_prog = 0;
 static GLuint s_vao  = 0;
@@ -284,6 +290,19 @@ void DbgOverlay_Update(void)
         g_PcConfig.showConsole ^= 2;
     s_prev_tilde = cur_tilde;
 
+    /* Ease the slide toward visible (ingame bit set) or hidden. Runs every
+     * frame regardless of state so the console can animate back out. */
+    {
+        float target = (g_PcConfig.showConsole & 2) ? 1.0f : 0.0f;
+        if (s_console_slide < target) {
+            s_console_slide += CONSOLE_SLIDE_STEP;
+            if (s_console_slide > target) s_console_slide = target;
+        } else if (s_console_slide > target) {
+            s_console_slide -= CONSOLE_SLIDE_STEP;
+            if (s_console_slide < target) s_console_slide = target;
+        }
+    }
+
     if (g_PcConfig.showConsole < 2) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
@@ -328,9 +347,10 @@ void DbgOverlay_Render(void)
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
     GLboolean prev_depth, prev_blend;
 
-    /* Hidden unless the in-game console bit is set (toggled by `~`). The ring
-     * buffer keeps filling while hidden, so toggling on shows recent output. */
-    if (!(g_PcConfig.showConsole & 2)) return;
+    /* Hidden once fully slid off-screen. The slide animates in/out (toggled by
+     * `~`); the ring buffer keeps filling while hidden so toggling on shows
+     * recent output. Keep rendering during the slide-out until it reaches 0. */
+    if (s_console_slide <= 0.0f) return;
 
     if (s_console_count == 0) return;
 
@@ -359,6 +379,14 @@ void DbgOverlay_Render(void)
     y0 =  1.0f;
     x1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
     y1 = y0 - 2.0f * (float)(TEX_H * SCALE) / (float)vp[3];
+
+    /* Slide vertically from above the top edge (slide=0) to rest (slide=1).
+     * Shift both edges up by (1-slide) * overlay height. */
+    {
+        float slideOfs = (1.0f - s_console_slide) * (y0 - y1);
+        y0 += slideOfs;
+        y1 += slideOfs;
+    }
 
     verts[0][0] = x0; verts[0][1] = y0; verts[0][2] = 0.0f; verts[0][3] = 0.0f;
     verts[1][0] = x0; verts[1][1] = y1; verts[1][2] = 0.0f; verts[1][3] = 1.0f;
