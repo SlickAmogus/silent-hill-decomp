@@ -352,77 +352,9 @@ s32 vcExecCamera(void) // 0x80080FBC
     vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
                        vcWork.flags & VC_VISIBLE_CHARA_F);
 
-#ifdef SH_PC_PORT
-    /* Hand-tuned camera overrides for spots where the road-node math
-     * produces a wrong angle/position. Each entry triggers when Harry
-     * is within `radius` of `harryAt` on a specific map.
-     *
-     * camPos + (angleY, angleX) match the debug-cam convention so the
-     * matrix is built via the same lookAt-based path:
-     *   forward = cos(angleX) * 20480
-     *   lookAt  = camPos + (forward*sin(angleY), sin(angleX)*20480, forward*cos(angleY))
-     *   Vw_SetLookAtMatrix(camPos, lookAt)
-     *
-     * TODO: drop this table once the road-node math is fixed properly. */
-    {
-        typedef struct {
-            s8      mapId;
-            VECTOR3 harryAt;     /* Q12 world */
-            s32     radius;      /* Q12 distance */
-            VECTOR3 camPos;      /* Q12 world */
-            s16     angleY;      /* Q12 angle, debug-cam convention */
-            s16     angleX;      /* Q12 angle, +ve = look down */
-        } s_PcCamOverride;
-
-        static const s_PcCamOverride OVERRIDES[] = {
-            /* map0_s01 corner overrides — DISABLED (radius Q12(0.0f))
-             * because the proper fix (correcting fix_ang_x/y for the
-             * 5 affected road nodes in vc_road_data.h) was restored
-             * from commit b41836a80. The road camera system now
-             * smoothly tracks Harry through the corner via SETTLE
-             * interpolation between FIX_ANG anchor nodes. Keep these
-             * entries documented as a safety net — re-enable any one
-             * by raising its radius if a specific spot still misbehaves. */
-            { 1, { 16630, 0, 1092748 }, Q12(0.0f),
-                 { 15505, -9222, 1098282 }, 1840, -288 },
-            { 1, { 15109, 0, 1100175 }, Q12(0.0f),
-                 { 19667, -6912, 1104091 }, 2480, -160 },
-        };
-
-        s32 hx = g_SysWork.playerWork.player.position.vx;
-        s32 hy = g_SysWork.playerWork.player.position.vy;
-        s32 hz = g_SysWork.playerWork.player.position.vz;
-        s32 mapId = (s32)g_SavegamePtr->mapOverlayId_A4;
-        bool overrideFired = false;
-
-        for (size_t oi = 0; oi < sizeof(OVERRIDES) / sizeof(OVERRIDES[0]); oi++) {
-            const s_PcCamOverride* o = &OVERRIDES[oi];
-            if (o->mapId != mapId) continue;
-            s32 dx = hx - o->harryAt.vx;
-            s32 dy = hy - o->harryAt.vy;
-            s32 dz = hz - o->harryAt.vz;
-            s32 r  = Vc_VectorMagnitudeCalc(dx, dy, dz);
-            if (r > o->radius) continue;
-
-            VECTOR3 lookAt;
-            s32 forward = (s32)((s64)20480 * Math_Cos(o->angleX) >> 12);
-            lookAt.vx = o->camPos.vx + (s32)((s64)forward * Math_Sin(o->angleY) >> 12);
-            lookAt.vy = o->camPos.vy + (s32)((s64)20480 * Math_Sin(o->angleX) >> 12);
-            lookAt.vz = o->camPos.vz + (s32)((s64)forward * Math_Cos(o->angleY) >> 12);
-
-            Vw_SetLookAtMatrix(&o->camPos, &lookAt);
-            vcWork.cam_pos = o->camPos;
-            overrideFired = true;
-            break;
-        }
-
-        if (!overrideFired) {
-            vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
-        }
-    }
-#else
+    /* Disabled-override table removed: the map0_s01 corner is fixed via
+     * faithful fix_ang road data + the engine matrix/transpose/clamp fixes. */
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
-#endif
 
     vcWork.through_door_activate_init_f = false;
     vcWork.flags                     &= ~(VC_WARP_CAM_F | VC_WARP_WATCH_F | VC_WARP_CAM_TGT_F);
