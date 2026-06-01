@@ -267,15 +267,24 @@ void DbgOverlay_Update(void)
 {
     static int s_mark_a = 0;
     static int s_mark_b = 0;
+    static int s_prev_tilde = 0;
     VECTOR3 hpos, cpos;
     s_SubCharacter* player;
-    int cur_a, cur_b;
+    int cur_a, cur_b, cur_tilde;
     char line[LINE_LEN];
-
-    if (g_PcConfig.showConsole < 2) return;
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
+
+    /* `~` toggles the in-game console's visibility, preserving the external
+     * bit (bit 0): off<->ingame (0<->2), external<->ingame+external (1<->3).
+     * Handled before the showConsole<2 gate so it works while hidden. */
+    cur_tilde = ks[SDL_SCANCODE_GRAVE];
+    if (cur_tilde && !s_prev_tilde)
+        g_PcConfig.showConsole ^= 2;
+    s_prev_tilde = cur_tilde;
+
+    if (g_PcConfig.showConsole < 2) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
     cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
@@ -318,6 +327,10 @@ void DbgOverlay_Render(void)
     GLint   prev_prog, prev_tex, prev_vao, prev_vbo, prev_fb;
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
     GLboolean prev_depth, prev_blend;
+
+    /* Hidden unless the in-game console bit is set (toggled by `~`). The ring
+     * buffer keeps filling while hidden, so toggling on shows recent output. */
+    if (!(g_PcConfig.showConsole & 2)) return;
 
     if (s_console_count == 0) return;
 

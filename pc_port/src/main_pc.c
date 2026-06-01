@@ -198,7 +198,11 @@ int main(int argc, char* argv[])
                 FreeConsole();
             }
         }
-        if (show == 2 || show == 3) {
+        /* Always capture log lines into the overlay ring buffer so the in-game
+         * console can be toggled on at runtime (`~`) and immediately show recent
+         * output, even when it booted disabled. Visibility is gated in
+         * DbgOverlay_Render by (showConsole & 2). */
+        {
             extern void DbgOverlay_PushLine(const char* line);
             g_ShOverlayPushLine = DbgOverlay_PushLine;
         }
@@ -303,6 +307,21 @@ int main(int argc, char* argv[])
     }
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
+
+    /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
+     * console-subsystem app, so Windows spawns a console window at startup that
+     * grabs focus before this SDL window exists (and, with console off, is then
+     * FreeConsole'd). The launcher's SetForegroundWindow targets the process'
+     * MainWindowHandle, which resolves to that console (or zero), so the game
+     * window never reliably gets focus. Raise our own window here — the
+     * launcher's AllowSetForegroundWindow grant lets this take the foreground. */
+    {
+        extern SDL_Window* g_window;
+        if (g_window)
+        {
+            SDL_RaiseWindow(g_window);
+        }
+    }
 
     /* Apply refresh rate and vsync from config.
      * PsyCross defaults to vsync=off; we override via SDL directly. */
