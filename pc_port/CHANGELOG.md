@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.01.3 -- 2026-06-01
+- camera: remove obsolete s_camCorrections band-aid system + debug traces
+- camera: re-enable fixed-angle XZ limit clamp (was disabled on PC)
+- camera: revert map0_s01 fix_ang band-aids + drop disabled override table
+
 ## v2026.06.01.2 -- 2026-06-01
 - camera: fix in-place TransposeMatrix corrupting SETTLE-mode cameras
 - docs: document in-place TransposeMatrix camera fix
