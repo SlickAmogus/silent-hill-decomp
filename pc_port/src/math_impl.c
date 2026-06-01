@@ -60,22 +60,32 @@ void Math_RotMatrixZxyNeg(SVECTOR* rot, MATRIX* mat)
     double ry = ((double)rot->vy / 4096.0) * 2.0 * M_PI;
     double rz = ((double)rot->vz / 4096.0) * 2.0 * M_PI;
 
-    /* Negate angles */
-    double sx = sin(-rx), cx = cos(-rx);
-    double sy = sin(-ry), cy = cos(-ry);
-    double sz = sin(-rz), cz = cos(-rz);
+    double sx = sin(rx), cx = cos(rx);
+    double sy = sin(ry), cy = cos(ry);
+    double sz = sin(rz), cz = cos(rz);
 
-    /* ZXY rotation order: Ry * Rx * Rz */
+    /* R = Ry * Rx * Rz. Verified element-for-element against real PSX (USA)
+     * vcWork.cam_mat at the opening street: e.g. m[1][2] = -sx is POSITIVE
+     * (+1562 hw) for a downward-pitched -Z-facing cam.
+     *
+     * The previous PC form negated all three angles AND used the transposed
+     * layout. That produced m[1][2] = sy*sz + cy*sx*cz, which entangles pitch
+     * with yaw: it matches Ry*Rx*Rz only when cos(yaw)=1, and FLIPS the pitch
+     * sign when cos(yaw)=-1 (facing -Z). Result: every -Z-facing road/chase
+     * camera pitched up into the sky instead of down at Harry, while models
+     * (which sit at pitch ~0, where the entangled term vanishes) looked fine.
+     * This is the matrix vwMatrixToAngleYXZ inverts, so angle->matrix->angle
+     * now round-trips identically, matching the PSX camera pipeline. */
     mat->m[0][0] = (short)(( cy*cz + sy*sx*sz) * 4096.0);
-    mat->m[0][1] = (short)(( cx*sz) * 4096.0);
-    mat->m[0][2] = (short)((-sy*cz + cy*sx*sz) * 4096.0);
+    mat->m[0][1] = (short)((-cy*sz + sy*sx*cz) * 4096.0);
+    mat->m[0][2] = (short)(( sy*cx) * 4096.0);
 
-    mat->m[1][0] = (short)((-cy*sz + sy*sx*cz) * 4096.0);
+    mat->m[1][0] = (short)(( cx*sz) * 4096.0);
     mat->m[1][1] = (short)(( cx*cz) * 4096.0);
-    mat->m[1][2] = (short)(( sy*sz + cy*sx*cz) * 4096.0);
+    mat->m[1][2] = (short)((-sx) * 4096.0);
 
-    mat->m[2][0] = (short)(( sy*cx) * 4096.0);
-    mat->m[2][1] = (short)((-sx) * 4096.0);
+    mat->m[2][0] = (short)((-sy*cz + cy*sx*sz) * 4096.0);
+    mat->m[2][1] = (short)(( sy*sz + cy*sx*cz) * 4096.0);
     mat->m[2][2] = (short)(( cy*cx) * 4096.0);
 }
 
