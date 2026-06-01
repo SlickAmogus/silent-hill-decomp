@@ -2102,9 +2102,34 @@ void vcMakeIdealCamPosForFixAngCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083A
                     Q12_MULT(offset_dist, Math_Cos(cam_angle_vec.vy + Q12_ANGLE(180.0f)));
     ideal_pos->vy = w_p->chara_pos.vy;
 
-#ifndef SH_PC_PORT
-    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, limit_area);
+#ifdef SH_PC_PORT
+    /* FIX_ANG cam diagnosis: alley3 "getting darker" shot frames Harry ~2.4m
+     * off. angle/FOV/height match PSX; only ideal_pos.xz differs, driven by
+     * offset_dist (from Harry's distance to cur_near_road.rd box). Log every
+     * input so we can compare which one diverges vs PSX. */
+    {
+        static int __faTick = 0;
+        if ((++__faTick % 30) == 0) {
+            VC_NEAR_ROAD_DATA* nr = &w_p->cur_near_road;
+            VC_LIMIT_AREA* la = limit_area; /* road_p->lim_rd — what the PSX XZ clamp uses */
+            SH_DBG("[FIXANG] ideal=(%ld,%ld) chara=(%ld,%ld) eyeAngY=%d fixAng=(%d,%d) | nr.rd hx[%d,%d] hz[%d,%d] | lim_rd hx[%d,%d] hz[%d,%d] | distXZ=(%ld,%ld) maxDist=%ld ofsDist=%ld camOfsFwd=%ld chr2cam=%ld",
+                (long)ideal_pos->vx, (long)ideal_pos->vz,
+                (long)w_p->chara_pos.vx, (long)w_p->chara_pos.vz,
+                (int)w_p->chara_eye_ang_y, (int)cam_angle_vec.vx, (int)cam_angle_vec.vy,
+                (int)nr->rd.min_hx, (int)nr->rd.max_hx, (int)nr->rd.min_hz, (int)nr->rd.max_hz,
+                (int)la->min_hx, (int)la->max_hx, (int)la->min_hz, (int)la->max_hz,
+                (long)dist_x_to_lim_area, (long)dist_z_to_lim_area,
+                (long)max_dist_to_lim_area, (long)offset_dist,
+                (long)cam_offset_forward, (long)chara_to_cam_dist);
+        }
+    }
 #endif
+
+    /* Clamp the fixed-angle cam's XZ into the road's limit area (as PSX does).
+     * This was previously #ifndef'd out on PC — a leftover band-aid — which let
+     * fixed-angle shots rest at an unclamped XZ (e.g. the alley3 "getting
+     * darker" shot framed Harry ~2.4m off). Restored to match PSX. */
+    vcAdjustXzInLimAreaUsingMIN_IN_ROAD_DIST(&ideal_pos->vx, &ideal_pos->vz, limit_area);
 }
 
 void vcMakeIdealCamPosForThroughDoorCam(VECTOR3* ideal_pos, VC_WORK* w_p) // 0x80083D2C
