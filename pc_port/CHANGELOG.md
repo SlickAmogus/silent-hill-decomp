@@ -1,5 +1,18 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.01.1 -- 2026-06-01
+- camera: add facing-direction gate to road cam corrections
+- camera: ease scene corrections in instead of snapping
+- camera: let a correction span a whole rail-cam shot
+- camera: match span-shot corrections by fixed box, not cur_near_road
+- camera: fix 3D projection vertical center (112->120) to match PSX
+- Revert camera projection vertical-center change (unvalidated)
+- camera: trace watch-target Y pipeline ([CAMPITCH]) to pin the aim-too-low bug
+- camera: restore PSX road cam-height clamp (root cause of mis-framing)
+- camera: trace final render angle (cam_mat_ang) to isolate pose->matrix bug
+- camera: fix Math_RotMatrixZxyNeg pitch inversion (root cause, verified vs PSX)
+- camera: default to original (corrections off); document road-cam fix
+
 ## v2026.05.31.1 -- 2026-05-31
 - combat: fix continuous handgun fire on locked targets
 - debug: route key-press events to console overlay; document controls
