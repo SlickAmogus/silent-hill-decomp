@@ -174,28 +174,26 @@ int main(int argc, char* argv[])
     {
         int show = g_PcConfig.showConsole;
         if (show == 1 || show == 3) {
+            /* GUI-subsystem app: no console exists at launch, so create one for
+             * external mode and point stdout/stderr at it. */
+            extern __declspec(dllimport) int __stdcall AllocConsole(void);
+            AllocConsole();
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
             g_ShDebugEchoStdout = 1;
             setvbuf(stdout, NULL, _IONBF, 0);
             setvbuf(stderr, NULL, _IONBF, 0);
         } else {
+            /* No console in a GUI-subsystem app — just route stdout/stderr to
+             * the log file (or NUL) so stray printf doesn't hit an invalid handle. */
             if (g_PcConfig.enableDebugLog) {
                 freopen("SilentHill.log", "a", stdout);
                 freopen("SilentHill.log", "a", stderr);
                 setvbuf(stdout, NULL, _IONBF, 0);
                 setvbuf(stderr, NULL, _IONBF, 0);
             } else {
-                /* Redirect to NUL so post-FreeConsole printfs don't faultfile a
-                 * stale CONOUT$ handle. */
                 freopen("NUL", "w", stdout);
                 freopen("NUL", "w", stderr);
-            }
-            /* Windows Terminal ignores ShowWindow(SW_HIDE) on its hosted
-             * consoles, so the window stays visible. FreeConsole detaches
-             * the process from its console host and the WT tab closes
-             * cleanly regardless of host (conhost or WT). */
-            {
-                extern __declspec(dllimport) int __stdcall FreeConsole(void);
-                FreeConsole();
             }
         }
         /* Always capture log lines into the overlay ring buffer so the in-game
