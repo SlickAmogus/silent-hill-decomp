@@ -1138,12 +1138,20 @@ void GsDefDispBuff2(unsigned short x0, unsigned short y0, unsigned short x1, uns
     GsDISPENV = gs_disp_env[0];
 }
 
-/* PSY-Q libgte TransposeMatrix - not implemented in PsyCross */
+/* PSY-Q libgte TransposeMatrix - not implemented in PsyCross.
+ * Must support in-place use (m0 == m1): the camera calls
+ * TransposeMatrix(&base_matT, &base_matT) in vcRenewalCamMatAng. Writing
+ * element-by-element from m0 corrupts the off-diagonal pairs when m0==m1
+ * (line 1 overwrites m[0][1] before line 2 reads it), producing a non-
+ * rotation matrix. That broke every SETTLE-mode camera (base != 0); CHASE
+ * cams were unaffected only because their base_matT is the identity, whose
+ * transpose-in-place is harmless. Copy to a temp first. */
 MATRIX* TransposeMatrix(MATRIX *m0, MATRIX *m1)
 {
-    m1->m[0][0] = m0->m[0][0]; m1->m[0][1] = m0->m[1][0]; m1->m[0][2] = m0->m[2][0];
-    m1->m[1][0] = m0->m[0][1]; m1->m[1][1] = m0->m[1][1]; m1->m[1][2] = m0->m[2][1];
-    m1->m[2][0] = m0->m[0][2]; m1->m[2][1] = m0->m[1][2]; m1->m[2][2] = m0->m[2][2];
+    MATRIX t = *m0;
+    m1->m[0][0] = t.m[0][0]; m1->m[0][1] = t.m[1][0]; m1->m[0][2] = t.m[2][0];
+    m1->m[1][0] = t.m[0][1]; m1->m[1][1] = t.m[1][1]; m1->m[1][2] = t.m[2][1];
+    m1->m[2][0] = t.m[0][2]; m1->m[2][1] = t.m[1][2]; m1->m[2][2] = t.m[2][2];
     return m1;
 }
 
