@@ -378,6 +378,21 @@ s32 vcExecCamera(void) // 0x80080FBC
                        vcWork.flags & VC_VISIBLE_CHARA_F);
 
 #ifdef SH_PC_PORT
+    /* Final render-angle trace. cam_pos/watch_tgt now match PSX exactly, but
+     * the SAME pose renders looking-up on PC vs down on PSX -> the bug is in
+     * this pose->view-matrix conversion. cam_mat_ang.vx is the actual rendered
+     * pitch. Compare to PSX vcWork.cam_mat_ang.vx (0x800B9D5E, s16). */
+    {
+        static int __mTick = 0;
+        if ((++__mTick % 60) == 0) {
+            SH_DBG("[CAMMAT] cam_mat_ang=(%d,%d,%d) base=(%d,%d,%d) ofs=(%d,%d,%d) curType=%d",
+                (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy, (int)vcWork.cam_mat_ang.vz,
+                (int)vcWork.base_cam_ang.vx, (int)vcWork.base_cam_ang.vy, (int)vcWork.base_cam_ang.vz,
+                (int)vcWork.ofs_cam_ang.vx, (int)vcWork.ofs_cam_ang.vy, (int)vcWork.ofs_cam_ang.vz,
+                (int)cur_cam_mv_type);
+        }
+    }
+
     /* Hand-tuned camera overrides for spots where the road-node math
      * produces a wrong angle/position. Each entry triggers when Harry
      * is within `radius` of `harryAt` on a specific map.
