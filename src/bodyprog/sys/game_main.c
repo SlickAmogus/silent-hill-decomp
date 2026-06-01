@@ -164,18 +164,10 @@ static VECTOR3       g_PcCamAppliedPos    = {0, 0, 0};
 static VECTOR3       g_PcCamAppliedLookAt = {0, 0, 0};
 static int           g_PcCamAppliedValid  = 0;
 
-/* KP_0: "raw cam mode" — zeroes manual nudge AND bypasses s_camCorrections so
- * the user sees the engine's unmodified camera output. Lets them take an
- * accurate BAD snapshot before adjusting. Toggle on/off with KP_0. */
+/* KP_0: "raw cam mode" — zeroes the manual numpad nudge so the engine's
+ * unmodified camera output is visible. Lets the user take an accurate BAD
+ * snapshot before adjusting. Toggle on/off with KP_0. */
 static int           g_DebugRawCamMode    = 0;
-
-/* Road/chase-cam correction table master switch. DEFAULT OFF: the camera
- * mis-framing these entries patched was root-caused to Math_RotMatrixZxyNeg
- * (see pc_port/docs/camera_road_cam_fix.md); with that fixed the engine's
- * own (PSX-faithful) camera is correct, so the band-aid table is bypassed by
- * default. Kept compiled-in for now so the corrections can be re-enabled for
- * A/B comparison while verifying, before the table is deleted. */
-static int           g_PcRoadCamCorrections = 0;
 
 void DebugCamera_Update(void)
 {
@@ -341,8 +333,7 @@ void DebugCamera_Update(void)
              * on-screen camera the user sees. If g_PcCamAppliedValid is 0
              * (no nudges applied this frame), the post-nudge state equals
              * the pre-nudge baseline above. Also emit the pos/lookAt
-             * deltas in WORLD-SPACE so the user can paste them directly
-             * into a new s_camCorrections entry. */
+             * deltas in WORLD-SPACE for tuning reference. */
             if (!g_DebugCamEnabled && !g_DebugThirdPersonCam) {
                 VECTOR3 finalPos, finalLook;
                 if (g_PcCamAppliedValid) {
@@ -371,7 +362,7 @@ void DebugCamera_Update(void)
                  * Store rotation as rotation (yawDelta/pitchDelta), pos as
                  * pos. lookAtDelta stays 0 in new captures because there
                  * is no runtime keybind that translates lookAt directly. */
-                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={0,0,0} yawDelta=%d pitchDelta=%d (paste into s_camCorrections[])",
+                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={0,0,0} yawDelta=%d pitchDelta=%d (raw numpad nudge — for tuning reference)",
                     tag,
                     (long)g_PcCamNudgePos.vx,
                     (long)g_PcCamNudgePos.vy,
@@ -647,13 +638,12 @@ void DebugCamera_Update(void)
             prevKey3 = cur3;
         }
 
-        /* Numpad 0: toggle "raw cam mode" — zeros nudge AND bypasses
-         * s_camCorrections so the unmodified engine camera is visible.
-         * Use to get a clean BAD snapshot before adjusting: press KP_0
-         * (camera snaps to raw default), log BAD (top-row 4), adjust
-         * with numpad, log GOOD (top-row 5), press KP_0 again to
-         * restore corrections. Logs current g_DefaultCam on activation
-         * so you can see the engine baseline in the log. */
+        /* Numpad 0: toggle "raw cam mode" — zeros the manual nudge so the
+         * unmodified engine camera is visible. Use to get a clean BAD
+         * snapshot before adjusting: press KP_0 (camera snaps to raw
+         * default), log BAD (top-row 4), adjust with numpad, log GOOD
+         * (top-row 5). Logs current g_DefaultCam on activation so you can
+         * see the engine baseline in the log. */
         {
             static int prevKp0 = 0;
             int curKp0 = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
@@ -754,541 +744,30 @@ void DebugCamera_Update(void)
             npslPrev = cur;
         }
 
-        /* Scene-baseline cam corrections (built up from in-game tuning).
-         *
-         * Matching: the anchor `harryPos` is tested against the currently
-         * active road's switch area (`lim_sw`). If the anchor is inside
-         * the same road region Harry is currently in, the same fixed-cam
-         * shot is active → apply this correction. One tuning therefore
-         * covers the entire spatial extent of a fixed-cam shot
-         * automatically (no manual radius needed).
-         *
-         * Stored as world-space pos + lookAt DELTAS (VECTOR3 each), not
-         * yaw/pitch rotation. Same baseline + same delta = identical
-         * final cam — what the user tunes is exactly what they see
-         * next time.
-         *
-         * Workflow:
-         *   1. Top-row 4 at the bad spot — logs baseline.
-         *   2. Numpad to nudge cam to correct view.
-         *   3. Top-row 5 — logs [GOOD-DELTA] with deltas.
-         *   4. Paste those deltas + the harry= line's coords into a
-         *      new entry here. */
-        struct CamCorrection {
-            int     mapId;          /* mapOverlayId_A4 */
-            VECTOR3 harryPos;       /* anchor; matched via active road containment
-                                     * OR (if matchXzRadius>0) by XZ distance to Harry */
-            VECTOR3 posDelta;       /* world-space cam pos translation */
-            VECTOR3 lookAtDelta;    /* world-space lookAt translation */
-            s32     yawDelta;       /* extra yaw rotation around cam-Y, applied
-                                     * AFTER posDelta — same units as the
-                                     * runtime numpad-7/9 nudge keys. Stored as
-                                     * raw nudge value so what the row-5 logger
-                                     * records is what gets re-applied (no
-                                     * baseline-dependent baking). */
-            s32     pitchDelta;     /* extra pitch rotation around cam-X. Same
-                                     * semantics as yawDelta. Critical for any
-                                     * tuned cam that needed numpad-./numpad-0
-                                     * tilt at capture time. */
-            int     forceApply;     /* 1 = trigger override even with zero deltas
-                                     * (suppresses cam-pipeline jitter by replacing
-                                     *  flickering view matrix with stable copy) */
-            int     followMode;     /* 1 = override fixed cam with a follow cam:
-                                     * place cam behind Harry's facing direction
-                                     * (TP_DIST back, TP_HEIGHT up) looking at his
-                                     *  chest. posDelta/lookAtDelta still stack
-                                     *  on top in world space. */
-            int     disableMode;    /* 1 = matching entry suppresses ALL corrections
-                                     * for this frame. Use for areas like the
-                                     * end-of-alley3 gray-children spawn where we
-                                     * want vanilla cam behaviour even though the
-                                     * road region overlaps with a tuned shot. */
-            s32     matchXzRadius;  /* Q12: if >0, use XZ-distance match instead
-                                     * of road containment. Required for shots
-                                     * driven by non-road cam systems (cutscene,
-                                     * event, through-door) where cur_near_road
-                                     * is NULL or unrelated to the active shot. */
-            s32     camYawCenter;   /* Q12 angle (0-4095). Camera-facing gate:
-                                     * the baseline cam yaw (cam->lookAt) the
-                                     * correction was tuned for. Only meaningful
-                                     * when camYawTol > 0. */
-            s32     camYawTol;      /* Q12 angle tolerance; 0 = no facing gate.
-                                     * When >0, the entry only matches if the
-                                     * live cam yaw is within camYawTol of
-                                     * camYawCenter. Needed where one road region
-                                     * is shared by two opposite-facing fixed
-                                     * shots — a tilt that frames Harry from one
-                                     * direction over-tilts from the other. */
-            int     spanRoadShot;   /* 1 = whole-shot match: test Harry against
-                                     * the explicit spanMin/spanMax box + the
-                                     * camYaw gate, INSTEAD of cur_near_road
-                                     * containment. cur_near_road is the engine's
-                                     * nearest-road pick (keyed on centerline
-                                     * distance, not lim_sw containment), so along
-                                     * a long shot it can flip to an overlapping
-                                     * segment whose lim_sw doesn't hold Harry and
-                                     * the correction drops out. A fixed box over
-                                     * the road's own lim_sw is stable; the camYaw
-                                     * gate splits the two facing directions. */
-            VECTOR3 spanMin;        /* world-space XZ min of the span box (Q12). */
-            VECTOR3 spanMax;        /* world-space XZ max of the span box (Q12). */
-        };
-        static const struct CamCorrection s_camCorrections[] = {
-            /* map0_s00 intro / first-street fixed cam — cam was way underground
-             * looking up at the sky/treetops. Tuned at (-24864,0,626512),
-             * vy lift +4182 (~1.0m). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -24864, 0, 626512 },
-                .posDelta   = { 0, 4182, 0 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 street approach to alley2 door — tuned at
-             * (-117980,0,512660), vy lift +3621 (~0.88m). Should hold until
-             * the alley2-door boundary where the road switches. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -117980, 0, 512660 },
-                .posDelta   = { 0, 3621, 0 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 Cheryl-chase alley (before alley2) — tuned at
-             * (-246105,0,440531), vy lift +2244 (~0.55m). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -246105, 0, 440531 },
-                .posDelta   = { 0, 2244, 0 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 alley2 first fixed-cam — tuned at (-374949,0,1000840).
-             * Pure lookAt tilt (no pos shift): lookAt vy down 24103 (~5.9m)
-             * to tilt cam downward and frame Harry. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -374949, 0, 1000840 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { 59, -24103, -122 },
-            },
-            /* map0_s00 alley2 second fixed-cam — tuned at (-375040,0,995624).
-             * Baseline cam differs from the first entry (different shot
-             * region), so this is a separate fixed-cam shot. lookAtDelta
-             * similar shape (downward tilt). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -375040, 0, 995624 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { 649, -22805, -1229 },
-            },
-            /* map0_s00 alley2 third fixed-cam — tuned at (-373844,0,964688).
-             * Pure Z-pos shift -1734 (~0.42m back along Z). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -373844, 0, 964688 },
-                .posDelta   = { 0, 0, -1734 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 alley2 fourth (final) fixed-cam — tuned at
-             * (-435081,0,929665). Big lift (+12342 vy ~3m) plus lookAt
-             * tilt (vy -11368 ~2.8m). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -435081, 0, 929665 },
-                .posDelta   = { 0, 12342, 0 },
-                .lookAtDelta = { 2874, -11368, -110 },
-            },
-            /* map0_s00 alley3 — tuned at (-1093785,0,1019391),
-             * height lift +9078 (~2.22m). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1093785, 0, 1019391 },
-                .posDelta   = { 0, 9078, 0 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 alley3 (lighter scene entry) — tuned at
-             * (-1106865,0,1044681). Mostly a lookAt redirect with
-             * small pos nudge. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1106865, 0, 1044681 },
-                .posDelta   = { 135, 0, -705 },
-                .lookAtDelta = { 1165, -2900, 7448 },
-            },
-            /* map0_s00 alley3 next shot (refined) — tuned at
-             * (-1065294,0,985368). Pos shift + lookAt redirect.
-             * Placed BEFORE the -1062321 entry so this wins in lim_sw
-             * matching if both anchors fall in the same shot region. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1065294, 0, 985368 },
-                .posDelta   = { -1080, 10965, -413 },
-                .lookAtDelta = { 6433, -3038, 1284 },
-            },
-            /* map0_s00 alley3 next shot — tuned at (-1062321,0,993880).
-             * LookAt redirect (cam pos unchanged). */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1062321, 0, 993880 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { -6937, -32319, -6508 },
-            },
-            /* map0_s00 alley3 final shot (refined) — tuned at
-             * (-1031091,0,934787). Strong pos + lookAt shift. Placed
-             * BEFORE the -1030552 entry so this wins. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1031091, 0, 934787 },
-                .posDelta   = { -1080, 10965, -413 },
-                .lookAtDelta = { 772, -10259, 9005 },
-            },
-            /* map0_s00 alley3 final shot — tuned at (-1030552,0,933245).
-             * Small lookAt downward + Z forward shift. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1030552, 0, 933245 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { 42, -4550, 8375 },
-            },
-            /* map0_s01 cafe entry — tuned at (16803,0,1093738).
-             * Pos shift -2688 vx (-0.66m). */
-            {
-                .mapId      = 1,
-                .harryPos   = { 16803, 0, 1093738 },
-                .posDelta   = { -2688, 0, -56 },
-                .lookAtDelta = { 0, 0, 0 },
-            },
-            /* map0_s00 alley3 post-spawn shot — tuned at
-             * (-1028587,0,895221). LookAt redirect only. */
-            {
-                .mapId      = 0,
-                .harryPos   = { -1028587, 0, 895221 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { -4104, -55, 4891 },
-            },
-            /* map2_s00 post-cafe (dog-head area) — re-tuned at
-             * (-781019,0,1541111). This shot is driven by a non-road cam
-             * system (cur_near_road containment never matched), so use
-             * matchXzRadius=Q12(4) — same shape as the original 2fe61e050
-             * 4m-radius match that worked. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -781019, 0, 1541111 },
-                .posDelta   = { 0, 0, 0 },
-                .lookAtDelta = { -1096, -31250, 3177 },
-                .matchXzRadius = Q12(4.0f),
-            },
-            /* map2_s00 post-cafe alley1 shot A — tuned at (-254316,0,430860).
-             * Lift +2958 vy (~0.72m) + pitch tilt 87. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -254316, 0, 430860 },
-                .posDelta   = { 0, 2958, 0 },
-                .pitchDelta = 87,
-            },
-            /* map2_s00 post-cafe alley1 shot B — tuned at (-234740,0,189733).
-             * Lift +510 vy (~0.12m) + pitch tilt 87. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -234740, 0, 189733 },
-                .posDelta   = { 0, 510, 0 },
-                .pitchDelta = 87,
-            },
-            /* map2_s00 post-cafe alley2 shot A — tuned at (-374003,0,998897).
-             * Captured clean from raw baseline (KP_0): no pos shift, pitch +1074. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -374003, 0, 998897 },
-                .posDelta   = { 0, 0, 0 },
-                .pitchDelta = 1074,
-            },
-            /* map2_s00 post-cafe alley2 shot B — tuned at (-375543,0,964828).
-             * Lift +510 vy + pitch tilt 192. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -375543, 0, 964828 },
-                .posDelta   = { 0, 510, 0 },
-                .pitchDelta = 192,
-            },
-            /* map2_s00 post-cafe alley2 transition — re-tuned at (-453319,0,919542).
-             * Lift +6273 vy, yaw +1632, pitch -2013. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -453319, 0, 919542 },
-                .posDelta   = { 0, 6273, 0 },
-                .yawDelta   = 1632,
-                .pitchDelta = -2013,
-            },
-            /* map2_s00 further alley — tuned at (-778240,0,1243546).
-             * Lift +3162 vy + pitch tilt 192. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -778240, 0, 1243546 },
-                .posDelta   = { 0, 3162, 0 },
-                .pitchDelta = 192,
-            },
-            /* map2_s00 further alley shot — tuned at (-765606,-32,1232188).
-             * Pitch tilt +339. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -765606, -32, 1232188 },
-                .pitchDelta = 339,
-            },
-            /* map2_s00 alley2 transition follow — tuned at (-450765,0,920174).
-             * Pitch tilt +1260. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -450765, 0, 920174 },
-                .pitchDelta = 1260,
-                .matchXzRadius = Q12(3.0f),
-            },
-            /* map2_s00 main road (negative-Z zone) — wide road shot tuned at
-             * (-545362,0,-30651). No matchXzRadius → uses road lim_sw bounds. */
-            {
-                .mapId      = 10,
-                .harryPos   = { -545362, 0, -30651 },
-                .pitchDelta = 234,
-            },
-            /* map2_s00 cafe→gas-station road — a single long VC_MV_CHASE road
-             * (road_data idx 26: lim_sw x[-11.5,19.5] z[-18,211]). Facing down
-             * the road (-Z, cam yaw ~1965-2047) Harry's body drops below frame;
-             * pitchDelta +339 tilts the cam down to frame him. spanRoadShot +
-             * the spanMin/spanMax box (that road's lim_sw in Q12) cover the
-             * whole stretch regardless of which overlapping segment the engine
-             * picks as cur_near_road. The camYaw gate keeps the tilt off the
-             * opposite facing (turning Harry around), which is already framed
-             * right. Tuned at (-12774,0,810254); verified at (-19449,0,729690)
-             * and the gas-station building at (-21049,0,697595). */
-            {
-                .mapId        = 10,
-                .harryPos     = { -12774, 0, 810254 },
-                .pitchDelta   = 339,
-                .camYawCenter = 1965,
-                .camYawTol    = 1024,
-                .spanRoadShot = 1,
-                .spanMin      = { -47104, 0, -73728 },
-                .spanMax      = {  79872, 0, 864256 },
-            },
-            /* map0_s02 convenience-store — B1 bad spot at harry(-591005,0,89984).
-             * Camera baseline Z 89088; B2 reference shows Z 87440 → shift -1648. */
-            {
-                .mapId         = 2,
-                .harryPos      = { -591005, 0, 89984 },
-                .posDelta      = { 0, 0, -1648 },
-                .matchXzRadius = Q12(3.0f),
-            },
-            /* map0_s02 convenience-store — B3 bad spot at harry(-582263,0,82444).
-             * Camera baseline Z 82445; B4 reference shows Z 82281 → shift -164. */
-            {
-                .mapId         = 2,
-                .harryPos      = { -582263, 0, 82444 },
-                .posDelta      = { 0, 0, -164 },
-                .matchXzRadius = Q12(3.0f),
-            },
-        };
-        VECTOR3 sceneNudgePos    = {0, 0, 0};
-        VECTOR3 sceneNudgeLookAt = {0, 0, 0};
-        s32     sceneNudgeYaw    = 0;
-        s32     sceneNudgePitch  = 0;
-        int     sceneForceApply  = 0;
-        int     sceneFollowMode  = 0;
-        int     sceneDisable     = 0;
-        /* Skip the entire correction table when the camera is being driven
-         * by event/cutscene code (vcUserCamTarget sets VC_USER_CAM_F). In
-         * that mode the camera position is whatever the cutscene script
-         * commands — applying road-cam corrections on top would translate
-         * a DMS-driven cutscene cam by our hand-tuned road delta, which
-         * is what was pushing the cafe pre-Air-Screamer interior shot out
-         * through the wall. The correction system only makes sense for
-         * the road/chase cam, never for cinematic cameras. */
-        const int sceneCutsceneCam = (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) != 0;
-        if (!sceneCutsceneCam && !g_DebugRawCamMode && g_PcRoadCamCorrections)
-        {
-            int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
-            const VECTOR3* hp = &g_SysWork.playerWork.player.position;
-            VC_ROAD_DATA* curRoad = vcWork.cur_near_road.road_p;
-            /* Bounds are in q11_4 — convert to Q12 for VECTOR3 compare.
-             * Match against lim_sw (switch trigger area) — same as Harry's
-             * actual shot-trigger region. Earlier we also UNIONed in lim_rd,
-             * but lim_rd often extends into adjacent rooms (e.g. the cafe
-             * exterior lim_rd reaches into the interior), causing the cafe-
-             * entry correction to fire during the pre-AS interior cutscene.
-             * Shots whose cam isn't driven by cur_near_road at all (cutscene
-             * / event / through-door) use matchXzRadius for a road-
-             * independent XZ-distance match instead. */
-            s32 minHx_sw = 0, maxHx_sw = 0, minHz_sw = 0, maxHz_sw = 0;
-            if (curRoad) {
-                minHx_sw = Q4_TO_Q12(curRoad->lim_sw.min_hx);
-                maxHx_sw = Q4_TO_Q12(curRoad->lim_sw.max_hx);
-                minHz_sw = Q4_TO_Q12(curRoad->lim_sw.min_hz);
-                maxHz_sw = Q4_TO_Q12(curRoad->lim_sw.max_hz);
-            }
 
-            /* Baseline cam yaw (cam -> lookAt), for the camYawTol facing gate.
-             * Same convention as the rotation math below (ratan2(dx, dz)). */
-            s32 camBaseYaw = ratan2(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx,
-                                    vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz);
-
-            /* Single match predicate per entry: XZ-radius if requested,
-             * otherwise BOTH the anchor AND Harry's current XZ must lie in
-             * the road's switch-trigger area (lim_sw). Checking only the
-             * anchor (older form) caused corrections to fire any time Harry
-             * stood on the same road — including during cutscenes where the
-             * camera is driven by event data rather than the road shot. The
-             * lim_sw containment check on Harry's CURRENT position narrows
-             * the match to the actual switch-trigger zone of that shot. */
-            /* Angular distance |a-b| folded to 0..2048 (half-circle). */
-            #define CAM_YAW_DIST(a, b) ({ s32 _d = ((a) - (b)) & 0xFFF; \
-                                         _d > 2048 ? 4096 - _d : _d; })
-            #define MATCH_ENTRY(cc) ( \
-                ((cc)->camYawTol <= 0 || CAM_YAW_DIST(camBaseYaw, (cc)->camYawCenter) <= (cc)->camYawTol) && \
-                ((cc)->spanRoadShot \
-                    ? (hp->vx >= (cc)->spanMin.vx && hp->vx <= (cc)->spanMax.vx && \
-                       hp->vz >= (cc)->spanMin.vz && hp->vz <= (cc)->spanMax.vz) \
-                 : (cc)->matchXzRadius > 0 \
-                    ? ((((s64)(hp->vx - (cc)->harryPos.vx) * (hp->vx - (cc)->harryPos.vx)) + \
-                        ((s64)(hp->vz - (cc)->harryPos.vz) * (hp->vz - (cc)->harryPos.vz))) \
-                       <= ((s64)(cc)->matchXzRadius * (cc)->matchXzRadius)) \
-                    : (curRoad && \
-                        (cc)->harryPos.vx >= minHx_sw && (cc)->harryPos.vx <= maxHx_sw && \
-                        (cc)->harryPos.vz >= minHz_sw && (cc)->harryPos.vz <= maxHz_sw && \
-                        hp->vx >= minHx_sw && hp->vx <= maxHx_sw && \
-                        hp->vz >= minHz_sw && hp->vz <= maxHz_sw)))
-
-            /* First pass: any disable-mode entry that matches?
-             * If yes, suppress ALL corrections for this frame. */
-            for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
-                const struct CamCorrection* cc = &s_camCorrections[i];
-                if (!cc->disableMode) continue;
-                if (cc->mapId != curMap) continue;
-                if (!MATCH_ENTRY(cc)) continue;
-                sceneDisable = 1;
-                break;
-            }
-            if (!sceneDisable) {
-                for (size_t i = 0; i < sizeof(s_camCorrections) / sizeof(s_camCorrections[0]); i++) {
-                    const struct CamCorrection* cc = &s_camCorrections[i];
-                    if (cc->disableMode) continue;
-                    if (cc->mapId != curMap) continue;
-                    if (!MATCH_ENTRY(cc)) continue;
-                    sceneNudgePos    = cc->posDelta;
-                    sceneNudgeLookAt = cc->lookAtDelta;
-                    sceneNudgeYaw    = cc->yawDelta;
-                    sceneNudgePitch  = cc->pitchDelta;
-                    sceneForceApply  = cc->forceApply;
-                    sceneFollowMode  = cc->followMode;
-                    break;
-                }
-            }
-            #undef MATCH_ENTRY
-            #undef CAM_YAW_DIST
-        }
-
-#ifdef SH_PC_PORT
-        /* Ease the scene correction toward its target so engaging a
-         * correction (or flipping between the two facings of a shared road
-         * region) glides instead of snapping. The deltas are relative to the
-         * engine baseline, so easing them just slides the cam from the
-         * uncorrected view to the corrected one over a fraction of a second.
-         *
-         * Snap (no ease) when a cutscene/event/raw cam owns the view or a
-         * follow cam is active — those place the cam every frame and must not
-         * carry a lagging residual. Runtime numpad nudges are added after this
-         * and stay instant for tuning feedback. */
-        {
-            static VECTOR3 s_smPos    = {0, 0, 0};
-            static VECTOR3 s_smLookAt = {0, 0, 0};
-            static s32     s_smYaw    = 0;
-            static s32     s_smPitch  = 0;
-
-            if (sceneCutsceneCam || g_DebugRawCamMode || sceneFollowMode) {
-                s_smPos = sceneNudgePos; s_smLookAt = sceneNudgeLookAt;
-                s_smYaw = sceneNudgeYaw; s_smPitch  = sceneNudgePitch;
-            } else {
-                /* alpha = dt * rate, clamped to 1.0. rate 0.25/tick → ~0.4s
-                 * to settle; huge dt (load hitch) clamps to a snap. */
-                s32 a = (s32)(((s64)g_DeltaTime * Q12(0.25f)) >> 12);
-                if (a > Q12(1.0f)) a = Q12(1.0f);
-                if (a < 0)         a = 0;
-                #define SM_LERP(cur, tgt) ((cur) + (s32)((((s64)((tgt) - (cur))) * a) >> 12))
-                s_smPos.vx    = SM_LERP(s_smPos.vx,    sceneNudgePos.vx);
-                s_smPos.vy    = SM_LERP(s_smPos.vy,    sceneNudgePos.vy);
-                s_smPos.vz    = SM_LERP(s_smPos.vz,    sceneNudgePos.vz);
-                s_smLookAt.vx = SM_LERP(s_smLookAt.vx, sceneNudgeLookAt.vx);
-                s_smLookAt.vy = SM_LERP(s_smLookAt.vy, sceneNudgeLookAt.vy);
-                s_smLookAt.vz = SM_LERP(s_smLookAt.vz, sceneNudgeLookAt.vz);
-                s_smYaw       = SM_LERP(s_smYaw,       sceneNudgeYaw);
-                s_smPitch     = SM_LERP(s_smPitch,     sceneNudgePitch);
-                #undef SM_LERP
-            }
-
-            sceneNudgePos    = s_smPos;
-            sceneNudgeLookAt = s_smLookAt;
-            sceneNudgeYaw    = s_smYaw;
-            sceneNudgePitch  = s_smPitch;
-        }
-#endif
-
-        /* Apply nudge: rebuild cam_pos / watch_tgt and rebuild view matrix.
-         *
-         * Two contributors:
-         *   1. Runtime numpad keys (g_PcCamNudgeYaw/Pitch) — applied as
-         *      TRUE rotation around the cam-X / cam-Y axes so dragging
-         *      feels intuitive while tuning.
-         *   2. Scene baseline correction (s_camCorrections[i]) — applied
-         *      as a pure WORLD-SPACE lookAt + pos translation. Same
-         *      baseline + same delta = identical visual, so what the
-         *      user tunes is what they get back next session.
-         *
-         * Order: first apply rotation (runtime nudges), then add the
-         * scene lookAt translation on top. */
-        s32 effPosX  = g_PcCamNudgePos.vx + sceneNudgePos.vx;
-        s32 effPosY  = g_PcCamNudgePos.vy + sceneNudgePos.vy;
-        s32 effPosZ  = g_PcCamNudgePos.vz + sceneNudgePos.vz;
-        s32 effYaw   = g_PcCamNudgeYaw   + sceneNudgeYaw;
-        s32 effPitch = g_PcCamNudgePitch + sceneNudgePitch;
-        if (effPosX | effPosY | effPosZ | effYaw | effPitch
-            | sceneNudgeLookAt.vx | sceneNudgeLookAt.vy | sceneNudgeLookAt.vz
-            | sceneForceApply | sceneFollowMode)
+        /* Apply the manual numpad nudge (debug camera tuning tool): rebuild
+         * cam_pos / watch_tgt and the view matrix from the engine baseline
+         * plus the runtime nudge. Yaw/pitch are applied as a TRUE rotation
+         * around the cam axes so dragging feels intuitive. The scene-baseline
+         * correction table was removed once the road/chase/settle cameras were
+         * fixed at the source (Math_RotMatrixZxyNeg + TransposeMatrix); this
+         * remains only as a live-tuning aid (BAD/GOOD logging, numpad). */
+        s32 effPosX  = g_PcCamNudgePos.vx;
+        s32 effPosY  = g_PcCamNudgePos.vy;
+        s32 effPosZ  = g_PcCamNudgePos.vz;
+        s32 effYaw   = g_PcCamNudgeYaw;
+        s32 effPitch = g_PcCamNudgePitch;
+        if (effPosX | effPosY | effPosZ | effYaw | effPitch)
         {
             VECTOR3 newCam, newLook;
             VECTOR3 dl;
             VECTOR3 baseLook;
 
-            /* Follow-cam override: when sceneFollowMode is set, replace the
-             * cam-pipeline baseline with a chase-cam derived from Harry's
-             * facing direction. Cam sits ~2.5m behind Harry's body yaw,
-             * lifted by 1.4m, looking at his chest. posDelta + lookAtDelta
-             * still stack on top in world space so they're tunable. */
-            if (sceneFollowMode) {
-                s_SubCharacter* fc_hr = &g_SysWork.playerWork.player;
-                s32 fcYaw = fc_hr->rotation.vy;
-                s32 fcSin = Math_Sin(fcYaw);
-                s32 fcCos = Math_Cos(fcYaw);
-                #define FC_DIST       Q12(2.5f)
-                #define FC_HEIGHT     Q12(-1.4f)  /* PSX -Y up */
-                #define FC_LOOK_OFS_Y Q12(-0.85f)
-                /* Behind Harry: subtract DIST along forward (sin/cos = forward). */
-                newCam.vx = fc_hr->position.vx - (s32)((s64)FC_DIST * fcSin >> 12) + effPosX;
-                newCam.vy = fc_hr->position.vy + FC_HEIGHT + effPosY;
-                newCam.vz = fc_hr->position.vz - (s32)((s64)FC_DIST * fcCos >> 12) + effPosZ;
-                /* Look at Harry's chest (Y-up convention). */
-                baseLook.vx = fc_hr->position.vx + sceneNudgeLookAt.vx;
-                baseLook.vy = fc_hr->position.vy + FC_LOOK_OFS_Y + sceneNudgeLookAt.vy;
-                baseLook.vz = fc_hr->position.vz + sceneNudgeLookAt.vz;
-                #undef FC_DIST
-                #undef FC_HEIGHT
-                #undef FC_LOOK_OFS_Y
-            } else {
-                newCam.vx = vcWork.cam_pos.vx + effPosX;
-                newCam.vy = vcWork.cam_pos.vy + effPosY;
-                newCam.vz = vcWork.cam_pos.vz + effPosZ;
+            newCam.vx = vcWork.cam_pos.vx + effPosX;
+            newCam.vy = vcWork.cam_pos.vy + effPosY;
+            newCam.vz = vcWork.cam_pos.vz + effPosZ;
 
-                /* Start with the baseline lookAt translated by the scene
-                 * delta — that's the WYSIWYG correction. Rotation deltas
-                 * from the runtime nudge keys are applied on top. */
-                baseLook.vx = vcWork.watch_tgt_pos.vx + sceneNudgeLookAt.vx;
-                baseLook.vy = vcWork.watch_tgt_pos.vy + sceneNudgeLookAt.vy;
-                baseLook.vz = vcWork.watch_tgt_pos.vz + sceneNudgeLookAt.vz;
-            }
+            baseLook = vcWork.watch_tgt_pos;
 
             if (effYaw | effPitch) {
                 /* Rotate (baseLook - newCam) around newCam by yaw+pitch. */
@@ -1336,12 +815,10 @@ void DebugCamera_Update(void)
             {
                 static int tickCounter = 0;
                 if ((++tickCounter & 0x3F) == 0) {
-                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d (scenePos=%d,%d,%d look=%d,%d,%d)",
+                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d pitchN=%d",
                         (long)newCam.vx, (long)newCam.vy, (long)newCam.vz,
                         (long)newLook.vx, (long)newLook.vy, (long)newLook.vz,
-                        (int)effYaw,
-                        (int)sceneNudgePos.vx, (int)sceneNudgePos.vy, (int)sceneNudgePos.vz,
-                        (int)sceneNudgeLookAt.vx, (int)sceneNudgeLookAt.vy, (int)sceneNudgeLookAt.vz);
+                        (int)effYaw, (int)effPitch);
                 }
             }
         }
