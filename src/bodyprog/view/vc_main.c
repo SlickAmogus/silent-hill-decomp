@@ -2268,17 +2268,6 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
     near_road_data = &w_p->cur_near_road;
 
     ideal_pos->vx = w_p->chara_pos.vx + Q12_MULT(default_cam_dist, Math_Sin(w_p->cam_chara2ideal_ang_y));
-    /* Reverted to PSX baseline (chara_top_y - 0.4f) — the +0.65f
-     * variant put the camera BELOW Harry in PSX-down (+Y=down)
-     * convention, which combined with the watch-target Y at
-     * chara_top_y - 0.25 (vcRenewalCamTgtMvVecYParam, VC_MV_CHASE)
-     * made the camera tilt UP to see the target above it. User
-     * symptom: street cameras showing only Harry's upper body.
-     * The original "camera too high on PC" complaint that motivated
-     * the +0.65f override was probably resolved by other camera
-     * fixes since (TPS rework, road-clamp skip, lookAt anchor
-     * revert). If it returns, prefer a smaller offset like
-     * `chara_top_y - Q12(0.2f)` rather than the sign-flip. */
     ideal_pos->vy = w_p->chara_top_y - Q12(0.4f);
     ideal_pos->vz = w_p->chara_pos.vz + Q12_MULT(default_cam_dist, Math_Cos(w_p->cam_chara2ideal_ang_y));
 
@@ -2302,27 +2291,16 @@ void vcMakeIdealCamPosUseVC_ROAD_DATA(VECTOR3* ideal_pos, VC_WORK* w_p, enum _VC
 
     road_data = w_p->cur_near_road.road_p;
 
-#ifdef SH_PC_PORT
-    /* PSX clamps cam.vy between lim_rd_min_hy (high) and lim_rd_max_hy
-     * (low). On PC the floor clamp routinely pulls the cam below Harry's
-     * head (alley spawn, intro spot — see user screenshots), suggesting
-     * either lim_rd_max_hy is being read with a sign/scale mismatch, or
-     * the ideal_pos.vy upstream is too low and the clamp then pins it
-     * to the floor. Until the root cause is found, restore PSX clamp
-     * only for narrow road areas (TINY/SMALL) where designers cared
-     * about cam height; WIDE/HUGE skip the floor clamp. */
-    if (cur_rd_area_size <= VC_AREA_SMALL) {
-        ideal_pos->vy = CLAMP(ideal_pos->vy,
-                              Q4_TO_Q12(road_data->lim_rd_min_hy),
-                              Q4_TO_Q12(road_data->lim_rd_max_hy));
-    } else {
-        s32 _camMinHy = Q4_TO_Q12(road_data->lim_rd_min_hy);
-        if (ideal_pos->vy < _camMinHy)
-            ideal_pos->vy = _camMinHy;
-    }
-#else
+    /* Clamp cam height to the road's authored band [lim_rd_min_hy (high),
+     * lim_rd_max_hy (low)]. This is what pins the camera to each road's
+     * intended height — at the opening street it pulls the ideal (-8601,
+     * 0.4m above Harry's head) up to lim_rd_max_hy (-10240), matching the
+     * real PSX cam.vy of -10227. A prior PC build skipped this clamp for
+     * WIDE/HUGE areas (cam rested too low everywhere, varying per road),
+     * which the s_camCorrections table was hand-patching. Verified the
+     * q27_4:8 bitfields read correctly (lim_rd_max_hy -2.5m, min -6.0m),
+     * so the clamp is restored unconditionally to match PSX. */
     ideal_pos->vy = CLAMP(ideal_pos->vy, Q4_TO_Q12(road_data->lim_rd_min_hy), Q4_TO_Q12(road_data->lim_rd_max_hy));
-#endif
 
     temp_x = w_p->chara_pos.vx;
     temp_z = w_p->chara_pos.vz;
