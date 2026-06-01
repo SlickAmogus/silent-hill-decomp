@@ -118,6 +118,35 @@ Pipeline: `cam_pos`+`watch_tgt_pos` → `ofs_cam_ang` → `Math_RotMatrixZxyNeg`
 Lesson: don't reason about rotation sign/handedness conventions in the abstract —
 read the hardware's actual matrix and match it numerically.
 
+## Follow-up: in-place TransposeMatrix (SETTLE-mode cameras)
+
+After the matrix fix, fixed/overhead cameras in `SETTLE` mode (e.g. the alley
+shot where the camera sits in a corner and Harry walks underneath) still
+pitched up into the sky. Root cause: `TransposeMatrix` (`pc_port/src/stubs/
+libgs_stub.c`) wrote each element directly from `m0`, with no temporary, so when
+called **in-place** (`m0 == m1`) it overwrote the off-diagonal source elements
+before reading them — producing a non-rotation matrix. `vcRenewalCamMatAng` does
+exactly this:
+
+```c
+Math_RotMatrixZxyNeg(&base_cam_ang, &base_matT);
+TransposeMatrix(&base_matT, &base_matT);   // in-place → corrupted
+```
+
+The corrupted `base_matT` fed `ApplyMatrixSV` in `vcMakeOfsCamTgtAng`, so the
+offset angle came out wrong (alley cam: `ofs_cam_ang.y ≈ 1108` / 97° instead of
+~393), and the composed view pitched up. **CHASE cams (including the opening
+street) were immune** because their `base = (0,0,0)` makes `base_matT` the
+identity, whose in-place transpose is harmless — which is why the matrix fix
+above corrected almost everything but these `base ≠ 0` shots stayed broken.
+
+Verified with the same RAM-compare method at a position-matched alley spot: PSX
+`ofs_cam_ang = (99,321)` matched the offset recomputed from `base`+`watch`
+(`88,312`), but the port's `(117,1108)` did not — isolating the bad `base_matT`.
+
+Fix (commit `42973c70e`): copy `m0` into a temp before writing, so in-place use
+is correct.
+
 ## Status / cleanup
 
 - Root cause fixed in `Math_RotMatrixZxyNeg`; height clamp restored.
