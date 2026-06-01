@@ -169,6 +169,14 @@ static int           g_PcCamAppliedValid  = 0;
  * accurate BAD snapshot before adjusting. Toggle on/off with KP_0. */
 static int           g_DebugRawCamMode    = 0;
 
+/* Road/chase-cam correction table master switch. DEFAULT OFF: the camera
+ * mis-framing these entries patched was root-caused to Math_RotMatrixZxyNeg
+ * (see pc_port/docs/camera_road_cam_fix.md); with that fixed the engine's
+ * own (PSX-faithful) camera is correct, so the band-aid table is bypassed by
+ * default. Kept compiled-in for now so the corrections can be re-enabled for
+ * A/B comparison while verifying, before the table is deleted. */
+static int           g_PcRoadCamCorrections = 0;
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
@@ -1092,7 +1100,7 @@ void DebugCamera_Update(void)
          * through the wall. The correction system only makes sense for
          * the road/chase cam, never for cinematic cameras. */
         const int sceneCutsceneCam = (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) != 0;
-        if (!sceneCutsceneCam && !g_DebugRawCamMode)
+        if (!sceneCutsceneCam && !g_DebugRawCamMode && g_PcRoadCamCorrections)
         {
             int curMap = (int)g_SavegamePtr->mapOverlayId_A4;
             const VECTOR3* hp = &g_SysWork.playerWork.player.position;
