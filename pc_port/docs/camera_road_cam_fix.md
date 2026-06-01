@@ -147,12 +147,22 @@ Verified with the same RAM-compare method at a position-matched alley spot: PSX
 Fix (commit `42973c70e`): copy `m0` into a temp before writing, so in-place use
 is correct.
 
-## Status / cleanup
+## Status / cleanup (done)
 
-- Root cause fixed in `Math_RotMatrixZxyNeg`; height clamp restored.
-- The `s_camCorrections` road table is now **bypassed by default**
-  (`g_PcRoadCamCorrections = 0` in `game_main.c`) so the game boots the
-  PSX-faithful camera. The table is left compiled-in for A/B verification.
-- Once every shot is verified 1:1, delete the road entries from
-  `s_camCorrections`, remove the `[CAMPITCH]`/`[CAMMAT]` debug traces in
-  `vc_main.c`, and drop `g_PcRoadCamCorrections`.
+- Root cause fixed in `Math_RotMatrixZxyNeg`; in-place `TransposeMatrix` fixed;
+  road cam-height clamp restored. Verified 1:1 with PSX in-game.
+- The `s_camCorrections` table + `struct CamCorrection` + its matching/smoothing
+  logic and the `g_PcRoadCamCorrections` gate were **deleted** — the engine's own
+  PSX-faithful camera is correct, so the band-aids are obsolete. The `[CAMPITCH]`
+  / `[CAMMAT]` debug traces were removed too.
+- **Kept** as live-tuning tools: the manual numpad nudge + BAD/GOOD position
+  logging (`[…-DELTA]` lines log raw nudge values), and KP_0 raw-cam mode.
+
+## Known minor follow-up
+
+One `VC_MV_FIX_ANG` shot (alley3 "it's getting darker" line) frames Harry
+slightly off — angle/FOV/height all match PSX, only the camera XZ position is
+~2.4m off, traced to `offset_dist` (Harry's distance to the road limit box) in
+`vcMakeIdealCamPosForFixAngCam`, i.e. the runtime `cur_near_road.rd` box. Minor,
+self-resolves on moving, unrelated to the two engine bugs above. To be chased
+with the same RAM-compare method.

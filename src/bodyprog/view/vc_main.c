@@ -342,57 +342,17 @@ s32 vcExecCamera(void) // 0x80080FBC
     {
         vcAutoRenewalWatchTgtPosAndAngZ(&vcWork, cur_cam_mv_type, cur_rd_area_size,
                                         far_watch_rate, self_view_eff_rate);
-#ifdef SH_PC_PORT
-        q19_12 __wYbase = vcWork.watch_tgt_pos.vy; /* before far-view clamp */
-#endif
         if ((vcWork.cur_near_road.road_p->flags & VC_RD_LIM_UP_FAR_VIEW_F) &&
             (vcWork.cur_near_road.road_p->cam_mv_type == VC_MV_CHASE || cur_cam_mv_type == VC_MV_SELF_VIEW))
         {
             vcAdjustWatchYLimitHighWhenFarView(&vcWork.watch_tgt_pos, &vcWork.cam_pos, vcWork.geom_screen_dist);
         }
-#ifdef SH_PC_PORT
-        /* Watch-target Y pipeline trace. The road cam aims ~9431 (2.3m) too
-         * low (at Harry's feet/ground not his body) -> pitches ~12 deg too far
-         * down -> Harry rides high. Pin which value diverges: the base watch_y
-         * (ofs_watch_hy + chara_bottom_y) or the far-view pitch clamp. */
-        {
-            static int __wTick = 0;
-            if ((++__wTick % 60) == 0) {
-                VC_ROAD_DATA* __rp = vcWork.cur_near_road.road_p;
-                q19_12 __dy = vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy;
-                q19_12 __hz = Vc_VectorMagnitudeCalc(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx, 0,
-                                                     vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz);
-                SH_DBG("[CAMPITCH] camVy=%ld watchVyBase=%ld watchVyFinal=%ld dY=%ld horiz=%ld pitch=%d | ofs_watch_hy=%d(Q12=%ld) chara_bottom_y=%ld chara_top_y=%ld | geomDist=%d gsH=%d flags=0x%x mvType=%d",
-                    (long)vcWork.cam_pos.vy, (long)__wYbase, (long)vcWork.watch_tgt_pos.vy,
-                    (long)__dy, (long)__hz, (int)ratan2(-__dy, __hz),
-                    (int)__rp->ofs_watch_hy, (long)Q4_TO_Q12(__rp->ofs_watch_hy),
-                    (long)vcWork.chara_bottom_y, (long)vcWork.chara_top_y,
-                    (int)vcWork.geom_screen_dist, (int)g_GameWork.gsScreenHeight,
-                    (unsigned)__rp->flags, (int)__rp->cam_mv_type);
-            }
-        }
-#endif
     }
 
     vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
                        vcWork.flags & VC_VISIBLE_CHARA_F);
 
 #ifdef SH_PC_PORT
-    /* Final render-angle trace. cam_pos/watch_tgt now match PSX exactly, but
-     * the SAME pose renders looking-up on PC vs down on PSX -> the bug is in
-     * this pose->view-matrix conversion. cam_mat_ang.vx is the actual rendered
-     * pitch. Compare to PSX vcWork.cam_mat_ang.vx (0x800B9D5E, s16). */
-    {
-        static int __mTick = 0;
-        if ((++__mTick % 60) == 0) {
-            SH_DBG("[CAMMAT] cam_mat_ang=(%d,%d,%d) base=(%d,%d,%d) ofs=(%d,%d,%d) curType=%d",
-                (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy, (int)vcWork.cam_mat_ang.vz,
-                (int)vcWork.base_cam_ang.vx, (int)vcWork.base_cam_ang.vy, (int)vcWork.base_cam_ang.vz,
-                (int)vcWork.ofs_cam_ang.vx, (int)vcWork.ofs_cam_ang.vy, (int)vcWork.ofs_cam_ang.vz,
-                (int)cur_cam_mv_type);
-        }
-    }
-
     /* Hand-tuned camera overrides for spots where the road-node math
      * produces a wrong angle/position. Each entry triggers when Harry
      * is within `radius` of `harryAt` on a specific map.
