@@ -1381,9 +1381,28 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q
     if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
+    /* field_0==0 is the "no dynamic light, baked vertex colors + depth-cue"
+     * lighting mode the world uses in flashlight/lighter-dark scenes. Character
+     * models carry no baked colors, so in that mode func_80057344's switch falls
+     * to case 0 (no lighting) and they render pure black (Harry under the
+     * flashlight). PSX lit characters dynamically from the active light. Drive
+     * the character mesh through the point-light path (field_0=1) so it receives
+     * the flashlight/lighter point light (func_80057228 + func_80057658), then
+     * restore so world geometry — which renders correctly via the baked path —
+     * is unaffected. */
+    /* g_WorldEnvWork is writable in its defining TU but declared const here;
+     * the object is genuinely writable, so cast away const to set the mode. */
+    s_WorldEnvWork* _we = (s_WorldEnvWork*)&g_WorldEnvWork;
+    s32 _savedField0 = _we->field_0;
+    if (_savedField0 == 0) {
+        _we->field_0 = 1;
+    }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
+#ifdef SH_PC_PORT
+    _we->field_0 = _savedField0;
+#endif
 
     if (timer != Q12(0.0f))
     {
