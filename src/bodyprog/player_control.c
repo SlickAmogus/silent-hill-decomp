@@ -3178,6 +3178,18 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
     Player_CombatStateUpdate(player, extra);
 }
 
+#ifdef SH_PC_PORT
+/* PSX gated aim/retarget state transitions on the anim hitting an EXACT
+ * keyframe (kf == D_800C44F0[..].field_6). These aim anims play forward toward
+ * field_6, and at uncapped framerate the anim steps over that single frame, so
+ * the transition never fires — Harry gets stuck (notably in AimTargetLockSwitch
+ * after an auto-aim target change, unable to fire until an inventory reset).
+ * Treat "reached or passed field_6" as the trigger so framerate drops out. */
+#define SH_AIM_KF_REACHED(kf) (extra->model.anim.keyframeIdx >= (kf))
+#else
+#define SH_AIM_KF_REACHED(kf) (extra->model.anim.keyframeIdx == (kf))
+#endif
+
 bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80075504
 {
     s32        enemyAttackedIdx;
@@ -4735,7 +4747,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
                     if (playerProps.flags_11C & PlayerFlag_Unk9)
                     {
-                        if (extra->model.anim.keyframeIdx == D_800C44F0[4].field_6)
+                        if (SH_AIM_KF_REACHED(D_800C44F0[4].field_6))
                         {
                             g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Attack;
 
@@ -4751,7 +4763,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                             extra->model.stateStep                                  = 0;
                         }
                     }
-                    else if (extra->model.anim.keyframeIdx == D_800C44F0[4].field_6)
+                    else if (SH_AIM_KF_REACHED(D_800C44F0[4].field_6))
                     {
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_AimTargetLock;
                         extra->model.controlState                          =
@@ -4806,7 +4818,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
                 if (playerProps.flags_11C & PlayerFlag_Unk9)
                 {
-                    if (extra->model.anim.keyframeIdx == D_800C44F0[4].field_6)
+                    if (SH_AIM_KF_REACHED(D_800C44F0[4].field_6))
                     {
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Attack;
 
@@ -4820,7 +4832,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         extra->model.controlState                                      = extra->model.stateStep = 0;
                     }
                 }
-                else if (extra->model.anim.keyframeIdx == D_800C44F0[4].field_6)
+                else if (SH_AIM_KF_REACHED(D_800C44F0[4].field_6))
                 {
                     g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_AimTargetLock;
                     extra->model.controlState = extra->model.stateStep = 0;
