@@ -1498,19 +1498,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool aimHeld;
                     bool fireHeld;
 
-                    /* TPS mode: mouse-only for aim/fire so LSHIFT can stay
-                     * a pure run modifier (LSHIFT is mapped to R2/aim in
-                     * the PSX-button layer; if we honored that here, aim
-                     * would steal sprint).  Outside TPS keep the keyboard
-                     * mapping (LSHIFT aim, C fire). */
-                    if (g_DebugThirdPersonCam) {
-                        Uint32 mb = SDL_GetMouseState(NULL, NULL);
-                        aimHeld  = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
-                        fireHeld = (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
-                    } else {
-                        aimHeld  = (g_Controller0->btnsHeld_C & aimBtn)  != 0;
-                        fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
-                    }
+                    /* Aim/fire read straight from the configured controller
+                     * buttons (aimBtn = R2, fireBtn = action). This is the
+                     * single combat input path — the same configurable
+                     * mapping customizable controls will drive. */
+                    aimHeld  = (g_Controller0->btnsHeld_C & aimBtn)  != 0;
+                    fireHeld = (g_Controller0->btnsHeld_C & fireBtn) != 0;
 
                     /* Sprint overrides weapon ready: running and aiming at
                      * the same time produces the sprint-in-place bug (D_800C4550
@@ -1598,24 +1591,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                sdlLctrl, sdlRctrl, sdlC,
                                (unsigned)g_Controller0->btnsHeld_C);
                         s_prevSdlLctrl = sdlLctrl;
-                    }
-
-                    /* TPS mode reads mouse buttons; Player_Controller only
-                     * reads PsyCross keyboard mappings. Override the input
-                     * flags Player_Controller set if we're in TPS so the
-                     * upper-body state machine sees the mouse state. */
-                    if (g_DebugThirdPersonCam) {
-                        g_Player_IsAiming = aimHeld && hasWeapon;
-                        if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
-                            extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
-                            g_Player_IsShooting  = fireHeld;
-                            g_Player_IsAttacking = fireHeld;
-                        } else if (hasWeapon && extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
-                            // Melee in TPS: left-mouse = attack. Bypass the PSX 4-frame
-                            // shift register so the attack fires on press, not after hold.
-                            g_Player_IsHoldAttack = fireHeld ? 0x1F : 0;
-                            g_Player_IsAttacking  = fireHeld ? 1    : 0;
-                        }
                     }
 
                     if (g_Player_IsAiming && hasWeapon) {
