@@ -5349,12 +5349,14 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                             static int s_fireThrottle = 0;
                             bool tryingToFire = g_Player_IsShooting || g_Player_IsAttacking;
                             if (tryingToFire) {
-                                unsigned key = ((unsigned)extra->model.anim.status << 1) | (pcAtEndOfActive ? 1u : 0u);
+                                unsigned key = ((unsigned)extra->upperBodyState << 9) | ((unsigned)extra->model.anim.status << 1) | (pcAtEndOfActive ? 1u : 0u);
                                 if (key != s_fireKey || (++s_fireThrottle % 30) == 0) {
-                                    SH_DBG("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d doneKf=%d backward=%d gated=%d pcOK=%d",
+                                    SH_DBG("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d doneKf=%d backward=%d gated=%d pcOK=%d upper=%d lower=%d wepAtk=%d",
                                         (int)g_Player_IsShooting, (int)g_Player_IsAttacking,
                                         (unsigned)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
-                                        (int)pcDoneKf, (int)pcIsBackward, (int)gunFireGated, (int)pcAtEndOfActive);
+                                        (int)pcDoneKf, (int)pcIsBackward, (int)gunFireGated, (int)pcAtEndOfActive,
+                                        (int)extra->upperBodyState, (int)extra->lowerBodyState,
+                                        (int)g_SysWork.playerCombat.weaponAttack);
                                     s_fireKey = key;
                                 }
                             } else {
