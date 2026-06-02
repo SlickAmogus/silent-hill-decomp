@@ -1354,24 +1354,24 @@ u8 sharedData_800D8616_1_s05[256] = {0};
 u8 sharedData_800D8618_1_s05[256] = {0};
 u8 sharedData_800D8684_1_s05[256] = {0};
 u8 sharedData_800D8688_1_s05[256] = {0};
-u8 sharedData_800D9500_5_s00[256] = {0};
-u8 sharedData_800D9654_5_s00[256] = {0};
-u8 sharedData_800D9668_5_s00[256] = {0};
-u8 sharedData_800D967C_5_s00[256] = {0};
-u8 sharedData_800D96F4_5_s00[256] = {0};
-u8 sharedData_800D9708_5_s00[256] = {0};
-u8 sharedData_800D97F8_5_s00[256] = {0};
-u8 sharedData_800D980C_5_s00[256] = {0};
-u8 sharedData_800D9820_5_s00[256] = {0};
-u8 sharedData_800D99D8_5_s00[256] = {0};
-u8 sharedData_800D99EC_5_s00[256] = {0};
-u8 sharedData_800D9A00_5_s00[256] = {0};
-u8 sharedData_800D9A64_5_s00[256] = {0};
-u8 sharedData_800D9A78_5_s00[256] = {0};
-u8 sharedData_800D9AF0_5_s00[256] = {0};
-u8 sharedData_800D9B04_5_s00[256] = {0};
-u8 sharedData_800D9B18_5_s00[256] = {0};
-u8 sharedData_800D9B2C_5_s00[256] = {0};
+/* sharedData_800D9500_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9654_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9668_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D967C_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D96F4_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9708_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D97F8_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D980C_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9820_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D99D8_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D99EC_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9A00_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9A64_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9A78_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9AF0_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9B04_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9B18_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
+/* sharedData_800D9B2C_5_s00 now provided with real data by hanged_scratcher_rodata.inc */
 /* sharedData_800DA928_1_s00 now provided with real data by larval_stalker_rodata.inc */
 /* sharedData_800DA93C_1_s00 now provided with real data by larval_stalker_rodata.inc */
 /* sharedData_800DA950_1_s00 now provided with real data by larval_stalker_rodata.inc */
@@ -1453,19 +1453,19 @@ u8 sharedData_800E0CB4_0_s00[256] = {0};
 u8 sharedData_800E0CB6_0_s00[256] = {0};
 u8 sharedData_800E0CB8_0_s00[256] = {0};
 u8 sharedData_800E0CBA_0_s00[256] = {0};
-u8 sharedData_800E0F78_1_s02[256] = {0};
-u8 sharedData_800E0FC8_1_s02[256] = {0};
-u8 sharedData_800E0FDC_1_s02[256] = {0};
-u8 sharedData_800E0FF0_1_s02[256] = {0};
-u8 sharedData_800E1004_1_s02[256] = {0};
-u8 sharedData_800E10CC_1_s02[256] = {0};
-u8 sharedData_800E10E0_1_s02[256] = {0};
-u8 sharedData_800E1158_1_s02[256] = {0};
-u8 sharedData_800E116C_1_s02[256] = {0};
-u8 sharedData_800E1180_1_s02[256] = {0};
-u8 sharedData_800E1194_1_s02[256] = {0};
-u8 sharedData_800E11A8_1_s02[256] = {0};
-u8 sharedData_800E11BC_1_s02[256] = {0};
+/* sharedData_800E0F78_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E0FC8_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E0FDC_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E0FF0_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E1004_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E10CC_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E10E0_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E1158_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E116C_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E1180_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E1194_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E11A8_1_s02 now provided with real data by creeper_rodata.inc */
+/* sharedData_800E11BC_1_s02 now provided with real data by creeper_rodata.inc */
 u8 sharedData_800E1208_1_s02[256] = {0};
 u8 sharedData_800E1210_1_s02[256] = {0};
 u8 sharedData_800E1570_7_s01[256] = {0};

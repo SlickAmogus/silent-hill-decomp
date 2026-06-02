@@ -917,3 +917,10 @@ void sharedFunc_800D99D0_1_s02(s_SubCharacter* creeper)
 }
 
 #undef creeperProps
+
+#ifdef SH_PC_PORT
+/* Real collision-keyframe data for Chara_Creeper. Was zero-stubbed in
+ * data_stubs.c, collapsing its melee hit window (same class as the grey
+ * children). Extracted from MAP1_S02.BIN. */
+#include "creeper_rodata.inc"
+#endif

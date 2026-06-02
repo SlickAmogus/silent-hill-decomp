@@ -1904,3 +1904,11 @@ void sharedFunc_800D3300_5_s00(s_SubCharacter* scratcher)
 }
 
 #undef scratcherProps
+
+#ifdef SH_PC_PORT
+/* Real collision-keyframe data for Chara_HangedScratcher. Was zero-stubbed in
+ * data_stubs.c (same class as the grey children). Extracted from MAP5_S00.BIN.
+ * Values are ceiling-anchored (the scratcher hangs), hence the differing sign
+ * convention vs ground enemies. */
+#include "hanged_scratcher_rodata.inc"
+#endif
