@@ -5362,52 +5362,12 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                                 pcAtEndOfActive = true;
                             }
                         }
-                        {
-                            /* Change-triggered: only log while the player is actively
-                             * trying to fire (shoot/attack held) and the gate is closed,
-                             * and only when the (status,pcOK) state changes or every 30th
-                             * stuck frame. Captures a real fire-lockup whenever it happens
-                             * without the first-N cap missing it or per-frame flooding. */
-                            static unsigned s_fireKey = 0xFFFFFFFFu;
-                            static int s_fireThrottle = 0;
-                            bool tryingToFire = g_Player_IsShooting || g_Player_IsAttacking;
-                            if (tryingToFire) {
-                                unsigned key = ((unsigned)extra->upperBodyState << 9) | ((unsigned)extra->model.anim.status << 1) | (pcAtEndOfActive ? 1u : 0u);
-                                if (key != s_fireKey || (++s_fireThrottle % 30) == 0) {
-                                    SH_DBG("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d doneKf=%d backward=%d gated=%d pcOK=%d upper=%d lower=%d wepAtk=%d",
-                                        (int)g_Player_IsShooting, (int)g_Player_IsAttacking,
-                                        (unsigned)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
-                                        (int)pcDoneKf, (int)pcIsBackward, (int)gunFireGated, (int)pcAtEndOfActive,
-                                        (int)extra->upperBodyState, (int)extra->lowerBodyState,
-                                        (int)g_SysWork.playerCombat.weaponAttack);
-                                    s_fireKey = key;
-                                }
-                            } else {
-                                s_fireThrottle = 0;
-                                s_fireKey = 0xFFFFFFFFu;
-                            }
-                        }
+                        (void)pcDoneKf; (void)pcIsBackward;
                         if (!pcAtEndOfActive)
 #endif
                         break;
                     }
                 }
-
-#ifdef SH_PC_PORT
-                /* Reached the fire-commit (gate passed). Logs whether the shot
-                 * actually dispatches or diverts to reload (ammo), to tell a
-                 * gate-lockup apart from an empty-chamber/ammo issue. */
-                {
-                    static int s_commitN = 0;
-                    if ((g_Player_IsShooting || g_Player_IsAttacking) && s_commitN < 120) {
-                        SH_DBG("[FIRE_COMMIT] wepAtk=%d upper=%d curAmmo=%d totAmmo=%d targetNpc=%d aStatus=0x%x",
-                               (int)g_SysWork.playerCombat.weaponAttack, (int)extra->upperBodyState,
-                               (int)g_SysWork.playerCombat.currentWeaponAmmo, (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                               (int)g_Player_TargetNpcIdx, (unsigned)extra->model.anim.status);
-                        s_commitN++;
-                    }
-                }
-#endif
 
                 playerProps.flags_11C &= ~PlayerFlag_Unk0;
 
