@@ -2241,7 +2241,18 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
             if (player->health > Q12(0.0f) && (g_Player_HasMoveInput | g_Player_HasActionInput))
             {
+#ifdef SH_PC_PORT
+                /* HasMoveInput/HasActionInput are edge-triggered (one frame per
+                 * button press). PSX added g_DeltaTime per press at its fixed
+                 * 30 FPS (~TIMESTEP_30_FPS), so a grab took ~tens of mashes to
+                 * escape. At uncapped PC framerate g_DeltaTime is a fraction of
+                 * that, so each mash barely advances the meter and the player
+                 * dies before breaking free. Add the nominal 30 FPS step so one
+                 * mash counts the same regardless of framerate. */
+                g_Player_GrabReleaseInputTimer += TIMESTEP_30_FPS;
+#else
                 g_Player_GrabReleaseInputTimer += g_DeltaTime;
+#endif
             }
 
             // If player isn't thrown to floor (Cybil shoot attack).
@@ -5328,10 +5339,16 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                                 pcAtEndOfActive = true;
                             }
                         }
-                        SH_DBG_ECHO("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d doneKf=%d backward=%d gated=%d pcOK=%d",
-                            (int)g_Player_IsShooting, (int)g_Player_IsAttacking,
-                            (unsigned)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
-                            (int)pcDoneKf, (int)pcIsBackward, (int)gunFireGated, (int)pcAtEndOfActive);
+                        {
+                            static int s_fireDbgN = 0;
+                            if (s_fireDbgN < 80) {
+                                SH_DBG("[FIRE_DBG] gun gate: shoot=%d att=%d aStatus=0x%x kf=%d doneKf=%d backward=%d gated=%d pcOK=%d",
+                                    (int)g_Player_IsShooting, (int)g_Player_IsAttacking,
+                                    (unsigned)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
+                                    (int)pcDoneKf, (int)pcIsBackward, (int)gunFireGated, (int)pcAtEndOfActive);
+                                s_fireDbgN++;
+                            }
+                        }
                         if (!pcAtEndOfActive)
 #endif
                         break;

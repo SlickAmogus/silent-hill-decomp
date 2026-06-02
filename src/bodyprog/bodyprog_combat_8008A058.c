@@ -707,7 +707,18 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                     temp = func_8006DA08(&D_800C4728, &chara->field_44.field_18, &chara->field_44.field_48[0], chara);
                     ptr  = D_800C4728.chara_10;
 #ifdef SH_PC_PORT
-                    SH_DBG("[COMBAT] A3E0 DA08: temp=%d ptr=%p(id=%d)", temp, (void*)ptr, ptr ? ptr->model.charaId : -1);
+                    if (chara == &g_SysWork.playerWork.player) {
+                        s32 tIdx = g_SysWork.targetNpcIdx;
+                        s_SubCharacter* tn = (tIdx >= 0) ? &g_SysWork.npcs[tIdx] : NULL;
+                        s32 reqYaw = tn ? Q12_FRACT(ratan2(tn->position.vx - chara->field_44.field_18.vx,
+                                                           tn->position.vz - chara->field_44.field_18.vz) + Q12_ANGLE(360.0f)) : -1;
+                        SH_DBG("[GUNRAY] temp=%d hitId=%d | aimYaw(sp20)=%d aimPitch(sp24)=%d | tgtIdx=%d reqYaw=%d | origin=(%d,%d,%d) dir=(%d,%d,%d) | tgtPos=(%d,%d,%d)",
+                               temp, ptr ? ptr->model.charaId : -1,
+                               (int)sp20, (int)sp24, (int)tIdx, (int)reqYaw,
+                               chara->field_44.field_18.vx, chara->field_44.field_18.vy, chara->field_44.field_18.vz,
+                               chara->field_44.field_48[0].vx, chara->field_44.field_48[0].vy, chara->field_44.field_48[0].vz,
+                               tn ? tn->position.vx : 0, tn ? tn->position.vy : 0, tn ? tn->position.vz : 0);
+                    }
 #endif
 
                     if (temp && ptr != NULL)
@@ -1329,8 +1340,13 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         sp10             = NO_VALUE;
 #ifdef SH_PC_PORT
         SH_DBG("[B714] target=Harry path: computing field_40");
-#endif
+        /* PSX computed the attacker's NPC index via magic-constant division
+         * (* -0x6EB3E453 >> 3) that bakes in the PSX sizeof(s_SubCharacter);
+         * wrong on 64-bit. C pointer subtraction yields the index directly. */
+        target->field_40 = (s32)(attacker - g_SysWork.npcs);
+#else
         target->field_40 = (((s32)((uintptr_t)((u8*)attacker - sizeof(s_PlayerWork)) - (uintptr_t)target) * -0x6EB3E453) >> 3);
+#endif
 #ifdef SH_PC_PORT
         SH_DBG("[B714] field_40=%d sp10=%d", target->field_40, sp10);
 #endif
@@ -1338,17 +1354,12 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     else
     {
 #ifdef SH_PC_PORT
-        /* PC: harmonize with the matched form on line 1333 (uintptr_t).
-         * The (u32) casts here are modular-arithmetic-safe — both operands
-         * are pointers into the same .bss image so their high 32 bits
-         * agree and the difference truncates correctly — but the audit
-         * pattern (pattern 4: `(u32)&global` pointer-to-int truncation)
-         * matches our 32→64 bug-class scrub list. Use uintptr_t to make
-         * the safety locally visible without relying on global-layout
-         * coincidence, and to remove this site from future scrubs. The
-         * computed value feeds `1 << (...)` as a bitmask hash; the
-         * full-width subtraction keeps the same low bits. */
-        sp10 = 1 << (((s32)((uintptr_t)((u8*)target - sizeof(s_PlayerWork)) - (uintptr_t)&g_SysWork.playerWork) * -0x6EB3E453) >> 3);
+        /* PSX hashed the target's NPC index via magic-constant division
+         * (* -0x6EB3E453 >> 3) that bakes in the PSX sizeof(s_SubCharacter),
+         * producing a garbage shift on 64-bit (where the struct is larger).
+         * sp10 is `1 << npcIndex`, tested against attacker->field_44.field_8.
+         * C pointer subtraction gives the index directly and portably. */
+        sp10 = 1 << (s32)(target - g_SysWork.npcs);
 #else
         sp10 = 1 << (((s32)((u32)((u8*)target - sizeof(s_PlayerWork)) - (u32)&g_SysWork.playerWork) * -0x6EB3E453) >> 3);
 #endif
@@ -1877,7 +1888,16 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
     if (chara == &g_SysWork.playerWork.player)
     {
+#ifdef SH_PC_PORT
+        /* PSX: (u8*)chara + sizeof(s_PlayerWork) — relies on npcs[] sitting
+         * exactly sizeof(s_PlayerWork) after the player. On 64-bit the struct
+         * grows (8-byte pointers) and alignment padding can be inserted between
+         * playerWork and npcs[], so the raw offset misses npcs[0] and Harry's
+         * melee scans garbage → never hits enemies. npcs[0] is the real intent. */
+        chara0 = &g_SysWork.npcs[0];
+#else
         chara0 = (u8*)chara + sizeof(s_PlayerWork);
+#endif
         var_v0 = 6;
         var_v1 = 1;
     }
