@@ -1,5 +1,15 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.02.2 -- 2026-06-02
+- Make FIRE_DBG change-triggered; strip obsolete grey-child AI log spam
+- Remove TPS branches from the combat aim/fire input path
+- Revert "Remove TPS branches from the combat aim/fire input path"
+- Add upperBodyState/lowerBodyState/weaponAttack to FIRE_DBG gun-gate trace
+- Fix handgun fire-lockup: allow fire across the aim-HOLD window (FPS-proof)
+- Change - / = cheat keys to give rifle / shotgun + ammo
+- Add FIRE_COMMIT trace at the gun fire-commit point
+- Fix auto-aim target-switch fire lockup (FPS-proof retarget transitions)
+
 ## v2026.06.02.1 -- 2026-06-02
 - pc: `~` toggles in-game console; raise game window on launch
 - pc: GUI-subsystem app (no console window) + console slide animation
