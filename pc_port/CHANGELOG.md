@@ -1,5 +1,18 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.02.1 -- 2026-06-02
+- pc: `~` toggles in-game console; raise game window on launch
+- pc: GUI-subsystem app (no console window) + console slide animation
+- Fix death/grab map-anim freeze in non-map0 maps
+- Fix grey-child melee, grab break-free, and 64-bit combat pointer bugs
+- Fix Larval Stalker melee: real collision data (same zero-stub bug as grey children)
+- Fix Creeper + Hanged Scratcher melee: real collision data (zero-stub bug)
+
+## v2026.06.02.1 -- 2026-06-02
+- pc: `~` toggles in-game console; raise game window on launch
+- pc: GUI-subsystem app (no console window) + console slide animation
+- Fix death/grab map-anim freeze in non-map0 maps
+
 ## v2026.06.01.4 -- 2026-06-01
 - Bump PsyCross: fix inventory HUD gradient-bar flicker (zero G3/G4 fog pads)
 
