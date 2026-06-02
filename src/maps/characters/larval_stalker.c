@@ -1442,3 +1442,10 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
 }
 
 #undef larvalStalkerProps
+
+#ifdef SH_PC_PORT
+/* Real collision-keyframe data for Chara_LarvalStalker (the other grey-child-
+ * family enemy). Was zero-stubbed in data_stubs.c, collapsing the melee hit
+ * window exactly like Chara_GreyChild. Extracted from MAP1_S00.BIN. */
+#include "larval_stalker_rodata.inc"
+#endif
