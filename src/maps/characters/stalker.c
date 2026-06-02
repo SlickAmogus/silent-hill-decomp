@@ -202,6 +202,22 @@ void sharedFunc_800D3308_0_s00(s_SubCharacter* stalker)
     var_a0                 = stalkerProps.timer_10C - Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f));
     stalkerProps.timer_10C = MAX(var_a0, Q12(0.0f));
 
+#ifdef SH_PC_PORT
+    /* DIAG (temporary): does the player's attack reach the Stalker? Edge-logged
+     * when received damage first becomes nonzero. */
+    {
+        static s32 s_prevAmt = 0;
+        s32 amt = (s32)stalker->damage.amount_C;
+        if (amt != s_prevAmt) {
+            SH_DBG("[STKDMG] recv amount=%d health=%d anim=%d ctrl=%d",
+                   amt, (int)stalker->health,
+                   (int)ANIM_STATUS_IDX_GET(stalker->model.anim.status),
+                   (int)stalker->model.controlState);
+            s_prevAmt = amt;
+        }
+    }
+#endif
+
     if (stalker->damage.amount_C > Q12(0.0f) && stalker->health > Q12(0.0f))
     {
         sharedFunc_800D7E04_0_s00(stalker, Sfx_Unk1365);
@@ -2884,3 +2900,12 @@ void sharedFunc_800D7E04_0_s00(s_SubCharacter* stalker, s32 sfxId)
 }
 
 #undef stalkerProps
+
+#ifdef SH_PC_PORT
+/* Real collision-keyframe data for the stalker family (Stalker / GreyChild /
+ * Mumbler). PSX resolved these sharedData_*_0_s00 symbols to the loaded map
+ * overlay; the PC build had only zero-filled stubs in data_stubs.c, which gave
+ * func_80070400 all-zero field_C8/radius and collapsed the melee hit window so
+ * short grey children could never be struck. Extracted from MAP0_S00.BIN. */
+#include "stalker_rodata.inc"
+#endif

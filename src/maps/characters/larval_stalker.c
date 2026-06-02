@@ -5,6 +5,7 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/larval_stalker.h"
+#include "sh_log.h"
 
 #define larvalStalkerProps larvalStalker->properties.larvalStalker
 
@@ -869,6 +870,22 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
     s32    keyframe;
     s32    keyframe2;
     s16    keyframeOffset;
+
+#ifdef SH_PC_PORT
+    /* DIAG (temporary): does the player's attack reach this enemy? Logged on the
+     * edge where damage first becomes nonzero so it isn't spammy. */
+    {
+        static s32 s_prevAmt = 0;
+        s32 amt = (s32)larvalStalker->damage.amount_C;
+        if (amt != s_prevAmt) {
+            SH_DBG("[LSDMG] recv amount=%d health=%d ctrl=%d anim=%d",
+                   amt, (int)larvalStalker->health,
+                   (int)larvalStalker->model.controlState,
+                   (int)ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status));
+            s_prevAmt = amt;
+        }
+    }
+#endif
 
     if (larvalStalker->damage.amount_C <= Q12(0.0f) || larvalStalker->health <= Q12(0.0f))
     {

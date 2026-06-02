@@ -1390,15 +1390,15 @@ u8 sharedData_800DD5A4_0_s00[256] = {0};
 u8 sharedData_800DD5A6_0_s00[256] = {0};
 u8 sharedData_800DD870_0_s01[256] = {0};
 u8 sharedData_800DD880_0_s01[256] = {0};
-u8 sharedData_800DDBA8_0_s00[256] = {0};
-u8 sharedData_800DDBBC_0_s00[256] = {0};
-u8 sharedData_800DDC70_0_s00[256] = {0};
-u8 sharedData_800DDCFC_0_s00[256] = {0};
-u8 sharedData_800DDD88_0_s00[256] = {0};
-u8 sharedData_800DDEC8_0_s00[256] = {0};
-u8 sharedData_800DDF2C_0_s00[256] = {0};
-u8 sharedData_800DE008_0_s00[256] = {0};
-u8 sharedData_800DE0E4_0_s00[256] = {0};
+/* sharedData_800DDBA8_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDBBC_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDC70_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDCFC_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDD88_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDEC8_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DDF2C_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE008_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE0E4_0_s00 now provided with real data by stalker_rodata.inc */
 u8 sharedData_800DE170_0_s01[256] = {0};
 u8 sharedData_800DE180_0_s01[256] = {0};
 u8 sharedData_800DE190_0_s01[256] = {0};
@@ -1407,29 +1407,29 @@ u8 sharedData_800DE1B0_0_s01[256] = {0};
 u8 sharedData_800DE1C0_0_s01[256] = {0};
 u8 sharedData_800DE1D0_0_s01[256] = {0};
 u8 sharedData_800DE1E0_0_s01[256] = {0};
-u8 sharedData_800DE1E8_0_s00[256] = {0};
+/* sharedData_800DE1E8_0_s00 now provided with real data by stalker_rodata.inc */
 u8 sharedData_800DE1F0_0_s01[256] = {0};
 u8 sharedData_800DE200_0_s01[256] = {0};
 u8 sharedData_800DE210_0_s01[256] = {0};
 u8 sharedData_800DE220_0_s01[256] = {0};
 u8 sharedData_800DE230_0_s01[256] = {0};
 u8 sharedData_800DE28C_5_s00[256] = {0};
-u8 sharedData_800DE2C4_0_s00[256] = {0};
-u8 sharedData_800DE2D8_0_s00[256] = {0};
-u8 sharedData_800DE2EC_0_s00[256] = {0};
-u8 sharedData_800DE300_0_s00[256] = {0};
-u8 sharedData_800DE440_0_s00[256] = {0};
-u8 sharedData_800DE580_0_s00[256] = {0};
-u8 sharedData_800DE8C8_0_s00[256] = {0};
-u8 sharedData_800DEB0C_0_s00[256] = {0};
-u8 sharedData_800DEC74_0_s00[256] = {0};
-u8 sharedData_800DECB0_0_s00[256] = {0};
-u8 sharedData_800DEDA0_0_s00[256] = {0};
-u8 sharedData_800DEE04_0_s00[256] = {0};
-u8 sharedData_800DEE40_0_s00[256] = {0};
+/* sharedData_800DE2C4_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE2D8_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE2EC_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE300_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE440_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE580_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DE8C8_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEB0C_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEC74_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DECB0_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEDA0_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEE04_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEE40_0_s00 now provided with real data by stalker_rodata.inc */
 u8 sharedData_800DEE50_1_s01[256] = {0};
-u8 sharedData_800DEE68_0_s00[256] = {0};
-u8 sharedData_800DEF1C_0_s00[256] = {0};
+/* sharedData_800DEE68_0_s00 now provided with real data by stalker_rodata.inc */
+/* sharedData_800DEF1C_0_s00 now provided with real data by stalker_rodata.inc */
 u8 sharedData_800DF1F4_0_s00[256] = {0};
 u8 sharedData_800DF1F8_0_s00[256] = {0};
 u8 sharedData_800DF1FA_0_s00[256] = {0};

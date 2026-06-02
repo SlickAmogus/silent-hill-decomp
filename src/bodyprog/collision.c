@@ -2639,6 +2639,23 @@ bool func_8006DA08(s_RayData* ray, VECTOR3* from, VECTOR3* dir, s_SubCharacter* 
         Ray_MissSet(ray, from, dir, ((s_RayState*)scratchAddr)->field_5C);
     }
 
+#ifdef SH_PC_PORT
+    /* DIAG (temporary): bullet ray result, only while the player is mid-attack
+     * (filters out movement rays). collQuery = how many active charas the ray
+     * could hit; chara_10 = the chara it actually hit (NULL = world). Tells us
+     * "no charas considered" vs "aim/geometry missed the enemy". */
+    if (g_SysWork.playerWork.player.field_44.field_0 != 0) {
+        static int s_daLog = 0;
+        if (s_daLog < 60) {
+            SH_DBG("[DA08RAY] hit=%d collQuery=%d chara_10=%p from=(%d,%d,%d) dir=(%d,%d,%d)",
+                   (int)ray->hasHit_0, (int)collQuery, (void*)ray->chara_10,
+                   (int)from->vx, (int)from->vy, (int)from->vz,
+                   (int)dir->vx, (int)dir->vy, (int)dir->vz);
+            s_daLog++;
+        }
+    }
+#endif
+
     return ray->hasHit_0;
 }
 
