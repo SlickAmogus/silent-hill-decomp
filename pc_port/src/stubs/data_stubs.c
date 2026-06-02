@@ -1372,18 +1372,18 @@ u8 sharedData_800D9AF0_5_s00[256] = {0};
 u8 sharedData_800D9B04_5_s00[256] = {0};
 u8 sharedData_800D9B18_5_s00[256] = {0};
 u8 sharedData_800D9B2C_5_s00[256] = {0};
-u8 sharedData_800DA928_1_s00[256] = {0};
-u8 sharedData_800DA93C_1_s00[256] = {0};
-u8 sharedData_800DA950_1_s00[256] = {0};
-u8 sharedData_800DA964_1_s00[256] = {0};
-u8 sharedData_800DAC34_1_s00[256] = {0};
-u8 sharedData_800DAE28_1_s00[256] = {0};
-u8 sharedData_800DAF54_1_s00[256] = {0};
-u8 sharedData_800DAF68_1_s00[256] = {0};
-u8 sharedData_800DAFF4_1_s00[256] = {0};
-u8 sharedData_800DB008_1_s00[256] = {0};
-u8 sharedData_800DB01C_1_s00[256] = {0};
-u8 sharedData_800DB030_1_s00[256] = {0};
+/* sharedData_800DA928_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DA93C_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DA950_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DA964_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DAC34_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DAE28_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DAF54_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DAF68_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DAFF4_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DB008_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DB01C_1_s00 now provided with real data by larval_stalker_rodata.inc */
+/* sharedData_800DB030_1_s00 now provided with real data by larval_stalker_rodata.inc */
 u8 sharedData_800DD58C_0_s00[256] = {0};
 u8 sharedData_800DD5A0_0_s00[256] = {0};
 u8 sharedData_800DD5A4_0_s00[256] = {0};
