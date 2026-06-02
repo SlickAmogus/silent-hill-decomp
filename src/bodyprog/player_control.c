@@ -5317,6 +5317,17 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                             case ANIM_STATUS(HarryAnim_HandgunRecoil, true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[3].field_6; break;
                             case ANIM_STATUS(HarryAnim_Unk32,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[4].field_6; break;
                             case ANIM_STATUS(HarryAnim_Unk36,         true): gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[8].field_6; break;
+                            /* Unk34 is the steady aim-HOLD anim Harry sits in while ready
+                             * (kf cycles within a window, not a single fire frame). PSX
+                             * allowed fire on the exact kf==field_4; at high FPS that frame
+                             * is skipped every cycle, so fire was gated almost always while
+                             * simply holding aim — the "can't fire in ready pose" lockup.
+                             * Allow fire across the whole ready window [field_4, field_6],
+                             * matching the chainsaw/rockdrill gate's range form above. */
+                            case ANIM_STATUS(HarryAnim_Unk34,         true):
+                                gunFireGated = extra->model.anim.keyframeIdx < D_800C44F0[6].field_4 ||
+                                               extra->model.anim.keyframeIdx > D_800C44F0[6].field_6;
+                                break;
                             default: break;
                         }
                     }
