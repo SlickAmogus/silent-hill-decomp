@@ -45,41 +45,17 @@ void Ai_Stalker_Update(s_SubCharacter* stalker, s_AnmHeader* anmHdr, GsCOORDINAT
     {
         if (g_DeltaTime != Q12(0.0f))
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] pre-D3308 ctrl=%d status=%d kf=%d", stalker->model.controlState, stalker->model.anim.status, stalker->model.anim.keyframeIdx);
-#endif
             sharedFunc_800D3308_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] pre-CtrlUpdate ctrl=%d", stalker->model.controlState);
-#endif
             Ai_Stalker_ControlUpdate(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-CtrlUpdate ctrl=%d status=%d", stalker->model.controlState, stalker->model.anim.status);
-#endif
             sharedFunc_800D67FC_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-D67FC");
-#endif
         }
 
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] pre-D6970 status=%d kf=%d time=%d", stalker->model.anim.status, stalker->model.anim.keyframeIdx, stalker->model.anim.time);
-#endif
         sharedFunc_800D6970_0_s00(stalker, anmHdr, coords);
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] post-D6970");
-#endif
         sharedFunc_800D70C4_0_s00(stalker);
-#ifdef SH_PC_PORT
-        SH_DBG("[STALKER] post-D70C4");
-#endif
 
         if (g_DeltaTime != Q12(0.0f))
         {
             sharedFunc_800D7BE8_0_s00(stalker);
-#ifdef SH_PC_PORT
-            SH_DBG("[STALKER] post-D7BE8");
-#endif
         }
 
         stalkerProps.flags_E8 &= ~StalkerFlag_WarpRotation;
