@@ -5381,6 +5381,22 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     }
                 }
 
+#ifdef SH_PC_PORT
+                /* Reached the fire-commit (gate passed). Logs whether the shot
+                 * actually dispatches or diverts to reload (ammo), to tell a
+                 * gate-lockup apart from an empty-chamber/ammo issue. */
+                {
+                    static int s_commitN = 0;
+                    if ((g_Player_IsShooting || g_Player_IsAttacking) && s_commitN < 120) {
+                        SH_DBG("[FIRE_COMMIT] wepAtk=%d upper=%d curAmmo=%d totAmmo=%d targetNpc=%d aStatus=0x%x",
+                               (int)g_SysWork.playerCombat.weaponAttack, (int)extra->upperBodyState,
+                               (int)g_SysWork.playerCombat.currentWeaponAmmo, (int)g_SysWork.playerCombat.totalWeaponAmmo,
+                               (int)g_Player_TargetNpcIdx, (unsigned)extra->model.anim.status);
+                        s_commitN++;
+                    }
+                }
+#endif
+
                 playerProps.flags_11C &= ~PlayerFlag_Unk0;
 
                 if (g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
