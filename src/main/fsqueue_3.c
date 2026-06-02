@@ -339,14 +339,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
     }
 #endif
 
-    {
-        int result;
-#ifdef SH_PC_PORT
-        static int readLogCount = 0;
-#endif
-        result = CdRead(sectorCount >> FS_SECTOR_SHIFT, (u32*)entry->data, CdlModeSpeed);
-        return result;
-    }
+    return CdRead(sectorCount >> FS_SECTOR_SHIFT, (u32*)entry->data, CdlModeSpeed);
 }
 
 bool Fs_QueueResetTick(s_FsQueueEntry* entry)

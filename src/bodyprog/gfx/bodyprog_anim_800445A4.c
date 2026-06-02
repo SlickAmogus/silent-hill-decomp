@@ -353,13 +353,19 @@ void Anim_PlaybackLoop(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     startKeyframeIdx     = animInfo->startKeyframeIdx;
     endKeyframeIdx       = animInfo->endKeyframeIdx;
 #ifdef SH_PC_PORT
-    /* Same negative-startKf fix as Anim_PlaybackOnce: NO_VALUE
-     * startKeyframeIdx wraps to keyframe -1, reads bind-pose
-     * metadata as anim frame data, garbage rotation matrices,
-     * Harry's model shrinks/collapses every other frame. Freeze
-     * on endKf so we never index keyframe -1. */
+    /* PSX: NO_VALUE startKeyframeIdx means "continue from the current keyframe"
+     * (used by death/grab/getup map anims). The previous PC fix forced
+     * startKf = endKf, which collapses the anim to a single end-frame — so
+     * those anims snap between keyframes ("Harry shakes" through death/grab)
+     * instead of interpolating. Match Anim_BlendLinear: continue from the
+     * current keyframe, and only fall back to endKf when the current keyframe
+     * is itself invalid (the original idle pose-collapse case, where
+     * keyframeIdx was -1 and wrapping read bind-pose metadata as frame data). */
     if (startKeyframeIdx < 0) {
-        startKeyframeIdx = endKeyframeIdx;
+        startKeyframeIdx = model->anim.keyframeIdx;
+        if (startKeyframeIdx < 0) {
+            startKeyframeIdx = endKeyframeIdx;
+        }
     }
 #endif
     nextStartKeyframeIdx = endKeyframeIdx + 1;

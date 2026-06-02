@@ -687,24 +687,7 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
 #endif
         }
 
-#ifdef SH_PC_PORT
-        {
-            static int _puLog = 0;
-            s32 s_pre = g_SysWork.playerWork.extra.state;
-#endif
         Player_AnimUpdate(player, extra, anmHdr, coords);
-#ifdef SH_PC_PORT
-            s32 s_post = g_SysWork.playerWork.extra.state;
-            if (g_Player_DisableControl && (++_puLog <= 120 || (_puLog % 300) == 0)) {
-                SH_DBG("[PSTATE] state_pre=%d state_post=%d ms=%d fs=%d pos=(%d,%d,%d) kf=%d anim=%d ctrl=%d",
-                       s_pre, s_post, player->moveSpeed, player->fallSpeed,
-                       player->position.vx, player->position.vy, player->position.vz,
-                       player->model.anim.keyframeIdx,
-                       player->model.anim.status,
-                       player->model.controlState);
-            }
-        }
-#endif
 #ifndef SH_PC_PORT
         func_8007D090(player, extra, coords);
 #endif
@@ -2639,21 +2622,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 #endif
             func_8007FB94(player, extra, ANIM_STATUS(101, false));
 #ifdef SH_PC_PORT
-            SH_DBG("[DEATH] after FB94: kf=%d kf6=%d ctrl=%d step=%d active=%d",
-                   (s32)player->model.anim.keyframeIdx,
-                   (s32)g_MapOverlayHeader.field_38[D_800AF220].keyframeIdx_6,
-                   (s32)extra->model.controlState,
-                   (s32)player->model.stateStep,
-                   (s32)ANIM_STATUS_IS_ACTIVE(player->model.anim.status));
             /* func_8007FB94 increments stateStep from 0→1 on first call.
              * Detect that moment to reset keyframeIdx to time (start of
              * death anim), since the stale kf from the previous anim may land
              * near the end of the 35-frame window and skip it entirely.
              * Set both stateStep to 2 so this guard fires only once. */
             if (player->model.stateStep == 1 && extra->model.stateStep == 1) {
-                SH_DBG("[DEATH] frame-1 kf reset: kf %d -> time=%d",
-                       (s32)player->model.anim.keyframeIdx,
-                       (s32)g_MapOverlayHeader.field_38[D_800AF220].time);
                 player->model.anim.keyframeIdx = g_MapOverlayHeader.field_38[D_800AF220].time;
                 player->model.anim.time = Q12(g_MapOverlayHeader.field_38[D_800AF220].time);
                 extra->model.anim.keyframeIdx = g_MapOverlayHeader.field_38[D_800AF220].time;
@@ -9051,6 +9025,13 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             extern int g_SH_PostFireTrace;
             if (player->field_44.field_0 > 0) {
                 g_SH_PostFireTrace = 8;
+                /* DIAG (temporary): an attack is dispatching to func_8008A0E4.
+                 * Confirms field_44 (attack-active), the weapon, and the locked
+                 * target so we can tell apart "no attack" vs "attack misses". */
+                SH_DBG("[ATKDISP] field44=%d weaponAttack=%d targetNpc=%d lower=%d upper=%d",
+                       (int)player->field_44.field_0, (int)playerCombat.weaponAttack,
+                       (int)g_Player_TargetNpcIdx, (int)playerExtra.lowerBodyState,
+                       (int)playerExtra.upperBodyState);
             }
 #endif
             if (playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
@@ -9324,6 +9305,43 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
     {
         g_GameWork.mapAnimIdx = mapIdx;
         Fs_QueueStartRead(BASE_FILE_IDX + mapIdx, FS_BUFFER_4);
+#ifdef SH_PC_PORT
+        /* Per-map g_MapHeaderTable_38 fix. Only 7 of 43 maps define their own
+         * g_MapHeaderTable_38; the other 36 map DLLs reference it without
+         * defining it, so the linker resolves their header's field_38 to the
+         * statically-linked map0_s00 copy — giving those maps map0's death/grab/
+         * getup keyframe ranges against their own anim file, so Harry "shakes"
+         * through those animations. The correct per-map table lives inside the
+         * map's overlay binary (VIN/MAP*.BIN), just loaded into g_OvlDynamic:
+         * the overlay is PSX-layout, so its header's field_38 (PSX offset 0x38)
+         * holds the PSX pointer to that map's real table. Drain so the overlay
+         * (queued earlier in GameBoot_MapLoad) and this anim file are in memory,
+         * then redirect field_38 to the overlay's table. The DLL header may be
+         * read-only, so patch a writable copy and repoint g_pMapOverlayHeader. */
+        {
+            extern void Fs_QueueWaitForEmpty(void);
+            extern void* g_OvlDynamic;
+            extern s_MapOverlayHeader* g_pMapOverlayHeader;
+            static s_MapOverlayHeader s_patchedMapHeader;
+
+            Fs_QueueWaitForEmpty();
+
+            if (g_pMapOverlayHeader != NULL && g_OvlDynamic != NULL) {
+                /* PSX-layout overlay header: byte 0x38 holds the harryMapAnimInfos
+                 * pointer and byte 0x3C holds g_MapHeaderTable_38 (verified vs
+                 * configs/USA/maps/sym.*.txt — e.g. map1_s00 g_MapHeaderTable_38
+                 * = 0x800DA61C, which is the 0x3C field). g_OvlDynamic loads at
+                 * the overlay's link base (USA 0x800C9578), so PSX_ADDR converts
+                 * the stored pointer directly. */
+                u32 psxField38 = *(u32*)((u8*)g_OvlDynamic + 0x3C);
+                if (psxField38 >= 0x80000000u && psxField38 < 0x80200000u) {
+                    s_patchedMapHeader            = *g_pMapOverlayHeader;
+                    s_patchedMapHeader.field_38   = (s_UnkStruct3_Mo*)PSX_ADDR(psxField38);
+                    g_pMapOverlayHeader           = &s_patchedMapHeader;
+                }
+            }
+        }
+#endif
     }
 
     #undef BASE_FILE_IDX
@@ -9787,6 +9805,30 @@ void Player_Controller(void) // 0x8007F32C
             }
         }
     }
+
+#ifdef SH_PC_PORT
+    /* DIAG (temporary): firing-lock glitch. When the player holds Action with a
+     * gun, aiming, but isn't shooting, log the gate inputs — suspected the
+     * upper-body state is stuck in the gun-raise states (AimStart=21 /
+     * AimStartTargetLock=22) which the fire gate above rejects, so fire never
+     * dispatches until an inventory toggle resets the upper-body state. */
+    if ((g_Controller0->btnsHeld_C & g_GameWorkPtr->config.controllerConfig.action) &&
+        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+        g_SysWork.playerWork.extra.lowerBodyState >= PlayerLowerBodyState_Aim &&
+        !g_Player_IsShooting)
+    {
+        static int s_flLog = 0;
+        if (s_flLog < 120) {
+            SH_DBG("[FIRELOCK] held, NOT shooting: wepAtk=%d lower=%d upper=%d animStatus=0x%x field44=%d",
+                   (int)g_SysWork.playerCombat.weaponAttack,
+                   (int)g_SysWork.playerWork.extra.lowerBodyState,
+                   (int)g_SysWork.playerWork.extra.upperBodyState,
+                   (unsigned)g_SysWork.playerWork.extra.model.anim.status,
+                   (int)g_SysWork.playerWork.player.field_44.field_0);
+            s_flLog++;
+        }
+    }
+#endif
 
     g_Player_HasActionInput = g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.run | g_GameWorkPtr->config.controllerConfig.action);
 
