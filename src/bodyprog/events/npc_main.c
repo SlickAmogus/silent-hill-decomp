@@ -776,22 +776,10 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.anim.keyframeIdx);
 #endif
             g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, boneCoords);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] ai-done charaId=%d status=%d", npc->model.charaId, npc->model.anim.status);
-#endif
 
             func_8003BE28();
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-BE28 charaId=%d", npc->model.charaId);
-#endif
             func_80037E78(npc);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-7E78 charaId=%d", npc->model.charaId);
-#endif
             func_8008A3AC(npc);
-#ifdef SH_PC_PORT
-            SH_DBG("[NPC] post-A3AC charaId=%d", npc->model.charaId);
-#endif
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {
