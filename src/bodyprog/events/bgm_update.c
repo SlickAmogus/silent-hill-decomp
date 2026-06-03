@@ -1,8 +1,4 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#include <stdio.h>
-#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -285,19 +281,6 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
     cond0 = temp_s2;
     cond0 = temp_s2 != 0 && cond0 != 0xFFFF;
 
-#ifdef SH_PC_PORT
-    {
-        static int bgm_upd_count = 0;
-        if (bgm_upd_count < 30 || bgm_upd_count % 60 == 0) {
-            SH_DBG("[SH_BGM] Bgm_Update #%d: active=%d st=%d fE=%d c0=%d fl=0x%x lv0=%d outV0=%d isMp=%d mapId=%d roomIdx=%d",
-                    bgm_upd_count, isBgmLayerActive, D_800A99A0, temp_s2, cond0, flagsCpy,
-                    bgmLayerVolumes[0], bgmLayerVolumes[0], 0,
-                    (int)g_SavegamePtr->mapOverlayId_A4, (int)g_SavegamePtr->mapRoomIdx_A5);
-            bgm_upd_count++;
-        }
-    }
-#endif
-
     if (isBgmLayerActive)
     {
         switch (D_800A99A0)
@@ -356,18 +339,6 @@ void Bgm_Update(s32 flags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0
     {
         if (cond0)
         {
-#ifdef SH_PC_PORT
-            {
-                static int mp_count = 0;
-                if (mp_count < 10) {
-                    SH_DBG("[SH_BGM] isMusicPlayer+cond0: outVols=[%d,%d,%d,%d,%d,%d,%d,%d] lv0=%d",
-                            bgmLayerVolumes[0], bgmLayerVolumes[1], bgmLayerVolumes[2], bgmLayerVolumes[3],
-                            bgmLayerVolumes[4], bgmLayerVolumes[5], bgmLayerVolumes[6], bgmLayerVolumes[7],
-                            bgmLayerVolumes[0]);
-                    mp_count++;
-                }
-            }
-#endif
             for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
             {
                 Sd_BgmLayerVolumeSet(i, bgmLayerVolumes[i]);
