@@ -36,10 +36,16 @@ extern float g_PsxPixelAspect;
 #define VTXCOL_LDDP(dp) gte_lddp(0)
 
 /* Compute per-vertex fog factors (0-127) from each vertex's fog ramp.
- * p1=vertex1, p2=vertex2, p3=vertex3. Vertex 0 shares p1 in PsyCross
- * (code byte prevents per-vertex storage for v0). */
+ * p1=vertex1, p2=vertex2, p3=vertex3. Vertex 0's pad byte in the color
+ * word is the GPU command code, so v0's fog can't ride there; carry it
+ * in the otherwise-unused pad2 texcoord short instead (PsyCross's GT4
+ * parser reads it into v0's fog). Without this, v0 borrowed v1's fog,
+ * giving every floor quad one wrong corner -> visible grid seams. */
 #define PC_FACE_FOG_VERTS(sd) do { \
     s32 _fa; \
+    _fa = (sd)->field_252[(sd)->field_380.s_0.field_10] * 16 + (sd)->field_380.s_0.field_4; \
+    if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    poly3->pad2 = (u8)((_fa * 127) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
     poly3->p1 = (u8)((_fa * 127) >> 12); \
@@ -1457,24 +1463,6 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
     vertOffset   = modelHdr->vertexOffset_9;
     normalOffset = modelHdr->normalOffset_A;
 
-#ifdef SH_PC_PORT
-    {
-        static int _logCnt3 = 0;
-        if (_logCnt3 < 50) {
-            SH_DBG("[DRAW] modelIdx=%d meshCnt=%d vertOff=%u normOff=%u meshHdrs=%p",
-                modelInfo->modelIdx, modelHdr->meshCount_8,
-                vertOffset, normalOffset, (void*)modelHdr->meshHdrs_C);
-            for (int _mi = 0; _mi < modelHdr->meshCount_8; _mi++) {
-                s_MeshHeader* _mh = &modelHdr->meshHdrs_C[_mi];
-                SH_DBG("  mesh[%d] vertsXy=%p vertCnt=%d prims=%p primCnt=%d",
-                    _mi, (void*)_mh->verticesXy_8, _mh->vertexCount_1,
-                    (void*)_mh->primitives_4, _mh->primitiveCount_0);
-            }
-            _logCnt3++;
-        }
-    }
-#endif
-
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
 
@@ -1504,26 +1492,6 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
         }
 
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
-
-#ifdef SH_PC_PORT
-        {
-            static int _vtxLog = 0;
-            if (_vtxLog < 30) {
-                int _vc = curMeshHdr->vertexCount_1;
-                SH_DBG("[VTX] vertCnt=%d after GTE transform, first 3 screenXy:", _vc);
-                for (int _vi = 0; _vi < 3 && _vi < _vc; _vi++) {
-                    SH_DBG("  v[%d] xy=(%d,%d) z=%d",
-                        _vi,
-                        scratchData->screenXy_0[vertOffset + _vi].vx,
-                        scratchData->screenXy_0[vertOffset + _vi].vy,
-                        scratchData->field_18C[vertOffset + _vi]);
-                }
-                SH_DBG("  mat t=(%d,%d,%d) m00=%d",
-                    mat->t[0], mat->t[1], mat->t[2], mat->m[0][0]);
-                _vtxLog++;
-            }
-        }
-#endif
 
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
     }
@@ -2716,10 +2684,12 @@ __block1530:
 
 #ifdef SH_PC_PORT
             /* PSX command byte 0x3C lands in p1/p2/p3 which PsyCross reads as
-             * per-vertex fog factor. Zero them so no-fog maps render unfogged. */
+             * per-vertex fog factor. Zero them so no-fog maps render unfogged.
+             * pad2 carries v0's fog on PC — zero it too (no fog here). */
             poly0->p1 = 0;
             poly0->p2 = 0;
             poly0->p3 = 0;
+            poly0->pad2 = 0;
 #endif
 
             setlen(poly0, 12);
@@ -3648,8 +3618,10 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
 #ifdef SH_PC_PORT
-            /* Encode per-vertex fog. PsyCross GT4 layout: p1 -> v0+v1, p2 -> v2 (after swap),
-             * p3 -> v3 (after swap). See ProcessSinglePoly POLY_GT4 case. */
+            /* Encode per-vertex fog. PsyCross GT4 reads v0 fog from pad2,
+             * v1<-p1, v2<-p2, v3<-p3. v0's color-word pad is the code byte,
+             * so its fog rides in the unused pad2 short. */
+            poly.gt4->pad2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_0]);
             poly.gt4->p1 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_1]);
             poly.gt4->p2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_2]);
             poly.gt4->p3 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_3]);
@@ -4119,6 +4091,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                     poly_gt4->p2 = 0;
                     poly_gt4->p3 = 0;
                 }
+                poly_gt4->pad2 = poly_gt4->p1; /* v0 fog (uniform billboard) */
 
                 addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
                 poly_gt4++;
