@@ -1471,7 +1471,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
                 } else {
-                    if (player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
+                    /* Only force idle out of a BASE movement anim (idx < 38).
+                     * Map-specific cutscene poses (idx >= 38) self-link to hold
+                     * their final keyframe on PSX — e.g. the alley3 lighter-hold
+                     * (idx 53, status 107) which Harry must keep until he moves
+                     * or the next event. Without this guard the shim stomped the
+                     * held pose with idle the instant control resumed, dropping
+                     * Harry's arms to his sides while the lighter floated. Real
+                     * movement input (sidestep/turn/walk branches above) still
+                     * breaks the pose normally. */
+                    if (player->model.anim.status < ANIM_STATUS(38, false) &&
+                        player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
                         player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
                         player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
                         player->model.stateStep = 0;
