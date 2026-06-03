@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.03.3 -- 2026-06-03
+- Fix fogged-floor grid seams + Harry fog-flicker (per-vertex v0 fog)
+
 ## v2026.06.03.2 -- 2026-06-03
 - Enhance [LIGHTERPOSE] trace with keyframe-settle detection
 - Add [FMVEND] diagnostic for early FMV cutoff (Cheryl M2_01190)
