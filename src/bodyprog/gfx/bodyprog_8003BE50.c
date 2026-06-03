@@ -1378,6 +1378,26 @@ void func_8003DA9C(e_CharacterId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q
     }
 
 #ifdef SH_PC_PORT
+    /* [LIGHTCMP] matched-field trace at Harry's draw: log the env-work lighting
+     * inputs (mode/ambient/dir-intensity/light-pos) + Harry's pos so PC values
+     * can be compared 1:1 against the PSX DuckStation reads at 0x800C4168. */
+    if (charaId == Chara_Harry)
+    {
+        static s32 s_prevMode = -999;
+        static s32 s_prevDir  = -999;
+        if (g_WorldEnvWork.field_0 != s_prevMode || g_WorldEnvWork.field_54 != s_prevDir)
+        {
+            s_prevMode = g_WorldEnvWork.field_0;
+            s_prevDir  = g_WorldEnvWork.field_54;
+            SH_DBG("[LIGHTCMP] mode(field_0)=%d field_3=%d field_20=%d field_54=%d ptInt=%d "
+                   "lightPos(field_60)=(%d,%d,%d) harryPos=(%d,%d,%d)",
+                   g_WorldEnvWork.field_0, g_WorldEnvWork.field_3, g_WorldEnvWork.field_20,
+                   g_WorldEnvWork.field_54, g_SysWork.pointLightIntensity,
+                   (int)g_WorldEnvWork.field_60.vx, (int)g_WorldEnvWork.field_60.vy, (int)g_WorldEnvWork.field_60.vz,
+                   (int)boneCoords->coord.t[0], (int)boneCoords->coord.t[1], (int)boneCoords->coord.t[2]);
+        }
+    }
+
     if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
