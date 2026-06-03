@@ -669,9 +669,23 @@ static int PlayFromBin(int table_idx, int max_frames)
         }
 
         int r = str_read_frame(&stream, bs, &info, &bs_halfwords);
-        if (r <= 0) break; /* EOF or error */
+        if (r <= 0) {
+            /* [FMVEND] why did playback stop? r==0 EOF (cur_sector hit
+             * total) vs r==-1 demux error (secCount mismatch / bitstream
+             * overflow). Compare done_frames to the expected count to see
+             * if the FMV cut off early. */
+            SH_DBG("[FMVEND] stop: r=%d done_frames=%d max_frames=%d cur_sector=%u total_sectors=%u (%s)",
+                   r, done_frames, max_frames,
+                   (unsigned)stream.cur_sector, (unsigned)stream.total_sectors,
+                   r == 0 ? "EOF" : "DEMUX-ERROR");
+            break; /* EOF or error */
+        }
 
-        if (max_frames > 0 && done_frames >= max_frames) break;
+        if (max_frames > 0 && done_frames >= max_frames) {
+            SH_DBG("[FMVEND] stop: hit max_frames=%d done_frames=%d cur_sector=%u/%u",
+                   max_frames, done_frames, (unsigned)stream.cur_sector, (unsigned)stream.total_sectors);
+            break;
+        }
 
         /* (Re)allocate RGB buffer if dimensions changed (shouldn't for a
          * single FMV, but cheap to be defensive). */
