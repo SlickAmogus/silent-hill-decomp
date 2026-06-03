@@ -669,28 +669,9 @@ static int PlayFromBin(int table_idx, int max_frames)
         }
 
         int r = str_read_frame(&stream, bs, &info, &bs_halfwords);
-        if (r <= 0) {
-            /* [FMVEND] why did playback stop? r==0 EOF (cur_sector hit
-             * total) vs r==-1 demux error (secCount mismatch / bitstream
-             * overflow). Compare done_frames to the expected count to see
-             * if the FMV cut off early. */
-            SH_DBG("[FMVEND] stop: r=%d done_frames=%d max_frames=%d cur_sector=%u total_sectors=%u (%s)",
-                   r, done_frames, max_frames,
-                   (unsigned)stream.cur_sector, (unsigned)stream.total_sectors,
-                   r == 0 ? "EOF" : "DEMUX-ERROR");
-            if (r < 0) {
-                SH_DBG("[FMVEND] demux-err detail: secCount=%d sectorsSeen=%d submode=0x%02x frameNo=%u frameLock=%u",
-                       stream.dbg_secCount, stream.dbg_sectorsSeen, stream.dbg_submode,
-                       (unsigned)stream.dbg_frameNo, (unsigned)stream.dbg_frameLock);
-            }
-            break; /* EOF or error */
-        }
+        if (r <= 0) break; /* EOF or demux error */
 
-        if (max_frames > 0 && done_frames >= max_frames) {
-            SH_DBG("[FMVEND] stop: hit max_frames=%d done_frames=%d cur_sector=%u/%u",
-                   max_frames, done_frames, (unsigned)stream.cur_sector, (unsigned)stream.total_sectors);
-            break;
-        }
+        if (max_frames > 0 && done_frames >= max_frames) break;
 
         /* (Re)allocate RGB buffer if dimensions changed (shouldn't for a
          * single FMV, but cheap to be defensive). */
@@ -713,18 +694,6 @@ static int PlayFromBin(int table_idx, int max_frames)
         if (mb < 0) {
             /* Decode failure — emit a blank frame so timing still ticks. */
             memset(rgb, 0, (size_t)info.width * info.height * 3u);
-        }
-
-        /* Sample some center pixels every 30 frames to verify the decoder is
-         * actually producing varied content at runtime (not just in offline
-         * tests). If these are all zero we know the on-screen black is the
-         * decoder; if non-zero, it's the upload/draw path. */
-        if ((done_frames % 30) == 0) {
-            const uint8_t* p = rgb + ((size_t)(info.height/2) * info.width + info.width/2) * 3u;
-            SH_DBG("[FMV] frame %d mb=%d center pixels: "
-                   "(%02x %02x %02x) (%02x %02x %02x) (%02x %02x %02x)",
-                   done_frames, mb,
-                   p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
         }
 
         /* Move into the persistent decode buffer for DrawVideoFrame, then

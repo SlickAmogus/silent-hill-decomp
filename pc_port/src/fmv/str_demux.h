@@ -60,13 +60,6 @@ typedef struct {
     uint32_t cur_sector;
     str_audio_cb_t audio_cb;
     void*    audio_user;
-    /* Diagnostic: details of the last str_read_frame error (-2/-3) so the
-     * caller can log WHY an FMV stopped without str_demux needing logging. */
-    int      dbg_secCount;
-    int      dbg_sectorsSeen;
-    int      dbg_submode;
-    uint32_t dbg_frameNo;
-    uint32_t dbg_frameLock;
 } str_stream_t;
 
 #define STR_FRAME_BS_MAX_HALFWORDS 16384
