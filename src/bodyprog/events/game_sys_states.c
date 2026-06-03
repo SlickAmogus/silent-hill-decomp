@@ -283,15 +283,19 @@ void GameState_InGame_Update(void) // 0x80038BD4
             }
             /* Temporarily disable fog for Harry's render -- the fogRamp_CC
              * lookup can produce out-of-range indices that corrupt his
-             * vertex colors when fed through the full lighting pipeline. */
+             * vertex colors when fed through the full lighting pipeline.
+             * NOTE: this used to also force field_0=0 (baked-light mode),
+             * which stomped the map's real lighting mode and rendered Harry
+             * pitch-black in every flashlight/lighter-dark scene (the map
+             * correctly sets field_0=1 point-light there, matching PSX).
+             * isFogEnabled=0 alone takes the no-fog lit branch (field_0!=0 &&
+             * !isFogEnabled in func_80057090), avoiding the fog path while
+             * keeping Harry's dynamic lighting. */
             {
                 u8 savedFog = g_WorldEnvWork.isFogEnabled_1;
-                u8 savedEnv = g_WorldEnvWork.field_0;
                 g_WorldEnvWork.isFogEnabled_1 = 0;
-                g_WorldEnvWork.field_0        = 0;
                 func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
                 g_WorldEnvWork.isFogEnabled_1 = savedFog;
-                g_WorldEnvWork.field_0        = savedEnv;
             }
 #else
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
