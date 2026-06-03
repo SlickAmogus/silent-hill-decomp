@@ -678,6 +678,11 @@ static int PlayFromBin(int table_idx, int max_frames)
                    r, done_frames, max_frames,
                    (unsigned)stream.cur_sector, (unsigned)stream.total_sectors,
                    r == 0 ? "EOF" : "DEMUX-ERROR");
+            if (r < 0) {
+                SH_DBG("[FMVEND] demux-err detail: secCount=%d sectorsSeen=%d submode=0x%02x frameNo=%u frameLock=%u",
+                       stream.dbg_secCount, stream.dbg_sectorsSeen, stream.dbg_submode,
+                       (unsigned)stream.dbg_frameNo, (unsigned)stream.dbg_frameLock);
+            }
             break; /* EOF or error */
         }
 
