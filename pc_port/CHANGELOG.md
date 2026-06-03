@@ -1,5 +1,15 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.03.2 -- 2026-06-03
+- Enhance [LIGHTERPOSE] trace with keyframe-settle detection
+- Add [FMVEND] diagnostic for early FMV cutoff (Cheryl M2_01190)
+- Fix Harry dropping the lighter-hold pose on gameplay resume (alley3)
+- Revert lighter-hold idle guard (382a96139) ΓÇö no-op for the actual bug
+- Capture demux-error detail at [FMVEND] (Cheryl M2 secCount mismatch)
+- Fix FMV early cutoff: skip interleaved null/padding sectors in demux
+- Clean up FMV cutoff debugging after null-sector fix
+- Restore original PSX opening-BGM trigger; strip BGM debug scaffolding
+
 ## v2026.06.03.1 -- 2026-06-03
 - Strip FIRE_DBG / FIRE_COMMIT investigation traces (combat fixes confirmed)
 - Fix character models rendering black in flashlight/lighter darkness
