@@ -497,19 +497,29 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
 
 #ifdef SH_PC_PORT
     /* DIAG (temporary): trace where the lighting MODE (field_2) becomes 0 on PC
-     * vs 1 on PSX. presets field_84[0/1], blend inputs field_1C[0/1], weight
-     * (flashlightIntensity_18), and the blended result field_154.field_2. */
+     * vs 1 on PSX. Now includes the primType-transition state: progress value
+     * (func_8003F654 = *primData), the computed transition weight, range
+     * field_8/field_C, and field_EC "from" mode — to find why the snow's
+     * never-completing idx10->idx6 transition resolves to mode 0 on PC. */
     {
         static int s_lm = -999;
+        static int s_pt = -999;
         int res = (int)ptr->field_154.effectsInfo_0.field_0.s_field_0.field_2;
-        if (res != s_lm) {
-            SH_DBG("[LMODE] result_f2=%d weight(flInt)=%d primType=%d | preset84[0].f2=%d [1].f2=%d | blend1C[0].f2=%d [1].f2=%d",
-                   res, (int)ptr->flashlightIntensity_18, (int)ptr->primType_0,
+        int pt  = (int)ptr->primType_0;
+        if (res != s_lm || pt != s_pt) {
+            s32 progVal = (s32)func_8003F654(ptr);
+            s32 tw      = (s32)Gfx_ProgressAlphaGet(progVal, ptr->field_8, ptr->field_C);
+            SH_DBG("[LMODE] result_f2=%d primType=%d transW=%d progVal=%d range[%d,%d] | EC[0].f2=%d [1].f2=%d | preset84[0].f2=%d [1].f2=%d | blend1C[0].f2=%d [1].f2=%d flInt=%d",
+                   res, pt, (int)tw, (int)progVal, (int)ptr->field_8, (int)ptr->field_C,
+                   (int)ptr->field_EC[0].effectsInfo_0.field_0.s_field_0.field_2,
+                   (int)ptr->field_EC[1].effectsInfo_0.field_0.s_field_0.field_2,
                    (int)ptr->field_84[0].effectsInfo_0.field_0.s_field_0.field_2,
                    (int)ptr->field_84[1].effectsInfo_0.field_0.s_field_0.field_2,
                    (int)ptr->field_1C[0].effectsInfo_0.field_0.s_field_0.field_2,
-                   (int)ptr->field_1C[1].effectsInfo_0.field_0.s_field_0.field_2);
+                   (int)ptr->field_1C[1].effectsInfo_0.field_0.s_field_0.field_2,
+                   (int)ptr->flashlightIntensity_18);
             s_lm = res;
+            s_pt = pt;
         }
     }
 #endif
