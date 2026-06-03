@@ -1473,20 +1473,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
 
     if (Savegame_EventFlagGet(EventFlag_13) && !Savegame_EventFlagGet(EventFlag_16))
     {
-#ifdef SH_PC_PORT
-        {
-            static s32 s_loggedDFADC = -9999;
-            s32 v = D_800DFADC;
-            if (v / 4096 != s_loggedDFADC / 4096) {
-                SH_DBG("[DCC54] D_800DFADC=%d (%d%%) EF14=%d EF15=%d EF16=%d",
-                        v, v >> 12,
-                        Savegame_EventFlagGet(EventFlag_14),
-                        Savegame_EventFlagGet(EventFlag_15),
-                        Savegame_EventFlagGet(EventFlag_16));
-                s_loggedDFADC = v;
-            }
-        }
-#endif
         func_800DCC54();
     }
 

@@ -1988,19 +1988,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         gte_ldrgb(&scratchData->field_380.s_0.field_8);
         gte_dpcs();
         gte_strgb(&scratchData->field_380.s_0.field_8);
-#ifdef SH_PC_PORT
-        {
-            static int _dpcsLog = 0;
-            if (_dpcsLog < 10) {
-                SH_DBG("[DPCS] field_20=%d dp=%d backColor=(0,0,0) inColor=(%d,%d,%d) -> result=(%d,%d,%d,0x%02X)",
-                    g_WorldEnvWork.field_20, 0x1000 - g_WorldEnvWork.field_20,
-                    g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.worldTintColor_28.b,
-                    scratchData->field_380.s_0.field_8.r, scratchData->field_380.s_0.field_8.g,
-                    scratchData->field_380.s_0.field_8.b, scratchData->field_380.s_0.field_8.cd);
-                _dpcsLog++;
-            }
-        }
-#endif
     }
 
 
@@ -2011,19 +1998,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
 
     prim = meshHdr->primitives_4;
-
-#ifdef SH_PC_PORT
-    if (!g_WorldEnvWork.isFogEnabled_1 && g_WorldEnvWork.field_0 != 0) {
-        static int _nfLog = 0;
-        if (_nfLog < 8) {
-            SH_DBG("[NOFOG-DRAW] primCnt=%d field_1C=%d field_0=%d isFogEnabled=%d",
-                meshHdr->primitiveCount_0,
-                scratchData->field_380.s_0.field_1C,
-                g_WorldEnvWork.field_0, g_WorldEnvWork.isFogEnabled_1);
-            _nfLog++;
-        }
-    }
-#endif
 
     if (g_WorldEnvWork.field_0 != 0)
     {
