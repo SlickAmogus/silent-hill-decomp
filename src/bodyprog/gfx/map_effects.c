@@ -368,6 +368,15 @@ void Gfx_LoadScreenMapEffectsUpdate(s32 arg0, s32 arg1) // 0x8003EEDC
 
 void Gfx_MapEffectsUpdate(s32 idx0, s32 idx1, e_PrimitiveType primType, void* primData, s32 arg4, s32 arg5) // 0x8003EF10
 {
+#ifdef SH_PC_PORT
+    /* [EFXCALL] trace which MAP_EFFECTS_INFOS indices get selected at runtime,
+     * to find why alley3 lands on a mode-0 preset instead of the point-light
+     * idx10 set by the lighter cutscene (map0_s00 case 9). */
+    SH_DBG("[EFXCALL] Gfx_MapEffectsUpdate idx0=%d idx1=%d primType=%d | idx0.f2=%d idx1.f2=%d",
+           (int)idx0, (int)idx1, (int)primType,
+           (int)MAP_EFFECTS_INFOS[idx0].field_0.s_field_0.field_2,
+           (int)MAP_EFFECTS_INFOS[idx1].field_0.s_field_0.field_2);
+#endif
     Gfx_MapEffectsStepUpdate(&MAP_EFFECTS_INFOS[idx0], &MAP_EFFECTS_INFOS[idx1], primType, primData, arg4, arg5);
 }
 
