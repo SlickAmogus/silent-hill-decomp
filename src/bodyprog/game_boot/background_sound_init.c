@@ -1,14 +1,11 @@
 #include "game.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#include <stdio.h>
-#endif
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/events/bgm_update.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/sound_system.h"
 
@@ -48,36 +45,13 @@ s32 Bgm_Init(void) // 0x80035780
 {
     if (Sd_AudioStreamingCheck())
     {
-#ifdef SH_PC_PORT
-        {
-            static int logged = 0;
-            if (!logged) { SH_DBG("[SH] Bgm_Init: Sd_AudioStreamingCheck != 0, returning NO_VALUE"); logged = 1; }
-        }
-#endif
         return NO_VALUE;
     }
 
     if (Fs_QueueGetLength() > 0)
     {
-#ifdef SH_PC_PORT
-        {
-            static int logged = 0;
-            if (!logged) { SH_DBG("[SH] Bgm_Init: Fs_QueueGetLength > 0, returning NO_VALUE"); logged = 1; }
-        }
-#endif
         return NO_VALUE;
     }
-
-#ifdef SH_PC_PORT
-    {
-        static int lastStep = -1;
-        if (g_GameWork.gameStateSteps[1] != lastStep) {
-            SH_DBG("[SH] Bgm_Init: step=%d bgmIdx=%d bgmIdx=%d",
-                    g_GameWork.gameStateSteps[1], g_MapOverlayHeader.bgmIdx_14, g_GameWork.bgmIdx);
-            lastStep = g_GameWork.gameStateSteps[1];
-        }
-    }
-#endif
 
     switch (g_GameWork.gameStateSteps[1])
     {
@@ -88,16 +62,10 @@ s32 Bgm_Init(void) // 0x80035780
         case 1:
             if (Bgm_ActiveBgmTrackCheck(g_MapOverlayHeader.bgmIdx_14) == false)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init: bgm target matches, skip to step 3");
-#endif
                 g_GameWork.gameStateSteps[1] += 2;
             }
             else
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init: bgm target differs, calling SD_Call(18) + AllLayersMute");
-#endif
                 SD_Call(18);
                 Bgm_AllLayersMute();
 
@@ -106,18 +74,8 @@ s32 Bgm_Init(void) // 0x80035780
             break;
 
         case 2:
-#ifdef SH_PC_PORT
-            {
-                static int logged2 = 0;
-                if (!logged2) { SH_DBG("[SH] Bgm_Init step2: func_80045BC8()=%d", func_80045BC8()); logged2 = 1; }
-            }
-#endif
             if (func_80045BC8() == 0)
             {
-#ifdef SH_PC_PORT
-                SH_DBG("[SH] Bgm_Init step2: calling Bgm_TrackSet(%d) -> SD_Call(%d)",
-                        g_MapOverlayHeader.bgmIdx_14, g_BgmTaskLoadCmds[g_MapOverlayHeader.bgmIdx_14]);
-#endif
                 Bgm_TrackSet(g_MapOverlayHeader.bgmIdx_14);
                 g_GameWork.gameStateSteps[1]++;
             }
@@ -180,14 +138,7 @@ void func_8003596C(void) // 0x8003596C
 {
     if (g_MapOverlayHeader.bgmIdx_14 == 1)
     {
-#ifdef SH_PC_PORT
-        /* On PC, do not force-start the alley BGM during map load. On PSX the CD load
-         * delay meant this happened mid-gameplay; on PC it fires during the loading screen.
-         * The per-frame Bgm_TrackUpdate(false) in game_sys_states.c handles BGM correctly
-         * once gameplay begins, keeping it muted for the indoor area. */
-#else
         Bgm_TrackUpdate(true);
-#endif
     }
 }
 
