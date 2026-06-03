@@ -81,13 +81,22 @@ int str_read_frame(str_stream_t* s,
         /* CDSECTOR header */
         uint16_t id        = rd_le16(hdr + 0x00);
         uint16_t type      = rd_le16(hdr + 0x02);
+
+        /* The disc interleaves null/padding sectors (submode 0x00, zeroed
+         * header) roughly every 8 sectors. They carry the audio bit too
+         * rarely to be caught above, so guard on the video magic: anything
+         * that isn't a real STR video sector is skipped, never parsed as a
+         * frame header. Without this a null sector landing mid-frame (e.g.
+         * M2 frame 17, the first 9-sector frame) trips the frame-boundary
+         * check on frame_no=0 and desyncs secCount → fatal -2. */
+        if (id != 0x0160 || type != 0x8001) continue;
+
         uint16_t secCount  = rd_le16(hdr + 0x04);
         uint16_t nSectors  = rd_le16(hdr + 0x06);
         uint32_t frame_no  = rd_le32(hdr + 0x08);
         uint32_t frame_sz  = rd_le32(hdr + 0x0C);
         uint16_t width     = rd_le16(hdr + 0x10);
         uint16_t height    = rd_le16(hdr + 0x12);
-        (void)id; (void)type;
 
         if (!have_info) {
             info_out->width       = (int)width;
