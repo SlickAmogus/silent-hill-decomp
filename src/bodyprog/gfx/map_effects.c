@@ -10,6 +10,9 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/text/text_draw.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound_system.h"
 #include "main/fsqueue.h"
@@ -482,6 +485,25 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     }
 
     func_8003F838(&ptr->field_154, &ptr->field_1C[0], &ptr->field_1C[1], ptr->flashlightIntensity_18);
+
+#ifdef SH_PC_PORT
+    /* DIAG (temporary): trace where the lighting MODE (field_2) becomes 0 on PC
+     * vs 1 on PSX. presets field_84[0/1], blend inputs field_1C[0/1], weight
+     * (flashlightIntensity_18), and the blended result field_154.field_2. */
+    {
+        static int s_lm = -999;
+        int res = (int)ptr->field_154.effectsInfo_0.field_0.s_field_0.field_2;
+        if (res != s_lm) {
+            SH_DBG("[LMODE] result_f2=%d weight(flInt)=%d primType=%d | preset84[0].f2=%d [1].f2=%d | blend1C[0].f2=%d [1].f2=%d",
+                   res, (int)ptr->flashlightIntensity_18, (int)ptr->primType_0,
+                   (int)ptr->field_84[0].effectsInfo_0.field_0.s_field_0.field_2,
+                   (int)ptr->field_84[1].effectsInfo_0.field_0.s_field_0.field_2,
+                   (int)ptr->field_1C[0].effectsInfo_0.field_0.s_field_0.field_2,
+                   (int)ptr->field_1C[1].effectsInfo_0.field_0.s_field_0.field_2);
+            s_lm = res;
+        }
+    }
+#endif
 
     ptr2 = &ptr->field_154;
 
