@@ -1,5 +1,15 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.03.1 -- 2026-06-03
+- Strip FIRE_DBG / FIRE_COMMIT investigation traces (combat fixes confirmed)
+- Fix character models rendering black in flashlight/lighter darkness
+- Add [LIGHTCMP] trace at Harry draw to compare lighting inputs vs PSX
+- Add [EFXCALL] trace to Gfx_MapEffectsUpdate for alley3 mode debug
+- Enrich [LMODE] trace with primType-transition state
+- Fix Harry pitch-black in flashlight/lighter darkness (real root)
+- Remove lighting-debug diagnostics after darkness fix confirmed
+- Add [LIGHTERPOSE] trace for alley3 lighter-hold anim investigation
+
 ## v2026.06.02.2 -- 2026-06-02
 - Make FIRE_DBG change-triggered; strip obsolete grey-child AI log spam
 - Remove TPS branches from the combat aim/fire input path
