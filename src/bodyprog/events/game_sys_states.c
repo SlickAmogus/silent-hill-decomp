@@ -243,6 +243,21 @@ void GameState_InGame_Update(void) // 0x80038BD4
         player = &g_SysWork.playerWork.player;
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords);
 
+#ifdef SH_PC_PORT
+        /* [LIGHTERPOSE] change-triggered trace of Harry's anim through and
+         * after the alley3 lighter cutscene: does he settle/hold on the
+         * lighter pose anim (status 107, kf 973-993) or revert to idle? */
+        {
+            static s32 s_lpStatus = -1;
+            s32 st = (s32)player->model.anim.status;
+            if (st != s_lpStatus) {
+                SH_DBG("[LIGHTERPOSE] anim.status=%d keyframeIdx=%d stateStep=%d",
+                       st, (int)player->model.anim.keyframeIdx, (int)player->model.stateStep);
+                s_lpStatus = st;
+            }
+        }
+#endif
+
         Demo_DemoRandSeedRestore();
         Gfx_FlashlightUpdate();
 
