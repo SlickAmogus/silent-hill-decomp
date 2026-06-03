@@ -105,10 +105,12 @@ int str_read_frame(str_stream_t* s,
             return 1;
         }
 
-        /* Sectors should arrive in order; if not, bail. */
-        if ((int)secCount != sectors_seen) return -1;
+        /* Sectors should arrive in order; if not, bail.
+         * (-2 = secCount mismatch, -3 = bitstream overflow — distinct codes
+         * so the [FMVEND] diagnostic can tell which path stopped an FMV.) */
+        if ((int)secCount != sectors_seen) return -2;
 
-        if (bs_byte_pos + STR_VIDEO_CHUNK_BYTES > bs_byte_cap) return -1;
+        if (bs_byte_pos + STR_VIDEO_CHUNK_BYTES > bs_byte_cap) return -3;
         memcpy(bs_bytes + bs_byte_pos, chunk, STR_VIDEO_CHUNK_BYTES);
         bs_byte_pos += STR_VIDEO_CHUNK_BYTES;
         sectors_seen++;
