@@ -244,16 +244,28 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords);
 
 #ifdef SH_PC_PORT
-        /* [LIGHTERPOSE] change-triggered trace of Harry's anim through and
-         * after the alley3 lighter cutscene: does he settle/hold on the
-         * lighter pose anim (status 107, kf 973-993) or revert to idle? */
+        /* [LIGHTERPOSE] trace of Harry's anim through/after the alley3 lighter
+         * cutscene. Logs on (a) status change and (b) keyframe SETTLE (kf
+         * unchanged 30 frames) so we capture both the anim sequence and the
+         * final resting pose: does he hold lighter anim 107 at endKf 993, or
+         * overshoot it, or revert to idle (status 0)? */
         {
             static s32 s_lpStatus = -1;
+            static s32 s_lpKf      = -1;
+            static s32 s_lpStill   = 0;
+            static s32 s_lpSettled = 0;
             s32 st = (s32)player->model.anim.status;
+            s32 kf = (s32)player->model.anim.keyframeIdx;
             if (st != s_lpStatus) {
-                SH_DBG("[LIGHTERPOSE] anim.status=%d keyframeIdx=%d stateStep=%d",
-                       st, (int)player->model.anim.keyframeIdx, (int)player->model.stateStep);
-                s_lpStatus = st;
+                SH_DBG("[LIGHTERPOSE] status CHANGE -> status=%d kf=%d stateStep=%d",
+                       st, kf, (int)player->model.stateStep);
+                s_lpStatus = st; s_lpKf = kf; s_lpStill = 0; s_lpSettled = 0;
+            } else if (kf != s_lpKf) {
+                s_lpKf = kf; s_lpStill = 0; s_lpSettled = 0;
+            } else if (++s_lpStill == 30 && !s_lpSettled) {
+                SH_DBG("[LIGHTERPOSE] SETTLED at status=%d kf=%d stateStep=%d",
+                       st, kf, (int)player->model.stateStep);
+                s_lpSettled = 1;
             }
         }
 #endif
