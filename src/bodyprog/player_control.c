@@ -705,6 +705,18 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightUpperArm], Q12_ANGLE(0.0f),   Q12_ANGLE(63.3f), Q12_ANGLE(-8.8f));
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightForearm],  Q12_ANGLE(-14.1f), Q12_ANGLE(22.5f), Q12_ANGLE(-30.8f));
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightHand],     Q12_ANGLE(13.2f),  Q12_ANGLE(0.0f),  Q12_ANGLE(0.0f));
+
+            /* func_80044F14 only updates the LOCAL coord; the world matrix
+             * (workm) the match-flame reads (Vw_CoordHierarchyMatrixCompute,
+             * map_effects.c) is still the cached pre-override "arm down" pose
+             * because flg is set from this frame's Player_AnimUpdate. Clear
+             * flg on the overridden arm chain so the flame recomputes the hand
+             * world position from the raised pose this frame — otherwise the
+             * flame anchors to the un-raised hand and floats below it. (Render
+             * gets this for free via the later all-bones flg reset.) */
+            g_SysWork.playerBoneCoords[HarryBone_RightUpperArm].flg = 0;
+            g_SysWork.playerBoneCoords[HarryBone_RightForearm].flg  = 0;
+            g_SysWork.playerBoneCoords[HarryBone_RightHand].flg     = 0;
         }
 #endif
     }
