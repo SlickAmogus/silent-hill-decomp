@@ -16,6 +16,7 @@
 extern int g_windowWidth;
 extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
+extern void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ);
 
 #define MAX_CONSOLE 20
 #define LINE_LEN    64
@@ -45,6 +46,20 @@ static GLuint s_vbo  = 0;
 static GLuint s_tex  = 0;
 static GLint  s_u_tex = -1;
 static int    s_gl_inited = 0;
+
+/* ---- Collision visualizer panel (toggled by ') ----
+ * A fixed live panel (bottom-right) that queries the floor-collision function
+ * at the player and 4 probe points each frame, surfacing what Collision_Get
+ * returns (ground height, slope fields, valid-point count) for the decomp team. */
+#define COLL_COLS  32
+#define COLL_LINES 10
+#define COLL_TEX_W (COLL_COLS * GLYPH_W)
+#define COLL_TEX_H (COLL_LINES * GLYPH_H)
+static char   s_coll_lines[COLL_LINES][COLL_COLS];
+static int    s_coll_count = 0;
+static int    s_coll_on    = 0;
+static int    s_prev_apos  = 0;
+static GLuint s_coll_tex   = 0;
 
 /* IBM PC 8x8 bitmap font — public domain.
  * One byte per row, MSB = leftmost pixel.
@@ -229,6 +244,15 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEX_W, TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    glGenTextures(1, &s_coll_tex);
+    glBindTexture(GL_TEXTURE_2D, s_coll_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, COLL_TEX_W, COLL_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     s_gl_inited = 1;
 }
 
@@ -261,6 +285,93 @@ static void overlay_update_texture(void)
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEX_W, TEX_H,
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
+/* Query the floor-collision function at the player + 4 probe points and format
+ * the results into the live panel. Collision_Get is a read-only query (it finds
+ * the IPD cell via func_800426E4 and walks it); calling it a few extra times per
+ * frame is cheap next to the per-frame calls the game already makes. */
+static void coll_gather(void)
+{
+    s_SubCharacter* player = &g_SysWork.playerWork.player;
+    q19_12 px = player->position.vx;
+    q19_12 py = player->position.vy;
+    q19_12 pz = player->position.vz;
+    const q19_12 D = 2 * 4096; /* 2.0 in Q19.12 */
+    s_Collision c0, cxp, cxn, czp, czn;
+    int n = 0;
+
+    Collision_Get(&c0,  px,     pz);
+    Collision_Get(&cxp, px + D, pz);
+    Collision_Get(&cxn, px - D, pz);
+    Collision_Get(&czp, px,     pz + D);
+    Collision_Get(&czn, px,     pz - D);
+
+#define CL(...) do { if (n < COLL_LINES) snprintf(s_coll_lines[n++], COLL_COLS, __VA_ARGS__); } while (0)
+    CL("== COLLISION  (' toggle) ==");
+    CL("pos %.1f,%.1f,%.1f", px / 4096.0f, py / 4096.0f, pz / 4096.0f);
+    CL("ground H=%.3f", c0.groundHeight_0 / 4096.0f);
+    CL("slope f4=%d f6=%d n=%d", (int)c0.field_4, (int)c0.field_6, (int)c0.field_8);
+    CL("playerY-ground %+.3f", (py - c0.groundHeight_0) / 4096.0f);
+    CL("probe 2.0u   H / n");
+    CL("+X %.2f/%d  -X %.2f/%d",
+       cxp.groundHeight_0 / 4096.0f, (int)cxp.field_8,
+       cxn.groundHeight_0 / 4096.0f, (int)cxn.field_8);
+    CL("+Z %.2f/%d  -Z %.2f/%d",
+       czp.groundHeight_0 / 4096.0f, (int)czp.field_8,
+       czn.groundHeight_0 / 4096.0f, (int)czn.field_8);
+#undef CL
+
+    s_coll_count = n;
+}
+
+/* Build the collision panel texture from s_coll_lines (line 0 at top). Tinted
+ * green to distinguish it from the white console. Binds s_coll_tex. */
+static void coll_build_texture(void)
+{
+    static unsigned char pixels[COLL_TEX_H][COLL_TEX_W][4];
+    int line, cx, x, y;
+
+    memset(pixels, 0, sizeof(pixels));
+
+    for (line = 0; line < s_coll_count; line++) {
+        const char* str = s_coll_lines[line];
+        for (cx = 0; *str && cx < COLL_COLS; cx++, str++) {
+            unsigned int ch = (unsigned char)*str;
+            if (ch >= 128) continue;
+            for (y = 0; y < GLYPH_H; y++) {
+                unsigned char row = s_font[ch][y];
+                for (x = 0; x < GLYPH_W; x++) {
+                    if (row & (1u << x)) {
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][0] = 130;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][1] = 255;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][2] = 130;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][3] = 255;
+                    }
+                }
+            }
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, s_coll_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, COLL_TEX_W, COLL_TEX_H,
+                    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
+/* Upload an NDC quad (top y0, bottom y1) for the bound program/VBO and draw it. */
+static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
+{
+    float verts[6][4];
+    verts[0][0] = x0; verts[0][1] = y0; verts[0][2] = 0.0f; verts[0][3] = 0.0f;
+    verts[1][0] = x0; verts[1][1] = y1; verts[1][2] = 0.0f; verts[1][3] = 1.0f;
+    verts[2][0] = x1; verts[2][1] = y0; verts[2][2] = 1.0f; verts[2][3] = 0.0f;
+    verts[3][0] = x1; verts[3][1] = y0; verts[3][2] = 1.0f; verts[3][3] = 0.0f;
+    verts[4][0] = x0; verts[4][1] = y1; verts[4][2] = 0.0f; verts[4][3] = 1.0f;
+    verts[5][0] = x1; verts[5][1] = y1; verts[5][2] = 1.0f; verts[5][3] = 1.0f;
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void DbgOverlay_PushLine(const char* line)
@@ -303,6 +414,20 @@ void DbgOverlay_Update(void)
         }
     }
 
+    /* `'` toggles the collision visualizer panel; gather data each frame while
+     * on. Handled before the showConsole gate so it works independently of the
+     * scrolling console's visibility. */
+    {
+        int cur_apos = ks[SDL_SCANCODE_APOSTROPHE];
+        if (cur_apos && !s_prev_apos) {
+            s_coll_on = !s_coll_on;
+            SH_DBG_ECHO("[DEBUG] ' Collision visualizer: %s", s_coll_on ? "ON" : "OFF");
+        }
+        s_prev_apos = cur_apos;
+        if (s_coll_on)
+            coll_gather();
+    }
+
     if (g_PcConfig.showConsole < 2) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
@@ -341,18 +466,17 @@ void DbgOverlay_Update(void)
 void DbgOverlay_Render(void)
 {
     GLint   vp[4];
-    float   x0, y0, x1, y1;
-    float   verts[6][4];
     GLint   prev_prog, prev_tex, prev_vao, prev_vbo, prev_fb;
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
     GLboolean prev_depth, prev_blend;
+    int     drawConsole, drawColl;
 
-    /* Hidden once fully slid off-screen. The slide animates in/out (toggled by
-     * `~`); the ring buffer keeps filling while hidden so toggling on shows
-     * recent output. Keep rendering during the slide-out until it reaches 0. */
-    if (s_console_slide <= 0.0f) return;
-
-    if (s_console_count == 0) return;
+    /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
+     * buffer keeps filling while hidden. The collision panel draws whenever it's
+     * toggled on (`'`), independent of the console. */
+    drawConsole = (s_console_slide > 0.0f && s_console_count > 0);
+    drawColl    = (s_coll_on && s_coll_count > 0);
+    if (!drawConsole && !drawColl) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] == 0 || vp[3] == 0) return;
@@ -372,30 +496,6 @@ void DbgOverlay_Render(void)
     if (!s_gl_inited)
         overlay_gl_init();
 
-    /* NDC quad: top-left corner of screen, SCALE×texture pixels wide/tall.
-     * V=0 at top (pixels[0] = first row uploaded = GL texture bottom = screen top).
-     * V=1 at bottom (pixels[TEX_H-1] = last row = GL texture top). */
-    x0 = -1.0f;
-    y0 =  1.0f;
-    x1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
-    y1 = y0 - 2.0f * (float)(TEX_H * SCALE) / (float)vp[3];
-
-    /* Slide vertically from above the top edge (slide=0) to rest (slide=1).
-     * Shift both edges up by (1-slide) * overlay height. */
-    {
-        float slideOfs = (1.0f - s_console_slide) * (y0 - y1);
-        y0 += slideOfs;
-        y1 += slideOfs;
-    }
-
-    verts[0][0] = x0; verts[0][1] = y0; verts[0][2] = 0.0f; verts[0][3] = 0.0f;
-    verts[1][0] = x0; verts[1][1] = y1; verts[1][2] = 0.0f; verts[1][3] = 1.0f;
-    verts[2][0] = x1; verts[2][1] = y0; verts[2][2] = 1.0f; verts[2][3] = 0.0f;
-    verts[3][0] = x1; verts[3][1] = y0; verts[3][2] = 1.0f; verts[3][3] = 0.0f;
-    verts[4][0] = x0; verts[4][1] = y1; verts[4][2] = 0.0f; verts[4][3] = 1.0f;
-    verts[5][0] = x1; verts[5][1] = y1; verts[5][2] = 1.0f; verts[5][3] = 1.0f;
-
-    /* Draw */
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -403,19 +503,41 @@ void DbgOverlay_Render(void)
 
     glUseProgram(s_prog);
     glUniform1i(s_u_tex, 0);
-
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, s_tex);
-
-    if (s_console_dirty) {
-        overlay_update_texture();
-        s_console_dirty = 0;
-    }
-
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    if (drawConsole) {
+        /* Top-left, sliding down from above the top edge. */
+        float x0 = -1.0f;
+        float y0 =  1.0f;
+        float x1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
+        float y1 = y0 - 2.0f * (float)(TEX_H * SCALE) / (float)vp[3];
+        float slideOfs = (1.0f - s_console_slide) * (y0 - y1);
+        y0 += slideOfs;
+        y1 += slideOfs;
+
+        glBindTexture(GL_TEXTURE_2D, s_tex);
+        if (s_console_dirty) {
+            overlay_update_texture();
+            s_console_dirty = 0;
+        }
+        draw_panel(s_tex, x0, y0, x1, y1);
+    }
+
+    if (drawColl) {
+        /* Bottom-right corner (clear of the top-left console and bottom-center
+         * subtitles). Rebuilt every frame since the data is live. */
+        float cw = 2.0f * (float)(COLL_TEX_W * SCALE) / (float)vp[2];
+        float ch = 2.0f * (float)(COLL_TEX_H * SCALE) / (float)vp[3];
+        float x1 =  1.0f;
+        float x0 =  x1 - cw;
+        float y1 = -1.0f;
+        float y0 =  y1 + ch;
+
+        coll_build_texture();
+        draw_panel(s_coll_tex, x0, y0, x1, y1);
+    }
 
     /* Restore ALL state. */
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fb);
