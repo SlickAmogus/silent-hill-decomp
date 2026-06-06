@@ -15,6 +15,8 @@
 #include "bodyprog/item_screens.h"
 
 #ifdef SH_PC_PORT
+extern int g_CollVisEnabled; /* Collision visualizer toggle (dbg_overlay.c, ' key) */
+
 int g_RayLineCombat = 0; /* Set to 1 around combat Ray_LineCheck calls to enable targeted probes */
 
 /* Cache the known-good collision data pointer and a fingerprint of its
@@ -1007,15 +1009,23 @@ void func_8006AD44(s_CollisionState* collState, s_IpdCollisionData* collData) //
     endIdx   = (collState->field_A0.s_0.field_0 + collState->field_A0.s_0.field_2) - 1;
 
 #ifdef SH_PC_PORT
-    /* Bounds check grid indices to prevent out-of-bounds access into ptr_20.
-     * The array has field_1E * field_1F entries. */
+    /* Bounds-check the grid indices to prevent out-of-bounds access into ptr_20
+     * (field_1E * field_1F entries). The per-dimension checks below already
+     * guarantee every flat index i*field_1E + j stays in [0, maxIdx): i ranges
+     * [field_1, field_1+field_3-1] <= field_1F-1, and j ranges [startIdx,endIdx]
+     * <= field_1E-1, so i*field_1E + j <= maxIdx-1.
+     *
+     * The old extra term `loopEnd_i*field_1E + endIdx >= maxIdx` used loopEnd_i
+     * (= field_1+field_3) instead of the loop's actual max i (loopEnd_i-1), so it
+     * was off-by-one and wrongly skipped the ENTIRE LAST GRID ROW — leaving
+     * collision gaps where Harry walked straight through walls. Removed; the
+     * per-dimension checks are sufficient and correct. */
     {
-        s32 maxIdx = (s32)collData->field_1E * (s32)collData->field_1F;
-        s32 loopEnd_i = collState->field_A0.s_0.field_1 + collState->field_A0.s_0.field_3;
-        if (startIdx < 0 || endIdx < 0 || startIdx >= collData->field_1E ||
-            endIdx >= collData->field_1E || collState->field_A0.s_0.field_1 < 0 ||
-            loopEnd_i > collData->field_1F ||
-            (loopEnd_i * collData->field_1E + endIdx) >= maxIdx) {
+        s32 firstIdx_i = collState->field_A0.s_0.field_1;
+        s32 loopEnd_i  = firstIdx_i + collState->field_A0.s_0.field_3;
+        if (startIdx < 0 || endIdx < 0 ||
+            startIdx >= collData->field_1E || endIdx >= collData->field_1E ||
+            firstIdx_i < 0 || loopEnd_i > collData->field_1F) {
             goto ad44_skip_grid;
         }
     }
@@ -1221,6 +1231,23 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
 
     collState->field_CC.field_12 = collData->ptr_C[temp_a3->field_7];
     collState->field_CC.field_18 = collData->ptr_C[temp_a3->field_6];
+
+#ifdef SH_PC_PORT
+    /* STAGE 1: verify the units of the wall-segment endpoints vs the cell origin
+     * and the query position, so the wireframe renderer (stage 2) can place them
+     * in world space. queryQ8 is the collision-space (Q23.8) probe position. */
+    if (g_CollVisEnabled) {
+        static int _cvN = 0;
+        if (_cvN < 8) {
+            SH_DBG("[COLLVIS] cellOrg=(%d,%d) v0=(%d,%d,%d) v1=(%d,%d,%d) queryQ8=(%d,%d) idx=%d",
+                   collData->positionX_0, collData->positionZ_4,
+                   collState->field_CC.field_18.vx, collState->field_CC.field_18.vy, collState->field_CC.field_18.vz,
+                   collState->field_CC.field_12.vx, collState->field_CC.field_12.vy, collState->field_CC.field_12.vz,
+                   collState->field_4.positionX_18, collState->field_4.positionZ_1C, (int)idx);
+            _cvN++;
+        }
+    }
+#endif
 
     collState->field_CC.field_C.s_field_0.field_0 = temp_a3->field_8;
 
