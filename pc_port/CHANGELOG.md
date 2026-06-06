@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.06.2 -- 2026-06-06
+- (no commits since last release)
+
+## v2026.06.06.1 -- 2026-06-06
+- Fix alley3 lighter-hold: re-enable held-light arm pose on PC
+- Lighter-hold: flame tracks the raised hand (invalidate arm-bone flg)
+- Fix cutscene letterbox bars not rendering on PC
+- Keep cinematic letterbox FOV locked during the zoom hold
+
 ## v2026.06.03.3 -- 2026-06-03
 - Fix fogged-floor grid seams + Harry fog-flicker (per-vertex v0 fog)
 
