@@ -263,6 +263,23 @@ void vcReturnPreAutoCamWork(bool warp_f) // 0x80080ED0
     }
 
     vcWork.flags         &= ~(VC_USER_CAM_F | VC_USER_WATCH_F);
+
+#ifdef SH_PC_PORT
+    /* While the cinematic letterbox zoom is active, Screen_CutsceneCameraStateUpdate
+     * owns the projection (vcChangeProjectionValue, driven by g_BlackBorderShade).
+     * A cutscene's per-frame vcReturnPreAutoCamWork (e.g. the alley3 match scene's
+     * camera-switch default at step 11) would otherwise reset geom_screen_dist back
+     * to normal AFTER the zoom was set this frame, popping the FOV out while the
+     * bars are still up. Skip the reset during the active zoom (field_30 18..23,
+     * zoom not gated off by UnkSysFlag_3); the letterbox ramps it back to normal
+     * itself as the bars fade. */
+    if (g_SysWork.field_30 >= 18 && g_SysWork.field_30 <= 23 &&
+        !(g_SysWork.flags_22A4 & UnkSysFlag_3))
+    {
+        return;
+    }
+#endif
+
     vcWork.geom_screen_dist = g_GameWork.gsScreenHeight;
 }
 
