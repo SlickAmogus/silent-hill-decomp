@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.06.3 -- 2026-06-06
+- Add ' collision visualizer overlay for decomp debugging
+
 ## v2026.06.06.2 -- 2026-06-06
 - (no commits since last release)
 
