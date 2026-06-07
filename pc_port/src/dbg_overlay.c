@@ -74,13 +74,22 @@ extern void   CollVis_CaptureCell(q19_12 px, q19_12 pz); /* full-cell wall captu
 
 #define CV_MAX_SEGS 2048
 #define CV_MAX_CYLS 256
-/* worst-case GL vertices: segs (1 line) + cylinders (12-edge box) */
-#define CV_VERT_CAP ((CV_MAX_SEGS * 2) + (CV_MAX_CYLS * 12 * 2))
+#define CV_MAX_HITS 256
+/* worst-case GL vertices: cell segs + hit segs (1 line) + cylinders (12-edge box) */
+#define CV_VERT_CAP (((CV_MAX_SEGS + CV_MAX_HITS) * 2) + (CV_MAX_CYLS * 12 * 2))
 typedef struct { s32 ax, ay, az, bx, by, bz; int hit; } s_CvSeg;
+
+/* Cell geometry (green) — cached; only re-walked when Harry's collision cell
+ * changes (CollVis_ClearCell). Re-projected every frame, but not re-iterated. */
 static s_CvSeg s_cvSegs[CV_MAX_SEGS];
 static int     s_cvSegCount = 0;
 
-/* ptr_18 cylinder colliders (trees/poles): center + radius, drawn as a box. */
+/* Per-frame contacted faces (red) — rebuilt every frame from func_8006B318. */
+static s_CvSeg s_cvHits[CV_MAX_HITS];
+static int     s_cvHitCount = 0;
+
+/* ptr_18 cylinder colliders (trees/poles): center + radius, drawn as a box.
+ * Cached with the cell geometry. */
 typedef struct { s32 cx, cy, cz, r; } s_CvCyl;
 static s_CvCyl s_cvCyls[CV_MAX_CYLS];
 static int     s_cvCylCount = 0;
@@ -94,7 +103,8 @@ static GLuint  s_line_prog = 0;
 static GLuint  s_line_vao  = 0;
 static GLuint  s_line_vbo  = 0;
 
-/* hit != 0 = the player is actually colliding with this face (drawn red). */
+/* Cell geometry segment (green). hit param kept for signature stability; cell
+ * segs are always non-contacting (contacts go to CollVis_CaptureHit). */
 void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit)
 {
     if (s_cvSegCount >= CV_MAX_SEGS)
@@ -105,6 +115,17 @@ void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit)
     s_cvSegCount++;
 }
 
+/* A face the player is actually colliding with this frame (drawn red). */
+void CollVis_CaptureHit(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz)
+{
+    if (s_cvHitCount >= CV_MAX_HITS)
+        return;
+    s_cvHits[s_cvHitCount].ax = ax; s_cvHits[s_cvHitCount].ay = ay; s_cvHits[s_cvHitCount].az = az;
+    s_cvHits[s_cvHitCount].bx = bx; s_cvHits[s_cvHitCount].by = by; s_cvHits[s_cvHitCount].bz = bz;
+    s_cvHits[s_cvHitCount].hit = 1;
+    s_cvHitCount++;
+}
+
 void CollVis_CaptureCylinder(s32 cx, s32 cy, s32 cz, s32 r)
 {
     if (s_cvCylCount >= CV_MAX_CYLS)
@@ -112,6 +133,14 @@ void CollVis_CaptureCylinder(s32 cx, s32 cy, s32 cz, s32 r)
     s_cvCyls[s_cvCylCount].cx = cx; s_cvCyls[s_cvCylCount].cy = cy;
     s_cvCyls[s_cvCylCount].cz = cz; s_cvCyls[s_cvCylCount].r  = r;
     s_cvCylCount++;
+}
+
+/* Clear the cached cell geometry — called by collision.c when Harry's cell
+ * changes, right before re-walking the new cell's arrays. */
+void CollVis_ClearCell(void)
+{
+    s_cvSegCount = 0;
+    s_cvCylCount = 0;
 }
 
 /* IBM PC 8x8 bitmap font — public domain.
@@ -386,19 +415,25 @@ static void coll_gather(void)
     q19_12 py = player->position.vy;
     q19_12 pz = player->position.vz;
     const q19_12 D = 2 * 4096; /* 2.0 in Q19.12 */
-    s_Collision c0, cxp, cxn, czp, czn;
+    /* Floor-probe results are cached and refreshed every 4th frame — they change
+     * slowly and each Collision_Get is a full query, so this trims the per-frame
+     * cost. The wireframe + collState panel still update every frame. */
+    static s_Collision c0, cxp, cxn, czp, czn;
+    static int s_floorThrottle = 0;
     int n = 0;
 
-    /* Capture the full local collision-cell geometry (green wireframe) once per
-     * frame — stable, includes walls Harry isn't touching. */
+    /* Capture the local collision-cell geometry (green wireframe). Cheap on most
+     * frames — it only re-walks the arrays when Harry's cell changes. */
     s_cvFloorY = py;
     CollVis_CaptureCell(px, pz);
 
-    Collision_Get(&c0,  px,     pz);
-    Collision_Get(&cxp, px + D, pz);
-    Collision_Get(&cxn, px - D, pz);
-    Collision_Get(&czp, px,     pz + D);
-    Collision_Get(&czn, px,     pz - D);
+    if ((s_floorThrottle++ & 3) == 0) {
+        Collision_Get(&c0,  px,     pz);
+        Collision_Get(&cxp, px + D, pz);
+        Collision_Get(&cxn, px - D, pz);
+        Collision_Get(&czp, px,     pz + D);
+        Collision_Get(&czn, px,     pz - D);
+    }
 
 #define CL(...) do { if (n < COLL_LINES) snprintf(s_coll_lines[n++], COLL_COLS, __VA_ARGS__); } while (0)
     CL("== COLLISION  (' toggle) ==");
@@ -542,7 +577,7 @@ static void collvis_render_lines(void)
     float   H, halfW;
     int     i, nv = 0;
 
-    if (s_cvSegCount == 0 && s_cvCylCount == 0)
+    if (s_cvSegCount == 0 && s_cvCylCount == 0 && s_cvHitCount == 0)
         return;
 
     vcGetNowCamPos(&cam);
@@ -565,13 +600,16 @@ static void collvis_render_lines(void)
             verts[nv++]=_pc; verts[nv++]=_pd; verts[nv++]=(r); verts[nv++]=(g); verts[nv++]=(b); \
         } } while (0)
 
-    /* Surface/wall segments (flat). */
+    /* Cached cell surface geometry (green, flat). */
     for (i = 0; i < s_cvSegCount; i++) {
-        float r, g, b;
-        if (s_cvSegs[i].hit) { r = 1.0f; g = 0.15f; b = 0.15f; }
-        else                { r = 0.2f; g = 1.0f;  b = 0.3f;  }
-        CV_PUSH_LINE(r,g,b, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az,
-                            s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz);
+        CV_PUSH_LINE(0.2f, 1.0f, 0.3f, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az,
+                                       s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz);
+    }
+
+    /* Per-frame contacted faces (red, on top). */
+    for (i = 0; i < s_cvHitCount; i++) {
+        CV_PUSH_LINE(1.0f, 0.15f, 0.15f, s_cvHits[i].ax, s_cvHits[i].ay, s_cvHits[i].az,
+                                         s_cvHits[i].bx, s_cvHits[i].by, s_cvHits[i].bz);
     }
 
     /* Cylinder colliders (trees/poles) as cyan boxes, half-extent = radius,
@@ -784,8 +822,7 @@ void DbgOverlay_Render(void)
      * per-frame segment buffer captured during this frame's collision pass. */
     if (s_coll_on) {
         collvis_render_lines();
-        s_cvSegCount = 0;
-        s_cvCylCount = 0;
+        s_cvHitCount = 0; /* per-frame; cell segs/cyls cached until the cell changes */
     }
 
     /* Restore ALL state. */

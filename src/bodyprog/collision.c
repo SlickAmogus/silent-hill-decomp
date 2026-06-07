@@ -266,6 +266,8 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
 void CollVis_CaptureCell(q19_12 px, q19_12 pz)
 {
     extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit);
+    extern void CollVis_ClearCell(void);
+    static s_IpdCollisionData* s_lastCell = NULL;
     s_IpdCollisionData* cd;
     s32 count, i, ox, oz;
 
@@ -277,8 +279,22 @@ void CollVis_CaptureCell(q19_12 px, q19_12 pz)
     cd = func_800426E4(px, pz);
     if (cd == NULL || !PC_CollIsValid(cd))
     {
+        if (s_lastCell != NULL)
+        {
+            CollVis_ClearCell();
+            s_lastCell = NULL;
+        }
         return;
     }
+
+    /* Cell geometry is static — only re-walk the arrays when Harry's collision
+     * cell changes. The overlay re-projects the cached geometry every frame. */
+    if (cd == s_lastCell)
+    {
+        return;
+    }
+    s_lastCell = cd;
+    CollVis_ClearCell();
 
     count = cd->field_8_16; /* ptr_14 wall-segment count (ptr_18 starts here) */
     if (count <= 0 || count > 2048)
@@ -1426,17 +1442,16 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
     if (g_CollVisEnabled &&
         collState->field_4.field_28 > 0 &&
         collState->field_CC.field_20.field_C < collState->field_4.field_28) {
-        /* Only the actually-contacted faces are captured here (red). The full
-         * cell geometry (green) is captured separately by CollVis_CaptureCell. */
-        extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit);
+        /* Only the actually-contacted faces are captured here (red, per-frame).
+         * The full cell geometry (green) is cached by CollVis_CaptureCell. */
+        extern void CollVis_CaptureHit(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz);
         s32      ox = collData->positionX_0;
         s32      oz = collData->positionZ_4;
         SVECTOR* va = &collData->ptr_C[temp_a3->field_6];
         SVECTOR* vb = &collData->ptr_C[temp_a3->field_7];
-        CollVis_CaptureSeg(
+        CollVis_CaptureHit(
             (ox + va->vx) << 4, (s32)va->vy << 4, (oz + va->vz) << 4,
-            (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4,
-            1);
+            (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4);
     }
 #endif
 
