@@ -1482,6 +1482,30 @@ s32 Map_ChunkLoad(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 p
     return queueIdx;
 }
 
+#ifdef SH_PC_PORT
+/* Registry of headers IpdHeader_FixOffsets has reformatted, keyed by the
+ * resulting heap lmHdr. The IPD file's byte 1 lands on the isLoaded field but is
+ * NOT a reliable "reformatted" flag (some IPDs store 1, and overlapping PSX-RAM
+ * buffer reuse leaves it stale), so isLoaded alone cannot gate lmHdr derefs.
+ * A fresh file load overwrites lmHdr with raw bytes, so a registry mismatch
+ * means the header has not been reformatted yet. */
+static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixedIpd[64];
+static s32 s_pcFixedIpdCount = 0;
+
+bool IpdHeader_PC_IsReformatted(s_IpdHeader* ipdHdr)
+{
+    s32 i;
+    for (i = 0; i < s_pcFixedIpdCount; i++)
+    {
+        if (s_pcFixedIpd[i].hdr == ipdHdr)
+        {
+            return s_pcFixedIpd[i].lm == ipdHdr->lmHdr;
+        }
+    }
+    return false;
+}
+#endif
+
 void Ipd_ActiveChunksSample(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1, bool isExterior) // 0x800431E4
 {
     s_IpdChunk* curChunk;
@@ -1498,6 +1522,21 @@ void Ipd_ActiveChunksSample(s_Map* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1
         {
             Ipd_DistanceToEdgeCalc(curChunk, posX0, posZ0, posX1, posZ1, isExterior);
         }
+
+#ifdef SH_PC_PORT
+        /* A just-loaded chunk's isLoaded byte comes straight from the IPD file
+         * (or stale overlapping RAM) and can read true before IpdHeader_FixOffsets
+         * has reformatted it — the fixup runs only after Map_ChunkLoad returns.
+         * Correct it here so this sample (and every other isLoaded-gated lmHdr
+         * deref this frame) skips the chunk until it is actually reformatted,
+         * matching PSX where isLoaded stays false until the fixup. */
+        if (curChunk->queueIdx != NO_VALUE && curChunk->ipdHdr != NULL &&
+            Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= FsQueueEntryLoadStatus_Loaded &&
+            !IpdHeader_PC_IsReformatted(curChunk->ipdHdr))
+        {
+            curChunk->ipdHdr->isLoaded = false;
+        }
+#endif
 
         if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < FsQueueEntryLoadStatus_Loaded || !curChunk->ipdHdr->isLoaded)
         {
@@ -1880,22 +1919,12 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
 {
 #ifdef SH_PC_PORT
     {
-        /* Buffer-reuse-safe "already reformatted" check. The old check read
-         * raw byte 1 (isLoaded), but that byte is undefined IPD file data — some
-         * IPDs (e.g. a school chunk) have byte 1 == 1, which skipped the fixup
-         * and left lmHdr as a raw garbage offset while isLoaded read true, so
-         * Map_ChunkLoad -> Ipd_HalfPageMaterialCountGet -> Lm_MaterialCountGet
-         * dereferenced garbage and crashed. Track each header's post-fixup lmHdr
-         * instead: a fresh file load overwrites lmHdr with raw bytes, so a
-         * mismatch means the header has not been reformatted yet. */
-        static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixed[64];
-        static s32 s_pcFixedCount = 0;
         s32 fi, slot = -1;
 
-        for (fi = 0; fi < s_pcFixedCount; fi++) {
-            if (s_pcFixed[fi].hdr == ipdHdr) { slot = fi; break; }
+        for (fi = 0; fi < s_pcFixedIpdCount; fi++) {
+            if (s_pcFixedIpd[fi].hdr == ipdHdr) { slot = fi; break; }
         }
-        if (slot >= 0 && s_pcFixed[slot].lm == ipdHdr->lmHdr) {
+        if (slot >= 0 && s_pcFixedIpd[slot].lm == ipdHdr->lmHdr) {
             return; /* already reformatted, lmHdr still our heap copy */
         }
 
@@ -1912,8 +1941,8 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             *heapLmHdr = *ipdHdr->lmHdr;
             ipdHdr->lmHdr = heapLmHdr;
         }
-        if (slot < 0 && s_pcFixedCount < 64) { slot = s_pcFixedCount++; }
-        if (slot >= 0) { s_pcFixed[slot].hdr = ipdHdr; s_pcFixed[slot].lm = ipdHdr->lmHdr; }
+        if (slot < 0 && s_pcFixedIpdCount < 64) { slot = s_pcFixedIpdCount++; }
+        if (slot >= 0) { s_pcFixedIpd[slot].hdr = ipdHdr; s_pcFixedIpd[slot].lm = ipdHdr->lmHdr; }
         {
             /* Find which chunk slot this belongs to for logging */
             s32 logSlot = -1, si;
