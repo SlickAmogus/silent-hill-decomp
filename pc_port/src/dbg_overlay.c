@@ -436,27 +436,29 @@ static void coll_gather(void)
     }
 
 #define CL(...) do { if (n < COLL_LINES) snprintf(s_coll_lines[n++], COLL_COLS, __VA_ARGS__); } while (0)
-    CL("== COLLISION  (' toggle) ==");
-    CL("pos %.1f,%.1f,%.1f", px / 4096.0f, py / 4096.0f, pz / 4096.0f);
-    CL("ground H=%.3f", c0.groundHeight_0 / 4096.0f);
+    /* All positional/height values are raw fixed-point (Q12, 4096 = 1.0u) — the
+     * engine's real numbers, not float conversions. */
+    CL("== COLLISION  (' toggle)  [Q12] ==");
+    CL("pos %d,%d,%d", (int)px, (int)py, (int)pz);
+    CL("ground H=%d", (int)c0.groundHeight_0);
     CL("slope f4=%d f6=%d n=%d", (int)c0.field_4, (int)c0.field_6, (int)c0.field_8);
-    CL("playerY-ground %+.3f", (py - c0.groundHeight_0) / 4096.0f);
-    CL("probe 2.0u   H / n");
-    CL("+X %.2f/%d  -X %.2f/%d",
-       cxp.groundHeight_0 / 4096.0f, (int)cxp.field_8,
-       cxn.groundHeight_0 / 4096.0f, (int)cxn.field_8);
-    CL("+Z %.2f/%d  -Z %.2f/%d",
-       czp.groundHeight_0 / 4096.0f, (int)czp.field_8,
-       czn.groundHeight_0 / 4096.0f, (int)czn.field_8);
+    CL("playerY-ground %+d", (int)(py - c0.groundHeight_0));
+    CL("probe 2u(8192)  H / n");
+    CL("+X %d/%d  -X %d/%d",
+       (int)cxp.groundHeight_0, (int)cxp.field_8,
+       (int)cxn.groundHeight_0, (int)cxn.field_8);
+    CL("+Z %d/%d  -Z %d/%d",
+       (int)czp.groundHeight_0, (int)czp.field_8,
+       (int)czn.groundHeight_0, (int)czn.field_8);
 
     /* collState @ func_8006A4A8 (the engine's collision handler), from the
-     * player's pass last frame. Raw collState fields. */
+     * player's pass last frame. Raw collState fields (Q12). */
     CL("- collState @8006A4A8 -");
     if (g_CollStateDbg.valid) {
         CL("face=%d dist=%d rad=%d",
            g_CollStateDbg.faceIdx, g_CollStateDbg.dist, g_CollStateDbg.radius);
-        CL("push %.2f,%.2f",
-           g_CollStateDbg.pushX / 4096.0f, g_CollStateDbg.pushZ / 4096.0f);
+        CL("push %d,%d",
+           (int)g_CollStateDbg.pushX, (int)g_CollStateDbg.pushZ);
         CL("resp=%d ang=%d,%d",
            g_CollStateDbg.respActive, g_CollStateDbg.angMin, g_CollStateDbg.angMax);
         CL("grnd flg=%d typ=%d corner=%d",
