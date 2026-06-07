@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.07.2 -- 2026-06-07
+- Re-enable flashlight lens flare on PC (revert stub to clean decomp)
+- Collision visualizer: show collState panel as raw fixed-point
+
 ## v2026.06.07.1 -- 2026-06-07
 - Fix walk-through-walls: off-by-one in PC collision grid bounds check
 - Collision visualizer stage 2: world-space wireframe overlay
