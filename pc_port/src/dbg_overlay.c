@@ -52,7 +52,7 @@ static int    s_gl_inited = 0;
  * at the player and 4 probe points each frame, surfacing what Collision_Get
  * returns (ground height, slope fields, valid-point count) for the decomp team. */
 #define COLL_COLS  32
-#define COLL_LINES 10
+#define COLL_LINES 16
 #define COLL_TEX_W (COLL_COLS * GLYPH_W)
 #define COLL_TEX_H (COLL_LINES * GLYPH_H)
 static char   s_coll_lines[COLL_LINES][COLL_COLS];
@@ -85,6 +85,9 @@ typedef struct { s32 cx, cy, cz, r; } s_CvCyl;
 static s_CvCyl s_cvCyls[CV_MAX_CYLS];
 static int     s_cvCylCount = 0;
 static s32     s_cvFloorY   = 0; /* player ground Y (Q12), box base for cylinders */
+
+/* collState snapshot from the player's func_8006A4A8 pass (filled by collision.c). */
+s_CollStateDbg g_CollStateDbg = {0};
 
 /* GL line resources */
 static GLuint  s_line_prog = 0;
@@ -410,8 +413,28 @@ static void coll_gather(void)
     CL("+Z %.2f/%d  -Z %.2f/%d",
        czp.groundHeight_0 / 4096.0f, (int)czp.field_8,
        czn.groundHeight_0 / 4096.0f, (int)czn.field_8);
+
+    /* collState @ func_8006A4A8 (the engine's collision handler), from the
+     * player's pass last frame. Raw collState fields. */
+    CL("- collState @8006A4A8 -");
+    if (g_CollStateDbg.valid) {
+        CL("face=%d dist=%d rad=%d",
+           g_CollStateDbg.faceIdx, g_CollStateDbg.dist, g_CollStateDbg.radius);
+        CL("push %.2f,%.2f",
+           g_CollStateDbg.pushX / 4096.0f, g_CollStateDbg.pushZ / 4096.0f);
+        CL("resp=%d ang=%d,%d",
+           g_CollStateDbg.respActive, g_CollStateDbg.angMin, g_CollStateDbg.angMax);
+        CL("grnd flg=%d typ=%d corner=%d",
+           g_CollStateDbg.groundFlag, g_CollStateDbg.groundType, g_CollStateDbg.corner);
+    } else {
+        CL("(player pass not seen)");
+    }
 #undef CL
 
+    /* Decrement the contact latch each frame so a held snapshot eventually
+     * falls back to the idle (non-contact) state. */
+    if (g_CollStateDbg.hold > 0)
+        g_CollStateDbg.hold--;
     s_coll_count = n;
 }
 
