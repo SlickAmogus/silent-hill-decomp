@@ -122,15 +122,10 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
 
-#ifdef SH_PC_PORT
-    /* Skip lens flare effect on PC */
-    (void)0;
-#else
     if (g_WorldEnvWork.field_2 != 0)
     {
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
-#endif
 
 #ifdef SH_PC_PORT
     /* Skip water zone rendering on PC — func_8008D470 uses GTE screen-space
