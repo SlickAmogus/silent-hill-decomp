@@ -1928,8 +1928,15 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             return; /* already reformatted, lmHdr still our heap copy */
         }
 
-        extern void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
-        IpdHeader_FixOffsets_PC(ipdHdr);
+        extern bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
+        if (!IpdHeader_FixOffsets_PC(ipdHdr)) {
+            /* Buffer is not a valid IPD yet (stale/overlapping reuse or still
+             * mid-load while Fs already reports Loaded). Leave it unreformatted
+             * and untouched — isLoaded stays false (corrected in
+             * Ipd_ActiveChunksSample) and we retry next frame instead of
+             * dereferencing the raw garbage lmHdr. */
+            return;
+        }
         ipdHdr->isLoaded = true;
         /* LmHeader_FixOffsets now uses PC reformatter */
         LmHeader_FixOffsets(ipdHdr->lmHdr);

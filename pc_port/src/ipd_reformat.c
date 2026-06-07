@@ -173,7 +173,10 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
  * After this, the original IpdHeader_FixOffsets flow can call
  * LmHeader_FixOffsets, Ipd_MaterialsLoad, and model link functions.
  */
-void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
+/* Returns true if the buffer was reformatted, false if it is not a valid IPD
+ * (stale or still mid-load) so the caller can skip the rest of the fixup and
+ * retry on a later frame instead of dereferencing a garbage lmHdr. */
+bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 {
     u8* raw = (u8*)ipdHdr;
 
@@ -188,7 +191,7 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     {
         SH_DBG("[SH] IpdFixOffsets_PC: invalid magic %d (expected %d), skipping",
                 raw[0], IPD_HEADER_MAGIC);
-        return;
+        return false;
     }
 
     /* Read PSX header fields from raw bytes */
@@ -282,4 +285,5 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     SH_DBG("[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]",
             (void*)ipdHdr->lmHdr, (void*)ipdHdr->modelInfo, modelCount,
             (void*)ipdHdr->modelBuffers, modelBufferCount);
+    return true;
 }
