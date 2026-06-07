@@ -2,6 +2,7 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "dbg_overlay.h"
 #include <stdio.h>
 #include <stddef.h>
 #endif
@@ -863,6 +864,44 @@ s32 func_8006A4A8(s_CollisionResult* collResult, VECTOR3* offset, s_CollisionQue
 
         collResult->offset_0.vx += sp120.vx;
         collResult->offset_0.vz += sp120.vz;
+
+#ifdef SH_PC_PORT
+        /* collState inspector: snapshot the resolved collision state for the
+         * overlay's collState panel, gated to the player's pass (query position
+         * near the player) so the panel tracks Harry's collision, not NPCs'. */
+        if (g_CollVisEnabled)
+        {
+            s32 _pdx     = collQuery->position.vx - g_SysWork.playerWork.player.position.vx;
+            s32 _pdz     = collQuery->position.vz - g_SysWork.playerWork.player.position.vz;
+            s32 _dist    = collState.field_CC.field_20.field_C;
+            s32 _rad     = collState.field_4.field_28;
+            int _contact = (_rad > 0 && _dist < _rad) || collState.field_44.field_0.field_0;
+            /* Harry oscillates in/out of contact every frame (the wall response
+             * pushes him out, he walks back in), so contact fields blink to 0.
+             * Latch a contact snapshot for ~0.5s so the panel holds the colliding
+             * values; only fall back to the idle face once the latch expires. */
+            if (ABS(_pdx) < Q12(4.0f) && ABS(_pdz) < Q12(4.0f) &&
+                (_contact || g_CollStateDbg.hold == 0))
+            {
+                g_CollStateDbg.valid      = 1;
+                g_CollStateDbg.dist       = _dist;
+                g_CollStateDbg.radius     = _rad;
+                g_CollStateDbg.respActive = collState.field_44.field_0.field_0;
+                g_CollStateDbg.angMin     = collState.field_44.field_0.field_2.vx;
+                g_CollStateDbg.angMax     = collState.field_44.field_0.field_2.vy;
+                g_CollStateDbg.faceIdx    = collState.field_CC.field_4;
+                g_CollStateDbg.pushX      = collResult->offset_0.vx;
+                g_CollStateDbg.pushZ      = collResult->offset_0.vz;
+                g_CollStateDbg.groundFlag = collState.field_90;
+                g_CollStateDbg.groundType = collState.field_94;
+                g_CollStateDbg.corner     = cond;
+                if (_contact)
+                {
+                    g_CollStateDbg.hold = 30; /* ~0.5s at 60fps */
+                }
+            }
+        }
+#endif
 
         if (collState.field_0_0)
         {
