@@ -72,7 +72,7 @@ extern MATRIX VbWvsMatrix;          /* world->view rotation (Q12), vw_calc.c */
 extern long   ReadGeomScreen(void); /* GTE projection distance H */
 
 #define CV_MAX_SEGS 2048
-typedef struct { s32 ax, ay, az, bx, by, bz; } s_CvSeg;
+typedef struct { s32 ax, ay, az, bx, by, bz; int hit; } s_CvSeg;
 static s_CvSeg s_cvSegs[CV_MAX_SEGS];
 static int     s_cvSegCount = 0;
 
@@ -81,12 +81,14 @@ static GLuint  s_line_prog = 0;
 static GLuint  s_line_vao  = 0;
 static GLuint  s_line_vbo  = 0;
 
-void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz)
+/* hit != 0 = the player is actually colliding with this face (drawn red). */
+void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit)
 {
     if (s_cvSegCount >= CV_MAX_SEGS)
         return;
     s_cvSegs[s_cvSegCount].ax = ax; s_cvSegs[s_cvSegCount].ay = ay; s_cvSegs[s_cvSegCount].az = az;
     s_cvSegs[s_cvSegCount].bx = bx; s_cvSegs[s_cvSegCount].by = by; s_cvSegs[s_cvSegCount].bz = bz;
+    s_cvSegs[s_cvSegCount].hit = hit;
     s_cvSegCount++;
 }
 
@@ -483,13 +485,15 @@ static void collvis_render_lines(void)
     }
 
     for (i = 0; i < s_cvSegCount; i++) {
-        float ax, ay, bx, by;
+        float ax, ay, bx, by, r, g, b;
         if (!collvis_project(&cam, H, halfW, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az, &ax, &ay))
             continue;
         if (!collvis_project(&cam, H, halfW, s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz, &bx, &by))
             continue;
-        verts[nv++] = ax; verts[nv++] = ay; verts[nv++] = 0.2f; verts[nv++] = 1.0f; verts[nv++] = 0.3f;
-        verts[nv++] = bx; verts[nv++] = by; verts[nv++] = 0.2f; verts[nv++] = 1.0f; verts[nv++] = 0.3f;
+        if (s_cvSegs[i].hit) { r = 1.0f; g = 0.15f; b = 0.15f; }  /* colliding face */
+        else                { r = 0.2f; g = 1.0f;  b = 0.3f;  }   /* evaluated face */
+        verts[nv++] = ax; verts[nv++] = ay; verts[nv++] = r; verts[nv++] = g; verts[nv++] = b;
+        verts[nv++] = bx; verts[nv++] = by; verts[nv++] = r; verts[nv++] = g; verts[nv++] = b;
     }
 
     if (nv == 0)

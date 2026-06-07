@@ -1232,25 +1232,6 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
     collState->field_CC.field_12 = collData->ptr_C[temp_a3->field_7];
     collState->field_CC.field_18 = collData->ptr_C[temp_a3->field_6];
 
-#ifdef SH_PC_PORT
-    /* Collision visualizer (' key): capture this wall segment in world space for
-     * the wireframe overlay. World position (Q12) = (cellOrigin + vertex) << 4
-     * (collision data is Q8). Endpoints are the raw ptr_C vertices before the
-     * vy fix-ups below. */
-    if (g_CollVisEnabled) {
-        extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz);
-        s32 ox = collData->positionX_0;
-        s32 oz = collData->positionZ_4;
-        CollVis_CaptureSeg(
-            (ox + collState->field_CC.field_18.vx) << 4,
-            (s32)collState->field_CC.field_18.vy << 4,
-            (oz + collState->field_CC.field_18.vz) << 4,
-            (ox + collState->field_CC.field_12.vx) << 4,
-            (s32)collState->field_CC.field_12.vy << 4,
-            (oz + collState->field_CC.field_12.vz) << 4);
-    }
-#endif
-
     collState->field_CC.field_C.s_field_0.field_0 = temp_a3->field_8;
 
     if ((collState->field_CC.field_C.s_field_0.field_0) != 0xFF)
@@ -1326,6 +1307,29 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
 
         collState->field_CC.field_20.field_8 = 1;
     }
+
+#ifdef SH_PC_PORT
+    /* Collision visualizer (' key): capture this wall segment in world space for
+     * the wireframe overlay, now that the player-to-segment distance (field_20.
+     * field_C) is known. World pos (Q12) = (cellOrigin + ptr_C vertex) << 4
+     * (collision data is Q8); raw ptr_C vertices (not field_12/field_18, which
+     * were vy-adjusted above). A face is a genuine contact (drawn red) when the
+     * distance is within the player's collision radius (field_4.field_28) — the
+     * same test Collision_WallResponse uses. */
+    if (g_CollVisEnabled) {
+        extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit);
+        s32      ox = collData->positionX_0;
+        s32      oz = collData->positionZ_4;
+        SVECTOR* va = &collData->ptr_C[temp_a3->field_6];
+        SVECTOR* vb = &collData->ptr_C[temp_a3->field_7];
+        int hit = (collState->field_4.field_28 > 0 &&
+                   collState->field_CC.field_20.field_C < collState->field_4.field_28);
+        CollVis_CaptureSeg(
+            (ox + va->vx) << 4, (s32)va->vy << 4, (oz + va->vz) << 4,
+            (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4,
+            hit);
+    }
+#endif
 
     return true;
 }
