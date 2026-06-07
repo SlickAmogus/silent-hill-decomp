@@ -70,6 +70,7 @@ int g_CollVisEnabled = 0;
  * through walls, RE4-style). Cleared after each render. ---- */
 extern MATRIX VbWvsMatrix;          /* world->view rotation (Q12), vw_calc.c */
 extern long   ReadGeomScreen(void); /* GTE projection distance H */
+extern void   CollVis_CaptureCell(q19_12 px, q19_12 pz); /* full-cell wall capture, collision.c */
 
 #define CV_MAX_SEGS 2048
 typedef struct { s32 ax, ay, az, bx, by, bz; int hit; } s_CvSeg;
@@ -366,6 +367,10 @@ static void coll_gather(void)
     const q19_12 D = 2 * 4096; /* 2.0 in Q19.12 */
     s_Collision c0, cxp, cxn, czp, czn;
     int n = 0;
+
+    /* Capture the full local collision-cell geometry (green wireframe) once per
+     * frame — stable, includes walls Harry isn't touching. */
+    CollVis_CaptureCell(px, pz);
 
     Collision_Get(&c0,  px,     pz);
     Collision_Get(&cxp, px + D, pz);
