@@ -1,5 +1,17 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.07.1 -- 2026-06-07
+- Fix walk-through-walls: off-by-one in PC collision grid bounds check
+- Collision visualizer stage 2: world-space wireframe overlay
+- Collision visualizer: red hit-marking on contacted faces
+- Collision visualizer: full-cell capture (stable, all geometry)
+- Collision visualizer: cylinder colliders + near-plane clip
+- Collision visualizer: collState inspector panel (func_8006A4A8)
+- Collision visualizer: cache cell geometry + throttle floor probes
+- Fix school progression crash: unreliable IPD fixup-skip check
+- Fix school crash properly: isLoaded byte trusted before reformat ran
+- Fix school crash part 2: skip fixup on stale/invalid IPD buffer
+
 ## v2026.06.06.3 -- 2026-06-06
 - Add ' collision visualizer overlay for decomp debugging
 
