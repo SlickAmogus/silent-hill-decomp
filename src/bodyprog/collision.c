@@ -1233,19 +1233,21 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
     collState->field_CC.field_18 = collData->ptr_C[temp_a3->field_6];
 
 #ifdef SH_PC_PORT
-    /* STAGE 1: verify the units of the wall-segment endpoints vs the cell origin
-     * and the query position, so the wireframe renderer (stage 2) can place them
-     * in world space. queryQ8 is the collision-space (Q23.8) probe position. */
+    /* Collision visualizer (' key): capture this wall segment in world space for
+     * the wireframe overlay. World position (Q12) = (cellOrigin + vertex) << 4
+     * (collision data is Q8). Endpoints are the raw ptr_C vertices before the
+     * vy fix-ups below. */
     if (g_CollVisEnabled) {
-        static int _cvN = 0;
-        if (_cvN < 8) {
-            SH_DBG("[COLLVIS] cellOrg=(%d,%d) v0=(%d,%d,%d) v1=(%d,%d,%d) queryQ8=(%d,%d) idx=%d",
-                   collData->positionX_0, collData->positionZ_4,
-                   collState->field_CC.field_18.vx, collState->field_CC.field_18.vy, collState->field_CC.field_18.vz,
-                   collState->field_CC.field_12.vx, collState->field_CC.field_12.vy, collState->field_CC.field_12.vz,
-                   collState->field_4.positionX_18, collState->field_4.positionZ_1C, (int)idx);
-            _cvN++;
-        }
+        extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz);
+        s32 ox = collData->positionX_0;
+        s32 oz = collData->positionZ_4;
+        CollVis_CaptureSeg(
+            (ox + collState->field_CC.field_18.vx) << 4,
+            (s32)collState->field_CC.field_18.vy << 4,
+            (oz + collState->field_CC.field_18.vz) << 4,
+            (ox + collState->field_CC.field_12.vx) << 4,
+            (s32)collState->field_CC.field_12.vy << 4,
+            (oz + collState->field_CC.field_12.vz) << 4);
     }
 #endif
 
