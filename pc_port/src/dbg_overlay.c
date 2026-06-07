@@ -73,9 +73,18 @@ extern long   ReadGeomScreen(void); /* GTE projection distance H */
 extern void   CollVis_CaptureCell(q19_12 px, q19_12 pz); /* full-cell wall capture, collision.c */
 
 #define CV_MAX_SEGS 2048
+#define CV_MAX_CYLS 256
+/* worst-case GL vertices: segs (1 line) + cylinders (12-edge box) */
+#define CV_VERT_CAP ((CV_MAX_SEGS * 2) + (CV_MAX_CYLS * 12 * 2))
 typedef struct { s32 ax, ay, az, bx, by, bz; int hit; } s_CvSeg;
 static s_CvSeg s_cvSegs[CV_MAX_SEGS];
 static int     s_cvSegCount = 0;
+
+/* ptr_18 cylinder colliders (trees/poles): center + radius, drawn as a box. */
+typedef struct { s32 cx, cy, cz, r; } s_CvCyl;
+static s_CvCyl s_cvCyls[CV_MAX_CYLS];
+static int     s_cvCylCount = 0;
+static s32     s_cvFloorY   = 0; /* player ground Y (Q12), box base for cylinders */
 
 /* GL line resources */
 static GLuint  s_line_prog = 0;
@@ -91,6 +100,15 @@ void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit)
     s_cvSegs[s_cvSegCount].bx = bx; s_cvSegs[s_cvSegCount].by = by; s_cvSegs[s_cvSegCount].bz = bz;
     s_cvSegs[s_cvSegCount].hit = hit;
     s_cvSegCount++;
+}
+
+void CollVis_CaptureCylinder(s32 cx, s32 cy, s32 cz, s32 r)
+{
+    if (s_cvCylCount >= CV_MAX_CYLS)
+        return;
+    s_cvCyls[s_cvCylCount].cx = cx; s_cvCyls[s_cvCylCount].cy = cy;
+    s_cvCyls[s_cvCylCount].cz = cz; s_cvCyls[s_cvCylCount].r  = r;
+    s_cvCylCount++;
 }
 
 /* IBM PC 8x8 bitmap font — public domain.
@@ -311,7 +329,7 @@ static void overlay_gl_init(void)
         glGenBuffers(1, &s_line_vbo);
         glBindVertexArray(s_line_vao);
         glBindBuffer(GL_ARRAY_BUFFER, s_line_vbo);
-        glBufferData(GL_ARRAY_BUFFER, CV_MAX_SEGS * 2 * 5 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, CV_VERT_CAP * 5 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
@@ -370,6 +388,7 @@ static void coll_gather(void)
 
     /* Capture the full local collision-cell geometry (green wireframe) once per
      * frame — stable, includes walls Harry isn't touching. */
+    s_cvFloorY = py;
     CollVis_CaptureCell(px, pz);
 
     Collision_Get(&c0,  px,     pz);
@@ -449,33 +468,58 @@ static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
  * VbWvsMatrix * (P - camPos), then PSX perspective (psx = view.xy * H / view.z)
  * mapped to NDC. Returns 0 if behind the camera. halfW is the widescreen ortho
  * half-width (matches the PsyCross Hor+ ortho). */
-static int collvis_project(const VECTOR3* cam, float H, float halfW,
-                           s32 wx, s32 wy, s32 wz, float* nx, float* ny)
+static void collvis_view(const VECTOR3* cam, s32 wx, s32 wy, s32 wz,
+                         float* vx, float* vy, float* vz)
 {
     float dx = (float)(wx - cam->vx) / 4096.0f;
     float dy = (float)(wy - cam->vy) / 4096.0f;
     float dz = (float)(wz - cam->vz) / 4096.0f;
-    float vx = (VbWvsMatrix.m[0][0] * dx + VbWvsMatrix.m[0][1] * dy + VbWvsMatrix.m[0][2] * dz) / 4096.0f;
-    float vy = (VbWvsMatrix.m[1][0] * dx + VbWvsMatrix.m[1][1] * dy + VbWvsMatrix.m[1][2] * dz) / 4096.0f;
-    float vz = (VbWvsMatrix.m[2][0] * dx + VbWvsMatrix.m[2][1] * dy + VbWvsMatrix.m[2][2] * dz) / 4096.0f;
+    *vx = (VbWvsMatrix.m[0][0] * dx + VbWvsMatrix.m[0][1] * dy + VbWvsMatrix.m[0][2] * dz) / 4096.0f;
+    *vy = (VbWvsMatrix.m[1][0] * dx + VbWvsMatrix.m[1][1] * dy + VbWvsMatrix.m[1][2] * dz) / 4096.0f;
+    *vz = (VbWvsMatrix.m[2][0] * dx + VbWvsMatrix.m[2][1] * dy + VbWvsMatrix.m[2][2] * dz) / 4096.0f;
+}
 
-    if (vz < 1.0f)
+/* Project a world segment to two NDC points, clipping at the near plane so a
+ * segment with one endpoint behind the camera is shortened instead of dropped
+ * (the "lines vanish when turning" artifact). Returns 0 if fully behind. */
+static int collvis_proj_seg(const VECTOR3* cam, float H, float halfW,
+                            s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz,
+                            float* nax, float* nay, float* nbx, float* nby)
+{
+    const float NEARZ = 1.0f;
+    float vax, vay, vaz, vbx, vby, vbz;
+
+    collvis_view(cam, ax, ay, az, &vax, &vay, &vaz);
+    collvis_view(cam, bx, by, bz, &vbx, &vby, &vbz);
+
+    if (vaz < NEARZ && vbz < NEARZ)
         return 0;
 
-    *nx =  (vx * H / vz) / halfW;
-    *ny = -(vy * H / vz) / 120.0f;
+    if (vaz < NEARZ) {
+        float t = (NEARZ - vaz) / (vbz - vaz);
+        vax += (vbx - vax) * t; vay += (vby - vay) * t; vaz = NEARZ;
+    } else if (vbz < NEARZ) {
+        float t = (NEARZ - vbz) / (vaz - vbz);
+        vbx += (vax - vbx) * t; vby += (vay - vby) * t; vbz = NEARZ;
+    }
+
+    *nax =  (vax * H / vaz) / halfW;  *nay = -(vay * H / vaz) / 120.0f;
+    *nbx =  (vbx * H / vbz) / halfW;  *nby = -(vby * H / vbz) / 120.0f;
     return 1;
 }
 
 /* Draw the captured collision segments as GL lines (no depth test, on top). */
+/* ptr_18 cylinder colliders are drawn as boxes of this height (Q12, up = -Y). */
+#define CV_CYL_H (5 * 4096)
+
 static void collvis_render_lines(void)
 {
-    static float verts[CV_MAX_SEGS * 2 * 5];
+    static float verts[CV_VERT_CAP * 5];
     VECTOR3 cam;
     float   H, halfW;
     int     i, nv = 0;
 
-    if (s_cvSegCount == 0)
+    if (s_cvSegCount == 0 && s_cvCylCount == 0)
         return;
 
     vcGetNowCamPos(&cam);
@@ -489,17 +533,44 @@ static void collvis_render_lines(void)
         halfW = 160.0f * (winAspect / psxAspect);
     }
 
+#define CV_PUSH_LINE(r,g,b, X0,Y0,Z0, X1,Y1,Z1) do {                              \
+        float _pa, _pb, _pc, _pd;                                                 \
+        if (nv + 10 <= CV_VERT_CAP * 5 &&                                         \
+            collvis_proj_seg(&cam, H, halfW, (X0),(Y0),(Z0), (X1),(Y1),(Z1),      \
+                             &_pa, &_pb, &_pc, &_pd)) {                           \
+            verts[nv++]=_pa; verts[nv++]=_pb; verts[nv++]=(r); verts[nv++]=(g); verts[nv++]=(b); \
+            verts[nv++]=_pc; verts[nv++]=_pd; verts[nv++]=(r); verts[nv++]=(g); verts[nv++]=(b); \
+        } } while (0)
+
+    /* Surface/wall segments (flat). */
     for (i = 0; i < s_cvSegCount; i++) {
-        float ax, ay, bx, by, r, g, b;
-        if (!collvis_project(&cam, H, halfW, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az, &ax, &ay))
-            continue;
-        if (!collvis_project(&cam, H, halfW, s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz, &bx, &by))
-            continue;
-        if (s_cvSegs[i].hit) { r = 1.0f; g = 0.15f; b = 0.15f; }  /* colliding face */
-        else                { r = 0.2f; g = 1.0f;  b = 0.3f;  }   /* evaluated face */
-        verts[nv++] = ax; verts[nv++] = ay; verts[nv++] = r; verts[nv++] = g; verts[nv++] = b;
-        verts[nv++] = bx; verts[nv++] = by; verts[nv++] = r; verts[nv++] = g; verts[nv++] = b;
+        float r, g, b;
+        if (s_cvSegs[i].hit) { r = 1.0f; g = 0.15f; b = 0.15f; }
+        else                { r = 0.2f; g = 1.0f;  b = 0.3f;  }
+        CV_PUSH_LINE(r,g,b, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az,
+                            s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz);
     }
+
+    /* Cylinder colliders (trees/poles) as cyan boxes, half-extent = radius,
+     * standing on the floor (the collider's own Y isn't the ground). */
+    for (i = 0; i < s_cvCylCount; i++) {
+        s32 cx = s_cvCyls[i].cx, cz = s_cvCyls[i].cz, r = s_cvCyls[i].r;
+        s32 fy = s_cvFloorY;            /* box base = floor */
+        s32 ty = s_cvFloorY - CV_CYL_H; /* box top  = floor + height (up = -Y) */
+        s32 cxn[4], czn[4], k;
+        cxn[0] = cx - r; czn[0] = cz - r;
+        cxn[1] = cx + r; czn[1] = cz - r;
+        cxn[2] = cx + r; czn[2] = cz + r;
+        cxn[3] = cx - r; czn[3] = cz + r;
+        for (k = 0; k < 4; k++) {
+            int k1 = (k + 1) & 3;
+            CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],fy,czn[k], cxn[k1],fy,czn[k1]);  /* base */
+            CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],ty,czn[k], cxn[k1],ty,czn[k1]);  /* top  */
+            CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],fy,czn[k], cxn[k],ty,czn[k]);    /* vert */
+        }
+    }
+
+#undef CV_PUSH_LINE
 
     if (nv == 0)
         return;
@@ -691,6 +762,7 @@ void DbgOverlay_Render(void)
     if (s_coll_on) {
         collvis_render_lines();
         s_cvSegCount = 0;
+        s_cvCylCount = 0;
     }
 
     /* Restore ALL state. */

@@ -297,6 +297,29 @@ void CollVis_CaptureCell(q19_12 px, q19_12 pz)
             (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4,
             0);
     }
+
+    /* ptr_18 cylinder colliders (trees/poles): center vec_2 + radius field_8.
+     * Count from the array layout — ptr_18 immediately precedes ptr_20. */
+    {
+        extern void CollVis_CaptureCylinder(s32 cx, s32 cy, s32 cz, s32 r);
+        s32 cylCount = (s32)(((char*)cd->ptr_20 - (char*)cd->ptr_18) /
+                             (s32)sizeof(s_IpdCollisionData_18));
+        if (cylCount > 0 && cylCount <= 256)
+        {
+            for (i = 0; i < cylCount; i++)
+            {
+                s_IpdCollisionData_18* c  = &cd->ptr_18[i];
+                s32                    rr = (s32)c->field_8 << 4;
+                if (rr <= 0 || rr > (64 << 12)) /* sane radius only */
+                {
+                    continue;
+                }
+                CollVis_CaptureCylinder(
+                    (ox + c->vec_2.vx) << 4, (s32)c->vec_2.vy << 4, (oz + c->vec_2.vz) << 4,
+                    rr);
+            }
+        }
+    }
 }
 #endif
 
