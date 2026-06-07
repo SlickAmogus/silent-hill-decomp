@@ -255,6 +255,51 @@ void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ) // 0x800699F8
     coll->field_6 = state.field_8C;
 }
 
+#ifdef SH_PC_PORT
+/* Capture the full wall-segment geometry (ptr_14) of the collision cell at
+ * (px, pz) for the visualizer wireframe (green). Called once per frame so the
+ * overlay shows stable, complete local collision — including walls Harry isn't
+ * touching — instead of only the per-frame evaluated faces (which flickered and
+ * never included distant level walls). World pos (Q12) = (cellOrigin + ptr_C
+ * vertex) << 4 (collision data is Q8). */
+void CollVis_CaptureCell(q19_12 px, q19_12 pz)
+{
+    extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit);
+    s_IpdCollisionData* cd;
+    s32 count, i, ox, oz;
+
+    if (!g_CollVisEnabled)
+    {
+        return;
+    }
+
+    cd = func_800426E4(px, pz);
+    if (cd == NULL || !PC_CollIsValid(cd))
+    {
+        return;
+    }
+
+    count = cd->field_8_16; /* ptr_14 wall-segment count (ptr_18 starts here) */
+    if (count <= 0 || count > 2048)
+    {
+        return;
+    }
+
+    ox = cd->positionX_0;
+    oz = cd->positionZ_4;
+    for (i = 0; i < count; i++)
+    {
+        s_IpdCollisionData_14* f  = &cd->ptr_14[i];
+        SVECTOR3*              va = &cd->ptr_C[f->field_6];
+        SVECTOR3*              vb = &cd->ptr_C[f->field_7];
+        CollVis_CaptureSeg(
+            (ox + va->vx) << 4, (s32)va->vy << 4, (oz + va->vz) << 4,
+            (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4,
+            0);
+    }
+}
+#endif
+
 s32 Collision_WallDetect(s_CollisionResult* collResult, VECTOR3* offset, s_SubCharacter* chara) // 0x80069B24
 {
     s32 stackPtr;
@@ -1316,18 +1361,20 @@ bool func_8006B318(s_CollisionState* collState, s_IpdCollisionData* collData, s3
      * were vy-adjusted above). A face is a genuine contact (drawn red) when the
      * distance is within the player's collision radius (field_4.field_28) — the
      * same test Collision_WallResponse uses. */
-    if (g_CollVisEnabled) {
+    if (g_CollVisEnabled &&
+        collState->field_4.field_28 > 0 &&
+        collState->field_CC.field_20.field_C < collState->field_4.field_28) {
+        /* Only the actually-contacted faces are captured here (red). The full
+         * cell geometry (green) is captured separately by CollVis_CaptureCell. */
         extern void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz, int hit);
         s32      ox = collData->positionX_0;
         s32      oz = collData->positionZ_4;
         SVECTOR* va = &collData->ptr_C[temp_a3->field_6];
         SVECTOR* vb = &collData->ptr_C[temp_a3->field_7];
-        int hit = (collState->field_4.field_28 > 0 &&
-                   collState->field_CC.field_20.field_C < collState->field_4.field_28);
         CollVis_CaptureSeg(
             (ox + va->vx) << 4, (s32)va->vy << 4, (oz + va->vz) << 4,
             (ox + vb->vx) << 4, (s32)vb->vy << 4, (oz + vb->vz) << 4,
-            hit);
+            1);
     }
 #endif
 
