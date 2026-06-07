@@ -61,6 +61,35 @@ static int    s_coll_on    = 0;
 static int    s_prev_apos  = 0;
 static GLuint s_coll_tex   = 0;
 
+/* Read by collision.c (func_8006B318) to capture the wall segments the player's
+ * collision evaluates while the visualizer is on. Set by the ' toggle. */
+int g_CollVisEnabled = 0;
+
+/* ---- Collision wireframe: world-space segments captured during the frame's
+ * collision pass, projected and drawn as GL lines (no depth test → visible
+ * through walls, RE4-style). Cleared after each render. ---- */
+extern MATRIX VbWvsMatrix;          /* world->view rotation (Q12), vw_calc.c */
+extern long   ReadGeomScreen(void); /* GTE projection distance H */
+
+#define CV_MAX_SEGS 2048
+typedef struct { s32 ax, ay, az, bx, by, bz; } s_CvSeg;
+static s_CvSeg s_cvSegs[CV_MAX_SEGS];
+static int     s_cvSegCount = 0;
+
+/* GL line resources */
+static GLuint  s_line_prog = 0;
+static GLuint  s_line_vao  = 0;
+static GLuint  s_line_vbo  = 0;
+
+void CollVis_CaptureSeg(s32 ax, s32 ay, s32 az, s32 bx, s32 by, s32 bz)
+{
+    if (s_cvSegCount >= CV_MAX_SEGS)
+        return;
+    s_cvSegs[s_cvSegCount].ax = ax; s_cvSegs[s_cvSegCount].ay = ay; s_cvSegs[s_cvSegCount].az = az;
+    s_cvSegs[s_cvSegCount].bx = bx; s_cvSegs[s_cvSegCount].by = by; s_cvSegs[s_cvSegCount].bz = bz;
+    s_cvSegCount++;
+}
+
 /* IBM PC 8x8 bitmap font — public domain.
  * One byte per row, MSB = leftmost pixel.
  * Chars below 0x20 and above 0x7E are left zeroed (blank). */
@@ -253,6 +282,41 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, COLL_TEX_W, COLL_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
+    {
+        static const char* lvs_src =
+            "attribute vec2 a_pos;\n"
+            "attribute vec3 a_col;\n"
+            "varying vec3 v_col;\n"
+            "void main() { v_col = a_col; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
+        static const char* lfs_src =
+            "varying vec3 v_col;\n"
+            "void main() { gl_FragColor = vec4(v_col, 1.0); }\n";
+        GLuint lvs = glCreateShader(GL_VERTEX_SHADER);
+        GLuint lfs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(lvs, 1, &lvs_src, NULL); glCompileShader(lvs);
+        glShaderSource(lfs, 1, &lfs_src, NULL); glCompileShader(lfs);
+        s_line_prog = glCreateProgram();
+        glAttachShader(s_line_prog, lvs);
+        glAttachShader(s_line_prog, lfs);
+        glBindAttribLocation(s_line_prog, 0, "a_pos");
+        glBindAttribLocation(s_line_prog, 1, "a_col");
+        glLinkProgram(s_line_prog);
+        glDeleteShader(lvs); glDeleteShader(lfs);
+
+        glGenVertexArrays(1, &s_line_vao);
+        glGenBuffers(1, &s_line_vbo);
+        glBindVertexArray(s_line_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, s_line_vbo);
+        glBufferData(GL_ARRAY_BUFFER, CV_MAX_SEGS * 2 * 5 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(2 * sizeof(float)));
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
     s_gl_inited = 1;
 }
 
@@ -374,6 +438,71 @@ static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+/* Project a world-space point (Q12) to NDC via the game's camera: view =
+ * VbWvsMatrix * (P - camPos), then PSX perspective (psx = view.xy * H / view.z)
+ * mapped to NDC. Returns 0 if behind the camera. halfW is the widescreen ortho
+ * half-width (matches the PsyCross Hor+ ortho). */
+static int collvis_project(const VECTOR3* cam, float H, float halfW,
+                           s32 wx, s32 wy, s32 wz, float* nx, float* ny)
+{
+    float dx = (float)(wx - cam->vx) / 4096.0f;
+    float dy = (float)(wy - cam->vy) / 4096.0f;
+    float dz = (float)(wz - cam->vz) / 4096.0f;
+    float vx = (VbWvsMatrix.m[0][0] * dx + VbWvsMatrix.m[0][1] * dy + VbWvsMatrix.m[0][2] * dz) / 4096.0f;
+    float vy = (VbWvsMatrix.m[1][0] * dx + VbWvsMatrix.m[1][1] * dy + VbWvsMatrix.m[1][2] * dz) / 4096.0f;
+    float vz = (VbWvsMatrix.m[2][0] * dx + VbWvsMatrix.m[2][1] * dy + VbWvsMatrix.m[2][2] * dz) / 4096.0f;
+
+    if (vz < 1.0f)
+        return 0;
+
+    *nx =  (vx * H / vz) / halfW;
+    *ny = -(vy * H / vz) / 120.0f;
+    return 1;
+}
+
+/* Draw the captured collision segments as GL lines (no depth test, on top). */
+static void collvis_render_lines(void)
+{
+    static float verts[CV_MAX_SEGS * 2 * 5];
+    VECTOR3 cam;
+    float   H, halfW;
+    int     i, nv = 0;
+
+    if (s_cvSegCount == 0)
+        return;
+
+    vcGetNowCamPos(&cam);
+    H = (float)ReadGeomScreen();
+    if (H < 1.0f)
+        return;
+    {
+        const float psxAspect = 320.0f / 240.0f;
+        const float winAspect = g_PcConfig.windowHeight > 0
+            ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight : psxAspect;
+        halfW = 160.0f * (winAspect / psxAspect);
+    }
+
+    for (i = 0; i < s_cvSegCount; i++) {
+        float ax, ay, bx, by;
+        if (!collvis_project(&cam, H, halfW, s_cvSegs[i].ax, s_cvSegs[i].ay, s_cvSegs[i].az, &ax, &ay))
+            continue;
+        if (!collvis_project(&cam, H, halfW, s_cvSegs[i].bx, s_cvSegs[i].by, s_cvSegs[i].bz, &bx, &by))
+            continue;
+        verts[nv++] = ax; verts[nv++] = ay; verts[nv++] = 0.2f; verts[nv++] = 1.0f; verts[nv++] = 0.3f;
+        verts[nv++] = bx; verts[nv++] = by; verts[nv++] = 0.2f; verts[nv++] = 1.0f; verts[nv++] = 0.3f;
+    }
+
+    if (nv == 0)
+        return;
+
+    glUseProgram(s_line_prog);
+    glBindVertexArray(s_line_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, s_line_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, nv * sizeof(float), verts);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, nv / 5);
+}
+
 void DbgOverlay_PushLine(const char* line)
 {
     push_console(line);
@@ -421,6 +550,7 @@ void DbgOverlay_Update(void)
         int cur_apos = ks[SDL_SCANCODE_APOSTROPHE];
         if (cur_apos && !s_prev_apos) {
             s_coll_on = !s_coll_on;
+            g_CollVisEnabled = s_coll_on;
             SH_DBG_ECHO("[DEBUG] ' Collision visualizer: %s", s_coll_on ? "ON" : "OFF");
         }
         s_prev_apos = cur_apos;
@@ -468,6 +598,7 @@ void DbgOverlay_Render(void)
     GLint   vp[4];
     GLint   prev_prog, prev_tex, prev_vao, prev_vbo, prev_fb;
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
+    GLint   prev_blend_eq_rgb, prev_blend_eq_a;
     GLboolean prev_depth, prev_blend;
     int     drawConsole, drawColl;
 
@@ -476,7 +607,7 @@ void DbgOverlay_Render(void)
      * toggled on (`'`), independent of the console. */
     drawConsole = (s_console_slide > 0.0f && s_console_count > 0);
     drawColl    = (s_coll_on && s_coll_count > 0);
-    if (!drawConsole && !drawColl) return;
+    if (!drawConsole && !drawColl && !s_coll_on) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] == 0 || vp[3] == 0) return;
@@ -490,6 +621,8 @@ void DbgOverlay_Render(void)
     glGetIntegerv(GL_FRAMEBUFFER_BINDING,  &prev_fb);
     glGetIntegerv(GL_BLEND_SRC_RGB,        &prev_blend_src);
     glGetIntegerv(GL_BLEND_DST_RGB,        &prev_blend_dst);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB,   &prev_blend_eq_rgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prev_blend_eq_a);
     prev_depth = glIsEnabled(GL_DEPTH_TEST);
     prev_blend = glIsEnabled(GL_BLEND);
 
@@ -500,6 +633,11 @@ void DbgOverlay_Render(void)
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    /* Force normal additive blending. The cutscene letterbox leaves the blend
+     * equation as GL_FUNC_REVERSE_SUBTRACT (how its white bars darken); without
+     * this the overlay text/lines would subtract from the scene and render black
+     * during cutscenes. Restored below. */
+    glBlendEquation(GL_FUNC_ADD);
 
     glUseProgram(s_prog);
     glUniform1i(s_u_tex, 0);
@@ -539,6 +677,13 @@ void DbgOverlay_Render(void)
         draw_panel(s_coll_tex, x0, y0, x1, y1);
     }
 
+    /* Collision wireframe lines (separate program). Consume + clear the
+     * per-frame segment buffer captured during this frame's collision pass. */
+    if (s_coll_on) {
+        collvis_render_lines();
+        s_cvSegCount = 0;
+    }
+
     /* Restore ALL state. */
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fb);
     glBindBuffer(GL_ARRAY_BUFFER, prev_vbo);
@@ -547,6 +692,7 @@ void DbgOverlay_Render(void)
     glBindTexture(GL_TEXTURE_2D, prev_tex);
     glUseProgram(prev_prog);
     glBlendFunc(prev_blend_src, prev_blend_dst);
+    glBlendEquationSeparate(prev_blend_eq_rgb, prev_blend_eq_a);
     if (prev_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (prev_blend) glEnable(GL_BLEND);      else glDisable(GL_BLEND);
 }
