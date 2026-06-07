@@ -1880,8 +1880,25 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
 {
 #ifdef SH_PC_PORT
     {
-        u8* raw = (u8*)ipdHdr;
-        if (raw[1] == 1) return; /* already loaded (check raw byte, struct may not be populated yet) */
+        /* Buffer-reuse-safe "already reformatted" check. The old check read
+         * raw byte 1 (isLoaded), but that byte is undefined IPD file data — some
+         * IPDs (e.g. a school chunk) have byte 1 == 1, which skipped the fixup
+         * and left lmHdr as a raw garbage offset while isLoaded read true, so
+         * Map_ChunkLoad -> Ipd_HalfPageMaterialCountGet -> Lm_MaterialCountGet
+         * dereferenced garbage and crashed. Track each header's post-fixup lmHdr
+         * instead: a fresh file load overwrites lmHdr with raw bytes, so a
+         * mismatch means the header has not been reformatted yet. */
+        static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixed[64];
+        static s32 s_pcFixedCount = 0;
+        s32 fi, slot = -1;
+
+        for (fi = 0; fi < s_pcFixedCount; fi++) {
+            if (s_pcFixed[fi].hdr == ipdHdr) { slot = fi; break; }
+        }
+        if (slot >= 0 && s_pcFixed[slot].lm == ipdHdr->lmHdr) {
+            return; /* already reformatted, lmHdr still our heap copy */
+        }
+
         extern void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
         IpdHeader_FixOffsets_PC(ipdHdr);
         ipdHdr->isLoaded = true;
@@ -1895,14 +1912,16 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             *heapLmHdr = *ipdHdr->lmHdr;
             ipdHdr->lmHdr = heapLmHdr;
         }
+        if (slot < 0 && s_pcFixedCount < 64) { slot = s_pcFixedCount++; }
+        if (slot >= 0) { s_pcFixed[slot].hdr = ipdHdr; s_pcFixed[slot].lm = ipdHdr->lmHdr; }
         {
             /* Find which chunk slot this belongs to for logging */
-            s32 slot = -1, si;
+            s32 logSlot = -1, si;
             for (si = 0; si < g_Map.ipdActiveSize_158; si++) {
-                if (g_Map.ipdActive_15C[si].ipdHdr == ipdHdr) { slot = si; break; }
+                if (g_Map.ipdActive_15C[si].ipdHdr == ipdHdr) { logSlot = si; break; }
             }
             SH_DBG("[IPD-FIXUP] IpdHeader_FixOffsets PC: slot=%d fileIdx=%d modelCount=%d lmHdr=%p",
-                   slot, fileIdx, ipdHdr->lmHdr ? ipdHdr->lmHdr->modelCount : -1, (void*)ipdHdr->lmHdr);
+                   logSlot, fileIdx, ipdHdr->lmHdr ? ipdHdr->lmHdr->modelCount : -1, (void*)ipdHdr->lmHdr);
         }
     }
 #else

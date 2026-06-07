@@ -177,11 +177,11 @@ void IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 {
     u8* raw = (u8*)ipdHdr;
 
-    /* Check already loaded */
-    if (raw[1] == 1)
-    {
-        return;
-    }
+    /* "Already reformatted" is now decided by the caller (IpdHeader_FixOffsets)
+     * via a buffer-reuse-safe lmHdr check. The old raw[1] (isLoaded byte) test
+     * was unreliable — that byte is undefined IPD file data and is 1 for some
+     * IPDs, which skipped the fixup and left a garbage lmHdr (crash in
+     * Lm_MaterialCountGet). Just validate the magic and reformat. */
 
     /* Validate magic */
     if (raw[0] != IPD_HEADER_MAGIC)
