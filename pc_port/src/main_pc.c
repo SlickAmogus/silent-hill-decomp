@@ -63,14 +63,13 @@ void SH_DebugLogInit(void)
              * first SH_DBG. Caller (main) normally pre-opens this. */
             g_ShDebugLog = stdout;
         } else {
-            /* DIAGNOSTIC: unbuffered. MSVCRT does NOT honor _IOLBF — it
-             * silently maps it to _IOFBF (full 64KB buffering), so on a
-             * hard crash the last 64KB of log (every breadcrumb before the
-             * fault) is lost and crash traces are blind. _IONBF guarantees
-             * each SH_DBG reaches disk before the next instruction. Revert
-             * to buffered once the grey-child crash is fixed (combat paths
-             * emit 2-3k logs/frame and unbuffered halves framerate there). */
-            setvbuf(g_ShDebugLog, NULL, _IONBF, 0);
+            /* Full buffering (64KB). MSVCRT ignores _IOLBF (treats it as
+             * _IOFBF), so request _IOFBF explicitly — flushes on buffer-full
+             * and on clean exit. Unbuffered (_IONBF) was used for crash
+             * diagnosis but it flushes every SH_DBG to disk, which halves
+             * framerate under heavy per-frame logging (combat + map churn). */
+            static char s_logBuf[64 * 1024];
+            setvbuf(g_ShDebugLog, s_logBuf, _IOFBF, sizeof(s_logBuf));
         }
     }
 }
