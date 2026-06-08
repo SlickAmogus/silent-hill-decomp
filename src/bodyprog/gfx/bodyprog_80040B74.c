@@ -1147,7 +1147,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 #endif
 
     g_Map.positionX = posX1;
-    g_Map.positionX = posZ1;
+    g_Map.positionZ = posZ1;
 
     if (g_Map.globalLm.queueIdx == NO_VALUE)
     {
@@ -1490,7 +1490,12 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
  * buffer reuse leaves it stale), so isLoaded alone cannot gate lmHdr derefs.
  * A fresh file load overwrites lmHdr with raw bytes, so a registry mismatch
  * means the header has not been reformatted yet. */
-static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixedIpd[64];
+/* Must cover every preloadable chunk: with preload_chunks=1 the preloader fixes
+ * up to PC_MAX_IPD_CHUNKS chunks, and any chunk not registered here gets
+ * re-reformatted every frame (reading its already-64-bit struct as PSX bytes =
+ * garbage). A 64-slot table left chunks 65+ unregistered -> exterior maps with
+ * >64 chunks (e.g. map0_s00, 129 chunks) lost most of their geometry. */
+static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixedIpd[PC_MAX_IPD_CHUNKS];
 static s32 s_pcFixedIpdCount = 0;
 
 bool IpdHeader_PC_IsReformatted(s_IpdHeader* ipdHdr)
@@ -1788,7 +1793,7 @@ bool func_80043830(void) // 0x80043830
             continue;
         }
 
-        if (Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX), Q12_TO_Q8(g_Map.positionX), curChunk->cellX, curChunk->cellZ) <= Q8(4.5f))
+        if (Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX), Q12_TO_Q8(g_Map.positionZ), curChunk->cellX, curChunk->cellZ) <= Q8(4.5f))
         {
             return true;
         }
@@ -1807,7 +1812,7 @@ bool func_8004393C(q19_12 posX, q19_12 posZ) // 0x8004393C
 
     if (g_Map.isExterior)
     {
-        return Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX), Q12_TO_Q8(g_Map.positionX), cellX, cellZ) <= Q8(4.5f);
+        return Ipd_DistanceToEdgeGet(Q12_TO_Q8(g_Map.positionX), Q12_TO_Q8(g_Map.positionZ), cellX, cellZ) <= Q8(4.5f);
     }
 
     if (cellX == g_Map.cellX &&
@@ -1855,7 +1860,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #ifdef SH_PC_PORT
             cellMatchChunks++;
 #endif
-            Ipd_ChunkDraw(curChunk->ipdHdr, g_Map.positionX, g_Map.positionX, ot, arg1);
+            Ipd_ChunkDraw(curChunk->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
 #ifdef SH_PC_PORT
             if (++drawCount >= drawLimit) break;
 #endif
@@ -1949,7 +1954,7 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             *heapLmHdr = *ipdHdr->lmHdr;
             ipdHdr->lmHdr = heapLmHdr;
         }
-        if (slot < 0 && s_pcFixedIpdCount < 64) { slot = s_pcFixedIpdCount++; }
+        if (slot < 0 && s_pcFixedIpdCount < PC_MAX_IPD_CHUNKS) { slot = s_pcFixedIpdCount++; }
         if (slot >= 0) { s_pcFixedIpd[slot].hdr = ipdHdr; s_pcFixedIpd[slot].lm = ipdHdr->lmHdr; }
         {
             /* Find which chunk slot this belongs to for logging */
