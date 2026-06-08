@@ -257,7 +257,7 @@ void Player_ControlFreeze(void)
     playerChara->properties.player.runStepSfxCount        = Q12(0.0f);
     playerChara->properties.player.exhaustionTimer = Q12(0.0f);
 
-    Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk152);
+    Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk52);
 
     g_Player_IsShooting          = false;
     g_Player_IsAttacking         = false;
@@ -431,13 +431,13 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
             if (playerRotDelta < Q12_ANGLE(0.0f))
             {
                 D_800C457C = 4;
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk157);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk57);
                 D_800C4588 = 2;
             }
             else
             {
                 D_800C457C = 3;
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk156);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk56);
                 D_800C4588 = 2;
             }
 
@@ -456,7 +456,7 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
             playerVecDist = SquareRoot0(Q12_2D_DISTANCE_SQR(localVec[0], playerChara->position));
             if (ABS((int)playerVecDist) < Q8(0.15f)) // @hack Needs to be `int` for `ABS` to match?
             {
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk52);
                 D_800C4588 = 8;
                 break;
             }
@@ -574,12 +574,12 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
             if (playerRotDelta < Q12_ANGLE(0.0f))
             {
                 D_800C457C = 4;
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk157);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk57);
             }
             else
             {
                 D_800C457C = 3;
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk156);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk56);
             }
 
             D_800C4588 = 7;
@@ -590,7 +590,7 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
             if (ABS(playerRotDelta) < ANGLE_THRESHOLD)
             {
                 playerChara->rotation.vy = angle;
-                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, playerExtra, PlayerState_Unk52);
                 D_800C457C = 0;
                 D_800C4588 = 8;
             }
@@ -629,11 +629,11 @@ void sharedFunc_800D2C7C_0_s00(s32 playerExtraState)
             D_800C457C = 1;
             break;
 
-        case PlayerState_Unk156:
+        case PlayerState_Unk56:
             D_800C457C = 3;
             break;
 
-        case PlayerState_Unk157:
+        case PlayerState_Unk57:
             D_800C457C = 4;
             break;
     }
