@@ -100,7 +100,7 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
     GameState_MapEvent_Update,
     GameState_ExitMovie_Update,
     GameState_ItemScreens_Update,
-    GameState_LoadMapScreen_Update,
+    GameState_PaperMapScreen_Update, // idx 15 = GameState_PaperMapScreen; merge mis-set this to LoadMapScreen_Update -> black map + spawn-reset teleport to (0,0,0)
     GameState_LoadSavegameScreen_Update,
     GameState_DebugMoviePlayer_Update,
     GameState_Options_Update,

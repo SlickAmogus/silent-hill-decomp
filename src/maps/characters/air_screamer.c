@@ -795,7 +795,10 @@ bool sharedFunc_800D2E04_0_s01(s_SubCharacter* airScreamer, VECTOR3* inVec, q19_
         sharedData_800DE170_0_s01.vx = airScreamer->position.vx;
         sharedData_800DE170_0_s01.vy = airScreamer->position.vy + airScreamer->collision.box.top; // Head offset.
         sharedData_800DE170_0_s01.vz = airScreamer->position.vz;
-        return !Ray_LosHitCheck(&sharedData_800E2330_0_s01, &sharedData_800DE170_0_s01, inVec, NULL);
+        /* Merge mis-mapped fork's Ray_LineCheck (0x8006D90C, two-point world check)
+         * to Ray_LosHitCheck (point+delta); inVec is an absolute target point, not a
+         * delta. Ray_TraceQuery is the correct 0x8006D90C equivalent. */
+        return !Ray_TraceQuery(&sharedData_800E2330_0_s01, &sharedData_800DE170_0_s01, inVec);
     }
 
     return false;

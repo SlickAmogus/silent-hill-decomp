@@ -1,6 +1,8 @@
 #ifndef _BODYPROG_VIEW_VWSYSTEM_H
 #define _BODYPROG_VIEW_VWSYSTEM_H
 
+#include <string.h> // memcpy, used inline below
+
 #include "gpu.h"
 
 #include "bodyprog/view/enums.h"

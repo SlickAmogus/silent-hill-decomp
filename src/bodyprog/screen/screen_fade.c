@@ -49,9 +49,16 @@ static void Screen_FadeInitStatics(void)
         D_800A8E74[i].g0   = 0;
         D_800A8E74[i].b0   = 0;
         D_800A8E74[i].code = 0x62;
+        /* PSX tile was x0=-SCREEN_WIDTH, w=SCREEN_WIDTH*2 → spans [-320,+320],
+         * which exactly meets the 4:3 right edge (320). In Hor+ widescreen the
+         * ortho extends to ~320+margin (e.g. 360 @16:9), so the right margin
+         * fell outside the fade tile and showed un-faded/stale VRAM during black
+         * transitions ("corruption on the right"). Widen well past any widescreen
+         * margin so the fade covers the full visible area. Off-screen excess is
+         * clipped on 4:3, so this stays PSX-faithful there. */
         D_800A8E74[i].x0   = -SCREEN_WIDTH;
         D_800A8E74[i].y0   = -SCREEN_HEIGHT;
-        D_800A8E74[i].w    = SCREEN_WIDTH * 2;
+        D_800A8E74[i].w    = SCREEN_WIDTH * 4;
         D_800A8E74[i].h    = SCREEN_HEIGHT * 2;
     }
 }
