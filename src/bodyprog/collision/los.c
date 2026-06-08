@@ -136,8 +136,12 @@ q19_12 Chara_HeadingAngleGet(s_SubCharacter* chara, q19_12 dist, q19_12 toX, q19
 
 bool func_8006FD90(s_SubCharacter* chara, s32 count, q19_12 baseDistMax, q19_12 distStep) // 0x8006FD90
 {
-    VECTOR3 sp10;
-    VECTOR3 sp20;
+    /* sp10/sp20 were decompiled as VECTOR3 from PSX sp offsets, but `sp10` is
+     * really the s_RayTrace output (32B) and `sp20.vx` aliased its `character`
+     * pointer (at +0x10). On PC s_RayTrace is larger (8B pointer) and the
+     * offset coincidence breaks: Ray_CharaTraceQuery writes a full s_RayTrace
+     * into the undersized VECTOR3 -> stack smash on return. Use the real type. */
+    s_RayTrace trace;
     VECTOR3 pos;    // Q19.12
     VECTOR3 offset; // Q19.12
     s32     i;
@@ -191,8 +195,7 @@ bool func_8006FD90(s_SubCharacter* chara, s32 count, q19_12 baseDistMax, q19_12 
                     (chara->position.vy - chara->collision.box.offsetY);
     }
 
-    // TODO: Maybe `sp10` is not `VECTOR3`. Might need to rewrite this whole function if its `s_RayTrace`?
-    return !Ray_CharaTraceQuery(&sp10, &pos, &offset, chara) || sp20.vx != Q12(0.0f);
+    return !Ray_CharaTraceQuery(&trace, &pos, &offset, chara) || trace.character != NULL;
 }
 
 bool Los_CharaToTargetHitCheck(s_SubCharacter* fromChara, q19_12 toX, q19_12 toY, q19_12 toZ)

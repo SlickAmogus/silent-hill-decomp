@@ -17,18 +17,23 @@ void Ai_Stalker_Control_12(s_SubCharacter* stalker); void Ai_Stalker_Control_13(
 #include "sh_log.h"
 #endif
 
+// Forward decls: Stalker_Update calls these before their definitions further down.
+void Ai_Stalker_Init(s_SubCharacter* stalker);
+void Ai_Stalker_ControlUpdate(s_SubCharacter* stalker);
+void sharedFunc_800D3308_0_s00(s_SubCharacter* stalker);
+void sharedFunc_800D67FC_0_s00(s_SubCharacter* stalker);
+void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, GsCOORDINATE2* coord);
+void sharedFunc_800D70C4_0_s00(s_SubCharacter* stalker);
+void sharedFunc_800D7BE8_0_s00(s_SubCharacter* stalker);
+// These live in other TUs but aren't declared in any header stalker.c pulls in.
+void Math_MatrixTransform(VECTOR3* pos, SVECTOR* rot, GsCOORDINATE2* coord);
+void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType);
+void Sd_SfxStop(u16 sfxId);
+
 #define stalkerProps stalker->properties.stalker
 
 void Stalker_Update(s_SubCharacter* stalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
-#ifdef SH_PC_PORT
-    /* TEMP crash-isolation breadcrumb: the last line before the school crash names
-     * the grey child's state. anim.status >= 96 would be an OOB STALKER_ANIM_INFOS
-     * index; a wild controlState would point the control dispatch at garbage. */
-    SH_DBG("[STALKER] enter id=%d ctrl=%d animStatus=%d coords=%p anmHdr=%p",
-           stalker->model.charaId, stalker->model.controlState,
-           stalker->model.anim.status, (void*)coords, (void*)anmHdr);
-#endif
     if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
     {
         sharedData_800E3A20_0_s00 = Q12(350.0f);
@@ -193,22 +198,6 @@ void sharedFunc_800D3308_0_s00(s_SubCharacter* stalker)
 
     var_a0                 = stalkerProps.timer_10C - Q12_MULT_PRECISE(g_DeltaTime, Q12(20.0f));
     stalkerProps.timer_10C = MAX(var_a0, Q12(0.0f));
-
-#ifdef SH_PC_PORT
-    /* DIAG (temporary): does the player's attack reach the Stalker? Edge-logged
-     * when received damage first becomes nonzero. */
-    {
-        static s32 s_prevAmt = 0;
-        s32 amt = (s32)stalker->damage.amount;
-        if (amt != s_prevAmt) {
-            SH_DBG("[STKDMG] recv amount=%d health=%d anim=%d ctrl=%d",
-                   amt, (int)stalker->health,
-                   (int)ANIM_STATUS_IDX_GET(stalker->model.anim.status),
-                   (int)stalker->model.controlState);
-            s_prevAmt = amt;
-        }
-    }
-#endif
 
     if (stalker->damage.amount > Q12(0.0f) && stalker->health > Q12(0.0f))
     {
@@ -2226,16 +2215,10 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     if (ANIM_TIME_RANGE_CHECK(stalker->model.anim.time, 60, 66))
 #endif
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[SHARED] GTE-block enter time=%d coord6=%p", stalker->model.anim.time, (void*)&coord[6]);
-#endif
         // TODO: Use macro?
         *(s32*)&ptr->field_30.vx = 0x21FFFB;
         ptr->field_30.vz         = 0x25;
         Vw_CoordHierarchyMatrixCompute(&coord[6], &ptr->field_0);
-#ifdef SH_PC_PORT
-        SH_DBG("[SHARED] post-CoordHierarchy");
-#endif
 
         gte_SetRotMatrix(&ptr->field_0);
         gte_SetTransMatrix(&ptr->field_0);

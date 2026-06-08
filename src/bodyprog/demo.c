@@ -3,6 +3,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/demo.h"
 #include "bodyprog/text/text_draw.h"
+#include "bodyprog/text/text_debug_draw.h" // Text_Debug_IntToString returns char*; implicit decl truncates it on 64-bit
 #include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"

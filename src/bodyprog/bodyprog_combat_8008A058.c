@@ -1977,10 +1977,15 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 #ifdef SH_PC_PORT
         SH_DBG("[COMBAT] BF84 Ray_LosHitCheck i=%d pos=(%d,%d,%d)", i, (int)D_800C47C8[0].vx, (int)D_800C47C8[0].vy, (int)D_800C47C8[0].vz);
 #endif
-        var_v1           = Ray_LosHitCheck(&D_800C47F8, &D_800C47C8[0], &D_800C47C8[1], chara1);
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] BF84 Ray_LosHitCheck returned var_v1=%d", var_v1);
-#endif
+        /* Merge regression: the fork called Ray_LineCheck (0x8006D90C) here — a
+         * world-geometry line check between two POINTS (from, to) that computes the
+         * delta internally. The merge's rename pass mis-mapped it to Ray_LosHitCheck
+         * (0x8006DB3C), a different function taking (from, delta) + doing chara
+         * collision, and added a chara arg to compile. Passing the absolute `to`
+         * point as a delta made a ~65-unit cross-map ray that always hit distant
+         * geometry, so melee (and enemy attacks) never connected. Ray_TraceQuery is
+         * 0x8006D90C — the correct modular equivalent of the fork's Ray_LineCheck. */
+        var_v1           = Ray_TraceQuery(&D_800C47F8, &D_800C47C8[0], &D_800C47C8[1]);
 
         if (var_v1 != false)
         {
