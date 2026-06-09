@@ -48,6 +48,19 @@ void Anim_BoneInit(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords) // 0x800445A4
 
     GsInitCoordinate2(NULL, boneCoords);
 
+#ifdef SH_PC_PORT
+    /* PSX read anmHdr->boneCount ([anmHdr+6]) even when anmHdr was NULL: address
+       0x6 is valid low RAM there, so the garbage count left this loop a no-op
+       and nothing faulted. On PC that read access-violates. The cat locker
+       scene-end Chara_BonesInit(0) passes g_CharaModelAnimsData[1].activeAnmHdr,
+       which is NULL for that unloaded slot. Skip the bone setup it cannot do
+       without the header (boneCoords[0] root is already initialised above). */
+    if (anmHdr == NULL)
+    {
+        return;
+    }
+#endif
+
     for (boneIdx = 1, curBindPose = &anmHdr->bindPoses[1], curCoord = &boneCoords[1];
          boneIdx < anmHdr->boneCount;
          boneIdx++, curBindPose++, curCoord++)
