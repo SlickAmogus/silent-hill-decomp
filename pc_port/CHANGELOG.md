@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.3 -- 2026-06-09
+- pc_port: bump PsyCross ΓÇö pillarbox bars stay black on item-examine screen
+
 ## v2026.06.09.2 -- 2026-06-09
 - (no commits since last release)
 
