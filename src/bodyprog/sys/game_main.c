@@ -400,10 +400,12 @@ void DebugCamera_Update(void)
         prevKey5 = cur5;
     }
 
-    /* Number key 6: spawn a Grey Child ~2.5 units in front of Harry, facing
-     * him (debug enemy spawn). Only works in maps where the Grey Child model
-     * is loaded (it's the map0_s00 enemy roster); elsewhere Chara_Spawn has
-     * no model to attach. spawnFlags=0 lets Chara_Spawn pick a free NPC slot. */
+    /* Number key 6: spawn a Grey Child ~2.5 units in front of Harry, facing him
+     * (debug enemy spawn). Chara_Spawn refuses once the active NPC count reaches
+     * the per-area cap (g_SysWork.npcFlagsId) — which is already met in rooms
+     * that have Grey Children, and tiny during the Cheryl chase — so raise the
+     * cap just for this one spawn. Also needs the Grey Child model loaded
+     * (registeredCharaModels[Chara_GreyChild]); skip with a note if it isn't. */
     {
         static int prevKey6 = 0;
         int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
@@ -412,9 +414,16 @@ void DebugCamera_Update(void)
             q3_12           yaw = hr->rotation.vy;
             q19_12          sx  = hr->position.vx + Q12_MULT_PRECISE(Q12(2.5f), Math_Sin(yaw));
             q19_12          sz  = hr->position.vz + Q12_MULT_PRECISE(Q12(2.5f), Math_Cos(yaw));
-            s32             idx = Chara_Spawn(Chara_GreyChild, 0, sx, sz, yaw ^ Q12_ANGLE(180.0f), 5);
-            SH_DBG_ECHO("[DEBUG] Key 6: spawn Grey Child -> slot %d at (%ld,%ld)",
-                (int)idx, (long)sx, (long)sz);
+            if (g_WorldGfxWork.registeredCharaModels[Chara_GreyChild] == NULL) {
+                SH_DBG_ECHO("[DEBUG] Key 6: Grey Child model not loaded in this area — can't spawn visibly");
+            } else {
+                s32 savedCap = g_SysWork.npcFlagsId;
+                g_SysWork.npcFlagsId = ARRAY_SIZE(g_SysWork.npcs);
+                s32 idx = Chara_Spawn(Chara_GreyChild, 0, sx, sz, yaw ^ Q12_ANGLE(180.0f), 5);
+                g_SysWork.npcFlagsId = savedCap;
+                SH_DBG_ECHO("[DEBUG] Key 6: spawn Grey Child -> slot %d at (%ld,%ld) modelOK",
+                    (int)idx, (long)sx, (long)sz);
+            }
         }
         prevKey6 = cur6;
     }
