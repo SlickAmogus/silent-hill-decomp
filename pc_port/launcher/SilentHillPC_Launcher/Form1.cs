@@ -673,6 +673,11 @@ public partial class Form1 : Form
 
     private void button1_Click(object sender, EventArgs e)
     {
-
+        // Controls button: open the keyboard/controller binding window. Shares
+        // this form's ConfigManager so its Save lands in the same config.cfg.
+        using (var dlg = new ControlsForm(config))
+        {
+            dlg.ShowDialog(this);
+        }
     }
 }
