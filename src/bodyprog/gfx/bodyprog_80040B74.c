@@ -1936,11 +1936,15 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
 
         extern bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
         if (!IpdHeader_FixOffsets_PC(ipdHdr)) {
-            /* Buffer is not a valid IPD yet (stale/overlapping reuse or still
-             * mid-load while Fs already reports Loaded). Leave it unreformatted
-             * and untouched — isLoaded stays false (corrected in
-             * Ipd_ActiveChunksSample) and we retry next frame instead of
-             * dereferencing the raw garbage lmHdr. */
+            /* Buffer is not a valid IPD (stale/overlapping reuse, or still
+             * mid-load while Fs already reports Loaded). Force isLoaded=false so
+             * the renderer SKIPS this chunk instead of drawing the un-reformatted
+             * garbage, and so it re-queues for reload. The comment used to claim
+             * "isLoaded stays false" but never set it — after a map round-trip
+             * (map1_s00 -> map1_s01 -> map1_s00) the buffer holds the other map's
+             * chunk (magic != 0x14) while isLoaded is stale-true from the first
+             * visit, so the garbage rendered as a black void engulfing the map. */
+            ipdHdr->isLoaded = false;
             return;
         }
         ipdHdr->isLoaded = true;
