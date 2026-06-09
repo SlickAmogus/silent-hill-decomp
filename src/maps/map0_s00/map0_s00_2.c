@@ -534,7 +534,7 @@ void Cheryl_DistantFootstepSfxPlay(void) // 0x800DA454
 
     #define playerChara g_SysWork.playerWork.player
 
-    if (Math_Vector2MagCalc(Q12(-29.5f) - playerChara.position.vx,
+    if (Math_Vector2MagCalcSafeQ6(Q12(-29.5f) - playerChara.position.vx,
                             Q12(128.7f) - playerChara.position.vz) >= Q12(16.0f))
     {
         D_800DFAB8 += g_DeltaTime;
@@ -1546,7 +1546,7 @@ void func_800DC33C(void) // 0x800DC33C
     }
 
     vwGetViewPosition(&camPos);
-    if (Math_Vector2MagCalc(g_SysWork.npcs[0].position.vx - camPos.vx,
+    if (Math_Vector2MagCalcSafeQ6(g_SysWork.npcs[0].position.vx - camPos.vx,
                             g_SysWork.npcs[0].position.vz - camPos.vz) <= Q12(16.5f) &&
         g_SysWork.npcs[0].position.vx >= Q12(-58.0f))
     {
@@ -1628,7 +1628,7 @@ void func_800DC694(void) // 0x800DC694
     s32    var_a2;
     s32    var_v1;
 
-    mag = Math_Vector2MagCalc(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
+    mag = Math_Vector2MagCalcSafeQ6(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
                               (g_SysWork.npcs[0].position.vz - g_SysWork.playerWork.player.position.vz) - Q12(2.0f));
 
     if (!Savegame_EventFlagGet(EventFlag_7))
@@ -1699,7 +1699,7 @@ void func_800DC8D8(void) // 0x800DC8D8
 {
     q19_12 mag;
 
-    mag = Math_Vector2MagCalc(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
+    mag = Math_Vector2MagCalcSafeQ6(g_SysWork.npcs[0].position.vx - g_SysWork.playerWork.player.position.vx,
                               (g_SysWork.npcs[0].position.vz - g_SysWork.playerWork.player.position.vz) - Q12(2.0f));
 
     if (!Savegame_EventFlagGet(EventFlag_10))
