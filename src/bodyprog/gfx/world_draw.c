@@ -497,7 +497,14 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
                 if (!Lm_ModelFind(model, &g_WorldGfxWork.itemLmHdr, &model->metadata))
                 {
 #ifdef SH_PC_PORT
-                    SH_DBG("[WOBJ] Lm_ModelFind returned false, returning");
+                    /* TEMP: log the failing object name + item-LM magic so we can
+                     * tell a specific bad/stale object from an invalid item LM
+                     * (map1_s00 interior<->hallway banding + spam). */
+                    SH_DBG("[WOBJ] find-fail name='%.8s' itemLmMagic=0x%x lmIdx=%d cell=(%d,%d)",
+                           model->metadata.name.str, (unsigned)g_WorldGfxWork.itemLmHdr.magic,
+                           (int)model->metadata.lmIdx,
+                           (int)(g_SysWork.playerWork.player.position.vx >> 16),
+                           (int)(g_SysWork.playerWork.player.position.vz >> 16));
 #endif
                     return;
                 }
