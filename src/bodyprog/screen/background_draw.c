@@ -279,6 +279,9 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
     GsOT*     ot;
     SPRT*     sprt;
     DR_TPAGE* tPage;
+#ifdef SH_PC_PORT
+    s32       tileW;
+#endif
 
     ot                 = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
     sprt               = (SPRT*)GsOUT_PACKET_P;
@@ -301,6 +304,27 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
                 tPageOffsetY = g_ActiveBufferIdx << 8;
             }
 
+#ifdef SH_PC_PORT
+            /* Clamp each tile so it never samples VRAM past the framebuffer
+             * (disp.w) into texture memory. The 3 hardcoded tiles sample VRAM
+             * X = 0/256/512, but the framebuffer is only gsScreenWidth (320)
+             * wide. In 4:3 the over-reaching tiles are off-screen-right and
+             * unseen; under Hor+ the widened present exposes them and they show
+             * the raw texture atlas as a 1-frame "VRAM corruption" flash on the
+             * right at room changes / after the load screen. (Unconditional:
+             * g_PcHorPlusEnabled lags a frame, so the draw can't trust it.)
+             * Drop tiles fully past the framebuffer; clamp the straddling one. */
+            tileW = g_GameWork.gsScreenWidth - (j << 8);
+            if (tileW <= 0)
+            {
+                continue;
+            }
+            if (tileW > 256)
+            {
+                tileW = 256;
+            }
+#endif
+
             addPrimFast(ot, sprt, 4);
 
             if ((VSync(SyncMode_Count) % vBlanks) == 0)
@@ -312,7 +336,11 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
                 setRGBC0(sprt, 128, 128, 128, PRIM_RECT | RECT_TEXTURE);
             }
 
+#ifdef SH_PC_PORT
+            setWH(sprt, tileW, 224);
+#else
             setWH(sprt, 256, 224);
+#endif
             *((u32*)&sprt->u0) = texOffsetY << 8;
 
             setXY0Fast(sprt, (-g_GameWork.gsScreenWidth / 2) + (j << 8), offsetY);
