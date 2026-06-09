@@ -1546,29 +1546,6 @@ void func_800DC33C(void) // 0x800DC33C
     }
 
     vwGetViewPosition(&camPos);
-#ifdef SH_PC_PORT
-    {
-        static int _dbgT = 0;
-        if ((_dbgT++ & 3) == 0) {
-            s_SubCharacter* _ch = &g_SysWork.npcs[0];
-            s32 _mag = Math_Vector2MagCalc(_ch->position.vx - camPos.vx,
-                                           _ch->position.vz - camPos.vz);
-            SH_DBG("[ALLEY1] ch=(%d,%d) cam=(%d,%d) mag=%d ctrl=%d ec=%d anim=%d kf=%d spd124=%d topSpd=%d head=%d pl=(%d,%d) plSpd=%d",
-                   (int)(_ch->position.vx >> 12), (int)(_ch->position.vz >> 12),
-                   (int)(camPos.vx >> 12), (int)(camPos.vz >> 12),
-                   (int)(_mag >> 12),
-                   (int)_ch->properties.npc.controlState,
-                   (int)_ch->properties.npc.field_EC,
-                   (int)_ch->model.anim.status,
-                   (int)_ch->model.anim.keyframeIdx,
-                   (int)_ch->properties.npc.moveDistance_124,
-                   (int)_ch->moveSpeed,
-                   (int)_ch->headingAngle,
-                   (int)(g_SysWork.playerWork.player.position.vx >> 12), (int)(g_SysWork.playerWork.player.position.vz >> 12),
-                   (int)g_SysWork.playerWork.player.moveSpeed);
-        }
-    }
-#endif
     if (Math_Vector2MagCalc(g_SysWork.npcs[0].position.vx - camPos.vx,
                             g_SysWork.npcs[0].position.vz - camPos.vz) <= Q12(16.5f) &&
         g_SysWork.npcs[0].position.vx >= Q12(-58.0f))
