@@ -125,10 +125,10 @@ public partial class Form1 : Form
         Set(pgxpNo,     pgxpTip);
 
         const string cullingTip =
-            "Disable the game's distance/frustum culling.\n" +
-            "On = renders everything regardless of distance (debug aid;\n" +
-            "      useful when tracking down vanishing geometry).\n" +
-            "Off = original PSX behavior (recommended).";
+            "Disable the game's aggressive PSX view culling.\n" +
+            "On = render everything (recommended) — stops fences, trees and\n" +
+            "      other geometry from popping in/out as the camera turns.\n" +
+            "Off = original PSX behavior (objects culled by view angle).";
         Set(cullLabel,        cullingTip);
         Set(radioCullingYes,  cullingTip);
         Set(radioCullingNo,   cullingTip);
@@ -145,7 +145,9 @@ public partial class Form1 : Form
         const string pillarboxTip =
             "Pillarbox 2D screens (menus, save/load, the Harry-running load\n" +
             "screen) with 4:3 black bars instead of stretching them to fill a\n" +
-            "widescreen window. Only affects 2D UI; 3D gameplay is unchanged.";
+            "widescreen window. Only applies on widescreen (16:9 / wider)\n" +
+            "displays — on a 4:3 window there are no bars either way.\n" +
+            "Only affects 2D UI; 3D gameplay is unchanged.";
         Set(refreshLabel,        pillarboxTip);
         Set(radioPillarboxYes,   pillarboxTip);
         Set(radioPillarboxNo,    pillarboxTip);
@@ -330,8 +332,8 @@ public partial class Form1 : Form
         radioPillarboxYes.Checked = config.Get("menu_pillarbox", "1") == "1";
         radioPillarboxNo.Checked = !radioPillarboxYes.Checked;
 
-        // disable_culling
-        radioCullingYes.Checked = config.Get("disable_culling", "0") == "1";
+        // disable_culling (recommended: Yes — matches engine default)
+        radioCullingYes.Checked = config.Get("disable_culling", "1") == "1";
         radioCullingNo.Checked = !radioCullingYes.Checked;
 
         // preload_chunks (recommended: Yes — matches engine default)
