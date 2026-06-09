@@ -1,7 +1,7 @@
 #ifndef _MAPS_MAP2_S00_H
 #define _MAPS_MAP2_S00_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define KEYFRAME_PlayerState_Unk59 946
@@ -30,7 +30,7 @@ extern s16 g_Gfx_LockTimFileIdxs[8]; // 0x800F1A14
 
 extern s32 D_800F1A24;
 
-extern s_WorldObjectPose  g_CommonWorldObjectPoses[32]; // 0x800F1A28
+extern s_Pose  g_CommonWorldObjectPoses[32]; // 0x800F1A28
 
 extern s_MapPoint2d D_800F1CAC[3][32];
 
@@ -73,26 +73,26 @@ extern s16 D_800F5350;
 extern s_WorldObjectModel        D_800F535C;
 extern VECTOR3                D_800F537C;
 extern SVECTOR3               D_800F538C;
-extern s_WorldObjectDesc      g_WorldObject0; // 0x800F539C
-extern s_WorldObjectDesc      g_WorldObject1; // 0x800F53CC
-extern s_WorldObjectDesc      g_WorldObject2; // 0x800F53FC
-extern s_WorldObjectDesc      g_WorldObject3; // 0x800F542C
-extern s_WorldObjectDescNoRot g_WorldObjectB[3]; // 0x800F545C
-extern s_WorldObjectDesc      g_WorldObject4[3]; // 0x800F54DC
-extern s_WorldObjectModel        g_WorldObject5[4]; // 0x800F556C
+extern s_WorldObjectPose      g_WorldObject_IronPipe;
+extern s_WorldObjectPose      g_WorldObject1;
+extern s_WorldObjectPose      g_WorldObject2;
+extern s_WorldObjectPose      g_WorldObject3;
+extern s_WorldObjectPlacement g_WorldObjectB[3];
+extern s_WorldObjectPose      g_WorldObject4[3];
+extern s_WorldObjectModel        g_WorldObject5[4];
 extern VECTOR3                D_800F55DC[2];
-extern s_WorldObjectModel        g_WorldObject6[3]; // 0x800F55FC
-extern s_WorldObjectModel        g_WorldObject7[4]; // 0x800F565C
+extern s_WorldObjectModel        g_WorldObject6[3];
+extern s_WorldObjectModel        g_WorldObject7[4];
 extern VECTOR3                D_800F56CC[2];
 extern u8                     D_800F56E4;
 extern s_WorldObjectModel        D_800F56EC;
-extern s_WorldObjectPose      D_800F570C;
-extern s_WorldObjectPose      D_800F572C;
-extern s_WorldObjectPose      D_800F574C;
-extern s_WorldObjectDesc      g_WorldObject8; // 0x800F576C
-extern s_WorldObjectDesc      g_WorldObject9; // 0x800F579C
-extern s_WorldObjectDesc      g_WorldObjectA; // 0x800F57CC
-extern s_WorldObjectModel        g_CommonWorldObjects[6]; // 0x800F57FC
+extern s_Pose      D_800F570C;
+extern s_Pose      D_800F572C;
+extern s_Pose      D_800F574C;
+extern s_WorldObjectPose      g_WorldObject8;
+extern s_WorldObjectPose      g_WorldObject_RockDrill;
+extern s_WorldObjectPose      g_WorldObject_Chainsaw;
+extern s_WorldObjectModel        g_CommonWorldObjects[6];
 
 void func_800D756C(s_SubCharacter* chara);
 
@@ -113,7 +113,7 @@ void func_800E816C(void);
 void func_800E8198(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake(void);
+void MapEvent_PaperMapTake(void);
 
 void MapEvent_SteelPipeTake(void);
 

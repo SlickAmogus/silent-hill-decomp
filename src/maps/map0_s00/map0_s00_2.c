@@ -34,7 +34,7 @@ void Map_RoomBgmInit(bool arg0) // 0x800D94F8
     u32    saveByte;
 
     // @hack Not used directly, but gets merged with  `Savegame_EventFlagGet` macros below.
-    saveByte = g_SavegamePtr->eventFlags_168[0];
+    saveByte = g_SavegamePtr->eventFlags[0];
     var1     = Q12(0.1f);
     flags    = 1 << 8;
 
@@ -123,9 +123,9 @@ const char* MAP_MESSAGES[] = {
 void func_800D9610(void) // 0x800D9610
 {
     VECTOR3 sfxPos = {
-        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0,
+        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX,
         Q12(-1.2f),
-        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8
+        MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ
     };
 
     switch (g_SysWork.sysStateSteps[0])
@@ -173,14 +173,14 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
 
     // Skip.
     skip = false;
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] >= EventState_3 &&
         g_SysWork.sysStateSteps[0] <  EventState_13)
     {
 #ifdef SH_PC_PORT
         SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
                 g_SysWork.sysStateSteps[0],
-                g_Controller0->btnsClicked_10,
+                g_Controller0->clickedBtnFlags,
                 g_GameWorkPtr->config.controllerConfig.skip);
 #endif
         skip = true;
@@ -206,10 +206,10 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
             Player_ControlFreeze();
             Fs_QueueStartRead(FILE_ANIM_OPEN_DMS, FS_BUFFER_16);
 
-            g_SysWork.field_30 = 20;
+            g_SysWork.cutsceneBorderState = 20;
             ScreenFade_ResetTimestep();
 
-            g_SysWork.flags_22A4 |= UnkSysFlag_3;
+            g_SysWork.sysFlags |= SysFlag_CutsceneActive;
 
             Sd_PlaySfx(Sfx_Unk1361, 0, 0x90);
             SysWork_StateStepIncrement(0);
@@ -224,7 +224,7 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
         case EventState_2:
             // Load Cheryl character.
             Dms_HeaderFixOffsets((s_DmsHeader*)FS_BUFFER_16);
-            Chara_Load(0, Chara_Cheryl, g_SysWork.npcCoords, 0, NULL, NULL);
+            Chara_Load(0, Chara_Cheryl, g_SysWork.npcBoneCoordBuffer, 0, NULL, NULL);
 
             SysWork_StateStepIncrementAfterFade(false, false, 0, Q12(3.0f), false);
             g_Cutscene_Timer = Q12(0.0f);
@@ -656,7 +656,7 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
             break;
 
         case 1:
-            Particle_SystemUpdate(0, g_SavegamePtr->mapOverlayId_A4, 0);
+            Particle_SystemUpdate(0, g_SavegamePtr->mapIdx, 0);
             SysWork_StateStepIncrement(0);
 
         case 2:
@@ -672,7 +672,7 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
                     cherylChara.position.vz,
                     cherylChara.properties.dummy.properties_E8[1].val32);
 #endif
-            cherylChara.properties.player.headingAngle_124 = Q12(1.8f);
+            cherylChara.properties.player.headingAngle = Q12(1.8f);
 
 #ifdef SH_PC_PORT
             SH_DBG("[DA5A0] step3: calling func_80086728");
@@ -688,7 +688,7 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
             break;
 
         case 4:
-            cherylChara.properties.player.headingAngle_124 = Q12(1.8f);
+            cherylChara.properties.player.headingAngle = Q12(1.8f);
             func_80086728(&cherylChara, 2, 1, 0);
             break;
 
@@ -720,7 +720,7 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
             SysWork_StateStepIncrement(0);
 
         case 10:
-            cherylChara.properties.player.headingAngle_124 = Q12(0.55f);
+            cherylChara.properties.player.headingAngle = Q12(0.55f);
             func_80086728(&cherylChara, 1, 1, 0);
             break;
 
@@ -1101,10 +1101,10 @@ void MapEven_CutsceneAlleyGetsDarker(void) // 0x800DB514
              * On PC there is no CD streaming, so kick off Chara_Load directly
              * here. Chara_ProcessLoads() in the default case will wait for the
              * ANM/ILM/TIM reads to complete before Chara_Spawn is called, so
-             * g_CharaAnimInfoIdxs[ENEMY_CHARA_ID] will be valid by then. */
+             * g_CharaAnimDataIdxs[ENEMY_CHARA_ID] will be valid by then. */
             else
             {
-                Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcCoords[0], 0, NULL, NULL);
+                Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcBoneCoordBuffer[0], 0, NULL, NULL);
                 D_800DFB60 = 1;
             }
 #endif
@@ -1113,7 +1113,7 @@ void MapEven_CutsceneAlleyGetsDarker(void) // 0x800DB514
             if (Fs_QueueChunksLoad())
             {
                 D_800DFB60++;
-                Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcCoords[0], 0, NULL, NULL);
+                Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcBoneCoordBuffer[0], 0, NULL, NULL);
             }
 
         case 7:
@@ -1168,7 +1168,7 @@ void MapEven_CutsceneAlleyGetsDarker(void) // 0x800DB514
         if (Fs_QueueChunksLoad())
         {
             D_800DFB60++;
-            Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcCoords[0], 0, NULL, NULL);
+            Chara_Load(1, ENEMY_CHARA_ID, &g_SysWork.npcBoneCoordBuffer[0], 0, NULL, NULL);
         }
     }
 }
@@ -1550,7 +1550,7 @@ void func_800DC33C(void) // 0x800DC33C
                             g_SysWork.npcs[0].position.vz - camPos.vz) <= Q12(16.5f) &&
         g_SysWork.npcs[0].position.vx >= Q12(-58.0f))
     {
-        if (!(g_SysWork.flags_22A4 & UnkSysFlag_MenuOpen))
+        if (!(g_SysWork.sysFlags & SysFlag_MenuActive))
         {
             if (!Vw_AabbVisibleInScreenCheck(g_SysWork.npcs[0].position.vx - Q12(1.0f),
                                              g_SysWork.npcs[0].position.vx + Q12(1.0f),
@@ -1562,7 +1562,7 @@ void func_800DC33C(void) // 0x800DC33C
 block7:
                 g_SysWork.npcs[0].position.vz = 1;
                 g_SysWork.npcs[0].position.vx = 1;
-                g_SysWork.npcs[0].properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
+                g_SysWork.npcs[0].properties.player.headingAngle = Q12_ANGLE(0.0f);
 
                 sharedFunc_800D88C0_0_s00(&g_SysWork.npcs[0], false);
 
@@ -1611,7 +1611,7 @@ block7:
             D_800DFAD0 = var_v1_2;
         }
 
-        g_SysWork.npcs[0].properties.player.headingAngle_124 = D_800DFAD0;
+        g_SysWork.npcs[0].properties.player.headingAngle = D_800DFAD0;
         func_8008677C(&g_SysWork.npcs[0], 2, 1);
         return;
     }
@@ -1639,7 +1639,7 @@ void func_800DC694(void) // 0x800DC694
 
     if (mag <= Q12(14.5f) && g_SysWork.npcs[0].position.vz >= Q12(49.0f))
     {
-        if (!(g_SysWork.flags_22A4 & UnkSysFlag_MenuOpen))
+        if (!(g_SysWork.sysFlags & SysFlag_MenuActive))
         {
             if (!Vw_AabbVisibleInScreenCheck(g_SysWork.npcs[0].position.vx - Q12(1.0f),
                                              g_SysWork.npcs[0].position.vx + Q12(1.0f),
@@ -1684,7 +1684,7 @@ block7:
             D_800DFAD4 = var_v1;
         }
 
-        g_SysWork.npcs[0].properties.player.headingAngle_124 = D_800DFAD4;
+        g_SysWork.npcs[0].properties.player.headingAngle = D_800DFAD4;
 
         func_8008677C(&g_SysWork.npcs[0], 2, 1);
         return;
@@ -1719,7 +1719,7 @@ void func_800DC8D8(void) // 0x800DC8D8
     }
     else
     {
-        g_SysWork.npcs[0].properties.player.headingAngle_124 = Q12(1.8f);
+        g_SysWork.npcs[0].properties.player.headingAngle = Q12(1.8f);
 
         func_8008677C(&g_SysWork.npcs[0], 2, 1);
 

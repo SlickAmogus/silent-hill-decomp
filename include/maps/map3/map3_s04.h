@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define HAS_PlayerState_Unk125
@@ -23,11 +23,11 @@
 
 #include "maps/shared.h"
 
-extern s_WorldObjectDescNoRot g_WorldObject_Dr[6];
-extern s_WorldObjectDescNoRot g_WorldObject_Plate;
-extern s_WorldObjectDesc      g_WorldObject_SavePad;
+extern s_WorldObjectPlacement g_WorldObject_Dr[6];
+extern s_WorldObjectPlacement g_WorldObject_Plate;
+extern s_WorldObjectPose      g_WorldObject_SavePad;
 extern s_WorldObjectModel     g_CommonWorldObjects[6];
-extern s_WorldObjectPose      g_CommonWorldObjectPoses[2];
+extern s_Pose      g_CommonWorldObjectPoses[2];
 
 extern u16 D_800D599C;
 extern VECTOR3 g_Cutscene_CameraPositionTarget;

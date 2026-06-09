@@ -23,7 +23,7 @@
  * MAP6_S01: 0x800CE4FC
  * MAP7_S03: 0x800D1098
  */
-void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
 #ifdef SH_PC_PORT
     {
@@ -36,7 +36,7 @@ void Ai_Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* 
                    curStatus, curKf, _prevStatus, _prevKf,
                    chara->model.controlState,
                    chara->model.stateStep,
-                   chara->properties.dahlia.stateIdx0);
+                   chara->properties.npc.controlState);
             _prevStatus = curStatus;
             _prevKf = curKf;
         }
@@ -122,42 +122,42 @@ void Ai_Cybil_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
  */
 void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
 {
-    s_Collision coll;
+    s_CollisionSurface coll;
     e_SfxId     sfx;
     s8          pitch0;
     s8          pitch1;
 
-    #define dahliaProps (chara->properties.dahlia)
+    #define dahliaProps (chara->properties.npc)
 
-    switch (dahliaProps.stateIdx0)
+    switch (dahliaProps.controlState)
     {
         case 0:
-            if (dahliaProps.moveDistance_126)
+            if (dahliaProps.moveDistance_124)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < Q12(0.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveDistance_124 < Q12(0.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             Model_AnimStatusSet(&chara->model, CybilAnim_1, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 1:
-            if (dahliaProps.moveDistance_126 > Q12(1.25f))
+            if (dahliaProps.moveDistance_124 > Q12(1.25f))
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
-                if (dahliaProps.moveDistance_126 < Q12(1.25f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
+                if (dahliaProps.moveDistance_124 < Q12(1.25f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(1.25f);
+                    dahliaProps.moveDistance_124 = Q12(1.25f);
                 }
             }
-            else if (dahliaProps.moveDistance_126 < Q12(1.25f))
+            else if (dahliaProps.moveDistance_124 < Q12(1.25f))
             {
-                dahliaProps.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                dahliaProps.moveDistance_126  = CLAMP(dahliaProps.moveDistance_126, 0, Q12(1.25f));
+                dahliaProps.moveDistance_124 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                dahliaProps.moveDistance_124  = CLAMP(dahliaProps.moveDistance_124, 0, Q12(1.25f));
             }
 
 #if defined(MAP0_S01)
@@ -165,93 +165,93 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
 #else
             Model_AnimStatusSet(&chara->model, CybilAnim_3, false);
 #endif
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 2:
-            if (dahliaProps.moveDistance_126 > Q12(4.0f))
+            if (dahliaProps.moveDistance_124 > Q12(4.0f))
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                if (dahliaProps.moveDistance_126 < Q12(4.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                if (dahliaProps.moveDistance_124 < Q12(4.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(4.0f);
+                    dahliaProps.moveDistance_124 = Q12(4.0f);
                 }
             }
-            else if (dahliaProps.moveDistance_126 < Q12(4.0f))
+            else if (dahliaProps.moveDistance_124 < Q12(4.0f))
             {
-                dahliaProps.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
-                dahliaProps.moveDistance_126 = CLAMP(dahliaProps.moveDistance_126, Q12(0.0f), Q12(4.0f));
+                dahliaProps.moveDistance_124 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
+                dahliaProps.moveDistance_124 = CLAMP(dahliaProps.moveDistance_124, Q12(0.0f), Q12(4.0f));
             }
 
             // TODO: This uses `ANIM_STATUS(21, false)`, but then fetches `ANIM_STATUS(22, true)` keyframe.
             // Added `animInfosOffset` but maybe there's better way.
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_21, false, CYBIL_ANIM_INFOS, 1);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 3:
-            if (dahliaProps.moveDistance_126)
+            if (dahliaProps.moveDistance_124)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < Q12(0.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveDistance_124 < Q12(0.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             sharedData_800E2378_0_s01 = g_DeltaTime * 7;
 
             Model_AnimStatusSet(&chara->model, CybilAnim_4, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 4:
-            if (dahliaProps.moveDistance_126)
+            if (dahliaProps.moveDistance_124)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < Q12(0.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveDistance_124 < Q12(0.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             sharedData_800E2378_0_s01 = g_DeltaTime * -7;
 
             Model_AnimStatusSet(&chara->model, CybilAnim_5, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 5:
-            if (dahliaProps.moveDistance_126)
+            if (dahliaProps.moveDistance_124)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < Q12(0.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveDistance_124 < Q12(0.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_1, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 12:
-            if (dahliaProps.moveDistance_126)
+            if (dahliaProps.moveDistance_124)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < Q12(0.0f))
+                dahliaProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveDistance_124 < Q12(0.0f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             Model_AnimStatusSet(&chara->model, CybilAnim_1, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 6:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_7, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
 
             if (chara->model.anim.keyframeIdx < 91)
             {
@@ -269,79 +269,79 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
 
         case 7:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_8, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 8:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_9, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 9:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_10, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_Cybil, MODEL_BONE(1, 1));
             break;
 
         case 10:
             Model_AnimStatusSet(&chara->model, CybilAnim_11, true);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 11:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_12, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 13:
             Model_AnimStatusSet(&chara->model, CybilAnim_13, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 14:
             Model_AnimStatusSet(&chara->model, CybilAnim_14, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 15:
             Model_AnimStatusSet(&chara->model, CybilAnim_15, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 16:
             Model_AnimStatusSet(&chara->model, CybilAnim_16, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 17:
             Model_AnimStatusSet(&chara->model, CybilAnim_17, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 18:
             Model_AnimStatusSet(&chara->model, CybilAnim_18, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 19:
             Model_AnimStatusSet(&chara->model, CybilAnim_19, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 20:
             Model_AnimStatusSet(&chara->model, CybilAnim_20, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 21:
             Model_AnimStatusSet(&chara->model, CybilAnim_26, false);
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_26, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(2, 1));
 
             if (chara->model.anim.keyframeIdx == 295)
             {
-                dahliaProps.stateIdx0 = 30;
+                dahliaProps.controlState = 30;
                 chara->model.stateStep = 0;
             }
             break;
@@ -349,69 +349,69 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
         case 22:
             Model_AnimStatusSet(&chara->model, CybilAnim_27, false);
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_27, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(2, 1));
             break;
 
         case 23:
             Model_AnimStatusSet(&chara->model, CybilAnim_28, false);
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_28, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(2, 1));
 
-            if (dahliaProps.stateIdx0 != 23)
+            if (dahliaProps.controlState != 23)
             {
-                dahliaProps.flags_11C &= ~(1 << 13);
+                dahliaProps.flags &= ~(1 << 13);
             }
             break;
 
         case 24:
             Model_AnimStatusSet(&chara->model, CybilAnim_29, false);
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_29, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(2, 1));
             break;
 
         case 25:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_22, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 26:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_23, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 27:
             Model_AnimStatusSet(&chara->model, CybilAnim_24, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 29:
             Model_AnimStatusSet(&chara->model, CybilAnim_30, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 28:
             Model_AnimStatusKeyframeSet(chara->model, CybilAnim_25, true, CYBIL_ANIM_INFOS, 0);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             break;
 
         case 30:
             Model_AnimStatusSet(&chara->model, CybilAnim_31, false);
-            Character_AnimStateReset(chara);
+            Chara_AnimStateReset(chara);
             WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(2, 1));
             break;
     }
 
-    Collision_Get(&coll, chara->position.vx, chara->position.vz);
-    func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
+    Collision_SurfaceGet(&coll, chara->position.vx, chara->position.vz);
+    Player_FootstepSfxGet(coll.groundType, &sfx, &pitch0, &pitch1);
 
 #if defined(MAP6_S01)
     sfx = Sfx_Unk1607;
 #endif
 
-    switch (dahliaProps.stateIdx0)
+    switch (dahliaProps.controlState)
     {
         case 1:
             sharedFunc_800D908C_0_s00(ANIM_STATUS(CybilAnim_3, true), chara, 32, 45, sfx, pitch0);
@@ -533,7 +533,7 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
             {
                 if (sharedData_800E237C_0_s01 == 0)
                 {
-                    func_8006342C(EquippedWeaponId_Unk63, 1024, chara->rotation.vy, &g_SysWork.npcCoords[0]);
+                    func_8006342C(EquippedWeaponId_Unk63, 1024, chara->rotation.vy, &g_SysWork.npcBoneCoordBuffer[0]);
                     func_8005DC1C(Sfx_Unk1622, &chara->position, Q8(0.75f), 0);
                     sharedData_800E237C_0_s01 = 1;
                 }
@@ -551,7 +551,7 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
 
     chara->rotation.vy  = Q12_ANGLE_ABS(chara->rotation.vy + (sharedData_800E2378_0_s01 >> 4));
     chara->headingAngle = chara->rotation.vy;
-    chara->moveSpeed    = dahliaProps.moveDistance_126;
+    chara->moveSpeed    = dahliaProps.moveDistance_124;
     chara->fallSpeed   += g_GravitySpeed;
 
     coords->flg = false;
@@ -568,7 +568,7 @@ void Ai_Cybil_Init(s_SubCharacter* chara)
 {
 #ifdef SH_PC_PORT
     SH_DBG("[CYBIL-INIT] enter chara=%p", (void*)chara);
-    sharedFunc_800D923C_0_s00(chara);   SH_DBG("[CYBIL-INIT] post-923C");
+    Chara_CollisionReset(chara);   SH_DBG("[CYBIL-INIT] post-923C");
     sharedData_800E2378_0_s01 = 0;
     sharedData_800E237C_0_s01 = 0;
     SH_DBG("[CYBIL-INIT] pre-HeldItemAttach");
@@ -579,7 +579,7 @@ void Ai_Cybil_Init(s_SubCharacter* chara)
 #endif
     SH_DBG("[CYBIL-INIT] post-HeldItemAttach");
 #else
-    sharedFunc_800D923C_0_s00(chara);
+    Chara_CollisionReset(chara);
     sharedData_800E2378_0_s01 = 0;
     sharedData_800E237C_0_s01 = 0;
 

@@ -31,8 +31,8 @@ void sharedFunc_800D88AC_0_s00(s_SubCharacter* stalker)
     // TODO: Not stalker? Properties don't fit.
     stalker->properties.player.field_F4         = Q12_ANGLE(0.0f);
     stalker->properties.player.field_F0         = Q12(0.0f);
-    stalker->properties.player.positionY_EC     = Q12(0.0f);
-    stalker->properties.player.moveDistance_126 = Q12(0.0f);
+    stalker->properties.player.groundHeight     = Q12(0.0f);
+    stalker->properties.player.runDistance = Q12(0.0f);
 }
 
 void sharedFunc_800D88C0_0_s00(s_SubCharacter* player, bool cond)
@@ -48,7 +48,7 @@ void sharedFunc_800D88C0_0_s00(s_SubCharacter* player, bool cond)
     }
     else
     {
-        player->properties.player.afkTimer_E8 = Q12(0.0f);
+        player->properties.player.afkTimer = Q12(0.0f);
         player->model.stateStep              = 0;
     }
 
@@ -57,16 +57,16 @@ void sharedFunc_800D88C0_0_s00(s_SubCharacter* player, bool cond)
 
 void sharedFunc_800D8904_0_s00(s_SubCharacter* player, q19_12 afkTime)
 {
-    player->properties.player.moveDistance_126 = Q12(0.0f);
-    player->properties.player.runTimer_F8      = Q12(0.0f);
+    player->properties.player.runDistance = Q12(0.0f);
+    player->properties.player.runStepSfxCount      = Q12(0.0f);
     player->properties.player.field_F0         = Q12(0.0f);
-    player->properties.player.afkTimer_E8      = afkTime;
+    player->properties.player.afkTimer      = afkTime;
     player->model.stateStep                   = 0;
 }
 
 void Player_RunTimerReset(s_SubCharacter* player)
 {
-    player->properties.player.runTimer_F8 = 1;
+    player->properties.player.runStepSfxCount = 1;
 }
 
 void Chara_Lock(s_SubCharacter* chara)
@@ -437,7 +437,7 @@ bool sharedFunc_800D8A00_0_s00(s_SubCharacter* chara, s32 arg1, VECTOR3* arg2In,
             charaStateF4 = 1;
             sharedData_800DF1FA_0_s00 = 0;
             charaStateEC = 0;
-            chara->properties.npc.field_124 = NULL;
+            chara->properties.npc.moveDistance_124 = NULL;
             return true;
     }
 
@@ -499,7 +499,7 @@ bool sharedFunc_800D9188_0_s00(s32 animStatus, s_SubCharacter* chara, s32 keyfra
     {
         if (chara->model.anim.keyframeIdx >= keyframeIdx)
         {
-            if (!(chara->properties.player.flags_11C & PlayerFlag_SfxActive))
+            if (!(chara->properties.player.flags & PlayerFlag_SfxActive))
             {
                 switch (sfxId)
                 {
@@ -579,13 +579,13 @@ bool sharedFunc_800D9188_0_s00(s32 animStatus, s_SubCharacter* chara, s32 keyfra
                         break;
                 }
 
-                chara->properties.player.flags_11C |= PlayerFlag_SfxActive;
+                chara->properties.player.flags |= PlayerFlag_SfxActive;
                 return true;
             }
         }
         else
         {
-            chara->properties.player.flags_11C &= ~PlayerFlag_SfxActive;
+            chara->properties.player.flags &= ~PlayerFlag_SfxActive;
         }
     }
 
@@ -699,29 +699,29 @@ s32 Chara_AnimStartKeyframeIdxGet(s_SubCharacter* chara)
     return animInfo->startKeyframeIdx;
 }
 
-void sharedFunc_800D923C_0_s00(s_SubCharacter* chara)
+void Chara_CollisionReset(s_SubCharacter* chara)
 {
     chara->model.stateStep = 0;
 
-    chara->field_C8.field_0   = Q12(0.0f);
-    chara->field_C8.field_2   = Q12(0.0f);
-    chara->field_C8.field_6   = Q12(0.0f);
-    chara->field_D4.radius_0   = Q12(0.0f);
-    chara->field_D4.field_2   = Q12(0.0f);
-    chara->field_D8.offsetZ_6 = Q12(0.0f);
-    chara->field_D8.offsetX_4 = Q12(0.0f);
-    chara->field_D8.offsetZ_2 = Q12(0.0f);
-    chara->field_D8.offsetX_0 = Q12(0.0f);
+    chara->collision.box.top   = Q12(0.0f);
+    chara->collision.box.bottom   = Q12(0.0f);
+    chara->collision.box.offsetY   = Q12(0.0f);
+    chara->collision.cylinder.radius   = Q12(0.0f);
+    chara->collision.cylinder.field_2   = Q12(0.0f);
+    chara->collision.shapeOffsets.cylinder.vz = Q12(0.0f);
+    chara->collision.shapeOffsets.cylinder.vx = Q12(0.0f);
+    chara->collision.shapeOffsets.box.vz = Q12(0.0f);
+    chara->collision.shapeOffsets.box.vx = Q12(0.0f);
 
-    chara->properties.player.positionY_EC = Q12(0.0f);
-    chara->properties.player.afkTimer_E8  = Q12(0.0f);
-    chara->properties.player.positionY_EC = Q12(0.0f);
+    chara->properties.player.groundHeight = Q12(0.0f);
+    chara->properties.player.afkTimer  = Q12(0.0f);
+    chara->properties.player.groundHeight = Q12(0.0f);
     chara->properties.player.field_F0     = 0;
     chara->properties.player.field_F4     = Q12_ANGLE(0.0f);
 
     chara->model.controlState++;
 
-    chara->field_E1_0 = 3;
+    chara->collision.state = 3;
 }
 
 #undef CHARA_CASE

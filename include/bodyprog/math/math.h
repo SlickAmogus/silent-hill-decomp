@@ -7,6 +7,9 @@
 #include "bodyprog/math/constants.h"
 #include "bodyprog/math/fixed_point.h"
 
+#define SVECTOR3_Zero (SVECTOR3){ 0, 0, 0 }
+#define VECTOR_Zero   (VECTOR){ 0, 0, 0, 0 }
+
 /** @brief Constructs a `VECTOR3` in a fixed-point Q19.12 format.
  *
  * @param x X component (`float`).
@@ -37,6 +40,25 @@
 #define SVECTOR(x, y, z) \
     { Q12_ANGLE(x), Q12_ANGLE(y), Q12_ANGLE(z) }
 
+/** @brief Packs a 16-bit XZ vector.
+ *
+ * @param x X component.
+ * @param z Z component.
+ * @return Packed XZ vector.
+ */
+#define PACKED_XZ16(x, z) \
+    (((x) & 0xFFFF) + ((z) << 16))
+
+/** @brief Packs an RGB color.
+ *
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @return Packed RGB color.
+ */
+#define COLOR_RGB(r, g, b) \
+    (((r) & 0xFF) | ((g) & 0xFF) << 8 | ((b) & 0xFF) << 16)
+
 /** @brief Packs an RGB + code color.
  *
  * @param r Red component.
@@ -45,8 +67,8 @@
  * @param code Code component.
  * @return Packed RGB + code color.
  */
-#define PACKED_COLOR(r, g, b, code) \
-    ((r) | ((g) << 8) | ((b) << 16) | ((code) << 24))
+#define COLOR_RGBC(r, g, b, code) \
+    (((r) & 0xFF) | (((g) & 0xFF) << 8) | (((b) & 0xFF) << 16) | ((code) << 24))
 
 /** @brief Checks if a flag in a bitfield is set to a required status.
  *
@@ -116,24 +138,91 @@
     ratan2(to.vx - from.vx,                     \
            to.vz - from.vz)                     \
 
-/** @brief Computes the magnitude of a 2D vector in Q19.12, using intermediate components in Q25.6 to avoid overflow.
+/** @brief Computes the square magnitude of a value in Q19.12, converting to Q25.6 to avoid overflow.
+ *
+ * @param x Magnitude (Q19.12).
+ * @return Square magnitude (Q25.6).
+ */
+#define Math_SqrMagCalcToQ6(x) \
+    SQUARE(Q12_TO_Q6(x))
+
+/** @brief Computes the square magnitude of a value in Q23.8, converting to Q23.8 to avoid overflow.
+ *
+ * @param x Magnitude (Q19.12).
+ * @return Square magnitude (Q23.8).
+ */
+#define Math_SqrMagCalcToQ8(x) \
+    SQUARE(Q12_TO_Q8(x))
+
+/** @brief Computes the magnitude of a 2D vector in Q19.12.
  *
  * @param x X vector component (Q19.12).
  * @param z Z vector component (Q19.12).
  * @return 2D vector magnitude (Q19.12).
  */
 #define Math_Vector2MagCalc(x, z) \
-    Q6_TO_Q12(SquareRoot0(SQUARE(Q12_TO_Q6(x)) + SQUARE(Q12_TO_Q6(z))))
+    SquareRoot0(SQUARE(x) + SQUARE(z))
 
-/** @brief Computes the magnitude of a 3D vector in Q19.12, using intermediate components in Q25.6 to avoid overflow.
+/** @brief Computes the magnitude of a 2D vector in Q19.12, using intermediate components in Q25.6 to safely
+ * avoid overflow.
+ *
+ * @param x X vector component (Q19.12).
+ * @param z Z vector component (Q19.12).
+ * @return 2D vector magnitude (Q19.12).
+ */
+#define Math_Vector2MagCalcSafeQ6(x, z) \
+    Q6_TO_Q12(SquareRoot0(Math_SqrMagCalcToQ6(x) + Math_SqrMagCalcToQ6(z)))
+
+/** @brief Computes the magnitude of a 2D vector in Q19.12, using intermediate components in Q23.8 to safely
+ * avoid overflow.
+ *
+ * @param x X vector component (Q19.12).
+ * @param z Z vector component (Q19.12).
+ * @return 2D vector magnitude (Q19.12).
+ */
+#define Math_Vector2MagCalcSafeQ8(x, z) \
+    Q8_TO_Q12(SquareRoot0(Math_SqrMagCalcToQ8(x) + Math_SqrMagCalcToQ8(z)))
+
+/** @brief Computes the magnitude of a 3D vector in Q19.12.
  *
  * @param x X vector component (Q19.12).
  * @param y Y vector component (Q19.12).
  * @param z Z vector component (Q19.12).
- * @return 2D vector magnitude (Q19.12).
+ * @return 3D vector magnitude (Q19.12).
  */
 #define Math_Vector3MagCalc(x, y, z) \
-    Q6_TO_Q12(SquareRoot0(SQUARE(Q12_TO_Q6(x)) + SQUARE(Q12_TO_Q6(y)) + SQUARE(Q12_TO_Q6(z))))
+    SquareRoot0(SQUARE(x) + SQUARE(y) + SQUARE(z))
+
+/** @brief Computes the magnitude of a 3D vector in Q19.12, using intermediate components in Q25.6 to safely
+ * avoid overflow.
+ *
+ * @param x X vector component (Q19.12).
+ * @param y Y vector component (Q19.12).
+ * @param z Z vector component (Q19.12).
+ * @return 3D vector magnitude (Q19.12).
+ */
+#define Math_Vector3MagCalcSafe(x, y, z) \
+    Q6_TO_Q12(SquareRoot0(Math_SqrMagCalcToQ6(x) + Math_SqrMagCalcToQ6(y) + Math_SqrMagCalcToQ6(z)))
+
+/** @brief Computes the magnitude of a 3D vector in Q19.12, using intermediate components in Q23.8 to safely
+ * avoid overflow.
+ *
+ * @param x X vector component (Q19.12).
+ * @param y Y vector component (Q19.12).
+ * @param z Z vector component (Q19.12).
+ * @return 3D vector magnitude (Q19.12).
+ */
+#define Math_Vector3MagCalcSafeToQ8(x, y, z) \
+    Q8_TO_Q12(SquareRoot0(Math_SqrMagCalcToQ8(x) + Math_SqrMagCalcToQ8(y) + Math_SqrMagCalcToQ8(z)))
+
+/** @brief Sets a `DVECTOR` using a fast bitwise method.
+ *
+ * @param vec Vector to set.
+ * @param x X component.
+ * @param y Y component.
+ */
+#define Math_DVectorSetFast(vec, x, y) \
+    *((s32*)&(vec)->vx) = ((x) & 0xFFFF) + ((y) << 16)
 
 /** @brief Sets an `SVECTOR` using a fast bitwise method.
  *

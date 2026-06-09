@@ -1,8 +1,8 @@
 /* romper_anim_infos.c -- Romper (Cybil-arena dog enemy) animation info table.
  *
- * Extracted from disc_extract/VIN/MAP2_S02.BIN at PSX ROPMER_ANIM_INFOS
+ * Extracted from disc_extract/VIN/MAP2_S02.BIN at PSX ROMPER_ANIM_INFOS
  * (0x800EC954; see configs/USA/maps/sym.map2_s02.txt). 44 entries -- the
- * sym table places `sharedData_800ECA4C` at 0xF8 past ROPMER_ANIM_INFOS
+ * sym table places `sharedData_800ECA4C` at 0xF8 past ROMPER_ANIM_INFOS
  * which would imply 15 entries, but that's spurious symbol overlap; the
  * real table extends to 44 entries (statuses 0xFF, 0x00, 0x02..0x2B).
  * Matches the commented-out PSX reference in include/maps/characters/romper.h.
@@ -16,7 +16,7 @@
 
 #include "bodyprog/bodyprog.h"
 
-s_AnimInfo ROPMER_ANIM_INFOS[44];
+s_AnimInfo ROMPER_ANIM_INFOS[44];
 
 typedef struct {
     u8  kind;       /* 0=BlendLinear, 1=PlaybackOnce, 2=PlaybackLoop, 3=NULL */
@@ -75,18 +75,18 @@ static const ROPMER_ANIM_INFOS_Seed s_seeds[44] = {
     { 1, 0x2B, 0, 0x18, 24576, 18, 19 },
 };
 
-void RopmerAnimInfos_Init(void)
+void RomperAnimInfos_Init(void)
 {
     void (*fns[3])(struct _Model*, struct _AnmHeader*, GsCOORDINATE2*, struct _AnimInfo*) = {
         Anim_BlendLinear, Anim_PlaybackOnce, Anim_PlaybackLoop };
     for (int i = 0; i < 44; i++) {
         const ROPMER_ANIM_INFOS_Seed* s = &s_seeds[i];
-        ROPMER_ANIM_INFOS[i].playbackFunc        = (s->kind < 3) ? fns[s->kind] : NULL;
-        ROPMER_ANIM_INFOS[i].status              = s->status;
-        ROPMER_ANIM_INFOS[i].hasVariableDuration = s->hasVariableDuration;
-        ROPMER_ANIM_INFOS[i].linkStatus          = s->linkStatus;
-        ROPMER_ANIM_INFOS[i].duration.constant   = s->durationConstantQ12;
-        ROPMER_ANIM_INFOS[i].startKeyframeIdx    = s->startKeyframeIdx;
-        ROPMER_ANIM_INFOS[i].endKeyframeIdx      = s->endKeyframeIdx;
+        ROMPER_ANIM_INFOS[i].playbackFunc        = (s->kind < 3) ? fns[s->kind] : NULL;
+        ROMPER_ANIM_INFOS[i].status              = s->status;
+        ROMPER_ANIM_INFOS[i].hasVariableDuration = s->hasVariableDuration;
+        ROMPER_ANIM_INFOS[i].linkStatus          = s->linkStatus;
+        ROMPER_ANIM_INFOS[i].duration.constant   = s->durationConstantQ12;
+        ROMPER_ANIM_INFOS[i].startKeyframeIdx    = s->startKeyframeIdx;
+        ROMPER_ANIM_INFOS[i].endKeyframeIdx      = s->endKeyframeIdx;
     }
 }

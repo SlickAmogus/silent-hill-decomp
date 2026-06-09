@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk70
 #define HAS_PlayerState_Unk71
 #define HAS_PlayerState_Unk132
@@ -52,10 +52,10 @@ extern VECTOR3 g_Cutscene_CameraPositionTarget;
 extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 extern u8      g_Cutscene_MapMsgAudioIdx0;
 
-extern s_WorldObjectDesc  D_800D5374;
-extern s_WorldObjectDesc  D_800D53A4[7];
+extern s_WorldObjectPose  D_800D5374;
+extern s_WorldObjectPose  D_800D53A4[7];
 extern s_WorldObjectModel g_CommonWorldObjects[6];
-extern s_WorldObjectPose  g_CommonWorldObjectPoses[3]; // 0x800D4128
+extern s_Pose  g_CommonWorldObjectPoses[3]; // 0x800D4128
 
 /** @brief Handles a Health Drink, Handgun Bullets, or Rifle Shells item pickup event. */
 void MapEvent_CommonItemTake(void);

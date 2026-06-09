@@ -38,7 +38,7 @@ typedef union
 
 typedef struct
 {
-    s_SysWork_2514_C_0 flags_0;
+    s_SysWork_2514_C_0 flags;
     s32                data_4;
 } s_SysWork_2514_C;
 
@@ -49,7 +49,7 @@ typedef struct _s_SysWork_2514_18
     u_SysWork_2514_C_0         key_8;
     s32                        field_C;
     u8                         unk_10[8];
-    u8                         unk_18[4];
+    struct _s_SysWork_2514_18* unk_18;
     u16                        field_1C;
     u16                        field_1E;
 } s_SysWork_2514_18;
@@ -67,6 +67,7 @@ typedef struct
     u32 field_0_24  : 8;
 } s_SysWork_2514_0;
 
+// Related to controller data?
 typedef struct
 {
     s_SysWork_2514_0   field_0;
@@ -86,11 +87,89 @@ typedef struct _s_SysWork_2510
 {
     struct _s_SysWork_2510* next_0;
     u8                      key_4;
-    u8                      pad_5[3];
+    s8                      pad_5[3];
     s32                     field_8;
-    s32                     (*func_C)(s_SysWork_2514*, s32 padState, s32 padInfoCurId, s32 padInfoCurExId);
+    s32                     (*func_C)(s_SysWork_2514* ptr, s32 padState, s32 padInfoCurId, s32 padInfoCurExId);
 } s_SysWork_2510;
 STATIC_ASSERT_SIZEOF(s_SysWork_2510, 16);
+
+// Exception, as one of the unidentified structs uses this.
+typedef struct _s_8002AC04
+{
+    struct _s_8002AC04* field_0;
+
+    union
+    {
+        u8 funcIdx_4; // `funcIdx_4` in structs below, needs to be part of those structs for match.
+
+        struct
+        {
+            u8  funcIdx_4;
+            u8  field_5;
+            u16 field_6;
+            s32 field_8;
+            u32 field_C;
+        } func_8008973C_data;
+        struct
+        {
+            u8  funcIdx_4;
+            u8  field_5;
+            u16 field_6;
+            s32 field_8;
+            u32 field_C;
+        } func_80089D0C_data;
+
+        struct
+        {
+            u8                  funcIdx_4;
+            u8                  field_5   : 7;
+            u32                 field_5_7 : 1;
+            u16                 field_6;
+            struct _s_8002AC04* field_8;
+            u32                 field_C;
+        } func_80089BB8_data;
+
+        struct
+        {
+            u8  funcIdx_4;
+            u8  field_5;
+            u16 field_6;
+            u8* field_8;
+            u32 field_C_0  : 16;
+            u32 field_C_16 : 12;
+            u32 field_C_28 : 3;
+            u32 field_C_31 : 1;
+        } func_80089DF0_data;
+        struct
+        {
+            u8  funcIdx_4;
+            u8  field_5_0 : 5;
+            u32 field_5_5 : 1;
+            u32 field_5_6 : 1;
+            u32 field_5_7 : 1;
+            u16 field_6;
+            s32 field_8;
+            u32 field_C;
+        } func_80089A30_data;
+    } field_4;
+} s_8002AC04;
+STATIC_ASSERT_SIZEOF(s_8002AC04, 16);
+
+typedef struct _func_8009ECCC
+{
+    struct _func_8009ECCC* field_0; // TODO: Not sure if these point to other struct type or same type.
+    struct _func_8009ECCC* field_4;
+    s32                    field_8;
+    s32                    field_C;
+    s_8002AC04*            field_10;
+    u32                    field_14_0  : 16;
+    u32                    field_14_16 : 8;
+    u32                    field_14_24 : 7;
+    u32                    field_14_31 : 1;
+    u32                    field_18;
+    u16                    field_1C;
+    u16                    field_1E;
+} s_func_8009ECCC;
 
 s32 func_8009E230(s_SysWork_2514* arg0);
 

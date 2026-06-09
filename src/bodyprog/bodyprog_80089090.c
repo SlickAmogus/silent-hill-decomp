@@ -9,12 +9,15 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
+extern u8 D_800AFD04;extern u8 D_800AFD05;extern bool (*D_800AFD08[])(s_SysWork_2514* arg0, s_func_8009ECCC* arg1, s_8002AC04* ptr, u32* arg3);
 
 // ========================================
 // VIBRATION HANDLING RELATED
 // ========================================
+
+// 2 bytes of padding.
 
 void func_80089090(s32 arg0) // 0x80089090
 {
@@ -25,7 +28,7 @@ void func_800890B8(void) // 0x800890B8
 {
     func_8009E198(&g_SysWork.field_2514, 0);
     func_8009E310(&g_SysWork.field_2514, &g_SysWork.field_2514.head_18.key_8, 2);
-    func_8009EBB8(&g_SysWork.field_2514, g_SysWork.field_2514.head_18.unk_18, 16);
+    func_8009EBB8(&g_SysWork.field_2514, &g_SysWork.field_2514.head_18.unk_18, 16);
 
     g_SysWork.field_2510 = func_8009E4F8();
 
@@ -57,7 +60,7 @@ s32 func_80089128(void) // 0x80089128
         func_800890B8();
     }
 
-    if (g_GameWork.config.optVibrationEnabled_21)
+    if (g_GameWork.config.vibrationEnabled)
     {
         func_8009E2A0(var_s2);
         var_s2->field_0.field_0_8 = 1 << 7;

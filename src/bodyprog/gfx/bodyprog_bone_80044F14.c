@@ -182,8 +182,8 @@ void func_800452EC(s_Skeleton* skel) // 0x800452EC
     while (curBone != NULL)
     {
         modelHdr    = curBone->bone.modelInfo.modelHdr;
-        boneIdxOnes = modelHdr->name_0.str[1] - '0';
-        boneIdxTens = modelHdr->name_0.str[0] - '0';
+        boneIdxOnes = modelHdr->name.str[1] - '0';
+        boneIdxTens = modelHdr->name.str[0] - '0';
 
         if (boneIdxOnes < 10 && boneIdxTens >= 0 && boneIdxTens < 10)
         {
@@ -374,12 +374,12 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
 
             func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
 
-            if (g_WorldEnvWork.isFogEnabled_1)
+            if (g_WorldEnvWork.isFogEnabled)
             {
                 gte_SetRotMatrix(&viewMat);
                 gte_SetTransMatrix(&viewMat);
                 gte_ldvxy0_Zero();
-                gte_gte_ldvz0();
+                gte_ldvz0();
                 gte_rtps();
                 gte_stsxy(&sp60);
                 temp_a1 = gte_stSZ3();
@@ -417,7 +417,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
         }
     }
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
         temp_s1_2 = g_SysWork.playerBoneCoords[1].coord.t[1];
         temp_s1_2 = CLAMP(temp_s1_2, Q8(-2.0f), Q8(0.0f));

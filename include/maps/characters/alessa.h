@@ -1,6 +1,22 @@
 #ifndef _MAPS_CHARACTERS_ALESSA_H
 #define _MAPS_CHARACTERS_ALESSA_H
 
+/** @brief Alessa character control states. */
+typedef enum _AlessaControl
+{
+    AlessaControl_None = 0,
+    AlessaControl_1    = 1,
+    AlessaControl_2    = 2,
+    AlessaControl_3    = 3,
+    AlessaControl_4    = 4,
+    AlessaControl_5    = 5,
+    AlessaControl_6    = 6,
+    AlessaControl_7    = 7,
+    AlessaControl_8    = 8,
+    AlessaControl_9    = 9,
+    AlessaControl_10   = 10
+} e_AlessaControl;
+
 /** @brief Alessa character animation indices. */
 typedef enum _AlessaAnim
 {
@@ -16,6 +32,12 @@ typedef enum _AlessaAnim
     AlessaAnim_CrumpleIdle            = 9,
     AlessaAnim_Kneel                  = 10
 } e_AlessaAnim;
+
+/** @brief Alessa character bone indices. */
+typedef enum _AlessaBone
+{
+    AlessaBone_Root = 0
+} e_AlessaBone;
 
 /** @brief Alessa character anim infos. */
 extern s_AnimInfo ALESSA_ANIM_INFOS[];
@@ -45,20 +67,20 @@ extern s_AnimInfo ALESSA_ANIM_INFOS[];
     { Anim_PlaybackLoop, ANIM_STATUS(AlessaAnim_Kneel,                  true),  false, NO_VALUE,                                              { Q12(3.0f)  }, 326,      341 }
 };*/
 
-extern s32 sharedData_800D3150_3_s02; // Used by `Ai_Alessa_Init`.
+extern s32 sharedData_800D3150_3_s02;
 
-void Ai_Alessa_Update(s_SubCharacter* alessa, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void Alessa_Update(s_SubCharacter* alessa, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-void Ai_Alessa_AnimUpdate(s_SubCharacter* alessa, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void Alessa_AnimUpdate(s_SubCharacter* alessa, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-void Ai_Alessa_MovementUpdate(s_SubCharacter* alessa, GsCOORDINATE2* coords);
+void Alessa_MovementUpdate(s_SubCharacter* alessa, GsCOORDINATE2* boneCoords);
 
-void Ai_Alessa_AnimStateUpdate(s_SubCharacter* alessa, GsCOORDINATE2* coords);
+void Alessa_AnimStateUpdate(s_SubCharacter* alessa, GsCOORDINATE2* boneCoords);
 
 /** @brief Initializes an Alessa character.
  *
  * @param alessa Alessa character.
  */
-void Ai_Alessa_Init(s_SubCharacter* alessa);
+void Alessa_Init(s_SubCharacter* alessa);
 
 #endif

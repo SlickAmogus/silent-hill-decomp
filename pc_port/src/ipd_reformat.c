@@ -9,7 +9,7 @@
  *   s_IpdHeader:         392 bytes (header 84 + collision 308)
  *   s_IpdModelInfo:       16 bytes (64-bit: 20+)
  *   s_IpdModelBuffer:     24 bytes (64-bit: 40+)
- *   s_IpdModelBuffer_C:   36 bytes (64-bit: 40)
+ *   s_IpdModelInstance:   36 bytes (64-bit: 40)
  *   s_IpdCollisionData:  308 bytes (64-bit: 348+)
  *
  * PSX IpdHeader layout (offsets from field name suffixes):
@@ -49,15 +49,15 @@ static void ParseIpdModelInfo(s_IpdModelInfo* dst, const u8* src)
 {
     dst->isGlobalPlm = src[0];
     /* src[1..3] are padding in s_IpdModelInfo (no named field). */
-    memcpy(&dst->modelName, &src[4], 8);
+    memcpy(&dst->name, &src[4], 8);
     /* modelHdr is initially NULL - will be resolved by ModelLinkObjectLists */
     dst->modelHdr = NULL;
 }
 
-static void ParseIpdModelBufferC(s_IpdModelBuffer_C* dst, const u8* src)
+static void ParseIpdModelBufferC(s_IpdModelInstance* dst, const u8* src)
 {
     /* modelHdr initially holds a model index (small integer), not a pointer.
-     * IpdHeader_ModelBufferLinkObjectLists replaces it with actual pointer. */
+     * Ipd_HeaderModelBufferLinkObjectLists replaces it with actual pointer. */
     u32 modelIdx = rd32(&src[0]);
     dst->modelHdr = (s_ModelHeader*)(uintptr_t)modelIdx;
 
@@ -67,7 +67,7 @@ static void ParseIpdModelBufferC(s_IpdModelBuffer_C* dst, const u8* src)
 
 static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
 {
-    dst->field_0      = src[0];
+    dst->modelInstanceCount      = src[0];
     dst->field_1      = src[1];
     dst->subcellCount = src[2];
     dst->__pad_3      = (s8)src[3];
@@ -80,19 +80,19 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
     u32 field10_off = rd32(&src[16]);
     u32 field14_off = rd32(&src[20]);
 
-    /* field_C: array of s_IpdModelBuffer_C, field_0 entries */
-    if (dst->field_0 > 0)
+    /* field_C: array of s_IpdModelInstance, field_0 entries */
+    if (dst->modelInstanceCount > 0)
     {
-        dst->field_C = (s_IpdModelBuffer_C*)calloc(dst->field_0, sizeof(s_IpdModelBuffer_C));
-        for (int i = 0; i < dst->field_0; i++)
+        dst->modelInstances = (s_IpdModelInstance*)calloc(dst->modelInstanceCount, sizeof(s_IpdModelInstance));
+        for (int i = 0; i < dst->modelInstanceCount; i++)
         {
-            ParseIpdModelBufferC(&dst->field_C[i],
+            ParseIpdModelBufferC(&dst->modelInstances[i],
                 base + fieldC_off + i * PSX_IPD_MODEL_BUFFER_C_SIZE);
         }
     }
     else
     {
-        dst->field_C = NULL;
+        dst->modelInstances = NULL;
     }
 
     /* field_10: SVECTOR array, field_1 entries - raw data in buffer, no reformatting needed */
@@ -104,14 +104,14 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
 
 static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8* collbase)
 {
-    dst->positionX_0 = rds32(&collraw[0x00]);
-    dst->positionZ_4 = rds32(&collraw[0x04]);
+    dst->positionX = rds32(&collraw[0x00]);
+    dst->positionZ = rds32(&collraw[0x04]);
 
     /* Bitfield at offset 0x08 - read as u32 and manually set fields */
     u32 bf = rd32(&collraw[0x08]);
-    dst->field_8_0  = bf & 0xFF;
-    dst->field_8_8  = (bf >> 8) & 0xFF;
-    dst->field_8_16 = (bf >> 16) & 0xFF;
+    dst->splitVertexCount  = bf & 0xFF;
+    dst->surfaceCount  = (bf >> 8) & 0xFF;
+    dst->subcellCount = (bf >> 16) & 0xFF;
     dst->field_8_24 = (bf >> 24) & 0xFF;
 
     /* Collision sub-pointers: offsets relative to collision data base */
@@ -125,17 +125,17 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     SH_DBG("[IPD-COLL] field_1C=%d field_1E=%d field_1F=%d",
             rds16(&collraw[0x1C]), collraw[0x1E], collraw[0x1F]);
 
-    dst->ptr_C  = (SVECTOR3*)(collbase + ptrC_off);
-    dst->ptr_10 = (s_IpdCollisionData_10*)(collbase + ptr10_off);
-    dst->ptr_14 = (s_IpdCollisionData_14*)(collbase + ptr14_off);
+    dst->splitVertices  = (SVECTOR3*)(collbase + ptrC_off);
+    dst->surfaces = (s_IpdCollSurface*)(collbase + ptr10_off);
+    dst->subcells = (s_IpdCollSubcell*)(collbase + ptr14_off);
     dst->ptr_18 = (s_IpdCollisionData_18*)(collbase + ptr18_off);
 
-    dst->field_1C = rds16(&collraw[0x1C]);
-    dst->field_1E = collraw[0x1E];
-    dst->field_1F = collraw[0x1F];
+    dst->subcellSize = rds16(&collraw[0x1C]);
+    dst->subcellCountX = collraw[0x1E];
+    dst->subcellCountZ = collraw[0x1F];
 
     u32 ptr20_off = rd32(&collraw[0x20]);
-    dst->ptr_20 = (s_IpdCollisionData_20*)(collbase + ptr20_off);
+    dst->subcellRanges = (s_IpdCollSubcellRange*)(collbase + ptr20_off);
 
     dst->field_24 = rd16(&collraw[0x24]);
     dst->field_26 = rd16(&collraw[0x26]);
@@ -147,20 +147,20 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
 
     /* Dump first few ptr_10 entries to verify data alignment */
     {
-        s_IpdCollisionData_10* p10 = dst->ptr_10;
+        s_IpdCollSurface* p10 = dst->surfaces;
         SH_DBG("[IPD-COLL] ptr_10[0]: f0=%d f2=%d f4=%d f8=%d fA=%d",
-                p10[0].field_0, p10[0].field_2, p10[0].field_4, p10[0].field_8, p10[0].field_A);
-        if (dst->field_8_8 > 1)
+                p10[0].field_0, p10[0].baseGroundHeight, p10[0].field_4, p10[0].tiltAngleX, p10[0].tiltAngleZ);
+        if (dst->surfaceCount > 1)
             SH_DBG("[IPD-COLL] ptr_10[1]: f0=%d f2=%d f4=%d f8=%d fA=%d",
-                    p10[1].field_0, p10[1].field_2, p10[1].field_4, p10[1].field_8, p10[1].field_A);
+                    p10[1].field_0, p10[1].baseGroundHeight, p10[1].field_4, p10[1].tiltAngleX, p10[1].tiltAngleZ);
     }
 
-    dst->field_30 = collraw[0x30];
-    dst->unk_31[0] = collraw[0x31];
-    dst->unk_31[1] = collraw[0x32];
-    dst->unk_31[2] = collraw[0x33];
+    dst->subcellCheckCount = collraw[0x30];
+    dst->__pad[0] = collraw[0x31];
+    dst->__pad[1] = collraw[0x32];
+    dst->__pad[2] = collraw[0x33];
 
-    memcpy(dst->field_34, &collraw[0x34], 256);
+    memcpy(dst->subcellCheckIdx, &collraw[0x34], 256);
 }
 
 /**
@@ -262,8 +262,8 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     ipdHdr->modelCount       = modelCount;
     ipdHdr->modelBufferCount = modelBufferCount;
     ipdHdr->modelOrderCount  = modelOrderCount;
-    ipdHdr->unk_B[0]           = unkB;
-    memcpy(&ipdHdr->unk_B[1], unkC, 8);
+    ipdHdr->__pad_B[0]           = unkB;
+    memcpy(&ipdHdr->__pad_B[1], unkC, 8);
     ipdHdr->modelInfo       = modelInfos;
     ipdHdr->modelBuffers    = modelBuffers;
 

@@ -9,7 +9,9 @@
 #include "maps/shared.h"
 #include "maps/characters/bloodsucker.h"
 
-void Ai_Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+#define bloodsuckerProps bloodsucker->properties.bloodsucker
+
+void Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     u32 animStatusDiv2;
     s32 stateStepMul2;
@@ -17,36 +19,36 @@ void Ai_Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsC
     // Initialize.
     if (bloodsucker->model.controlState == BloodsuckerControl_None)
     {
-        Ai_Bloodsucker_Init(bloodsucker);
+        Bloodsucker_Init(bloodsucker);
     }
 
     // Handle control state.
     switch (bloodsucker->model.controlState)
     {
         case BloodsuckerControl_1:
-            Ai_Bloodsucker_Control_1(bloodsucker);
+            Bloodsucker_Control_1(bloodsucker);
             break;
 
         case BloodsuckerControl_2:
-            Ai_Bloodsucker_Control_2(bloodsucker);
+            Bloodsucker_Control_2(bloodsucker);
             break;
 
         case BloodsuckerControl_3:
-            Ai_Bloodsucker_Control_3(bloodsucker);
+            Bloodsucker_Control_3(bloodsucker);
             break;
 
         case BloodsuckerControl_4:
-            Ai_Bloodsucker_Control_4(bloodsucker);
+            Bloodsucker_Control_4(bloodsucker);
             break;
     }
 
-    sharedFunc_800D0F28_3_s03(bloodsucker, anmHdr, coords);
+    sharedFunc_800D0F28_3_s03(bloodsucker, anmHdr, boneCoords);
 
     // Reset flags if ???
     if (g_SysWork.bgmStatusFlags & BgmStatusFlag_6)
     {
-        bloodsucker->properties.bloodsucker.flags &= ~BloodsuckerFlag_0;
-        bloodsucker->properties.bloodsucker.flags &= ~BloodsuckerFlag_1;
+        bloodsuckerProps.flags &= ~BloodsuckerFlag_0;
+        bloodsuckerProps.flags &= ~BloodsuckerFlag_1;
     }
 
     if (bloodsucker->model.stateStep != 0)
@@ -54,28 +56,28 @@ void Ai_Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsC
         return;
     }
 
-    if (!(bloodsucker->properties.bloodsucker.flags & BloodsuckerFlag_0))
+    if (!(bloodsuckerProps.flags & BloodsuckerFlag_0))
     {
         SD_Call(Sfx_Unk1525);
-        bloodsucker->properties.bloodsucker.flags |= BloodsuckerFlag_0;
+        bloodsuckerProps.flags |= BloodsuckerFlag_0;
     }
 
-    func_8005DE0C(Sfx_Unk1525, &bloodsucker->position, bloodsucker->properties.bloodsucker.timer_EC >> 5, Q12(16.0f), 0);
+    Sfx_WithFalloffAndPitchPlay(Sfx_Unk1525, &bloodsucker->position, bloodsuckerProps.timer_EC >> 5, Q12(16.0f), 0);
 
-    if (bloodsucker->properties.bloodsucker.timer_EC < bloodsucker->properties.bloodsucker.timer_F0)
+    if (bloodsuckerProps.timer_EC < bloodsuckerProps.timer_F0)
     {
-        bloodsucker->properties.bloodsucker.timer_EC += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.5f);
-        if (bloodsucker->properties.bloodsucker.timer_EC > bloodsucker->properties.bloodsucker.timer_F0)
+        bloodsuckerProps.timer_EC += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.5f);
+        if (bloodsuckerProps.timer_EC > bloodsuckerProps.timer_F0)
         {
-            bloodsucker->properties.bloodsucker.timer_EC = bloodsucker->properties.bloodsucker.timer_F0;
+            bloodsuckerProps.timer_EC = bloodsuckerProps.timer_F0;
         }
     }
-    else if (bloodsucker->properties.bloodsucker.timer_EC > bloodsucker->properties.bloodsucker.timer_F0)
+    else if (bloodsuckerProps.timer_EC > bloodsuckerProps.timer_F0)
     {
-        bloodsucker->properties.bloodsucker.timer_EC -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.5f);
-        if (bloodsucker->properties.bloodsucker.timer_EC < bloodsucker->properties.bloodsucker.timer_F0)
+        bloodsuckerProps.timer_EC -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.5f);
+        if (bloodsuckerProps.timer_EC < bloodsuckerProps.timer_F0)
         {
-            bloodsucker->properties.bloodsucker.timer_EC = bloodsucker->properties.bloodsucker.timer_F0;
+            bloodsuckerProps.timer_EC = bloodsuckerProps.timer_F0;
         }
     }
 
@@ -85,33 +87,33 @@ void Ai_Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsC
     // SFX timer state handling. TODO: Inspect behavior in-game.
     if (animStatusDiv2 == ((stateStepMul2 + 23) / 2) || animStatusDiv2 == ((stateStepMul2 + 17) / 2))
     {
-        if (!(bloodsucker->properties.bloodsucker.flags & BloodsuckerFlag_1))
+        if (!(bloodsuckerProps.flags & BloodsuckerFlag_1))
         {
-            bloodsucker->properties.bloodsucker.flags |= BloodsuckerFlag_1;
+            bloodsuckerProps.flags |= BloodsuckerFlag_1;
             SD_Call(Sfx_Unk1527);
         }
 
-        bloodsucker->properties.bloodsucker.timer_F4 += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 2.0f);
-        if (bloodsucker->properties.bloodsucker.timer_F4 > Q12(1.0f))
+        bloodsuckerProps.timer_F4 += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 2.0f);
+        if (bloodsuckerProps.timer_F4 > Q12(1.0f))
         {
-            bloodsucker->properties.bloodsucker.timer_F4 = Q12(1.0f);
+            bloodsuckerProps.timer_F4 = Q12(1.0f);
         }
 
-        func_8005DE0C(Sfx_Unk1527, &bloodsucker->position, bloodsucker->properties.bloodsucker.timer_F4 >> 5, Q12(16.0f), 0);
+        Sfx_WithFalloffAndPitchPlay(Sfx_Unk1527, &bloodsucker->position, bloodsuckerProps.timer_F4 >> 5, Q12(16.0f), 0);
     }
-    else if (bloodsucker->properties.bloodsucker.flags & BloodsuckerFlag_1)
+    else if (bloodsuckerProps.flags & BloodsuckerFlag_1)
     {
-        bloodsucker->properties.bloodsucker.timer_F4 -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 2.0f);
-        if (bloodsucker->properties.bloodsucker.timer_F4 < Q12(0.0f))
+        bloodsuckerProps.timer_F4 -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 2.0f);
+        if (bloodsuckerProps.timer_F4 < Q12(0.0f))
         {
-            bloodsucker->properties.bloodsucker.timer_F4 = Q12(0.0f);
-            bloodsucker->properties.bloodsucker.flags &= ~BloodsuckerFlag_1;
+            bloodsuckerProps.timer_F4 = Q12(0.0f);
+            bloodsuckerProps.flags &= ~BloodsuckerFlag_1;
             Sd_SfxStop(Sfx_Unk1527);
         }
     }
 }
 
-static inline void Ai_Bloodsucker_AnimUpdateFromStep(s_SubCharacter* chara)
+static inline void Bloodsucker_AnimUpdateFromStep(s_SubCharacter* chara)
 {
     u32         stateStep;
     s_Savegame* save;
@@ -121,7 +123,7 @@ static inline void Ai_Bloodsucker_AnimUpdateFromStep(s_SubCharacter* chara)
         case 17:
             chara->model.controlState     = 1;
             chara->model.stateStep = 0;
-            Character_AnimSet(chara, ANIM_STATUS(BloodsuckerAnim_7, true), 81);
+            Chara_AnimSet(chara, ANIM_STATUS(BloodsuckerAnim_7, true), 81);
             return;
 
 #ifdef MAP7_S02 // MAP7_S02 skips rest of function.
@@ -148,7 +150,7 @@ static inline void Ai_Bloodsucker_AnimUpdateFromStep(s_SubCharacter* chara)
     chara->model.stateStep = stateStep;
 
     // TODO: `Savegame_EventFlagGet(EventFlag_250)`
-    if (!(save->eventFlags_168[7] & (1 << 26)))
+    if (!(save->eventFlags[7] & (1 << 26)))
     {
         chara->model.anim.status = (stateStep * 2) + 23;
     }
@@ -162,29 +164,25 @@ static inline void Ai_Bloodsucker_AnimUpdateFromStep(s_SubCharacter* chara)
 #endif
 }
 
-void Ai_Bloodsucker_Init(s_SubCharacter* bloodsucker)
+void Bloodsucker_Init(s_SubCharacter* bloodsucker)
 {
     s32 i;
 
-    Chara_PropertiesClear(bloodsucker);
-    bloodsucker->field_E1_0      = 4;
-    bloodsucker->headingAngle = bloodsucker->rotation.vy;
+    Chara_PropsClear(bloodsucker);
+    bloodsucker->collision.state = CharaCollisionState_4;
+    bloodsucker->headingAngle    = bloodsucker->rotation.vy;
 
-    Ai_Bloodsucker_AnimUpdateFromStep(bloodsucker);
+    Bloodsucker_AnimUpdateFromStep(bloodsucker);
     ModelAnim_AnimInfoSet(&bloodsucker->model.anim, BLOODSUCKER_ANIM_INFOS);
     Chara_DamageClear(bloodsucker);
 }
 
-void Ai_Bloodsucker_Control_1(s_SubCharacter* bloodsucker)
+void Bloodsucker_Control_1(s_SubCharacter* bloodsucker)
 {
-    #define bloodsuckerProps bloodsucker->properties.bloodsucker
-
     bloodsucker->model.anim.time = Q12(81.0f) + bloodsuckerProps.timer_E8;
-
-    #undef bloodsuckerProps
 }
 
-void Ai_Bloodsucker_Control_2(s_SubCharacter* bloodsucker)
+void Bloodsucker_Control_2(s_SubCharacter* bloodsucker)
 {
 #ifdef MAP3_S03
     if (bloodsucker->model.anim.status == ((bloodsucker->model.stateStep * 2) + 9))
@@ -197,11 +195,11 @@ void Ai_Bloodsucker_Control_2(s_SubCharacter* bloodsucker)
         bloodsucker->model.controlState = BloodsuckerControl_3;
     }
 
-    bloodsucker->properties.bloodsucker.timer_F0 = Q12(0.3f);
+    bloodsuckerProps.timer_F0 = Q12(0.3f);
 #endif
 }
 
-void Ai_Bloodsucker_Control_3(s_SubCharacter* bloodsucker)
+void Bloodsucker_Control_3(s_SubCharacter* bloodsucker)
 {
     if (bloodsucker->model.anim.status == ((bloodsucker->model.stateStep * 2) + 23))
     {
@@ -213,10 +211,10 @@ void Ai_Bloodsucker_Control_3(s_SubCharacter* bloodsucker)
         bloodsucker->model.controlState = BloodsuckerControl_2;
     }
 
-    bloodsucker->properties.bloodsucker.timer_F0 = Q12(1.0f);
+    bloodsuckerProps.timer_F0 = Q12(1.0f);
 }
 
-void Ai_Bloodsucker_Control_4(s_SubCharacter* bloodsucker)
+void Bloodsucker_Control_4(s_SubCharacter* bloodsucker)
 {
 #ifdef MAP3_S03
     if (bloodsucker->model.anim.status != ((bloodsucker->model.stateStep * 2) + 2) &&
@@ -229,16 +227,16 @@ void Ai_Bloodsucker_Control_4(s_SubCharacter* bloodsucker)
 
     if (ANIM_STATUS_IS_ACTIVE(bloodsucker->model.anim.status))
     {
-        bloodsucker->properties.bloodsucker.timer_F0 = Q12(0.3f);
+        bloodsuckerProps.timer_F0 = Q12(0.3f);
     }
     else
     {
-        bloodsucker->properties.bloodsucker.timer_F0 = Q12(0.75f);
+        bloodsuckerProps.timer_F0 = Q12(0.75f);
     }
 #endif
 }
 
-void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     typedef struct
     {
@@ -255,10 +253,10 @@ void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr,
 
     scratchData = PSX_SCRATCH;
 
-    Math_MatrixTransform(&bloodsucker->position, &bloodsucker->rotation, coords);
+    Math_MatrixTransform(&bloodsucker->position, &bloodsucker->rotation, boneCoords);
     animInfo = &BLOODSUCKER_ANIM_INFOS[bloodsucker->model.anim.status];
-    animInfo->playbackFunc(&bloodsucker->model, anmHdr, coords, animInfo);
-    Vw_CoordHierarchyMatrixCompute(&coords[14], &scratchData->field_0);
+    animInfo->playbackFunc(&bloodsucker->model, anmHdr, boneCoords, animInfo);
+    Vw_CoordHierarchyMatrixCompute(&boneCoords[14], &scratchData->field_0);
 
     gte_SetRotMatrix(&scratchData->field_0);
     gte_SetTransMatrix(&scratchData->field_0);
@@ -273,16 +271,16 @@ void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr,
     scratchData->field_28.vy = Q8_TO_Q12(scratchData->field_28.vy);
     scratchData->field_28.vz = Q8_TO_Q12(scratchData->field_28.vz);
 
-    bloodsucker->field_C8.field_0   = scratchData->field_28.vy - Q12(0.05f);
-    bloodsucker->field_C8.field_2   = scratchData->field_28.vy + Q12(0.05f);
-    bloodsucker->field_C8.field_4   = scratchData->field_28.vy + Q12(0.05f);
-    bloodsucker->field_C8.field_6   = scratchData->field_28.vy;
-    bloodsucker->field_D8.offsetX_0 = scratchData->field_28.vx - bloodsucker->position.vx;
-    bloodsucker->field_D8.offsetZ_2 = scratchData->field_28.vz - bloodsucker->position.vz;
-    bloodsucker->field_D4.field_2   = Q12(0.05f);
-    bloodsucker->field_D8.offsetX_4 = scratchData->field_28.vx - bloodsucker->position.vx;
-    bloodsucker->field_D8.offsetZ_6 = scratchData->field_28.vz - bloodsucker->position.vz;
-    bloodsucker->field_D4.radius_0   = Q12(0.05f);
+    bloodsucker->collision.box.top   = scratchData->field_28.vy - Q12(0.05f);
+    bloodsucker->collision.box.bottom      = scratchData->field_28.vy + Q12(0.05f);
+    bloodsucker->collision.box.height   = scratchData->field_28.vy + Q12(0.05f);
+    bloodsucker->collision.box.offsetY   = scratchData->field_28.vy;
+    bloodsucker->collision.shapeOffsets.box.vx = scratchData->field_28.vx - bloodsucker->position.vx;
+    bloodsucker->collision.shapeOffsets.box.vz = scratchData->field_28.vz - bloodsucker->position.vz;
+    bloodsucker->collision.cylinder.field_2   = Q12(0.05f);
+    bloodsucker->collision.shapeOffsets.cylinder.vx = scratchData->field_28.vx - bloodsucker->position.vx;
+    bloodsucker->collision.shapeOffsets.cylinder.vz = scratchData->field_28.vz - bloodsucker->position.vz;
+    bloodsucker->collision.cylinder.radius   = Q12(0.05f);
     Math_SetSVectorFast(&scratchData->field_20, 0, -22, 0);
 
     gte_ldv0(&scratchData->field_20);

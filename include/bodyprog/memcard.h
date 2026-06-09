@@ -1,10 +1,5 @@
-#ifndef _MEMCARD_H
-#define _MEMCARD_H
-
-/** @brief This header is used to declare any variable, struct, or
- * function part of `BODYPROG.BIN` identified to be related
- * to the memory card system (not from PSY-Q SDK).
- */
+#ifndef _BODYPROG_MEMCARD_H
+#define _BODYPROG_MEMCARD_H
 
 // ==========
 // CONSTANTS
@@ -30,6 +25,9 @@
 // ==============
 // HELPER MACROS
 // ==============
+
+#define MemCard_ActiveMemCardSlotGet(slotIdx) \
+    ((s_SaveScreenElement*)&SAVEGAME_ENTRY_BUFFER_0[2640 * (slotIdx)])
 
 #define MemCard_ActiveSavegameEntryGet(slotIdx) \
     ((s_SaveScreenElement*)&SAVEGAME_ENTRY_BUFFER_0[2640 * (slotIdx)])
@@ -107,35 +105,42 @@ typedef enum _MemCardProcess
     MemCardProcess_Format        = 6
 } e_MemCardProcess;
 
+/** @brief Memory card states */
+typedef enum _MemCardState
+{
+    MemCardState_Null        = 0, /** Null state. */
+    MemCardState_Unavailable = 1, /** Not connected. */
+    MemCardState_Loading     = 2, /** Loading the memory card. */
+    MemCardState_Available   = 3,
+    MemCardState_Format      = 4, /** Format required. */
+    MemCardState_Broken      = 5
+} e_MemCardState;
+
 typedef enum _UnkMemCardState1
 {
-    UnkMemCardState1_0  = 0,
-    UnkMemCardState1_1  = 1,
-    UnkMemCardState1_2  = 2,
-    UnkMemCardState1_3  = 3,
-    UnkMemCardState1_4  = 4,
-    UnkMemCardState1_5  = 5
+    UnkMemCardState1_0 = 0, UnkMemCardState1_1 = 1, UnkMemCardState1_2 = 2,
+    UnkMemCardState1_3 = 3, UnkMemCardState1_4 = 4, UnkMemCardState1_5 = 5
 } e_UnkMemCardState1;
 
 typedef enum _FileState
 {
     FileState_Unused  = 0,
     FileState_Used    = 1,
-    FileState_Unk2    = 2, // @unused See `func_80033548`.
     FileState_Damaged = 3
 } e_FileState;
 
-typedef enum _MemCardCardState
+/** @brief Memory card process states. */
+typedef enum _MemCardWorkState
 {
-    MemCardCardState_Idle          = 0,
-    MemCardCardState_Init          = 1,
-    MemCardCardState_Check         = 2,
-    MemCardCardState_Load          = 3,
-    MemCardCardState_DirRead       = 4,
-    MemCardCardState_FileCreate    = 5,
-    MemCardCardState_FileOpen      = 6,
-    MemCardCardState_FileReadWrite = 7
-} e_MemCardCardState;
+    MemCardWorkState_Idle          = 0,
+    MemCardWorkState_Init          = 1,
+    MemCardWorkState_Check         = 2,
+    MemCardWorkState_Load          = 3,
+    MemCardWorkState_DirRead       = 4,
+    MemCardWorkState_FileCreate    = 5,
+    MemCardWorkState_FileOpen      = 6,
+    MemCardWorkState_FileReadWrite = 7
+} e_MemCardWorkState;
 
 typedef enum _MemCardIoMode
 {
@@ -143,7 +148,7 @@ typedef enum _MemCardIoMode
     MemCardIoMode_DirRead = 1, // TODO: Not sure if this is actual purpose yet.
     MemCardIoMode_Read    = 2,
     MemCardIoMode_Write   = 3,
-    MemCardIoMode_Create  = 4,
+    MemCardIoMode_Create  = 4
 } e_MemCardIoMode;
 
 typedef enum _MemCardResult
@@ -153,8 +158,8 @@ typedef enum _MemCardResult
     MemCardResult_InitError       = 2,   /** `MemCard_State_Init` `EvSpNEW` "No writing after connection". */
     MemCardResult_InitComplete    = 3,   /** `MemCard_State_Init` `EvSpIOE` "Connected". */
     MemCardResult_LoadError       = 4,   /** `MemCard_State_Load` `EvSpNEW` "Uninitialized card". */
-    MemCardResult_NewDevice       = 5,   /** `MemCard_State_DirRead` when `g_MemCard_Work.hasNewDevice_70`. */
-    MemCardResult_NoNewDevice     = 6,   /** `MemCard_State_DirRead` when `!g_MemCard_Work.hasNewDevice_70`. */
+    MemCardResult_NewDevice       = 5,   /** `MemCard_State_DirRead` when `g_MemCard_Work.hasNewDevice`. */
+    MemCardResult_NoNewDevice     = 6,   /** `MemCard_State_DirRead` when `!g_MemCard_Work.hasNewDevice`. */
     MemCardResult_FileCreateError = 7,   /** `MemCard_State_FileCreate` after 15 retries. */
     MemCardResult_FileOpenError   = 8,   /** `MemCard_State_FileOpen` after 15 retries. */
     MemCardResult_FileSeekError   = 9,   /** `MemCard_State_FileReadWrite` after 15 retries. */
@@ -171,78 +176,78 @@ typedef enum _MemCardResult
 /** @note Oddly fortunate event in the OPM16 build there
  * are some strings related to this split which indicate
  * the name of 6 structs. Those split names being:
- * * MCM_FUNC_WORK
- * * MC_FILE
- * * SCE_HEADER
- * * MC_HEADER
- * * MC_CONFIG
- * * MC_PROGRESS
-*/
+ *  MCM_FUNC_WORK
+ *  MC_FILE
+ *  SCE_HEADER
+ *  MC_HEADER
+ *  MC_CONFIG
+ *  MC_PROGRESS
+ */
 
 // https://github.com/Sparagas/Silent-Hill/blob/1f24eb097a4b99129bc7c9793d23c82244848a27/010%20Editor%20-%20Binary%20Templates/ps1_memory_card.bt#L122C8-L122C17
-typedef struct
+typedef struct _PsxSaveBlock
 {
-    char magic[2];
-    u8   iconDisplayFlag_2;
-    u8   blockCount_3;
-    u16  titleNameShiftJis_4[32];
-    s8   field_44[28];       // Reserved/unused?
-    s8   iconPalette_60[32]; // CLUT data copied from `TIM_IMAGE.caddr`.
-    s8   textureData_80[32]; // Copied from `TIM_IMAGE.paddr`.
-    s8   unk_A0[352];
+    /* 0x0  */ char magic[2];
+    /* 0x2  */ u8   iconDisplayFlag;
+    /* 0x3  */ u8   blockCount;
+    /* 0x4  */ u16  titleNameShiftJis[32];
+    /* 0x44 */ s8   field_44[28];    // Reserved/unused?
+    /* 0x60 */ s8   iconPalette[32]; // CLUT data copied from `TIM_IMAGE.caddr`.
+    /* 0x80 */ s8   textureData[32]; // Copied from `TIM_IMAGE.paddr`.
+    /* 0xA0 */ s8   unk_A0[352];
 } s_PsxSaveBlock;
 STATIC_ASSERT_SIZEOF(s_PsxSaveBlock, 512);
 
-typedef struct
+typedef struct _MemCard_Directory
 {
-    char filenames_0[MEMCARD_FILE_COUNT_MAX][21];
-    u8   blockCounts_13B[MEMCARD_FILE_COUNT_MAX]; // Size of each file in 8192 byte blocks.
-    s8   pad_14C[2];
+    /* 0x0   */ char filenames[MEMCARD_FILE_COUNT_MAX][21];
+    /* 0x13B */ u8   blockCounts[MEMCARD_FILE_COUNT_MAX]; // Size of each file in 8192 byte blocks.
+    /* 0x14C */ s8   __pad_14C[2];
 } s_MemCard_Directory;
 STATIC_ASSERT_SIZEOF(s_MemCard_Directory, 332);
 
-typedef struct
+typedef struct _MemCard_Work
 {
-    s32 devicesPending_0; /** Bitfield of device IDs, each set bit index is an ID that must be read/initialized first. */
-    s32 state_4;          /** `e_CardState` */
-    s32 stateStep_8;
-    s32 stateResult_C;    /** `e_MemCardResult` */
-    s32 eventSwSpIOE_10;
-    s32 eventSwSpERROR_14;
-    s32 eventSwSpTIMOUT_18;
-    s32 eventSwSpNEW_1C;
-    s32 eventHwSpIOE_20;
-    s32 eventHwSpERROR_24;
-    s32 eventHwSpTIMOUT_28;
-    s32 eventHwSpNEW_2C;
-    s32 eventHwSpUNKNOWN_30;
-    s32 lastEventHw_34;
-    s32 MemCardIoMode_38; /** `e_MemCardIoMode` */
-    s32 deviceId_3C;
+    /* 0x0  */ s32 devicesPending; /** Bitfield of device IDs, each set bit index is an ID that must be read/initialized first. */
+    /* 0x4  */ s32 state;          /** `e_CardState` */
+    /* 0x8  */ s32 stateStep;
+    /* 0xC  */ s32 stateResult;    /** `e_MemCardResult` */
+    /* 0x10 */ s32 eventSwSpIOE;
+    /* 0x14 */ s32 eventSwSpERROR;
+    /* 0x18 */ s32 eventSwSpTIMOUT;
+    /* 0x1C */ s32 eventSwSpNEW;
+    /* 0x20 */ s32 eventHwSpIOE;
+    /* 0x24 */ s32 eventHwSpERROR;
+    /* 0x28 */ s32 eventHwSpTIMOUT;
+    /* 0x2C */ s32 eventHwSpNEW;
+    /* 0x30 */ s32 eventHwSpUNKNOWN;
+    /* 0x34 */ s32 lastEventHw;
+    /* 0x38 */ s32 MemCardIoMode; /** `e_MemCardIoMode` */
+    /* 0x3C */ s32 deviceId;
 
-    s_MemCard_Directory* directories_40; /** Array of files on the card, pointer supplied by caller to `MemCard_WorkSet`. */
+    /* 0x40 */ s_MemCard_Directory* directories_40; /** Array of files on the card, pointer supplied by caller to `MemCard_WorkSet`. */
 
-    char  filePath_44[28];
-    s32   createBlockCount_60; /** Block count passed to `open` when creating new file. */
-    s32   seekOffset_64;
-    void* dataBuffer_68;
-    s32   dataSize_6C;
-    bool  hasNewDevice_70;
-    s32   fileHandle_74;
-    s32   retryCount_78;
-    s32   field_7C;
+    /* 0x44 */ char  filePath[28];
+    /* 0x60 */ s32   createBlockCount; /** Block count passed to `open` when creating new file. */
+    /* 0x64 */ s32   seekOffset;
+    /* 0x68 */ void* dataBuffer;
+    /* 0x6C */ s32   dataSize;
+    /* 0x70 */ bool  hasNewDevice;
+    /* 0x74 */ s32   fileHandle;
+    /* 0x78 */ s32   retryCount;
+    /* 0x7C */ s32   field_7C; // TODO
 } s_MemCard_Work;
 STATIC_ASSERT_SIZEOF(s_MemCard_Work, 128);
 
-typedef struct _Savegame_Metadata
+typedef struct __MemCard_SaveMetadata
 {
-    s32 totalSavegameCount_0;
-    u32 gameplayTimer_4;
-    u16 savegameCount_8;
-    u8  locationId_A;
-    u8  isNextFearMode_B             : 1;
-    u8  add290Hours_B_1              : 2;
-    u8  pickedUpSpecialItemCount_B_3 : 5; /** See `pickedUpSpecialItemCount_25C_3` comment in `s_Savegame`. */
+    /* 0x0   */ s32 totalSavegameCount;
+    /* 0x4   */ u32 gameplayTimer;
+    /* 0x8   */ u16 savegameCount;
+    /* 0xA   */ u8  locationId;
+    /* 0xB+0 */ u8  isNextFearMode           : 1;
+    /* 0xB+1 */ u8  add290Hours              : 2;
+    /* 0xB+3 */ u8  pickedUpSpecialItemCount : 5; /** See `pickedUpSpecialItemCount` comment in `s_Savegame`. */
 } s_MemCard_SaveMetadata;
 STATIC_ASSERT_SIZEOF(s_MemCard_SaveMetadata, 12);
 
@@ -257,100 +262,100 @@ STATIC_ASSERT_SIZEOF(s_MemCard_SaveMetadata, 12);
  */
 typedef struct _SaveScreenElement
 {
-    s16                     totalSavegameCount_0; /** Counter for all savegame instances created throughout the game.
-                                                   * The value is derived by running through all savegames on a memory card
-                                                   * and picking the one with the largest value.
-                                                   *
-                                                   * @bug This counter is used to determine if the "New Save" element has
-                                                   * been selected, which causes overwrites to not show the "Yes/No" message.
-                                                   */
-    s16                     savegameCount_2;
-    s8                      type_4;               /** `e_SavegameEntryType` */
-    s8                      deviceId_5;
-    s8                      fileIdx_6;
-    s8                      elementIdx_7;
-    s8                      locationId_8;
-    s8                      pad_9[3];
-    s_MemCard_SaveMetadata* saveMetadata_C;
+    /* 0x0 */ s16                     totalSavegameCount; /** Counter for all savegame instances created throughout the game.
+                                                           * The value is derived by running through all savegames on a memory card
+                                                           * and picking the one with the largest value.
+                                                           *
+                                                           * @bug This counter is used to determine if the "New Save" element has
+                                                           * been selected, which causes overwrites to not show the "Yes/No" message.
+                                                           */
+    /* 0x2 */ s16                     savegameCount;
+    /* 0x4 */ s8                      type; /** `e_SavegameEntryType` */
+    /* 0x5 */ s8                      deviceId;
+    /* 0x6 */ s8                      fileIdx;
+    /* 0x7 */ s8                      elementIdx;
+    /* 0x8 */ s8                      locationId;
+    /* 0x9 */ s8                      __pad_9[3];
+    /* 0xC */ s_MemCard_SaveMetadata* saveMetadata;
 } s_SaveScreenElement;
 STATIC_ASSERT_SIZEOF(s_SaveScreenElement, 16);
 
 /** @brief Appended to `ShSavegame` and `ShSaveUserConfig` during agame save. Contains 8-bit XOR checksum + magic.
  * Checksum generated via `MemCard_ChecksumGenerate`.
  */
-typedef struct _SavegameFooter
+typedef struct _Savegame_Footer
 {
-    u8  checksum_0[2];
-    u16 magic_2;
+    /* 0x0 */ u8  checksum[2];
+    /* 0x2 */ u16 magic;
 } s_Savegame_Footer;
 STATIC_ASSERT_SIZEOF(s_Savegame_Footer, 4);
 
 /** @brief Contains `s_Savegame` data with the footer appended to the end containing the checksum + magic. */
-typedef struct _SavegameContainer
+typedef struct _Savegame_Container
 {
-    s_Savegame        savegame_0;
-    s_Savegame_Footer footer_27C;
+    /* 0x0   */ s_Savegame        savegame;
+    /* 0x27C */ s_Savegame_Footer footer;
 } s_Savegame_Container;
 STATIC_ASSERT_SIZEOF(s_Savegame_Container, 640);
 
-/** @brief Contains `s_SaveUserConfig` data padded to 128 bytes with a footer at the end containing checksum + magic. */
-typedef struct _SaveUserConfigContainer
+/** @brief Contains `s_OptionsConfig` data padded to 128 bytes with a footer at the end containing checksum + magic. */
+typedef struct _Savegame_OptionsConfig
 {
-    s_SaveUserConfig config;
-    u8                pad_38[68];
-    s_Savegame_Footer footer_7C;
-} s_Savegame_UserConfigs;
+    /* 0x0  */ s_OptionsConfig   config;
+    /* 0x38 */ u8                __pad_38[68];
+    /* 0x7C */ s_Savegame_Footer footer_7C;
+} s_Savegame_OptionsConfig;
 
-typedef struct
+typedef struct _MemCard_TotalSavesInfo
 {
-    s32 totalSavegameCount_0;
-    s32 fileIdx;
-    s32 saveIdx_8;
+    /* 0x0 */ s32 totalSavegameCount;
+    /* 0x4 */ s32 fileIdx;
+    /* 0x8 */ s32 saveIdx_8;
 } s_MemCard_TotalSavesInfo;
 
-typedef struct
+typedef struct _MemCard_SaveHeader
 {
-    s32                    unk_0;
-    s_MemCard_SaveMetadata saveMetadata_4[MEMCARD_SAVES_COUNT_MAX];
-    s8                     unk_88[116];
-    s_Savegame_Footer      footer_FC;
+    /* 0x0  */ s32                    unk_0;
+    /* 0x4  */ s_MemCard_SaveMetadata saveMetadata[MEMCARD_SAVES_COUNT_MAX];
+    /* 0x88 */ s8                     unk_88[116];
+    /* 0xFC */ s_Savegame_Footer      footer_FC;
 } s_MemCard_SaveHeader;
 STATIC_ASSERT_SIZEOF(s_MemCard_SaveHeader, 256);
 
-typedef struct
+typedef struct _MemCard_DeviceInfo
 {
-    s32                   status;
-    s8                    fileState_4[MEMCARD_FILE_COUNT_MAX];
-    s_MemCard_SaveHeader* saveHeader_14; /** Slots saves information. */
-    s32                   fileLimit_18;  /** Max count of files allowed in the memory card. */
+    /* 0x0  */ s32                   status; /** `e_MemCardState`. */
+    /* 0x4  */ s8                    fileState[MEMCARD_FILE_COUNT_MAX];
+    /* 0x14 */ s_MemCard_SaveHeader* saveHeader; /** Slots saves information. */
+    /* 0x18 */ s32                   fileLimit;  /** Max count of files allowed in the memory card. */
 } s_MemCard_DeviceInfo;
 STATIC_ASSERT_SIZEOF(s_MemCard_DeviceInfo, 28);
 
 /** @note Some memory card states information. Related to `s_SaveScreenElement`.
  * Very likely used only for process related to memory cards.
  */
-typedef struct
+typedef struct _MemCard_Process
 {
-    s32 processId_0;          /** e_MemCardProcess. */
-    s32 deviceId_4;
-    s32 fileIdx_8;
-    s32 saveIdx_C;            /** Index of the save in a determined file. */
-    s32 processState_10;      /** States related to specific memory card events. */
-    s32 lastMemCardResult_14; /** `e_MemCardResult` */
+    /* 0x0  */ s32 processId;         /** e_MemCardProcess. */
+    /* 0x4  */ s32 deviceId;
+    /* 0x8  */ s32 fileIdx;
+    /* 0xC  */ s32 saveIdx;           /** Index of the save in a determined file. */
+    /* 0x10 */ s32 processState;      /** States related to specific memory card events. */
+    /* 0x14 */ s32 lastMemCardResult; /** `e_MemCardResult` */
 } s_MemCard_Process;
 STATIC_ASSERT_SIZEOF(s_MemCard_Process, 24);
 
 // OPM16 has `MCM_FUNC_WORK` struct with size 0x6D8, close to this 0x718.
-typedef struct
+typedef struct _MemCard_SaveWork
 {
-    s_MemCard_DeviceInfo   devices_0[MEMCARD_DEVICE_COUNT_MAX];
-    s_MemCard_Process      saveWork_E0[2]; // This seems to be used mainly for processes. Element 0 is used for general processes while 1 is exclusively used for
-    s32                    memCardInitalized_110;
-    s32                    unk_114;
-    s_PsxSaveBlock         saveBlock_118;
-    s_MemCard_SaveHeader   saveInfo_318;
-    s_Savegame_UserConfigs userConfig_418;
-    s_Savegame_Container   saveGame_498;
+    /* 0x0   */ s_MemCard_DeviceInfo     devices[MEMCARD_DEVICE_COUNT_MAX];
+    /* 0xE0  */ s_MemCard_Process        saveWork[2];       // This seems to be used mainly for processes. Element 0 is used for general processes while 1 is exclusively used for
+    /* 0x110 */ s32                      memCardInitalized; /** `bool` */
+    /* 0x114 */ s32                      unused_114;        /** @unused */
+    /* 0x118 */ s_PsxSaveBlock           saveBlock;
+    /* 0x318 */ s_MemCard_SaveHeader     saveInfo;
+    /* 0x418 */ s_Savegame_OptionsConfig optionsConfig;
+    /* 0x498 */ s_Savegame_Container     savegame;
 } s_MemCard_SaveWork;
 STATIC_ASSERT_SIZEOF(s_MemCard_SaveWork, 1816);
 
@@ -370,8 +375,6 @@ extern u8 g_SlotElementSelectedIdx[2]; // 0 - Slot 1, 1 - Slot 2.
 
 extern s8 g_SelectedSaveSlotIdx; // 0 - Slot 1, 1 - Slot 2.
 
-extern s_FsImageDesc D_800A8D98;
-
 extern u8 D_800A97D7;
 
 extern s8 D_800A97D8;
@@ -379,10 +382,6 @@ extern s8 D_800A97D8;
 extern s8 D_800A97D9;
 
 extern s32 D_800A97DC; // `e_SavegameEntryType`
-
-extern s8 D_800A97E0;
-
-extern u32 allFileStatus[];
 
 extern s8 D_800BCD39; // Boolean.
 
@@ -419,15 +418,16 @@ extern s16 g_MemCard_SavegameCount;
 
 extern s16 __pad_bss_800BCD2A;
 
-extern s_SaveScreenElement* g_MemCard_ActiveSavegameEntry;
+extern s_SaveScreenElement* g_MemCard_ActiveMemCardSlotSaves;
 
 /** @brief Amount of elements in each memory card. */
 extern u8  g_Savegame_ElementCount0[MEMCARD_SLOT_COUNT_MAX];
 
 extern s16 __pad_bss_800BCD32;
-/** @brief Stores all memory cards/devices status. */
 
+/** @brief Stores statuses of all memory cards/devices. */
 extern u32 g_MemCard_AllMemCardsStatus;
+
 /** @brief Some determinator for the state of the save screen.
  * 2 - Saving, 3 - Loading.
  */
@@ -459,6 +459,7 @@ extern s8 __pad_bss_800BCD41[3];
  * `MemCard_Init` exclusively initalizes the memory cards.
  */
 void MemCard_SysInit(void);
+void MemCard_SysInit2(void);
 
 /** @brief Clear memory card data in RAM. */
 void MemCard_RamClear(s32 deviceId);
@@ -468,10 +469,10 @@ void MemCard_FileStatusClear(s32 deviceId);
 
 bool MemCard_AreAllFilesUsed(s32 deviceId);
 
-void MemCard_SysInit2(void);
+void MemCard_SysEnable(void);
 
 /** @brief Disables memory card. */
-void MemCard_Disable(void);
+void MemCard_SysDisable(void);
 
 void MemCard_InitStatus(void);
 
@@ -492,7 +493,7 @@ bool MemCard_ProcessSet(s32 arg0, s32 deviceId, s32 fileIdx, s32 saveIdx);
  */
 s32 MemCard_LastMemCardResultGet(void);
 
-s32 MemCard_AllFilesStatusGet(s32 deviceId);
+s32 MemCard_FileStatusesGet(s32 deviceId);
 
 s_MemCard_SaveMetadata* MemCard_SaveMetadataGet(s32 deviceId, s32 fileIdx, s32 saveIdx);
 
@@ -514,14 +515,15 @@ void MemCard_Process_Init(s_MemCard_Process* statusPtr);
 // NOT SURE
 s32 MemCard_FileLimitUpdate(s32 deviceId, s_MemCard_Directory* dir);
 
+/** @brief Loads a savegame from a memory card. */
 void MemCard_Process_Load(s_MemCard_Process* statusPtr);
 
 void MemCard_Process_Save(s_MemCard_Process* statusPtr);
 
 void MemCard_SaveInfoClear(s_MemCard_SaveHeader* saveInfo);
 
-/** Copies user config into an `s_Savegame_UserConfigs` and calculates footer checksum. */
-void MemCard_UserConfigCopy(s_Savegame_UserConfigs* dest, s_SaveUserConfig* src);
+/** Copies user config into an `s_Savegame_OptionsConfig` and calculates footer checksum. */
+void MemCard_UserConfigCopy(s_Savegame_OptionsConfig* dest, s_OptionsConfig* src);
 
 s32 MemCard_BiggestTotalSavegameCountGet(s32 deviceId);
 
@@ -617,9 +619,9 @@ s32 MemCard_State_FileReadWrite(void);
 
 void MemCard_DevicePathGenerate(s32 deviceId, char* res);
 
-/** @brief Checks if any file is corrupted, unused or used.
- * If any file is used then it return false.
+/** @brief Updates memory card elements in memory.
+ * @return Status of memory cards.
  */
-bool MemCard_FilesAreNotUsedCheck(s32 idx);
+bool MemCard_ElementsUpdate(void);
 
 #endif

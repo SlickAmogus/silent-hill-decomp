@@ -9,8 +9,9 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
 #include "bodyprog/demo.h"
-#include "bodyprog/events/bgm_update.h"
+#include "bodyprog/events/bgm.h"
 #include "bodyprog/events/radio.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/item_screens.h"
@@ -20,7 +21,7 @@
 #include "bodyprog/ranking.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
 #include "main/fsqueue.h"
 #include "main/mem.h"
@@ -46,27 +47,27 @@ void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
     bzero(&g_CharaTypeAnimInfo[1], 72);
 }
 
-void GameState_LoadScreen_Update(void) // 0x800348E8
+void GameState_LoadMapScreen_Update(void) // 0x800348E8
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadScreen_Update: entering (step=%d)", g_GameWork.gameStateSteps[0]);
+    SH_DBG("[SH] GameState_LoadMapScreen_Update: entering (step=%d)", g_GameWork.gameStateSteps[0]);
 #endif
     GameBoot_LoadingScreen();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadScreen_Update: after LoadingScreen");
+    SH_DBG("[SH] GameState_LoadMapScreen_Update: after LoadingScreen");
 #endif
     GameBoot_GameStartup();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadScreen_Update: after GameStartup");
+    SH_DBG("[SH] GameState_LoadMapScreen_Update: after GameStartup");
 #endif
 
-    if (g_SysWork.flags_22A4 & UnkSysFlag_10)
+    if (g_SysWork.sysFlags & SysFlag_LoadActive)
     {
         D_800BCDD4++;
 
         if (D_800BCDD4 >= 21)
         {
-            g_SysWork.flags_22A4 &= ~UnkSysFlag_10;
+            g_SysWork.sysFlags &= ~SysFlag_LoadActive;
 
             SD_Call(Sfx_Unk1502);
             SD_Call(Sfx_Unk1501);
@@ -126,7 +127,7 @@ void GameBoot_GameStartup(void) // 0x80034964
 
                 if (Demo_PlayFileBufferSetup() != 0)
                 {
-                    GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+                    GameBoot_MapLoad(g_SavegamePtr->mapIdx);
 
                     g_GameWork.gameStateSteps[0] = 2;
                     g_SysWork.counters_1C[1]              = 0;
@@ -211,10 +212,10 @@ void GameBoot_GameStartup(void) // 0x80034964
 #ifdef SH_PC_PORT
             SH_DBG("[SH] GameStartup step=5");
 #endif
-            Fs_CharaAnimDataAlloc(1, g_MapOverlayHeader.charaGroupIds_248[0], NULL, 0);
-            Fs_CharaAnimDataAlloc(2, g_MapOverlayHeader.charaGroupIds_248[1], NULL, 0);
-            Fs_CharaAnimDataAlloc(3, g_MapOverlayHeader.charaGroupIds_248[2], NULL, 0);
-            WorldGfx_MapInitCharaLoad(&g_MapOverlayHeader);
+            Fs_CharaAnimDataAlloc(1, g_MapOverlayHdr.charaGroupIds[0], NULL, 0);
+            Fs_CharaAnimDataAlloc(2, g_MapOverlayHdr.charaGroupIds[1], NULL, 0);
+            Fs_CharaAnimDataAlloc(3, g_MapOverlayHdr.charaGroupIds[2], NULL, 0);
+            WorldGfx_MapInitCharaLoad(&g_MapOverlayHdr);
 
             g_GameWork.gameStateSteps[0]++;
 
@@ -239,13 +240,13 @@ void GameBoot_GameStartup(void) // 0x80034964
                 Map_WorldClear();
             }
 
-            Ipd_PlayerChunkInit(&g_MapOverlayHeader, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
+            Ipd_PlayerChunkInit(&g_MapOverlayHdr, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
 #ifdef SH_PC_PORT
             SH_DBG("[TRANSITION] GameStartup step=7 post-init: playerPos=(%d,%d,%d) mapTag='%.4s'",
                    g_SysWork.playerWork.player.position.vx,
                    g_SysWork.playerWork.player.position.vy,
                    g_SysWork.playerWork.player.position.vz,
-                   g_MapOverlayHeader.mapInfo ? g_MapOverlayHeader.mapInfo->tag_2 : "NULL");
+                   g_MapOverlayHdr.mapInfo ? g_MapOverlayHdr.mapInfo->tag : "NULL");
 #endif
             if (g_SysWork.processFlags == ProcessFlag_OverlayTransition)
             {
@@ -334,10 +335,10 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 10:
-            if (g_SysWork.processFlags == ProcessFlag_BootDemo && !(g_SysWork.flags_22A4 & UnkSysFlag_1))
+            if (g_SysWork.processFlags == ProcessFlag_BootDemo && !(g_SysWork.sysFlags & SysFlag_DemoActive))
             {
                 Demo_Start();
-                g_SysWork.flags_22A4 |= UnkSysFlag_1;
+                g_SysWork.sysFlags |= SysFlag_DemoActive;
             }
 
             if (func_80039F90() & EventParamUnkState_2 || Sd_AmbientSfxInit() == 0)
@@ -366,7 +367,7 @@ void GameBoot_GameStartup(void) // 0x80034964
                     AreaLoad_TransitionSound();
                 }
 
-                MemCard_Disable();
+                MemCard_SysDisable();
                 g_GameWork.gameStateSteps[0]++;
             }
             break;
@@ -408,9 +409,9 @@ static void GameBoot_LoadingScreen(void) // 0x80034E58
 #ifdef SH_PC_PORT
         SH_DBG("[SH] GameBoot_LoadingScreen: calling func[%d]=%p",
                 g_SysWork.loadingScreenIdx,
-                (void*)g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx]);
+                (void*)g_MapOverlayHdr.loadingScreenFuncs[g_SysWork.loadingScreenIdx]);
 #endif
-        g_MapOverlayHeader.loadingScreenFuncs_18[g_SysWork.loadingScreenIdx]();
+        g_MapOverlayHdr.loadingScreenFuncs[g_SysWork.loadingScreenIdx]();
     }
 
 #ifdef SH_PC_PORT

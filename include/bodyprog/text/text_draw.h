@@ -1,14 +1,11 @@
 #ifndef _BODYPROG_TEXT_TEXTDRAW_H
 #define _BODYPROG_TEXT_TEXTDRAW_H
 
-/** @note Likely the true name for this system is `font` as both
- * SH2 and SH4 symbols indicate that the way TS referred to strings
- * or text was using `font`.
- */
+/** @note Likely the original name for this subsystem is `font` as indicated by SH2 and SH4 symbols. */
 
 #define MAP_MSG_CODE_MARKER        '~' /** Message code start. */
 #define MAP_MSG_CODE_COLOR         'C' /** Set color. */
-#define MAP_MSG_CODE_DISPLAY_ALL   'D' /** Display message instantly without roll. */
+#define MAP_MSG_CODE_DISPLAY_ALL   'D' /** Display message instantly with no rollout. */
 #define MAP_MSG_CODE_END           'E' /** End message. */
 #define MAP_MSG_CODE_HIGH_RES      'H' /** High-resolution glyph drawing. */
 #define MAP_MSG_CODE_JUMP          'J' /** Jump timer. */
@@ -24,6 +21,8 @@
 #define FONT_12X16_SPACE_SIZE         6
 #define FONT_12X16_LINE_COUNT_MAX     9
 #define FONT_12X16_ATLAS_COLUMN_COUNT (FONT_12X16_GLYPH_COUNT / 4)
+
+#define GLYPH_TABLE_ASCII_OFFSET '\'' /** Subtracted from ASCII bytes to get index to some string-related table. */
 
 /** @brief String color IDs for strings displayed in screen space.
  * Used as indices into `STRING_COLORS`.
@@ -49,9 +48,13 @@ typedef struct
     /* 0x1 */ u8 positionIdx;
 } s_800C38B0;
 
-// ========
-// GLOBALS
-// ========
+// ====================
+// GLOBALS (BSS; Hack; text_draw.c)
+// ====================
+// To match the order of the BSS segment, extern declarations
+// are required in a predetermined order.
+// This is done until a way to replicate `common`
+// segment behavior is found.
 
 /** String position. */
 extern DVECTOR g_StringPosition; // 0x800C38A8

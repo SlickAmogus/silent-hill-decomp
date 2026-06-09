@@ -2,8 +2,8 @@
  * keyframe data, extracted from disc_extract/VIN/MAP0_S00.BIN at the PSX VRAM
  * addresses in configs/USA/maps/sym.map0_s00.txt (overlay base 0x800C9578).
  *
- * Feeds func_80070400, which fills field_C8 (vertical collision extent),
- * field_D4.radius_0 (push radius) and field_D8 (offsets) per anim frame. The
+ * Feeds func_80070400, which fills collision (vertical collision extent),
+ * field_D4.radius_0 (push radius) and collision.shapeOffsets (offsets) per anim frame. The
  * prior zero-stubs in pc_port data_stubs.c collapsed the melee vertical hit
  * window so short enemies (grey children) could never be struck, and gave the
  * family no push radius. s_Keyframe is 20 bytes on PSX and PC so rows drop in

@@ -1,0 +1,416 @@
+#include "game.h"
+
+#include <psyq/libetc.h>
+#include <psyq/libpad.h>
+#include <psyq/strings.h>
+
+#include "bodyprog/bodyprog.h"
+#include "bodyprog/demo.h"
+#include "bodyprog/events/bodyprog_data_800A99B4.h"
+#include "bodyprog/events/bgm.h"
+#include "bodyprog/math/math.h"
+#include "bodyprog/screen/screen_data.h"
+#include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/sound/sound_system.h"
+#include "bodyprog/text/text_draw.h"
+#include "main/fsqueue.h"
+
+extern const s8 D_80025234[];
+
+// ========================================
+// GLOBAL VARIABLES
+// ========================================
+
+#ifdef SH_PC_PORT
+uintptr_t D_800A999C = (uintptr_t)&D_80025234;
+#else
+u32 D_800A999C = &D_80025234;
+#endif
+
+// ========================================
+// STATIC VARIABLES
+// ========================================
+
+static s32 D_800BCD5C;
+static s32 D_800A99A0 = 0;
+static u8  g_Bgm_LayerLimits[8] = { 128, 128, 128, 128, 128, 128, 128, 128 };
+
+// ========================================
+// MUSIC UPDATE
+// ========================================
+
+void Bgm_TrackUpdate(bool arg0) // 0x80035DB4
+{
+    D_800BCD5C = false;
+
+    if (g_MapOverlayHdr.bgmEvent != NULL) // Checks if function exists.
+    {
+        g_MapOverlayHdr.bgmEvent(arg0);
+        if (arg0 == false && D_800BCD5C == false)
+        {
+            Bgm_Update(BgmFlag_Layer0, Q12(240.0f), 0);
+        }
+    }
+}
+
+void Bgm_AllLayersMute(void) // 0x80035E1C
+{
+    s32 i;
+
+    // Reset all BGM layer volumes.
+    for (i = 0; i < ARRAY_SIZE(g_SysWork.bgmLayerVolumes); i++)
+    {
+        g_SysWork.bgmLayerVolumes[i] = Q12(0.0f);
+    }
+}
+
+bool Bgm_LayerOnCheck(void) // 0x80035E44
+{
+    s32 i;
+    u16 val;
+
+    for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
+    {
+        if (g_SysWork.bgmLayerVolumes[i] != Q12(0.0f))
+        {
+            return false;
+        }
+    }
+
+    val = func_80045BC8();
+    if (val == 0)
+    {
+        return true;
+    }
+    else if (val == 0xFFFF)
+    {
+        return false;
+    }
+
+    for (i = 1; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
+    {
+        if (Sd_BgmLayerVolumeGet(i) != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void Bgm_GlobalLayerVariablesUpdate(void) // 0x80035ED0
+{
+    s32 i;
+
+    for (i = 1; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
+    {
+        g_SysWork.bgmLayerVolumes[i] = Sd_BgmLayerVolumeGet(i) << 5; // Conversion to Q12.
+    }
+
+    if (func_80045BC8() == 0)
+    {
+        g_SysWork.bgmLayerVolumes[0] = Q12(1.0f);
+    }
+
+    g_SysWork.bgmLayerVolumes[ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1] = Q12(0.0f);
+}
+
+void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) // 0x80035F4C
+{
+    s16       temp_v0;
+    s32       ducking;
+    s32       var_a2;
+    q19_12    curLayerVol;
+    q19_12    curLayerVol1;
+    s32       temp_s2;
+    s32       i;
+    s32       flagsCpy;
+    bool      isBgmLayerActive;
+    bool      isMusicPlayer;
+    q19_12    var_t0;
+    bool      cond0;
+    s32       endLayerIdx;
+    q3_12*    layerVols;
+    u8*       layerLimitsCpy;
+    static s8 bgmLayerVolumes[8];
+
+    // Setup.
+    flagsCpy       = bgmFlags;
+    layerLimitsCpy = layerLimits;
+    layerVols      = g_SysWork.bgmLayerVolumes;
+
+    // Ensure layer limits are valid.
+    if (layerLimitsCpy == NULL)
+    {
+        layerLimitsCpy = g_Bgm_LayerLimits;
+    }
+
+    if (g_SysWork.playerWork.player.health <= Q12(0.0f) || g_SysWork.sysState == SysState_GameOver)
+    {
+        flagsCpy &= BgmFlag_KeepAlive;
+        flagsCpy |= BgmFlag_Layer0;
+        fadeSpeed = Q12(0.2f);
+    }
+
+    if (!(flagsCpy & BgmFlag_KeepAlive) &&
+        g_RadioPitchState > 0 &&
+        (g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn))
+    {
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_RadioActive;
+    }
+
+    // Mute layers.
+    if (g_SysWork.bgmStatusFlags & BgmStatusFlag_RequestMute)
+    {
+        flagsCpy                 = BgmFlag_Layer0 | BgmFlag_MuteAll;
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_ApplyMute;
+    }
+
+    if (flagsCpy & BgmFlag_Layer0)
+    {
+        flagsCpy &= BgmFlag_KeepAlive | BgmFlag_MuteAll;
+    }
+    else
+    {
+        flagsCpy ^= BgmFlag_Layer0;
+    }
+
+    for (i = 0, endLayerIdx = (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1);
+         i < ARRAY_SIZE(g_SysWork.bgmLayerVolumes);
+         i++)
+    {
+        curLayerVol = layerVols[i];
+
+        if (i == endLayerIdx)
+        {
+            var_t0 = Q12_MULT_FLOAT_PRECISE(g_DeltaTimeRaw, 0.25f);
+            if (g_SysWork.bgmStatusFlags & BgmStatusFlag_ApplyMute)
+            {
+                ducking = Q12(1.0f);
+            }
+            else if (g_SysWork.bgmStatusFlags & BgmStatusFlag_RadioActive)
+            {
+                ducking = Q12(0.75f);
+            }
+            else
+            {
+                ducking = (g_SysWork.bgmStatusFlags & BgmStatusFlag_Duck) ? Q12(0.5f) : Q12(0.0f);
+            }
+        }
+        else
+        {
+            if ((flagsCpy >> i) & BgmFlag_Layer0)
+            {
+                var_t0 = FP_MULTIPLY(g_DeltaTimeRaw, fadeSpeed, Q12_SHIFT - 1); // @hack Should be multiplied by 2 but doesn't match.
+                ducking = Q12(1.0f);
+            }
+            else
+            {
+                var_t0 = Q12_MULT(g_DeltaTimeRaw, fadeSpeed);
+                ducking = Q12(0.0f);
+            }
+        }
+
+        var_a2 = ducking - curLayerVol;
+        if (curLayerVol != ducking)
+        {
+            if (var_t0 < var_a2)
+            {
+                curLayerVol += var_t0;
+            }
+            else if (var_a2 >= -var_t0)
+            {
+                curLayerVol = ducking;
+            }
+            else
+            {
+                curLayerVol -= var_t0;
+            }
+        }
+
+        layerVols[i] = curLayerVol;
+    }
+
+    isBgmLayerActive = false;
+    temp_v0          = Q12(1.0f) - layerVols[8];
+
+    for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
+    {
+        curLayerVol1        = layerVols[i];
+        isBgmLayerActive |= curLayerVol1 != Q12(0.0f);
+
+        if (i == 0)
+        {
+            curLayerVol1 = Q12_MULT_PRECISE(curLayerVol1, temp_v0);
+        }
+
+        curLayerVol1 = Q12_MULT_PRECISE(curLayerVol1, Q12(0.0312f));
+        if (curLayerVol1 > Q12(0.0312f))
+        {
+            curLayerVol1 = Q12(0.0312f);
+        }
+
+        curLayerVol1 = (curLayerVol1 * layerLimitsCpy[i]) >> 7;
+        if (curLayerVol1 > Q12(0.0312f))
+        {
+            curLayerVol1 = Q12(0.0312f);
+        }
+
+        bgmLayerVolumes[i] = curLayerVol1;
+    }
+
+    isMusicPlayer = false;
+    temp_s2        = func_80045BC8();
+
+    cond0 = temp_s2;
+    cond0 = temp_s2 != 0 && cond0 != 0xFFFF;
+
+    if (isBgmLayerActive)
+    {
+        switch (D_800A99A0)
+        {
+            case 3:
+                Bgm_AllLayersMute();
+
+                if (cond0)
+                {
+                    D_800A99A0 = 0;
+                }
+                else
+                {
+                    Bgm_ChannelSet();
+                    D_800A99A0 = 2;
+                }
+                break;
+
+            case 2:
+                Bgm_AllLayersMute();
+                D_800A99A0 = 1;
+                break;
+
+            case 1:
+                if (cond0)
+                {
+                    Bgm_GlobalLayerVariablesUpdate();
+                }
+                else
+                {
+                    Bgm_AllLayersMute();
+                }
+
+                D_800A99A0 = 0;
+                break;
+
+            case 0:
+                isMusicPlayer = true;
+                break;
+        }
+    }
+    else if (flagsCpy & BgmFlag_MuteAll)
+    {
+        if (D_800A99A0 != 3)
+        {
+            D_800A99A0 = 3;
+            SD_Call(18);
+        }
+    }
+    else if (D_800A99A0 == 0)
+    {
+        isMusicPlayer = true;
+    }
+
+    if (isMusicPlayer)
+    {
+        if (cond0)
+        {
+            for (i = 0; i < (ARRAY_SIZE(g_SysWork.bgmLayerVolumes) - 1); i++)
+            {
+                Sd_BgmLayerVolumeSet(i, bgmLayerVolumes[i]);
+            }
+        }
+        else
+        {
+            Bgm_AllLayersMute();
+            D_800A99A0 = 3;
+        }
+    }
+
+    D_800BCD5C = true;
+}
+
+void func_800363D0(void) // 0x800363D0
+{
+    g_RadioPitchState         = 0;
+    g_SysWork.bgmStatusFlags |= BgmStatusFlag_Duck;
+    Bgm_TrackUpdate(false);
+}
+
+void Bgm_TrackChange(s32 bgmIdx) // 0x8003640C
+{
+    if (bgmIdx != BgmTrackIdx_None)
+    {
+        g_MapOverlayHdr.bgmIdx = bgmIdx;
+    }
+}
+
+void Game_MapRoomIdxUpdate(void) // 0x80036420
+{
+    q19_12 posX;
+    q19_12 posZ;
+    s8     newMapRoomIdx;
+
+    #define playerChara g_SysWork.playerWork.player
+
+    posX = playerChara.position.vx;
+    posZ = playerChara.position.vz;
+
+    // Set map room index based on current player position.
+    if (g_MapOverlayHdr.mapRoomIdxGet == NULL)
+    {
+        newMapRoomIdx = 0;
+    }
+    else
+    {
+        newMapRoomIdx = g_MapOverlayHdr.mapRoomIdxGet(posX, posZ);
+    }
+    g_SavegamePtr->mapRoomIdx = newMapRoomIdx;
+
+    #undef playerChara
+}
+
+s32 func_8003647C(void) // 0x8003647C
+{
+    return g_SavegamePtr->mapRoomIdx > g_MapOverlayHdr.unused_8;
+}
+
+s32 func_80036498(void) // 80036498
+{
+    return !(g_SavegamePtr->mapRoomIdx > g_MapOverlayHdr.unused_8);
+}
+
+// Actually used in some RoomBgmInit funcs.
+u32 func_800364BC(void) // 0x800364BC
+{
+    u32        var0;
+    u32        var1;
+    static u32 D_800BCD58;
+
+    D_800BCD58 += g_DeltaTimeRaw * (Q12(64.0f) + 1);
+
+    var0  = Q12(64.0f);
+    var0 += Math_Sin(D_800BCD58 >> 18) * 8;
+    var1  = Math_Sin((D_800BCD58 & 0xFFFF) / 16) * 32;
+    return FP_FROM(var0 + var1, Q12_SHIFT);
+}
+
+// TODO: Garbage data. Could indicate file split nearby.
+// For some reason `D_800A999C` points to this buffer, but bytes change in each release?
+#if VERSION_IS(USA)
+    const s8 D_80025234[] = { 0x00, 0xB1, 0x3A, 0xCC, 0x00, 0x00, 0x00, 0x00 };
+#elif VERSION_IS(JAP0)
+    const s8 D_80025234[] = { 0x00, 0x20, 0x32, 0x33, 0x00, 0x00, 0x00, 0x00 };
+#elif VERSION_IS(JAP1)
+    const s8 D_80025234[] = { 0x00, 0x72, 0x20, 0x20, 0x00, 0x00, 0x00, 0x00 };
+#elif VERSION_IS(JAP2)
+    const s8 D_80025234[] = { 0x00, 0x00, 0x02, 0xAD, 0x00, 0x00, 0x00, 0x00 };
+#endif

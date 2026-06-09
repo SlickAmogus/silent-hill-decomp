@@ -16,7 +16,7 @@
 extern int g_windowWidth;
 extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
-extern void Collision_Get(s_Collision* coll, q19_12 posX, q19_12 posZ);
+extern void Collision_SurfaceGet(s_CollisionSurface* coll, q19_12 posX, q19_12 posZ);
 
 #define MAX_CONSOLE 20
 #define LINE_LEN    64
@@ -49,7 +49,7 @@ static int    s_gl_inited = 0;
 
 /* ---- Collision visualizer panel (toggled by ') ----
  * A fixed live panel (bottom-right) that queries the floor-collision function
- * at the player and 4 probe points each frame, surfacing what Collision_Get
+ * at the player and 4 probe points each frame, surfacing what Collision_SurfaceGet
  * returns (ground height, slope fields, valid-point count) for the decomp team. */
 #define COLL_COLS  32
 #define COLL_LINES 16
@@ -405,7 +405,7 @@ static void overlay_update_texture(void)
 }
 
 /* Query the floor-collision function at the player + 4 probe points and format
- * the results into the live panel. Collision_Get is a read-only query (it finds
+ * the results into the live panel. Collision_SurfaceGet is a read-only query (it finds
  * the IPD cell via func_800426E4 and walks it); calling it a few extra times per
  * frame is cheap next to the per-frame calls the game already makes. */
 static void coll_gather(void)
@@ -416,9 +416,9 @@ static void coll_gather(void)
     q19_12 pz = player->position.vz;
     const q19_12 D = 2 * 4096; /* 2.0 in Q19.12 */
     /* Floor-probe results are cached and refreshed every 4th frame — they change
-     * slowly and each Collision_Get is a full query, so this trims the per-frame
+     * slowly and each Collision_SurfaceGet is a full query, so this trims the per-frame
      * cost. The wireframe + collState panel still update every frame. */
-    static s_Collision c0, cxp, cxn, czp, czn;
+    static s_CollisionSurface c0, cxp, cxn, czp, czn;
     static int s_floorThrottle = 0;
     int n = 0;
 
@@ -428,11 +428,11 @@ static void coll_gather(void)
     CollVis_CaptureCell(px, pz);
 
     if ((s_floorThrottle++ & 3) == 0) {
-        Collision_Get(&c0,  px,     pz);
-        Collision_Get(&cxp, px + D, pz);
-        Collision_Get(&cxn, px - D, pz);
-        Collision_Get(&czp, px,     pz + D);
-        Collision_Get(&czn, px,     pz - D);
+        Collision_SurfaceGet(&c0,  px,     pz);
+        Collision_SurfaceGet(&cxp, px + D, pz);
+        Collision_SurfaceGet(&cxn, px - D, pz);
+        Collision_SurfaceGet(&czp, px,     pz + D);
+        Collision_SurfaceGet(&czn, px,     pz - D);
     }
 
 #define CL(...) do { if (n < COLL_LINES) snprintf(s_coll_lines[n++], COLL_COLS, __VA_ARGS__); } while (0)
@@ -440,29 +440,31 @@ static void coll_gather(void)
      * engine's real numbers, not float conversions. */
     CL("== COLLISION  (' toggle)  [Q12] ==");
     CL("pos %d,%d,%d", (int)px, (int)py, (int)pz);
-    CL("ground H=%d", (int)c0.groundHeight_0);
-    CL("slope f4=%d f6=%d n=%d", (int)c0.field_4, (int)c0.field_6, (int)c0.field_8);
-    CL("playerY-ground %+d", (int)(py - c0.groundHeight_0));
-    CL("probe 2u(8192)  H / n");
+    CL("ground H=%d", (int)c0.groundHeight);
+    CL("tilt X=%d Z=%d type=%d", (int)c0.tiltAngleX, (int)c0.tiltAngleZ, (int)c0.groundType);
+    CL("playerY-ground %+d", (int)(py - c0.groundHeight));
+    CL("probe 2u(8192)  H / type");
     CL("+X %d/%d  -X %d/%d",
-       (int)cxp.groundHeight_0, (int)cxp.field_8,
-       (int)cxn.groundHeight_0, (int)cxn.field_8);
+       (int)cxp.groundHeight, (int)cxp.groundType,
+       (int)cxn.groundHeight, (int)cxn.groundType);
     CL("+Z %d/%d  -Z %d/%d",
-       (int)czp.groundHeight_0, (int)czp.field_8,
-       (int)czn.groundHeight_0, (int)czn.field_8);
+       (int)czp.groundHeight, (int)czp.groundType,
+       (int)czn.groundHeight, (int)czn.groundType);
 
-    /* collState @ func_8006A4A8 (the engine's collision handler), from the
-     * player's pass last frame. Raw collState fields (Q12). */
-    CL("- collState @8006A4A8 -");
+    /* Labels are the decomp's struct-field paths (s_CollisionState), so the
+     * overlay maps 1:1 onto the renamed fields. func_8006A4A8 kept its raw name
+     * upstream (no semantic rename). Values are raw Q12. */
+    CL("- collState func_8006A4A8 -");
     if (g_CollStateDbg.valid) {
-        CL("face=%d dist=%d rad=%d",
-           g_CollStateDbg.faceIdx, g_CollStateDbg.dist, g_CollStateDbg.radius);
-        CL("push %d,%d",
+        CL("point.subcellIdx=%d", g_CollStateDbg.faceIdx);
+        CL("pt.f20.radiusCollDiff=%d", g_CollStateDbg.dist);
+        CL("charaState.radius=%d", g_CollStateDbg.radius);
+        CL("result.offset.vx/vz=%d,%d",
            (int)g_CollStateDbg.pushX, (int)g_CollStateDbg.pushZ);
-        CL("resp=%d ang=%d,%d",
+        CL("f44.f0: act=%d ang=%d,%d",
            g_CollStateDbg.respActive, g_CollStateDbg.angMin, g_CollStateDbg.angMax);
-        CL("grnd flg=%d typ=%d corner=%d",
-           g_CollStateDbg.groundFlag, g_CollStateDbg.groundType, g_CollStateDbg.corner);
+        CL("heightDisabled=%d groundType=%d",
+           g_CollStateDbg.groundFlag, g_CollStateDbg.groundType);
     } else {
         CL("(player pass not seen)");
     }

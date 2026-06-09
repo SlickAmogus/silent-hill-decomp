@@ -3,12 +3,12 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk54
 #define HAS_PlayerState_Unk55
-#define HAS_PlayerState_Unk56
-#define HAS_PlayerState_Unk57
+#define HAS_PlayerState_TurnRight
+#define HAS_PlayerState_TurnLeft
 #define HAS_PlayerState_Unk74
 #define HAS_PlayerState_Unk84
 
@@ -60,8 +60,9 @@ extern u16 g_Cutscene_MapMsgAudioCmds[];
 
 extern u8 D_800DFAC2;
 
-extern s32 D_800DFAC4;
+extern bool g_WarpCamera0;
 
+extern s32 D_800DFAC4;
 extern u16 D_800DFAC8;
 
 extern s32 D_800DFACC;

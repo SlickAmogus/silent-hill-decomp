@@ -5,8 +5,8 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
-#include "main/fsqueue.h"
 #include "bodyprog/text/text_draw.h"
+#include "main/fsqueue.h"
 
 void GameFs_TitleGfxSeek(void) // 0x80032BD0
 {

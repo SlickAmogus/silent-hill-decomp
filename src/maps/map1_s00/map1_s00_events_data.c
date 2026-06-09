@@ -4,7 +4,7 @@
 #ifdef SH_PC_PORT
 /* Data-segment values from MAP1_S00.BIN offset 0x141A4 (load base 0x800C9578 → PSX 0x800DD71C).
  * In the DLL build this symbol is BSS (zero); supply the real values from the binary. */
-s_WorldObjectPose g_CommonWorldObjectPoses[5] = {
+s_Pose g_CommonWorldObjectPoses[5] = {
     { { 244654, -2048,  75243 }, { 0, 386, 0 } }, /* [0] BULLET_N pickup 0 */
     { { 422092, -2252, 569344 }, { 0, 182, 0 } }, /* [1] BULLET_N pickup 1 */
     { { 578355, -2826, 430489 }, { 0, 113, 0 } }, /* [2] BULLET_N pickup 2 */
@@ -20,7 +20,7 @@ s_EventData MAP_EVENTS[101] = {
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 94,
         .sysState         = SysState_EventCallback,
-        .eventParam       = 3, // `func_800D7A28`
+        .eventParam       = 3, // `MapEvent_CommonItemTake`
     },
     {
         .disabledEventFlag  = EventFlag_M1S00_HandgunBullets1,
@@ -28,7 +28,7 @@ s_EventData MAP_EVENTS[101] = {
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 95,
         .sysState         = SysState_EventCallback,
-        .eventParam       = 3, // `func_800D7A28`
+        .eventParam       = 3, // `MapEvent_CommonItemTake`
     },
     {
         .disabledEventFlag  = EventFlag_M1S00_HandgunBullets2,
@@ -36,7 +36,7 @@ s_EventData MAP_EVENTS[101] = {
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 96,
         .sysState         = SysState_EventCallback,
-        .eventParam       = 3, // `func_800D7A28`
+        .eventParam       = 3, // `MapEvent_CommonItemTake`
     },
     {
         .disabledEventFlag  = EventFlag_M1S00_HealthDrink,
@@ -44,7 +44,7 @@ s_EventData MAP_EVENTS[101] = {
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 97,
         .sysState         = SysState_EventCallback,
-        .eventParam       = 3, // `func_800D7A28`
+        .eventParam       = 3, // `MapEvent_CommonItemTake`
     },
     {
         .disabledEventFlag  = EventFlag_M1S00_FirstAidKit,
@@ -52,7 +52,7 @@ s_EventData MAP_EVENTS[101] = {
         .activationType   = TriggerActivationType_Button,
         .pointOfInterestIdx = 98,
         .sysState         = SysState_EventCallback,
-        .eventParam       = 3, // `func_800D7A28`
+        .eventParam       = 3, // `MapEvent_CommonItemTake`
     },
     {
         .triggerType      = TriggerType_TouchObbFacing,

@@ -18,12 +18,48 @@
 // CONSTANTS
 // ==========
 
+#define DEFAULT_PLAYER_BOX_TOP          Q12(-1.6f)
+#define DEFAULT_PLAYER_BOX_OFFSET_Y     Q12(-1.1f)
+#define DEFAULT_PLAYER_CYLINDER_FIELD_2 Q12(0.23f) // TODO: Figure out what `field_2` is supposed to be.
+
 #define HARRY_UPPER_BODY_BONE_MASK BITMASK_RANGE(HarryBone_Root, HarryBone_RightHand)
 #define HARRY_LOWER_BODY_BONE_MASK BITMASK_RANGE(HarryBone_Hips, HarryBone_RightFoot)
 
 // ======
 // ENUMS
 // ======
+
+/** @brief Player control flags. */
+typedef enum _PlayerFlags
+{
+    PlayerFlag_None           = 0,
+    PlayerFlag_Unk0           = 1 << 0,
+    PlayerFlag_Shooting       = 1 << 1,
+    PlayerFlag_Unk2           = 1 << 2,
+    PlayerFlag_WallStopRight  = 1 << 3, /** Use right leg for wall stop. */
+    PlayerFlag_Unk4           = 1 << 4,
+    PlayerFlag_Unk5           = 1 << 5, // `PlayerFlag_MoveBackward`?
+    PlayerFlag_Unk6           = 1 << 6,
+    PlayerFlag_Unk7           = 1 << 7,
+    PlayerFlag_Unk8           = 1 << 8,
+    PlayerFlag_Unk9           = 1 << 9,
+    PlayerFlag_Unk10          = 1 << 10, // `PlayerFlag_MeleeAttack`?
+    PlayerFlag_Unk11          = 1 << 11, // `PlayerFlag_GunAttack`?
+    PlayerFlag_Unk12          = 1 << 12,
+    PlayerFlag_SfxActive      = 1 << 13,
+    PlayerFlag_DamageReceived = 1 << 14,
+    PlayerFlag_Moving         = 1 << 15,
+    PlayerFlag_Unk16          = 1 << 16,
+    PlayerFlag_Unk17          = 1 << 17,
+    PlayerFlag_Unk18          = 1 << 18,
+    PlayerFlag_Unk19          = 1 << 19,
+    PlayerFlag_Unk20          = 1 << 20,
+
+    PlayerFlag_Unk28          = 1 << 28,
+    PlayerFlag_Unk29          = 1 << 29,
+    PlayerFlag_Unk30          = 1 << 30,
+    PlayerFlag_Unk31          = 1 << 31
+} e_PlayerFlags;
 
 typedef enum _PlayerStopFlags
 {
@@ -32,7 +68,7 @@ typedef enum _PlayerStopFlags
     PlayerStopFlag_StopRunning = 1 << 1
 } e_PlayerStopFlags;
 
-/** @brief Player states. */
+/** @brief Player states. Used by `s_PlayerExtra::state`. */
 typedef enum _PlayerState
 {
     PlayerState_None                      = 0,
@@ -87,12 +123,13 @@ typedef enum _PlayerState
     PlayerState_GetUpFront                = 49,
     PlayerState_GetUpBack                 = 50,
     PlayerState_Unk51                     = 51, // Cutscenes
-    PlayerState_Unk52                     = 52, // Standing during interacting with something/cutscenes?
+    PlayerState_Unk52                     = 52,
+    PlayerState_Reset                     = 52, // Unsure, maybe a forced stop. Seems to reset the animation to a standing pose.
     PlayerState_Unk53                     = 53, // Moving in cutscene?
     PlayerState_Unk54                     = 54, // Running in cutscene?
     PlayerState_Unk55                     = 55,
-    PlayerState_Unk56                     = 56,
-    PlayerState_Unk57                     = 57,
+    PlayerState_TurnRight                 = 56,
+    PlayerState_TurnLeft                  = 57,
     PlayerState_Unk58                     = 58,
     PlayerState_Unk59                     = 59, // Crouching in cutscenes/interactions?
     PlayerState_Unk60                     = 60, // Get up from crouching in cutscenes/interactions?
@@ -191,6 +228,8 @@ typedef enum _PlayerState
     PlayerState_Unk153                    = 153,
     PlayerState_Unk154                    = 154,
     PlayerState_Unk155                    = 155,
+    PlayerState_Unk56                     = 56,
+    PlayerState_Unk57                     = 57,
     PlayerState_Unk156                    = 156,
     PlayerState_Unk157                    = 157,
     PlayerState_Unk158                    = 158,
@@ -227,7 +266,7 @@ typedef enum _PlayerState
     PlayerState_Unk189                    = 189
 } e_PlayerState;
 
-/** @brief Upper body player states. */
+/** @brief Upper body player states. Used by `s_PlayerExtra::upperBodyState`. */
 typedef enum _PlayerUpperBodyState
 {
     PlayerUpperBodyState_None                 = 0,
@@ -259,7 +298,7 @@ typedef enum _PlayerUpperBodyState
     PlayerUpperBodyState_Reload               = 26
 } e_PlayerUpperBodyState;
 
-/** @brief Lower body player states. */
+/** @brief Lower body player states. Used by `s_PlayerExtra::lowerBodyState`. */
 typedef enum _PlayerLowerBodyState
 {
     PlayerLowerBodyState_None               = 0,
@@ -300,6 +339,14 @@ typedef enum _PlayerLowerBodyState
     PlayerLowerBodyState_Reload             = 35
 } e_PlayerLowerBodyState;
 
+/** @brief Rock Drill weapon attack types. */
+typedef enum _RockDrillAttackType
+{
+    RockDrillAttackType_Down   = -1, /** Down input. */
+    RockDrillAttackType_Center = 0,  /** No input. */
+    RockDrillAttackType_Up     = 1   /** Up input */
+} e_RockDrillAttackType;
+
 // ========
 // STRUCTS
 // ========
@@ -310,17 +357,26 @@ typedef enum _PlayerLowerBodyState
  */
 typedef struct _800AFBF4
 {
-    s16 attackSfx_0;
-    s16 reloadSfx_2;
-    s16 outOfAmmoSfx_4;
-    u8  animStopAiming_6; /** Packed anim status. See `s_ModelAnim::status`. */
-    u8  animAttack_7;     /** Packed anim status. See `s_ModelAnim::status`. */
-    u8  animAttackHold_8;
-    u8  field_9;
-    u8  field_A; // Attack type?
-    u8  unk_B;
+    /* 0x0 */ s16 attackSfx;
+    /* 0x2 */ s16 reloadSfx;
+    /* 0x4 */ s16 outOfAmmoSfx;
+    /* 0x6 */ u8  animStopAiming; /** Packed anim status. See `s_ModelAnim::status`. */
+    /* 0x7 */ u8  animAttack;     /** Packed anim status. See `s_ModelAnim::status`. */
+    /* 0x8 */ u8  animAttackHold;
+    /* 0x9 */ u8  field_9;
+    /* 0xA */ u8  field_A; // Attack type?
+    /* 0xB */ u8  __pad_B;
 } s_800AFBF4;
 STATIC_ASSERT_SIZEOF(s_800AFBF4, 12);
+
+// Used in player lower body state handling.
+typedef struct
+{
+    /* 0x0  */ u8     unk_0;
+    /* 0x1  */ u8     groundType; /** `e_GroundType` */
+    /* 0x2  */ u8     unk_2[18];
+    /* 0x14 */ q19_12 field_14; // Related to hit distance
+} s_800C45C8;
 
 // ========
 // GLOBALS
@@ -329,27 +385,21 @@ STATIC_ASSERT_SIZEOF(s_800AFBF4, 12);
 /** @brief `bool` | Determines if the player is transitioning from a walk to a run and vice-versa. */
 extern u8 g_Player_IsInWalkToRunTransition;
 
-/** Boolean. */
+/** `bool` */
 extern u8 g_Player_DisableControl;
 
 extern u8 D_800AF216;
 
-/** @brief Indicates the direction which the Rock Drill will attack based on the press of
- * the movement directions.
- *
- * -1: Backward move - Pointing down.
- *  0: No input      - Pointing at the center.
- *  1: Forward move  - Pointing up.
- */
-extern s8 g_Player_RockDrill_DirectionAttack;
+/** @brief `e_RockDrillAttackType` | Rock Drill attack type based on D-Pad input. */
+extern s8 g_Player_RockDrill_AttackType;
 
 /** Another variable that saves the index of the enemy being attacked. */
 extern s32 g_Player_TargetNpcIdx;
 
-/** @brief Counts the amount inputs the player has pressed in order to free himselft from a grab. */
+/** @brief Counts the number inputs performed by the user to release an enemy grab. */
 extern s32 g_Player_GrabReleaseInputTimer;
 
-/** @brief current attack animation. */
+/** @brief Current attack animation. */
 extern s32 g_Player_AttackAnimIdx;
 
 /** @brief Indicates if a multiple button taps attack is being perfomed. */
@@ -396,7 +446,7 @@ extern s32 g_Player_HasMoveInput;
 /** @brief Used to cancel the idle state if the Action or Run button is tapped. */
 extern s32 g_Player_HasActionInput;
 
-extern s8 D_800C4560;
+extern s8 g_Player_PrevAttackReceived;
 
 extern u8 g_Player_IsDead;
 
@@ -455,7 +505,7 @@ extern u8 D_800C4588;
 extern s8 __pad_bss_800C4589[7];
 
 /** Player instance of this struct. */
-extern s_CollisionResult D_800C4590;
+extern s_CollisionResult g_Player_CollisionResult;
 
 /** `bool` */
 extern u16 g_Player_IsSteppingLeftHold;
@@ -514,8 +564,8 @@ extern VECTOR3 D_800C4610;
 // FUNCTIONS
 // ==========
 
-/** Used for enemy target locking. */
-void func_8005CD38(s32*, s32*, s_PlayerCombat*, s32, s32, s32);
+/** Used for enemy target locking. Arg at index 3 is an angle? */
+void func_8005CD38(s32*, s32*, s_PlayerCombat*, q19_12, q19_12, s32);
 
 /** Used for player run displacement.
  *
@@ -602,8 +652,8 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra);
  */
 void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra);
 
-// Removing this function makes it impossible to run.
-s32 func_8007D6F0(s_SubCharacter* player, s_800C45C8* arg1);
+// Returns player lower body state.
+s32 Player_LowerBodyMoveStateGet(s_SubCharacter* player, s_800C45C8* arg1);
 
 void GameFs_WeaponInfoUpdate(void);
 
@@ -652,6 +702,38 @@ static inline void Player_AnimFlagsSet(u32 flags)
                                                                \
     playerExtra->model.anim.flags &= ~(clearFlags);            \
     playerChara->model.anim.flags &= ~(clearFlags);            \
+}
+
+/** @brief Resets the player character's collision shapes. */
+static inline void Player_CollisionReset()
+{
+    #define playerChara g_SysWork.playerWork.player
+
+    playerChara.collision.box.top                  = DEFAULT_PLAYER_BOX_TOP;
+    playerChara.collision.box.bottom               = Q12(0.0f);
+    playerChara.collision.box.offsetY              = DEFAULT_PLAYER_BOX_OFFSET_Y;
+    playerChara.collision.shapeOffsets.cylinder.vz = Q12(0.0f);
+    playerChara.collision.shapeOffsets.cylinder.vx = Q12(0.0f);
+    playerChara.collision.shapeOffsets.box.vz      = Q12(0.0f);
+    playerChara.collision.shapeOffsets.box.vx      = Q12(0.0f);
+
+    #undef playerChara
+}
+
+/** @brief Resets the extra player parameters state if `g_Player_AnimResetRequest` is set.
+ *
+ * @note This works similar to `Chara_AnimStateReset`.
+ *
+ * @param player Player character to update.
+ * @param extra Extra player  parameters to update.
+ */
+static inline void Player_AnimStateReset(s_SubCharacter* player, s_PlayerExtra* extra)
+{
+    if (g_Player_AnimResetRequest)
+    {
+        Player_ExtraStateSet(player, extra, PlayerState_Reset);
+        g_Player_AnimResetRequest = false;
+    }
 }
 
 #endif

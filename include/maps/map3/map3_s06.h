@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk111
 #define HAS_PlayerState_Unk117
 
@@ -41,11 +41,11 @@ extern u8 D_800D2737; // `bool`
 
 extern u8 D_800D2738;
 
-extern s_WorldObjectDesc g_WorldObject_SavePad; // D_800D5ED8;
-extern s_WorldObjectDesc g_WorldObject_Map; // D_800D5F08;
-extern s_WorldObjectDesc g_WorldObject_Map2; // D_800D5F38;
-extern s_WorldObjectDesc g_WorldObject_Key; // D_800D5F68;
-extern s_WorldObjectDesc g_WorldObject_FirstAidKit; // D_800D5F98;
+extern s_WorldObjectPose g_WorldObject_SavePad; // D_800D5ED8;
+extern s_WorldObjectPose g_WorldObject_Map; // D_800D5F08;
+extern s_WorldObjectPose g_WorldObject_Map2; // D_800D5F38;
+extern s_WorldObjectPose g_WorldObject_Key; // D_800D5F68;
+extern s_WorldObjectPose g_WorldObject_FirstAidKit; // D_800D5F98;
 
 void func_800D0AE4(void);
 
@@ -57,7 +57,7 @@ void func_800D0B10(void);
 void func_800D0C14(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake(void);
+void MapEvent_PaperMapTake(void);
 
 void func_800D17D8(void);
 

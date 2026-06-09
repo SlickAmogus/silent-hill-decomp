@@ -59,24 +59,23 @@ typedef enum _BlendMode
     BlendMode_Subtractive = 2
 } e_BlendMode;
 
-/** @brief Primitive types. */
-enum PrimType
+/** @brief Primitive flags.
+ * TODO: Could split these into 3 enums and create a `PRIM_CODE` macro for convenient packing.
+ */
+typedef enum _PrimitiveFlags
 {
-    PRIM_POLY = 0x20, /** Polygon (`POLY`). */
-    PRIM_LINE = 0x40, /** Line (`LINE`). */
-    PRIM_RECT = 0x60  /** Rectangle (`TILE` or `SPRT`). */
-};
+    RECT_MODULATE = 1 << 0, /** Use primitive color to modulate texture. */
+    RECT_BLEND    = 1 << 1, /** Semi-transparency flag. */
+    RECT_TEXTURE  = 1 << 2, /** Rectangle is textured (`SPRT`). */
 
-/** @brief Primitive rectangle flags. */
-enum PrimRectFlags
-{
-    RECT_SIZE_16  = (1 << 3) | (1 << 4), /** Rectangle is 16x16 (`TILE_16` or `SPRT_16`). */
-    RECT_SIZE_8   = 1 << 4,              /** Rectangle is 8x8 (`TILE_8` or `SPRT_8`). */
-    RECT_SIZE_1   = 1 << 3,              /** Rectangle is 1x1 (`TILE_1`). */
-    RECT_TEXTURE  = 1 << 2,              /** Rectangle is textured (`SPRT`). */
-    RECT_BLEND    = 1 << 1,              /** Semi-transparency flag. */
-    RECT_MODULATE = 1 << 0               /** Use primitive color to modulate texture. */
-};
+    RECT_SIZE_1   = 1 << 3, /** Rectangle is 1x1 (`TILE_1`). */
+    RECT_SIZE_8   = 2 << 3, /** Rectangle is 8x8 (`TILE_8` or `SPRT_8`). */
+    RECT_SIZE_16  = 3 << 3, /** Rectangle is 16x16 (`TILE_16` or `SPRT_16`). */
+
+    PRIM_POLY     = 1 << 5, /** Polygon (`POLY`). */
+    PRIM_LINE     = 2 << 5, /** Line (`LINE`). */
+    PRIM_RECT     = 3 << 5  /** Rectangle (`TILE` or `SPRT`). */
+} e_PrimitiveFlags;
 
 /** @brief 2D screen-space line. */
 typedef struct _Line2d
@@ -444,7 +443,7 @@ void SetPriority(PACKET*, s32, s32);
     : "memory")
 
 /** @brief Sets the GTE's `vz0` register to 0. */
-#define gte_gte_ldvz0() __asm__ volatile( \
+#define gte_ldvz0() __asm__ volatile( \
     "mtc2  $zero, $1;")
 
 /** @brief Retrieves the value from the GTE's `SZ3` register. */
@@ -477,12 +476,12 @@ void SetPriority(PACKET*, s32, s32);
     })
 
 #define gte_stMAC12(r0) __asm__ volatile( \
-    "mfc2    $12, $25;"                    \
+    "mfc2    $12, $25;"                   \
     "nop;"                                \
-    "sh    $12, 0( %0 );"                    \
-    "mfc2    $13, $26;"                    \
+    "sh    $12, 0( %0 );"                 \
+    "mfc2    $13, $26;"                   \
     "nop;"                                \
-    "sh    $13, 2( %0 );"                    \
+    "sh    $13, 2( %0 );"                 \
     :                                     \
     : "r"(r0)                             \
     : "$12", "$13", "memory")

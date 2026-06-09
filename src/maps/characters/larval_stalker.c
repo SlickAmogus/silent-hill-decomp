@@ -9,7 +9,7 @@
 
 #define larvalStalkerProps larvalStalker->properties.larvalStalker
 
-void Ai_LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
     s8* mapOverlayPtr;
 
@@ -37,7 +37,7 @@ void Ai_LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr,
     }
 
     // TODO: Weird hack, or a drunk developer.
-    mapOverlayPtr = &g_SavegamePtr->mapOverlayId_A4;
+    mapOverlayPtr = &g_SavegamePtr->mapIdx;
 
     larvalStalker->timer_C6               = Q12(1.0f);
     larvalStalker->model.controlState = LarvalStalkerControl_1;
@@ -148,7 +148,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
         case LarvalStalkerControl_2:
             Chara_MoveSpeedUpdate3(larvalStalker, Q12(1.5f), Q12(0.3f));
 
-            if (func_80070184(larvalStalker, Q12(1.0f), larvalStalker->rotation.vy) || !Rng_GenerateInt(0, 63)) // 1 in 64 chance.
+            if (Los_CharaToCharaDistCheck(larvalStalker, Q12(1.0f), larvalStalker->rotation.vy) || !Rng_GenerateInt(0, 63)) // 1 in 64 chance.
             {
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_Idle, false);
                 larvalStalker->model.controlState = LarvalStalkerControl_3;
@@ -158,7 +158,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
             {
                 larvalStalker->model.controlState = LarvalStalkerControl_Idle;
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_Idle, false);
-                larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_2;
+                larvalStalkerProps.flags |= LarvalStalkerFlag_2;
             }
             break;
 
@@ -197,7 +197,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
 
             if (larvalStalker->model.anim.status == ANIM_STATUS(LarvalStalkerAnim_Idle, true))
             {
-                validStep = func_80070184(larvalStalker, Q12(0.6f), larvalStalker->rotation.vy);
+                validStep = Los_CharaToCharaDistCheck(larvalStalker, Q12(0.6f), larvalStalker->rotation.vy);
                 if ((validStep && !Rng_GenerateInt(0, 3)) || // 1 in 4 chance.
                     !Rng_GenerateInt(0, 31))                 // 1 in 32 chance.
                 {
@@ -219,20 +219,20 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                 larvalStalker->model.controlState = LarvalStalkerControl_Idle;
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_Idle, false);
                 larvalStalkerProps.angle_108 = Q12_ANGLE(0.0f);
-                larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_2;
+                larvalStalkerProps.flags |= LarvalStalkerFlag_2;
             }
             break;
 
         case LarvalStalkerControl_WalkForward:
             Chara_MoveSpeedUpdate3(larvalStalker, Q12(1.5f), Q12(0.3f));
 
-            if ((larvalStalkerProps.flags_E8 & LarvalStalkerFlag_2) &&
+            if ((larvalStalkerProps.flags & LarvalStalkerFlag_2) &&
                 ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status) == LarvalStalkerAnim_WalkForward &&
                 ((distToTarget < (Q12(3.5f) - FP_TO(larvalStalkerProps.field_EA, Q12_SHIFT))) || !Rng_GenerateInt(0, 31))) // 1 in 32 chance.
             {
                 larvalStalker->model.controlState = LarvalStalkerControl_Idle;
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_Idle, false);
-                larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_3;
+                larvalStalkerProps.flags &= ~LarvalStalkerFlag_3;
                 break;
             }
 
@@ -240,7 +240,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                 g_SysWork.playerWork.player.moveSpeed <= ((larvalStalkerProps.field_EA * Q12(1.5f) )+ Q12(0.5f)))
             {
                 if (Q12_ANGLE(45.0f) > ABS(angleDeltaToPlayer) &&
-                    (distToTarget < ((larvalStalker->field_D4.radius_0 + Q12(0.05f)) + g_SysWork.playerWork.player.field_D4.radius_0)))
+                    (distToTarget < ((larvalStalker->collision.cylinder.radius + Q12(0.05f)) + g_SysWork.playerWork.player.collision.cylinder.radius)))
                 {
                     if (!Rng_GenerateInt(0, 7)) // 1 in 8 chance.
                     {
@@ -267,12 +267,12 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                     break;
                 }
 
-                if (larvalStalkerProps.flags_E8 & LarvalStalkerFlag_3)
+                if (larvalStalkerProps.flags & LarvalStalkerFlag_3)
                 {
                     Chara_TurnModulate(Math_AngleNormalizeSigned(larvalStalkerProps.angle_108 - larvalStalker->rotation.vy), Q12_ANGLE(1.5f), Q12_ANGLE(30.0f));
                     if (!Rng_GenerateInt(0, 15)) // 1 in 16 chance.
                     {
-                        larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_3;
+                        larvalStalkerProps.flags &= ~LarvalStalkerFlag_3;
                     }
                     break;
                 }
@@ -295,7 +295,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
 
                 larvalStalkerProps.timer_EC = Q12(0.0f);
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_WalkForwardAlt, false);
-                larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_3;
+                larvalStalkerProps.flags &= ~LarvalStalkerFlag_3;
 
             }
             break;
@@ -303,7 +303,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
         case LarvalStalkerControl_Unused5:
             Chara_TurnModulate(angleDeltaToPlayer, Q12_ANGLE(1.5f), Q12_ANGLE(30.0f));
 
-            if (larvalStalkerProps.flags_E8 & LarvalStalkerFlag_6)
+            if (larvalStalkerProps.flags & LarvalStalkerFlag_6)
             {
                 larvalStalkerProps.animTime_104 = larvalStalker->model.anim.time;
                 larvalStalker->moveSpeed = Q12(0.0f);
@@ -322,7 +322,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                         }
 
                         Chara_AttackReceivedSet(&g_SysWork.playerWork.player, WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Multitap));
-                        g_SysWork.playerWork.player.damage.amount_C += (FP_TO(D_800AD4C8[WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Multitap)].field_4, Q12_SHIFT) * ((Rng_Rand16() & 0x1F) + 0x55)) / 100;
+                        g_SysWork.playerWork.player.damage.amount += (FP_TO(D_800AD4C8[WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Multitap)].field_4, Q12_SHIFT) * ((Rng_Rand16() & 0x1F) + 0x55)) / 100;
                     }
                 }
 
@@ -375,31 +375,31 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                     g_SysWork.charaGroupFlags[3] &= ~CharaGroupFlag_0;
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunBackToIdle, false);
                     larvalStalker->model.controlState = LarvalStalkerControl_Stun;
-                    larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_6;
-                    larvalStalker->field_E1_0 = 3;
+                    larvalStalkerProps.flags &= ~LarvalStalkerFlag_6;
+                    larvalStalker->collision.state = 3;
                     larvalStalkerProps.keyframeIdx_F4 = 0;
 
                     func_8005DC1C(Sfx_Unk1429, &larvalStalker->position, Q8(0.5f), 0);
                 }
                 else
                 {
-                    larvalStalker->field_E1_0 = 1;
+                    larvalStalker->collision.state = 1;
                 }
             }
             else
             {
-                if (distToTarget < ((larvalStalker->field_D4.radius_0 + Q12(0.02f)) + g_SysWork.playerWork.player.field_D4.radius_0))
+                if (distToTarget < ((larvalStalker->collision.cylinder.radius + Q12(0.02f)) + g_SysWork.playerWork.player.collision.cylinder.radius))
                 {
                     Chara_MoveSpeedUpdate(larvalStalker, Q12(1.5f));
                 }
 
                 pos     = larvalStalker->position;
-                pos.vy += larvalStalker->field_C8.field_8;
+                pos.vy += larvalStalker->collision.box.field_8;
 
                 if (func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk31, AttackInputType_Multitap), larvalStalker, &pos, &g_SysWork.playerWork.player, larvalStalker->rotation.vy, Q12_ANGLE(90.0f)) != NO_VALUE)
                 {
                     larvalStalkerProps.timer_EC = Q12(0.0f);
-                    larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_6;
+                    larvalStalkerProps.flags |= LarvalStalkerFlag_6;
                 }
                 else if (distToTarget > Q12(0.5f))
                 {
@@ -447,13 +447,13 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_Idle, false);
                     larvalStalkerProps.timer_EC = Q12(0.0f);
                     larvalStalkerProps.angle_108 = Q12(0.0f);
-                    larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_2;
+                    larvalStalkerProps.flags |= LarvalStalkerFlag_2;
                 }
             }
             break;
 
         case LarvalStalkerControl_Idle:
-            if (func_800700F8(larvalStalker, &g_SysWork.playerWork.player) || (distStep * 2) < distToTarget)
+            if (Los_NpcToPlayerHitCheck(larvalStalker, &g_SysWork.playerWork.player) || (distStep * 2) < distToTarget)
             {
                 larvalStalker->model.controlState = LarvalStalkerControl_3;
 
@@ -501,7 +501,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                     larvalStalker->model.anim.status  = ANIM_STATUS(LarvalStalkerAnim_WalkForward, false);
                     larvalStalkerProps.timer_EC = Q12(0.0f);
 
-                    larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_2;
+                    larvalStalkerProps.flags &= ~LarvalStalkerFlag_2;
                     if (larvalStalkerProps.field_EA < 2)
                     {
                         larvalStalkerProps.field_EA++;
@@ -518,7 +518,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
 
                         larvalStalkerProps.timer_EC = Q12(0.0f);
                         larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_WalkForwardAlt, false);
-                        larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_3;
+                        larvalStalkerProps.flags &= ~LarvalStalkerFlag_3;
                     }
                 }
             }
@@ -560,7 +560,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                 func_8005DC1C(Sfx_Unk1429, &larvalStalker->position, Q8(0.5f), 0);
             }
 
-            if (!(larvalStalkerProps.flags_E8 & LarvalStalkerFlag_7))
+            if (!(larvalStalkerProps.flags & LarvalStalkerFlag_7))
             {
                 larvalStalkerProps.timer_F0 += g_DeltaTime;
                 if (larvalStalkerProps.timer_F0 > Q12(5.0f) && !Rng_GenerateInt(0, 63)) // 1 in 64 chance.
@@ -642,7 +642,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
             {
                 larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_WalkForwardAlt, false);
                 larvalStalker->model.controlState = LarvalStalkerControl_8;
-                larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_1;
+                larvalStalkerProps.flags &= ~LarvalStalkerFlag_1;
             }
             break;
 
@@ -659,13 +659,13 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
                 Savegame_EnemyStateUpdate(larvalStalker);
             }
 
-            if (larvalStalkerProps.flags_E8 & LarvalStalkerFlag_1)
+            if (larvalStalkerProps.flags & LarvalStalkerFlag_1)
             {
                 Chara_MoveSpeedUpdate(larvalStalker, Q12(1.5f));
 
                 if (larvalStalker->moveSpeed == Q12(0.0f))
                 {
-                    larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_1;
+                    larvalStalkerProps.flags &= ~LarvalStalkerFlag_1;
                 }
                 break;
             }
@@ -716,21 +716,21 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
             if (larvalStalker->health <= Q12(0.0f) && Chara_NpcIdxGet(larvalStalker) != g_SysWork.targetNpcIdx)
             {
                 larvalStalker->health = NO_VALUE;
-                larvalStalker->field_E1_0 = 0;
+                larvalStalker->collision.state = 0;
             }
 
             // TODO: Weird property cast. Originally, maybe a wrong properties struct was mistakenly accessed?
-            if (larvalStalker->moveSpeed == Q12(0.0f) && !(*(s32*)&larvalStalkerProps.flags_E8 & (LarvalStalkerFlag_4 | LarvalStalkerFlag_5)))
+            if (larvalStalker->moveSpeed == Q12(0.0f) && !(*(s32*)&larvalStalkerProps.flags & (LarvalStalkerFlag_4 | LarvalStalkerFlag_5)))
             {
                 if (ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status) == LarvalStalkerAnim_DeathFrontEnd)
                 {
                     func_800622B8(3, larvalStalker, 3, 3);
-                    larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_4;
+                    larvalStalkerProps.flags |= LarvalStalkerFlag_4;
                 }
                 else if (ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status) == LarvalStalkerAnim_DeathBackCont)
                 {
                     func_800622B8(3, larvalStalker, 4, 3);
-                    larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_4;
+                    larvalStalkerProps.flags |= LarvalStalkerFlag_4;
                 }
             }
 
@@ -747,7 +747,7 @@ void sharedFunc_800D140C_1_s00(s_SubCharacter* larvalStalker, GsCOORDINATE2* coo
 
     larvalStalker->fallSpeed += g_GravitySpeed >> 1;
 
-    if (!(larvalStalkerProps.flags_E8 & LarvalStalkerFlag_1))
+    if (!(larvalStalkerProps.flags & LarvalStalkerFlag_1))
     {
         larvalStalker->headingAngle = larvalStalker->rotation.vy;
     }
@@ -762,17 +762,17 @@ void sharedFunc_800D140C_1_s00(s_SubCharacter* larvalStalker, GsCOORDINATE2* coo
 
     if (larvalStalker->fallSpeed != Q12(0.0f))
     {
-        larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_5;
+        larvalStalkerProps.flags |= LarvalStalkerFlag_5;
     }
     else
     {
-        larvalStalkerProps.flags_E8 &= ~LarvalStalkerFlag_5;
+        larvalStalkerProps.flags &= ~LarvalStalkerFlag_5;
     }
 
     if (larvalStalker->moveSpeed > Q12(0.0f))
     {
-        if (sp18.offset_0.vx == Q12(0.0f) &&
-            sp18.offset_0.vz == Q12(0.0f))
+        if (sp18.offset.vx == Q12(0.0f) &&
+            sp18.offset.vz == Q12(0.0f))
         {
             larvalStalkerProps.angle_108 = Chara_HeadingAngleGet(larvalStalker,
                                                                           Q12(1.0f),
@@ -780,7 +780,7 @@ void sharedFunc_800D140C_1_s00(s_SubCharacter* larvalStalker, GsCOORDINATE2* coo
                                                                           larvalStalkerProps.targetPositionZ,
                                                                           Q12(1.0f),
                                                                           false);
-            larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_3;
+            larvalStalkerProps.flags |= LarvalStalkerFlag_3;
         }
     }
 
@@ -846,7 +846,7 @@ void Ai_LarvalStalker_Init(s_SubCharacter* larvalStalker)
     larvalStalker->model.anim.time    = Q12(0.0f);
     Character_AnimSet(larvalStalker, ANIM_STATUS(LarvalStalkerAnim_Idle, false), 162);
 
-    larvalStalkerProps.flags_E8 = LarvalStalkerFlag_None;
+    larvalStalkerProps.flags = LarvalStalkerFlag_None;
     larvalStalker->model.anim.alpha = Q12(0.0f);
     larvalStalker->model.stateStep  = 0;
     ModelAnim_AnimInfoSet(&larvalStalker->model.anim, LARVAL_STALKER_ANIM_INFOS);
@@ -856,7 +856,7 @@ void Ai_LarvalStalker_Init(s_SubCharacter* larvalStalker)
     larvalStalker->moveSpeed = Q12(0.0f);
 
     Chara_DamageClear(larvalStalker);
-    larvalStalker->field_E1_0      = 0;
+    larvalStalker->collision.state      = 0;
     larvalStalker->headingAngle = larvalStalker->rotation.vy;
 
     Chara_PropertiesClear(larvalStalker);
@@ -876,7 +876,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
      * edge where damage first becomes nonzero so it isn't spammy. */
     {
         static s32 s_prevAmt = 0;
-        s32 amt = (s32)larvalStalker->damage.amount_C;
+        s32 amt = (s32)larvalStalker->damage.amount;
         if (amt != s_prevAmt) {
             SH_DBG("[LSDMG] recv amount=%d health=%d ctrl=%d anim=%d",
                    amt, (int)larvalStalker->health,
@@ -887,23 +887,23 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
     }
 #endif
 
-    if (larvalStalker->damage.amount_C <= Q12(0.0f) || larvalStalker->health <= Q12(0.0f))
+    if (larvalStalker->damage.amount <= Q12(0.0f) || larvalStalker->health <= Q12(0.0f))
     {
         return;
     }
 
     func_8005DC1C(0, &larvalStalker->position, Q8(0.5f), 0);
 
-    larvalStalkerProps.flags_E8 |= LarvalStalkerFlag_7;
+    larvalStalkerProps.flags |= LarvalStalkerFlag_7;
 
-    larvalStalker->health                = MAX(larvalStalker->health - larvalStalker->damage.amount_C, Q12(0.0f));
+    larvalStalker->health                = MAX(larvalStalker->health - larvalStalker->damage.amount, Q12(0.0f));
     larvalStalker->damage.position.vx += FP_FROM(larvalStalker->moveSpeed * Math_Sin(larvalStalker->headingAngle), Q12_SHIFT);
     larvalStalker->damage.position.vz += FP_FROM(larvalStalker->moveSpeed * Math_Cos(larvalStalker->headingAngle), Q12_SHIFT);
     larvalStalker->moveSpeed             = FP_TO(Math_Vector2MagCalc(larvalStalker->damage.position.vx, larvalStalker->damage.position.vz), Q12_SHIFT) / Q12(2.4f);
     larvalStalker->fallSpeed             = FP_TO(larvalStalker->damage.position.vy, Q12_SHIFT) / Q12(2.4f);
     larvalStalker->headingAngle          = ratan2(larvalStalker->damage.position.vx, larvalStalker->damage.position.vz);
 
-    larvalStalkerProps.flags_E8       |= LarvalStalkerFlag_1;
+    larvalStalkerProps.flags       |= LarvalStalkerFlag_1;
     larvalStalkerProps.targetPositionX = g_SysWork.playerWork.player.position.vx;
     larvalStalkerProps.targetPositionZ = g_SysWork.playerWork.player.position.vz;
 
@@ -911,7 +911,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
     {
         if (ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status) == LarvalStalkerAnim_StunFrontEnd)
         {
-            larvalStalkerProps.keyframeIdx_F8                         = NO_VALUE;
+            larvalStalkerProps.keyframeIdx_F4                         = NO_VALUE;
             larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunFrontCont, false);
         }
     }
@@ -919,7 +919,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
     {
         if (ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status) == LarvalStalkerAnim_StunBackEnd)
         {
-            larvalStalkerProps.keyframeIdx_F8                         = NO_VALUE;
+            larvalStalkerProps.keyframeIdx_F4                         = NO_VALUE;
             larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunBackRecoil, false);
         }
     }
@@ -951,7 +951,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 66, 72))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     if (keyframeOffset == 30)
                     {
                         larvalStalker->model.anim.time -= Q12(1.0f);
@@ -962,13 +962,13 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 73, 74))
                 {
-                    larvalStalkerProps.keyframeIdx_F8                                               = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4                                               = keyframeOffset;
                     larvalStalker->model.anim.status                       = ANIM_STATUS(LarvalStalkerAnim_StunBackToIdle, false);
                     larvalStalkerProps.keyframeIdx_F4 = 5;
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 75, 78))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     if (keyframeOffset == 36)
                     {
                         larvalStalker->model.anim.time -= Q12(1.0f);
@@ -993,7 +993,7 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 105, 118))
                 {
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunFrontToIdle, false);
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     larvalStalkerProps.keyframeIdx_F4 = 7 - ((FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) - 104) >> 1);
                 }
                 else
@@ -1019,16 +1019,16 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunBackStart, false);
                     keyframeOffset = FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) - 41;
                     larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 52, 65))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunBackEnd, false);
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 66, 72))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     if (keyframeOffset == 30)
                     {
                         larvalStalker->model.anim.time -= Q12(1.0f);
@@ -1039,12 +1039,12 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 73, 74))
                 {
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunBackStart, false);
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     larvalStalker->model.anim.time = 5;
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 75, 78))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     if (keyframeOffset == 36)
                     {
                         larvalStalker->model.anim.time -= Q12(1.0f);
@@ -1072,17 +1072,17 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunFrontStart, false);
                     keyframeOffset = FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) - 86;
                     larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 97, 104))
                 {
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunFrontEnd, false);
                 }
                 else if (ANIM_TIME_RANGE_CHECK(larvalStalker->model.anim.time, 105, 118))
                 {
                     larvalStalker->model.anim.status = ANIM_STATUS(LarvalStalkerAnim_StunFrontStart, false);
-                    larvalStalkerProps.keyframeIdx_F8 = keyframeOffset;
+                    larvalStalkerProps.keyframeIdx_F4 = keyframeOffset;
                     larvalStalkerProps.keyframeIdx_F4 = 7 - ((FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) - 104) >> 1);
                 }
                 else
@@ -1110,26 +1110,26 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
 {                                             \
     s32 __temp;                               \
                                               \
-    arg0->field_C8.field_0 = data.field_0;    \
+    arg0->collision.box.top = data.field_0;    \
                                               \
     __temp = data.field_2;                    \
-    arg0->field_C8.field_2 = __temp;          \
-    arg0->field_C8.field_4 = data.field_4;    \
+    arg0->collision.box.bottom = __temp;          \
+    arg0->collision.box.height = data.field_4;    \
                                               \
     __temp = data.field_6;                    \
-    arg0->field_C8.field_6 = __temp;          \
-    arg0->field_D8.offsetX_4 = data.field_10; \
+    arg0->collision.box.offsetY = __temp;          \
+    arg0->collision.shapeOffsets.cylinder.vx = data.field_10; \
                                               \
     __temp = data.field_12;                   \
-    arg0->field_D8.offsetZ_6 = __temp;        \
-    arg0->field_D4.radius_0  = data.field_8;  \
-    arg0->field_D8.offsetX_0 = data.field_C;  \
+    arg0->collision.shapeOffsets.cylinder.vz = __temp;        \
+    arg0->collision.cylinder.radius  = data.field_8;  \
+    arg0->collision.shapeOffsets.box.vx = data.field_C;  \
                                               \
     __temp = data.field_E;                    \
-    arg0->field_D8.offsetZ_2 = __temp;        \
+    arg0->collision.shapeOffsets.box.vz = __temp;        \
                                               \
     __temp = data.field_A;                    \
-    arg0->field_D4.field_2 = __temp;          \
+    arg0->collision.cylinder.field_2 = __temp;          \
 }
 
 extern s_Keyframe sharedData_800DA928_1_s00[];
@@ -1163,12 +1163,12 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
     switch (larvalStalker->model.anim.status)
     {
         case ANIM_STATUS(LarvalStalkerAnim_StunBackEnd, false):
-            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F8;
+            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F4;
             if (keyframeIdx1 != -1)
             {
                 if (keyframeIdx1 == -2)
                 {
-                    func_80070400(larvalStalker, &sharedData_800DAF54_1_s00, &sharedData_800DA93C_1_s00);
+                    Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAF54_1_s00, &sharedData_800DA93C_1_s00);
                     break;
                 }
 
@@ -1189,7 +1189,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                     }
                 }
 
-                func_80070400(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA93C_1_s00);
+                Collision_CharaCollisionSet(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA93C_1_s00);
                 break;
             }
 
@@ -1200,7 +1200,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
         case ANIM_STATUS(LarvalStalkerAnim_StunBackRecoil, true):
             keyframeIdx0 = (FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) > 24 && FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) < 30) ? 0 : 1;
             keyframeIdx1 = (FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) > 23 && FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT) < 29) ? 0 : 1;
-            func_80070400(larvalStalker, &sharedData_800DA928_1_s00[keyframeIdx0], &sharedData_800DA928_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DA928_1_s00[keyframeIdx0], &sharedData_800DA928_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunBackEnd, true):
@@ -1212,7 +1212,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_DeathFrontStart, false):
-            func_80070400(larvalStalker, &sharedData_800DB008_1_s00, &sharedData_800DA950_1_s00);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DB008_1_s00, &sharedData_800DA950_1_s00);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_DeathFrontStart, true):
@@ -1229,7 +1229,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 break;
             }
 
-            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F8;
+            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F4;
             if ((keyframeIdx1 - 24) >= 0)
             {
                 keyframeIdx0 = keyframeIdx1 - 10;
@@ -1239,7 +1239,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 keyframeIdx0 = 14;
             }
 
-            func_80070400(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA964_1_s00[keyframeIdx3]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA964_1_s00[keyframeIdx3]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunBackToIdle, true):
@@ -1272,7 +1272,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 }
             }
 
-            func_80070400(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA964_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DA964_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontToIdle, false):
@@ -1283,9 +1283,9 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 break;
             }
 
-            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F8;
+            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F4;
             keyframeIdx0 = ((relKeyframeIdx - 7) - (relKeyframeIdx >= 23)) - (relKeyframeIdx >= 24);
-            func_80070400(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAC34_1_s00[keyframeIdx2]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAC34_1_s00[keyframeIdx2]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontToIdle, true):
@@ -1303,7 +1303,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 keyframeIdx1 = (activeKeyframeIdx1 - 92) - (relKeyframeIdx >= 22) - (relKeyframeIdx >= 23) - (relKeyframeIdx >= 33);
             }
 
-            func_80070400(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAC34_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAC34_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunBackStart, false):
@@ -1313,7 +1313,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 break;
             }
 
-            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F8;
+            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F4;
             if (relKeyframeIdx < 15)
             {
                 keyframeIdx0 = relKeyframeIdx - (relKeyframeIdx >= 11);
@@ -1331,11 +1331,11 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
             }
 
             keyframeIdx1 = larvalStalkerProps.keyframeIdx_F4;
-            func_80070400(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DAE28_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DA964_1_s00[keyframeIdx0], &sharedData_800DAE28_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunBackStart, true):
-            larvalStalkerProps.keyframeIdx_F8 = -2;
+            larvalStalkerProps.keyframeIdx_F4 = -2;
             keyframeIdx1 = FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT);
 
             relKeyframeIdx = keyframeIdx1 - 121;
@@ -1344,7 +1344,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
             keyframeIdx1 = relKeyframeIdx + 1;
             keyframeIdx1 = relKeyframeIdx + (relKeyframeIdx < 10) < 16 ? relKeyframeIdx + (relKeyframeIdx < 10) : 15;
 
-            func_80070400(larvalStalker, &sharedData_800DAE28_1_s00[keyframeIdx0], &sharedData_800DAE28_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAE28_1_s00[keyframeIdx0], &sharedData_800DAE28_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontStart, false):
@@ -1354,7 +1354,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 break;
             }
 
-            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F8;
+            relKeyframeIdx = larvalStalkerProps.keyframeIdx_F4;
             if (relKeyframeIdx < 15)
             {
                 keyframeIdx0 = MIN(8, relKeyframeIdx);
@@ -1365,21 +1365,21 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
             }
 
             keyframeIdx1 = larvalStalkerProps.keyframeIdx_F4;
-            func_80070400(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAF68_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DAF68_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontStart, true):
-            larvalStalkerProps.keyframeIdx_F8 = -2;
+            larvalStalkerProps.keyframeIdx_F4 = -2;
             activeKeyframeIdx0 = FP_FROM(larvalStalker->model.anim.time, Q12_SHIFT);
             relKeyframeIdx = activeKeyframeIdx0 - 143;
 
             keyframeIdx0 = MIN(7, relKeyframeIdx);
             keyframeIdx1 = MIN(7, activeKeyframeIdx0 - 142);
-            func_80070400(larvalStalker, &sharedData_800DAF68_1_s00[keyframeIdx0], &sharedData_800DAF68_1_s00[keyframeIdx1]);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAF68_1_s00[keyframeIdx0], &sharedData_800DAF68_1_s00[keyframeIdx1]);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontEnd, false):
-            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F8;
+            keyframeIdx1 = larvalStalkerProps.keyframeIdx_F4;
             if (keyframeIdx1 == -1)
             {
                 CopyData(larvalStalker, sharedData_800DB008_1_s00);
@@ -1387,7 +1387,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
             }
             if (keyframeIdx1 == -2)
             {
-                func_80070400(larvalStalker, &sharedData_800DAFF4_1_s00, &sharedData_800DB008_1_s00);
+                Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAFF4_1_s00, &sharedData_800DB008_1_s00);
                 break;
             }
 
@@ -1401,7 +1401,7 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
                 keyframeIdx0 = relKeyframeIdx - 7;
             }
 
-            func_80070400(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DB008_1_s00);
+            Collision_CharaCollisionSet(larvalStalker, &sharedData_800DAC34_1_s00[keyframeIdx0], &sharedData_800DB008_1_s00);
             break;
 
         case ANIM_STATUS(LarvalStalkerAnim_StunFrontEnd, true):
@@ -1424,21 +1424,21 @@ void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker)
 
         case ANIM_STATUS(LarvalStalkerAnim_GrabAttack, false):
         case ANIM_STATUS(LarvalStalkerAnim_GrabAttack, true):
-            larvalStalker->field_C8.field_0   = Q12(-0.72f);
-            larvalStalker->field_C8.field_4   = Q12(-0.2f);
-            larvalStalker->field_C8.field_6   = Q12(-0.66f);
-            larvalStalker->field_D4.radius_0  = Q12(0.12f);
-            larvalStalker->field_D8.offsetZ_2 = Q12(0.02f);
-            larvalStalker->field_D4.field_2   = Q12(0.11f);
-            larvalStalker->field_C8.field_2   = Q12(0.0f);
-            larvalStalker->field_D8.offsetX_4 = Q12(0.0f);
-            larvalStalker->field_D8.offsetZ_6 = Q12(0.0f);
-            larvalStalker->field_D8.offsetX_0 = Q12(0.0f);
-            larvalStalker->field_C8.field_8   = Q12(-0.59f);
+            larvalStalker->collision.box.top   = Q12(-0.72f);
+            larvalStalker->collision.box.height   = Q12(-0.2f);
+            larvalStalker->collision.box.offsetY   = Q12(-0.66f);
+            larvalStalker->collision.cylinder.radius  = Q12(0.12f);
+            larvalStalker->collision.shapeOffsets.box.vz = Q12(0.02f);
+            larvalStalker->collision.cylinder.field_2   = Q12(0.11f);
+            larvalStalker->collision.box.bottom   = Q12(0.0f);
+            larvalStalker->collision.shapeOffsets.cylinder.vx = Q12(0.0f);
+            larvalStalker->collision.shapeOffsets.cylinder.vz = Q12(0.0f);
+            larvalStalker->collision.shapeOffsets.box.vx = Q12(0.0f);
+            larvalStalker->collision.box.field_8   = Q12(-0.59f);
             break;
     }
 
-    func_8005C814(&larvalStalker->field_D8, larvalStalker);
+    Chara_CollisionShapeOffsetsUpdate(&larvalStalker->collision.shapeOffsets, larvalStalker);
 }
 
 #undef larvalStalkerProps

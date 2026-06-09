@@ -1,6 +1,6 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #include "maps/map1/map1_s05.h"
 #include "maps/particle.h"
@@ -20,19 +20,19 @@
 
 void Map_RoomBgmInit(bool arg0) // 0x800D494C
 {
-    s32 var_a0;
+    s32 bgmFlags;
 
-    var_a0 = 1;
-    if (g_SysWork.npcs[0].health > 0)
+    bgmFlags = 1;
+    if (g_SysWork.npcs[0].health > Q12(0.0f))
     {
-        var_a0 = 2;
-        if (g_SysWork.npcs[0].properties.dummy.properties_E8[0].val16[0] & 0x10)
+        bgmFlags = 2;
+        if (g_SysWork.npcs[0].properties.splitHead.flags & SplitHeadFlag_4)
         {
-            var_a0 = 6;
+            bgmFlags = 6;
         }
     }
 
-    Bgm_Update(var_a0, Q12(0.1f), &D_800D5C3C);
+    Bgm_Update(bgmFlags, Q12(0.1f), &D_800D5C3C);
 }
 
 void GameBoot_LoadScreen_StageString(void) {}
@@ -45,7 +45,7 @@ void func_800D49AC(void) // 0x800D49AC
 {
     s32 i;
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip)
+    if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip)
     {
         if (g_SysWork.sysStateSteps[0] >= 3)
         {
@@ -73,19 +73,19 @@ void func_800D49AC(void) // 0x800D49AC
     {
         case 0:
             Player_ControlFreeze();
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
 
-            g_SysWork.field_30   = 20;
-            g_SysWork.pointLightIntensity = 0;
+            CutsceneBorder_ForceShow();
+            g_SysWork.lightIntensity      = Q12(0.0f);
 
             // Warp camera.
-            Camera_PositionSet(NULL, Q12(19.72f), Q12(-5.2f), Q12(-27.6f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
-            Camera_LookAtSet(NULL, Q12(19.72f), Q12(-3.3f), Q12(-24.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
+            Event_CameraPositionSet(NULL, Q12(19.72f), Q12(-5.2f), Q12(-27.6f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
+            Event_CameraLookAtSet(NULL, Q12(19.72f), Q12(-3.3f), Q12(-24.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(0.0f), true);
 
             SysWork_StateStepIncrement(0);
 
         case 1:
-            SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
+            Event_WaitTimer(Q12(1.5f), false);
             break;
 
         case 2:
@@ -93,21 +93,21 @@ void func_800D49AC(void) // 0x800D49AC
             SysWork_StateStepIncrement(0);
 
         case 3:
-            SysWork_StateStepIncrementDelayed(Q12(0.2f), false);
+            Event_WaitTimer(Q12(0.2f), false);
             break;
 
         case 4:
-            g_SysWork.pointLightIntensity += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.225f);
-            if (g_SysWork.pointLightIntensity > Q12(2.25f))
+            g_SysWork.lightIntensity += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.225f);
+            if (g_SysWork.lightIntensity > Q12(2.25f))
             {
-                g_SysWork.pointLightIntensity = Q12(2.25f);
+                g_SysWork.lightIntensity = Q12(2.25f);
                 SysWork_StateStepIncrement(0);
             }
             break;
 
         case 5:
-            g_SysWork.pointLightIntensity -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.45f);
-            if (g_SysWork.pointLightIntensity < Q12(1.3843f))
+            g_SysWork.lightIntensity -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.45f);
+            if (g_SysWork.lightIntensity < Q12(1.3843f))
             {
                 Savegame_EventFlagSet(EventFlag_129);
                 SysWork_StateStepReset();
@@ -119,9 +119,9 @@ void func_800D49AC(void) // 0x800D49AC
 
             SysWork_StateSetNext(SysState_Gameplay);
 
-            g_SysWork.pointLightIntensity = Q12(1.3843f);
+            g_SysWork.lightIntensity = Q12(1.3843f);
 
-            SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 2, Q12(0.0f), false);
             vcReturnPreAutoCamWork(false);
 
             Savegame_EventFlagSet(EventFlag_130);
@@ -153,11 +153,11 @@ void func_800D4D1C(void) // 0x800D4D1C
             scratchData->sprt_0            = (SPRT*)GsOUT_PACKET_P;
             for (i = 0; i < 2; i++)
             {
-                setCodeWord(scratchData->sprt_0, PRIM_RECT | RECT_BLEND | RECT_TEXTURE, PACKED_COLOR(128, 128, 128, 0));
+                setCodeWord(scratchData->sprt_0, PRIM_RECT | RECT_BLEND | RECT_TEXTURE, COLOR_RGBC(128, 128, 128, 0));
                 setXY0Fast(scratchData->sprt_0, ((i << 8) - 160), -112);
                 scratchData->sprt_0->u0 = 0;
                 scratchData->sprt_0->v0 = (scratchData->activeBufferIdx_C == 0) ? 32 : 0;
-                setWH(scratchData->sprt_0, (i == 0) ? 256 : 64, 224);
+                setWH(scratchData->sprt_0, (i == 0) ? 256 : 64, FRAMEBUFFER_HEIGHT_PROGRESSIVE);
                 addPrimFast(&g_OrderingTable2[g_ActiveBufferIdx].org[15], scratchData->sprt_0, 4);
 
                 scratchData->sprt_0++;
@@ -188,12 +188,12 @@ void func_800D4D1C(void) // 0x800D4D1C
             SysWork_StateStepIncrement(0);
 
         case 1:
-            SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
+            Event_WaitTimer(Q12(1.5f), false);
 
-            g_SysWork.pointLightIntensity += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.2f);
-            if (g_SysWork.pointLightIntensity > Q12(3.0f))
+            g_SysWork.lightIntensity += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 0.2f);
+            if (g_SysWork.lightIntensity > Q12(3.0f))
             {
-                g_SysWork.pointLightIntensity = Q12(3.0f);
+                g_SysWork.lightIntensity = Q12(3.0f);
             }
             break;
 
@@ -209,23 +209,23 @@ void func_800D4D1C(void) // 0x800D4D1C
                 D_800D5D11++;
             }
 
-            Sd_SfxAttributesUpdate(Sfx_Unk1359, 0, MAX(0, (Q12_FRACT(g_SysWork.pointLightIntensity) >> 4) - (D_800D5D11 * 8)), 0);
+            Sd_SfxAttributesUpdate(Sfx_Unk1359, 0, MAX(0, (Q12_FRACT(g_SysWork.lightIntensity) >> 4) - (D_800D5D11 * 8)), 0);
 
-            g_SysWork.pointLightIntensity -= FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.15f, 12);
-            if (g_SysWork.pointLightIntensity < (6 - D_800D5D11) * Q12(0.5f))
+            g_SysWork.lightIntensity -= FP_MULTIPLY_FLOAT_PRECISE(g_DeltaTime, 0.15f, 12);
+            if (g_SysWork.lightIntensity < (6 - D_800D5D11) * Q12(0.5f))
             {
                 D_800D5D11++;
             }
 
-            if (g_SysWork.pointLightIntensity < 0)
+            if (g_SysWork.lightIntensity < Q12(0.0f))
             {
-                g_SysWork.pointLightIntensity = 0;
+                g_SysWork.lightIntensity = Q12(0.0f);
                 SysWork_StateStepIncrement(0);
             }
             break;
 
         case 4:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(2.5f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(2.5f), false);
             break;
 
         default:
@@ -262,24 +262,24 @@ void Map_WorldObjectsInit(void) // 0x800D525C
 
     if (Savegame_EventFlagGet(EventFlag_130))
     {
-        g_SysWork.pointLightIntensity = Q12(1.3843f);
+        g_SysWork.lightIntensity = Q12(1.3843f);
         sharedData_800D8568_1_s05.field_1 = 0;
     }
 
     sharedFunc_800CAAD0_1_s05();
-    WorldObjectInit(&g_WorldObject0, "SPHERE_H", 19.7f, 1.58f, -19.1f, 0.0f, 0.0f, 0.0f);
+    WorldObject_Init(&g_WorldObject0, "SPHERE_H", 19.7f, 1.58f, -19.1f, 0.0f, 0.0f, 0.0f);
 
-    WorldObjectInit(&g_WorldObject1, "WHEEL_HI", 19.7f, -0.06f, -19.1f, 0.0f, 0.0f, 0.0f);
+    WorldObject_Init(&g_WorldObject1, "WHEEL_HI", 19.7f, -0.06f, -19.1f, 0.0f, 0.0f, 0.0f);
 
-    g_SysWork.field_235C = NULL;
-    g_SysWork.pointLightPosition.vx = Q12(19.7f);
-    g_SysWork.pointLightPosition.vy = Q12(-3.0f);
-    g_SysWork.pointLightPosition.vz = Q12(-19.1f);
+    g_SysWork.lightBoneCoord = NULL;
+    g_SysWork.lightPosition.vx = Q12(19.7f);
+    g_SysWork.lightPosition.vy = Q12(-3.0f);
+    g_SysWork.lightPosition.vz = Q12(-19.1f);
 
-    g_SysWork.field_236C = NULL;
-    g_SysWork.pointLightRotation.vx = Q12_ANGLE(-90.0f);
-    g_SysWork.pointLightRotation.vy = Q12_ANGLE(0.0f);
-    g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
+    g_SysWork.lensFlareBoneCoord = NULL;
+    g_SysWork.lightRotation.vx = Q12_ANGLE(-90.0f);
+    g_SysWork.lightRotation.vy = Q12_ANGLE(0.0f);
+    g_SysWork.lightRotation.vz = Q12_ANGLE(0.0f);
 
     SD_Call(Sfx_Unk1478);
 }
@@ -313,14 +313,14 @@ void Map_WorldObjectsUpdate(void) // 0x800D5400
         }
 
         // TODO: Why doesn't `Q12_MULT_FLOAT_PRECISE(sp18[0], 0.6f)` work here?
-        g_SysWork.pointLightIntensity = Q12(1.35f) + (((Q12(0.9f) + Q12_MULT_PRECISE(sp18[0], Q12(0.6f))) * Math_Sin(sp18[1])) >> 15);
+        g_SysWork.lightIntensity = Q12(1.35f) + (((Q12(0.9f) + Q12_MULT_PRECISE(sp18[0], Q12(0.6f))) * Math_Sin(sp18[1])) >> 15);
     }
 
-    g_WorldObject0.rotation_28.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(-90.0f));
-    WorldGfx_ObjectAdd(&g_WorldObject0.object_0, &g_WorldObject0.position_1C, &g_WorldObject0.rotation_28);
+    g_WorldObject0.rotation.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(-90.0f));
+    WorldGfx_ObjectAdd(&g_WorldObject0.object, &g_WorldObject0.position, &g_WorldObject0.rotation);
 
-    g_WorldObject1.rotation_28.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(15.0f));
-    WorldGfx_ObjectAdd(&g_WorldObject1.object_0, &g_WorldObject1.position_1C, &g_WorldObject1.rotation_28);
+    g_WorldObject1.rotation.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(15.0f));
+    WorldGfx_ObjectAdd(&g_WorldObject1.object, &g_WorldObject1.position, &g_WorldObject1.rotation);
 
     i = 0;
     while (1)
@@ -331,5 +331,5 @@ void Map_WorldObjectsUpdate(void) // 0x800D5400
         }
     }
 
-    func_8005DE0C(Sfx_Unk1478, &QVECTOR3(19.7f, -1.5f, -19.1f), Q8(0.5f) - Q12_MULT_PRECISE(D_800D8578, Q8(0.5f)), Q12(16.0f), 0);
+    Sfx_WithFalloffAndPitchPlay(Sfx_Unk1478, &QVECTOR3(19.7f, -1.5f, -19.1f), Q8(0.5f) - Q12_MULT_PRECISE(D_800D8578, Q8(0.5f)), Q12(16.0f), 0);
 }

@@ -52,12 +52,12 @@
 #if !MAP_USE_PARTICLES
 
 /** Barebones version of `Particle_SystemUpdate`, missing calls to `Particle_Update` and other particle-related code. */
-void Particle_SystemUpdate(s32 unused, e_MapIdx mapOverlayId, s32 arg3)
+void Particle_SystemUpdate(s32 unused, e_MapIdx mapIdx, s32 arg3)
 {
     s32 temp_s0;
 
-    func_80055434(&g_ParticleVectors0.vector_0);
-    g_ParticleVectors0.field_28 = func_8005545C(&g_ParticleVectors0.svec_18);
+    WorldEnv_LightPositionGet(&g_ParticleVectors0.vector_0);
+    g_ParticleVectors0.field_28 = WorldEnv_LightRotationAndIntensityGet(&g_ParticleVectors0.svec_18);
 
     vwGetViewPosition(&g_ParticleVectors0.viewPosition_C);
     vwGetViewAngle(&g_ParticleVectors0.viewRotation_20);
@@ -68,13 +68,13 @@ void Particle_SystemUpdate(s32 unused, e_MapIdx mapOverlayId, s32 arg3)
         case -1:
             if (arg3 == NO_VALUE)
             {
-                g_SysWork.field_2349 = g_MapOverlayHeader.field_17;
-                g_SysWork.field_2348 = g_MapOverlayHeader.field_17;
+                g_SysWork.field_2349 = g_MapOverlayHdr.field_17;
+                g_SysWork.field_2348 = g_MapOverlayHdr.field_17;
             }
 
             sharedData_800DD598_0_s00 = 0;
             g_SysWork.field_234A      = true;
-            g_ParticleMapIdx0 = mapOverlayId;
+            g_ParticleMapIdx0 = mapIdx;
 
             sharedData_800E0CB8_0_s00 = FP_FROM(sharedData_800E0CB0_0_s00, Q12_SHIFT);
             sharedData_800E0CB6_0_s00 = sharedData_800E0CB0_0_s00;
@@ -87,7 +87,7 @@ void Particle_SystemUpdate(s32 unused, e_MapIdx mapOverlayId, s32 arg3)
         default:
             sharedData_800DD584_0_s00 = g_DeltaTime == Q12(0.0f);
 
-            g_ParticleMapIdx1 = mapOverlayId;
+            g_ParticleMapIdx1 = mapIdx;
 
             temp_s0 = SetSp(PSX_SCRATCH_ADDR(0x3D8));
             SetSp(temp_s0);
@@ -100,7 +100,7 @@ void Particle_SystemUpdate(s32 unused, e_MapIdx mapOverlayId, s32 arg3)
 #else /* MAP_USE_PARTICLES */
 
 /** Full version of `Particle_SystemUpdate` used by most maps. */
-void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
+void Particle_SystemUpdate(s32 arg1, e_MapIdx mapIdx, s32 arg3)
 {
     s32 temp_a2;
     s32 temp_s0;
@@ -125,8 +125,8 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
     Particle_SoundUpdate();
 #endif
 
-    func_80055434(&g_ParticleVectors0.vector_0);
-    g_ParticleVectors0.field_28 = func_8005545C(&g_ParticleVectors0.svec_18);
+    WorldEnv_LightPositionGet(&g_ParticleVectors0.vector_0);
+    g_ParticleVectors0.field_28 = WorldEnv_LightRotationAndIntensityGet(&g_ParticleVectors0.svec_18);
 
     vwGetViewPosition(&g_ParticleVectors0.viewPosition_C);
     vwGetViewAngle(&g_ParticleVectors0.viewRotation_20);
@@ -157,7 +157,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
             sharedData_800E326C_0_s00.corners_0[1].vx = Q12(-0.30f);
             sharedData_800E326C_0_s00.corners_0[1].vz = Q12(265.0f);
 #elif defined(MAP1_S06)
-            switch (g_SavegamePtr->mapRoomIdx_A5)
+            switch (g_SavegamePtr->mapRoomIdx)
             {
                 case 12:
                     sharedData_800DD591_0_s00             = 1;
@@ -192,7 +192,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
                     break;
             }
 #elif defined(MAP2_S00)
-            switch (g_SavegamePtr->mapRoomIdx_A5)
+            switch (g_SavegamePtr->mapRoomIdx)
             {
                 case 38:
                     sharedData_800DD591_0_s00                 = 10;
@@ -269,7 +269,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
             sharedData_800E326C_0_s00.corners_0[5].vx = Q12(-25.5f);
             sharedData_800E326C_0_s00.corners_0[5].vz = Q12(-8.0f);
 #elif defined(MAP3_S00) || defined(MAP3_S01) || defined(MAP3_S06)
-            switch (g_SavegamePtr->mapRoomIdx_A5)
+            switch (g_SavegamePtr->mapRoomIdx)
             {
                 case 3:
                     sharedData_800DD591_0_s00                 = 2;
@@ -320,7 +320,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
                     break;
             }
 #elif defined(MAP4_S03)
-            if (g_SavegamePtr->mapRoomIdx_A5 == 20)
+            if (g_SavegamePtr->mapRoomIdx == 20)
             {
                 sharedData_800DD591_0_s00                 = 1;
                 sharedData_800E326C_0_s00.corners_0[0].vx = Q12(133.0f);
@@ -347,8 +347,8 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
 
             if (arg3 == NO_VALUE)
             {
-                g_SysWork.field_2349 = g_MapOverlayHeader.field_17;
-                g_SysWork.field_2348 = g_MapOverlayHeader.field_17;
+                g_SysWork.field_2349 = g_MapOverlayHdr.field_17;
+                g_SysWork.field_2348 = g_MapOverlayHdr.field_17;
             }
 
             sharedData_800DD598_0_s00 = 0;
@@ -359,7 +359,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
             g_Particle_PrevPosition.vx = Q12(0.0f);
 
             g_SysWork.field_234A = true;
-            g_ParticleMapIdx0 = mapOverlayId;
+            g_ParticleMapIdx0 = mapIdx;
 
             sharedData_800E0CB8_0_s00 = FP_FROM(sharedData_800E0CB0_0_s00, Q12_SHIFT);
             sharedData_800E0CB6_0_s00 = sharedData_800E0CB0_0_s00;
@@ -571,7 +571,7 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapOverlayId, s32 arg3)
                 }
             }
 
-            g_ParticleMapIdx1 = mapOverlayId;
+            g_ParticleMapIdx1 = mapIdx;
             temp_s0_3 = SetSp(PSX_SCRATCH_ADDR(0x3D8));
 
             Particle_Update(g_Particles);
@@ -918,7 +918,7 @@ bool Particle_Update(s_Particle* partHead)
     g_ParticleSpawnCount = 0;
 
 #if defined(MAP0_S00)
-    if (g_SavegamePtr->mapRoomIdx_A5 == 3 && g_SysWork.playerWork.player.position.vz > Q12(200.0f))
+    if (g_SavegamePtr->mapRoomIdx == 3 && g_SysWork.playerWork.player.position.vz > Q12(200.0f))
     {
         sharedData_800DD591_0_s00 = 1;
     }
@@ -930,7 +930,7 @@ bool Particle_Update(s_Particle* partHead)
 #elif defined(MAP0_S02)
     sharedData_800DD591_0_s00 = 2;
 
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 2:
             sharedData_800E326C_0_s00.corners_0[0].vx = Q12(-101.5f);
@@ -967,7 +967,7 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP1_S06)
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 9:
         case 12:
@@ -980,7 +980,7 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP2_S00)
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 3:
             if (g_SysWork.playerWork.player.position.vz > Q12(200.0f))
@@ -1134,7 +1134,7 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP2_S02)
-    if (g_SavegamePtr->mapRoomIdx_A5 == 17)
+    if (g_SavegamePtr->mapRoomIdx == 17)
     {
         return false;
     }
@@ -1142,7 +1142,7 @@ bool Particle_Update(s_Particle* partHead)
     sharedData_800DD591_0_s00 = 0;
 
 #elif defined(MAP3_S00)
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 3:
         case 5:
@@ -1156,7 +1156,7 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP3_S01)
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 3:
         case 5:
@@ -1170,7 +1170,7 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP3_S06)
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 3:
         case 5:
@@ -1184,13 +1184,13 @@ bool Particle_Update(s_Particle* partHead)
     }
 
 #elif defined(MAP4_S02)
-    if (g_SavegamePtr->mapRoomIdx_A5 == 17)
+    if (g_SavegamePtr->mapRoomIdx == 17)
     {
         return false;
     }
 
 #elif defined(MAP4_S03)
-    if (g_SavegamePtr->mapRoomIdx_A5 != 20)
+    if (g_SavegamePtr->mapRoomIdx != 20)
     {
         return false;
     }
@@ -1242,7 +1242,7 @@ bool Particle_Update(s_Particle* partHead)
 #elif defined(MAP5_S03)
     sharedData_800DD591_0_s00 = 2;
 
-    switch (g_SavegamePtr->mapRoomIdx_A5)
+    switch (g_SavegamePtr->mapRoomIdx)
     {
         case 7:
             sharedData_800E326C_0_s00.corners_0[0].vx = Q12(55.5f);
@@ -2287,7 +2287,8 @@ void func_800CE544(s32 idx0, s32 arg1, s_800E34FC* arg2) // 0x800CE544
                 {
                     arg2->field_11 = Rng_GenerateUInt(3, 4);
                     arg2->field_12 = 0;
-                    rng0 = Rng_GenerateInt(0, 0xfff);
+
+                    rng0 = Rng_GenerateInt(0, 0xFFF);
                     arg2->field_C = (u32)(Math_Sin(rng0) * 3) / 0x100;
                     arg2->field_E = (u32)(Math_Cos(rng0) * 3) / 0x100;
                 }
@@ -2340,8 +2341,9 @@ void func_800CE544(s32 idx0, s32 arg1, s_800E34FC* arg2) // 0x800CE544
             case 5:
                 if (arg2->field_12 == 0)
                 {
-                    vecCpy.vx = (arg2->field_0.vx - g_SysWork.playerWork.player.position.vx) >> 4;
-                    vecCpy.vz = (arg2->field_0.vz - g_SysWork.playerWork.player.position.vz) >> 4;
+                    vecCpy.vx = Q12_TO_Q8(arg2->field_0.vx - g_SysWork.playerWork.player.position.vx);
+                    vecCpy.vz = Q12_TO_Q8(arg2->field_0.vz - g_SysWork.playerWork.player.position.vz);
+
                     angle = ratan2(vecCpy.vx, vecCpy.vz);
                     arg2->field_C = (u32)(Math_Sin(angle) * 3) / 0x10;
                     arg2->field_E = (u32)(Math_Cos(angle) * 3) / 0x10;
@@ -2443,7 +2445,7 @@ void Particle_SnowDraw(s_Particle* part)
      * pipeline that doesn't reliably occlude these particles, they
      * leak visibly through the ceiling. Skip the draw outright. */
     {
-        u8 room = g_SavegamePtr->mapRoomIdx_A5;
+        u8 room = g_SavegamePtr->mapRoomIdx;
         if (room != 2 && room != 3 && room != 4) {
             return;
         }
@@ -2494,7 +2496,7 @@ void Particle_SnowDraw(s_Particle* part)
 #if defined(HAS_PARTICLE_CASE_2)
                 PARTICLE_CASE(2):
                     Particle_BoundaryClamp(&particlePos, &sharedData_800E326C_0_s00.corners_0[0], &sharedData_800E326C_0_s00.corners_0[1], 0);
-                    if (g_SavegamePtr->mapRoomIdx_A5 == 5)
+                    if (g_SavegamePtr->mapRoomIdx == 5)
                     {
                         Particle_BoundaryClamp(&particlePos, &sharedData_800E326C_0_s00.corners_0[2], &sharedData_800E326C_0_s00.corners_0[3], 0);
                     }
@@ -2911,12 +2913,12 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
             sp28.vx = sp20.vx;
             sp28.vy = sp20.vy;
-            sp28.vz = (localPart->position0_0.vz + colorComp) >> 4;
+            sp28.vz = Q12_TO_Q8(localPart->position0_0.vz + colorComp);
 
             gte_stsxy(&poly->x0);
             gte_stszotz(&depth);
 
-            sp30.vx = (localPart->position0_0.vx + colorComp) >> 4;
+            sp30.vx = Q12_TO_Q8(localPart->position0_0.vx + colorComp);
             sp30.vy = sp20.vy;
             sp30.vz = sp20.vz;
 
@@ -2934,7 +2936,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             {
                 color = localPart->stateStep_1E;
 
-                if (color >= 9U)
+                if (color >= 9u)
                 {
                     r = 0x40 - ((color - 8) * 4);
                 }
@@ -3007,7 +3009,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 #if defined(MAP0_S00)
                 if (g_SysWork.enablePlayerMatchAnim != 0)
                 {
-                    setRGB0(poly, r + 0xA, g, b);
+                    setRGB0(poly, r + 10, g, b);
                 }
                 else
                 {
@@ -3166,13 +3168,13 @@ void Particle_SpawnMovementApply(s32 arg0, s_Particle* part, u16* rand, s32* del
 
 void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* deltaTime)
 {
-    s_Collision coll;
-    q19_12      deltaXCase0;
-    q19_12      deltaZCase0;
-    q19_12      deltaXCase1;
-    q19_12      deltaZCase1;
-    u16         localRand;
-    s_Particle* localPart = part;
+    s_CollisionSurface surface;
+    q19_12             deltaXCase0;
+    q19_12             deltaZCase0;
+    q19_12             deltaXCase1;
+    q19_12             deltaZCase1;
+    u16                localRand;
+    s_Particle*        localPart = part;
 
 // Value used in case 0 comparison.
 #if defined(MAP1_S06)
@@ -3227,8 +3229,8 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
             {
                 s32 localRand2 = Rng_Rand16();
                 s32 temp       = 12;
-
-                localPart->movement_18.vy += ((temp - g_Particle_PrevPosition.vy) - (g_Particle_PrevPosition.vy << 1) - (g_ParticlesAddedCount[0] >> 4)) + Rng_GenerateIntFromInput(localRand2, -2, 2);
+                localPart->movement_18.vy += ((temp - g_Particle_PrevPosition.vy) - (g_Particle_PrevPosition.vy << 1) - (g_ParticlesAddedCount[0] >> 4)) +
+                                             Rng_GenerateIntFromInput(localRand2, -2, 2);
 
                 limitRange(localPart->movement_18.vy, 5, 1000);
             }
@@ -3263,16 +3265,16 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localPart->stateStep_1E++;
 #else
                 PushMatrix();
-                Collision_Get(&coll, localPart->position0_0.vx + g_Particle_Position.vx, localPart->position0_0.vz + g_Particle_Position.vz);
+                Collision_SurfaceGet(&surface, localPart->position0_0.vx + g_Particle_Position.vx, localPart->position0_0.vz + g_Particle_Position.vz);
                 PopMatrix();
 
-                if (localPart->position0_0.vy >= coll.groundHeight_0)
+                if (localPart->position0_0.vy >= surface.groundHeight)
                 {
 #if defined(MAP1_S06)
                     localPart->stateStep_1E = 0;
 #else
-                    localPart->position0_0.vy = coll.groundHeight_0;
-                    if (coll.groundHeight_0 < Q12(0.0f) && coll.groundHeight_0 > Q12(-0.2))
+                    localPart->position0_0.vy = surface.groundHeight;
+                    if (surface.groundHeight < Q12(0.0f) && surface.groundHeight > Q12(-0.2))
                     {
                         localPart->position0_0.vy = Q12(0.0f);
                     }
@@ -3342,13 +3344,13 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
             if (localPart->position0_0.vy >= 0)
             {
                 PushMatrix();
-                Collision_Get(&coll, localPart->position0_0.vx + g_Particle_Position.vx, localPart->position0_0.vz + g_Particle_Position.vz);
+                Collision_SurfaceGet(&surface, localPart->position0_0.vx + g_Particle_Position.vx, localPart->position0_0.vz + g_Particle_Position.vz);
                 PopMatrix();
 
-                localPart->position0_0.vy = coll.groundHeight_0;
-                localPart->movement_18.vx = coll.field_8;
+                localPart->position0_0.vy = surface.groundHeight;
+                localPart->movement_18.vx = surface.groundType;
 
-                if (coll.field_8 == 11)
+                if (surface.groundType == GroundType_11)
                 {
                     localPart->type_1F        = SnowType_HeavyWindy;
                     localPart->position1_C.vx = localPart->position0_0.vx;
@@ -3826,11 +3828,11 @@ void sharedFunc_800D08B8_0_s00(s8 arg0, u32 arg1)
 
     if (var_s1 == 0)
     {
-        sharedData_800E0CB0_0_s00 = var_s0 * 0x1000;
+        sharedData_800E0CB0_0_s00 = var_s0 * Q12(1.0f);
     }
     else
     {
-        sharedData_800E0CB0_0_s00 = (var_s1 * 0x4000) | (var_s0 * 0x1000);
+        sharedData_800E0CB0_0_s00 = (var_s1 * Q12(4.0f)) | (var_s0 * Q12(1.0f));
 
         temp_a1  = var_s0 + 4;
         shiftAmount = (2 - var_s1) * 6;
@@ -3985,7 +3987,7 @@ void Particle_SoundUpdate(void)
 {
     u8 unkValDiv4;
 
-    switch (g_SavegamePtr->mapOverlayId_A4)
+    switch (g_SavegamePtr->mapIdx)
     {
         case MapIdx_MAP0_S00:
         case MapIdx_MAP0_S01: // @unused Checks for `MAP0_S01`, but map itself doesn't contain this func?
@@ -4011,7 +4013,7 @@ void Particle_SoundUpdate(void)
 
             if (g_SysWork.field_234B_0)
             {
-                func_8005DE0C(Sfx_Unk1360, &g_SysWork.playerWork.player.position, unkValDiv4, Q12(0.0f), 0);
+                Sfx_WithFalloffAndPitchPlay(Sfx_Unk1360, &g_SysWork.playerWork.player.position, unkValDiv4, Q12(0.0f), 0);
             }
             else if (sharedData_800E32CC_0_s00 != 0)
             {
@@ -4030,26 +4032,26 @@ void Particle_SoundStop(void)
 void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
 {
 #if !defined(MAP0_S00)
-    SVECTOR           startRelPos;
-    SVECTOR           endRelPos;
-    MATRIX            worldMat; // @unused
-    MATRIX            viewMat;
-    s_RayData         ray;
-    VECTOR3           beamStart;
-    VECTOR3           beamOffset;
-    SVECTOR           polyFt3Pos;
-    s32               zScreenStart;
-    s32               zScreenEnd;
-    s32               beamDirX;
-    s32               beamDirY;
-    s32               beamDirZ;
-    bool              cond;
-    s32               i;
-    s32               polyVCoord;
-    s32               primCount;
-    GsOT*             ot;
-    POLY_GT4*         polyGt4;
-    POLY_FT3*         polyFt3;
+    SVECTOR    startRelPos;
+    SVECTOR    endRelPos;
+    MATRIX     worldMat; // @unused
+    MATRIX     viewMat;
+    s_RayTrace trace;
+    VECTOR3    beamStart;
+    VECTOR3    beamOffset;
+    SVECTOR    polyFt3Pos;
+    s32        zScreenStart;
+    s32        zScreenEnd;
+    s32        beamDirX;
+    s32        beamDirY;
+    s32        beamDirZ;
+    bool       hasHit;
+    s32        i;
+    s32        polyVCoord;
+    s32        primCount;
+    GsOT*      ot;
+    POLY_GT4*  polyGt4;
+    POLY_FT3*  polyFt3;
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
     GsInitCoordinate2(NULL, &g_SysWork.coord_22F8);
@@ -4075,10 +4077,10 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
     beamOffset.vz = beamDirZ;
 
     PushMatrix();
-    cond = func_8006DA08(&ray, &beamStart, &beamOffset, &g_SysWork.playerWork.player);
+    hasHit = Ray_CharaTraceQuery(&trace, &beamStart, &beamOffset, &g_SysWork.playerWork.player);
     PopMatrix();
 
-    primCount = cond ? (FP_FROM(ray.field_14, Q12_SHIFT) + 1) : 16;
+    primCount = hasHit ? (FP_FROM(trace.hitDistance, Q12_SHIFT) + 1) : 16;
 
     for (i = 0; i < primCount; i++)
     {
@@ -4111,9 +4113,9 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
 
         if (i == (primCount - 1))
         {
-            endRelPos.vx = Q12_TO_Q8(ray.field_4.vx - g_SysWork.playerWork.player.position.vx);
-            endRelPos.vy = Q12_TO_Q8(ray.field_4.vy - g_SysWork.playerWork.player.position.vy);
-            endRelPos.vz = Q12_TO_Q8(ray.field_4.vz - g_SysWork.playerWork.player.position.vz);
+            endRelPos.vx = Q12_TO_Q8(trace.target.vx - g_SysWork.playerWork.player.position.vx);
+            endRelPos.vy = Q12_TO_Q8(trace.target.vy - g_SysWork.playerWork.player.position.vy);
+            endRelPos.vz = Q12_TO_Q8(trace.target.vz - g_SysWork.playerWork.player.position.vz);
         }
 
         gte_ldv0(&endRelPos);
@@ -4312,7 +4314,7 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
 
     setPolyFT4TPage(prim, 0x2C);
 
-    switch (g_MapOverlayHeader.field_16)
+    switch (g_MapOverlayHdr.field_16)
     {
         case 0:
             break;

@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk70
 #define HAS_PlayerState_Unk113
@@ -126,11 +126,6 @@ extern s_800CB6AC D_800CB6AC[6];
 
 extern s_800ED848 D_800ED848[16];
 
-extern s_AnimInfo FLAUROS_ANIM_INFOS[];
-extern s_AnimInfo PARASITE_ANIM_INFOS[];
-
-extern s16 D_800EA856; // Keyframe index.
-
 extern s32 D_800EBA30;
 
 extern u16 D_800EBA64;
@@ -142,8 +137,6 @@ extern u8 D_800EBB61;
 
 extern VECTOR3 D_800EBB70;
 
-extern s8 D_800ED543;
-
 extern VECTOR3 g_Cutscene_CameraPositionTarget;
 extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 
@@ -153,12 +146,10 @@ extern q19_12 g_Cutscene_Timer;
 
 extern q3_12 D_800ED5B6; // Angle.
 
-extern s_Model g_Ai_MonsterCybil_ExtraModel; // Some kind of attachment or another `s_SubCharacter` instance?
-
 extern s32 D_800ED588;
 extern s32 D_800ED58C;
 
-extern s_WorldObjectDesc g_WorldObject_SFlauros;
+extern s_WorldObjectPose g_WorldObject_SFlauros;
 
 extern s_WorldObjectModel g_WorldObject0[2];
 extern s_WorldObjectModel g_WorldObject1[3];
@@ -172,7 +163,7 @@ extern VECTOR3 D_800ED740;
 extern s_WorldObjectModel g_WorldObject6[3];
 extern s_WorldObjectModel g_WorldObject7[2];
 extern s_WorldObjectModel g_WorldObject8;
-extern s_WorldObjectDesc g_WorldObject9;
+extern s_WorldObjectPose g_WorldObject9;
 
 extern u8 D_800ED5AD;
 extern s16 D_800ED5B4;
@@ -182,45 +173,14 @@ extern u8 D_800ED840;
 extern s8 D_800ED841;
 extern u16 D_800EBA34[23]; // `g_Cutscene_MapMsgAudioCmds`
 extern s16 D_800ED5B4;
-extern s16 D_800EA856;
-
-extern s32 D_800CB118[];
-extern s32 D_800CB178[];
-
-extern s16       D_800CB208[];
-extern s16       D_800CB2A0[];
-extern const s32 D_800CB2B4[];
-extern const s32 D_800CB2DC[];
-extern s16       D_800EA776;
-extern s16       D_800EA836;
-extern s16       D_800EA894;
-extern s16       D_800EA896; // Relative keyframe?
-extern s16       D_800EBB48;
-extern s16       D_800EBB4A;
-extern VECTOR3   D_800ED570;
-
-extern s16 D_800CB238[];
-extern s16 D_800EA7D4;
-extern s16 D_800EA7D6;
-extern s16 D_800EA816;
-
-extern VECTOR D_800ED560;
-
-extern s32 D_800CB250[];
-extern s32 D_800CB278[];
-extern s16 D_800CB1D8[];
-
-extern const s32 D_800CB304[12][2];
-extern const s32 D_800CB364[12][2];
-extern const s32 D_800CB3A4[12][2];
 
 extern s32 D_800EAF20[];
 
 extern s32 D_800EB320;
 extern s32 D_800EB324;
 
-extern SVECTOR D_800EB328;
-extern SVECTOR D_800EB330;
+extern SVECTOR D_800EB328; // Q3.12 | Rotation.
+extern SVECTOR D_800EB330; // Q3.12 | Rotation.
 
 extern s32 D_800EBB4C;
 extern s32 D_800EBB50;
@@ -269,59 +229,9 @@ void func_800E0DC4(s32 arg0, s32 arg1);
 
 void func_800E0FAC(s32 arg0);
 
-void func_800D87B0(s_SubCharacter* chara);
-
-void func_800D8848(s_Model* model);
-
-s32 func_800D8898(s_AnimInfo* animInfo);
-
-void Ai_MonsterCybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-
-void Ai_MonsterCybil_Init(s_SubCharacter* chara, s_Model* extraModel);
-
-void func_800D8A90(s_SubCharacter* chara);
-
-void func_800D8B14(s_SubCharacter* chara, s_Model* model);
-
-void func_800D8D7C(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coords);
-
-void func_800D9790(s_SubCharacter* chara, s_Model* model);
-
-void func_800D99E4(s_SubCharacter* chara, s_Model* modelUpper, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-
-void func_800D9AAC(s_SubCharacter* chara, s_Model* model);
-
-void func_800D9AB4(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coords);
-
-void func_800DA9C8(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coords);
-
-s32 func_800DBA48(s_SubCharacter* chara);
-
-s32 func_800DBD64(s_SubCharacter* chara);
-
-void func_800DB4CC(s_SubCharacter* chara, s_Model* model, GsCOORDINATE2* coord);
-
-bool func_800DB81C(s_SubCharacter* chara);
-
-s32 func_800DB930(void);
-
-void func_800DB4CC(s_SubCharacter*, s_Model*, GsCOORDINATE2*);
-
-s32 func_800DB6FC(VECTOR3* pos);
-
-void func_800DB748(s_SubCharacter* chara);
-
-void func_800DC018(s_SubCharacter* chara);
-
-void Ai_Flauros_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-
-void Ai_Parasite_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-
 void func_800DE26C(void);
 
 void func_800DE274(void);
-
-void func_800DBE5C(s_SubCharacter* chara);
 
 s32 func_800DE350(s32 arg0);
 
@@ -344,15 +254,15 @@ void func_800DEAA8(s32 arg0);
 
 s32 func_800DEB1C(s_800ED848* arg0);
 
-void func_800DEC3C(VECTOR3*, SVECTOR3*); // Assumed return type.
+void func_800DEC3C(VECTOR3* arg0, SVECTOR3* arg1);
 
 void func_800DED30(void);
 
-void func_800DED50(MATRIX* arg0, GsCOORDINATE2* arg1, s32 arg2);
+void func_800DED50(MATRIX* outMat, GsCOORDINATE2* rootCoord, s32 scale);
 
 bool func_800DEDEC(s_800ED848* arg0);
 
-void func_800DEF50(VECTOR3*, GsCOORDINATE2*, s32*); // Assumed return type.
+void func_800DEF50(VECTOR3* arg0, GsCOORDINATE2* arg1, s32* arg2);
 
 void func_800DF134(void);
 
@@ -362,7 +272,7 @@ void func_800DF2F0(MATRIX* arg0, VECTOR3* arg1, VECTOR3* arg2);
 
 bool func_800DF41C(s_800ED848* arg0);
 
-void func_800DF5B0(VECTOR3*, VECTOR3*); // Assumed return type.
+void func_800DF5B0(VECTOR3* arg0, VECTOR3* arg1);
 
 void func_800DF618(void);
 
@@ -395,7 +305,7 @@ void func_800E02E0(void);
 
 s_func_800E030C* func_800E030C(void);
 
-void func_800E0358(s_func_800E030C* arg0); // Unknown return type/args.
+void func_800E0358(s_func_800E030C* arg0);
 
 void func_800E03C4(const VECTOR3* from, const VECTOR3* to, q19_12 dist, s32 arg3);
 
@@ -442,17 +352,17 @@ void Map_WorldObjectsInit(void);
 
 void Map_WorldObjectsUpdate(void);
 
-void func_800E636C(void); // Assumed types.
+void func_800E636C(void);
 
 void func_800E6CB8(void);
 
-void func_800E7204(void); // Assumed types.
+void func_800E7204(void);
 
 void func_800E73B4(q19_12 arg0);
 
 void func_800E74C4(void);
 
-void func_800E75B8(s32 arg0, VECTOR3* arg1, s32 arg2, s32 arg3, s32 arg4); // Assumed types.
+void func_800E75B8(s32 arg0, VECTOR3* arg1, s32 arg2, s32 arg3, s32 arg4);
 
 void func_800E7944(u32 arg0);
 

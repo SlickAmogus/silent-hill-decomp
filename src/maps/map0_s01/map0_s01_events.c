@@ -97,7 +97,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
 #endif
 
     // Skip.
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 5 && g_SysWork.sysStateSteps[0] < 47)
     {
         SysWork_StateStepSet(0, EventState_Skip);
@@ -108,11 +108,11 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
         case 0:
             Player_ControlFreeze();
 
-            g_SysWork.field_30 = 20;
+            g_SysWork.cutsceneBorderState = 20;
             ScreenFade_ResetTimestep();
-            g_SysWork.flags_22A4              |= UnkSysFlag_3;
-            g_SavegamePtr->itemToggleFlags_AC &= ~ItemToggleFlag_RadioOn;
-            g_SysWork.flags_22A4              |= UnkSysFlag_5 | UnkSysFlag_9;
+            g_SysWork.sysFlags              |= SysFlag_CutsceneActive;
+            g_SavegamePtr->itemToggleFlags &= ~ItemToggleFlag_RadioOn;
+            g_SysWork.sysFlags              |= SysFlag_5 | SysFlag_9;
             g_Cutscene_MapMsgAudioIdx                   = 0;
             D_800DE250                         = 0;
             D_800DE251                         = 0;
@@ -120,7 +120,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
             Fs_QueueStartRead(FILE_ANIM_CAFE_DMS, FS_BUFFER_11);
             Fs_QueueWaitForEmpty();
             Dms_HeaderFixOffsets(FS_BUFFER_11);
-            Chara_Load(0, Chara_Cybil, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
+            Chara_Load(0, Chara_Cybil, &g_SysWork.npcBoneCoordBuffer[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
             Chara_ProcessLoads();
             Chara_Spawn(Chara_Cybil, 0, Q12(4.4f), Q12(269.9f), Q12_ANGLE(0.0f), 2);
 
@@ -128,7 +128,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80087EDC(9);
+            Bgm_CrossfadeToTrack(9);
             break;
 
         case 2:
@@ -388,7 +388,7 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
         case 48:
             Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
             SD_Call(19);
-            Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, 0, 0);
+            Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcBoneCoordBuffer[0], CHARA_FORCE_FREE_ALL, 0, 0);
             func_80086470(3, InvItemId_Handgun, HANDGUN_AMMO_PICKUP_ITEM_COUNT, false);
             SysWork_StateStepIncrement(0);
 
@@ -474,7 +474,7 @@ void MapEvent_ToBeContinued(void) // 0x800DB790
 
         case 5:
             func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
+            if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SysWork_StateStepIncrement(0);
             }
@@ -499,7 +499,7 @@ void MapEvent_ToBeContinued(void) // 0x800DB790
 
         case 9:
             func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
+            if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SysWork_StateStepIncrement(0);
             }
@@ -598,7 +598,7 @@ void MapEvent_AirScreamerIntroCutscene(void) // 0x800DBAA0
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80087EDC(30);
+            Bgm_CrossfadeToTrack(30);
             break;
 
         case 2:
@@ -739,8 +739,8 @@ void MapEvent_AirScreamerIntroCutscene(void) // 0x800DBAA0
             SysWork_StateSetNext(SysState_Gameplay);
             Player_FallBackward();
 
-            g_SysWork.flags_22A4 &= ~UnkSysFlag_5;
-            g_SysWork.flags_22A4 &= ~UnkSysFlag_9;
+            g_SysWork.sysFlags &= ~SysFlag_5;
+            g_SysWork.sysFlags &= ~SysFlag_9;
             break;
     }
 
@@ -767,7 +767,7 @@ void MapEvent_AirScreamerIntroCutscene(void) // 0x800DBAA0
 void MapEvent_PocketRadioItemTake(void) // 0x800DC34C
 {
     Event_ItemTake(InvItemId_PocketRadio, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M0S01_PickupPocketRadio, 64);
-    g_SavegamePtr->itemToggleFlags_AC |= ItemToggleFlag_RadioOn;
+    g_SavegamePtr->itemToggleFlags |= ItemToggleFlag_RadioOn;
 }
 
 void MapEvent_FlashlightItemTake(void) // 0x800DC394
@@ -832,7 +832,7 @@ void MapEvent_MapItemTake(void) // 0x800DC3C8
             break;
 
         case 6:
-            g_SavegamePtr->hasMapsFlags_164 |= 1 << 1;
+            g_SavegamePtr->paperMapFlags |= 1 << 1;
 
             Fs_QueueStartRead(FILE_ANIM_CAFE2_DMS, FS_BUFFER_11);
             SysWork_StateStepIncrement(0);
@@ -977,9 +977,9 @@ void Map_WorldObjectsInit(void) // 0x800DC9C8
 
     if (Savegame_EventFlagGet(EventFlag_M0S01_CafeCutsceneStarted) && !Savegame_EventFlagGet(EventFlag_47))
     {
-        g_SysWork.flags_22A4 |= UnkSysFlag_5 | UnkSysFlag_9;
+        g_SysWork.sysFlags |= SysFlag_5 | SysFlag_9;
 
-        Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
+        Chara_Load(0, Chara_AirScreamer, &g_SysWork.npcBoneCoordBuffer[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
 
         if (Savegame_EventFlagGet(EventFlag_M0S01_PickupMap))
         {
@@ -1033,22 +1033,22 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
 
     if (!Savegame_EventFlagGet(EventFlag_M0S01_PickupMap))
     {
-        WorldGfx_ObjectAdd(&g_EventThing_Map.object_0, &g_EventThing_Map.position_1C, &g_EventThing_Map.rotation_28);
+        WorldGfx_ObjectAdd(&g_EventThing_Map.object, &g_EventThing_Map.position, &g_EventThing_Map.rotation);
     }
 
     if (!Savegame_EventFlagGet(EventFlag_M0S01_PickupFlashlight))
     {
-        WorldGfx_ObjectAdd(&g_EventThing_Flashlight.object_0, &g_EventThing_Flashlight.position_1C, &g_EventThing_Flashlight.rotation_28);
+        WorldGfx_ObjectAdd(&g_EventThing_Flashlight.object, &g_EventThing_Flashlight.position, &g_EventThing_Flashlight.rotation);
     }
 
     if (!Savegame_EventFlagGet(EventFlag_M0S01_PickupPocketRadio))
     {
-        WorldGfx_ObjectAdd(&g_EventThing_PocketRadio.object_0, &g_EventThing_PocketRadio.position_1C, &g_EventThing_PocketRadio.rotation_28);
+        WorldGfx_ObjectAdd(&g_EventThing_PocketRadio.object, &g_EventThing_PocketRadio.position, &g_EventThing_PocketRadio.rotation);
     }
 
     if (!Savegame_EventFlagGet(EventFlag_M0S01_PickupKitchenKnife))
     {
-        WorldGfx_ObjectAdd(&g_EventThing_KitchenKnife.object_0, &g_EventThing_KitchenKnife.position_1C, &g_EventThing_KitchenKnife.rotation_28);
+        WorldGfx_ObjectAdd(&g_EventThing_KitchenKnife.object, &g_EventThing_KitchenKnife.position, &g_EventThing_KitchenKnife.rotation);
     }
 
     if (Savegame_EventFlagGet(EventFlag_M0S01_PickupKitchenKnife) && Savegame_EventFlagGet(EventFlag_M0S01_PickupMap))
@@ -1222,7 +1222,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     {
         if (!Savegame_EventFlagGet(EventFlag_M0S01_HealthDrink0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DE12C.position, &D_800DE12C.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DE12C.position, &D_800DE12C.rotation);
         }
     }
 
@@ -1230,7 +1230,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     {
         if (!Savegame_EventFlagGet(EventFlag_M0S01_HealthDrink1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DE140.position, &D_800DE140.rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &D_800DE140.position, &D_800DE140.rotation);
         }
     }
 

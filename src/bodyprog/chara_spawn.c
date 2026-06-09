@@ -5,15 +5,20 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
-#include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/chara/spawn.h"
+#include "bodyprog/chara/chara.h"
+#include "bodyprog/formats/lm.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
-bool Chara_Load(s32 modelIdx, s8 charaId, GsCOORDINATE2* coords, s8 forceFree, s_LmHeader* lmHdr, s_FsImageDesc* tex) // 0x80088C7C
+bool Chara_Load(s32 modelIdx, s8 charaId, GsCOORDINATE2* boneCoords, s8 forceFree,
+                s_LmHeader* lmHdr, s_FsImageDesc* tex) // 0x80088C7C
 {
-    Fs_CharaAnimDataAlloc(modelIdx + 1, charaId, NULL, coords);
+    Fs_CharaAnimDataAlloc(modelIdx + 1, charaId, NULL, boneCoords);
     WorldGfx_CharaLmBufferAssign(forceFree);
     WorldGfx_CharaLoad(charaId, modelIdx, lmHdr, tex);
     return true;
@@ -29,34 +34,35 @@ bool Chara_ProcessLoads(void) // 0x80088D0C
 void Chara_BonesInit(s32 idx) // 0x80088D34
 {
     idx++;
-    Anim_BoneInit(g_CharaTypeAnimInfo[idx].animFile1_8, g_CharaTypeAnimInfo[idx].npcBoneCoords);
+    Anim_BoneInit(g_CharaModelAnimsData[idx].activeAnmHdr, g_CharaModelAnimsData[idx].boneCoords);
 }
 
-s32 Chara_Spawn(e_CharacterId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ, q3_12 rotY, u32 stateStep) // 0x80088D78
+s32 Chara_Spawn(e_CharaId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ, q3_12 rotY, u32 stateStep) // 0x80088D78
 {
-    s_Collision     coll;
-    s32             i;
-    s32             npcFlagsId;
-    s32             arg1_1;
-    s_SubCharacter* chara;
+    s_CollisionSurface surface;
+    s32                i;
+    s32                npcFlagsId;
+    s32                activeSpawnFlags;
+    s_SubCharacter*    chara;
 
-    if (charaId <= Chara_MonsterCybil && spawnFlags < 64)
+    // TODO: Weird code, check.
+    if (charaId <= Chara_MonsterCybil && spawnFlags < (1 << 6))
     {
-        arg1_1 = 0x1F;
-        arg1_1 = spawnFlags & arg1_1;
+        activeSpawnFlags = SpawnFlag_0 | SpawnFlag_1 | SpawnFlag_2 | SpawnFlag_3 | SpawnFlag_4;
+        activeSpawnFlags = spawnFlags & activeSpawnFlags;
     }
     else
     {
-        arg1_1 = 0;
+        activeSpawnFlags = SpawnFlag_None;
     }
 
     if (charaId <= Chara_MonsterCybil)
     {
-        if (HAS_FLAG(g_SysWork.field_228C, arg1_1))
+        if (HAS_FLAG(g_SysWork.field_228C, activeSpawnFlags))
         {
             for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
             {
-                if (g_SysWork.npcs[i].field_40 == arg1_1)
+                if (g_SysWork.npcs[i].field_40 == activeSpawnFlags)
                 {
                     return i;
                 }
@@ -92,11 +98,11 @@ s32 Chara_Spawn(e_CharacterId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ,
         bzero(&g_SysWork.npcs[i], sizeof(s_SubCharacter));
 
         g_SysWork.npcs[i].model.charaId = charaId;
-        g_SysWork.npcs[i].field_40 = arg1_1;
+        g_SysWork.npcs[i].field_40 = activeSpawnFlags;
 
         if (charaId <= Chara_MonsterCybil && spawnFlags < 64)
         {
-            SET_FLAG(g_SysWork.field_228C, arg1_1);
+            SET_FLAG(g_SysWork.field_228C, activeSpawnFlags);
         }
 
         SET_FLAG(&g_SysWork.npcFlags, i);
@@ -105,8 +111,8 @@ s32 Chara_Spawn(e_CharacterId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ,
         g_SysWork.npcs[i].model.stateStep    = stateStep;
         g_SysWork.npcs[i].position.vx        = posX;
 
-        Collision_Get(&coll, posX, posZ);
-        g_SysWork.npcs[i].position.vy = coll.groundHeight_0;
+        Collision_SurfaceGet(&surface, posX, posZ);
+        g_SysWork.npcs[i].position.vy = surface.groundHeight;
         g_SysWork.npcs[i].position.vz = posZ;
         g_SysWork.npcs[i].rotation.vy = rotY;
 
@@ -134,22 +140,22 @@ void Chara_ModelCharaIdClear(s_SubCharacter* chara, s32 unused0, s32 unuse1) // 
     chara->model.charaId = Chara_None;
 }
 
-void Chara_SpawnFlagsSet(e_CharacterId charaId, s32 spawnIdx, s32 spawnFlags) // 0x80088FF4
+void Chara_SpawnFlagsSet(e_CharaId charaId, s32 spawnIdx, s32 spawnFlags) // 0x80088FF4
 {
     s_SpawnInfo* spawnInfo;
 
-    spawnInfo          = &g_MapOverlayHeader.charaSpawns_24C[g_CharaAnimInfoIdxs[charaId] - 1][spawnIdx];
-    spawnInfo->flags_6 = spawnFlags;
+    spawnInfo        = &g_MapOverlayHdr.charaSpawnInfos[g_CharaAnimDataIdxs[charaId] - 1][spawnIdx];
+    spawnInfo->flags = spawnFlags;
 }
 
-void Chara_SpawnPositionSet(e_CharacterId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ) // 0x80089034
+void Chara_SpawnPositionSet(e_CharaId charaId, s32 spawnIdx, q19_12 posX, q19_12 posZ) // 0x80089034
 {
     s_SpawnInfo* spawnInfo0;
     s_SpawnInfo* spawnInfo1;
 
-    spawnInfo0              = &g_MapOverlayHeader.charaSpawns_24C[g_CharaAnimInfoIdxs[charaId] - 1][spawnIdx];
-    spawnInfo0->positionX_0 = posX;
+    spawnInfo0            = &g_MapOverlayHdr.charaSpawnInfos[g_CharaAnimDataIdxs[charaId] - 1][spawnIdx];
+    spawnInfo0->positionX = posX;
 
-    spawnInfo1              = &g_MapOverlayHeader.charaSpawns_24C[g_CharaAnimInfoIdxs[charaId] - 1][spawnIdx];
-    spawnInfo1->positionZ_8 = posZ;
+    spawnInfo1            = &g_MapOverlayHdr.charaSpawnInfos[g_CharaAnimDataIdxs[charaId] - 1][spawnIdx];
+    spawnInfo1->positionZ = posZ;
 }

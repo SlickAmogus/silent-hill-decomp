@@ -3,19 +3,19 @@ void sharedFunc_800D0110_7_s00(void)
     s32           temp_v0_2;
     s32           temp_v1_5;
     s32           i;
-    q19_12        var_s2;
+    q19_12        fadeSpeed;
     s32           mapRoomIdx;
-    s32           flags;
+    s32           bgmFlags;
     s_BgmLayerLimits* bgmLayerLimit;
 
-    flags            = 1 << 0;
-    var_s2           = Q12(0.1f);
-    mapRoomIdx       = g_SavegamePtr->mapRoomIdx_A5;
+    bgmFlags      = 1 << 0;
+    fadeSpeed     = Q12(0.1f);
+    mapRoomIdx    = g_SavegamePtr->mapRoomIdx;
     bgmLayerLimit = NULL;
 
     switch (g_GameWork.bgmIdx)
     {
-        case 5:
+        case BgmTrackIdx_5:
             g_SysWork.bgmStatusFlags &= ~BgmStatusFlag_Duck;
 
             switch (g_GameWork.gameState)
@@ -24,21 +24,21 @@ void sharedFunc_800D0110_7_s00(void)
                 case GameState_LoadStatusScreen:
                     if (g_GameWork.gameState != GameState_InventoryScreen || g_GameWork.gameStateSteps[1] != 25)
                     {
-                        flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+                        bgmFlags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
                         if (g_GameWork.gameStatePrev != GameState_SaveScreen)
                         {
-                            var_s2 = Q12(240.0f);
+                            fadeSpeed = Q12(240.0f);
                         }
                         else
                         {
-                            flags  = (1 << 0) | (1 << 9);
-                            var_s2 = Q12(3.0f);
+                            bgmFlags  = (1 << 0) | (1 << 9);
+                            fadeSpeed = Q12(3.0f);
                         }
                     }
                     else
                     {
-                        flags  = (1 << 0) | (1 << 9);
-                        var_s2 = Q12(3.0f);
+                        bgmFlags  = (1 << 0) | (1 << 9);
+                        fadeSpeed = Q12(3.0f);
                     }
                     break;
 
@@ -46,28 +46,28 @@ void sharedFunc_800D0110_7_s00(void)
                     switch (g_Screen_FadeStatus)
                     {
                         default:
-                            flags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-                            var_s2 = Q12(240.0f);
+                            bgmFlags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+                            fadeSpeed = Q12(240.0f);
                             break;
 
                         case 2:
                         case 3:
                         case 4:
                         case 5:
-                            flags  = (1 << 0) | (1 << 9);
-                            var_s2 = Q12(3.0f);
+                            bgmFlags  = (1 << 0) | (1 << 9);
+                            fadeSpeed = Q12(3.0f);
                             break;
                     }
                     break;
 
                 default:
-                    flags  = (1 << 0) | (1 << 9);
-                    var_s2 = Q12(3.0f);
+                    bgmFlags  = (1 << 0) | (1 << 9);
+                    fadeSpeed = Q12(3.0f);
                     break;
             }
             break;
 
-        case 4:
+        case BgmTrackIdx_4:
             bgmLayerLimit = &sharedData_800D2F18_7_s00;
 
             switch (mapRoomIdx)
@@ -78,20 +78,20 @@ void sharedFunc_800D0110_7_s00(void)
                 case 24:
                     if (Savegame_EventFlagGet(EventFlag_482) || Savegame_EventFlagGet(EventFlag_483))
                     {
-                        flags  = 1 << 2;
-                        var_s2 = Q12(240.0f);
+                        bgmFlags  = 1 << 2;
+                        fadeSpeed = Q12(240.0f);
                     }
                     else if (Savegame_EventFlagGet(EventFlag_571))
                     {
                         if (Savegame_EventFlagGet(EventFlag_572))
                         {
-                            var_s2 = Q12(5.0f);
-                            flags  = 1 << 2;
+                            fadeSpeed = Q12(5.0f);
+                            bgmFlags  = 1 << 2;
                         }
                         else
                         {
-                            var_s2 = Q12(240.0f);
-                            flags  = (1 << 0) | (1 << 9);
+                            fadeSpeed = Q12(240.0f);
+                            bgmFlags  = (1 << 0) | (1 << 9);
 
                             if (!func_80045BC8())
                             {
@@ -101,13 +101,13 @@ void sharedFunc_800D0110_7_s00(void)
                     }
                     else if (Savegame_EventFlagGet(EventFlag_572))
                     {
-                        var_s2 = Q12(1.0f);
-                        flags  = (1 << 0) | (1 << 9);
+                        fadeSpeed = Q12(1.0f);
+                        bgmFlags  = (1 << 0) | (1 << 9);
                     }
                     else if (Savegame_EventFlagGet(EventFlag_570))
                     {
-                        var_s2 = Q12(1.0f);
-                        flags  = (1 << 0) | (1 << 9);
+                        fadeSpeed = Q12(1.0f);
+                        bgmFlags  = (1 << 0) | (1 << 9);
 
                         if (!func_80045BC8())
                         {
@@ -116,101 +116,101 @@ void sharedFunc_800D0110_7_s00(void)
                     }
                     else
                     {
-                        flags = 1 << 1;
+                        bgmFlags = BgmFlag_Layer1;
                     }
                     break;
 
                 default:
-                    flags = (1 << 0) | (1 << 9);
+                    bgmFlags = BgmFlag_Layer0 | BgmFlag_MuteAll;
                     break;
             }
             break;
 
-        case 10:
-        case 15:
+        case BgmTrackIdx_10:
+        case BgmTrackIdx_15:
             bgmLayerLimit = &sharedData_800D2F20_7_s00;
 
             switch (mapRoomIdx)
             {
                 default:
-                    flags = 1 << 0;
+                    bgmFlags = BgmFlag_Layer0;
                     break;
 
                 case 1:
                     if (!Savegame_EventFlagGet(EventFlag_476))
                     {
-                        flags = 1 << 0;
+                        bgmFlags = BgmFlag_Layer0;
                     }
                     else if (Savegame_EventFlagGet(EventFlag_471))
                     {
-                        var_s2 = Q12(240.0f);
-                        flags  = (1 << 0) | (1 << 9);
+                        fadeSpeed = Q12(240.0f);
+                        bgmFlags  = (1 << 0) | (1 << 9);
                     }
                     else if (Savegame_EventFlagGet(EventFlag_474))
                     {
-                        var_s2 = Q12(0.1f);
-                        flags  = 1 << 0;
+                        fadeSpeed = Q12(0.1f);
+                        bgmFlags  = 1 << 0;
                     }
                     else
                     {
-                        var_s2 = Q12(240.0f);
-                        flags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+                        fadeSpeed = Q12(240.0f);
+                        bgmFlags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
                     }
                     break;
 
                 case 2:
                     if (Savegame_EventFlagGet(EventFlag_475))
                     {
-                        var_s2 = Q12(1.0f);
-                        flags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+                        fadeSpeed = Q12(1.0f);
+                        bgmFlags  = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
                     }
                     else
                     {
-                        var_s2 = Q12(0.25f);
-                        flags  = (1 << 0) | (1 << 9);
+                        fadeSpeed = Q12(0.25f);
+                        bgmFlags  = (1 << 0) | (1 << 9);
                     }
                     break;
 
                 case 3:
-                    var_s2 = Q12(0.15f);
-                    flags  = (1 << 0) | (1 << 9);
+                    fadeSpeed = Q12(0.15f);
+                    bgmFlags  = (1 << 0) | (1 << 9);
                     break;
             }
             break;
 
-        case 14:
-        case 22:
+        case BgmTrackIdx_14:
+        case BgmTrackIdx_22:
             bgmLayerLimit = &sharedData_800D2F74_7_s00;
-            flags            = sharedData_800D2F28_7_s00[mapRoomIdx];
+            bgmFlags      = sharedData_800D2F28_7_s00[mapRoomIdx];
 
             switch (mapRoomIdx)
             {
                 case 36:
-                    var_s2 = Q12(0.5f);
+                    fadeSpeed = Q12(0.5f);
                     break;
 
                 case 21:
-                    var_s2 = Q12(240.0f);
+                    fadeSpeed = Q12(240.0f);
                     break;
 
                 case 4:
                     if (!Savegame_EventFlagGet(EventFlag_485))
                     {
-                        flags = 1 << 0;
+                        bgmFlags = BgmFlag_Layer0;
                     }
                     break;
 
                 case 7:
                     if (!Savegame_EventFlagGet(EventFlag_M7S01_PickupKeyOfPhaleg))
                     {
-                        flags = 1 << 0;
+                        bgmFlags = BgmFlag_Layer0;
                     }
                     break;
 
                 case 22:
                     if (Savegame_EventFlagGet(EventFlag_487) && !Savegame_EventFlagGet(EventFlag_489))
                     {
-                        flags = (1 << 2) | (1 << 3);
+                        bgmFlags = (1 << 2) | (1 << 3);
                     }
                     break;
 
@@ -219,11 +219,11 @@ void sharedFunc_800D0110_7_s00(void)
                     {
                         if (!Savegame_EventFlagGet(EventFlag_549))
                         {
-                            flags = 1 << 4;
+                            bgmFlags = BgmFlag_Layer4;
                         }
                         else
                         {
-                            flags = 1 << 2;
+                            bgmFlags = BgmFlag_Layer2;
                         }
                     }
                     break;
@@ -231,49 +231,49 @@ void sharedFunc_800D0110_7_s00(void)
                 case 25:
                     if (!Savegame_EventFlagGet(EventFlag_492) && Savegame_EventFlagGet(EventFlag_498))
                     {
-                        flags |= 1 << 2;
+                        bgmFlags |= 1 << 2;
                     }
 
                     if (!Savegame_EventFlagGet(EventFlag_494) && Savegame_EventFlagGet(EventFlag_499))
                     {
-                        flags |= 1 << 1;
+                        bgmFlags |= 1 << 1;
                     }
                     break;
 
                 case 29:
                     if (Savegame_EventFlagGet(EventFlag_555))
                     {
-                        if (g_GameWork.bgmIdx == 22)
+                        if (g_GameWork.bgmIdx == BgmTrackIdx_22)
                         {
-                            flags = 1 << 2;
+                            bgmFlags = BgmFlag_Layer2;
                         }
                         else
                         {
-                            flags = 1 << 3;
+                            bgmFlags = BgmFlag_Layer3;
                         }
                     }
                     else if (Savegame_EventFlagGet(EventFlag_573))
                     {
                         if (Savegame_EventFlagGet(EventFlag_552))
                         {
-                            if (g_GameWork.bgmIdx == 22)
+                            if (g_GameWork.bgmIdx == BgmTrackIdx_22)
                             {
-                                flags = 1 << 3;
+                                bgmFlags = BgmFlag_Layer3;
                             }
                             else
                             {
-                                flags = 1 << 1;
+                                bgmFlags = BgmFlag_Layer1;
                             }
                         }
                         else
                         {
-                            if (g_GameWork.bgmIdx == 22)
+                            if (g_GameWork.bgmIdx == BgmTrackIdx_22)
                             {
-                                flags = (1 << 3) | (1 << 4);
+                                bgmFlags = (1 << 3) | (1 << 4);
                             }
                             else
                             {
-                                flags = (1 << 1) | (1 << 4);
+                                bgmFlags = (1 << 1) | (1 << 4);
                             }
                         }
                     }
@@ -284,16 +284,16 @@ void sharedFunc_800D0110_7_s00(void)
 
                             if (Savegame_EventFlagGet(EventFlag_M7S02_PickupDaggerOfMelchior))
                             {
-                                flags = (1 << 2) | (1 << 3);
+                                bgmFlags = (1 << 2) | (1 << 3);
                             }
                             else
                             {
-                                flags = 1 << 2;
+                                bgmFlags = BgmFlag_Layer2;
                             }
                         }
                         else
                         {
-                            flags = 1 << 4;
+                            bgmFlags = BgmFlag_Layer4;
                         }
                     }
                     break;
@@ -301,45 +301,45 @@ void sharedFunc_800D0110_7_s00(void)
                 case 31:
                     if (!Savegame_EventFlagGet(EventFlag_548))
                     {
-                        flags = 1 << 0;
+                        bgmFlags = BgmFlag_Layer0;
                     }
                     break;
 
                 case 32:
                     if (!Savegame_EventFlagGet(EventFlag_551))
                     {
-                        var_s2 = Q12(240.0f);
-                        flags  = 1;
+                        fadeSpeed = Q12(240.0f);
+                        bgmFlags  = 1;
                     }
                     break;
 
                 case 33:
                     if (!Savegame_EventFlagGet(EventFlag_560))
                     {
-                        for (flags = 0, i = 540; i < 545; i++)
+                        for (bgmFlags = 0, i = 540; i < 545; i++)
                         {
                             if (Savegame_EventFlagGet(i))
                             {
-                                flags = (flags * 2) | (1 << 1);
+                                bgmFlags = (bgmFlags * 2) | (1 << 1);
                             }
                         }
                     }
                     break;
             }
 
-            if (g_GameWork.bgmIdx == 22)
+            if (g_GameWork.bgmIdx == BgmTrackIdx_22)
             {
-                temp_v0_2 = flags & (1 << 1);
-                temp_v1_5 = flags & (1 << 2);
-                flags    ^= (temp_v0_2 | temp_v1_5);
-                flags    |= (temp_v0_2 * 2) | (temp_v1_5 >> 1);
+                temp_v0_2 = bgmFlags & (1 << 1);
+                temp_v1_5 = bgmFlags & (1 << 2);
+                bgmFlags    ^= (temp_v0_2 | temp_v1_5);
+                bgmFlags    |= (temp_v0_2 * 2) | (temp_v1_5 >> 1);
             }
             break;
 
-        case 35:
+        case BgmTrackIdx_35:
             if (Savegame_EventFlagGet(EventFlag_582))
             {
-                flags = (1 << 0) | (1 << 8) | (1 << 9);
+                bgmFlags = (1 << 0) | (1 << 8) | (1 << 9);
                 break;
             }
 
@@ -347,13 +347,13 @@ void sharedFunc_800D0110_7_s00(void)
             {
                 if (!Savegame_EventFlagGet(EventFlag_575))
                 {
-                    var_s2 = Q12(240.0f);
-                    flags  = (1 << 5) | (1 << 8);
+                    fadeSpeed = Q12(240.0f);
+                    bgmFlags  = (1 << 5) | (1 << 8);
                 }
                 else
                 {
-                    var_s2 = Q12(0.5f);
-                    flags  = (1 << 0) | (1 << 8) | (1 << 9);
+                    fadeSpeed = Q12(0.5f);
+                    bgmFlags  = (1 << 0) | (1 << 8) | (1 << 9);
                 }
                 break;
             }
@@ -362,57 +362,57 @@ void sharedFunc_800D0110_7_s00(void)
             {
                 if (g_SysWork.npcs[0].health < Q12(500.0f))
                 {
-                    flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 8);
+                    bgmFlags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 8);
                 }
                 else
                 {
-                    flags = (1 << 3) | (1 << 5) | (1 << 8);
+                    bgmFlags = (1 << 3) | (1 << 5) | (1 << 8);
                 }
                 break;
             }
 
             if (Savegame_EventFlagGet(EventFlag_591))
             {
-                flags = (1 << 1) | (1 << 8);
+                bgmFlags = (1 << 1) | (1 << 8);
             }
             else
             {
-                flags = 1 << 8;
+                bgmFlags = BgmFlag_KeepAlive;
             }
 
             if (Savegame_EventFlagGet(EventFlag_592))
             {
-                flags |= 1 << 2;
+                bgmFlags |= 1 << 2;
             }
 
             if (Savegame_EventFlagGet(EventFlag_593))
             {
-                flags |= 1 << 3;
+                bgmFlags |= 1 << 3;
             }
 
             if (Savegame_EventFlagGet(EventFlag_575))
             {
-                flags |= 1 << 4;
+                bgmFlags |= 1 << 4;
             }
 
             if (Savegame_EventFlagGet(EventFlag_576))
             {
-                var_s2 = Q12(240.0f);
+                fadeSpeed = Q12(240.0f);
             }
 
-            if (flags == (1 << 8))
+            if (bgmFlags == (1 << 8))
             {
-                flags = (1 << 0) | (1 << 8) | (1 << 9);
+                bgmFlags = (1 << 0) | (1 << 8) | (1 << 9);
             }
             break;
 
-        case 29:
+        case BgmTrackIdx_29:
             bgmLayerLimit = &sharedData_800D2F7C_7_s00;
-            var_s2           = Q12(240.0f);
+            fadeSpeed     = Q12(240.0f);
 
             if (!Savegame_EventFlagGet(EventFlag_576))
             {
-                flags = (1 << 0) | (1 << 8);
+                bgmFlags = (1 << 0) | (1 << 8);
             }
             else
             {
@@ -420,23 +420,24 @@ void sharedFunc_800D0110_7_s00(void)
                 {
                     g_SysWork.bgmStatusFlags |= BgmStatusFlag_RadioActive;
                 }
-                flags = 1 << 8;
+
+                bgmFlags = BgmFlag_KeepAlive;
             }
             break;
 
-        case 40:
+        case BgmTrackIdx_40:
             bgmLayerLimit = &sharedData_800D2F84_7_s00;
             if (Savegame_EventFlagGet(EventFlag_575))
             {
-                var_s2 = Q12(0.25f);
-                flags  = (1 << 0) | (1 << 8);
+                fadeSpeed = Q12(0.25f);
+                bgmFlags  = (1 << 0) | (1 << 8);
                 break;
             }
 
             if (Savegame_EventFlagGet(EventFlag_580))
             {
-                var_s2 = Q12(2.0f);
-                flags  = (1 << 0) | (1 << 8) | (1 << 9);
+                fadeSpeed = Q12(2.0f);
+                bgmFlags  = (1 << 0) | (1 << 8) | (1 << 9);
                 break;
             }
 
@@ -444,23 +445,23 @@ void sharedFunc_800D0110_7_s00(void)
             {
                 if (!Savegame_EventFlagGet(EventFlag_593))
                 {
-                    var_s2 = Q12(240.0f);
-                    flags  = (1 << 0) | (1 << 8);
+                    fadeSpeed = Q12(240.0f);
+                    bgmFlags  = (1 << 0) | (1 << 8);
                 }
                 else
                 {
-                    flags = (1 << 5) | (1 << 8);
+                    bgmFlags = (1 << 5) | (1 << 8);
                 }
 
                 if (Savegame_EventFlagGet(EventFlag_592))
                 {
                     if (Savegame_EventFlagGet(EventFlag_593))
                     {
-                        flags |= (1 << 6) | (1 << 7);
+                        bgmFlags |= (1 << 6) | (1 << 7);
                     }
                     else
                     {
-                        flags |= 1 << 6;
+                        bgmFlags |= 1 << 6;
                     }
                 }
                 break;
@@ -472,41 +473,41 @@ void sharedFunc_800D0110_7_s00(void)
                 {
                     if (Savegame_EventFlagGet(EventFlag_577))
                     {
-                        var_s2 = Q12(1.0f);
+                        fadeSpeed = Q12(1.0f);
 
                         if (!(g_SysWork.npcs[2].flags & 4))
                         {
-                            flags = (1 << 1) | (1 << 8);
+                            bgmFlags = (1 << 1) | (1 << 8);
                         }
                         else
                         {
-                            flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 8);
+                            bgmFlags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 8);
                         }
                     }
                     else
                     {
-                        var_s2 = Q12(0.12f);
+                        fadeSpeed = Q12(0.12f);
 
                         if (g_SysWork.bgmLayerVolumes[2] == Q12(1.0f))
                         {
                             if (g_SysWork.bgmLayerVolumes[3] == Q12(1.0f))
                             {
-                                flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 8);
+                                bgmFlags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 8);
                             }
                             else
                             {
-                                flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 8);
+                                bgmFlags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 8);
                             }
                         }
                         else
                         {
                             if (Savegame_EventFlagGet(EventFlag_576))
                             {
-                                flags = (1 << 1) | (1 << 2) | (1 << 8);
+                                bgmFlags = (1 << 1) | (1 << 2) | (1 << 8);
                             }
                             else
                             {
-                                flags = (1 << 1) | (1 << 8);
+                                bgmFlags = (1 << 1) | (1 << 8);
                             }
                         }
                     }
@@ -515,10 +516,10 @@ void sharedFunc_800D0110_7_s00(void)
 
                 if (Savegame_EventFlagGet(EventFlag_577))
                 {
-                    var_s2 = Q12(240.0f);
+                    fadeSpeed = Q12(240.0f);
                 }
 
-                flags = (1 << 1) | (1 << 8);
+                bgmFlags = (1 << 1) | (1 << 8);
 
                 if (g_SysWork.bgmLayerVolumes[0] != Q12(1.0f))
                 {
@@ -538,10 +539,10 @@ void sharedFunc_800D0110_7_s00(void)
             }
             else
             {
-                flags = (1 << 0) | (1 << 8) | (1 << 9);
+                bgmFlags = (1 << 0) | (1 << 8) | (1 << 9);
             }
             break;
     }
 
-    Bgm_Update(flags, var_s2, bgmLayerLimit);
+    Bgm_Update(bgmFlags, fadeSpeed, bgmLayerLimit);
 }

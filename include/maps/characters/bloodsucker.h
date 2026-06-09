@@ -9,6 +9,16 @@ typedef enum _BloodsuckerFlags
     BloodsuckerFlag_1    = 1 << 1
 } e_BloodsuckerFlags;
 
+/** @brief Bloodsucker character control states. */
+typedef enum _BloodsuckerControl
+{
+    BloodsuckerControl_None = 0,
+    BloodsuckerControl_1    = 1,
+    BloodsuckerControl_2    = 2,
+    BloodsuckerControl_3    = 3,
+    BloodsuckerControl_4    = 4
+} e_BloodsuckerControl;
+
 /** @brief Bloodsucker character animation indices. */
 typedef enum _BloodsuckerAnim
 {
@@ -22,28 +32,20 @@ typedef enum _BloodsuckerAnim
     BloodsuckerAnim_7     = 7
 } e_BloodsuckerAnim;
 
-/** @brief Bloodsucker character control states. */
-typedef enum _BloodsuckerControl
-{
-    BloodsuckerControl_None = 0,
-    BloodsuckerControl_1    = 1,
-    BloodsuckerControl_2    = 2,
-    BloodsuckerControl_3    = 3,
-    BloodsuckerControl_4    = 4
-} e_BloodsuckerControl;
+extern s_AnimInfo BLOODSUCKER_ANIM_INFOS[];
 
-void Ai_Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void Bloodsucker_Update(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-void Ai_Bloodsucker_Init(s_SubCharacter* bloodsucker);
+void Bloodsucker_Init(s_SubCharacter* bloodsucker);
 
-void Ai_Bloodsucker_Control_1(s_SubCharacter* bloodsucker);
+void Bloodsucker_Control_1(s_SubCharacter* bloodsucker);
 
-void Ai_Bloodsucker_Control_2(s_SubCharacter* bloodsucker);
+void Bloodsucker_Control_2(s_SubCharacter* bloodsucker);
 
-void Ai_Bloodsucker_Control_3(s_SubCharacter* bloodsucker);
+void Bloodsucker_Control_3(s_SubCharacter* bloodsucker);
 
-void Ai_Bloodsucker_Control_4(s_SubCharacter* bloodsucker);
+void Bloodsucker_Control_4(s_SubCharacter* bloodsucker);
 
-void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void sharedFunc_800D0F28_3_s03(s_SubCharacter* bloodsucker, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
 #endif

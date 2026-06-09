@@ -1,6 +1,6 @@
 /* Chara_HangedScratcher collision-keyframe data, extracted from MAP5_S00.BIN at the PSX VRAM
  * addresses in sym.map5_s00.txt (overlay base 0x800C9578). Replaces the zero-stubs
- * in pc_port data_stubs.c that gave func_80070400 all-zero field_C8/radius
+ * in pc_port data_stubs.c that gave func_80070400 all-zero collision/radius
  * (no melee hit window, no push collision). s_Keyframe is 20 bytes PSX/PC.
  * Included at the bottom of hanged_scratcher.c. */
 

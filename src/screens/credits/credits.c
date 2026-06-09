@@ -7,7 +7,7 @@
 #include "bodyprog/ranking.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #include "screens/credits/credits.h"
 
@@ -117,9 +117,9 @@ bool func_801E2FC0(void) // 0x801E2FC0
 {
     switch (g_Screen_FadeStatus)
     {
-        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep, false):
+        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep,   false):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, false):
-        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep, true):
+        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep,   true):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, true):
             if (Fs_QueueGetLength() != 0)
             {
@@ -146,12 +146,16 @@ bool func_801E2FC0(void) // 0x801E2FC0
 
 void GameState_Unk15_Update(void) // 0x801E3094
 {
-    bool (*routines[3])() = { func_801E3124, func_801E342C, func_801E3304 };
+    bool (*funcs[3])() = {
+        func_801E3124,
+        func_801E342C,
+        func_801E3304
+    };
 
     D_800C48F0 += g_VBlanks;
-    if (routines[g_GameWork.gameStateSteps[0]]())
+    if (funcs[g_GameWork.gameStateSteps[0]]())
     {
-        g_SysWork.counters_1C[1]              = 0;
+        g_SysWork.counters_1C[1]     = 0;
         g_GameWork.gameStateSteps[1] = 0;
         g_GameWork.gameStateSteps[2] = 0;
         g_GameWork.gameStateSteps[0]++;
@@ -206,7 +210,7 @@ bool func_801E3124(void) // 0x801E3124
             Screen_Init(512, true);
 
             g_IntervalVBlanks = 1;
-            D_801E5E74        = 0x3C;
+            D_801E5E74        = 60;
             g_GameWork.gameStateSteps[1]++;
             break;
 
@@ -227,7 +231,7 @@ bool func_801E3124(void) // 0x801E3124
     return false;
 }
 
-s32 func_801E3304(void) // 0x801E3304
+bool func_801E3304(void) // 0x801E3304
 {
     if (g_GameWork.gameStatePrev == GameState_InGame)
     {
@@ -253,10 +257,10 @@ s32 func_801E3304(void) // 0x801E3304
             Game_StateSetPrevious();
         }
 
-        return 0;
+        return false;
     }
 
-    return 0;
+    return false;
 }
 
 bool func_801E342C(void) // 0x801E342C
@@ -265,8 +269,8 @@ bool func_801E342C(void) // 0x801E342C
     GsOT* ot;
     TILE* tile;
 
-    if (((g_GameWork.config.optExtraOptionsEnabled_27 >> (D_801E5E8C - 1)) & (1 << 0)) &&
-        (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip))
+    if (((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+        (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip))
     {
         D_800C48F0 = D_801E5558[D_801E5E8C].field_4 + (D_801E5E84 / 2);
         SD_Call(19);
@@ -319,7 +323,7 @@ bool func_801E342C(void) // 0x801E342C
             D_801E5E78--;
             if (D_801E5E78 <= 0)
             {
-                g_Screen_FadeStatus             = g_GameWork.gameStateSteps[1];
+                g_Screen_FadeStatus          = g_GameWork.gameStateSteps[1];
                 g_GameWork.gameStateSteps[1] = 3;
             }
             break;
@@ -656,8 +660,8 @@ bool func_801E3970(void) // 0x801E3970
             }
         }
     }
-    else if (((g_GameWork.config.optExtraOptionsEnabled_27 >> (D_801E5E8C - 1)) & (1 << 0)) &&
-             (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip))
+    else if (((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+             (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip))
     {
         skipTo = D_801E5E84 + 168;
         skipTo = FP_TO(skipTo, Q12_SHIFT) / Q12(1.0f); // TODO: What math macro matches?
@@ -944,7 +948,7 @@ void func_801E42F8(s32 arg0, s32 arg1) // 0x801E42F8
 
 void func_801E4310(s32 r, s32 g, s32 b) // 0x801E4310
 {
-    D_800AFE08.field_8 = (r & 0xFF) | ((g & 0xFF) << 8) | ((b & 0xFF) << 16) | ((PRIM_RECT | RECT_TEXTURE) << 24);
+    D_800AFE08.field_8 = COLOR_RGBC(r, g, b, PRIM_RECT | RECT_TEXTURE);
 }
 
 void func_801E4340(s8 arg0) // 0x801E4340

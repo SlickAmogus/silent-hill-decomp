@@ -28,7 +28,7 @@ void Cheryl_AnimUpdate(s_SubCharacter* cheryl, s_AnmHeader* anmHdr, GsCOORDINATE
     q19_12      duration;
     s_AnimInfo* animInfo;
 
-    #define cherylProps cheryl->properties.cheryl
+    #define cherylProps cheryl->properties.npc
 
     if (cherylProps.controlState == 1)
     {
@@ -54,7 +54,7 @@ void Cheryl_AnimUpdate(s_SubCharacter* cheryl, s_AnmHeader* anmHdr, GsCOORDINATE
         animInfo[ANIM_STATUS(CherylAnim_RunForward, true)].duration.constant = duration;
     }
 
-    if (cherylProps.properties_F0.val32 == 0)
+    if (cherylProps.freeze == 0)
     {
 #ifdef SH_PC_PORT
         /* Guard against NULL playbackFunc -- some CHERYL_ANIM_INFOS entries may
@@ -95,12 +95,12 @@ void Cheryl_MovementUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x8
     Collision_WallDetect(&sharedData_800E39BC_0_s00, &offset, cheryl);
 
     cheryl->position.vx += offset.vx;
-    cheryl->position.vy += sharedData_800E39BC_0_s00.offset_0.vy;
+    cheryl->position.vy += sharedData_800E39BC_0_s00.offset.vy;
     cheryl->position.vz += offset.vz;
 
-    if (cheryl->position.vy > sharedData_800E39BC_0_s00.field_C)
+    if (cheryl->position.vy > sharedData_800E39BC_0_s00.surface.groundHeight)
     {
-        cheryl->position.vy = sharedData_800E39BC_0_s00.field_C;
+        cheryl->position.vy = sharedData_800E39BC_0_s00.surface.groundHeight;
         cheryl->fallSpeed   = Q12(0.0f);
     }
 
@@ -111,13 +111,13 @@ void Cheryl_MovementUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x8
 
 void Cheryl_ControlUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x800D8310
 {
-    s_Collision coll;
+    s_CollisionSurface coll;
     e_SfxId     sfx;
     s8          pitch0;
     s8          pitch1;
     q23_8       distToPlayerSqr;
 
-    #define cherylProps cheryl->properties.cheryl
+    #define cherylProps cheryl->properties.npc
     #define playerChara g_SysWork.playerWork.player
     #define playerProps playerChara.properties.player
 
@@ -126,76 +126,76 @@ void Cheryl_ControlUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x80
     switch (cherylProps.controlState)
     {
         case CherylControl_Idle:
-            if (cherylProps.moveDistance_126 != Q12(0.0f))
+            if (cherylProps.moveDistance_124 != Q12(0.0f))
             {
-                cherylProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (cherylProps.moveDistance_126 < Q12(0.0f))
+                cherylProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (cherylProps.moveDistance_124 < Q12(0.0f))
                 {
-                    cherylProps.moveDistance_126 = Q12(0.0f);
+                    cherylProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             Model_AnimStatusSet(&cheryl->model, CherylAnim_Idle, false);
-            Character_AnimStateReset(cheryl);
+            Chara_AnimStateReset(cheryl);
 
             cherylProps.moveDistance_124 = Q12(0.0f);
             break;
 
         case CherylControl_WalkForward:
-            cherylProps.moveDistance_126 = cherylProps.moveDistance_124;
+            cherylProps.moveDistance_124 = cherylProps.moveDistance_124;
 
             Model_AnimStatusSet(&cheryl->model, CherylAnim_WalkForward, false);
-            Character_AnimStateReset(cheryl);
+            Chara_AnimStateReset(cheryl);
             break;
 
         case CherylControl_RunForward:
-            cherylProps.moveDistance_126 = cherylProps.moveDistance_124;
+            cherylProps.moveDistance_124 = cherylProps.moveDistance_124;
 
             Model_AnimStatusSet(&cheryl->model, CherylAnim_RunForward, false);
-            Character_AnimStateReset(cheryl);
+            Chara_AnimStateReset(cheryl);
             break;
 
         case CherylControl_3:
-            if (cherylProps.moveDistance_126 != Q12(0.0f))
+            if (cherylProps.moveDistance_124 != Q12(0.0f))
             {
-                cherylProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (cherylProps.moveDistance_126 < Q12(0.0f))
+                cherylProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (cherylProps.moveDistance_124 < Q12(0.0f))
                 {
-                    cherylProps.moveDistance_126 = Q12(0.0f);
+                    cherylProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             D_800E3A30 = g_DeltaTime * 7;
 
             Model_AnimStatusSet(&cheryl->model, CherylAnim_WalkForward, false);
-            Character_AnimStateReset(cheryl);
+            Chara_AnimStateReset(cheryl);
 
-            playerProps.headingAngle_124 = Q12_ANGLE(0.0f);
+            playerProps.headingAngle = Q12_ANGLE(0.0f);
             cherylProps.moveDistance_124 = Q12(0.0f);
             break;
 
         case CherylControl_4:
-            if (cherylProps.moveDistance_126 != Q12(0.0f))
+            if (cherylProps.moveDistance_124 != Q12(0.0f))
             {
-                cherylProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (cherylProps.moveDistance_126 < Q12(0.0f))
+                cherylProps.moveDistance_124 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (cherylProps.moveDistance_124 < Q12(0.0f))
                 {
-                    cherylProps.moveDistance_126 = Q12(0.0f);
+                    cherylProps.moveDistance_124 = Q12(0.0f);
                 }
             }
 
             D_800E3A30 = g_DeltaTime * -7;
 
             Model_AnimStatusSet(&cheryl->model, CherylAnim_WalkForward, false);
-            Character_AnimStateReset(cheryl);
+            Chara_AnimStateReset(cheryl);
 
-            playerProps.headingAngle_124 = Q12_ANGLE(0.0f);
+            playerProps.headingAngle = Q12_ANGLE(0.0f);
             cherylProps.moveDistance_124 = Q12(0.0f);
             break;
     }
 
-    Collision_Get(&coll, cheryl->position.vx, cheryl->position.vz);
-    func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
+    Collision_SurfaceGet(&coll, cheryl->position.vx, cheryl->position.vz);
+    Player_FootstepSfxGet(coll.groundType, &sfx, &pitch0, &pitch1);
 
     distToPlayerSqr = SQUARE(Q12_TO_Q8(cheryl->position.vx - playerChara.position.vx)) +
                       SQUARE(Q12_TO_Q8(cheryl->position.vz - playerChara.position.vz));
@@ -242,7 +242,7 @@ bool Cheryl_FootstepSfxPlay(s32 animStatus, s_SubCharacter* cheryl,
     q24_8 distSqr;
     u32   vol;
 
-    #define cherylProps cheryl->properties.cheryl
+    #define cherylProps cheryl->properties.npc
 
     if (cheryl->model.anim.status == animStatus)
     {
@@ -302,6 +302,6 @@ bool Cheryl_FootstepSfxPlay(s32 animStatus, s_SubCharacter* cheryl,
 
 void Cheryl_Init(s_SubCharacter* cheryl) // 0x800D8888
 {
-    sharedFunc_800D923C_0_s00(cheryl);
+    Chara_CollisionReset(cheryl);
     D_800E3A30 = Q12(0.0f);
 }

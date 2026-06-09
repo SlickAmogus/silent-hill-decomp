@@ -8,25 +8,25 @@
 
 #define romperProps romper->properties.romper
 
-void Ai_Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     if (romper->model.controlState == 0)
     {
-        Ai_Romper_Init(romper);
+        Romper_Init(romper);
     }
     else if (g_DeltaTime != Q12(0.0f))
     {
         sharedFunc_800E6420_2_s02(romper);
-        Ai_Romper_ControlUpdate(romper);
+        Romper_ControlUpdate(romper);
         sharedFunc_800E8730_2_s02(romper);
-        sharedFunc_800E8DFC_2_s02(romper);
+        Romper_CollisionUpdate(romper);
     }
 
-    sharedFunc_800E8A40_2_s02(romper, anmHdr, coords);
+    sharedFunc_800E8A40_2_s02(romper, anmHdr, boneCoords);
     sharedFunc_800E60FC_2_s02(romper);
 }
 
-void Ai_Romper_Init(s_SubCharacter* romper)
+void Romper_Init(s_SubCharacter* romper)
 {
     #define HEALTH_BASE      Q12(450.0f)
     #define HEALTH_BONUS_MAX Q12(112.5f)
@@ -38,13 +38,13 @@ void Ai_Romper_Init(s_SubCharacter* romper)
     romperProps.flags           = RomperFlag_None;
     romper->model.anim.alpha = Q12(0.0f);
 
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Easy)
     {
         romper->health = HEALTH_BASE - ((s32)Rng_Rand16() % HEALTH_BONUS_MAX);
     }
     else
     {
-        if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
+        if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
         {
             romper->health = HEALTH_BASE + ((s32)Rng_Rand16() % HEALTH_BONUS_MAX);
         }
@@ -62,23 +62,25 @@ void Ai_Romper_Init(s_SubCharacter* romper)
         }
     }
 
-    romper->moveSpeed    = Q12(0.0f);
-    romper->field_E1_0      = 3;
-    romper->headingAngle = romper->rotation.vy;
-    Chara_PropertiesClear(romper);
+    romper->moveSpeed       = Q12(0.0f);
+    romper->collision.state = CharaCollisionState_Npc;
+    romper->headingAngle    = romper->rotation.vy;
+    Chara_PropsClear(romper);
 
     romper->model.controlState = RomperControl_WalkForward;
-    Character_AnimSet(romper, ANIM_STATUS(RomperAnim_WalkForward, true), 147);
+    Chara_AnimSet(romper, ANIM_STATUS(RomperAnim_WalkForward, true), 147);
 
     romperProps.field_F0     = 6;
     romperProps.rotationY_F2 = romper->rotation.vy;
     romper->moveSpeed = Q12(0.02175f);
 
-    ModelAnim_AnimInfoSet(&romper->model.anim, ROPMER_ANIM_INFOS);
+    ModelAnim_AnimInfoSet(&romper->model.anim, ROMPER_ANIM_INFOS);
     Chara_DamageClear(romper);
 
-    romperProps.targetPositionX_FC = romperProps.positionZ_110 = romper->position.vx;
-    romperProps.targetPositionZ_100 = romperProps.positionX_108 = romper->position.vz;
+    romperProps.targetPositionX_FC  =
+    romperProps.positionZ_110       = romper->position.vx;
+    romperProps.targetPositionZ_100 =
+    romperProps.positionX_108       = romper->position.vz;
 
     #undef HEALTH_BASE
     #undef HEALTH_BONUS_MAX
@@ -127,7 +129,7 @@ void Romper_FootstepSfxPlay(s_SubCharacter* romper, s16 arg1, s16 arg2, u8* arg3
                     break;
             }
 
-            func_8005DD44(Sfx_RomperFootstep, &romper->position, vol, pitch + Rng_GenerateUInt(-7, 8));
+            Sfx_WithPitchPlay(Sfx_RomperFootstep, &romper->position, vol, pitch + Rng_GenerateUInt(-7, 8));
             *arg3 = 1;
         }
     }
@@ -187,7 +189,7 @@ void sharedFunc_800E60FC_2_s02(s_SubCharacter* romper)
     else if (romperProps.flags & RomperFlag_7)
     {
         romperProps.field_116 = Q12(0.8f);
-        func_8005DC1C(Sfx_Unk1400, &romper->position, Q8(0.5f), 0);
+        Sfx_WithFlagsPlay(Sfx_Unk1400, &romper->position, Q8(0.5f), SfxFlag_None);
     }
 
     romperProps.flags &= ~RomperFlag_7;
@@ -196,7 +198,7 @@ void sharedFunc_800E60FC_2_s02(s_SubCharacter* romper)
     {
         if (romperProps.timer_118 == Q12(0.0f))
         {
-            func_8005DC1C(Sfx_Unk1401, &romper->position, Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1401, &romper->position, Q8(0.5f), SfxFlag_None);
             romperProps.timer_118 = Q12(3.2f);
         }
         else
@@ -216,7 +218,7 @@ void sharedFunc_800E60FC_2_s02(s_SubCharacter* romper)
 
     if (romperProps.field_11A != 0)
     {
-        func_8005DC1C(Sfx_Unk1402, &romper->position, Rng_GenerateUInt(120, 135), 0);
+        Sfx_WithFlagsPlay(Sfx_Unk1402, &romper->position, Rng_GenerateUInt(120, 135), SfxFlag_None);
         romperProps.field_11A = 0;
     }
 
@@ -244,7 +246,7 @@ void sharedFunc_800E60FC_2_s02(s_SubCharacter* romper)
                 var_s1 = Q6(1.875f);
             }
 
-            func_8005DC1C(Sfx_Unk1404, &romper->position, Rng_AddGeneratedUInt(var_s1, 0, 15) >> 1, 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1404, &romper->position, Rng_AddGeneratedUInt(var_s1, 0, 15) >> 1, SfxFlag_None);
             romperProps.timer_11C = Rng_GenerateInt(Q12(4.5f), Q12(6.5f) - 1);
         }
     }
@@ -252,25 +254,25 @@ void sharedFunc_800E60FC_2_s02(s_SubCharacter* romper)
 
 void sharedFunc_800E6420_2_s02(s_SubCharacter* romper)
 {
-    s_Collision coll;
-    s32         keyframeIdx;
-    q19_12      unkHealth;
-    s32         prevControlState;
+    s_CollisionSurface surface;
+    s32                keyframeIdx;
+    q19_12             unkHealth;
+    s32                prevControlState;
 
     if (romper->health > Q12(0.0f))
     {
-        Collision_Get(&coll, romper->position.vx, romper->position.vz);
+        Collision_SurfaceGet(&surface, romper->position.vx, romper->position.vz);
 
-        if (coll.field_8 == 12)
+        if (surface.groundType == GroundType_None)
         {
             if (Rng_GenerateInt(Q12(4.0f), Q12(8.0f) - 1) < romper->position.vy)
             {
-                romper->damage.amount_C = Q12(3000.0f);
+                romper->damage.amount = Q12(3000.0f);
             }
         }
     }
 
-    if (romper->damage.amount_C == Q12(0.0f) || romper->health <= Q12(0.0f))
+    if (romper->damage.amount == Q12(0.0f) || romper->health <= Q12(0.0f))
     {
         Chara_DamageClear(romper);
         return;
@@ -278,10 +280,10 @@ void sharedFunc_800E6420_2_s02(s_SubCharacter* romper)
 
     prevControlState = romper->model.controlState;
 
-    romper->health = MAX(romper->health - romper->damage.amount_C, Q12(0.0f));
+    romper->health = MAX(romper->health - romper->damage.amount, Q12(0.0f));
     romperProps.flags |= RomperFlag_7;
 
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Hard)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Hard)
     {
         unkHealth = Q12(400.0f);
     }
@@ -388,7 +390,7 @@ void sharedFunc_800E6420_2_s02(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_ControlUpdate(s_SubCharacter* romper)
+void Romper_ControlUpdate(s_SubCharacter* romper)
 {
     u8 controlState;
 
@@ -406,7 +408,7 @@ void Ai_Romper_ControlUpdate(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_1(s_SubCharacter* romper)
+void Romper_Control_1(s_SubCharacter* romper)
 {
     s32    flags;
     q19_12 newMoveSpeed;
@@ -426,7 +428,7 @@ void Ai_Romper_Control_1(s_SubCharacter* romper)
         var = func_8006FD90(romper, 1, Q12(1.0f), Q12(1.0f));
     }
 
-    if (g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty != GameDifficulty_Easy)
     {
         var += func_80070360(romper, Q12(0.0f), Q12(0.4f));
     }
@@ -467,7 +469,7 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
         romper->rotation.vy = romperProps.rotationY_F2;
     }
 
-    if (romper->rotation.vy == romperProps.rotationY_F2 || func_8007029C(romper, Q12(1.0f), romper->rotation.vy))
+    if (romper->rotation.vy == romperProps.rotationY_F2 || Los_CharaHitCheck(romper, Q12(1.0f), romper->rotation.vy))
     {
         angleDeltaToTarget = Math_AngleNormalizeSigned(romper->rotation.vy - ratan2(romperProps.targetPositionX_FC  - romper->position.vx,
                                                                            romperProps.targetPositionZ_100 - romper->position.vz));
@@ -481,7 +483,7 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
         }
     }
 
-    if (Math_Vector2MagCalc(romper->position.vx - romperProps.targetPositionX_FC,
+    if (Math_Vector2MagCalcSafeQ6(romper->position.vx - romperProps.targetPositionX_FC,
                             romper->position.vz - romperProps.targetPositionZ_100) < Q12(1.0f))
     {
         moveDist                        = Rng_GenerateInt(Q12(0.0f), Q12(5.0f) - 1);
@@ -507,7 +509,7 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
         startRunning = func_8006FD90(romper, 1, Q12(1.0f), Q12(1.0f));
     }
 
-    if (g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty != GameDifficulty_Easy)
     {
         startRunning += func_80070360(romper, Q12(0.0f), Q12(0.15f));
     }
@@ -530,7 +532,7 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_3(s_SubCharacter* romper)
+void Romper_Control_3(s_SubCharacter* romper)
 {
     q3_12           angleDeltaToTarget;
     s32             temp_s0;
@@ -561,9 +563,9 @@ void Ai_Romper_Control_3(s_SubCharacter* romper)
         var_s0 = func_8006FD90(romper, 0, Q12(0.8f), Q12(2.0f));
     }
 
-    if (g_SavegamePtr->gameDifficulty_260 != GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty != GameDifficulty_Easy)
     {
-        var_s0 |= func_80070360(romper, 0, Q12(0.2f));
+        var_s0 |= func_80070360(romper, Q12(0.0f), Q12(0.2f));
     }
 
     if (var_s0)
@@ -594,10 +596,10 @@ void Ai_Romper_Control_3(s_SubCharacter* romper)
         return;
     }
 
-    distToTarget = Math_Vector2MagCalc(romper->position.vx - romperProps.targetPositionX_FC,
+    distToTarget = Math_Vector2MagCalcSafeQ6(romper->position.vx - romperProps.targetPositionX_FC,
                                        romper->position.vz - romperProps.targetPositionZ_100);
 
-    cond = func_800700F8(romper, &g_SysWork.playerWork.player);
+    cond = Los_NpcToPlayerHitCheck(romper, &g_SysWork.playerWork.player);
 
     if (!(romperProps.flags & RomperFlag_3))
     {
@@ -629,11 +631,11 @@ void Ai_Romper_Control_3(s_SubCharacter* romper)
 
         if (romperProps.rotationY_F2 == angleToTarget)
         {
-            temp_s0 = func_8007029C(romper, CLAMP_HIGH(distToTarget, 0x1AAA), romper->rotation.vy);
+            temp_s0 = Los_CharaHitCheck(romper, CLAMP_HIGH(distToTarget, 0x1AAA), romper->rotation.vy);
         }
         else
         {
-            temp_s0 = func_8007029C(romper, 0x1AAA, romper->rotation.vy);
+            temp_s0 = Los_CharaHitCheck(romper, 0x1AAA, romper->rotation.vy);
         }
 
         if (romperProps.field_10E > Q12(1.0f) && !Rng_GenerateUInt(0, 15))
@@ -746,7 +748,7 @@ void Ai_Romper_Control_3(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_4(s_SubCharacter* romper)
+void Romper_Control_4(s_SubCharacter* romper)
 {
     q19_12 angle0;
     s32    temp_s0;
@@ -769,9 +771,9 @@ void Ai_Romper_Control_4(s_SubCharacter* romper)
         var_s0 = func_8006FD90(romper, 0, Q12(0.8f), Q12(2.0f));
     }
 
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Easy)
     {
-        var_s0 |= func_80070360(romper, 0, Q12(0.2f));
+        var_s0 |= func_80070360(romper, Q12(0.0f), Q12(0.2f));
     }
 
     if (var_s0 != 0)
@@ -785,13 +787,13 @@ void Ai_Romper_Control_4(s_SubCharacter* romper)
         romperProps.field_10E += g_DeltaTime;
     }
 
-    temp_s0 = func_8007029C(romper, Q12(2.5f), romper->rotation.vy);
+    temp_s0 = Los_CharaHitCheck(romper, Q12(2.5f), romper->rotation.vy);
     if (romperProps.distance_120 == Q12(0.0f) ||
         (temp_s0 != 0 && romperProps.distance_120 >= Q12(0.0f)))
     {
         romperProps.rotationY_F2 = Q12_ANGLE(0.0f);
 
-        if (Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - romper->position.vx,
+        if (Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - romper->position.vx,
                                 g_SysWork.playerWork.player.position.vz - romper->position.vz) >= Q12_ANGLE(180.0f))
         {
             romperProps.rotationY_F2 = Chara_HeadingAngleGet(romper, Q12(2.5f), romperProps.targetPositionX_FC,
@@ -856,7 +858,7 @@ void Ai_Romper_Control_4(s_SubCharacter* romper)
     }
 
     // TODO: Animation 20 doesn't exist?
-    if (!func_8007029C(romper, Q12(2.5f), romper->rotation.vy) && ANIM_TIME_RANGE_CHECK(romper->model.anim.time, 131, 132))
+    if (!Los_CharaHitCheck(romper, Q12(2.5f), romper->rotation.vy) && ANIM_TIME_RANGE_CHECK(romper->model.anim.time, 131, 132))
     {
         romper->model.anim.status = ANIM_STATUS(RomperAnim_20, false);
         romper->moveSpeed         = Q12(0.0f);
@@ -878,19 +880,19 @@ void Ai_Romper_Control_4(s_SubCharacter* romper)
 
 void Romper_ControlJump(s_SubCharacter* romper)
 {
-    s_Collision coll;
-    VECTOR3     pos; // Q19.12
-    s16         temp_v0_4;
-    q3_12       unkAngle1;
-    s16         var_s3;
-    s32         temp_a1;
-    q19_12      unkAngle;
-    s32         temp_v0;
-    s32         temp_v0_3;
-    s32         temp_v1_5;
-    s16         var_a0_2;
-    s32         i;
-    s16         temp;
+    s_CollisionSurface surface;
+    VECTOR3            pos; // Q19.12
+    s16                temp_v0_4;
+    q3_12              unkAngle1;
+    s16                var_s3;
+    s32                temp_a1;
+    q19_12             unkAngle;
+    s32                temp_v0;
+    s32                temp_v0_3;
+    s32                temp_v1_5;
+    s16                var_a0_2;
+    s32                i;
+    s16                temp;
 
     if (romper->model.anim.status == ANIM_STATUS(RomperAnim_RunToJump, true))
     {
@@ -959,14 +961,16 @@ void Romper_ControlJump(s_SubCharacter* romper)
 
         if (romper->model.anim.time == Q12(2.0f))
         {
-            temp_v1_5 = Math_Vector2MagCalc(romperProps.targetPositionX_FC - romper->position.vx,
+            temp_v1_5 = Math_Vector2MagCalcSafeQ6(romperProps.targetPositionX_FC - romper->position.vx,
                                             romperProps.targetPositionZ_100 - romper->position.vz);
 
-            var_a0_2             = CLAMP_LOW(temp_v1_5, Q12(0.3f));
+            var_a0_2          = CLAMP_LOW(temp_v1_5, Q12(0.3f));
             romper->moveSpeed = var_a0_2 << 1;
-            Collision_Get(&coll, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
-            temp                                   = coll.groundHeight_0 - Q12(0.8f);
-            romper->fallSpeed                   = (temp << 1) - Q12(2.45f);
+
+            Collision_SurfaceGet(&surface, g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vz);
+            temp = surface.groundHeight - Q12(0.8f);
+
+            romper->fallSpeed  = (temp << 1) - Q12(2.45f);
             romperProps.flags &= ~RomperFlag_9;
         }
         else if (FP_FROM(romper->model.anim.time, Q12_SHIFT) == 5 ||
@@ -974,7 +978,7 @@ void Romper_ControlJump(s_SubCharacter* romper)
         {
             if (!(romperProps.flags & RomperFlag_9))
             {
-                func_8005DC1C(Sfx_Unk1403, &romper->position, Q8(0.5f), 0);
+                Sfx_WithFlagsPlay(Sfx_Unk1403, &romper->position, Q8(0.5f), SfxFlag_None);
                 romperProps.flags |= RomperFlag_9;
             }
 
@@ -1005,7 +1009,7 @@ void Romper_ControlJump(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_6(s_SubCharacter* romper)
+void Romper_Control_6(s_SubCharacter* romper)
 {
     q3_12 moveDist;
 
@@ -1020,7 +1024,7 @@ void Ai_Romper_Control_6(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_7(s_SubCharacter* romper)
+void Romper_Control_7(s_SubCharacter* romper)
 {
     q3_12 moveDist;
 
@@ -1056,14 +1060,14 @@ void Ai_Romper_Control_7(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_8(s_SubCharacter* romper)
+void Romper_Control_8(s_SubCharacter* romper)
 {
     if (romper->health == Q12(0.0f))
     {
         if (g_SysWork.targetNpcIdx != Chara_NpcIdxGet(romper))
         {
-            romper->health  = NO_VALUE;
-            romper->field_E1_0 = 0;
+            romper->health          = NO_VALUE;
+            romper->collision.state = CharaCollisionState_Ignore;
         }
     }
 
@@ -1075,9 +1079,9 @@ void Ai_Romper_Control_8(s_SubCharacter* romper)
     }
 }
 
-void Ai_Romper_Control_9(s_SubCharacter* romper) {}
+void Romper_Control_9(s_SubCharacter* romper) {}
 
-void Ai_Romper_Control_10(s_SubCharacter* romper)
+void Romper_Control_10(s_SubCharacter* romper)
 {
     VECTOR          sp10;
     s_SubCharacter* player;
@@ -1098,7 +1102,7 @@ void Ai_Romper_Control_10(s_SubCharacter* romper)
         romper->moveSpeed = MAX(romper->moveSpeed - Q12_MULT_PRECISE(g_DeltaTime, romperProps.field_124), Q12(0.0f));
     }
 
-    romper->field_E1_0 = 0;
+    romper->collision.state = CharaCollisionState_Ignore;
     if (romper->model.anim.status == ANIM_STATUS(RomperAnim_JumpToIdleEnd, true))
     {
         romperProps.field_104 = romper->model.anim.time - Q12(20.0f);
@@ -1114,8 +1118,8 @@ void Ai_Romper_Control_10(s_SubCharacter* romper)
     {
         romper->model.anim.status  = ANIM_STATUS(RomperAnim_9, false);
         romper->model.controlState = RomperControl_GrabAttack;
-        romper->field_E1_0         = 0;
-        romper->field_E1_0         = 3;
+        romper->collision.state    = CharaCollisionState_Ignore;
+        romper->collision.state    = CharaCollisionState_Npc;
     }
     else if (romper->model.anim.time < Q12(24.0f))
     {
@@ -1125,7 +1129,7 @@ void Ai_Romper_Control_10(s_SubCharacter* romper)
     {
         romperProps.flags &= ~RomperFlag_6;
 
-        g_SysWork.playerWork.player.damage.amount_C += (FP_TO(D_800AD4C8[55].field_4, Q12_SHIFT) *
+        g_SysWork.playerWork.player.damage.amount += (FP_TO(D_800AD4C8[55].field_4, Q12_SHIFT) *
                                                                Rng_GenerateUInt(85, 116)) / 100;
 
         sp10.vx = romper->position.vx + FP_FROM(FP_TO(Math_Sin(romper->rotation.vy) >> 1, Q12_SHIFT), Q12_SHIFT);
@@ -1189,12 +1193,12 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
 
         Collision_WallDetect(&collResult, &pos, romper);
 
-        romper->position.vx += collResult.offset_0.vx;
-        romper->position.vz += collResult.offset_0.vz;
+        romper->position.vx += collResult.offset.vx;
+        romper->position.vz += collResult.offset.vz;
 
         if (romperProps.flags & RomperFlag_10)
         {
-            if (romper->model.controlState != RomperControl_10 && romper->position.vy <= collResult.field_C)
+            if (romper->model.controlState != RomperControl_10 && romper->position.vy <= collResult.surface.groundHeight)
             {
                 romperProps.flags &= ~RomperFlag_10;
             }
@@ -1203,7 +1207,7 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
             {
                 if (romper->model.controlState == RomperControl_10)
                 {
-                    romper->position.vy += collResult.offset_0.vy;
+                    romper->position.vy += collResult.offset.vy;
                     if (g_SysWork.playerWork.player.position.vy < romper->position.vy)
                     {
                         romper->position.vy = g_SysWork.playerWork.player.position.vy;
@@ -1214,28 +1218,28 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
                 {
                     romper->position.vy -= Q12_MULT_PRECISE(g_DeltaTime, Q12(0.15f));
                     romper->fallSpeed    = Q12(0.0f);
-                    if (collResult.field_C >= romper->position.vy)
+                    if (collResult.surface.groundHeight >= romper->position.vy)
                     {
-                        romper->position.vy = collResult.field_C;
+                        romper->position.vy = collResult.surface.groundHeight;
                     }
                 }
             }
             else
             {
-                romper->position.vy += collResult.offset_0.vy;
-                if (collResult.field_C < romper->position.vy)
+                romper->position.vy += collResult.offset.vy;
+                if (collResult.surface.groundHeight < romper->position.vy)
                 {
-                    romper->position.vy = collResult.field_C;
+                    romper->position.vy = collResult.surface.groundHeight;
                     romper->fallSpeed   = Q12(0.0f);
                 }
             }
         }
         else
         {
-            romper->position.vy += collResult.offset_0.vy;
-            if (collResult.field_C < romper->position.vy)
+            romper->position.vy += collResult.offset.vy;
+            if (collResult.surface.groundHeight < romper->position.vy)
             {
-                romper->position.vy = collResult.field_C;
+                romper->position.vy = collResult.surface.groundHeight;
                 romper->fallSpeed   = Q12(0.0f);
             }
         }
@@ -1256,7 +1260,7 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
     }
 }
 
-void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     typedef struct
     {
@@ -1277,7 +1281,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
         case ANIM_STATUS(RomperAnim_RunForwardLoop, true):
         case ANIM_STATUS(RomperAnim_WalkToRunForwardRightStart, true):
         case ANIM_STATUS(RomperAnim_WalkToRunForwardLeftStart, true):
-            ROPMER_ANIM_INFOS[romper->model.anim.status].duration.constant = sharedData_800EC950_2_s02;
+            ROMPER_ANIM_INFOS[romper->model.anim.status].duration.constant = sharedData_800EC950_2_s02;
             break;
 
         case ANIM_STATUS(RomperAnim_CreepForward, false):
@@ -1285,9 +1289,9 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
             break;
 
         case ANIM_STATUS(RomperAnim_CreepForward, true):
-            ROPMER_ANIM_INFOS[29].startKeyframeIdx = romperProps.field_10C + 131;
+            ROMPER_ANIM_INFOS[29].startKeyframeIdx = romperProps.field_10C + 131;
             romperProps.field_10C                  = 0;
-            ROPMER_ANIM_INFOS[romper->model.anim.status].duration.constant = Q12_MULT_PRECISE(MAX(romper->moveSpeed, Q12(1.5f)), Q12(8.32f));
+            ROMPER_ANIM_INFOS[romper->model.anim.status].duration.constant = Q12_MULT_PRECISE(MAX(romper->moveSpeed, Q12(1.5f)), Q12(8.32f));
             break;
 
         case ANIM_STATUS(RomperAnim_RunForwardStart, false):
@@ -1299,10 +1303,10 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
             break;
     }
 
-    Math_MatrixTransform(&romper->position, (SVECTOR*)&romper->rotation, coords);
+    Math_MatrixTransform(&romper->position, (SVECTOR*)&romper->rotation, boneCoords);
 
-    animInfo = &ROPMER_ANIM_INFOS[romper->model.anim.status];
-    animInfo->playbackFunc(&romper->model, anmHdr, coords, animInfo);
+    animInfo = &ROMPER_ANIM_INFOS[romper->model.anim.status];
+    animInfo->playbackFunc(&romper->model, anmHdr, boneCoords, animInfo);
 
     switch (romper->model.anim.status)
     {
@@ -1389,7 +1393,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
     ptr->field_20.vz      = 0;
 
     Math_RotMatrixZxyNegGte(&ptr->field_20, &ptr->field_0);
-    MulMatrix2(&ptr->field_0, &coords[2].coord);
+    MulMatrix2(&ptr->field_0, &boneCoords[2].coord);
 
     romperProps.angle_EC = romper->rotation.vy;
 }
@@ -1407,34 +1411,7 @@ extern s_Keyframe sharedData_800ED018_2_s02[];
 extern s_Keyframe sharedData_800ED1D0_2_s02[];
 extern s_Keyframe sharedData_800ED2C0_2_s02;
 
-#define CopyData(arg0, data)                  \
-{                                             \
-    s32 __temp;                               \
-    s32 __temp2;                              \
-                                              \
-    arg0->field_C8.field_0 = data.field_0;    \
-                                              \
-    __temp                 = data.field_2;    \
-    arg0->field_C8.field_2 = __temp;          \
-    arg0->field_C8.field_4 = data.field_4;    \
-                                              \
-    __temp                   = data.field_6;  \
-    arg0->field_C8.field_6   = __temp;        \
-    arg0->field_D8.offsetX_4 = data.field_10; \
-                                              \
-    __temp                   = data.field_12; \
-    arg0->field_D8.offsetZ_6 = __temp;        \
-    arg0->field_D4.radius_0  = data.field_8;  \
-    arg0->field_D8.offsetX_0 = data.field_C;  \
-                                              \
-    __temp                   = data.field_E;  \
-    arg0->field_D8.offsetZ_2 = __temp;        \
-                                              \
-    __temp2                = data.field_A;    \
-    arg0->field_D4.field_2 = __temp2;         \
-}
-
-void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
+void Romper_CollisionUpdate(s_SubCharacter* romper)
 {
     s32 keyframeIdxs[2];
     s32 keyframeIdx;
@@ -1448,14 +1425,14 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx - !(keyframeIdx < 5);
             }
 
-            func_80070400(romper, &sharedData_800ECC58_2_s02[keyframeIdxs[0]], &sharedData_800ECC58_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECC58_2_s02[keyframeIdxs[0]], &sharedData_800ECC58_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_JumpToIdleStart, false):
         case ANIM_STATUS(RomperAnim_JumpToIdleStart, true):
         case ANIM_STATUS(RomperAnim_JumpToIdleEnd, false):
         case ANIM_STATUS(RomperAnim_JumpToIdleEnd, true):
-            CopyData(romper, sharedData_800ECCBC_2_s02);
+            Chara_CollisionSet(romper, sharedData_800ECCBC_2_s02);
             break;
 
         case ANIM_STATUS(RomperAnim_JumpToRunForward, true):
@@ -1466,7 +1443,7 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ECCD0_2_s02[keyframeIdxs[0]], &sharedData_800ECCD0_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECCD0_2_s02[keyframeIdxs[0]], &sharedData_800ECCD0_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_WalkToRunForwardRightEnd, true):
@@ -1477,7 +1454,7 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ECD48_2_s02[keyframeIdxs[0]], &sharedData_800ECD48_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECD48_2_s02[keyframeIdxs[0]], &sharedData_800ECD48_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_WalkToRunForwardLeftEnd, true):
@@ -1488,7 +1465,7 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ECE24_2_s02[keyframeIdxs[0]], &sharedData_800ECE24_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECE24_2_s02[keyframeIdxs[0]], &sharedData_800ECE24_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_StunToIdleStart, false):
@@ -1497,11 +1474,11 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
         case ANIM_STATUS(RomperAnim_JumpStunEnd, true):
         case ANIM_STATUS(RomperAnim_StunToIdleEnd, false):
         case ANIM_STATUS(RomperAnim_StunToIdleEnd, true):
-            CopyData(romper, sharedData_800ECF00_2_s02[4]);
+            Chara_CollisionSet(romper, sharedData_800ECF00_2_s02[4]);
             break;
 
         case ANIM_STATUS(RomperAnim_JumpStunStart, false):
-            CopyData(romper, sharedData_800ECF00_2_s02[0]);
+            Chara_CollisionSet(romper, sharedData_800ECF00_2_s02[0]);
             break;
 
         case ANIM_STATUS(RomperAnim_JumpStunStart, true):
@@ -1512,7 +1489,7 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx >= 4 ? 4 : keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ECF00_2_s02[keyframeIdxs[0]], &sharedData_800ECF00_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECF00_2_s02[keyframeIdxs[0]], &sharedData_800ECF00_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_GrabAttack, true):
@@ -1523,7 +1500,7 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ECF64_2_s02[keyframeIdxs[0]], &sharedData_800ECF64_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ECF64_2_s02[keyframeIdxs[0]], &sharedData_800ECF64_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_RunForwardLoop, true):
@@ -1534,11 +1511,11 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx;
             }
 
-            func_80070400(romper, &sharedData_800ED018_2_s02[keyframeIdxs[0]], &sharedData_800ED018_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ED018_2_s02[keyframeIdxs[0]], &sharedData_800ED018_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_CreepForward, true):
-            CopyData(romper, sharedData_800ED2C0_2_s02);
+            Chara_CollisionSet(romper, sharedData_800ED2C0_2_s02);
             break;
 
         case ANIM_STATUS(RomperAnim_WalkForward, true):
@@ -1549,20 +1526,20 @@ void sharedFunc_800E8DFC_2_s02(s_SubCharacter* romper)
                 keyframeIdxs[i] = keyframeIdx - (keyframeIdx > 0) - !(keyframeIdx < 4) - !(keyframeIdx < 8) - !(keyframeIdx < 12);
             }
 
-            func_80070400(romper, &sharedData_800ED1D0_2_s02[keyframeIdxs[0]], &sharedData_800ED1D0_2_s02[keyframeIdxs[1]]);
+            Collision_CharaCollisionSet(romper, &sharedData_800ED1D0_2_s02[keyframeIdxs[0]], &sharedData_800ED1D0_2_s02[keyframeIdxs[1]]);
             break;
 
         case ANIM_STATUS(RomperAnim_9, true):
-            CopyData(romper, sharedData_800ECD34_2_s02);
-            romper->field_D4.radius_0 = (romper->model.anim.time - Q12(61.0f)) / 100;
+            Chara_CollisionSet(romper, sharedData_800ECD34_2_s02);
+            romper->collision.cylinder.radius = (romper->model.anim.time - Q12(61.0f)) / 100;
             break;
 
         default:
-            CopyData(romper, sharedData_800ECC44_2_s02);
+            Chara_CollisionSet(romper, sharedData_800ECC44_2_s02);
             break;
     }
 
-    func_8005C814(&romper->field_D8, romper);
+    Chara_CollisionShapeOffsetsUpdate(&romper->collision.shapeOffsets, romper);
 
     if (ANIM_STATUS_IDX_GET(romper->model.anim.status) != RomperAnim_RunToJump)
     {
@@ -1723,7 +1700,7 @@ void sharedFunc_800E9714_2_s02(s_SubCharacter* romper)
     headingAngle  = romper->rotation.vy;
     moveDist      = Q12_MULT_PRECISE(temp_v0_4, temp_v0);
 
-    if (moveDist >= Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - romper->position.vx,
+    if (moveDist >= Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - romper->position.vx,
                                         g_SysWork.playerWork.player.position.vz - romper->position.vz))
     {
         newPosX = romper->position.vx + Q12_MULT(moveDist, Math_Sin(headingAngle));
@@ -1737,7 +1714,7 @@ void sharedFunc_800E9714_2_s02(s_SubCharacter* romper)
 
     sharedFunc_800D2E9C_0_s00(&newPosX, &newPosZ, &headingAngle);
 
-    temp_v0 = (FP_TO(Math_Vector2MagCalc(newPosX - romper->position.vx, newPosZ - romper->position.vz), Q12_SHIFT) << 1) / moveSpeed;
+    temp_v0 = (FP_TO(Math_Vector2MagCalcSafeQ6(newPosX - romper->position.vx, newPosZ - romper->position.vz), Q12_SHIFT) << 1) / moveSpeed;
     moveSpeedStep  = FP_TO(moveSpeed, Q12_SHIFT) / temp_v0;
 
     if (moveSpeedStep < Q12(0.0f))

@@ -123,6 +123,10 @@ static POLY_G4 D_800A8EB0[] = {
 
 static q19_12 g_BlackBorderShade = Q12(0.0f);
 
+// ========================================
+// CUTSCENE BORDERS
+// ========================================
+
 void Screen_CutsceneCameraStateUpdate(void) // 0x80032904
 {
     void Screen_BlackBorderDraw(POLY_G4* poly, s32 color)
@@ -174,50 +178,50 @@ void Screen_CutsceneCameraStateUpdate(void) // 0x80032904
         return;
     }
 
-    switch (g_SysWork.field_30)
+    switch (g_SysWork.cutsceneBorderState)
     {
-        case 18:
-            g_SysWork.field_30++;
+        case CutsceneBorderState_FadeInStart:
+            g_SysWork.cutsceneBorderState++;
 
-        case 19:
+        case CutsceneBorderState_FadingIn:
             g_BlackBorderShade += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 1.0f);
             if (g_BlackBorderShade >= Q12_CLAMPED(1.0f))
             {
                 g_BlackBorderShade = Q12_CLAMPED(1.0f);
-                g_SysWork.field_30++;
+                g_SysWork.cutsceneBorderState++;
             }
 
             Screen_BlackBorderDraw(poly, g_BlackBorderShade);
             break;
 
-        case 20:
-        case 22:
+        case CutsceneBorderState_ForceShow:
+        case CutsceneBorderState_FadeOutStart:
             g_BlackBorderShade = Q12_CLAMPED(1.0f);
-            g_SysWork.field_30++;
+            g_SysWork.cutsceneBorderState++;
 
-        case 21:
+        case CutsceneBorderState_Shown:
             Screen_BlackBorderDraw(poly, g_BlackBorderShade);
             break;
 
-        case 23:
+        case CutsceneBorderState_FadingOut:
             g_BlackBorderShade -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 1.0f);
             if (g_BlackBorderShade <= Q12(0.0f))
             {
                 g_BlackBorderShade = Q12(0.0f);
-                g_SysWork.field_30 = 0;
+                CutsceneBorder_Reset();
                 return;
             }
 
             Screen_BlackBorderDraw(poly, g_BlackBorderShade);
             break;
 
-        case 0:
-            g_BlackBorderShade    = Q12(0.0f);
-            g_SysWork.field_30    = 1;
-            g_SysWork.flags_22A4 &= ~UnkSysFlag_3;
+        case CutsceneBorderState_Reset:
+            g_BlackBorderShade            = Q12(0.0f);
+            g_SysWork.cutsceneBorderState = CutsceneBorderState_None;
+            g_SysWork.sysFlags           &= ~SysFlag_CutsceneActive;
             return;
 
-        case 1:
+        case CutsceneBorderState_None:
             return;
     }
 
@@ -226,7 +230,7 @@ void Screen_CutsceneCameraStateUpdate(void) // 0x80032904
     AddPrim(ot, &poly[2]);
     AddPrim(ot, drMode);
 
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_3))
+    if (!(g_SysWork.sysFlags & SysFlag_CutsceneActive))
     {
         vcChangeProjectionValue(g_GameWork.gsScreenHeight + Q12_MULT(377 - g_GameWork.gsScreenHeight, g_BlackBorderShade));
     }

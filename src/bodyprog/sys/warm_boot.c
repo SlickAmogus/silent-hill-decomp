@@ -9,7 +9,7 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sys/game_main.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 
 void SysWork_Clear(void) // 0x800340E0
 {
@@ -39,7 +39,7 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
         return ResetType_None;
     }
 
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         if (g_Demo_FrameCount > (TICKS_PER_SECOND * 30))
         {
@@ -57,7 +57,7 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
     }
 
     // Reset frame counter if reset buttons not held.
-    if ((g_Controller0->btnsHeld_C & WARM_BOOT_COMBO_HOLD) != WARM_BOOT_COMBO_HOLD)
+    if ((g_Controller0->heldBtnFlags & WARM_BOOT_COMBO_HOLD) != WARM_BOOT_COMBO_HOLD)
     {
         g_WarmBootTimer = 0;
     }
@@ -66,16 +66,16 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
     {
         return ResetType_WarmBoot;
     }
-    else if (g_Controller0->btnsHeld_C == WARM_BOOT_COMBO_PRESS && (g_Controller0->btnsClicked_10 & WARM_BOOT_COMBO_PRESS))
+    else if (g_Controller0->heldBtnFlags == WARM_BOOT_COMBO_PRESS && (g_Controller0->clickedBtnFlags & WARM_BOOT_COMBO_PRESS))
     {
         return ResetType_WarmBoot;
     }
-    else if (g_Controller0->btnsHeld_C == WARM_BOOT_COMBO_PRESS_ALT && (g_Controller0->btnsClicked_10 & ControllerFlag_Start))
+    else if (g_Controller0->heldBtnFlags == WARM_BOOT_COMBO_PRESS_ALT && (g_Controller0->clickedBtnFlags & ControllerFlag_Start))
     {
         return ResetType_WarmBoot;
     }
 
-    return (g_SysWork.flags_22A4 & UnkSysFlag_8) ? ResetType_WarmBoot : ResetType_None;
+    return (g_SysWork.sysFlags & SysFlag_DoWarmReset) ? ResetType_WarmBoot : ResetType_None;
 
     #undef WARM_BOOT_COMBO_HOLD
     #undef WARM_BOOT_COMBO_PRESS
@@ -117,7 +117,7 @@ void Game_WarmBoot(void) // 0x80034264
         VSync(SyncMode_Wait);
     }
 
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         Demo_Stop();
     }

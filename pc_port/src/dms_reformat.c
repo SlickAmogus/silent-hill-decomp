@@ -11,7 +11,7 @@
  * PSX struct sizes (all pointers are 4 bytes):
  *   s_DmsHeader:  44 bytes (28 header + 16 inline camera entry)
  *   s_DmsEntry:   16 bytes (64-bit: 24 bytes)
- *   s_DmsInterval: 4 bytes (no pointers, layout-identical)
+ *   s_DmsSegment: 4 bytes (no pointers, layout-identical)
  *   s_DmsKeyframeCamera:    16 bytes (no pointers, layout-identical)
  *   s_DmsKeyframeCharacter: 12 bytes (no pointers, layout-identical)
  *   SVECTOR3:                6 bytes (no pointers, layout-identical)
@@ -30,7 +30,7 @@
  *
  * PSX s_DmsEntry layout (16 bytes):
  *   0x00 [2]  keyframeCount
- *   0x02 [1]  svectorCount
+ *   0x02 [1]  holdRangeCount
  *   0x03 [1]  field_3
  *   0x04 [4]  name[4]
  *   0x08 [4]  svectorOffset    (relative to buffer start)
@@ -63,7 +63,7 @@ static inline s16 rd16s(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
 {
     dst->keyframeCount = rd16s(&src[0]);
-    dst->svectorCount  = src[2];
+    dst->holdRangeCount  = src[2];
     dst->field_3         = src[3];
     memcpy(dst->name, &src[4], 4);
 
@@ -71,9 +71,9 @@ static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
     u32 kfOff   = rd32(&src[12]);
 
     /* SVECTORs and keyframes — copy to heap so they survive buffer overwrites */
-    s32 svecBytes = dst->svectorCount * sizeof(SVECTOR3);
-    dst->svectors = (SVECTOR3*)malloc(svecBytes);
-    memcpy(dst->svectors, base + svecOff, svecBytes);
+    s32 svecBytes = dst->holdRangeCount * sizeof(SVECTOR3);
+    dst->holdRanges = (SVECTOR3*)malloc(svecBytes);
+    memcpy(dst->holdRanges, base + svecOff, svecBytes);
 
     /* Keyframe size depends on whether this is a camera or character entry.
      * We don't know yet, so store raw pointer temporarily — the caller
@@ -128,7 +128,7 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     ParseDmsEntry(&camera, &raw[PSX_SIZEOF_DMS_HEADER], raw);
 
     SH_DBG("[DMS]   camera: keyframes=%d svecs=%d name=%.4s",
-           camera.keyframeCount, camera.svectorCount, camera.name);
+           camera.keyframeCount, camera.holdRangeCount, camera.name);
 
     /* Parse character entries from PSX layout (16 bytes each) into heap */
     s_DmsEntry* characters = NULL;
@@ -142,7 +142,7 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
                           raw);
             SH_DBG("[DMS]   character[%d]: name=%.4s keyframes=%d svecs=%d",
                    i, characters[i].name, characters[i].keyframeCount,
-                   characters[i].svectorCount);
+                   characters[i].holdRangeCount);
         }
     }
 
@@ -151,11 +151,11 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
      * header region (PSX header = 44 bytes, 64-bit = 64 bytes, so bytes
      * 44-63 get clobbered by the memset below).
      */
-    s_DmsInterval* intervals = NULL;
+    s_DmsSegment* intervals = NULL;
     if (intervalCount > 0)
     {
-        intervals = (s_DmsInterval*)malloc(intervalCount * sizeof(s_DmsInterval));
-        memcpy(intervals, raw + intervalOff, intervalCount * sizeof(s_DmsInterval));
+        intervals = (s_DmsSegment*)malloc(intervalCount * sizeof(s_DmsSegment));
+        memcpy(intervals, raw + intervalOff, intervalCount * sizeof(s_DmsSegment));
     }
 
     /* Heap-copy camera keyframes */
@@ -185,10 +185,10 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 
     g_DmsHeapHeader->isLoaded       = 1;
     g_DmsHeapHeader->characterCount = characterCount;
-    g_DmsHeapHeader->intervalCount  = intervalCount;
+    g_DmsHeapHeader->segmentCount  = intervalCount;
     g_DmsHeapHeader->field_3          = field_3;
     g_DmsHeapHeader->field_4          = field_4;
-    g_DmsHeapHeader->intervals    = intervals;
+    g_DmsHeapHeader->segments    = intervals;
     g_DmsHeapHeader->origin.vx      = originVx;
     g_DmsHeapHeader->origin.vy      = originVy;
     g_DmsHeapHeader->origin.vz      = originVz;

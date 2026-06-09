@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk71
 #define HAS_PlayerState_Unk132
@@ -100,7 +100,7 @@ extern u8 D_800D4E6E;
 
 extern q3_12 D_800D4E70; // Angle.
 
-extern s_WorldObjectDesc g_WorldObject_SavePad;
+extern s_WorldObjectPose g_WorldObject_SavePad;
 
 extern s_FsImageDesc D_800CAB90;
 

@@ -16,6 +16,8 @@
  *  MAP7_S03
  */
 
+#define dahliaProps dahlia->properties.npc
+
 /** Addresses
  * MAP2_S01: 0x800CD20C
  * MAP3_S06: 0x800CF0F8
@@ -24,16 +26,16 @@
  * MAP7_S02: 0x800D6ED4
  * MAP7_S03: 0x800D2368
  */
-void Ai_Dahlia_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void Dahlia_Update(s_SubCharacter* dahlia, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
-    if (chara->model.controlState == 0)
+    if (dahlia->model.controlState == DahliaControl_None)
     {
-        Ai_Dahlia_Init(chara);
+        Dahlia_Init(dahlia);
     }
 
-    Ai_Dahlia_AnimStateUpdate(chara, coords);
-    Ai_Dahlia_MovementUpdate(chara, coords);
-    Ai_Dahlia_AnimUpdate(chara, anmHdr, coords);
+    Dahlia_ControlUpdate(dahlia, boneCoords);
+    Dahlia_MovementUpdate(dahlia, boneCoords);
+    Dahlia_AnimUpdate(dahlia, anmHdr, boneCoords);
 }
 
 /** Addresses
@@ -44,15 +46,9 @@ void Ai_Dahlia_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2*
  * MAP7_S02: 0x800D6F48
  * MAP7_S03: 0x800D23DC
  */
-void Ai_Dahlia_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+void Dahlia_AnimUpdate(s_SubCharacter* dahlia, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
-    s_AnimInfo* animInfo;
-
-    if (!chara->properties.player.field_F0)
-    {
-        animInfo = &DAHLIA_ANIM_INFOS[chara->model.anim.status];
-        animInfo->playbackFunc(&chara->model, anmHdr, coords, animInfo);
-    }
+    Chara_AnimUpdate(dahlia, anmHdr, boneCoords, DAHLIA_ANIM_INFOS);
 }
 
 /** Addresses
@@ -63,9 +59,9 @@ void Ai_Dahlia_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINA
  * MAP7_S02: 0x800D6F90
  * MAP7_S03: 0x800D2424
  */
-void Ai_Dahlia_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
+void Dahlia_MovementUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* boneCoords)
 {
-    VECTOR3 unused;
+    VECTOR3 pos; // @unused
     VECTOR3 offset;
     q19_12  moveSpeed;
     q3_12   headingAngle;
@@ -73,33 +69,37 @@ void Ai_Dahlia_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
     s32     scaleRestoreShift;
     u32     scaleReduceShift;
 
-    unused       = chara->position;
-    moveSpeed    = chara->moveSpeed;
-    headingAngle = chara->headingAngle;
-    moveDist      = Q12_MULT_PRECISE(moveSpeed, g_DeltaTime);
+    pos          = dahlia->position;
+    moveSpeed    = dahlia->moveSpeed;
+    headingAngle = dahlia->headingAngle;
+    moveDist     = Q12_MULT_PRECISE(moveSpeed, g_DeltaTime);
 
     scaleRestoreShift = OVERFLOW_GUARD(moveDist);
     scaleReduceShift  = scaleRestoreShift >> 1;
 
+    // Compute movement offset.
     offset.vx = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Sin(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
     offset.vz = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Cos(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
-    offset.vy = Q12_MULT_PRECISE(chara->fallSpeed, g_DeltaTime);
+    offset.vy = Q12_MULT_PRECISE(dahlia->fallSpeed, g_DeltaTime);
 
-    Collision_WallDetect(&sharedData_800E39BC_0_s00, &offset, chara);
+    Collision_WallDetect(&sharedData_800E39BC_0_s00, &offset, dahlia);
 
-    chara->position.vx += offset.vx;
-    chara->position.vy  = Q12(0.0f);
-    chara->position.vz += offset.vz;
+    // Update position.
+    dahlia->position.vx += offset.vx;
+    dahlia->position.vy  = Q12(0.0f);
+    dahlia->position.vz += offset.vz;
 
-    if (chara->position.vy > sharedData_800E39BC_0_s00.field_C)
+    // Warp to ground.
+    if (dahlia->position.vy > sharedData_800E39BC_0_s00.surface.groundHeight)
     {
-        chara->position.vy = sharedData_800E39BC_0_s00.field_C;
-        chara->fallSpeed   = Q12(0.0f);
+        dahlia->position.vy = sharedData_800E39BC_0_s00.surface.groundHeight;
+        dahlia->fallSpeed   = Q12(0.0f);
     }
 
-    coords->coord.t[0] = Q12_TO_Q8(chara->position.vx);
-    coords->coord.t[1] = Q12_TO_Q8(chara->position.vy);
-    coords->coord.t[2] = Q12_TO_Q8(chara->position.vz);
+    // Update root bone coord.
+    boneCoords[0].coord.t[0] = Q12_TO_Q8(dahlia->position.vx);
+    boneCoords[0].coord.t[1] = Q12_TO_Q8(dahlia->position.vy);
+    boneCoords[0].coord.t[2] = Q12_TO_Q8(dahlia->position.vz);
 }
 
 /** Addresses
@@ -110,81 +110,79 @@ void Ai_Dahlia_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
  * MAP7_S02: 0x800D7168
  * MAP7_S03: 0x800D25FC
  */
-void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
+void Dahlia_ControlUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* boneCoords)
 {
-    s_Collision coll;
-    e_SfxId     sfx;
-    s8          pitch0;
-    s8          pitch1;
+    s_CollisionSurface surface;
+    e_SfxId            sfxId;
+    s8                 pitch0;
+    s8                 pitch1;
 
-    #define dahliaProps dahlia->properties.dahlia
-
-    switch (dahliaProps.stateIdx0)
+    switch (dahliaProps.controlState)
     {
-        case 0:
-        case 5:
-            if (dahliaProps.moveDistance_126)
+        case DahliaControl_None:
+        case DahliaControl_5:
+            if (dahliaProps.moveSpeed)
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (dahliaProps.moveDistance_126 < 0)
+                dahliaProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (dahliaProps.moveSpeed < 0)
                 {
-                    dahliaProps.moveDistance_126 = Q12(0.0f);
+                    dahliaProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_1, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 1:
-            if (dahliaProps.moveDistance_126 > Q12(1.25f))
+        case DahliaControl_1:
+            if (dahliaProps.moveSpeed > Q12(1.25f))
             {
-                dahliaProps.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
-                if (dahliaProps.moveDistance_126 < Q12(1.25f))
+                dahliaProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
+                if (dahliaProps.moveSpeed < Q12(1.25f))
                 {
-                    dahliaProps.moveDistance_126 = Q12(1.25f);
+                    dahliaProps.moveSpeed = Q12(1.25f);
                 }
             }
-            else if (dahliaProps.moveDistance_126 < Q12(1.25f))
+            else if (dahliaProps.moveSpeed < Q12(1.25f))
             {
-                dahliaProps.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                dahliaProps.moveDistance_126  = CLAMP(dahliaProps.moveDistance_126, 0, Q12(1.25f));
+                dahliaProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                dahliaProps.moveSpeed  = CLAMP(dahliaProps.moveSpeed, 0, Q12(1.25f));
             }
 
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_2, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 6:
+        case DahliaControl_6:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_14, false);
 #if defined(MAP7_S03)
             WorldGfx_HeldItemAttach(Chara_EndingDahlia, MODEL_BONE(1, 0));
 #endif
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 7:
+        case DahliaControl_7:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_3, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 8:
+        case DahliaControl_8:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_4, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 11:
+        case DahliaControl_11:
 #if defined(MAP3_S06) || defined(MAP6_S01) || defined(MAP6_S04) || defined(MAP7_S02) || defined(MAP7_S03)
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_7, true, DAHLIA_ANIM_INFOS, 0);
 #else
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_7, false);
 #endif
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 9:
+        case DahliaControl_9:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_5, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
 
             if (dahlia->model.anim.keyframeIdx < 144)
             {
@@ -202,7 +200,7 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             }
             break;
 
-        case 10:
+        case DahliaControl_10:
 #if !defined(MAP6_S01) && !defined(MAP6_S04) && !defined(MAP7_S02) && !defined(MAP7_S03)
 #if defined(MAP3_S06)
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_6, true, DAHLIA_ANIM_INFOS, 0);
@@ -210,7 +208,7 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_6, false);
 #endif
 #endif
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
 
             if (dahlia->model.anim.keyframeIdx < 198)
             {
@@ -228,48 +226,48 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             }
             break;
 
-        case 12:
+        case DahliaControl_12:
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_8, true, DAHLIA_ANIM_INFOS, 0);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 13:
+        case DahliaControl_13:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_9, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 14:
+        case DahliaControl_14:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_10, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 15:
+        case DahliaControl_15:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_15, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 16:
+        case DahliaControl_16:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_16, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
 
             if (dahlia->model.anim.keyframeIdx == 103)
             {
-                dahliaProps.stateIdx0      = 5;
-                dahlia->model.stateStep = 0;
+                dahliaProps.controlState = DahliaControl_5;
+                dahlia->model.stateStep  = 0;
             }
             break;
 
-        case 17:
+        case DahliaControl_17:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_17, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 18:
+        case DahliaControl_18:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_18, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 19:
+        case DahliaControl_19:
             if (dahlia->model.anim.keyframeIdx >= 40 && !sharedData_800D16E4_2_s01)
             {
                 func_8005F6B0(&g_SysWork.npcs[1], &(VECTOR3){ Q12(138.3f), Q12(-1.1f), Q12(-100.8f) }, 3, 1);
@@ -277,91 +275,91 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             }
 
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_19, true, DAHLIA_ANIM_INFOS, 0);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
 
-            if (dahliaProps.stateIdx0 != 19)
+            if (dahliaProps.controlState != DahliaControl_19)
             {
                 sharedData_800D16E4_2_s01 = 0;
             }
             break;
 
-        case 20:
+        case DahliaControl_20:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_20, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 21:
+        case DahliaControl_21:
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_21, true, DAHLIA_ANIM_INFOS, 0);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 22:
+        case DahliaControl_22:
             Model_AnimStatusKeyframeSet(dahlia->model, DahliaAnim_22, true, DAHLIA_ANIM_INFOS, 0);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 23:
+        case DahliaControl_23:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_23, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 24:
+        case DahliaControl_24:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_24, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 25:
+        case DahliaControl_25:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_11, false);
             WorldGfx_HeldItemAttach(Chara_Dahlia, MODEL_BONE(1, 0));
 
             if (dahlia->model.anim.keyframeIdx == 349)
             {
-                dahliaProps.stateIdx0       = 26;
-                dahlia->model.stateStep = 0;
+                dahliaProps.controlState = DahliaControl_26;
+                dahlia->model.stateStep  = 0;
                 break;
             }
             break;
 
-        case 26:
+        case DahliaControl_26:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_12, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 27:
+        case DahliaControl_27:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_13, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
 
-        case 28:
+        case DahliaControl_28:
             Model_AnimStatusSet(&dahlia->model, DahliaAnim_25, false);
-            Character_AnimStateReset(dahlia);
+            Chara_AnimStateReset(dahlia);
             break;
     }
 
-    Collision_Get(&coll, dahlia->position.vx, dahlia->position.vz);
+    Collision_SurfaceGet(&surface, dahlia->position.vx, dahlia->position.vz);
 
-    func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
+    Player_FootstepSfxGet(surface.groundType, &sfxId, &pitch0, &pitch1);
 #if defined(MAP6_S01)
-    sfx = Sfx_Unk1606;
+    sfxId = Sfx_Unk1606;
 #else
-    sfx = Sfx_Unk1489;
+    sfxId = Sfx_Unk1489;
 #endif
 
-    switch (dahliaProps.stateIdx0)
+    switch (dahliaProps.controlState)
     {
-        case 1:
-            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_2, true), dahlia, 24, 37, sfx, pitch0);
+        case DahliaControl_1:
+            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_2, true), dahlia, 24, 37, sfxId, pitch0);
             break;
 
-        case 8:
-            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_4, true), dahlia, 107, 98, sfx, pitch0);
+        case DahliaControl_8:
+            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_4, true), dahlia, 107, 98, sfxId, pitch0);
             break;
 
-        case 11:
-            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_7, true), dahlia, 235, 245, sfx, pitch0);
+        case DahliaControl_11:
+            sharedFunc_800D908C_0_s00(ANIM_STATUS(DahliaAnim_7, true), dahlia, 235, 245, sfxId, pitch0);
             break;
 
-        case 7:
+        case DahliaControl_7:
             if (dahlia->model.anim.keyframeIdx < 47)
             {
                 sharedFunc_800D9188_0_s00(dahlia->model.anim.status, dahlia, 46, Sfx_Unk1674);
@@ -375,7 +373,7 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
         default:
             break;
 
-        case 17:
+        case DahliaControl_17:
             if (dahlia->model.anim.keyframeIdx < 127)
             {
                 sharedFunc_800D9188_0_s00(ANIM_STATUS(DahliaAnim_17, true), dahlia, 120, Sfx_Unk1674);
@@ -386,8 +384,8 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             }
             break;
 
-        case 10:
-            if (g_SavegamePtr->mapOverlayId_A4 == MapIdx_MAP2_S01)
+        case DahliaControl_10:
+            if (g_SavegamePtr->mapIdx == MapIdx_MAP2_S01)
             {
                 sharedFunc_800D9188_0_s00(dahlia->model.anim.status, dahlia, 193, Sfx_Unk1488);
             }
@@ -397,18 +395,18 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
             }
             break;
 
-        case 14:
+        case DahliaControl_14:
             if (dahlia->model.anim.keyframeIdx < 310)
             {
-                sharedFunc_800D908C_0_s00(dahlia->model.anim.status, dahlia, 319, 309, sfx, pitch0);
+                sharedFunc_800D908C_0_s00(dahlia->model.anim.status, dahlia, 319, 309, sfxId, pitch0);
             }
             else
             {
-                sharedFunc_800D908C_0_s00(dahlia->model.anim.status, dahlia, 319, 329, sfx, pitch0);
+                sharedFunc_800D908C_0_s00(dahlia->model.anim.status, dahlia, 319, 329, sfxId, pitch0);
             }
             break;
 
-        case 19:
+        case DahliaControl_19:
             if (dahlia->model.anim.keyframeIdx < 175)
             {
 
@@ -423,11 +421,11 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
 
     dahlia->rotation.vy  = Q12_ANGLE_ABS(dahlia->rotation.vy + Q8_TO_Q4(sharedData_800D16E0_2_s01));
     dahlia->headingAngle = dahlia->rotation.vy;
-    dahlia->moveSpeed    = dahliaProps.moveDistance_126;
+    dahlia->moveSpeed    = dahliaProps.moveSpeed;
     dahlia->fallSpeed   += g_GravitySpeed;
 
-    coords->flg = false;
-    Math_RotMatrixZxyNegGte(&dahlia->rotation, &coords->coord);
+    boneCoords->flg = false;
+    Math_RotMatrixZxyNegGte(&dahlia->rotation, &boneCoords->coord);
 }
 
 /** Addresses
@@ -438,15 +436,15 @@ void Ai_Dahlia_AnimStateUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* coords)
  * MAP7_S02: 0x800D7A20
  * MAP7_S03: 0x800D2ECC
  */
-void Ai_Dahlia_Init(s_SubCharacter* chara)
+void Dahlia_Init(s_SubCharacter* dahlia)
 {
-    sharedFunc_800D923C_0_s00(chara);
+    Chara_CollisionReset(dahlia);
 
     sharedData_800D16E0_2_s01 = 0;
     sharedData_800D16E4_2_s01 = 0;
 
 #ifdef MAP7_S03
-    WorldGfx_HeldItemAttach(Chara_EndingDahlia, MODEL_BONE(1, 0)); // TODO: MAP7_S03 Ai_Dahlia funcs could be Ai_EndingDahlia instead, if other Ai_Dahlia funcs don't match other overlays.
+    WorldGfx_HeldItemAttach(Chara_EndingDahlia, MODEL_BONE(1, 0)); // TODO: MAP7_S03 Dahlia funcs could be EndingDahlia instead, if other Dahlia funcs don't match other overlays.
 #else
     WorldGfx_HeldItemAttach(Chara_Dahlia, MODEL_BONE(1, 0));
 #endif
