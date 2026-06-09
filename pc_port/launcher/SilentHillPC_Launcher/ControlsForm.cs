@@ -8,11 +8,10 @@ using System.Windows.Forms;
 /// (no Designer) so the ~28 rows stay maintainable. Shares Form1's
 /// ConfigManager so edits land in the same config.cfg on Save.
 ///
-/// Keyboard values are SDL scancode names ("C", "Z", "Space", "Up",
-/// "Left Shift", "["). Controller values are SDL game-controller button names
-/// ("a","b","x","y","leftshoulder","righttrigger","leftstick","start","back",
-/// "guide"). "NONE" = unbound. D-pad + analog sticks are movement and are not
-/// rebindable here.
+/// Keyboard boxes are click-to-rebind: focus one and press a key; the binding
+/// is set to that key's SDL scancode name (no free typing, so you can't save
+/// an invalid name). Controller values are dropdowns of valid SDL button names.
+/// "NONE" = unbound. D-pad + analog sticks are movement and are not rebindable.
 /// </summary>
 public class ControlsForm : Form
 {
@@ -77,12 +76,18 @@ public class ControlsForm : Form
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
     };
 
+    // WinForms Keys -> SDL scancode name (what PsyX_LookupKeyboardMapping wants).
+    private static readonly Dictionary<Keys, string> KeyToSdl = BuildKeyMap();
+
+    private const string ListenPrompt = "Press a key...";
+
     private readonly Dictionary<string, Control> inputs = new Dictionary<string, Control>();
     private RadioButton debugYes;
     private RadioButton debugNo;
 
     private static readonly Color Back = Color.FromArgb(30, 30, 30);
     private static readonly Color PanelBack = Color.FromArgb(45, 45, 45);
+    private static readonly Color Listening = Color.FromArgb(70, 70, 95);
     private static readonly Color TextColor = Color.White;
 
     public ControlsForm(ConfigManager configManager)
@@ -90,6 +95,15 @@ public class ControlsForm : Form
         config = configManager;
         BuildUi();
         LoadValues();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        // Don't start with a keyboard box focused (it would show "Press a
+        // key..."). Move focus to the Save button; the box's Leave restores it.
+        if (ActiveControl is TextBox)
+            ActiveControl = AcceptButton as Button;
     }
 
     private void BuildUi()
@@ -102,7 +116,7 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(640, 560);
+        ClientSize = new Size(640, 600);
 
         const int colKbX = 20;
         const int colPadX = 330;
@@ -125,10 +139,16 @@ public class ControlsForm : Form
                 Left = colKbX + labelW,
                 Top = y - 3,
                 Width = inputW,
+                ReadOnly = true,           // click-to-rebind; no free typing
+                Cursor = Cursors.Hand,
                 BackColor = PanelBack,
                 ForeColor = TextColor,
                 BorderStyle = BorderStyle.FixedSingle,
             };
+            tb.Enter += KeyBox_Enter;
+            tb.Leave += KeyBox_Leave;
+            tb.PreviewKeyDown += KeyBox_PreviewKeyDown; // make arrows/Tab reach KeyDown
+            tb.KeyDown += KeyBox_KeyDown;
             inputs[KeyboardBinds[i][1]] = tb;
             Controls.Add(tb);
         }
@@ -153,22 +173,22 @@ public class ControlsForm : Form
             Controls.Add(cb);
         }
 
-        int afterRowsY = rowY0 + KeyboardBinds.Length * rowH + 18;
-
-        AddLabel("Allow debug controls:", colKbX, afterRowsY, 150);
-        debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = afterRowsY - 3, Width = 50, ForeColor = TextColor };
-        debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = afterRowsY - 3, Width = 50, ForeColor = TextColor };
+        // Below the (taller) keyboard column.
+        int debugY = rowY0 + KeyboardBinds.Length * rowH + 16;
+        AddLabel("Allow debug controls:", colKbX, debugY, 150);
+        debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = debugY - 3, Width = 50, ForeColor = TextColor };
+        debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         Controls.Add(debugYes);
         Controls.Add(debugNo);
 
         Label note = new Label
         {
-            Text = "Keyboard uses SDL key names (C, Z, Space, Up, \"Left Shift\", [ ). NONE = unbound. " +
-                   "D-pad and analog sticks are reserved for movement.",
+            Text = "Click a keyboard box and press the key you want. Controller buttons pick from the list. " +
+                   "NONE = unbound. D-pad and analog sticks are reserved for movement.",
             Left = colKbX,
-            Top = ClientSize.Height - 80,
+            Top = debugY + 30,
             Width = ClientSize.Width - 40,
-            Height = 30,
+            Height = 34,
             ForeColor = Color.Silver,
         };
         Controls.Add(note);
@@ -205,6 +225,48 @@ public class ControlsForm : Form
         Controls.Add(new Label { Text = text, Left = x, Top = y, Width = w, ForeColor = TextColor });
     }
 
+    // --- Keyboard rebind capture ----------------------------------------
+
+    private void KeyBox_Enter(object sender, EventArgs e)
+    {
+        TextBox tb = (TextBox)sender;
+        tb.Tag = tb.Text;            // remember current value
+        tb.Text = ListenPrompt;
+        tb.BackColor = Listening;
+    }
+
+    private void KeyBox_Leave(object sender, EventArgs e)
+    {
+        TextBox tb = (TextBox)sender;
+        if (tb.Text == ListenPrompt && tb.Tag != null)
+            tb.Text = (string)tb.Tag; // left without pressing a key -> restore
+        tb.BackColor = PanelBack;
+    }
+
+    private void KeyBox_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+    {
+        // Treat every key (incl. arrows/Tab) as input so KeyDown fires for it.
+        e.IsInputKey = true;
+    }
+
+    private void KeyBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        e.SuppressKeyPress = true;
+        e.Handled = true;
+
+        TextBox tb = (TextBox)sender;
+        string name;
+        if (KeyToSdl.TryGetValue(e.KeyCode, out name))
+        {
+            tb.Text = name;
+            tb.Tag = name;          // so Leave keeps it
+            ActiveControl = null;   // commit + stop listening
+        }
+        // Unmapped key: keep listening for a recognized one.
+    }
+
+    // --- Load / save ----------------------------------------------------
+
     private void LoadValues()
     {
         foreach (KeyValuePair<string, Control> kv in inputs)
@@ -240,7 +302,7 @@ public class ControlsForm : Form
             string val;
             TextBox tb = kv.Value as TextBox;
             if (tb != null)
-                val = tb.Text.Trim();
+                val = (tb.Text == ListenPrompt) ? (tb.Tag as string ?? "") : tb.Text.Trim();
             else
                 val = ((ComboBox)kv.Value).SelectedItem != null ? ((ComboBox)kv.Value).SelectedItem.ToString() : "";
 
@@ -250,5 +312,43 @@ public class ControlsForm : Form
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();
+    }
+
+    // --- WinForms Keys -> SDL scancode name -----------------------------
+
+    private static Dictionary<Keys, string> BuildKeyMap()
+    {
+        var m = new Dictionary<Keys, string>();
+
+        for (char c = 'A'; c <= 'Z'; c++)
+            m[(Keys)c] = c.ToString();                 // A..Z
+
+        for (int d = 0; d <= 9; d++)
+        {
+            m[Keys.D0 + d] = d.ToString();             // top-row 0..9
+            m[Keys.NumPad0 + d] = "Keypad " + d;       // keypad 0..9
+        }
+
+        for (int f = 1; f <= 12; f++)
+            m[Keys.F1 + (f - 1)] = "F" + f;            // F1..F12
+
+        m[Keys.Up] = "Up"; m[Keys.Down] = "Down"; m[Keys.Left] = "Left"; m[Keys.Right] = "Right";
+        m[Keys.Space] = "Space"; m[Keys.Return] = "Return"; m[Keys.Tab] = "Tab";
+        m[Keys.Back] = "Backspace"; m[Keys.Escape] = "Escape";
+        m[Keys.LShiftKey] = "Left Shift"; m[Keys.RShiftKey] = "Right Shift";
+        m[Keys.LControlKey] = "Left Ctrl"; m[Keys.RControlKey] = "Right Ctrl";
+        m[Keys.LMenu] = "Left Alt"; m[Keys.RMenu] = "Right Alt";
+        m[Keys.Insert] = "Insert"; m[Keys.Delete] = "Delete";
+        m[Keys.Home] = "Home"; m[Keys.End] = "End";
+        m[Keys.PageUp] = "PageUp"; m[Keys.PageDown] = "PageDown";
+        m[Keys.CapsLock] = "CapsLock";
+        m[Keys.Multiply] = "Keypad *"; m[Keys.Add] = "Keypad +";
+        m[Keys.Subtract] = "Keypad -"; m[Keys.Divide] = "Keypad /"; m[Keys.Decimal] = "Keypad .";
+        m[Keys.OemOpenBrackets] = "["; m[Keys.OemCloseBrackets] = "]";
+        m[Keys.OemSemicolon] = ";"; m[Keys.Oemcomma] = ","; m[Keys.OemPeriod] = ".";
+        m[Keys.OemQuestion] = "/"; m[Keys.Oemtilde] = "`"; m[Keys.OemMinus] = "-";
+        m[Keys.Oemplus] = "="; m[Keys.OemPipe] = "\\"; m[Keys.OemQuotes] = "'";
+
+        return m;
     }
 }
