@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.2 -- 2026-06-09
+- (no commits since last release)
+
 ## v2026.06.09.1 -- 2026-06-09
 - Merge upstream Vatuu/master (Jun 2026) + merge resolution (squashed)
 - pc-port: fix merge regressions ΓÇö grey-child crash, melee, map, transition flash
