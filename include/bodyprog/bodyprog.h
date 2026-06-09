@@ -1025,7 +1025,7 @@ extern u8      D_800AF220;
 extern s16     D_800C42D0;
 extern s16     D_800C42D2;
 extern u8      D_800C4606;
-extern u8      sharedData_800D32A0_0_s02;
+extern s32     sharedData_800D32A0_0_s02;
 extern s32     g_Player_LastWeaponSelected;
 extern s8      g_Player_RockDrill_DirectionAttack;
 extern s_AnimInfo HARRY_BASE_ANIM_INFOS[256];
