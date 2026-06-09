@@ -299,6 +299,8 @@ int main(int argc, char* argv[])
     KaufmannAnimInfos_Init();
     extern void DahliaAnimInfos_Init(void);
     DahliaAnimInfos_Init();
+    extern void CatAnimInfos_Init(void);
+    CatAnimInfos_Init();
     extern void PuppetNurseData_Init(void);
     PuppetNurseData_Init();
     extern void LarvalStalkerAnimInfos_Init(void);

@@ -8,7 +8,8 @@ typedef signed int s32;
 /* BLOODSUCKER_ANIM_INFOS -> pc_port/src/bloodsucker_anim_infos.c */
 u8 BLOODY_INCUBATOR_ANIM_INFOS[256] = {0};
 /* BLOODY_LISA_ANIM_INFOS -> pc_port/src/bloody_lisa_anim_infos.c */
-u8 CAT_ANIM_INFOS[256] = {0};
+/* CAT_ANIM_INFOS -> pc_port/src/cat_anim_infos.c (was a zero-stub that froze
+   the cat locker cutscene; real table built in CatAnimInfos_Init) */
 /* CHERYL_ANIM_INFOS provided by cheryl_anim_info.c */
 /* CREEPER_ANIM_INFOS      -> pc_port/src/creeper_anim_infos.c */
 /* CYBIL_ANIM_INFOS provided by cybil_anim_info.c */
