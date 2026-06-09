@@ -13728,7 +13728,11 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
             airScreamer->collision.box.offsetY = Q12( 0.0f);
             airScreamer->collision.box.field_8 = Q12( 0.0f);
             airScreamer->collision.box.bottom = Q12( 1.5f);
-            airScreamer->collision.cylinder.radius = Q12( 1.5f);
+            /* Use the real per-keyframe hitbox radius from field_D70[sp10][1]
+             * (~0.6) — the same value the polygon path applies below. The old
+             * hardcoded 1.5 was a ~2.5x-oversized bubble that pushed Harry away
+             * before he could get close enough to kick the Air Screamer. */
+            airScreamer->collision.cylinder.radius = sharedData_800CAA98_0_s01.field_D70[sp10][1];
             airScreamer->collision.cylinder.field_2  = Q12( 1.5f);
             airScreamer->collision.state        = 3;
             return;
