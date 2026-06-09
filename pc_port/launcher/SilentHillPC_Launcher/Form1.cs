@@ -136,10 +136,19 @@ public partial class Form1 : Form
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
             "them in as you walk. Eliminates pop-in but uses more memory\n" +
-            "and lengthens the initial load. Off = original streaming.";
+            "and lengthens the initial load. Yes is recommended; Off =\n" +
+            "original PSX streaming.";
         Set(chunksLabel,      preloadTip);
         Set(radioPreloadYes,  preloadTip);
         Set(radioPreloadNo,   preloadTip);
+
+        const string pillarboxTip =
+            "Pillarbox 2D screens (menus, save/load, the Harry-running load\n" +
+            "screen) with 4:3 black bars instead of stretching them to fill a\n" +
+            "widescreen window. Only affects 2D UI; 3D gameplay is unchanged.";
+        Set(refreshLabel,        pillarboxTip);
+        Set(radioPillarboxYes,   pillarboxTip);
+        Set(radioPillarboxNo,    pillarboxTip);
 
         const string introTip =
             "Skip the boot logos and the intro FMV — jump straight to the\n" +
@@ -181,6 +190,7 @@ public partial class Form1 : Form
 
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
         Set(btnChangelog, "Show the release changelog (reads CHANGELOG.md next to the launcher).");
+        Set(btnControls, "Customize keyboard and controller bindings, and toggle debug/cheat keys.");
     }
 
     /// <summary>
@@ -312,15 +322,20 @@ public partial class Form1 : Form
         string h = config.Get("height", "480");
         comboResolution.SelectedItem = $"{w}x{h}";
 
-        // refresh rate
+        // refresh rate is config-only now (auto-detected by default); keep the
+        // hidden combo populated harmlessly so its references stay valid.
         comboRefresh.SelectedItem = config.Get("refresh_rate", "0");
+
+        // pillarboxing (menu_pillarbox) — replaces the refresh-rate UI slot
+        radioPillarboxYes.Checked = config.Get("menu_pillarbox", "1") == "1";
+        radioPillarboxNo.Checked = !radioPillarboxYes.Checked;
 
         // disable_culling
         radioCullingYes.Checked = config.Get("disable_culling", "0") == "1";
         radioCullingNo.Checked = !radioCullingYes.Checked;
 
-        // preload_chunks
-        radioPreloadYes.Checked = config.Get("preload_chunks", "0") == "1";
+        // preload_chunks (recommended: Yes — matches engine default)
+        radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
 
     }
@@ -344,9 +359,11 @@ public partial class Form1 : Form
             config.Set("height", parts[1]);
         }
 
-        // refresh rate
-        if (comboRefresh.SelectedItem != null)
-            config.Set("refresh_rate", comboRefresh.SelectedItem.ToString());
+        // refresh rate is config-only now (auto-detected by default) — do NOT
+        // write it from the launcher so a hand-set value is preserved.
+
+        // pillarboxing
+        config.Set("menu_pillarbox", radioPillarboxYes.Checked ? "1" : "0");
 
         // disable_culling
         config.Set("disable_culling", radioCullingYes.Checked ? "1" : "0");

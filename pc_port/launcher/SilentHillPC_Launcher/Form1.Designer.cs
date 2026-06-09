@@ -23,6 +23,8 @@ partial class Form1
     private RadioButton radioCullingNo;
     private RadioButton radioPreloadYes;
     private RadioButton radioPreloadNo;
+    private RadioButton radioPillarboxYes;
+    private RadioButton radioPillarboxNo;
     private RadioButton introYes;
     private RadioButton introNo;
 
@@ -38,6 +40,7 @@ partial class Form1
     private Panel vsyncPanel;
     private Panel cullingPanel;
     private Panel preloadPanel;
+    private Panel pillarboxPanel;
     private Panel introPanel;
 
     private Label fpsLabel;
@@ -87,6 +90,9 @@ partial class Form1
             this.preloadPanel = new System.Windows.Forms.Panel();
             this.radioPreloadYes = new System.Windows.Forms.RadioButton();
             this.radioPreloadNo = new System.Windows.Forms.RadioButton();
+            this.pillarboxPanel = new System.Windows.Forms.Panel();
+            this.radioPillarboxYes = new System.Windows.Forms.RadioButton();
+            this.radioPillarboxNo = new System.Windows.Forms.RadioButton();
             this.introYes = new System.Windows.Forms.RadioButton();
             this.introNo = new System.Windows.Forms.RadioButton();
             this.introPanel = new System.Windows.Forms.Panel();
@@ -239,7 +245,32 @@ partial class Form1
             this.radioPreloadNo.Size = new System.Drawing.Size(53, 24);
             this.radioPreloadNo.TabIndex = 5;
             this.radioPreloadNo.Text = "No";
-            // 
+            //
+            // pillarboxPanel
+            //
+            this.pillarboxPanel.Controls.Add(this.radioPillarboxYes);
+            this.pillarboxPanel.Controls.Add(this.radioPillarboxNo);
+            this.pillarboxPanel.Location = new System.Drawing.Point(80, 207);
+            this.pillarboxPanel.Name = "pillarboxPanel";
+            this.pillarboxPanel.Size = new System.Drawing.Size(120, 30);
+            this.pillarboxPanel.TabIndex = 21;
+            //
+            // radioPillarboxYes
+            //
+            this.radioPillarboxYes.Location = new System.Drawing.Point(4, 3);
+            this.radioPillarboxYes.Name = "radioPillarboxYes";
+            this.radioPillarboxYes.Size = new System.Drawing.Size(45, 24);
+            this.radioPillarboxYes.TabIndex = 4;
+            this.radioPillarboxYes.Text = "Yes";
+            //
+            // radioPillarboxNo
+            //
+            this.radioPillarboxNo.Location = new System.Drawing.Point(59, 3);
+            this.radioPillarboxNo.Name = "radioPillarboxNo";
+            this.radioPillarboxNo.Size = new System.Drawing.Size(53, 24);
+            this.radioPillarboxNo.TabIndex = 5;
+            this.radioPillarboxNo.Text = "No";
+            //
             // introYes
             // 
             this.introYes.Location = new System.Drawing.Point(5, 5);
@@ -337,6 +368,7 @@ partial class Form1
             this.comboRefresh.Name = "comboRefresh";
             this.comboRefresh.Size = new System.Drawing.Size(120, 21);
             this.comboRefresh.TabIndex = 1;
+            this.comboRefresh.Visible = false;
             this.comboRefresh.SelectedIndexChanged += new System.EventHandler(this.comboRefresh_SelectedIndexChanged);
             // 
             // banner
@@ -394,7 +426,7 @@ partial class Form1
             this.refreshLabel.Name = "refreshLabel";
             this.refreshLabel.Size = new System.Drawing.Size(73, 13);
             this.refreshLabel.TabIndex = 14;
-            this.refreshLabel.Text = "Refresh Rate:";
+            this.refreshLabel.Text = "Pillarboxing:";
             // 
             // levelLabel
             // 
@@ -614,6 +646,7 @@ partial class Form1
             this.Controls.Add(this.introLabel);
             this.Controls.Add(this.comboResolution);
             this.Controls.Add(this.comboRefresh);
+            this.Controls.Add(this.pillarboxPanel);
             this.Controls.Add(this.banner);
             this.Controls.Add(this.comboMap);
             this.Controls.Add(this.btnPlay);
