@@ -1,5 +1,29 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.1 -- 2026-06-09
+- Merge upstream Vatuu/master (Jun 2026) + merge resolution (squashed)
+- pc-port: fix merge regressions ΓÇö grey-child crash, melee, map, transition flash
+- pc-port: fix exterior/preload map regressions (intro environment)
+- pc-port: revert merge player-state corruption in cutscene walk (player.c)
+- Fix cutscene turn-in-place: restore dropped/renamed HAS_PlayerState defines
+- Fix cutscene run-in-place: sharedData_800D32A0_0_s02 was u8 (truncated moveSpeed)
+- Pause world while "I don't have a map" / "too dark" message is shown
+- Fix Hor+ transition VRAM-atlas flash: clamp motion-blur tiles to framebuffer
+- Add menu_pillarbox config option (default on)
+- Bump PsyCross: menu pillarbox applies every frame (was lost after frame 1)
+- Checkpoint: working menu pillarboxing + launcher controls-button stub
+- Untrack launcher build artifacts (obj/ bin/), add to .gitignore
+- Configurable keyboard/controller bindings + debug-control gate
+- launcher: Controls window (keyboard + controller binding editor)
+- launcher: refresh-rate slot -> Pillarboxing Yes/No; tooltips; preload default
+- controls window: key-capture + layout fix; pillarbox/culling defaults+tips
+- Fix gray fog-color flash when opening inventory/menus
+- launcher controls: Turn Left/Right labels, bindable Shift, Reset button
+- launcher controls: drop L3/R3 (stick click) rows
+- diag: [ALLEY1] trace Cheryl run vs camera in the alley1 chase
+- Expand [ALLEY1] diagnostic: log Cheryl controlState/anim/speeds
+- Air Screamer: use real per-keyframe hitbox radius on PC, not hardcoded 1.5
+
 ## v2026.06.07.2 -- 2026-06-07
 - Re-enable flashlight lens flare on PC (revert stub to clean decomp)
 - Collision visualizer: show collState panel as raw fixed-point
