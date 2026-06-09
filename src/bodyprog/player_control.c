@@ -8718,7 +8718,7 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
             break;
 
         default:
-            if (g_SysWork.playerWork.extra.state >= PlayerState_Unk152 &&
+            if (g_SysWork.playerWork.extra.state >= PlayerState_Unk52 &&
                 g_SysWork.playerWork.extra.state <  PlayerState_Unk59)
             {
                 func_80044F14(&coords[HarryBone_Head], Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), g_Player_FlexRotationY);

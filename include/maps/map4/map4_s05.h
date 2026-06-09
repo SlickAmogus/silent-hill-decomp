@@ -2,11 +2,12 @@
 #define _MAPS_MAP4_S05_H
 
 #define HAS_PlayerState_Reset
+#define HAS_PlayerState_Unk52
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk54
 #define HAS_PlayerState_Unk55
-#define HAS_PlayerState_TurnRight
-#define HAS_PlayerState_TurnLeft
+#define HAS_PlayerState_Unk56
+#define HAS_PlayerState_Unk57
 #define HAS_PlayerState_Unk109
 
 #define MAP_ROOM_MIN_X Q12(-240.0f)

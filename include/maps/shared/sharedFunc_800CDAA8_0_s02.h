@@ -81,7 +81,7 @@
 // Very similar to `func_80071968_Switch1`
 static inline void sharedFunc_800CDAA8_0_s02_Switch(void)
 {
-    if (g_SysWork.playerWork.extra.state == PlayerState_Unk152)
+    if (g_SysWork.playerWork.extra.state == PlayerState_Unk52)
     {
         func_8003D01C();
         switch (g_SysWork.playerCombat.weaponAttack)
@@ -131,7 +131,7 @@ static inline void sharedFunc_800CDAA8_0_s02_Switch(void)
 // Slight change in PlayerState_Unk55 version
 static inline void sharedFunc_800CDAA8_0_s02_Switch_Unk85(s_PlayerExtra* extra)
 {
-    if (g_SysWork.playerWork.extra.state == PlayerState_Unk152)
+    if (g_SysWork.playerWork.extra.state == PlayerState_Unk52)
     {
         func_8003D01C();
 
@@ -238,17 +238,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -279,17 +279,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -322,17 +322,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -379,17 +379,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -431,17 +431,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -463,7 +463,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -472,7 +472,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
 
 #ifdef HAS_PlayerState_Unk56
-        case PlayerState_Unk156:
+        case PlayerState_Unk56:
             if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
                 g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
@@ -504,13 +504,13 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -521,7 +521,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
 
 #ifdef HAS_PlayerState_Unk57
-        case PlayerState_Unk157:
+        case PlayerState_Unk57:
             if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
                 g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
@@ -553,13 +553,13 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -576,7 +576,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -589,7 +589,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -601,7 +601,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -615,7 +615,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 #ifdef MAP0_S01
@@ -630,7 +630,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -642,7 +642,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -654,7 +654,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -666,7 +666,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -705,7 +705,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -717,7 +717,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -732,7 +732,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -747,7 +747,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -761,7 +761,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -775,7 +775,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -803,7 +803,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             keyframeIdx = 1062;
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -816,7 +816,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -833,7 +833,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -847,7 +847,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -862,7 +862,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             keyframeIdx = KEYFRAME_PlayerState_Unk69;
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -876,7 +876,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -924,7 +924,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -936,7 +936,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -948,7 +948,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -962,7 +962,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -976,7 +976,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -989,7 +989,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1002,7 +1002,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1014,7 +1014,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1027,7 +1027,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1039,7 +1039,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1052,7 +1052,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1065,7 +1065,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1082,7 +1082,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1095,7 +1095,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1107,7 +1107,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1120,7 +1120,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1133,7 +1133,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1146,7 +1146,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1158,7 +1158,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1171,7 +1171,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1193,7 +1193,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1205,7 +1205,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1218,7 +1218,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1230,7 +1230,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1245,7 +1245,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1257,7 +1257,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1270,7 +1270,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1282,7 +1282,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1295,7 +1295,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1308,7 +1308,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1321,7 +1321,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1334,7 +1334,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1346,7 +1346,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1358,7 +1358,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1371,7 +1371,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1383,7 +1383,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1397,7 +1397,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
                 if (D_800C4606)
                 {
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                     D_800C4606 = 0;
                 }
 
@@ -1413,7 +1413,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1427,7 +1427,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1441,7 +1441,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1456,7 +1456,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1470,7 +1470,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1485,7 +1485,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1498,7 +1498,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1513,7 +1513,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1527,7 +1527,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1541,7 +1541,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             func_8007FC48(playerChara, extra, 0x1A3);
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1555,7 +1555,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1570,7 +1570,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1585,7 +1585,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1597,7 +1597,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1612,7 +1612,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1625,7 +1625,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1657,7 +1657,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1669,7 +1669,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1684,7 +1684,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1707,7 +1707,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1720,7 +1720,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1735,7 +1735,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1750,7 +1750,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1765,7 +1765,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1780,7 +1780,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1793,7 +1793,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1806,7 +1806,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1834,7 +1834,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1846,7 +1846,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1860,7 +1860,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1872,7 +1872,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1902,7 +1902,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1914,7 +1914,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1926,7 +1926,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1940,7 +1940,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1953,7 +1953,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -1967,7 +1967,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1980,7 +1980,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -1993,7 +1993,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2006,7 +2006,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2019,7 +2019,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2031,7 +2031,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2043,7 +2043,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2057,7 +2057,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2070,7 +2070,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2083,7 +2083,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2096,7 +2096,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2119,7 +2119,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2132,7 +2132,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2145,7 +2145,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2157,7 +2157,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2170,7 +2170,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2183,7 +2183,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
             break;
@@ -2195,7 +2195,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -2218,7 +2218,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
                 D_800C4606 = 0;
             }
 
@@ -2268,14 +2268,14 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
 
 #ifdef HAS_PlayerState_Unk56
-        case PlayerState_Unk156:
+        case PlayerState_Unk56:
             Player_FootstepSfxPlay(27, playerChara, 204, 200, sfx, pitch0);
             g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk57
-        case PlayerState_Unk157:
+        case PlayerState_Unk57:
             Player_FootstepSfxPlay(25, playerChara, 187, 191, sfx, pitch0);
             g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
