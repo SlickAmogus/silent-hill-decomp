@@ -1736,7 +1736,18 @@ void MainLoop(void) // 0x80032EE0
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
+        if (g_GameWork.gameState == 11 && (g_SysWork.sysFlags & SysFlag_MenuActive)) {
+            /* A 2D menu (inventory/status/options/paper map) is open or opening
+             * within InGame. These transition through gameState==InGame for a
+             * few frames before the menu draws, so the fog-color background
+             * clear below would flash gray (the void fog color) on open. Force
+             * black for the 2D background instead; fog params are left untouched
+             * so 3D gameplay fog is unaffected once the menu closes. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+        }
+        else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
             g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
             g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
