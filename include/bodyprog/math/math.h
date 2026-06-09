@@ -160,20 +160,8 @@
  * @param z Z vector component (Q19.12).
  * @return 2D vector magnitude (Q19.12).
  */
-#ifdef SH_PC_PORT
-/* 64-bit: SQUARE() of a Q19.12 value overflows 32-bit int for magnitudes
- * beyond ~11 units, so the result reads garbage and long-range distance
- * gates misfire (e.g. the Cheryl alley-chase mag<14.5/14.8 checks only trip
- * once Harry is right on top of her). Pre-merge this macro used a Q6
- * intermediate that cannot overflow; the merge replaced it with the direct
- * form (splitting the safe one into Math_Vector2MagCalcSafeQ6). Restore the
- * safe form on PC; the PSX matching build keeps the direct form below. */
-#define Math_Vector2MagCalc(x, z) \
-    Q6_TO_Q12(SquareRoot0(SQUARE(Q12_TO_Q6(x)) + SQUARE(Q12_TO_Q6(z))))
-#else
 #define Math_Vector2MagCalc(x, z) \
     SquareRoot0(SQUARE(x) + SQUARE(z))
-#endif
 
 /** @brief Computes the magnitude of a 2D vector in Q19.12, using intermediate components in Q25.6 to safely
  * avoid overflow.
@@ -202,15 +190,8 @@
  * @param z Z vector component (Q19.12).
  * @return 3D vector magnitude (Q19.12).
  */
-#ifdef SH_PC_PORT
-/* Same 64-bit overflow fix as Math_Vector2MagCalc above — restore the
- * pre-merge Q6-intermediate form on PC so 3D magnitudes don't overflow. */
-#define Math_Vector3MagCalc(x, y, z) \
-    Q6_TO_Q12(SquareRoot0(SQUARE(Q12_TO_Q6(x)) + SQUARE(Q12_TO_Q6(y)) + SQUARE(Q12_TO_Q6(z))))
-#else
 #define Math_Vector3MagCalc(x, y, z) \
     SquareRoot0(SQUARE(x) + SQUARE(y) + SQUARE(z))
-#endif
 
 /** @brief Computes the magnitude of a 3D vector in Q19.12, using intermediate components in Q25.6 to safely
  * avoid overflow.
