@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stddef.h>
 
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
@@ -22,7 +23,55 @@ s_PcConfig g_PcConfig = {
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
+    .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
+    .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
+
+    /* Keyboard defaults (SDL scancode names) */
+    .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
+    .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
+    .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
+    .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
+    /* Controller defaults (SDL game-controller names) */
+    .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
+    .padL1 = "leftshoulder", .padR1 = "rightshoulder",
+    .padL2 = "lefttrigger", .padR2 = "righttrigger",
+    .padL3 = "leftstick", .padR3 = "rightstick",
+    .padStart = "start", .padSelect = "back",
+
     .mapName        = "map0_s00"
+};
+
+/* Control-binding config keys -> string field in g_PcConfig. Table-driven so
+ * the parser stays compact (28 binds). */
+static const struct { const char* key; size_t off; } s_ControlBinds[] = {
+    { "key_up",       offsetof(s_PcConfig, keyUp)       },
+    { "key_down",     offsetof(s_PcConfig, keyDown)     },
+    { "key_left",     offsetof(s_PcConfig, keyLeft)     },
+    { "key_right",    offsetof(s_PcConfig, keyRight)    },
+    { "key_cross",    offsetof(s_PcConfig, keyCross)    },
+    { "key_circle",   offsetof(s_PcConfig, keyCircle)   },
+    { "key_triangle", offsetof(s_PcConfig, keyTriangle) },
+    { "key_square",   offsetof(s_PcConfig, keySquare)   },
+    { "key_l1",       offsetof(s_PcConfig, keyL1)       },
+    { "key_r1",       offsetof(s_PcConfig, keyR1)       },
+    { "key_l2",       offsetof(s_PcConfig, keyL2)       },
+    { "key_r2",       offsetof(s_PcConfig, keyR2)       },
+    { "key_l3",       offsetof(s_PcConfig, keyL3)       },
+    { "key_r3",       offsetof(s_PcConfig, keyR3)       },
+    { "key_start",    offsetof(s_PcConfig, keyStart)    },
+    { "key_select",   offsetof(s_PcConfig, keySelect)   },
+    { "pad_cross",    offsetof(s_PcConfig, padCross)    },
+    { "pad_circle",   offsetof(s_PcConfig, padCircle)   },
+    { "pad_triangle", offsetof(s_PcConfig, padTriangle) },
+    { "pad_square",   offsetof(s_PcConfig, padSquare)   },
+    { "pad_l1",       offsetof(s_PcConfig, padL1)       },
+    { "pad_r1",       offsetof(s_PcConfig, padR1)       },
+    { "pad_l2",       offsetof(s_PcConfig, padL2)       },
+    { "pad_r2",       offsetof(s_PcConfig, padR2)       },
+    { "pad_l3",       offsetof(s_PcConfig, padL3)       },
+    { "pad_r3",       offsetof(s_PcConfig, padR3)       },
+    { "pad_start",    offsetof(s_PcConfig, padStart)    },
+    { "pad_select",   offsetof(s_PcConfig, padSelect)   },
 };
 
 static void TrimWhitespace(char* s)
@@ -158,6 +207,16 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.enableDebugLog = (atoi(value) != 0);
         }
+        else if (strcmp(key, "allow_debug_controls") == 0)
+        {
+            g_PcConfig.allowDebugControls = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "controller_movement") == 0)
+        {
+            if (strcmp(value, "analog") == 0)    g_PcConfig.controllerMovement = 0;
+            else if (strcmp(value, "dpad") == 0) g_PcConfig.controllerMovement = 1;
+            else                                 g_PcConfig.controllerMovement = 2; /* both */
+        }
         else if (strcmp(key, "map") == 0)
         {
             if (strlen(value) > 0 && strlen(value) < sizeof(g_PcConfig.mapName))
@@ -168,7 +227,23 @@ void PcConfig_Load(const char* path)
         }
         else
         {
-            fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
+            /* Control bindings (key_ and pad_ keys): table-driven copy into
+             * the matching g_PcConfig string field. */
+            size_t bi;
+            int matched = 0;
+            for (bi = 0; bi < sizeof(s_ControlBinds) / sizeof(s_ControlBinds[0]); bi++)
+            {
+                if (strcmp(key, s_ControlBinds[bi].key) == 0)
+                {
+                    char* field = (char*)&g_PcConfig + s_ControlBinds[bi].off;
+                    strncpy(field, value, 23);
+                    field[23] = '\0';
+                    matched = 1;
+                    break;
+                }
+            }
+            if (!matched)
+                fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
         }
     }
 

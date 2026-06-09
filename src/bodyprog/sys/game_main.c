@@ -10,6 +10,7 @@ extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
 extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
+extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
 #include <stdio.h>
 #include <SDL_scancode.h>
@@ -182,6 +183,15 @@ void DebugCamera_Update(void)
     #define DBG_CAM_VERT_SPEED 256
 
     if (!g_sdlKeyboardState) return;
+#ifdef SH_PC_PORT
+    /* Master gate for all dev/cheat keys (numpad cam, top-row digits, give-
+     * weapon cheats, kill-Harry, noclip, etc.). Off unless allow_debug_controls
+     * is set in config. */
+    {
+        extern int g_PcAllowDebugControls;
+        if (!g_PcAllowDebugControls) return;
+    }
+#endif
     if (g_GameWork.gameState != GameState_InGame) return;
 
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
@@ -1645,7 +1655,7 @@ void MainLoop(void) // 0x80032EE0
          * Harry falls through the floor. Pair with Numpad 3's HARRY FALL
          * POSITION which records where he LANDS. (2) During debug camera
          * mode, also toggles fog on/off. */
-        if (g_sdlKeyboardState && g_GameWork.gameState == 11) {
+        if (g_PcAllowDebugControls && g_sdlKeyboardState && g_GameWork.gameState == 11) {
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
             if (cur && !g_DebugFogTogglePrev) {
                 VECTOR3 camPos;

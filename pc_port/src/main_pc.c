@@ -42,6 +42,52 @@ extern void PcPort_InitCharaAnimInfo(void);
 extern void* g_OvlDynamic;
 extern void* g_OvlBodyprog;
 
+/* PC port: master gate for dev/cheat keys (config: allow_debug_controls).
+ * Read by DebugCamera_Update + the few stragglers. Off by default. */
+int g_PcAllowDebugControls = 0;
+
+/* Apply control bindings + movement/debug options from g_PcConfig onto the
+ * PsyCross input mapping. Call AFTER PsyX_Initialise (which sets the built-in
+ * defaults) so config overrides them; the lookups fall back to the current
+ * default when a name is empty/invalid. */
+static void Pc_ApplyControlConfig(void)
+{
+    extern int g_cfg_controllerMovement;
+
+    g_cfg_keyboardMapping.kc_dpad_up    = PsyX_LookupKeyboardMapping(g_PcConfig.keyUp,       g_cfg_keyboardMapping.kc_dpad_up);
+    g_cfg_keyboardMapping.kc_dpad_down  = PsyX_LookupKeyboardMapping(g_PcConfig.keyDown,     g_cfg_keyboardMapping.kc_dpad_down);
+    g_cfg_keyboardMapping.kc_dpad_left  = PsyX_LookupKeyboardMapping(g_PcConfig.keyLeft,     g_cfg_keyboardMapping.kc_dpad_left);
+    g_cfg_keyboardMapping.kc_dpad_right = PsyX_LookupKeyboardMapping(g_PcConfig.keyRight,    g_cfg_keyboardMapping.kc_dpad_right);
+    g_cfg_keyboardMapping.kc_cross      = PsyX_LookupKeyboardMapping(g_PcConfig.keyCross,    g_cfg_keyboardMapping.kc_cross);
+    g_cfg_keyboardMapping.kc_circle     = PsyX_LookupKeyboardMapping(g_PcConfig.keyCircle,   g_cfg_keyboardMapping.kc_circle);
+    g_cfg_keyboardMapping.kc_triangle   = PsyX_LookupKeyboardMapping(g_PcConfig.keyTriangle, g_cfg_keyboardMapping.kc_triangle);
+    g_cfg_keyboardMapping.kc_square     = PsyX_LookupKeyboardMapping(g_PcConfig.keySquare,   g_cfg_keyboardMapping.kc_square);
+    g_cfg_keyboardMapping.kc_l1         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL1,       g_cfg_keyboardMapping.kc_l1);
+    g_cfg_keyboardMapping.kc_r1         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR1,       g_cfg_keyboardMapping.kc_r1);
+    g_cfg_keyboardMapping.kc_l2         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL2,       g_cfg_keyboardMapping.kc_l2);
+    g_cfg_keyboardMapping.kc_r2         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR2,       g_cfg_keyboardMapping.kc_r2);
+    g_cfg_keyboardMapping.kc_l3         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL3,       g_cfg_keyboardMapping.kc_l3);
+    g_cfg_keyboardMapping.kc_r3         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR3,       g_cfg_keyboardMapping.kc_r3);
+    g_cfg_keyboardMapping.kc_start      = PsyX_LookupKeyboardMapping(g_PcConfig.keyStart,    g_cfg_keyboardMapping.kc_start);
+    g_cfg_keyboardMapping.kc_select     = PsyX_LookupKeyboardMapping(g_PcConfig.keySelect,   g_cfg_keyboardMapping.kc_select);
+
+    g_cfg_controllerMapping.gc_cross    = PsyX_LookupGameControllerMapping(g_PcConfig.padCross,    g_cfg_controllerMapping.gc_cross);
+    g_cfg_controllerMapping.gc_circle   = PsyX_LookupGameControllerMapping(g_PcConfig.padCircle,   g_cfg_controllerMapping.gc_circle);
+    g_cfg_controllerMapping.gc_triangle = PsyX_LookupGameControllerMapping(g_PcConfig.padTriangle, g_cfg_controllerMapping.gc_triangle);
+    g_cfg_controllerMapping.gc_square   = PsyX_LookupGameControllerMapping(g_PcConfig.padSquare,   g_cfg_controllerMapping.gc_square);
+    g_cfg_controllerMapping.gc_l1       = PsyX_LookupGameControllerMapping(g_PcConfig.padL1,       g_cfg_controllerMapping.gc_l1);
+    g_cfg_controllerMapping.gc_r1       = PsyX_LookupGameControllerMapping(g_PcConfig.padR1,       g_cfg_controllerMapping.gc_r1);
+    g_cfg_controllerMapping.gc_l2       = PsyX_LookupGameControllerMapping(g_PcConfig.padL2,       g_cfg_controllerMapping.gc_l2);
+    g_cfg_controllerMapping.gc_r2       = PsyX_LookupGameControllerMapping(g_PcConfig.padR2,       g_cfg_controllerMapping.gc_r2);
+    g_cfg_controllerMapping.gc_l3       = PsyX_LookupGameControllerMapping(g_PcConfig.padL3,       g_cfg_controllerMapping.gc_l3);
+    g_cfg_controllerMapping.gc_r3       = PsyX_LookupGameControllerMapping(g_PcConfig.padR3,       g_cfg_controllerMapping.gc_r3);
+    g_cfg_controllerMapping.gc_start    = PsyX_LookupGameControllerMapping(g_PcConfig.padStart,    g_cfg_controllerMapping.gc_start);
+    g_cfg_controllerMapping.gc_select   = PsyX_LookupGameControllerMapping(g_PcConfig.padSelect,   g_cfg_controllerMapping.gc_select);
+
+    g_PcAllowDebugControls  = g_PcConfig.allowDebugControls;
+    g_cfg_controllerMovement = g_PcConfig.controllerMovement;
+}
+
 /* Demo play file buffer pointer - default PSX address needs runtime init */
 typedef struct s_DemoFrameData s_DemoFrameData;
 extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
@@ -307,6 +353,10 @@ int main(int argc, char* argv[])
     }
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
+
+    /* Apply keyboard/controller bindings + movement/debug options from config
+     * (overrides the PsyCross defaults set inside PsyX_Initialise). */
+    Pc_ApplyControlConfig();
 
     /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
      * console-subsystem app, so Windows spawns a console window at startup that

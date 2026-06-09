@@ -19,6 +19,22 @@ typedef struct {
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */
+    int allowDebugControls; /* 1 = enable dev/cheat keys (numpad, top-row digits, ~, kill-Harry, etc.); 0 = off (default) */
+    int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
+
+    /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
+     * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
+     * names ("a","b","x","y","leftshoulder","righttrigger","leftstick",
+     * "start","back"). "NONE" = unbound. D-pad + sticks are movement and not
+     * controller-rebindable here. Read by Pc_ApplyControlConfig in main_pc.c. */
+    char keyUp[24], keyDown[24], keyLeft[24], keyRight[24];
+    char keyCross[24], keyCircle[24], keyTriangle[24], keySquare[24];
+    char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
+    char keyStart[24], keySelect[24];
+    char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
+    char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
+    char padStart[24], padSelect[24];
+
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 
