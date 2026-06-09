@@ -82,16 +82,6 @@ static inline s32 WrapIdx(s32 idx)
 
 bool func_80033548(void) // 0x80033548
 {
-#ifdef SH_PC_PORT
-    /* PC: short-circuit REMOVED FOR DIAGNOSTIC. We expect the game
-     * to crash at boot like 88eb0738d did — but this time the
-     * [MCRD-INIT] / [MCRD2] SH_DBG entries inside MemCard_SysInit2
-     * / EventsInit / SwEventsInit / HwEventsInit (added in
-     * 1cb46c6eb) will fire as the flow runs, and the LAST line
-     * before the crash names the dying call. Then we restore the
-     * short-circuit and patch that call surgically. */
-    SH_DBG_ECHO("[MCRD2] func_80033548 enter (real flow)");
-#endif
     u32                         sp10[MEMCARD_SLOT_COUNT_MAX]; // Boolean.
     s32                         sp18[MEMCARD_DEVICE_COUNT_MAX]; // Boolean. Used to generate `Create New File` and `New Save`.
     u32                         prevStatusCpy;
@@ -467,15 +457,9 @@ bool func_80033548(void) // 0x80033548
         case 16:
         case 20:
         case 25:
-#ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MCRD2] func_80033548 returning true");
-#endif
             return true;
 
         default:
-#ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MCRD2] func_80033548 returning false");
-#endif
             return false;
     }
 }
