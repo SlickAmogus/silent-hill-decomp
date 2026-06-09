@@ -1,5 +1,15 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.4 -- 2026-06-09
+- log: remove stale per-frame [MCRD2] spam + the [ALLEY1] Cheryl diagnostic
+- debug: key 6 spawns a Grey Child; add [CHMOVE] Cheryl movement trace
+- math: restore overflow-safe Math_Vector2/3MagCalc on PC (merge regression)
+- math/cheryl: target the overflow fix to the chase gates, not the global macro
+- debug: grey-child spawn ΓÇö bypass per-area NPC cap + guard model load
+- cheryl: remove [CHMOVE] diagnostic trace (Cheryl run-through fix confirmed)
+- diag: log failing object name + item-LM magic in [WOBJ] find-fail (map1_s00 banding)
+- cat: guard NULL playbackFunc ΓÇö fixes school crash (merge regression)
+
 ## v2026.06.09.3 -- 2026-06-09
 - pc_port: bump PsyCross ΓÇö pillarbox bars stay black on item-examine screen
 
