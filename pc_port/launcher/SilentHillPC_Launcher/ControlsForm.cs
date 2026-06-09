@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 /// <summary>
@@ -22,8 +23,8 @@ public class ControlsForm : Form
     {
         new[] { "Move Up",          "key_up" },
         new[] { "Move Down",        "key_down" },
-        new[] { "Move Left",        "key_left" },
-        new[] { "Move Right",       "key_right" },
+        new[] { "Turn Left",        "key_left" },
+        new[] { "Turn Right",       "key_right" },
         new[] { "Action / Shoot",   "key_cross" },
         new[] { "Flashlight",       "key_circle" },
         new[] { "Map",              "key_triangle" },
@@ -193,6 +194,12 @@ public class ControlsForm : Form
         };
         Controls.Add(note);
 
+        Button btnReset = new Button { Text = "Reset to Defaults", Width = 130, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
+        btnReset.Left = 20;
+        btnReset.Top = ClientSize.Height - 42;
+        btnReset.Click += (s, e) => ResetDefaults();
+        Controls.Add(btnReset);
+
         Button btnSave = new Button { Text = "Save", Width = 90, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
         Button btnCancel = new Button { Text = "Cancel", Width = 90, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
         btnSave.Left = ClientSize.Width - 200;
@@ -255,14 +262,32 @@ public class ControlsForm : Form
         e.Handled = true;
 
         TextBox tb = (TextBox)sender;
+        Keys kc = ResolveSidedModifier(e.KeyCode);
         string name;
-        if (KeyToSdl.TryGetValue(e.KeyCode, out name))
+        if (KeyToSdl.TryGetValue(kc, out name))
         {
             tb.Text = name;
             tb.Tag = name;          // so Leave keeps it
             ActiveControl = null;   // commit + stop listening
         }
         // Unmapped key: keep listening for a recognized one.
+    }
+
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int nVirtKey);
+
+    private const int VK_RSHIFT = 0xA1;
+    private const int VK_RCONTROL = 0xA3;
+    private const int VK_RMENU = 0xA5;
+
+    // WinForms KeyDown reports a side-less ShiftKey/ControlKey/Menu. Resolve the
+    // actual side from the live key state so Left/Right Shift (etc.) can bind.
+    private static Keys ResolveSidedModifier(Keys k)
+    {
+        if (k == Keys.ShiftKey)   return (GetKeyState(VK_RSHIFT)   & 0x8000) != 0 ? Keys.RShiftKey   : Keys.LShiftKey;
+        if (k == Keys.ControlKey) return (GetKeyState(VK_RCONTROL) & 0x8000) != 0 ? Keys.RControlKey : Keys.LControlKey;
+        if (k == Keys.Menu)       return (GetKeyState(VK_RMENU)    & 0x8000) != 0 ? Keys.RMenu       : Keys.LMenu;
+        return k;
     }
 
     // --- Load / save ----------------------------------------------------
@@ -293,6 +318,32 @@ public class ControlsForm : Form
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
         debugNo.Checked = !dbg;
+    }
+
+    private void ResetDefaults()
+    {
+        foreach (KeyValuePair<string, Control> kv in inputs)
+        {
+            string def = Defaults.ContainsKey(kv.Key) ? Defaults[kv.Key] : "";
+
+            TextBox tb = kv.Value as TextBox;
+            if (tb != null)
+            {
+                tb.Text = def;
+                tb.Tag = def;
+                continue;
+            }
+
+            ComboBox cb = kv.Value as ComboBox;
+            if (cb != null)
+            {
+                int idx = cb.Items.IndexOf(def);
+                cb.SelectedIndex = idx >= 0 ? idx : 0;
+            }
+        }
+
+        debugNo.Checked = true;
+        debugYes.Checked = false;
     }
 
     private void SaveValues()
