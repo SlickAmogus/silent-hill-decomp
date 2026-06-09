@@ -27,32 +27,32 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "\tThe_elevator_doesn't ~N\n\tappear_to_be_working. ~E ",
-    "\tA_glass_vial_lies_shattered. ",
-    "\tIt's_not_just_broken. ~N\n\tIt_looks_smashed_on_purpose. ~E ",
-    "\tThe_remaining_liquid_is_emptied ~N\n\tinto_the_ ~C2 Plastic_bottle ~C7 . ",
-    "\tNow_what_have_we_here? ~E ",
-    "\tA_glass_vial_lies_shattered. ~E ",
-    "\tThere_is_a_ ~C2 Plastic_bottle ~C7 . ~N\n\tTake_it? ~S4 ",
-    "~H\tThere_is_a_ ~C5 Hospital_map ~C7 . ~N\n\tTake_it? ~S4 ",
-    "~H\tThere_is_a ~N\n\t~C5 Hospital_basement_map ~C7 . ~N\n\tTake_it? ~S4 ",
-    "\tThere_is_a_ ~C2 Basement_key ~C7 . ~N\n\tTake_it? ~S4 ",
-    "~C3\tThe_in-house_generator ~N\n\t\tpowers_elevators,_ICUs ~N\n\t\tand_operating_rooms_only. ",
-    "\tDo_you_want_to_press_the_switch? ~S4 ",
-    "\tThe_generator_is_on. ~E ",
-    "\tUsed_the_ ~C2 Basement_key ~C7 _. ~E ",
-    "\tI_should_search_the_hospital. ~E ",
-    "\tThese_are_phones_and_phonebooks. ~N\n\tNo_need_to_examine_this. ~E ",
-    "\tThere's_a_vending_machine. ~N\n\tIt_doesn't_work. ~E ",
-    "\tThe_shelves_are_all_messed_up. ~N\n\tWho_did_this? ~E ",
-    "\tBooks_are_scattered ~N\n\taround_the_desk. ~N\n\tNothing_else_special_here. ~E ",
-    "\tThe_phone's_out. ~N\n\tCan't_get_a_dial_tone. ~E ",
-    "\tThere's_a_white_board. ~N\n\tNothing_special_written_here. ~E ",
-    "\tThere_is_a_newspaper. ",
-    "\tThis_article's_been ~N\n\tclipped_out... ~E ",
-    "\tThe_refrigerator_is_empty. ~E ",
-    "\tNothing_unusual. ~E ",
-    "\tNothing_helpful. ~E "
+    /* 15 */ "\tThe_elevator_doesn't ~N\n\tappear_to_be_working. ~E ",
+    /* 16 */ "\tA_glass_vial_lies_shattered. ",
+    /* 17 */ "\tIt's_not_just_broken. ~N\n\tIt_looks_smashed_on_purpose. ~E ",
+    /* 18 */ "\tThe_remaining_liquid_is_emptied ~N\n\tinto_the_ ~C2 Plastic_bottle ~C7 . ",
+    /* 19 */ "\tNow_what_have_we_here? ~E ",
+    /* 20 */ "\tA_glass_vial_lies_shattered. ~E ",
+    /* 21 */ "\tThere_is_a_ ~C2 Plastic_bottle ~C7 . ~N\n\tTake_it? ~S4 ",
+    /* 22 */ "~H\tThere_is_a_ ~C5 Hospital_map ~C7 . ~N\n\tTake_it? ~S4 ",
+    /* 23 */ "~H\tThere_is_a ~N\n\t~C5 Hospital_basement_map ~C7 . ~N\n\tTake_it? ~S4 ",
+    /* 24 */ "\tThere_is_a_ ~C2 Basement_key ~C7 . ~N\n\tTake_it? ~S4 ",
+    /* 25 */ "~C3\tThe_in-house_generator ~N\n\t\tpowers_elevators,_ICUs ~N\n\t\tand_operating_rooms_only. ",
+    /* 26 */ "\tDo_you_want_to_press_the_switch? ~S4 ",
+    /* 27 */ "\tThe_generator_is_on. ~E ",
+    /* 28 */ "\tUsed_the_ ~C2 Basement_key ~C7 _. ~E ",
+    /* 29 */ "\tI_should_search_the_hospital. ~E ",
+    /* 30 */ "\tThese_are_phones_and_phonebooks. ~N\n\tNo_need_to_examine_this. ~E ",
+    /* 31 */ "\tThere's_a_vending_machine. ~N\n\tIt_doesn't_work. ~E ",
+    /* 32 */ "\tThe_shelves_are_all_messed_up. ~N\n\tWho_did_this? ~E ",
+    /* 33 */ "\tBooks_are_scattered ~N\n\taround_the_desk. ~N\n\tNothing_else_special_here. ~E ",
+    /* 34 */ "\tThe_phone's_out. ~N\n\tCan't_get_a_dial_tone. ~E ",
+    /* 35 */ "\tThere's_a_white_board. ~N\n\tNothing_special_written_here. ~E ",
+    /* 36 */ "\tThere_is_a_newspaper. ",
+    /* 37 */ "\tThis_article's_been ~N\n\tclipped_out... ~E ",
+    /* 38 */ "\tThe_refrigerator_is_empty. ~E ",
+    /* 39 */ "\tNothing_unusual. ~E ",
+    /* 40 */ "\tNothing_helpful. ~E "
 };
 
 void func_800D14BC(void) // 0x800D14BC
@@ -81,10 +81,10 @@ void func_800D1500(void) // 0x800D1500
 
 void func_800D1524(void) // 0x800D1524
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ };
 
     Player_ItemRemove(InvItemId_BasementKey, 1);
-    Map_MessageWithSfx(28, Sfx_UseKey, &sfxPos); // "Used basement key."
+    Event_DisplayMapMsgWithSfx(28, Sfx_UseKey, &sfxPos); // "Used basement key."
 
     Savegame_EventFlagSet(EventFlag_MapMark_585);
     Savegame_EventFlagSet(EventFlag_M3S01_BasementDoorOpen);
@@ -104,50 +104,50 @@ void MapEvent_UnknownLiquidInteract(void) // 0x800D23AC
     {
         case 0:
             Player_ControlFreeze();
-            func_800862F8(0, FILE_TIM_SHATVIAL_TIM, false);
+            Event_BgTextureCmd(BgTextureCmd_QueueRead, FILE_TIM_SHATVIAL_TIM, false);
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80085DF0();
+            Event_WaitPlayerStop();
             break;
 
         case 2:
-            func_80086C58(&g_SysWork.playerWork.player, 59);
+            Event_CharaAnimPlayToEnd(&g_SysWork.playerWork.player, 59);
             break;
 
         case 3:
-            SysWork_StateStepIncrementAfterFade(0, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, true, 0, Q12(0.0f), false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            func_800862F8(1, 0, false);
+            Event_BgTextureCmd(BgTextureCmd_AwaitLoad, 0, false);
             break;
 
         case 5:
-            SysWork_StateStepIncrementAfterFade(1, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Wait, true, 0, Q12(0.0f), false);
             break;
 
         case 6:
-            func_800862F8(2, 0, false);
-            SysWork_StateStepIncrementAfterFade(2, false, 0, Q12(0.0f), false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, Q12(0.0f), false);
             break;
 
         case 7:
-            func_800862F8(2, 0, false);
-            MapMsg_DisplayAndHandleSelection(false, 16, 0, 0, 0, false); // "A glass vial lies shattered."
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 16, 0, 0, 0, false); // "A glass vial lies shattered."
             break;
 
         case 8:
-            func_800862F8(2, 0, false);
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
 
         case 9:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, Q12(0.0f), false);
             break;
 
         case 10:
-            func_80086C58(&g_SysWork.playerWork.player, 60);
+            Event_CharaAnimPlayToEnd(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -177,23 +177,23 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
             SysWork_StateStepIncrement(0);
 
         case EventState_1:
-            func_80085DF0();
+            Event_WaitPlayerStop();
             break;
 
         case EventState_2:
-            func_80086C58(&g_SysWork.playerWork.player, 59);
+            Event_CharaAnimPlayToEnd(&g_SysWork.playerWork.player, 59);
             break;
 
         case EventState_SfxId:
-            func_8005DC1C(Sfx_Unk1493, &QVECTOR3(141.6f, -0.0999f, 20.75f), Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1493, &QVECTOR3(141.6f, -0.0999f, 20.75f), Q8(0.5f), SfxFlag_None);
             SysWork_StateStepIncrement(0);
 
         case EventState_Msg:
-            MapMsg_DisplayAndHandleSelection(false, 18, 0, 0, 0, false); // "The remaining liquid is emptied into the Plastic bottle."
+            Event_DisplayMapMsg(false, 18, 0, 0, 0, false); // "The remaining liquid is emptied into the Plastic bottle."
             break;
 
         case EventState_5:
-            func_80086C58(&g_SysWork.playerWork.player, 60);
+            Event_CharaAnimPlayToEnd(&g_SysWork.playerWork.player, 60);
             break;
 
         default:
@@ -203,7 +203,7 @@ void MapEvent_UseBottleOnLiquid(void) // 0x800D25A8
 
             // Replace Plastic Bottle with Unknown Liquid in inventory.
             Player_ItemRemove(InvItemId_PlasticBottle, 1);
-            func_80086470(3, InvItemId_UnknownLiquid, DEFAULT_PICKUP_ITEM_COUNT, false);
+            Event_InvItemCmd(InvItemCmd_AddItem, InvItemId_UnknownLiquid, DEFAULT_PICKUP_ITEM_COUNT, false);
             break;
     }
 }
@@ -213,14 +213,14 @@ void MapEvent_PlasticBottleTake(void) // 0x800D2720
     Event_ItemTake(InvItemId_PlasticBottle, DEFAULT_PICKUP_ITEM_COUNT, EventFlag_M3S01_PickupPlasticBottle, 21);
 }
 
-void MapEvent_MapTake0(void) // 0x800D274C
+void MapEvent_PaperMapTake0(void) // 0x800D274C
 {
-    Event_MapTake(17, EventFlag_M3S00_PickupMap, 22);
+    Event_PaperMapTake(17, EventFlag_M3S00_PickupMap, 22);
 }
 
-void MapEvent_MapTake1(void) // 0x800D2774
+void MapEvent_PaperMapTake1(void) // 0x800D2774
 {
-    Event_MapTake(16, EventFlag_M3S01_PickupMap, 23);
+    Event_PaperMapTake(16, EventFlag_M3S01_PickupMap, 23);
 }
 
 void func_800D279C(void) // 0x800D279C
@@ -243,16 +243,16 @@ void MapEvent_Generator0(void) // 0x800D27C8
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80085DF0();
+            Event_WaitPlayerStop();
             break;
 
         case 2:
             g_SysWork.silentYesSelection = true;
-            MapMsg_DisplayAndHandleSelection(true, 25, EventState_PressSwitch, EventState_DontPressSwitch, 0, false); // "Do you want to press the switch?"
+            Event_DisplayMapMsg(true, 25, EventState_PressSwitch, EventState_DontPressSwitch, 0, false); // "Do you want to press the switch?"
             break;
 
         case EventState_PressSwitch:
-            func_8005DC1C(Sfx_Unk1494, &QVECTOR3(140.5f, -0.5f, -20.6f), Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1494, &QVECTOR3(140.5f, -0.5f, -20.6f), Q8(0.5f), SfxFlag_None);
             SD_Call(Sfx_Unk1495);
             Savegame_EventFlagSet(EventFlag_M3S01_GeneratorOn);
 
@@ -261,7 +261,7 @@ void MapEvent_Generator0(void) // 0x800D27C8
             SysWork_StateStepIncrement(0);
 
         case 4:
-            SysWork_StateStepIncrementDelayed(Q12(2.5f), false);
+            Event_WaitTimer(Q12(2.5f), false);
             break;
 
         case 5:
@@ -289,11 +289,11 @@ void func_800D29A4(void) // 0x800D29A4
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80085DF0();
+            Event_WaitPlayerStop();
             break;
 
         case 2:
-            MapMsg_DisplayAndHandleSelection(false, 27, 0, 0, 0, false);
+            Event_DisplayMapMsg(false, 27, 0, 0, 0, false);
             break;
 
         default:
@@ -309,10 +309,10 @@ void func_800D2A88(void) // 0x800D2A88
 {
     if (g_SysWork.sysStateSteps[1] == 0)
     {
-        func_8005DC1C(Sfx_MenuMap, &QVECTOR3(61.72f, -0.8f, 100.5098f), Q8(0.5f), 0);
+        Sfx_WithFlagsPlay(Sfx_MenuMap, &QVECTOR3(61.72f, -0.8f, 100.5098f), Q8(0.5f), SfxFlag_None);
     }
 
-    MapMsg_DisplayWithTexture(Sfx_Unk1916, Q12(0.0f), Q12(0.0f), 36);
+    Event_DisplayMapMsgWithBg(Sfx_Unk1916, Q12(0.0f), Q12(0.0f), 36);
     Savegame_EventFlagSet(EventFlag_203);
 }
 
@@ -321,35 +321,21 @@ void Map_WorldObjectsInit(void) // 0x800D2AF4
     D_800D8734 = 0;
     g_GeneratorMakeNoise = false;
 
-    WorldObjectNoRotInit(&g_WorldObject1, "BOT_HIDE", 20.3f, 0.0f, 59.25f);
-
-    WorldObjectInit(&g_WorldObject2, "MAP_HIDE", 60.0f, 0.0f, 60.0f, 0.0f, 9.7f, 0.0f);
-
-    WorldObjectInit(&g_WorldObject5, "KEY_HIDE", 100.3f, 0.0f, 58.9f, 0.0f, 72.8f, 0.0f);
-
-    WorldObjectNoRotInit(&g_WorldObject3[0], "BT3_HIDE", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject3[1], "BT4_HIDE", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[0], "DR1L_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[1], "DR1R_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[2], "DR3L_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[3], "DR3R_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[4], "DR2L_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectNoRotInit(&g_WorldObject_Dr[5], "DR2R_HID", 59.1f, 0.0f, 19.1f);
-
-    WorldObjectInit(&g_WorldObject6, D_800A99E4[1], 26.0f, -1.0198f, 144.5498f, 0.0f, 163.8f, 0.0f);
-
-    WorldObjectInit(&g_WorldObject7, "MAP_HIDE", 24.6f, -1.56f, 143.16f, 0.0f, 180.0f, 0.0f);
-
-    WorldObjectInit(&g_WorldObject8, "MAP2_HID", 24.6f, -1.56f, 143.16f, 0.0f, 180.0f, 0.0f);
-
-    WorldObjectInit(&g_WorldObject9, D_800A99E4[2], 27.6f, -0.45f, 143.6f, 0.0f, -90.0f, 0.0f);
+    WorldObject_PlacementInit(&g_WorldObject1, "BOT_HIDE", 20.3f, 0.0f, 59.25f);
+    WorldObject_Init(&g_WorldObject2, "MAP_HIDE", 60.0f, 0.0f, 60.0f, 0.0f, 9.7f, 0.0f);
+    WorldObject_Init(&g_WorldObject5, "KEY_HIDE", 100.3f, 0.0f, 58.9f, 0.0f, 72.8f, 0.0f);
+    WorldObject_PlacementInit(&g_WorldObject3[0], "BT3_HIDE", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject3[1], "BT4_HIDE", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[0], "DR1L_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[1], "DR1R_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[2], "DR3L_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[3], "DR3R_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[4], "DR2L_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_PlacementInit(&g_WorldObject_Dr[5], "DR2R_HID", 59.1f, 0.0f, 19.1f);
+    WorldObject_Init(&g_WorldObject6, D_800A99E4[1], 26.0f, -1.0198f, 144.5498f, 0.0f, 163.8f, 0.0f);
+    WorldObject_Init(&g_WorldObject7, "MAP_HIDE", 24.6f, -1.56f, 143.16f, 0.0f, 180.0f, 0.0f);
+    WorldObject_Init(&g_WorldObject8, "MAP2_HID", 24.6f, -1.56f, 143.16f, 0.0f, 180.0f, 0.0f);
+    WorldObject_Init(&g_WorldObject9, D_800A99E4[2], 27.6f, -0.45f, 143.6f, 0.0f, -90.0f, 0.0f);
 
     WorldObject_ModelNameSet(&g_CommonWorldObjects[0], D_800A99E4[2]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[1], D_800A99E4[3]);
@@ -369,7 +355,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S01_PickupPlasticBottle))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject1.object_0, &g_WorldObject1.position_1C, &(SVECTOR3){ 0, 0, 0 });
+            WorldGfx_ObjectAdd(&g_WorldObject1.object, &g_WorldObject1.position, &SVECTOR3_Zero);
         }
     }
 
@@ -377,7 +363,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S01_PickupMap))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject2.object_0, &g_WorldObject2.position_1C, &g_WorldObject2.rotation_28);
+            WorldGfx_ObjectAdd(&g_WorldObject2.object, &g_WorldObject2.position, &g_WorldObject2.rotation);
         }
     }
 
@@ -385,7 +371,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S01_PickupBasementKey))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject5.object_0, &g_WorldObject5.position_1C, &g_WorldObject5.rotation_28);
+            WorldGfx_ObjectAdd(&g_WorldObject5.object, &g_WorldObject5.position, &g_WorldObject5.rotation);
         }
     }
 
@@ -427,37 +413,37 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
 
             Gfx_MapInitMapEffectsUpdate(4, 4);
 
-            g_SysWork.field_235C = NULL;
-            g_SysWork.pointLightPosition.vx = Q12(59.1f);
-            g_SysWork.pointLightPosition.vy = Q12(-3.0f);
-            g_SysWork.pointLightPosition.vz = Q12(19.1f);
-            g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightRotation.vx = Q12_ANGLE(-90.0f);
-            g_SysWork.pointLightRotation.vy = Q12_ANGLE(0.0f);
-            g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
-            g_SysWork.pointLightIntensity = Q12(0.7f);
+            g_SysWork.lightBoneCoord     = NULL;
+            g_SysWork.lightPosition.vx   = Q12(59.1f);
+            g_SysWork.lightPosition.vy   = Q12(-3.0f);
+            g_SysWork.lightPosition.vz   = Q12(19.1f);
+            g_SysWork.lensFlareBoneCoord = NULL;
+            g_SysWork.lightRotation.vx   = Q12_ANGLE(-90.0f);
+            g_SysWork.lightRotation.vy   = Q12_ANGLE(0.0f);
+            g_SysWork.lightRotation.vz   = Q12_ANGLE(0.0f);
+            g_SysWork.lightIntensity     = Q12(0.7f);
 
             func_8008D438();
 
             posZ = Q12(19.1f);
             for (i = 5; i >= 0; i--)
             {
-                g_WorldObject_Dr[i].position_1C.vz = posZ;
+                g_WorldObject_Dr[i].position.vz = posZ;
             }
         }
 
         for (i = 0; i < ARRAY_SIZE(g_WorldObject_Dr); i++)
         {
-            WorldGfx_ObjectAdd(&g_WorldObject_Dr[i].object_0, &g_WorldObject_Dr[i].position_1C, &(SVECTOR3){ 0, 0, 0 });
+            WorldGfx_ObjectAdd(&g_WorldObject_Dr[i].object, &g_WorldObject_Dr[i].position, &SVECTOR3_Zero);
         }
 
         if (Savegame_EventFlagGet(EventFlag_MapMark_AltHospital2F_OperatingPrepRoomArrow) && Savegame_EventFlagGet(EventFlag_MapMark_AltHospital2F_CorridorMidArrows))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject3[1].object_0, &g_WorldObject3[1].position_1C, &(SVECTOR3){ 0, 0, 0 });
+            WorldGfx_ObjectAdd(&g_WorldObject3[1].object, &g_WorldObject3[1].position, &SVECTOR3_Zero);
         }
         else
         {
-            WorldGfx_ObjectAdd(&g_WorldObject3[0].object_0, &g_WorldObject3[0].position_1C, &(SVECTOR3){ 0, 0, 0 });
+            WorldGfx_ObjectAdd(&g_WorldObject3[0].object, &g_WorldObject3[0].position, &SVECTOR3_Zero);
         }
     }
 
@@ -490,8 +476,8 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
             }
             else if (g_GeneratorMakeNoise == true)
             {
-                func_8005DE0C(Sfx_Unk1495, &D_800D4CE4, 0x80, Q12(16.0f), 0);
-                func_8005DE0C(Sfx_Unk1503, &D_800D4CE4, 0x80, Q12(16.0f), 0);
+                Sfx_WithFalloffAndPitchPlay(Sfx_Unk1495, &D_800D4CE4, 0x80, Q12(16.0f), 0);
+                Sfx_WithFalloffAndPitchPlay(Sfx_Unk1503, &D_800D4CE4, 0x80, Q12(16.0f), 0);
             }
         }
     }
@@ -507,20 +493,20 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
 
     if (PLAYER_IN_MAP_CHUNK(vx, 0, 0, -1, 1) && PLAYER_IN_MAP_CHUNK(vz, 1, 4, -1, 4))
     {
-        WorldGfx_ObjectAdd(&g_WorldObject6.object_0, &g_WorldObject6.position_1C, &g_WorldObject6.rotation_28);
+        WorldGfx_ObjectAdd(&g_WorldObject6.object, &g_WorldObject6.position, &g_WorldObject6.rotation);
 
         if (!Savegame_EventFlagGet(EventFlag_M3S00_PickupMap))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject7.object_0, &g_WorldObject7.position_1C, &g_WorldObject7.rotation_28);
+            WorldGfx_ObjectAdd(&g_WorldObject7.object, &g_WorldObject7.position, &g_WorldObject7.rotation);
         }
         else
         {
-            WorldGfx_ObjectAdd(&g_WorldObject8.object_0, &g_WorldObject8.position_1C, &g_WorldObject8.rotation_28);
+            WorldGfx_ObjectAdd(&g_WorldObject8.object, &g_WorldObject8.position, &g_WorldObject8.rotation);
         }
 
         if (!Savegame_EventFlagGet(EventFlag_M3S00_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject9.object_0, &g_WorldObject9.position_1C, &g_WorldObject9.rotation_28);
+            WorldGfx_ObjectAdd(&g_WorldObject9.object, &g_WorldObject9.position, &g_WorldObject9.rotation);
         }
     }
 
@@ -528,7 +514,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D2E54
     {
         if (!Savegame_EventFlagGet(EventFlag_M3S01_HealthDrink))
         {
-            WorldGfx_ObjectAdd(&g_WorldObjectA, &g_WorldObjectAPos.position, &g_WorldObjectAPos.rotation_C);
+            WorldGfx_ObjectAdd(&g_WorldObjectA, &g_WorldObjectAPos.position, &g_WorldObjectAPos.rotation);
         }
     }
 }

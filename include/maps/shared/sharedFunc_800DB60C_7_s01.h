@@ -27,7 +27,7 @@ void sharedFunc_800DB60C_7_s01(void)
                     {
                         if (sharedData_800E1694_7_s01 & (1 << (((i * 9) + (k * 3)) + j)))
                         {
-                            setRGBC0(sprt, 0x80, 0x80, 0x80, 0x64);
+                            setRGBC0(sprt, 0x80, 0x80, 0x80, PRIM_RECT | RECT_TEXTURE);
 
                             x = sharedData_800E1578_7_s01[i][j][k][0];
                             y = sharedData_800E1578_7_s01[i][j][k][1];
@@ -59,7 +59,7 @@ void sharedFunc_800DB60C_7_s01(void)
             SysWork_StateStepIncrement(0);
 
         case 1:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, 0, false);
             break;
 
         case 2:
@@ -75,12 +75,12 @@ void sharedFunc_800DB60C_7_s01(void)
             SysWork_StateStepIncrement(0);
 
         case 3:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, 0, false);
-            func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, 0, false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
             break;
 
         case 4:
-            func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
 
             sharedData_800E2CA8_7_s01 += (g_Controller0->sticks_24.sticks_0.leftX << 13) / 75;
             sharedData_800E2CA8_7_s01  = CLAMP_RANGE(sharedData_800E2CA8_7_s01, Q12(-115.0f), Q12(115.0f));
@@ -93,7 +93,7 @@ void sharedFunc_800DB60C_7_s01(void)
             cursorX = FP_FROM(sharedData_800E2CA8_7_s01, Q12_SHIFT) + 8;
             Gfx_CursorDraw(cursorX, FP_FROM(sharedData_800E2CAC_7_s01, Q12_SHIFT) + 8, 8, 8, 0, 0x40, 0x20, 0x20, 0x80, 0xC0u, 0, 0xC);
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
             {
 #ifndef MAP7_S02
                 SD_Call(Sfx_Unk1652);
@@ -114,7 +114,7 @@ void sharedFunc_800DB60C_7_s01(void)
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 for (i = 0; i < 3; i++)
                 {
@@ -164,8 +164,8 @@ void sharedFunc_800DB60C_7_s01(void)
             break;
 
         case 5:
-            SysWork_StateStepIncrementDelayed(Q12(0.6f), false);
-            func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
+            Event_WaitTimer(Q12(0.6f), false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
             break;
 
         case 6:
@@ -183,19 +183,19 @@ void sharedFunc_800DB60C_7_s01(void)
             SysWork_StateStepIncrement(0);
 
         case 7:
-            func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
-            SysWork_StateStepIncrementDelayed(0x800, false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_WaitTimer(0x800, false);
             break;
 
         case 8:
-            func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
-            SysWork_StateStepIncrementAfterFade(2, true, 0, 0, false);
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, 0, false);
             break;
 
         default:
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            SysWork_StateStepIncrementAfterFade(0, false, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, 0, false);
 
             Savegame_EventFlagClear(EventFlag_493);
             Savegame_EventFlagClear(EventFlag_495);

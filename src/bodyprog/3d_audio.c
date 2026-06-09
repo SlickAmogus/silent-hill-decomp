@@ -8,7 +8,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_draw.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #endif
@@ -44,7 +44,7 @@ s32 func_8005D86C(s32 arg0) // 0x8005D86C
     temp_a2 = (arg0 & 0x7F) << 5;
     temp_a3 = temp >> 7;
 
-    var_a0 = D_800AE564[temp_a3];
+    var_a0 = D_800A9F64[temp_a3];
     if (temp_a1 > 0)
     {
         var_a0 >>= temp_a1;
@@ -56,7 +56,7 @@ s32 func_8005D86C(s32 arg0) // 0x8005D86C
 
     if (temp_a2 != 0)
     {
-        var_v1 = D_800AE564[temp_a3 + 1];
+        var_v1 = D_800A9F64[temp_a3 + 1];
         if (temp_a1 > 0)
         {
             var_v1 >>= temp_a1;
@@ -176,7 +176,7 @@ void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, 
 #endif
 
     // Get stereo balance.
-    if (soundType & (1 << 0) || g_GameWork.config.optSoundType_1E)
+    if (soundType & (1 << 0) || g_GameWork.config.soundType)
     {
         balance = 0;
     }
@@ -236,7 +236,7 @@ void func_8005DD44(e_SfxId sfxId, VECTOR3* pos, q23_8 vol, s8 pitch) // 0x8005DD
 #endif
 
     // Get stereo balance.
-    if (g_GameWork.config.optSoundType_1E)
+    if (g_GameWork.config.soundType)
     {
         balance = 0;
     }
@@ -288,7 +288,7 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
        set up on PC (same issue as func_8005DD44). Use center balance. */
     balance = 0;
 #else
-    if (g_GameWork.config.optSoundType_1E)
+    if (g_GameWork.config.soundType)
     {
         balance = 0;
     }

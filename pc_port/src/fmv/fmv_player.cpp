@@ -890,7 +890,7 @@ done:
 
     /* Wait for skip keys to release before returning. Otherwise the still-held
      * key would carry into the next state's first Joy_Update, which sees the
-     * 0→held edge as a fresh btnsClicked and bleeds into the main menu (e.g.
+     * 0→held edge as a fresh clickedBtnFlags and bleeds into the main menu (e.g.
      * Enter to skip intro = phantom Confirm on the title). Capped so a stuck
      * key can't hang the boot. */
     {

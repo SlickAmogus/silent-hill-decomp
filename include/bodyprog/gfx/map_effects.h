@@ -14,9 +14,9 @@ void Game_SpotlightLoadScreenAttribsFix(void);
 void Game_FlashlightAttributesFix(void);
 
 /** @brief Determines what enviroment effects data from `MAP_EFFECTS_INFOS` will use based on
- * `s_MapOverlayHeader::field_16`.
+ * `s_MapOverlayHdr::field_16`.
  */
-void Gfx_MapEffectsAssign(s_MapOverlayHeader* mapHdr);
+void Gfx_MapEffectsAssign(s_MapOverlayHdr* mapHdr);
 
 /** @brief Toggles the player's flashlight on. */
 void Game_TurnFlashlightOn(void);
@@ -53,7 +53,7 @@ void Gfx_FogParametersSet(s_StructUnk3* arg0, const s_MapEffectsInfo* preset);
 
 void Gfx_FlashlightUpdate(void);
 
-q19_12 func_8003F4DC(GsCOORDINATE2** coords, SVECTOR* rot, q19_12 alpha, s32 arg3, u32 arg4, s_SysWork* sysWork);
+q19_12 func_8003F4DC(GsCOORDINATE2** lightBoneCoord, SVECTOR* rot, q19_12 alpha, s32 arg3, u32 lensFlare, s_SysWork* sysWork);
 
 u32 func_8003F654(s_SysWork_2388* arg0);
 

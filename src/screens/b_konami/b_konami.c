@@ -54,7 +54,7 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
                 break;
 
             case KonamiLogoStateStep_LogoDelay:
-                if (g_Controller0->btnsHeld_C != 0 || g_SysWork.counters_1C[0] > 180)
+                if (g_Controller0->heldBtnFlags != 0 || g_SysWork.counters_1C[0] > 180)
                 {
                     ScreenFade_Start(false, false, false);
                     g_ScreenFadeTimestep            = Q12(0.2f);
@@ -123,10 +123,10 @@ s32 GameState_KcetLogo_MemCardCheck(void) // 0x800C9874
     }
 
     g_MemCard_ActiveSavegameEntry = (s_SaveScreenElement*)SAVEGAME_ENTRY_BUFFER_0;
-    saveEntryType0                = g_MemCard_ActiveSavegameEntry->type_4;
+    saveEntryType0                = g_MemCard_ActiveSavegameEntry->type;
 
     g_MemCard_ActiveSavegameEntry = (s_SaveScreenElement*)SAVEGAME_ENTRY_BUFFER_1;
-    saveEntryType1                = g_MemCard_ActiveSavegameEntry->type_4;
+    saveEntryType1                = g_MemCard_ActiveSavegameEntry->type;
 
     // No memory cards.
     if (saveEntryType0 == SavegameEntryType_NoMemCard && saveEntryType1 == SavegameEntryType_NoMemCard)
@@ -146,9 +146,9 @@ s32 GameState_KcetLogo_MemCardCheck(void) // 0x800C9874
         g_MemCard_ActiveSavegameEntry = MemCard_ActiveSavegameEntryGet(g_SelectedSaveSlotIdx);
         g_MemCard_ActiveSavegameEntry = &g_MemCard_ActiveSavegameEntry[g_SlotElementSelectedIdx[g_SelectedSaveSlotIdx]];
 
-        g_SelectedDeviceId            = g_MemCard_ActiveSavegameEntry->deviceId_5;
-        g_SelectedFileIdx             = g_MemCard_ActiveSavegameEntry->fileIdx_6;
-        g_Savegame_SelectedElementIdx = g_MemCard_ActiveSavegameEntry->elementIdx_7;
+        g_SelectedDeviceId            = g_MemCard_ActiveSavegameEntry->deviceId;
+        g_SelectedFileIdx             = g_MemCard_ActiveSavegameEntry->fileIdx;
+        g_Savegame_SelectedElementIdx = g_MemCard_ActiveSavegameEntry->elementIdx;
 
         return KcetLogoStateStep_HasSavegame;
     }
@@ -311,7 +311,7 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                             break;
 
                         case 2:
-                            if (g_GameWorkConst->config.optAutoLoad_25)
+                            if (g_GameWorkConst->config.autoLoad)
                             {
                                 Fs_QueueStartRead(FILE_VIN_SAVELOAD_BIN, FS_BUFFER_1);
                                 Fs_QueueStartSeek(FILE_TIM_SAVELOAD_TIM);
@@ -341,7 +341,7 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                 break;
 
             case KcetLogoStateStep_LogoDelay:
-                if (g_Controller0->btnsHeld_C != 0 || g_SysWork.counters_1C[0] > 180)
+                if (g_Controller0->heldBtnFlags != 0 || g_SysWork.counters_1C[0] > 180)
                 {
                     ScreenFade_Start(false, false, false);
                     g_ScreenFadeTimestep = Q12(0.2f);

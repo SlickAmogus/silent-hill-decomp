@@ -33,23 +33,23 @@ static inline u16 rd16(const u8* p) { return p[0] | (p[1] << 8); }
 
 static void ParseMeshHeader(s_MeshHeader* dst, const u8* src, u8* base)
 {
-    dst->primitiveCount_0 = src[0];
-    dst->vertexCount_1    = src[1];
-    dst->normalCount_2    = src[2];
+    dst->primitiveCount = src[0];
+    dst->vertexCount    = src[1];
+    dst->normalCount    = src[2];
     dst->unkCount_3       = src[3];
-    dst->primitives_4     = (s_Primitive*)(base + rd32(&src[4]));
-    dst->verticesXy_8     = (DVECTOR*)(base + rd32(&src[8]));
-    dst->verticesZ_C      = (s16*)(base + rd32(&src[12]));
-    dst->normals_10       = (s_Normal*)(base + rd32(&src[16]));
+    dst->primitives     = (s_Primitive*)(base + rd32(&src[4]));
+    dst->verticesXy     = (DVECTOR*)(base + rd32(&src[8]));
+    dst->verticesZ      = (s16*)(base + rd32(&src[12]));
+    dst->normals       = (s_Normal*)(base + rd32(&src[16]));
     dst->unkPtr_14        = base + rd32(&src[20]);
 }
 
 static void ParseModelHeader(s_ModelHeader* dst, const u8* src, u8* base)
 {
-    memcpy(&dst->name_0, src, 8);
-    dst->meshCount_8     = src[8];
-    dst->vertexOffset_9  = src[9];
-    dst->normalOffset_A  = src[10];
+    memcpy(&dst->name, src, 8);
+    dst->meshCount     = src[8];
+    dst->vertexOffset  = src[9];
+    dst->normalOffset  = src[10];
 
     u8 bf = src[11];
     dst->field_B_0 = bf & 1;
@@ -58,25 +58,25 @@ static void ParseModelHeader(s_ModelHeader* dst, const u8* src, u8* base)
     dst->unk_B_6   = (bf >> 6) & 3;
 
     u32 meshOff = rd32(&src[12]);
-    if (dst->meshCount_8 > 0)
+    if (dst->meshCount > 0)
     {
-        s_MeshHeader* meshes = (s_MeshHeader*)calloc(dst->meshCount_8, sizeof(s_MeshHeader));
-        for (int j = 0; j < dst->meshCount_8; j++)
+        s_MeshHeader* meshes = (s_MeshHeader*)calloc(dst->meshCount, sizeof(s_MeshHeader));
+        for (int j = 0; j < dst->meshCount; j++)
         {
             ParseMeshHeader(&meshes[j], base + meshOff + j * PSX_SIZEOF_MESH_HEADER, base);
         }
-        dst->meshHdrs_C = meshes;
+        dst->meshHdrs = meshes;
     }
     else
     {
-        dst->meshHdrs_C = NULL;
+        dst->meshHdrs = NULL;
     }
 }
 
 static void ParseMaterial(s_Material* dst, const u8* src)
 {
-    memcpy(&dst->name_0, src, 8);
-    dst->texture_8    = NULL; /* set later by Lm_MaterialFileIdxApply */
+    memcpy(&dst->name, src, 8);
+    dst->texture    = NULL; /* set later by Lm_MaterialFileIdxApply */
     dst->field_C      = src[12];
     dst->unk_D[0]     = src[13];
     dst->field_E      = src[14];
@@ -151,11 +151,11 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         {
             ParseModelHeader(&models[i], raw + modelHdrsOff + i * PSX_SIZEOF_MODEL_HEADER, raw);
             SH_DBG("  model[%d] name=%c%c%c%c meshCnt=%d vertOff=%d normOff=%d fB0=%d fB1=%d fB4=%d meshHdrs=%p",
-                i, models[i].name_0.str[0], models[i].name_0.str[1],
-                models[i].name_0.str[2], models[i].name_0.str[3],
-                models[i].meshCount_8, models[i].vertexOffset_9, models[i].normalOffset_A,
+                i, models[i].name.str[0], models[i].name.str[1],
+                models[i].name.str[2], models[i].name.str[3],
+                models[i].meshCount, models[i].vertexOffset, models[i].normalOffset,
                 models[i].field_B_0, models[i].field_B_1, models[i].field_B_4,
-                (void*)models[i].meshHdrs_C);
+                (void*)models[i].meshHdrs);
         }
     }
 

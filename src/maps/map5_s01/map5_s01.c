@@ -5,7 +5,7 @@
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #include "maps/map5/map5_s01.h"
 #include "maps/particle.h"
@@ -27,13 +27,13 @@ void func_800EB6B0(void) // 0x800EB6B0
     q19_12 posZ;
     q19_12 newPosComp;
     s32    var_v1;
-    s32    temp_s1;
+    s32    bgmFlags;
 
     posX  = g_SysWork.playerWork.player.position.vx;
     posZ  = g_SysWork.playerWork.player.position.vz;
-    temp_s1 = D_800EFC80[g_SavegamePtr->mapRoomIdx_A5];
+    bgmFlags = D_800EFC80[g_SavegamePtr->mapRoomIdx];
 
-    if (g_SavegamePtr->mapRoomIdx_A5 == 10)
+    if (g_SavegamePtr->mapRoomIdx == 10)
     {
         posX += Q12(150.0f);
         posZ  = Q12(-25.0f) - posZ;
@@ -101,7 +101,7 @@ void func_800EB6B0(void) // 0x800EB6B0
     var_v1  = Q12_MULT_PRECISE(newPosComp, temp_v0);
 
     D_800EFC74.limits[4] = var_v1 / Q12(0.5f);
-    Bgm_Update(temp_s1, Q12(0.2f), &D_800EFC74);
+    Bgm_Update(bgmFlags, Q12(0.2f), &D_800EFC74);
 }
 
 void GameBoot_LoadScreen_StageString(void) {}
@@ -112,11 +112,11 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "~H\tThere_is_a_ ~C5 Resort_area_map ~C7 . ~N\n\tTake_it? ~S4 ",
-    "\tNothing_unusual. ~E ",
-    "\tUsed_the_ ~C2 Kaufmann_key ~C7 . ~E ",
-    "~J0(1.0)\tWhat? ~E ",
-    "~J0(2.5)\tThat_light!? ~E "
+    /* 15 */ "~H\tThere_is_a_ ~C5 Resort_area_map ~C7 . ~N\n\tTake_it? ~S4 ",
+    /* 16 */ "\tNothing_unusual. ~E ",
+    /* 17 */ "\tUsed_the_ ~C2 Kaufmann_key ~C7 . ~E ",
+    /* 18 */ "~J0(1.0)\tWhat? ~E ",
+    /* 19 */ "~J0(2.5)\tThat_light!? ~E "
 };
 
 void MapEvent_CommonItemTake(void) // 0x800EB9A4
@@ -169,7 +169,7 @@ void func_800EBA40(void) // 0x800EBA40
     {
         case 0:
             Player_ControlFreeze();
-            SysWork_StateStepIncrementAfterFade(0, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, true, 0, Q12(0.0f), false);
             D_800F0358 = 0;
             D_800F0354 = 0;
 
@@ -181,15 +181,15 @@ void func_800EBA40(void) // 0x800EBA40
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_800862F8(7, FILE_TIM_DORPANEL_TIM, false);
+            Event_BgTextureCmd(BgTextureCmd_Auto, FILE_TIM_DORPANEL_TIM, false);
             break;
 
         case 2:
-            SysWork_StateStepIncrementAfterFade(1, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Wait, true, 0, Q12(0.0f), false);
             break;
 
         case 3:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, Q12(0.0f), false);
             Screen_BackgroundImgDraw(&g_ItemInspectionImg);
             break;
 
@@ -205,13 +205,13 @@ void func_800EBA40(void) // 0x800EBA40
             Game_TimerUpdate();
             Gfx_CursorDraw((s16)(FP_FROM(D_800F0354, Q12_SHIFT) + 8), FP_FROM(D_800F0358, Q12_SHIFT) + 8, 8, 8, 0, 64, 32, 32, 128, 192, 0, 12);
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 SysWork_StateStepSet(0, 7);
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 for (i = 0; i < ARRAY_SIZE(D_800F0158); i++)
                 {
@@ -266,7 +266,7 @@ void func_800EBA40(void) // 0x800EBA40
             break;
 
         case 5:
-            SysWork_StateStepIncrementDelayed(Q12(0.6f), false);
+            Event_WaitTimer(Q12(0.6f), false);
             Screen_BackgroundImgDraw(&g_ItemInspectionImg);
             break;
 
@@ -276,22 +276,22 @@ void func_800EBA40(void) // 0x800EBA40
 
         case 7:
             Screen_BackgroundImgDraw(&g_ItemInspectionImg);
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
 
         default:
             // Return to gameplay.
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
             func_80037154();
             break;
     }
 }
 
-void MapEvent_MapTake(void) // 0x800EBF48
+void MapEvent_PaperMapTake(void) // 0x800EBF48
 {
-    Event_MapTake(4, EventFlag_M5S01_PickupMap, 15);
+    Event_PaperMapTake(4, EventFlag_M5S01_PickupMap, 15);
 }
 
 void func_800EBF70(void) // 0x800EBF70
@@ -314,9 +314,9 @@ void func_800EBF70(void) // 0x800EBF70
             Player_ControlFreeze();
             func_800CD818();
 
-            g_SysWork.field_30 = 20;
+            CutsceneBorder_ForceShow();
 
-            SysWork_StateStepIncrementAfterFade(0, true, 2, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, true, 2, 0, false);
 
             g_SysWork.playerWork.player.position.vx = Q12(52.0f);
             g_SysWork.playerWork.player.position.vz = Q12(-57.8f);
@@ -330,16 +330,16 @@ void func_800EBF70(void) // 0x800EBF70
             canLookAt.vy = Q12(-1.3f);
             canLookAt.vz = Q12(-57.9f);
 
-            Camera_PositionSet(&camPos, 0, 0, 0, 0, 0, 0, 0, true);
-            Camera_LookAtSet(&canLookAt, 0, 0, 0, 0, 0, 0, 0, true);
+            Event_CameraPositionSet(&camPos, 0, 0, 0, 0, 0, 0, 0, true);
+            Event_CameraLookAtSet(&canLookAt, 0, 0, 0, 0, 0, 0, 0, true);
             SysWork_StateStepIncrement(0);
 
         case 1:
-            SysWork_StateStepIncrementDelayed(Q12(1.0f), false);
+            Event_WaitTimer(Q12(1.0f), false);
             break;
 
         case 2:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, 0, false);
             break;
 
         case 3:
@@ -353,7 +353,7 @@ void func_800EBF70(void) // 0x800EBF70
 
         case 4:
             g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
-            SysWork_StateStepIncrementAfterFade(2, false, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, 0, false);
             break;
 
         case 5:
@@ -361,7 +361,7 @@ void func_800EBF70(void) // 0x800EBF70
             g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
             temp_v0 = func_800CD20C();
-            if (!(g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel))
+            if (!(g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 if (temp != temp_v0)
                 {
@@ -379,15 +379,15 @@ void func_800EBF70(void) // 0x800EBF70
             g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
             func_800CD20C();
-            SysWork_StateStepIncrementAfterFade(2, true, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, 0, false);
             break;
 
         case 7:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, 0, false);
 
         default:
             // Return to gameplay.
-            SysWork_StateStepIncrementAfterFade(0, false, 2, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 2, 0, false);
             vcReturnPreAutoCamWork(true);
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
@@ -398,14 +398,14 @@ void func_800EBF70(void) // 0x800EBF70
 
 void func_800EC2D8(void) // 0x800EC2D8
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ };
 
     Player_ItemRemove(InvItemId_KaufmannKey, 1);
-    Map_MessageWithSfx(17, Sfx_UseKey, &sfxPos); // "Used the Kaufmann key."
+    Event_DisplayMapMsgWithSfx(17, Sfx_UseKey, &sfxPos); // "Used the Kaufmann key."
     Savegame_EventFlagSet(EventFlag_M5S01_KaufmannKeyUsed);
 }
 
-#include "maps/shared/SysWork_StateStepIncrementAfterTime.h" // 0x800EC394
+#include "maps/shared/Event_CutsceneTimerAdvance.h" // 0x800EC394
 
 void func_800EC42C(void) // 0x800EC42C
 {
@@ -465,7 +465,7 @@ void func_800EC42C(void) // 0x800EC42C
             SysWork_StateStepIncrement(0);
 
         case 1:
-            func_80085DF0();
+            Event_WaitPlayerStop();
             break;
 
         case 2:
@@ -478,7 +478,7 @@ void func_800EC42C(void) // 0x800EC42C
         case 3:
             g_Cutscene_Timer = 0;
 
-            SysWork_StateStepIncrementAfterFade(0, true, 3, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, true, 3, 0, false);
             Dms_HeaderFixOffsets((s_DmsHeader* )FS_BUFFER_13);
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
@@ -489,28 +489,28 @@ void func_800EC42C(void) // 0x800EC42C
             SysWork_StateStepIncrement(0);
 
         case 4:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, 0, false);
             break;
 
         case 5:
-            Map_MessageWithAudio(18, &D_800F035C, &D_800F0174);
+            Event_DisplayMapMsgWithAudio(18, &D_800F035C, &D_800F0174);
             break;
 
         case 6:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(40.0f), Q12(0.0f), Q12(30.0f), true, true);
     block_18:
             sharedFunc_800CE5D4_1_s03(&D_800F0180, Q12(0.5f), Q12(0.05f), 0);
             break;
 
         case 7:
-            MapMsg_DisplayAndHandleSelection(false, 19, 0, 0, 0, false);
+            Event_DisplayMapMsg(false, 19, 0, 0, 0, false);
             sharedFunc_800CE5D4_1_s03(&D_800F0180, Q12(0.5f), Q12(0.05f), 0);
             break;
 
         case 8:
-            func_80080B58(&g_SysWork.playerBoneCoords[HarryBone_Head], &(SVECTOR3){ 0, 0, 0 }, &QVECTOR3(-196.53f, -14.25f, -9.73f));
+            func_80080B58(&g_SysWork.playerBoneCoords[HarryBone_Head], &SVECTOR3_Zero, &QVECTOR3(-196.53f, -14.25f, -9.73f));
             sharedFunc_800CE5D4_1_s03(&D_800F0180, Q12(1.0f), Q12(0.1f), 1);
-            SysWork_StateStepIncrementDelayed(Q12(2.5f), false);
+            Event_WaitTimer(Q12(2.5f), false);
             break;
 
         case 9:
@@ -638,18 +638,18 @@ void func_800EC42C(void) // 0x800EC42C
             break;
 
         case 10:
-            SysWork_StateStepIncrementDelayed(Q12(2.5f), false);
+            Event_WaitTimer(Q12(2.5f), false);
             break;
 
         default:
             // Return to gameplay.
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
-            SysWork_StateStepIncrementAfterFade(0, false, 2, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 2, 0, false);
 
             vcReturnPreAutoCamWork(true);
             Savegame_EventFlagSet(EventFlag_458);
-            func_80086470(3, InvItemId_ChannelingStone, 1, false);
+            Event_InvItemCmd(InvItemCmd_AddItem, InvItemId_ChannelingStone, 1, false);
             func_8003D01C();
             sharedFunc_800D2EF4_0_s00();
 
@@ -677,15 +677,14 @@ void func_800EC42C(void) // 0x800EC42C
 
 void Map_WorldObjectsInit(void) // 0x800ECB58
 {
-    WorldObjectNoRotInit(&g_WorldObject0, "RSRMAP_H", -46.5f, 0.0f, 2.5f);
+    WorldObject_PlacementInit(&g_WorldObject0, "RSRMAP_H", -46.5f, 0.0f, 2.5f);
+    WorldObject_Init(&g_WorldObject1, "FOOK_HID", 52.15f, -1.359f, -57.925f, 0.0f, 0.0f, 5.8f);
 
-    WorldObjectInit(&g_WorldObject1, "FOOK_HID", 52.15f, -1.359f, -57.925f, 0.0f, 0.0f, 5.8f);
-
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Easy)
     {
         g_SysWork.npcFlagsId = 3;
     }
-    else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
+    else if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
     {
         g_SysWork.npcFlagsId = 4;
     }
@@ -711,7 +710,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
             if (!Savegame_EventFlagGet(EventFlag_M5S01_PickupMap))
             {
-                WorldGfx_ObjectAdd(&g_WorldObject0.object_0, &g_WorldObject0.position_1C, &(SVECTOR3){ 0, 0, 0 });
+                WorldGfx_ObjectAdd(&g_WorldObject0.object, &g_WorldObject0.position, &SVECTOR3_Zero);
             }
     }
 
@@ -719,7 +718,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
             if (!Savegame_EventFlagGet(EventFlag_371))
             {
-                WorldGfx_ObjectAdd(&g_WorldObject1.object_0, &g_WorldObject1.position_1C, &g_WorldObject1.rotation_28);
+                WorldGfx_ObjectAdd(&g_WorldObject1.object, &g_WorldObject1.position, &g_WorldObject1.rotation);
             }
     }
 
@@ -727,7 +726,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_RifleShells0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation);
         }
     }
 
@@ -735,7 +734,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_HandgunBullets))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation);
         }
     }
 
@@ -743,7 +742,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_FirstAidKit))
         {
-            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(g_CommonWorldObjects, &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation);
         }
     }
 
@@ -751,7 +750,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_HealthDrink))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation);
         }
     }
 
@@ -759,7 +758,7 @@ void Map_WorldObjectsUpdate(void) // 0x800ECC8C
     {
         if (!Savegame_EventFlagGet(EventFlag_M5S01_RifleShells1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[4], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation);
         }
     }
 }

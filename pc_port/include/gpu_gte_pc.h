@@ -148,9 +148,9 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
 #undef gte_ldvxy0
 #define gte_ldvxy0(val) MTC2(val, 0)
 
-/* gte_gte_ldvz0 - Load VZ0 register (note: original has double gte_) */
-#undef gte_gte_ldvz0
-#define gte_gte_ldvz0() MTC2(0, 1)
+/* gte_ldvz0 - Sets the GTE vz0 register to 0 (upstream renamed from gte_gte_ldvz0). */
+#undef gte_ldvz0
+#define gte_ldvz0() MTC2(0, 1)
 
 /* gte_stSZ3 - Read SZ3 register */
 #undef gte_stSZ3

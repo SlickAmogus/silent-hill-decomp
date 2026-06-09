@@ -14,7 +14,7 @@
 #include "sh_log.h"
 #endif
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
 #include "screens/stream/stream.h"
@@ -47,45 +47,6 @@ static s_MapEffectsPresetIdxs D_800A9FA4 = { 5, 5  };
 // - It is inside a unique split
 // - It is part of this split
 // 0x80036c48 is the memory address for this function in the Jan 16 Demo.
-
-void Options_BrightnessMenu_LinesDraw(s32 arg0) // 0x8003E5E8
-{
-    s32       i;
-    u8        color;
-    GsOT_TAG* ot;
-    PACKET*   packet;
-    LINE_G2*  line;
-
-    packet = GsOUT_PACKET_P;
-    ot     = &g_OrderingTable0[g_ActiveBufferIdx].org[1];
-
-    for (i = -10; i < 11; i++)
-    {
-        line = (LINE_G2*)packet;
-        setLineG2(line);
-
-        line->x1 = ((g_GameWork.gsScreenWidth - 64) / 20) * i;
-        line->x0 = line->x1;
-
-        line->y0 = -16;
-        line->y1 = (g_GameWork.gsScreenHeight / 2) - 45;
-
-        color = (arg0 * 8) + 4;
-
-        line->b1 = color;
-        line->g1 = color;
-        line->r1 = color;
-
-        line->b0 = color;
-        line->g0 = color;
-        line->r0 = color;
-
-        AddPrim(ot, line);
-        packet += sizeof(LINE_G2);
-    }
-
-    GsOUT_PACKET_P = packet;
-}
 
 // ========================================
 // EFFECTS (FOG AND LIGHT)
@@ -232,33 +193,33 @@ void func_8003E740(void) // 0x8003E740
 
 void Game_SpotlightLoadScreenAttribsFix(void) // 0x8003EB54
 {
-    g_SysWork.pointLightIntensity = Q12(1.0f);
+    g_SysWork.lightIntensity = Q12(1.0f);
 
-    g_SysWork.field_235C = &g_SysWork.playerBoneCoords[HarryBone_Root];
-    g_SysWork.field_236C = &g_SysWork.playerBoneCoords[HarryBone_Root];
+    g_SysWork.lightBoneCoord = &g_SysWork.playerBoneCoords[HarryBone_Root];
+    g_SysWork.lensFlareBoneCoord = &g_SysWork.playerBoneCoords[HarryBone_Root];
 
-    Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(0.0f), Q12(-0.2f), Q12(-2.0f));
-    Math_SVectorSet(&g_SysWork.pointLightRotation, Q12_ANGLE(10.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+    Math_Vector3Set(&g_SysWork.lightPosition, Q12(0.0f), Q12(-0.2f), Q12(-2.0f));
+    Math_SVectorSet(&g_SysWork.lightRotation, Q12_ANGLE(10.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
 }
 
 void Game_FlashlightAttributesFix(void) // 0x8003EBA0
 {
-    g_SysWork.pointLightIntensity = Q12(1.0f);
+    g_SysWork.lightIntensity = Q12(1.0f);
 
-    g_SysWork.field_235C = &g_SysWork.playerBoneCoords[HarryBone_Torso];
-    g_SysWork.field_236C = &g_SysWork.playerBoneCoords[HarryBone_Root];
+    g_SysWork.lightBoneCoord = &g_SysWork.playerBoneCoords[HarryBone_Torso];
+    g_SysWork.lensFlareBoneCoord = &g_SysWork.playerBoneCoords[HarryBone_Root];
 
-    Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(-0.08f), Q12(-0.28f), Q12(0.12f));
-    Math_SVectorSet(&g_SysWork.pointLightRotation, Q12_ANGLE(-15.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+    Math_Vector3Set(&g_SysWork.lightPosition, Q12(-0.08f), Q12(-0.28f), Q12(0.12f));
+    Math_SVectorSet(&g_SysWork.lightRotation, Q12_ANGLE(-15.0f), Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
 }
 
-void Gfx_MapEffectsAssign(s_MapOverlayHeader* mapHdr) // 0x8003EBF4
+void Gfx_MapEffectsAssign(s_MapOverlayHdr* mapHdr) // 0x8003EBF4
 {
     bool                    hasActiveChunk;
     u8                      flags;
     s_MapEffectsPresetIdxs* presetIdxPtr;
 
-    flags          = mapHdr->mapInfo->flags_6;
+    flags          = mapHdr->mapInfo->flags;
     hasActiveChunk = false;
     if (flags & MapFlag_Interior)
     {
@@ -304,13 +265,13 @@ void Gfx_MapEffectsAssign(s_MapOverlayHeader* mapHdr) // 0x8003EBF4
 void Game_TurnFlashlightOn(void) // 0x8003ECBC
 {
     g_SysWork.field_2388.isFlashlightOn_15 = true;
-    g_SavegamePtr->itemToggleFlags_AC     &= ~ItemToggleFlag_FlashlightOff;
+    g_SavegamePtr->itemToggleFlags     &= ~ItemToggleFlag_FlashlightOff;
 }
 
 void Game_TurnFlashlightOff(void) // 0x8003ECE4
 {
     g_SysWork.field_2388.isFlashlightOn_15 = false;
-    g_SavegamePtr->itemToggleFlags_AC     |= ItemToggleFlag_FlashlightOff;
+    g_SavegamePtr->itemToggleFlags     |= ItemToggleFlag_FlashlightOff;
 }
 
 void Game_FlashlightToggle(void) // 0x8003ED08
@@ -319,11 +280,11 @@ void Game_FlashlightToggle(void) // 0x8003ED08
     g_SysWork.field_2388.isFlashlightOn_15 ^= true;
     if (g_SysWork.field_2388.isFlashlightOn_15 == true)
     {
-        g_SavegamePtr->itemToggleFlags_AC &= ~ItemToggleFlag_FlashlightOff;
+        g_SavegamePtr->itemToggleFlags &= ~ItemToggleFlag_FlashlightOff;
     }
     else
     {
-        g_SavegamePtr->itemToggleFlags_AC |= ItemToggleFlag_FlashlightOff;
+        g_SavegamePtr->itemToggleFlags |= ItemToggleFlag_FlashlightOff;
     }
 }
 
@@ -401,11 +362,11 @@ void Gfx_FogParametersSet(s_StructUnk3* arg0, const s_MapEffectsInfo* effectsInf
 
     if (effectsInfo->field_0.s_field_0.field_0 & (1 << 2))
     {
-        arg0->field_2E = Q12(1.0f);
+        arg0->brightnessIntensity_2E = Q12(1.0f);
     }
     else
     {
-        arg0->field_2E = Q12(0.0f);
+        arg0->brightnessIntensity_2E = Q12(0.0f);
     }
 
     if (effectsInfo->field_0.s_field_0.field_0 & (1 << 4))
@@ -421,15 +382,15 @@ void Gfx_FogParametersSet(s_StructUnk3* arg0, const s_MapEffectsInfo* effectsInf
     {
         case 0:
         case 1:
-            arg0->field_30 = effectsInfo->fogDistance_10;
+            arg0->fogDistance_30 = effectsInfo->fogDistance_10;
             break;
 
         case 2:
-            arg0->field_30 = Q12(0.0f);
+            arg0->fogDistance_30 = Q12(0.0f);
             break;
 
         case 3:
-            arg0->field_30 = effectsInfo->fogDistance_10;
+            arg0->fogDistance_30 = effectsInfo->fogDistance_10;
             break;
     }
 }
@@ -450,20 +411,20 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
 
     if (g_SysWork.field_2388.isFlashlightOn_15)
     {
-        g_SysWork.field_2388.flashlightIntensity_18 += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 4.0f);
+        g_SysWork.field_2388.flashlightIntensity += Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 4.0f);
     }
     else
     {
-        g_SysWork.field_2388.flashlightIntensity_18 -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 4.0f);
+        g_SysWork.field_2388.flashlightIntensity -= Q12_MULT_FLOAT_PRECISE(g_DeltaTime, 4.0f);
     }
 
-    g_SysWork.field_2388.flashlightIntensity_18 = CLAMP(g_SysWork.field_2388.flashlightIntensity_18, Q12(0.0f), Q12(1.0f));
+    g_SysWork.field_2388.flashlightIntensity = CLAMP(g_SysWork.field_2388.flashlightIntensity, Q12(0.0f), Q12(1.0f));
 
-    if (g_SysWork.field_2388.field_84[g_SysWork.field_2388.flashlightIntensity_18 != 0].effectsInfo_0.field_E == 3)
+    if (g_SysWork.field_2388.field_84[g_SysWork.field_2388.flashlightIntensity != 0].effectsInfo_0.field_E == 3)
     {
-        Vw_CoordToViewSpaceMatrix(g_SysWork.field_235C, &mat);
-        ApplyMatrixLV(&mat, (VECTOR*)&g_SysWork.pointLightPosition, &sp48); // Bug? `g_SysWork.pointLightPosition` is `VECTOR3`.
-        ptr->field_84[g_SysWork.field_2388.flashlightIntensity_18 != 0].field_30 = sp48.vz + (mat.t[2] * 16);
+        Vw_CoordToViewSpaceMatrix(g_SysWork.lightBoneCoord, &mat);
+        ApplyMatrixLV(&mat, (VECTOR*)&g_SysWork.lightPosition, &sp48); // Bug? `g_SysWork.lightPosition` is `VECTOR3`.
+        ptr->field_84[g_SysWork.field_2388.flashlightIntensity != 0].fogDistance_30 = sp48.vz + (mat.t[2] * 16);
     }
 
     if (ptr->primType_0 == PrimitiveType_None)
@@ -484,7 +445,7 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
         }
     }
 
-    func_8003F838(&ptr->field_154, &ptr->field_1C[0], &ptr->field_1C[1], ptr->flashlightIntensity_18);
+    func_8003F838(&ptr->field_154, &ptr->field_1C[0], &ptr->field_1C[1], ptr->flashlightIntensity);
 
     ptr2 = &ptr->field_154;
 
@@ -506,16 +467,16 @@ void Gfx_FlashlightUpdate(void) // 0x8003F170
     ptr->field_10 = func_8003FEC0(&ptr2->effectsInfo_0);
     func_8003FF2C(ptr2);
 
-    temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, func_80080A10(), &g_SysWork), g_SysWork.pointLightIntensity);
+    temp = Q12_MULT(func_8003F4DC(&coord, &rot, ptr2->effectsInfo_0.field_4, ptr2->effectsInfo_0.field_0.s_field_0.field_2, Vc_LensFlareTypeGet(), &g_SysWork), g_SysWork.lightIntensity);
 
-    func_800554C4(temp, ptr2->flashlightLensFlareIntensity_2C, coord, g_SysWork.field_235C, &rot,
-                  g_SysWork.pointLightPosition.vx, g_SysWork.pointLightPosition.vy, g_SysWork.pointLightPosition.vz,
+    func_800554C4(temp, ptr2->flashlightLensFlareIntensity_2C, coord, g_SysWork.lightBoneCoord, &rot,
+                  g_SysWork.lightPosition.vx, g_SysWork.lightPosition.vy, g_SysWork.lightPosition.vz,
 #ifdef SH_PC_PORT
-                  g_WorldGfxWork.mapInfo ? g_WorldGfxWork.mapInfo->waterZones_8 : NULL);
+                  g_WorldGfxWork.mapInfo ? g_WorldGfxWork.mapInfo->waterZones : NULL);
 #else
-                  g_WorldGfxWork.mapInfo->waterZones_8);
+                  g_WorldGfxWork.mapInfo->waterZones);
 #endif
-    func_80055814(ptr2->field_30);
+    func_80055814(ptr2->fogDistance_30);
 
     if (ptr->field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 3))
     {
@@ -544,7 +505,7 @@ q19_12 func_8003F4DC(GsCOORDINATE2** coords, SVECTOR* rot, q19_12 alpha, s32 arg
     {
         default:
         case 1:
-            *coords = sysWork->field_236C;
+            *coords = sysWork->lensFlareBoneCoord;
             break;
 
         case 0:
@@ -560,7 +521,7 @@ q19_12 func_8003F4DC(GsCOORDINATE2** coords, SVECTOR* rot, q19_12 alpha, s32 arg
     {
         default:
         case 1:
-            rot0 = sysWork->pointLightRotation;
+            rot0 = sysWork->lightRotation;
             break;
 
         case 0:
@@ -841,16 +802,16 @@ void func_8003FCB0(const s_MapEffectsInfo* arg0, const s_MapEffectsInfo* arg1, c
 
 void func_8003FD38(s_StructUnk3* arg0, s_StructUnk3* arg1, s_StructUnk3* arg2, q19_12 weight0, q19_12 weight1, q19_12 alphaTo) // 0x8003FD38
 {
-    if (arg1->field_2E != arg2->field_2E)
+    if (arg1->brightnessIntensity_2E != arg2->brightnessIntensity_2E)
     {
-        arg0->field_2E = Math_WeightedAverageGet(arg1->field_2E, arg2->field_2E, weight0);
+        arg0->brightnessIntensity_2E = Math_WeightedAverageGet(arg1->brightnessIntensity_2E, arg2->brightnessIntensity_2E, weight0);
     }
     else
     {
-        arg0->field_2E = arg2->field_2E;
+        arg0->brightnessIntensity_2E = arg2->brightnessIntensity_2E;
     }
 
-    arg0->field_30               = Math_WeightedAverageGet(arg1->field_30, arg2->field_30, weight0);
+    arg0->fogDistance_30               = Math_WeightedAverageGet(arg1->fogDistance_30, arg2->fogDistance_30, weight0);
     arg0->effectsInfo_0.fogDistance_10 = Math_WeightedAverageGet(arg1->effectsInfo_0.fogDistance_10, arg2->effectsInfo_0.fogDistance_10, weight1);
     arg0->effectsInfo_0.field_6        = Math_WeightedAverageGet(arg1->effectsInfo_0.field_6, arg2->effectsInfo_0.field_6, weight0);
 
@@ -894,7 +855,7 @@ s32 func_8003FEC0(const s_MapEffectsInfo* arg0) // 0x8003FEC0
         Q12(15.0f)
     };
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
         return arg0->fogDistance_10;
     }
@@ -913,7 +874,7 @@ void func_8003FF2C(s_StructUnk3* arg0) // 0x8003FF2C
     s32   temp_v1;
     q23_8 brightness;
 
-    temp_v1    = Q12_MULT(arg0->field_2E, (g_GameWork.config.optBrightness_22 * 8) + 4);
+    temp_v1    = Q12_MULT(arg0->brightnessIntensity_2E, (g_GameWork.config.brightness * 8) + 4);
     brightness = CLAMP(temp_v1, Q8_CLAMPED(0.0f), Q8_CLAMPED(1.0f));
 
     func_80055330(arg0->effectsInfo_0.field_0.s_field_0.field_2, arg0->effectsInfo_0.field_6, arg0->effectsInfo_0.field_0.s_field_0.field_1, arg0->effectsInfo_0.worldTintR_8, arg0->effectsInfo_0.worldTintG_A, arg0->effectsInfo_0.worldTintB_C, brightness);

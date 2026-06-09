@@ -1,7 +1,7 @@
 /* Chara_LarvalStalker collision-keyframe data, extracted from MAP1_S00.BIN at the PSX VRAM
  * addresses in sym.map1_s00.txt (overlay base 0x800C9578).
  * Replaces the zero-stubs in pc_port data_stubs.c that gave func_80070400
- * all-zero field_C8/radius (no melee hit window, no push collision).
+ * all-zero collision/radius (no melee hit window, no push collision).
  * s_Keyframe is 20 bytes on PSX and PC. Included at the bottom of larval_stalker.c.
  */
 

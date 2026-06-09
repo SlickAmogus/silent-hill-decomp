@@ -8,7 +8,7 @@
 
 // Keyframe indexes used for each state
 // Maps can override these by defining the keyframe beforehand, only indexes that change in certain maps are included here.
-// (most likely whatever tool they used to create the `g_MapOverlayHeader.harryMapAnimInfos_34` data also output a header defining these for each map)
+// (most likely whatever tool they used to create the `g_MapOverlayHdr.harryMapAnimInfos` data also output a header defining these for each map)
 #ifndef KEYFRAME_PlayerState_Unk59
 #define KEYFRAME_PlayerState_Unk59 927
 #endif
@@ -81,7 +81,7 @@
 // Very similar to `func_80071968_Switch1`
 static inline void sharedFunc_800CDAA8_0_s02_Switch(void)
 {
-    if (g_SysWork.playerWork.extra.state == PlayerState_Unk52)
+    if (g_SysWork.playerWork.extra.state == PlayerState_Unk152)
     {
         func_8003D01C();
         switch (g_SysWork.playerCombat.weaponAttack)
@@ -131,7 +131,7 @@ static inline void sharedFunc_800CDAA8_0_s02_Switch(void)
 // Slight change in PlayerState_Unk55 version
 static inline void sharedFunc_800CDAA8_0_s02_Switch_Unk85(s_PlayerExtra* extra)
 {
-    if (g_SysWork.playerWork.extra.state == PlayerState_Unk52)
+    if (g_SysWork.playerWork.extra.state == PlayerState_Unk152)
     {
         func_8003D01C();
 
@@ -189,7 +189,7 @@ static inline void sharedFunc_800CDAA8_0_s02_Switch_Unk85(s_PlayerExtra* extra)
 
 void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra, GsCOORDINATE2* coord)
 {
-    s_Collision coll;
+    s_CollisionSurface coll;
     e_SfxId     sfx;
     s8          pitch0;
     s8          pitch1;
@@ -205,28 +205,28 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     sharedData_800E39D8_0_s00 = 0;
 
     playerChara->properties.player.field_10C                            >>= 1;
-    g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer_114 = 0;
+    g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer = 0;
 
     func_8004C564(0, -1);
 
-    playerChara->properties.player.afkTimer_E8        = Q12(0.0f);
-    playerChara->properties.player.exhaustionTimer_FC = Q12(0.0f);
+    playerChara->properties.player.afkTimer        = Q12(0.0f);
+    playerChara->properties.player.exhaustionTimer = Q12(0.0f);
 
     switch (g_SysWork.playerWork.extra.state)
     {
 #ifdef HAS_PlayerState_Unk51
         case PlayerState_Unk51:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                 }
             }
 
             sharedData_800E39D8_0_s00 = 0;
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
 
             func_8007FC48(playerChara, extra, 400);
 
@@ -238,37 +238,37 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk131
         case PlayerState_Unk131:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                 }
             }
 
             sharedData_800E39D8_0_s00 = 0;
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
             func_8007FB94(playerChara, extra, 400);
 
             if (extra->model.controlState == 0)
@@ -279,37 +279,37 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk52
         case PlayerState_Unk52:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                 }
             }
 
             sharedData_800E39D8_0_s00 = 0;
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_Idle, false);
             Model_AnimStatusSet(&playerChara->model, HarryAnim_Idle, false);
@@ -322,47 +322,47 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             switch (D_800C457C)
             {
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk53
         case PlayerState_Unk53:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 > Q12(1.4f))
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed > Q12(1.4f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(1.4f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(1.4f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(1.4f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(1.4f);
                 }
             }
-            else if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(1.4f))
+            else if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(1.4f))
             {
                 if (playerChara->model.anim.keyframeIdx >= 2)
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    g_SysWork.playerWork.player.properties.player.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                 }
 
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 = CLAMP(g_SysWork.playerWork.player.properties.player.moveDistance_126,
+                g_SysWork.playerWork.player.properties.player.moveSpeed = CLAMP(g_SysWork.playerWork.player.properties.player.moveSpeed,
                                                                                                 Q12(0.0f),
                                                                                                 Q12(1.4f));
             }
 
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_WalkForward, false);
             Model_AnimStatusSet(&playerChara->model, HarryAnim_WalkForward, false);
@@ -379,42 +379,42 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(0.0f);
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk54
         case PlayerState_Unk54:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 > Q12(4.0f))
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed > Q12(4.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(4.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(4.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(4.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(4.0f);
                 }
             }
-            else if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(4.0f))
+            else if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(4.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 =
-                    CLAMP(g_SysWork.playerWork.player.properties.player.moveDistance_126, Q12(0.0f), Q12(4.0f));
+                g_SysWork.playerWork.player.properties.player.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
+                g_SysWork.playerWork.player.properties.player.moveSpeed =
+                    CLAMP(g_SysWork.playerWork.player.properties.player.moveSpeed, Q12(0.0f), Q12(4.0f));
             }
 
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_RunForward, false);
             Model_AnimStatusSet(&playerChara->model, HarryAnim_RunForward, false);
@@ -431,27 +431,27 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = 0;
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = 0;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk55
         case PlayerState_Unk55:
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_WalkBackward, false);
             Model_AnimStatusSet(&playerChara->model, HarryAnim_WalkBackward, false);
@@ -463,26 +463,26 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = Q12_ANGLE(180.0f);
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(180.0f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk56
-        case PlayerState_Unk56:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+        case PlayerState_Unk156:
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                 }
             }
 
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
             sharedData_800E39D8_0_s00 = g_DeltaTime * 7;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_TurnRight, false);
@@ -504,34 +504,34 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 4:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk57);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk157);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = 0;
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = 0;
 
             g_Player_FlexRotationY = Q12_ANGLE(-28.2f);
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk57
-        case PlayerState_Unk57:
-            if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+        case PlayerState_Unk157:
+            if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
             {
-                g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                 }
             }
 
-            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = g_SysWork.playerWork.player.properties.player.moveSpeed;
             sharedData_800E39D8_0_s00 = g_DeltaTime * -7;
 
             Model_AnimStatusSet(&extra->model, HarryAnim_TurnLeft, false);
@@ -553,17 +553,17 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                     break;
 
                 case 3:
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk56);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk156);
                     break;
             }
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
-            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle_124 = 0;
+            headingAngle = g_SysWork.playerWork.player.properties.player.headingAngle = 0;
 
             g_Player_FlexRotationY = Q12_ANGLE(28.2f);
             break;
@@ -576,7 +576,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -589,7 +589,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -601,7 +601,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -615,7 +615,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 #ifdef MAP0_S01
@@ -630,7 +630,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -642,7 +642,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -654,7 +654,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -666,7 +666,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -678,9 +678,9 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
         case PlayerState_Unk84:
             keyframeIdxMax = 983; // TODO: Should probably be `keyframeIdx` instead like other cases, but doesn't match with that?
             func_8007FB94(playerChara, extra, 0x164);
-            g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+            g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
 
-            if (sharedFunc_800D2DAC_0_s00() == 1 && g_SysWork.enablePlayerMatchAnim == false)
+            if (Player_AnimPlaybackStateGet() == 1 && g_SysWork.enablePlayerMatchAnim == false)
             {
                 g_SysWork.enablePlayerMatchAnim = true;
                 func_8005DC1C(Sfx_Unk1356, &playerChara->position, Q8(0.5f), 0);
@@ -705,7 +705,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -717,7 +717,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -732,7 +732,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -747,7 +747,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -761,7 +761,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -775,7 +775,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -803,7 +803,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             keyframeIdx = 1062;
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -816,7 +816,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -833,7 +833,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -847,7 +847,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -862,7 +862,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             keyframeIdx = KEYFRAME_PlayerState_Unk69;
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -876,7 +876,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -889,42 +889,42 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             {
                 if (playerChara->model.anim.keyframeIdx <= (keyframeIdx + 24))
                 {
-                    if (g_SysWork.playerWork.player.properties.player.moveDistance_126 > Q12(0.2875f))
+                    if (g_SysWork.playerWork.player.properties.player.moveSpeed > Q12(0.2875f))
                     {
-                        g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                        if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.2875f))
+                        g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                        if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.2875f))
                         {
-                            g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.2875f);
+                            g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.2875f);
                         }
                     }
-                    else if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.2875f))
+                    else if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.2875f))
                     {
                         if (playerChara->model.anim.keyframeIdx > 998)
                         {
-                            g_SysWork.playerWork.player.properties.player.moveDistance_126 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                            g_SysWork.playerWork.player.properties.player.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                         }
-                        g_SysWork.playerWork.player.properties.player.moveDistance_126 = CLAMP(g_SysWork.playerWork.player.properties.player.moveDistance_126,
+                        g_SysWork.playerWork.player.properties.player.moveSpeed = CLAMP(g_SysWork.playerWork.player.properties.player.moveSpeed,
                                                                                                         Q12(0.0f),
                                                                                                         Q12(0.2875f));
                     }
                 }
-                else if (g_SysWork.playerWork.player.properties.player.moveDistance_126 != Q12(0.0f))
+                else if (g_SysWork.playerWork.player.properties.player.moveSpeed != Q12(0.0f))
                 {
-                    g_SysWork.playerWork.player.properties.player.moveDistance_126 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
-                    if (g_SysWork.playerWork.player.properties.player.moveDistance_126 < Q12(0.0f))
+                    g_SysWork.playerWork.player.properties.player.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) * 2;
+                    if (g_SysWork.playerWork.player.properties.player.moveSpeed < Q12(0.0f))
                     {
-                        g_SysWork.playerWork.player.properties.player.moveDistance_126 = Q12(0.0f);
+                        g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
                     }
                 }
             }
 
-            sharedData_800D32A0_0_s02 = (s32)g_SysWork.playerWork.player.properties.player.moveDistance_126;
+            sharedData_800D32A0_0_s02 = (s32)g_SysWork.playerWork.player.properties.player.moveSpeed;
             func_8007FC48(playerChara, extra, 0x168);
             headingAngle = Q12_ANGLE(180.0f);
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -936,7 +936,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -948,7 +948,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -962,7 +962,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -976,7 +976,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -989,7 +989,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1002,7 +1002,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1014,7 +1014,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1027,7 +1027,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1039,7 +1039,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1052,7 +1052,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1065,7 +1065,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1082,7 +1082,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1095,7 +1095,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1107,7 +1107,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1120,7 +1120,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1133,7 +1133,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1146,7 +1146,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1158,7 +1158,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1171,7 +1171,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1193,7 +1193,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1205,7 +1205,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1218,7 +1218,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1230,7 +1230,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1245,7 +1245,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1257,7 +1257,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1270,7 +1270,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1282,7 +1282,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1295,7 +1295,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1308,7 +1308,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1321,7 +1321,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1334,7 +1334,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1346,7 +1346,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1358,7 +1358,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1371,7 +1371,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1383,7 +1383,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1392,12 +1392,12 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             if (playerChara->model.anim.status & 1 << 0)
             {
                 s_SubCharacter* new_var; // @hack Permuter find, maybe an inline here?
-                extra->model.anim.time       = Q12(g_MapOverlayHeader.harryMapAnimInfos_34[playerChara->model.anim.status - 76].startKeyframeIdx) + (new_var = g_SysWork.npcs)[0].model.anim.time - Q12(261.0f);
-                playerChara->model.anim.time = Q12(g_MapOverlayHeader.harryMapAnimInfos_34[playerChara->model.anim.status - 76].startKeyframeIdx) + new_var[0].model.anim.time - Q12(261.0f);
+                extra->model.anim.time       = Q12(g_MapOverlayHdr.harryMapAnimInfos[playerChara->model.anim.status - 76].startKeyframeIdx) + (new_var = g_SysWork.npcs)[0].model.anim.time - Q12(261.0f);
+                playerChara->model.anim.time = Q12(g_MapOverlayHdr.harryMapAnimInfos[playerChara->model.anim.status - 76].startKeyframeIdx) + new_var[0].model.anim.time - Q12(261.0f);
 
                 if (D_800C4606)
                 {
-                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                    Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                     D_800C4606 = 0;
                 }
 
@@ -1413,7 +1413,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1427,7 +1427,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1441,7 +1441,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1456,7 +1456,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1470,7 +1470,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1485,7 +1485,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1498,7 +1498,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1513,7 +1513,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1527,7 +1527,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1541,7 +1541,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             func_8007FC48(playerChara, extra, 0x1A3);
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1555,7 +1555,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1570,7 +1570,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1585,7 +1585,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1597,7 +1597,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1612,7 +1612,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1625,7 +1625,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1640,24 +1640,24 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             if (playerChara->model.anim.keyframeIdx == (keyframeIdx + 11) ||
                 playerChara->model.anim.keyframeIdx == (keyframeIdx + 7))
             {
-                if (!(g_SysWork.playerWork.player.properties.player.flags_11C & PlayerFlag_Unk6))
+                if (!(g_SysWork.playerWork.player.properties.player.flags & PlayerFlag_Unk6))
                 {
                     func_8005F6B0(&g_SysWork.npcs[1], &(VECTOR3){ Q12(14.94f), Q12(-0.05f), Q12(102.0f) }, 3, 3);
-                    g_SysWork.playerWork.player.properties.player.flags_11C |= PlayerFlag_Unk6;
+                    g_SysWork.playerWork.player.properties.player.flags |= PlayerFlag_Unk6;
                 }
             }
 
             if (playerChara->model.anim.keyframeIdx == (keyframeIdx + 8) ||
                 playerChara->model.anim.keyframeIdx == (keyframeIdx + 19))
             {
-                g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Unk6;
+                g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Unk6;
             }
 
             func_8007FB94(playerChara, extra, 0x1AA);
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1669,7 +1669,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1684,7 +1684,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1707,7 +1707,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1720,7 +1720,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1735,7 +1735,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1750,7 +1750,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1765,7 +1765,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1780,7 +1780,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1793,7 +1793,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1806,7 +1806,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1834,7 +1834,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1846,7 +1846,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1860,7 +1860,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1872,7 +1872,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1884,25 +1884,25 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (playerChara->model.anim.keyframeIdx == keyframeIdx + 5)
             {
-                if (!(g_SysWork.playerWork.player.properties.player.flags_11C & PlayerFlag_Unk6))
+                if (!(g_SysWork.playerWork.player.properties.player.flags & PlayerFlag_Unk6))
                 {
                     // TODO: `0x340` is `Q12_ANGLE(73.2f)`?
                     func_8006342C(EquippedWeaponId_Handgun, 0x340, playerChara->rotation.vy, coord);
                     func_8005F6B0(&g_SysWork.npcs[1], &(VECTOR3){ Q12(140.39f), Q12(-0.55f), Q12(22.76f) }, 3, 3);
-                    g_SysWork.playerWork.player.properties.player.flags_11C |= PlayerFlag_Unk6;
+                    g_SysWork.playerWork.player.properties.player.flags |= PlayerFlag_Unk6;
                 }
             }
 
             if (playerChara->model.anim.keyframeIdx == (keyframeIdx + 22))
             {
-                g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Unk6;
+                g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Unk6;
             }
 
             func_8007FC48(playerChara, extra, 0x1B8); // TODO: Demagic
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1914,7 +1914,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1926,7 +1926,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1940,7 +1940,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1953,7 +1953,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -1967,7 +1967,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1980,7 +1980,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -1993,7 +1993,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2006,7 +2006,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2019,7 +2019,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2031,7 +2031,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2043,7 +2043,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2057,7 +2057,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2070,7 +2070,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2083,7 +2083,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2096,7 +2096,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2119,7 +2119,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2132,7 +2132,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2145,7 +2145,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2157,7 +2157,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2170,7 +2170,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2183,7 +2183,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
             break;
@@ -2195,7 +2195,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -2218,7 +2218,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
             if (D_800C4606)
             {
-                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk52);
+                Player_ExtraStateSet(playerChara, extra, PlayerState_Unk152);
                 D_800C4606 = 0;
             }
 
@@ -2227,8 +2227,8 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #endif
     }
 
-    Collision_Get(&coll, playerChara->position.vx, playerChara->position.vz);
-    func_8007FDE0(coll.field_8, &sfx, &pitch0, &pitch1);
+    Collision_SurfaceGet(&coll, playerChara->position.vx, playerChara->position.vz);
+    Player_FootstepSfxGet(coll.groundType, &sfx, &pitch0, &pitch1);
 #ifdef SH_PC_PORT
     SH_DBG("[B8] post-coll");
 #endif
@@ -2237,13 +2237,13 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
     {
 #ifdef HAS_PlayerState_Unk52
         case PlayerState_Unk52:
-            if (g_SysWork.playerWork.player.properties.player.flags_11C & PlayerFlag_Moving)
+            if (g_SysWork.playerWork.player.properties.player.flags & PlayerFlag_Moving)
             {
                 if (playerChara->model.anim.status == ANIM_STATUS(HarryAnim_Idle, false))
                 {
                     func_8005DD44(sfx, &playerChara->position, 64, pitch0);
                     playerChara->properties.player.field_10C                 = pitch0 + 16;
-                    g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+                    g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
                 }
             }
             break;
@@ -2252,7 +2252,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #ifdef HAS_PlayerState_Unk53
         case PlayerState_Unk53:
             Player_FootstepSfxPlay(5, playerChara, 18, 6, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C |= PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags |= PlayerFlag_Moving;
             break;
 #endif
 
@@ -2260,24 +2260,24 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
         case PlayerState_Unk54:
             if (Player_FootstepSfxPlay(7, playerChara, 31, 41, sfx, pitch1) != false)
             {
-                playerChara->properties.player.runTimer_F8++;
+                playerChara->properties.player.runStepSfxCount++;
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C |= PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags |= PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk56
-        case PlayerState_Unk56:
+        case PlayerState_Unk156:
             Player_FootstepSfxPlay(27, playerChara, 204, 200, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk57
-        case PlayerState_Unk57:
+        case PlayerState_Unk157:
             Player_FootstepSfxPlay(25, playerChara, 187, 191, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2320,35 +2320,35 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 31, keyframeIdx + 40, sfx, pitch0);
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk87
         case PlayerState_Unk87:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 35, keyframeIdx + 17, Sfx_Unk1423, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk88
         case PlayerState_Unk88:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 15, keyframeIdx + 31, Sfx_Unk1423, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk91
         case PlayerState_Unk91:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 6, keyframeIdx + 6, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
 #ifdef HAS_PlayerState_Unk92
         case PlayerState_Unk92:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 9, keyframeIdx + 9, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2358,7 +2358,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             {
                 func_80071620(playerChara->model.anim.status, playerChara, keyframeIdx + 6, Sfx_Unk1385);
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 18, 0, sfx, pitch0);
-                g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+                g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             }
             break;
 #endif
@@ -2374,7 +2374,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 74, keyframeIdx + 77, sfx, pitch0);
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2396,7 +2396,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #ifdef HAS_PlayerState_Unk105
         case PlayerState_Unk105:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 5, keyframeIdx + 12, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2411,7 +2411,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 14, keyframeIdx + 21, sfx, pitch0);
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2422,7 +2422,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 11, keyframeIdx + 21, sfx, pitch0);
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2437,7 +2437,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
                 Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, keyframeIdx + 13, keyframeIdx + 18, sfx, pitch0);
             }
 
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
 #endif
 
@@ -2545,7 +2545,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
         case PlayerState_Unk124:
             if (Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, 80, 87, sfx, pitch1))
             {
-                playerChara->properties.player.runTimer_F8++;
+                playerChara->properties.player.runStepSfxCount++;
             }
             break;
 #endif
@@ -2823,7 +2823,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 #ifdef HAS_PlayerState_Unk186
         case PlayerState_Unk186:
             Player_FootstepSfxPlay(playerChara->model.anim.status, playerChara, 0, keyframeIdx + 12, sfx, pitch0);
-            g_SysWork.playerWork.player.properties.player.flags_11C |= PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags |= PlayerFlag_Moving;
             break;
 #endif
 
@@ -2913,7 +2913,7 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             break;
 #endif
         default:
-            g_SysWork.playerWork.player.properties.player.flags_11C &= ~PlayerFlag_Moving;
+            g_SysWork.playerWork.player.properties.player.flags &= ~PlayerFlag_Moving;
             break;
     }
 

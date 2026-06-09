@@ -13,15 +13,15 @@
 
 void (*g_Romper_ControlFuncs[12])(s_SubCharacter*) = {
     /* [0]  None        */ NULL,
-    /* [1]              */ Ai_Romper_Control_1,
+    /* [1]              */ Romper_Control_1,
     /* [2]  WalkForward */ Romper_ControlWalkForward,
-    /* [3]              */ Ai_Romper_Control_3,
-    /* [4]              */ Ai_Romper_Control_4,
+    /* [3]              */ Romper_Control_3,
+    /* [4]              */ Romper_Control_4,
     /* [5]  Jump        */ Romper_ControlJump,
-    /* [6]              */ Ai_Romper_Control_6,
-    /* [7]              */ Ai_Romper_Control_7,
-    /* [8]              */ Ai_Romper_Control_8,
-    /* [9]              */ Ai_Romper_Control_9,
-    /* [10]             */ Ai_Romper_Control_10,
+    /* [6]              */ Romper_Control_6,
+    /* [7]              */ Romper_Control_7,
+    /* [8]              */ Romper_Control_8,
+    /* [9]              */ Romper_Control_9,
+    /* [10]             */ Romper_Control_10,
     /* [11] GrabAttack  */ Romper_ControlGrabAttack,
 };

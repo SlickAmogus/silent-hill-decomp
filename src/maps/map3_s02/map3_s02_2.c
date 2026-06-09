@@ -28,8 +28,8 @@ void func_800D02AC(void) {}
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "\tNothing_happens_when_the ~N\n\televator_button_is_pressed. ~E ",
-    "\tIt's_locked! ~E "
+    /* 15 */ "\tNothing_happens_when_the ~N\n\televator_button_is_pressed. ~E ",
+    /* 16 */ "\tIt's_locked! ~E "
 };
 
 const VECTOR3 D_800CAAF8 = { Q12(100.0f), Q12(-1.2f), Q12(-127.2f) };
@@ -43,7 +43,7 @@ void func_800D02B4(void) // 0x800D02B4
         EventState_2   = 2,
         EventState_3   = 3,
         EventState_4   = 4,
-        EventState_End = 5
+        EventState_Finish = 5
     } e_EventState;
 
     switch (g_SysWork.sysStateSteps[0])
@@ -55,21 +55,21 @@ void func_800D02B4(void) // 0x800D02B4
             break;
 
         case EventState_1:
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
             SysWork_StateStepIncrement(0);
 
         case EventState_2:
-            SysWork_StateStepIncrementDelayed(Q12(1.0f), false);
+            Event_WaitTimer(Q12(1.0f), false);
             break;
 
         case EventState_3:
-            func_8005DC1C(Sfx_Unk1523, &D_800CAAF8, Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1523, &D_800CAAF8, Q8(0.5f), SfxFlag_None);
             SysWork_StateStepIncrement(0);
 
         case EventState_4:
-            SysWork_StateStepIncrementDelayed(Q12(0.3f), false);
+            Event_WaitTimer(Q12(0.3f), false);
 
-        default: // `EventState_End`
+        default: // `EventState_Finish`
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             return;
@@ -95,12 +95,12 @@ void func_800D03FC(void) // 0x800D03FC
             D_800D3154 = 0;
 
             Game_TurnFlashlightOff();
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
             SysWork_StateStepIncrement(0);
             break;
 
         case 2:
-            SysWork_StateStepIncrementDelayed(Q12(0.6f), false);
+            Event_WaitTimer(Q12(0.6f), false);
             break;
 
         case 3:
@@ -115,7 +115,7 @@ void func_800D03FC(void) // 0x800D03FC
     }
 }
 
-#include "maps/shared/SysWork_StateStepIncrementAfterTime.h" // 0x800D0570
+#include "maps/shared/Event_CutsceneTimerAdvance.h" // 0x800D0570
 
 void func_800D0608(void) // 0x800D0608
 {
@@ -187,7 +187,7 @@ void func_800D0608(void) // 0x800D0608
                     setRGBC0(scratch->sprt_0, colorVal, colorVal, colorVal, PRIM_RECT | RECT_TEXTURE | RECT_BLEND);
                 }
 
-                setWH(scratch->sprt_0, (i == 0) ? 256 : 64, 224);
+                setWH(scratch->sprt_0, (i == 0) ? 256 : 64, FRAMEBUFFER_HEIGHT_PROGRESSIVE);
                 addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[2], scratch->sprt_0, 4);
 
                 scratch->sprt_0++;
@@ -237,7 +237,7 @@ void func_800D0608(void) // 0x800D0608
         GsOUT_PACKET_P = (PACKET*)scratch->stp_8;
     }
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 4)
     {
         SysWork_StateStepSet(0, 4);
@@ -250,8 +250,8 @@ void func_800D0608(void) // 0x800D0608
             func_8003A16C();
             ScreenFade_ResetTimestep();
 
-            g_SysWork.field_30    = 20;
-            g_SysWork.flags_22A4 |= UnkSysFlag_3;
+            CutsceneBorder_ForceShow();
+            g_SysWork.sysFlags |= SysFlag_CutsceneActive;
 
             Fs_QueueStartRead(FILE_ANIM_DWSTWY_DMS, FS_BUFFER_24);
             Fs_QueueWaitForEmpty();
@@ -259,9 +259,9 @@ void func_800D0608(void) // 0x800D0608
 
             Chara_Spawn(Chara_Alessa, 0, Q12(80.0f), Q12(100.0f), Q12_ANGLE(0.0f), 3);
 
-            g_SysWork.field_235C = NULL;
-            g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightIntensity = Q12(0.7f);
+            g_SysWork.lightBoneCoord     = NULL;
+            g_SysWork.lensFlareBoneCoord = NULL;
+            g_SysWork.lightIntensity     = Q12(0.7f);
 
             Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, 2);
 
@@ -273,21 +273,21 @@ void func_800D0608(void) // 0x800D0608
             break;
 
         case 1:
-            func_80085EB8(0, &g_SysWork.npcs[0], 2, false);
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(1.0f), false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 2, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(1.0f), false);
             SysWork_StateStepIncrement(0);
 
         case 2:
-            SysWork_StateStepIncrementAfterTime(&D_800D1FEC, Q12(12.0f), Q12(0.0f), Q12(60.0f), false, true);
+            Event_CutsceneTimerAdvance(&D_800D1FEC, Q12(12.0f), Q12(0.0f), Q12(60.0f), false, true);
             break;
 
         case 3:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(1.0f), false);
-            SysWork_StateStepIncrementAfterTime(&D_800D1FEC, Q12(12.0f), Q12(0.0f), Q12(75.0f), true, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(1.0f), false);
+            Event_CutsceneTimerAdvance(&D_800D1FEC, Q12(12.0f), Q12(0.0f), Q12(75.0f), true, false);
             break;
 
         case 4:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
 
         default:
@@ -300,8 +300,8 @@ void func_800D0608(void) // 0x800D0608
             func_8008D448();
             Game_FlashlightAttributesFix();
 
-            g_SysWork.pointLightIntensity = Q12(1.0f);
-            g_SysWork.field_30   = 0;
+            g_SysWork.lightIntensity      = Q12(1.0f);
+            CutsceneBorder_Reset();
 
             Savegame_EventFlagSet(EventFlag_237);
 
@@ -318,12 +318,12 @@ void func_800D0608(void) // 0x800D0608
         vcChangeProjectionValue(Dms_CameraTargetGet(&camPosTarget, &camLookAtTarget, NULL, D_800D1FEC, FS_BUFFER_24));
         vcUserCamTarget(&camPosTarget, NULL, true);
         vcUserWatchTarget(&camLookAtTarget, NULL, true);
-        Dms_CharacterTransformGet(&g_SysWork.pointLightPosition, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
+        Dms_CharacterTransformGet(&g_SysWork.lightPosition, &unused, "LIGHT", D_800D1FEC, FS_BUFFER_24);
         Dms_CharacterTransformGet(&lightIntPos, &unused, "L_INT", D_800D1FEC, FS_BUFFER_24);
 
-        g_SysWork.pointLightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.pointLightPosition.vy, Math_Vector2MagCalc(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz));
-        g_SysWork.pointLightRotation.vy = ratan2(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz);
-        g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
+        g_SysWork.lightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.lightPosition.vy, Math_Vector2MagCalcSafeQ6(lightIntPos.vx - g_SysWork.lightPosition.vx, lightIntPos.vz - g_SysWork.lightPosition.vz));
+        g_SysWork.lightRotation.vy = ratan2(lightIntPos.vx - g_SysWork.lightPosition.vx, lightIntPos.vz - g_SysWork.lightPosition.vz);
+        g_SysWork.lightRotation.vz = Q12_ANGLE(0.0f);
     }
 }
 
@@ -354,7 +354,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D0F9C
         if (!Savegame_EventFlagGet(EventFlag_233) && g_SysWork.playerWork.player.position.vz < Q12(-129.0f))
         {
             Savegame_EventFlagSet(EventFlag_233);
-            func_8005DC1C(Sfx_Unk1523, &D_800CAAF8, Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1523, &D_800CAAF8, Q8(0.5f), SfxFlag_None);
         }
     }
 
@@ -364,7 +364,7 @@ void Map_WorldObjectsUpdate(void) // 0x800D0F9C
         if (!Savegame_EventFlagGet(EventFlag_234) && g_SysWork.playerWork.player.position.vx < Q12(67.0f))
         {
             Savegame_EventFlagSet(EventFlag_234);
-            func_8005DC1C(Sfx_Unk1523, &QVECTOR3(69.6f, -1.2f, -138.4f), Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_Unk1523, &QVECTOR3(69.6f, -1.2f, -138.4f), Q8(0.5f), SfxFlag_None);
         }
     }
 }
@@ -380,7 +380,7 @@ s16 func_800D1354(void) // 0x800D1354
     s32 x6;
     s32 z6;
 
-    // TODO: Use `Math_Vector2MagCalc`.
+    // TODO: Use `Math_Vector2MagCalcSafeQ6`.
     x = g_SysWork.playerWork.player.position.vx - Q12(95.2f);
     z = g_SysWork.playerWork.player.position.vz + Q12(140.0f);
     cos0 = Math_Cos(Math_AngleNormalizeSigned((ratan2(x, z) - ratan2(Q12(4.8f) + 1, Q12(12.8f) + 1))));

@@ -22,6 +22,7 @@
 #include "map_registry.h"
 #include "main/fsqueue.h"
 #include "bodyprog/bodyprog.h"
+#include "maps/shared/SysWork_StateStepIncrementAfterTime.h"
 
 #include <libgpu.h>
 #include <libgte.h>
@@ -261,8 +262,8 @@ int main(int argc, char* argv[])
     CreeperAnimInfos_Init();
     extern void SplitHeadAnimInfos_Init(void);
     SplitHeadAnimInfos_Init();
-    extern void RopmerAnimInfos_Init(void);
-    RopmerAnimInfos_Init();
+    extern void RomperAnimInfos_Init(void);
+    RomperAnimInfos_Init();
 
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)

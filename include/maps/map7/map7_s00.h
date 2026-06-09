@@ -1,12 +1,12 @@
 #ifndef _MAPS_MAP7_S00_H
 #define _MAPS_MAP7_S00_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk54
 #define HAS_PlayerState_Unk55
-#define HAS_PlayerState_Unk56
-#define HAS_PlayerState_Unk57
+#define HAS_PlayerState_TurnRight
+#define HAS_PlayerState_TurnLeft
 #define HAS_PlayerState_Unk135
 #define HAS_PlayerState_Unk136
 #define HAS_PlayerState_Unk137
@@ -33,7 +33,7 @@ extern SVECTOR3 D_800CB61C;
 extern s16 D_800D4362;
 
 extern s_WorldObjectModel   g_WorldObject0[6];
-extern s_WorldObjectDesc g_WorldObject1;
+extern s_WorldObjectPose g_WorldObject1;
 
 extern s16 D_800D4362;
 extern u8 g_Cutscene_MapMsgAudioIdx;

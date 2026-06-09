@@ -42,11 +42,15 @@ def get_o_target(yaml_file, release, compile_asm_tu):
                                     case ".rodata" | ".data" | ".sdata" | ".bss" | ".sbss" | "pad" | "lib" | ".rdata" | "o":
                                         """
                                         Hi, I don't have any SH fun fact for today.
+                                        
+                                        Now I do, Did you know that some developers from the original Team Silent games
+                                        (apart from Akira Yamaoka [do I have to say who he is?] and Masahiro Ito [monster
+                                        designer from 1 to 3]) also worked on Silent Hill: The Short Message.
                                         """
                             except:
                                 """
                                 Did you know that Silent Hill: Downpour was going to feature
-                                a similar psychological profile to Silent Hill: Shattered Memories.
+                                a similar psychological profile to Silent Hill: Shattered Memories?
                                 """
                     case "header":
                         splits_asm.append(f"{asm_path}/{name}.s.o")

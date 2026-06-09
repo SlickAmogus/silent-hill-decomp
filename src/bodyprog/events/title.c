@@ -18,7 +18,7 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
 #ifdef SH_PC_PORT
@@ -86,12 +86,12 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
             GameBoot_PlayerInit();
             g_SysWork.processFlags = ProcessFlag_NewGame;
-            GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+            GameBoot_MapLoad(g_SavegamePtr->mapIdx);
             GameFs_StreamBinLoad();
 
             Fs_QueueWaitForEmpty();
-            Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
-            MemCard_Disable();
+            Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
+            MemCard_SysDisable();
             g_SysWork.counters_1C[0]        = 0;
             g_SysWork.counters_1C[1]        = 0;
             g_GameWork.gameStateSteps[0]  = 0;
@@ -186,7 +186,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
             g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
 
-            if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
+            if (g_GameWork.autosave.playerHealth > Q12(0.0f))
             {
                 g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Continue) | (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
             }
@@ -212,7 +212,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
 
-            if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
+            if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
                 SD_Call(Sfx_MenuMove);
                 g_GameWork.gameState = GameState_MainMenu;
@@ -224,13 +224,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
-            if (g_Controller0->btnsPulsed_18 & ControllerFlag_LStickUp)
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
             {
                 g_MainMenu_SelectedEntry += MainMenuEntry_Count;
                 while(!(g_MainMenu_VisibleEntryFlags & (1 << --g_MainMenu_SelectedEntry)));
             }
 
-            if (g_Controller0->btnsPulsed_18 & ControllerFlag_LStickDown)
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
             {
                 while(!(g_MainMenu_VisibleEntryFlags & (1 << ++g_MainMenu_SelectedEntry)));
             }
@@ -238,7 +238,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             // Wrap selection.
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 g_GameWork.gameState = GameState_MainMenu;
 
@@ -263,7 +263,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 switch (g_MainMenu_SelectedEntry)
                 {
                     case MainMenuEntry_Continue:
-                        if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
+                        if (g_GameWork.autosave.playerHealth > Q12(0.0f))
                         {
                             g_GameWork.savegame = g_GameWork.autosave;
                         }
@@ -274,7 +274,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                         GameBoot_PlayerInit();
                         g_SysWork.processFlags = ProcessFlag_Continue;
-                        GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+                        GameBoot_MapLoad(g_SavegamePtr->mapIdx);
                         break;
 
                     case MainMenuEntry_Load:
@@ -316,8 +316,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
-            if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
-                g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+            if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
+                g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 g_GameWork.gameState = GameState_MainMenu;
@@ -330,7 +330,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Scroll game difficulty options.
-            if (g_Controller0->btnsPulsed_18 & ControllerFlag_LStickUp)
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
             {
                 prevGameDifficultyIdx = 2;
                 if (newGameSelectedDifficultyIdx > 0)
@@ -339,7 +339,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
                 newGameSelectedDifficultyIdx = prevGameDifficultyIdx;
             }
-            if (g_Controller0->btnsPulsed_18 & ControllerFlag_LStickDown)
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
             {
                 nextGameDifficultyIdx = 0;
                 if (newGameSelectedDifficultyIdx < 2)
@@ -350,13 +350,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Play scroll sound.
-            if (g_Controller0->btnsPulsed_18 & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
+            if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
             {
                 SD_Call(Sfx_MenuMove);
             }
 
             // Select game difficulty.
-            if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.enter)
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
 
 #ifdef SH_PC_PORT
@@ -394,7 +394,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 SH_DBG("[SH] Calling GameBoot_MapLoad + GameFs_StreamBinLoad");
 #endif
 #ifdef SH_PC_PORT
-                GameBoot_MapLoad(g_SavegamePtr->mapOverlayId_A4);
+                GameBoot_MapLoad(g_SavegamePtr->mapIdx);
 #else
                 GameBoot_MapLoad(MapOverlayId_MAP0_S00);
 #endif
@@ -417,7 +417,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 g_MainMenuState     = 4;
             }
             // Cancel.
-            else if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.cancel)
+            else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
             {
                 SD_Call(Sfx_MenuCancel);
                 g_MainMenuState = 1;
@@ -444,10 +444,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #endif
                 Fs_QueueWaitForEmpty();
 #ifdef SH_PC_PORT
-                SH_DBG("[SH] MenuState_NewGameStart: Chara_PositionSet check");
+                SH_DBG("[SH] MenuState_NewGameStart: Chara_CollisionSet check");
 #endif
 
-                if (g_GameWork.autosave.playerHealth_240 > Q12(0.0f))
+                if (g_GameWork.autosave.playerHealth > Q12(0.0f))
                 {
                     NEXT_GAME_STATES[1] = GameState_MainLoadScreen;
                 }
@@ -455,13 +455,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 if (g_MainMenu_SelectedEntry == MainMenuEntry_Start)
                 {
 #ifdef SH_PC_PORT
-                    SH_DBG("[SH] MenuState_NewGameStart: Chara_PositionSet mapPointsOfInterest=%p",
-                            (void*)&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
+                    SH_DBG("[SH] MenuState_NewGameStart: Chara_CollisionSet mapPointsOfInterest=%p",
+                            (void*)&g_MapOverlayHdr.mapPoints[0]);
 #endif
-                    Chara_PositionSet(&g_MapOverlayHeader.mapPointsOfInterest_1C[0]);
+                    Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
                 }
 
-                MemCard_Disable();
+                MemCard_SysDisable();
 
                 prevState                       = g_GameWork.gameState;
                 g_GameWork.gameStateSteps[0] = prevState;
@@ -480,7 +480,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             break;
     }
 
-    if (g_Controller0->btnsHeld_C != 0)
+    if (g_Controller0->heldBtnFlags != 0)
     {
         g_SysWork.counters_1C[1] = 0;
     }

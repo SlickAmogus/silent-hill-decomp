@@ -3,7 +3,7 @@
 
 #include "game.h"
 
-#include "bodyprog/events/bgm_update.h"
+#include "bodyprog/events/bgm.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/screen/screen_data.h"
@@ -126,9 +126,9 @@ typedef struct
     GsCOORDINATE2*    coords_8;
     VECTOR3           matrices_C[1]; // Unknown size.
     s8                unk_10[0x84];
-    s_SubCharacter_C8 field_9C;
-    s_SubCharacter_D4 field_A8;
-    s_SubCharacter_D8 field_AC;
+    s_CharaBox field_9C;
+    s_CharaCylinder field_A8;
+    s_CharaShapeOffsets field_AC;
     s32               field_B4[6][4]; // [*][3] is angle.
     s32               field_114;
     s32               field_118;
@@ -182,7 +182,7 @@ typedef struct
     s16      idx;
 } s_sharedData_800D5AB0_1_s05;
 
-extern s_MapOverlayHeader_94 sharedData_800E30C8_1_s02;
+extern s_MapOverlayHdr_94 sharedData_800E30C8_1_s02;
 
 #if defined(MAP_FIELD_4C_COUNT)
     extern s_MapHdr_field_4C sharedData_800DFB7C_0_s00[MAP_FIELD_4C_COUNT];
@@ -217,7 +217,7 @@ extern VECTOR3 sharedData_800DE170_0_s01;
 extern VECTOR3 sharedData_800DE180_0_s01; // Q19.12 player position relevant to Air Screamer.
 extern VECTOR3 sharedData_800DE190_0_s01;
 
-extern s_RayData sharedData_800E2330_0_s01;
+extern s_RayTrace sharedData_800E2330_0_s01;
 
 /** Packed weapon attack. `See `WEAPON_ATTACK`. */
 extern s8 sharedData_800DD59C_0_s00;
@@ -229,7 +229,7 @@ extern s16 sharedData_800DF1FA_0_s00;
 /** Something related to rotation. */
 extern s32 sharedData_800E39D8_0_s00;
 
-// Next 4 set by `Ai_Stalker_Update`.
+// Next 4 set by `Stalker_Update`.
 extern q19_12 sharedData_800E3A20_0_s00; // Health.
 extern q19_12 sharedData_800E3A24_0_s00; // Health.
 extern q19_12 sharedData_800E3A28_0_s00;
@@ -441,7 +441,7 @@ extern s_800E34FC sharedData_800E34FC_0_s00[60];
 
 extern const char* MAP_MESSAGES[]; // 0x800DF6B8
 
-extern s_MapOverlayHeader_7C sharedData_800DEE50_1_s01;
+extern s_MapOverlayHdr_7C sharedData_800DEE50_1_s01;
 
 extern u8 sharedData_800EEAC4_2_s00[][4][4];
 
@@ -802,7 +802,7 @@ void Chara_InvisibleSet(s_SubCharacter* chara);
 s32 Chara_AnimStartKeyframeIdxGet(s_SubCharacter* chara);
 
 /** Humanoid init function? */
-void sharedFunc_800D923C_0_s00(s_SubCharacter* chara);
+void Chara_CollisionReset(s_SubCharacter* chara);
 
 void SysWork_StateStepIncrementAfterTime(q19_12* timer, q19_12 inc, q19_12 timeMin, q19_12 timeMax, bool setTimerToMax, bool incStateStep);
 
@@ -965,7 +965,7 @@ s32 sharedFunc_800E94B4_2_s02(s_SubCharacter* romper);
 
 void sharedFunc_800E9714_2_s02(s_SubCharacter* romper);
 
-void Ai_Groaner_Update(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void Groaner_Update(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
 
 void Ai_Groaner_Init(s_SubCharacter* groaner); // `map2_s00` has extra block at end of func compared to other maps.
 
@@ -1123,16 +1123,17 @@ static inline void ModelAnim_AnimInfoSet(s_ModelAnim* anim, s_AnimInfo* animInfo
 // TODO: Could also call this a "transform"? "Pose" is a less common term for a position+rotation struct.
 typedef struct
 {
-    VECTOR3  position; // Q19.12
-    SVECTOR3 rotation_C; // Q19.12
+    /* 0x0  */ s_WorldObjectModel object;
+    /* 0x1C */ VECTOR3            position; /** Q19.12 */
+    /* 0x28 */ SVECTOR3           rotation; /** Q19.12 */
 } s_WorldObjectPose;
-STATIC_ASSERT_SIZEOF(s_WorldObjectPose, 0x14);
+STATIC_ASSERT_SIZEOF(s_WorldObjectPose, 0x34);
 
 typedef struct
 {
-    s_WorldObjectModel object_0;
-    VECTOR3         position_1C; // Q19.12
-    SVECTOR3        rotation_28; // Q19.12
+    /* 0x0  */ s_WorldObjectModel object;
+    /* 0x1C */ VECTOR3            position; // Q19.12
+    /* 0x28 */ SVECTOR3           rotation; // Q19.12
 } s_WorldObjectDesc;
 STATIC_ASSERT_SIZEOF(s_WorldObjectDesc, 0x30);
 
@@ -1149,7 +1150,7 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
 #define WorldObjectPoseSet(eventPose, posX, posY, posZ, rotX, rotY, rotZ) \
 {                                                                         \
     Math_Vector3Set(&(eventPose)->position, posX, posY, posZ);          \
-    Math_SetSVectorFast(&(eventPose)->rotation_C, rotX, rotY, rotZ);      \
+    Math_SetSVectorFast(&(eventPose)->rotation, rotX, rotY, rotZ);      \
 }
 
 #define WorldObjectInit(eventPos, name, posX, posY, posZ, rotX, rotY, rotZ) \
@@ -1157,9 +1158,9 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
 
 #define WorldObjectSet(eventPose, name, posX, posY, posZ, rotX, rotY, rotZ) \
 {                                                                           \
-    Math_Vector3Set(&(eventPose)->position_1C, posX, posY, posZ);           \
-    Math_SetSVectorFast(&(eventPose)->rotation_28, rotX, rotY, rotZ);       \
-    WorldObject_ModelNameSet(&(eventPose)->object_0, (name));               \
+    Math_Vector3Set(&(eventPose)->position, posX, posY, posZ);           \
+    Math_SetSVectorFast(&(eventPose)->rotation, rotX, rotY, rotZ);       \
+    WorldObject_ModelNameSet(&(eventPose)->object, (name));               \
 }
 
 #define WorldObjectNoRotInit(eventPos, name, posX, posY, posZ) \
@@ -1167,8 +1168,45 @@ STATIC_ASSERT_SIZEOF(s_WorldObjectDescNoRot, 40);
 
 #define WorldObjectNoRotSet(eventPose, name, posX, posY, posZ)    \
 {                                                                 \
-    Math_Vector3Set(&(eventPose)->position_1C, posX, posY, posZ); \
-    WorldObject_ModelNameSet(&(eventPose)->object_0, (name));     \
+    Math_Vector3Set(&(eventPose)->position, posX, posY, posZ); \
+    WorldObject_ModelNameSet(&(eventPose)->object, (name));     \
+}
+
+#define WorldObject_PoseInit(objPose, posX, posY, posZ, rotX, rotY, rotZ) \
+    WorldObject_PoseSet(objPose,                                          \
+                        Q12(posX), Q12(posY), Q12(posZ),                  \
+                        Q12_ANGLE(rotX), Q12_ANGLE(rotY), Q12_ANGLE(rotZ))
+#define WorldObject_PoseSet(objPose, posX, posY, posZ, rotX, rotY, rotZ) \
+{                                                                        \
+    Math_Vector3Set(&(objPose)->position, posX, posY, posZ);             \
+    Math_SetSVectorFast(&(objPose)->rotation, rotX, rotY, rotZ);         \
+}
+
+#define WorldObject_Init(objPose, name, posX, posY, posZ, rotX, rotY, rotZ) \
+    WorldObject_Set(objPose, name,                                          \
+                    Q12(posX), Q12(posY), Q12(posZ),                        \
+                    Q12_ANGLE(rotX), Q12_ANGLE(rotY), Q12_ANGLE(rotZ))
+#define WorldObject_Set(objPose, name, posX, posY, posZ, rotX, rotY, rotZ) \
+{                                                                          \
+    Math_Vector3Set(&(objPose)->position, posX, posY, posZ);     \
+    Math_SetSVectorFast(&(objPose)->rotation, rotX, rotY, rotZ); \
+    WorldObject_ModelNameSet(&(objPose)->object, (name));        \
+}
+
+#define WorldObject_PosePositionInit(objPose, name, posX, posY, posZ) \
+    WorldObject_PosePositionSet(objPose, name, Q12(posX), Q12(posY), Q12(posZ))
+#define WorldObject_PosePositionSet(objPose, name, posX, posY, posZ) \
+{                                                                    \
+    Math_Vector3Set(&(objPose)->position, posX, posY, posZ);         \
+    WorldObject_ModelNameSet(&(objPose)->object, (name));            \
+}
+
+#define WorldObject_PlacementInit(objPlacement, name, posX, posY, posZ) \
+    WorldObject_PlacementSet(objPlacement, name, Q12(posX), Q12(posY), Q12(posZ))
+#define WorldObject_PlacementSet(objPose, name, posX, posY, posZ) \
+{                                                                 \
+    Math_Vector3Set(&(objPose)->position, posX, posY, posZ);      \
+    WorldObject_ModelNameSet(&(objPose)->object, (name));         \
 }
 
 #define APPROACH(current, target, step) \

@@ -25,18 +25,18 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 void func_800E9D54(void) // 0x800E9D54
 {
-    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX_0, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ_8 };
+    VECTOR3 sfxPos = { MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionX, Q12(-1.2f), MAP_POINTS[g_MapEventData->pointOfInterestIdx].positionZ };
 
     Player_ItemRemove(InvItemId_AntiqueShopKey, 1);
-    Map_MessageWithSfx(15, Sfx_UseKey, &sfxPos);
+    Event_DisplayMapMsgWithSfx(15, Sfx_UseKey, &sfxPos);
     Savegame_EventFlagSet(EventFlag_M2S02_AntiqueShopOpen);
 }
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "\tUsed_the_ ~C2 Antique_shop_key ~C7 . ~E ",
-    "~C3\tAlchemilla_Hospital ~E ",
-    "~C3\tgreen_lion ~E "
+    /* 15 */ "\tUsed_the_ ~C2 Antique_shop_key ~C7 . ~E ",
+    /* 16 */ "~C3\tAlchemilla_Hospital ~E ",
+    /* 17 */ "~C3\tgreen_lion ~E "
 };
 
 void func_800E9E10(void) // 0x800E9E10
@@ -84,17 +84,19 @@ void func_800E9EAC(void) // 0x800E9EAC
     {
         case 0:
             Player_ControlFreeze();
+
             g_Screen_FadeStatus = 12; // TODO: Can't be created with `ScreenFade_Start` macro?
+
             Sd_SfxStop(Sfx_Unk1522);
             SysWork_StateStepIncrement(0);
             break;
 
         case 1:
-            SysWork_StateStepIncrementAfterFade(0, false, 1, Q12(0.25f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 1, Q12(0.25f), false);
             SysWork_StateStepIncrement(0);
 
         case 2:
-            SysWork_StateStepIncrementDelayed(Q12(1.2f), false);
+            Event_WaitTimer(Q12(1.2f), false);
             break;
 
         default:
@@ -130,7 +132,7 @@ void func_800E9FDC(void) // 0xfunc_800E9FDC
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             Savegame_EventFlagSet(EventFlag_189);
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
             break;
     }
 }
@@ -144,11 +146,11 @@ void Map_WorldObjectsInit(void) // 0x800EA0E0
 
     D_800F0B2C = Q12(0.0f);
 
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Easy)
     {
         g_SysWork.npcFlagsId = 2;
     }
-    else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
+    else if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
     {
         g_SysWork.npcFlagsId = 3;
     }
@@ -169,14 +171,14 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
 {
     MAP_CHUNK_CHECK_VARIABLE_DECL();
 
-    func_80069844(CollisionFlag_All);
+    Collision_FlagBitsClear(CollisionTriggerFlag_All);
 
     if (PLAYER_IN_MAP_CHUNK(vx, 1, -3, -1, -3) && PLAYER_IN_MAP_CHUNK(vz, 1, -2, -1, -2))
     {
         if (Savegame_EventFlagGet(EventFlag_346))
         {
-            Collision_FlagBitsSet(CollisionFlag_2);
-            func_80069844(CollisionFlag_1);
+            Collision_FlagBitsSet(CollisionTriggerFlag_2);
+            Collision_FlagBitsClear(CollisionTriggerFlag_1);
 
             if (g_SysWork.playerWork.player.position.vz < Q12(-68.0f))
             {
@@ -185,8 +187,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
         }
         else
         {
-            func_80069844(CollisionFlag_2);
-            Collision_FlagBitsSet(CollisionFlag_1);
+            Collision_FlagBitsClear(CollisionTriggerFlag_2);
+            Collision_FlagBitsSet(CollisionTriggerFlag_1);
         }
     }
 
@@ -218,10 +220,10 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
         {
             if (D_800F0B2C == Q12(0.0f))
             {
-                if (Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx + Q12(96.0f),
+                if (Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx + Q12(96.0f),
                                         g_SysWork.playerWork.player.position.vz + Q12(89.0f)) < Q12(4.0f))
                 {
-                    func_8005DC1C(Sfx_Unk1492, &D_800ED938, Q8_CLAMPED(0.766f), 2);
+                    Sfx_WithFlagsPlay(Sfx_Unk1492, &D_800ED938, Q8_CLAMPED(0.766f), SfxFlag_NoDistAtten);
                     D_800F0B2C = Q12(0.3f);
                 }
             }
@@ -233,7 +235,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
             if (D_800F0B2C < Q12(0.0f))
             {
                 Savegame_EventFlagSet(EventFlag_192);
-                func_8005DC1C(Sfx_Unk1492, &D_800ED938, Q8_CLAMPED(0.766f), 2);
+                Sfx_WithFlagsPlay(Sfx_Unk1492, &D_800ED938, Q8_CLAMPED(0.766f), SfxFlag_NoDistAtten);
             }
         }
     }
@@ -242,7 +244,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (!Savegame_EventFlagGet(EventFlag_M2S02_HealthDrink0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[0].position, &g_CommonWorldObjectPoses[0].rotation);
         }
     }
 
@@ -250,7 +252,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (!Savegame_EventFlagGet(EventFlag_M2S02_HealthDrink1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[1].position, &g_CommonWorldObjectPoses[1].rotation);
         }
     }
 
@@ -258,7 +260,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (!Savegame_EventFlagGet(EventFlag_M2S02_HandgunBullets0))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[2].position, &g_CommonWorldObjectPoses[2].rotation);
         }
     }
 
@@ -266,7 +268,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (!Savegame_EventFlagGet(EventFlag_M2S02_HandgunBullets1))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[3], &g_CommonWorldObjectPoses[3].position, &g_CommonWorldObjectPoses[3].rotation);
         }
     }
 
@@ -274,7 +276,7 @@ void Map_WorldObjectsUpdate(void) // 0x800EA1C4
     {
         if (!Savegame_EventFlagGet(EventFlag_M2S02_HealthDrink2))
         {
-            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation_C);
+            WorldGfx_ObjectAdd(&g_CommonWorldObjects[1], &g_CommonWorldObjectPoses[4].position, &g_CommonWorldObjectPoses[4].rotation);
         }
     }
 }

@@ -42,8 +42,8 @@ void GameBoot_NpcInit(void) // 0x80034F18
 
     if (g_SysWork.field_234A)
     {
-        g_MapOverlayHeader.enviromentSet_16C(g_SysWork.field_2349, 127);
-        g_MapOverlayHeader.particlesUpdate_168(0, g_SavegamePtr->mapOverlayId_A4, 0);
+        g_MapOverlayHdr.enviromentSet(g_SysWork.field_2349, 127);
+        g_MapOverlayHdr.particlesUpdate(0, g_SavegamePtr->mapIdx, 0);
     }
 
     GameBoot_NpcClear();
@@ -55,20 +55,20 @@ void GameBoot_InGameInit(void) // 0x80034FB8
 {
     s32 mapOvlId;
 
-    mapOvlId = g_SavegamePtr->mapOverlayId_A4;
+    mapOvlId = g_SavegamePtr->mapIdx;
 
 #ifdef SH_PC_PORT
 #define HARRY_CHECK(label) SH_DBG("[SH] InGameInit %s harry=%p", label, (void*)g_WorldGfxWork.registeredCharaModels[1])
     HARRY_CHECK("start");
 #endif
-    vcInitCamera(&g_MapOverlayHeader, &g_SysWork.playerWork.player.position);
+    vcInitCamera(&g_MapOverlayHdr, &g_SysWork.playerWork.player.position);
     vcSetCameraUseWarp(&g_SysWork.playerWork.player.position, g_SysWork.cameraAngleY);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after vcInit");
 #endif
-    func_80040004(&g_MapOverlayHeader);
+    World_CollisionTriggersSet(&g_MapOverlayHdr);
 #ifdef SH_PC_PORT
-    HARRY_CHECK("after func_80040004");
+    HARRY_CHECK("after World_CollisionTriggersSet");
 #endif
     Gfx_MapEffectsSet(0);
 #ifdef SH_PC_PORT
@@ -85,7 +85,7 @@ void GameBoot_InGameInit(void) // 0x80034FB8
             (void*)&g_WorldGfxWork, (void*)&g_WorldGfxWork.registeredCharaModels[1],
             (size_t)((char*)&g_WorldGfxWork.registeredCharaModels[1] - (char*)&g_WorldGfxWork));
 #endif
-    g_MapOverlayHeader.particlesUpdate_168(0, mapOvlId, NO_VALUE);
+    g_MapOverlayHdr.particlesUpdate(0, mapOvlId, NO_VALUE);
 #ifdef SH_PC_PORT
     HARRY_CHECK("after particlesUpdate");
 #endif

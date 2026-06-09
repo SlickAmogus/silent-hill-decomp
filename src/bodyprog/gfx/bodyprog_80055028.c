@@ -18,7 +18,7 @@ extern float g_PsxPixelAspect;
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/player.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
@@ -28,7 +28,7 @@ extern float g_PsxPixelAspect;
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
  * fog visually obscure it instead of culling geometry. */
-#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fogFarDistance_10)
+#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
 /* On PC, zero the fog depth parameter for dpcl/dpcs vertex color
  * computation. Shader fog via p1/p2/p3 handles all distance fog.
@@ -62,16 +62,16 @@ extern float g_PsxPixelAspect;
  * world's fog ramp at the index derived from screenZ. */
 #define PC_SCREEN_Z_TO_FOG(z) ({ \
     s32 _z = (s32)(z); s32 _fb; \
-    if (!g_WorldEnvWork.isFogEnabled_1) { _fb = 0; } \
-    else if (_z < (1 << g_WorldEnvWork.fogDepthShift_14)) { \
-        s32 _idx = (_z << 7) >> g_WorldEnvWork.fogDepthShift_14; \
+    if (!g_WorldEnvWork.isFogEnabled) { _fb = 0; } \
+    else if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
+        s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
         if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
-        _fb = g_WorldEnvWork.fogRamp_CC[_idx]; \
+        _fb = g_WorldEnvWork.fogRamp[_idx]; \
     } else { _fb = 255; } \
     (u8)((_fb * 127) >> 8); \
 })
 #else
-#define FOG_FAR_DIST() (g_WorldEnvWork.fogFarDistance_10)
+#define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
 #define VTXCOL_LDDP(dp) gte_lddp(dp)
 #endif
 
@@ -89,21 +89,21 @@ void WorldEnv_Init(void) // 0x80055028
     g_WorldEnvWork.field_0  = 0;
     g_WorldEnvWork.field_20 = Q12(1.0f);
 
-    g_WorldEnvWork.worldTintColor_28.r = 128;
-    g_WorldEnvWork.worldTintColor_28.g = 128;
-    g_WorldEnvWork.worldTintColor_28.b = 128;
+    g_WorldEnvWork.worldTintColor.r = 128;
+    g_WorldEnvWork.worldTintColor.g = 128;
+    g_WorldEnvWork.worldTintColor.b = 128;
 
-    g_WorldEnvWork.isFogEnabled_1 = false;
+    g_WorldEnvWork.isFogEnabled = false;
     g_WorldEnvWork.field_2        = 0;
 
-    g_WorldEnvWork.fogColor_1C.r = 255;
-    g_WorldEnvWork.fogColor_1C.g = 255;
-    g_WorldEnvWork.fogColor_1C.b = 255;
+    g_WorldEnvWork.fog.color.r = 255;
+    g_WorldEnvWork.fog.color.g = 255;
+    g_WorldEnvWork.fog.color.b = 255;
 
     g_WorldEnvWork.field_4C      = 0;
     g_WorldEnvWork.field_50      = 0;
-    g_WorldEnvWork.waterZones_4  = 0;
-    g_WorldEnvWork.fogIntensity_18 = 0;
+    g_WorldEnvWork.waterZones  = 0;
+    g_WorldEnvWork.fog.intensity = 0;
 
     gte_SetFarColor(0, 0, 0);
 
@@ -135,17 +135,17 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 #else
     if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0)
     {
-        func_8008D470(g_WorldEnvWork.field_50, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60, g_WorldEnvWork.waterZones_4);
+        func_8008D470(g_WorldEnvWork.field_50, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60, g_WorldEnvWork.waterZones);
     }
 #endif
 
-    if (g_WorldEnvWork.screenBrightness_8 > 0)
+    if (g_WorldEnvWork.screenBrightness > 0)
     {
         poly            = (POLY_G4*)GsOUT_PACKET_P;
         mode            = (DR_MODE*)(GsOUT_PACKET_P + sizeof(POLY_G4));
         GsOUT_PACKET_P += sizeof(POLY_G4) + sizeof(DR_MODE);
 
-        color0           = (g_WorldEnvWork.screenBrightness_8 + (g_WorldEnvWork.screenBrightness_8 << 8)) + (g_WorldEnvWork.screenBrightness_8 << 16);
+        color0           = (g_WorldEnvWork.screenBrightness + (g_WorldEnvWork.screenBrightness << 8)) + (g_WorldEnvWork.screenBrightness << 16);
         *(s32*)&poly->r3 = color0;
         *(s32*)&poly->r2 = color0;
         *(s32*)&poly->r1 = color0;
@@ -184,7 +184,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         poly            = (POLY_G4*)GsOUT_PACKET_P;
         GsOUT_PACKET_P += sizeof(POLY_G4);
 
-        color2           = *(s32*)&g_WorldEnvWork.fogColor_1C;
+        color2           = *(s32*)&g_WorldEnvWork.fog.color;
         *(s32*)&poly->r3 = color2;
         *(s32*)&poly->r2 = color2;
         *(s32*)&poly->r1 = color2;
@@ -225,7 +225,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     poly           = (POLY_G4*)(packet + 0xC);
     GsOUT_PACKET_P = packet + 0x30;
 
-    color2           = *(s32*)&g_WorldEnvWork.fogColor_1C;
+    color2           = *(s32*)&g_WorldEnvWork.fog.color;
     *(s32*)&poly->r3 = color2;
     *(s32*)&poly->r2 = color2;
     *(s32*)&poly->r1 = color2;
@@ -258,13 +258,13 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
     g_WorldEnvWork.field_0             = arg0;
     g_WorldEnvWork.field_20            = arg1;
     g_WorldEnvWork.field_3             = arg2;
-    g_WorldEnvWork.worldTintColor_28.r = tintR >> 5;
+    g_WorldEnvWork.worldTintColor.r = tintR >> 5;
     g_WorldEnvWork.field_2C.m[0][2]    = tintR;
     g_WorldEnvWork.field_2C.m[0][1]    = tintR;
     g_WorldEnvWork.field_2C.m[0][0]    = tintR;
-    g_WorldEnvWork.worldTintColor_28.g = tintG >> 5;
-    g_WorldEnvWork.screenBrightness_8  = brightness;
-    g_WorldEnvWork.worldTintColor_28.b = tintB >> 5;
+    g_WorldEnvWork.worldTintColor.g = tintG >> 5;
+    g_WorldEnvWork.screenBrightness  = brightness;
+    g_WorldEnvWork.worldTintColor.b = tintB >> 5;
     g_WorldEnvWork.field_2C.m[1][2]    = (s16)tintG;
     g_WorldEnvWork.field_2C.m[1][1]    = (s16)tintG;
     g_WorldEnvWork.field_2C.m[1][0]    = (s16)tintG;
@@ -278,10 +278,10 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
 
 void WorldEnv_FogParamsSet(u8 isFogEnabled, u8 fogColorR, u8 fogColorG, u8 fogColorB) // 0x800553C4
 {
-    g_WorldEnvWork.isFogEnabled_1 = isFogEnabled;
-    g_WorldEnvWork.fogColor_1C.r  = fogColorR;
-    g_WorldEnvWork.fogColor_1C.g  = fogColorG;
-    g_WorldEnvWork.fogColor_1C.b  = fogColorB;
+    g_WorldEnvWork.isFogEnabled = isFogEnabled;
+    g_WorldEnvWork.fog.color.r  = fogColorR;
+    g_WorldEnvWork.fog.color.g  = fogColorG;
+    g_WorldEnvWork.fog.color.b  = fogColorB;
 }
 
 void func_800553E0(u32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4, u8 arg5, u8 arg6) // 0x800553E0
@@ -321,7 +321,7 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
 
     g_WorldEnvWork.field_54 = arg0;
     g_WorldEnvWork.field_50 = arg1;
-    g_WorldEnvWork.waterZones_4  = waterZones;
+    g_WorldEnvWork.waterZones  = waterZones;
 
     if (coord0 == NULL)
     {
@@ -361,7 +361,7 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
     func_80055648(arg0, &g_WorldEnvWork.field_58);
 }
 
-void func_80055648(s32 arg0, SVECTOR* arg1) // 0x80055648
+void func_80055648(s32 arg0, const SVECTOR* arg1) // 0x80055648
 {
     s32            var_a2;
     s32            temp_lo;
@@ -419,7 +419,7 @@ s32 func_800557DC(void) // 0x800557DC
 
 void func_80055814(s32 arg0) // 0x80055814
 {
-    g_WorldEnvWork.fogIntensity_18 = Q12(1.0f) - func_800559A8(arg0);
+    g_WorldEnvWork.fog.intensity = Q12(1.0f) - func_800559A8(arg0);
 }
 
 void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
@@ -436,11 +436,11 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
 
     nearDist = Q12_TO_Q8(nearDist);
 
-    g_WorldEnvWork.fogNearDistance_C = nearDist;
-    g_WorldEnvWork.fogFarDistance_10 = Q12_TO_Q8(farDist);
-    g_WorldEnvWork.fogDepthShift_14  = 0x20 - Lzc(nearDist - 1);
+    g_WorldEnvWork.fog.nearDistance = nearDist;
+    g_WorldEnvWork.fog.farDistance = Q12_TO_Q8(farDist);
+    g_WorldEnvWork.fog.depthShift  = 0x20 - Lzc(nearDist - 1);
 
-    temp = (0x10 << (g_WorldEnvWork.fogDepthShift_14 + 1)) / nearDist;
+    temp = (0x10 << (g_WorldEnvWork.fog.depthShift + 1)) / nearDist;
     for (var_t0 = 0, var_a3 = 0; var_t0 < Q12(1.0f) && var_a3 < 0x80; var_t0 += temp, var_a3++)
     {
         temp_v1_2 = var_t0 >> 8;
@@ -472,12 +472,12 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
 
         limitRange(temp_lo, 0, 0xFF);
 
-        g_WorldEnvWork.fogRamp_CC[var_a3] = (u8)temp_lo;
+        g_WorldEnvWork.fogRamp[var_a3] = (u8)temp_lo;
     }
 
     for (; var_a3 < 0x80; var_a3++)
     {
-        g_WorldEnvWork.fogRamp_CC[var_a3] = 0xFF;
+        g_WorldEnvWork.fogRamp[var_a3] = 0xFF;
     }
 }
 
@@ -489,7 +489,7 @@ s32 func_800559A8(s32 arg0) // 0x800559A8
     s32 var_a1;
     s32 var_v0;
 
-    temp_v0 = 1 << g_WorldEnvWork.fogDepthShift_14;
+    temp_v0 = 1 << g_WorldEnvWork.fog.depthShift;
     var_a1  = temp_v0 >> 7;
 
     if (temp_v0 < 0)
@@ -510,7 +510,7 @@ s32 func_800559A8(s32 arg0) // 0x800559A8
         return Q12(1.0f);
     }
 
-    temp_a2 = g_WorldEnvWork.fogRamp_CC[temp_lo] * 16;
+    temp_a2 = g_WorldEnvWork.fogRamp[temp_lo] * 16;
     var_v0  = temp_v0 % var_a1;
 
     if (temp_lo == 0x7F)
@@ -519,7 +519,7 @@ s32 func_800559A8(s32 arg0) // 0x800559A8
     }
     else
     {
-        temp_v0 = g_WorldEnvWork.fogRamp_CC[temp_lo + 1] * 16;
+        temp_v0 = g_WorldEnvWork.fogRamp[temp_lo + 1] * 16;
     }
 
     return temp_a2 + ((temp_v0 - temp_a2) * var_v0) / var_a1;
@@ -531,12 +531,12 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
 
     temp = arg0 >> 4;
 
-    if (temp >= (1 << g_WorldEnvWork.fogDepthShift_14))
+    if (temp >= (1 << g_WorldEnvWork.fog.depthShift))
     {
         return 255;
     }
 
-    return g_WorldEnvWork.fogRamp_CC[(temp << 7) >> g_WorldEnvWork.fogDepthShift_14];
+    return g_WorldEnvWork.fogRamp[(temp << 7) >> g_WorldEnvWork.fog.depthShift];
 }
 
 void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A90
@@ -550,23 +550,23 @@ void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A9
         arg3 = 0;
     }
 
-    if (arg3 < (1 << g_WorldEnvWork.fogDepthShift_14))
+    if (arg3 < (1 << g_WorldEnvWork.fog.depthShift))
     {
-        arg3 = g_WorldEnvWork.fogRamp_CC[(arg3 << 7) >> g_WorldEnvWork.fogDepthShift_14] << 4;
+        arg3 = g_WorldEnvWork.fogRamp[(arg3 << 7) >> g_WorldEnvWork.fog.depthShift] << 4;
     }
     else
     {
         arg3 = 0xFF << 4;
     }
 
-    var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogIntensity_18 + arg3);
+    var_v1 = Q12(1.0f) - (g_WorldEnvWork.fog.intensity + arg3);
     if (var_v1 < 0)
     {
         var_v1 = 0;
     }
 
     gte_lddp(var_v1);
-    gte_ldrgb(&g_WorldEnvWork.fogColor_1C);
+    gte_ldrgb(&g_WorldEnvWork.fog.color);
 
     gte_SetFarColor(0, 0, 0);
 
@@ -575,7 +575,7 @@ void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A9
     gte_strgb(arg0);
 
     gte_lddp(arg3);
-    gte_ldrgb(&g_WorldEnvWork.worldTintColor_28);
+    gte_ldrgb(&g_WorldEnvWork.worldTintColor);
 
     gte_ldsv_(arg2 << 5);
 
@@ -593,9 +593,9 @@ void func_80055B74(CVECTOR* result, CVECTOR* color, s32 arg2) // 0x80055B74
 
     var_t0 = g_WorldEnvWork.field_20 >> 5;
 
-    if (arg2 < (1 << g_WorldEnvWork.fogDepthShift_14))
+    if (arg2 < (1 << g_WorldEnvWork.fog.depthShift))
     {
-        var_v0 = g_WorldEnvWork.fogRamp_CC[(arg2 << 7) >> g_WorldEnvWork.fogDepthShift_14];
+        var_v0 = g_WorldEnvWork.fogRamp[(arg2 << 7) >> g_WorldEnvWork.fog.depthShift];
     }
     else
     {
@@ -606,7 +606,7 @@ void func_80055B74(CVECTOR* result, CVECTOR* color, s32 arg2) // 0x80055B74
 
     gte_lddp(var_v0);
     gte_ldrgb(color);
-    gte_SetFarColor(g_WorldEnvWork.fogColor_1C.r, g_WorldEnvWork.fogColor_1C.g, g_WorldEnvWork.fogColor_1C.b);
+    gte_SetFarColor(g_WorldEnvWork.fog.color.r, g_WorldEnvWork.fog.color.g, g_WorldEnvWork.fog.color.b);
     gte_ldsv_(var_t0 << 5);
     gte_dpcl();
     gte_strgb(result);
@@ -622,11 +622,11 @@ void func_80055C3C(CVECTOR* result, CVECTOR* color, s32 arg2, s32 arg3, s32 arg4
     var_s0  = arg5 >> 4;
     temp_a1 = func_80055D78(arg2, arg3, arg4);
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
-        if (var_s0 < (1 << g_WorldEnvWork.fogDepthShift_14))
+        if (var_s0 < (1 << g_WorldEnvWork.fog.depthShift))
         {
-            var_v0 = g_WorldEnvWork.fogRamp_CC[(var_s0 << 7) >> g_WorldEnvWork.fogDepthShift_14];
+            var_v0 = g_WorldEnvWork.fogRamp[(var_s0 << 7) >> g_WorldEnvWork.fog.depthShift];
         }
         else
         {
@@ -635,7 +635,7 @@ void func_80055C3C(CVECTOR* result, CVECTOR* color, s32 arg2, s32 arg3, s32 arg4
 
         gte_lddp(var_v0 << 4);
         gte_ldrgb(color);
-        gte_SetFarColor(g_WorldEnvWork.fogColor_1C.r, g_WorldEnvWork.fogColor_1C.g, g_WorldEnvWork.fogColor_1C.b);
+        gte_SetFarColor(g_WorldEnvWork.fog.color.r, g_WorldEnvWork.fog.color.g, g_WorldEnvWork.fog.color.b);
         gte_ldsv_(temp_a1 << 5);
 
         gte_dpcl();
@@ -709,7 +709,7 @@ void func_80055E90(CVECTOR* color, u8 fadeAmount) // 0x80055E90
     // Works similar to `gte_DpqColor` macro, but `gte_lddp`/`gte_ldrgb` are in wrong order?
 
     gte_lddp(alpha);
-    gte_ldrgb(&g_WorldEnvWork.worldTintColor_28);
+    gte_ldrgb(&g_WorldEnvWork.worldTintColor);
     gte_dpcs();
 
     prev_cd = color->cd;
@@ -845,14 +845,14 @@ void ModelHeader_FixOffsets(s_ModelHeader* modelHdr, s_LmHeader* lmHdr) // 0x800
 {
     s_MeshHeader* curMeshHdr;
 
-    modelHdr->meshHdrs_C = (u8*)modelHdr->meshHdrs_C + (uintptr_t)lmHdr;
+    modelHdr->meshHdrs = (u8*)modelHdr->meshHdrs + (uintptr_t)lmHdr;
 
-    for (curMeshHdr = &modelHdr->meshHdrs_C[0]; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
+    for (curMeshHdr = &modelHdr->meshHdrs[0]; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
-        curMeshHdr->primitives_4 = (u8*)curMeshHdr->primitives_4 + (uintptr_t)lmHdr;
-        curMeshHdr->verticesXy_8 = (u8*)curMeshHdr->verticesXy_8 + (uintptr_t)lmHdr;
-        curMeshHdr->verticesZ_C  = (u8*)curMeshHdr->verticesZ_C  + (uintptr_t)lmHdr;
-        curMeshHdr->normals_10   = (u8*)curMeshHdr->normals_10   + (uintptr_t)lmHdr;
+        curMeshHdr->primitives = (u8*)curMeshHdr->primitives + (uintptr_t)lmHdr;
+        curMeshHdr->verticesXy = (u8*)curMeshHdr->verticesXy + (uintptr_t)lmHdr;
+        curMeshHdr->verticesZ  = (u8*)curMeshHdr->verticesZ  + (uintptr_t)lmHdr;
+        curMeshHdr->normals   = (u8*)curMeshHdr->normals   + (uintptr_t)lmHdr;
         curMeshHdr->unkPtr_14    = (u8*)curMeshHdr->unkPtr_14    + (uintptr_t)lmHdr;
     }
 }
@@ -869,11 +869,11 @@ void Lm_TransparentPrimSet(s_LmHeader* lmHdr, bool transparency) // 0x80056244
 
     for (curModelHdr = &modelHdrs[0]; curModelHdr < &modelHdrs[lmHdr->modelCount]; curModelHdr++)
     {
-        for (curMeshHdr = &curModelHdr->meshHdrs_C[0]; curMeshHdr < &curModelHdr->meshHdrs_C[curModelHdr->meshCount_8]; curMeshHdr++)
+        for (curMeshHdr = &curModelHdr->meshHdrs[0]; curMeshHdr < &curModelHdr->meshHdrs[curModelHdr->meshCount]; curMeshHdr++)
         {
-            for (prim = &curMeshHdr->primitives_4[0]; prim < &curMeshHdr->primitives_4[curMeshHdr->primitiveCount_0]; prim++)
+            for (prim = &curMeshHdr->primitives[0]; prim < &curMeshHdr->primitives[curMeshHdr->primitiveCount]; prim++)
             {
-                prim->field_6.bits.field_6_15 = transparency;
+                prim->field_6.bits.isTransparent = transparency;
             }
         }
     }
@@ -958,7 +958,7 @@ bool Lm_MaterialFsImageApply(s_LmHeader* lmHdr, char* fileName, s_FsImageDesc* i
          curMat < &lmHdr->materials[lmHdr->materialCount];
          curMat++)
     {
-        if (!COMPARE_FILENAMES(&curMat->name_0, fileName))
+        if (!COMPARE_FILENAMES(&curMat->name, fileName))
         {
             curMat->field_C = 1;
             Material_FsImageApply(curMat, image, blendMode);
@@ -1019,25 +1019,25 @@ void func_800566B4(s_LmHeader* lmHdr, s_FsImageDesc* images, s8 unused, s32 star
     }
 }
 
-void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveTextures* activeTexs, bool (*filterFunc)(s_Material* mat), e_FsFile fileIdx, s32 blendMode) // 0x80056774
+void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveChunkTextures* activeTexs, bool (*filterFunc)(s_Material* mat), e_FsFile fileIdx, s32 blendMode) // 0x80056774
 {
     s_Material* curMat;
 
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
-        if (curMat->field_C == 0 && curMat->texture_8 == NULL &&
+        if (curMat->field_C == 0 && curMat->texture == NULL &&
             (filterFunc == NULL || filterFunc(curMat)))
         {
-            curMat->texture_8 = Texture_Get(curMat, activeTexs, FS_BUFFER_9, fileIdx, blendMode);
-            if (curMat->texture_8 != NULL)
+            curMat->texture = Texture_Get(curMat, activeTexs, FS_BUFFER_9, fileIdx, blendMode);
+            if (curMat->texture != NULL)
             {
-                Material_FsImageApply(curMat, &curMat->texture_8->imageDesc_0, blendMode);
+                Material_FsImageApply(curMat, &curMat->texture->imageDesc, blendMode);
             }
         }
     }
 }
 
-bool LmHeader_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
+bool Lm_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
 {
     s_Material* curMat;
 
@@ -1053,12 +1053,12 @@ bool LmHeader_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
             continue;
         }
 
-        if (curMat->texture_8 == NULL)
+        if (curMat->texture == NULL)
         {
             return false;
         }
 
-        if (!Fs_QueueIsEntryLoaded(curMat->texture_8->queueIdx_10))
+        if (!Fs_QueueIsEntryLoaded(curMat->texture->queueIdx))
         {
             return false;
         }
@@ -1105,7 +1105,7 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
     }
 }
 
-void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, s_Material* mat, s32 matFlags) // 0x80056A88
+void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, const s_Material* mat, s32 matFlags) // 0x80056A88
 {
     u16           field_14;
     u16           field_16;
@@ -1113,19 +1113,19 @@ void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, s_Material* mat
     s_Primitive*  curPrim;
 
     // Run through meshes.
-    for (curMeshHdr = modelHdr->meshHdrs_C; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
         // Run through primitives.
-        for (curPrim = curMeshHdr->primitives_4; curPrim < &curMeshHdr->primitives_4[curMeshHdr->primitiveCount_0]; curPrim++)
+        for (curPrim = curMeshHdr->primitives; curPrim < &curMeshHdr->primitives[curMeshHdr->primitiveCount]; curPrim++)
         {
             // No material(?).
-            if (curPrim->field_6.bits.field_6_8 == NO_VALUE)
+            if (curPrim->field_6.bits.materialIdx == NO_VALUE)
             {
                 curPrim->field_6.bits.field_6_0 = 32;
             }
 
             // Apply material flags.
-            if (curPrim->field_6.bits.field_6_8 == arg1)
+            if (curPrim->field_6.bits.materialIdx == arg1)
             {
                 if (matFlags & MaterialFlag_0)
                 {
@@ -1157,16 +1157,16 @@ void Lm_MaterialRefCountDec(s_LmHeader* lmHdr) // 0x80056BF8
     // Run through materials.
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
-        tex = curMat->texture_8;
+        tex = curMat->texture;
         if (tex != NULL)
         {
-            tex->refCount_14--;
-            if (tex->refCount_14 < 0)
+            tex->refCount--;
+            if (tex->refCount < 0)
             {
-                tex->refCount_14 = 0;
+                tex->refCount = 0;
             }
 
-            curMat->texture_8 = NULL;
+            curMat->texture = NULL;
         }
     }
 }
@@ -1199,7 +1199,7 @@ bool Lm_ModelFind(s_WorldObjectModel* model, s_LmHeader* lmHdr, s_WorldObjectMet
 
     result = false;
 
-    StringCopy(sp10.str, metadata->name_0.str);
+    StringCopy(sp10.str, metadata->name.str);
 
     modelHdrCount = lmHdr->modelCount;
 
@@ -1207,7 +1207,7 @@ bool Lm_ModelFind(s_WorldObjectModel* model, s_LmHeader* lmHdr, s_WorldObjectMet
     {
         for (i = 0, modelHdr = &lmHdr->modelHdrs[i]; i < modelHdrCount; i++, modelHdr++)
         {
-            if (!COMPARE_FILENAMES(&modelHdr->name_0, &sp10))
+            if (!COMPARE_FILENAMES(&modelHdr->name, &sp10))
             {
                 result                       = true;
                 model->modelInfo.modelIdx = i;
@@ -1256,7 +1256,7 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
     var_t1  = arg4;
     temp_s5 = arg3;
 
-    if (!g_WorldEnvWork.isFogEnabled_1)
+    if (!g_WorldEnvWork.isFogEnabled)
     {
         return;
     }
@@ -1282,7 +1282,7 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
 
     temp_a0_2 = 0x79C << (arg7 + 2);
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
         var_v1_3 = MIN(temp_a0_2, FOG_FAR_DIST());
     }
@@ -1299,7 +1299,7 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
             var_t1 = 0;
         }
 
-        var_s0 = (func_80055A50(var_t1) * 16) + g_WorldEnvWork.fogIntensity_18;
+        var_s0 = (func_80055A50(var_t1) * 16) + g_WorldEnvWork.fog.intensity;
         var_s0 = MIN(var_s0, Q12(1.0f));
 
         var_v1_4 = MAX(arg5 >> 7, 1);
@@ -1316,9 +1316,9 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
         *(u32*)&poly->r0 =
         *(u32*)&poly->r1 =
         *(u32*)&poly->r2 =
-        *(u32*)&poly->r3 = Q12_MULT(g_WorldEnvWork.fogColor_1C.r, var_s0)       +
-                          (Q12_MULT(g_WorldEnvWork.fogColor_1C.g, var_s0) << 8) +
-                          (Q12_MULT(g_WorldEnvWork.fogColor_1C.b, var_s0) << 16);
+        *(u32*)&poly->r3 = Q12_MULT(g_WorldEnvWork.fog.color.r, var_s0)       +
+                          (Q12_MULT(g_WorldEnvWork.fog.color.g, var_s0) << 8) +
+                          (Q12_MULT(g_WorldEnvWork.fog.color.b, var_s0) << 16);
 
         SetPolyG4(poly);
 
@@ -1439,7 +1439,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3) // 0x80
     gte_stsv(&g_WorldEnvWork.field_7C);
 }
 
-void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* mat) // 0x80057344
+void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* mat) // 0x80057344
 {
     u32               normalOffset;
     u32               vertOffset;
@@ -1451,17 +1451,17 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
     modelHdr     = modelInfo->modelHdr;
 #ifdef SH_PC_PORT
-    if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
+    if (modelHdr == NULL || modelHdr->meshHdrs == NULL) {
         return;
     }
 #endif
-    vertOffset   = modelHdr->vertexOffset_9;
-    normalOffset = modelHdr->normalOffset_A;
+    vertOffset   = modelHdr->vertexOffset;
+    normalOffset = modelHdr->normalOffset;
 
     gte_lddqa(g_WorldEnvWork.field_4C);
     gte_lddqb_0();
 
-    for (curMeshHdr = modelHdr->meshHdrs_C; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
         if (vertOffset != 0 || normalOffset != 0)
         {
@@ -1503,10 +1503,10 @@ void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x80
 
     screenXy = &scratchData->screenXy_0[0];
     var_a2   = &scratchData->field_18C[0]; // `screenZ`? There's already an earlier struct field though.
-    vertexXy = &meshHdr->verticesXy_8[0];
-    vertexZ  = &meshHdr->verticesZ_C[0];
+    vertexXy = &meshHdr->verticesXy[0];
+    vertexZ  = &meshHdr->verticesZ[0];
 
-    while (var_a2 < &scratchData->field_18C[meshHdr->vertexCount_1])
+    while (var_a2 < &scratchData->field_18C[meshHdr->vertexCount])
     {
         *(u32*)screenXy++ = *(u32*)vertexXy++;
 
@@ -1515,7 +1515,7 @@ void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x80
         var_a2 += 2;
     }
 
-    while (screenXy < &scratchData->screenXy_0[meshHdr->vertexCount_1])
+    while (screenXy < &scratchData->screenXy_0[meshHdr->vertexCount])
     {
         *(u32*)screenXy++ = *(u32*)vertexXy++;
     }
@@ -1543,9 +1543,9 @@ void func_8005759C(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, s32 ver
     // Should be loop? Tried but no luck.
     screenXyPtr  = &scratchData->screenXy_0[vertOffset];
     field_18CPtr = &scratchData->field_18C[vertOffset];
-    vertexXyPtr  = meshHdr->verticesXy_8;
-    vertexZPtr   = meshHdr->verticesZ_C;
-    while (vertexXyPtr < &meshHdr->verticesXy_8[meshHdr->vertexCount_1])
+    vertexXyPtr  = meshHdr->verticesXy;
+    vertexZPtr   = meshHdr->verticesZ;
+    while (vertexXyPtr < &meshHdr->verticesXy[meshHdr->vertexCount])
     {
         *screenXyPtr++  = *vertexXyPtr++;
         *field_18CPtr++ = *vertexZPtr++;
@@ -1596,7 +1596,7 @@ void func_80057658(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     var_t0 = &scratchData->field_2B8[offset];
     mat    = &scratchData->field_380.field_0;
 
-    for (curNormal = meshHdr->normals_10; curNormal < &meshHdr->normals_10[meshHdr->normalCount_2]; curNormal++)
+    for (curNormal = meshHdr->normals; curNormal < &meshHdr->normals[meshHdr->normalCount]; curNormal++)
     {
         temp_t8   = &scratchData->field_380.field_0.m[2][0];
         screenPos = &scratchData->screenPos_3A4;
@@ -1709,7 +1709,7 @@ void func_80057A3C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     var_a3  = &scratchData->field_2B8[offset];
     temp_t2 = g_WorldEnvWork.field_20;
 
-    for (normal = meshHdr->normals_10; normal < &meshHdr->normals_10[meshHdr->normalCount_2]; normal++)
+    for (normal = meshHdr->normals; normal < &meshHdr->normals[meshHdr->normalCount]; normal++)
     {
         *(u32*)&scratchData->field_3A0 = *(u32*)normal;
 
@@ -1744,7 +1744,7 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     s32      temp_s2;
     u8*      var_t1;
 
-    temp_s2 = g_WorldEnvWork.fogDepthShift_14;
+    temp_s2 = g_WorldEnvWork.fog.depthShift;
 
     SetRotMatrix(mat);
     SetTransMatrix(mat);
@@ -1777,10 +1777,10 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     var_t1  += 3;
     temp_a2 += 3;
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
         for (;
-             screenXy < &scratchData->screenXy_0[meshHdr->vertexCount_1 + offset];
+             screenXy < &scratchData->screenXy_0[meshHdr->vertexCount + offset];
              screenXy += 3, temp_a2 += 3, var_t1 += 3)
         {
             *(s32*)&scratchData->field_380.field_0.m[0][0] = *(s32*)&screenXy[0];
@@ -1794,9 +1794,9 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
             gte_ldv3c(&scratchData->field_380.field_0);
             gte_rtpt();
 
-            var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
-            var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
-            var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
+            var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
+            var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
+            var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
 
             gte_stsxy3c(screenXy);
             gte_stsz3(&scratchData->field_380.field_0.m[0][2], &scratchData->field_380.field_0.m[2][0], &scratchData->field_380.field_0.t[0]);
@@ -1806,13 +1806,13 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
             temp_a2[2] = scratchData->field_380.field_0.t[0];
         }
 
-        var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
-        var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
-        var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp_CC[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
+        var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
+        var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
+        var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
     }
     else
     {
-        for (; screenXy < &scratchData->screenXy_0[meshHdr->vertexCount_1 + offset]; screenXy += 3, temp_a2 += 3)
+        for (; screenXy < &scratchData->screenXy_0[meshHdr->vertexCount + offset]; screenXy += 3, temp_a2 += 3)
         {
             *(s32*)&scratchData->field_380.field_0.m[0][0] = *(s32*)&screenXy[0];
             *(s32*)&scratchData->field_380.field_0.m[1][1] = *(s32*)&screenXy[1];
@@ -1834,7 +1834,7 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     }
 }
 
-void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG* tag, s32 arg3) // 0x8005801C
+void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG* tag, bool arg3) // 0x8005801C
 {
     s32          sp10;
     s32          sp14;
@@ -1892,7 +1892,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
     temp_v1 = 0x79C << (arg3 + 2);
 
-    if (!g_WorldEnvWork.isFogEnabled_1)
+    if (!g_WorldEnvWork.isFogEnabled)
     {
         scratchData->field_380.s_0.field_1C = temp_v1;
     }
@@ -1940,8 +1940,8 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 #else
     scratchData->field_380.s_0.field_0    = g_GameWork.gsScreenWidth >> 1;
 #endif
-    scratchData->field_380.s_0.field_4    = g_WorldEnvWork.fogIntensity_18;
-    scratchData->field_380.s_0.field_8    = g_WorldEnvWork.worldTintColor_28;
+    scratchData->field_380.s_0.field_4    = g_WorldEnvWork.fog.intensity;
+    scratchData->field_380.s_0.field_8    = g_WorldEnvWork.worldTintColor;
     scratchData->field_380.s_0.field_8.cd = 0x3C;
 
 
@@ -1954,24 +1954,24 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     }
 
 
-    scratchData->field_380.s_0.field_C    = g_WorldEnvWork.fogColor_1C;
+    scratchData->field_380.s_0.field_C    = g_WorldEnvWork.fog.color;
     scratchData->field_380.s_0.field_C.cd = 0x38;
 
     SetBackColor(0, 0, 0);
 
 
-    prim = meshHdr->primitives_4;
+    prim = meshHdr->primitives;
 
     if (g_WorldEnvWork.field_0 != 0)
     {
-        if (g_WorldEnvWork.isFogEnabled_1 != 0)
+        if (g_WorldEnvWork.isFogEnabled != 0)
         {
             if (*(s32*)&scratchData->field_380.s_0.field_C & 0xFFFFFF)
             {
                 poly3 = GsOUT_PACKET_P;
                 poly1  = poly3 + 1;
 
-                for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+                for (; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
                 {
                     *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 #ifdef SH_PC_PORT
@@ -2183,7 +2183,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
             poly3 = GsOUT_PACKET_P;
 
-            for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+            for (; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
             {
                 *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 #ifdef SH_PC_PORT
@@ -2311,12 +2311,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
         }
     }
 
-    if (g_WorldEnvWork.isFogEnabled_1 != 0)
+    if (g_WorldEnvWork.isFogEnabled != 0)
     {
         poly3  = GsOUT_PACKET_P;
         poly2 = poly3 + 1;
 
-        for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+        for (; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
         {
             *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 #ifdef SH_PC_PORT
@@ -2534,7 +2534,7 @@ __block1530:
     int _b1530Total = 0, _b1530ZeroZ = 0, _b1530FarZ = 0, _b1530Nclip = 0, _b1530Emitted = 0;
 #endif
 
-    for (; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+    for (; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
     {
 #ifdef SH_PC_PORT
         _b1530Total++;
@@ -2719,7 +2719,7 @@ __block19CC:
     s32 pc_emitted = 0;
 #endif
 
-    for (prim = meshHdr->primitives_4; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+    for (prim = meshHdr->primitives; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
     {
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 
@@ -2850,7 +2850,7 @@ __block19CC:
     GsOUT_PACKET_P = poly4;
 }
 
-void func_80059D50(s32 arg0, s_ModelInfo* modelInfo, MATRIX* mat, s32 arg3, GsOT_TAG* tag) // 0x80059D50
+void func_80059D50(s32 arg0, s_ModelInfo* modelInfo, MATRIX* mat, bool arg3, GsOT_TAG* tag) // 0x80059D50
 {
     s_GteScratchData* scratchData;
     s_MeshHeader*     curMeshHdr;
@@ -2860,7 +2860,7 @@ void func_80059D50(s32 arg0, s_ModelInfo* modelInfo, MATRIX* mat, s32 arg3, GsOT
 
     modelHdr = modelInfo->modelHdr;
 
-    for (curMeshHdr = &modelHdr->meshHdrs_C[0]; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
+    for (curMeshHdr = &modelHdr->meshHdrs[0]; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
         func_800574D4(curMeshHdr, scratchData);
         func_80057B7C(curMeshHdr, 0, scratchData, mat);
@@ -2909,7 +2909,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     }
 
     temp_v1 = 0x79C << (arg3 + 2);
-    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
 #ifdef SH_PC_PORT
@@ -2931,7 +2931,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     scratchData->field_380.s_0.field_0 = g_GameWork.gsScreenWidth >> 1;
 #endif
 
-    for (prim = meshHdr->primitives_4; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+    for (prim = meshHdr->primitives; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
     {
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 
@@ -3018,7 +3018,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     GsOUT_PACKET_P = (PACKET*)poly;
 }
 
-void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* mat) // 0x8005A21C
+void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* mat) // 0x8005A21C
 {
     s16               var_v1;
     u32               normalOffset;
@@ -3031,23 +3031,23 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 
 #ifdef SH_PC_PORT
     modelHdr = modelInfo->modelHdr;
-    if (modelHdr == NULL || modelHdr->meshHdrs_C == NULL) {
+    if (modelHdr == NULL || modelHdr->meshHdrs == NULL) {
         return;
     }
 #endif
 
-    if (g_WorldEnvWork.isFogEnabled_1)
+    if (g_WorldEnvWork.isFogEnabled)
     {
-        if (mat->t[2] < (1 << g_WorldEnvWork.fogDepthShift_14))
+        if (mat->t[2] < (1 << g_WorldEnvWork.fog.depthShift))
         {
 #ifdef SH_PC_PORT
             /* Bounds-check fogRamp index to prevent OOB on bad matrix data */
-            s32 fogIdx = (s32)(mat->t[2] << 7) >> g_WorldEnvWork.fogDepthShift_14;
+            s32 fogIdx = (s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift;
             if (fogIdx < 0) fogIdx = 0;
             if (fogIdx > 127) fogIdx = 127;
-            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp_CC[fogIdx] << 4);
+            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[fogIdx] << 4);
 #else
-            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp_CC[(s32)(mat->t[2] << 7) >> g_WorldEnvWork.fogDepthShift_14] << 4);
+            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[(s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift] << 4);
 #endif
         }
         else
@@ -3084,10 +3084,10 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
 #ifndef SH_PC_PORT
     modelHdr     = modelInfo->modelHdr;
 #endif
-    vertOffset   = modelHdr->vertexOffset_9;
-    normalOffset = modelHdr->normalOffset_A;
+    vertOffset   = modelHdr->vertexOffset;
+    normalOffset = modelHdr->normalOffset;
 
-    for (curMeshHdr = modelHdr->meshHdrs_C; curMeshHdr < &modelHdr->meshHdrs_C[modelHdr->meshCount_8]; curMeshHdr++)
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
     {
         func_8005A900(curMeshHdr, vertOffset, scratchData, mat);
 
@@ -3103,8 +3103,8 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, void* arg2, MATRIX* 
                 s_GteScratchData2* sd2 = (s_GteScratchData2*)scratchData;
                 SH_DBG("[MESH] mdl=%d vOff=%d verts=%d prims=%d env0=%d sZ[off]=%d,%d sXY[off]=(%d,%d),(%d,%d) t2=%d fB1=%d",
                     modelInfo->modelIdx, vertOffset,
-                    curMeshHdr->vertexCount_1,
-                    curMeshHdr->primitiveCount_0,
+                    curMeshHdr->vertexCount,
+                    curMeshHdr->primitiveCount,
                     g_WorldEnvWork.field_0,
                     sd2->screenZ_168[vertOffset], sd2->screenZ_168[vertOffset+1],
                     sd2->screenXy_0[vertOffset].vx, sd2->screenXy_0[vertOffset].vy,
@@ -3124,7 +3124,7 @@ void func_8005A42C(s_GteScratchData* scratchData, q19_12 alpha) // 0x8005A42C
     q19_12 invAlpha = Q12(1.0f) - Q12_MULT(alpha, g_WorldEnvWork.field_20);
 
     gte_lddp(invAlpha);
-    gte_ldrgb(&g_WorldEnvWork.worldTintColor_28);
+    gte_ldrgb(&g_WorldEnvWork.worldTintColor);
     gte_dpcs();
     gte_strgb(&scratchData->field_3D8);
 }
@@ -3254,9 +3254,9 @@ void func_8005A478(s_GteScratchData* scratchData, q19_12 alpha) // 0x8005A478
         var_a1 = 64;
     }
 
-    SetBackColor(Q12_MULT(g_WorldEnvWork.field_24 + ((g_WorldEnvWork.worldTintColor_28.r * var_a1) >> 7), alpha),
-                 Q12_MULT(g_WorldEnvWork.field_25 + ((g_WorldEnvWork.worldTintColor_28.g * var_a1) >> 7), alpha),
-                 Q12_MULT(g_WorldEnvWork.field_26 + ((g_WorldEnvWork.worldTintColor_28.b * var_a1) >> 7), alpha));
+    SetBackColor(Q12_MULT(g_WorldEnvWork.field_24 + ((g_WorldEnvWork.worldTintColor.r * var_a1) >> 7), alpha),
+                 Q12_MULT(g_WorldEnvWork.field_25 + ((g_WorldEnvWork.worldTintColor.g * var_a1) >> 7), alpha),
+                 Q12_MULT(g_WorldEnvWork.field_26 + ((g_WorldEnvWork.worldTintColor.b * var_a1) >> 7), alpha));
 }
 
 void func_8005A838(s_GteScratchData* scratchData, s32 scale) // 0x8005A838
@@ -3281,7 +3281,7 @@ void func_8005A900(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     DVECTOR* outXy; // Projected XY output buffer
     u16*     outZ;  // Projected Z output buffer
 
-    if (meshHdr->vertexCount_1 == 0)
+    if (meshHdr->vertexCount == 0)
     {
         return;
     }
@@ -3292,10 +3292,10 @@ void func_8005A900(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     outXy = &scratchData->screenXy_0[offset];
     outZ  = &scratchData->screenZ_168[offset];
 
-    inXy = meshHdr->verticesXy_8;
-    inZ  = meshHdr->verticesZ_C;
+    inXy = meshHdr->verticesXy;
+    inZ  = meshHdr->verticesZ;
 
-    while (outXy < &scratchData->screenXy_0[meshHdr->vertexCount_1 + offset])
+    while (outXy < &scratchData->screenXy_0[meshHdr->vertexCount + offset])
     {
         // Nearly same as `gte_RotTransPers3`, processes 3 vertices per iteration.
         gte_LoadVector0_1_2_XYZ(inXy, inZ);
@@ -3333,7 +3333,7 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
     s_Normal* var_a3;
     VECTOR3*  var_t0;
 
-    if (meshHdr->normalCount_2 == 0)
+    if (meshHdr->normalCount == 0)
     {
         return;
     }
@@ -3341,7 +3341,7 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
     sp0.cd = 0;
     gte_ldrgb(&sp0);
 
-    var_a3 = meshHdr->normals_10;
+    var_a3 = meshHdr->normals;
     *(u32*)&scratchData->u.normal.field_3DC = *(u32*)&var_a3[0];
     scratchData->u.normal.field_3E0[0].vx = scratchData->u.normal.field_3DC.nx << 5;
     scratchData->u.normal.field_3E0[0].vy = scratchData->u.normal.field_3DC.ny << 5;
@@ -3363,7 +3363,7 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
     gte_ldv3c(scratchData->u.normal.field_3E0);
     gte_nct();
 
-    while(var_a3 < &meshHdr->normals_10[meshHdr->normalCount_2])
+    while(var_a3 < &meshHdr->normals[meshHdr->normalCount])
     {
         *(u32*)&scratchData->u.normal.field_3DC = *(u32*)&var_a3[0];
         scratchData->u.normal.field_3E0[0].vx = scratchData->u.normal.field_3DC.nx << 5;
@@ -3390,7 +3390,7 @@ u8 func_8005AA08(s_MeshHeader* meshHdr, s32 arg1, s_GteScratchData2* scratchData
     gte_strgb3(&var_t0->vx, &var_t0->vy, &var_t0->vz); // Store result from final `gte_nct`.
 }
 
-void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_TAG* ot, s32 arg3) // 0x8005AC50
+void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_TAG* ot, bool arg3) // 0x8005AC50
 {
     typedef union
     {
@@ -3429,14 +3429,14 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     scratchData->u.s_1.field_8 = g_WorldEnvWork.field_14C << 16;
 
     temp_a0 = 0x79C << (arg3 + 2);
-    var_t9  = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
+    var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
     {
         static int _charTexLog = 0;
-        if (_charTexLog < 3 && meshHdr->primitiveCount_0 > 0) {
-            s_Primitive* _p0 = &meshHdr->primitives_4[0];
+        if (_charTexLog < 3 && meshHdr->primitiveCount > 0) {
+            s_Primitive* _p0 = &meshHdr->primitives[0];
             u8 tpg = _p0->field_6.bits.field_6_0;
             int pageX = (tpg & 0xF) * 64;
             int pageY = ((tpg >> 4) & 1) * 256;
@@ -3445,7 +3445,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             int clutX = (clut & 0x3F) << 4;
             int clutY = (clut >> 6) & 0x1FF;
             SH_DBG("[CHAR-RENDER] primCnt=%d f0=0x%04x f2=0x%04x f6=0x%04x tpg=0x%02x pageXY=(%d,%d) fmt=%d clutXY=(%d,%d) field8=0x%08x",
-                    meshHdr->primitiveCount_0, _p0->field_0, _p0->field_2, _p0->field_6.flags,
+                    meshHdr->primitiveCount, _p0->field_0, _p0->field_2, _p0->field_6.flags,
                     tpg, pageX, pageY, fmt, clutX, clutY, scratchData->u.s_1.field_8);
             /* Check a few pixels of VRAM at the texture page location */
             {
@@ -3468,7 +3468,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     }
 #endif
 
-    for (prim = meshHdr->primitives_4, poly.packet = GsOUT_PACKET_P; prim < &meshHdr->primitives_4[meshHdr->primitiveCount_0]; prim++)
+    for (prim = meshHdr->primitives, poly.packet = GsOUT_PACKET_P; prim < &meshHdr->primitives[meshHdr->primitiveCount]; prim++)
     {
         *(s32*)&scratchData->u.s_1.field_0 = *(s32*)&prim->field_C;
         *(s32*)&scratchData->u.s_1.field_4 = *(s32*)&prim->field_10;
@@ -3637,11 +3637,11 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
         static int _primSummaryLog = 0;
         if (_primSummaryLog < 25) {
             SH_DBG("[PRIM] prims=%d pass=%d depthFail=%d oobFail=%d other=%d maxZ=%d",
-                meshHdr->primitiveCount_0, _dbgPrimPass, _dbgPrimDepthFail, _dbgPrimOobFail,
+                meshHdr->primitiveCount, _dbgPrimPass, _dbgPrimDepthFail, _dbgPrimOobFail,
                 _dbgPrimTotal - _dbgPrimPass - _dbgPrimDepthFail - _dbgPrimOobFail, var_t9);
             /* Log first prim vertex indices for ALL models */
-            if (meshHdr->primitiveCount_0 > 0) {
-                s_Primitive* p0 = &meshHdr->primitives_4[0];
+            if (meshHdr->primitiveCount > 0) {
+                s_Primitive* p0 = &meshHdr->primitives[0];
                 u8* fc = (u8*)&p0->field_C;
                 SH_DBG("[PRIM-FAIL] firstPrim vIdx=%d,%d,%d,%d nIdx=%d,%d,%d,%d sZ=%d,%d,%d,%d sXY=(%d,%d),(%d,%d),(%d,%d)",
                     fc[0], fc[1], fc[2], fc[3],
@@ -3666,20 +3666,20 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
 void Texture_Init(s_Texture* tex, char* texName, u8 tPage0, u8 tPage1, s32 u, s32 v, s16 clutX, s16 clutY) // 0x8005B1A0
 {
-    tex->imageDesc_0.tPage[0] = tPage0;
-    tex->imageDesc_0.tPage[1] = tPage1;
-    tex->imageDesc_0.u        = u;
-    tex->imageDesc_0.v        = v;
-    tex->imageDesc_0.clutX    = clutX;
-    tex->imageDesc_0.clutY    = clutY;
+    tex->imageDesc.tPage[0] = tPage0;
+    tex->imageDesc.tPage[1] = tPage1;
+    tex->imageDesc.u        = u;
+    tex->imageDesc.v        = v;
+    tex->imageDesc.clutX    = clutX;
+    tex->imageDesc.clutY    = clutY;
 
-    StringCopy(tex->name_8.str, texName);
+    StringCopy(tex->name.str, texName);
 
-    tex->refCount_14 = 0;
-    tex->queueIdx_10 = NO_VALUE;
+    tex->refCount = 0;
+    tex->queueIdx = NO_VALUE;
 }
 
-s_Texture* Texture_Get(s_Material* mat, s_ActiveTextures* activeTexs, void* fsBuffer9, e_FsFile fileIdx, s32 arg4)
+s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void* fsBuffer9, e_FsFile fileIdx, s32 arg4)
 {
     s8         filename[12];
     s8         debugStr[12];
@@ -3691,22 +3691,22 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveTextures* activeTexs, void* fsBu
     s_Texture* foundTex;
 
     smallestQueueIdx = INT_MAX;
-    mat->texture_8 = NULL;
+    mat->texture = NULL;
     foundTex = NULL;
 
-    for (i = 0; i < activeTexs->count_0; i++)
+    for (i = 0; i < activeTexs->count; i++)
     {
-        curTex = activeTexs->textures_4[i];
+        curTex = activeTexs->textures[i];
 
-        if (!COMPARE_FILENAMES(&mat->name_0, &curTex->name_8))
+        if (!COMPARE_FILENAMES(&mat->name, &curTex->name))
         {
-            mat->texture_8 = curTex;
-            curTex->refCount_14++;
+            mat->texture = curTex;
+            curTex->refCount++;
             return curTex;
         }
 
-        queueIdx = curTex->queueIdx_10;
-        if ((s32)queueIdx < smallestQueueIdx && curTex->refCount_14 == 0)
+        queueIdx = curTex->queueIdx;
+        if ((s32)queueIdx < smallestQueueIdx && curTex->refCount == 0)
         {
             smallestQueueIdx = queueIdx;
             foundTex       = curTex;
@@ -3733,32 +3733,32 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveTextures* activeTexs, void* fsBu
 #endif
     }
 
-    foundTex->queueIdx_10 = Fs_QueueStartReadTim(fileId, fsBuffer9, &foundTex->imageDesc_0);
-    foundTex->refCount_14++;
-    foundTex->name_8 = mat->name_0;
+    foundTex->queueIdx = Fs_QueueStartReadTim(fileId, fsBuffer9, &foundTex->imageDesc);
+    foundTex->refCount++;
+    foundTex->name = mat->name;
 
     return foundTex;
 }
 
 void Texture_RefCountReset(s_Texture* tex) // 0x8005B370
 {
-    tex->refCount_14 = 0;
+    tex->refCount = 0;
 }
 
 void func_8005B378(s_Texture* tex, char* arg1) // 0x8005B378
 {
-    tex->refCount_14 = 1;
-    tex->queueIdx_10 = 0;
-    StringCopy(tex->name_8.str, arg1);
+    tex->refCount = 1;
+    tex->queueIdx = 0;
+    StringCopy(tex->name.str, arg1);
 }
 
 void Texture_RefClear(s_Texture* tex) // 0x8005B3A4
 {
-    tex->name_8.u32[1] = 0;
-    tex->name_8.u32[0] = 0;
+    tex->name.u32[1] = 0;
+    tex->name.u32[0] = 0;
 
-    tex->refCount_14 = 0;
-    tex->queueIdx_10 = NO_VALUE;
+    tex->refCount = 0;
+    tex->queueIdx = NO_VALUE;
 }
 
 void Material_TimFileNameGet(char* filename, s_Material* mat) // 0x8005B3BC
@@ -3768,8 +3768,8 @@ void Material_TimFileNameGet(char* filename, s_Material* mat) // 0x8005B3BC
     // Some inline `memcpy`/`bcopy`/`strncpy`? those use `lwl`/`lwr`/`swl`/`swr` instead though
     // Example: casting `filename`/`arg1` to `u32*` and using `memcpy` does generate `lw`/`sw`,
     // but not in same order as this, guess it's some custom inline/macro instead.
-    *(u32*)&sp10[0] = *(u32*)&mat->name_0.str[0];
-    *(u32*)&sp10[4] = *(u32*)&mat->name_0.str[4];
+    *(u32*)&sp10[0] = *(u32*)&mat->name.str[0];
+    *(u32*)&sp10[4] = *(u32*)&mat->name.str[4];
     *(u32*)&sp10[8] = 0;
 
     strcat(sp10, D_80028544); // Copies `TIM` to end of `sp10` string.
@@ -3795,25 +3795,25 @@ void func_8005B424(VECTOR3* vec0, const VECTOR3* vec1) // 0x8005B424
     *((s_func_8005B424*)vec0) = *((s_func_8005B424*)vec1);
 }
 
-void Textures_ActiveTex_CountReset(s_ActiveTextures* activeTexs) // 0x8005B46C
+void Textures_ActiveTex_CountReset(s_ActiveChunkTextures* activeTexs) // 0x8005B46C
 {
-    activeTexs->count_0 = 0;
+    activeTexs->count = 0;
 }
 
-void Textures_ActiveTex_PutTextures(s_ActiveTextures* activeTexs, s_Texture* texs, s32 texIdx) // 0x8005B474
+void Textures_ActiveTex_PutTextures(s_ActiveChunkTextures* activeTexs, s_Texture* texs, s32 texIdx) // 0x8005B474
 {
     s_Texture*  curTex;
     s_Texture** texEntries;
 
-    texEntries = activeTexs->textures_4;
+    texEntries = activeTexs->textures;
     for (curTex = &texs[0]; curTex < &texs[texIdx];)
     {
         *texEntries++ = curTex++;
-        activeTexs->count_0++;
+        activeTexs->count++;
     }
 }
 
-s_Texture* Textures_ActiveTex_FindTexture(char* texName, s_ActiveTextures* activeTexs) // 0x8005B4BC
+s_Texture* Textures_ActiveTex_FindTexture(char* texName, s_ActiveChunkTextures* activeTexs) // 0x8005B4BC
 {
     char       prevTexName[8];
     s32        i;
@@ -3821,10 +3821,10 @@ s_Texture* Textures_ActiveTex_FindTexture(char* texName, s_ActiveTextures* activ
 
     StringCopy(prevTexName, texName);
 
-    for (i = 0; i < activeTexs->count_0; i++)
+    for (i = 0; i < activeTexs->count; i++)
     {
-        curTex = activeTexs->textures_4[i];
-        if (curTex->queueIdx_10 != NO_VALUE && !COMPARE_FILENAMES(prevTexName, &curTex->name_8))
+        curTex = activeTexs->textures[i];
+        if (curTex->queueIdx != NO_VALUE && !COMPARE_FILENAMES(prevTexName, &curTex->name))
         {
             return curTex;
         }
@@ -3841,12 +3841,12 @@ void func_8005B55C(GsCOORDINATE2* coord) // 0x8005B55C
 
     for (curPtr = &D_800AE204[0]; curPtr < &D_800AE204[26]; curPtr++)
     {
-        curPtr->field_10 = -Math_Cos(curPtr->field_4);
-        curPtr->field_C  = -Math_Sin(curPtr->field_4);
-        curPtr->field_E  = 0;
-        curPtr->field_18 = Q12_MULT(curPtr->field_2, Math_Cos(curPtr->field_4));
-        curPtr->field_14 = Q12_MULT(curPtr->field_2, Math_Sin(curPtr->field_4));
-        curPtr->field_16 = curPtr->field_0;
+        curPtr->field_C.vz = -Math_Cos(curPtr->field_4);
+        curPtr->field_C.vx  = -Math_Sin(curPtr->field_4);
+        curPtr->field_C.vy  = 0;
+        curPtr->position.vz = Q12_MULT(curPtr->field_2, Math_Cos(curPtr->field_4));
+        curPtr->position.vx = Q12_MULT(curPtr->field_2, Math_Sin(curPtr->field_4));
+        curPtr->position.vy = curPtr->positionY;
     }
 }
 
@@ -3893,13 +3893,13 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
     sp498   = ReadGeomScreen();
 
     temp_v1 = 0x79C << (arg5 + 2);
-    sp494   = g_WorldEnvWork.isFogEnabled_1 ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    sp494   = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
     Vw_WorldScreenMatrixAtPositionGet(&matrix_sp18[0], posX, posY, posZ);
 
     // @hack Pointer needed for match, is there a way to remove this?
     // `Gfx_FogOverlayQuadDraw` `Gfx_MeshDraw` `func_8005AC50` all seem to do similar thing without needing pointer?
     worldEnvWork = &g_WorldEnvWork;
-    if (!worldEnvWork->isFogEnabled_1)
+    if (!worldEnvWork->isFogEnabled)
     {
         var_s1 = Q12(1.0f);
     }
@@ -3923,11 +3923,11 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 
     if (g_WorldEnvWork.field_0 == 0)
     {
-        sp58[4].r = Q12_MULT(g_WorldEnvWork.worldTintColor_28.r, g_WorldEnvWork.field_20);
-        sp58[4].g = Q12_MULT(g_WorldEnvWork.worldTintColor_28.g, g_WorldEnvWork.field_20);
-        sp58[4].b = Q12_MULT(g_WorldEnvWork.worldTintColor_28.b, g_WorldEnvWork.field_20);
+        sp58[4].r = Q12_MULT(g_WorldEnvWork.worldTintColor.r, g_WorldEnvWork.field_20);
+        sp58[4].g = Q12_MULT(g_WorldEnvWork.worldTintColor.g, g_WorldEnvWork.field_20);
+        sp58[4].b = Q12_MULT(g_WorldEnvWork.worldTintColor.b, g_WorldEnvWork.field_20);
 
-        if (g_WorldEnvWork.isFogEnabled_1)
+        if (g_WorldEnvWork.isFogEnabled)
         {
             sp58[4].r = Q12_MULT(sp58[4].r, var_s1);
             sp58[4].g = Q12_MULT(sp58[4].g, var_s1);
@@ -3967,7 +3967,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 
         ReadLightMatrix(&sp70);
 
-        if (g_WorldEnvWork.isFogEnabled_1)
+        if (g_WorldEnvWork.isFogEnabled)
         {
             posX0 = Q12_MULT(sp70.m[0][0], var_s1);
             posY0 = Q12_MULT(sp70.m[0][1], var_s1);
@@ -4032,7 +4032,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
     for (curPtr = temp_fp->ptr_0, poly_gt4 = GsOUT_PACKET_P;
          curPtr < &temp_fp->ptr_0[temp_fp->count_4]; curPtr++)
     {
-        temp_v0_2 = RotTransPers((SVECTOR*)&curPtr->field_14, &field_1C, &field_24, &field_24);
+        temp_v0_2 = RotTransPers((SVECTOR*)&curPtr->position.vx, &field_1C, &field_24, &field_24);
         temp_a0   = temp_v0_2 << 2;
 
         if (temp_v0_2 > 32 && temp_a0 < sp494)
@@ -4072,9 +4072,9 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
             /* PC billboard fog: encode fog factor in p1 pad byte.
              * Shader does mix(fragColor.rgb, u_fogColor, fogAmount). */
             {
-                if (g_WorldEnvWork.isFogEnabled_1)
+                if (g_WorldEnvWork.isFogEnabled)
                 {
-                    s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fogIntensity_18;
+                    s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fog.intensity;
                     if (fogAmt > 0x1000) fogAmt = 0x1000;
                     poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
                     poly_gt4->p2 = poly_gt4->p1;
@@ -4092,7 +4092,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 poly_gt4++;
             }
 #else
-            if (worldEngWork1->isFogEnabled_1)
+            if (worldEngWork1->isFogEnabled)
             {
                 packet = poly_gt4 + 1;
                 SetPriority(packet, 0, 0);
@@ -4101,10 +4101,10 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 
                 poly_g4 = packet2 + 0xC;
 
-                temp = (func_80055A50(temp_v0_2 << 6) * 16) + worldEngWork1->fogIntensity_18;
+                temp = (func_80055A50(temp_v0_2 << 6) * 16) + worldEngWork1->fog.intensity;
 
                 gte_lddp(0x1000 - MIN(temp, 0x1000));
-                gte_ldrgb(&g_WorldEnvWork.fogColor_1C);
+                gte_ldrgb(&g_WorldEnvWork.fog.color);
                 gte_dpcs();
                 gte_strgb((CVECTOR*)&poly_g4->r0);
 
@@ -4145,4 +4145,19 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 void Gfx_DebugStringPositionSet(s16 unused, s16 posX, s16 posY) // 0x8005BF0C
 {
     Text_Debug_PositionSet(posX, posY);
+}
+
+/* PC port: upstream particle.c calls these (new upstream functions). Our s_WorldEnvWork
+ * keeps the flat fork light-region layout, so map by role: field_60 = light position
+ * (VECTOR3), field_58 = light rotation (SVECTOR, fork-commented "Rotation"),
+ * field_54 = light intensity scalar. Verify flashlight particle placement at runtime. */
+void WorldEnv_LightPositionGet(VECTOR3* pos)
+{
+    *pos = g_WorldEnvWork.field_60;
+}
+
+s32 WorldEnv_LightRotationAndIntensityGet(SVECTOR* rot)
+{
+    *rot = g_WorldEnvWork.field_58;
+    return g_WorldEnvWork.field_54;
 }

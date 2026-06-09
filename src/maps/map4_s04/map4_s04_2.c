@@ -4,7 +4,7 @@
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/text/text_draw.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/map4/map4_s04.h"
@@ -30,77 +30,77 @@ void GameBoot_LoadScreen_StageString(void) {}
 
 void func_800D1870(void) {}
 
-#include "maps/shared/SysWork_StateStepIncrementAfterTime.h" // 0x800D1878
+#include "maps/shared/Event_CutsceneTimerAdvance.h" // 0x800D1878
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "~J0(1.8)\tWhere_am_I? ~E ",
-    "~J1(1.0)\tHarry. ",
-    "~J1(1.2)\tLisa... ",
-    "~J1(1.5)\tThen_I'm_in_the_hospital. ",
-    "~J1(2.4)\tYou_were_having_a_bad_dream. ",
-    "~J1(0.8)\tWas_I? ",
-    "~J1(4.2)\tHey,_you_don't_look_too_good. ~N\n\t\t\tAre_you_OK? ",
-    "~J1(1.3)\tI'm_fine. ",
-    "~J1(2.2)\tNothing_you_need_to ~N\n\t\t\tworry_about. ",
-    "~J1(2.2)\tWell,_if_you're_sure... ~E ",
-    "~J1(4.3)\tLisa... ~N\n\t\t\tDo_you_know_a_woman ~N\n\t\t\tnamed_Dahlia_Gillespie? ",
-    "~J1(3.2)\tOh_yeah, ~N\n\t\t\tthat_crazy_Gillespie_lady. ",
-    "~J1(2.3)\tShe's_kinda'_famous_around_here. ",
-    "~J1(4.0)\tShe_never_sees_anybody, ~N\n\t\t\tso_I_don't_know ~N\n\t\t\tthat_much_about_her. ",
-    "~J1(5.2)\tI_heard_her_kid_died_in_a_fire, ~N\n\t\t\tand_supposedly_she's_been_crazy ~N\n\t\t\tever_since. ~E ",
-    "~J1(5.1)\tWell,_she_says_the_town_is_being ~N\n\t\t\tdevoured_by_the_darkness. ",
-    "~J1(2.7)\tDo_you_have_any_idea ~N\n\t\t\twhat_she's_talking_about? ",
-    "~J1(3.5)\tThe_town..._devoured ~N\n\t\t\tby_the_darkness. ",
-    "~J1(2.1)\tYes,_I_think_I_do. ",
-    "~J1(2.9)\tBefore_this_place_was_turned ~N\n\t\t\tinto_a_resort, ",
-    "~J1(3.4)\tthe_townspeople_here_were ~N\n\t\t\ton_the_quiet_side. ",
-    "~J1(4.1)\tEverybody_followed ~N\n\t\t\tsome_kind_of_queer_religion. ~E ",
-    "~J1(4.8)\tWeird_occult_stuff... ~N\n\t\t\tBlack_magic,_that_kind_of_thing. ",
-    "~J1(5.0)\tAs_young_people_moved_away, ~N\n\t\t\tthe_people_figured_they'd_been ~N\n\t\t\tsummoned_by_the_gods. ",
-    "~J1(3.7)\tEvidently,_things_like_that ~N\n\t\t\tused_to_happen_around_here ~N\n\t\t\tall_the_time. ",
-    "~J1(3.5)\tBefore_the_resort, ~N\n\t\t\tthere_really_wasn't ~N\n\t\t\tanything_else_out_here. ",
-    "~J1(4.5)\tEveryone_was_so_flipped_out. ~N\n\t\t\tGotta_blame_it_on_something. ",
-    "~J1(3.8)\tThen_a_lot_of_new_people ~N\n\t\t\tcame_in_and_everybody ~N\n\t\t\tclammed_up_about_it. ",
-    "~J0(1.8)\tA_cult... ~E ",
-    "~J0(4.8)\tLast_time_I_heard_anything ~N\n\t\t\tabout_it_was,_gosh,_years_ago... ",
-    "~J1(4.4)\tWhen_several_people_connected ~N\n\t\t\twith_developing_the_town ~N\n\t\t\tdied_in_accidents. ",
-    "~J1(2.0)\tPeople_said_it_was_a_curse. ",
-    "~J1(4.2)\tI'm_sorry,_I'm_rambling... ~N\n\t\t\tI'll_shut_up. ~E ",
-    "~J0(1.1)\tHarry! ~E ",
-    "~J0(1.6)\tGlad_you're_OK. ~E ",
-    "~J0(4.6)\tThank_God_you_came_back. ~N\n\t\t\tI_was_scared_to_be_here_all_alone. ",
-    "~J0(2.5)\tI'm_here_now. ~N\n\t\t\tI_was_worried,_too. ",
-    "~J0(1.6)\tI'm_real_happy_to_see_you. ~E ",
-    "~J1(3.3)\tLisa,_can_you_tell_me ~N\n\t\t\thow_to_get_to_the_lake? ",
-    "~J1(3.0)\tThe_lake? ~N\n\t\t\tYou_take_Bachman_Road. ",
-    "~J1(1.5)\tThe_road's_blocked. ",
-    "~J1(2.3)\tWell,_that's ~N\n\t\t\tthe_only_way_out_there. ",
-    "~J1(1.3)\tAre_you_sure? ",
-    "~J1(2.7)\tThere's_gotta_be_another_way. ~E ",
-    "~J1(3.0)\tWait, ~N\n\t\t\tI_just_remembered_something. ",
-    "~J1(0.6)\tWhat? ",
-    "~J1(3.3)\tThere's_a_water_works_over_by ~N\n\t\t\tmy_old_elementary_school. ",
-    "~J1(2.3)\tIt's_been_abandoned_for_years. ",
-    "~J1(4.2)\tThere's_an_underground_tunnel ~N\n\t\t\tout_there_used_for_inspections, ~N\n\t\t\tor_something! ",
-    "~J1(3.2)\tI_remember_hearing_it_runs ~N\n\t\t\tall_the_way_to_the_lake! ~E ",
-    "~J1(0.9)\tReally?! ",
-    "~J1(2.3)\tYou_think_I_can_get_to_the_lake ~N\n\t\t\tfrom_there? ",
-    "~J1(3.1)\tI've_never_been_down ~N\n\t\t\tin_there_myself, ~N\n\t\t\tso_I'm_not_positive. ",
-    "~J1(2.8)\tBesides,_it's_all_fenced_off ~N\n\t\t\tto_keep_people_out. ",
-    "~J1(2.3)\tIf_there's_a_chance, ~N\n\t\t\tI've_got_to_try. ~E  ",
-    "~J1(2.0)\tHarry,_don't_go! ",
-    "~J1(4.2)\tI_don't_want_to_be_alone. ~N\n\t\t\tIt's_so_scary._I_can't_stand_it. ",
-    "~J1(1.6)\tHow_about_coming_with_me? ",
-    "~J1(2.6)\tThis_may_not_be_the_safest_place ~N\n\t\t\tin_the_world_either. ",
-    "~J1(3.6)\tI_can't_promise_you_anything, ~N\n\t\t\tbut_I'll_do_my_best ~N\n\t\t\tto_protect_you. ",
-    "~J1(4.2)\tNo... ~N\n\t\t\tsomehow_I_feel_I'm_not_supposed ~N\n\t\t\tto_leave_this_place. ",
-    "~J1(4.0)\tOh,_Harry,_I'm_so_scared... ~N\n\t\t\tI'm_cold. ",
-    "~J1(3.8)\tLook,_just_wait_here ~N\n\t\t\ta_little_longer. ",
-    "~J1(3.0)\tI'll_be_back_as_soon_as ~N\n\t\t\tI_find_my_daughter. ~E ",
-    "~J0(1.5)\tHarry... ~E ",
-    "\tNothing_unusual. ~E ",
-    "\tNothing_helpful. ~E "
+    /* 15 */ "~J0(1.8)\tWhere_am_I? ~E ",
+    /* 16 */ "~J1(1.0)\tHarry. ",
+    /* 17 */ "~J1(1.2)\tLisa... ",
+    /* 18 */ "~J1(1.5)\tThen_I'm_in_the_hospital. ",
+    /* 19 */ "~J1(2.4)\tYou_were_having_a_bad_dream. ",
+    /* 20 */ "~J1(0.8)\tWas_I? ",
+    /* 21 */ "~J1(4.2)\tHey,_you_don't_look_too_good. ~N\n\t\t\tAre_you_OK? ",
+    /* 22 */ "~J1(1.3)\tI'm_fine. ",
+    /* 23 */ "~J1(2.2)\tNothing_you_need_to ~N\n\t\t\tworry_about. ",
+    /* 24 */ "~J1(2.2)\tWell,_if_you're_sure... ~E ",
+    /* 25 */ "~J1(4.3)\tLisa... ~N\n\t\t\tDo_you_know_a_woman ~N\n\t\t\tnamed_Dahlia_Gillespie? ",
+    /* 26 */ "~J1(3.2)\tOh_yeah, ~N\n\t\t\tthat_crazy_Gillespie_lady. ",
+    /* 27 */ "~J1(2.3)\tShe's_kinda'_famous_around_here. ",
+    /* 28 */ "~J1(4.0)\tShe_never_sees_anybody, ~N\n\t\t\tso_I_don't_know ~N\n\t\t\tthat_much_about_her. ",
+    /* 29 */ "~J1(5.2)\tI_heard_her_kid_died_in_a_fire, ~N\n\t\t\tand_supposedly_she's_been_crazy ~N\n\t\t\tever_since. ~E ",
+    /* 30 */ "~J1(5.1)\tWell,_she_says_the_town_is_being ~N\n\t\t\tdevoured_by_the_darkness. ",
+    /* 31 */ "~J1(2.7)\tDo_you_have_any_idea ~N\n\t\t\twhat_she's_talking_about? ",
+    /* 32 */ "~J1(3.5)\tThe_town..._devoured ~N\n\t\t\tby_the_darkness. ",
+    /* 33 */ "~J1(2.1)\tYes,_I_think_I_do. ",
+    /* 34 */ "~J1(2.9)\tBefore_this_place_was_turned ~N\n\t\t\tinto_a_resort, ",
+    /* 35 */ "~J1(3.4)\tthe_townspeople_here_were ~N\n\t\t\ton_the_quiet_side. ",
+    /* 36 */ "~J1(4.1)\tEverybody_followed ~N\n\t\t\tsome_kind_of_queer_religion. ~E ",
+    /* 37 */ "~J1(4.8)\tWeird_occult_stuff... ~N\n\t\t\tBlack_magic,_that_kind_of_thing. ",
+    /* 38 */ "~J1(5.0)\tAs_young_people_moved_away, ~N\n\t\t\tthe_people_figured_they'd_been ~N\n\t\t\tsummoned_by_the_gods. ",
+    /* 39 */ "~J1(3.7)\tEvidently,_things_like_that ~N\n\t\t\tused_to_happen_around_here ~N\n\t\t\tall_the_time. ",
+    /* 40 */ "~J1(3.5)\tBefore_the_resort, ~N\n\t\t\tthere_really_wasn't ~N\n\t\t\tanything_else_out_here. ",
+    /* 41 */ "~J1(4.5)\tEveryone_was_so_flipped_out. ~N\n\t\t\tGotta_blame_it_on_something. ",
+    /* 42 */ "~J1(3.8)\tThen_a_lot_of_new_people ~N\n\t\t\tcame_in_and_everybody ~N\n\t\t\tclammed_up_about_it. ",
+    /* 43 */ "~J0(1.8)\tA_cult... ~E ",
+    /* 44 */ "~J0(4.8)\tLast_time_I_heard_anything ~N\n\t\t\tabout_it_was,_gosh,_years_ago... ",
+    /* 45 */ "~J1(4.4)\tWhen_several_people_connected ~N\n\t\t\twith_developing_the_town ~N\n\t\t\tdied_in_accidents. ",
+    /* 46 */ "~J1(2.0)\tPeople_said_it_was_a_curse. ",
+    /* 47 */ "~J1(4.2)\tI'm_sorry,_I'm_rambling... ~N\n\t\t\tI'll_shut_up. ~E ",
+    /* 48 */ "~J0(1.1)\tHarry! ~E ",
+    /* 49 */ "~J0(1.6)\tGlad_you're_OK. ~E ",
+    /* 50 */ "~J0(4.6)\tThank_God_you_came_back. ~N\n\t\t\tI_was_scared_to_be_here_all_alone. ",
+    /* 51 */ "~J0(2.5)\tI'm_here_now. ~N\n\t\t\tI_was_worried,_too. ",
+    /* 52 */ "~J0(1.6)\tI'm_real_happy_to_see_you. ~E ",
+    /* 53 */ "~J1(3.3)\tLisa,_can_you_tell_me ~N\n\t\t\thow_to_get_to_the_lake? ",
+    /* 54 */ "~J1(3.0)\tThe_lake? ~N\n\t\t\tYou_take_Bachman_Road. ",
+    /* 55 */ "~J1(1.5)\tThe_road's_blocked. ",
+    /* 56 */ "~J1(2.3)\tWell,_that's ~N\n\t\t\tthe_only_way_out_there. ",
+    /* 57 */ "~J1(1.3)\tAre_you_sure? ",
+    /* 58 */ "~J1(2.7)\tThere's_gotta_be_another_way. ~E ",
+    /* 59 */ "~J1(3.0)\tWait, ~N\n\t\t\tI_just_remembered_something. ",
+    /* 60 */ "~J1(0.6)\tWhat? ",
+    /* 61 */ "~J1(3.3)\tThere's_a_water_works_over_by ~N\n\t\t\tmy_old_elementary_school. ",
+    /* 62 */ "~J1(2.3)\tIt's_been_abandoned_for_years. ",
+    /* 63 */ "~J1(4.2)\tThere's_an_underground_tunnel ~N\n\t\t\tout_there_used_for_inspections, ~N\n\t\t\tor_something! ",
+    /* 64 */ "~J1(3.2)\tI_remember_hearing_it_runs ~N\n\t\t\tall_the_way_to_the_lake! ~E ",
+    /* 65 */ "~J1(0.9)\tReally?! ",
+    /* 66 */ "~J1(2.3)\tYou_think_I_can_get_to_the_lake ~N\n\t\t\tfrom_there? ",
+    /* 67 */ "~J1(3.1)\tI've_never_been_down ~N\n\t\t\tin_there_myself, ~N\n\t\t\tso_I'm_not_positive. ",
+    /* 68 */ "~J1(2.8)\tBesides,_it's_all_fenced_off ~N\n\t\t\tto_keep_people_out. ",
+    /* 69 */ "~J1(2.3)\tIf_there's_a_chance, ~N\n\t\t\tI've_got_to_try. ~E  ",
+    /* 70 */ "~J1(2.0)\tHarry,_don't_go! ",
+    /* 71 */ "~J1(4.2)\tI_don't_want_to_be_alone. ~N\n\t\t\tIt's_so_scary._I_can't_stand_it. ",
+    /* 72 */ "~J1(1.6)\tHow_about_coming_with_me? ",
+    /* 73 */ "~J1(2.6)\tThis_may_not_be_the_safest_place ~N\n\t\t\tin_the_world_either. ",
+    /* 74 */ "~J1(3.6)\tI_can't_promise_you_anything, ~N\n\t\t\tbut_I'll_do_my_best ~N\n\t\t\tto_protect_you. ",
+    /* 75 */ "~J1(4.2)\tNo... ~N\n\t\t\tsomehow_I_feel_I'm_not_supposed ~N\n\t\t\tto_leave_this_place. ",
+    /* 76 */ "~J1(4.0)\tOh,_Harry,_I'm_so_scared... ~N\n\t\t\tI'm_cold. ",
+    /* 77 */ "~J1(3.8)\tLook,_just_wait_here ~N\n\t\t\ta_little_longer. ",
+    /* 78 */ "~J1(3.0)\tI'll_be_back_as_soon_as ~N\n\t\t\tI_find_my_daughter. ~E ",
+    /* 79 */ "~J0(1.5)\tHarry... ~E ",
+    /* 80 */ "\tNothing_unusual. ~E ",
+    /* 81 */ "\tNothing_helpful. ~E "
 };
 
 void func_800D1910(void) // 0x800D1910
@@ -166,7 +166,7 @@ void func_800D1910(void) // 0x800D1910
                     setRGBC0(scratch->sprt_0, colorVal, colorVal, colorVal, PRIM_RECT | RECT_TEXTURE | RECT_BLEND);
                 }
 
-                setWH(scratch->sprt_0, (i == 0) ? 256 : 64, 224);
+                setWH(scratch->sprt_0, (i == 0) ? 256 : 64, FRAMEBUFFER_HEIGHT_PROGRESSIVE);
                 addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[2], scratch->sprt_0, 4);
 
                 scratch->sprt_0++;
@@ -216,7 +216,7 @@ void func_800D1910(void) // 0x800D1910
         GsOUT_PACKET_P = (PACKET*)scratch->stp_8;
     }
 
-    if (g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip &&
+    if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 14)
     {
         SysWork_StateStepSet(0, 14);
@@ -234,7 +234,7 @@ void func_800D1910(void) // 0x800D1910
 
             g_Cutscene_Timer = Q12(0.0f);
 
-            Chara_Load(0, Chara_Lisa, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
+            Chara_Load(0, Chara_Lisa, &g_SysWork.npcBoneCoordBuffer[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
             Chara_ProcessLoads();
             Chara_Spawn(Chara_Lisa, 0, Q12(70.0f), Q12(150.0f), 0, 3);
             func_8003D03C();
@@ -243,102 +243,102 @@ void func_800D1910(void) // 0x800D1910
             D_800D6EF8 = 0;
 
             // TODO: Find correct order. Looking at other functions, seems to be random.
-            g_SysWork.field_235C = NULL;
-            g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightIntensity = Q12(1.0f);
-            Math_Vector3Set(&g_SysWork.pointLightPosition, Q12(57.0f), Q12(-3.0f), Q12(141.8f));
+            g_SysWork.lightBoneCoord     = NULL;
+            g_SysWork.lensFlareBoneCoord = NULL;
+            g_SysWork.lightIntensity     = Q12(1.0f);
+            Math_Vector3Set(&g_SysWork.lightPosition, Q12(57.0f), Q12(-3.0f), Q12(141.8f));
 
-            // TODO: `Math_SetSVectorFast(&g_SysWork.pointLightRotation, Q12_ANGLE(-90.0f), 0, 0);` doesn't match.
-            *(s32*)&g_SysWork.pointLightRotation.vx = 0xFC00; // `Q12_ANGLE(-90.0f)`
-            (&g_SysWork.pointLightRotation)->vz     = 0;
+            // TODO: `Math_SetSVectorFast(&g_SysWork.lightRotation, Q12_ANGLE(-90.0f), 0, 0);` doesn't match.
+            *(s32*)&g_SysWork.lightRotation.vx = 0xFC00; // `Q12_ANGLE(-90.0f)`
+            (&g_SysWork.lightRotation)->vz     = 0;
 
             func_8008D438();
 
-            g_SysWork.field_30 = 20;
+            CutsceneBorder_ForceShow();
             ScreenFade_ResetTimestep();
-            g_SysWork.flags_22A4 |= UnkSysFlag_3;
+            g_SysWork.sysFlags |= SysFlag_CutsceneActive;
 
-            func_80085EB8(0, &g_SysWork.playerWork.player, 117, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 117, false);
             D_800D37C0 = 0;
 
             Gfx_MapInitMapEffectsUpdate(15, 15);
             SysWork_StateStepIncrement(0);
-            g_WorldObject0.position_1C.vz = Q12(141.0f);
+            g_WorldObject0.position.vz = Q12(141.0f);
             break;
 
         case 1:
-            func_80085EB8(2, &g_SysWork.playerWork.player, 0, false);
-            func_80085EB8(0, &g_SysWork.npcs[0], 9, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_AnimLock, &g_SysWork.playerWork.player, 0, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 9, false);
 
             D_800D37C0 = 1;
 
             SysWork_StateStepIncrement(0);
 
         case 2:
-            SysWork_StateStepIncrementAfterFade(2, false, 0, Q12(1.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, Q12(1.0f), false);
             break;
 
         case 3:
-            func_80085EB8(3, &g_SysWork.playerWork.player, 0, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_AnimUnlock, &g_SysWork.playerWork.player, 0, false);
             SysWork_StateStepIncrement(0);
             break;
 
         case 4:
-            SysWork_StateStepIncrementDelayed(Q12(1.2f), false);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(0.0f), Q12(23.0f), true, false);
+            Event_WaitTimer(Q12(1.2f), false);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(8.0f), Q12(0.0f), Q12(23.0f), true, false);
             break;
 
         case 5:
-            Map_MessageWithAudio(15, &D_800D6EF8, &D_800D3734); // "Where am I?"
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(0.0f), Q12(23.0f), true, false);
+            Event_DisplayMapMsgWithAudio(15, &D_800D6EF8, &D_800D3734); // "Where am I?"
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(8.0f), Q12(0.0f), Q12(23.0f), true, false);
             break;
 
         case 6:
             g_Cutscene_Timer               = Q12(24.0f);
-            g_WorldObject0.position_1C.vz = Q12(140.8f);
+            g_WorldObject0.position.vz = Q12(140.8f);
 
-            func_80085EB8(0, &g_SysWork.playerWork.player, 135, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 135, false);
             SysWork_StateStepIncrement(0);
 
         case 7:
-            Map_MessageWithAudio(16, &D_800D6EF8, &D_800D3734); // "Harry. Lisa... Then I'm in the hospital."
+            Event_DisplayMapMsgWithAudio(16, &D_800D6EF8, &D_800D3734); // "Harry. Lisa... Then I'm in the hospital."
             break;
 
         case 8:
-            Map_MessageWithAudio(25, &D_800D6EF8, &D_800D3734);
+            Event_DisplayMapMsgWithAudio(25, &D_800D6EF8, &D_800D3734);
             break;
 
         case 9:
-            Map_MessageWithAudio(30, &D_800D6EF8, &D_800D3734);
+            Event_DisplayMapMsgWithAudio(30, &D_800D6EF8, &D_800D3734);
             break;
 
         case 10:
-            Map_MessageWithAudio(37, &D_800D6EF8, &D_800D3734);
+            Event_DisplayMapMsgWithAudio(37, &D_800D6EF8, &D_800D3734);
             break;
 
         case 11:
-            Map_MessageWithAudio(44, &D_800D6EF8, &D_800D3734);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
-            g_WorldObject0.position_1C.vz = Q12(140.95f);
+            Event_DisplayMapMsgWithAudio(44, &D_800D6EF8, &D_800D3734);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
+            g_WorldObject0.position.vz = Q12(140.95f);
             break;
 
         case 12:
-            func_80086C58(&g_SysWork.npcs[0], 10);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
+            Event_CharaAnimPlayToEnd(&g_SysWork.npcs[0], 10);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
             break;
 
         case 13:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.8f), false);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.8f), false);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(25.0f), Q12(46.0f), true, false);
             break;
 
         case 14:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
 
         default:
             // Return to gameplay.
-            func_80085EB8(3, &g_SysWork.playerWork.player, 0, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_AnimUnlock, &g_SysWork.playerWork.player, 0, false);
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             Chara_ModelCharaIdClear(&g_SysWork.npcs[0], 0, 0);
@@ -373,7 +373,7 @@ void func_800D23E4(void) // 0x800D23E4
     VECTOR3  lightIntPos;
     SVECTOR3 unused;
 
-    if ((g_Controller0->btnsClicked_10 & g_GameWorkPtr->config.controllerConfig.skip) &&
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         g_SysWork.sysStateSteps[0] > 0 && g_SysWork.sysStateSteps[0] < 22)
     {
         SysWork_StateStepSet(0, 26);
@@ -393,7 +393,7 @@ void func_800D23E4(void) // 0x800D23E4
             g_Cutscene_Timer = Q12(0.0f);
 
             // Load Lisa character.
-            Chara_Load(0, Chara_Lisa, &g_SysWork.npcCoords[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
+            Chara_Load(0, Chara_Lisa, &g_SysWork.npcBoneCoordBuffer[0], CHARA_FORCE_FREE_ALL, NULL, NULL);
             Chara_ProcessLoads();
             Chara_Spawn(Chara_Lisa, 0, Q12(60.0f), Q12(140.0f), Q12_ANGLE(0.0f), 3);
 
@@ -402,82 +402,82 @@ void func_800D23E4(void) // 0x800D23E4
 
             D_800D6EF8 = 0;
 
-            g_SysWork.field_235C = NULL;
-            g_SysWork.field_236C = NULL;
-            g_SysWork.pointLightIntensity = Q12(1.2f);
+            g_SysWork.lightBoneCoord     = NULL;
+            g_SysWork.lensFlareBoneCoord = NULL;
+            g_SysWork.lightIntensity     = Q12(1.2f);
 
             func_8008D438();
 
-            g_SysWork.field_30 = 20;
+            CutsceneBorder_ForceShow();
             ScreenFade_ResetTimestep();
 
             D_800D37C1            = 0;
-            g_SysWork.flags_22A4 |= UnkSysFlag_3;
-            func_8005DC1C(Sfx_DoorClose0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), 0);
+            g_SysWork.sysFlags |= SysFlag_CutsceneActive;
+            Sfx_WithFlagsPlay(Sfx_DoorClose0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), SfxFlag_None);
             SysWork_StateStepIncrement(0);
             break;
 
         case 1:
-            func_80085EB8(0, &g_SysWork.npcs[0], 11, false);
-            func_80085EB8(0, &g_SysWork.playerWork.player, 51, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 11, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 51, false);
             SysWork_StateStepIncrement(0);
             break;
 
         case 2:
-            func_80085EB8(2, &g_SysWork.npcs[0], 0, false);
-            SysWork_StateStepIncrementAfterFade(2, false, 0, Q12(0.0f), false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_AnimLock, &g_SysWork.npcs[0], 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, false, 0, Q12(0.0f), false);
             break;
 
         case 3:
-            func_80085EB8(3, &g_SysWork.npcs[0], 0, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_AnimUnlock, &g_SysWork.npcs[0], 0, false);
             SysWork_StateStepIncrement(0);
 
         case 4:
-            Map_MessageWithAudio(48, &D_800D6EF8, &D_800D3778);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(6.5f), Q12(0.0f), Q12(20.0f), true, false);
+            Event_DisplayMapMsgWithAudio(48, &D_800D6EF8, &D_800D3778);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(6.5f), Q12(0.0f), Q12(20.0f), true, false);
             break;
 
         case 5:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(6.5f), Q12(0.0f), Q12(20.0f), true, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(6.5f), Q12(0.0f), Q12(20.0f), true, true);
             break;
 
         case 6:
-            func_80085EB8(0, &g_SysWork.npcs[0], 12, false);
-            g_SysWork.pointLightIntensity = Q12(1.0f);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 12, false);
+            g_SysWork.lightIntensity = Q12(1.0f);
             SysWork_StateStepIncrement(0);
 
         case 7:
-            Map_MessageWithAudio(49, &D_800D6EF8, &D_800D3778);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(21.0f), Q12(54.0f), true, false);
+            Event_DisplayMapMsgWithAudio(49, &D_800D6EF8, &D_800D3778);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(8.0f), Q12(21.0f), Q12(54.0f), true, false);
 
             if (g_Cutscene_Timer >= Q12(32.0f) && D_800D37C1 == 0)
             {
-                func_80085EB8(0, &g_SysWork.playerWork.player, 134, false);
+                Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 134, false);
                 D_800D37C1++;
             }
             break;
 
         case 8:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(8.0f), Q12(21.0f), Q12(54.0f), true, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(8.0f), Q12(21.0f), Q12(54.0f), true, true);
 
             if (g_Cutscene_Timer >= Q12(32.0f) && D_800D37C1 == 0)
             {
-                func_80085EB8(0, &g_SysWork.playerWork.player, 134, false);
+                Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 134, false);
                 D_800D37C1++;
             }
             break;
 
         case 9:
-            func_80085EB8(0, &g_SysWork.playerWork.player, 51, false);
-            func_80085EB8(0, &g_SysWork.npcs[0], 5, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 51, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 5, false);
 
-            g_SysWork.pointLightIntensity = Q12(1.2f);
-            g_Cutscene_Timer               = Q12(55.0f);
+            g_SysWork.lightIntensity = Q12(1.2f);
+            g_Cutscene_Timer         = Q12(55.0f);
 
             SysWork_StateStepIncrement(0);
 
         case 10:
-            Map_MessageWithAudio(50, &D_800D6EF8, &D_800D3778);
+            Event_DisplayMapMsgWithAudio(50, &D_800D6EF8, &D_800D3778);
             break;
 
         case 11:
@@ -485,70 +485,70 @@ void func_800D23E4(void) // 0x800D23E4
             SysWork_StateStepIncrement(0);
 
         case 12:
-            Map_MessageWithAudio(53, &D_800D6EF8, &D_800D3778);
+            Event_DisplayMapMsgWithAudio(53, &D_800D6EF8, &D_800D3778);
             break;
 
         case 13:
-            SysWork_StateStepIncrementDelayed(Q12(2.0f), false);
+            Event_WaitTimer(Q12(2.0f), false);
             break;
 
         case 14:
-            Map_MessageWithAudio(59, &D_800D6EF8, &D_800D3778);
+            Event_DisplayMapMsgWithAudio(59, &D_800D6EF8, &D_800D3778);
             break;
 
         case 15:
-            Map_MessageWithAudio(65, &D_800D6EF8, &D_800D3778);
+            Event_DisplayMapMsgWithAudio(65, &D_800D6EF8, &D_800D3778);
             break;
 
         case 16:
-            g_Cutscene_Timer               = Q12(57.0f);
-            g_SysWork.pointLightIntensity = Q12(1.0f);
-            Map_MessageWithAudio(70, &D_800D6EF8, &D_800D3778);
+            g_Cutscene_Timer         = Q12(57.0f);
+            g_SysWork.lightIntensity = Q12(1.0f);
+            Event_DisplayMapMsgWithAudio(70, &D_800D6EF8, &D_800D3778);
             break;
 
         case 17:
-            func_80085EB8(0, &g_SysWork.npcs[0], 13, false);
-            g_SysWork.pointLightIntensity = Q12(1.2f);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 13, false);
+            g_SysWork.lightIntensity = Q12(1.2f);
             SysWork_StateStepIncrement(0);
 
         case 18:
-            Map_MessageWithAudio(79, &D_800D6EF8, &D_800D3778);
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(58.0f), Q12(126.0f), true, false);
+            Event_DisplayMapMsgWithAudio(79, &D_800D6EF8, &D_800D3778);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(58.0f), Q12(126.0f), true, false);
             break;
 
         case 19:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(58.0f), Q12(126.0f), true, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(58.0f), Q12(126.0f), true, true);
             break;
 
         case 20:
             Model_AnimFlagsClear(&g_SysWork.playerWork.player.model, 2);
-            func_80085EB8(0, &g_SysWork.playerWork.player, 53, false);
-            func_80085EB8(0, &g_SysWork.npcs[0], 21, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 53, false);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.npcs[0], 21, false);
             SysWork_StateStepIncrement(0);
 
         case 21:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(151.0f), false, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(151.0f), false, true);
             break;
 
         case 22:
-            func_8005DC1C(Sfx_DoorOpen0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), 0);
-            func_80085EB8(0, &g_SysWork.playerWork.player, 51, false);
+            Sfx_WithFlagsPlay(Sfx_DoorOpen0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), SfxFlag_None);
+            Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 51, false);
             SysWork_StateStepIncrement(0);
 
         case 23:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(160.0f), false, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(160.0f), false, true);
             break;
 
         case 24:
-            func_8005DC1C(Sfx_DoorClose0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), 0);
+            Sfx_WithFlagsPlay(Sfx_DoorClose0, &QVECTOR3(54.6f, -1.2f, 141.5f), Q8(0.5f), SfxFlag_None);
             SysWork_StateStepIncrement(0);
 
         case 25:
-            SysWork_StateStepIncrementAfterTime(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(200.0f), true, true);
+            Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(127.0f), Q12(200.0f), true, true);
             break;
 
         case 26:
-            SysWork_StateStepIncrementAfterFade(2, true, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
 
         default:
@@ -565,14 +565,14 @@ void func_800D23E4(void) // 0x800D23E4
             Savegame_EventFlagSet(EventFlag_MapMark_AltHospital1F_RightEntranceBroken);
             Savegame_EventFlagSet(EventFlag_340);
 
-            SysWork_StateStepIncrementAfterFade(0, false, 2, Q12(0.0f), false);
-            SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 2, Q12(0.0f), false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
 
             func_8008D448();
             Game_FlashlightAttributesFix();
 
-            g_SysWork.pointLightIntensity = Q12(1.0f);
-            g_Cutscene_Timer               = NO_VALUE;
+            g_SysWork.lightIntensity = Q12(1.0f);
+            g_Cutscene_Timer         = NO_VALUE;
 
             vcReturnPreAutoCamWork(false);
             func_8003D01C();
@@ -589,23 +589,22 @@ void func_800D23E4(void) // 0x800D23E4
         vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
 
         // "LIGHT", cutscene light position?
-        Dms_CharacterTransformGet(&g_SysWork.pointLightPosition, &unused, "LIGHT", g_Cutscene_Timer, FS_BUFFER_15);
+        Dms_CharacterTransformGet(&g_SysWork.lightPosition, &unused, "LIGHT", g_Cutscene_Timer, FS_BUFFER_15);
 
         // "L_INT", interior light or intersection point?
         Dms_CharacterTransformGet(&lightIntPos, &unused, "L_INT", g_Cutscene_Timer, FS_BUFFER_15);
 
         // Set light rotation.
-        g_SysWork.pointLightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.pointLightPosition.vy, Math_Vector2MagCalc(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz));
-        g_SysWork.pointLightRotation.vy =  ratan2(lightIntPos.vx - g_SysWork.pointLightPosition.vx, lightIntPos.vz - g_SysWork.pointLightPosition.vz);
-        g_SysWork.pointLightRotation.vz = Q12_ANGLE(0.0f);
+        g_SysWork.lightRotation.vx = -ratan2(lightIntPos.vy - g_SysWork.lightPosition.vy, Math_Vector2MagCalcSafeQ6(lightIntPos.vx - g_SysWork.lightPosition.vx, lightIntPos.vz - g_SysWork.lightPosition.vz));
+        g_SysWork.lightRotation.vy =  ratan2(lightIntPos.vx - g_SysWork.lightPosition.vx, lightIntPos.vz - g_SysWork.lightPosition.vz);
+        g_SysWork.lightRotation.vz = Q12_ANGLE(0.0f);
     }
 }
 
 void Map_WorldObjectsInit(void) // 0x800D2D6C
 {
-    WorldObjectInit(&g_WorldObjectSavepad, D_800A99E4[1], 106.687f, -1.02f, 144.601f, 0.0f, 163.0f, 0.0f);
-
-    WorldObjectNoRotInit(&g_WorldObject0, "ISU_HIDE", 57.8f, 0.0f, 0.0f);
+    WorldObject_Init(&g_WorldObjectSavepad, D_800A99E4[1], 106.687f, -1.02f, 144.601f, 0.0f, 163.0f, 0.0f);
+    WorldObject_PlacementInit(&g_WorldObject0, "ISU_HIDE", 57.8f, 0.0f, 0.0f);
 }
 
 void Map_WorldObjectsUpdate(void) // 0x800D2DF4
@@ -614,14 +613,14 @@ void Map_WorldObjectsUpdate(void) // 0x800D2DF4
 
     if (PLAYER_IN_MAP_CHUNK(vx, 1, 3, -1, 3) && PLAYER_IN_MAP_CHUNK(vz, 1, 4, -1, 4))
     {
-        WorldGfx_ObjectAdd(&g_WorldObjectSavepad.object_0, &g_WorldObjectSavepad.position_1C, &g_WorldObjectSavepad.rotation_28);
+        WorldGfx_ObjectAdd(&g_WorldObjectSavepad.object, &g_WorldObjectSavepad.position, &g_WorldObjectSavepad.rotation);
     }
 
     if (PLAYER_IN_MAP_CHUNK(vx, 1, 2, -1, 2) && PLAYER_IN_MAP_CHUNK(vz, 1, 4, -1, 4))
     {
         if (Savegame_EventFlagGet(EventFlag_337) && !Savegame_EventFlagGet(EventFlag_338))
         {
-            WorldGfx_ObjectAdd(&g_WorldObject0.object_0, &g_WorldObject0.position_1C, &(SVECTOR3){ 0, 0, 0 });
+            WorldGfx_ObjectAdd(&g_WorldObject0.object, &g_WorldObject0.position, &SVECTOR3_Zero);
         }
     }
 }

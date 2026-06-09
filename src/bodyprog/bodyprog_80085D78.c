@@ -16,8 +16,9 @@
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
+extern const RECT D_8002AB10; // defined in events/events_util.c
 
 #ifdef SH_PC_PORT
 extern int g_PcHorPlusEnabled;
@@ -180,17 +181,17 @@ void func_80085DF0(void) // 0x80085DF0
     {
         static int _85df0LogN = 0;
         if (_85df0LogN < 30) {
-            void* mdz = (void*)g_MapOverlayHeader.playerMoveDistIsZero_EC;
+            void* mdz = (void*)g_MapOverlayHdr.playerMoveSpeedIsZero;
             SH_DBG("[85DF0] timer_2C=%d (Q12=%.2f) deltaRaw=%d mdz_func=%p mdz_ret=%p moveDist=%d",
                    (int)g_SysWork.timer_2C, (float)g_SysWork.timer_2C / 4096.0f,
                    (int)g_DeltaTimeRaw, mdz,
-                   mdz ? (void*)g_MapOverlayHeader.playerMoveDistIsZero_EC() : NULL,
-                   (int)g_SysWork.playerWork.player.properties.player.moveDistance_126);
+                   mdz ? (void*)g_MapOverlayHdr.playerMoveSpeedIsZero() : NULL,
+                   (int)g_SysWork.playerWork.player.properties.player.runDistance);
             _85df0LogN++;
         }
     }
 #endif
-    if (g_MapOverlayHeader.playerMoveDistIsZero_EC() != NULL || g_SysWork.timer_2C > Q12(1.0f))
+    if (g_MapOverlayHdr.playerMoveSpeedIsZero() != NULL || g_SysWork.timer_2C > Q12(1.0f))
     {
         SysWork_StateStepIncrement(0);
     }
@@ -214,61 +215,17 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
         case 0:
             if (chara == &g_SysWork.playerWork.player)
             {
-                g_MapOverlayHeader.func_D4(arg2);
+                g_MapOverlayHdr.playerAnimStateSet(arg2);
             }
             else
             {
-#ifdef SH_PC_PORT
-                /* On PSX MIPS, func_124 reads the chara ptr plus the arg2
-                 * that was already in a2 register from the caller — the
-                 * decomp signature `(s_SubCharacter*)` drops the extra arg
-                 * because it doesn't know the function reads a2. The
-                 * intended semantics is "start animation <arg2> on this
-                 * NPC": set anim status, unlock state so Model_AnimStatusSet
-                 * in the chara's AI can fire, and seed keyframe 0.
-                 * Without this, NPCs driven by cutscene scripts (Cybil in
-                 * the cafe cutscene) stay frozen on their idle anim because
-                 * the scripted func_80085EB8(0, chara, animId, false) calls
-                 * are no-ops on PC.
-                 *
-                 * NOTE: we keep the original func_124(chara) call too so the
-                 * player-property reset side-effects still happen — they are
-                 * harmless for NPCs because properties is a union and the
-                 * fields written overlap unused NPC fields, but matching the
-                 * PSX behavior is safer than skipping.
-                 *
-                 * stateStep MUST be non-zero after we set anim.status — the
-                 * AI's Model_AnimStatusSet only fires when stateStep==0, so
-                 * a zero here lets the next AI tick (e.g. Ai_Cybil_AnimStateUpdate
-                 * case 0 which forces CybilAnim_1) clobber the scripted anim.
-                 * Setting stateStep=1 means "this state has already been
-                 * entered; don't re-enter and overwrite anim.status". */
-                g_MapOverlayHeader.func_124(chara);
-                /* arg2 is a raw anim index — encode as ANIM_STATUS(idx, false). */
-                chara->model.anim.status = (u8)ANIM_STATUS(arg2, false);
-                chara->model.stateStep     = 1;
-                chara->model.anim.time        = Q12(0.0f);
-                chara->model.anim.keyframeIdx = 0;
-                chara->model.anim.flags |= AnimFlag_Unlocked;
-                /* Mirror arg2 into the AI state-index field. PSX's
-                 * func_124 reads a2 from caller and uses it for both
-                 * anim.status AND properties.dahlia.stateIdx0; the
-                 * decomp signature only captures the first. Without
-                 * stateIdx0, AI defaults to case 0 (idle) which decays
-                 * moveDistance_126 to 0, freezing Cybil/etc in place
-                 * while their walk anim cycles — user symptom: "Cybil
-                 * walks in place at end of cutscene". stateIdx0 is in
-                 * the chara properties union; for dahlia/cybil layout
-                 * it shares offset with similar AI fields on other
-                 * NPC types so the write is harmless cross-type. */
-                chara->properties.dahlia.stateIdx0 = (u8)arg2;
-                SH_DBG("[ANIM_SET] charaId=%d anim=%d status=%d stateIdx0=%d",
-                       chara->model.charaId, (int)arg2,
-                       (int)chara->model.anim.status,
-                       (int)chara->properties.dahlia.stateIdx0);
-#else
-                g_MapOverlayHeader.func_124(chara);
-#endif
+                /* Upstream fixed the signature to (chara, afkTime); on PSX a2
+                 * held the scripted anim index (arg2) from the caller. Passing
+                 * arg2 lets the map overlay's charaAnimStateSet seed the anim
+                 * natively — this replaces the old PC workaround that manually
+                 * reconstructed anim.status/state because the decomp signature
+                 * dropped a2 (the Cybil-cafe "walks in place" fix). */
+                g_MapOverlayHdr.charaAnimStateSet(chara, arg2);
             }
             break;
 
@@ -279,18 +236,18 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                 {
                     static int _85eb8c1LogN = 0;
                     if (_85eb8c1LogN < 30) {
-                        SH_DBG("[85EB8] case1 PLAYER calling func_E8=%p chara=%p",
-                               (void*)g_MapOverlayHeader.func_E8, (void*)chara);
+                        SH_DBG("[85EB8] case1 PLAYER calling playerAnimPlaybackStateGet=%p chara=%p",
+                               (void*)g_MapOverlayHdr.playerAnimPlaybackStateGet, (void*)chara);
                         _85eb8c1LogN++;
                     }
                 }
 #endif
-                keyframeState = g_MapOverlayHeader.func_E8(chara);
+                keyframeState = g_MapOverlayHdr.playerAnimPlaybackStateGet();
 #ifdef SH_PC_PORT
                 {
                     static int _85eb8c1RetLogN = 0;
                     if (_85eb8c1RetLogN < 30) {
-                        SH_DBG("[85EB8] case1 PLAYER func_E8 returned %d", (int)keyframeState);
+                        SH_DBG("[85EB8] case1 PLAYER playerAnimPlaybackStateGet returned %d", (int)keyframeState);
                         _85eb8c1RetLogN++;
                     }
                 }
@@ -302,7 +259,7 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
             }
             else
             {
-                keyframeState = g_MapOverlayHeader.charaAnimPlaybackStateGet_138(chara);
+                keyframeState = g_MapOverlayHdr.charaAnimPlaybackStateGet(chara);
                 if (keyframeState == 1)
                 {
                     func_80085D78(reset);
@@ -313,34 +270,34 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
         case 2:
             if (chara == &g_SysWork.playerWork.player)
             {
-                g_MapOverlayHeader.playerAnimLock_DC();
+                g_MapOverlayHdr.playerAnimLock();
             }
             else
             {
-                g_MapOverlayHeader.charaLock_12C(chara);
+                g_MapOverlayHdr.charaAnimLock(chara);
             }
             break;
 
         case 3:
             if (chara == &g_SysWork.playerWork.player)
             {
-                g_MapOverlayHeader.playerAnimUnlock_E4(chara, arg2);
+                g_MapOverlayHdr.playerAnimUnlock();
             }
             else
             {
-                g_MapOverlayHeader.charaUnlock_134(chara);
+                g_MapOverlayHdr.charaAnimUnlock(chara);
             }
             break;
 
         case 4:
             if (chara == &g_SysWork.playerWork.player)
             {
-                g_MapOverlayHeader.playerAnimUnlock_E4(chara, arg2);
-                g_MapOverlayHeader.func_D8();
+                g_MapOverlayHdr.playerAnimUnlock();
+                g_MapOverlayHdr.playerAnimReset();
             }
             else
             {
-                g_MapOverlayHeader.playerRunTimerReset_128(chara);
+                g_MapOverlayHdr.charaAnimReset(chara);
             }
             break;
     }
@@ -430,11 +387,11 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
                 }
                 else
                 {
-                    g_SysWork.field_30 = 18;
+                    g_SysWork.cutsceneBorderState = 18;
 
                     if (fadeType == FadeType_Unk3)
                     {
-                        g_SysWork.flags_22A4 |= UnkSysFlag_3;
+                        g_SysWork.sysFlags |= SysFlag_CutsceneActive;
                     }
                 }
             }
@@ -448,7 +405,7 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
             }
             else
             {
-                g_SysWork.field_30 = 22;
+                g_SysWork.cutsceneBorderState = 22;
             }
 
             if (stateStep != 0)
@@ -469,7 +426,7 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
                     break;
                 }
             }
-            else if ((cond || g_SysWork.field_30 != activeStateStep) && !(cond == activeStateStep && g_SysWork.field_30 == 21))
+            else if ((cond || g_SysWork.cutsceneBorderState != activeStateStep) && !(cond == activeStateStep && g_SysWork.cutsceneBorderState == 21))
             {
                 break;
             }
@@ -478,12 +435,6 @@ void SysWork_StateStepIncrementAfterFade(s32 stateStep, bool cond, s32 fadeType,
             break;
     }
 }
-
-const RECT D_8002AB10 =  // 0x8002AB10 .rodata
-{
-    SCREEN_POSITION_X(100.0f), 256,
-    (SCREEN_WIDTH / 5) * 3, SCREEN_HEIGHT
-};
 
 void func_800862F8(s32 stateStep, e_FsFile fileIdx, bool reset) // 0x800862F8
 {
@@ -647,7 +598,7 @@ void func_800865FC(bool isPos, s32 idx0, s32 idx1, q3_12 angleY, q19_12 offsetOr
 
 void func_800866D4(s32 arg0, s32 arg1, bool reset) // 0x800866D4
 {
-    if (g_MapOverlayHeader.func_D0(arg0, &D_800C4640, D_800C4700[0], arg1) == 1)
+    if (g_MapOverlayHdr.playerPathWaypointExecute(arg0, &D_800C4640, D_800C4700[0], arg1) == 1)
     {
         func_80085D78(reset);
     }
@@ -656,13 +607,13 @@ void func_800866D4(s32 arg0, s32 arg1, bool reset) // 0x800866D4
 void func_80086728(s_SubCharacter* chara, s32 arg1, s32 arg2, bool reset) // 0x80086728
 {
 #ifdef SH_PC_PORT
-    /* func_13C is declared as (s32, s32, void*, s16, s32) but the actual
+    /* charaPathWaypointExecute is declared as (s32, s32, void*, s16, s32) but the actual
      * function (sharedFunc_800D8A00_0_s00) takes (s_SubCharacter*, s32, VECTOR3*, s32, s32).
      * On MIPS, pointer/s32 are both 32-bit so this works. On x86-64, the
      * pointer gets truncated to s32. Cast to the real signature. */
     {
         typedef bool (*NpcWaypointFunc)(s_SubCharacter*, s32, VECTOR3*, s32, s32);
-        NpcWaypointFunc realFunc = (NpcWaypointFunc)g_MapOverlayHeader.func_13C;
+        NpcWaypointFunc realFunc = (NpcWaypointFunc)g_MapOverlayHdr.charaPathWaypointExecute;
         if (realFunc == NULL) return;
         if (realFunc(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2) == 1)
         {
@@ -670,7 +621,7 @@ void func_80086728(s_SubCharacter* chara, s32 arg1, s32 arg2, bool reset) // 0x8
         }
     }
 #else
-    if (g_MapOverlayHeader.func_13C(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2) == 1)
+    if (g_MapOverlayHdr.charaPathWaypointExecute(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2) == 1)
     {
         func_80085D78(reset);
     }
@@ -681,9 +632,9 @@ void func_8008677C(s_SubCharacter* chara, s32 arg1, s32 arg2) // 0x8008677C
 {
 #ifdef SH_PC_PORT
     typedef bool (*NpcWaypointFunc)(s_SubCharacter*, s32, VECTOR3*, s32, s32);
-    ((NpcWaypointFunc)g_MapOverlayHeader.func_13C)(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
+    ((NpcWaypointFunc)g_MapOverlayHdr.charaPathWaypointExecute)(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
 #else
-    g_MapOverlayHeader.func_13C(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
+    g_MapOverlayHdr.charaPathWaypointExecute(chara, arg1, &D_800C4640[1][0], D_800C4700[1], arg2);
 #endif
 }
 
@@ -991,7 +942,7 @@ void Map_MessageWithSfx(s32 mapMsgIdx, e_SfxId sfxId, VECTOR3* sfxPos) // 0x8008
 {
     s32 i;
 
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_5))
+    if (!(g_SysWork.sysFlags & SysFlag_5))
     {
         // Run through NPCs.
         for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
@@ -1013,7 +964,7 @@ void Map_MessageWithSfx(s32 mapMsgIdx, e_SfxId sfxId, VECTOR3* sfxPos) // 0x8008
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            g_MapOverlayHeader.playerControlFreeze_C8();
+            g_MapOverlayHdr.playerControlFreeze();
             func_8005DC1C(sfxId, sfxPos, Q8(0.5f), 0);
             SysWork_StateStepIncrement(1);
 
@@ -1026,23 +977,23 @@ void Map_MessageWithSfx(s32 mapMsgIdx, e_SfxId sfxId, VECTOR3* sfxPos) // 0x8008
             break;
 
         default:
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
+            g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }
 }
 
-void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1) // 0x8008716C
+void func_8008716C(e_FsFile textureFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1) // 0x8008716C
 {
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            g_MapOverlayHeader.playerControlFreeze_C8();
+            g_MapOverlayHdr.playerControlFreeze();
             SysWork_StateStepIncrementAfterFade(0, true, 0, fadeTimestep0, false);
             SysWork_StateStepIncrement(1);
 
         case 1:
-            func_800862F8(7, texFileIdx, true);
+            func_800862F8(7, textureFileIdx, true);
             break;
 
         case 2:
@@ -1057,7 +1008,7 @@ void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimeste
         case 4:
             func_800862F8(2, FILE_1ST_2ZANKO80_TIM, false);
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+            if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SysWork_StateStepIncrement(1);
@@ -1071,23 +1022,23 @@ void func_8008716C(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimeste
 
         default:
             SysWork_StateStepIncrementAfterFade(0, false, 0, fadeTimestep0, false);
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
+            g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }
 }
 
-void MapMsg_DisplayWithTexture(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx) // 0x80087360
+void MapMsg_DisplayWithTexture(e_FsFile textureFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx) // 0x80087360
 {
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            g_MapOverlayHeader.playerControlFreeze_C8();
+            g_MapOverlayHdr.playerControlFreeze();
             SysWork_StateStepIncrementAfterFade(0, true, 0, fadeTimestep0, false);
             SysWork_StateStepIncrement(1);
 
         case 1:
-            func_800862F8(7, texFileIdx, true);
+            func_800862F8(7, textureFileIdx, true);
             break;
 
         case 2:
@@ -1111,23 +1062,23 @@ void MapMsg_DisplayWithTexture(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12
 
         default:
             SysWork_StateStepIncrementAfterFade(0, false, 0, fadeTimestep0, false);
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
+            g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }
 }
 
-void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx0, s32 mapMsgIdx1) // 0x80087540
+void MapMsg_DisplayWithTexture1(e_FsFile textureFileIdx, q19_12 fadeTimestep0, q19_12 fadeTimestep1, s32 mapMsgIdx0, s32 mapMsgIdx1) // 0x80087540
 {
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            g_MapOverlayHeader.playerControlFreeze_C8();
+            g_MapOverlayHdr.playerControlFreeze();
             SysWork_StateStepIncrementAfterFade(0, true, 0, fadeTimestep0, false);
             SysWork_StateStepIncrement(1);
 
         case 1:
-            func_800862F8(7, texFileIdx, true);
+            func_800862F8(7, textureFileIdx, true);
             break;
 
         case 2:
@@ -1148,7 +1099,7 @@ void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_1
                 break;
             }
 
-            if (g_Controller0->btnsClicked_10 & (g_GameWorkPtr->config.controllerConfig.enter |
+            if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
             {
                 SysWork_StateStepIncrement(1);
@@ -1170,117 +1121,10 @@ void MapMsg_DisplayWithTexture1(e_FsFile texFileIdx, q19_12 fadeTimestep0, q19_1
 
         default:
             SysWork_StateStepIncrementAfterFade(0, false, 0, fadeTimestep0, false);
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
+            g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }
-}
-
-void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x800877B8
-{
-    s32 i            = itemId;
-    s32 mapMsgIdxCpy = mapMsgIdx;
-
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_5))
-    {
-        // Run through NPCs.
-        for (i = 0; i < ARRAY_SIZE(g_SysWork.npcs); i++)
-        {
-            if (g_SysWork.npcs[i].model.charaId >= Chara_Harry && g_SysWork.npcs[i].model.charaId <= Chara_MonsterCybil &&
-                g_SysWork.npcs[i].health > Q12(0.0f))
-            {
-                break;
-            }
-        }
-
-        if (i != ARRAY_SIZE(g_SysWork.npcs))
-        {
-            g_DeltaTime = Q12(0.0f);
-        }
-    }
-
-    switch (g_SysWork.sysStateSteps[1])
-    {
-        case 0: // Freeze player and start loading item model.
-            g_MapOverlayHeader.playerControlFreeze_C8();
-            func_80086470(0, itemId, 0, false);
-
-            SysWork_StateStepIncrement(1);
-
-        case 1: // Load model.
-            func_80086470(1, itemId, 0, true);
-            break;
-
-        case 2:
-            // `Gfx_PickupItemAnimate` increases model scale and returns `false`, then starts rotating it and returns `true`.
-            if (Gfx_PickupItemAnimate(itemId))
-            {
-                MapMsg_DisplayAndHandleSelection(true, mapMsgIdxCpy, 3, NO_VALUE, 0, true); // 3 is "Yes", `NO_VALUE` is "No".
-            }
-
-            // Flag pickup item as collected.
-            Savegame_EventFlagSet(eventFlagIdx);
-            break;
-
-        case 3: // "Yes" selected.
-            func_80086470(3, itemId, itemCount, false);
-            SysWork_StateStepIncrement(1);
-
-        default:
-            // Flag pickup item as uncollected. Selecting 'No' sets `field_10` to `NO_VALUE`.
-            if (g_SysWork.sysStateSteps[1] == NO_VALUE)
-            {
-                Savegame_EventFlagClear(eventFlagIdx);
-            }
-
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
-            SysWork_StateSetNext(SysState_Gameplay);
-            break;
-    }
-}
-
-void Event_CommonItemTake(u32 pickupType, e_EventFlag eventFlagIdx) // 0x800879FC
-{
-    #define EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN 2
-
-    s32 ammoCountMult;
-
-    // Compute ammo count multiplier.
-    ammoCountMult = g_GameWork.config.optExtraBulletAdjust_2D + 1;
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
-    {
-        ammoCountMult = CLAMP(ammoCountMult, EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN, ammoCountMult);
-    }
-
-    // Handle item pickup.
-    switch (pickupType)
-    {
-        case CommonPickupItemId_FirstAidKit:
-            Event_ItemTake(InvItemId_FirstAidKit, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_FirstAidSelect);
-            break;
-
-        case CommonPickupItemId_HealthDrink:
-            Event_ItemTake(InvItemId_HealthDrink, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HealthDrinkSelect);
-            break;
-
-        case CommonPickupItemId_Ampoule:
-            Event_ItemTake(InvItemId_Ampoule, DEFAULT_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_AmpouleSelect);
-            break;
-
-        case CommonPickupItemId_HandgunBullets:
-            Event_ItemTake(InvItemId_HandgunBullets, ammoCountMult * HANDGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_HandgunAmmoSelect);
-            break;
-
-        case CommonPickupItemId_ShotgunShells:
-            Event_ItemTake(InvItemId_ShotgunShells, ammoCountMult * SHOTGUN_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_ShotgunAmmoSelect);
-            break;
-
-        case CommonPickupItemId_RifleShells:
-            Event_ItemTake(InvItemId_RifleShells, ammoCountMult * RIFLE_AMMO_PICKUP_ITEM_COUNT, eventFlagIdx, MapMsgIdx_RifleAmmoSelect);
-            break;
-    }
-
-    #undef EASY_DIFFICULTY_AMMO_COUNT_MULT_MIN
 }
 
 void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0x80087AF4
@@ -1298,7 +1142,7 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
     switch (g_SysWork.sysStateSteps[1])
     {
         case 0:
-            g_MapOverlayHeader.playerControlFreeze_C8();
+            g_MapOverlayHdr.playerControlFreeze();
             Fs_QueueStartSeek(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[mapFlagIdx]);
             SysWork_StateStepIncrement(1);
 
@@ -1335,32 +1179,32 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
 
         case 4:
             mapFlagIdxCpy                                            = mapFlagIdx >> 5;
-            ((s32*)&g_SavegamePtr->hasMapsFlags_164)[mapFlagIdxCpy] |= 1 << (mapFlagIdx & 0x1F); // Maybe union?
+            ((s32*)&g_SavegamePtr->paperMapFlags)[mapFlagIdxCpy] |= 1 << (mapFlagIdx & 0x1F); // Maybe union?
 
             switch (mapFlagIdx)
             {
                 case 6:
-                    g_SavegamePtr->hasMapsFlags_164 |= 0x1FA0;
+                    g_SavegamePtr->paperMapFlags |= 0x1FA0;
                     break;
 
                 case 17:
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 18;
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 19;
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 21;
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 22;
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 23;
+                    g_SavegamePtr->paperMapFlags |= 1 << 18;
+                    g_SavegamePtr->paperMapFlags |= 1 << 19;
+                    g_SavegamePtr->paperMapFlags |= 1 << 21;
+                    g_SavegamePtr->paperMapFlags |= 1 << 22;
+                    g_SavegamePtr->paperMapFlags |= 1 << 23;
                     break;
 
                 case 16:
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 20;
+                    g_SavegamePtr->paperMapFlags |= 1 << 20;
                     break;
 
                 case 13:
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 14;
+                    g_SavegamePtr->paperMapFlags |= 1 << 14;
                     break;
 
                 case 2:
-                    g_SavegamePtr->hasMapsFlags_164 |= 1 << 3;
+                    g_SavegamePtr->paperMapFlags |= 1 << 3;
                     break;
             }
 
@@ -1386,7 +1230,7 @@ void Event_MapTake(s32 mapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMsgIdx) // 0
 #endif
             SysWork_StateStepIncrementAfterFade(0, false, 0, Q12(0.0f), false);
 
-            g_MapOverlayHeader.playerControlUnfreeze_CC(0);
+            g_MapOverlayHdr.playerControlUnfreeze(0);
             SysWork_StateSetNext(SysState_Gameplay);
             break;
     }

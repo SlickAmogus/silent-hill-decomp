@@ -62,16 +62,15 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
     ptr->field_48 = ratan2(ptr->field_0.vy, ptr->field_0.vz);
     ptr->field_4A = ratan2(ptr->field_0.vx, ptr->field_0.vz);
 
-    *(s32*)&ptr->field_2C = (u16)ptr->field_48 + (ptr->field_4A << 16);
-    ptr->field_2C.vz      = 0;
+    Math_SetSVectorFastSum(&ptr->field_2C, (u16)ptr->field_48, ptr->field_4A, 0);
 
     Math_RotMatrixZxyNegGte(&ptr->field_2C, &ptr->field_C);
-    TransMatrix(&ptr->field_C, &(VECTOR){ 0, 0, 0, 0 });
+    TransMatrix(&ptr->field_C, &VECTOR_Zero);
 
     gte_SetRotMatrix(&ptr->field_C);
     gte_SetTransMatrix(&ptr->field_C);
 
-    ptr->field_44 = Math_Vector2MagCalc(var_s1, arg4) + 1;
+    ptr->field_44 = Math_Vector2MagCalcSafeQ6(var_s1, arg4) + 1;
 
     for (var_s7 = -arg4; arg4 >= var_s7;)
     {
@@ -92,14 +91,15 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
             }
 
             temp_v0_8 = func_8005E7E0(arg7 + 0x17);
-            if (temp_v0_8 == -1)
+            if (temp_v0_8 == NO_VALUE)
             {
                 return;
             }
 
-            *(s32*)&ptr->field_2C = (((var_s7 + (Rng_Rand16() % (arg6 >> 1))) - (arg6 >> 2)) & 0xFFFF) +
-                                    (((var_s5 + (Rng_Rand16() % (arg6 >> 1))) - (arg6 >> 2)) << 0x10);
-            ptr->field_2C.vz = 0;
+            Math_SetSVectorFastSum(&ptr->field_2C,
+                                   (var_s7 + (Rng_Rand16() % (arg6 >> 1))) - (arg6 >> 2),
+                                   (var_s5 + (Rng_Rand16() % (arg6 >> 1))) - (arg6 >> 2),
+                                   0);
 
             gte_ldv0(&ptr->field_2C);
             gte_rt();
@@ -109,17 +109,17 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
             sharedData_800DFB7C_0_s00[temp_v0_8].vy_8                = ptr->field_34.vy + arg0->vy;
             sharedData_800DFB7C_0_s00[temp_v0_8].field_4.s_0.field_0 = ptr->field_34.vz;
 
-            temp_s0_2 = SquareRoot0(SQUARE(ptr->field_34.vx >> 6) + SQUARE(ptr->field_34.vy >> 6) + SQUARE(ptr->field_34.vz >> 6)) << 6;
+            temp_s0_2 = Math_Vector3MagCalcSafe(ptr->field_34.vx, ptr->field_34.vy, ptr->field_34.vz);
 
-            sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_2 = MIN(temp_s0_2 / (arg2 >> 0xA), 0x1000);
+            sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_2 = MIN(temp_s0_2 / (arg2 >> 10), Q12(1.0f));
 
-            sharedData_800DFB7C_0_s00[temp_v0_8].field_B = ((Rng_Rand16() % MIN(((temp_s0_2 * 6) / ptr->field_44) + 3, 8)) * 0x10) - 0x80 + Rng_GenerateUInt(0, 15);
+            sharedData_800DFB7C_0_s00[temp_v0_8].field_B = ((Rng_Rand16() % MIN(((temp_s0_2 * 6) / ptr->field_44) + 3, 8)) * 16) - 0x80 + Rng_GenerateUInt(0, 15);
 
             ptr->field_34.vx += ptr->field_0.vx;
             ptr->field_34.vy += ptr->field_0.vy;
             ptr->field_34.vz += ptr->field_0.vz;
 
-            temp_s0_2 = SquareRoot0(SQUARE(ptr->field_34.vx >> 6) + SQUARE(ptr->field_34.vy >> 6) + SQUARE(ptr->field_34.vz >> 6)) << 6;
+            temp_s0_2 = Math_Vector3MagCalcSafe(ptr->field_34.vx, ptr->field_34.vy, ptr->field_34.vz);
 
             sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_0  = (arg2 * Rng_GenerateUInt(64, 191) >> 7) * ptr->field_34.vx / temp_s0_2;
             sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_2  = (arg2 * Rng_GenerateUInt(64, 191) >> 7) * ptr->field_34.vy / temp_s0_2;
@@ -177,13 +177,15 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
             mapHdrPtr->field_10.s_0.field_2 = temp_s2 |
                                               ((ratan2(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0, sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0) - sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_2) > 0 ? 0x8000 : 0);
 
-            temp_s2_2 = SquareRoot0(SQUARE(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2 >> 6) + SQUARE(sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0 >> 6)) << 6;
+            temp_s2_2 = Math_Vector2MagCalcSafeQ6(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2,
+                                                sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0);
             temp_s1   = temp_s2_2 >> 2;
             temp_s3   = temp_s2_2 >> 3;
 
             sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 += CLAMP_HIGH(((temp_s2_2 + (Rng_Rand16() % temp_s1)) - temp_s3), 0x7FFF) / 256;
 
-            temp_s2_2 = SquareRoot0(SQUARE(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0 >> 6) + SQUARE(sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0 >> 6)) << 6;
+            temp_s2_2 = Math_Vector2MagCalcSafeQ6(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0,
+                                                sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0);
             temp_s1_2 = temp_s2_2 >> 2;
             temp_s3   = temp_s2_2 >> 3;
 
@@ -195,7 +197,7 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
         temp_v0_6      = ratan2(sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_0, sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_0);
         ptr->field_1C0 = SQUARE(sharedData_800DFB7C_0_s00[idx].field_B >> 4);
 
-        temp_s2_2 = ((ptr->field_1C0 + 7) * 0x1800) / 28;
+        temp_s2_2 = ((ptr->field_1C0 + 7) * Q12(1.5f)) / 28;
 
         if (sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0 > 0)
         {
@@ -240,9 +242,11 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
             sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_2 -= FP_MULTIPLY_PRECISE(g_DeltaTime, (sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 >> 1) & 0x3F80, 0xC);
         }
 
-        Collision_Get(&ptr->field_12C, sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_0, sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_0);
+        Collision_SurfaceGet(&ptr->surface, sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_0, sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_0);
 
-        if (((ptr->field_12C.field_8 == 0) && (sharedData_800DFB7C_0_s00[idx].vy_8 > 0)) || (ptr->field_12C.groundHeight_0 < sharedData_800DFB7C_0_s00[idx].vy_8))
+        if ((ptr->surface.groundType == GroundType_Default &&
+             sharedData_800DFB7C_0_s00[idx].vy_8 > 0) ||
+            ptr->surface.groundHeight < sharedData_800DFB7C_0_s00[idx].vy_8)
         {
             sharedData_800DFB7C_0_s00[idx].field_A = 0;
         }
@@ -251,13 +255,13 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
     temp_v1_4           = sharedData_800DFB7C_0_s00[idx].field_B;
     *(s32*)&(*poly)->u0 = ((temp_v1_4 & 3) << 4) + ((temp_v1_4 << 0xA) & 0x3000) + 0xE0000;
     temp_v0_23          = sharedData_800DFB7C_0_s00[idx].field_B;
-    *(s32*)&(*poly)->u1 = ((temp_v0_23 & 3) << 4) + 0xF + (((temp_v0_23 << 0xA) & 0x3000)) + 0x2D0000;
+    *(s32*)&(*poly)->u1 = ((temp_v0_23 & 3) << 4) + 15 + (((temp_v0_23 << 0xA) & 0x3000)) + 0x2D0000;
     temp_v0_24          = sharedData_800DFB7C_0_s00[idx].field_B;
-    *(u16*)&(*poly)->u2 = ((temp_v0_24 & 3) << 4) + ((((temp_v0_24 * 4) & 0x30) + 0xF) << 8);
+    *(u16*)&(*poly)->u2 = ((temp_v0_24 & 3) << 4) + ((((temp_v0_24 * 4) & 0x30) + 15) << 8);
     temp_v0_25          = sharedData_800DFB7C_0_s00[idx].field_B;
-    *(u16*)&(*poly)->u3 = ((temp_v0_25 & 3) << 4) + 0xF + ((((temp_v0_25 * 4) & 0x30) + 0xF) << 8);
+    *(u16*)&(*poly)->u3 = ((temp_v0_25 & 3) << 4) + 15 + ((((temp_v0_25 * 4) & 0x30) + 15) << 8);
 
-    temp_s1_3 = sharedData_800DFB7C_0_s00[idx].field_A - 0x17;
+    temp_s1_3 = sharedData_800DFB7C_0_s00[idx].field_A - 23;
 
     *(s32*)&ptr->field_158[0].vx = (u16)sharedData_800DFB7C_0_s00[idx].field_0.s_0.field_2 + (sharedData_800DFB7C_0_s00[idx].field_4.s_0.field_2 << 16);
     ptr->field_158[0].vz         = 0;
@@ -336,7 +340,7 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
     *(s32*)&(*poly)->r0 = (ptr->field_1BC.r + (ptr->field_1BC.g << 8) + (ptr->field_1BC.b << 16) + 0x2E000000);
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_1D4.vx;
 
-    addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_1C4 - 0x1800 >= 0 ? (ptr->field_1C4 - 0x1800) >> 3 : 0], *poly, 9);
+    addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[((ptr->field_1C4 - Q12(1.5f)) >= Q12(0.0f)) ? (ptr->field_1C4 - Q12(1.5f)) >> 3 : 0], *poly, 9);
 
     *poly += 1;
 

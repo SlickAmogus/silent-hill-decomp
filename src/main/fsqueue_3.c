@@ -496,7 +496,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
 
     tempRect = *tim.prect;
-    if (entry->extra.image.u != 0xFF)
+    if (entry->extra.image.u != UCHAR_MAX)
     {
         // This contraption simply extracts XY from tPage value.
         // For some reason it seems to be byte swapped, or maybe tPage is stored as u8[2]?
@@ -626,6 +626,6 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 
 bool Fs_QueuePostLoadAnm(s_FsQueueEntry* entry)
 {
-    Fs_CharaAnimInfoUpdate(entry->extra.anm.field_0, entry->extra.anm.charaId_4, entry->externalData, entry->extra.anm.coords_8);
+    Fs_CharaAnimDataUpdate(entry->extra.anm.field_0, entry->extra.anm.charaId, entry->externalData, entry->extra.anm.coords_8);
     return true;
 }

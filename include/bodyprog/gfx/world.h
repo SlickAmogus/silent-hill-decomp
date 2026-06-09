@@ -1,0 +1,103 @@
+#ifndef _BODYPROG_GFX_WORLD_H
+#define _BODYPROG_GFX_WORLD_H
+
+#include "bodyprog/chara/chara_model.h"
+#include "bodyprog/formats/lm.h"
+#include "bodyprog/formats/model.h"
+#include "bodyprog/gfx/world_object.h"
+#include "bodyprog/map/map.h"
+#include "bodyprog/view/structs.h"
+
+/** @brief World GFX workspace.
+ * TODO: Could be `s_WorldWork`? Contains more than GFX data.
+ */
+typedef struct _WorldGfxWork
+{
+    /* 0x0    */ s_MapInfo*        mapInfo;
+    /* 0x4    */ u8                useStoredPoint; /** `bool` */
+    /* 0x5    */ s8                __pad_5[3];
+    /* 0x8    */ VECTOR3           ipdSamplePoint; /** Used by IPD logic to sample which chunks to load or unload. */
+    /* 0x14   */ u8*               charaLmBuffer;
+    /* 0x18   */ s_CharaModel*     registeredCharaModels[Chara_Count];
+    /* 0xCC   */ s_CharaModel      charaModels[CHARA_GROUP_COUNT];
+    /* 0x164C */ s_CharaModel      harryModel;
+    /* 0x1BAC */ s_HeldItem        heldItem; /** Item held by the player. */
+    /* 0x1BD8 */ s_CollisionTrigger*    collisionTriggers;
+    /* 0x1BDC */ VC_CAMERA_INTINFO vcCameraInternalInfo; /** Debug camera info. */
+    /* 0x1BE4 */ s_LmHeader        itemLmHdr;
+    /* 0x1BF4 */ u8                itemLmData[4096 - sizeof(s_LmHeader)]; // 4kb allocated for 2.75kb game files.
+    /* 0x2BE4 */ s32               itemLmQueueIdx;
+    /* 0x2BE8 */ s32               objectCount;                     /** `objects` size. */
+    /* 0x2BEC */ s_WorldObject     objects[WORLD_OBJECT_COUNT_MAX]; /** World objects to draw. */
+} s_WorldGfxWork;
+STATIC_ASSERT_SIZEOF(s_WorldGfxWork, 11708);
+
+/** @brief World fog info. */
+typedef struct _Fog
+{
+    /* 0x0  */ s32     nearDistance;
+    /* 0x4  */ q23_8   farDistance; // "DrawDistanmce" in SHME, "has no effect when fog is disabled".
+    /* 0x8  */ s32     depthShift;  // "FogThing1" from SHME. Affects the distance where fog begins.
+    /* 0xC  */ s32     intensity;   // "FogThing2" from SHME. Affects the distance where fog begins.
+    /* 0x10 */ CVECTOR color;
+} s_Fog;
+
+// Related to `s_PointLight`.
+typedef struct
+{
+    VECTOR3 field_0[2][1];
+} s_WorldEnvWork_84;
+
+/** @brief Dynamic point light. */
+typedef struct _PointLight
+{
+    /* 0x0  */ s32               field_0; // Light intensity in Q4?
+    /* 0x4  */ q3_12             lensFlareIntensity;
+    /* 0x8  */ q19_12            intensity;
+    /* 0xC  */ SVECTOR           direction; /** Q3.12 */
+    /* 0x14 */ VECTOR3           position;  /** Q19.12 */
+    /* 0x20 */ SVECTOR           rotation;  /** Q3.12 */
+    /* 0x28 */ SVECTOR           field_28;  // Q8 light position for matrix?
+    /* 0x30 */ SVECTOR           field_30;  // Light offset?
+    /* 0x38 */ s_WorldEnvWork_84 field_38[3];
+} s_PointLight;
+
+/** @brief World environment workspace.
+ *
+ * Holds fog distances and ramps, lighting and color parameters, water zone references, and other per-map environmental
+ * data used for world drawing.
+ */
+typedef struct _WorldEnvWork
+{
+    /* 0x0   */ u8           field_0;      // `bool`?
+    /* 0x1   */ u8           isFogEnabled; /** `bool` */
+    /* 0x2   */ u8           field_2;
+    /* 0x3   */ u8           field_3; // Enviroment lighting.
+    /* 0x4   */ s_WaterZone* waterZones;
+    /* 0x8   */ s32          screenBrightness;
+    /* 0xC   */ s_Fog        fog;
+    /* 0x20  */ s32          field_20; // Map lighting.
+    /* 0x24  */ u8           field_24; // } RGB. Character color lighting.
+    /* 0x25  */ u8           field_25; // }
+    /* 0x26  */ u8           field_26; // }
+    /* 0x27  */ s8           unk_27;
+    /* 0x28  */ CVECTOR      worldTintColor;
+    /* PC port: the light region is kept in its flat (fork) layout — our flashlight/lens-flare
+     * shims (bodyprog_80055028.c, vw_calc.c) read these by field name and the original write
+     * paths use the same offsets. Upstream's `colorMat`/`s_PointLight light` carve the same
+     * 0x2C..0xCC bytes; no PC code references those names (verified: 0 uses). */
+    /* 0x2C  */ MATRIX            field_2C;
+    /* 0x4C  */ s32              field_4C;
+    /* 0x50  */ s16              field_50;
+    /* 0x54  */ s32              field_54;
+    /* 0x58  */ SVECTOR          field_58;
+    /* 0x60  */ VECTOR3          field_60;
+    /* 0x6C  */ SVECTOR          field_6C;
+    /* 0x74  */ SVECTOR          field_74;
+    /* 0x7C  */ SVECTOR          field_7C;
+    /* 0x84  */ s_WorldEnvWork_84 field_84[3];
+    /* 0xCC  */ u8           fogRamp[128]; // Fog-related values based on `fog.nearDistance`/`fog.farDistance`.
+    /* 0x14C */ u16          field_14C;
+} s_WorldEnvWork;
+
+#endif

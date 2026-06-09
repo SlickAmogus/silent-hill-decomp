@@ -1,5 +1,5 @@
-#ifndef _BODYPROG_GAMEMAIN_H
-#define _BODYPROG_GAMEMAIN_H
+#ifndef _BODYPROG_SYS_GAMEMAIN_H
+#define _BODYPROG_SYS_GAMEMAIN_H
 
 // ======
 // ENUMS
@@ -22,6 +22,12 @@ extern s32 g_WarmBootTimer;
 // FUNCTIONS
 // ==========
 
+void GameState_Boot_Update(void);
+
+/** Bodyprog entrypoint. Called by `main`. */
+void MainLoop(void);
+
+// TODO: New header file.
 /** @brief Checks for a specific combination of inputs to determine if a soft reboot should take place.
  *
  * @return `ResetType_WarmBoot` if a soft reboot should take place, `ResetType_None` otherwise.

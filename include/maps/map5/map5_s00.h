@@ -1,7 +1,7 @@
 #ifndef _MAPS_MAP5_S00_H
 #define _MAPS_MAP5_S00_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define HAS_PlayerState_Unk87
@@ -52,9 +52,9 @@ extern s32 D_800DAB78;
 
 extern u8 D_800DAB7C[3];
 
-extern s_WorldObjectDesc  g_WorldObject_Map;
-extern s_WorldObjectDesc  g_WorldObject_SavePad0;
-extern s_WorldObjectDesc  g_WorldObject_SavePad1;
+extern s_WorldObjectPose  g_WorldObject_Map;
+extern s_WorldObjectPose  g_WorldObject_SavePad0;
+extern s_WorldObjectPose  g_WorldObject_SavePad1;
 extern s_WorldObjectModel g_CommonWorldObjects[6];
 
 extern s32 D_800DA154[];
@@ -65,14 +65,14 @@ extern u16 D_800DA578[];
 
 extern VECTOR3 D_800CB0CC;
 
-extern s_WorldObjectPose D_800DAAD0;
-extern s_WorldObjectPose D_800DAAE4;
-extern s_WorldObjectPose D_800DAAF8;
-extern s_WorldObjectPose D_800DAB0C;
-extern s_WorldObjectPose D_800DAB20;
-extern s_WorldObjectPose D_800DAB34;
-extern s_WorldObjectPose D_800DAB48;
-extern s_WorldObjectPose D_800DAB5C;
+extern s_Pose D_800DAAD0;
+extern s_Pose D_800DAAE4;
+extern s_Pose D_800DAAF8;
+extern s_Pose D_800DAB0C;
+extern s_Pose D_800DAB20;
+extern s_Pose D_800DAB34;
+extern s_Pose D_800DAB48;
+extern s_Pose D_800DAB5C;
 
 void func_800CB0D8(void);
 
@@ -127,7 +127,7 @@ void func_800D7C84(void);
 void func_800D7F88(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake(void);
+void MapEvent_PaperMapTake(void);
 
 void Map_WorldObjectsInit(void);
 

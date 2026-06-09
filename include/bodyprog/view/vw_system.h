@@ -11,9 +11,7 @@
 #include "bodyprog/view/vw_main.h"
 
 // TODO:
-// - Split into 4 separate headers.
-// - Add doc comments above func declarations.
-// - Flags below are from SH2, most seem to match with SH but there might be some differences.
+// - Finish docs.
 
 /** @brief GLOSSARY OF ABBREVIATIONS
  *
@@ -36,19 +34,21 @@
  * P:     Pointer
  * PRIO:  Priority
  * PRM:   Parameter/parameters
+ * PRS:   ?
  * R:     Radius
  * RD:    Road
  * SCR:   Screen
  * SPD:   Speed
  * STA:   Start
+ * ST:    Start?
  * SV:    Swivel?
  * SW:    Switch
  * TGT:   Target
  * VELO:  Velocity
- * VB:    ?
- * VB:    ?
+ * VB:    View block
  * VC:    Virtual camera
  * VW:    View
+ * WVS:   World view space
  */
 
 /** @brief GLOSSARY OF JAPANGLISH TERMS
@@ -62,7 +62,7 @@
  * Marge:        Merge.
  * Near road:    Nearby camera path collision containing info about a path's relation to the player in space (distance, priority, etc.).
  *               An array of these is kept to track which path should take effect.
- * Oresen hokan: Polyline interpolation, linear interpolation over an array of values.
+ * Oresen hokan: Polyline interpolation, i.e. linear interpolation over an array of values.
  * Renewal:      Reset.
  * Road:         Camera path. A region which dictates specific camera behaviors while the player is inside.
  * Self view:    First-person view.
@@ -72,19 +72,19 @@
  * Watch:        Camera look-at.
  */
 
-extern VC_ROAD_DATA      vcNullRoadArray[2];
-extern VC_NEAR_ROAD_DATA vcNullNearRoad;
-extern VC_WATCH_MV_PARAM deflt_watch_mv_prm;
-extern VC_WATCH_MV_PARAM self_view_watch_mv_prm;
-extern VC_CAM_MV_PARAM   cam_mv_prm_user;
-extern q19_12            excl_r_ary[9];
-extern VC_WORK           vcWork;
-extern VECTOR3           vcRefPosSt; /** Q19.12 */
+extern VC_ROAD_DATA      vcNullRoadArray[2];     /** Default camera paths. */
+extern VC_NEAR_ROAD_DATA vcNullNearRoad;         /** Default nearby camera path collision. */
+extern VC_WATCH_MV_PARAM deflt_watch_mv_prm;     /** Default look-at move parameters. */
+extern VC_WATCH_MV_PARAM self_view_watch_mv_prm; /** First-person look-at move parameters. */
+extern VC_CAM_MV_PARAM   cam_mv_prm_user;        /** User camera move parameters. */
+extern q19_12            excl_r_ary[9];          /** Q19.12 | Exclusion radius array. */
+extern VC_WORK           vcWork;                 /** View camera workspace. */
+extern VECTOR3           vcRefPosSt;             /** Q19.12 | View camera reference position start. */
 extern VW_VIEW_WORK      vwViewPointInfo;
 extern MATRIX            D_800C3868;
-extern MATRIX            VbWvsMatrix;
-extern VC_WATCH_MV_PARAM vcWatchMvPrmSt;
-extern q19_12            vcSelfViewTimer;
+extern MATRIX            VbWvsMatrix;            /** View block's world view space matrix. */
+extern VC_WATCH_MV_PARAM vcWatchMvPrmSt;         /** View camera look-at move parameters start. */
+extern q19_12            vcSelfViewTimer;        /** View camera first-person timer. */
 
 /** @brief Sets the active camera path collision.
  *

@@ -1,7 +1,7 @@
 #ifndef _MAPS_MAP1_S03_H
 #define _MAPS_MAP1_S03_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define HAS_PlayerState_Unk85
@@ -38,7 +38,7 @@ extern s_FsImageDesc D_800E2004;
 extern VECTOR3 D_800E200C;
 extern s16 D_800E2018;
 extern q19_12 D_800E201C; // Time.
-extern s_WorldObjectPose  g_CommonWorldObjectPoses[10]; // 0x800E2020
+extern s_Pose  g_CommonWorldObjectPoses[10]; // 0x800E2020
 extern s32 D_800E20E8; // Angle.
 extern s16 D_800E20EC;
 extern u8 D_800E20EE;
@@ -51,39 +51,38 @@ extern u8  D_800E2100;
 extern u8  D_800E2101;
 extern u8 D_800E2102; // g_Cutscene_MapMsgAudioIdx
 
-extern s_WorldObjectDesc g_WorldObject5; // 0x800E6130
+extern s_WorldObjectPose g_WorldObject5; // 0x800E6130
 
 extern VECTOR3 g_Cutscene_CameraPositionTarget;
 extern VECTOR3 g_Cutscene_CameraLookAtTarget;
 extern s32     g_Cutscene_Timer;
 
-extern s_WorldObjectDesc g_WorldObject0; // 0x800E6180
-extern s_WorldObjectDesc g_WorldObject1; // 0x800E61B0
-extern s_WorldObjectDesc g_WorldObject2; // 0x800E61E0
-extern s_WorldObjectDescNoRot g_WorldObject3; // 0x800E6210
-extern s_WorldObjectDescNoRot g_WorldObject4; // 0x800E6240
-extern s_WorldObjectDescNoRot g_WorldObject6; // 0x800E6270
-extern s_WorldObjectDesc g_WorldObject7; // 0x800E62A0
+extern s_WorldObjectPose g_WorldObject0; // 0x800E6180
+extern s_WorldObjectPose g_WorldObject1; // 0x800E61B0
+extern s_WorldObjectPose g_WorldObject2; // 0x800E61E0
+extern s_WorldObjectPlacement g_WorldObject3; // 0x800E6210
+extern s_WorldObjectPlacement g_WorldObject4; // 0x800E6240
+extern s_WorldObjectPlacement g_WorldObject6; // 0x800E6270
+extern s_WorldObjectPose g_WorldObject7; // 0x800E62A0
 extern u8 D_800E62D0;
 extern s_WorldObjectModel   g_CommonWorldObjects[6]; // 0x800E62E0
 
 extern u8 D_800E6388;
 extern q19_12 D_800E638C; // Time?
 
-
 typedef struct
 {
-    s32 vx_0;
-    s32 vz_4;
-    u16 field_8;
-    s16 field_A;
-    s16 field_C;
-    s16 field_E;
-    s16 field_10;
-    s16 field_12;
-    u8  idx_14;
-    u8  unk_15;
-    u8  unk_16;
+    s32   vx_0;
+    s32   vz_4;
+    q4_12 field_8; 
+    s16   field_A;
+    q3_12 field_C;
+    q3_12 field_E;
+    q3_12 field_10;
+    s16   field_12;
+    u8    idx_14;
+    u8    unk_15;
+    u8    unk_16;
 } s_800E3A40;
 extern s_800E3A40 D_800E3A40[];
 
@@ -93,7 +92,7 @@ void func_800CE0CC(s32 arg0);
 
 bool func_800CE164(POLY_FT4** poly, s32 idx);
 
-void Ai_LockerDeadBody_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void LockerDeadBody_Update(s_SubCharacter* deadBody, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
 void func_800DA7F4(void);
 

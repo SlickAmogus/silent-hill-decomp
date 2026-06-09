@@ -29,10 +29,10 @@ u8 D_800C15B4[256] = {0};
 u8 D_800C391E[256] = {0};
 u8 D_800C39A0[256] = {0};
 u8 D_800C42B8[256] = {0};
-u8 D_800C42D0[256] = {0};
-u8 D_800C42D2[256] = {0};
+short D_800C42D0 = 0; // scalar (q3_12 rotation component); used by player_control.c
+short D_800C42D2 = 0;
 u8 D_800C4454[256] = {0};
-u8 D_800C4606[256] = {0};
+u8 D_800C4606 = 0;  // scalar counter/flag; used by player.c
 u8 D_800C4620[256] = {0};
 u8 D_800CA788[256] = {0};
 u8 D_800CAB90[256] = {0};
@@ -856,10 +856,10 @@ u8 g_CutsceneTimer[256] = {0};
 u8 g_DoorOfEclypse_MapMsgIdx[256] = {0};
 /* g_Effect_BloodSplats: was u8[256], but each s_BloodSplat is 2 bytes
  * (s16 field_0; bodyprog/bodyprog.h:1568) and the map header sets
- * bloodSplatCount_58 = ARRAY_SIZE(g_Effect_BloodSplats) using the
+ * bloodSplatCount = ARRAY_SIZE(g_Effect_BloodSplats) using the
  * extern's declared size — which is MAP_BLOOD_SPLAT_COUNT_MAX (150 for
  * map0_s00/s01, 50 for s02, etc.; per-map in include/maps/<map>.h).
- * func_8005F6B0 then iterates bloodSplats_54[0..150) writing field_0,
+ * func_8005F6B0 then iterates bloodSplats[0..150) writing field_0,
  * which past 128 entries overruns the 256-byte stub and corrupts
  * adjacent globals → next frame's GsDrawOt(OT0) crashes.
  *
@@ -947,6 +947,9 @@ u8 g_WorldObject7[256] = {0};
 u8 g_WorldObject8[256] = {0};
 u8 g_WorldObject9[256] = {0};
 u8 g_WorldObjectA[256] = {0};
+u8 g_WorldObject_IronPipe[256] = {0};
+u8 g_WorldObject_RockDrill[256] = {0};
+u8 g_WorldObject_Chainsaw[256] = {0};
 u8 g_WorldObjectAPos[256] = {0};
 u8 g_WorldObjectB[256] = {0};
 u8 g_WorldObjectC[256] = {0};
@@ -1327,7 +1330,7 @@ u8 sharedData_800D2F74_7_s00[256] = {0};
 u8 sharedData_800D2F7C_7_s00[256] = {0};
 u8 sharedData_800D2F84_7_s00[256] = {0};
 u8 sharedData_800D3150_3_s02[256] = {0};
-u8 sharedData_800D32A0_0_s02[256] = {0};
+u8 sharedData_800D32A0_0_s02 = 0;
 u8 sharedData_800D4CD4_3_s01[256] = {0};
 u8 sharedData_800D4D0C_3_s01[256] = {0};
 u8 sharedData_800D4D10_3_s01[256] = {0};
@@ -1593,3 +1596,7 @@ e_MapIdx g_ParticleMapIdx1 = 0;
 const struct { int vx, vy, vz; } D_800CB35C = {
     (int)0x00015199, (int)0x00000000, (int)0xFFFEC000
 };
+
+// Re-added globals dropped/undeclared in merge.
+int g_RayLineCombat = 0;
+unsigned short g_CollisionTriggerFlags = 0;

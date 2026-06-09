@@ -1,6 +1,33 @@
 #ifndef _MAPS_CHARACTERS_LISA_H
 #define _MAPS_CHARACTERS_LISA_H
 
+/** @brief Lisa character control states. */
+typedef enum _LisaControl
+{
+    LisaControl_None = 0,
+    LisaControl_1    = 1,
+    LisaControl_2    = 2,
+    LisaControl_3    = 3,
+    LisaControl_4    = 4,
+    LisaControl_5    = 5,
+    LisaControl_6    = 6,
+    LisaControl_7    = 7,
+    LisaControl_8    = 8,
+    LisaControl_9    = 9,
+    LisaControl_10   = 10,
+    LisaControl_11   = 11,
+    LisaControl_12   = 12,
+    LisaControl_13   = 13,
+    LisaControl_14   = 14,
+    LisaControl_15   = 15,
+    LisaControl_16   = 16,
+    LisaControl_17   = 17,
+    LisaControl_18   = 18,
+    LisaControl_19   = 19,
+    LisaControl_20   = 20,
+    LisaControl_21   = 21
+} e_LisaControl;
+
 /** @brief Lisa character animation indices. */
 typedef enum _LisaAnim
 {
@@ -23,6 +50,12 @@ typedef enum _LisaAnim
     LisaAnim_16    = 16,
     LisaAnim_17    = 17
 } e_LisaAnim;
+
+/** @brief Lisa character model bone indices. */
+typedef enum _LisaBone
+{
+    LisaBone_Root = 0
+} e_LisaBone;
 
 /** @brief Lisa character anim infos. */
 extern s_AnimInfo LISA_ANIM_INFOS[];
@@ -66,12 +99,12 @@ extern s_AnimInfo LISA_ANIM_INFOS[];
     { Anim_PlaybackLoop, ANIM_STATUS(LisaAnim_17, true),  false, NO_VALUE,               { Q12(5.0f)    }, 603,      618 }
 };*/
 
-extern s32 sharedData_800D6BB8_3_s04; // Used by `Ai_Lisa_Init`.
+extern s32 sharedData_800D6BB8_3_s04;
 
-void Ai_Lisa_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-void Ai_Lisa_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
-void Ai_Lisa_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
-void Ai_Lisa_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
-void Ai_Lisa_Init(s_SubCharacter* chara);
+void Lisa_Update(s_SubCharacter* lisa, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
+void Lisa_AnimUpdate(s_SubCharacter* lisa, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
+void Lisa_MovementUpdate(s_SubCharacter* lisa, GsCOORDINATE2* boneCoords);
+void Lisa_AnimStateUpdate(s_SubCharacter* lisa, GsCOORDINATE2* boneCoords);
+void Lisa_Init(s_SubCharacter* lisa);
 
 #endif

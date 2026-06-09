@@ -57,7 +57,7 @@ void Vw_SetLookAtMatrix(const VECTOR3* pos, const VECTOR3* lookAt) // 0x80048AF4
     // Compute camera rotation.
     rot.vz = Q12_ANGLE(0.0f);
     rot.vy = ratan2(deltaX, deltaZ);
-    rot.vx = ratan2(-deltaY, SquareRoot0(SQUARE(deltaX) + SQUARE(deltaZ)));
+    rot.vx = ratan2(-deltaY, Math_Vector2MagCalc(deltaX, deltaZ));
 
     // Compute view transform matrix and set global info.
     Math_RotMatrixZxyNeg(&rot, &viewMat);
@@ -121,24 +121,24 @@ void vwSetViewInfo(void) // 0x80048D48
     vwMatrixToAngleYXZ(&vwViewPointInfo.worldang, &vwViewPointInfo.vwcoord.workm);
 }
 
-void Vw_ClampAngleRange(q3_12* angleMin, q3_12* angleMax, q3_12 angleConstraintMin, q3_12 angleConstraintMax) // 0x80048DA8
+void Vw_ClampAngleRange(q7_8* angleMin, q7_8* angleMax, q7_8 angleConstraintMin, q7_8 angleConstraintMax) // 0x80048DA8
 {
-    q19_12 prevAngleMax;
-    q19_12 prevAngleMin;
-    q19_12 rotToAngleMax;
-    q3_12  rotToAngleConstraintMin;
-    q3_12  rotToAngleConstraintMax;
+    q23_8 prevAngleMax;
+    q23_8 prevAngleMin;
+    q23_8 rotToAngleMax;
+    q7_8  rotToAngleConstraintMin;
+    q7_8  rotToAngleConstraintMax;
 
     prevAngleMax = *angleMax;
     prevAngleMin = *angleMin;
 
     rotToAngleMax = prevAngleMax;
-    rotToAngleMax = Q12_ANGLE_NORM_U(prevAngleMax - prevAngleMin);
+    rotToAngleMax = Q12_FRACT(prevAngleMax - prevAngleMin);
 
-    rotToAngleConstraintMin = Q12_ANGLE_NORM_U(angleConstraintMin - prevAngleMin);
-    rotToAngleConstraintMax = Q12_ANGLE_NORM_U(angleConstraintMax - prevAngleMin);
+    rotToAngleConstraintMin = Q12_FRACT(angleConstraintMin - prevAngleMin);
+    rotToAngleConstraintMax = Q12_FRACT(angleConstraintMax - prevAngleMin);
 
-    prevAngleMax = Q12_ANGLE(0.0f);
+    prevAngleMax = Q8_ANGLE(0.0f);
     if (rotToAngleConstraintMin <= rotToAngleConstraintMax)
     {
         if (rotToAngleConstraintMin > prevAngleMax)
@@ -164,8 +164,8 @@ void Vw_ClampAngleRange(q3_12* angleMin, q3_12* angleMax, q3_12 angleConstraintM
         }
     }
 
-    *angleMin = Q12_ANGLE_NORM_U(prevAngleMax + prevAngleMin);
-    *angleMax = Q12_ANGLE_NORM_U(rotToAngleMax + prevAngleMin);
+    *angleMin = Q12_FRACT(prevAngleMax + prevAngleMin);
+    *angleMax = Q12_FRACT(rotToAngleMax + prevAngleMin);
 }
 
 q3_12 Vw_LineSegmentIntersectionCheck(s16 segmentLength, s16 segmentDir,

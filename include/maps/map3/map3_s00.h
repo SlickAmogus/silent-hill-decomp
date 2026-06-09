@@ -3,7 +3,7 @@
 
 #define HAS_PlayerState_Unk51
 #define HAS_PlayerState_Unk131
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk72
 #define HAS_PlayerState_Unk115
 
@@ -23,12 +23,12 @@
 
 #include "maps/shared.h"
 
-extern s_WorldObjectDescNoRot g_WorldObject0;
-extern s_WorldObjectDescNoRot g_WorldObject1[2];
-extern s_WorldObjectDesc      g_WorldObject2;
-extern s_WorldObjectDesc      g_WorldObject3;
-extern s_WorldObjectDesc      g_WorldObject4;
-extern s_WorldObjectDesc      g_WorldObject5;
+extern s_WorldObjectPlacement g_WorldObject0;
+extern s_WorldObjectPlacement g_WorldObject1[2];
+extern s_WorldObjectPose      g_WorldObject2;
+extern s_WorldObjectPose      g_WorldObject3;
+extern s_WorldObjectPose      g_WorldObject4;
+extern s_WorldObjectPose      g_WorldObject5;
 
 extern VECTOR3 D_800CB2E4;
 extern VECTOR3 D_800CB2F0;
@@ -55,7 +55,7 @@ void func_800D0CA4();
 void MapEvent_FirstAidKitTake(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake(void);
+void MapEvent_PaperMapTake(void);
 
 void func_800D0CF8(void);
 

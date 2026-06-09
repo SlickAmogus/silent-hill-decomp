@@ -11,10 +11,10 @@
 // ========================================
 
 q0_8 g_Screen_BackgroundImgGamma = Q8(0.5f);
-s16  D_800A8E5A                  = 3; // @Unused.
+s16  D_800A8E5A                  = 3; // @unused.
 
 // ========================================
-// FUNCTIONS
+// 2D BACKGROUND IMAGE DRAWING
 // ========================================
 
 void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
@@ -46,7 +46,7 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
             sprt = (SPRT*)packet;
 
             addPrimFast(ot, sprt, 4);
-            setRGBC0(sprt, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, 100);
+            setRGBC0(sprt, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma, PRIM_RECT | RECT_TEXTURE);
 
             if (y == 0)
             {
@@ -82,8 +82,8 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
         }
     }
 
-    GsOUT_PACKET_P                  = packet;
-    g_SysWork.bgmStatusFlags        |= BgmStatusFlag_Pause;
+    GsOUT_PACKET_P              = packet;
+    g_SysWork.bgmStatusFlags   |= BgmStatusFlag_Pause;
     g_Screen_BackgroundImgGamma = Q8(0.5f);
 }
 
@@ -220,7 +220,7 @@ void Screen_BackgroundImgTransition(s_FsImageDesc* image0, s_FsImageDesc* image1
     }
 
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
-    GsOUT_PACKET_P = (PACKET*)poly;
+    GsOUT_PACKET_P            = (PACKET*)poly;
 }
 
 void Screen_BackgroundImgDrawAlt(s_FsImageDesc* image) // 0x80031AAC
@@ -263,8 +263,8 @@ void Screen_BackgroundImgDrawAlt(s_FsImageDesc* image) // 0x80031AAC
         poly++;
     }
 
-    GsOUT_PACKET_P                  = (PACKET*)poly;
-    g_SysWork.bgmStatusFlags        |= BgmStatusFlag_Pause;
+    GsOUT_PACKET_P              = (PACKET*)poly;
+    g_SysWork.bgmStatusFlags   |= BgmStatusFlag_Pause;
     g_Screen_BackgroundImgGamma = Q8(0.5f);
 }
 

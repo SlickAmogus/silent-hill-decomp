@@ -34,13 +34,13 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
 {
     typedef struct
     {
-        /* 0x0   */ s_func_8005E89C field_0;
-        /* 0x12C */ s_Collision     collision;
-        /* 0x138 */ SVECTOR         cameraRotation; // Q3.12
-        /* 0x140 */ s32             field_140;
-        /* 0x144 */ DVECTOR         field_144;
-        /* 0x148 */ s32             field_148;
-        /* 0x14C */ s32             field_14C;
+        /* 0x0   */ s_func_8005E89C    field_0;
+        /* 0x12C */ s_CollisionSurface surface;
+        /* 0x138 */ SVECTOR            cameraRotation; // Q3.12
+        /* 0x140 */ s32                field_140;
+        /* 0x144 */ DVECTOR            field_144;
+        /* 0x148 */ s32                field_148;
+        /* 0x14C */ s32                field_14C;
     } s_sharedFunc_800CBF74_1_s05;
 
     VECTOR3                      sfxPos; // Q19.12
@@ -62,11 +62,11 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
     sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0 += g_GravitySpeed >> 1;
     sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2  = CLAMP_LOW(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2 - Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(180.0f)), Q12_ANGLE(0.0f));
 
-    Collision_Get(&ptr->collision, sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].field_4.vz_4);
+    Collision_SurfaceGet(&ptr->surface, sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].field_4.vz_4);
 
-    if (ptr->collision.groundHeight_0 < sharedData_800DFB7C_0_s00[idx].vy_8 || sharedData_800DFB7C_0_s00[idx].vy_8 > Q12(0.0f))
+    if (ptr->surface.groundHeight < sharedData_800DFB7C_0_s00[idx].vy_8 || sharedData_800DFB7C_0_s00[idx].vy_8 > Q12(0.0f))
     {
-        sharedData_800DFB7C_0_s00[idx].vy_8                = MIN(ptr->collision.groundHeight_0, 0);
+        sharedData_800DFB7C_0_s00[idx].vy_8                = MIN(ptr->surface.groundHeight, 0);
         sharedData_800DFB7C_0_s00[idx].field_B             = 1;
         sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0 = Q12_ANGLE(0.0f);
 
@@ -74,7 +74,7 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
         sfxPos.vy = sharedData_800DFB7C_0_s00[idx].vy_8;
         sfxPos.vz = sharedData_800DFB7C_0_s00[idx].field_4.vz_4;
 
-        func_8005DC1C(Sfx_Unk1476, &sfxPos, Q8(0.5f), 0);
+        Sfx_WithFlagsPlay(Sfx_Unk1476, &sfxPos, Q8(0.5f), SfxFlag_None);
     }
 
     gte_SetRotMatrix(&ptr->field_0.field_C);
@@ -121,7 +121,7 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
     var_v1 = ((u32)func_80055D78(sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].vy_8, sharedData_800DFB7C_0_s00[idx].field_4.vz_4) * 0x31) >> 5;
     var_v1 = MIN(var_v1, 0xC4);
 
-    setRGBC0(*poly, var_v1, var_v1, var_v1, 0x2E);
+    setRGBC0(*poly, var_v1, var_v1, var_v1, PRIM_POLY | RECT_BLEND | RECT_TEXTURE | RECT_SIZE_1);
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_140 - 8) >> 3], *poly, 9);
     *poly += 1;
 
@@ -349,7 +349,7 @@ bool sharedFunc_800CC618_1_s05(POLY_FT4** poly, s32 idx)
     *(u16*)&(*poly)->u2 = ptr->field_16C + ptr->field_178 + ((ptr->field_180 + ptr->field_18C) << 8);
     *(u16*)&(*poly)->u3 = ptr->field_16C + ptr->field_17C + ((ptr->field_180 + ptr->field_190) << 8);
 
-    setRGBC0(*poly, ptr->field_160, ptr->field_160, ptr->field_160, 0x2E);
+    setRGBC0(*poly, ptr->field_160, ptr->field_160, ptr->field_160, PRIM_POLY | RECT_BLEND | RECT_TEXTURE | RECT_SIZE_1);
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_14C.vx - 16) >> 3], *poly, 9);
     *poly += 1;
 
@@ -476,7 +476,7 @@ bool sharedFunc_800CCF30_1_s05(POLY_FT4** poly, s32 idx)
     ptr->field_148 = ratan2(ptr->field_140.vy - ptr->field_13C.vy, ptr->field_140.vx - ptr->field_13C.vx);
 
     ptr->field_14C = CLAMP_LOW(
-        FP_MULTIPLY_PRECISE(Q12(1.0f) - Math_Vector2MagCalc(sharedData_800DFB7C_0_s00[idx].field_0.vx_0 - sharedData_800DFB7C_0_s00[temp_s3].field_0.vx_0,
+        FP_MULTIPLY_PRECISE(Q12(1.0f) - Math_Vector2MagCalcSafeQ6(sharedData_800DFB7C_0_s00[idx].field_0.vx_0 - sharedData_800DFB7C_0_s00[temp_s3].field_0.vx_0,
                                                             sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - sharedData_800DFB7C_0_s00[temp_s3].field_4.vz_4),
                             24,
                             Q12_SHIFT) * ptr->field_0.field_2C / ptr->field_134,
@@ -511,7 +511,7 @@ bool sharedFunc_800CCF30_1_s05(POLY_FT4** poly, s32 idx)
     }
     temp_v1_3 = var_a0;
 
-    setRGBC0(*poly, temp_v1_3, temp_v1_3, temp_v1_3, 0x2E);
+    setRGBC0(*poly, temp_v1_3, temp_v1_3, temp_v1_3, PRIM_POLY | RECT_BLEND | RECT_TEXTURE | RECT_SIZE_1);
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_134 >> 3], *poly, 9);
     *poly += 1;
 

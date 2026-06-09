@@ -1,7 +1,7 @@
 #ifndef _MAPS_MAP1_S06_H
 #define _MAPS_MAP1_S06_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define KEYFRAME_PlayerState_Unk59 678
@@ -36,15 +36,15 @@ extern u8 D_800D7790;
 /** Time. */
 extern q3_12 D_800DAF78;
 
-extern s_WorldObjectDesc D_800DAF84;
+extern s_WorldObjectPose D_800DAF84;
 
-extern s_WorldObjectDesc D_800DAFB4;
+extern s_WorldObjectPose D_800DAFB4;
 
 extern u8 D_800DAFE4;
 
-extern s_WorldObjectDesc D_800DAFF4;
+extern s_WorldObjectPose D_800DAFF4;
 
-extern s_WorldObjectDesc D_800DB024;
+extern s_WorldObjectPose D_800DB024;
 
 /** Related to stereo sound balance. */
 extern s8 D_800DB054;
@@ -52,7 +52,7 @@ extern s8 D_800DB054;
 /** Stereo sound balance. */
 extern s8 D_800DB055;
 
-extern s_WorldObjectDesc D_800DB064;
+extern s_WorldObjectPose D_800DB064;
 
 void func_800D560C(void);
 
@@ -67,7 +67,7 @@ void func_800D5DD8(void);
 void func_800D6338(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake(void);
+void MapEvent_PaperMapTake(void);
 
 void Map_WorldObjectsInit(void);
 

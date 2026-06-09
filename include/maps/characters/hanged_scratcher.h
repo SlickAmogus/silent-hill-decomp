@@ -4,98 +4,70 @@
 /** @brief Hanged Scratcher character flags */
 typedef enum _HangedScratcherFlags
 {
-    HangedScratcherFlag_0 = 1 << 0,
-
-    HangedScratcherFlag_1 = 1 << 1,
-    HangedScratcherFlag_2 = 1 << 2,
-
-    HangedScratcherFlag_4 = 1 << 4,
-    HangedScratcherFlag_5 = 1 << 5,
-    HangedScratcherFlag_6 = 1 << 6,
-    HangedScratcherFlag_7 = 1 << 7,
-    HangedScratcherFlag_8 = 1 << 8,
-    HangedScratcherFlag_9 = 1 << 9
+    HangedScratcherFlag_Airborne = 1 << 0,
+    HangedScratcherFlag_1        = 1 << 1,
+    HangedScratcherFlag_2        = 1 << 2,
+    HangedScratcherFlag_4        = 1 << 4,
+    HangedScratcherFlag_5        = 1 << 5,
+    HangedScratcherFlag_6        = 1 << 6,
+    HangedScratcherFlag_7        = 1 << 7,
+    HangedScratcherFlag_8        = 1 << 8,
+    HangedScratcherFlag_9        = 1 << 9
 } e_HangedScratcherFlags;
-
-/** @brief Hanged Scratcher character animation indices. */
-typedef enum _HangedScratcherAnim
-{
-    HangedScratcherAnim_Still = 0,
-    HangedScratcherAnim_1     = 1,
-    HangedScratcherAnim_2     = 2,
-    HangedScratcherAnim_3     = 3,
-    HangedScratcherAnim_4     = 4, // } Pair.
-    HangedScratcherAnim_5     = 5, // }
-    HangedScratcherAnim_6     = 6,
-    HangedScratcherAnim_7     = 7,
-    HangedScratcherAnim_8     = 8,
-    HangedScratcherAnim_9     = 9,
-    HangedScratcherAnim_10    = 10,
-    HangedScratcherAnim_11    = 11,
-    HangedScratcherAnim_12    = 12,
-    HangedScratcherAnim_13    = 13,
-    HangedScratcherAnim_14    = 14,
-    HangedScratcherAnim_15    = 15,
-    HangedScratcherAnim_16    = 16,
-    HangedScratcherAnim_17    = 17,
-    HangedScratcherAnim_18    = 18,
-    HangedScratcherAnim_19    = 19,
-    HangedScratcherAnim_20    = 20,
-    HangedScratcherAnim_21    = 21,
-    HangedScratcherAnim_22    = 22,
-    HangedScratcherAnim_23    = 23,
-    HangedScratcherAnim_24    = 24,
-    HangedScratcherAnim_25    = 25,
-    HangedScratcherAnim_26    = 26
-} e_HangedScratcherAnim;
 
 /** @brief Hanged Scratcher character control states. */
 typedef enum _HangedScratcherControl
 {
-    HangedScratcherControl_None = 0,
-    HangedScratcherControl_1    = 1,
-    HangedScratcherControl_2    = 2,
-    HangedScratcherControl_3    = 3,
-    HangedScratcherControl_4    = 4,
-    HangedScratcherControl_5    = 5,
-    HangedScratcherControl_6    = 6,
-    HangedScratcherControl_7    = 7,
-    HangedScratcherControl_8    = 8,
-    HangedScratcherControl_9    = 9,
-    HangedScratcherControl_10   = 10,
-    HangedScratcherControl_11   = 11,
-    HangedScratcherControl_12   = 12,
-    HangedScratcherControl_13   = 13,
-    HangedScratcherControl_14   = 14,
-    HangedScratcherControl_15   = 15,
-    HangedScratcherControl_16   = 16
+    HangedScratcherControl_None        = 0,
+    HangedScratcherControl_1           = 1,
+    HangedScratcherControl_2           = 2,
+    HangedScratcherControl_RunForward  = 3,
+    HangedScratcherControl_4           = 4,
+    HangedScratcherControl_5           = 5,
+    HangedScratcherControl_6           = 6,
+    HangedScratcherControl_WalkForward = 7,
+    HangedScratcherControl_8           = 8,
+    HangedScratcherControl_9           = 9,
+    HangedScratcherControl_10          = 10,
+    HangedScratcherControl_11          = 11,
+    HangedScratcherControl_12          = 12,
+    HangedScratcherControl_13          = 13,
+    HangedScratcherControl_14          = 14, // Entrance?
+    HangedScratcherControl_15          = 15,
+    HangedScratcherControl_16          = 16
 } e_HangedScratcherControl;
 
-/** @brief Hanged Scratcher character state steps. */
-typedef enum _HangedScratcherStateStep
+/** @brief Hanged Scratcher character animation indices. */
+typedef enum _HangedScratcherAnim
 {
-    HangedScratcherStateStep_0  = 0,
-    HangedScratcherStateStep_1  = 1,
-    HangedScratcherStateStep_2  = 2,
-    HangedScratcherStateStep_3  = 3,
-    HangedScratcherStateStep_4  = 4,
-    HangedScratcherStateStep_5  = 5,
-    HangedScratcherStateStep_6  = 6,
-    HangedScratcherStateStep_7  = 7,
-    HangedScratcherStateStep_8  = 8,
-    HangedScratcherStateStep_9  = 9,
-    HangedScratcherStateStep_10 = 10,
-    HangedScratcherStateStep_11 = 11,
-    HangedScratcherStateStep_12 = 12,
-    HangedScratcherStateStep_13 = 13,
-    HangedScratcherStateStep_14 = 14,
-    HangedScratcherStateStep_15 = 15,
-    HangedScratcherStateStep_16 = 16,
-    HangedScratcherStateStep_17 = 17,
-    HangedScratcherStateStep_18 = 18,
-    HangedScratcherStateStep_19 = 19,
-    HangedScratcherStateStep_20 = 20
-} e_HangedScratcherStateStep;
+    HangedScratcherAnim_Still               = 0,
+    HangedScratcherAnim_JumpDownFromWall    = 1,
+    HangedScratcherAnim_EmergeFromWater     = 2,
+    HangedScratcherAnim_JumpDownFromCeiling = 3,
+    HangedScratcherAnim_4                   = 4,
+    HangedScratcherAnim_5                   = 5,
+    HangedScratcherAnim_6                   = 6,
+    HangedScratcherAnim_7                   = 7,
+    HangedScratcherAnim_8                   = 8,
+    HangedScratcherAnim_9                   = 9,
+    HangedScratcherAnim_10                  = 10,
+    HangedScratcherAnim_11                  = 11,
+    HangedScratcherAnim_12                  = 12,
+    HangedScratcherAnim_13                  = 13,
+    HangedScratcherAnim_14                  = 14,
+    HangedScratcherAnim_15                  = 15,
+    HangedScratcherAnim_16                  = 16,
+    HangedScratcherAnim_RunForward          = 17,
+    HangedScratcherAnim_WalkForward         = 18,
+    HangedScratcherAnim_19                  = 19,
+    HangedScratcherAnim_20                  = 20,
+    HangedScratcherAnim_21                  = 21,
+    HangedScratcherAnim_22                  = 22,
+    HangedScratcherAnim_23                  = 23,
+    HangedScratcherAnim_24                  = 24,
+    HangedScratcherAnim_25                  = 25,
+    HangedScratcherAnim_26                  = 26
+} e_HangedScratcherAnim;
 
 /*s_AnimInfo HANGED_SCRATCHER_ANIM_INFOS[] = {
     { Anim_BlendLinear, NO_VALUE, false, ANIM_STATUS(0, false), { Q12(0) }, NO_VALUE, 0 },
@@ -154,53 +126,55 @@ typedef enum _HangedScratcherStateStep
     { Anim_PlaybackLoop, ANIM_STATUS(26, true), false, NO_VALUE, { Q12(0) }, 97, 98 }
 };*/
 
+extern s_AnimInfo HANGED_SCRATCHER_ANIM_INFOS[];
+
 extern q19_12 sharedData_800DE28C_5_s00;
 
-void Ai_HangedScratcher_Update(s_SubCharacter* scratcher, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void HangedScratcher_Update(s_SubCharacter* scratcher, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-void Ai_HangedScratcher_Init(s_SubCharacter* scratcher);
+void HangedScratcher_Init(s_SubCharacter* scratcher);
 
 void sharedFunc_800CFF74_5_s00(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_ControlUpdate(s_SubCharacter* scratcher);
+void HangedScratcher_ControlUpdate(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_16(s_SubCharacter* scratcher);
+void HangedScratcher_Control_16(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_1(s_SubCharacter* scratcher);
+void HangedScratcher_Control_1(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_2(s_SubCharacter* scratcher);
+void HangedScratcher_ControlRunForward(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_3(s_SubCharacter* scratcher);
+void HangedScratcher_Control_3(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_4(s_SubCharacter* scratcher);
+void HangedScratcher_Control_4(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_5(s_SubCharacter* scratcher);
+void HangedScratcher_Control_5(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_6(s_SubCharacter* scratcher);
+void HangedScratcher_Control_6(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_7(s_SubCharacter* scratcher);
+void HangedScratcher_ControlWalkForward(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_8(s_SubCharacter* scratcher);
+void HangedScratcher_Control_8(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_9(s_SubCharacter* scratcher);
+void HangedScratcher_Control_9(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_10(s_SubCharacter* scratcher);
+void HangedScratcher_Control_10(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_11(s_SubCharacter* scratcher);
+void HangedScratcher_Control_11(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_12(s_SubCharacter* scratcher);
+void HangedScratcher_Control_12(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_13(s_SubCharacter* scratcher);
+void HangedScratcher_Control_13(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_14(s_SubCharacter* scratcher);
+void HangedScratcher_Control_14(s_SubCharacter* scratcher);
 
-void Ai_HangedScratcher_Control_15(s_SubCharacter* scratcher);
+void HangedScratcher_Control_15(s_SubCharacter* scratcher);
 
 void sharedFunc_800D26D8_5_s00(s_SubCharacter* scratcher);
 
-void sharedFunc_800D2844_5_s00(s_SubCharacter* scratcher, s_AnmHeader* anmHdr, GsCOORDINATE2* coords);
+void sharedFunc_800D2844_5_s00(s_SubCharacter* scratcher, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-void sharedFunc_800D2C18_5_s00(s_SubCharacter* scratcher);
+void HangedScratcher_CollisionUpdate(s_SubCharacter* scratcher);
 
 bool sharedFunc_800D3214_5_s00(s_SubCharacter* scratcher);
 

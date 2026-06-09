@@ -21,14 +21,14 @@ static DllHandle s_currentDll = NULL;
 static char s_currentName[64] = { 0 };
 
 /* The compiled-in map0_s00 (always available as fallback) */
-extern s_MapOverlayHeader g_MapOverlayHeader_map0_s00;
+extern s_MapOverlayHdr g_MapOverlayHeader_map0_s00;
 
-s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id)
+s_MapOverlayHdr* MapOverlay_Load(e_MapIdx id)
 {
     char dllPath[256];
     char symbolName[64];
     const char* mapName;
-    s_MapOverlayHeader* header;
+    s_MapOverlayHdr* header;
 
     mapName = MapRegistry_GetName(id);
     if (mapName == NULL || strcmp(mapName, "unknown") == 0)
@@ -64,7 +64,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id)
     }
 
     /* Find the header symbol */
-    header = (s_MapOverlayHeader*)DllLoader_GetSymbol(s_currentDll, symbolName);
+    header = (s_MapOverlayHdr*)DllLoader_GetSymbol(s_currentDll, symbolName);
     if (!header)
     {
         SH_DBG("[MapOverlay] Symbol '%s' not found in %s (%s)",
@@ -79,7 +79,7 @@ s_MapOverlayHeader* MapOverlay_Load(e_MapIdx id)
      * These were valid on PSX but are garbage on PC-64bit. NULL them out. */
     {
         uintptr_t* fields = (uintptr_t*)header;
-        size_t count = sizeof(s_MapOverlayHeader) / sizeof(uintptr_t);
+        size_t count = sizeof(s_MapOverlayHdr) / sizeof(uintptr_t);
         size_t nulled = 0;
         for (size_t i = 0; i < count; i++)
         {

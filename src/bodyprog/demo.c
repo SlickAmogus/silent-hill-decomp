@@ -3,31 +3,22 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/demo.h"
 #include "bodyprog/text/text_draw.h"
+#include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
 
-s32 g_Demo_DemoFileIdx;
-
-s32 g_Demo_PlayFileIdx;
-
-s32 __pad_bss_800C4848[2];
-
-s_SaveUserConfig g_Demo_UserConfigBackup;
-
-u32 g_Demo_PrevRandSeed;
-
-u32 g_Demo_RandSeedBackup;
-
+s32              g_Demo_DemoFileIdx;
+s32              g_Demo_PlayFileIdx;
+s32              __pad_bss_800C4848[2];
+s_OptionsConfig  g_Demo_OptionsConfigBackup;
+u32              g_Demo_PrevRandSeed;
+u32              g_Demo_RandSeedBackup;
 s_DemoFrameData* g_Demo_CurFrameData;
-
-s32 g_Demo_DemoStep;
-
-s32 g_Demo_VideoPresentInterval;
-
-bool D_800C489C;
-
-s32 g_Demo_DemoId = 0;
-u16 g_Demo_RandSeed = 0;
+s32              g_Demo_DemoStep;
+s32              g_Demo_VideoPresentInterval;
+bool             g_Demo_IsLoadingChunks;
+s32              g_Demo_DemoId   = 0;
+u16              g_Demo_RandSeed = 0;
 // 2 bytes of padding.
 #ifdef SH_PC_PORT
 #include "psx_memory.h"
@@ -47,13 +38,13 @@ bool Demo_SequenceAdvance(s32 incrementAmount) // 0x8008EF20
         { FILE_MISC_DEMO000A_DAT, FILE_MISC_PLAY000A_DAT, 0 },
         { FILE_MISC_DEMO0003_DAT, FILE_MISC_PLAY0003_DAT, 0 },
         { FILE_MISC_DEMO000B_DAT, FILE_MISC_PLAY000B_DAT, 0 },
-        { FILE_MISC_DEMO0005_DAT, FILE_MISC_PLAY0005_DAT, 0 },
+        { FILE_MISC_DEMO0005_DAT, FILE_MISC_PLAY0005_DAT, 0 }
 #elif VERSION_REGION_IS(NTSCJ)
         { FILE_MISC_DEMO0006_DAT, FILE_MISC_PLAY0006_DAT, 0 },
         { FILE_MISC_DEMO0007_DAT, FILE_MISC_PLAY0007_DAT, 0 },
         { FILE_MISC_DEMO0008_DAT, FILE_MISC_PLAY0008_DAT, 0 },
         { FILE_MISC_DEMO0004_DAT, FILE_MISC_PLAY0004_DAT, 0 },
-        { FILE_MISC_DEMO0005_DAT, FILE_MISC_PLAY0005_DAT, 0 },
+        { FILE_MISC_DEMO0005_DAT, FILE_MISC_PLAY0005_DAT, 0 }
 #endif
     };
 
@@ -74,7 +65,8 @@ bool Demo_SequenceAdvance(s32 incrementAmount) // 0x8008EF20
         // Call optional funcptr associated with this demo.
         // If funcptr is set, return whether demo is eligible to play, possibly based on game progress or other conditions.
         // In retail demos this pointer is always `NULL`.
-        if (DEMO_FILE_INFOS[g_Demo_DemoId].canPlayDemo_4 == NULL || DEMO_FILE_INFOS[g_Demo_DemoId].canPlayDemo_4() == 1)
+        if (DEMO_FILE_INFOS[g_Demo_DemoId].canPlayDemo   == NULL ||
+            DEMO_FILE_INFOS[g_Demo_DemoId].canPlayDemo() == 1)
         {
             break;
         }
@@ -91,9 +83,11 @@ bool Demo_SequenceAdvance(s32 incrementAmount) // 0x8008EF20
         }
     }
 
-    g_Demo_DemoFileIdx = DEMO_FILE_INFOS[g_Demo_DemoId].demoFileId_0;
-    g_Demo_PlayFileIdx = DEMO_FILE_INFOS[g_Demo_DemoId].playFileId_2;
+    g_Demo_DemoFileIdx = DEMO_FILE_INFOS[g_Demo_DemoId].demoFileId;
+    g_Demo_PlayFileIdx = DEMO_FILE_INFOS[g_Demo_DemoId].playFileId;
     return true;
+
+    #undef DEMO_FILE_COUNT_MAX
 }
 
 void Demo_DemoDataRead(void) // 0x8008F048
@@ -120,7 +114,7 @@ s32 Demo_PlayFileBufferSetup(void) // 0x8008F0BC
     s32 playFileSize;
 
     // Get map overlay size used in demo.
-    mapOverlaySize = Fs_GetFileSize(FILE_VIN_MAP0_S00_BIN + DEMO_WORK()->savegame_100.mapOverlayId_A4);
+    mapOverlaySize = Fs_GetFileSize(FILE_VIN_MAP0_S00_BIN + DEMO_WORK()->savegame.mapIdx);
 
     // Get play file size, rounded up to next 0x800-byte boundary.
     playFileSize = ALIGN(Fs_GetFileSize(g_Demo_PlayFileIdx), 0x800);
@@ -143,37 +137,36 @@ s32 Demo_PlayFileBufferSetup(void) // 0x8008F0BC
 
 void Demo_DemoFileSavegameUpdate(void) // 0x8008F13C
 {
-    g_GameWork.savegame = DEMO_WORK()->savegame_100;
+    g_GameWork.savegame = DEMO_WORK()->savegame;
 }
 
 void Demo_GameGlobalsUpdate(void) // 0x8008F1A0
 {
     // Backup current user config.
-    g_Demo_UserConfigBackup = g_GameWork.config;
+    g_Demo_OptionsConfigBackup = g_GameWork.config;
 
     // Update `Demo_RandSeed`.
-    g_Demo_RandSeed = DEMO_WORK()->randSeed_7FC;
+    g_Demo_RandSeed = DEMO_WORK()->randSeed;
 
     // Replace user config with config from demo file.
     g_GameWork.config = DEMO_WORK()->config;
 
     // Restore user system settings over demo values.
-    g_GameWork.config.optScreenPosX_1C       = g_Demo_UserConfigBackup.optScreenPosX_1C;
-    g_GameWork.config.optScreenPosY_1D       = g_Demo_UserConfigBackup.optScreenPosY_1D;
-    g_GameWork.config.optSoundType_1E        = g_Demo_UserConfigBackup.optSoundType_1E;
-    g_GameWork.config.optVolumeBgm_1F        = OPT_SOUND_VOLUME_MIN;                     // Disable BGM during demo.
-    g_GameWork.config.optVolumeSe_20         = g_Demo_UserConfigBackup.optVolumeSe_20;
-    g_GameWork.config.optVibrationEnabled_21 = OPT_VIBRATION_DISABLED;                   // Disable vibration during demo.
-    g_GameWork.config.optBrightness_22       = g_Demo_UserConfigBackup.optBrightness_22;
+    g_GameWork.config.screenPositionX  = g_Demo_OptionsConfigBackup.screenPositionX;
+    g_GameWork.config.screenPositionY  = g_Demo_OptionsConfigBackup.screenPositionY;
+    g_GameWork.config.soundType        = g_Demo_OptionsConfigBackup.soundType;
+    g_GameWork.config.volumeBgm        = OPT_SOUND_VOLUME_MIN; // Disable BGM during demo.
+    g_GameWork.config.volumeSe         = g_Demo_OptionsConfigBackup.volumeSe;
+    g_GameWork.config.vibrationEnabled = OPT_VIBRATION_DISABLED; // Disable vibration during demo.
+    g_GameWork.config.brightness       = g_Demo_OptionsConfigBackup.brightness;
 
-    Sd_SetVolume(OPT_SOUND_VOLUME_MIN, OPT_SOUND_VOLUME_MIN, g_GameWork.config.optVolumeSe_20);
+    Sd_SetVolume(OPT_SOUND_VOLUME_MIN, OPT_SOUND_VOLUME_MIN, g_GameWork.config.volumeSe);
 }
 
 void Demo_GameGlobalsRestore(void) // 0x8008F2BC
 {
-    g_GameWork.config = g_Demo_UserConfigBackup;
-
-    Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.optVolumeBgm_1F, g_GameWork.config.optVolumeSe_20);
+    g_GameWork.config = g_Demo_OptionsConfigBackup;
+    Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.volumeBgm, g_GameWork.config.volumeSe);
 }
 
 void Demo_GameRandSeedUpdate(void) // 0x8008F33C
@@ -191,8 +184,8 @@ bool g_Demo_Play = false;
 
 void Demo_Start(void) // 0x8008F398
 {
-    g_Demo_Play = true;
-    g_SysWork.flags_22A4 |= UnkSysFlag_1;
+    g_Demo_Play         = true;
+    g_SysWork.sysFlags |= SysFlag_DemoActive;
 
     Demo_GameGlobalsUpdate();
     Demo_GameRandSeedUpdate();
@@ -203,8 +196,8 @@ void Demo_Start(void) // 0x8008F398
 
 void Demo_Stop(void) // 0x8008f3f0
 {
-    g_Demo_Play = false;
-    g_SysWork.flags_22A4 &= ~UnkSysFlag_1;
+    g_Demo_Play         = false;
+    g_SysWork.sysFlags &= ~SysFlag_DemoActive;
 
     Demo_GameGlobalsRestore();
     Demo_GameRandSeedRestore();
@@ -218,13 +211,13 @@ bool Gfx_ScreenFadeIn_IsInProgress(s32 arg0)
 
     switch (screenFadeStatus)
     {
-        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutStart, false):
-        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutSteps, false):
-        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep, false):
+        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutStart,    false):
+        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutSteps,    false):
+        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep,   false):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, false):
-        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutStart, true):
-        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutSteps, true):
-        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep, true):
+        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutStart,    true):
+        case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutSteps,    true):
+        case SCREEN_FADE_STATUS(ScreenFadeState_ResetTimestep,   true):
         case SCREEN_FADE_STATUS(ScreenFadeState_FadeOutComplete, true):
             return false;
     }
@@ -249,7 +242,7 @@ s32 Demo_StateGet(s32 gameState)
         case GameState_MapEvent:
         case GameState_ExitMovie:
         case GameState_InventoryScreen:
-        case GameState_MapScreen:
+        case GameState_PaperMapScreen:
             return DemoState_Step;
 
         case GameState_OptionScreen:
@@ -261,10 +254,10 @@ s32 Demo_StateGet(s32 gameState)
 
 void Demo_ExitDemo(void) // 0x8008F4E4
 {
-    g_Demo_FrameCount     = 999 * TICKS_PER_SECOND;
-    g_Demo_CurFrameData   = NULL;
-    g_Demo_DemoStep       = 0;
-    g_SysWork.flags_22A4 |= UnkSysFlag_8;
+    g_Demo_FrameCount   = 999 * TICKS_PER_SECOND;
+    g_Demo_CurFrameData = NULL;
+    g_Demo_DemoStep     = 0;
+    g_SysWork.sysFlags |= SysFlag_DoWarmReset;
 }
 
 void func_8008F518(void) {} // 0x8008F518
@@ -276,7 +269,7 @@ bool func_8008F520(void) // 0x8008F520
 
 void Demo_DemoRandSeedBackup(void) // 0x8008F528
 {
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         g_Demo_RandSeedBackup = Rng_GetSeed();
     }
@@ -284,7 +277,7 @@ void Demo_DemoRandSeedBackup(void) // 0x8008F528
 
 void Demo_DemoRandSeedRestore(void) // 0x8008F560
 {
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         Rng_SetSeed(g_Demo_RandSeedBackup);
     }
@@ -295,7 +288,7 @@ void Demo_DemoRandSeedAdvance(void) // 0x8008F598
 #if VERSION_EQUAL_OR_NEWER(USA)
     #define SEED_OFFSET 0x3C6EF35F
 
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         Rng_SetSeed(g_Demo_RandSeedBackup + SEED_OFFSET);
     }
@@ -309,18 +302,18 @@ void Demo_DemoRandSeedAdvance(void) // 0x8008F598
 bool Demo_Update(void) // 0x8008F5D8
 {
     s32         prevScreenFadeCpy;
-    bool        cond;
+    bool        isLoadingChunks;
     u32         demoStep;
     s_GameWork* gameWork;
 
     static s32 prevScreenFade = SCREEN_FADE_STATUS(ScreenFadeState_Reset, false);
 
-    prevScreenFadeCpy = prevScreenFade;
-    cond              = D_800C489C;
-    D_800C489C        = false;
-    prevScreenFade    = g_Screen_FadeStatus;
+    prevScreenFadeCpy      = prevScreenFade;
+    isLoadingChunks        = g_Demo_IsLoadingChunks;
+    g_Demo_IsLoadingChunks = false;
+    prevScreenFade         = g_Screen_FadeStatus;
 
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_1))
+    if (!(g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         g_Demo_CurFrameData = NULL;
         g_Demo_DemoStep     = 0;
@@ -335,14 +328,16 @@ bool Demo_Update(void) // 0x8008F5D8
 
     demoStep = g_Demo_DemoStep;
 
-    if (DEMO_WORK()->frameCount_7F8 <= demoStep)
+    if (DEMO_WORK()->frameCount <= demoStep)
     {
         func_8008F518();
         Demo_ExitDemo();
         return false;
     }
 
-    if (!Gfx_ScreenFadeIn_IsInProgress(prevScreenFadeCpy) || !Gfx_ScreenFadeIn_IsInProgress(g_Screen_FadeStatus) || cond)
+    if (!Gfx_ScreenFadeIn_IsInProgress(prevScreenFadeCpy)   ||
+        !Gfx_ScreenFadeIn_IsInProgress(g_Screen_FadeStatus) ||
+        isLoadingChunks)
     {
         g_Demo_CurFrameData = NULL;
         return true;
@@ -356,11 +351,11 @@ bool Demo_Update(void) // 0x8008F5D8
         case DemoState_Step:
             g_Demo_CurFrameData = &g_Demo_PlayFileBufferPtr[g_Demo_DemoStep];
 
-            if (g_Demo_CurFrameData->gameStateExpected_8 != gameWork->gameState)
+            if (g_Demo_CurFrameData->gameStateExpected != gameWork->gameState)
             {
                 Text_Debug_PositionSet(8, 80);
                 Text_Debug_Draw("STEP ERROR:[H:");
-                Text_Debug_Draw(Text_Debug_IntToString(2, g_Demo_CurFrameData->gameStateExpected_8));
+                Text_Debug_Draw(Text_Debug_IntToString(2, g_Demo_CurFrameData->gameStateExpected));
                 Text_Debug_Draw("]/[M:");
                 Text_Debug_Draw(Text_Debug_IntToString(2, gameWork->gameState));
                 Text_Debug_Draw("]");
@@ -385,26 +380,27 @@ bool Demo_Update(void) // 0x8008F5D8
     return true;
 }
 
+// Junk padding?
 #if VERSION_IS(USA)
-const s16 unkRodata_8002B2F2 = 0x8008;
+    const s16 unkRodata_8002B2F2 = 0x8008;
 #elif VERSION_IS(JAP0)
-const s16 unkRodata_8002B2F2 = 0x2009;
+    const s16 unkRodata_8002B2F2 = 0x2009;
 #elif VERSION_IS(JAP1)
-const s16 unkRodata_8002B2F2 = 0x8008;
+    const s16 unkRodata_8002B2F2 = 0x8008;
 #elif VERSION_IS(JAP2)
-const s16 unkRodata_8002B2F2 = 0x8EA4;
+    const s16 unkRodata_8002B2F2 = 0x8EA4;
 #endif
 
 bool Demo_ControllerDataUpdate(void) // 0x8008F7CC
 {
     u32 btns;
 
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_1))
+    if (!(g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         return false;
     }
 
-    btns = g_Controller0->analogController_0.digitalButtons;
+    btns = g_Controller0->analogController.digitalButtons;
     if (btns != 0xFFFF)
     {
         Demo_ExitDemo();
@@ -415,13 +411,13 @@ bool Demo_ControllerDataUpdate(void) // 0x8008F7CC
 
     if (g_Demo_CurFrameData != NULL)
     {
-        g_Controller0->analogController_0 = g_Demo_CurFrameData->analogController_0;
+        g_Controller0->analogController = g_Demo_CurFrameData->analogController;
         return true;
     }
 
-    *(u16*)&g_Controller0->analogController_0.status = 0x7300;
-    g_Controller0->analogController_0.digitalButtons = btns;
-    *(u32*)&g_Controller0->analogController_0.rightX = 0x80808080;
+    *(u16*)&g_Controller0->analogController.status = 0x7300;
+    g_Controller0->analogController.digitalButtons = btns;
+    *(u32*)&g_Controller0->analogController.rightX = 0x80808080;
     return true;
 }
 
@@ -434,13 +430,13 @@ bool Demo_PresentIntervalUpdate(void) // 0x8008F87C
         return false;
     }
 
-    g_Demo_VideoPresentInterval = g_Demo_CurFrameData->videoPresentInterval_9;
+    g_Demo_VideoPresentInterval = g_Demo_CurFrameData->videoPresentInterval;
     return true;
 }
 
 bool Demo_GameRandSeedSet(void) // 0x8008F8A8
 {
-    if (!(g_SysWork.flags_22A4 & UnkSysFlag_1))
+    if (!(g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         return true;
     }
@@ -451,14 +447,14 @@ bool Demo_GameRandSeedSet(void) // 0x8008F8A8
     }
     else
     {
-        Rng_SetSeed(g_Demo_CurFrameData->randSeed_C);
+        Rng_SetSeed(g_Demo_CurFrameData->randSeed);
         return true;
     }
 }
 
 bool func_8008F914(s32 posX, s32 posZ)
 {
-    if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         return func_8004393C(posX, posZ);
     }

@@ -5,9 +5,9 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
-#include "bodyprog/events/bgm_update.h"
+#include "bodyprog/events/bgm.h"
 #include "bodyprog/game_boot/game_boot.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 
 // ========================================
 // STATIC VARIABLES
@@ -41,9 +41,13 @@ static u16 g_AmbientVabTaskLoadCmds[40] = {
     196, 197, 198, 199, 200, 201, 202, 203
 };
 
-s32 Bgm_Init(void) // 0x80035780
+// ========================================
+// MUSIC INIT AND SET
+// ========================================
+
+bool Bgm_Init(void) // 0x80035780
 {
-    if (Sd_AudioStreamingCheck())
+    if (Sd_AudioStreamingCheck() != 0)
     {
         return NO_VALUE;
     }
@@ -53,6 +57,7 @@ s32 Bgm_Init(void) // 0x80035780
         return NO_VALUE;
     }
 
+    // Handle background music initialization step.
     switch (g_GameWork.gameStateSteps[1])
     {
         case 0:
@@ -60,7 +65,7 @@ s32 Bgm_Init(void) // 0x80035780
             g_GameWork.gameStateSteps[1]++;
 
         case 1:
-            if (Bgm_ActiveBgmTrackCheck(g_MapOverlayHeader.bgmIdx_14) == false)
+            if (!Bgm_ActiveBgmTrackCheck(g_MapOverlayHdr.bgmIdx))
             {
                 g_GameWork.gameStateSteps[1] += 2;
             }
@@ -76,26 +81,26 @@ s32 Bgm_Init(void) // 0x80035780
         case 2:
             if (func_80045BC8() == 0)
             {
-                Bgm_TrackSet(g_MapOverlayHeader.bgmIdx_14);
+                Bgm_TrackSet(g_MapOverlayHdr.bgmIdx);
                 g_GameWork.gameStateSteps[1]++;
             }
             break;
 
         default:
-            return 0;
+            return false;
     }
 
-    return 1;
+    return true;
 }
 
 bool Bgm_ActiveBgmTrackCheck(s32 bgmIdx) // 0x800358A8
 {
-    if (bgmIdx == 0)
+    if (bgmIdx == BgmTrackIdx_None)
     {
         return false;
     }
 
-    if (bgmIdx == 1)
+    if (bgmIdx == BgmTrackIdx_1)
     {
         return false;
     }
@@ -105,12 +110,12 @@ bool Bgm_ActiveBgmTrackCheck(s32 bgmIdx) // 0x800358A8
 
 void Bgm_TrackSet(s32 bgmIdx) // 0x800358DC
 {
-    if (bgmIdx == 0)
+    if (bgmIdx == BgmTrackIdx_None)
     {
         return;
     }
 
-    if (bgmIdx == 1)
+    if (bgmIdx == BgmTrackIdx_1)
     {
         return;
     }
@@ -121,12 +126,12 @@ void Bgm_TrackSet(s32 bgmIdx) // 0x800358DC
 
 void Bgm_ChannelSet(void) // 0x80035924
 {
-    if (g_GameWork.bgmIdx == 0)
+    if (g_GameWork.bgmIdx == BgmTrackIdx_None)
     {
         return;
     }
 
-    if (g_GameWork.bgmIdx == 1)
+    if (g_GameWork.bgmIdx == BgmTrackIdx_1)
     {
         return;
     }
@@ -136,7 +141,7 @@ void Bgm_ChannelSet(void) // 0x80035924
 
 void func_8003596C(void) // 0x8003596C
 {
-    if (g_MapOverlayHeader.bgmIdx_14 == 1)
+    if (g_MapOverlayHdr.bgmIdx == BgmTrackIdx_1)
     {
         Bgm_TrackUpdate(true);
     }
@@ -156,19 +161,19 @@ bool Sd_AmbientSfxInit(void) // 0x8003599C
     switch (g_GameWork.gameStateSteps[1])
     {
         case 0:
-            if (g_SavegamePtr->mapOverlayId_A4 == MapIdx_MAP2_S00)
+            if (g_SavegamePtr->mapIdx == MapIdx_MAP2_S00)
             {
                 if (Savegame_EventFlagGet(EventFlag_133) || Savegame_EventFlagGet(EventFlag_181))
                 {
-                    g_MapOverlayHeader.ambientAudioIdx_15 = 11;
+                    g_MapOverlayHdr.ambientAudioIdx = 11;
                 }
                 else
                 {
-                    g_MapOverlayHeader.ambientAudioIdx_15 = 4;
+                    g_MapOverlayHdr.ambientAudioIdx = 4;
                 }
             }
 
-            if (Sd_IsCurrentAmbientTargetCheck((s8)g_MapOverlayHeader.ambientAudioIdx_15) != false)
+            if (Sd_IsCurrentAmbientTargetCheck((s8)g_MapOverlayHdr.ambientAudioIdx) != false)
             {
                 SD_Call(17);
                 g_GameWork.gameStateSteps[1]++;
@@ -177,7 +182,7 @@ bool Sd_AmbientSfxInit(void) // 0x8003599C
             break;
 
         case 1:
-            Sd_AmbientSfxSet((s8)g_MapOverlayHeader.ambientAudioIdx_15);
+            Sd_AmbientSfxSet((s8)g_MapOverlayHdr.ambientAudioIdx);
             g_GameWork.gameStateSteps[1]++;
             return true;
 

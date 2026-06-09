@@ -1,6 +1,6 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/rng.h"
 #include "maps/map4/map4_s02.h"
 #include "maps/particle.h"
@@ -22,23 +22,22 @@ void func_800EA338(void) {}
 
 const char* MAP_MESSAGES[] = {
     #include "maps/shared/map_msg_common.h"
-    "~C3\tgreen_lion ~E ",
-    "~C3\tAlchemilla_Hospital ~E "
+    /* 15 */ "~C3\tgreen_lion ~E ",
+    /* 16 */ "~C3\tAlchemilla_Hospital ~E "
 };
 
 void Map_WorldObjectsInit(void) // 0x800EA340
 {
     D_800F13AC = 0;
 
-    WorldObjectNoRotInit(&g_WorldObject_Kidn04, "KIDN04_H", -119.8019f, 5.0f, 107.861f);
-
+    WorldObject_PlacementInit(&g_WorldObject_Kidn04, "KIDN04_H", -119.8019f, 5.0f, 107.861f);
     WorldObject_ModelNameSet(&g_WorldObject_Fan0, "FAN0_HID");
 
-    if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Easy)
+    if (g_SavegamePtr->gameDifficulty == GameDifficulty_Easy)
     {
         g_SysWork.npcFlagsId = 3;
     }
-    else if (g_SavegamePtr->gameDifficulty_260 == GameDifficulty_Normal)
+    else if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
     {
         g_SysWork.npcFlagsId = 4;
     }
@@ -62,12 +61,12 @@ void Map_WorldObjectsUpdate(void) // 0x800EA3F0
     s32      tmp1;
     MAP_CHUNK_CHECK_VARIABLE_DECL();
 
-    func_80069844(CollisionFlag_All);
+    Collision_FlagBitsClear(CollisionTriggerFlag_All);
 
     if ((PLAYER_IN_MAP_CHUNK(vx, 1, -3, -1, -3) && PLAYER_IN_MAP_CHUNK(vz, 1, 3, -1, 3)) ||
         (PLAYER_IN_MAP_CHUNK(vx, 1, -4, -1, -4) && PLAYER_IN_MAP_CHUNK(vz, 1, 3, -1, 3)))
     {
-        WorldGfx_ObjectAdd(&g_WorldObject_Kidn04.object_0, &g_WorldObject_Kidn04.position_1C, &(SVECTOR3){ 0, 0, 0 });
+        WorldGfx_ObjectAdd(&g_WorldObject_Kidn04.object, &g_WorldObject_Kidn04.position, &SVECTOR3_Zero);
         Collision_FlagBitsSet(2);
     }
 
@@ -151,8 +150,8 @@ void Map_WorldObjectsUpdate(void) // 0x800EA3F0
     }
     else
     {
-        dist0 = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(27.5f));
-        dist1 = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(17.5f));
+        dist0 = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(27.5f));
+        dist1 = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - Q12(61.0f), g_SysWork.playerWork.player.position.vz - Q12(17.5f));
         if (dist1 >= dist0)
         {
             tmp0 = dist0;

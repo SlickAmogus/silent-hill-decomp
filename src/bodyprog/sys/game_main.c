@@ -38,11 +38,17 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/memcard.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "screens/b_konami/b_konami.h"
 
 #include "bodyprog/memcard.h"
 #include "bodyprog/sys/game_main.h"
+#include "screens/stream/stream.h"
+#include "screens/options.h"
+#include "screens/credits/credits.h"
+#include "screens/saveload.h"
+#include "screens/b_konami/b_konami.h"
+#include "bodyprog/game_boot/game_load.h"
 #include "bodyprog/item_screens.h"
 #include "screens/saveload.h"
 
@@ -89,12 +95,12 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
     GameState_MainMenu_Update,
     GameState_LoadSavegameScreen_Update,
     GameState_MovieOpening_Update,
-    GameState_LoadScreen_Update,
+    GameState_LoadMapScreen_Update,
     GameState_InGame_Update,
     GameState_MapEvent_Update,
     GameState_ExitMovie_Update,
     GameState_ItemScreens_Update,
-    GameState_MapScreen_Update,
+    GameState_LoadMapScreen_Update,
     GameState_LoadSavegameScreen_Update,
     GameState_DebugMoviePlayer_Update,
     GameState_Options_Update,
@@ -191,7 +197,7 @@ void DebugCamera_Update(void)
                 g_DebugCamInited = 1;
                 /* Save Harry's position to restore when debug cam is disabled */
                 g_DebugCamSavedHarryPos = g_SysWork.playerWork.player.position;
-                g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.positionY_EC;
+                g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.groundHeight;
                 /* Keep Harry visible at his original position so we can
                  * see him while flying the debug cam — useful for
                  * marking corrected camera positions relative to him.
@@ -202,7 +208,7 @@ void DebugCamera_Update(void)
             } else {
                 /* Restore Harry's original position + visibility */
                 g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
-                g_SysWork.playerWork.player.properties.player.positionY_EC = g_DebugCamSavedHarryPosY;
+                g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
                 g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
                 g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
                 SH_DBG_ECHO("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
@@ -222,9 +228,9 @@ void DebugCamera_Update(void)
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
         if (cur && !prevKey) {
-            int curId = (int)g_SavegamePtr->mapOverlayId_A4;
+            int curId = (int)g_SavegamePtr->mapIdx;
             int nextId = (curId + 1) % (MapOverlayId_MAPX_S00 + 1);
-            g_SavegamePtr->mapOverlayId_A4 = nextId;
+            g_SavegamePtr->mapIdx = nextId;
             MapRegistry_Load((e_MapOverlayId)nextId);
             extern void GameBoot_MapLoad(s32 mapIdx);
             GameBoot_MapLoad(nextId);
@@ -314,7 +320,7 @@ void DebugCamera_Update(void)
             SH_DBG_ECHO("[%s] tick=%u map=%d mode=%s",
                 tag,
                 (unsigned)SDL_GetTicks(),
-                (int)g_SavegamePtr->mapOverlayId_A4, mode);
+                (int)g_SavegamePtr->mapIdx, mode);
             SH_DBG("[%s] harry=(%ld,%ld,%ld) bodyYaw=%d",
                 tag,
                 (long)g_SysWork.playerWork.player.position.vx,
@@ -393,7 +399,7 @@ void DebugCamera_Update(void)
         if (cur6 && !prevKey6) {
             VECTOR3* p = &g_SysWork.playerWork.player.position;
             SH_DBG_ECHO("[POS-LOG] Key 6: mapId=%d harryPos=(%ld,%ld,%ld) yaw=%d",
-                (int)g_SavegamePtr->mapOverlayId_A4,
+                (int)g_SavegamePtr->mapIdx,
                 (long)p->vx, (long)p->vy, (long)p->vz,
                 (int)g_SysWork.playerWork.player.rotation.vy);
             SH_DBG("[POS-LOG] health=%ld fallSpeed=%ld",
@@ -442,8 +448,8 @@ void DebugCamera_Update(void)
         int cur = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
         if (cur && !prevKey) {
             bool hasRifle = false;
-            for (int i = 0; i < INVENTORY_ITEM_COUNT_MAX; i++) {
-                if (g_SavegamePtr->items_0[i].id_0 == InvItemId_HuntingRifle) {
+            for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
+                if (g_SavegamePtr->items[i].id_0 == InvItemId_HuntingRifle) {
                     hasRifle = true;
                     break;
                 }
@@ -461,8 +467,8 @@ void DebugCamera_Update(void)
         int cur = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
         if (cur && !prevKey) {
             bool hasShotgun = false;
-            for (int i = 0; i < INVENTORY_ITEM_COUNT_MAX; i++) {
-                if (g_SavegamePtr->items_0[i].id_0 == InvItemId_Shotgun) {
+            for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
+                if (g_SavegamePtr->items[i].id_0 == InvItemId_Shotgun) {
                     hasShotgun = true;
                     break;
                 }
@@ -503,8 +509,8 @@ void DebugCamera_Update(void)
         if (g_GameWork.gameState == GameState_InGame) {
             VECTOR3*  p   = &g_SysWork.playerWork.player.position;
             s_SubCharacter* pl = &g_SysWork.playerWork.player;
-            s8 curRoom    = g_SavegamePtr->mapRoomIdx_A5;
-            s8 curMap     = g_SavegamePtr->mapOverlayId_A4;
+            s8 curRoom    = g_SavegamePtr->mapRoomIdx;
+            s8 curMap     = g_SavegamePtr->mapIdx;
 
             /* Snapshot rescue Y on map or room change. */
             if (curMap != _prevMapId || curRoom != _prevRoomIdx) {
@@ -542,17 +548,17 @@ void DebugCamera_Update(void)
                  * IPD cell returned the void-ground sentinel — Harry is over
                  * a hole/missing collision data. */
                 {
-                    s_Collision _fallColl;
-                    Collision_Get(&_fallColl, oldX, oldZ);
+                    s_CollisionSurface _fallColl;
+                    Collision_SurfaceGet(&_fallColl, oldX, oldZ);
                     SH_DBG("HARRY FALL POSITION mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
-                        (int)g_SavegamePtr->mapOverlayId_A4,
-                        (int)g_SavegamePtr->mapRoomIdx_A5,
+                        (int)g_SavegamePtr->mapIdx,
+                        (int)g_SavegamePtr->mapRoomIdx,
                         (long)oldX, (long)oldY, (long)oldZ,
                         (int)facing,
-                        (long)_fallColl.groundHeight_0,
-                        (int)_fallColl.field_4, (int)_fallColl.field_6,
-                        (int)_fallColl.field_8,
-                        (int)(_fallColl.groundHeight_0 == Q12(8.0f)));
+                        (long)_fallColl.groundHeight,
+                        (int)_fallColl.tiltAngleX, (int)_fallColl.tiltAngleZ,
+                        (int)_fallColl.groundType,
+                        (int)(_fallColl.groundHeight == Q12(8.0f)));
                 }
                 p->vy = _lastSafeY;
                 pl->fallSpeed = 0;
@@ -605,7 +611,7 @@ void DebugCamera_Update(void)
          * entry or yaw/pitch from one map doesn't bleed into the next. */
         {
             static int s_prevMapForNudgeReset = -1;
-            int curMapNow = (int)g_SavegamePtr->mapOverlayId_A4;
+            int curMapNow = (int)g_SavegamePtr->mapIdx;
             if (curMapNow != s_prevMapForNudgeReset) {
                 if (s_prevMapForNudgeReset != -1) {
                     g_PcCamNudgePos.vx = 0;
@@ -1488,7 +1494,7 @@ void MainLoop(void) // 0x80032EE0
         DrawSync(SyncMode_Wait);
         ML_TRACE("VSync-begin");
         // Handle V sync.
-        if (g_SysWork.flags_22A4 & UnkSysFlag_1)
+        if (g_SysWork.sysFlags & SysFlag_DemoActive)
         {
             ML_TRACE("VSync-flag2_1-branch");
             vBlanks   = VSync(SyncMode_Count);
@@ -1643,22 +1649,22 @@ void MainLoop(void) // 0x80032EE0
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_PERIOD];
             if (cur && !g_DebugFogTogglePrev) {
                 VECTOR3 camPos;
-                s_Collision _hereColl;
+                s_CollisionSurface _hereColl;
                 if (g_DebugCamEnabled)              camPos = g_DebugCamPos;
                 else if (g_DebugThirdPersonCam)     vcGetNowCamPos(&camPos);
                 else                                camPos = vcWork.cam_pos;
-                Collision_Get(&_hereColl,
+                Collision_SurfaceGet(&_hereColl,
                     g_SysWork.playerWork.player.position.vx,
                     g_SysWork.playerWork.player.position.vz);
                 SH_DBG_ECHO("[POS-LOG] Numpad . map=%d room=%d pos=(%ld,%ld,%ld)",
-                    (int)g_SavegamePtr->mapOverlayId_A4,
-                    (int)g_SavegamePtr->mapRoomIdx_A5,
+                    (int)g_SavegamePtr->mapIdx,
+                    (int)g_SavegamePtr->mapRoomIdx,
                     (long)g_SysWork.playerWork.player.position.vx,
                     (long)g_SysWork.playerWork.player.position.vy,
                     (long)g_SysWork.playerWork.player.position.vz);
                 SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
-                    (int)g_SavegamePtr->mapOverlayId_A4,
-                    (int)g_SavegamePtr->mapRoomIdx_A5,
+                    (int)g_SavegamePtr->mapIdx,
+                    (int)g_SavegamePtr->mapRoomIdx,
                     (long)g_SysWork.playerWork.player.position.vx,
                     (long)g_SysWork.playerWork.player.position.vy,
                     (long)g_SysWork.playerWork.player.position.vz,
@@ -1668,10 +1674,10 @@ void MainLoop(void) // 0x80032EE0
                     (long)camPos.vx, (long)camPos.vy, (long)camPos.vz,
                     (int)vcWork.cam_mat_ang.vy,
                     (int)vcWork.cam_mat_ang.vx,
-                    (long)_hereColl.groundHeight_0,
-                    (int)_hereColl.field_4, (int)_hereColl.field_6,
-                    (int)_hereColl.field_8,
-                    (int)(_hereColl.groundHeight_0 == Q12(8.0f)));
+                    (long)_hereColl.groundHeight,
+                    (int)_hereColl.tiltAngleX, (int)_hereColl.tiltAngleZ,
+                    (int)_hereColl.groundType,
+                    (int)(_hereColl.groundHeight == Q12(8.0f)));
                 if (g_DebugCamEnabled) {
                     g_DebugFogDisabled = !g_DebugFogDisabled;
                     SH_DBG_ECHO("[DEBUG] Numpad . (debug cam) Fog: %s", g_DebugFogDisabled ? "OFF" : "ON");
@@ -1685,7 +1691,7 @@ void MainLoop(void) // 0x80032EE0
             }
 
             if (g_DebugFogDisabled) {
-                PC_WorldEnvWork.isFogEnabled_1 = 0;
+                PC_WorldEnvWork.isFogEnabled = 0;
             }
         }
 
@@ -1720,13 +1726,13 @@ void MainLoop(void) // 0x80032EE0
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled_1) {
-            g_GameWork.background2dColor.r = PC_WorldEnvWork.fogColor_1C.r;
-            g_GameWork.background2dColor.g = PC_WorldEnvWork.fogColor_1C.g;
-            g_GameWork.background2dColor.b = PC_WorldEnvWork.fogColor_1C.b;
-            g_PsyX_FogColor[0] = PC_WorldEnvWork.fogColor_1C.r / 255.0f;
-            g_PsyX_FogColor[1] = PC_WorldEnvWork.fogColor_1C.g / 255.0f;
-            g_PsyX_FogColor[2] = PC_WorldEnvWork.fogColor_1C.b / 255.0f;
+        if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
+            g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
+            g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
+            g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
 #endif
         ML_TRACE("GsSortClear");

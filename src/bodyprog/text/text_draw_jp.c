@@ -42,7 +42,7 @@ extern s32 D_800C5E1C;
 extern s32 D_800C5E30[];
 extern s32 D_800C5E20;
 
-const u32 pad_rodata_80025D54 = 0;
+const u32 __pad_rodata_80025D54 = 0;
 
 /** @brief Glyph widths for the 12x16 font. Used for kerning. */
 static const u8 FONT_12X16_GLYPH_WIDTHS[FONT_12X16_GLYPH_COUNT] = {
@@ -53,14 +53,14 @@ static const u8 FONT_12X16_GLYPH_WIDTHS[FONT_12X16_GLYPH_COUNT] = {
 };
 
 static const u32 STRING_COLORS[StringColorId_Count] = {
-    PACKED_COLOR(160, 128, 64,  0x64),
-    PACKED_COLOR(32,  32,  32,  0x64),
-    PACKED_COLOR(24,  128, 40,  0x64),
-    PACKED_COLOR(8,   184, 96,  0x64),
-    PACKED_COLOR(128, 0,   0,   0x64),
-    PACKED_COLOR(24,  128, 40,  0x64),
-    PACKED_COLOR(100, 100, 100, 0x64),
-    PACKED_COLOR(128, 128, 128, 0x64)
+    COLOR_RGBC(160, 128, 64,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(32,  32,  32,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(24,  128, 40,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(8,   184, 96,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(128, 0,   0,   PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(24,  128, 40,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(100, 100, 100, PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(128, 128, 128, PRIM_RECT | RECT_TEXTURE)
 };
 
 const u32 pad_rodata_80025DCC[2] = { 0, 0 };
@@ -110,8 +110,8 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
     // TODO: This only works for one case. There may originally have been some other generic macro.
     #define setSprtUvClut(glyphSprt, idx, clut)                                                                                                     \
     *((u32*)&(glyphSprt)->u0) = (((idx) % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X) + /* `u0`:   Column in atlas. */            \
-                                (ATLAS_BASE_Y << 8)                                                     + /* `v0`:   Row 0 in atlas with offset. */ \
-                                ((clut) << 16)                                                            /* `clut`: Packed magic value. */
+                                (ATLAS_BASE_Y << 8)                                                 + /* `v0`:   Row 0 in atlas with offset. */ \
+                                ((clut) << 16)                                                        /* `clut`: Packed magic value. */
 
     s32       posX;
     s32       posY;
@@ -206,10 +206,10 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
 
                 u0 = (glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
 
-                *((u32*)&glyphPoly->u0) = u0 + (0xF000 + (0x7FD3 << 16));                                                      // `u0`, `v0`, `clut`.
+                *((u32*)&glyphPoly->u0) = u0 + (0xF000 + (0x7FD3 << 16));                                                    // `u0`, `v0`, `clut`.
                 *((u32*)&glyphPoly->u1) = u0 + (((((glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT) & 0xF) | 16) << 16) | 0xFF00); // `u1`, `v1`, `page`.
-                *((u16*)&glyphPoly->u2) = u0 - 0xFF4;                                                                          // `u2`, `v2`.
-                *((u16*)&glyphPoly->u3) = u0 - 0xF4;                                                                           // `u3`, `v3`.
+                *((u16*)&glyphPoly->u2) = u0 - 0xFF4;                                                                        // `u2`, `v2`.
+                *((u16*)&glyphPoly->u3) = u0 - 0xF4;                                                                         // `u3`, `v3`.
 
                 addPrim(ot, glyphPoly);
                 GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
@@ -514,7 +514,7 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004AF5C
         D_800C5E30[i] = 0;
     }
 
-    mapMsg = g_MapOverlayHeader.mapMessages_30[mapMsgIdx];
+    mapMsg = g_MapOverlayHdr.mapMessages[mapMsgIdx];
 
     for (j = 0; j < FONT_12X16_LINE_COUNT_MAX;)
     {
@@ -573,7 +573,7 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004AF5C
         }
     }
 
-    mapMsg = g_MapOverlayHeader.mapMessages_30[mapMsgIdx];
+    mapMsg = g_MapOverlayHdr.mapMessages[mapMsgIdx];
 
     for (j = 0; j < FONT_12X16_LINE_COUNT_MAX; j++)
     {
@@ -703,7 +703,7 @@ void func_8004B45C(s32 mapMsgBaseIdx, s32 arg1) // 0x8004B45C
 
     for (i = 0; i < arg1; i++)
     {
-        mapMsg = g_MapOverlayHeader.mapMessages_30[mapMsgBaseIdx + i];
+        mapMsg = g_MapOverlayHdr.mapMessages[mapMsgBaseIdx + i];
 
         for (j = 0; j < 21;)
         {
@@ -729,7 +729,7 @@ void func_8004B45C(s32 mapMsgBaseIdx, s32 arg1) // 0x8004B45C
 
     for (i = 0; i < arg1; i++)
     {
-        mapMsg = g_MapOverlayHeader.mapMessages_30[mapMsgBaseIdx + i];
+        mapMsg = g_MapOverlayHdr.mapMessages[mapMsgBaseIdx + i];
 
         setRECT(&rect, 0, 0, 0, 0);
 

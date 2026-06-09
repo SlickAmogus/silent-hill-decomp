@@ -13,7 +13,7 @@
 extern s32 g_VBlanks;
 
 
-void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_pos) // 0x8004004C
+void vcInitCamera(struct _MapOverlayHdr* map_overlay_ptr, const VECTOR3* chr_pos) // 0x8004004C
 {
     g_WorldGfxWork.vcCameraInternalInfo.mv_smooth   = VC_MV_CHASE;
     g_WorldGfxWork.vcCameraInternalInfo.ev_cam_rate = Q12(0.0f);
@@ -22,7 +22,7 @@ void vcInitCamera(struct _MapOverlayHeader* map_overlay_ptr, const VECTOR3* chr_
     vcSetCameraUseWarp(chr_pos, g_SysWork.cameraAngleY);
     SetGeomScreen(g_GameWork.gsScreenHeight);
     vwInitViewInfo();
-    vcInitVCSystem(map_overlay_ptr->cameraPaths_3CC);
+    vcInitVCSystem(map_overlay_ptr->cameraPaths);
     vcStartCameraSystem();
 
     g_SysWork.cameraAngleZ   = Q12_ANGLE(0.0f);
@@ -48,8 +48,8 @@ void vcSetCameraUseWarp(const VECTOR3* chr_pos, q3_12 chr_ang_y) // 0x800400D4
     cam_pos.vy = chr_pos->vy - HEIGHT;
     cam_pos.vz = chr_pos->vz - Q12_MULT(Math_Cos(chr_ang_y), RADIUS);
 
-    vcSetFirstCamWork(&cam_pos, chr_ang_y, g_SysWork.flags_22A4 & UnkSysFlag_6);
-    g_SysWork.flags_22A4 &= ~UnkSysFlag_6;
+    vcSetFirstCamWork(&cam_pos, chr_ang_y, g_SysWork.sysFlags & SysFlag_OnCameraRail);
+    g_SysWork.sysFlags &= ~SysFlag_OnCameraRail;
 
     #undef RADIUS
     #undef HEIGHT
@@ -86,7 +86,7 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
 {
     VECTOR3         first_cam_pos; // Q19.12
     VECTOR3         hr_head_pos;   // Q19.12
-    s_Collision     coll;
+    s_CollisionSurface     coll;
     q19_12          hero_bottom_y; // Player bottom height.
     q19_12          hero_top_y;    // Player top height.
     q19_12          grnd_y;        // Absolute ground height.
@@ -123,10 +123,10 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             }
             else
             {
-                Collision_Get(&coll, hr_p->position.vx, hr_p->position.vz);
-                grnd_y = coll.groundHeight_0;
+                Collision_SurfaceGet(&coll, hr_p->position.vx, hr_p->position.vz);
+                grnd_y = coll.groundHeight;
 #ifdef SH_PC_PORT
-                /* Q12(8.0f) is the sentinel returned by Collision_Get when no IPD cell
+                /* Q12(8.0f) is the sentinel returned by Collision_SurfaceGet when no IPD cell
                  * exists at Harry's position (level boundary / not yet streamed).
                  * Treat it as 0 so the camera formula uses ground = world origin. */
                 if (grnd_y == Q12(8.0f))
@@ -147,8 +147,8 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
              *   harryVy    — hr_p->position.vy (raw, before any offset)
              *   topY       — hero_top_y (= harry.vy + Q12(-1.7))
              *   bottomY    — hero_bottom_y
-             *   grndY      — grnd_y (Collision_Get output or origin-sub)
-             *   collGround — coll.groundHeight_0 (pre-sentinel-skip)
+             *   grndY      — grnd_y (Collision_SurfaceGet output or origin-sub)
+             *   collGround — coll.groundHeight (pre-sentinel-skip)
              *   chunk      — IPD cell collision sentinel == Q12(8.0f)
              * Compare to ideal_pos.vy and final cam.vy in the
              * BAD/GOOD log to tell whether the formula or the inputs
@@ -161,8 +161,8 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
                         (long)hero_top_y,
                         (long)hero_bottom_y,
                         (long)grnd_y,
-                        (long)coll.groundHeight_0,
-                        (int)(coll.groundHeight_0 == Q12(8.0f)),
+                        (long)coll.groundHeight,
+                        (int)(coll.groundHeight == Q12(8.0f)),
                         (long)hr_p->position.vx, (long)hr_p->position.vy, (long)hr_p->position.vz);
                 }
             }
@@ -297,36 +297,36 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
 
     vwGetViewAngle(&cam_ang);
 
-    if (!(g_Controller1->btnsHeld_C & ControllerFlag_Circle))
+    if (!(g_Controller1->heldBtnFlags & ControllerFlag_Circle))
     {
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickDown)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickDown)
         {
             cam_ang.vx = cam_ang.vx - (g_VBlanks * V_BLANKS_MULT);
         }
 
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickUp)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickUp)
         {
             cam_ang.vx = cam_ang.vx + (g_VBlanks * V_BLANKS_MULT);
         }
 
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickRight)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickRight)
         {
             cam_ang.vy = cam_ang.vy + (g_VBlanks * V_BLANKS_MULT);
         }
 
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickLeft)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickLeft)
         {
             cam_ang.vy = cam_ang.vy - (g_VBlanks * V_BLANKS_MULT);
         }
 
-        if (g_Controller1->btnsHeld_C & (ControllerFlag_Triangle | ControllerFlag_Cross))
+        if (g_Controller1->heldBtnFlags & (ControllerFlag_Triangle | ControllerFlag_Cross))
         {
             moveStep = Q8(0.0f);
-            if (g_Controller1->btnsHeld_C & ControllerFlag_Triangle)
+            if (g_Controller1->heldBtnFlags & ControllerFlag_Triangle)
             {
                 moveStep = MOVE_DIST;
             }
-            if (g_Controller1->btnsHeld_C & ControllerFlag_Cross)
+            if (g_Controller1->heldBtnFlags & ControllerFlag_Cross)
             {
                 moveStep = -MOVE_DIST - 1; // TODO: `- 1` enforces a rounded down result, but `Q8` truncates toward 0.
             }
@@ -338,23 +338,23 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
     }
     else
     {
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickUp)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickUp)
         {
             newCamPos.vy -= MOVE_DIST;
         }
-        if (g_Controller1->btnsHeld_C & ControllerFlag_LStickDown)
+        if (g_Controller1->heldBtnFlags & ControllerFlag_LStickDown)
         {
             newCamPos.vy += MOVE_DIST;
         }
 
-        if (g_Controller1->btnsHeld_C & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
+        if (g_Controller1->heldBtnFlags & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
         {
             moveStep = Q8(0.0f);
-            if (g_Controller1->btnsHeld_C & ControllerFlag_LStickRight)
+            if (g_Controller1->heldBtnFlags & ControllerFlag_LStickRight)
             {
                 moveStep = MOVE_DIST;
             }
-            if (g_Controller1->btnsHeld_C & ControllerFlag_LStickLeft)
+            if (g_Controller1->heldBtnFlags & ControllerFlag_LStickLeft)
             {
                 moveStep = -MOVE_DIST - 1; // TODO: `- 1` enforces a rounded down result, but `Q8` truncates toward 0.
             }
@@ -373,7 +373,7 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
     lookAtMat.t[2] = newCamPos.vz;
     vwSetViewInfoDirectMatrix(NULL, &lookAtMat);
 
-    if (g_Controller1->btnsHeld_C & (ControllerFlag_LStickUp    |
+    if (g_Controller1->heldBtnFlags & (ControllerFlag_LStickUp    |
                                      ControllerFlag_LStickRight |
                                      ControllerFlag_LStickDown  |
                                      ControllerFlag_LStickLeft  |
@@ -407,7 +407,7 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     s32     balance;
 
     // If monoural sound type, default to balance of 0.
-    if (g_GameWork.config.optSoundType_1E)
+    if (g_GameWork.config.soundType)
     {
         return 0;
     }

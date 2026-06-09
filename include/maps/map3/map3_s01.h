@@ -1,7 +1,7 @@
 #ifndef _MAPS_MAP3_S01_H
 #define _MAPS_MAP3_S01_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define KEYFRAME_PlayerState_Unk59 957
@@ -20,17 +20,17 @@
 
 #include "maps/shared.h"
 
-extern s_WorldObjectDescNoRot    g_WorldObject_Dr[6];
-extern s_WorldObjectDescNoRot g_WorldObject1;
-extern s_WorldObjectDesc      g_WorldObject2;
-extern s_WorldObjectDescNoRot g_WorldObject3[2];
-extern s_WorldObjectDesc      g_WorldObject5;
-extern s_WorldObjectDesc      g_WorldObject6;
-extern s_WorldObjectDesc      g_WorldObject7;
-extern s_WorldObjectDesc      g_WorldObject8;
-extern s_WorldObjectDesc      g_WorldObject9;
+extern s_WorldObjectPlacement    g_WorldObject_Dr[6];
+extern s_WorldObjectPlacement g_WorldObject1;
+extern s_WorldObjectPose      g_WorldObject2;
+extern s_WorldObjectPlacement g_WorldObject3[2];
+extern s_WorldObjectPose      g_WorldObject5;
+extern s_WorldObjectPose      g_WorldObject6;
+extern s_WorldObjectPose      g_WorldObject7;
+extern s_WorldObjectPose      g_WorldObject8;
+extern s_WorldObjectPose      g_WorldObject9;
 extern s_WorldObjectModel        g_WorldObjectA;
-extern s_WorldObjectPose      g_WorldObjectAPos;
+extern s_Pose      g_WorldObjectAPos;
 extern s_WorldObjectModel        g_CommonWorldObjects[6];
 
 extern VECTOR3 D_800D4CE4; // Used by `func_800D2E54` only. For some reason it's not in RODATA.
@@ -49,10 +49,10 @@ void MapEvent_UnknownLiquidInteract(void);
 void MapEvent_PlasticBottleTake(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake0(void);
+void MapEvent_PaperMapTake0(void);
 
 /** @brief Handles the ? map pickup event. */
-void MapEvent_MapTake1(void);
+void MapEvent_PaperMapTake1(void);
 
 void func_800D279C(void);
 

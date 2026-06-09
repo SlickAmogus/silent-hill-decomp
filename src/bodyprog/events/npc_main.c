@@ -9,6 +9,7 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
 #include "bodyprog/demo.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/events/npc_main.h"
@@ -16,7 +17,7 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "bodyprog/screen/screen_data.h"
-#include "bodyprog/sound_system.h"
+#include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
 #ifdef SH_PC_PORT
@@ -25,15 +26,15 @@ static s32 Camera_Distance2dGet(const VECTOR3* pos);
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 {
-    if (g_SavegamePtr->gameDifficulty_260 <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
+    if (g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
     {
-        g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapOverlayId_A4] &= ~(1 << chara->field_40);
+        g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapIdx] &= ~(1 << chara->field_40);
     }
 }
 
 void Chara_DamagedFlagUpdate(s_SubCharacter* chara) // 0x80037E40
 {
-    if (chara->damage.amount_C > Q12(0.0f))
+    if (chara->damage.amount > Q12(0.0f))
     {
         chara->flags |= CharaFlag_Damaged;
     }
@@ -64,7 +65,7 @@ void func_80037E78(s_SubCharacter* chara) // 0x80037E78
 
 void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 {
-    s_Collision     coll;
+    s_CollisionSurface     coll;
     s32             groupCharaId0;
     s32             groupCharaId1;
     s32             npcIdx;
@@ -75,21 +76,21 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     VECTOR3*        pos;
 
     npcIdx             = 0;
-    curCharaSpawn      = g_MapOverlayHeader.charaSpawns_24C[0];
-    ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapOverlayId_A4];
+    curCharaSpawn      = g_MapOverlayHdr.charaSpawnInfos[0];
+    ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapIdx];
 
 #ifdef SH_PC_PORT
-    /* Force-clear UnkSysFlag_4 every frame on non-tutorial maps. Vanilla
+    /* Force-clear SysFlag_NoEnemySpawn every frame on non-tutorial maps. Vanilla
      * sets this flag in map2_s00.c:1948 unless EventFlag_146 / WaterWorks
      * cutscene event is set, gating ALL enemy spawning. On a fresh PC
      * playthrough we never reach that cutscene via the normal path so the
      * flag stays set forever, leaving streets enemy-less. Clearing here
      * (right before the spawn gate that reads it) guarantees the gate
      * sees a clean state regardless of when map init re-sets it. */
-    if (g_SavegamePtr->mapOverlayId_A4 != MapIdx_MAP0_S00 &&
-        g_SavegamePtr->mapOverlayId_A4 != MapIdx_MAP0_S01)
+    if (g_SavegamePtr->mapIdx != MapIdx_MAP0_S00 &&
+        g_SavegamePtr->mapIdx != MapIdx_MAP0_S01)
     {
-        g_SysWork.flags_22A4 &= ~UnkSysFlag_4;
+        g_SysWork.sysFlags &= ~SysFlag_NoEnemySpawn;
     }
 #endif
 
@@ -97,14 +98,14 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     {
         func_80037154();
 
-        if (g_MapOverlayHeader.npcSpawnEvent_48 != NULL)
+        if (g_MapOverlayHdr.npcSpawnEvent != NULL)
         {
-            g_MapOverlayHeader.npcSpawnEvent_48();
+            g_MapOverlayHdr.npcSpawnEvent();
         }
     }
 
-    groupCharaId0 = g_MapOverlayHeader.charaGroupIds_248[0];
-    groupCharaId1 = g_MapOverlayHeader.charaGroupIds_248[1];
+    groupCharaId0 = g_MapOverlayHdr.charaGroupIds[0];
+    groupCharaId1 = g_MapOverlayHdr.charaGroupIds[1];
 
 #ifdef SH_PC_PORT
     /* Spawn diagnostic state. _spawnNearLogged[] holds the last logged
@@ -115,9 +116,9 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     static u8  _spawnNearLogged[64] = { 0 };
     static s8  _spawnLastMapId      = -1;
     static u32 _spawnTickCounter    = 0;
-    if (_spawnLastMapId != g_SavegamePtr->mapOverlayId_A4) {
+    if (_spawnLastMapId != g_SavegamePtr->mapIdx) {
         memset(_spawnNearLogged, 0, sizeof(_spawnNearLogged));
-        _spawnLastMapId = g_SavegamePtr->mapOverlayId_A4;
+        _spawnLastMapId = g_SavegamePtr->mapIdx;
         _spawnTickCounter = 0;
         SH_DBG("[SPAWN-GATE] map changed → mapId=%d, resetting spawn-state cache",
                (int)_spawnLastMapId);
@@ -152,15 +153,15 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
 #ifdef SH_PC_PORT
         /* CRITICAL: s_SpawnInfo is 12 bytes on PSX but 16 bytes on MinGW
-         * x86-64. The s32:4 bitfield (gameDifficultyMin_7_0) forces gcc to
-         * allocate a new s32 storage unit at offset 8, pushing positionZ_8
+         * x86-64. The s32:4 bitfield (gameDifficultyMin) forces gcc to
+         * allocate a new s32 storage unit at offset 8, pushing positionZ
          * to offset 12. STATIC_ASSERT_SIZEOF is a no-op on PC so this size
          * change went silent. The old `pos = (VECTOR3*)curCharaSpawn` cast
          * made pos->vz read the bitfield slot (≈0 for Easy) instead of
-         * positionZ_8 — every distance check saw Z=0, firing spawns at
+         * positionZ — every distance check saw Z=0, firing spawns at
          * coordinates totally unrelated to the actual spawn point. Build
          * a proper VECTOR3 with the correctly-typed fields and use that. */
-        VECTOR3 spawnPos = { curCharaSpawn->positionX_0, 0, curCharaSpawn->positionZ_8 };
+        VECTOR3 spawnPos = { curCharaSpawn->positionX, 0, curCharaSpawn->positionZ };
         pos = &spawnPos;
 #else
         pos = (VECTOR3*)curCharaSpawn;
@@ -171,38 +172,38 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * (especially when player gets close enough that distance gate
          * could pass). Logs once per (slot, near/far transition) to avoid
          * spam while still capturing the moment a spawn would activate. */
-        if (curCharaSpawn->flags_6 != 0) {
+        if (curCharaSpawn->flags != 0) {
             VECTOR3* pp = &g_SysWork.playerWork.player.position;
             int gate7 = !Math_Distance2dCheck(pp, pos, Q12(22.0f));
             /* Track closest non-empty slot for the periodic tick log. */
-            s32 dx = pp->vx - curCharaSpawn->positionX_0;
-            s32 dz = pp->vz - curCharaSpawn->positionZ_8;
+            s32 dx = pp->vx - curCharaSpawn->positionX;
+            s32 dz = pp->vz - curCharaSpawn->positionZ;
             /* Q12 squared-distance — keep it as squared to avoid sqrt cost. */
             s32 distSq = (s32)(((s64)dx * dx + (s64)dz * dz) >> 12);
             if (distSq < _closestDist) {
                 _closestDist  = distSq;
                 _closestSlot  = i;
-                _closestX     = curCharaSpawn->positionX_0;
-                _closestZ     = curCharaSpawn->positionZ_8;
-                _closestFlags = curCharaSpawn->flags_6;
+                _closestX     = curCharaSpawn->positionX;
+                _closestZ     = curCharaSpawn->positionZ;
+                _closestFlags = curCharaSpawn->flags;
             }
             /* Only re-log on transitions: far→near (gate7 went 0→1) or
              * if first time this slot ever evaluated. */
             u8 prevState = _spawnNearLogged[i];
             u8 curState = (gate7 ? 2 : 1); /* 1=far, 2=near */
             if (prevState != curState) {
-                int gate1 = !(g_SysWork.flags_22A4 & UnkSysFlag_4);
+                int gate1 = !(g_SysWork.sysFlags & SysFlag_NoEnemySpawn);
                 int gate2 = HAS_FLAG(ovlEnemiesStatePtr, i) ? 1 : 0;
                 int gate3 = !HAS_FLAG(g_SysWork.field_228C, i) ? 1 : 0;
-                int gate5 = (g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0);
-                int gate6 = func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) ? 1 : 0;
+                int gate5 = (g_SavegamePtr->gameDifficulty >= curCharaSpawn->gameDifficultyMin);
+                int gate6 = func_8008F914(curCharaSpawn->positionX, curCharaSpawn->positionZ) ? 1 : 0;
                 int gate8 = (!cond || Math_Distance2dCheck(pp, pos, Q12(20.0f)));
                 SH_DBG("[SPAWN-GATE] slot=%d %s spawn=(%d,%d) player=(%d,%d) flags=%d diff=%d/%d cond=%d g1=%d g2=%d g3=%d g5=%d g6=%d g7=%d g8=%d",
                        i, gate7 ? "NEAR" : "far",
-                       (int)curCharaSpawn->positionX_0, (int)curCharaSpawn->positionZ_8,
+                       (int)curCharaSpawn->positionX, (int)curCharaSpawn->positionZ,
                        (int)pp->vx, (int)pp->vz,
-                       (int)curCharaSpawn->flags_6,
-                       (int)g_SavegamePtr->gameDifficulty_260, (int)curCharaSpawn->gameDifficultyMin_7_0,
+                       (int)curCharaSpawn->flags,
+                       (int)g_SavegamePtr->gameDifficulty, (int)curCharaSpawn->gameDifficultyMin,
                        (int)cond,
                        gate1, gate2, gate3, gate5, gate6, gate7, gate8);
                 _spawnNearLogged[i] = curState;
@@ -217,12 +218,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * difference must be a re-evaluation race, an aliasing issue,
          * or the npcFlags-full break above the loop. Logs once per slot
          * per second when the slot looks spawnable. */
-        if (curCharaSpawn->flags_6 != 0) {
-            int dbg_g1 = !(g_SysWork.flags_22A4 & UnkSysFlag_4);
+        if (curCharaSpawn->flags != 0) {
+            int dbg_g1 = !(g_SysWork.sysFlags & SysFlag_NoEnemySpawn);
             int dbg_g2 = HAS_FLAG(ovlEnemiesStatePtr, i) ? 1 : 0;
             int dbg_g3 = !HAS_FLAG(g_SysWork.field_228C, i) ? 1 : 0;
-            int dbg_g5 = (g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0);
-            int dbg_g6 = func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) ? 1 : 0;
+            int dbg_g5 = (g_SavegamePtr->gameDifficulty >= curCharaSpawn->gameDifficultyMin);
+            int dbg_g6 = func_8008F914(curCharaSpawn->positionX, curCharaSpawn->positionZ) ? 1 : 0;
             int dbg_g7 = !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f));
             int dbg_g8 = (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)));
             int allPass = dbg_g1 && dbg_g2 && dbg_g3 && dbg_g5 && dbg_g6 && dbg_g7 && dbg_g8;
@@ -259,7 +260,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             _slotSpawnCooldown[i]--;
         }
         /* Log when cooldown is blocking a slot that otherwise wants to spawn. */
-        if (curCharaSpawn->flags_6 != 0 && _slotSpawnCooldown[i] > 0 &&
+        if (curCharaSpawn->flags != 0 && _slotSpawnCooldown[i] > 0 &&
             !HAS_FLAG(g_SysWork.field_228C, i)) {
             /* Quick mirror of the distance gate to know if cooldown is the
              * actual blocker (player IS in range but cooldown gates). */
@@ -275,11 +276,11 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         }
 #endif
 
-        if (!(g_SysWork.flags_22A4 & UnkSysFlag_4) &&
+        if (!(g_SysWork.sysFlags & SysFlag_NoEnemySpawn) &&
             HAS_FLAG(ovlEnemiesStatePtr, i) && !HAS_FLAG(g_SysWork.field_228C, i) &&
-            curCharaSpawn->flags_6 != 0 &&
-            g_SavegamePtr->gameDifficulty_260 >= curCharaSpawn->gameDifficultyMin_7_0 &&
-            func_8008F914(curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8) &&
+            curCharaSpawn->flags != 0 &&
+            g_SavegamePtr->gameDifficulty >= curCharaSpawn->gameDifficultyMin &&
+            func_8008F914(curCharaSpawn->positionX, curCharaSpawn->positionZ) &&
             !Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(22.0f)) &&
             (!cond || Math_Distance2dCheck(&g_SysWork.playerWork.player.position, pos, Q12(20.0f)))
 #ifdef SH_PC_PORT
@@ -298,9 +299,9 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             bzero(&g_SysWork.npcs[npcIdx], sizeof(s_SubCharacter));
 
-            if (curCharaSpawn->charaId_4 > Chara_None)
+            if (curCharaSpawn->charaId > Chara_None)
             {
-                g_SysWork.npcs[npcIdx].model.charaId = curCharaSpawn->charaId_4;
+                g_SysWork.npcs[npcIdx].model.charaId = curCharaSpawn->charaId;
             }
             else
             {
@@ -309,14 +310,14 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             g_SysWork.npcs[npcIdx].field_40           = i;
             g_SysWork.npcs[npcIdx].model.controlState = 0;
-            g_SysWork.npcs[npcIdx].model.stateStep    = curCharaSpawn->flags_6;
-            g_SysWork.npcs[npcIdx].position.vx        = curCharaSpawn->positionX_0;
-            g_SysWork.npcs[npcIdx].position.vz        = curCharaSpawn->positionZ_8;
+            g_SysWork.npcs[npcIdx].model.stateStep    = curCharaSpawn->flags;
+            g_SysWork.npcs[npcIdx].position.vx        = curCharaSpawn->positionX;
+            g_SysWork.npcs[npcIdx].position.vz        = curCharaSpawn->positionZ;
 
-            Collision_Get(&coll, curCharaSpawn->positionX_0, curCharaSpawn->positionZ_8);
+            Collision_SurfaceGet(&coll, curCharaSpawn->positionX, curCharaSpawn->positionZ);
 
-            g_SysWork.npcs[npcIdx].position.vy = coll.groundHeight_0;
-            g_SysWork.npcs[npcIdx].rotation.vy = Q8_TO_Q12(curCharaSpawn->rotationY_5);
+            g_SysWork.npcs[npcIdx].position.vy = coll.groundHeight;
+            g_SysWork.npcs[npcIdx].rotation.vy = Q8_TO_Q12(curCharaSpawn->rotationY);
 
             SET_FLAG(&g_SysWork.npcFlags, npcIdx);
             SET_FLAG(g_SysWork.field_228C, i);
@@ -345,7 +346,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * readability — log it as squared too so we don't pull in
          * SquareRoot12 from here. */
         SH_DBG("[SPAWN-TICK] mapId=%d player=(%d,%d) closestSlot=%d at=(%d,%d) flags=%d distSq_q12=%d (radius_q12=%d)",
-               (int)g_SavegamePtr->mapOverlayId_A4,
+               (int)g_SavegamePtr->mapIdx,
                (int)pp->vx, (int)pp->vz,
                (int)_closestSlot, (int)_closestX, (int)_closestZ,
                (int)_closestFlags, (int)_closestDist,
@@ -452,9 +453,9 @@ void Game_NpcUpdate(void) // 0x80038354
                           Q12_SQUARE_PRECISE(Q12_TO_Q6(npc->position.vz) - posZShift6);
                 var_t5 = 0;
 
-                if (g_MapOverlayHeader.mapInfo->flags_6 & MapFlag_Interior)
+                if (g_MapOverlayHdr.mapInfo->flags & MapFlag_Interior)
                 {
-                    var_t5 = (g_MapOverlayHeader.mapInfo->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)) > 0;
+                    var_t5 = (g_MapOverlayHdr.mapInfo->flags & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)) > 0;
                 }
 
 #ifdef SH_PC_PORT
@@ -490,12 +491,12 @@ void Game_NpcUpdate(void) // 0x80038354
                      * to miss the spawn-frame window. Dead NPCs (took damage)
                      * have negative health, so they stop being tracked and the
                      * radio static stops when the monster dies. */
-                    if (npc->health < Q12(0.0f) || npc->flags & CharaFlag_Unk9 || temp_t3 >= field_0[j].field_4)
+                    if (npc->health < Q12(0.0f) || npc->flags & CharaFlag_NoRadioStatic || temp_t3 >= field_0[j].field_4)
                     {
                         continue;
                     }
 #else
-                    if (npc->health <= Q12(0.0f) || npc->flags & CharaFlag_Unk9 || temp_t3 >= field_0[j].field_4)
+                    if (npc->health <= Q12(0.0f) || npc->flags & CharaFlag_NoRadioStatic || temp_t3 >= field_0[j].field_4)
                     {
                         continue;
                     }
@@ -581,7 +582,7 @@ void Game_NpcUpdate(void) // 0x80038354
 
             npc->model.anim.flags |= AnimFlag_Unlocked;
 
-            animDataInfoIdx = g_CharaAnimInfoIdxs[npc->model.charaId];
+            animDataInfoIdx = g_CharaAnimDataIdxs[npc->model.charaId];
 #ifdef SH_PC_PORT
             /* On PC only Cheryl's NPC AI is safe to run. All other NPCs
              * (Cybil, monsters, grey children) have AI that crashes due to
@@ -590,8 +591,8 @@ void Game_NpcUpdate(void) // 0x80038354
              * function pointer is NULL (sanitized out by map overlay loader). */
             {
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
-                bool hasUpdateFn = (npc->model.charaId < (e_CharacterId)ARRAY_SIZE(g_MapOverlayHeader.charaUpdateFuncs_194) &&
-                                    g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId] != NULL);
+                bool hasUpdateFn = (npc->model.charaId < (e_CharaId)ARRAY_SIZE(g_MapOverlayHdr.charaUpdateFuncs) &&
+                                    g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId] != NULL);
                 /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
                  * baseline working set; Cybil + AirScreamer added because
                  * render-only path never produced a visible model — they need
@@ -650,11 +651,11 @@ void Game_NpcUpdate(void) // 0x80038354
                     {
                         /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
-                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d npcBoneCoords=%p",
+                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d boneCoords=%p",
                                    npc->model.charaId, animDataInfoIdx,
-                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords);
+                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords);
                             func_8003DA9C(npc->model.charaId,
-                                          g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords,
+                                          g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
                             SH_DBG("[NPC_RENDER] done charaId=%d", npc->model.charaId);
@@ -681,7 +682,7 @@ void Game_NpcUpdate(void) // 0x80038354
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
                         func_8003DA9C(npc->model.charaId,
-                                      g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords,
+                                      g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
                                       (s8)npc->model.paletteIdx);
                     }
@@ -748,23 +749,23 @@ void Game_NpcUpdate(void) // 0x80038354
                 }
             }
 #endif
-            boneCoords      = g_CharaTypeAnimInfo[animDataInfoIdx].npcBoneCoords;
+            boneCoords      = g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords;
 
             Chara_Flag8Clear(npc);
             Chara_DamagedFlagUpdate(npc);
-            func_8003BD48(npc);
+            Collision_FlagsLocationUpdate(npc);
 
 #ifdef SH_PC_PORT
             /* Guard against NULL animFile for any NPC: the playback function
              * always dereferences animHdr for bone data, so NULL crashes.
              * Cheryl logs details; other NPCs (e.g. grey children) just wait
              * until Chara_ProcessLoads() completes their ANM read. */
-            if (g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8 == NULL) {
+            if (g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr == NULL) {
                 if (npc->model.charaId == Chara_Cheryl) {
-                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d animFile1_8=NULL boneCoords=%p — skipping",
+                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d activeAnmHdr=NULL boneCoords=%p — skipping",
                             animDataInfoIdx, (void*)boneCoords);
                 } else {
-                    SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d animFile1_8=NULL — waiting for load",
+                    SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d activeAnmHdr=NULL — waiting for load",
                             npc->model.charaId, animDataInfoIdx);
                 }
                 continue;
@@ -775,9 +776,9 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.charaId, npc->model.anim.status,
                     npc->model.anim.keyframeIdx);
 #endif
-            g_MapOverlayHeader.charaUpdateFuncs_194[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].animFile1_8, boneCoords);
+            g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr, boneCoords);
 
-            func_8003BE28();
+            Collision_FlagsUpdate();
             func_80037E78(npc);
             func_8008A3AC(npc);
 
@@ -798,7 +799,7 @@ void Game_NpcUpdate(void) // 0x80038354
 
     g_RadioPitchState = k + 1;
 
-    if (!(g_SavegamePtr->itemToggleFlags_AC & ItemToggleFlag_RadioOn))
+    if (!(g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn))
     {
         return;
     }
@@ -884,8 +885,8 @@ void Game_NpcUpdate(void) // 0x80038354
         else
         {
             var_s3 = 0;
-            if (!(g_MapOverlayHeader.mapInfo->flags_6 & MapFlag_Interior) ||
-                !(g_MapOverlayHeader.mapInfo->flags_6 & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
+            if (!(g_MapOverlayHdr.mapInfo->flags & MapFlag_Interior) ||
+                !(g_MapOverlayHdr.mapInfo->flags & (MapFlag_OneActiveChunk | MapFlag_TwoActiveChunks)))
             {
                 var_s3 = 1;
             }

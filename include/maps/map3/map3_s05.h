@@ -1,12 +1,12 @@
 #ifndef _MAPS_MAP3_S05_H
 #define _MAPS_MAP3_S05_H
 
-#define HAS_PlayerState_Unk52
+#define HAS_PlayerState_Reset
 #define HAS_PlayerState_Unk53
 #define HAS_PlayerState_Unk54
 #define HAS_PlayerState_Unk55
-#define HAS_PlayerState_Unk56
-#define HAS_PlayerState_Unk57
+#define HAS_PlayerState_TurnRight
+#define HAS_PlayerState_TurnLeft
 #define HAS_PlayerState_Unk59
 #define HAS_PlayerState_Unk60
 #define HAS_PlayerState_Unk69
@@ -53,16 +53,16 @@ extern s32 D_800DACEC;
 
 extern s16 D_800DD190;
 
-extern s_WorldObjectDesc      g_WorldObject0;
-extern s_WorldObjectDescNoRot    g_WorldObject_Dr[6];
-extern s_WorldObjectDesc      g_WorldObject2;
-extern s_WorldObjectDesc      g_WorldObject3;
-extern s_WorldObjectDesc      g_WorldObject4;
+extern s_WorldObjectPose      g_WorldObject0;
+extern s_WorldObjectPlacement    g_WorldObject_Dr[6];
+extern s_WorldObjectPose      g_WorldObject2;
+extern s_WorldObjectPose      g_WorldObject3;
+extern s_WorldObjectPose      g_WorldObject4;
 extern s_WorldObjectModel        g_WorldObject5;
 extern s_WorldObjectModel        g_WorldObject6;
-extern s_WorldObjectDesc      g_WorldObject7;
+extern s_WorldObjectPose      g_WorldObject7;
 extern s_WorldObjectModel   g_CommonWorldObjects[6];
-extern s_WorldObjectPose g_CommonWorldObjectPoses[4];
+extern s_Pose g_CommonWorldObjectPoses[4];
 extern VECTOR3 D_800DACD4;
 
 void func_800D57E8(void);

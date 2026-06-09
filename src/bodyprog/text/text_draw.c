@@ -6,31 +6,17 @@
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
 
-static const s32 pad_rodata_80025D68 = 0;
+#ifndef PAD_HACK_IGNORE
+    const s32 pad_rodata_80025D68 = 0;
+    s8 __pad_bss_800C38B2[2];
+    s32 __pad_bss_800C38B8[4];
+    s16 __pad_bss_800C391E;
+    s32 __pad_bss_800C3924;
+#endif
 
-DVECTOR g_StringPosition;
-
-s32 g_StringPositionX1;
-
-s_800C38B0 D_800C38B0;
-
-s8 __pad_bss_800C38B2[2];
-
-s32 g_MapMsg_WidthIdx;
-
-s32 __pad_bss_800C38B8[4];
-
-s32 g_MapMsg_Widths[12];
-
-GsSPRITE g_MapMsg_GlyphSprite;
-
-s16 D_800C391C;
-
-s16 __pad_bss_800C391E;
-
-s32 D_800C3920;
-
-s32 __pad_bss_800C3924;
+// ========================================
+// STATIC VARIABLES
+// ========================================
 
 /** @brief Glyph widths for the 12x16 font. Used for kerning. */
 static const u8 FONT_12X16_GLYPH_WIDTHS[FONT_12X16_GLYPH_COUNT] = {
@@ -42,14 +28,14 @@ static const u8 FONT_12X16_GLYPH_WIDTHS[FONT_12X16_GLYPH_COUNT] = {
 
 /** @brief See `e_StringColorId`. */
 static const u32 STRING_COLORS[StringColorId_Count] = {
-    PACKED_COLOR(160, 128, 64,  0x64),
-    PACKED_COLOR(32,  32,  32,  0x64),
-    PACKED_COLOR(24,  128, 40,  0x64),
-    PACKED_COLOR(8,   184, 96,  0x64),
-    PACKED_COLOR(128, 0,   0,   0x64),
-    PACKED_COLOR(24,  128, 40,  0x64),
-    PACKED_COLOR(100, 100, 100, 0x64),
-    PACKED_COLOR(128, 128, 128, 0x64)
+    COLOR_RGBC(160, 128, 64,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(32,  32,  32,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(24,  128, 40,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(8,   184, 96,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(128, 0,   0,   PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(24,  128, 40,  PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(100, 100, 100, PRIM_RECT | RECT_TEXTURE),
+    COLOR_RGBC(128, 128, 128, PRIM_RECT | RECT_TEXTURE)
 };
 
 /** `e_ColorId` */
@@ -62,6 +48,20 @@ static s16 g_StringColorId = StringColorId_White;
  * a value lower than 6, text will not be affected by the fade effect.
  */
 static s32 g_Strings2dLayerIdx = 6;
+
+
+// ========================================
+// GLOBAL VARIABLES
+// ========================================
+
+DVECTOR    g_StringPosition;
+s32        g_StringPositionX1;
+s_800C38B0 D_800C38B0;
+s32        g_MapMsg_WidthIdx;
+s32        g_MapMsg_Widths[12];
+GsSPRITE   g_MapMsg_GlyphSprite;
+s16        D_800C391C;
+s32        D_800C3920;
 
 void Gfx_StringSetPosition(s32 x, s32 y) // 0x8004A87C
 {
@@ -108,8 +108,8 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     // TODO: This only works for one case. There may originally have been some other generic macro.
     #define setSprtUvClut(glyphSprt, idx, clut)                                                                                                     \
     *((u32*)&(glyphSprt)->u0) = (((idx) % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X) + /* `u0`:   Column in atlas. */            \
-                                (ATLAS_BASE_Y << 8)                                                     + /* `v0`:   Row 0 in atlas with offset. */ \
-                                ((clut) << 16)                                                            /* `clut`: Packed magic value. */
+                                (ATLAS_BASE_Y << 8)                                                 + /* `v0`:   Row 0 in atlas with offset. */ \
+                                ((clut) << 16)                                                        /* `clut`: Packed magic value. */
 
     s32       posX;
     s32       posY;
@@ -204,10 +204,10 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 
                 u0 = (glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
 
-                *((u32*)&glyphPoly->u0) = u0 + (0xF000 + (0x7FD3 << 16));                                                      // `u0`, `v0`, `clut`.
+                *((u32*)&glyphPoly->u0) = u0 + (0xF000 + (0x7FD3 << 16));                                                    // `u0`, `v0`, `clut`.
                 *((u32*)&glyphPoly->u1) = u0 + (((((glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT) & 0xF) | 16) << 16) | 0xFF00); // `u1`, `v1`, `page`.
-                *((u16*)&glyphPoly->u2) = u0 - 0xFF4;                                                                          // `u2`, `v2`.
-                *((u16*)&glyphPoly->u3) = u0 - 0xF4;                                                                           // `u3`, `v3`.
+                *((u16*)&glyphPoly->u2) = u0 - 0xFF4;                                                                        // `u2`, `v2`.
+                *((u16*)&glyphPoly->u3) = u0 - 0xF4;                                                                         // `u3`, `v3`.
 
                 addPrim(ot, glyphPoly);
                 GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
@@ -266,7 +266,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     }
 
     // Reset base string position?
-    *((u32*)&g_StringPosition) = (posX & 0xFFFF) + (posY << 16);
+    Math_DVectorSetFast(&g_StringPosition, posX, posY);
 
     return result;
 
@@ -291,7 +291,7 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
         g_MapMsg_Widths[i] = 0;
     }
 
-    mapMsg = g_MapOverlayHeader.mapMessages_30[mapMsgIdx];
+    mapMsg = g_MapOverlayHdr.mapMessages[mapMsgIdx];
 
     for (j = 0; j < FONT_12X16_LINE_COUNT_MAX; )
     {
@@ -550,10 +550,10 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                                 c = *mapMsg;
                             }
 
-                            digit = digit << 12;
+                            digit <<= 12;
                             for (i = 0; i < fractionDigits; i++)
                             {
-                                digit = digit / 10;
+                                digit /= 10;
                             }
 
                             g_SysWork.mapMsgTimer = digit;
@@ -669,6 +669,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
             mapMsg++;
 
+            // Stop drawing if length exceeded.
             if (strLength <= 0)
             {
                 if (!g_SysWork.enableHighResGlyphs)
@@ -686,7 +687,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
         GsOUT_PACKET_P = packet;
     }
 
-    *((u32*)&g_StringPosition) = (glyphPosX & 0xFFFF) + (glyphPosY << 16);
+    Math_DVectorSetFast(&g_StringPosition, glyphPosX, glyphPosY);
     return result;
 
     #undef LINE_SPACE_SIZE
@@ -703,11 +704,11 @@ void func_8004B658(void) // 0x8004B658
 
 void Gfx_MapMsg_DefaultStringInfoSet(void) // 0x8004B684
 {
-    g_MapMsg_WidthIdx               = 1;
-    D_800C38B0.unused                    = 0;
-    D_800C38B0.positionIdx             = 1;
-    g_StringPositionX1                   = SCREEN_POSITION_X(-37.5f);
-    g_StringColorId                      = StringColorId_White;
+    g_MapMsg_WidthIdx             = 1;
+    D_800C38B0.unused             = 0;
+    D_800C38B0.positionIdx        = 1;
+    g_StringPositionX1            = SCREEN_POSITION_X(-37.5f);
+    g_StringColorId               = StringColorId_White;
     g_SysWork.enableHighResGlyphs = false;
 }
 

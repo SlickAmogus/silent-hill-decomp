@@ -66,5 +66,5 @@ bool PC_PlayerManualReloadRequested(void)
     return PC_KeyboardKeyClicked(SDL_SCANCODE_R) &&
            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
            g_SysWork.playerCombat.totalWeaponAmmo != 0 &&
-           INVENTORY_ITEM_GROUP(g_SavegamePtr->equippedWeapon_AA) == InvItemGroup_GunWeapons;
+           INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons;
 }

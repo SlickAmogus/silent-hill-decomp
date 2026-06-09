@@ -58,20 +58,22 @@ bool func_801E2ED8(void);
 
 bool func_801E2FC0(void);
 
-void func_801E386C(void);
-
-bool func_801E3970(void);
-
-void func_801E3DD0(void);
+void GameState_Unk15_Update(void);
 
 /** Draw some image on the screen. */
 bool func_801E3124(void);
 
 bool func_801E342C(void);
 
-s32 func_801E3304(void);
+bool func_801E3304(void);
 
 bool func_801E3684(void);
+
+bool func_801E3970(void);
+
+void func_801E386C(void);
+
+void func_801E3DD0(void);
 
 s32 func_801E3DF8(u8 arg0);
 

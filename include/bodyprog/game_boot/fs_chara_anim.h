@@ -1,27 +1,80 @@
-#ifndef _BODYPROG_GAMEBOOT_FS_CHARA_ANIM_H
-#define _BODYPROG_GAMEBOOT_FS_CHARA_ANIM_H
+#ifndef _BODYPROG_GAMEBOOT_FSCHARAANIM_H
+#define _BODYPROG_GAMEBOOT_FSCHARAANIM_H
 
-/** @brief Checks if the pointers of `g_CharaTypeAnimInfo` overlap each other.
- * Returns `false` if the compared pointers don't overlap.
+#include "bodyprog/chara/chara.h"
+#include "bodyprog/formats/anm.h"
+
+/** @brief Character model animation data. */
+typedef struct _CharaAnimData
+{
+    /* 0x0  */ s8             allocCharaId;  /** `e_CharaId` */
+    /* 0x1  */ s8             activeCharaId; /** `e_CharaId` */
+               // 2 bytes of padding.
+#ifdef SH_PC_PORT
+    /* 0x4  */ s_AnmHeader*   allocAddr; // On PSX this is s32 (a pointer fits in 32 bits); 64-bit needs a real pointer or it truncates+sign-extends.
+#else
+    /* 0x4  */ s32            allocAddr; // TODO: Should be `s_AnmHeader*` but doesn't match.
+#endif
+    /* 0x8  */ s_AnmHeader*   activeAnmHdr;
+    /* 0xC  */ s32            allocSize;
+    /* 0x10 */ s32            activeSize;
+    /* 0x14 */ GsCOORDINATE2* boneCoords;
+} s_CharaAnimData;
+#ifndef SH_PC_PORT
+STATIC_ASSERT_SIZEOF(s_CharaAnimData, 24);
+#endif
+
+/** @brief Animation data for loaded character models. */
+extern s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT];
+
+/** Per-character-group animation data; loaded NPC types and their indices. */
+extern s_CharaAnimData g_CharaTypeAnimInfo[CHARA_GROUP_COUNT];
+
+/** @brief Checks if the raw file streaming memory allocations of two character animation data slots overlap.
+ *
+ * @param animDataIdx0 First animation data index.
+ * @param animDataIdx1 Second animation data index.
+ * @return `true` if the animation data overlaps, `false` otherwise.
  */
-bool Fs_CharaAnimDataSizeCheck(s32 idx0, s32 idx1);
+bool Fs_CharaAnimDataOverlapCheck(s32 animDataIdx0, s32 animDataIdx1);
 
-/** @brief Finds for the index of the character animation data in `g_CharaTypeAnimInfo`.
+/** @brief Finds the character animation data slot index.
+ * If not found, it returns index 0.
  *
  * @param charaId ID of the character for which to find the animation data.
  * @return Animation data index.
  */
-s32 Fs_CharaAnimDataInfoIdxGet(e_CharacterId charaId);
+s32 Fs_CharaAnimDataIdxGet(e_CharaId charaId);
 
-/** Allocates and adjust where is animation data allocated. */
-void Fs_CharaAnimDataAlloc(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile, GsCOORDINATE2* coords);
-
-/** Called by `Fs_QueuePostLoadAnm`. Assigns information about animation data to `g_CharaTypeAnimInfo`
- * and initializes NPC bones.
+/** @brief Allocates memory for character animation data and bone coords.
+ *
+ * Handles three critical scenarios:
+ * 1. If the data is already at the slot, it ensures the memory layout hasn't drifted.
+ * 2. If the data is loaded in a different slot, it copies the data over to reuse it.
+ * 3. If the data is new, it calls `Fs_QueueStartReadAnm` to read data from the disk.
+ *
+ * As a final step, it performs an overlap sweep and zeroes out any existing slots that the new allocation collided
+ * with.
+ *
+ * @param animDataIdx Index of the animation data to allocate.
+ * @param charaId ID of the character associated with the animation.
+ * @param anmHdr ANM data.
+ * @param boneCoords Character bone coords.
  */
-void Fs_CharaAnimInfoUpdate(s32 idx, e_CharacterId charaId, s_AnmHeader* animFile, GsCOORDINATE2* coord);
+void Fs_CharaAnimDataAlloc(s32 animDataIdx, e_CharaId charaId, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
-/** @brief Updates character type bone initialization coordinates and reinitializes them. */
+/** @brief Assigns character animation data to a free slot and initializes character model bones.
+ * Called by `Fs_QueuePostLoadAnm`.
+ *
+ * @param animDataIdx Index of the animation data to update.
+ * @param charaId ID of the character associated with the animation.
+ * @param anmHdr ANM data.
+ * @param boneCoords Character bone coords.
+ */
+void Fs_CharaAnimDataUpdate(s32 animDataIdx, e_CharaId charaId, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
+
+/** @brief Dynamically allocates where the next character animation data bone coords should be stored  in
+ * `g_SysWork.npcBoneCoordBuffer` based on the space consumed by the current character. */
 void Fs_CharaAnimBoneInfoUpdate(void);
 
 #endif

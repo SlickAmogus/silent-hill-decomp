@@ -24,7 +24,7 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
     (void)combat; (void)arg3; (void)arg4; (void)mode;
 
     s_SubCharacter* player    = &g_SysWork.playerWork.player;
-    VECTOR3*        bulletPos = &g_SysWork.playerCombat.field_0;
+    VECTOR3*        bulletPos = &g_SysWork.playerCombat.attackPosition;
     q3_12           playerYaw = (q3_12)player->rotation.vy;
     s32             nearestIdx       = NO_VALUE;
     q19_12          nearestHorizDist = 0x7FFFFFFF;
@@ -33,12 +33,12 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
     {
         s_SubCharacter* npc = &g_SysWork.npcs[i];
         if (npc->model.charaId == Chara_None) continue;
-        if (npc->field_E1_0 == 0) continue;
-        if (npc->field_E1_0 == 1) continue;
+        if (npc->collision.state == 0) continue;
+        if (npc->collision.state == 1) continue;
         if (npc->health <= Q12(0.0f)) continue;
 
-        q19_12 dx = (npc->position.vx + npc->field_D8.offsetX_0) - bulletPos->vx;
-        q19_12 dz = (npc->position.vz + npc->field_D8.offsetZ_2) - bulletPos->vz;
+        q19_12 dx = (npc->position.vx + npc->collision.shapeOffsets.box.vx) - bulletPos->vx;
+        q19_12 dz = (npc->position.vz + npc->collision.shapeOffsets.box.vz) - bulletPos->vz;
 
         q3_12 npcYaw  = (q3_12)ratan2(dx, dz);
         q3_12 yawDiff = Math_AngleNormalizeSigned(npcYaw - playerYaw);
@@ -59,9 +59,9 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
         if (nearestIdx >= 0)
         {
             s_SubCharacter* npc = &g_SysWork.npcs[nearestIdx];
-            q19_12 dx = (npc->position.vx + npc->field_D8.offsetX_0) - bulletPos->vx;
-            q19_12 dy = (npc->position.vy + npc->field_C8.field_6)   - bulletPos->vy;
-            q19_12 dz = (npc->position.vz + npc->field_D8.offsetZ_2) - bulletPos->vz;
+            q19_12 dx = (npc->position.vx + npc->collision.shapeOffsets.box.vx) - bulletPos->vx;
+            q19_12 dy = (npc->position.vy + npc->collision.box.offsetY)   - bulletPos->vy;
+            q19_12 dz = (npc->position.vz + npc->collision.shapeOffsets.box.vz) - bulletPos->vz;
             q19_12 horizDist = Math_Vector2MagCalc(dx, dz);
             *outVerticalAngle = (s32)ratan2(horizDist, dy);
         }
@@ -75,6 +75,6 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
            (int)arg3, (int)arg4, (int)mode, (int)nearestIdx,
            outVerticalAngle ? (int)*outVerticalAngle : -1,
            (int)g_SysWork.npcs[0].model.charaId,
-           (int)g_SysWork.npcs[0].field_E1_0,
+           (int)g_SysWork.npcs[0].collision.state,
            (int)g_SysWork.npcs[0].health);
 }
