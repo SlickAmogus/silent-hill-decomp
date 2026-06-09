@@ -726,6 +726,9 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
 {
     s32          step;
     s32          i;
+#ifdef SH_PC_PORT
+    s32          sharedCount;
+#endif
     s_Chunk*  curChunk;
     s_IpdHeader* ipdHdr0;
     s_IpdHeader* ipdHdr1;
@@ -745,8 +748,24 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
     step    = (map->chunkBufferSize / arg1) & ~0x3;
 
 #ifdef SH_PC_PORT
-    /* On PC, initialize ALL 64 slots. First `arg1` slots get shared buffer,
-       extra slots get individually malloc'd buffers for debug mode. */
+    /* Slice the shared chunk buffer by the map's ORIGINAL active-chunk count,
+       not the widescreen-bumped arg1. Ipd_PlayerChunkInit raises activeIpdCount
+       to 4 so 4 chunks stay resident for the wider Hor+ view, but slicing the
+       fixed 0x2C000 buffer into 4 yields 45KB slots. Interior chunks are
+       authored for the map's original count (1 or 2 -> 180KB/90KB slots); a
+       90KB interior chunk read into a 45KB slot overruns into the next slot and
+       corrupts the adjacent chunk's header -> the invalid-magic reload thrash
+       and exploded interior geometry. Residency-only slots past the original
+       count get their own fixed 90KB buffers, big enough for any multi-slot
+       chunk and a constant size so cross-map slot reuse never under-allocates. */
+    {
+        u32 mf = (g_WorldGfxWork.mapInfo != NULL) ? g_WorldGfxWork.mapInfo->flags : 0;
+        if (mf & MapFlag_OneActiveChunk)       sharedCount = 1;
+        else if (mf & MapFlag_TwoActiveChunks) sharedCount = 2;
+        else                                   sharedCount = 4;
+        step = (map->chunkBufferSize / sharedCount) & ~0x3;
+    }
+
     for (i = 0; i < PC_MAX_IPD_CHUNKS; i++)
     {
         curChunk = &map->activeChunks[i];
@@ -764,17 +783,21 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
         curChunk->paddedDistanceToEdge1    = INT_MAX;
         curChunk->outsideCount = 0;
 
-        if (i < arg1)
+        if (i < sharedCount)
         {
             curChunk->ipdHdr = ipdHdr0;
             *(u8**)&ipdHdr0 += step;
         }
         else if (i < PC_MAX_IPD_CHUNKS)
         {
-            /* Allocate individual buffers for extra debug slots */
+            /* Residency/preload slots get their own buffer. Fixed at half the
+               chunk buffer (90KB) — covers the largest chunk that can land in a
+               non-shared slot, and a constant size so a slot reused across maps
+               of different original counts is never left under-allocated. */
+            s32 indivSize = (map->chunkBufferSize / 2) & ~0x3;
             if (curChunk->ipdHdr == NULL)
             {
-                curChunk->ipdHdr = (s_IpdHeader*)calloc(1, step > 0 ? step : 65536);
+                curChunk->ipdHdr = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
             }
         }
     }
