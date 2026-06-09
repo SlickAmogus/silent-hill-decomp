@@ -3,9 +3,6 @@
 #include "bodyprog/player.h"
 #include "maps/shared.h"
 #include "maps/characters/cheryl.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 /** AI code for `Chara_Cheryl`
  *
@@ -106,24 +103,6 @@ void Cheryl_MovementUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x8
         cheryl->position.vy = sharedData_800E39BC_0_s00.surface.groundHeight;
         cheryl->fallSpeed   = Q12(0.0f);
     }
-
-#ifdef SH_PC_PORT
-    /* TEMP diagnostic: catches the exact frame Cheryl's forward movement drops
-     * to zero at the alley1 fence. offset.vx/vz are the raw per-frame deltas
-     * actually applied to her position; moveSpeed is what MovementUpdate read;
-     * controlState tells whether ControlUpdate zeroed her speed (idle/turn). */
-    {
-        static int _cmv = 0;
-        if ((_cmv++ & 3) == 0) {
-            SH_DBG("[CHMOVE] pos=(%d,%d) moveSpd=%d offX=%d offZ=%d ctrl=%d head=%d d124=%d",
-                   (int)(cheryl->position.vx >> 12), (int)(cheryl->position.vz >> 12),
-                   (int)cheryl->moveSpeed, (int)offset.vx, (int)offset.vz,
-                   (int)cheryl->properties.npc.controlState,
-                   (int)cheryl->headingAngle,
-                   (int)cheryl->properties.npc.moveDistance_124);
-        }
-    }
-#endif
 
     coords->coord.t[0] = Q12_TO_Q8(cheryl->position.vx);
     coords->coord.t[1] = Q12_TO_Q8(cheryl->position.vy);
