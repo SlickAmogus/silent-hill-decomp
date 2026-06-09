@@ -668,6 +668,14 @@ void SysState_MapScreen_Update(void) // 0x800396D4
 {
     if (!HAS_MAP(g_SavegamePtr->paperMapIdx))
     {
+#ifdef SH_PC_PORT
+        /* Freeze the world while the "I don't have a map" message is up.
+         * MainLoop clears bgmStatusFlags every frame, and the world-object /
+         * collision-trigger updates (~lines 204/214) gate on BgmStatusFlag_Pause;
+         * without re-setting it each tick the player can walk into and fire
+         * triggers behind the message. Mirrors the SysState_GamePaused fix. */
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+#endif
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map ||
             Gfx_MapMsg_Draw(MapMsgIdx_NoMap) > MapMsgState_Idle)
         {
@@ -678,6 +686,9 @@ void SysState_MapScreen_Update(void) // 0x800396D4
              ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
               (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0))))
     {
+#ifdef SH_PC_PORT
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+#endif
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map ||
             Gfx_MapMsg_Draw(MapMsgIdx_TooDarkForMap) > MapMsgState_Idle)
         {
