@@ -163,7 +163,9 @@ int main(int argc, char* argv[])
     /* Apply widescreen mode to PsyCross. */
     {
         extern int g_PcWidescreenMode;
+        extern int g_PcMenuPillarbox;
         g_PcWidescreenMode = g_PcConfig.widescreenMode;
+        g_PcMenuPillarbox  = g_PcConfig.menuPillarbox;
     }
 
     /* Console modes:
