@@ -33,8 +33,6 @@ public class ControlsForm : Form
         new[] { "Sidestep Right",   "key_r1" },
         new[] { "View",             "key_l2" },
         new[] { "Aim",              "key_r2" },
-        new[] { "Stick Click (L3)", "key_l3" },
-        new[] { "Stick Click (R3)", "key_r3" },
         new[] { "Pause",            "key_start" },
         new[] { "Select",           "key_select" },
     };
@@ -49,8 +47,6 @@ public class ControlsForm : Form
         new[] { "Sidestep Right",   "pad_r1" },
         new[] { "View",             "pad_l2" },
         new[] { "Aim",              "pad_r2" },
-        new[] { "Stick Click (L3)", "pad_l3" },
-        new[] { "Stick Click (R3)", "pad_r3" },
         new[] { "Pause",            "pad_start" },
         new[] { "Select",           "pad_select" },
     };
