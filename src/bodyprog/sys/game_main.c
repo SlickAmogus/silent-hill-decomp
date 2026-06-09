@@ -400,21 +400,21 @@ void DebugCamera_Update(void)
         prevKey5 = cur5;
     }
 
-    /* Number key 6: log Harry's current world position (works in any cam
-     * mode, not just TPS). Useful for capturing fall-through-floor or
-     * stuck-collision spots so we can build a fix from real coordinates. */
+    /* Number key 6: spawn a Grey Child ~2.5 units in front of Harry, facing
+     * him (debug enemy spawn). Only works in maps where the Grey Child model
+     * is loaded (it's the map0_s00 enemy roster); elsewhere Chara_Spawn has
+     * no model to attach. spawnFlags=0 lets Chara_Spawn pick a free NPC slot. */
     {
         static int prevKey6 = 0;
         int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
         if (cur6 && !prevKey6) {
-            VECTOR3* p = &g_SysWork.playerWork.player.position;
-            SH_DBG_ECHO("[POS-LOG] Key 6: mapId=%d harryPos=(%ld,%ld,%ld) yaw=%d",
-                (int)g_SavegamePtr->mapIdx,
-                (long)p->vx, (long)p->vy, (long)p->vz,
-                (int)g_SysWork.playerWork.player.rotation.vy);
-            SH_DBG("[POS-LOG] health=%ld fallSpeed=%ld",
-                (long)g_SysWork.playerWork.player.health,
-                (long)g_SysWork.playerWork.player.fallSpeed);
+            s_SubCharacter* hr  = &g_SysWork.playerWork.player;
+            q3_12           yaw = hr->rotation.vy;
+            q19_12          sx  = hr->position.vx + Q12_MULT_PRECISE(Q12(2.5f), Math_Sin(yaw));
+            q19_12          sz  = hr->position.vz + Q12_MULT_PRECISE(Q12(2.5f), Math_Cos(yaw));
+            s32             idx = Chara_Spawn(Chara_GreyChild, 0, sx, sz, yaw ^ Q12_ANGLE(180.0f), 5);
+            SH_DBG_ECHO("[DEBUG] Key 6: spawn Grey Child -> slot %d at (%ld,%ld)",
+                (int)idx, (long)sx, (long)sz);
         }
         prevKey6 = cur6;
     }
@@ -928,21 +928,6 @@ void DebugCamera_Update(void)
 
             Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
             vwSetViewInfo();
-
-            /* Key 6 (top row): snapshot TPS camera state for tuning */
-            {
-                static int s_tpLogPrev = 0;
-                int s_tpLogCur = g_sdlKeyboardState[SDL_SCANCODE_6];
-                if (s_tpLogCur && !s_tpLogPrev) {
-                    SH_DBG("[TPS-SNAP] harry  pos=(%d,%d,%d)  bodyYaw=%d  camYaw=%d camPitch=%d",
-                        tp_hr->position.vx, tp_hr->position.vy, tp_hr->position.vz,
-                        (int)tp_hr->rotation.vy, (int)g_TpsCamYaw, (int)g_TpsCamPitch);
-                    SH_DBG("[TPS-SNAP] camPos=(%d,%d,%d)  lookAt=(%d,%d,%d)",
-                        tpCamPos.vx, tpCamPos.vy, tpCamPos.vz,
-                        tpLookAt.vx, tpLookAt.vy, tpLookAt.vz);
-                }
-                s_tpLogPrev = s_tpLogCur;
-            }
 
             #undef TP_DIST
             #undef TP_HEIGHT
