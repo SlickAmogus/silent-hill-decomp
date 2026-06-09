@@ -43,6 +43,13 @@ void Cat_Update(s_SubCharacter* cat, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoo
     Math_MatrixTransform(&cat->position, &cat->rotation, boneCoords);
 
     animInfo = &CAT_ANIM_INFOS[cat->model.anim.status];
+#ifdef SH_PC_PORT
+    /* Guard NULL playbackFunc -- some CAT_ANIM_INFOS entries have unmerged PSX
+     * function pointers on PC (same as CHERYL_ANIM_INFOS, cheryl.c). The merge
+     * added the cat AI without this guard, so calling through a NULL pointer
+     * crashed the cat at the school (map1_s01). */
+    if (animInfo->playbackFunc != NULL)
+#endif
     animInfo->playbackFunc(&cat->model, anmHdr, boneCoords, animInfo);
 
     cond = false;
