@@ -125,6 +125,7 @@ partial class Form1
             this.loosePanel = new System.Windows.Forms.Panel();
             this.looseYes = new System.Windows.Forms.RadioButton();
             this.looseNo = new System.Windows.Forms.RadioButton();
+            this.btnControls = new System.Windows.Forms.Button();
             this.fullscreenPanel.SuspendLayout();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
@@ -271,24 +272,24 @@ partial class Form1
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMap.Location = new System.Drawing.Point(9, 344);
             this.comboMap.Name = "comboMap";
-            this.comboMap.Size = new System.Drawing.Size(200, 21);
+            this.comboMap.Size = new System.Drawing.Size(191, 21);
             this.comboMap.TabIndex = 11;
             this.comboMap.SelectedIndexChanged += new System.EventHandler(this.comboMap_SelectedIndexChanged);
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(269, 364);
+            this.btnPlay.Location = new System.Drawing.Point(315, 342);
             this.btnPlay.Name = "btnPlay";
-            this.btnPlay.Size = new System.Drawing.Size(116, 23);
+            this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
             this.btnPlay.Text = "Play";
             this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
             // 
             // btnUpdate
             // 
-            this.btnUpdate.Location = new System.Drawing.Point(270, 314);
+            this.btnUpdate.Location = new System.Drawing.Point(206, 313);
             this.btnUpdate.Name = "btnUpdate";
-            this.btnUpdate.Size = new System.Drawing.Size(112, 23);
+            this.btnUpdate.Size = new System.Drawing.Size(104, 23);
             this.btnUpdate.TabIndex = 13;
             this.btnUpdate.Text = "Check for Updates";
             this.btnUpdate.UseVisualStyleBackColor = true;
@@ -296,11 +297,11 @@ partial class Form1
             // 
             // btnChangelog
             // 
-            this.btnChangelog.Location = new System.Drawing.Point(270, 339);
+            this.btnChangelog.Location = new System.Drawing.Point(206, 342);
             this.btnChangelog.Name = "btnChangelog";
-            this.btnChangelog.Size = new System.Drawing.Size(112, 23);
+            this.btnChangelog.Size = new System.Drawing.Size(104, 23);
             this.btnChangelog.TabIndex = 16;
-            this.btnChangelog.Text = "View Changelog";
+            this.btnChangelog.Text = "Changelog";
             this.btnChangelog.UseVisualStyleBackColor = true;
             this.btnChangelog.Click += new System.EventHandler(this.btnChangelog_Click);
             // 
@@ -313,9 +314,9 @@ partial class Form1
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(3, 373);
+            this.progUpdate.Location = new System.Drawing.Point(30, 370);
             this.progUpdate.Name = "progUpdate";
-            this.progUpdate.Size = new System.Drawing.Size(228, 16);
+            this.progUpdate.Size = new System.Drawing.Size(356, 16);
             this.progUpdate.TabIndex = 15;
             this.progUpdate.Visible = false;
             this.progUpdate.Click += new System.EventHandler(this.progUpdate_Click);
@@ -345,7 +346,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(401, 111);
+            this.banner.Size = new System.Drawing.Size(415, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -591,9 +592,20 @@ partial class Form1
             this.looseNo.TabIndex = 44;
             this.looseNo.Text = "No";
             // 
+            // btnControls
+            // 
+            this.btnControls.Location = new System.Drawing.Point(315, 313);
+            this.btnControls.Name = "btnControls";
+            this.btnControls.Size = new System.Drawing.Size(97, 23);
+            this.btnControls.TabIndex = 50;
+            this.btnControls.Text = "Controls";
+            this.btnControls.UseVisualStyleBackColor = true;
+            this.btnControls.Click += new System.EventHandler(this.button1_Click);
+            // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(401, 392);
+            this.ClientSize = new System.Drawing.Size(415, 392);
+            this.Controls.Add(this.btnControls);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -646,4 +658,5 @@ partial class Form1
     }
 
     private Label chunksLabel;
+    private Button btnControls;
 }
