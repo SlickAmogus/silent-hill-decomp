@@ -664,14 +664,17 @@ void DbgOverlay_Update(void)
     int cur_a, cur_b, cur_tilde;
     char line[LINE_LEN];
 
+    extern int g_PcAllowDebugControls;
+
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
 
     /* `~` toggles the in-game console's visibility, preserving the external
      * bit (bit 0): off<->ingame (0<->2), external<->ingame+external (1<->3).
-     * Handled before the showConsole<2 gate so it works while hidden. */
+     * Handled before the showConsole<2 gate so it works while hidden.
+     * Debug control — only when allow_debug_controls is set. */
     cur_tilde = ks[SDL_SCANCODE_GRAVE];
-    if (cur_tilde && !s_prev_tilde)
+    if (cur_tilde && !s_prev_tilde && g_PcAllowDebugControls)
         g_PcConfig.showConsole ^= 2;
     s_prev_tilde = cur_tilde;
 
@@ -693,7 +696,7 @@ void DbgOverlay_Update(void)
      * scrolling console's visibility. */
     {
         int cur_apos = ks[SDL_SCANCODE_APOSTROPHE];
-        if (cur_apos && !s_prev_apos) {
+        if (cur_apos && !s_prev_apos && g_PcAllowDebugControls) {
             s_coll_on = !s_coll_on;
             g_CollVisEnabled = s_coll_on;
             SH_DBG_ECHO("[DEBUG] ' Collision visualizer: %s", s_coll_on ? "ON" : "OFF");
