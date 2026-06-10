@@ -5,9 +5,6 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/puppet_nurse.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 // TODO:
 // - Make this separate split in each map that uses it, instead of `#include`
@@ -322,27 +319,6 @@ void PuppetNurse_Update(s_SubCharacter* nurse, s_AnmHeader* anmHdr, GsCOORDINATE
     {
         PuppetNurse_Init(nurse, false);
     }
-
-#ifdef SH_PC_PORT
-    /* Frozen-nurse diagnosis: one line per state/anim change so a log of an
-     * encounter names the stuck controlState directly. */
-    {
-        static s32 s_prevCs = -1, s_prevSs = -1, s_prevSt = -1, s_prevKfQ = -1;
-        s32 kfq = nurse->model.anim.keyframeIdx >> 4;
-        if ((s32)nurse->model.controlState != s_prevCs || (s32)nurse->model.stateStep != s_prevSs ||
-            (s32)nurse->model.anim.status != s_prevSt || kfq != s_prevKfQ)
-        {
-            s_prevCs = nurse->model.controlState;
-            s_prevSs = nurse->model.stateStep;
-            s_prevSt = nurse->model.anim.status;
-            s_prevKfQ = kfq;
-            SH_DBG("[NURSE] cs=%d ss=%d anim=%d kf=%d hp=%d flags=0x%X dist104=%d",
-                   s_prevCs, s_prevSs, s_prevSt, (int)nurse->model.anim.keyframeIdx,
-                   (int)nurse->health, (int)nurse->properties.puppetNurse.flags_122,
-                   (int)nurse->properties.puppetNurse.field_104);
-        }
-    }
-#endif
 
     PuppetNurse_UpdateMain(nurse, anmHdr, boneCoords);
 }
