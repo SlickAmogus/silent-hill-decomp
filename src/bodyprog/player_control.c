@@ -5660,6 +5660,35 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
     speedZ         = SQUARE(player->position.vz - g_Player_PrevPosition.vz);
     travelDistStep = SquareRoot0(speedX + speedZ);
 
+#ifdef SH_PC_PORT
+    /* movement_original diagnosis: walk/sidestep animate but don't translate.
+     * Log the state machine's inputs/outputs whenever something changes —
+     * lowerBodyState, the func_8007D6F0 probe (wall-block look-ahead that
+     * gates run/walk branches), runDistance (quantised), stop flags, and the
+     * input flags. One line per change, silent when idle. */
+    if (g_PcConfig.movementOriginal)
+    {
+        static s32 s_prevLbs = -1, s_prevProbe = -1, s_prevRd = -1, s_prevFlags = -1, s_prevIn = -1;
+        s32 rdq = playerProps.runDistance >> 8;
+        s32 in  = (g_Player_IsMovingForward ? 1 : 0) | (g_Player_IsMovingBackward ? 2 : 0) |
+                  (g_Player_IsSteppingLeftHold ? 4 : 0) | (g_Player_IsSteppingRightHold ? 8 : 0) |
+                  (g_Player_IsRunning ? 16 : 0);
+        if ((s32)g_SysWork.playerWork.extra.lowerBodyState != s_prevLbs || (s32)temp_s3 != s_prevProbe ||
+            rdq != s_prevRd || (s32)g_SysWork.playerStopFlags != s_prevFlags || in != s_prevIn)
+        {
+            s_prevLbs   = g_SysWork.playerWork.extra.lowerBodyState;
+            s_prevProbe = temp_s3;
+            s_prevRd    = rdq;
+            s_prevFlags = g_SysWork.playerStopFlags;
+            s_prevIn    = in;
+            SH_DBG("[MOVE-ORIG] lbs=%d probe=%d runDist=%d stopFlags=%d in=0x%02x kf=%d D_800AF216=%d heading=%d",
+                   s_prevLbs, s_prevProbe, (int)playerProps.runDistance, s_prevFlags, in,
+                   (int)player->model.anim.keyframeIdx, (int)D_800AF216,
+                   (int)g_Player_HeadingAngle);
+        }
+    }
+#endif
+
     switch (g_SysWork.playerWork.extra.lowerBodyState)
     {
         case PlayerLowerBodyState_None:
