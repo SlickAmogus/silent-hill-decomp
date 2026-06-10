@@ -1,5 +1,20 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.5 -- 2026-06-10
+- (no commits since last release)
+
+## v2026.06.10.4 -- 2026-06-10
+- Fix NPC anim-completion poll: NULL animInfo crash + exact-kf freeze
+- Binary-extract the 12 remaining enemy/NPC anim tables + re-extract cat
+- Fix stuck-aim on empty clip: auto-reload entry never initialised
+- logging: [NURSE] state trace for the frozen-nurse diagnosis
+- Fix frozen nurses: binary-extract the 8 stubbed puppet-nurse data tables
+- Stub sweep: extract all ROM-constant zero-stubs from map binaries
+- Fix g_MainImg0 zero stub: real s_FsImageDesc from main.c
+- Gate auto-extraction on 64-bit-safe types; fixes map3_s03 nurse crash
+- Pad auto-extracted arrays to exe stub capacity; fixes hospital-entry crash
+- Remove [NURSE] diagnostic trace; nurse behavior verified in-game
+
 ## v2026.06.10.3 -- 2026-06-10
 - Fix flashlight lighting seams + restore chest lens flare
 - Flare occlusion on PC: facing test instead of framebuffer readback
