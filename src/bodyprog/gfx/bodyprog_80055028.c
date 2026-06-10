@@ -127,17 +127,15 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 
-#ifdef SH_PC_PORT
-    /* Skip water zone rendering on PC — func_8008D470 uses GTE screen-space
-     * transforms and packet buffer manipulation that crashes on non-map0_s00.
-     * TODO: port water zone rendering properly */
-    (void)0;
-#else
+    /* Flashlight lens flare (Harry's chest glare) + water reflections.
+     * Previously skipped on PC as "water zone rendering" that crashed —
+     * the crash was the DR_MOVE occlusion seeding in func_8008D5A0
+     * (hardcoded PSX packet offsets); that part is now PC-skipped inside
+     * func_8008D470 and the occlusion readback short-circuits to visible. */
     if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0)
     {
         func_8008D470(g_WorldEnvWork.field_50, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60, g_WorldEnvWork.waterZones);
     }
-#endif
 
     if (g_WorldEnvWork.screenBrightness > 0)
     {

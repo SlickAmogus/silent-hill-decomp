@@ -36,7 +36,9 @@
 #define gte_SetLightSVector(p) do { \
     SVECTOR *_sv = (SVECTOR*)(p); \
     unsigned int _xy = *(unsigned int*)&_sv->vx; \
-    unsigned int _z = (unsigned int)_sv->vz; \
+    /* MIPS original uses lhu: vz is ZERO-extended so L21 stays 0 even for
+     * negative vz (sign-extending put -1 into L21). */ \
+    unsigned int _z = (unsigned int)(unsigned short)_sv->vz; \
     CTC2(_xy, 8); \
     CTC2(_z, 9); \
     CTC2(0, 10); \
@@ -122,14 +124,24 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
     _xy[2] = MFC2(14); \
 } while(0)
 
-/* gte_SetRotMatrix_custom - Custom rotation matrix load */
+/* gte_SetRotMatrix_custom - TRANSPOSED rotation matrix load (rotates
+ * world-space vectors INTO model space; used by the point-light setup
+ * func_80057228). Mirrors the MIPS original in include/gpu.h exactly:
+ *   CR0 = T12<<16|T11 = m[3]<<16|m[0]
+ *   CR1 = T21<<16|T13 = m[1]<<16|m[6]
+ *   CR2 = T23<<16|T22 = m[7]<<16|m[4]
+ *   CR3 = T32<<16|T31 = m[5]<<16|m[2]
+ *   CR4 = T33        = m[8]
+ * The previous PC version wrote CR1 three times and never wrote CR2/CR3,
+ * leaving half the light rotation stale from the previous draw — the
+ * flashlight per-mesh seams / wrong-angle / dark-neighbor artifacts. */
 #undef gte_SetRotMatrix_custom
 #define gte_SetRotMatrix_custom(mat) do { \
     short *_m = (short*)(mat); \
     CTC2(((unsigned int)(unsigned short)_m[3] << 16) | (unsigned short)_m[0], 0); \
-    CTC2(((unsigned int)(unsigned short)_m[7] << 16) | (unsigned short)_m[6], 1); \
-    CTC2(((unsigned int)(unsigned short)_m[5] << 16) | (unsigned short)_m[2], 1); \
     CTC2(((unsigned int)(unsigned short)_m[1] << 16) | (unsigned short)_m[6], 1); \
+    CTC2(((unsigned int)(unsigned short)_m[7] << 16) | (unsigned short)_m[4], 2); \
+    CTC2(((unsigned int)(unsigned short)_m[5] << 16) | (unsigned short)_m[2], 3); \
     CTC2((unsigned int)(unsigned short)_m[8], 4); \
 } while(0)
 
