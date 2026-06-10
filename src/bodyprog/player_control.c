@@ -261,24 +261,24 @@ void func_80070B84(s_SubCharacter* player, q19_12 moveDistMax, q19_12 arg2, s32 
     // @hack Wrapping in loop required for match.
     do
     {
-        if (moveDistMax < playerProps.runDistance)
+        if (moveDistMax < playerProps.moveSpeed)
         {
-            unkMoveDist                  = playerProps.runDistance - ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
-            playerProps.runDistance = unkMoveDist;
+            unkMoveDist                  = playerProps.moveSpeed - ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
+            playerProps.moveSpeed = unkMoveDist;
             if (unkMoveDist < moveDistMax)
             {
-                playerProps.runDistance = moveDistMax;
+                playerProps.moveSpeed = moveDistMax;
             }
         }
-        else if (playerProps.runDistance < moveDistMax)
+        else if (playerProps.moveSpeed < moveDistMax)
         {
-            moveDist = &playerProps.runDistance;
+            moveDist = &playerProps.moveSpeed;
             if (player->model.anim.keyframeIdx >= keyframeIdx)
             {
-                playerProps.runDistance = *moveDist + TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                playerProps.moveSpeed = *moveDist + TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
             }
 
-            playerProps.runDistance = CLAMP(*moveDist, Q12(0.0f), moveDistMax);
+            playerProps.moveSpeed = CLAMP(*moveDist, Q12(0.0f), moveDistMax);
         }
     }
     while (false); // @hack Required for match.
@@ -300,21 +300,21 @@ void func_80070CF0(s_SubCharacter* player, q19_12 arg1, q19_12 moveDistMax, q19_
     }
     while (false); // @hack Required for match.
 
-    if (moveDistMax < playerProps.runDistance)
+    if (moveDistMax < playerProps.moveSpeed)
     {
-        playerProps.runDistance -= modeDistBack;
-        if (playerProps.runDistance < moveDistMax)
+        playerProps.moveSpeed -= modeDistBack;
+        if (playerProps.moveSpeed < moveDistMax)
         {
-            playerProps.runDistance = moveDistMax;
+            playerProps.moveSpeed = moveDistMax;
         }
     }
     else
     {
-        moveDist = &playerProps.runDistance;
-        if (playerProps.runDistance < moveDistMax)
+        moveDist = &playerProps.moveSpeed;
+        if (playerProps.moveSpeed < moveDistMax)
         {
-            playerProps.runDistance += moveDistForward;
-            playerProps.runDistance  = CLAMP(*moveDist, Q12(0.0f), moveDistMax);
+            playerProps.moveSpeed += moveDistForward;
+            playerProps.moveSpeed  = CLAMP(*moveDist, Q12(0.0f), moveDistMax);
         }
     }
 }
@@ -1171,7 +1171,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
     switch (playerExtra.state)
     {
         case PlayerState_Idle:
-            playerProps.runDistance = Q12(0.0f);
+            playerProps.moveSpeed = Q12(0.0f);
             func_8005545C(&playerAngles);
             playerProps.quickTurnHeadingAngle = playerAngles.vy;
 
@@ -1735,20 +1735,20 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         case PlayerState_Unk7:
             func_8007FB94(player, extra, ANIM_STATUS(100, false));
 
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
 
-                if (playerProps.runDistance < Q12(0.0f))
+                if (playerProps.moveSpeed < Q12(0.0f))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             if (!(player->attackReceived >= 68 && player->attackReceived < 70))
             {
                 g_Player_HeadingAngle                                                  = ratan2(player->damage.position.vx, player->damage.position.vz) - player->rotation.vy;
-                playerProps.runDistance = SQUARE(player->damage.position.vx) + SQUARE(player->damage.position.vz) + SQUARE(player->damage.position.vy);
+                playerProps.moveSpeed = SQUARE(player->damage.position.vx) + SQUARE(player->damage.position.vz) + SQUARE(player->damage.position.vy);
             }
 
             if (extra->model.anim.keyframeIdx == g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
@@ -1760,10 +1760,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
                 Player_ExtraStateSet(player, extra, PlayerState_None);
 
-                playerProps.runDistance = Q12(0.0f);
+                playerProps.moveSpeed = Q12(0.0f);
             }
 
-            D_800C4550               = playerProps.runDistance;
+            D_800C4550               = playerProps.moveSpeed;
             player->flags         |= CharaFlag_Unk4;
             player->attackReceived = NO_VALUE;
             break;
@@ -1793,17 +1793,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 player->properties.player.afkTimer = Q12(10.0f);
             }
 
-            if (playerProps.runDistance != 0)
+            if (playerProps.moveSpeed != 0)
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f)) >> 3;
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f)) >> 3;
 
-                if ((playerProps.runDistance) < 0)
+                if ((playerProps.moveSpeed) < 0)
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
-            D_800C4550 = playerProps.runDistance;
+            D_800C4550 = playerProps.moveSpeed;
             break;
 
         case PlayerState_EnemyGrabPinnedFrontStart:
@@ -1828,7 +1828,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     break;
             }
 
-            playerProps.runDistance = Q12(0.0f);
+            playerProps.moveSpeed = Q12(0.0f);
             func_8007FB94(player, extra, animStatus);
             player->collision.cylinder.radius = Q12(0.25f);
             player->collision.cylinder.field_2 = Q12(0.0f);
@@ -1944,7 +1944,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             grabFreeInputCount                              = 0;
             enemyGrabReleaseState                                          = PlayerState_None;
             unkDistThreshold                                               = Q12(0.0f);
-            playerProps.runDistance = Q12(0.0f);
+            playerProps.moveSpeed = Q12(0.0f);
             npcDist                                                        = Q12(0.0f);
 
             // Accommodates player position (for pinned enemy gram and Romper attack) and establishes required input count to get free.
@@ -2343,22 +2343,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         case PlayerState_GetUpBack:
             if (playerExtra.state != PlayerState_FallBackward)
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) >> 1; // `/ 2`.
-                    if ((playerProps.runDistance >> 16) & 1)
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) >> 1; // `/ 2`.
+                    if ((playerProps.moveSpeed >> 16) & 1)
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
-            else if (playerProps.runDistance != Q12(0.0f))
+            else if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) >> 2; // `/ 4`.
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)) >> 2; // `/ 4`.
 
-                if ((playerProps.runDistance >> 16) & 1)
+                if ((playerProps.moveSpeed >> 16) & 1)
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -2422,7 +2422,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 func_8007FB94(player, extra, animStatus);
             }
 
-            D_800C4550 = playerProps.runDistance;
+            D_800C4550 = playerProps.moveSpeed;
             player->flags |= CharaFlag_Unk4;
 
             switch (playerExtra.state)
@@ -2882,20 +2882,20 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     break;
             }
 
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f)) >> 2;
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f)) >> 2;
 
-                if ((playerProps.runDistance >> 16) & 0x1)
+                if ((playerProps.moveSpeed >> 16) & 0x1)
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             if (!(player->attackReceived >= 68 && player->attackReceived < 70)) // TODO: Demagic.
             {
                 g_Player_HeadingAngle                                                   = ratan2(player->damage.position.vx, player->damage.position.vz) - player->rotation.vy;
-                playerProps.runDistance = SQUARE(player->damage.position.vx) + SQUARE(player->damage.position.vz) + SQUARE(player->damage.position.vy);
+                playerProps.moveSpeed = SQUARE(player->damage.position.vx) + SQUARE(player->damage.position.vz) + SQUARE(player->damage.position.vy);
             }
 
             if (extra->model.anim.keyframeIdx == g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
@@ -2906,7 +2906,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
                 Player_ExtraStateSet(player, extra, PlayerState_None);
 
-                playerProps.runDistance = Q12(0.0f);
+                playerProps.moveSpeed = Q12(0.0f);
             }
 
 #ifdef SH_PC_PORT
@@ -2940,14 +2940,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     g_SysWork.targetNpcIdx = NO_VALUE;
                     playerProps.flags &= ~PlayerFlag_DamageReceived;
                     Player_ExtraStateSet(player, extra, PlayerState_None);
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                     s_dmgStateTime = 0;
                     s_dmgPrevState = -1;
                 }
             }
 #endif
 
-            D_800C4550       = playerProps.runDistance;
+            D_800C4550       = playerProps.moveSpeed;
             player->flags |= CharaFlag_Unk4;
             break;
 
@@ -5583,12 +5583,12 @@ void Player_StepWallStop_MovementCancel(s_SubCharacter* player, s32 animStatus0,
 {
     q3_12 headingAngleCpy;
 
-    if (playerProps.runDistance != Q12(0.0f))
+    if (playerProps.moveSpeed != Q12(0.0f))
     {
-        playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 1;
-        if ((playerProps.runDistance >> 16) & (1 << 0))
+        playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 1;
+        if ((playerProps.moveSpeed >> 16) & (1 << 0))
         {
-            playerProps.runDistance = Q12(0.0f);
+            playerProps.moveSpeed = Q12(0.0f);
         }
     }
 
@@ -5669,7 +5669,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
     if (g_PcConfig.movementOriginal)
     {
         static s32 s_prevLbs = -1, s_prevProbe = -1, s_prevRd = -1, s_prevFlags = -1, s_prevIn = -1;
-        s32 rdq = playerProps.runDistance >> 8;
+        s32 rdq = playerProps.moveSpeed >> 8;
         s32 in  = (g_Player_IsMovingForward ? 1 : 0) | (g_Player_IsMovingBackward ? 2 : 0) |
                   (g_Player_IsSteppingLeftHold ? 4 : 0) | (g_Player_IsSteppingRightHold ? 8 : 0) |
                   (g_Player_IsRunning ? 16 : 0);
@@ -5681,8 +5681,8 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             s_prevRd    = rdq;
             s_prevFlags = g_SysWork.playerStopFlags;
             s_prevIn    = in;
-            SH_DBG("[MOVE-ORIG] lbs=%d probe=%d runDist=%d stopFlags=%d in=0x%02x kf=%d D_800AF216=%d heading=%d",
-                   s_prevLbs, s_prevProbe, (int)playerProps.runDistance, s_prevFlags, in,
+            SH_DBG("[MOVE-ORIG] lbs=%d probe=%d moveSpeed=%d stopFlags=%d in=0x%02x kf=%d D_800AF216=%d heading=%d",
+                   s_prevLbs, s_prevProbe, (int)playerProps.moveSpeed, s_prevFlags, in,
                    (int)player->model.anim.keyframeIdx, (int)D_800AF216,
                    (int)g_Player_HeadingAngle);
         }
@@ -5726,21 +5726,21 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             // Check if player is aiming.
             if (aimState != 0)
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                    if ((playerProps.runDistance >> 16) & 1)
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    if ((playerProps.moveSpeed >> 16) & 1)
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
-            else if (playerProps.runDistance != Q12(0.0f))
+            else if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
-                if ((playerProps.runDistance >> 16) & 1)
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
+                if ((playerProps.moveSpeed >> 16) & 1)
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -5865,7 +5865,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) &&
                     ANIM_STATUS_IS_ACTIVE(extra->model.anim.status))
                 {
-                    if ((aimState == 0 && playerProps.runDistance == Q12(0.0f))||
+                    if ((aimState == 0 && playerProps.moveSpeed == Q12(0.0f))||
                         player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) ||
                         player->model.anim.keyframeIdx == D_800C44F0[0].field_6)
                     {
@@ -5959,18 +5959,18 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         switch (g_SysWork.playerCombat.weaponAttack)
                         {
                             case WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap):
-                                playerProps.runDistance = (u32)(D_800C454C * 0x465) >> 9;
+                                playerProps.moveSpeed = (u32)(D_800C454C * 0x465) >> 9;
                                 break;
 
                             case WEAPON_ATTACK(EquippedWeaponId_Chainsaw, AttackInputType_Tap):
                             case WEAPON_ATTACK(EquippedWeaponId_Katana,   AttackInputType_Tap):
                             case WEAPON_ATTACK(EquippedWeaponId_Axe,      AttackInputType_Tap):
-                                playerProps.runDistance = (u32)(D_800C454C * 0x15F9) >> 11;
+                                playerProps.moveSpeed = (u32)(D_800C454C * 0x15F9) >> 11;
                                 break;
 
                             case WEAPON_ATTACK(EquippedWeaponId_SteelPipe, AttackInputType_Tap):
                             case WEAPON_ATTACK(EquippedWeaponId_Hammer,    AttackInputType_Tap):
-                                playerProps.runDistance = ((u32)(D_800C454C * 0xD2F) >> 10);
+                                playerProps.moveSpeed = ((u32)(D_800C454C * 0xD2F) >> 10);
                                 break;
 
                             case WEAPON_ATTACK(EquippedWeaponId_RockDrill,    AttackInputType_Tap):
@@ -5978,13 +5978,13 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                             case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
                             case WEAPON_ATTACK(EquippedWeaponId_Shotgun,      AttackInputType_Tap):
                             case WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap):
-                                playerProps.runDistance = (-(D_800C454C * 0x87F0) >> 14);
+                                playerProps.moveSpeed = (-(D_800C454C * 0x87F0) >> 14);
                                 break;
                         }
 
                         if (g_DeltaTime != Q12(0.0f))
                         {
-                            playerProps.runDistance = ((playerProps.runDistance * 0x88) / g_DeltaTime);
+                            playerProps.moveSpeed = ((playerProps.moveSpeed * 0x88) / g_DeltaTime);
                         }
 
                         // Restart timer for idle animation.
@@ -6025,7 +6025,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 }
             }
 
-            if (playerProps.runDistance == Q12(0.0f) ||
+            if (playerProps.moveSpeed == Q12(0.0f) ||
                  g_Player_IsTurningLeft || g_Player_IsTurningRight)
             {
                 playerProps.headingAngle = Q12_ANGLE(0.0f);
@@ -6044,13 +6044,13 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 g_SysWork.playerWork.extra.lowerBodyState < PlayerLowerBodyState_Aim &&
                 g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_AimStop)
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
+                    playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
 
-                    if ((playerProps.runDistance >> 16) & (1 << 0))
+                    if ((playerProps.moveSpeed >> 16) & (1 << 0))
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
@@ -6070,29 +6070,22 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         func_80070B84(player, Q12(0.75f), Q12(1.4f), 2);
                     }
                     // Reduce speed if going too fast while walking.
-                    else if (playerProps.runDistance > Q12(1.4f))
+                    else if (playerProps.moveSpeed > Q12(1.4f))
                     {
-                        playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
-                        if (playerProps.runDistance < Q12(1.4f))
+                        playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
+                        if (playerProps.moveSpeed < Q12(1.4f))
                         {
-                            playerProps.runDistance = Q12(1.4f);
+                            playerProps.moveSpeed = Q12(1.4f);
                         }
                     }
-                    else if (playerProps.runDistance < Q12(1.4f))
+                    else if (playerProps.moveSpeed < Q12(1.4f))
                     {
                         if (player->model.anim.keyframeIdx >= 2)
                         {
-                            /* NOT dt-scaled: Player_PositionUpdate zeroes
-                             * runDistance every frame for non-Run upper-body
-                             * states, so this increment IS the walk speed the
-                             * integrator multiplies by dt. Scaling it by dt
-                             * double-applied the timestep — at high FPS the
-                             * per-frame value shrank toward 0 and Harry
-                             * walked in place (movement_original bug). */
-                            playerProps.runDistance += Q12(0.4f);
+                            playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                         }
 
-                        playerProps.runDistance = CLAMP(playerProps.runDistance,
+                        playerProps.moveSpeed = CLAMP(playerProps.moveSpeed,
                                                                                                         Q12(0.0f),
                                                                                                         Q12(1.4f));
                     }
@@ -6220,7 +6213,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
                 speedX = GET_MOVE_SPEED(speedZoneType);
 
-                if (playerProps.runDistance < Q12(3.5f))
+                if (playerProps.moveSpeed < Q12(3.5f))
                 {
                     var_a3 = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
                 }
@@ -6240,7 +6233,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     speedX = GET_MOVE_SPEED(speedZoneType);
 
-                    if (playerProps.runDistance < Q12(3.5f))
+                    if (playerProps.moveSpeed < Q12(3.5f))
                     {
                         var_a3 = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
                     }
@@ -6253,20 +6246,20 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
                     func_80070CF0(player, Q12(2.0f), speedX, var_a3, TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)));
                 }
-                else if (playerProps.runDistance > GET_MOVE_SPEED(speedZoneType))
+                else if (playerProps.moveSpeed > GET_MOVE_SPEED(speedZoneType))
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                    if (playerProps.runDistance < GET_MOVE_SPEED(speedZoneType))
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    if (playerProps.moveSpeed < GET_MOVE_SPEED(speedZoneType))
                     {
-                        playerProps.runDistance = GET_MOVE_SPEED(speedZoneType);
+                        playerProps.moveSpeed = GET_MOVE_SPEED(speedZoneType);
                     }
                 }
                 else
                 {
-                    if (playerProps.runDistance < GET_MOVE_SPEED(speedZoneType))
+                    if (playerProps.moveSpeed < GET_MOVE_SPEED(speedZoneType))
                     {
-                        playerProps.runDistance += GET_VAL(playerProps.runDistance);
-                        playerProps.runDistance  = CLAMP(playerProps.runDistance, 0, GET_MOVE_SPEED(speedZoneType));
+                        playerProps.moveSpeed += GET_VAL(playerProps.moveSpeed);
+                        playerProps.moveSpeed  = CLAMP(playerProps.moveSpeed, 0, GET_MOVE_SPEED(speedZoneType));
                     }
                 }
 
@@ -6360,7 +6353,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                             }
                             // Set stumble anim if crashed into a wall.
                             else if (player->properties.player.runStepSfxCount >= 5 &&
-                                     playerProps.runDistance >= Q12(3.125f))
+                                     playerProps.moveSpeed >= Q12(3.125f))
                             {
                                 if (player->model.anim.keyframeIdx >= 33 &&
                                     player->model.anim.keyframeIdx <= 34)
@@ -6419,12 +6412,12 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             break;
 
         case PlayerLowerBodyState_RunForwardWallStop:
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 1;
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 1;
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -6469,12 +6462,12 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 g_SysWork.playerWork.extra.lowerBodyState < PlayerLowerBodyState_Aim &&
                 g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_AimStop)
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
-                    if ((playerProps.runDistance >> 16) & (1 << 0))
+                    playerProps.moveSpeed -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
+                    if ((playerProps.moveSpeed >> 16) & (1 << 0))
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
@@ -6491,24 +6484,22 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     func_80070B84(player, Q12(0.75f), Q12(1.15f), 2);
                 }
-                else if (playerProps.runDistance > Q12(1.15f))
+                else if (playerProps.moveSpeed > Q12(1.15f))
                 {
-                    playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
-                    if (playerProps.runDistance < Q12(1.15f))
+                    playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2;
+                    if (playerProps.moveSpeed < Q12(1.15f))
                     {
-                        playerProps.runDistance = Q12(1.15f);
+                        playerProps.moveSpeed = Q12(1.15f);
                     }
                 }
-                else if (playerProps.runDistance < Q12(1.15f))
+                else if (playerProps.moveSpeed < Q12(1.15f))
                 {
                     if (player->model.anim.keyframeIdx >= 2)
                     {
-                        /* Per-frame walk-backward speed; see WalkForward note —
-                         * the integrator dt-scales, this must not. */
-                        playerProps.runDistance += Q12(0.4f);
+                        playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                     }
 
-                    playerProps.runDistance = CLAMP(playerProps.runDistance,
+                    playerProps.moveSpeed = CLAMP(playerProps.moveSpeed,
                                                                                                     Q12(0.0f),
                                                                                                     Q12(1.15f));
                 }
@@ -6618,30 +6609,27 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
         case PlayerLowerBodyState_SidestepRight:
         case PlayerLowerBodyState_AimSidestepRight:
-            if (playerProps.runDistance > Q12(1.25f))
+            if (playerProps.moveSpeed > Q12(1.25f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)));
-                if (playerProps.runDistance < Q12(1.25f))
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f)));
+                if (playerProps.moveSpeed < Q12(1.25f))
                 {
-                    playerProps.runDistance = Q12(1.25f);
+                    playerProps.moveSpeed = Q12(1.25f);
                 }
             }
             else
             {
-                /* Per-frame sidestep speed, keyframe-windowed to the stride;
-                 * see WalkForward note — the integrator dt-scales, these
-                 * increments must not. */
                 if (player->model.anim.keyframeIdx >= 100 &&
                     player->model.anim.keyframeIdx <= 111)
                 {
-                    playerProps.runDistance += Q12(0.4f);
+                    playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                 }
                 else if (player->model.anim.keyframeIdx >= 112)
                 {
-                    playerProps.runDistance -= Q12(0.4f);
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                 }
 
-                playerProps.runDistance = CLAMP(playerProps.runDistance,
+                playerProps.moveSpeed = CLAMP(playerProps.moveSpeed,
                                                                                                 Q12(0.0f),
                                                                                                 Q12(1.25f));
             }
@@ -6703,28 +6691,27 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
         case PlayerLowerBodyState_SidestepLeft:
         case PlayerLowerBodyState_AimSidestepLeft:
-            if (playerProps.runDistance > Q12(1.25f))
+            if (playerProps.moveSpeed > Q12(1.25f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                if (playerProps.runDistance < Q12(1.25f))
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                if (playerProps.moveSpeed < Q12(1.25f))
                 {
-                    playerProps.runDistance = Q12(1.25f);
+                    playerProps.moveSpeed = Q12(1.25f);
                 }
             }
             else
             {
-                /* Per-frame sidestep speed; see SidestepRight/WalkForward note. */
                 if (player->model.anim.keyframeIdx >= 75 &&
                     player->model.anim.keyframeIdx <= 86)
                 {
-                    playerProps.runDistance += Q12(0.4f);
+                    playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                 }
                 else if (player->model.anim.keyframeIdx >= 87)
                 {
-                    playerProps.runDistance -= Q12(0.4f);
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
                 }
 
-                playerProps.runDistance = CLAMP(playerProps.runDistance,
+                playerProps.moveSpeed = CLAMP(playerProps.moveSpeed,
                                                                                                 Q12(0.0f),
                                                                                                 Q12(1.25f));
             }
@@ -6785,18 +6772,18 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
         case PlayerLowerBodyState_RunRight:
             player->properties.player.exhaustionTimer += g_DeltaTime;
-            if (playerProps.runDistance > Q12(3.1739f))
+            if (playerProps.moveSpeed > Q12(3.1739f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                if (playerProps.runDistance < Q12(3.1739f))
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                if (playerProps.moveSpeed < Q12(3.1739f))
                 {
-                    playerProps.runDistance = Q12(3.1739f);
+                    playerProps.moveSpeed = Q12(3.1739f);
                 }
             }
-            else if (playerProps.runDistance < Q12(3.1739f))
+            else if (playerProps.moveSpeed < Q12(3.1739f))
             {
-                playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
-                playerProps.runDistance  = CLAMP(playerProps.runDistance,
+                playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
+                playerProps.moveSpeed  = CLAMP(playerProps.moveSpeed,
                                                                                                  Q12(0.0f),
                                                                                                  Q12(3.1739f));
             }
@@ -6850,7 +6837,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
                     default:
                         if (player->properties.player.runStepSfxCount >= 5 &&
-                            playerProps.runDistance >= Q12(3.125f))
+                            playerProps.moveSpeed >= Q12(3.125f))
                         {
                             if (player->model.anim.keyframeIdx >= 144 && (!g_Player_IsRunning || !g_Player_IsSteppingRightHold))
                             {
@@ -6876,18 +6863,18 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
         case PlayerLowerBodyState_RunLeft:
             player->properties.player.exhaustionTimer += g_DeltaTime;
-            if (playerProps.runDistance > Q12(3.1739f))
+            if (playerProps.moveSpeed > Q12(3.1739f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                if (playerProps.runDistance < Q12(3.1739f))
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                if (playerProps.moveSpeed < Q12(3.1739f))
                 {
-                    playerProps.runDistance = Q12(3.1739f);
+                    playerProps.moveSpeed = Q12(3.1739f);
                 }
             }
-            else if (playerProps.runDistance < Q12(3.1739f))
+            else if (playerProps.moveSpeed < Q12(3.1739f))
             {
-                playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
-                playerProps.runDistance  = CLAMP(playerProps.runDistance,
+                playerProps.moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.75f));
+                playerProps.moveSpeed  = CLAMP(playerProps.moveSpeed,
                                                                                                  Q12(0.0f),
                                                                                                  Q12(3.1739f));
             }
@@ -6940,7 +6927,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
                     default:
                         if (player->properties.player.runStepSfxCount >= 5 &&
-                            playerProps.runDistance >= Q12(3.125f))
+                            playerProps.moveSpeed >= Q12(3.125f))
                         {
                             if (player->model.anim.keyframeIdx > 128 && (!g_Player_IsRunning || !g_Player_IsSteppingLeftHold))
                             {
@@ -6967,12 +6954,12 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
         case PlayerLowerBodyState_AimQuickTurnRight:
             g_Player_HeadingAngle = Q12_ANGLE(0.0f);
 
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -7006,7 +6993,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 if (ABS_DIFF(playerProps.quickTurnHeadingAngle, player->rotation.vy) < (((g_DeltaTime * 24) >> 4) + Q12_ANGLE(180.0f)))
                 {
                     player->rotation.vy                                                   = playerProps.quickTurnHeadingAngle + Q12_ANGLE(180.0f);
-                    playerProps.runDistance = Q12(1.4f);
+                    playerProps.moveSpeed = Q12(1.4f);
                     D_800C454C                                                              = Q12(0.0f);
 
                     // State change.
@@ -7090,12 +7077,12 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
         case PlayerLowerBodyState_AimQuickTurnLeft:
             g_Player_HeadingAngle = Q12_ANGLE(0.0f);
 
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.5f));
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -7129,7 +7116,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 if (ABS_DIFF(playerProps.quickTurnHeadingAngle, player->rotation.vy) < (((g_DeltaTime * 24) >> 4) + Q12_ANGLE(180.0f)))
                 {
                     player->rotation.vy                                                   = playerProps.quickTurnHeadingAngle + Q12_ANGLE(180.0f);
-                    playerProps.runDistance = Q12(1.4f);
+                    playerProps.moveSpeed = Q12(1.4f);
                     D_800C454C                                                              = Q12(0.0f);
 
                     // State change.
@@ -7227,21 +7214,21 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 }
 
                 player->model.controlState++;
-                playerProps.runDistance = Q12(2.25f);
+                playerProps.moveSpeed = Q12(2.25f);
                 D_800C4550                                                              = Q12(2.25f);
             }
             else
             {
-                if (playerProps.runDistance != 0)
+                if (playerProps.moveSpeed != 0)
                 {
-                    playerProps.runDistance -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
-                    if ((playerProps.runDistance >> 16) & (1 << 0))
+                    playerProps.moveSpeed -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2);
+                    if ((playerProps.moveSpeed >> 16) & (1 << 0))
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
 
-                D_800C4550 = playerProps.runDistance;
+                D_800C4550 = playerProps.moveSpeed;
             }
 
             if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) && player->model.anim.keyframeIdx == 246)
@@ -7250,7 +7237,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     Player_ExtraStateSet(player, extra, PlayerState_FallBackward);
 
-                    playerProps.runDistance = Q12(1.25f);
+                    playerProps.moveSpeed = Q12(1.25f);
                 }
                 else
                 {
@@ -7266,22 +7253,22 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             break;
 
         case PlayerLowerBodyState_Stumble:
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2) / 3;
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= ((TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 2) / 3;
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             if (D_800C45C8.field_14 <= Q12(0.5f) &&
-                playerProps.runDistance != Q12(0.0f))
+                playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 4;
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) * 4;
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
@@ -7307,18 +7294,18 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             break;
 
         case PlayerLowerBodyState_RunLeftStumble:
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 2;
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 2;
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             if (D_800C45C8.field_14 < Q12(0.3401f))
             {
-                playerProps.runDistance = Q12(0.0f);
+                playerProps.moveSpeed = Q12(0.0f);
             }
 
             if (player->model.stateStep == 0)
@@ -7345,18 +7332,18 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             break;
 
         case PlayerLowerBodyState_RunRightStumble:
-            if (playerProps.runDistance != Q12(0.0f))
+            if (playerProps.moveSpeed != Q12(0.0f))
             {
-                playerProps.runDistance -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 2;
-                if ((playerProps.runDistance >> 16) & (1 << 0))
+                playerProps.moveSpeed -= (TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f))) >> 2;
+                if ((playerProps.moveSpeed >> 16) & (1 << 0))
                 {
-                    playerProps.runDistance = Q12(0.0f);
+                    playerProps.moveSpeed = Q12(0.0f);
                 }
             }
 
             if (D_800C45C8.field_14 < Q12(0.3401f))
             {
-                playerProps.runDistance = Q12(0.0f);
+                playerProps.moveSpeed = Q12(0.0f);
             }
 
             if (player->model.stateStep == 0)
@@ -7389,16 +7376,16 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             {
                 if (g_SysWork.playerCombat.weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Katana, AttackInputType_Hold))
                 {
-                    if (playerProps.runDistance == Q12(0.0f) &&
+                    if (playerProps.moveSpeed == Q12(0.0f) &&
                         (extra->model.anim.keyframeIdx >= D_800C44F0[D_800AF220].field_4 + 7))
                     {
-                        playerProps.runDistance = Q12(5.0f);
+                        playerProps.moveSpeed = Q12(5.0f);
                         g_Player_HeadingAngle                                                   = Q12_ANGLE(0.0f);
                     }
                 }
                 else if (player->model.stateStep == 0 && !g_Player_IsAttacking)
                 {
-                    playerProps.runDistance = Q12(5.0f);
+                    playerProps.moveSpeed = Q12(5.0f);
                     g_Player_HeadingAngle                                                   = Q12_ANGLE(0.0f);
                 }
             }
@@ -7406,23 +7393,23 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             if (g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
                 WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack) == EquippedWeaponId_Katana)
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x444);
-                    if ((playerProps.runDistance >> 16) & (1 << 0))
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x444);
+                    if ((playerProps.moveSpeed >> 16) & (1 << 0))
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
             else
             {
-                if (playerProps.runDistance != Q12(0.0f))
+                if (playerProps.moveSpeed != Q12(0.0f))
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
-                    if ((playerProps.runDistance >> 16) & (1 << 0))
+                    playerProps.moveSpeed -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    if ((playerProps.moveSpeed >> 16) & (1 << 0))
                     {
-                        playerProps.runDistance = Q12(0.0f);
+                        playerProps.moveSpeed = Q12(0.0f);
                     }
                 }
             }
@@ -7547,7 +7534,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                     {
                         if (g_Player_IsMovingBackward)
                         {
-                            if (playerProps.runDistance == Q12(0.0f))
+                            if (playerProps.moveSpeed == Q12(0.0f))
                             {
                                 g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_AimWalkBackward;
                             }
@@ -7597,7 +7584,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 }
                 else if (g_Player_IsMovingBackward)
                 {
-                    if (playerProps.runDistance == Q12(0.0f))
+                    if (playerProps.moveSpeed == Q12(0.0f))
                     {
                         g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_AimWalkBackward;
                     }
@@ -7637,7 +7624,7 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007B924
     if (g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_JumpBackward &&
         g_SysWork.playerWork.extra.lowerBodyState != PlayerLowerBodyState_Reload)
     {
-        D_800C4550 = playerProps.runDistance;
+        D_800C4550 = playerProps.moveSpeed;
     }
 
     switch (g_SysWork.playerWork.extra.lowerBodyState)
@@ -8345,7 +8332,7 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
                     break;
 
                 case 63:
-                    playerProps.runDistance = Q12(1.5f);
+                    playerProps.moveSpeed = Q12(1.5f);
                     Math_ShortestAngleGet(player->rotation.vy, g_SysWork.npcs[0].rotation.vy, &headingAngle);
                     g_Player_HeadingAngle = headingAngle;
 
@@ -8433,14 +8420,14 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
                     return;
 
                 case 69:
-                    playerProps.runDistance = Q12(1.6f);
+                    playerProps.moveSpeed = Q12(1.6f);
                     Math_ShortestAngleGet(player->rotation.vy, Q12_ANGLE(90.0f), &headingAngle);
                     g_Player_HeadingAngle = headingAngle;
 
                 case 68:
                     if (player->attackReceived != 69)
                     {
-                        playerProps.runDistance = Q12(4.0f);
+                        playerProps.moveSpeed = Q12(4.0f);
                         Math_ShortestAngleGet(player->rotation.vy, (s16)player->damage.position.vy, &headingAngle);
                         g_Player_HeadingAngle = headingAngle;
                     }
@@ -8843,10 +8830,10 @@ s32 func_8007D6F0(s_SubCharacter* player, s_800C45C8* arg1) // 0x8007D6F0
     q3_12     angle;
     q4_12     angleDelta;
 
-    temp_s0  = playerProps.runDistance >> 3;
+    temp_s0  = playerProps.moveSpeed >> 3;
     temp_s0 += Q12(0.75f);
     temp_s1  = Q12(-0.6f);
-    temp_s1 -= playerProps.runDistance >> 4;
+    temp_s1 -= playerProps.moveSpeed >> 4;
 
     temp_s4 = Q12_MULT(Math_Cos(player->headingAngle), Q12(0.2f)); // Maybe meters?
     temp_s3 = Q12_MULT(Math_Sin(player->headingAngle), Q12(0.2f)); // Maybe meters?
@@ -8967,7 +8954,7 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
     {
         g_SysWork.timer_2C++;
 
-        if (playerProps.runDistance >= Q12(3.1739f) ||
+        if (playerProps.moveSpeed >= Q12(3.1739f) ||
             (g_SysWork.timer_2C & (1 << 0)))
         {
             func_8006342C(g_SavegamePtr->equippedWeapon - InvItemId_KitchenKnife,
@@ -9412,7 +9399,7 @@ void func_8007E9C4(void) // 0x8007E9C4
     chara->properties.player.runDistance     = Q12(0.0f);
     chara->properties.player.timer_110        = 0;
     chara->properties.player.flags        = 0;
-    chara->properties.player.runDistance = 0;
+    chara->properties.player.moveSpeed = 0;
 
     Chara_DamageClear(chara);
 
