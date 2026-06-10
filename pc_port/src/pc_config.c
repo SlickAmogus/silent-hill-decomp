@@ -74,6 +74,9 @@ static const struct { const char* key; size_t off; } s_ControlBinds[] = {
     { "pad_select",   offsetof(s_PcConfig, padSelect)   },
 };
 
+/* Remembered at load time so PcConfig_SaveMapName writes the same file. */
+static char s_configPath[512] = "config.cfg";
+
 static void TrimWhitespace(char* s)
 {
     /* trim trailing */
@@ -91,6 +94,11 @@ static void TrimWhitespace(char* s)
 
 void PcConfig_Load(const char* path)
 {
+    if (path) {
+        strncpy(s_configPath, path, sizeof(s_configPath) - 1);
+        s_configPath[sizeof(s_configPath) - 1] = '\0';
+    }
+
     FILE* f = fopen(path, "r");
     if (!f)
     {
@@ -252,5 +260,60 @@ void PcConfig_Load(const char* path)
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
+}
+
+/* Rewrite the `map = ...` line in the loaded config file, preserving every
+ * other line and comment. Used by the in-game map-cycle debug keys so the
+ * choice persists to the next New Game / launch. */
+void PcConfig_SaveMapName(const char* mapName)
+{
+    static char lines[400][256];
+    int   n = 0;
+    int   i;
+    int   found = 0;
+    FILE* f;
+
+    if (mapName == NULL || mapName[0] == '\0')
+        return;
+
+    f = fopen(s_configPath, "r");
+    if (!f)
+        return;
+    while (n < (int)(sizeof(lines) / sizeof(lines[0])) &&
+           fgets(lines[n], sizeof(lines[n]), f))
+        n++;
+    fclose(f);
+
+    for (i = 0; i < n; i++)
+    {
+        char*  p = lines[i];
+        char   key[64] = {0};
+        char*  eq;
+        size_t kl;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == ';') continue;
+        eq = strchr(p, '=');
+        if (!eq) continue;
+        kl = (size_t)(eq - p);
+        if (kl >= sizeof(key)) kl = sizeof(key) - 1;
+        strncpy(key, p, kl);
+        key[kl] = '\0';
+        TrimWhitespace(key);
+        if (strcmp(key, "map") == 0)
+        {
+            snprintf(lines[i], sizeof(lines[i]), "map = %s\n", mapName);
+            found = 1;
+            break;
+        }
+    }
+
+    f = fopen(s_configPath, "w");
+    if (!f)
+        return;
+    for (i = 0; i < n; i++)
+        fputs(lines[i], f);
+    if (!found)
+        fprintf(f, "map = %s\n", mapName);
+    fclose(f);
 }
 

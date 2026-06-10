@@ -43,5 +43,9 @@ extern s_PcConfig g_PcConfig;
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
 
+/* Rewrite only the `map = ...` line in the loaded config file (preserves the
+ * rest). Persists a runtime map change so the next New Game loads it. */
+void PcConfig_SaveMapName(const char* mapName);
+
 #endif /* PC_CONFIG_H */
 
