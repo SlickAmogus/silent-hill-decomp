@@ -872,13 +872,16 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
     u8  idx;
 
 #ifdef SH_PC_PORT
+    /* Log on change per layer (quantised to 8 steps so a fade logs a handful
+     * of lines, not one per frame). The old 20-call session quota exhausted
+     * itself during the first fade and hid all later layer activity. */
     {
-        static int vol_dbg = 0;
-        static int vol_nonzero = 0;
-        if (vol_dbg < 20 || (vol != 0 && vol_nonzero < 20)) {
+        static s16 s_lastVol[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+        if (layerIdx < 8 &&
+            ((vol >> 4) != (s_lastVol[layerIdx] >> 4) ||
+             (vol == 0) != (s_lastVol[layerIdx] == 0))) {
             SH_DBG("[SH_BGM] Sd_BgmLayerVolumeSet: layer=%d vol=%d field_E=%d", layerIdx, vol, g_Sd_AudioWork.field_E);
-            if (vol != 0) vol_nonzero++;
-            vol_dbg++;
+            s_lastVol[layerIdx] = vol;
         }
     }
 #endif
