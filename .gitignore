@@ -28,7 +28,10 @@ sh_stdout.txt
 sh_stderr.txt
 sh_perf.txt
 sh_gdb.txt
-pc_port/build_gen/
+# Keep extracted map data in git: the manually-maintained map0 files can't be
+# regenerated, and a fresh clone has no disc image to run the extractor.
+pc_port/build_gen/*
+!pc_port/build_gen/extracted_data/
 
 # FMV tools
 pc_port/tools/mdec_test.exe

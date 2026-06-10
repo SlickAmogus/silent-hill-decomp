@@ -101,6 +101,46 @@ TARGETS = {
     "D_800DA578":                       ("u16", 2),  # map5_s00 room flags
     "D_800EFC74":                       ("u8",  1),  # map5_s01 limits
     "D_800DBCDC":                       ("u8",  1),  # map6_s03 limits
+    # Per-map fallback room-index grid read by Map_RoomIdxGet (shared header).
+    # Maps room positions to room indices for BGM room flags, ambience, etc.
+    # Without it mapRoomIdx is always 0 game-wide (exe stub is all zeros).
+    "MAP_ROOM_IDXS":                    ("u8",  1),
+    # Secondary street grid for MAP_HAS_SECONDARY_GRID maps (map0_s00/s01,
+    # map2_s00/s03). Listed here (not just auto-discovered) because its
+    # data_stubs.c stub was removed once real data landed.
+    "sharedData_800DF2DC_0_s00":        ("u8",  1),
+    # Romper movement scalars (romper.c). Auto-discovery skipped these because
+    # gap inference over-extends into neighbouring pointer tables; they are
+    # plain scalars: walk speed Q12(8.0), lunge speed Q12(6.5), anim base 109.
+    # Zero stubs made Romper moveDist 0 in chase/lunge states.
+    "sharedData_800ECA4C_2_s02":        ("s32", 4),
+    "sharedData_800ECACC_2_s02":        ("s32", 4),
+    "sharedData_800ECBD0_2_s02":        ("s16", 2),
+}
+
+# MAP_ROOM_IDXS byte size = strideX * strideZ, stride = (MAX - MIN) / CHUNK_CELL_SIZE
+# with CHUNK_CELL_SIZE = Q12(40.0), from each map's MAP_ROOM_MIN/MAX_X/Z macros in
+# include/maps/mapN/mapN_sNN.h. Cross-checked against the sym files that annotate
+# a size (map0_s02/map2_s01/map2_s04/map4_s01 all say size:0x1E = 10*3).
+# map6_s04/map6_s05 compute room idx analytically and have no table.
+MAP_ROOM_IDXS_SIZE = {
+    "map0_s00": 14 * 16, "map0_s01": 14 * 16, "map0_s02": 10 * 3,
+    "map1_s00": 8 * 7,   "map1_s01": 8 * 7,   "map1_s02": 8 * 7,
+    "map1_s03": 8 * 7,   "map1_s04": 8 * 7,   "map1_s05": 8 * 7,
+    "map1_s06": 8 * 7,
+    "map2_s00": 14 * 16, "map2_s01": 10 * 3,  "map2_s02": 12 * 9,
+    "map2_s03": 14 * 16, "map2_s04": 10 * 3,
+    "map3_s00": 5 * 6,   "map3_s01": 5 * 6,   "map3_s02": 8 * 8,
+    "map3_s03": 8 * 8,   "map3_s04": 8 * 8,   "map3_s05": 8 * 8,
+    "map3_s06": 5 * 6,
+    "map4_s00": 12 * 9,  "map4_s01": 10 * 3,  "map4_s02": 12 * 9,
+    "map4_s03": 12 * 9,  "map4_s04": 8 * 8,   "map4_s05": 12 * 9,
+    "map4_s06": 12 * 9,
+    "map5_s00": 5 * 5,   "map5_s01": 7 * 6,   "map5_s02": 10 * 3,
+    "map5_s03": 10 * 3,
+    "map6_s00": 7 * 9,   "map6_s01": 10 * 3,  "map6_s02": 7 * 9,
+    "map7_s00": 10 * 4,  "map7_s01": 10 * 4,  "map7_s02": 10 * 4,
+    "map7_s03": 10 * 4,
 }
 
 # Per-map symbols that are NOT listed in the sym files. (name, va, size).
@@ -124,6 +164,9 @@ EXTRA_SYMBOLS = {
 # is annotated size:2 but Bgm_Update reads 8 limit bytes; the map7 limit
 # tables have large gaps to the next listed symbol).
 SIZE_OVERRIDE = {
+    "sharedData_800ECA4C_2_s02": 4,
+    "sharedData_800ECACC_2_s02": 4,
+    "sharedData_800ECBD0_2_s02": 2,
     "sharedData_800EB738_6_s04": 8,
     "sharedData_800EB740_6_s04": 8,
     "sharedData_800EB748_6_s04": 8,
@@ -157,6 +200,9 @@ SKIP_SYMBOL_FOR_MAP = {
 
 # Symbols that are scalars (single value, not arrays) regardless of inferred size.
 SCALAR_SYMBOLS = {
+    "sharedData_800ECA4C_2_s02",
+    "sharedData_800ECACC_2_s02",
+    "sharedData_800ECBD0_2_s02",
     "g_Cutscene_Timer",
     "g_Cutscene_Timer0",
     "g_Cutscene_Timer1",
@@ -186,12 +232,19 @@ SYMBOL_RE = re.compile(
     r"(?://\s*(?:type:(\w+))?\s*(?:size:0x([0-9A-Fa-f]+))?)?"
 )
 
+SUBSEG_RE = re.compile(r"subsegment:\s*([.\w]+)")
+
 def parse_sym_file(path):
-    """Return (load_base, [(name, va, declared_size_or_None)])."""
+    """Return (load_base, [(name, va, declared_size_or_None)], {name: subsegment})."""
     load_base = None
     syms = []
+    seg_by_name = {}
+    cur_seg = "?"
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
+            sm = SUBSEG_RE.search(line)
+            if sm:
+                cur_seg = sm.group(1)
             m = PA_VA_RE.search(line)
             if m and load_base is None:
                 pa = int(m.group(1), 16)
@@ -204,7 +257,8 @@ def parse_sym_file(path):
                 va   = int(m.group(2), 16)
                 size = int(m.group(4), 16) if m.group(4) else None
                 syms.append((name, va, size))
-    return load_base, syms
+                seg_by_name[name] = cur_seg
+    return load_base, syms, seg_by_name
 
 def map_name_from_sym(filename):
     # sym.map0_s00.txt -> map0_s00
@@ -272,8 +326,95 @@ def emit_world_object_pose_array(data, n):
         lines.append(f"    {{ {{ {px}, {py}, {pz} }}, {{ {rx}, {ry}, {rz} }} }}{comma}")
     return "\n".join(lines)
 
+def emit_map7_d800ed274(binary, load_base, va):
+    """map7_s03 D_800ED274[18] — s_func_800E1FE0 camera/path table (final boss).
+    PSX element (68 B): { s32 field_0; s_800F4B40_1C field_4[2] } where
+    s_800F4B40_1C (32 B) = { VECTOR3* vec_0; q19_12 f4; VECTOR3* vec_8;
+    q19_12 fC; s16 x8 }. The embedded pointers target single VECTOR3s in the
+    overlay; the engine both reads AND writes through them (func_800E1F44
+    copies *src->vec into *dest->vec), so aliasing between elements must be
+    preserved — emit one named static per unique PSX target address.
+    Targets outside the file-backed extent are PSX .bss → zero-init static.
+    Targets below the overlay base live in the MAIN EXE and must reference the
+    real game global (the engine tracks live values through them)."""
+    # 0x800BA3C8 = g_SysWork (0x800B9FC0) + 0x408 = npcs[0x1A0] + 2*296 + 0x18
+    exe_ptrs = {0x800BA3C8: "&g_SysWork.npcs[2].position"}
+    targets = {}   # psx_va -> static name
+    elems = []
+    for i in range(18):
+        e_ofs = (va - load_base) + i * 68
+        field_0 = struct.unpack_from("<i", binary, e_ofs)[0]
+        lcs = []
+        for j in range(2):
+            lc = e_ofs + 4 + j * 32
+            p0, f4, p8, fC = struct.unpack_from("<IiIi", binary, lc)
+            s16s = struct.unpack_from("<8h", binary, lc + 16)
+            for p in (p0, p8):
+                if p and p not in exe_ptrs and p not in targets:
+                    if p < 0x800C0000:
+                        raise SystemExit(
+                            f"D_800ED274: pointer 0x{p:08X} targets the main exe "
+                            f"but has no mapping in exe_ptrs — resolve it first")
+                    targets[p] = f"s_Vec_{p:08X}"
+            lcs.append((p0, f4, p8, fC, s16s))
+        elems.append((field_0, lcs))
+
+    text = ("// 0x%08X  size 0x%X (1224 bytes) — s_func_800E1FE0 D_800ED274[18]\n"
+            "// Local typedef mirrors include/maps/map7/map7_s03.h (not included here\n"
+            "// to avoid its prerequisite chain); layout must stay in sync.\n"
+            % (va, 18 * 68))
+    text += ("typedef struct {\n"
+             "    VECTOR3* vec_0;\n"
+             "    s32      field_4;\n"
+             "    VECTOR3* vec_8;\n"
+             "    s32      field_C;\n"
+             "    s16      pos_10, field_12, field_14, field_16;\n"
+             "    s16      total_max_spd_18, field_1A, field_1C, field_1E;\n"
+             "} s_800F4B40_1C_pc;\n"
+             "typedef struct {\n"
+             "    s32             field_0;\n"
+             "    s_800F4B40_1C_pc field_4[2];\n"
+             "} s_func_800E1FE0_pc;\n\n")
+
+    for p in sorted(targets):
+        name = targets[p]
+        t_ofs = p - load_base
+        if 0 <= t_ofs and t_ofs + 12 <= len(binary):
+            x, y, z = struct.unpack_from("<3i", binary, t_ofs)
+            text += f"static VECTOR3 {name} = {{ {x}, {y}, {z} }};  // 0x{p:08X}\n"
+        else:
+            text += f"static VECTOR3 {name} = {{ 0, 0, 0 }};  // 0x{p:08X} (.bss)\n"
+    text += "\ns_func_800E1FE0_pc D_800ED274[18] = {\n"
+
+    def ref(p):
+        if not p:
+            return "NULL"
+        return exe_ptrs.get(p) or f"&{targets[p]}"
+
+    for field_0, lcs in elems:
+        parts = []
+        for p0, f4, p8, fC, s16s in lcs:
+            s16str = ", ".join(str(v) for v in s16s)
+            parts.append(f"{{ {ref(p0)}, {f4}, {ref(p8)}, {fC}, {s16str} }}")
+        text += f"    {{ {field_0}, {{ {parts[0]},\n           {parts[1]} }} }},\n"
+    text += "};\n\n"
+    return text
+
+def load_stub_names():
+    """Symbol names still zero-stubbed in data_stubs.c — candidates for
+    auto-extraction when they appear in a map's .data/.rodata."""
+    stub_re = re.compile(r"^\w+ (\w+)\[\d*\] = \{0\};", re.M)
+    path = REPO_ROOT / "pc_port" / "src" / "stubs" / "data_stubs.c"
+    return set(stub_re.findall(path.read_text(encoding="utf-8", errors="ignore")))
+
+STUB_NAMES = None
+
 def extract_map(map_name, sym_path, bin_path):
-    load_base, syms = parse_sym_file(sym_path)
+    global STUB_NAMES
+    if STUB_NAMES is None:
+        STUB_NAMES = load_stub_names()
+
+    load_base, syms, seg_by_name = parse_sym_file(sym_path)
     if load_base is None:
         print(f"  [{map_name}] no PA/VA pair; skipping", file=sys.stderr)
         return None
@@ -288,12 +429,24 @@ def extract_map(map_name, sym_path, bin_path):
 
     found = []
     for name, va, decl_size in syms:
-        if name not in TARGETS:
+        # Special-case: pointer-bearing struct table, custom emitter.
+        if name == "D_800ED274" and map_name == "map7_s03":
+            text = emit_map7_d800ed274(binary, load_base, va)
+            found.append((name, va, "CUSTOM", 18 * 68, text, None))
+            continue
+        # Auto-extract any still-zero-stubbed symbol that lives in a
+        # file-backed section (.data/.rodata) of this overlay. Stubs whose
+        # symbols sit in .bss/.sbss are runtime state — zero is correct.
+        auto = (name not in TARGETS and name in STUB_NAMES and
+                "bss" not in seg_by_name.get(name, "bss"))
+        if name not in TARGETS and not auto:
             continue
         if (map_name, name) in SKIP_SYMBOL_FOR_MAP:
             print(f"  [{map_name}] {name}: skipped (local definition exists in source)")
             continue
-        c_type, _ = TARGETS[name]
+        # Auto-discovered symbols default to raw u8 bytes — the exe stub is
+        # u8[], and any consumer casts/indexes through its own extern type.
+        c_type = "u8" if auto else TARGETS[name][0]
         ofs = va - load_base
         if ofs < 0 or ofs >= len(binary):
             print(f"  [{map_name}] {name}: offset 0x{ofs:X} out of binary bounds",
@@ -306,6 +459,12 @@ def extract_map(map_name, sym_path, bin_path):
                 size = 128  # safety cap
             else:
                 size = null_pos - ofs + 1  # include null terminator
+        elif name == "MAP_ROOM_IDXS":
+            size = MAP_ROOM_IDXS_SIZE.get(map_name)
+            if size is None:
+                print(f"  [{map_name}] MAP_ROOM_IDXS: no grid size known; skipping",
+                      file=sys.stderr)
+                continue
         elif name in SIZE_OVERRIDE:
             size = SIZE_OVERRIDE[name]
         else:
@@ -315,7 +474,27 @@ def extract_map(map_name, sym_path, bin_path):
                   file=sys.stderr)
             continue
         data = binary[ofs:ofs + size]
-        found.append((name, va, c_type, size, data))
+
+        # PSX-pointer scan: a table of aligned 0x80xxxxxx dwords is a pointer
+        # table (function or data). Raw extraction of those is WORSE than the
+        # zero stub — PSX VAs are garbage on PC and crash when dereferenced.
+        # Such tables need manual seed+Init porting (see *_anim_infos.c).
+        n_dwords = size // 4
+        n_ptrs = 0
+        if n_dwords:
+            for dw in struct.unpack_from(f"<{n_dwords}I", data):
+                if 0x80000000 <= dw < 0x80200000:
+                    n_ptrs += 1
+        warn = None
+        if n_ptrs:
+            if auto and n_ptrs * 8 >= n_dwords:  # >= 1/8 of dwords are pointers
+                print(f"  [{map_name}] {name}: SKIPPED — {n_ptrs}/{n_dwords} dwords are "
+                      f"PSX pointers; needs manual seed+Init port", file=sys.stderr)
+                continue
+            warn = (f"WARNING: {n_ptrs}/{n_dwords} dwords look like PSX pointers "
+                    f"(0x80xxxxxx) — verify these are data values, not addresses")
+            print(f"  [{map_name}] {name}: {warn}", file=sys.stderr)
+        found.append((name, va, c_type, size, data, warn))
 
     if not found:
         return None
@@ -351,8 +530,13 @@ def generate_c(map_name, found, bin_filename):
     family = map_name.split("_")[0]  # map0_s00 -> map0
     text = C_HEADER.format(MAPNAME=map_name, BINFILE=bin_filename, family=family, map=map_name)
 
-    for name, va, c_type, size, data in sorted(found, key=lambda x: x[1]):
+    for name, va, c_type, size, data, warn in sorted(found, key=lambda x: x[1]):
+        if c_type == "CUSTOM":
+            text += data  # pre-rendered C text with its own header comment
+            continue
         text += f"// 0x{va:08X}  size 0x{size:X} ({size} bytes)\n"
+        if warn:
+            text += f"// {warn}\n"
 
         if c_type == "VECTOR3":
             text += f"VECTOR3 {name} = {emit_vector3(data)};\n\n"

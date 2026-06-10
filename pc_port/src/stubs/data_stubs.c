@@ -795,7 +795,8 @@ u8 D_800F574C[256] = {0};
 /* LITTLE_INCUBUS_ANIM_INFOS -> pc_port/src/little_incubus_anim_infos.c (binary-extracted) */
 /* LOCKER_DEAD_BODY_ANIM_INFOS -> pc_port/src/locker_dead_body_anim_infos.c (binary-extracted) */
 /* Lzc - implemented in func_stubs.c */
-u8 MAP_ROOM_IDXS[256] = {0};
+/* MAP_ROOM_IDXS -> per-map extracted_data.c (map0_s00's is exe-linked; all
+ * other consumers are DLL-local; map6_s03/s04/s05 compute analytically) */
 /* MONSTER_CYBIL_ANIM_INFOS -> pc_port/src/monster_cybil_anim_infos.c (binary-extracted) */
 /* OpenTIM - implemented in libgpu_stub.c */
 /* OuterProduct12 - implemented in func_stubs.c */
@@ -898,7 +899,8 @@ void* g_Cutscene_UpdateKau = 0;
 void* g_Cutscene_UpdateArsia = 0;
 void* g_Cutscene_UpdateHero = 0;
 u8 g_NpcBoneCoords[256] = {0};
-u8 g_NursePuppetSfxs[256] = {0};
+/* Binary-extracted MAP3_S03.BIN @0x800D57F0 (SfxPair[9] as u16 words). */
+u16 g_NursePuppetSfxs[18] = { 1506, 128, 1507, 128, 1508, 128, 1509, 128, 1510, 160, 1511, 255, 1512, 128, 1512, 128, 1519, 128 };
 /* Binary-extracted from MAP3_S03.BIN (anim time -> nurse SFX map). */
 u8 g_NursePuppet_AnimSfxs[580] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3,
@@ -955,7 +957,8 @@ u8 g_PianoCursorY[256] = {0};
 u8 g_PianoKeyCounter[256] = {0};
 u8 g_PianoKeySequence[256] = {0};
 u8 g_PianoKeys[256] = {0};
-u8 g_PuppetNurseHurtSfxIdxs[256] = {0};
+/* Binary-extracted MAP3_S03.BIN @0x800D57E0. */
+s32 g_PuppetNurseHurtSfxIdxs[4] = { 3, 3, 4, 5 };
 /* Puppet nurse anim-status pick tables, binary-extracted from MAP3_S03.BIN
  * (identical in all nurse overlays). The zero-stubs made every pick write
  * anim status 0 (the play-nothing sentinel): dormant nurses froze the first
@@ -1481,7 +1484,7 @@ u8 sharedData_800DEE50_1_s01[256] = {0};
 u8 sharedData_800DF1F4_0_s00[256] = {0};
 u8 sharedData_800DF1F8_0_s00[256] = {0};
 u8 sharedData_800DF1FA_0_s00[256] = {0};
-u8 sharedData_800DF2DC_0_s00[256] = {0};
+/* sharedData_800DF2DC_0_s00 (secondary street grid) -> per-map extracted_data.c */
 u8 sharedData_800DFB10_0_s01[256] = {0};
 u8 sharedData_800DFB6C_0_s00[256] = {0};
 u8 sharedData_800DFB70_0_s00[256] = {0};
