@@ -21,6 +21,8 @@ Repo: `https://github.com/SlickAmogus/silent-hill-decomp` (branch `pc-port`)
 - [3. IPD chunk streaming & buffer sizing](#3-ipd-chunk-streaming--buffer-sizing)
 - [4. Fixed-point overflow](#4-fixed-point-overflow)
 - [5. 64-bit pointer width & struct layout](#5-64-bit-pointer-width--struct-layout)
+- [6. High-FPS keyframe / frame-count timing (combat + cutscenes)](#6-high-fps-keyframe--frame-count-timing-combat--cutscenes)
+- [7. Cutscene-specific regressions](#7-cutscene-specific-regressions)
 
 ---
 
@@ -66,6 +68,14 @@ real table into `pc_port/src/<name>_anim_infos.c` and init it at startup
   `HANGED_SCRATCHER_`, `LARVAL_STALKER_`, … in `pc_port/src/*_anim_infos.c`.
   Pattern to spot the next one: an invisible / frozen / crashing NPC whose symbol
   is still a `u8[256]={0}` in `data_stubs.c`.
+- **Enemy melee collision data** — same zero-stub class, different data: each
+  enemy's per-keyframe hitbox/collision rodata was `{0}`, so melee passed straight
+  through them (un-hittable). Extracted into `src/maps/characters/*_rodata.inc`
+  ([`stalker_rodata.inc`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/stalker_rodata.inc),
+  creeper/hanged_scratcher/larval_stalker/romper/split_head/groaner). Grey-child/
+  Stalker family commit [`299ccf311`](https://github.com/SlickAmogus/silent-hill-decomp/commit/299ccf311),
+  Larval [`554b38e90`](https://github.com/SlickAmogus/silent-hill-decomp/commit/554b38e90),
+  Creeper+Hanged [`675fdbaf7`](https://github.com/SlickAmogus/silent-hill-decomp/commit/675fdbaf7).
 
 ## 3. IPD chunk streaming & buffer sizing
 
@@ -118,3 +128,64 @@ reverted fork pointer-width fixes back to `s32`. Symptom: faulting address like
   commit [`301061e86`](https://github.com/SlickAmogus/silent-hill-decomp/commit/301061e86)
 - General guidance on finding these lives in
   [`struct_offset_portability.md`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/docs/struct_offset_portability.md).
+
+## 6. High-FPS keyframe / frame-count timing (combat + cutscenes)
+
+**The single most recurring root cause.** The game was authored for a fixed 30 FPS
+tick; PC runs uncapped/faster. Any logic that gates on an *exact* keyframe
+(`anim.keyframeIdx == N`) or counts raw frames silently breaks: at >30 FPS the
+keyframe index steps past `N` without ever equalling it, so the gate never fires —
+a shot never dispatches, an animation never ends, a cutscene waits forever.
+**The fix is always one of:** use a range/`>=` check instead of `==`, or scale the
+quantity by [`TIMESTEP_SCALE_30_FPS`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/include/bodyprog/math/math.h#L89)
+/ [`TIMESTEP_30_FPS`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/include/game.h#L20).
+Never re-introduce an `== exactKf` or a hardcoded frame counter. ⚠ Several of these
+started life as frame-count band-aids that were later replaced by the proper
+range/timestep form — watch for regressions reverting them.
+
+- **Handgun/weapon fire never dispatches.** The aim→fire gate compared
+  `keyframeIdx == aimKf`; on PC the pose blew past it. Now
+  `SH_AIM_KF_REACHED(kf)` is `>=` ([`player_control.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/player_control.c#L3204)),
+  fire allowed across the whole aim-HOLD window, and auto-aim target-switch
+  transitions are FPS-proof. commits
+  [`c14f09683`](https://github.com/SlickAmogus/silent-hill-decomp/commit/c14f09683),
+  [`a0357b3dc`](https://github.com/SlickAmogus/silent-hill-decomp/commit/a0357b3dc),
+  [`3b0eaf275`](https://github.com/SlickAmogus/silent-hill-decomp/commit/3b0eaf275)
+- **Death / grab / get-up freeze in non-map0 maps.** A frame-count `DEATH_STALL`
+  band-aid never elapsed at high FPS (and read the wrong overlay field). Replaced
+  with the real `field_38` overlay-read; band-aid removed.
+  ([`player_control.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/player_control.c) +
+  `bodyprog_anim_800445A4.c`) commit
+  [`8838b989c`](https://github.com/SlickAmogus/silent-hill-decomp/commit/8838b989c)
+- **Cutscene timers never advance.** Events run a tick with `g_DeltaTime == 0` on
+  PSX (compensated by event cadence); on PC that stalls every timer-based cutscene
+  step. Feed `g_DeltaTimeRaw` during the event path instead.
+  [`game_sys_states.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/events/game_sys_states.c#L160)
+
+## 7. Cutscene-specific regressions
+
+Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
+
+- **Letterbox bars don't render.** The bars were built with a *positional static
+  initializer* that assumed a PSX 1-word `P_TAG`; on 64-bit the tag is wider, so
+  the prim was malformed. Build them at runtime (`setcode`/`setlen`/`setXY4`),
+  like `screen_fade.c`. Also keep the cinematic FOV locked during the zoom-hold.
+  [`cutscene_border.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/screen/cutscene_border.c) ·
+  commits [`b43fdb5fd`](https://github.com/SlickAmogus/silent-hill-decomp/commit/b43fdb5fd),
+  [`4ce60bbc9`](https://github.com/SlickAmogus/silent-hill-decomp/commit/4ce60bbc9)
+- **Harry runs/walks in place during cutscene walks.** `sharedData_800D32A0_0_s02`
+  (cutscene move speed) was declared `u8`, truncating the Q12 speed to 0. Widened
+  the extern + the `data_stubs.c` storage. commit
+  [`bedd134b6`](https://github.com/SlickAmogus/silent-hill-decomp/commit/bedd134b6)
+- **Turn-in-place during cutscenes.** The merge dropped/renamed the `HAS_PlayerState`
+  defines several map headers rely on; restored. commit
+  [`89fe373df`](https://github.com/SlickAmogus/silent-hill-decomp/commit/89fe373df)
+- **Cutscene walk player-state corruption.** A merge reverted a fork fix in
+  `player.c`; re-applied. commit
+  [`81ab45503`](https://github.com/SlickAmogus/silent-hill-decomp/commit/81ab45503)
+- **Lighter-hold flame detaches from the hand.** The raised-arm bone coord wasn't
+  invalidated so the flame tracked a stale transform; force the arm-bone `flg`.
+  commit [`393faf46d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/393faf46d)
+
+> Already covered above and also cutscene-relevant: `CAT_ANIM_INFOS` zero-stub
+> (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1).
