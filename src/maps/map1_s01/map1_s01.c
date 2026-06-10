@@ -790,7 +790,16 @@ void func_800D87C0(void) // 0x800D87C0
 
             if (g_SysWork.sysStateSteps[0] != 2)
             {
+#ifdef SH_PC_PORT
+                /* DIAGNOSTIC (revert after PsyCross tpage fix): the cat is
+                 * invisible at its authored modelIdx 2 -> tpage 29 (VRAM
+                 * 832,256), while visible characters sit at modelIdx 0/1 ->
+                 * tpage 28. Load at modelIdx 0 to test whether tpage 29
+                 * specifically isn't sampled by PsyCross. */
+                Chara_Load(0, Chara_Cat, g_SysWork.npcBoneCoordBuffer, 4, NULL, NULL);
+#else
                 Chara_Load(2, Chara_Cat, g_SysWork.npcBoneCoordBuffer, 4, NULL, NULL);
+#endif
             }
             break;
 
