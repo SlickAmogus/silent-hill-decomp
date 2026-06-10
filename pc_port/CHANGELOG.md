@@ -1,5 +1,19 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.5 -- 2026-06-09
+- Fix school black-void: force isLoaded=false on IPD reformat-fail
+- Bump PsyCross submodule: repair dead POLY_FT4 clut guard
+- Fix interior chunk-buffer overrun thrash (school void/exploded geometry)
+- Fix cat locker cutscene freeze: real CAT_ANIM_INFOS table (was zero-stub)
+- Fix cat locker scene-end crash: NULL-guard Anim_BoneInit (WinDbg-confirmed)
+- docs: add Port_Fixes_Index ΓÇö curated game-code PC-port fixes
+- logging: remove ~345 stale troubleshooting traces (keep infra)
+- logging: trim [SH] boot/chunk spam + gate per-frame state logs
+- logging: strip dead scaffolding left by the trace removal
+- docs: add combat/animation/cutscene band-aids to Port_Fixes_Index
+- Fix chemical-on-hand cutscene crash: guard div-by-zero in smoke particle
+- docs: ┬º1 now covers div-by-zero (hand cutscene crash) alongside NULL derefs
+
 ## v2026.06.09.4 -- 2026-06-09
 - log: remove stale per-frame [MCRD2] spam + the [ALLEY1] Cheryl diagnostic
 - debug: key 6 spawns a Grey Child; add [CHMOVE] Cheryl movement trace
