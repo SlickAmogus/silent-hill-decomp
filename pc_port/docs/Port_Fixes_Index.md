@@ -183,6 +183,24 @@ range/timestep form — watch for regressions reverting them.
   PSX (compensated by event cadence); on PC that stalls every timer-based cutscene
   step. Feed `g_DeltaTimeRaw` during the event path instead.
   [`game_sys_states.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/events/game_sys_states.c#L160)
+- **Melee phantom swing on release.** PSX never drains the attack shift register
+  at swing end — the full hold history is what makes the tap detector reject a
+  hold-release (`!(hold & 0x11)`). The PC swing-end drain zeroed it, so one refill
+  tick of a continuing hold + release read as a fresh TAP → phantom slash. Now the
+  register is set to 0x1F (full history) when the button is still held at swing end.
+  [`player_control.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/player_control.c) ·
+  commit [`1c5f7835e`](https://github.com/SlickAmogus/silent-hill-decomp/commit/1c5f7835e)
+- **Cutscene desync from anim-stuck detectors (Cybil scene).**
+  `Player_AnimPlaybackStateGet` (polled by map-event scripts) compared
+  `kf == endKeyframeIdx` (skippable at PC delta-time — the real stuck root, now
+  `>=`/`<=` range form on PC), and its stuck-bypass detectors counted FRAMES
+  (90/120/240 ≈ 0.4–1 s at 240 fps) and never reset across anim changes — during
+  long cutscenes they force-returned "finished" early, desyncing every later step.
+  Detectors are now real-time (3 s/4 s/10 s) and reset per anim status. ⚠ detector
+  (C) remains a band-aid for the still-open "nothing drives Harry into the pickup
+  pose" root (KeyOfWoodman class).
+  [`player.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/player.c#L659) ·
+  commit [`00e1b3f3d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/00e1b3f3d)
 
 ## 7. Cutscene-specific regressions
 
