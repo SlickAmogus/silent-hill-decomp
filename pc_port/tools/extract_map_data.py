@@ -409,10 +409,50 @@ def load_stub_names():
 
 STUB_NAMES = None
 
+# Types whose PC (x86-64) layout is byte-identical to PSX, verified by hand.
+# Raw byte extraction is ONLY valid for these. Structs containing pointers
+# (s_WorldObjectModel/s_WorldObjectPlacement via s_ModelInfo, s_RayTrace,
+# s_800E0930, s_800F4B40, GsCOORDINATE2, ...) are LARGER on PC: game writes
+# at PC field offsets overrun a PSX-sized array and smash adjacent globals.
+# That exact failure crashed map3_s03 (hospital) via the g_WorldObject_*
+# placements — worse than the old roomy 256-byte exe stubs whose overruns
+# landed in neighbouring stub padding.
+SAFE_AUTO_TYPES = {
+    "u8", "u16", "u32", "s8", "s16", "s32", "char", "short", "int", "bool",
+    "q3_12", "q19_12", "q23_8", "q7_8", "q11_4", "q20_12", "q4_12", "q12",
+    "VECTOR3", "SVECTOR3", "SVECTOR", "VECTOR", "DVECTOR", "CVECTOR",
+    "s_BgmLayerLimits", "s_FsImageDesc", "s_Pose", "s_WorldObjectPose",
+    "s_Particle", "s_ParticleVectors", "s_func_800CB560", "s_CollisionResult",
+    "s_MapHdr_field_4C", "s_MapHeader_field_5C",
+    "s_MapOverlayHdr_7C", "s_MapOverlayHdr_94",
+    "s_sharedData_800D5AB0_1_s05", "s_sharedData_800DFB10_0_s01",
+    "s_sharedData_800E21D0_0_s01", "s_sharedData_800ED2D4_2_s02",
+}
+
+def load_extern_types():
+    """Map symbol name -> declared extern type, scanned from all headers and
+    sources. Used to gate auto-extraction on SAFE_AUTO_TYPES."""
+    types = {}
+    decl_re = re.compile(r"extern\s+(?:const\s+)?(\w+\**)\s+(\w+)\s*(?:\[[^\]]*\])?\s*;")
+    for sub in ("include", "src"):
+        base = REPO_ROOT / sub
+        for path in list(base.rglob("*.h")) + list(base.rglob("*.c")):
+            try:
+                txt = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for m in decl_re.finditer(txt):
+                types.setdefault(m.group(2), m.group(1))
+    return types
+
+EXTERN_TYPES = None
+
 def extract_map(map_name, sym_path, bin_path):
-    global STUB_NAMES
+    global STUB_NAMES, EXTERN_TYPES
     if STUB_NAMES is None:
         STUB_NAMES = load_stub_names()
+    if EXTERN_TYPES is None:
+        EXTERN_TYPES = load_extern_types()
 
     load_base, syms, seg_by_name = parse_sym_file(sym_path)
     if load_base is None:
@@ -441,6 +481,13 @@ def extract_map(map_name, sym_path, bin_path):
                 "bss" not in seg_by_name.get(name, "bss"))
         if name not in TARGETS and not auto:
             continue
+        if auto:
+            decl_type = EXTERN_TYPES.get(name)
+            if decl_type not in SAFE_AUTO_TYPES:
+                print(f"  [{map_name}] {name}: skipped — extern type "
+                      f"'{decl_type or 'unknown'}' not verified 64-bit-safe; "
+                      f"keeping exe zero stub", file=sys.stderr)
+                continue
         if (map_name, name) in SKIP_SYMBOL_FOR_MAP:
             print(f"  [{map_name}] {name}: skipped (local definition exists in source)")
             continue
