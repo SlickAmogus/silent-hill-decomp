@@ -326,32 +326,16 @@ int main(int argc, char* argv[])
      * Cross=C, Circle=V, Triangle=Z, Square=X, Start=Enter, Select=Space
      * DPad=Arrow keys, L1=LShift, R1=RShift, L2=LCtrl, R2=RCtrl */
 
+    /* Route PsyCross logging into our SilentHill.log handle (or silence it
+     * when enable_debug_log=0) BEFORE PsyX_Initialise, so PsyCross never
+     * creates its own "Silent Hill.log" and never fcloses our handle at
+     * shutdown (it used to, leaving g_ShDebugLog dangling for any logging
+     * after PsyX_Shutdown). */
+    PsyX_Log_SetStream(g_PcConfig.enableDebugLog ? g_ShDebugLog : NULL);
+
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
-
-    /* Redirect PsyCross log into our SilentHill.log (g_ShDebugLog) instead
-     * of a separate "Silent Hill.log" file. Only do this when enable_debug_log=1
-     * so PsyCross doesn't open its own "Silent Hill.log" when our log is
-     * disabled. With logging off, close any handle PsyCross opened on its
-     * own and point g_logStream at /dev/null-equivalent (NULL) so its log
-     * writes become no-ops. */
-    {
-        extern FILE* g_logStream;
-        if (g_PcConfig.enableDebugLog) {
-            if (g_logStream && g_logStream != g_ShDebugLog) {
-                fclose(g_logStream);
-                remove("Silent Hill.log");
-            }
-            g_logStream = g_ShDebugLog;
-        } else {
-            if (g_logStream) {
-                fclose(g_logStream);
-                remove("Silent Hill.log");
-                g_logStream = NULL;
-            }
-        }
-    }
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
