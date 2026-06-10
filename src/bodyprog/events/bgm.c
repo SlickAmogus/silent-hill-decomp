@@ -14,6 +14,9 @@
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 extern const s8 D_80025234[];
 
@@ -373,6 +376,12 @@ void Game_MapRoomIdxUpdate(void) // 0x80036420
     {
         newMapRoomIdx = g_MapOverlayHdr.mapRoomIdxGet(posX, posZ);
     }
+#ifdef SH_PC_PORT
+    if (newMapRoomIdx != g_SavegamePtr->mapRoomIdx)
+    {
+        SH_DBG("[BGM-ROOM] mapRoomIdx %d -> %d", g_SavegamePtr->mapRoomIdx, newMapRoomIdx);
+    }
+#endif
     g_SavegamePtr->mapRoomIdx = newMapRoomIdx;
 
     #undef playerChara
