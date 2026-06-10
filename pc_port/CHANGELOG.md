@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.6 -- 2026-06-10
+- Diagnostics for school BGM, invisible cat, muzzle-flash blob
+- Fix muzzle-flash blob, invisible cat + missing enemies, flare intensity, locker cadence
+
 ## v2026.06.10.5 -- 2026-06-10
 - (no commits since last release)
 
