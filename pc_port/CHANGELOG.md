@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.1 -- 2026-06-10
+- debug: repurpose keys 4/5 to cycle the map config (prev/next)
+
 ## v2026.06.09.6 -- 2026-06-09
 - debug: Esc warm-reboots to title (PC dev key)
 - diag: load cat at modelIdx 0 (tpage 28) to test tpage-29 invisibility
