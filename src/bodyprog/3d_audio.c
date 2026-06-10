@@ -331,8 +331,6 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
      * func_8005DE0C produces 0 finalVol or whether it survives through
      * Sd_SfxAttributesUpdate's volumeLeft_C math. */
     if (sfxId == 1321 || sfxId == 1322 /* Sfx_RadioInterference/StaticLoop */) {
-        SH_DBG("[RADIO_VOL] func_8005DE0C sfx=%d vol_in=%d att0=%d s3=%d finalVol=%d",
-               (int)sfxId, (int)vol, (int)att0, (int)s3, (int)finalVol);
     }
 #endif
 

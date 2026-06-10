@@ -1575,7 +1575,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                                 extra->model.stateStep    = 0;
                                 extra->model.controlState = 0;
-                                SH_DBG("[AIM-SNAP] sprint ended, weapon still held — snap to Aim (was ubs=%d)", (int)ubs);
                             }
                         } else {
                             /* Melee: no Aim state, but RunForward upper-body must be
@@ -1586,9 +1585,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_None;
                                 extra->model.stateStep    = 0;
                                 extra->model.controlState = 0;
-                                SH_DBG("[AIM-SNAP] sprint ended, melee held — cleared RunForward to None");
                             } else {
-                                SH_DBG("[AIM-SNAP] sprint ended, melee held — ubs=%d, no change", (int)ubsMelee);
                             }
                         }
                     }
@@ -1616,15 +1613,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     static int s_prevSdlRctrl = 0;
                     static int s_prevSdlLctrl = 0;
                     if (sdlRctrl != s_prevSdlRctrl) {
-                        SH_DBG("[AIM/SDL] RCTRL=%d (LCTRL=%d C=%d heldBtnFlags=0x%04x)",
-                               sdlRctrl, sdlLctrl, sdlC,
-                               (unsigned)g_Controller0->heldBtnFlags);
                         s_prevSdlRctrl = sdlRctrl;
                     }
                     if (sdlLctrl != s_prevSdlLctrl) {
-                        SH_DBG("[AIM/SDL] LCTRL=%d (RCTRL=%d C=%d heldBtnFlags=0x%04x)",
-                               sdlLctrl, sdlRctrl, sdlC,
-                               (unsigned)g_Controller0->heldBtnFlags);
                         s_prevSdlLctrl = sdlLctrl;
                     }
 
@@ -1660,8 +1651,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * made swipe impossible; and it prevented attacks from working
                      * during the sprint-return frame before aimHeld recovered. */
                     if (s_prevAimHeld && !aimHeld) {
-                        SH_DBG("[AIM-FLUSH] aim released — flushing IsAttacking=%d IsHoldAttack=%d",
-                               (int)g_Player_IsAttacking, (int)g_Player_IsHoldAttack);
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
                     }
@@ -2788,9 +2777,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 static s32 s_prevDmgState = -1;
                 s32 curDmgState = (s32)g_SysWork.playerWork.extra.state;
                 if (curDmgState != s_prevDmgState) {
-                    SH_DBG("[PLU-DMG] state=%d → calling func_8007FB94 to dispatch damage anim (kf=%d animStatus=0x%x)",
-                           curDmgState, (int)player->model.anim.keyframeIdx,
-                           (unsigned)player->model.anim.status);
                     s_prevDmgState = curDmgState;
                 }
             }
@@ -2923,8 +2909,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     s_dmgStateTime += g_DeltaTime;
                 }
                 if (s_dmgStateTime > Q12(0.5f)) {
-                    SH_DBG("[PLU-DMG] PC timeout exit: state=%d held %ld Q12-sec > 0.5s, forcing → None",
-                           s_dmgCurState, (long)s_dmgStateTime);
                     player->attackReceived = NO_VALUE;
                     g_SysWork.targetNpcIdx = NO_VALUE;
                     playerProps.flags &= ~PlayerFlag_DamageReceived;
@@ -3499,7 +3483,6 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     {
                         extra->model.anim.keyframeIdx = pcFireStartKf;
                         extra->model.anim.time        = Q12((s32)pcFireStartKf);
-                        SH_DBG("[GUN-FIRE-START-TGT] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
                     }
                 }
 #endif
@@ -3597,7 +3580,6 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                             {
                                 extra->model.anim.keyframeIdx = pcFireStartKf;
                                 extra->model.anim.time        = Q12((s32)pcFireStartKf);
-                                SH_DBG("[GUN-FIRE-START-LOCK] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
                             }
                         }
 #endif
@@ -3625,7 +3607,6 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                             {
                                 extra->model.anim.keyframeIdx = pcFireStartKf;
                                 extra->model.anim.time        = Q12((s32)pcFireStartKf);
-                                SH_DBG("[GUN-FIRE-START] st=%d startKf=%d", (int)extra->model.anim.status, (int)pcFireStartKf);
                             }
                         }
 #endif
@@ -8049,11 +8030,6 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
         s32 curState = (s32)g_SysWork.playerWork.extra.state;
         if (player->attackReceived != s_prevAttack || curState != s_prevState) {
             if (player->attackReceived != NO_VALUE) {
-                SH_DBG("[PRD] entry attack=%d state=%d amount=%d field_40=%d disCtl=%d disDmg=%d health=%d",
-                       (int)player->attackReceived, (int)curState,
-                       (int)player->damage.amount, (int)player->field_40,
-                       (int)g_Player_DisableControl, (int)g_Player_DisableDamage,
-                       (int)player->health);
             }
             s_prevAttack = player->attackReceived;
             s_prevState  = curState;
@@ -9881,12 +9857,6 @@ void Player_Controller(void) // 0x8007F32C
     {
         static int s_flLog = 0;
         if (s_flLog < 120) {
-            SH_DBG("[FIRELOCK] held, NOT shooting: wepAtk=%d lower=%d upper=%d animStatus=0x%x field44=%d",
-                   (int)g_SysWork.playerCombat.weaponAttack,
-                   (int)g_SysWork.playerWork.extra.lowerBodyState,
-                   (int)g_SysWork.playerWork.extra.upperBodyState,
-                   (unsigned)g_SysWork.playerWork.extra.model.anim.status,
-                   (int)g_SysWork.playerWork.player.field_44.field_0);
             s_flLog++;
         }
     }

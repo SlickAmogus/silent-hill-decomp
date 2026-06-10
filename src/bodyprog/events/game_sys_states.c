@@ -125,12 +125,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
                 if (snapColl.groundHeight != Q12(8.0f)) {
                     snapHp->position.vy = snapColl.groundHeight;
                     snapHp->properties.player.groundHeight = snapColl.groundHeight;
-                    SH_DBG("[INIT] InGame Y snap: vy=%ld positionY=%ld at (%ld,%ld)",
-                           (long)snapColl.groundHeight, (long)snapColl.groundHeight,
-                           (long)snapHp->position.vx, (long)snapHp->position.vz);
                 } else {
-                    SH_DBG("[INIT] InGame Y snap: no collision data at (%ld,%ld), keeping vy=%ld",
-                           (long)snapHp->position.vx, (long)snapHp->position.vz, (long)snapHp->position.vy);
                 }
             }
 #endif
@@ -729,9 +724,6 @@ void SysState_Fmv_Update(void) // 0x80039A58
         static int s_lastLoggedStep = -1;
         int curStep = (int)g_SysWork.sysStateSteps[0];
         if (curStep != s_lastLoggedStep) {
-            SH_DBG("[FMV-STATE] step=%d D_800A9A0C=%d g_MapEventParam=%d (file_idx=%d)",
-                   curStep, (int)D_800A9A0C, (int)g_MapEventParam,
-                   (int)(BASE_AUDIO_FILE_IDX - g_MapEventParam));
             s_lastLoggedStep = curStep;
         }
     }
@@ -802,24 +794,15 @@ void SysState_LoadArea_Update(void) // 0x80039C40
      * before line 779's SH_DBG fires. The function dereferences
      * g_MapEventData and g_MapOverlayHdr.mapPoints
      * heavily, so guard them first and log enough state to localize. */
-    SH_DBG("[DOOR-ENTRY] SysState_LoadArea_Update: g_MapEventData=%p mapPointsOfInterest=%p sysState=%d",
-           (void*)g_MapEventData, (void*)g_MapOverlayHdr.mapPoints,
-           (int)g_SysWork.sysState);
     fflush(g_ShDebugLog);  /* flush NOW so the trace survives the crash */
     if (g_MapEventData == NULL) {
-        SH_DBG("[DOOR-ENTRY] g_MapEventData is NULL — bailing");
         fflush(g_ShDebugLog);
         return;
     }
     if (g_MapOverlayHdr.mapPoints == NULL) {
-        SH_DBG("[DOOR-ENTRY] mapPoints is NULL — bailing");
         fflush(g_ShDebugLog);
         return;
     }
-    SH_DBG("[DOOR-ENTRY] g_MapEventData fields: sfxPairIdx_8_19=%d flags_8_13=0x%X eventParam=%d pointOfInterestIdx=%d mapIdx=%d",
-           g_MapEventData->sfxPairIdx_8_19, g_MapEventData->flags_8_13,
-           g_MapEventData->eventParam, g_MapEventData->pointOfInterestIdx,
-           g_MapEventData->mapIdx);
     fflush(g_ShDebugLog);
 #endif
 
@@ -839,15 +822,6 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     D_800BCDB0 = g_MapOverlayHdr.mapPoints[g_MapEventData->eventParam];
 
 #ifdef SH_PC_PORT
-    SH_DBG("[DOOR] SysState_LoadArea: eventParam=%d pointOfInterestIdx=%d sysState=%d",
-           g_MapEventData->eventParam, g_MapEventData->pointOfInterestIdx, g_SysWork.sysState);
-    SH_DBG("[DOOR]   D_800BCDB0: posX=%d posZ=%d triggerParam0=%d triggerParam1=%d",
-           D_800BCDB0.positionX, D_800BCDB0.positionZ,
-           D_800BCDB0.triggerParam0, D_800BCDB0.triggerParam1);
-    SH_DBG("[DOOR]   mapPointsOfInterest=%p playerPos=(%d,%d)",
-           (void*)g_MapOverlayHdr.mapPoints,
-           g_SysWork.playerWork.player.position.vx,
-           g_SysWork.playerWork.player.position.vz);
 #endif
 
     if (D_800BCDB0.triggerParam1 == 1)
@@ -883,9 +857,6 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     u32 _eventData_field_8_24        = g_MapEventData->field_8_24;
     u32 _eventData_mapIdx            = g_MapEventData->mapIdx;
     s32 _eventData_eventParam        = g_MapEventData->eventParam;
-    SH_DBG("[DOOR-ENTRY] snapshotted: disabledFlag=%d mapIdx=%u eventParam=%d field_8_24=%u",
-           _eventData_disabledEventFlag, _eventData_mapIdx,
-           _eventData_eventParam, _eventData_field_8_24);
     fflush(g_ShDebugLog);
 #endif
 
@@ -893,19 +864,14 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     {
         g_SysWork.processFlags    = ProcessFlag_OverlayTransition;
 #ifdef SH_PC_PORT
-        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: pre savegame write, g_SavegamePtr=%p",
-               (void*)g_SavegamePtr);
         fflush(g_ShDebugLog);
         g_SavegamePtr->mapIdx = _eventData_mapIdx;
-        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: pre GameBoot_MapLoad mapIdx=%u",
-               (unsigned)_eventData_mapIdx);
         fflush(g_ShDebugLog);
 #else
         g_SavegamePtr->mapIdx = g_MapEventData->mapIdx;
 #endif
         GameBoot_MapLoad(g_SavegamePtr->mapIdx);
 #ifdef SH_PC_PORT
-        SH_DBG("[DOOR-ENTRY] LoadOverlay branch: post GameBoot_MapLoad");
         fflush(g_ShDebugLog);
 #endif
     }
@@ -913,8 +879,6 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     {
         g_SysWork.processFlags = ProcessFlag_RoomTransition;
 #ifdef SH_PC_PORT
-        SH_DBG("[DOOR-ENTRY] RoomTransition branch: pre Bgm_TrackChange mapIdx=%u",
-               (unsigned)_eventData_mapIdx);
         fflush(g_ShDebugLog);
         Bgm_TrackChange(_eventData_mapIdx);
         if (g_MapOverlayHdr.mapPoints[_eventData_eventParam].field_4_5 != 0)
@@ -1151,20 +1115,16 @@ void SysState_SaveMenu_Update(void) // 0x8003A230
 void SysState_EventCallback_Update(void) // 0x8003A3C8
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[ECB] enter mapEventData=%p", (void*)g_MapEventData);
     if (g_MapEventData == NULL) {
         g_SysWork.sysState = SysState_Gameplay;
         return;
     }
-    SH_DBG("[ECB] flags_8_13=%d disabledEventFlag=%d",
-           (int)g_MapEventData->flags_8_13, (int)g_MapEventData->disabledEventFlag);
 #endif
     if (g_MapEventData->flags_8_13 != EventParamUnkState_None)
     {
         Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
     }
 #ifdef SH_PC_PORT
-    SH_DBG("[ECB] post-EventFlagSetAlt");
 #endif
 
     g_DeltaTime = g_DeltaTimeCpy;

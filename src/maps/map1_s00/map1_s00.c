@@ -797,9 +797,6 @@ void Map_WorldObjectsInit(void)
     WorldObject_ModelNameSet(&g_CommonWorldObjects[5], D_800A99E4[7]);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[M1S00-INIT] Map_WorldObjectsInit called, poses=%p vx_before=%d",
-           (void*)g_CommonWorldObjectPoses,
-           (int)g_CommonWorldObjectPoses[0].position.vx);
     /* Runtime init of world-item poses from MAP1_S00.BIN offset 0x141A4
      * (PSX addr 0x800DD71C, load base 0x800C9578). Static C initializer in
      * map1_s00_events_data.c is unreachable at DLL link time because the exe
@@ -815,9 +812,6 @@ void Map_WorldObjectsInit(void)
     g_CommonWorldObjectPoses[3].rotation.vx = 0;    g_CommonWorldObjectPoses[3].rotation.vy = 0;    g_CommonWorldObjectPoses[3].rotation.vz = 0;
     g_CommonWorldObjectPoses[4].position.vx = 247971; g_CommonWorldObjectPoses[4].position.vy = -3686;  g_CommonWorldObjectPoses[4].position.vz = 583680;
     g_CommonWorldObjectPoses[4].rotation.vx = 0;    g_CommonWorldObjectPoses[4].rotation.vy = 170;  g_CommonWorldObjectPoses[4].rotation.vz = 0;
-    SH_DBG("[M1S00-INIT] poses written: [0].vx=%d [1].vx=%d",
-           (int)g_CommonWorldObjectPoses[0].position.vx,
-           (int)g_CommonWorldObjectPoses[1].position.vx);
 #endif
 }
 
@@ -975,11 +969,6 @@ void Map_WorldObjectsUpdate(void)
                 static u8 s_posLogged = 0;
                 if (!s_posLogged) {
                     s_posLogged = 1;
-                    SH_DBG("[WOBJ-DIAG] poses=%p vx=%d vy=%d vz=%d",
-                           (void*)g_CommonWorldObjectPoses,
-                           (int)g_CommonWorldObjectPoses[0].position.vx,
-                           (int)g_CommonWorldObjectPoses[0].position.vy,
-                           (int)g_CommonWorldObjectPoses[0].position.vz);
                 }
             }
 #endif

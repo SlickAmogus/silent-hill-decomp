@@ -29,7 +29,6 @@ void Groaner_Update(s_SubCharacter* groaner, s_AnmHeader* anmHdr, GsCOORDINATE2*
      * call site we missed. */
     static int s_loggedOn = 0;
     if (!s_loggedOn) {
-        SH_DBG("[GROANER] Groaner_Update enabled (rodata extracted from disc)");
         s_loggedOn = 1;
     }
 #endif

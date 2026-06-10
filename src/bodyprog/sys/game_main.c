@@ -212,17 +212,12 @@ void DebugCamera_Update(void)
                  * see him while flying the debug cam — useful for
                  * marking corrected camera positions relative to him.
                  * (Was hidden + teleport-followed in the prior design.) */
-                SH_DBG_ECHO("[DBGCAM] ENABLED pos=(%ld,%ld,%ld) harryPos saved=(%ld,%ld,%ld)",
-                    (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                    (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             } else {
                 /* Restore Harry's original position + visibility */
                 g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
                 g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
                 g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
                 g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
-                SH_DBG_ECHO("[DBGCAM] DISABLED — restored harry to (%ld,%ld,%ld)",
-                    (long)g_DebugCamSavedHarryPos.vx, (long)g_DebugCamSavedHarryPos.vy, (long)g_DebugCamSavedHarryPos.vz);
             }
         }
         g_DebugCamTogglePrev = cur;
@@ -533,9 +528,6 @@ void DebugCamera_Update(void)
 
             /* Snapshot rescue Y on map or room change. */
             if (curMap != _prevMapId || curRoom != _prevRoomIdx) {
-                SH_DBG("[ROOM-ENTER] mapId=%d roomIdx=%d harryPos=(%ld,%ld,%ld) — saving Y=%ld as rescue target",
-                    (int)curMap, (int)curRoom,
-                    (long)p->vx, (long)p->vy, (long)p->vz, (long)p->vy);
                 _lastSafeY = p->vy;
                 _haveSafeY = 1;
                 _prevMapId   = curMap;
@@ -584,12 +576,6 @@ void DebugCamera_Update(void)
                 /* Push backward — sin/cos give forward direction, subtract. */
                 p->vx -= (s32)((s64)sinV * pushDist >> 12);
                 p->vz -= (s32)((s64)cosV * pushDist >> 12);
-                SH_DBG_ECHO("[RESCUE-Y] Numpad 3: teleport vy=%ld→%ld (+ 2.5u push back)",
-                    (long)oldY, (long)p->vy);
-                SH_DBG("[RESCUE-Y] full: pos (%ld,%ld,%ld) → (%ld,%ld,%ld) yaw=%d",
-                    (long)oldX, (long)oldY, (long)oldZ,
-                    (long)p->vx, (long)p->vy, (long)p->vz,
-                    (int)facing);
             }
             prevKp3 = curKp3;
         }
@@ -638,8 +624,6 @@ void DebugCamera_Update(void)
                     g_PcCamNudgePos.vz = 0;
                     g_PcCamNudgeYaw    = 0;
                     g_PcCamNudgePitch  = 0;
-                    SH_DBG("[CAM-RESET] map %d → %d, nudges cleared",
-                        s_prevMapForNudgeReset, curMapNow);
                 }
                 s_prevMapForNudgeReset = curMapNow;
             }
@@ -655,10 +639,6 @@ void DebugCamera_Update(void)
                 g_PcCamNudgePos.vz = 0;
                 g_PcCamNudgeYaw    = 0;
                 g_PcCamNudgePitch  = 0;
-                SH_DBG_ECHO("[CAM-RESET] Numpad 3: cam nudges cleared");
-                SH_DBG("[CAM-RESET] restored to default cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld)",
-                    (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
-                    (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
             }
             prevKey3 = cur3;
         }
@@ -680,12 +660,7 @@ void DebugCamera_Update(void)
                 g_PcCamNudgeYaw    = 0;
                 g_PcCamNudgePitch  = 0;
                 if (g_DebugRawCamMode) {
-                    SH_DBG_ECHO("[CAM-RAW-ON] Numpad 0: raw cam mode — corrections bypassed, nudge zeroed");
-                    SH_DBG("[CAM-RAW-BASELINE] engine cam=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) (pre-correction, pre-nudge)",
-                        (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
-                        (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz);
                 } else {
-                    SH_DBG_ECHO("[CAM-RAW-OFF] Numpad 0: raw cam mode off — corrections re-enabled");
                 }
             }
             prevKp0 = curKp0;
@@ -758,13 +733,6 @@ void DebugCamera_Update(void)
             static int npslPrev = 0;
             int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
             if (cur && !npslPrev) {
-                SH_DBG("[CAM] default pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) yaw=%d",
-                    (long)g_DefaultCam.pos.vx, (long)g_DefaultCam.pos.vy, (long)g_DefaultCam.pos.vz,
-                    (long)g_DefaultCam.lookAt.vx, (long)g_DefaultCam.lookAt.vy, (long)g_DefaultCam.lookAt.vz,
-                    (int)vcWork.cam_mat_ang.vy);
-                SH_DBG("[CAM] nudge   pos=(%ld,%ld,%ld) yaw=%d pitch=%d",
-                    (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
-                    (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
             }
             npslPrev = cur;
         }
@@ -840,10 +808,6 @@ void DebugCamera_Update(void)
             {
                 static int tickCounter = 0;
                 if ((++tickCounter & 0x3F) == 0) {
-                    SH_DBG("[CAM-NUDGE] cam=(%ld,%ld,%ld) look=(%ld,%ld,%ld) yawN=%d pitchN=%d",
-                        (long)newCam.vx, (long)newCam.vy, (long)newCam.vz,
-                        (long)newLook.vx, (long)newLook.vy, (long)newLook.vz,
-                        (int)effYaw, (int)effPitch);
                 }
             }
         }
@@ -1018,13 +982,6 @@ void DebugCamera_Update(void)
         static int dbg_slash_prev = 0;
         int dbg_slash_cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
         if (dbg_slash_cur && !dbg_slash_prev) {
-            SH_DBG("[DBGCAM] COORDS: pos=(%ld,%ld,%ld) angleY=%d",
-                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                g_DebugCamAngleY);
-            SH_DBG("[DBGCAM] HARRY:  pos=(%ld,%ld,%ld)",
-                (long)g_SysWork.playerWork.player.position.vx,
-                (long)g_SysWork.playerWork.player.position.vy,
-                (long)g_SysWork.playerWork.player.position.vz);
         }
         dbg_slash_prev = dbg_slash_cur;
     }
@@ -1060,12 +1017,6 @@ void DebugCamera_Update(void)
     if (moved) {
         static int dbg_print_counter = 0;
         if (++dbg_print_counter % 30 == 0) {
-            SH_DBG("[DBGCAM] pos=(%ld,%ld,%ld) angleY=%d harry=(%ld,%ld,%ld)",
-                (long)g_DebugCamPos.vx, (long)g_DebugCamPos.vy, (long)g_DebugCamPos.vz,
-                g_DebugCamAngleY,
-                (long)g_SysWork.playerWork.player.position.vx,
-                (long)g_SysWork.playerWork.player.position.vy,
-                (long)g_SysWork.playerWork.player.position.vz);
         }
     }
 
@@ -1410,14 +1361,12 @@ void MainLoop(void) // 0x80032EE0
                     if (pktEnd0[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
                 }
                 if (!canaryOk) {
-                    SH_DBG("[CANARY] *** PACKET BUF 0 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd0[i], pktUsed, PC_PKTBUF_SIZE);
                 }
                 canaryOk = 1;
                 for (i = 0; i < PC_CANARY_SIZE; i++) {
                     if (pktEnd1[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
                 }
                 if (!canaryOk) {
-                    SH_DBG("[CANARY] *** PACKET BUF 1 OVERFLOW! byte %d changed to 0x%02X (used=%td/%d)", i, (unsigned char)pktEnd1[i], pktUsed, PC_PKTBUF_SIZE);
                 }
             }
         }
@@ -1433,21 +1382,7 @@ void MainLoop(void) // 0x80032EE0
             continue;
         }
 
-#ifdef SH_PC_PORT
-        /* g_SH_PostFireTrace is bumped to N in Player_CombatUpdate when a
-         * fire dispatch happens. ML_TRACE prints for those frames AND for
-         * any frame where g_SH_AlwaysMlTrace is set (currently always-on
-         * to diagnose the post-pistol-equip silent crash AND a boot-time
-         * silent crash that dies after frame 1's GameState_Boot_Update
-         * completes — so flush per call so the trace survives the crash). */
-        extern int g_SH_PostFireTrace;
-        extern int g_SH_AlwaysMlTrace;
-#define ML_TRACE(tag) do { \
-    if (g_SH_PostFireTrace > 0 || g_SH_AlwaysMlTrace) SH_DBG_ECHO("[ML] " tag); \
-} while (0)
-#else
 #define ML_TRACE(tag) ((void)0)
-#endif
         PC_OT_SCAN("pre-Screen_FadeUpdate");
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
@@ -1660,12 +1595,6 @@ void MainLoop(void) // 0x80032EE0
                 Collision_SurfaceGet(&_hereColl,
                     g_SysWork.playerWork.player.position.vx,
                     g_SysWork.playerWork.player.position.vz);
-                SH_DBG_ECHO("[POS-LOG] Numpad . map=%d room=%d pos=(%ld,%ld,%ld)",
-                    (int)g_SavegamePtr->mapIdx,
-                    (int)g_SavegamePtr->mapRoomIdx,
-                    (long)g_SysWork.playerWork.player.position.vx,
-                    (long)g_SysWork.playerWork.player.position.vy,
-                    (long)g_SysWork.playerWork.player.position.vz);
                 SH_DBG("HARRY POSITION LOGGED mapId=%d roomIdx=%d pos=(%ld,%ld,%ld) yaw=%d pitch=%d moveSpeed=%ld camPos=(%ld,%ld,%ld) camYaw=%d camPitch=%d groundH=%ld slopeX=%d slopeZ=%d validPts=%d voidCell=%d",
                     (int)g_SavegamePtr->mapIdx,
                     (int)g_SavegamePtr->mapRoomIdx,
@@ -1834,10 +1763,6 @@ void MainLoop(void) // 0x80032EE0
                 if (g_PsxSkipFramebufferStore && !s_pmapTraceUsed) {
                     pmapTrace = 1;
                     s_pmapTraceUsed = 1;
-                    SH_DBG("[OT-WALK/PICKUP] starting trace — head=%p pkt=[%p..%p) ot=[%p..%p) sub=[%p..%p)",
-                           (void*)cur, (void*)pktLo, (void*)pktHi,
-                           (void*)otLo, (void*)otHi,
-                           (void*)subLo, (void*)subHi);
                 }
                 while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
@@ -1847,18 +1772,11 @@ void MainLoop(void) // 0x80032EE0
                     if (pmapTrace && w2 < 200) {
                         u8 dbgCode = curOk ? ((P_TAG*)cur)->code : 0xFF;
                         int dbgLen = curOk ? getlen(cur) : -1;
-                        SH_DBG("[OT-WALK/PICKUP] w=%d cur=%p ok=%d code=0x%02x len=%d isend=%d",
-                               w2, (void*)cur, curOk, dbgCode, dbgLen,
-                               curOk ? isendprim(cur) : -1);
                     }
                     if (!curOk) {
                         static int s_dumpedOnce = 0;
                         if (!s_dumpedOnce) {
                             s_dumpedOnce = 1;
-                            SH_DBG("[OT-SANIT] FIRST bad cur=%p (w2=%d) prev=%p — pkt=[%p..%p) ot=[%p..%p)",
-                                   (void*)cur, w2, (void*)prev,
-                                   (void*)pktLo, (void*)pktHi,
-                                   (void*)otLo, (void*)otHi);
                         }
                         /* Skip past the corrupt prim by re-linking prev to
                          * ot0->org[0] — the closest-to-camera bucket, last in
@@ -1911,8 +1829,6 @@ void MainLoop(void) // 0x80032EE0
                         static int s_badNextDumped = 0;
                         if (!s_badNextDumped) {
                             s_badNextDumped = 1;
-                            SH_DBG("[OT-SANIT] FIRST wild next=%p at cur=%p (w2=%d) — re-link to org[0]",
-                                   (void*)next, (void*)cur, w2);
                         }
                         /* Re-link cur past the corrupt next to ot0->org[0]
                          * (closest-camera bucket) so DrawOTag walks through
@@ -1937,7 +1853,6 @@ void MainLoop(void) // 0x80032EE0
                 if (s_PcPacketBufEnds[g_ActiveBufferIdx][_ci] != PC_CANARY_VAL) { _canaryOk = 0; break; }
             }
             if (!_canaryOk) {
-                SH_DBG("[CANARY] *** PRE-DRAW: buf %d overflow at byte %d (0x%02X)", g_ActiveBufferIdx, _ci, (unsigned char)s_PcPacketBufEnds[g_ActiveBufferIdx][_ci]);
             }
         }
 #endif
@@ -1976,10 +1891,6 @@ void MainLoop(void) // 0x80032EE0
                     static int s_ot2DumpedOnce = 0;
                     if (!s_ot2DumpedOnce) {
                         s_ot2DumpedOnce = 1;
-                        SH_DBG("[OT2-SANIT] FIRST bad cur2=%p (w3=%d) prev=%p — pkt=[%p..%p) ot=[%p..%p)",
-                               (void*)cur2, w3, (void*)prev2,
-                               (void*)pktLo2, (void*)pktHi2,
-                               (void*)otLo2, (void*)otHi2);
                     }
                     if (prev2 != NULL) {
                         setaddr(prev2, &ot2->org[0]);
@@ -2003,8 +1914,6 @@ void MainLoop(void) // 0x80032EE0
                     static int s_ot2BadNextDumped = 0;
                     if (!s_ot2BadNextDumped) {
                         s_ot2BadNextDumped = 1;
-                        SH_DBG("[OT2-SANIT] FIRST wild next=%p at cur2=%p (w3=%d) — re-link to org[0]",
-                               (void*)next2, (void*)cur2, w3);
                     }
                     setaddr(cur2, &ot2->org[0]);
                     break;
@@ -2028,7 +1937,6 @@ void MainLoop(void) // 0x80032EE0
         }
         /* End stack canary check */
         if (_stackCanary != 0xDEADBEEF) {
-            SH_DBG("[CANARY] *** STACK CORRUPTION! canary=0x%08X", _stackCanary);
         }
         } /* close _stackCanary scope */
 #endif

@@ -73,19 +73,15 @@ void func_8003BED0(void) // 0x8003BED0
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
 #ifdef SH_PC_PORT
-    SH_DBG("[ITEM-LM] LmHeader_FixOffsets done, matCnt=%d", g_WorldGfxWork.itemLmHdr.materialCount);
 #endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "TIM00", &IMAGE_TIM, 1);
 #ifdef SH_PC_PORT
-    SH_DBG("[ITEM-LM] TIM00 apply done");
 #endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "BG_ETC", &IMAGE_ETC, 1);
 #ifdef SH_PC_PORT
-    SH_DBG("[ITEM-LM] BG_ETC apply done");
 #endif
     Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr);
 #ifdef SH_PC_PORT
-    SH_DBG("[ITEM-LM] MaterialFlagsApply done");
 #endif
 }
 
@@ -441,7 +437,6 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
         {
             static s32 drawLogCD = 0;
             if ((drawLogCD++ % 300) == 0) {
-                SH_DBG("[LOADSCREEN] Gfx_InGameDraw: flushed %d FS queue entries (remaining=%d)", flushed, Fs_QueueGetLength());
             }
         }
         Ipd_CloseRangeChunksInit();
@@ -912,23 +907,18 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         if (!lmHdr->isLoaded)
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] FixOffsets begin: lmHdr=%p itemId=%d tex=%s", (void*)lmHdr, heldItem->itemId, heldItem->textureName ? heldItem->textureName : "(null)");
 #endif
             LmHeader_FixOffsets(lmHdr);
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] FixOffsets done: matCnt=%d modelCnt=%d", lmHdr->materialCount, lmHdr->modelCount);
 #endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName, &heldItem->imageDesc, BlendMode_Additive);
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] MaterialFsImageApply1 done");
 #endif
             Lm_MaterialFlagsApply(lmHdr);
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] MaterialFlagsApply done");
 #endif
             Bone_ModelAssign(&heldItem->bone, heldItem->lmHdr, 0);
 #ifdef SH_PC_PORT
-            SH_DBG("[HELD-LM] Bone_ModelAssign done");
 #endif
         }
 
@@ -1306,7 +1296,6 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
         model->isLoaded = true;
 
 #ifdef SH_PC_PORT
-        SH_DBG("[CHARA-LOAD] charaId=%d lmHdr=%p fixing offsets...", model->charaId, (void*)model->lmHdr);
 #endif
         LmHeader_FixOffsets(model->lmHdr);
         Lm_MaterialFileIdxApply(model->lmHdr, CHARA_FILE_INFOS[model->charaId].textureFileIdx, &model->texture, CHARA_FILE_INFOS[model->charaId].materialBlendMode % 4);

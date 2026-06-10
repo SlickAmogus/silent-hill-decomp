@@ -91,7 +91,6 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
 #ifdef SH_PC_PORT
     static u8 lastState = 255;
     if (g_SysWork.sysStateSteps[0] != lastState) {
-        SH_DBG("[CAFE_EVENT] state=%u", g_SysWork.sysStateSteps[0]);
         lastState = g_SysWork.sysStateSteps[0];
     }
 #endif
@@ -215,10 +214,6 @@ void MapEvent_CafeCutscene(void) // 0x800DA980
                 int _curFrame = (int)g_Cutscene_Timer;
                 if (_curFrame != _lastLogFrame) {
                     s32 _ps = (s32)Chara_AnimPlaybackStateGet(&g_SysWork.npcs[0]);
-                    SH_DBG("[CAFE_12] timer=%d D_800DE251=%d AnimPlaybackState=%d cybilStatus=%d cybilKf=%d",
-                           (int)g_Cutscene_Timer, (int)D_800DE251, (int)_ps,
-                           (int)g_SysWork.npcs[0].model.anim.status,
-                           (int)g_SysWork.npcs[0].model.anim.keyframeIdx);
                     _lastLogFrame = _curFrame;
                 }
             }
@@ -1077,13 +1072,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
     {
         static u32 _wouTickLogged = 0;
         if (_wouTickLogged < 5) {
-            SH_DBG("[M0S01_WOU] tick: pickupMap=%d EF41=%d EF42=%d EF47=%d AirIntro=%d npc0.charaId=%d",
-                   (int)Savegame_EventFlagGet(EventFlag_M0S01_PickupMap),
-                   (int)Savegame_EventFlagGet(EventFlag_41),
-                   (int)Savegame_EventFlagGet(EventFlag_42),
-                   (int)Savegame_EventFlagGet(EventFlag_47),
-                   (int)Savegame_EventFlagGet(EventFlag_M0S01_AirScreamerIntroCutsceneStarted),
-                   (int)g_SysWork.npcs[0].model.charaId);
             _wouTickLogged++;
         }
     }
@@ -1103,23 +1091,16 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         {
             static u32 _wouBirdSkipLogged = 0;
             if (!_wouBirdSkipLogged) {
-                SH_DBG("[M0S01_WOU] npcs[0] not AirScreamer (charaId=%d) — skipping BIRD cutscene, setting EF_42",
-                       (int)g_SysWork.npcs[0].model.charaId);
                 _wouBirdSkipLogged = 1;
             }
             Savegame_EventFlagSet(EventFlag_42);
         }
         else
         {
-        SH_DBG("[M0S01_WOU] post-pickup branch entered EF41=%d",
-               (int)Savegame_EventFlagGet(EventFlag_41));
 #endif
         if (Savegame_EventFlagGet(EventFlag_41))
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] EF41 path: calling Model_AnimDurationGet bird=%p charaId=%d",
-                   (void*)&airScreamerChara,
-                   (int)airScreamerChara.model.charaId);
             /* Flyby is DMS-driven (position/rotation come from Dms_CharacterTransformGet),
              * so the AI state machine isn't running and wings never animate. Force
              * FlyIdle playback once so wings flap during the flyby pass. */
@@ -1136,7 +1117,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
 #endif
             temp_a1 = g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&airScreamerChara.model));
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] Model_AnimDurationGet OK temp_a1=%d", (int)temp_a1);
 #endif
 
             ptr = &g_Cutscene_Timer;
@@ -1151,12 +1131,10 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             *ptr = var_a2;
 
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] calling Dms_CharacterTransformGet BIRD t=%d", (int)g_Cutscene_Timer);
 #endif
             Dms_CharacterTransformGet(&airScreamerChara.position, &airScreamerChara.rotation, "BIRD",
                                       g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_11);
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] Dms_CharacterTransformGet OK");
 #endif
 
             if (g_Cutscene_Timer >= Q12(25.0f) ||
@@ -1177,12 +1155,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         {
             Savegame_EventFlagSet(EventFlag_41);
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] calling func_800D3AC0 (air screamer init) bird=%p",
-                   (void*)&airScreamerChara);
 #endif
             func_800D3AC0(&airScreamerChara);
 #ifdef SH_PC_PORT
-            SH_DBG("[M0S01_WOU] func_800D3AC0 OK");
 #endif
         }
         else

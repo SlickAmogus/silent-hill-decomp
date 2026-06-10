@@ -120,8 +120,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         memset(_spawnNearLogged, 0, sizeof(_spawnNearLogged));
         _spawnLastMapId = g_SavegamePtr->mapIdx;
         _spawnTickCounter = 0;
-        SH_DBG("[SPAWN-GATE] map changed → mapId=%d, resetting spawn-state cache",
-               (int)_spawnLastMapId);
     }
     /* Tick-throttled "closest spawn" log every ~5s so we can observe player
      * approach. Computed during the loop below — capture nearest distance. */
@@ -142,9 +140,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
              * this is the bottleneck. */
             static u32 _lastCapLog = 0;
             if (_spawnTickCounter - _lastCapLog > 300) {
-                SH_DBG("[SPAWN-CAP] npcFlags=0x%x flagsId=%d full (mask=0x%x) — slot=%d unreachable; raise NPC_COUNT_MAX or map flagsId override",
-                       (unsigned)g_SysWork.npcFlags, (int)g_SysWork.npcFlagsId,
-                       (unsigned)((1 << g_SysWork.npcFlagsId) - 1), i);
                 _lastCapLog = _spawnTickCounter;
             }
 #endif
@@ -198,14 +193,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
                 int gate5 = (g_SavegamePtr->gameDifficulty >= curCharaSpawn->gameDifficultyMin);
                 int gate6 = func_8008F914(curCharaSpawn->positionX, curCharaSpawn->positionZ) ? 1 : 0;
                 int gate8 = (!cond || Math_Distance2dCheck(pp, pos, Q12(20.0f)));
-                SH_DBG("[SPAWN-GATE] slot=%d %s spawn=(%d,%d) player=(%d,%d) flags=%d diff=%d/%d cond=%d g1=%d g2=%d g3=%d g5=%d g6=%d g7=%d g8=%d",
-                       i, gate7 ? "NEAR" : "far",
-                       (int)curCharaSpawn->positionX, (int)curCharaSpawn->positionZ,
-                       (int)pp->vx, (int)pp->vz,
-                       (int)curCharaSpawn->flags,
-                       (int)g_SavegamePtr->gameDifficulty, (int)curCharaSpawn->gameDifficultyMin,
-                       (int)cond,
-                       gate1, gate2, gate3, gate5, gate6, gate7, gate8);
                 _spawnNearLogged[i] = curState;
             }
         }
@@ -268,8 +255,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             if (near22) {
                 static u32 _cdLog[64] = { 0 };
                 if (_cdLog[i] == 0 || (_spawnTickCounter - _cdLog[i]) > 60) {
-                    SH_DBG("[SPAWN-COOLDOWN] slot=%d in range (player <22u) but cooldown=%u ticks remaining",
-                           i, (unsigned)_slotSpawnCooldown[i]);
                     _cdLog[i] = _spawnTickCounter;
                 }
             }
@@ -325,10 +310,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             chara                    = &g_SysWork.npcs[npcIdx];
             chara->model.anim.flags |= AnimFlag_Visible;
 #ifdef SH_PC_PORT
-            SH_DBG("[NPC_SPAWN] slot=%d charaId=%d spawnIdx=%d pos=(%d,%d,%d) rotY=%d",
-                   (int)npcIdx, (int)chara->model.charaId, (int)i,
-                   (int)chara->position.vx, (int)chara->position.vy,
-                   (int)chara->position.vz, (int)chara->rotation.vy);
 #endif
         }
     }
@@ -345,12 +326,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         /* _closestDist is squared in Q12 already; rough sqrt for log
          * readability — log it as squared too so we don't pull in
          * SquareRoot12 from here. */
-        SH_DBG("[SPAWN-TICK] mapId=%d player=(%d,%d) closestSlot=%d at=(%d,%d) flags=%d distSq_q12=%d (radius_q12=%d)",
-               (int)g_SavegamePtr->mapIdx,
-               (int)pp->vx, (int)pp->vz,
-               (int)_closestSlot, (int)_closestX, (int)_closestZ,
-               (int)_closestFlags, (int)_closestDist,
-               (int)(Q12(22) * Q12(22) >> 12));
     }
 #endif
 }
@@ -469,14 +444,6 @@ void Game_NpcUpdate(void) // 0x80038354
                     static u32 _trkCounter = 0;
                     if (k == 0) _trkCounter++;
                     if (k < 6 && (_trkCounter - _trkTick[k]) > 60) {
-                        SH_DBG("[NPC-TRACK] npc=%d charaId=%d health=%d flags=0x%x pos=(%d,%d) temp_t3=%d field_4[0]=%d health_gate=%d insertRange=%d despawnRange=%d",
-                               (int)k, (int)npc->model.charaId,
-                               (int)npc->health, (unsigned)npc->flags,
-                               (int)npc->position.vx, (int)npc->position.vz,
-                               (int)temp_t3, (int)field_0[0].field_4,
-                               (int)(npc->health > Q12(0.0f)),
-                               (int)(temp_t3 < field_0[0].field_4),
-                               (int)(temp_t3 < SQUARE(40)));
                         _trkTick[k] = _trkCounter;
                     }
                 }
@@ -539,8 +506,6 @@ void Game_NpcUpdate(void) // 0x80038354
                      * is larger so the formula gives garbage. Just use k
                      * directly — it IS the array index. */
                     field_0[j].bitIdx_0   = (s8)k;
-                    SH_DBG("[NPC-INSERT] field_0[%d] = npc[%d] charaId=%d temp_t3=%d (radio should fire)",
-                           (int)j, (int)k, (int)npc->model.charaId, (int)temp_t3);
 #else
                     field_0[j].bitIdx_0   = temp2 >> 3;
 #endif
@@ -555,11 +520,6 @@ void Game_NpcUpdate(void) // 0x80038354
                 if (new_var > ((var_t5 == 0 && npc->health < Q12(0.0f)) ? SQUARE(24) : SQUARE(40)))
                 {
 #ifdef SH_PC_PORT
-                    SH_DBG("[NPC-DESPAWN] npcSlot=%d charaId=%d spawnSlot=%d distSq=%d (radius=%d) deadFastTrack=%d",
-                           (int)k, (int)npc->model.charaId, (int)npc->field_40,
-                           (int)new_var,
-                           (var_t5 == 0 && npc->health < Q12(0.0f)) ? 576 : 1600,
-                           (int)(npc->health < Q12(0.0f)));
 #endif
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
@@ -642,8 +602,6 @@ void Game_NpcUpdate(void) // 0x80038354
                          * Just skip AI this tick and wait for load to complete. */
                         static u32 _animWaitLogged = 0;
                         if (!(_animWaitLogged & (1u << (npc->model.charaId & 31)))) {
-                            SH_DBG("[NPC_AI] charaId=%d anim not loaded yet (idx=%d) — waiting",
-                                   npc->model.charaId, (int)(s8)animDataInfoIdx);
                             _animWaitLogged |= (1u << (npc->model.charaId & 31));
                         }
                     }
@@ -651,14 +609,10 @@ void Game_NpcUpdate(void) // 0x80038354
                     {
                         /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
-                            SH_DBG("[NPC_RENDER] charaId=%d animIdx=%d boneCoords=%p",
-                                   npc->model.charaId, animDataInfoIdx,
-                                   (void*)g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords);
                             func_8003DA9C(npc->model.charaId,
                                           g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
-                            SH_DBG("[NPC_RENDER] done charaId=%d", npc->model.charaId);
                         }
                     }
                     else
@@ -676,8 +630,6 @@ void Game_NpcUpdate(void) // 0x80038354
                      * render even without AI driving it. */
                     static u32 _noUpdateFnLogged = 0;
                     if (!(_noUpdateFnLogged & (1u << (npc->model.charaId & 31)))) {
-                        SH_DBG("[NPC_AI] charaId=%d has NULL charaUpdateFunc — skipping AI, keeping for render",
-                               npc->model.charaId);
                         _noUpdateFnLogged |= (1u << (npc->model.charaId & 31));
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
@@ -743,8 +695,6 @@ void Game_NpcUpdate(void) // 0x80038354
                     if (!_spawnInitDone[k] && npc->model.controlState == 0) {
                         npc->model.stateStep = 0;
                         _spawnInitDone[k] = 1;
-                        SH_DBG("[NPC_AI] one-shot spawn-init charaId=%d slot=%d stateStep=0",
-                               npc->model.charaId, (int)k);
                     }
                 }
             }
@@ -762,19 +712,12 @@ void Game_NpcUpdate(void) // 0x80038354
              * until Chara_ProcessLoads() completes their ANM read. */
             if (g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr == NULL) {
                 if (npc->model.charaId == Chara_Cheryl) {
-                    SH_DBG("[NPC_AI] Cheryl: animDataInfoIdx=%d activeAnmHdr=NULL boneCoords=%p — skipping",
-                            animDataInfoIdx, (void*)boneCoords);
                 } else {
-                    SH_DBG("[NPC_AI] charaId=%d animDataInfoIdx=%d activeAnmHdr=NULL — waiting for load",
-                            npc->model.charaId, animDataInfoIdx);
                 }
                 continue;
             }
 #endif
 #ifdef SH_PC_PORT
-            SH_DBG("[NPC] ai-enter charaId=%d status=%d kf=%d",
-                    npc->model.charaId, npc->model.anim.status,
-                    npc->model.anim.keyframeIdx);
 #endif
             g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr, boneCoords);
 
@@ -857,10 +800,6 @@ void Game_NpcUpdate(void) // 0x80038354
         static s8 _radioKeyonLogged[2] = { 0, 0 };
         if (l < 2 && !_radioKeyonLogged[l] &&
             D_800BCDA8[l].field_0 == NO_VALUE && D_800BCDA8[l].field_1 >= 0) {
-            SH_DBG("[RADIO_KEYON] slot=%d firing SD_Call(0x%04X) field_0=%d field_1=%d field_2=%d",
-                   (int)l, (unsigned)(Sfx_RadioInterferenceLoop + l),
-                   (int)D_800BCDA8[l].field_0, (int)D_800BCDA8[l].field_1,
-                   (int)D_800BCDA8[l].field_2);
             _radioKeyonLogged[l] = 1;
         }
         /* Throttled state-snapshot — every ~1s log the actual D_800BCDA8 values
@@ -868,10 +807,6 @@ void Game_NpcUpdate(void) // 0x80038354
         {
             static u32 _radStateTickCnt = 0;
             if (l == 0 && (++_radStateTickCnt % 60) == 0) {
-                SH_DBG("[RADIO_STATE] tick=%u slot0=(f0=%d,f1=%d,f2=%d) slot1=(f0=%d,f1=%d,f2=%d)",
-                       _radStateTickCnt,
-                       (int)D_800BCDA8[0].field_0, (int)D_800BCDA8[0].field_1, (int)D_800BCDA8[0].field_2,
-                       (int)D_800BCDA8[1].field_0, (int)D_800BCDA8[1].field_1, (int)D_800BCDA8[1].field_2);
             }
         }
 #endif

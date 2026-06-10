@@ -178,10 +178,6 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
         g_SysWork.sysStateSteps[0] <  EventState_13)
     {
 #ifdef SH_PC_PORT
-        SH_DBG("[CS] SKIP triggered at step=%d btns=0x%x skip=0x%x",
-                g_SysWork.sysStateSteps[0],
-                g_Controller0->clickedBtnFlags,
-                g_GameWorkPtr->config.controllerConfig.skip);
 #endif
         skip = true;
         SysWork_StateStepReset();
@@ -191,10 +187,8 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
     {
         static s32 lastStep = -1;
         if (g_SysWork.sysStateSteps[0] != lastStep) {
-            SH_DBG("[SH_DMS] OpeningCutscene step=%d", g_SysWork.sysStateSteps[0]);
             lastStep = g_SysWork.sysStateSteps[0];
         }
-        SH_DBG("[CS] step=%d t=%d", g_SysWork.sysStateSteps[0], g_Cutscene_Timer);
     }
 #endif
 
@@ -328,17 +322,14 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[CS] post-switch");
 #endif
     // Control player and camera.
     if (g_Cutscene_Timer >= Q12(0.0f))
     {
 #ifdef SH_PC_PORT
-        SH_DBG("[CS] DMS t=%d", g_Cutscene_Timer);
 #endif
         Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16);
 #ifdef SH_PC_PORT
-        SH_DBG("[CS] DMS hero OK");
 #endif
         vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
@@ -369,7 +360,6 @@ void MapEvent_CutsceneCherylFootsteps0(void) // 0x800D9D98
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateSteps[0] != _lastStep) {
-            SH_DBG("[D9D98] step=%d", g_SysWork.sysStateSteps[0]);
             _lastStep = g_SysWork.sysStateSteps[0];
         }
     }
@@ -428,7 +418,6 @@ void MapEvent_CutsceneCherylFootsteps1(void) // 0x800DA028
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateSteps[0] != _lastStep) {
-            SH_DBG("[DA028] step=%d", g_SysWork.sysStateSteps[0]);
             _lastStep = g_SysWork.sysStateSteps[0];
         }
     }
@@ -567,7 +556,6 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
     {
         static s32 _lastStep = -1;
         if (g_SysWork.sysStateSteps[0] != _lastStep) {
-            SH_DBG("[DA5A0] step=%d", g_SysWork.sysStateSteps[0]);
             _lastStep = g_SysWork.sysStateSteps[0];
         }
     }
@@ -665,25 +653,16 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
 
         case 3:
 #ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: cheryl charaId=%d pos=(%d,%d,%d) stateEC=%d",
-                    cherylChara.model.charaId,
-                    cherylChara.position.vx,
-                    cherylChara.position.vy,
-                    cherylChara.position.vz,
-                    cherylChara.properties.dummy.properties_E8[1].val32);
 #endif
             cherylChara.properties.player.headingAngle = Q12(1.8f);
 
 #ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: calling func_80086728");
 #endif
             func_80086728(&cherylChara, 2, 1, 0);
 #ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: func_80086728 returned");
 #endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
 #ifdef SH_PC_PORT
-            SH_DBG("[DA5A0] step3: done");
 #endif
             break;
 
@@ -1051,9 +1030,6 @@ void MapEven_CutsceneAlleyGetsDarker(void) // 0x800DB514
         static s32 s_lastStep = -1;
         s32 curStep = g_SysWork.sysStateSteps[0];
         if (curStep != s_lastStep) {
-            SH_DBG("[DB514] step=%d EF16=%d EF17=%d DFB60=%d", curStep,
-                    Savegame_EventFlagGet(EventFlag_16), Savegame_EventFlagGet(EventFlag_17),
-                    D_800DFB60);
             s_lastStep = curStep;
         }
     }
@@ -1435,19 +1411,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DBF08
                        (Savegame_EventFlagGet(EventFlag_16) ? 128 : 0) |
                        (Savegame_EventFlagGet(EventFlag_17) ? 256 : 0);
         if (curFlags != s_lastFlags) {
-            SH_DBG("[WOU] flags EF4=%d EF6=%d EF9=%d EF11=%d EF12=%d EF13=%d EF15=%d EF16=%d EF17=%d DFADC=%d pos=(%d,%d)",
-                    Savegame_EventFlagGet(EventFlag_4),
-                    Savegame_EventFlagGet(EventFlag_6),
-                    Savegame_EventFlagGet(EventFlag_9),
-                    Savegame_EventFlagGet(EventFlag_11),
-                    Savegame_EventFlagGet(EventFlag_12),
-                    Savegame_EventFlagGet(EventFlag_13),
-                    Savegame_EventFlagGet(EventFlag_15),
-                    Savegame_EventFlagGet(EventFlag_16),
-                    Savegame_EventFlagGet(EventFlag_17),
-                    D_800DFADC,
-                    g_SysWork.playerWork.player.position.vx >> 12,
-                    g_SysWork.playerWork.player.position.vz >> 12);
             s_lastFlags = curFlags;
         }
     }

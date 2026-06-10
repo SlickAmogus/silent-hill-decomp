@@ -120,10 +120,6 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     u32 ptr14_off = rd32(&collraw[0x14]);
     u32 ptr18_off = rd32(&collraw[0x18]);
 
-    SH_DBG("[IPD-COLL] raw ptrs: C=0x%x 10=0x%x 14=0x%x 18=0x%x",
-            ptrC_off, ptr10_off, ptr14_off, ptr18_off);
-    SH_DBG("[IPD-COLL] field_1C=%d field_1E=%d field_1F=%d",
-            rds16(&collraw[0x1C]), collraw[0x1E], collraw[0x1F]);
 
     dst->splitVertices  = (SVECTOR3*)(collbase + ptrC_off);
     dst->surfaces = (s_IpdCollSurface*)(collbase + ptr10_off);
@@ -148,11 +144,8 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     /* Dump first few ptr_10 entries to verify data alignment */
     {
         s_IpdCollSurface* p10 = dst->surfaces;
-        SH_DBG("[IPD-COLL] ptr_10[0]: f0=%d f2=%d f4=%d f8=%d fA=%d",
-                p10[0].field_0, p10[0].baseGroundHeight, p10[0].field_4, p10[0].tiltAngleX, p10[0].tiltAngleZ);
         if (dst->surfaceCount > 1)
-            SH_DBG("[IPD-COLL] ptr_10[1]: f0=%d f2=%d f4=%d f8=%d fA=%d",
-                    p10[1].field_0, p10[1].baseGroundHeight, p10[1].field_4, p10[1].tiltAngleX, p10[1].tiltAngleZ);
+            ;
     }
 
     dst->subcellCheckCount = collraw[0x30];

@@ -174,16 +174,6 @@ void GameBoot_GameStartup(void) // 0x80034964
                 if (_qlen > 0 && _step3Dumped != g_FsQueue.read.idx) {
                     s_FsQueueEntry* re = g_FsQueue.read.ptr;
                     s_FsQueueEntry* pe = g_FsQueue.postLoad.ptr;
-                    SH_DBG("[STEP3-DUMP] qlen=%d idx{r=%d p=%d l=%d} state{r=%d pl=%d} "
-                           "READ{op=%d alloc=%d post=%d data=%p ext=%p info=%p} "
-                           "POSTLOAD{op=%d alloc=%d post=%d data=%p ext=%p info=%p}",
-                           _qlen,
-                           g_FsQueue.read.idx, g_FsQueue.postLoad.idx, g_FsQueue.last.idx,
-                           g_FsQueue.state, g_FsQueue.postLoadState,
-                           re->operation, re->allocate, re->postLoad,
-                           (void*)re->data, (void*)re->externalData, (void*)re->info,
-                           pe->operation, pe->allocate, pe->postLoad,
-                           (void*)pe->data, (void*)pe->externalData, (void*)pe->info);
                     _step3Dumped = g_FsQueue.read.idx;
                 }
             }

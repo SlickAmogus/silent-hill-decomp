@@ -47,13 +47,12 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
         Savegame_EventFlagSet(EventFlag_M0S01_AirScreamerDied);
         return;
     }
-    SH_DBG("[AIRSCR] enter chara=%p anm=%p coord=%p", (void*)airScreamer, (void*)anmHdr, (void*)coords);
-    sharedFunc_800D21E4_0_s01(anmHdr, coords);           SH_DBG("[AIRSCR] post-21E4");
-    sharedFunc_800D2200_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2200");
-    Ai_AirScreamer_Init(airScreamer);                    SH_DBG("[AIRSCR] post-Init");
-    sharedFunc_800D2274_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2274");
-    sharedFunc_800D2390_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-2390");
-    Ai_AirScreamer_Control(airScreamer);                 SH_DBG("[AIRSCR] post-Control");
+    sharedFunc_800D21E4_0_s01(anmHdr, coords);
+    sharedFunc_800D2200_0_s01(airScreamer);
+    Ai_AirScreamer_Init(airScreamer);
+    sharedFunc_800D2274_0_s01(airScreamer);
+    sharedFunc_800D2390_0_s01(airScreamer);
+    Ai_AirScreamer_Control(airScreamer);
     /* Movement diagnosis: dump the per-frame state that drives the swoop
      * movement chain. cs/ss = control state / state-step (selects which
      * sharedFunc_800D5xxx helper writes field_B4[0]). moveSpd is what
@@ -64,20 +63,11 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
      * whole movement chain at sharedFunc_800D62D8. */
     {
         s32 _4a80 = sharedFunc_800D4A80_0_s01(airScreamer);
-        SH_DBG("[ASMOV] cs=%d ss=%d anim=0x%X moveSpd=%d accel=%d target=%d _4A80=%d hp=%d",
-               (int)airScreamer->model.controlState,
-               (int)airScreamer->model.stateStep,
-               (int)airScreamer->model.anim.status,
-               (int)airScreamer->moveSpeed,
-               (int)sharedData_800E21D0_0_s01.field_B4[0][1],
-               (int)sharedData_800E21D0_0_s01.field_B4[0][2],
-               (int)_4a80,
-               (int)airScreamer->health);
     }
-    sharedFunc_800D62D8_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-62D8");
-    sharedFunc_800D7AB0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7AB0 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
-    sharedFunc_800D7EBC_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-7EBC status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
-    sharedFunc_800D81B0_0_s01(airScreamer);              SH_DBG("[AIRSCR] post-81B0 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
+    sharedFunc_800D62D8_0_s01(airScreamer);
+    sharedFunc_800D7AB0_0_s01(airScreamer);
+    sharedFunc_800D7EBC_0_s01(airScreamer);
+    sharedFunc_800D81B0_0_s01(airScreamer);
 
     /* PC universal AS bite-damage trigger.
      *
@@ -122,9 +112,6 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
 
         if (isBiteActive && !s_prevBiteActive) {
             s_biteDamaged = 0;
-            SH_DBG("[AS-BITE] bite anim entered — lockout reset (cs=%d ss=%d kf=%d)",
-                   (int)airScreamer->model.controlState,
-                   (int)airScreamer->model.stateStep, (int)kf);
         }
         s_prevBiteActive = isBiteActive;
 
@@ -146,9 +133,6 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
                  * by the legacy Control_47 transition guard (the
                  * countdown above is what actually drains it now). */
                 g_AsBiteCooldown    = Q12(1.5f);
-                SH_DBG("[AS-BITE] hit landed kf=%d distSqr=%d field_40=%d cs=%d (Player_ReceiveDamage will process, cooldown=1.5s)",
-                       (int)kf, (int)distSqr, (int)pl->field_40,
-                       (int)airScreamer->model.controlState);
             }
         }
     }
@@ -541,17 +525,16 @@ bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer)
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[AIRSCR-INIT] enter");
-    sharedFunc_800D2BF4_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2BF4");
-    Ai_AirScreamer_Control_0(airScreamer);  SH_DBG("[AIRSCR-INIT] post-Ctrl0");
-    sharedFunc_800D2390_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2390a");
-    sharedFunc_800D2390_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2390b");
-    sharedFunc_800D2B00_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B00");
-    sharedFunc_800D2B10_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B10");
-    sharedFunc_800D2B28_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B28");
-    sharedFunc_800D2B4C_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2B4C");
-    Ai_AirScreamer_GroundWarp(airScreamer); SH_DBG("[AIRSCR-INIT] post-GndWarp");
-    sharedFunc_800D2BE4_0_s01(airScreamer); SH_DBG("[AIRSCR-INIT] post-2BE4");
+    sharedFunc_800D2BF4_0_s01(airScreamer);
+    Ai_AirScreamer_Control_0(airScreamer);
+    sharedFunc_800D2390_0_s01(airScreamer);
+    sharedFunc_800D2390_0_s01(airScreamer);
+    sharedFunc_800D2B00_0_s01(airScreamer);
+    sharedFunc_800D2B10_0_s01(airScreamer);
+    sharedFunc_800D2B28_0_s01(airScreamer);
+    sharedFunc_800D2B4C_0_s01(airScreamer);
+    Ai_AirScreamer_GroundWarp(airScreamer);
+    sharedFunc_800D2BE4_0_s01(airScreamer);
 #else
     sharedFunc_800D2BF4_0_s01(airScreamer);
     Ai_AirScreamer_Control_0(airScreamer);
@@ -614,11 +597,10 @@ void sharedFunc_800D2B4C_0_s01(s_SubCharacter* airScreamer)
 
     g_DeltaTime = Q12(0.0f);
 #ifdef SH_PC_PORT
-    SH_DBG("[2B4C] anmHdr=%p coords=%p airscr=%p", (void*)anmHdr, (void*)coords, (void*)airScreamer);
-    func_80044950(airScreamer, anmHdr, coords);  SH_DBG("[2B4C] post-44950");
+    func_80044950(airScreamer, anmHdr, coords);
     g_DeltaTime = deltaTime;
-    sharedFunc_800D7560_0_s01(airScreamer);       SH_DBG("[2B4C] post-7560");
-    sharedFunc_800D82B8_0_s01(airScreamer);       SH_DBG("[2B4C] post-82B8");
+    sharedFunc_800D7560_0_s01(airScreamer);
+    sharedFunc_800D82B8_0_s01(airScreamer);
 #else
     func_80044950(airScreamer, anmHdr, coords);
     g_DeltaTime = deltaTime;
@@ -1159,13 +1141,11 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[ASCTL] pre-3758");
     sharedData_800E21D0_0_s01.field_14C.flags = sharedFunc_800D3758_0_s01(airScreamer,
                                                                           &sharedData_800E21D0_0_s01.distance_150,
                                                                           &sharedData_800E21D0_0_s01.angle_154,
                                                                           &sharedData_800E21D0_0_s01.field_158,
                                                                           &sharedData_800E21D0_0_s01.field_15C);
-    SH_DBG("[ASCTL] post-3758 ctrlState=%d", airScreamer->model.controlState);
 
     if (airScreamerProps.field_E8_0 == 3)
     {
@@ -1175,11 +1155,9 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
     {
         s32 cs = airScreamer->model.controlState;
         controlFunc = g_Ai_AirScreamer_ControlFuncs[cs];
-        SH_DBG("[ASCTL] dispatch cs=%d func=%p", cs, (void*)controlFunc);
         if (controlFunc)
         {
             controlFunc(airScreamer);
-            SH_DBG("[ASCTL] post-dispatch cs=%d", cs);
         }
     }
     return true;
@@ -8580,14 +8558,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     {
         static int _swoopSpdLogN = 0;
         if (_swoopSpdLogN < 30) {
-            SH_DBG("[ASMOV-FIX] swoop forcing: pre B4_0_2=%d B4_0_1=%d B4_0_0=%d B4_0_3=%d step=%d kf=%d moveSpd=%d",
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][2],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][1],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][0],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][3],
-                   (int)airScreamer->model.stateStep,
-                   (int)airScreamer->model.anim.keyframeIdx,
-                   (int)airScreamer->moveSpeed);
             _swoopSpdLogN++;
         }
         /* Force smooth integrator mode (sharedFunc_800D7120) and target=Q12(2.0f).
@@ -8646,11 +8616,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                     airScreamer->position.vz += (s32)((s64)nz * step >> 12);
                     static int _nudgeLogN = 0;
                     if (_nudgeLogN < 30) {
-                        SH_DBG("[ASMOV-NUDGE] dx=%d dz=%d dist=%d step=%d → ASpos=(%d,%d,%d)",
-                               (int)dx, (int)dz, (int)dist, (int)step,
-                               (int)airScreamer->position.vx,
-                               (int)airScreamer->position.vy,
-                               (int)airScreamer->position.vz);
                         _nudgeLogN++;
                     }
                 }
@@ -8693,8 +8658,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
         /* Reset damage lockout on swoop ENTRY (curSwoop && !wasInSwoop). */
         if (isCurSwoop && !wasInSwoop) {
             _asDamagedThisSwoop2 = 0;
-            SH_DBG("[AS-HIT-PROX] swoop entry — lockout reset (prev=%d cur=%d)",
-                   (int)_asPrevSwoopStep_v2, (int)curStep_v2);
         }
         /* Always advance the prev-step tracker so non-swoop frames are
          * reflected. */
@@ -8780,8 +8743,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                         pl->field_40        = Chara_NpcIdxGet(airScreamer);
 
                         _asDamagedThisSwoop2 = 1;
-                        SH_DBG("[AS-HIT-PROX] vanilla path triggered kf=%d distSqr=%d field_40=%d (Player_ReceiveDamage will process)",
-                               (int)kf, (int)distSqr, (int)pl->field_40);
                     }
                 }
 
@@ -8801,19 +8762,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
                  * bbox-reject bug shows up as "AS swoops past, BF84-NHP
                  * keeps rejecting because Harry is outside cone angle". */
                 VECTOR3* pp = &g_SysWork.playerWork.player.position;
-                SH_DBG("[AS-HIT] C46 step=%d kf=%d animSt=0x%x f44.f0=%d hitRet=%d preHP=%d "
-                       "ASpos=(%d,%d,%d) yaw=%d HARRYpos=(%d,%d,%d) dx=%d dz=%d",
-                       (int)airScreamer->model.stateStep,
-                       (int)airScreamer->model.anim.keyframeIdx,
-                       (unsigned)airScreamer->model.anim.status,
-                       (int)airScreamer->field_44.field_0,
-                       (int)hitRet,
-                       (int)g_SysWork.playerWork.player.health,
-                       (int)airScreamer->position.vx, (int)airScreamer->position.vy, (int)airScreamer->position.vz,
-                       (int)airScreamer->rotation.vy,
-                       (int)pp->vx, (int)pp->vy, (int)pp->vz,
-                       (int)(pp->vx - airScreamer->position.vx),
-                       (int)(pp->vz - airScreamer->position.vz));
                 _swoopLogN++;
             }
         }
@@ -11732,10 +11680,6 @@ void sharedFunc_800D598C_0_s01(s_SubCharacter* airScreamer)
     {
         static int _598Clog = 0;
         if (_598Clog < 12) {
-            SH_DBG("[598C] elem2=%d elem3=%d ptr=%p f380_7_0=%d f380_7_1=%d preB4_0_2=%d",
-                   (int)element2, (int)element3, (void*)ptr,
-                   (int)ptr->field_380[7][0], (int)ptr->field_380[7][1],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][2]);
             _598Clog++;
         }
     }
@@ -11751,11 +11695,6 @@ void sharedFunc_800D598C_0_s01(s_SubCharacter* airScreamer)
     {
         static int _598Cpost = 0;
         if (_598Cpost < 12) {
-            SH_DBG("[598C-POST] B4_0_2=%d B4_0_1=%d B4_0_0=%d B4_0_3=%d",
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][2],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][1],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][0],
-                   (int)sharedData_800E21D0_0_s01.field_B4[0][3]);
             _598Cpost++;
         }
     }
@@ -13438,22 +13377,12 @@ bool sharedFunc_800D7AB0_0_s01(s_SubCharacter* airScreamer)
     coords  = sharedData_800E21D0_0_s01.coords_8;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[7AB0] animHdr=%p coords=%p flags=0x%x status=%d kf=%d animInfoC=%p animInfo10=%p",
-           (void*)animHdr, (void*)coords,
-           airScreamer->model.anim.flags,
-           (int)airScreamer->model.anim.status,
-           (int)airScreamer->model.anim.keyframeIdx,
-           (void*)airScreamer->model.anim.baseAnimInfos,
-           (void*)airScreamer->model.anim.mapAnimInfos);
-    sharedFunc_800D76A0_0_s01(airScreamer);          SH_DBG("[7AB0] post-76A0 status=%d",
-                                                            (int)airScreamer->model.anim.status);
+    sharedFunc_800D76A0_0_s01(airScreamer);
     {
         s_AnimInfo* _ai = func_80044918(&airScreamer->model.anim);
-        SH_DBG("[7AB0] pre-44950 animInfo=%p playbackFunc=%p",
-               (void*)_ai, _ai ? (void*)_ai->playbackFunc : NULL);
     }
-    func_80044950(airScreamer, animHdr, coords);     SH_DBG("[7AB0] post-44950 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
-    sharedFunc_800D7B14_0_s01(airScreamer, coords);  SH_DBG("[7AB0] post-7B14 status=%d kf=%d", (int)airScreamer->model.anim.status, (int)airScreamer->model.anim.keyframeIdx);
+    func_80044950(airScreamer, animHdr, coords);
+    sharedFunc_800D7B14_0_s01(airScreamer, coords);
 #else
     sharedFunc_800D76A0_0_s01(airScreamer);
     func_80044950(airScreamer, animHdr, coords);

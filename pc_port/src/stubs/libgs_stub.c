@@ -328,19 +328,14 @@ static int gs_tmd_cache_count = 0;
 struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
 {
     int i;
-    SH_DBG("[GSGET] base=%p idx=%d cache_count=%d", (void*)base, index, gs_tmd_cache_count);
     /* Search newest-first so the most recent GsMapModelingData wins for a
      * given base pointer (FS_BUFFER_8 is reused across all inventory items). */
     for (i = gs_tmd_cache_count - 1; i >= 0; i--) {
         if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj) {
             struct TMD_STRUCT *o = &gs_tmd_cache[i].objs[index];
-            SH_DBG("[GSGET] hit slot=%d nobj=%d vertop=%p vern=%lu primtop=%p primn=%lu",
-                   i, gs_tmd_cache[i].nobj, (void*)o->vertop, (unsigned long)o->vern,
-                   (void*)o->primtop, (unsigned long)o->primn);
             return o;
         }
     }
-    SH_DBG("[GSGET] miss");
     return NULL;
 }
  
@@ -865,46 +860,21 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         if (!s_dumped) {
             const u8* b = (const u8*)op;
             s_dumped = 1;
-            SH_DBG("[NTG3-DUMP] n=%d shift=%d otlen=%d", n, shift, ot ? ot->length : -1);
-            SH_DBG("[NTG3-DUMP] b[0..7] = %02x %02x %02x %02x  %02x %02x %02x %02x",
-                   b[0],b[1],b[2],b[3], b[4],b[5],b[6],b[7]);
-            SH_DBG("[NTG3-DUMP] b[8..15]= %02x %02x %02x %02x  %02x %02x %02x %02x",
-                   b[8],b[9],b[10],b[11], b[12],b[13],b[14],b[15]);
-            SH_DBG("[NTG3-DUMP] b[16..23]=%02x %02x %02x %02x  %02x %02x %02x %02x",
-                   b[16],b[17],b[18],b[19], b[20],b[21],b[22],b[23]);
-            SH_DBG("[NTG3-DUMP] b[24..31]=%02x %02x %02x %02x  %02x %02x %02x %02x",
-                   b[24],b[25],b[26],b[27], b[28],b[29],b[30],b[31]);
-            SH_DBG("[NTG3-DUMP] sh-struct: olen=%d ilen=%d flag=%02x mode=%02x tu0=%d tv0=%d clut=%04x",
-                   (int)prim->olen, (int)prim->ilen, (unsigned)prim->flag, (unsigned)prim->mode,
-                   (int)prim->tu0, (int)prim->tv0, (unsigned)prim->clut);
-            SH_DBG("[NTG3-DUMP] sh-struct: tu1=%d tv1=%d tpage=%04x tu2=%d tv2=%d v0=%d v1=%d v2=%d",
-                   (int)prim->tu1, (int)prim->tv1, (unsigned)prim->tpage,
-                   (int)prim->tu2, (int)prim->tv2,
-                   (int)prim->v0, (int)prim->v1, (int)prim->v2);
             /* Also decode as NTF3-layout (v0 at byte 20) for comparison */
             {
                 u_short ntf3_v0 = (u_short)(b[20] | (b[21]<<8));
                 u_short ntf3_v1 = (u_short)(b[22] | (b[23]<<8));
                 u_short ntf3_v2 = (u_short)(b[24] | (b[25]<<8));
-                SH_DBG("[NTG3-DUMP] ntf3-layout v0=%d v1=%d v2=%d (bytes20/22/24)",
-                       (int)ntf3_v0, (int)ntf3_v1, (int)ntf3_v2);
             }
             /* Also decode as NTG3-layout (v0 at byte 28) */
             {
                 u_short ntg3_v0 = (u_short)(b[28] | (b[29]<<8));
                 u_short ntg3_v1 = (u_short)(b[30] | (b[31]<<8));
                 u_short ntg3_v2 = (u_short)(b[32] | (b[33]<<8));
-                SH_DBG("[NTG3-DUMP] ntg3-layout v0=%d v1=%d v2=%d (bytes28/30/32)",
-                       (int)ntg3_v0, (int)ntg3_v1, (int)ntg3_v2);
             }
             /* How many vertices are in the vtx array? Log first 4 */
             {
                 SVECTOR *v = (SVECTOR*)vp;
-                SH_DBG("[NTG3-DUMP] vtx[0]={%d,%d,%d} vtx[1]={%d,%d,%d} vtx[2]={%d,%d,%d} vtx[3]={%d,%d,%d}",
-                       (int)v[0].vx,(int)v[0].vy,(int)v[0].vz,
-                       (int)v[1].vx,(int)v[1].vy,(int)v[1].vz,
-                       (int)v[2].vx,(int)v[2].vy,(int)v[2].vz,
-                       (int)v[3].vx,(int)v[3].vy,(int)v[3].vz);
             }
         }
     }
@@ -918,9 +888,6 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                           &sxy0t, &sxy1t, &sxy2t, &pt, &flgt);
             nclipt = NormalClip(sxy0t, sxy1t, sxy2t);
             otzt = pt >> shift;
-            SH_DBG("[NTG3-PRIM] v0=%d v1=%d v2=%d sxy0=%08lx sxy1=%08lx sxy2=%08lx p=%ld nclip=%ld otz=%ld",
-                   (int)prim->v0, (int)prim->v1, (int)prim->v2,
-                   (long)sxy0t, (long)sxy1t, (long)sxy2t, (long)pt, (long)nclipt, (long)otzt);
         }
     }
 #endif
@@ -1240,7 +1207,6 @@ void GsLinkObject4(unsigned long tmd_base, GsDOBJ2 *objp, int n)
  
 void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj)
 {
-    SH_DBG("[GSLINK] tmd=%p obj=%p", (void*)tmd, (void*)obj);
     if (tmd && obj) {
         obj->tmd = (u_long*)tmd;
     }
@@ -1248,8 +1214,6 @@ void GsLinkObject4_PC(struct TMD_STRUCT *tmd, GsDOBJ2 *obj)
  
 void GsMapModelingData(unsigned long *p)
 {
-    SH_DBG("[GSMAP] p=%p p[0]=0x%lx p[1]=0x%lx", (void*)p,
-           p ? (unsigned long)p[0] : 0UL, p ? (unsigned long)p[1] : 0UL);
     u_long nobj;
     u8    *obj_table;
     int    i, slot;
@@ -1314,7 +1278,6 @@ void GsMapModelingData(unsigned long *p)
     entry->data_copy = (u8*)malloc(copy_size);
     if (entry->data_copy) {
         memcpy(entry->data_copy, obj_table, copy_size);
-        SH_DBG("[GSMAP] copied %zu bytes of TMD data for %d objects", copy_size, (int)nobj);
     }
 
     /* Parse raw 28-byte TMD objects (7 × u32).
@@ -1361,7 +1324,6 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     PACKET  *pk;
 
     if (!obj || !obj->tmd || !ot) {
-        SH_DBG("[SOJ4J] early-ret obj=%p tmd=%p ot=%p", (void*)obj, obj?(void*)obj->tmd:NULL, (void*)ot);
         return;
     }
 
@@ -1372,9 +1334,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     primn = (int)tmd->primn;
     pk  = GsOUT_PACKET_P;
 
-    SH_DBG("[SOJ4J] obj=%p tmd=%p vp=%p pp=%p primn=%d", (void*)obj,(void*)tmd,(void*)vp,(void*)pp,primn);
     if (!vp || !pp) {
-        SH_DBG("[SOJ4J] early-ret null vp=%p pp=%p", (void*)vp,(void*)pp);
         return;
     }
     if (lmode < 0 || lmode > 2) lmode = 0;
@@ -1426,8 +1386,6 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
             } else {
                 static int s_litNull = 0;
                 if (s_litNull < 8) { s_litNull++;
-                    SH_DBG("[TMDSKIP] lit prim skipped: lsc=%d tme=%d qd=%d iip=%d mode=0x%02x flag=0x%02x (no handler)",
-                           lsc, tme, qd, iip, mode, (unsigned)pp[2]);
                 }
             }
         } else {
@@ -1449,8 +1407,6 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
             } else {
                 static int s_nlNull = 0;
                 if (s_nlNull < 8) { s_nlNull++;
-                    SH_DBG("[TMDSKIP] no-light prim skipped: tme=%d qd=%d iip=%d mode=0x%02x flag=0x%02x (no handler)",
-                           tme, qd, iip, mode, (unsigned)pp[2]);
                 }
             }
         }
@@ -1537,10 +1493,6 @@ void GsSortOt(GsOT *src, GsOT *dst)
     {
         static int s_logCount = 0;
         if (s_logCount < 4) {
-            SH_DBG("[GSSORTOT] spliced subroot src=%p tag=%p (n=%d) into dst[0]=%p (had next=%p) bounds=[%p..%p)",
-                   (void*)src, (void*)src->tag, n_src,
-                   (void*)dst_slot0, (void*)dst_slot0_next,
-                   (void*)s_GsSortOt_subrootLo, (void*)s_GsSortOt_subrootHi);
             s_logCount++;
         }
     }

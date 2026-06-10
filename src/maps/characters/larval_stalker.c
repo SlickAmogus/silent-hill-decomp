@@ -878,10 +878,6 @@ void sharedFunc_800D17BC_1_s00(s_SubCharacter* larvalStalker)
         static s32 s_prevAmt = 0;
         s32 amt = (s32)larvalStalker->damage.amount;
         if (amt != s_prevAmt) {
-            SH_DBG("[LSDMG] recv amount=%d health=%d ctrl=%d anim=%d",
-                   amt, (int)larvalStalker->health,
-                   (int)larvalStalker->model.controlState,
-                   (int)ANIM_STATUS_IDX_GET(larvalStalker->model.anim.status));
             s_prevAmt = amt;
         }
     }

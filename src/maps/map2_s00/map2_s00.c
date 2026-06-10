@@ -2696,7 +2696,6 @@ void func_800EE5D0(void) // 0x800EE5D0
      * chara_spawns.h defaults stay intact. The progression-specific
      * spawn variants (D_800F1CAC[0..2]) aren't decompiled yet — TODO:
      * extract them from disc_extract/VIN/MAP2_S00.BIN like AS rodata. */
-    SH_DBG("[SPAWN-FIX] func_800EE5D0: skipping memcpy (D_800F1CAC stubbed, preserving chara_spawns.h)");
     g_SavegamePtr->ovlEnemyStates[10] = g_SavegamePtr->ovlEnemyStates[idx];
     return;
 #else

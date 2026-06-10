@@ -225,14 +225,6 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
         static int _fireLogCount = 0;
         if (interesting && _fireLogCount < 200) {
             VECTOR3* pp = &g_SysWork.playerWork.player.position;
-            SH_DBG("[FIRE_HIT] ret=%d wep=%d temp_a1=%d kf=%d animStatus=0x%x | playerPos=(%d,%d,%d) yaw=%d | tgt[0] charaId=%d hp=%d pos=(%d,%d,%d)",
-                   (int)ret, (int)weaponAttack, (int)temp_a1,
-                   (int)g_SysWork.playerWork.extra.model.anim.keyframeIdx,
-                   (unsigned)g_SysWork.playerWork.extra.model.anim.status,
-                   (int)pp->vx, (int)pp->vy, (int)pp->vz,
-                   (int)g_SysWork.playerWork.player.rotation.vy,
-                   (int)tgt->model.charaId, (int)tgt->health,
-                   (int)tgt->position.vx, (int)tgt->position.vy, (int)tgt->position.vz);
             _fireLogCount++;
         }
     }
@@ -712,12 +704,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         s_SubCharacter* tn = (tIdx >= 0) ? &g_SysWork.npcs[tIdx] : NULL;
                         s32 reqYaw = tn ? Q12_FRACT(ratan2(tn->position.vx - chara->field_44.field_18.vx,
                                                            tn->position.vz - chara->field_44.field_18.vz) + Q12_ANGLE(360.0f)) : -1;
-                        SH_DBG("[GUNRAY] temp=%d hitId=%d | aimYaw(sp20)=%d aimPitch(sp24)=%d | tgtIdx=%d reqYaw=%d | origin=(%d,%d,%d) dir=(%d,%d,%d) | tgtPos=(%d,%d,%d)",
-                               temp, ptr ? ptr->model.charaId : -1,
-                               (int)sp20, (int)sp24, (int)tIdx, (int)reqYaw,
-                               chara->field_44.field_18.vx, chara->field_44.field_18.vy, chara->field_44.field_18.vz,
-                               chara->field_44.field_48[0].vx, chara->field_44.field_48[0].vy, chara->field_44.field_48[0].vz,
-                               tn ? tn->position.vx : 0, tn ? tn->position.vy : 0, tn ? tn->position.vz : 0);
                     }
 #endif
 
@@ -1326,20 +1312,12 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     sp14         = attacker->field_44.field_8;
     offsetZ       = arg3;
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] entry: attacker=%p(id=%d) target=%p(id=%d) weaponAttack=%d offsetY=%d sp14=0x%x arg3=%d",
-           (void*)attacker, attacker->model.charaId,
-           (void*)target, target->model.charaId,
-           weaponAttack, offsetY, sp14, arg3);
-    SH_DBG("[B714] attacker pos=(%d,%d,%d) target pos=(%d,%d,%d)",
-           attacker->position.vx, attacker->position.vy, attacker->position.vz,
-           target->position.vx, target->position.vy, target->position.vz);
 #endif
 
     if (target == &g_SysWork.playerWork.player)
     {
         sp10             = NO_VALUE;
 #ifdef SH_PC_PORT
-        SH_DBG("[B714] target=Harry path: computing field_40");
         /* PSX computed the attacker's NPC index via magic-constant division
          * (* -0x6EB3E453 >> 3) that bakes in the PSX sizeof(s_SubCharacter);
          * wrong on 64-bit. C pointer subtraction yields the index directly. */
@@ -1348,7 +1326,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         target->field_40 = (((s32)((uintptr_t)((u8*)attacker - sizeof(s_PlayerWork)) - (uintptr_t)target) * -0x6EB3E453) >> 3);
 #endif
 #ifdef SH_PC_PORT
-        SH_DBG("[B714] field_40=%d sp10=%d", target->field_40, sp10);
 #endif
     }
     else
@@ -1409,7 +1386,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     var_s0 = Q12(temp_fp->field_4);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] damage switch: weaponAttack=%d var_s0=%d sp10=%d sp14=0x%x", weaponAttack, var_s0, sp10, sp14);
 #endif
 
     switch (weaponAttack)
@@ -1567,8 +1543,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] pre-damage: damageAmount=%d var_s7=%d offsetXYZ=(%d,%d,%d)",
-           damageAmount, var_s7, offsetX, offsetY, offsetZ);
 #endif
     if (damageAmount != Q12(0.0f))
     {
@@ -1589,7 +1563,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     sp14                     |= sp10;
     attacker->field_44.field_8 = sp14;
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] post-damage: target->health=%d attackReceived=%d", target->health, target->attackReceived);
 #endif
 
     if (damageAmount | var_s7)
@@ -1597,8 +1570,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         var_a2 = temp_fp->field_12;
 
 #ifdef SH_PC_PORT
-        SH_DBG("[B714] effects: var_a2=%d target_charaId=%d damageAmount=%d var_s7=%d",
-               var_a2, target->model.charaId, damageAmount, var_s7);
 #endif
 
         if (var_a2 > 0 && var_a2 < 8)
@@ -1707,15 +1678,10 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
                 if (target->health <= Q12(0.0f) && target->model.charaId != Chara_Harry) {
                     static int _deadSkipLogN = 0;
                     if (_deadSkipLogN < 30) {
-                        SH_DBG("[B714] SKIP F6B0: target dead id=%d health=%d (was about to call F6B0 var_a2=%d var_a3=%d)",
-                               (int)target->model.charaId, (int)target->health, (int)var_a2, (int)var_a3);
                         _deadSkipLogN++;
                     }
                 } else {
-                    SH_DBG("[B714] calling F6B0: target=%p(id=%d) var_a2=%d var_a3=%d",
-                           (void*)target, target->model.charaId, var_a2, var_a3);
                     func_8005F6B0(target, arg2, var_a2, var_a3);
-                    SH_DBG("[B714] F6B0 returned");
                 }
 #else
                 func_8005F6B0(target, arg2, var_a2, var_a3);
@@ -1725,7 +1691,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[B714] return sp10=%d", sp10);
 #endif
     return sp10;
 }
@@ -2025,8 +1990,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         temp_s3  = chara1->collision.cylinder.field_2;
         var_a1_2 = 0;
 #ifdef SH_PC_PORT
-        SH_DBG("[BF84-NHP] A: j=%d sp48=%d sp3C=%d temp_s6=%d temp_s5=%d temp_s3=%d temp_t2=%d temp_a0_3=%d sp44=%d sp38=%d sp4C=%d sp40=%d",
-               j, sp48, sp3C, temp_s6, temp_s5, temp_s3, temp_t2, temp_a0_3, sp44, sp38, sp4C, sp40);
 #endif
 
         if (temp_t2 < sp44)
@@ -2079,8 +2042,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         }
 
 #ifdef SH_PC_PORT
-        SH_DBG("[BF84-NHP] B: passed bbox filter var_a1_2=%d var_v1=%d sp34=%d var_s7=%d var_fp=%d countXYZ=(%d,%d,%d)",
-               var_a1_2, var_v1, sp34, var_s7, var_fp, countX, countY, coundZ);
 #endif
         var_v0 = sp34;
         if (var_v0 < 0)
@@ -2122,14 +2083,11 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         }
 
 #ifdef SH_PC_PORT
-        SH_DBG("[BF84-NHP] C: temp_s2=%d var_s1=%d temp_s0=%d var_t1=%d var_t2=%d temp_s3=%d",
-               temp_s2, var_s1, temp_s0, var_t1, var_t2, temp_s3);
 #endif
 
         for (j = 2; (var_t2 < temp_s0 || temp_s0 < -var_t2 || temp_s3 < var_t1) && j > 0; j--)
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[BF84-NHP] D loop j=%d: var_t1=%d temp_s0=%d var_t2=%d temp_s3=%d", j, var_t1, temp_s0, var_t2, temp_s3);
 #endif
             if (temp_s3 < var_t1)
             {

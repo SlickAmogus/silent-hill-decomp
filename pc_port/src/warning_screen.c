@@ -177,13 +177,11 @@ void Pc_PlayWarningScreen(void)
 
     if (g_PcConfig.skipIntros)
     {
-        SH_DBG("[WARNSCR] skipped (skip_intros=1)");
         return;
     }
 
     {
         extern int g_PcHorPlusEnabled;
-        SH_DBG("[WARNSCR] enter — g_PcHorPlusEnabled=%d", g_PcHorPlusEnabled);
     }
 
     /* Match the Konami-logo screen setup exactly: 640×480 interlaced
@@ -197,14 +195,12 @@ void Pc_PlayWarningScreen(void)
     GsClearOt(0, 0, &g_OrderingTable0[g_ActiveBufferIdx]);
     GsClearOt(0, 0, &g_OrderingTable2[g_ActiveBufferIdx]);
 
-    SH_DBG("[WARNSCR] queueing TIM load");
     Fs_QueueStartReadTim(FILE_1ST_2ZANKO_E_TIM, FS_BUFFER_0, &s_WarnImg);
     while (Fs_QueueGetLength() > 0)
     {
         Fs_QueueUpdate();
         VSync(SyncMode_Wait);
     }
-    SH_DBG("[WARNSCR] TIM uploaded; starting fade-in");
 
     SetDispMask(1);
 
@@ -224,7 +220,6 @@ void Pc_PlayWarningScreen(void)
         fade -= 8;
     }
 
-    SH_DBG("[WARNSCR] fade-in done; holding for 180 frames (~3s)");
 
     /* Hold the fully-faded-in image — 180 frames at 60fps ≈ 3 seconds. */
     for (holdFrame = 0; holdFrame < 180; holdFrame++)
@@ -233,7 +228,6 @@ void Pc_PlayWarningScreen(void)
         Warn_SwapAndDraw();
     }
 
-    SH_DBG("[WARNSCR] fade-out 0→255 in steps of 8 (~0.5s)");
 
     /* Fade-out: ~0.5s at 60fps. fade climbs 0 → 248 in steps of 8 → 32
      * iterations, matching the fade-in cadence in reverse. Subtractive
@@ -255,5 +249,4 @@ void Pc_PlayWarningScreen(void)
     Warn_DrawImage();
     Warn_SwapAndDraw();
 
-    SH_DBG("[WARNSCR] done");
 }

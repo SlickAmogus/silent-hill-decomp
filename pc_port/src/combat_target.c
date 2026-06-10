@@ -71,10 +71,4 @@ void func_8005CD38(s32* outTargetIdx, s32* outVerticalAngle, s_PlayerCombat* com
         }
     }
 
-    SH_DBG("[TGTACQ] arg3=%d arg4=%d mode=%d nearestIdx=%d outAngle=%d (npcs[0] charaId=%d e1=%d hp=%d)",
-           (int)arg3, (int)arg4, (int)mode, (int)nearestIdx,
-           outVerticalAngle ? (int)*outVerticalAngle : -1,
-           (int)g_SysWork.npcs[0].model.charaId,
-           (int)g_SysWork.npcs[0].collision.state,
-           (int)g_SysWork.npcs[0].health);
 }
