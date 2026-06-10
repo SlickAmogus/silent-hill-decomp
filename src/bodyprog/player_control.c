@@ -43,6 +43,7 @@ static void Player_CrashHandler(int sig) {
 #ifdef SH_PC_PORT
 #include "pc_combat.h"
 #include "pc_timing.h"
+#include "pc_config.h"
 #endif
 
 s_800C44F0 D_800C44F0[10];
@@ -1217,11 +1218,33 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         case PlayerState_None:
         case PlayerState_Combat:
 #ifdef SH_PC_PORT
-            /* Skip Player_LowerBodyUpdate and Player_UpperBodyUpdate on PC —
-             * they call collision (Ray_LosHitCheck) and NPC subsystems that crash.
-             * Instead, set D_800C4550 and rotation from input. The post-switch
-             * code at the end of Player_LogicUpdate copies D_800C4550 to
-             * moveSpeed, applies gravity, and sets the rotation matrix. */
+            /* EXPERIMENTAL (config movement_original=1): run the PSX lower-body
+             * state machine instead of the PC movement shim below. This is the
+             * authored 36-state system — acceleration toward speed-zone maxima,
+             * run-into-wall smack (RunForwardWallStop L/R foot variants),
+             * stumble, quick-turn, keyframe-bound sidesteps, exhaustion idles,
+             * and analog pressure walking. The shim replaced it because the
+             * collision calls crashed early in the port; real collision has
+             * been enabled for months, so the blocker is believed gone.
+             * Default OFF until runtime-verified; TPS debug cam still needs
+             * the shim (it owns input mapping + body yaw). */
+            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam)
+            {
+                Player_LowerBodyUpdate(player, extra);
+
+                if (playerExtra.state < (u32)PlayerState_Idle)
+                {
+                    Player_UpperBodyUpdate(player, extra);
+                }
+                break;
+            }
+
+            /* PC movement shim (default path). Replaces Player_LowerBodyUpdate:
+             * sets D_800C4550 and rotation from input. The post-switch code at
+             * the end of Player_LogicUpdate copies D_800C4550 to moveSpeed,
+             * applies gravity, and sets the rotation matrix. Originally added
+             * because the lower-body collision calls crashed; kept as default
+             * until movement_original is verified. */
             {
                 /* Turn speed: 120°/sec target (matches 60fps Q12_ANGLE(2.0f)
                  * per-frame behavior). Scale by deltaTime so 30fps gets ~4°
@@ -3729,9 +3752,25 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     }
 
                     player->properties.player.field_10C = 0xC8;
+#ifdef SH_PC_PORT
+                    SH_DBG("[AMMO] fire: clip=%d reserve=%d weap=%d",
+                           (int)g_SysWork.playerCombat.currentWeaponAmmo,
+                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
+                           (int)g_SysWork.playerCombat.weaponAttack);
+#endif
                 }
                 else
                 {
+#ifdef SH_PC_PORT
+                    /* Dry fire. The auto-reload decision happens on the NEXT
+                     * trigger pull in the Aim dispatch (~line 5500); log the
+                     * inputs it will see so a failed condition is visible. */
+                    SH_DBG("[AMMO] DRY-FIRE: clip=0 reserve=%d equipped=%d group=%d upper=%d",
+                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
+                           (int)g_SavegamePtr->equippedWeapon,
+                           (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
+                           (int)g_SysWork.playerWork.extra.upperBodyState);
+#endif
                     func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
 
                     player->properties.player.field_10C = 32;
@@ -3879,15 +3918,25 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         if (wid < EquippedWeaponId_Handgun) {
                             g_Player_IsShooting    = 0;
                             g_Player_IsAttacking   = 0;
-                            g_Player_IsHoldAttack  = 0;
                             s_pcMtClickQueue       = 0;
-                            /* Only latch dispatch-blocked if the user has
-                             * already released — continuous-hold (button
-                             * still down at swing end) must keep dispatching
-                             * via the shift-register refill path. */
-                            if (!(g_Controller0->heldBtnFlags &
-                                  g_GameWorkPtr->config.controllerConfig.action))
+                            if (g_Controller0->heldBtnFlags &
+                                g_GameWorkPtr->config.controllerConfig.action)
                             {
+                                /* Button still down: keep the FULL hold history
+                                 * (PSX never drains the register). With 0x1F the
+                                 * eventual release walks 11110→11100→… which the
+                                 * tap detector's !(hold & 0x11) mask rejects as
+                                 * end-of-long-hold — no phantom slash. Draining
+                                 * to 0 here (old code) made a 1-tick tail of the
+                                 * continuing hold read as a fresh TAP on release,
+                                 * which was the "extra swing when you let go at a
+                                 * bad time" bug. 0x1F also lets hold-jab refill
+                                 * IsAttacking next tick instead of 4 ticks later. */
+                                g_Player_IsHoldAttack = 0x1F;
+                            }
+                            else
+                            {
+                                g_Player_IsHoldAttack = 0;
                                 s_pcMeleeNeedsRelease = true;
                             }
                         }
@@ -5462,6 +5511,20 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
+#ifdef SH_PC_PORT
+                    /* Log the auto-reload decision whenever the clip is empty,
+                     * including the failing condition when it does NOT enter. */
+                    if (g_SysWork.playerCombat.currentWeaponAmmo == 0)
+                    {
+                        SH_DBG("[AMMO] auto-reload check: reserve=%d equipped=%d group=%d (gun-group=%d) -> %s",
+                               (int)g_SysWork.playerCombat.totalWeaponAmmo,
+                               (int)g_SavegamePtr->equippedWeapon,
+                               (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
+                               (int)InvItemGroup_GunWeapons,
+                               (INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
+                                g_SysWork.playerCombat.totalWeaponAmmo != 0) ? "RELOAD" : "no-reload");
+                    }
+#endif
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
                         g_SysWork.playerCombat.totalWeaponAmmo != 0)
