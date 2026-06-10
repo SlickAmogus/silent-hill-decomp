@@ -57,7 +57,11 @@ s32 func_80089128(void) // 0x80089128
      * PadSetAct registers a live actuator buffer retransmitted per frame,
      * so the original DualShock detection + effect engine drive
      * SDL_GameControllerRumble end to end. */
+#ifdef SH_PC_PORT
+    s_SysWork_2510*  temp_s0; /* node list head — pointer width on PC */
+#else
     s32              temp_s0;
+#endif
     s32              var_s3;
     s32              var_s5;
     s32              var_s6;
