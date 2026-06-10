@@ -28,7 +28,22 @@ void func_800890B8(void) // 0x800890B8
 {
     func_8009E198(&g_SysWork.field_2514, 0);
     func_8009E310(&g_SysWork.field_2514, &g_SysWork.field_2514.head_18.key_8, 2);
+#ifdef SH_PC_PORT
+    /* PSX threads the 16-node effect pool through overlapping SysWork
+     * storage starting at head_18.unk_18, sized so 16 32-byte PSX nodes
+     * exactly fill the adjacent field_254C[508] blob. PC nodes carry three
+     * 8-byte pointers (48 B each) — 768 B would overrun g_SysWork and smash
+     * the globals after it (the launch crash with a controller attached).
+     * The lib only needs a contiguous array, so give it real storage. The
+     * 2-entry command array above is pointer-free and still fits inside
+     * head_18 at the same offsets, so it stays as on PSX. */
+    {
+        static s_SysWork_2514_18 s_padEffectNodePool[16];
+        func_8009EBB8(&g_SysWork.field_2514, s_padEffectNodePool, 16);
+    }
+#else
     func_8009EBB8(&g_SysWork.field_2514, &g_SysWork.field_2514.head_18.unk_18, 16);
+#endif
 
     g_SysWork.field_2510 = func_8009E4F8();
 
