@@ -6,7 +6,7 @@ typedef signed int s32;
 
 /* ALESSA_ANIM_INFOS      -> pc_port/src/alessa_anim_infos.c */
 /* BLOODSUCKER_ANIM_INFOS -> pc_port/src/bloodsucker_anim_infos.c */
-u8 BLOODY_INCUBATOR_ANIM_INFOS[256] = {0};
+/* BLOODY_INCUBATOR_ANIM_INFOS -> pc_port/src/bloody_incubator_anim_infos.c (binary-extracted) */
 /* BLOODY_LISA_ANIM_INFOS -> pc_port/src/bloody_lisa_anim_infos.c */
 /* CAT_ANIM_INFOS -> pc_port/src/cat_anim_infos.c (was a zero-stub that froze
    the cat locker cutscene; real table built in CatAnimInfos_Init) */
@@ -779,26 +779,26 @@ u8 D_800F574C[256] = {0};
  * Stream_* machinery in screens/stream/stream.c, all 5 of these get
  * called. Same bug class as VectorNormal. */
 /* ExitCriticalSection: handled in libapi_stub.c */
-u8 FLAUROS_ANIM_INFOS[256] = {0};
-u8 FLOATSTINGER_ANIM_INFOS[256] = {0};
+/* FLAUROS_ANIM_INFOS -> pc_port/src/flauros_anim_infos.c (binary-extracted) */
+/* FLOATSTINGER_ANIM_INFOS -> pc_port/src/floatstinger_anim_infos.c (binary-extracted) */
 /* GHOST_CHILD_ALESSA_ANIM_INFOS -> pc_port/src/ghost_child_alessa_anim_infos.c */
-u8 GHOST_DOCTOR_ANIM_INFOS[256] = {0};
+/* GHOST_DOCTOR_ANIM_INFOS -> pc_port/src/ghost_doctor_anim_infos.c (binary-extracted) */
 /* GROANER_ANIM_INFOS is defined in pc_port/src/groaner_anim_infos.c with
  * proper s_AnimInfo layout — data_stubs.c can't see the type. */
 /* HANGED_SCRATCHER_ANIM_INFOS -> pc_port/src/hanged_scratcher_anim_infos.c */
-u8 INCUBATOR_ANIM_INFOS[256] = {0};
-u8 INCUBUS_ANIM_INFOS[256] = {0};
+/* INCUBATOR_ANIM_INFOS -> pc_port/src/incubator_anim_infos.c (binary-extracted) */
+/* INCUBUS_ANIM_INFOS -> pc_port/src/incubus_anim_infos.c (binary-extracted) */
 /* KAUFMANN_ANIM_INFOS -> pc_port/src/kaufmann_anim_infos.c */
 /* LARVAL_STALKER_ANIM_INFOS -> pc_port/src/larval_stalker_anim_infos.c */
 /* LISA_ANIM_INFOS -> pc_port/src/lisa_anim_infos.c */
-u8 LITTLE_INCUBUS_ANIM_INFOS[256] = {0};
-u8 LOCKER_DEAD_BODY_ANIM_INFOS[256] = {0};
+/* LITTLE_INCUBUS_ANIM_INFOS -> pc_port/src/little_incubus_anim_infos.c (binary-extracted) */
+/* LOCKER_DEAD_BODY_ANIM_INFOS -> pc_port/src/locker_dead_body_anim_infos.c (binary-extracted) */
 /* Lzc - implemented in func_stubs.c */
 u8 MAP_ROOM_IDXS[256] = {0};
-u8 MONSTER_CYBIL_ANIM_INFOS[256] = {0};
+/* MONSTER_CYBIL_ANIM_INFOS -> pc_port/src/monster_cybil_anim_infos.c (binary-extracted) */
 /* OpenTIM - implemented in libgpu_stub.c */
 /* OuterProduct12 - implemented in func_stubs.c */
-u8 PARASITE_ANIM_INFOS[256] = {0};
+/* PARASITE_ANIM_INFOS -> pc_port/src/parasite_anim_infos.c (binary-extracted) */
 /* ROPMER_ANIM_INFOS         -> pc_port/src/romper_anim_infos.c */
 /* ReadTIM - implemented in libgpu_stub.c */
 /* SDL_main - defined in main.c via SDL's macro or explicitly */
@@ -815,9 +815,9 @@ u8 PARASITE_ANIM_INFOS[256] = {0};
  * code in screens/stream/stream.c references them. StCdIntrFlag
  * stays as data — it's an int flag, not a function. */
 u8 StCdIntrFlag[256] = {0};
-u8 TWINFEELER_ANIM_INFOS[256] = {0};
+/* TWINFEELER_ANIM_INFOS -> pc_port/src/twinfeeler_anim_infos.c (binary-extracted) */
 /* TransposeMatrix: moved to libgs_stub.c as a proper function */
-u8 UNKKOWN_23_ANIM_INFOS[256] = {0};
+/* UNKKOWN_23_ANIM_INFOS -> pc_port/src/unkkown_23_anim_infos.c (binary-extracted) */
 /* VectorNormal: moved to libgs_stub.c as a proper function.
  * Was stubbed as a 256-byte zero array, which made calls to it
  * jump into the .data section -> NX fault on Windows DEP.
