@@ -883,7 +883,11 @@ u8 g_GeneratorMakeNoise[256] = {0};
  * caused Fs_QueueStartReadTim(0, ...) on step 6 of the eclipse-door key
  * insertion (func_800E9DD8), crashing progression on Levin Street. */
 u8 g_Gfx_PaperMapMarkingAlpha[256] = {0};
-u8 g_MainImg0[256] = {0};
+/* s_FsImageDesc from src/main/main.c:39 (main.c is replaced by main_pc.c on
+ * PC, so its initializer never linked). game_main.c draws the intro/legal
+ * background through this; the old zero stub gave it tPage 0 / CLUT 0,0. */
+typedef struct { u8 tPage[2]; u8 u; u8 v; short clutX; short clutY; } s_FsImageDesc_stub;
+s_FsImageDesc_stub g_MainImg0 = { { 1, 13 }, 32, 0, 768, 480 };
 /* g_Cutscene_MapMsgAudioCmds[0-2] and g_Cutscene_MapMsgAudioIdx[0-2] now
  * provided per-map via pc_port/build_gen/extracted_data/<map>_extracted_data.c
  * (extracted from VIN/MAP*.BIN by tools/extract_map_data.py). */
