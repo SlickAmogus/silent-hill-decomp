@@ -296,114 +296,28 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Number keys 4/5: log BAD / GOOD camera position.
-     * Reads whichever camera is currently active (normal vcMoveAndSetCamera,
-     * debug free-fly, or TPS) and writes pos/lookAt/pitch/yaw/FOV/mode.
-     * Implemented as a shared block so both keys produce identical fields. */
+    /* Number keys 4/5: cycle the `map` config value (4 = previous, 5 = next,
+     * wrapping). Prints the new map + description and saves it to config.cfg so
+     * a warm-reset (Esc) + New Game loads the chosen map. */
     {
         static int prevKey4 = 0, prevKey5 = 0;
         int cur4 = g_sdlKeyboardState[SDL_SCANCODE_4];
         int cur5 = g_sdlKeyboardState[SDL_SCANCODE_5];
-        const char* tag = NULL;
-        if (cur4 && !prevKey4) tag = "BAD CAMERA POSITION";
-        else if (cur5 && !prevKey5) tag = "GOOD CAMERA POSITION";
-        if (tag) {
-            VECTOR3 camPos, lookAt;
-            s32     pitch, yaw;
-            const char* mode;
-            if (g_DebugCamEnabled) {
-                /* Free-fly debug cam — read its own state. */
-                camPos = g_DebugCamPos;
-                lookAt = g_DebugCamLookAt;
-                yaw    = (s32)g_DebugCamAngleY;
-                pitch  = (s32)g_DebugCamAngleX;
-                mode   = "DEBUG";
-            } else if (g_DebugThirdPersonCam) {
-                /* TPS orbit cam — re-read live vcWork (TPS calls
-                 * Vw_SetLookAtMatrix, so vcWork may not be in sync;
-                 * use TPS state directly). */
-                vcGetNowCamPos(&camPos);
-                vcGetNowWatchPos(&lookAt);
-                yaw   = g_TpsCamYaw;
-                pitch = g_TpsCamPitch;
-                mode  = "TPS";
-            } else {
-                /* Normal cam (vcMoveAndSetCamera + nudges already applied
-                 * earlier this frame). vcWork is the authoritative source. */
-                camPos = vcWork.cam_pos;
-                lookAt = vcWork.watch_tgt_pos;
-                yaw    = (s32)vcWork.cam_mat_ang.vy;
-                pitch  = (s32)vcWork.cam_mat_ang.vx;
-                mode   = "NORMAL";
-            }
-            SH_DBG_ECHO("[%s] tick=%u map=%d mode=%s",
-                tag,
-                (unsigned)SDL_GetTicks(),
-                (int)g_SavegamePtr->mapIdx, mode);
-            SH_DBG("[%s] harry=(%ld,%ld,%ld) bodyYaw=%d",
-                tag,
-                (long)g_SysWork.playerWork.player.position.vx,
-                (long)g_SysWork.playerWork.player.position.vy,
-                (long)g_SysWork.playerWork.player.position.vz,
-                (int)g_SysWork.playerWork.player.rotation.vy);
-            SH_DBG("[%s] pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) pitch=%d yaw=%d FOV=%d nudge=(%ld,%ld,%ld) yawN=%d pitchN=%d",
-                tag,
-                (long)camPos.vx, (long)camPos.vy, (long)camPos.vz,
-                (long)lookAt.vx, (long)lookAt.vy, (long)lookAt.vz,
-                (int)pitch, (int)yaw, (int)vcWork.geom_screen_dist,
-                (long)g_PcCamNudgePos.vx, (long)g_PcCamNudgePos.vy, (long)g_PcCamNudgePos.vz,
-                (int)g_PcCamNudgeYaw, (int)g_PcCamNudgePitch);
-            /* WYSIWYG: log the POST-NUDGE cam pos/lookAt that were actually
-             * passed to Vw_SetLookAtMatrix this frame. This is the exact
-             * on-screen camera the user sees. If g_PcCamAppliedValid is 0
-             * (no nudges applied this frame), the post-nudge state equals
-             * the pre-nudge baseline above. Also emit the pos/lookAt
-             * deltas in WORLD-SPACE for tuning reference. */
-            if (!g_DebugCamEnabled && !g_DebugThirdPersonCam) {
-                VECTOR3 finalPos, finalLook;
-                if (g_PcCamAppliedValid) {
-                    finalPos  = g_PcCamAppliedPos;
-                    finalLook = g_PcCamAppliedLookAt;
-                } else {
-                    finalPos  = camPos;
-                    finalLook = lookAt;
-                }
-                /* Baseline = the pristine vcMoveAndSetCamera output snapshot
-                 * taken before nudge application (g_DefaultCam). Deltas are
-                 * what should be stored as posDelta / lookAtDelta. */
-                VECTOR3 basePos  = g_DefaultCam.valid ? g_DefaultCam.pos    : camPos;
-                VECTOR3 baseLook = g_DefaultCam.valid ? g_DefaultCam.lookAt : lookAt;
-                SH_DBG("[%s-FINAL] pos=(%ld,%ld,%ld) lookAt=(%ld,%ld,%ld) (actual on-screen cam)",
-                    tag,
-                    (long)finalPos.vx, (long)finalPos.vy, (long)finalPos.vz,
-                    (long)finalLook.vx, (long)finalLook.vy, (long)finalLook.vz);
-                /* WYSIWYG paste line: output the RAW runtime nudges, not
-                 * the on-screen delta. The on-screen lookAt delta has the
-                 * pitch/yaw rotation baked into translation, which only
-                 * reproduces the same view if the baseline cam is identical
-                 * — fine for fixed cams, broken for tracking cams or any
-                 * shot where Harry moves within the trigger region.
-                 *
-                 * Store rotation as rotation (yawDelta/pitchDelta), pos as
-                 * pos. lookAtDelta stays 0 in new captures because there
-                 * is no runtime keybind that translates lookAt directly. */
-                SH_DBG("[%s-DELTA] posDelta={%ld,%ld,%ld} lookAtDelta={0,0,0} yawDelta=%d pitchDelta=%d (raw numpad nudge — for tuning reference)",
-                    tag,
-                    (long)g_PcCamNudgePos.vx,
-                    (long)g_PcCamNudgePos.vy,
-                    (long)g_PcCamNudgePos.vz,
-                    (int)g_PcCamNudgeYaw,
-                    (int)g_PcCamNudgePitch);
-                /* Keep the old translation-baked form too, marked DEPRECATED,
-                 * so we can spot at a glance whether the old format crept
-                 * back into a paste. Compares on-screen delta vs new raw
-                 * nudge form — they SHOULD differ when pitch/yaw are non-0. */
-                SH_DBG("[%s-DELTA-LEGACY] (old baked form, do NOT use) lookAtDelta_baked={%ld,%ld,%ld}",
-                    tag,
-                    (long)(finalLook.vx - baseLook.vx),
-                    (long)(finalLook.vy - baseLook.vy),
-                    (long)(finalLook.vz - baseLook.vz));
-            }
+        int dir  = 0;
+        if (cur5 && !prevKey5)      dir = 1;
+        else if (cur4 && !prevKey4) dir = -1;
+        if (dir != 0) {
+            int count = MapRegistry_Count();
+            int id    = MapRegistry_FindByName(g_PcConfig.mapName);
+            const char* name;
+            if (id < 0) id = 0;
+            id = (id + dir + count) % count;
+            name = MapRegistry_GetName(id);
+            strncpy(g_PcConfig.mapName, name, sizeof(g_PcConfig.mapName) - 1);
+            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+            PcConfig_SaveMapName(name);
+            SH_DBG_ECHO("[DEBUG] Map config value changed to %s - %s",
+                        name, MapRegistry_GetDescription(id));
         }
         prevKey4 = cur4;
         prevKey5 = cur5;

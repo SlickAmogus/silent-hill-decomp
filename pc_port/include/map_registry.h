@@ -29,4 +29,10 @@ int MapRegistry_FindByName(const char* name);
 /* Get the name string for an overlay ID. */
 const char* MapRegistry_GetName(e_MapIdx id);
 
+/* Get the human-readable description for an overlay ID (matches config.cfg). */
+const char* MapRegistry_GetDescription(e_MapIdx id);
+
+/* Total number of maps in the registry (for cycling). */
+int MapRegistry_Count(void);
+
 #endif /* MAP_REGISTRY_H */
