@@ -1,5 +1,22 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.2 -- 2026-06-10
+- Fix silent layered BGM map-wide: extract real layer-limit/room-flag tables
+- Fix invisible school cat: unify duplicated chara anim data array
+- Route PsyCross logging via PsyX_Log_SetStream before init
+- docs: index the BGM layer-table extraction + duplicated chara-anim array fixes
+- logging: BGM room-index-on-change + per-layer volume-on-change
+- Bump PsyCross: shutdown terminate diagnostics + log-tail flush
+- logging: XA play/stop/reject trace for the ambience audit
+- Fix melee phantom swing on release + add ammo/auto-reload diagnostics
+- Add movement_original config: opt-in PSX lower-body movement machine
+- docs: index melee phantom-swing + anim-stuck detector fixes
+- logging: [MOVE-ORIG] lower-body state trace for movement_original diagnosis
+- Fix walk/sidestep moving in place under movement_original (double dt-scaling)
+- Fix walk/sidestep speed + wall smack: unfuse moveSpeed from runDistance
+- Make movement_original the default; remove the [MOVE-ORIG] trace
+- docs: index the moveSpeed/runDistance unfusion + movement_original default
+
 ## v2026.06.10.1 -- 2026-06-10
 - debug: repurpose keys 4/5 to cycle the map config (prev/next)
 
