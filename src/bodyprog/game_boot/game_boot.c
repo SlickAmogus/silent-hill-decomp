@@ -1,4 +1,4 @@
-#include "game.h"
+﻿#include "game.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
@@ -63,8 +63,8 @@ void GameBoot_PlayerInit(void) // 0x80035178
         Game_TurnFlashlightOn();
     }
 
-    g_CharaTypeAnimInfo[0].activeSize = 0x2E630;
-    g_CharaTypeAnimInfo[0].allocSize  = 0x2E630;
+    g_CharaModelAnimsData[0].activeSize = 0x2E630;
+    g_CharaModelAnimsData[0].allocSize  = 0x2E630;
     Game_PlayerInfoInit();
 }
 
@@ -86,7 +86,7 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      *   - GameBoot_SavegameInitialize bzero's it to 0 on a New Game, so
      *     my code fires on the post-bzero map load.
      *   - After my auto-equip sets it to InvItemId_Handgun, subsequent
-     *     room transitions see != 0 and skip — no re-fire on transitions.
+     *     room transitions see != 0 and skip â€” no re-fire on transitions.
      *   - Loaded saves carry their own equipped weapon (Handgun or
      *     whatever), so we won't overwrite a real save's equipment.
      *   - The earlier static-flag approach broke when an auto-load
@@ -135,7 +135,7 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
     fflush(g_ShDebugLog);
-    /* Still read the overlay file — on PC this is a no-op but keeps the
+    /* Still read the overlay file â€” on PC this is a no-op but keeps the
      * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);

@@ -1,4 +1,4 @@
-#include "game.h"
+﻿#include "game.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
@@ -122,7 +122,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
         _spawnTickCounter = 0;
     }
     /* Tick-throttled "closest spawn" log every ~5s so we can observe player
-     * approach. Computed during the loop below — capture nearest distance. */
+     * approach. Computed during the loop below â€” capture nearest distance. */
     s32 _closestDist  = 0x7FFFFFFF;
     s32 _closestSlot  = -1;
     s32 _closestX     = 0;
@@ -152,8 +152,8 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * allocate a new s32 storage unit at offset 8, pushing positionZ
          * to offset 12. STATIC_ASSERT_SIZEOF is a no-op on PC so this size
          * change went silent. The old `pos = (VECTOR3*)curCharaSpawn` cast
-         * made pos->vz read the bitfield slot (≈0 for Easy) instead of
-         * positionZ — every distance check saw Z=0, firing spawns at
+         * made pos->vz read the bitfield slot (â‰ˆ0 for Easy) instead of
+         * positionZ â€” every distance check saw Z=0, firing spawns at
          * coordinates totally unrelated to the actual spawn point. Build
          * a proper VECTOR3 with the correctly-typed fields and use that. */
         VECTOR3 spawnPos = { curCharaSpawn->positionX, 0, curCharaSpawn->positionZ };
@@ -163,7 +163,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 #endif
 
 #ifdef SH_PC_PORT
-        /* Per-spawn diagnostic — log non-empty slots when conditions change
+        /* Per-spawn diagnostic â€” log non-empty slots when conditions change
          * (especially when player gets close enough that distance gate
          * could pass). Logs once per (slot, near/far transition) to avoid
          * spam while still capturing the moment a spawn would activate. */
@@ -173,7 +173,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             /* Track closest non-empty slot for the periodic tick log. */
             s32 dx = pp->vx - curCharaSpawn->positionX;
             s32 dz = pp->vz - curCharaSpawn->positionZ;
-            /* Q12 squared-distance — keep it as squared to avoid sqrt cost. */
+            /* Q12 squared-distance â€” keep it as squared to avoid sqrt cost. */
             s32 distSq = (s32)(((s64)dx * dx + (s64)dz * dz) >> 12);
             if (distSq < _closestDist) {
                 _closestDist  = distSq;
@@ -182,7 +182,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
                 _closestZ     = curCharaSpawn->positionZ;
                 _closestFlags = curCharaSpawn->flags;
             }
-            /* Only re-log on transitions: far→near (gate7 went 0→1) or
+            /* Only re-log on transitions: farâ†’near (gate7 went 0â†’1) or
              * if first time this slot ever evaluated. */
             u8 prevState = _spawnNearLogged[i];
             u8 curState = (gate7 ? 2 : 1); /* 1=far, 2=near */
@@ -201,7 +201,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 #ifdef SH_PC_PORT
         /* Mirror the spawn condition exactly so we can see WHICH gate is
          * the actual blocker. Diagnoses the case where SPAWN-GATE shows
-         * all gates passing (g1..g8 = 1) but no NPC_SPAWN follows — the
+         * all gates passing (g1..g8 = 1) but no NPC_SPAWN follows â€” the
          * difference must be a re-evaluation race, an aliasing issue,
          * or the npcFlags-full break above the loop. Logs once per slot
          * per second when the slot looks spawnable. */
@@ -233,12 +233,12 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
          * an oscillator on PC: spawn fires while player is <22u, despawn
          * fires same frame because of how player position evaluates against
          * the npc->position chain on PC, NPC slot is freed, next frame
-         * spawns again. Repeats thousands of times → eventually corrupts
+         * spawns again. Repeats thousands of times â†’ eventually corrupts
          * downstream state and crashes after Player_UpperBodyUpdate.
          *
          * Fix: once a slot has spawned, hold off re-spawning it for 60
          * ticks (~1s @60fps). Enough to break the same-frame oscillator
-         * but short enough to preserve vanilla PSX spawn density — the
+         * but short enough to preserve vanilla PSX spawn density â€” the
          * original 600-tick value was suppressing town enemies way more
          * than the original game. Despawn still works to clear the slot;
          * the cooldown just prevents the immediate respawn race. */
@@ -274,7 +274,7 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             )
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[SPAWN-FIRE!] slot=%d gates passed → entering spawn block, npcIdx will be assigned", i);
+            SH_DBG("[SPAWN-FIRE!] slot=%d gates passed â†’ entering spawn block, npcIdx will be assigned", i);
             _slotSpawnCooldown[i] = 60;  /* ~1s @60fps -- minimal oscillator guard */
 #endif
             while (HAS_FLAG(&g_SysWork.npcFlags, npcIdx))
@@ -316,13 +316,13 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     /* Periodic tick log: every ~5 seconds, dump player position and the
      * closest non-empty spawn slot. Lets us trace whether the player is
      * actually approaching ANY spawn while wandering, even when no slot
-     * crosses the 22u trigger. Helps diagnose "streets are empty" — if
+     * crosses the 22u trigger. Helps diagnose "streets are empty" â€” if
      * closestDist stays > 22 forever, the player just hasn't walked
      * close enough yet (or is blocked from doing so). */
     if (_shouldTickLog && _closestSlot >= 0) {
         VECTOR3* pp = &g_SysWork.playerWork.player.position;
         /* _closestDist is squared in Q12 already; rough sqrt for log
-         * readability — log it as squared too so we don't pull in
+         * readability â€” log it as squared too so we don't pull in
          * SquareRoot12 from here. */
     }
 #endif
@@ -502,7 +502,7 @@ void Game_NpcUpdate(void) // 0x80038354
                      * array index k. The constants (0x7E8, 0xFD, -0x3FFFF)
                      * are baked for PSX struct sizes; on PC s_SubCharacter
                      * is larger so the formula gives garbage. Just use k
-                     * directly — it IS the array index. */
+                     * directly â€” it IS the array index. */
                     field_0[j].bitIdx_0   = (s8)k;
 #else
                     field_0[j].bitIdx_0   = temp2 >> 3;
@@ -551,7 +551,7 @@ void Game_NpcUpdate(void) // 0x80038354
                                     g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId] != NULL);
                 /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
                  * baseline working set; Cybil + AirScreamer added because
-                 * render-only path never produced a visible model — they need
+                 * render-only path never produced a visible model â€” they need
                  * AI updates to drive the model state. Groaner (dog) added
                  * for map2_s00 streets; LarvalStalker for map2_s00/s01 small
                  * grey-children. When new NPCs crash, narrow this list rather
@@ -574,7 +574,7 @@ void Game_NpcUpdate(void) // 0x80038354
                                     npc->model.charaId == Chara_Creeper ||
                                     npc->model.charaId == Chara_SplitHead ||
                                     npc->model.charaId == Chara_Romper);
-                /* No render-only set — kept as opt-out for any future NPC that
+                /* No render-only set â€” kept as opt-out for any future NPC that
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;
 
@@ -592,7 +592,7 @@ void Game_NpcUpdate(void) // 0x80038354
                     {
                         /* Anim data not loaded yet (Chara_Spawn just happened this
                          * frame, async ANM read still pending). Do NOT kill the
-                         * NPC — the slot would get wiped and game code expecting
+                         * NPC â€” the slot would get wiped and game code expecting
                          * npcs[slot] to hold this chara (e.g. map0_s01 BIRD
                          * fly-by) would dereference an empty slot and crash.
                          * Just skip AI this tick and wait for load to complete. */
@@ -606,14 +606,14 @@ void Game_NpcUpdate(void) // 0x80038354
                         /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
                             func_8003DA9C(npc->model.charaId,
-                                          g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords,
+                                          g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                           1, npc->timer_C6,
                                           (s8)npc->model.paletteIdx);
                         }
                     }
                     else
                     {
-                        /* Fully unsafe NPC — remove so it doesn't keep firing. */
+                        /* Fully unsafe NPC â€” remove so it doesn't keep firing. */
                         npc->model.charaId = Chara_None;
                     }
                     continue;
@@ -622,7 +622,7 @@ void Game_NpcUpdate(void) // 0x80038354
                 {
                     /* Map overlay's charaUpdateFunc was NULL (likely sanitized
                      * out by map_overlay_loader for an un-decompiled stub).
-                     * Don't kill the NPC — keep it alive so the model can
+                     * Don't kill the NPC â€” keep it alive so the model can
                      * render even without AI driving it. */
                     static u32 _noUpdateFnLogged = 0;
                     if (!(_noUpdateFnLogged & (1u << (npc->model.charaId & 31)))) {
@@ -630,7 +630,7 @@ void Game_NpcUpdate(void) // 0x80038354
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
                         func_8003DA9C(npc->model.charaId,
-                                      g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords,
+                                      g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
                                       (s8)npc->model.paletteIdx);
                     }
@@ -639,7 +639,7 @@ void Game_NpcUpdate(void) // 0x80038354
             }
             /* Reset stateStep only on the first frame after spawn so
              * Model_AnimStatusSet can fire once.  Don't reset every frame
-             * or anim status transitions (blend→playback) get stuck. */
+             * or anim status transitions (blendâ†’playback) get stuck. */
             if (npc->model.charaId == Chara_Cheryl)
             {
                 static bool _cherylInitDone = false;
@@ -664,11 +664,11 @@ void Game_NpcUpdate(void) // 0x80038354
             else if (npc->model.charaId == Chara_Cybil ||
                      npc->model.charaId == Chara_AirScreamer)
             {
-                /* Per-slot latch — fire ONCE per spawn, not every frame
+                /* Per-slot latch â€” fire ONCE per spawn, not every frame
                  * the NPC happens to be at controlState==None.
                  *
                  * Original code stomped stateStep=0 every frame
-                 * controlState was 0, which broke the cutscene→combat
+                 * controlState was 0, which broke the cutsceneâ†’combat
                  * handoff: Air Screamer's intro sets controlState=None
                  * + stateStep=7 to transition into Control_46 (combat
                  * dive); the next NpcUpdate would then immediately
@@ -676,7 +676,7 @@ void Game_NpcUpdate(void) // 0x80038354
                  * leaving the AS in StandIdle forever. Same family
                  * also affects Cybil combat in later levels.
                  *
-                 * Latch resets when the slot is cleared (charaId →
+                 * Latch resets when the slot is cleared (charaId â†’
                  * Chara_None on death/despawn) so a respawn re-arms. */
                 static u8 _spawnInitDone[3]   = { 0, 0, 0 };
                 static u8 _lastInitCharaId[3] = { 0xFF, 0xFF, 0xFF };
@@ -695,7 +695,7 @@ void Game_NpcUpdate(void) // 0x80038354
                 }
             }
 #endif
-            boneCoords      = g_CharaTypeAnimInfo[animDataInfoIdx].boneCoords;
+            boneCoords      = g_CharaModelAnimsData[animDataInfoIdx].boneCoords;
 
             Chara_Flag8Clear(npc);
             Chara_DamagedFlagUpdate(npc);
@@ -706,14 +706,14 @@ void Game_NpcUpdate(void) // 0x80038354
              * always dereferences animHdr for bone data, so NULL crashes.
              * Cheryl logs details; other NPCs (e.g. grey children) just wait
              * until Chara_ProcessLoads() completes their ANM read. */
-            if (g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr == NULL) {
+            if (g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr == NULL) {
                 if (npc->model.charaId == Chara_Cheryl) {
                 } else {
                 }
                 continue;
             }
 #endif
-            g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr, boneCoords);
+            g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
 
             Collision_FlagsUpdate();
             func_80037E78(npc);
@@ -796,7 +796,7 @@ void Game_NpcUpdate(void) // 0x80038354
             D_800BCDA8[l].field_0 == NO_VALUE && D_800BCDA8[l].field_1 >= 0) {
             _radioKeyonLogged[l] = 1;
         }
-        /* Throttled state-snapshot — every ~1s log the actual D_800BCDA8 values
+        /* Throttled state-snapshot â€” every ~1s log the actual D_800BCDA8 values
          * so we can confirm whether field_0 is stuck at non-NO_VALUE. */
         {
             static u32 _radStateTickCnt = 0;

@@ -24,11 +24,14 @@ typedef struct _CharaAnimData
 STATIC_ASSERT_SIZEOF(s_CharaAnimData, 24);
 #endif
 
-/** @brief Animation data for loaded character models. */
+/** @brief Animation data for loaded character models.
+ * NOTE (PC port): the Jun 2026 merge briefly had this same PSX array under
+ * two names — upstream `g_CharaModelAnimsData` (read by `Chara_BonesInit`)
+ * and fork `g_CharaTypeAnimInfo` (written by the loader). Cutscene NPCs
+ * (e.g. the school cat) read all-NULL anim headers from the never-written
+ * copy and rendered with zeroed bones (invisible) / crashed at scene end.
+ * There must be exactly ONE definition of this array. */
 extern s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT];
-
-/** Per-character-group animation data; loaded NPC types and their indices. */
-extern s_CharaAnimData g_CharaTypeAnimInfo[CHARA_GROUP_COUNT];
 
 /** @brief Checks if the raw file streaming memory allocations of two character animation data slots overlap.
  *

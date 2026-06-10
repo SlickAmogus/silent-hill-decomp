@@ -1032,7 +1032,7 @@ extern s_AnimInfo HARRY_BASE_ANIM_INFOS[256];
 extern s_CollisionPoint g_CollisionPointCache;
 struct _SaveScreenElement;
 extern struct _SaveScreenElement* g_MemCard_ActiveSavegameEntry;
-// g_CharaTypeAnimInfo lives in game_boot/fs_chara_anim.h (needs s_CharaAnimData).
+// g_CharaModelAnimsData lives in game_boot/fs_chara_anim.h (needs s_CharaAnimData).
 
 // Defined in items/item_screens_3.c; used by bodyprog_8005E0DC.c (upstream defines them inline there).
 extern s_800AE4DC D_800AE4DC[3];

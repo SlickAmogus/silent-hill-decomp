@@ -44,7 +44,14 @@ static inline void Game_StateStepIncrement(void) // TODO: Move to header?
 
 void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
 {
-    bzero(&g_CharaTypeAnimInfo[1], 72);
+#ifdef SH_PC_PORT
+    /* 72 is the PSX byte count (3 slots x 24). s_CharaAnimData is 40 bytes
+     * with 64-bit pointers, so the literal only cleared 1.8 slots and left a
+     * stale activeAnmHdr in slot 3 across map loads. */
+    bzero(&g_CharaModelAnimsData[1], sizeof(s_CharaAnimData) * (CHARA_GROUP_COUNT - 1));
+#else
+    bzero(&g_CharaModelAnimsData[1], 72);
+#endif
 }
 
 void GameState_LoadMapScreen_Update(void) // 0x800348E8
