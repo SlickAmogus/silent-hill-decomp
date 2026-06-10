@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.09.6 -- 2026-06-09
+- debug: Esc warm-reboots to title (PC dev key)
+- diag: load cat at modelIdx 0 (tpage 28) to test tpage-29 invisibility
+
 ## v2026.06.09.5 -- 2026-06-09
 - Fix school black-void: force isLoaded=false on IPD reformat-fail
 - Bump PsyCross submodule: repair dead POLY_FT4 clut guard
