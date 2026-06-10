@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.3 -- 2026-06-10
+- Fix flashlight lighting seams + restore chest lens flare
+- Flare occlusion on PC: facing test instead of framebuffer readback
+
 ## v2026.06.10.2 -- 2026-06-10
 - Fix silent layered BGM map-wide: extract real layer-limit/room-flag tables
 - Fix invisible school cat: unify duplicated chara anim data array
