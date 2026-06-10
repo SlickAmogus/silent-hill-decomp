@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.9 -- 2026-06-10
+- Fix rumble launch crash: PC-sized effect node pool
+- Fix second rumble launch crash: field_2510 pointer truncation
+
 ## v2026.06.10.8 -- 2026-06-10
 - NPC whitelist retired, flare knee, DualShock rumble, launcher dedup
 
