@@ -60,7 +60,16 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
         {
             D_800C4818.field_2 = 1;
             D_800C4818.field_8 = func_8008D8C0(lensFlareIntensity, D_800C4818.field_C.vz, D_800C4818.field_20);
+#ifndef SH_PC_PORT
+            /* Occlusion seed: draws a 1x1 white tile at the flare position and
+             * a DR_MOVE that copies the framebuffer pixels behind it for
+             * func_8008D850's visibility readback. PC skips it: the build runs
+             * PSYX_SKIP_FRAMEBUFFER_STORE (drawn pixels never reach CPU-side
+             * VRAM, so the readback can't work), and the packet layout here
+             * uses hardcoded PSX byte offsets. func_8008D850 returns visible
+             * on PC instead. */
             func_8008D5A0(&D_800C4818.field_C, D_800C4818.field_20);
+#endif
         }
         else
         {
@@ -68,6 +77,10 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
         }
     }
 
+#ifndef SH_PC_PORT
+    /* Water reflection flares. TODO(PC): unported — verify func_8008E5B4/
+     * func_8008E794/func_8008EA68 for packet/GTE hazards before enabling.
+     * The chest glare above works without this. */
     if (D_800C4818.field_1 == 0)
     {
         waterZone = Map_WaterZoneGet(Q12_TO_Q4(pos->vx), Q12_TO_Q4(pos->vz), waterZones);
@@ -83,6 +96,7 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
             }
         }
     }
+#endif
 }
 
 void func_8008D5A0(VECTOR3* arg0, s16 arg1) // 0x8008D5A0
@@ -184,6 +198,14 @@ void func_8008D78C(void) // 0x8008D78C
 
 s32 func_8008D850(void) // 0x8008D850
 {
+#ifdef SH_PC_PORT
+    /* PSX tests flare occlusion by reading back the framebuffer pixels the
+     * DR_MOVE in func_8008D5A0 copied aside (white seed pixel survived ->
+     * light unobstructed). With PSYX_SKIP_FRAMEBUFFER_STORE the GL
+     * framebuffer never reaches CPU-side VRAM, so treat the flare as always
+     * visible; the camera rarely has geometry between it and Harry's chest. */
+    return 1;
+#else
     s16 rectX;
     RECT rect;
     s_8008D850 unk;
@@ -204,6 +226,7 @@ s32 func_8008D850(void) // 0x8008D850
     DrawSync(SyncMode_Wait);
 
     return (unk.field_0 & SHRT_MAX) == SHRT_MAX;
+#endif
 }
 
 q19_12 func_8008D8C0(q3_12 lensFlareIntensity, q19_12 x1, q19_12 x2) // 0x8008D8C0
