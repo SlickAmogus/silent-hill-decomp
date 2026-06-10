@@ -242,6 +242,13 @@ s32 func_8008D850(void) // 0x8008D850
         {
             return 0;
         }
+        /* Saturating knee: full intensity across most frontal angles (PSX
+         * renders the full halo+star whenever the seed pixel survives, which
+         * is nearly always when facing the camera), fading only within the
+         * last ~20 degrees toward edge-on. The earlier linear ramp dimmed
+         * the whole flare to ~40% at ordinary viewing angles — the halo and
+         * ray star visibly vanished vs hardware. */
+        deltaZ *= 3;
         if (deltaZ >= stepLen)
         {
             return Q12(1.0f);

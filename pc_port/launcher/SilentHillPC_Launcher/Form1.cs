@@ -302,6 +302,9 @@ public partial class Form1 : Form
             "map7_s00","map7_s01","map7_s02","map7_s03"
         };
         Dictionary<string, string> mapDescs = LoadMapDescriptions(cfgPath);
+        // LoadConfig runs from both the constructor and Form1_Load; without
+        // clearing first, the second pass duplicated every map entry.
+        comboMap.Items.Clear();
         foreach (var id in mapIds)
         {
             string desc;

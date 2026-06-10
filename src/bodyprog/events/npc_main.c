@@ -549,51 +549,16 @@ void Game_NpcUpdate(void) // 0x80038354
                 bool animLoaded  = ((s8)animDataInfoIdx != (s8)0xFF);
                 bool hasUpdateFn = (npc->model.charaId < (e_CharaId)ARRAY_SIZE(g_MapOverlayHdr.charaUpdateFuncs) &&
                                     g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId] != NULL);
-                /* NPCs whose AI we fully run.  Cheryl + GreyChild were the
-                 * baseline working set; Cybil + AirScreamer added because
-                 * render-only path never produced a visible model â€” they need
-                 * AI updates to drive the model state. Groaner (dog) added
-                 * for map2_s00 streets; LarvalStalker for map2_s00/s01 small
-                 * grey-children. When new NPCs crash, narrow this list rather
-                 * than going back to a blanket skip. */
-                bool isFullAiNpc = (npc->model.charaId == Chara_Cheryl ||
-                                    npc->model.charaId == Chara_GreyChild ||
-                                    npc->model.charaId == Chara_Cybil ||
-                                    npc->model.charaId == Chara_AirScreamer ||
-                                    npc->model.charaId == Chara_Groaner ||
-                                    npc->model.charaId == Chara_LarvalStalker ||
-                                    npc->model.charaId == Chara_Bloodsucker ||
-                                    npc->model.charaId == Chara_BloodyLisa ||
-                                    npc->model.charaId == Chara_Alessa ||
-                                    npc->model.charaId == Chara_GhostChildAlessa ||
-                                    npc->model.charaId == Chara_Lisa ||
-                                    npc->model.charaId == Chara_Kaufmann ||
-                                    npc->model.charaId == Chara_Dahlia ||
-                                    npc->model.charaId == Chara_PuppetNurse ||
-                                    npc->model.charaId == Chara_HangedScratcher ||
-                                    npc->model.charaId == Chara_Creeper ||
-                                    npc->model.charaId == Chara_SplitHead ||
-                                    npc->model.charaId == Chara_Romper ||
-                                    /* Batch 2 (post data-extraction sweep): these all have
-                                     * real anim tables + update funcs now. The else-branch
-                                     * KILLS non-listed NPCs (charaId = Chara_None) — that
-                                     * was the invisible school cat and likely other
-                                     * missing-enemy reports. */
-                                    npc->model.charaId == Chara_Cat ||
-                                    npc->model.charaId == Chara_Stalker ||
-                                    npc->model.charaId == Chara_PuppetDoctor ||
-                                    npc->model.charaId == Chara_DummyDoctor ||
-                                    npc->model.charaId == Chara_Floatstinger ||
-                                    npc->model.charaId == Chara_Twinfeeler ||
-                                    npc->model.charaId == Chara_Incubus ||
-                                    npc->model.charaId == Chara_MonsterCybil ||
-                                    npc->model.charaId == Chara_LockerDeadBody ||
-                                    npc->model.charaId == Chara_Incubator ||
-                                    npc->model.charaId == Chara_BloodyIncubator ||
-                                    npc->model.charaId == Chara_Flauros ||
-                                    npc->model.charaId == Chara_LittleIncubus ||
-                                    npc->model.charaId == Chara_GhostDoctor ||
-                                    npc->model.charaId == Chara_Parasite);
+                /* Whitelist RETIRED (batch 3). It existed because early-port
+                 * NPC AI crashed on missing data; the extraction sweep fixed
+                 * the causes, and the per-id list kept silently KILLING every
+                 * unlisted spawn (charaId = Chara_None) — invisible school
+                 * cat, missing Mumbler/NightFlutter/Wormhead, missing ending
+                 * cutscene actors. Every chara now runs full AI; the safety
+                 * fallbacks below still apply (wait for anim load,
+                 * render-only when the update func is NULL). If a specific
+                 * chara crashes, add a TARGETED skip for that id here. */
+                bool isFullAiNpc = true;
                 /* No render-only set â€” kept as opt-out for any future NPC that
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;

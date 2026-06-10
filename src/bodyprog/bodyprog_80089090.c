@@ -38,10 +38,10 @@ void func_800890B8(void) // 0x800890B8
 
 s32 func_80089128(void) // 0x80089128
 {
-#ifdef SH_PC_PORT
-    /* Vibration/pad mode checking not yet working on PC - skip */
-    return 0;
-#endif
+    /* PC note: this pump now runs — PsyCross PadChkVsync returns 1 and
+     * PadSetAct registers a live actuator buffer retransmitted per frame,
+     * so the original DualShock detection + effect engine drive
+     * SDL_GameControllerRumble end to end. */
     s32              temp_s0;
     s32              var_s3;
     s32              var_s5;
@@ -208,8 +208,11 @@ const u32 D_8002AF70[] = { 0xC4E0E0A8, 0x54A8, 0};
 void func_800892A4(s32 idx) // 0x800892A4
 {
 #ifdef SH_PC_PORT
-    /* Same vibration linked-list crash as func_800892DC — skip on PC. */
-    return;
+    /* Effect inserts before the pump's first lazy init are dropped:
+     * func_8009ECCC's free list (field_10) is NULL until func_800890B8
+     * seeds it, and inserting would deref a NULL head link. */
+    if (!g_SysWork.field_2514.field_0.field_0_16)
+        return;
 #endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], 0x80);
 }
@@ -217,10 +220,9 @@ void func_800892A4(s32 idx) // 0x800892A4
 void func_800892DC(s32 idx, u8 arg1) // 0x800892DC
 {
 #ifdef SH_PC_PORT
-    /* Vibration linked-list not initialized on PC (func_800890B8 never runs
-     * because func_80089128 is stubbed). Calling func_800895E4 dereferences
-     * NULL head→next/prev in func_8009ECCC and crashes. Skip on PC. */
-    return;
+    /* See func_800892A4 — drop pre-init effect inserts. */
+    if (!g_SysWork.field_2514.field_0.field_0_16)
+        return;
 #endif
     func_800895E4(&g_SysWork.field_2514, &D_8002AC04[idx], arg1);
 }
