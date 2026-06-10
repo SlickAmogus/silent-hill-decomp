@@ -21,9 +21,9 @@ typedef struct {
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */
     int allowDebugControls; /* 1 = enable dev/cheat keys (numpad, top-row digits, ~, kill-Harry, etc.); 0 = off (default) */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
-    int movementOriginal;   /* EXPERIMENTAL: 1 = run the PSX lower-body movement state
+    int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)
-                             * instead of the PC movement shim. 0 = shim (default). */
+                             * (default). 0 = legacy PC movement shim (TPS debug cam + fallback). */
 
     /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
      * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
