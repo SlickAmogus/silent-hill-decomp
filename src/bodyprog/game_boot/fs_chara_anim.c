@@ -1,4 +1,4 @@
-#include "game.h"
+﻿#include "game.h"
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -30,7 +30,7 @@
 #ifdef SH_PC_PORT
 /* On PC, FS_BUFFER_0 is not a compile-time constant (points into g_PsxRam[]).
  * Initialize at runtime instead. See also: Fs_QueueInitialize or GameState_Boot. */
-s_CharaAnimData g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
+s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT] = {
     {
         .allocCharaId         = Chara_Harry,
         .activeCharaId         = Chara_Harry,
@@ -44,13 +44,11 @@ s_CharaAnimData g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
 /* Called from main_pc.c after PsxMemory_Init */
 void PcPort_InitCharaAnimInfo(void)
 {
-    g_CharaTypeAnimInfo[0].allocAddr = FS_BUFFER_0;
-    g_CharaTypeAnimInfo[0].activeAnmHdr = (s_AnmHeader*)FS_BUFFER_0;
     g_CharaModelAnimsData[0].allocAddr = FS_BUFFER_0;
     g_CharaModelAnimsData[0].activeAnmHdr = (s_AnmHeader*)FS_BUFFER_0;
 }
 #else
-s_CharaAnimData g_CharaTypeAnimInfo[CHARA_GROUP_COUNT] = {
+s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT] = {
     {
         .allocCharaId         = Chara_Harry,
         .activeCharaId         = Chara_Harry,
@@ -85,8 +83,8 @@ bool Fs_CharaAnimDataSizeCheck(s32 charaDataAnimInfoIdx0, s32 charaDataAnimInfoI
     s_CharaAnimData* animDataInfo0;
     s_CharaAnimData* animDataInfo1;
 
-    animDataInfo0      = &g_CharaTypeAnimInfo[charaDataAnimInfoIdx0];
-    animDataInfo1      = &g_CharaTypeAnimInfo[charaDataAnimInfoIdx1];
+    animDataInfo0      = &g_CharaModelAnimsData[charaDataAnimInfoIdx0];
+    animDataInfo1      = &g_CharaModelAnimsData[charaDataAnimInfoIdx1];
     animBufferAddress0 = (uintptr_t)animDataInfo0->allocAddr;
     animBufferAddress1 = (uintptr_t)animDataInfo1->activeAnmHdr;
 
@@ -105,7 +103,7 @@ s32 Fs_CharaAnimDataInfoIdxGet(e_CharaId charaId) // 0x800352F8
 
     for (i = 1; (i < CHARA_GROUP_COUNT); i++)
     {
-        if (g_CharaTypeAnimInfo[i].activeCharaId == charaId)
+        if (g_CharaModelAnimsData[i].activeCharaId == charaId)
         {
             return i;
         }
@@ -122,7 +120,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, Gs
     s_CharaAnimData* npcAnimDataInfo;
 
     localAnimFile    = animFile;
-    initAnimDataInfo = &g_CharaTypeAnimInfo[idx];
+    initAnimDataInfo = &g_CharaModelAnimsData[idx];
 
     if (charaId == Chara_None)
     {
@@ -141,7 +139,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, Gs
 #endif
     }
 
-    // If the target character ID matches with the selected element from `g_CharaTypeAnimInfo`
+    // If the target character ID matches with the selected element from `g_CharaModelAnimsData`
     // then it ensures the animation buffer pointer matches with the previously estimated one, but
     // if the estimated pointer is in a position behind of the currently saved one then it moves
     // data to the position of the estimated pointer.
@@ -160,7 +158,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, Gs
         {
             initAnimDataInfo->allocAddr = localAnimFile;
 
-            Mem_Move32(localAnimFile, g_CharaTypeAnimInfo[idx].activeAnmHdr, g_CharaTypeAnimInfo[idx].activeSize);
+            Mem_Move32(localAnimFile, g_CharaModelAnimsData[idx].activeAnmHdr, g_CharaModelAnimsData[idx].activeSize);
             Fs_CharaAnimDataUpdate(idx, charaId, localAnimFile, coord);
             return;
         }
@@ -178,7 +176,7 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, Gs
 
     if (i > 0)
     {
-        Mem_Move32(g_CharaTypeAnimInfo[idx].allocAddr, g_CharaTypeAnimInfo[i].activeAnmHdr, g_CharaTypeAnimInfo[i].activeSize);
+        Mem_Move32(g_CharaModelAnimsData[idx].allocAddr, g_CharaModelAnimsData[i].activeAnmHdr, g_CharaModelAnimsData[i].activeSize);
         Fs_CharaAnimDataUpdate(idx, charaId, initAnimDataInfo->allocAddr, coord);
     }
     else
@@ -188,9 +186,9 @@ void Fs_CharaAnimDataAlloc(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, Gs
 
     for (i = 1; i < CHARA_GROUP_COUNT; i++)
     {
-        if (i != idx && g_CharaTypeAnimInfo[i].activeCharaId != Chara_None && Fs_CharaAnimDataSizeCheck(idx, i) != false)
+        if (i != idx && g_CharaModelAnimsData[i].activeCharaId != Chara_None && Fs_CharaAnimDataSizeCheck(idx, i) != false)
         {
-            bzero(&g_CharaTypeAnimInfo[i], sizeof(s_CharaAnimData));
+            bzero(&g_CharaModelAnimsData[i], sizeof(s_CharaAnimData));
         }
     }
 }
@@ -202,7 +200,7 @@ void Fs_CharaAnimDataUpdate(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, G
     s_CharaAnimData* animDataInfo;
 
     localCoord   = coord;
-    animDataInfo = &g_CharaTypeAnimInfo[idx];
+    animDataInfo = &g_CharaModelAnimsData[idx];
 
     if (localCoord == NULL)
     {
@@ -217,13 +215,13 @@ void Fs_CharaAnimDataUpdate(s32 idx, e_CharaId charaId, s_AnmHeader* animFile, G
              * completed loading (e.g. Air Screamer async ANM read arriving
              * before the previous slot is initialised).  Fall back to the
              * start of the NPC coord area to avoid a NULL deref crash. */
-            if (g_CharaTypeAnimInfo[idx - 1].activeAnmHdr == NULL) {
+            if (g_CharaModelAnimsData[idx - 1].activeAnmHdr == NULL) {
                 SH_DBG("[ANIM_ALLOC] Fs_CharaAnimBoneInfoUpdate idx=%d: prev slot animFile=NULL, using npcBoneCoordBuffer[0]", idx);
                 localCoord = &g_SysWork.npcBoneCoordBuffer[0];
             } else {
 #endif
-            idx0        = g_CharaTypeAnimInfo[idx - 1].activeAnmHdr->boneCount;
-            localCoord  = g_CharaTypeAnimInfo[idx - 1].boneCoords;
+            idx0        = g_CharaModelAnimsData[idx - 1].activeAnmHdr->boneCount;
+            localCoord  = g_CharaModelAnimsData[idx - 1].boneCoords;
             localCoord += idx0 + 1;
 #ifdef SH_PC_PORT
             }
@@ -257,9 +255,9 @@ void Fs_CharaAnimBoneInfoUpdate(void) // 0x8003569C
     {
         if (g_MapOverlayHdr.charaGroupIds[i] != Chara_None)
         {
-            coord    = g_CharaTypeAnimInfo[i].boneCoords;
-            animFile = g_CharaTypeAnimInfo[i + 1].activeAnmHdr;
-            coord   += g_CharaTypeAnimInfo[i].activeAnmHdr->boneCount + 1;
+            coord    = g_CharaModelAnimsData[i].boneCoords;
+            animFile = g_CharaModelAnimsData[i + 1].activeAnmHdr;
+            coord   += g_CharaModelAnimsData[i].activeAnmHdr->boneCount + 1;
 
             // Check for end of `g_SysWork.npcBoneCoordBuffer` array.
             if ((&coord[animFile->boneCount] + 1) >= &g_SysWork.npcBoneCoordBuffer[NPC_BONE_COUNT_MAX])
@@ -267,7 +265,7 @@ void Fs_CharaAnimBoneInfoUpdate(void) // 0x8003569C
                 coord = g_MapOverlayHdr.npcBoneCoordBuffer;
             }
 
-            g_CharaTypeAnimInfo[i + 1].boneCoords = coord;
+            g_CharaModelAnimsData[i + 1].boneCoords = coord;
             Anim_BoneInit(animFile, coord);
         }
     }
@@ -284,14 +282,9 @@ s8 g_CharaAnimDataIdxs[Chara_Count] = {
     // 3 bytes of padding.
 };
 
-s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT] = {
-    {
-        .allocCharaId  = Chara_Harry,
-        .activeCharaId = Chara_Harry,
-        .allocAddr     = NULL,
-        .activeAnmHdr  = NULL,
-        .allocSize     = 0x2E630,
-        .activeSize    = 0x2E630,
-        .boneCoords    = NULL
-    }
-};
+/* The duplicate `g_CharaModelAnimsData` definition that used to live here was
+ * a Jun 2026 merge artifact: the same PSX array existed twice (fork name
+ * `g_CharaModelAnimsData` above, upstream name here). `Chara_BonesInit` read
+ * the never-written upstream copy, so cutscene NPCs (school cat) had NULL
+ * anim headers -> zeroed bones -> invisible, and crashed at scene end.
+ * Both names now resolve to the single definition at the top of this file. */
