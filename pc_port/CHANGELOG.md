@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.8 -- 2026-06-10
+- NPC whitelist retired, flare knee, DualShock rumble, launcher dedup
+
 ## v2026.06.10.7 -- 2026-06-10
 - Stub port round 2: per-map types, world-object class resolved, +keyframe data
 
