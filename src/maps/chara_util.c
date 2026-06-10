@@ -199,15 +199,29 @@ s32 Chara_AnimPlaybackStateGet(s_SubCharacter* chara)
      * EXE specifically to do this comparison server-side. */
     extern int Anim_IsPlaybackOnce(void* fn);
     extern int Anim_IsBlendLinear(void* fn);
+
+    /* charaIds with no case above (Romper, nurses, ...) leave animInfo
+     * NULL; PSX read harmless low-RAM garbage through it, x86 access-
+     * violates (this was the Romper-contact crash). "Not finished" is the
+     * safe PSX-like answer. */
+    if (animInfo == NULL)
+    {
+        return -1;
+    }
+
     if (Anim_IsPlaybackOnce(animInfo->playbackFunc))
     {
+        /* Range form, not ==: PC delta-time can step past the exact end
+         * keyframe and the polling NPC state machine then waits forever
+         * (nurse frozen-in-place class). Same fix as Harry's
+         * Player_AnimPlaybackStateGet. */
         if (Anim_DurationGet(chara, animInfo) > Q12(0.0f))
         {
-            return chara->model.anim.keyframeIdx == animInfo->endKeyframeIdx;
+            return chara->model.anim.keyframeIdx >= animInfo->endKeyframeIdx;
         }
         else
         {
-            return chara->model.anim.keyframeIdx == animInfo->startKeyframeIdx;
+            return chara->model.anim.keyframeIdx <= animInfo->startKeyframeIdx;
         }
     }
 
