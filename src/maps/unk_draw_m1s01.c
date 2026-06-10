@@ -133,7 +133,15 @@ bool sharedFunc_800CBB30_1_s01(POLY_FT4** poly, s32 idx)
     temp_v0_4 = SquareRoot0(SQUARE(temp_v0_2) + SQUARE(temp_v0_3)) << 10;
     temp_s1   = Q12_MULT_PRECISE(temp_v0_4, sharedData_800DEE50_1_s01.field_A);
 
+#ifdef SH_PC_PORT
+    /* PSX MIPS rem-by-zero returns garbage without trapping; x86 idiv raises
+     * #DE. A freshly-spawned smoke particle has ~zero velocity, so temp_s1 (its
+     * speed) is 0 and `% temp_s1` crashes (chemical-on-hand cutscene). Skip the
+     * random kick that frame — the PSX result was garbage anyway. */
+    temp_v1_3 = (temp_s1 != 0) ? (Rng_Rand16() % temp_s1) - (temp_s1 >> 2) : 0;
+#else
     temp_v1_3 = (Rng_Rand16() % temp_s1) - (temp_s1 >> 2);
+#endif
 
     temp_s1   = Q12_MULT_PRECISE(g_DeltaTime, temp_v1_3) >> 1;
     temp_v0_5 = ratan2(sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].field_4.vz_4);
@@ -147,10 +155,23 @@ bool sharedFunc_800CBB30_1_s01(POLY_FT4** poly, s32 idx)
 
     ptr->field_12C.vz = ((sharedData_800DFB7C_0_s00[idx].field_4.vz_4 + sharedData_800DEE50_1_s01.field_18) >> 4) - ptr->field_0.field_0.vz;
 
+#ifdef SH_PC_PORT
+    {
+        /* Same PSX div-by-zero guard: this denominator reaches 0 as field_10
+         * (the cos input) sweeps. Skip the growth term that frame, don't #DE. */
+        s32 _denom = Q12_MULT(Math_Cos(sharedData_800DEE50_1_s01.field_10), sharedData_800DEE50_1_s01.field_6) -
+                     sharedData_800DEE50_1_s01.field_8;
+        if (_denom != 0) {
+            sharedData_800DFB7C_0_s00[idx].field_C.field_0 += CLAMP_LOW(
+                TO_FIXED(Q12_MULT_PRECISE(g_DeltaTime, sharedData_800DEE50_1_s01.field_C), Q12_SHIFT) / _denom, 0);
+        }
+    }
+#else
     sharedData_800DFB7C_0_s00[idx].field_C.field_0 += CLAMP_LOW(TO_FIXED(Q12_MULT_PRECISE(g_DeltaTime, sharedData_800DEE50_1_s01.field_C), Q12_SHIFT) /
                                                                 (Q12_MULT(Math_Cos(sharedData_800DEE50_1_s01.field_10), sharedData_800DEE50_1_s01.field_6) -
                                                                  sharedData_800DEE50_1_s01.field_8),
                                                                 0);
+#endif
 
     if (sharedData_800DFB7C_0_s00[idx].field_C.field_0 > Q12(1.0f) || sharedData_800DEE50_1_s01.field_10 == Q12(0.25f))
     {
