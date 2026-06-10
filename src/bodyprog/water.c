@@ -15,6 +15,10 @@
 s_800C4818 D_800C4818;
 s32 __pad_bss_800C483C;
 
+#ifdef SH_PC_PORT
+extern s_WorldEnvWork g_WorldEnvWork; /* flare-occlusion facing test */
+#endif
+
 // ========================================
 // WATER EFFECT
 // ========================================
@@ -202,9 +206,25 @@ s32 func_8008D850(void) // 0x8008D850
     /* PSX tests flare occlusion by reading back the framebuffer pixels the
      * DR_MOVE in func_8008D5A0 copied aside (white seed pixel survived ->
      * light unobstructed). With PSYX_SKIP_FRAMEBUFFER_STORE the GL
-     * framebuffer never reaches CPU-side VRAM, so treat the flare as always
-     * visible; the camera rarely has geometry between it and Harry's chest. */
-    return 1;
+     * framebuffer never reaches CPU-side VRAM, so approximate instead:
+     * the dominant occluder of the chest-mounted light is Harry himself,
+     * so the flare is visible only while the flashlight's forward vector
+     * points toward the camera (stepping 4 units along the beam moves
+     * CLOSER in view space). func_8008D78C's field_A ramp smooths the
+     * on/off transition just like it smoothed the PSX pixel test. */
+    {
+        MATRIX m0;
+        MATRIX m1;
+        Vw_WorldScreenMatrixAtPositionGet(&m0,
+            g_WorldEnvWork.field_60.vx,
+            g_WorldEnvWork.field_60.vy,
+            g_WorldEnvWork.field_60.vz);
+        Vw_WorldScreenMatrixAtPositionGet(&m1,
+            g_WorldEnvWork.field_60.vx + ((s32)g_WorldEnvWork.field_58.vx << 2),
+            g_WorldEnvWork.field_60.vy + ((s32)g_WorldEnvWork.field_58.vy << 2),
+            g_WorldEnvWork.field_60.vz + ((s32)g_WorldEnvWork.field_58.vz << 2));
+        return m1.t[2] < m0.t[2];
+    }
 #else
     s16 rectX;
     RECT rect;
