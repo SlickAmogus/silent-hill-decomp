@@ -2,6 +2,7 @@
 #include <string.h>
 
 typedef unsigned char u8;
+typedef unsigned short u16;
 typedef signed int s32;
 
 /* ALESSA_ANIM_INFOS      -> pc_port/src/alessa_anim_infos.c */
@@ -898,8 +899,41 @@ void* g_Cutscene_UpdateArsia = 0;
 void* g_Cutscene_UpdateHero = 0;
 u8 g_NpcBoneCoords[256] = {0};
 u8 g_NursePuppetSfxs[256] = {0};
-u8 g_NursePuppet_AnimSfxs[256] = {0};
-u8 g_NursePuppet_SfxOffsets[256] = {0};
+/* Binary-extracted from MAP3_S03.BIN (anim time -> nurse SFX map). */
+u8 g_NursePuppet_AnimSfxs[580] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0
+};
+/* Binary-extracted from MAP3_S03.BIN @0x800CAAD0 (identical in every nurse
+ * overlay). Was a zero-stub. */
+u8 g_NursePuppet_SfxOffsets[4] = { 9, 6, 7, 8 };
 u8 g_ObjPosC[256] = {0};
 u8 g_ObjRotC[256] = {0};
 void* g_OvlDynamic = 0;
@@ -922,12 +956,22 @@ u8 g_PianoKeyCounter[256] = {0};
 u8 g_PianoKeySequence[256] = {0};
 u8 g_PianoKeys[256] = {0};
 u8 g_PuppetNurseHurtSfxIdxs[256] = {0};
-u8 g_PuppetNurse_AnimStatus0[256] = {0};
-u8 g_PuppetNurse_AnimStatus1[256] = {0};
-u8 g_PuppetNurse_AnimStatus2[256] = {0};
-u8 g_PuppetNurse_AnimStatus3[256] = {0};
-u8 g_PuppetNurse_AnimStatus4[256] = {0};
-u8 g_PuppetNurse_ModelStates0[256] = {0};
+/* Puppet nurse anim-status pick tables, binary-extracted from MAP3_S03.BIN
+ * (identical in all nurse overlays). The zero-stubs made every pick write
+ * anim status 0 (the play-nothing sentinel): dormant nurses froze the first
+ * time their idle shuffled (Control11), and shot nurses froze mid-death
+ * with no fall animation (anim picks at puppet_nurse.c 614/628/1045/1052/
+ * 1316). */
+s32 g_PuppetNurse_AnimStatus0[2] = { 8, 6 };
+s32 g_PuppetNurse_AnimStatus1[2] = { 14, 15 };
+u8 g_PuppetNurse_AnimStatus2[2] = { 14, 16 };
+u8 g_PuppetNurse_AnimStatus3[4] = { 22, 22, 24, 26 }; /* code indexes 0-3; bytes 2-3 overlap next data on PSX */
+u8 g_PuppetNurse_AnimStatus4[4] = { 22, 22, 24, 26 };
+/* Binary-extracted from MAP3_S03.BIN @0x800CAAD4 (identical in every nurse
+ * overlay). Per-spawn initial model/state config; the zero-stub sent every
+ * puppet nurse into the anim-0 frozen-dormant state (PuppetNurse_Init
+ * case 0) and left death-falls with no animation. */
+u16 g_PuppetNurse_ModelStates0[8] = { 9, 9, 9, 6, 6, 9, 7, 7 };
 /* g_Romper_ControlFuncs now defined per-DLL in src/maps/characters/romper.c
  * via romper_rodata.inc */
 u8 g_Screen_FadeStatus[256] = {0};
