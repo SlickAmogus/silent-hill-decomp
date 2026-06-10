@@ -170,7 +170,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         {
             int _ss = (int)g_SysWork.sysState;
             int _ssMax = (int)(sizeof(g_SysStateFuncs) / sizeof(g_SysStateFuncs[0]));
-            SH_DBG("[SYSSTATE] dispatch sysState=%d mapEventData=%p", _ss, (void*)g_MapEventData);
+            static int _ssPrev = -1;
+            if (_ss != _ssPrev) {  /* log on state change, not per-frame */
+                SH_DBG("[SYSSTATE] dispatch sysState=%d mapEventData=%p", _ss, (void*)g_MapEventData);
+                _ssPrev = _ss;
+            }
             if (_ss < 0 || _ss >= _ssMax) {
                 SH_DBG("[SYSSTATE] OOB sysState=%d max=%d — reset to Gameplay", _ss, _ssMax);
                 g_SysWork.sysState = SysState_Gameplay;
@@ -1136,9 +1140,16 @@ void SysState_EventCallback_Update(void) // 0x8003A3C8
         g_SysWork.sysState = SysState_Gameplay;
         return;
     }
-    SH_DBG("[SS] EventCallFunc param=%d func=%p step0=%d step1=%d step2=%d", g_MapEventParam,
-            (void*)g_MapOverlayHdr.mapEventFuncs[g_MapEventParam],
-            (int)g_SysWork.sysStateSteps[0], (int)g_SysWork.sysStateSteps[1], (int)g_SysWork.sysStateSteps[2]);
+    {   /* log on param/step change only, not per-frame */
+        static int _ssParam=-1,_ss0=-1,_ss1=-1,_ss2=-1;
+        int _p=g_MapEventParam, _s0=(int)g_SysWork.sysStateSteps[0],
+            _s1=(int)g_SysWork.sysStateSteps[1], _s2=(int)g_SysWork.sysStateSteps[2];
+        if (_p!=_ssParam||_s0!=_ss0||_s1!=_ss1||_s2!=_ss2) {
+            SH_DBG("[SS] EventCallFunc param=%d func=%p step0=%d step1=%d step2=%d", _p,
+                    (void*)g_MapOverlayHdr.mapEventFuncs[_p], _s0, _s1, _s2);
+            _ssParam=_p; _ss0=_s0; _ss1=_s1; _ss2=_s2;
+        }
+    }
     if (g_MapOverlayHdr.mapEventFuncs[g_MapEventParam] == NULL) {
         SH_DBG("[SS] EventCallFunc NULL — skip");
         g_SysWork.sysState = SysState_Gameplay;

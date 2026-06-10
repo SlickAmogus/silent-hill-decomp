@@ -117,13 +117,10 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     u32 modelHdrsOff  = rd32(&raw[12]);
     u32 modelOrderOff = rd32(&raw[16]);
 
-    SH_DBG("[SH] LmFixOffsets_PC: magic=0x%x ver=%d mats=%d models=%d matOff=0x%x mdlOff=0x%x ordOff=0x%x",
-            magic, version, matCount, modelCount, matOff, modelHdrsOff, modelOrderOff);
 
     /* Reject invalid LM headers (garbage data from unloaded IPD chunks etc.) */
     if (magic != LM_HEADER_MAGIC)
     {
-        SH_DBG("[SH] LmFixOffsets_PC: invalid magic 0x%x, skipping", magic);
         lmHdr->isLoaded = 1; /* prevent re-entry */
         return;
     }
@@ -181,5 +178,4 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         SH_DBG("  modelOrder:%s", _ordBuf);
     }
 
-    SH_DBG("[SH] LmFixOffsets_PC: done");
 }

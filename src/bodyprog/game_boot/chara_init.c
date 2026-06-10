@@ -58,7 +58,7 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     mapOvlId = g_SavegamePtr->mapIdx;
 
 #ifdef SH_PC_PORT
-#define HARRY_CHECK(label) SH_DBG("[SH] InGameInit %s harry=%p", label, (void*)g_WorldGfxWork.registeredCharaModels[1])
+#define HARRY_CHECK(label) ;
     HARRY_CHECK("start");
 #endif
     vcInitCamera(&g_MapOverlayHdr, &g_SysWork.playerWork.player.position);
@@ -81,9 +81,6 @@ void GameBoot_InGameInit(void) // 0x80034FB8
     Game_FlashlightAttributesFix();
 #ifdef SH_PC_PORT
     HARRY_CHECK("after FlashlightAttribsFix");
-    SH_DBG("[SH]   &g_WorldGfxWork=%p &registeredCharaModels[1]=%p offset=%zu",
-            (void*)&g_WorldGfxWork, (void*)&g_WorldGfxWork.registeredCharaModels[1],
-            (size_t)((char*)&g_WorldGfxWork.registeredCharaModels[1] - (char*)&g_WorldGfxWork));
 #endif
     g_MapOverlayHdr.particlesUpdate(0, mapOvlId, NO_VALUE);
 #ifdef SH_PC_PORT

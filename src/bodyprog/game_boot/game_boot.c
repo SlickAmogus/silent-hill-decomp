@@ -47,22 +47,18 @@ void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 void GameBoot_PlayerInit(void) // 0x80035178
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: WorldGfx_MapInit... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
     WorldGfx_MapInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: CharaModel_AllModelsFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
     CharaModel_AllModelsFree();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: Item_HeldItemModelFree... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
     Item_HeldItemModelFree();
     Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords); // Load player anim file?
     WorldGfx_PlayerModelProcessLoad();
 
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: setting unused_229C... harry=%p", (void*)g_WorldGfxWork.registeredCharaModels[1]);
 #endif
     g_SysWork.unused_229C = NO_VALUE;
 
@@ -78,11 +74,9 @@ void GameBoot_PlayerInit(void) // 0x80035178
     g_CharaTypeAnimInfo[0].activeSize = 0x2E630;
     g_CharaTypeAnimInfo[0].allocSize  = 0x2E630;
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: Game_PlayerInfoInit...");
 #endif
     Game_PlayerInfoInit();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_PlayerInit: done");
 #endif
 }
 
@@ -96,7 +90,6 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * the SysState_LoadArea snapshot and the segfault. Forcing a flush
      * per line costs us perf only on this one rare path; localizing
      * the crash is worth it. */
-    SH_DBG("[SH] GameBoot_MapLoad: ENTER mapIdx=%d (%s)", mapIdx, MapRegistry_GetName(mapIdx));
     fflush(g_ShDebugLog);
 
     /* PC-only convenience: when entering a non-tutorial map with an empty
@@ -153,25 +146,20 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     }
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
-    SH_DBG("[SH] GameBoot_MapLoad: post-MapRegistry_Load");
     fflush(g_ShDebugLog);
     /* Still read the overlay file — on PC this is a no-op but keeps the
      * filesystem queue state consistent. */
 #endif
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: pre Map_EffectTexturesLoad");
     fflush(g_ShDebugLog);
 #endif
     Map_EffectTexturesLoad(mapIdx);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: pre GameFs_PlayerMapAnimLoad");
     fflush(g_ShDebugLog);
 #endif
     GameFs_PlayerMapAnimLoad(mapIdx);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: post-PlayerMapAnimLoad processFlags=0x%X weaponAttack=%d",
-           (unsigned)g_SysWork.processFlags, (int)g_SysWork.playerCombat.weaponAttack);
     fflush(g_ShDebugLog);
 #endif
 
@@ -183,23 +171,19 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
                                        ProcessFlag_Continue | ProcessFlag_BootDemo))
     {
 #ifdef SH_PC_PORT
-        SH_DBG("[SH] GameBoot_MapLoad: pre WorldGfx_PlayerPrevHeldItem");
         fflush(g_ShDebugLog);
 #endif
         WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
 #ifdef SH_PC_PORT
-        SH_DBG("[SH] GameBoot_MapLoad: post-PlayerPrevHeldItem");
         fflush(g_ShDebugLog);
 #endif
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: pre Gfx_PlayerHeldItemAttach weap=%d", (int)g_SysWork.playerCombat.weaponAttack);
     fflush(g_ShDebugLog);
 #endif
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_MapLoad: complete");
     fflush(g_ShDebugLog);
 #endif
 }

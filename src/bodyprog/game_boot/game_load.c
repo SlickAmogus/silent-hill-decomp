@@ -50,15 +50,12 @@ void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
 void GameState_LoadMapScreen_Update(void) // 0x800348E8
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadMapScreen_Update: entering (step=%d)", g_GameWork.gameStateSteps[0]);
 #endif
     GameBoot_LoadingScreen();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadMapScreen_Update: after LoadingScreen");
 #endif
     GameBoot_GameStartup();
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameState_LoadMapScreen_Update: after GameStartup");
 #endif
 
     if (g_SysWork.sysFlags & SysFlag_LoadActive)
@@ -163,7 +160,6 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 3:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=3 queueLen=%d", Fs_QueueGetLength());
             /* Dump pending queue entries every 60 frames so we can identify
              * which file load is stalling during room/map transitions. The
              * door-transition "crash" is actually a hang here at queueLen>0;
@@ -200,7 +196,6 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 5:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=5");
 #endif
             Fs_CharaAnimDataAlloc(1, g_MapOverlayHdr.charaGroupIds[0], NULL, 0);
             Fs_CharaAnimDataAlloc(2, g_MapOverlayHdr.charaGroupIds[1], NULL, 0);
@@ -247,7 +242,6 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 8:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] GameStartup step=8: waiting for chunks...");
             /* Flush the FS queue to complete pending reads. On PC, CdRead is
              * synchronous via PsyCross so each Fs_QueueUpdate() call completes
              * one state transition instantly. A few hundred iterations is enough
@@ -292,13 +286,9 @@ void GameBoot_GameStartup(void) // 0x80034964
                 bgm_frame_counter++;
                 if (bgm_frame_counter == 1 || bgm_frame_counter % 60 == 0) {
                     extern u16 Sd_GetXaAudioIdx(void);
-                    SH_DBG("[SH] step9 Bgm_Init=%d  StreamingCheck=%d  QueueLen=%d  bgmStep=%d  xaIdx=%d",
-                           (int)bgmResult, (int)Sd_AudioStreamingCheck(), (int)Fs_QueueGetLength(),
-                           (int)g_GameWork.gameStateSteps[1], (int)Sd_GetXaAudioIdx());
                 }
                 if (bgmResult == 0)
                 {
-                    SH_DBG("[SH] step9: Bgm_Init() returned 0, advancing");
                     bgm_frame_counter = 0;
                     g_GameWork.gameState = GameState_MainLoadScreen;
                     Game_StateStepIncrement();
@@ -339,7 +329,6 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 11:
 #ifdef SH_PC_PORT
-            SH_DBG("[SH] step=11 c0=%d", g_SysWork.counters_1C[0]);
 #endif
             if (g_SysWork.counters_1C[0] >= 60)
             {
@@ -389,26 +378,19 @@ void GameBoot_GameStartup(void) // 0x80034964
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_LoadingScreen: loadingScreenIdx=%d step=%d",
-            g_SysWork.loadingScreenIdx, g_GameWork.gameStateSteps[0]);
 #endif
     if (g_SysWork.loadingScreenIdx != LoadingScreenId_None && g_GameWork.gameStateSteps[0] < 10)
     {
         ScreenFade_Start(false, true, false);
         g_ScreenFadeTimestep = Q12(0.8f);
 #ifdef SH_PC_PORT
-        SH_DBG("[SH] GameBoot_LoadingScreen: calling func[%d]=%p",
-                g_SysWork.loadingScreenIdx,
-                (void*)g_MapOverlayHdr.loadingScreenFuncs[g_SysWork.loadingScreenIdx]);
 #endif
         g_MapOverlayHdr.loadingScreenFuncs[g_SysWork.loadingScreenIdx]();
     }
 
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_LoadingScreen: calling Screen_BackgroundMotionBlur");
 #endif
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
 #ifdef SH_PC_PORT
-    SH_DBG("[SH] GameBoot_LoadingScreen: done");
 #endif
 }
