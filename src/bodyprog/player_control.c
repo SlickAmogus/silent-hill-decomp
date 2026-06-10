@@ -676,15 +676,19 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
         else
         {
 #ifdef SH_PC_PORT
-            SH_DBG("[PUPD] pre-funcBC state=%d ctrl=%d kf=%d",
-                   (s32)g_SysWork.playerWork.extra.state,
-                   (s32)player->model.controlState,
-                   (s32)player->model.anim.keyframeIdx);
+            /* Harry's cutscene/control state — log on change only, not per-frame. */
+            {
+                static s32 s_pupdState = -1, s_pupdCtrl = -1;
+                s32 _st = (s32)g_SysWork.playerWork.extra.state;
+                s32 _ct = (s32)player->model.controlState;
+                if (_st != s_pupdState || _ct != s_pupdCtrl) {
+                    SH_DBG("[PUPD] state=%d ctrl=%d kf=%d", _st, _ct,
+                           (s32)player->model.anim.keyframeIdx);
+                    s_pupdState = _st; s_pupdCtrl = _ct;
+                }
+            }
 #endif
             g_MapOverlayHdr.func_BC(player, extra, coords);
-#ifdef SH_PC_PORT
-            SH_DBG("[PUPD] post-funcBC");
-#endif
         }
 
         Player_AnimUpdate(player, extra, anmHdr, coords);

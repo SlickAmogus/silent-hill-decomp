@@ -1158,9 +1158,6 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
     {
         static s32 chunkInitCallCount = 0;
         if (chunkInitCallCount < 20 || (chunkInitCallCount % 300) == 0) {
-            SH_DBG("[IPD-INIT] Ipd_ChunkInit #%d: pos0=(%d,%d) pos1=(%d,%d) globalLm.queueIdx=%d globalLm.fileIdx=%d",
-                   chunkInitCallCount, posX0, posZ0, posX1, posZ1,
-                   g_Map.globalLm.queueIdx, g_Map.globalLm.fileIdx);
         }
         chunkInitCallCount++;
     }

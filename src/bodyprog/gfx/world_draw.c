@@ -220,15 +220,11 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
      * each side). Map slot count maxes at PC_MAX_IPD_CHUNKS=256 so
      * upping the count costs ~50KB/chunk extra RAM at most. */
     if (activeIpdCount < 4) {
-        SH_DBG("[IPD-INIT] Bumping activeIpdCount from %d to 4 (PC: wider view needs more chunks)",
-               activeIpdCount);
         activeIpdCount = 4;
     }
 #endif
 
 #ifdef SH_PC_PORT
-    SH_DBG("[IPD-INIT] Ipd_PlayerChunkInit: flags=0x%02X activeIpdCount=%d playerPos=(%d,%d) mapTag='%.4s'",
-           flags, activeIpdCount, playerPosX, playerPosZ, mapHdr->mapInfo->tag);
 #endif
 
     mapInfo = mapHdr->mapInfo;
@@ -403,8 +399,6 @@ void Ipd_CloseRangeChunksInit(void) // 0x8003C3AC
     {
         static s32 closeRangeLogCD = 0;
         if ((closeRangeLogCD++ % 300) == 0) {
-            SH_DBG("[IPD-INIT] Ipd_CloseRangeChunksInit: pos0=(%d,%d) pos1=(%d,%d) fogEnabled=%d useStored=%d",
-                   pos0.vx, pos0.vz, pos1.vx, pos1.vz, g_WorldEnvWork.isFogEnabled, g_WorldGfxWork.useStoredPoint);
         }
     }
 #endif

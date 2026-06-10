@@ -210,8 +210,7 @@ void Fs_QueueUpdate(void)
     if (g_FsQueue.read.idx <= g_FsQueue.last.idx)
     {
 #ifdef SH_PC_PORT
-        if (_doDbg) { SH_DBG("[SH] FsQ: read op=%d state=%d readIdx=%d lastIdx=%d ptr=%p",
-            tick->operation, g_FsQueue.state, g_FsQueue.read.idx, g_FsQueue.last.idx, (void*)tick); }
+        if (_doDbg) { }
 #endif
         switch (tick->operation)
         {
@@ -243,7 +242,7 @@ void Fs_QueueUpdate(void)
     }
 
 #ifdef SH_PC_PORT
-    if (_doDbg) { SH_DBG("[SH] FsQ: post-read"); }
+    if (_doDbg) { }
 #endif
 
     // Preparations to post-load in queue; tick them.
@@ -251,8 +250,7 @@ void Fs_QueueUpdate(void)
     if (g_FsQueue.postLoad.idx < g_FsQueue.read.idx)
     {
 #ifdef SH_PC_PORT
-        if (_doDbg) { SH_DBG("[SH] FsQ: postLoad postLoadIdx=%d readIdx=%d postLoad=%d ptr=%p",
-            g_FsQueue.postLoad.idx, g_FsQueue.read.idx, tick->postLoad, (void*)tick); }
+        if (_doDbg) { }
 #endif
         temp = Fs_QueueUpdatePostLoad(tick);
         if (temp == true)

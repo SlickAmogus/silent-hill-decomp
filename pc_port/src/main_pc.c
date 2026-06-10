@@ -188,7 +188,6 @@ int main(int argc, char* argv[])
     if (g_PcConfig.enableDebugLog) {
         SH_DebugLogInit();
         SH_DBG("[SH] main() entered (log opened post-config)");
-        SH_DBG("[SH] sizeof(s_WorldGfxWork) = %zu", sizeof(s_WorldGfxWork));
     }
 
     /* Apply pixel-aspect mode to PsyCross's runtime PAR global.
@@ -479,7 +478,6 @@ int main(int argc, char* argv[])
     /* Cleanup */
     SH_DBG("[SH] MainLoop exited normally. Shutting down...");
     PsyX_Shutdown();
-    SH_DBG("[SH] Clean shutdown complete.");
 
     return 0;
 }

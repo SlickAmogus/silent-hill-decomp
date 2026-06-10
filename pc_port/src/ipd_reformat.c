@@ -182,8 +182,6 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     /* Validate magic */
     if (raw[0] != IPD_HEADER_MAGIC)
     {
-        SH_DBG("[SH] IpdFixOffsets_PC: invalid magic %d (expected %d), skipping",
-                raw[0], IPD_HEADER_MAGIC);
         return false;
     }
 
@@ -200,10 +198,6 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     u32 modelBuffersOff  = rd32(&raw[0x18]);
     u32 modelOrderOff    = rd32(&raw[0x50]);
 
-    SH_DBG("[SH] IpdFixOffsets_PC: magic=%d cell=[%d,%d] models=%d bufs=%d orders=%d",
-            magic, (s8)cellX, (s8)cellZ, modelCount, modelBufferCount, modelOrderCount);
-    SH_DBG("[SH]   lmOff=0x%x miOff=0x%x mbOff=0x%x moOff=0x%x",
-            lmHdrOff, modelInfoOff, modelBuffersOff, modelOrderOff);
 
     /* Save subcell table (52 bytes from PSX offset 0x1C to 0x4F) */
     u8 subcellTable[52];
@@ -275,8 +269,5 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
         PC_CollRegisterValid(&ipdHdr->collisionData);
     }
 
-    SH_DBG("[SH] IpdFixOffsets_PC: done. lmHdr=%p modelInfo=%p[%d] modelBufs=%p[%d]",
-            (void*)ipdHdr->lmHdr, (void*)ipdHdr->modelInfo, modelCount,
-            (void*)ipdHdr->modelBuffers, modelBufferCount);
     return true;
 }
