@@ -6082,7 +6082,14 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                     {
                         if (player->model.anim.keyframeIdx >= 2)
                         {
-                            playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                            /* NOT dt-scaled: Player_PositionUpdate zeroes
+                             * runDistance every frame for non-Run upper-body
+                             * states, so this increment IS the walk speed the
+                             * integrator multiplies by dt. Scaling it by dt
+                             * double-applied the timestep — at high FPS the
+                             * per-frame value shrank toward 0 and Harry
+                             * walked in place (movement_original bug). */
+                            playerProps.runDistance += Q12(0.4f);
                         }
 
                         playerProps.runDistance = CLAMP(playerProps.runDistance,
@@ -6496,7 +6503,9 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     if (player->model.anim.keyframeIdx >= 2)
                     {
-                        playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                        /* Per-frame walk-backward speed; see WalkForward note —
+                         * the integrator dt-scales, this must not. */
+                        playerProps.runDistance += Q12(0.4f);
                     }
 
                     playerProps.runDistance = CLAMP(playerProps.runDistance,
@@ -6619,14 +6628,17 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             }
             else
             {
+                /* Per-frame sidestep speed, keyframe-windowed to the stride;
+                 * see WalkForward note — the integrator dt-scales, these
+                 * increments must not. */
                 if (player->model.anim.keyframeIdx >= 100 &&
                     player->model.anim.keyframeIdx <= 111)
                 {
-                    playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    playerProps.runDistance += Q12(0.4f);
                 }
                 else if (player->model.anim.keyframeIdx >= 112)
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    playerProps.runDistance -= Q12(0.4f);
                 }
 
                 playerProps.runDistance = CLAMP(playerProps.runDistance,
@@ -6701,14 +6713,15 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             }
             else
             {
+                /* Per-frame sidestep speed; see SidestepRight/WalkForward note. */
                 if (player->model.anim.keyframeIdx >= 75 &&
                     player->model.anim.keyframeIdx <= 86)
                 {
-                    playerProps.runDistance += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    playerProps.runDistance += Q12(0.4f);
                 }
                 else if (player->model.anim.keyframeIdx >= 87)
                 {
-                    playerProps.runDistance -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(0.4f));
+                    playerProps.runDistance -= Q12(0.4f);
                 }
 
                 playerProps.runDistance = CLAMP(playerProps.runDistance,
