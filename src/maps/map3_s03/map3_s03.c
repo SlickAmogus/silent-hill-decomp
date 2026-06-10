@@ -271,7 +271,15 @@ void func_800D1A58(void) // 0x800D1A58
         case 5:
             g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
+#ifdef SH_PC_PORT
+            /* Raw PSX destination — the only FS read in any map that doesn't
+             * go through an FS_BUFFER_* macro. Untranslated it writes the TIM
+             * to literal 0x801D2600 -> access violation the moment the plates
+             * door (or a plate item) opens this screen. */
+            Fs_QueueStartReadTim(FILE_TIM_COLORS_TIM, PSX_ADDR(0x001D2600), &g_ItemInspectionImg);
+#else
             Fs_QueueStartReadTim(FILE_TIM_COLORS_TIM, (void*)0x801D2600, &g_ItemInspectionImg);
+#endif
 
             for (i = 0, Fs_QueueWaitForEmpty(), D_800D8145 = 0; i < 4; i++)
             {
