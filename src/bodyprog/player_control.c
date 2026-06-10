@@ -5533,6 +5533,28 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                         g_SysWork.playerWork.extra.upperBodyState              = PlayerUpperBodyState_Reload;
                         playerProps.flags &= ~PlayerFlag_Unk9;
 
+#ifdef SH_PC_PORT
+                        /* One-time Reload entry setup, mirroring the manual
+                         * (R-key) path above. The case-Reload init is gated on
+                         * extra stateStep==0, but arriving here from aim-hold
+                         * leaves stateStep=1 — and the just-set-Reload guard
+                         * below (correctly) skips the generic reset, so the
+                         * reload anim never started: Harry stuck aiming with
+                         * an empty clip (SilentHill_autoaim.log). Seed kf to
+                         * the active reload start so the blend is a no-op. */
+                        {
+                            s16 reloadStartKf = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, true)].startKeyframeIdx;
+                            extra->model.stateStep    = 0;
+                            extra->model.controlState = 0;
+                            if (reloadStartKf > 0)
+                            {
+                                extra->model.anim.keyframeIdx = reloadStartKf;
+                                extra->model.anim.time        = Q12((s32)reloadStartKf);
+                            }
+                            SH_DBG("[AMMO] auto-reload ENTER: seeded kf=%d", (int)reloadStartKf);
+                        }
+#endif
+
                         if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Aim ||
                             g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_Attack)
                         {
