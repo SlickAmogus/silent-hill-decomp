@@ -1218,7 +1218,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
         case PlayerState_None:
         case PlayerState_Combat:
 #ifdef SH_PC_PORT
-            /* EXPERIMENTAL (config movement_original=1): run the PSX lower-body
+            /* movement_original=1 (default): run the PSX lower-body state machine
              * state machine instead of the PC movement shim below. This is the
              * authored 36-state system — acceleration toward speed-zone maxima,
              * run-into-wall smack (RunForwardWallStop L/R foot variants),
@@ -1226,8 +1226,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * and analog pressure walking. The shim replaced it because the
              * collision calls crashed early in the port; real collision has
              * been enabled for months, so the blocker is believed gone.
-             * Default OFF until runtime-verified; TPS debug cam still needs
-             * the shim (it owns input mapping + body yaw). */
+             * Runtime-verified 2026-06-10 (walk/run/sidestep/jump-back/wall smack
+             * /exhaustion). The TPS debug cam still needs the shim below
+             * (it owns input mapping + body yaw). */
             if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam)
             {
                 Player_LowerBodyUpdate(player, extra);
@@ -5660,34 +5661,6 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
     speedZ         = SQUARE(player->position.vz - g_Player_PrevPosition.vz);
     travelDistStep = SquareRoot0(speedX + speedZ);
 
-#ifdef SH_PC_PORT
-    /* movement_original diagnosis: walk/sidestep animate but don't translate.
-     * Log the state machine's inputs/outputs whenever something changes —
-     * lowerBodyState, the func_8007D6F0 probe (wall-block look-ahead that
-     * gates run/walk branches), runDistance (quantised), stop flags, and the
-     * input flags. One line per change, silent when idle. */
-    if (g_PcConfig.movementOriginal)
-    {
-        static s32 s_prevLbs = -1, s_prevProbe = -1, s_prevRd = -1, s_prevFlags = -1, s_prevIn = -1;
-        s32 rdq = playerProps.moveSpeed >> 8;
-        s32 in  = (g_Player_IsMovingForward ? 1 : 0) | (g_Player_IsMovingBackward ? 2 : 0) |
-                  (g_Player_IsSteppingLeftHold ? 4 : 0) | (g_Player_IsSteppingRightHold ? 8 : 0) |
-                  (g_Player_IsRunning ? 16 : 0);
-        if ((s32)g_SysWork.playerWork.extra.lowerBodyState != s_prevLbs || (s32)temp_s3 != s_prevProbe ||
-            rdq != s_prevRd || (s32)g_SysWork.playerStopFlags != s_prevFlags || in != s_prevIn)
-        {
-            s_prevLbs   = g_SysWork.playerWork.extra.lowerBodyState;
-            s_prevProbe = temp_s3;
-            s_prevRd    = rdq;
-            s_prevFlags = g_SysWork.playerStopFlags;
-            s_prevIn    = in;
-            SH_DBG("[MOVE-ORIG] lbs=%d probe=%d moveSpeed=%d stopFlags=%d in=0x%02x kf=%d D_800AF216=%d heading=%d",
-                   s_prevLbs, s_prevProbe, (int)playerProps.moveSpeed, s_prevFlags, in,
-                   (int)player->model.anim.keyframeIdx, (int)D_800AF216,
-                   (int)g_Player_HeadingAngle);
-        }
-    }
-#endif
 
     switch (g_SysWork.playerWork.extra.lowerBodyState)
     {
