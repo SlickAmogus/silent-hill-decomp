@@ -35,6 +35,17 @@
     MTC2(_p[4], 4); MTC2(_p[5], 5); \
 } while(0)
 
+/* gte_ReadGeomScreen - read projection distance H (COP2 control reg 26)
+ * into *r0. PSX: cfc2 $12,$26; sw $12,0(r0). Neither PsyCross nor
+ * gpu_gte_pc.h defined this, so calls fell through to a void() stub in
+ * math_impl.c that IGNORED the out pointer — the destination kept stale
+ * memory. The muzzle flash sized its quad with that garbage
+ * (field_2C = 720953 instead of ~1500) -> the giant white blob. */
+#undef gte_ReadGeomScreen
+#define gte_ReadGeomScreen( r0 ) do { \
+    *(int*)(r0) = (int)CFC2(26); \
+} while(0)
+
 /* gte_stsxy3c - Store 3 screen XY results to contiguous DVECTORs.
  * PSX: swc2 $12,$13,$14 to r0+0,+4,+8. PsyCross doesn't define this. */
 #undef gte_stsxy3c

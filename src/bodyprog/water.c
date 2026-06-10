@@ -180,6 +180,13 @@ void func_8008D78C(void) // 0x8008D78C
     }
 
     var1 = func_8008D850();
+#ifdef SH_PC_PORT
+    /* var1 is a 0..4096 facing factor on PC (see func_8008D850); scale the
+     * ramp target so off-axis angles dim/shrink the flare progressively the
+     * way the PSX seed-pixel average did, instead of pegging at maximum. */
+    var0 = ((D_800C4818.field_8 * var1) >> 12) - D_800C4818.field_A;
+    var1 = var1 != 0;
+#else
     if (var1 != 0)
     {
         var0 = D_800C4818.field_8 - D_800C4818.field_A;
@@ -188,6 +195,7 @@ void func_8008D78C(void) // 0x8008D78C
     {
         var0 = -D_800C4818.field_A;
     }
+#endif
 
     D_800C4818.field_A += var0 >> 1;
 
@@ -206,15 +214,18 @@ s32 func_8008D850(void) // 0x8008D850
     /* PSX tests flare occlusion by reading back the framebuffer pixels the
      * DR_MOVE in func_8008D5A0 copied aside (white seed pixel survived ->
      * light unobstructed). With PSYX_SKIP_FRAMEBUFFER_STORE the GL
-     * framebuffer never reaches CPU-side VRAM, so approximate instead:
-     * the dominant occluder of the chest-mounted light is Harry himself,
-     * so the flare is visible only while the flashlight's forward vector
-     * points toward the camera (stepping 4 units along the beam moves
-     * CLOSER in view space). func_8008D78C's field_A ramp smooths the
-     * on/off transition just like it smoothed the PSX pixel test. */
+     * framebuffer never reaches CPU-side VRAM, so approximate instead with
+     * a CONTINUOUS facing factor (0..4096): the dominant occluder of the
+     * chest-mounted light is Harry himself, and on PSX the 1x1 seed pixel
+     * flickers in and out as chin/arms/weapon cross it, so the ramped
+     * average sits below maximum except when facing the camera dead-on.
+     * The old binary test pegged the flare at full size/brightness from
+     * any frontal angle. func_8008D78C scales the ramp target by this. */
     {
         MATRIX m0;
         MATRIX m1;
+        s32    deltaZ;
+        s32    stepLen;
         Vw_WorldScreenMatrixAtPositionGet(&m0,
             g_WorldEnvWork.field_60.vx,
             g_WorldEnvWork.field_60.vy,
@@ -223,7 +234,19 @@ s32 func_8008D850(void) // 0x8008D850
             g_WorldEnvWork.field_60.vx + ((s32)g_WorldEnvWork.field_58.vx << 2),
             g_WorldEnvWork.field_60.vy + ((s32)g_WorldEnvWork.field_58.vy << 2),
             g_WorldEnvWork.field_60.vz + ((s32)g_WorldEnvWork.field_58.vz << 2));
-        return m1.t[2] < m0.t[2];
+        deltaZ  = m0.t[2] - m1.t[2]; /* > 0 = beam points toward camera */
+        stepLen = SquareRoot0(((s32)g_WorldEnvWork.field_58.vx * g_WorldEnvWork.field_58.vx) +
+                              ((s32)g_WorldEnvWork.field_58.vy * g_WorldEnvWork.field_58.vy) +
+                              ((s32)g_WorldEnvWork.field_58.vz * g_WorldEnvWork.field_58.vz)) << 2;
+        if (deltaZ <= 0 || stepLen == 0)
+        {
+            return 0;
+        }
+        if (deltaZ >= stepLen)
+        {
+            return Q12(1.0f);
+        }
+        return (deltaZ << 12) / stepLen;
     }
 #else
     s16 rectX;

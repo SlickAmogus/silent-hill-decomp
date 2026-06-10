@@ -1,3 +1,4 @@
+#include "inline_no_dmpsx.h" /* gte_ReadGeomScreen — real macro, not the void stub */
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "maps/characters/floatstinger.h"
