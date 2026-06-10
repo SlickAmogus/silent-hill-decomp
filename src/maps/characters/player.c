@@ -595,7 +595,7 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
             D_800C4606                                                              = 1;
             sharedData_800E39E0_0_s00                                               = 0;
             D_800C4588                                                              = 0;
-            g_SysWork.playerWork.player.properties.player.runDistance = Q12(0.0f);
+            g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
             return true;
     }
 #endif
@@ -610,7 +610,7 @@ void sharedFunc_800D2C7C_0_s00(s32 playerExtraState)
     extra  = &g_SysWork.playerWork.extra;
     player = &g_SysWork.playerWork.player;
 
-    g_SysWork.playerWork.player.properties.player.runDistance = Q12(0.0f);
+    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
 
     D_800C4606 = 0;
 
@@ -882,12 +882,12 @@ s32 Player_AnimPlaybackStateGet(void)
 
 bool Player_MoveSpeedIsZero(void)
 {
-    return g_SysWork.playerWork.player.properties.player.runDistance == Q12(0.0f);
+    return g_SysWork.playerWork.player.properties.player.moveSpeed == Q12(0.0f);
 }
 
 void Player_MoveSpeedClear(void)
 {
-    g_SysWork.playerWork.player.properties.player.runDistance = Q12(0.0f);
+    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
 }
 
 void sharedFunc_800D2E6C_0_s00(void)
@@ -911,7 +911,7 @@ void Player_FallBackward(void)
     playerChara = &g_SysWork.playerWork.player;
     playerExtra = &g_SysWork.playerWork.extra;
 
-    g_SysWork.playerWork.player.properties.player.runDistance = Q12(2.3f);
+    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(2.3f);
     g_SysWork.playerWork.player.properties.player.headingAngle       = Q12_ANGLE(180.0f);
     g_Player_HeadingAngle                                                   = Q12_ANGLE(180.0f);
 
@@ -1195,7 +1195,7 @@ void sharedFunc_800D2E9C_0_s00(q19_12* offsetX, q19_12* offsetZ, q3_12* angle)
     q3_12   angle0;
     bool    isInFront;
 
-    g_SysWork.playerWork.player.properties.player.runDistance = Q12(0.0f);
+    g_SysWork.playerWork.player.properties.player.moveSpeed = Q12(0.0f);
     g_SysWork.playerWork.player.headingAngle                       = Q12_ANGLE(0.0f);
     isInFront                                                              = Math_AngleFrontCheck(*angle, g_SysWork.playerWork.player.rotation.vy);
 
