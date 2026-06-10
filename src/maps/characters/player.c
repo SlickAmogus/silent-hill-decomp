@@ -732,23 +732,30 @@ s32 Player_AnimPlaybackStateGet(void)
      *       unstick. Threshold for (B) is generous (4s @ 60fps = 240) so
      *       legitimate brief waits aren't bypassed. */
     {
+        /* Real-time accumulation (Q12 seconds; g_DeltaTimeRaw sums to ~4096
+         * per wall-clock second), NOT frame counts — the old 90-frame
+         * threshold meant 3s at 30fps but 0.37s at 240fps, so high framerate
+         * made the bypass fire during ordinary brief holds. */
         static s32 s_lastKf       = -1;
-        static s32 s_stuckCounter = 0;
+        static q19_12 s_stuckTime = 0;
         static s32 s_lastStatus   = -1;
         if ((s32)model->anim.status != s_lastStatus
             || (s32)model->anim.keyframeIdx != s_lastKf) {
-            s_lastStatus   = model->anim.status;
-            s_lastKf       = model->anim.keyframeIdx;
-            s_stuckCounter = 0;
-        } else if (++s_stuckCounter > 90) {
-            static int _bypassLogN = 0;
-            if (_bypassLogN < 20) {
-                SH_DBG("[ANIM-STUCK] (A) frozen bypass — status=%d kf=%d after %d frames; forcing return 1",
-                       (int)model->anim.status, (int)model->anim.keyframeIdx, s_stuckCounter);
-                _bypassLogN++;
+            s_lastStatus = model->anim.status;
+            s_lastKf     = model->anim.keyframeIdx;
+            s_stuckTime  = 0;
+        } else {
+            s_stuckTime += g_DeltaTimeRaw;
+            if (s_stuckTime > Q12(3.0f)) {
+                static int _bypassLogN = 0;
+                if (_bypassLogN < 20) {
+                    SH_DBG("[ANIM-STUCK] (A) frozen bypass — status=%d kf=%d after 3s; forcing return 1",
+                           (int)model->anim.status, (int)model->anim.keyframeIdx);
+                    _bypassLogN++;
+                }
+                s_stuckTime = 0;
+                return 1;
             }
-            s_stuckCounter = 0;
-            return 1;
         }
     }
 #endif
@@ -759,37 +766,44 @@ s32 Player_AnimPlaybackStateGet(void)
         // Check if anim has started or finished.
         if (Anim_DurationGet(model, animInfo) > Q12(0.0f))
         {
+#ifdef SH_PC_PORT
+            /* Range form: PC delta-time can step the keyframe past the exact
+             * end index, so `==` misses and the script polls forever — this
+             * was the real root of the (B)-class stuck waits the detector
+             * below papers over. PSX keeps the exact compare. */
+            result = (model->anim.keyframeIdx >= animInfo->endKeyframeIdx);
+#else
             result = (model->anim.keyframeIdx == animInfo->endKeyframeIdx);
+#endif
         }
         else
         {
+#ifdef SH_PC_PORT
+            /* Backward playback finishes at/below startKeyframeIdx. */
+            result = (model->anim.keyframeIdx <= animInfo->startKeyframeIdx);
+#else
             result = (model->anim.keyframeIdx == animInfo->startKeyframeIdx);
+#endif
         }
 
 #ifdef SH_PC_PORT
         {
-            static s32 s_endCounter = 0;
+            /* (B) safety net — with the range-form end check above this should
+             * essentially never fire; if it logs, a new root cause exists. */
+            static q19_12 s_endTime = 0;
             static int _endLogN     = 0;
-            static int _entryLogN   = 0;
             if (result == 1) {
-                s_endCounter = 0;
+                s_endTime = 0;
             } else {
-                /* Sample every 60th call so we see what's happening. */
-                if (((++s_endCounter) % 60) == 0 && _entryLogN < 20) {
-                    SH_DBG("[ANIM-STUCK] (B) PlaybackOnce wait — status=%d kf=%d startKf=%d endKf=%d count=%d",
-                           (int)model->anim.status, (int)model->anim.keyframeIdx,
-                           (int)animInfo->startKeyframeIdx, (int)animInfo->endKeyframeIdx,
-                           (int)s_endCounter);
-                    _entryLogN++;
-                }
-                if (s_endCounter > 240) {
+                s_endTime += g_DeltaTimeRaw;
+                if (s_endTime > Q12(4.0f)) {
                     if (_endLogN < 10) {
-                        SH_DBG("[ANIM-STUCK] (B) endKf-bypass — status=%d kf=%d expected_endKf=%d after %d frames",
+                        SH_DBG("[ANIM-STUCK] (B) endKf-bypass — status=%d kf=%d expected_endKf=%d after 4s",
                                (int)model->anim.status, (int)model->anim.keyframeIdx,
-                               (int)animInfo->endKeyframeIdx, (int)s_endCounter);
+                               (int)animInfo->endKeyframeIdx);
                         _endLogN++;
                     }
-                    s_endCounter = 0;
+                    s_endTime = 0;
                     return 1;
                 }
             }
@@ -820,25 +834,34 @@ s32 Player_AnimPlaybackStateGet(void)
      * naturally before bypass. */
     if (animInfo->playbackFunc != Anim_PlaybackOnce)
     {
-        static s32 s_loopCounter = 0;
-        static int _loopLogN = 0;
-        s_loopCounter++;
-        /* Periodic log so we can confirm (C) is being hit even if threshold
-         * not yet reached. */
-        if ((s_loopCounter % 60) == 0 && _loopLogN < 20) {
-            SH_DBG("[ANIM-STUCK] (C) tick — counter=%d status=%d kf=%d pbFunc=%p",
-                   s_loopCounter, (int)model->anim.status, (int)model->anim.keyframeIdx,
-                   (void*)animInfo->playbackFunc);
-            _loopLogN++;
+        /* (C) is the dangerous detector for cutscenes: scripts legitimately
+         * hold Harry in PlaybackLoop/Blend poses for long stretches while
+         * polling this function, and force-returning 1 advances the script
+         * EARLY — each late cutscene step then fires more desynced (the
+         * "Cybil cutscene falls apart near the end" symptom). The old form
+         * counted 120 consecutive CALLS (0.5s at 240fps!) and never reset
+         * across anim changes. Now: real-time, resets whenever the anim
+         * status changes (a new wait is a new timer), and a 10s threshold —
+         * long enough for any authored hold, short enough to still rescue
+         * the genuinely-stuck pickup scripts (KeyOfWoodman class) whose
+         * real root — nothing drives Harry into the pickup pose — is still
+         * open. If the (C) log fires, that root is showing itself. */
+        static q19_12 s_loopTime    = 0;
+        static s32    s_loopStatus  = -1;
+        static int    _loopLogN     = 0;
+        if ((s32)model->anim.status != s_loopStatus) {
+            s_loopStatus = model->anim.status;
+            s_loopTime   = 0;
         }
-        if (s_loopCounter > 120) {
+        s_loopTime += g_DeltaTimeRaw;
+        if (s_loopTime > Q12(10.0f)) {
             if (_loopLogN < 30) {
-                SH_DBG("[ANIM-STUCK] (C) non-Once bypass — status=%d kf=%d pbFunc=%p after %d frames; forcing return 1",
+                SH_DBG("[ANIM-STUCK] (C) non-Once bypass — status=%d kf=%d pbFunc=%p after 10s; forcing return 1",
                        (int)model->anim.status, (int)model->anim.keyframeIdx,
-                       (void*)animInfo->playbackFunc, s_loopCounter);
+                       (void*)animInfo->playbackFunc);
                 _loopLogN++;
             }
-            s_loopCounter = 0;
+            s_loopTime = 0;
             return 1;
         }
         if (animInfo->playbackFunc == Anim_BlendLinear) return -2;

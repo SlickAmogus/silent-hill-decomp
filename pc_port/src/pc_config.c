@@ -25,6 +25,7 @@ s_PcConfig g_PcConfig = {
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
+    .movementOriginal = 0,   /* EXPERIMENTAL: 1 = PSX lower-body movement machine */
 
     /* Keyboard defaults (SDL scancode names) */
     .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
@@ -224,6 +225,10 @@ void PcConfig_Load(const char* path)
             if (strcmp(value, "analog") == 0)    g_PcConfig.controllerMovement = 0;
             else if (strcmp(value, "dpad") == 0) g_PcConfig.controllerMovement = 1;
             else                                 g_PcConfig.controllerMovement = 2; /* both */
+        }
+        else if (strcmp(key, "movement_original") == 0)
+        {
+            g_PcConfig.movementOriginal = (atoi(value) != 0);
         }
         else if (strcmp(key, "map") == 0)
         {
