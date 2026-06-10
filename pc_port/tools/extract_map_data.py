@@ -413,6 +413,69 @@ STUB_TYPE_WIDTHS = {
     "sh_pc_MapHdrField4C": 20,
 }
 
+# Mirror typedefs for the world-object emitter, injected once per generated
+# file that needs them. Layout MUST match what the PC compiler produces for
+# the real headers (s_ModelInfo: s32 + 2 ptrs + s32 = 32 B with x64 padding;
+# metadata 12 B; model 48 B; placement 64 B).
+WOBJ_TYPEDEFS = """\
+/* PC-layout mirrors of s_WorldObjectModel/s_WorldObjectPlacement (the real
+ * headers aren't included here to avoid their prerequisite chain; layouts
+ * must stay in sync). coord/modelHdr are RUNTIME pointers the engine fills
+ * at map load by matching `name` against loaded model files — the PSX ROM
+ * values are meaningless on PC and emitted as NULL. */
+typedef struct { s32 field_0; void* coord; void* modelHdr; s32 modelIdx; } sh_pc_ModelInfo;
+/* u[2] first so a positional initializer fills the exact filename bytes. */
+typedef struct { union { u32 u[2]; char str[8]; } name; s8 field_8; s8 lmIdx; } sh_pc_WObjMeta;
+typedef struct { sh_pc_ModelInfo modelInfo; sh_pc_WObjMeta metadata; } sh_pc_WObjModel;
+typedef struct { sh_pc_WObjModel object; VECTOR3 position; } sh_pc_WObjPlacement;
+typedef struct { sh_pc_WObjModel object; VECTOR3 position; SVECTOR3 rotation; } sh_pc_WObjPose;
+
+"""
+
+WOBJ_KINDS = {
+    # decl type           -> (kind tag, PSX bytes/elem, mirror C type)
+    "s_WorldObjectModel":     ("model",     28, "sh_pc_WObjModel"),
+    "s_WorldObjectPlacement": ("placement", 40, "sh_pc_WObjPlacement"),
+    "s_WorldObjectPose":      ("pose",      48, "sh_pc_WObjPose"),
+}
+
+def emit_world_object(name, va, data, kind, decl_count):
+    """Emit a world-object symbol as PC-layout initializers. All three kinds
+    embed s_WorldObjectModel (which holds two RUNTIME pointers -> NULL);
+    placement adds VECTOR3 position, pose adds position + SVECTOR3 rotation.
+    Authored fields (flags, modelIdx, 8-char name, lmIdx, transforms) come
+    from the ROM bytes."""
+    tag, elem_psx, c_type = next(v for v in WOBJ_KINDS.values() if v[0] == kind)
+    n = decl_count if decl_count else max(1, len(data) // elem_psx)
+
+    text = (f"// 0x{va:08X}  {kind} x{n} (PSX {elem_psx} B/elem; PC layout, "
+            f"runtime ptrs NULLed)\n")
+    text += f"{c_type} {name}[{n}] = {{\n"
+    for i in range(n):
+        ofs = i * elem_psx
+        if ofs + elem_psx > len(data):
+            text += "    { 0 }, /* beyond ROM extent — zero */\n"
+            continue
+        f0, _coord, _hdr, mIdx = struct.unpack_from("<iIIi", data, ofs)
+        nm0, nm1 = struct.unpack_from("<II", data, ofs + 16)
+        f8, lmIdx = struct.unpack_from("<bb", data, ofs + 24)
+        raw_name = data[ofs + 16:ofs + 24]
+        readable = "".join(chr(b) if 32 <= b < 127 else "." for b in raw_name)
+        model = (f"{{ {{ {f0}, NULL, NULL, {mIdx} }}, "
+                 f"{{ {{ {{ 0x{nm0:08X}, 0x{nm1:08X} }} }}, {f8}, {lmIdx} }} }}")
+        if kind == "placement":
+            px, py, pz = struct.unpack_from("<3i", data, ofs + 28)
+            text += f"    {{ {model}, {{ {px}, {py}, {pz} }} }}, /* \"{readable}\" */\n"
+        elif kind == "pose":
+            px, py, pz = struct.unpack_from("<3i", data, ofs + 28)
+            rx, ry, rz = struct.unpack_from("<3h", data, ofs + 40)
+            text += (f"    {{ {model}, {{ {px}, {py}, {pz} }}, "
+                     f"{{ {rx}, {ry}, {rz} }} }}, /* \"{readable}\" */\n")
+        else:
+            text += f"    {{ {model} }}, /* \"{readable}\" */\n"
+    text += "};\n\n"
+    return text
+
 def load_stub_sizes():
     """Map of still-zero-stubbed symbol name -> stub byte size (None if the
     stub's element type has unknown width — such symbols are not safe to
@@ -439,7 +502,12 @@ SAFE_AUTO_TYPES = {
     "u8", "u16", "u32", "s8", "s16", "s32", "char", "short", "int", "bool",
     "q3_12", "q19_12", "q23_8", "q7_8", "q11_4", "q20_12", "q4_12", "q12",
     "VECTOR3", "SVECTOR3", "SVECTOR", "VECTOR", "DVECTOR", "CVECTOR",
-    "s_BgmLayerLimits", "s_FsImageDesc", "s_Pose", "s_WorldObjectPose",
+    # NOTE: s_WorldObjectPose is NOT here despite the name — the real typedef
+    # (maps/shared.h) embeds s_WorldObjectModel with two pointers (48 B PSX /
+    # 72 B PC). It goes through the world-object emitter instead. s_Pose is
+    # the plain {VECTOR3, SVECTOR3} transform and is safe.
+    "s_BgmLayerLimits", "s_FsImageDesc", "s_Pose",
+    "s_Keyframe", "MATRIX", "s_800E330C", "s_800E34FC",
     "s_Particle", "s_ParticleVectors", "s_func_800CB560", "s_CollisionResult",
     "s_MapHdr_field_4C", "s_MapHeader_field_5C",
     "s_MapOverlayHdr_7C", "s_MapOverlayHdr_94",
@@ -447,20 +515,57 @@ SAFE_AUTO_TYPES = {
     "s_sharedData_800E21D0_0_s01", "s_sharedData_800ED2D4_2_s02",
 }
 
+DECL_RE = re.compile(r"extern\s+(?:const\s+)?(\w+\**)\s+(\w+)\s*((?:\[[^\]]*\])*)\s*;")
+
+def _parse_decls(txt, types):
+    for m in DECL_RE.finditer(txt):
+        # Multi-dim arrays flatten to a total element count (row-major flat
+        # layout is identical). Bounds may be macro names or empty — count
+        # only when every dimension is numeric.
+        dims = re.findall(r"\[\s*([^\]]*?)\s*\]", m.group(3) or "")
+        count = None
+        if dims and all(d.isdigit() for d in dims):
+            count = 1
+            for d in dims:
+                count *= int(d)
+        types.setdefault(m.group(2), (m.group(1), count))
+
 def load_extern_types():
-    """Map symbol name -> declared extern type, scanned from all headers and
-    sources. Used to gate auto-extraction on SAFE_AUTO_TYPES."""
+    """Map symbol name -> (declared extern type, array count or None), scanned
+    from all headers and sources. Used to gate auto-extraction on
+    SAFE_AUTO_TYPES. NOTE: global fallback only — the same g_WorldObject*
+    name can have DIFFERENT types in different maps (g_WorldObject1 is
+    s_WorldObjectPlacement[6] in map1_s00 but s_WorldObjectPose in
+    map1_s01); always consult load_map_extern_types() first."""
     types = {}
-    decl_re = re.compile(r"extern\s+(?:const\s+)?(\w+\**)\s+(\w+)\s*(?:\[[^\]]*\])?\s*;")
     for sub in ("include", "src"):
         base = REPO_ROOT / sub
         for path in list(base.rglob("*.h")) + list(base.rglob("*.c")):
             try:
-                txt = path.read_text(encoding="utf-8", errors="ignore")
+                _parse_decls(path.read_text(encoding="utf-8", errors="ignore"), types)
             except OSError:
                 continue
-            for m in decl_re.finditer(txt):
-                types.setdefault(m.group(2), m.group(1))
+    return types
+
+MAP_EXTERN_TYPES = {}
+
+def load_map_extern_types(map_name):
+    """Per-map authoritative extern declarations: the map's own header plus
+    its source directory. Resolves symbols whose type varies per map."""
+    if map_name in MAP_EXTERN_TYPES:
+        return MAP_EXTERN_TYPES[map_name]
+    types = {}
+    family = map_name.split("_")[0]  # map1_s01 -> map1
+    candidates = [REPO_ROOT / "include" / "maps" / family / f"{map_name}.h"]
+    src_dir = REPO_ROOT / "src" / "maps" / map_name
+    if src_dir.is_dir():
+        candidates += sorted(src_dir.glob("*.c")) + sorted(src_dir.glob("*.h"))
+    for path in candidates:
+        try:
+            _parse_decls(path.read_text(encoding="utf-8", errors="ignore"), types)
+        except OSError:
+            continue
+    MAP_EXTERN_TYPES[map_name] = types
     return types
 
 EXTERN_TYPES = None
@@ -499,14 +604,21 @@ def extract_map(map_name, sym_path, bin_path):
                 "bss" not in seg_by_name.get(name, "bss"))
         if name not in TARGETS and not auto:
             continue
+        wobj_kind = None
+        decl_count = None
         if auto:
-            decl_type = EXTERN_TYPES.get(name)
-            if decl_type not in SAFE_AUTO_TYPES:
+            # Per-map header first: the same g_WorldObject* name can be a
+            # different type in different maps.
+            decl = load_map_extern_types(map_name).get(name) or EXTERN_TYPES.get(name)
+            decl_type, decl_count = decl if decl else (None, None)
+            if decl_type in WOBJ_KINDS:
+                wobj_kind = WOBJ_KINDS[decl_type][0]
+            elif decl_type not in SAFE_AUTO_TYPES:
                 print(f"  [{map_name}] {name}: skipped — extern type "
                       f"'{decl_type or 'unknown'}' not verified 64-bit-safe; "
                       f"keeping exe zero stub", file=sys.stderr)
                 continue
-            if STUB_SIZES[name] is None:
+            if wobj_kind is None and STUB_SIZES[name] is None:
                 print(f"  [{map_name}] {name}: skipped — stub element width "
                       f"unknown, cannot guarantee write capacity", file=sys.stderr)
                 continue
@@ -538,11 +650,36 @@ def extract_map(map_name, sym_path, bin_path):
             size = SIZE_OVERRIDE[name]
         else:
             size = infer_size(name, va, decl_size, syms)
+            if wobj_kind and decl_count:
+                # The declared array bound is authoritative; gap inference is
+                # capped at 256 B and would clip larger arrays.
+                elem_psx = next(v[1] for v in WOBJ_KINDS.values() if v[0] == wobj_kind)
+                size = max(size, decl_count * elem_psx)
         if ofs + size > len(binary):
             print(f"  [{map_name}] {name}: offset 0x{ofs:X}+{size} out of binary bounds",
                   file=sys.stderr)
             continue
         data = binary[ofs:ofs + size]
+
+        if wobj_kind:
+            # Verified: ALL world-object symbols are zero in ROM (the engine
+            # fills them at runtime), so the exe zero stub is PSX-equivalent.
+            # Emit only if authored content appears — recognized by a fully
+            # printable 8-char filename in some element (a lone nonzero blob
+            # is tail-overlap junk from a neighbouring symbol, e.g. map2_s04
+            # g_CommonWorldObjects' last 2 elements).
+            elem_psx = next(v[1] for v in WOBJ_KINDS.values() if v[0] == wobj_kind)
+            authored = False
+            for eo in range(0, len(data) - elem_psx + 1, elem_psx):
+                nm = data[eo + 16:eo + 24]
+                if nm[0] != 0 and all(32 <= b < 127 for b in nm.rstrip(b"\x00")):
+                    authored = True
+                    break
+            if not authored:
+                continue
+            text = emit_world_object(name, va, data, wobj_kind, decl_count)
+            found.append((name, va, "CUSTOM_WOBJ", size, text, None))
+            continue
 
         # PSX-pointer scan: a table of aligned 0x80xxxxxx dwords is a pointer
         # table (function or data). Raw extraction of those is WORSE than the
@@ -606,8 +743,11 @@ def generate_c(map_name, found, bin_filename):
     family = map_name.split("_")[0]  # map0_s00 -> map0
     text = C_HEADER.format(MAPNAME=map_name, BINFILE=bin_filename, family=family, map=map_name)
 
+    if any(entry[2] == "CUSTOM_WOBJ" for entry in found):
+        text += WOBJ_TYPEDEFS
+
     for name, va, c_type, size, data, warn in sorted(found, key=lambda x: x[1]):
-        if c_type == "CUSTOM":
+        if c_type in ("CUSTOM", "CUSTOM_WOBJ"):
             text += data  # pre-rendered C text with its own header comment
             continue
         text += f"// 0x{va:08X}  size 0x{size:X} ({size} bytes)\n"
