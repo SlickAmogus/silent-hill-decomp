@@ -400,14 +400,32 @@ def emit_map7_d800ed274(binary, load_base, va):
     text += "};\n\n"
     return text
 
-def load_stub_names():
-    """Symbol names still zero-stubbed in data_stubs.c — candidates for
-    auto-extraction when they appear in a map's .data/.rodata."""
-    stub_re = re.compile(r"^\w+ (\w+)\[\d*\] = \{0\};", re.M)
-    path = REPO_ROOT / "pc_port" / "src" / "stubs" / "data_stubs.c"
-    return set(stub_re.findall(path.read_text(encoding="utf-8", errors="ignore")))
+# Element widths for stub declarations in data_stubs.c. Some stubs were
+# hand-ENLARGED beyond their PSX data extent because game code WRITES through
+# them as pools (g_Particles: s_Particle[450]=14400; sharedData_800DFB7C_0_s00:
+# s_MapHdr_field_4C[450]=9000 — see the comments in data_stubs.c). A DLL-local
+# extracted array SMALLER than the stub shadows it and re-introduces the very
+# overrun the enlarged stub fixed (crashed map3_s03 on hospital entry).
+STUB_TYPE_WIDTHS = {
+    "u8": 1, "s8": 1, "char": 1,
+    "u16": 2, "s16": 2, "short": 2,
+    "u32": 4, "s32": 4, "int": 4,
+    "sh_pc_MapHdrField4C": 20,
+}
 
-STUB_NAMES = None
+def load_stub_sizes():
+    """Map of still-zero-stubbed symbol name -> stub byte size (None if the
+    stub's element type has unknown width — such symbols are not safe to
+    auto-extract because we can't guarantee write capacity)."""
+    stub_re = re.compile(r"^(\w+) (\w+)\[(\d+)\] = \{0\};", re.M)
+    path = REPO_ROOT / "pc_port" / "src" / "stubs" / "data_stubs.c"
+    sizes = {}
+    for typ, name, count in stub_re.findall(path.read_text(encoding="utf-8", errors="ignore")):
+        width = STUB_TYPE_WIDTHS.get(typ)
+        sizes[name] = int(count) * width if width else None
+    return sizes
+
+STUB_SIZES = None
 
 # Types whose PC (x86-64) layout is byte-identical to PSX, verified by hand.
 # Raw byte extraction is ONLY valid for these. Structs containing pointers
@@ -448,9 +466,9 @@ def load_extern_types():
 EXTERN_TYPES = None
 
 def extract_map(map_name, sym_path, bin_path):
-    global STUB_NAMES, EXTERN_TYPES
-    if STUB_NAMES is None:
-        STUB_NAMES = load_stub_names()
+    global STUB_SIZES, EXTERN_TYPES
+    if STUB_SIZES is None:
+        STUB_SIZES = load_stub_sizes()
     if EXTERN_TYPES is None:
         EXTERN_TYPES = load_extern_types()
 
@@ -477,7 +495,7 @@ def extract_map(map_name, sym_path, bin_path):
         # Auto-extract any still-zero-stubbed symbol that lives in a
         # file-backed section (.data/.rodata) of this overlay. Stubs whose
         # symbols sit in .bss/.sbss are runtime state — zero is correct.
-        auto = (name not in TARGETS and name in STUB_NAMES and
+        auto = (name not in TARGETS and name in STUB_SIZES and
                 "bss" not in seg_by_name.get(name, "bss"))
         if name not in TARGETS and not auto:
             continue
@@ -487,6 +505,10 @@ def extract_map(map_name, sym_path, bin_path):
                 print(f"  [{map_name}] {name}: skipped — extern type "
                       f"'{decl_type or 'unknown'}' not verified 64-bit-safe; "
                       f"keeping exe zero stub", file=sys.stderr)
+                continue
+            if STUB_SIZES[name] is None:
+                print(f"  [{map_name}] {name}: skipped — stub element width "
+                      f"unknown, cannot guarantee write capacity", file=sys.stderr)
                 continue
         if (map_name, name) in SKIP_SYMBOL_FOR_MAP:
             print(f"  [{map_name}] {name}: skipped (local definition exists in source)")
@@ -541,6 +563,13 @@ def extract_map(map_name, sym_path, bin_path):
             warn = (f"WARNING: {n_ptrs}/{n_dwords} dwords look like PSX pointers "
                     f"(0x80xxxxxx) — verify these are data values, not addresses")
             print(f"  [{map_name}] {name}: {warn}", file=sys.stderr)
+        # Never declare a DLL-local array smaller than its exe stub: the game
+        # may WRITE up to the stub's (sometimes hand-enlarged) capacity. The
+        # initializer keeps just the real ROM bytes; C zero-fills the tail.
+        if auto and STUB_SIZES[name] > size:
+            warn = (warn + " | " if warn else "") + \
+                   f"declared {STUB_SIZES[name]} B (stub capacity), {size} B from ROM"
+            size = STUB_SIZES[name]
         found.append((name, va, c_type, size, data, warn))
 
     if not found:
