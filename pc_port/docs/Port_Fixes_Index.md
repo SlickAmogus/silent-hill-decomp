@@ -226,6 +226,20 @@ Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
 - **Lighter-hold flame detaches from the hand.** The raised-arm bone coord wasn't
   invalidated so the flame tracked a stale transform; force the arm-bone `flg`.
   commit [`393faf46d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/393faf46d)
+- **Walk/sidestep in place + no wall smack — fused speed/distance fields.** The
+  fork predated upstream's rename of the player speed field: upstream uses
+  `playerProps.moveSpeed` (persistent) for every speed ramp and `runDistance`
+  ONLY as the continuous-run odometer that `Player_PositionUpdate` zeroes
+  outside Run states (it gates the `RUN_STUMBLE_TRIGGER_DIST` wall-smack
+  checks). A merge fused both under `runDistance`, so walk/backward/sidestep
+  speeds wrote a per-frame-zeroed field (walk-in-place at high FPS) and the
+  wall-smack thresholds read the wrong quantity. Renamed 196 sites to match
+  upstream 1:1. Found while bringing up `movement_original` (the original
+  PSX lower-body machine, now the default — the legacy PC movement shim
+  remains for the TPS debug camera).
+  [`player_control.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/player_control.c) ·
+  commits [`3cd9a5e8d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/3cd9a5e8d),
+  [`e6aa45e0d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/e6aa45e0d)
 - **Invisible school cat — duplicated chara anim array.** The Jun 2026 merge left
   the same PSX array under two names: fork `g_CharaTypeAnimInfo` (written by the
   loader) and upstream `g_CharaModelAnimsData` (read by `Chara_BonesInit`, never
