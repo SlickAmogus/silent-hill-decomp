@@ -93,11 +93,21 @@ def main():
         startKf     = struct.unpack("<h", e[12:14])[0]
         endKf       = struct.unpack("<h", e[14:16])[0]
 
+        # Trim at end-of-table: next-symbol gap often over-counts. A real
+        # entry's playbackFunc is a known bodyprog func, NULL, or at worst
+        # some other PSX address (overlay-local playback -> kind 3 + warn).
+        # Anything outside the PSX address space is adjacent non-table data.
+        if playback_psx != 0 and not (0x80000000 <= playback_psx < 0x80200000):
+            print(f"NOTE: trimmed at entry {i} (raw 0x{playback_psx:08X} is not "
+                  f"a PSX address -> end of table)", file=sys.stderr)
+            break
+
         kind = PLAYBACK_FUNCS.get(playback_psx, 3)
         seeds.append((kind, status, hasVar, linkStatus, duration, startKf, endKf, playback_psx))
 
     # Emit seed table
     name = symbol  # e.g. BLOODSUCKER_ANIM_INFOS
+    n_entries = len(seeds)  # post-trim count
     print(f"s_AnimInfo {name}[{n_entries}];")
     print()
     print("typedef struct {")
