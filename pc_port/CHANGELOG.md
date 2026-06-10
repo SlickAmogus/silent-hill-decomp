@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.7 -- 2026-06-10
+- Stub port round 2: per-map types, world-object class resolved, +keyframe data
+
 ## v2026.06.10.6 -- 2026-06-10
 - Diagnostics for school BGM, invisible cat, muzzle-flash blob
 - Fix muzzle-flash blob, invisible cat + missing enemies, flare intensity, locker cadence
