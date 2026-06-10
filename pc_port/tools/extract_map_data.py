@@ -67,6 +67,71 @@ TARGETS = {
     # Without a local definition all world pickups spawn at (0,0,0) and are
     # invisible because they're behind the camera from the player spawn point.
     "g_CommonWorldObjectPoses":         ("s_WorldObjectPose", 20),
+    # BGM layer tables. Two kinds, both fed to Bgm_Update:
+    #   - layer limits (s_BgmLayerLimits = u8[8]): per-room max-volume caps,
+    #     applied as (vol * limit) >> 7. An all-zero stub mutes EVERY layer
+    #     regardless of the flag bits -> map BGM is silent (school bug).
+    #   - room flag tables (u16[roomCount]): which layers a room enables.
+    "sharedData_800E1208_1_s02":        ("u8",  1),  # map1_s02/s03 limits
+    "sharedData_800F06D4_2_s00":        ("u8",  1),  # map2_s00/s03 limits
+    "sharedData_800ED43C_2_s02":        ("u8",  1),  # map2_s02, map4_s00/s06 limits
+    "sharedData_800ED418_4_s02":        ("u8",  1),  # map4_s02/s03/s05 limits
+    "sharedData_800ED42C_4_s02":        ("u16", 2),  # map4_s02/s03/s05 room flags
+    "sharedData_800EFCFC_6_s00":        ("u8",  1),  # map6_s00/s02 limits
+    "sharedData_800D1D14_3_s02":        ("u8",  1),  # map3_s02..s05, map4_s04 limits
+    "sharedData_800D1D1C_3_s02":        ("u16", 2),  # map3_s02..s05, map4_s04 room flags
+    "sharedData_800EB738_6_s04":        ("u8",  1),  # map6_s04/s05 limits (3 tables)
+    "sharedData_800EB740_6_s04":        ("u8",  1),
+    "sharedData_800EB748_6_s04":        ("u8",  1),
+    "sharedData_800D2F18_7_s00":        ("u8",  1),  # map7_s00..s03 limits (5 tables)
+    "sharedData_800D2F20_7_s00":        ("u8",  1),
+    "sharedData_800D2F74_7_s00":        ("u8",  1),
+    "sharedData_800D2F7C_7_s00":        ("u8",  1),
+    "sharedData_800D2F84_7_s00":        ("u8",  1),
+    # D_*-named BGM tables (addresses encoded in the names; not listed in the
+    # sym files, so they enter through EXTRA_SYMBOLS below).
+    "D_800DCC4C":                       ("u8",  1),  # map1_s00 limits
+    "D_800DCC54":                       ("u16", 2),  # map1_s00 room flags
+    "D_800DC9FC":                       ("u8",  1),  # map1_s01 limits
+    "D_800DCA04":                       ("u16", 2),  # map1_s01 room flags
+    "D_800CCF54":                       ("u8",  1),  # map1_s04 limits
+    "D_800D5C3C":                       ("u8",  1),  # map1_s05 limits
+    "D_800D71E8":                       ("u8",  1),  # map1_s06 limits
+    "D_800DA570":                       ("u8",  1),  # map5_s00 limits
+    "D_800DA578":                       ("u16", 2),  # map5_s00 room flags
+    "D_800EFC74":                       ("u8",  1),  # map5_s01 limits
+    "D_800DBCDC":                       ("u8",  1),  # map6_s03 limits
+}
+
+# Per-map symbols that are NOT listed in the sym files. (name, va, size).
+# The D_* names encode their PSX virtual address. Sizes are verified by
+# tiling against the neighbouring symbols that ARE in the sym files
+# (e.g. map1_s00: MAP_ROOM_IDXS 0x800DCC14 + 0x38 -> limits 0x800DCC4C + 8
+#  -> flags 0x800DCC54 + 42*2 == map1_s00_header 0x800DCCA8).
+EXTRA_SYMBOLS = {
+    "map1_s00": [("D_800DCC4C", 0x800DCC4C, 8), ("D_800DCC54", 0x800DCC54, 84)],
+    "map1_s01": [("D_800DC9FC", 0x800DC9FC, 8), ("D_800DCA04", 0x800DCA04, 84)],
+    "map1_s04": [("D_800CCF54", 0x800CCF54, 8)],
+    "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
+    "map1_s06": [("D_800D71E8", 0x800D71E8, 8)],
+    "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44)],
+    "map5_s01": [("D_800EFC74", 0x800EFC74, 8)],
+    "map6_s03": [("D_800DBCDC", 0x800DBCDC, 8)],
+}
+
+# Hard size overrides (bytes). Used where the sym-file annotation or the
+# next-symbol gap would give the wrong size (e.g. sharedData_800EB740_6_s04
+# is annotated size:2 but Bgm_Update reads 8 limit bytes; the map7 limit
+# tables have large gaps to the next listed symbol).
+SIZE_OVERRIDE = {
+    "sharedData_800EB738_6_s04": 8,
+    "sharedData_800EB740_6_s04": 8,
+    "sharedData_800EB748_6_s04": 8,
+    "sharedData_800D2F18_7_s00": 8,
+    "sharedData_800D2F20_7_s00": 8,
+    "sharedData_800D2F74_7_s00": 8,
+    "sharedData_800D2F7C_7_s00": 8,
+    "sharedData_800D2F84_7_s00": 8,
 }
 
 # Symbols whose size is determined by scanning for a null terminator in the binary
@@ -219,6 +284,8 @@ def extract_map(map_name, sym_path, bin_path):
     with open(bin_path, "rb") as f:
         binary = f.read()
 
+    syms = syms + EXTRA_SYMBOLS.get(map_name, [])
+
     found = []
     for name, va, decl_size in syms:
         if name not in TARGETS:
@@ -239,6 +306,8 @@ def extract_map(map_name, sym_path, bin_path):
                 size = 128  # safety cap
             else:
                 size = null_pos - ofs + 1  # include null terminator
+        elif name in SIZE_OVERRIDE:
+            size = SIZE_OVERRIDE[name]
         else:
             size = infer_size(name, va, decl_size, syms)
         if ofs + size > len(binary):
