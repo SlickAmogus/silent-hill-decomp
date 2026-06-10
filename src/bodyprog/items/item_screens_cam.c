@@ -155,7 +155,6 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         static u8 s_scale0logged[16] = {0};
         if (displayItemIdx < 16 && !s_scale0logged[displayItemIdx]) {
             s_scale0logged[displayItemIdx] = 1;
-            SH_DBG("[ITEM-SCALE0] idx=%d tmd=%p", displayItemIdx, (void*)arg1->tmd);
         }
         return;
     }
@@ -166,8 +165,6 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         static u8 s_loggedNullTmd[16] = {0};
         if (displayItemIdx < 16 && !s_loggedNullTmd[displayItemIdx]) {
             s_loggedNullTmd[displayItemIdx] = 1;
-            SH_DBG("[ITEMTMD] arg1->tmd=NULL idx=%d coord2=%p — render skipped (will show wireframe)",
-                   (int)displayItemIdx, (void*)arg1->coord2);
         }
         return;
     }
@@ -178,12 +175,6 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         static u8 s_loggedTmd[16] = {0};
         if (displayItemIdx < 16 && !s_loggedTmd[displayItemIdx]) {
             s_loggedTmd[displayItemIdx] = 1;
-            SH_DBG("[ITEMTMD] idx=%d tmd=%p vertop=%p primtop=%p primn=%lu vern=%lu",
-                   (int)displayItemIdx, (void*)_t,
-                   _t ? (void*)_t->vertop : NULL,
-                   _t ? (void*)_t->primtop : NULL,
-                   _t ? (unsigned long)_t->primn : 0UL,
-                   _t ? (unsigned long)_t->vern : 0UL);
         }
     }
 #endif

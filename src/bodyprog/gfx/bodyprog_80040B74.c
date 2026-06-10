@@ -739,8 +739,6 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
         for (i = 0; i < map->activeChunkCount; i++) {
             if (map->activeChunks[i].queueIdx != NO_VALUE) activeCount++;
         }
-        SH_DBG("[IPD-CLEAR] Ipd_ActiveChunksClear: clearing %d active chunks (total slots=%d, newSize=%d)",
-               activeCount, map->activeChunkCount, arg1);
     }
 #endif
 
@@ -878,7 +876,6 @@ void Map_MakeIpdGrid(s_MapTerrain* map, char* mapTag, e_FsFile fileIdxStart) // 
                 if (((s16*)&map->chunkGridCenter[gz])[gx] != NO_VALUE) gridCount++;
             }
         }
-        SH_DBG("[IPD-GRID] Map_MakeIpdGrid complete: mapTag='%s' totalCells=%d", map->mapTag, gridCount);
     }
 #endif
 }
@@ -1206,11 +1203,9 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
             LmHeader_FixOffsets(g_Map.globalLm.lmHdr);
 #ifdef SH_PC_PORT
-            SH_DBG("[GLOBAL-LM-A] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm.lmHdr->materialCount, g_Map.globalLm.lmHdr->modelCount, g_Map.chunkTextures.fullPage.count);
 #endif
             Lm_MaterialsLoadWithFilter(g_Map.globalLm.lmHdr, &g_Map.chunkTextures.fullPage, NULL, g_Map.textureFileIdx, BlendMode_Additive);
 #ifdef SH_PC_PORT
-            SH_DBG("[GLOBAL-LM-A] MaterialsLoadWithFilter done");
 #endif
             Lm_MaterialFlagsApply(g_Map.globalLm.lmHdr);
 
@@ -1241,7 +1236,6 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
                     if (nextSlot >= PC_MAX_IPD_CHUNKS)
                     {
-                        SH_DBG("[PRELOAD] Ran out of chunk slots at cell (%d,%d)!", px, pz);
                         break;
                     }
 
@@ -1285,7 +1279,6 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
                 if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
                     loadedCount++;
             }
-            SH_DBG("[PRELOAD] Loaded %d chunks for map '%s'", loadedCount, g_Map.mapTag);
             _preloaded = 1;
         }
 
@@ -1315,11 +1308,9 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
 
         LmHeader_FixOffsets(g_Map.globalLm.lmHdr);
 #ifdef SH_PC_PORT
-        SH_DBG("[GLOBAL-LM-B] FixOffsets done: matCnt=%d modelCnt=%d texCount=%d", g_Map.globalLm.lmHdr->materialCount, g_Map.globalLm.lmHdr->modelCount, g_Map.chunkTextures.fullPage.count);
 #endif
         Lm_MaterialsLoadWithFilter(g_Map.globalLm.lmHdr, &g_Map.chunkTextures.fullPage, NULL, g_Map.textureFileIdx, BlendMode_Additive);
 #ifdef SH_PC_PORT
-        SH_DBG("[GLOBAL-LM-B] MaterialsLoadWithFilter done");
 #endif
         Lm_MaterialFlagsApply(g_Map.globalLm.lmHdr);
 
@@ -1417,8 +1408,6 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
         }
         chunkLoadCallsSinceCellChange++;
         if (s_chunkScanShouldLog) {
-            SH_DBG("[CHUNK-SCAN] Map_ChunkLoad #%d: playerCell=(%d,%d) ext=%d posQ12=(%d,%d) cellChanged=%d",
-                   totalCalls, cellX0, cellZ0, map->isExterior, posX0, posZ0, cellChanged);
         }
     }
 #endif
@@ -1747,8 +1736,6 @@ s32 Ipd_LoadStart(s_Chunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19_12
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[IPD-LOAD] Ipd_LoadStart: cell=(%d,%d) fileIdx=%d queueIdx=%d chunkSlot=%d",
-           cellX, cellZ, fileIdx, chunk->queueIdx, (s32)(chunk - g_Map.activeChunks));
 #endif
 
     return chunk->queueIdx;
@@ -1989,8 +1976,6 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             for (si = 0; si < g_Map.activeChunkCount; si++) {
                 if (g_Map.activeChunks[si].ipdHdr == ipdHdr) { logSlot = si; break; }
             }
-            SH_DBG("[IPD-FIXUP] IpdHeader_FixOffsets PC: slot=%d fileIdx=%d modelCount=%d lmHdr=%p",
-                   logSlot, fileIdx, ipdHdr->lmHdr ? ipdHdr->lmHdr->modelCount : -1, (void*)ipdHdr->lmHdr);
         }
     }
 #else
@@ -2114,14 +2099,6 @@ void Ipd_HeaderModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
             }
         }
 #ifdef SH_PC_PORT
-        SH_DBG("[MODEL-LINK] model[%d]: name='%.4s%.4s' isGlobal=%d -> modelHdr=%p (lmHdr=%p lmModels=%d)",
-               i,
-               (char*)&curModelInfo->name.str[0],
-               (char*)&curModelInfo->name.str[4],
-               curModelInfo->isGlobalPlm,
-               (void*)curModelInfo->modelHdr,
-               (void*)(curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0] : NULL) : ipdHdr->lmHdr),
-               curModelInfo->isGlobalPlm ? (lmHdrCount > 0 ? lmHdrs[0]->modelCount : 0) : ipdHdr->lmHdr->modelCount);
 #endif
     }
 }

@@ -32,11 +32,6 @@ void Cybil_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* coo
         u8 curStatus = chara->model.anim.status;
         s16 curKf = chara->model.anim.keyframeIdx;
         if (curStatus != _prevStatus || curKf != _prevKf) {
-            SH_DBG("[CYBIL] status=%d kf=%d (was %d / %d) ctrl=%d step=%d sIdx0=%d",
-                   curStatus, curKf, _prevStatus, _prevKf,
-                   chara->model.controlState,
-                   chara->model.stateStep,
-                   chara->properties.npc.controlState);
             _prevStatus = curStatus;
             _prevKf = curKf;
         }
@@ -567,17 +562,14 @@ void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
 void Ai_Cybil_Init(s_SubCharacter* chara)
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[CYBIL-INIT] enter chara=%p", (void*)chara);
-    Chara_CollisionReset(chara);   SH_DBG("[CYBIL-INIT] post-923C");
+    Chara_CollisionReset(chara);
     sharedData_800E2378_0_s01 = 0;
     sharedData_800E237C_0_s01 = 0;
-    SH_DBG("[CYBIL-INIT] pre-HeldItemAttach");
 #ifdef MAP7_S03
     WorldGfx_HeldItemAttach(Chara_EndingCybil, MODEL_BONE(1, 1));
 #else
     WorldGfx_HeldItemAttach(Chara_Cybil, MODEL_BONE(1, 1));
 #endif
-    SH_DBG("[CYBIL-INIT] post-HeldItemAttach");
 #else
     Chara_CollisionReset(chara);
     sharedData_800E2378_0_s01 = 0;

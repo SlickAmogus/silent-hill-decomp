@@ -395,11 +395,6 @@ bool sharedFunc_800D23EC_0_s00(s32 playerExtraState, VECTOR3* vec, q3_12 angle, 
     {
         static int _wpDbg = 0;
         if (_wpDbg < 300) {
-            SH_DBG("[WP] D_800C4588=%d state=%d pos=(%d,%d) target=(%d,%d) moveSpd=%d heading=%d",
-                    D_800C4588, playerExtraState,
-                    playerChara->position.vx, playerChara->position.vz,
-                    localVec->vx, localVec->vz,
-                    playerChara->moveSpeed, playerChara->headingAngle);
             _wpDbg++;
         }
     }
@@ -701,10 +696,6 @@ s32 Player_AnimPlaybackStateGet(void)
     {
         static int _entryLogN = 0;
         if (_entryLogN < 30) {
-            SH_DBG("[D2DAC] enter status=%d kf=%d animInfo=%p playbackFunc=%p (table=%s)",
-                   (int)model->anim.status, (int)model->anim.keyframeIdx,
-                   (void*)animInfo, (void*)(animInfo ? animInfo->playbackFunc : NULL),
-                   (s32)model->anim.status < ANIM_STATUS(38, false) ? "BASE" : "MAP");
             _entryLogN++;
         }
     }

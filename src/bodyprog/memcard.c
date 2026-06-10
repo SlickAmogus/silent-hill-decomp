@@ -137,33 +137,27 @@ bool MemCard_AreAllFilesUsed(s32 deviceId) // 0x8002E76C
 void MemCard_SysInit2(void) // 0x8002E7BC
 {
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] SysInit2 enter availability=%d", (int)g_MemCard_AvailibityStatus);
 #endif
     if (g_MemCard_AvailibityStatus == true)
     {
 #ifdef SH_PC_PORT
-        SH_DBG_ECHO("[MCRD-INIT] SysInit2 skipped (already initialised)");
 #endif
         return;
     }
 
     g_MemCard_AvailibityStatus = true;
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] pre StatusInitSuccess");
 #endif
     MemCard_StatusInitSuccess();
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] pre EventsInit");
 #endif
     MemCard_EventsInit();
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] post EventsInit");
 #endif
 
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork[0], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork[1], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] SysInit2 done");
 #endif
 }
 
@@ -797,7 +791,6 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
     ptr = &g_MemCard_SaveWork.devices[statusPtr->deviceId];
 
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MPS] enter processState=%d processId=%d deviceId=%d fileIdx=%d saveIdx=%d", (int)statusPtr->processState, (int)statusPtr->processId, (int)statusPtr->deviceId, (int)statusPtr->fileIdx, (int)statusPtr->saveIdx);
 #endif
 
     switch (statusPtr->processState)
@@ -874,30 +867,25 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
         case 1: // Creates a new file in the memory card.
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MPS] case1 pre SaveBlockInit fileIdxCpy=%d", (int)fileIdxCpy);
 #endif
             MemCard_SaveBlockInit(&g_MemCard_SaveWork.saveBlock, 1, fileIdxCpy, 0, 0, 0x70, 0x60, 0, 0);
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MPS] case1 pre SaveInfoClear");
 #endif
             MemCard_SaveInfoClear(&g_MemCard_SaveWork.saveInfo);
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MPS] case1 pre FilenameGenerate");
 #endif
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MPS] case1 post FilenameGenerate filePath='%s'", filePath);
 #endif
 
             if (MemCard_WorkSet(MemCardIoMode_Create, statusPtr->deviceId, NULL, filePath, 1, 0, &g_MemCard_SaveWork.saveBlock, 0x300))
             {
 #ifdef SH_PC_PORT
-                SH_DBG_ECHO("[MPS] case1 WorkSet returned true, advancing to state 2");
 #endif
                 statusPtr->processState = 2;
             }
 #ifdef SH_PC_PORT
-            else { SH_DBG_ECHO("[MPS] case1 WorkSet returned false (state busy?)"); }
+            else { }
 #endif
             break;
 
@@ -1385,7 +1373,6 @@ void MemCard_EventsInit(void) // 0x80030414
     MemCard_SwEventsInit();
     MemCard_HwEventsInit();
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] EventsInit: done");
 #endif
 }
 
@@ -1412,7 +1399,6 @@ void MemCard_SwEventsInit(void) // 0x8003045C
 
     MemCard_SwEventsReset();
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] SwEventsInit: done");
 #endif
 }
 
@@ -1434,7 +1420,6 @@ void MemCard_HwEventsInit(void) // 0x80030530
 
     MemCard_HwEventsReset();
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD-INIT] HwEventsInit: done");
 #endif
 }
 
@@ -1879,7 +1864,6 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
             strcat(filePath, "*");
             curFile = firstfile(filePath, &fileInfo);
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MCRD] DirRead: firstfile path='%s' result=%p", filePath, (void*)curFile);
 #endif
         }
         else
@@ -1900,8 +1884,6 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
     result = (g_MemCard_Work.hasNewDevice == true) ? MemCardResult_NewDevice : MemCardResult_NoNewDevice;
 
 #ifdef SH_PC_PORT
-    SH_DBG_ECHO("[MCRD] DirRead done: filesFound=%d hasNewDevice=%d -> result=%d (NewDevice=5/NoNewDevice=6)",
-           filesFound, (int)g_MemCard_Work.hasNewDevice, (int)result);
 #endif
 
     g_MemCard_Work.state     = MemCardWorkState_Idle;
@@ -1926,11 +1908,6 @@ s32 MemCard_State_FileCreate(void) // 0x800310B4
         case 1:
             g_MemCard_Work.fileHandle = open(g_MemCard_Work.filePath, (g_MemCard_Work.createBlockCount << 16) | O_CREAT);
 #ifdef SH_PC_PORT
-            SH_DBG_ECHO("[MCRD] FileCreate: path='%s' blockCount=%d -> handle=%d retry=%d",
-                   g_MemCard_Work.filePath,
-                   (int)g_MemCard_Work.createBlockCount,
-                   (int)g_MemCard_Work.fileHandle,
-                   (int)g_MemCard_Work.retryCount);
 #endif
             if (g_MemCard_Work.fileHandle == NO_VALUE)
             {

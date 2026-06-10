@@ -101,13 +101,10 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     u8* raw = (u8*)lmHdr;
 
     /* Log every call — this fires for ALL callers including map overlay DLL code */
-    SH_DBG("[REFORM] LmFixOffsets_PC called: lmHdr=%p raw[0]=0x%02x raw[1]=0x%02x raw[2]=%d",
-           (void*)lmHdr, raw[0], raw[1], raw[2]);
 
     /* The isLoaded flag is at byte 2 in BOTH PSX and 64-bit layouts */
     if (raw[2] == 1)
     {
-        SH_DBG("[REFORM] already loaded, skip");
         return; /* already reformatted */
     }
 

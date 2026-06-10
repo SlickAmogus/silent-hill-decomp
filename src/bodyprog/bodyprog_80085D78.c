@@ -73,10 +73,6 @@ void PaperMap_ReuploadTimToVram_PC(void)
     magic  = ((u_char*)FS_BUFFER_2)[0];
     openOk = OpenTIM((u_long*)FS_BUFFER_2);
     if (s_logCount < 5) {
-        SH_DBG("[PMAP-RELOAD] tick=%d FS_BUFFER_2=%p magic=0x%02X openTIM=%d skipStore=1 gameState=%d sysState=%d horplus=%d",
-               s_logCount, (void*)FS_BUFFER_2, (unsigned)magic, openOk,
-               (int)g_GameWork.gameState, (int)g_SysWork.sysState,
-               g_PcHorPlusEnabled);
         s_logCount++;
     }
 
@@ -122,9 +118,6 @@ void PaperMap_ReuploadTimToVram_PC(void)
     }
 
     if (s_logCount < 5) {
-        SH_DBG("[PMAP-RELOAD] uploaded paddr=%p pixRect=(%d,%d %dx%d) caddr=%p clutRect=(%d,%d %dx%d) directUploadBoth=1",
-               (void*)tim.paddr, (int)pixRect.x, (int)pixRect.y, (int)pixRect.w, (int)pixRect.h,
-               (void*)tim.caddr, (int)clutRect.x, (int)clutRect.y, (int)clutRect.w, (int)clutRect.h);
     }
 }
 #endif
@@ -182,11 +175,6 @@ void func_80085DF0(void) // 0x80085DF0
         static int _85df0LogN = 0;
         if (_85df0LogN < 30) {
             void* mdz = (void*)g_MapOverlayHdr.playerMoveSpeedIsZero;
-            SH_DBG("[85DF0] timer_2C=%d (Q12=%.2f) deltaRaw=%d mdz_func=%p mdz_ret=%p moveDist=%d",
-                   (int)g_SysWork.timer_2C, (float)g_SysWork.timer_2C / 4096.0f,
-                   (int)g_DeltaTimeRaw, mdz,
-                   mdz ? (void*)g_MapOverlayHdr.playerMoveSpeedIsZero() : NULL,
-                   (int)g_SysWork.playerWork.player.properties.player.runDistance);
             _85df0LogN++;
         }
     }
@@ -236,8 +224,6 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                 {
                     static int _85eb8c1LogN = 0;
                     if (_85eb8c1LogN < 30) {
-                        SH_DBG("[85EB8] case1 PLAYER calling playerAnimPlaybackStateGet=%p chara=%p",
-                               (void*)g_MapOverlayHdr.playerAnimPlaybackStateGet, (void*)chara);
                         _85eb8c1LogN++;
                     }
                 }
@@ -247,7 +233,6 @@ void func_80085EB8(u32 arg0, s_SubCharacter* chara, s32 arg2, bool reset) // 0x8
                 {
                     static int _85eb8c1RetLogN = 0;
                     if (_85eb8c1RetLogN < 30) {
-                        SH_DBG("[85EB8] case1 PLAYER playerAnimPlaybackStateGet returned %d", (int)keyframeState);
                         _85eb8c1RetLogN++;
                     }
                 }

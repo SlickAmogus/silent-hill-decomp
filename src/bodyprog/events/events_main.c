@@ -47,7 +47,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
          * read from happening in the first place. */
         for (i = 0; i < 5 && g_SysWork.playerWork.extra.lastUsedItem != g_ItemTriggerItemIds[i]; i++);
         if (i >= 5) {
-            SH_DBG("[EVENT] lastUsedItem=%d not in trigger list -- clearing", g_SysWork.playerWork.extra.lastUsedItem);
             g_SysWork.playerWork.extra.lastUsedItem = InvItemId_Unequipped;
             Event_ItemTriggersClear();
             return;
@@ -95,7 +94,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 #ifdef SH_PC_PORT
         _eventIdx++;
         if (_eventIdx >= MAX_MAP_EVENTS) {
-            SH_DBG("[EVENT] iteration capped at %d — sentinel never matched (probable bitfield issue)", _eventIdx);
             break;
         }
 #endif
@@ -133,9 +131,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
             g_MapEventSysState = mapEvent->sysState;
             g_MapEventParam    = mapEvent->eventParam;
 #ifdef SH_PC_PORT
-            SH_DBG("[EVENT-NONE] mapEventIdx=%d sysState=%d eventParam=%d",
-                   (int)(mapEvent - g_MapOverlayHdr.mapEvents),
-                   (int)g_MapEventSysState, (int)g_MapEventParam);
 #endif
             return;
         }
@@ -244,13 +239,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         g_MapEventSysState = mapEvent->sysState;
         g_MapEventParam    = mapEvent->eventParam;
 #ifdef SH_PC_PORT
-        SH_DBG("[EVENT-FIRE] mapEventIdx=%d sysState=%d eventParam=%d triggerType=%d activationType=%d poiIdx=%d",
-               (int)(mapEvent - g_MapOverlayHdr.mapEvents),
-               (int)g_MapEventSysState,
-               (int)g_MapEventParam,
-               (int)mapEvent->triggerType,
-               (int)mapEvent->activationType,
-               (int)mapEvent->pointOfInterestIdx);
 #endif
         return;
     }

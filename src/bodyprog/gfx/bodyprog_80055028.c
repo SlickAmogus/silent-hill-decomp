@@ -2698,9 +2698,6 @@ __block1530:
     }
 #ifdef SH_PC_PORT
     if (_b1530Log < 8 && _b1530Total > 0) {
-        SH_DBG("[BLOCK1530] total=%d emitted=%d zeroZ=%d farZ=%d nclip=%d field_1C=%d",
-            _b1530Total, _b1530Emitted, _b1530ZeroZ, _b1530FarZ, _b1530Nclip,
-            scratchData->field_380.s_0.field_1C);
         _b1530Log++;
     }
     }
@@ -3101,15 +3098,6 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
             static int _meshLog = 0;
             if (_meshLog < 25) {
                 s_GteScratchData2* sd2 = (s_GteScratchData2*)scratchData;
-                SH_DBG("[MESH] mdl=%d vOff=%d verts=%d prims=%d env0=%d sZ[off]=%d,%d sXY[off]=(%d,%d),(%d,%d) t2=%d fB1=%d",
-                    modelInfo->modelIdx, vertOffset,
-                    curMeshHdr->vertexCount,
-                    curMeshHdr->primitiveCount,
-                    g_WorldEnvWork.field_0,
-                    sd2->screenZ_168[vertOffset], sd2->screenZ_168[vertOffset+1],
-                    sd2->screenXy_0[vertOffset].vx, sd2->screenXy_0[vertOffset].vy,
-                    sd2->screenXy_0[vertOffset+1].vx, sd2->screenXy_0[vertOffset+1].vy,
-                    mat->t[2], modelHdr->field_B_1);
                 _meshLog++;
             }
         }
@@ -3444,24 +3432,17 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             u16 clut = _p0->field_2;
             int clutX = (clut & 0x3F) << 4;
             int clutY = (clut >> 6) & 0x1FF;
-            SH_DBG("[CHAR-RENDER] primCnt=%d f0=0x%04x f2=0x%04x f6=0x%04x tpg=0x%02x pageXY=(%d,%d) fmt=%d clutXY=(%d,%d) field8=0x%08x",
-                    meshHdr->primitiveCount, _p0->field_0, _p0->field_2, _p0->field_6.flags,
-                    tpg, pageX, pageY, fmt, clutX, clutY, scratchData->u.s_1.field_8);
             /* Check a few pixels of VRAM at the texture page location */
             {
                 RECT16 _chk = { pageX, pageY, 4, 1 };
                 u16 _vramSample[4];
                 StoreImage(&_chk, (u_long*)_vramSample);
-                SH_DBG("[CHAR-RENDER] VRAM@(%d,%d): %04x %04x %04x %04x",
-                        pageX, pageY, _vramSample[0], _vramSample[1], _vramSample[2], _vramSample[3]);
             }
             /* Also check CLUT */
             {
                 RECT16 _chk2 = { clutX, clutY, 4, 1 };
                 u16 _clutSample[4];
                 StoreImage(&_chk2, (u_long*)_clutSample);
-                SH_DBG("[CHAR-RENDER] CLUT@(%d,%d): %04x %04x %04x %04x",
-                        clutX, clutY, _clutSample[0], _clutSample[1], _clutSample[2], _clutSample[3]);
             }
             _charTexLog++;
         }
@@ -3636,21 +3617,10 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     {
         static int _primSummaryLog = 0;
         if (_primSummaryLog < 25) {
-            SH_DBG("[PRIM] prims=%d pass=%d depthFail=%d oobFail=%d other=%d maxZ=%d",
-                meshHdr->primitiveCount, _dbgPrimPass, _dbgPrimDepthFail, _dbgPrimOobFail,
-                _dbgPrimTotal - _dbgPrimPass - _dbgPrimDepthFail - _dbgPrimOobFail, var_t9);
             /* Log first prim vertex indices for ALL models */
             if (meshHdr->primitiveCount > 0) {
                 s_Primitive* p0 = &meshHdr->primitives[0];
                 u8* fc = (u8*)&p0->field_C;
-                SH_DBG("[PRIM-FAIL] firstPrim vIdx=%d,%d,%d,%d nIdx=%d,%d,%d,%d sZ=%d,%d,%d,%d sXY=(%d,%d),(%d,%d),(%d,%d)",
-                    fc[0], fc[1], fc[2], fc[3],
-                    ((u8*)&p0->field_10)[0], ((u8*)&p0->field_10)[1], ((u8*)&p0->field_10)[2], ((u8*)&p0->field_10)[3],
-                    scratchData->screenZ_168[fc[0]], scratchData->screenZ_168[fc[1]],
-                    scratchData->screenZ_168[fc[2]], scratchData->screenZ_168[fc[3]],
-                    scratchData->screenXy_0[fc[0]].vx, scratchData->screenXy_0[fc[0]].vy,
-                    scratchData->screenXy_0[fc[1]].vx, scratchData->screenXy_0[fc[1]].vy,
-                    scratchData->screenXy_0[fc[2]].vx, scratchData->screenXy_0[fc[2]].vy);
             }
             _primSummaryLog++;
         }

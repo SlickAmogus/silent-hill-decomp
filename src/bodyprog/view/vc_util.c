@@ -156,14 +156,6 @@ void vcMoveAndSetCamera(bool in_connect_f, bool change_debug_mode, bool for_f, b
             {
                 static int __camTraceTick = 0;
                 if ((++__camTraceTick % 60) == 0) {
-                    SH_DBG("[CAMTRACE] harryVy=%ld topY=%ld bottomY=%ld grndY=%ld collGround=%ld sentinel=%d  (harry=%ld,%ld,%ld)",
-                        (long)hr_p->position.vy,
-                        (long)hero_top_y,
-                        (long)hero_bottom_y,
-                        (long)grnd_y,
-                        (long)coll.groundHeight,
-                        (int)(coll.groundHeight == Q12(8.0f)),
-                        (long)hr_p->position.vx, (long)hr_p->position.vy, (long)hr_p->position.vz);
                 }
             }
 #endif

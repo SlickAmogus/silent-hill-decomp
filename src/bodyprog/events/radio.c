@@ -35,8 +35,6 @@ void func_80037154(void) // 0x80037154
 #endif
     }
 #ifdef SH_PC_PORT
-    SH_DBG("[RADIO_INIT] func_80037154 ran: D_800BCDA8 reset to all NO_VALUE (slots[0,1].field_0=%d,%d)",
-           (int)D_800BCDA8[0].field_0, (int)D_800BCDA8[1].field_0);
 #endif
 }
 

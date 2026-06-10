@@ -67,11 +67,8 @@ static int EnsureBinOpen(void) {
 
     s_BinFile = fopen(path, "rb");
     if (!s_BinFile) {
-        SH_DBG("[XA] Failed to open disc image: %s — voices will be silent",
-               path);
         return 0;
     }
-    SH_DBG("[XA] Disc image opened: %s", path);
     return 1;
 }
 
@@ -199,7 +196,6 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
     int bitDepth = (coding >> 4) & 1;
 
     if (bitDepth != 0) {
-        SH_DBG("[XA] 8-bit ADPCM not implemented (coding=0x%02X)", coding);
         return 0;
     }
 
@@ -209,14 +205,8 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
     if (!s_HasDumped) {
         s_HasDumped = 1;
         const uint8_t* g0 = sector + XA_PAYLOAD_OFFSET;
-        SH_DBG("[XA] First-group raw header bytes: %02X %02X %02X %02X %02X %02X %02X %02X "
-               "%02X %02X %02X %02X %02X %02X %02X %02X",
-               g0[0],g0[1],g0[2],g0[3],g0[4],g0[5],g0[6],g0[7],
-               g0[8],g0[9],g0[10],g0[11],g0[12],g0[13],g0[14],g0[15]);
         for (int sb = 0; sb < 8; sb++) {
             uint8_t h = (g0 + 4)[sb];
-            SH_DBG("[XA]   sb=%d header=0x%02X shift=%d filter=%d",
-                   sb, h, h & 0xF, (h >> 4) & 0x7);
         }
     }
 
@@ -263,15 +253,7 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
             if (rv < rMin) rMin = rv; if (rv > rMax) rMax = rv;
             lSum += lv; rSum += rv;
         }
-        SH_DBG("[XA] Sector stats: L range [%d,%d] mean %lld   R range [%d,%d] mean %lld",
-               lMin, lMax, lSum/(written/2), rMin, rMax, rSum/(written/2));
         /* Mid-sector slice: stereo pairs at offset 1000 (sample ~T1000 of first sector) */
-        SH_DBG("[XA] Mid-sector samples (offset 2000, 8 pairs L,R): "
-               "(%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d) (%d,%d)",
-               outStart[2000], outStart[2001], outStart[2002], outStart[2003],
-               outStart[2004], outStart[2005], outStart[2006], outStart[2007],
-               outStart[2008], outStart[2009], outStart[2010], outStart[2011],
-               outStart[2012], outStart[2013], outStart[2014], outStart[2015]);
     }
 
 #ifdef SH_XA_DUMP
@@ -301,7 +283,6 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
                 hdr[34] = 16;          /* bits per sample */
                 memcpy(hdr+36, "data", 4);
                 fwrite(hdr, 1, 44, s_WavFile);
-                SH_DBG("[XA] Started writing decoded audio to xa_dump.wav (sr=%u)", sr);
             }
         }
         if (s_WavFile) {
@@ -318,7 +299,6 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
                 fwrite(&dataSize, 4, 1, s_WavFile);
                 fclose(s_WavFile);
                 s_WavFile = NULL;
-                SH_DBG("[XA] xa_dump.wav written: %u sectors, %u data bytes", 8, dataSize);
             }
         }
     }
@@ -341,7 +321,6 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
  * sentinel zero so a 0 return on success is impossible for valid indices. */
 static uint32_t BeginXaStream(int fileIdx) {
     if (fileIdx < 1 || fileIdx > 9) {
-        SH_DBG("[XA] Invalid file index: %d", fileIdx);
         return 0;
     }
     if (!EnsureBinOpen()) {
@@ -349,11 +328,8 @@ static uint32_t BeginXaStream(int fileIdx) {
     }
     uint32_t baseSector = g_FileXaLoc[fileIdx];
     if (baseSector == 0) {
-        SH_DBG("[XA] g_FileXaLoc[%d] is zero — table not populated?", fileIdx);
         return 0;
     }
-    SH_DBG("[XA] Streaming fileIdx=%d from disc sector %u (0x%X)",
-           fileIdx, baseSector, baseSector);
     return baseSector;
 }
 
@@ -384,7 +360,6 @@ static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
 // Initialize playback for a specific XA index
 void XaPlayer_Play(uint16_t xaIdx) {
     if (xaIdx >= 727) {
-        SH_DBG("[XA] Invalid XA index: %u", xaIdx);
         return;
     }
 
@@ -392,12 +367,9 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint16_t fileIdx = item->xaFileIdx_0;
 
     if (fileIdx < 1 || fileIdx > 9) {
-        SH_DBG("[XA] Invalid file index in item %u: %u", xaIdx, fileIdx);
         return;
     }
 
-    SH_DBG("[XA] Play: xaIdx=%u fileIdx=%u sector=%u len=%u",
-           xaIdx, fileIdx, item->sector_4_bits, item->audioLength_8_bits);
 
     // Stop any current playback
     if (g_XaPlayer.isPlaying) {
@@ -407,7 +379,6 @@ void XaPlayer_Play(uint16_t xaIdx) {
     // Resolve disc base sector for this XA file (and open the BIN if needed)
     uint32_t baseSector = BeginXaStream(fileIdx);
     if (!baseSector) {
-        SH_DBG("[XA] Failed to start stream for file index %u", fileIdx);
         return;
     }
 
@@ -415,8 +386,6 @@ void XaPlayer_Play(uint16_t xaIdx) {
     // (file, channel) filter — XA streams are multiplexed across many channels.
     uint8_t firstSector[XA_SECTOR_SIZE];
     if (!ReadXaSectorFromBin(baseSector, item->sector_4_bits, firstSector)) {
-        SH_DBG("[XA] Cannot read first sector subheader (xaSector=%u, baseSector=%u)",
-               item->sector_4_bits, baseSector);
         return;
     }
     const uint8_t* headBuf = firstSector; /* first 8 bytes = subheader */
@@ -427,14 +396,10 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint8_t filterFile    = headBuf[0];
     uint8_t filterChannel = headBuf[1];
 
-    SH_DBG("[XA] Format: %s %dHz %dbit  coding=0x%02X  filter file=%02X ch=%02X",
-           isStereo ? "stereo" : "mono", sampleRate, bitDepth ? 8 : 4,
-           headBuf[3], filterFile, filterChannel);
 
     // Calculate number of sectors to read
     // audioLength_8 is in VSync frames; convert to sectors
     uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
-    SH_DBG("[XA] Will read %u sectors (duration %u frames)", numSectors, item->audioLength_8_bits);
 
     g_XaPlayer.file = s_BinFile;   /* shared — never fclose'd per track */
     g_XaPlayer.baseSector = baseSector;
@@ -472,11 +437,9 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * still work because they precede the mute event). */
     alSourcef(g_XaPlayer.alSource, AL_GAIN, 1.0f);
 
-    SH_DBG("[XA] Playback started: source=%u (gain reset to 1.0)", g_XaPlayer.alSource);
 }
 
 void XaPlayer_Stop(void) {
-    SH_DBG("[XA] Stop request");
 
     if (g_XaPlayer.alSource) {
         alSourceStop(g_XaPlayer.alSource);
@@ -510,8 +473,6 @@ static void FillBuffer(ALuint buffer) {
         if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
                                  g_XaPlayer.currentSector + s,
                                  sectorData)) {
-            SH_DBG("[XA] Short read at xaSector %u (base=%u)",
-                   g_XaPlayer.currentSector + s, g_XaPlayer.baseSector);
             g_XaPlayer.isPlaying = 0;
             return;
         }
@@ -555,9 +516,6 @@ static int FillAndUploadOne(ALuint alBuffer) {
         if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
                                  g_XaPlayer.currentSector,
                                  sectorData)) {
-            SH_DBG("[XA] EOF/short read at xaSector %u (base=%u, matched %d/%d)",
-                   g_XaPlayer.currentSector, g_XaPlayer.baseSector,
-                   matchedCount, wantedMatches);
             g_XaPlayer.remainingSectors = 0;
             break;
         }
@@ -596,15 +554,10 @@ void XaPlayer_Update(void) {
         for (int i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
             if (FillAndUploadOne(g_XaPlayer.alBuffers[i]) > 0) queued++;
         }
-        SH_DBG("[XA] Initial fill: queued %d/%d buffers, %u sectors left",
-               queued, XA_NUM_BUFFERS, g_XaPlayer.remainingSectors);
         g_XaPlayer.needsInitialFill = 0;
 
         if (queued > 0) {
             alSourcePlay(g_XaPlayer.alSource);
-            SH_DBG("[XA] Starting playback (source=%u sr=%d %s)",
-                   g_XaPlayer.alSource, g_XaPlayer.sampleRate,
-                   g_XaPlayer.isStereo ? "stereo" : "mono");
         }
         return;
     }
@@ -628,7 +581,6 @@ void XaPlayer_Update(void) {
 
     /* Detect end-of-playback: no more sectors AND source has stopped. */
     if (g_XaPlayer.remainingSectors == 0 && sourceState == AL_STOPPED) {
-        SH_DBG("[XA] Playback finished");
         g_XaPlayer.isPlaying = 0;
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
@@ -652,5 +604,4 @@ void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
     if (gain > 1.0f) gain = 1.0f;
     alSourcef(g_XaPlayer.alSource, AL_GAIN, gain);
 
-    SH_DBG("[XA] Volume set: vol=%d gain=%.2f", vol, gain);
 }

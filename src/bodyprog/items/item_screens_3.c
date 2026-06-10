@@ -2923,11 +2923,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
         case 9:
 #ifdef SH_PC_PORT
-            SH_DBG("[USEHEAL] case9 timer=%d selIdx=%d id=%d count=%d",
-                   (int)g_Inventory_ScrollTransitionTimer,
-                   (int)g_SysWork.invItemSelectedIdx,
-                   (int)g_SavegamePtr->items[g_SysWork.invItemSelectedIdx].id_0,
-                   (int)g_SavegamePtr->items[g_SysWork.invItemSelectedIdx].count_1);
 #endif
             if (g_Inventory_ScrollTransitionTimer == 0)
             {
@@ -2966,7 +2961,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
 #ifdef SH_PC_PORT
-                    SH_DBG("[USEHEAL] count0 exit: clearing item, calling func_8004EF48");
 #endif
                     g_SavegamePtr->items[g_SysWork.invItemSelectedIdx].id_0 = InvItemId_Empty;
 
@@ -2980,7 +2974,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                     func_8004EF48();
 #ifdef SH_PC_PORT
-                    SH_DBG("[USEHEAL] count0 exit: func_8004EF48 returned");
 #endif
                 }
                 else
@@ -3003,7 +2996,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
 #ifdef SH_PC_PORT
-                    SH_DBG("[USEHEAL] countN exit: state->1");
 #endif
                     g_Inventory_ScrollTransitionTimer = 0;
                     *selectedItemId                   = 0;
@@ -4086,7 +4078,6 @@ void func_800549A0(void) // 0x800549A0
 void func_80054A04(u8 itemId) // 0x80054A04
 {
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] func_80054A04 enter itemId=%d", (int)itemId);
 #endif
     D_800AE187              = itemId;
     g_Items_DisplayedCount  = 0;
@@ -4104,11 +4095,9 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].trans.vx  = 0;
 
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] pre TmdDataAlloc FS_BUFFER_5=%p", (void*)FS_BUFFER_5);
 #endif
     GameFs_TmdDataAlloc(FS_BUFFER_5);
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] post TmdDataAlloc");
 #endif
 
 #ifndef SH_PC_PORT
@@ -4126,21 +4115,14 @@ void func_80054A04(u8 itemId) // 0x80054A04
      * shows no model" symptom. */
     {
         s_TmdFile* _tmd = (s_TmdFile*)FS_BUFFER_5;
-        SH_DBG("[PICKUP-TMD] itemId=%d _tmd=%p", (int)itemId, (void*)_tmd);
         if (_tmd != NULL) {
             unsigned long*     _hdr = (unsigned long*)&_tmd->flags;
             struct TMD_STRUCT* _obj;
-            SH_DBG("[PICKUP-TMD] _tmd->flags=0x%08lX nobj=%lu (raw read)",
-                   (unsigned long)*_hdr, (unsigned long)(_hdr[2]));
             GsMapModelingData(_hdr);
             _obj = GsGetTMDObject(_hdr, 0);
-            SH_DBG("[PICKUP-TMD] GsGetTMDObject -> _obj=%p", (void*)_obj);
             if (_obj != NULL) {
                 GsLinkObject4_PC(_obj, &D_800C3E08);
-                SH_DBG("[PICKUP-TMD] post-link D_800C3E08.tmd=%p attribute=0x%lX",
-                       (void*)D_800C3E08.tmd, (unsigned long)D_800C3E08.attribute);
             } else {
-                SH_DBG("[PICKUP-TMD] GsGetTMDObject returned NULL — TMD will render invisible");
             }
         }
         D_800C3E08.coord2 = &g_Items_Coords[9];
@@ -4155,15 +4137,12 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].scale.vx = Q12(1.0f);
 
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] pre func_800549A0");
 #endif
     func_800549A0();
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] pre ItemScreen_CamSet");
 #endif
     ItemScreen_CamSet(&D_800C3B48, &D_800C3AE8, &D_800C3B38, 0);
 #ifdef SH_PC_PORT
-    SH_DBG("[PICKUP] func_80054A04 done");
 #endif
 }
 
@@ -4181,8 +4160,6 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
         _pickAnimSameItemCount = 0;
     }
     if (_pickAnimSameItemCount < 8) {
-        SH_DBG("[PICKUP] Gfx_PickupItemAnimate itemId=%d state=%d scale=%d dt=%d",
-               (int)itemId, (int)g_Items_PickupAnimState, (int)g_Items_PickupScale, (int)g_DeltaTimeRaw);
         _pickAnimSameItemCount++;
     }
 #endif

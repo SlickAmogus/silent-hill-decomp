@@ -744,8 +744,6 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
      * Root cause was gte_stsz3c writing halfwords (0, 2, 4) instead
      * of words (0, 4, 8) — left field_160 stale → OOB OT bucket avg.
      * Fixed in pc_port/include/inline_no_dmpsx.h (commit e4afc3e18). */
-    SH_DBG("[F6B0] enter chara=%p(id=%d) arg2=%d arg3=%d",
-           (void*)chara, chara->model.charaId, arg2, arg3);
 #endif
 
     if (g_GameWork.config.extraBloodColor == 14) // TODO: Demagic 14.
@@ -1136,20 +1134,12 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
         s32 _abs = (_origSize < 0) ? -_origSize : _origSize;
         if (_abs > 1000) {
             if (_bloodSizeLogN < 30) {
-                SH_DBG("[BLOOD-SIZE] func_80060044 idx=%d SKIP runaway field_14C=%d (z=%d xy=%d,%d color=%d)",
-                       (int)idx, (int)_origSize,
-                       (int)ptr->field_140, (int)ptr->field_144.vx, (int)ptr->field_144.vy,
-                       (int)g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2);
                 _bloodSizeLogN++;
             }
             return false;  /* skip emit — garbage size is the bug */
         }
         if (_abs > 80) {
             if (_bloodSizeLogN < 30) {
-                SH_DBG("[BLOOD-SIZE] func_80060044 idx=%d clamped field_14C=%d→80 (z=%d xy=%d,%d color=%d)",
-                       (int)idx, (int)_origSize,
-                       (int)ptr->field_140, (int)ptr->field_144.vx, (int)ptr->field_144.vy,
-                       (int)g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2);
                 _bloodSizeLogN++;
             }
             ptr->field_14C = (_origSize < 0) ? -80 : 80;
@@ -1820,10 +1810,6 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         {
             static int _decalLogN = 0;
             if (_decalLogN < 30) {
-                SH_DBG("[BLOOD-DECAL] func_800611C0 idx=%d origRGB=(%d,%d,%d) bucket=%d field_158=%d color_idx=%d",
-                       (int)idx, (int)ptr->field_12C.r, (int)ptr->field_12C.g, (int)ptr->field_12C.b,
-                       (int)(ptr->field_158 >> 3), (int)ptr->field_158,
-                       (int)g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2);
                 _decalLogN++;
             }
             {
@@ -2219,10 +2205,6 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 {
                     static int _cloudLogN = 0;
                     if (_cloudLogN < 30) {
-                        SH_DBG("[BLOOD-CLOUD] func_80062708 idx=%d biasedRGB=(%d,%d,%d) bucket=%d (field_20C=%d var_s7=%d)",
-                               (int)idx, (int)ptr->field_12C.r, (int)ptr->field_12C.g, (int)ptr->field_12C.b,
-                               (int)((ptr->field_20C + var_s7) >> 3),
-                               (int)ptr->field_20C, (int)var_s7);
                         _cloudLogN++;
                     }
                 }
@@ -2289,7 +2271,6 @@ void func_8006342C(s32 weaponAttack, q3_12 rotY, q3_12 rotX, GsCOORDINATE2* coor
      * word stride, leaving field_160 in the particle scratchpad as
      * stale data → OOB OT bucket → bad-nextPtr crashes. See
      * pc_port/include/inline_no_dmpsx.h (commit e4afc3e18). */
-    SH_DBG("[6342C] enter weaponAttack=%d", (int)weaponAttack);
 #endif
 
     // TODO: Use `Math_SetSVectorFast`.

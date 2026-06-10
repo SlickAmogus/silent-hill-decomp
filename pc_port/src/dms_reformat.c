@@ -95,16 +95,10 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
 {
     u8* raw = (u8*)dmsHdr;
 
-    SH_DBG("[DMS] FixOffsets ENTER: raw[0]=%d raw[1]=%d raw[2]=%d raw[3]=%d ptr=%p",
-           raw[0], raw[1], raw[2], raw[3], (void*)dmsHdr);
-    SH_DBG("[DMS]   raw bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-           raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7],
-           raw[8], raw[9], raw[10], raw[11]);
 
     /* Check if already reformatted (isLoaded is at byte 0 in both layouts) */
     if (raw[0] == 1)
     {
-        SH_DBG("[DMS] FixOffsets: already loaded, skipping");
         return;
     }
 
@@ -119,16 +113,12 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     s32 originVz       = (s32)rd32(&raw[20]);
     u32 charactersOff  = rd32(&raw[24]);
 
-    SH_DBG("[DMS] FixOffsets: chars=%d intervals=%d origin=(%d,%d,%d) intOff=0x%x charOff=0x%x",
-           characterCount, intervalCount, originVx, originVy, originVz, intervalOff, charactersOff);
 
     /* Parse camera entry (immediately after PSX header at offset 0x1C) */
     s_DmsEntry camera;
     memset(&camera, 0, sizeof(camera));
     ParseDmsEntry(&camera, &raw[PSX_SIZEOF_DMS_HEADER], raw);
 
-    SH_DBG("[DMS]   camera: keyframes=%d svecs=%d name=%.4s",
-           camera.keyframeCount, camera.holdRangeCount, camera.name);
 
     /* Parse character entries from PSX layout (16 bytes each) into heap */
     s_DmsEntry* characters = NULL;
@@ -140,9 +130,6 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
             ParseDmsEntry(&characters[i],
                           raw + charactersOff + i * PSX_SIZEOF_DMS_ENTRY,
                           raw);
-            SH_DBG("[DMS]   character[%d]: name=%.4s keyframes=%d svecs=%d",
-                   i, characters[i].name, characters[i].keyframeCount,
-                   characters[i].holdRangeCount);
         }
     }
 
@@ -199,5 +186,4 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     memset(dmsHdr, 0, sizeof(s_DmsHeader));
     *dmsHdr = *g_DmsHeapHeader;
 
-    SH_DBG("[DMS] FixOffsets: done");
 }

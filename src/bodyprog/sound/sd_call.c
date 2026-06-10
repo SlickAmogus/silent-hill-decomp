@@ -526,11 +526,6 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
 
 #ifdef SH_PC_PORT
     if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
-        SH_DBG("[RADIO_VOL] sfxId=%d aIdx=%d vol_in=%d field_5=%d volumeSe_4=%d -> volumeLeft_C=%d",
-               (int)sfxId, (int)audioIdx, (int)vol,
-               (int)g_Vab_InfoTable[audioIdx].field_5,
-               (int)gSDVolConfig.volumeSe_4,
-               (int)g_Sd_VabPlayingInfo.volumeLeft);
     }
 #endif
 
@@ -544,7 +539,6 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
          * npc_main.c never fires. Detect the stopped state here and restart the
          * voice so the radio static is audible. */
         if (!SpuGetKeyStatus(attr.voice)) {
-            SH_DBG("[RADIO_RESTART] voice 22 stopped (keyon missed) — restarting");
             Sd_PlaySfx(sfxId, 0, 0);
             return;
         }
@@ -556,7 +550,6 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
         attr.voice = 1 << 23;
 #ifdef SH_PC_PORT
         if (!SpuGetKeyStatus(attr.voice)) {
-            SH_DBG("[RADIO_RESTART] voice 23 stopped (keyon missed) — restarting");
             Sd_PlaySfx(sfxId, 0, 0);
             return;
         }
@@ -642,8 +635,6 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     if (audioPitch == 0) {
         attr.mask &= ~SPU_VOICE_PITCH;
         if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
-            SH_DBG("[RADIO_VOL] sfxId=%d audioPitch=0 → drop PITCH bit (mask=0x%x), preserve voice pitch",
-                   (int)sfxId, (unsigned)attr.mask);
         }
     }
 #endif
