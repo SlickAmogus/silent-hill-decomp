@@ -200,18 +200,10 @@ void Fs_QueueUpdate(void)
     s_FsQueueEntry* tick;
     s32             temp = 0;
 
-#ifdef SH_PC_PORT
-    static int _fsDbg = 0;
-    int _doDbg = (_fsDbg < 5 || _fsDbg % 500 == 0);
-#endif
-
     // Pending read/seek operations; tick them.
     tick = g_FsQueue.read.ptr;
     if (g_FsQueue.read.idx <= g_FsQueue.last.idx)
     {
-#ifdef SH_PC_PORT
-        if (_doDbg) { }
-#endif
         switch (tick->operation)
         {
             case FsQueueOp_Seek:
@@ -241,17 +233,10 @@ void Fs_QueueUpdate(void)
         g_FsQueue.state = 0; // `FsQueueReadState_Allocate` or `FSQS_SEEK_SETLOC`.
     }
 
-#ifdef SH_PC_PORT
-    if (_doDbg) { }
-#endif
-
     // Preparations to post-load in queue; tick them.
     tick = g_FsQueue.postLoad.ptr;
     if (g_FsQueue.postLoad.idx < g_FsQueue.read.idx)
     {
-#ifdef SH_PC_PORT
-        if (_doDbg) { }
-#endif
         temp = Fs_QueueUpdatePostLoad(tick);
         if (temp == true)
         {
@@ -265,10 +250,6 @@ void Fs_QueueUpdate(void)
     {
         g_FsQueue.postLoadState = FsQueuePostLoadState_Init;
     }
-
-#ifdef SH_PC_PORT
-    _fsDbg++;
-#endif
 }
 
 bool Fs_QueueUpdateSeek(s_FsQueueEntry* entry)

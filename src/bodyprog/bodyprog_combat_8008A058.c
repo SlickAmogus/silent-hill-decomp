@@ -1311,8 +1311,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     offsetY       = temp_fp->field_10;
     sp14         = attacker->field_44.field_8;
     offsetZ       = arg3;
-#ifdef SH_PC_PORT
-#endif
 
     if (target == &g_SysWork.playerWork.player)
     {
@@ -1324,8 +1322,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         target->field_40 = (s32)(attacker - g_SysWork.npcs);
 #else
         target->field_40 = (((s32)((uintptr_t)((u8*)attacker - sizeof(s_PlayerWork)) - (uintptr_t)target) * -0x6EB3E453) >> 3);
-#endif
-#ifdef SH_PC_PORT
 #endif
     }
     else
@@ -1385,8 +1381,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
 
     var_s0 = Q12(temp_fp->field_4);
 
-#ifdef SH_PC_PORT
-#endif
 
     switch (weaponAttack)
     {
@@ -1542,8 +1536,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             break;
     }
 
-#ifdef SH_PC_PORT
-#endif
     if (damageAmount != Q12(0.0f))
     {
         target->damage.amount += damageAmount;
@@ -1562,15 +1554,11 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     target->attackReceived = weaponAttack;
     sp14                     |= sp10;
     attacker->field_44.field_8 = sp14;
-#ifdef SH_PC_PORT
-#endif
 
     if (damageAmount | var_s7)
     {
         var_a2 = temp_fp->field_12;
 
-#ifdef SH_PC_PORT
-#endif
 
         if (var_a2 > 0 && var_a2 < 8)
         {
@@ -1690,8 +1678,6 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
         }
     }
 
-#ifdef SH_PC_PORT
-#endif
     return sp10;
 }
 
@@ -1989,8 +1975,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
         temp_s3  = chara1->collision.cylinder.field_2;
         var_a1_2 = 0;
-#ifdef SH_PC_PORT
-#endif
 
         if (temp_t2 < sp44)
         {
@@ -2041,8 +2025,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             }
         }
 
-#ifdef SH_PC_PORT
-#endif
         var_v0 = sp34;
         if (var_v0 < 0)
         {
@@ -2082,13 +2064,9 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             var_t2 = 0;
         }
 
-#ifdef SH_PC_PORT
-#endif
 
         for (j = 2; (var_t2 < temp_s0 || temp_s0 < -var_t2 || temp_s3 < var_t1) && j > 0; j--)
         {
-#ifdef SH_PC_PORT
-#endif
             if (temp_s3 < var_t1)
             {
                 temp_lo_5 = Q12(temp_s3) / var_t1;

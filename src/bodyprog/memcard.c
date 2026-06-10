@@ -136,29 +136,17 @@ bool MemCard_AreAllFilesUsed(s32 deviceId) // 0x8002E76C
 
 void MemCard_SysInit2(void) // 0x8002E7BC
 {
-#ifdef SH_PC_PORT
-#endif
     if (g_MemCard_AvailibityStatus == true)
     {
-#ifdef SH_PC_PORT
-#endif
         return;
     }
 
     g_MemCard_AvailibityStatus = true;
-#ifdef SH_PC_PORT
-#endif
     MemCard_StatusInitSuccess();
-#ifdef SH_PC_PORT
-#endif
     MemCard_EventsInit();
-#ifdef SH_PC_PORT
-#endif
 
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork[0], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
     MemCard_SaveWork_SetParams(&g_MemCard_SaveWork.saveWork[1], 0, 0, 0, 0, 0, MemCardResult_NotConnected);
-#ifdef SH_PC_PORT
-#endif
 }
 
 void MemCard_SysDisable(void) // 0x8002E830
@@ -790,8 +778,6 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
     ptr = &g_MemCard_SaveWork.devices[statusPtr->deviceId];
 
-#ifdef SH_PC_PORT
-#endif
 
     switch (statusPtr->processState)
     {
@@ -866,27 +852,14 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
             break;
 
         case 1: // Creates a new file in the memory card.
-#ifdef SH_PC_PORT
-#endif
             MemCard_SaveBlockInit(&g_MemCard_SaveWork.saveBlock, 1, fileIdxCpy, 0, 0, 0x70, 0x60, 0, 0);
-#ifdef SH_PC_PORT
-#endif
             MemCard_SaveInfoClear(&g_MemCard_SaveWork.saveInfo);
-#ifdef SH_PC_PORT
-#endif
             MemCard_FilenameGenerate(filePath, fileIdxCpy);
-#ifdef SH_PC_PORT
-#endif
 
             if (MemCard_WorkSet(MemCardIoMode_Create, statusPtr->deviceId, NULL, filePath, 1, 0, &g_MemCard_SaveWork.saveBlock, 0x300))
             {
-#ifdef SH_PC_PORT
-#endif
                 statusPtr->processState = 2;
             }
-#ifdef SH_PC_PORT
-            else { }
-#endif
             break;
 
         case 2: // Checks if previous step was successful.
@@ -1372,8 +1345,6 @@ void MemCard_EventsInit(void) // 0x80030414
     MemCard_StateInit();
     MemCard_SwEventsInit();
     MemCard_HwEventsInit();
-#ifdef SH_PC_PORT
-#endif
 }
 
 void MemCard_StateInit(void) // 0x80030444
@@ -1398,8 +1369,6 @@ void MemCard_SwEventsInit(void) // 0x8003045C
     EnableEvent(g_MemCard_Work.eventSwSpNEW);
 
     MemCard_SwEventsReset();
-#ifdef SH_PC_PORT
-#endif
 }
 
 void MemCard_HwEventsInit(void) // 0x80030530
@@ -1419,8 +1388,6 @@ void MemCard_HwEventsInit(void) // 0x80030530
     EnableEvent(g_MemCard_Work.eventHwSpUNKNOWN);
 
     MemCard_HwEventsReset();
-#ifdef SH_PC_PORT
-#endif
 }
 
 void MemCard_EventsClose(void) // 0x80030640
@@ -1863,8 +1830,6 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
             MemCard_DevicePathGenerate(g_MemCard_Work.deviceId, filePath);
             strcat(filePath, "*");
             curFile = firstfile(filePath, &fileInfo);
-#ifdef SH_PC_PORT
-#endif
         }
         else
         {
@@ -1883,8 +1848,6 @@ s32 MemCard_State_DirRead(void) // 0x80030F7C
 
     result = (g_MemCard_Work.hasNewDevice == true) ? MemCardResult_NewDevice : MemCardResult_NoNewDevice;
 
-#ifdef SH_PC_PORT
-#endif
 
     g_MemCard_Work.state     = MemCardWorkState_Idle;
     g_MemCard_Work.stateStep = 0;
@@ -1907,8 +1870,6 @@ s32 MemCard_State_FileCreate(void) // 0x800310B4
 
         case 1:
             g_MemCard_Work.fileHandle = open(g_MemCard_Work.filePath, (g_MemCard_Work.createBlockCount << 16) | O_CREAT);
-#ifdef SH_PC_PORT
-#endif
             if (g_MemCard_Work.fileHandle == NO_VALUE)
             {
                 if (g_MemCard_Work.retryCount++ >= 15)

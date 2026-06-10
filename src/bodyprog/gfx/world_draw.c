@@ -72,17 +72,9 @@ void func_8003BED0(void) // 0x8003BED0
     }
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
-#ifdef SH_PC_PORT
-#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "TIM00", &IMAGE_TIM, 1);
-#ifdef SH_PC_PORT
-#endif
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "BG_ETC", &IMAGE_ETC, 1);
-#ifdef SH_PC_PORT
-#endif
     Lm_MaterialFlagsApply(&g_WorldGfxWork.itemLmHdr);
-#ifdef SH_PC_PORT
-#endif
 }
 
 s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ) // 0x8003BF60
@@ -224,8 +216,6 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
     }
 #endif
 
-#ifdef SH_PC_PORT
-#endif
 
     mapInfo = mapHdr->mapInfo;
     Ipd_MapFileInfoSet(mapInfo->tag, mapInfo->plmFileIdx, activeIpdCount, CHECK_FLAG(mapInfo->flags, MapFlag_Interior, false), 0, 0);
@@ -900,20 +890,10 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         lmHdr = heldItem->lmHdr;
         if (!lmHdr->isLoaded)
         {
-#ifdef SH_PC_PORT
-#endif
             LmHeader_FixOffsets(lmHdr);
-#ifdef SH_PC_PORT
-#endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName, &heldItem->imageDesc, BlendMode_Additive);
-#ifdef SH_PC_PORT
-#endif
             Lm_MaterialFlagsApply(lmHdr);
-#ifdef SH_PC_PORT
-#endif
             Bone_ModelAssign(&heldItem->bone, heldItem->lmHdr, 0);
-#ifdef SH_PC_PORT
-#endif
         }
 
         Vw_CoordToWorldAndViewMatrices(coord, &worldMat, &viewMat);
@@ -1289,8 +1269,6 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
     {
         model->isLoaded = true;
 
-#ifdef SH_PC_PORT
-#endif
         LmHeader_FixOffsets(model->lmHdr);
         Lm_MaterialFileIdxApply(model->lmHdr, CHARA_FILE_INFOS[model->charaId].textureFileIdx, &model->texture, CHARA_FILE_INFOS[model->charaId].materialBlendMode % 4);
 

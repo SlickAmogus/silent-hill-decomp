@@ -130,8 +130,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
             g_MapEventData     = mapEvent;
             g_MapEventSysState = mapEvent->sysState;
             g_MapEventParam    = mapEvent->eventParam;
-#ifdef SH_PC_PORT
-#endif
             return;
         }
 
@@ -238,8 +236,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         g_MapEventData     = mapEvent;
         g_MapEventSysState = mapEvent->sysState;
         g_MapEventParam    = mapEvent->eventParam;
-#ifdef SH_PC_PORT
-#endif
         return;
     }
 

@@ -49,14 +49,8 @@ void Anim_CharaTypeAnimInfoClear(void) // 0x800348C0
 
 void GameState_LoadMapScreen_Update(void) // 0x800348E8
 {
-#ifdef SH_PC_PORT
-#endif
     GameBoot_LoadingScreen();
-#ifdef SH_PC_PORT
-#endif
     GameBoot_GameStartup();
-#ifdef SH_PC_PORT
-#endif
 
     if (g_SysWork.sysFlags & SysFlag_LoadActive)
     {
@@ -195,8 +189,6 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 5:
-#ifdef SH_PC_PORT
-#endif
             Fs_CharaAnimDataAlloc(1, g_MapOverlayHdr.charaGroupIds[0], NULL, 0);
             Fs_CharaAnimDataAlloc(2, g_MapOverlayHdr.charaGroupIds[1], NULL, 0);
             Fs_CharaAnimDataAlloc(3, g_MapOverlayHdr.charaGroupIds[2], NULL, 0);
@@ -328,8 +320,6 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 11:
-#ifdef SH_PC_PORT
-#endif
             if (g_SysWork.counters_1C[0] >= 60)
             {
                 if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
@@ -377,20 +367,12 @@ void GameBoot_GameStartup(void) // 0x80034964
 /** @brief Initalizes drawing of a loading screen. */
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
-#ifdef SH_PC_PORT
-#endif
     if (g_SysWork.loadingScreenIdx != LoadingScreenId_None && g_GameWork.gameStateSteps[0] < 10)
     {
         ScreenFade_Start(false, true, false);
         g_ScreenFadeTimestep = Q12(0.8f);
-#ifdef SH_PC_PORT
-#endif
         g_MapOverlayHdr.loadingScreenFuncs[g_SysWork.loadingScreenIdx]();
     }
 
-#ifdef SH_PC_PORT
-#endif
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
-#ifdef SH_PC_PORT
-#endif
 }

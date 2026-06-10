@@ -2922,8 +2922,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
             break;
 
         case 9:
-#ifdef SH_PC_PORT
-#endif
             if (g_Inventory_ScrollTransitionTimer == 0)
             {
                 switch (g_SavegamePtr->items[g_SysWork.invItemSelectedIdx].id_0)
@@ -2960,8 +2958,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
-#ifdef SH_PC_PORT
-#endif
                     g_SavegamePtr->items[g_SysWork.invItemSelectedIdx].id_0 = InvItemId_Empty;
 
                     g_Inventory_ScrollTransitionTimer = 0;
@@ -2973,8 +2969,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                     D_800C3BA8                      = temp4;
 
                     func_8004EF48();
-#ifdef SH_PC_PORT
-#endif
                 }
                 else
                 {
@@ -2995,8 +2989,6 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
 
                 if (g_Inventory_ScrollTransitionTimer == 9)
                 {
-#ifdef SH_PC_PORT
-#endif
                     g_Inventory_ScrollTransitionTimer = 0;
                     *selectedItemId                   = 0;
                     D_800AE188                        = 0;
@@ -4077,8 +4069,6 @@ void func_800549A0(void) // 0x800549A0
 
 void func_80054A04(u8 itemId) // 0x80054A04
 {
-#ifdef SH_PC_PORT
-#endif
     D_800AE187              = itemId;
     g_Items_DisplayedCount  = 0;
     g_Items_PickupAnimState = 0;
@@ -4094,11 +4084,7 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].trans.vy  = 0;
     g_Items_Transforms[9].trans.vx  = 0;
 
-#ifdef SH_PC_PORT
-#endif
     GameFs_TmdDataAlloc(FS_BUFFER_5);
-#ifdef SH_PC_PORT
-#endif
 
 #ifndef SH_PC_PORT
     D_800C3E18[9] = 0; /* PSX BSS aliasing; out of bounds on PC */
@@ -4136,14 +4122,8 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].scale.vy = Q12(1.0f);
     g_Items_Transforms[9].scale.vx = Q12(1.0f);
 
-#ifdef SH_PC_PORT
-#endif
     func_800549A0();
-#ifdef SH_PC_PORT
-#endif
     ItemScreen_CamSet(&D_800C3B48, &D_800C3AE8, &D_800C3B38, 0);
-#ifdef SH_PC_PORT
-#endif
 }
 
 bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8

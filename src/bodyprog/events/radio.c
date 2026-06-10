@@ -34,8 +34,6 @@ void func_80037154(void) // 0x80037154
         D_800BCDA8[i].field_0 = NO_VALUE;
 #endif
     }
-#ifdef SH_PC_PORT
-#endif
 }
 
 void Game_RadioSoundStop(void) // 0x80037188
