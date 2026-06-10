@@ -39,6 +39,8 @@ crash" outcome.
   (`func_800D87C0` → `Chara_BonesInit(0)`) passes `g_CharaModelAnimsData[1].activeAnmHdr`,
   which is NULL for that unloaded slot; reading `anmHdr->boneCount` (offset 6) AV'd.
   WinDbg-confirmed. Guard skips the bone loop after the root coord is initialised.
+  The slot was NULL because of the duplicated chara-anim array (§7, `0d57ece35`);
+  with that fixed the guard is a defensive no-op.
   [`Anim_BoneInit`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/gfx/bodyprog_anim_800445A4.c#L41) ·
   commit [`1a1bdda6e`](https://github.com/SlickAmogus/silent-hill-decomp/commit/1a1bdda6e)
 - **NPC `playbackFunc` NULL guards.** Several `*_ANIM_INFOS[status].playbackFunc`
@@ -78,6 +80,16 @@ real table into `pc_port/src/<name>_anim_infos.c` and init it at startup
   `HANGED_SCRATCHER_`, `LARVAL_STALKER_`, … in `pc_port/src/*_anim_infos.c`.
   Pattern to spot the next one: an invisible / frozen / crashing NPC whose symbol
   is still a `u8[256]={0}` in `data_stubs.c`.
+- **BGM layer tables — layered BGM silent on most maps.** `Bgm_Update` applies
+  per-room layer-limit caps as `(vol * limit) >> 7`; the limit tables
+  (`s_BgmLayerLimits`, `u8[8]`) and per-room layer-flag tables (`u16[rooms]`)
+  for ~25 maps were zero-stubs, so every layer (including the always-on base
+  layer 0) multiplied to 0 and the player muted itself two frames after
+  `SdSeqPlay` (school: seq 786 started then `SD_Call(18)` stop). Extracted real
+  tables from the PSX overlay binaries via
+  [`extract_map_data.py`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/tools/extract_map_data.py)
+  (`TARGETS` + `EXTRA_SYMBOLS`; sizes tiling-verified against neighbour symbols).
+  commit [`9aa8d8326`](https://github.com/SlickAmogus/silent-hill-decomp/commit/9aa8d8326)
 - **Enemy melee collision data** — same zero-stub class, different data: each
   enemy's per-keyframe hitbox/collision rodata was `{0}`, so melee passed straight
   through them (un-hittable). Extracted into `src/maps/characters/*_rodata.inc`
@@ -196,6 +208,19 @@ Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
 - **Lighter-hold flame detaches from the hand.** The raised-arm bone coord wasn't
   invalidated so the flame tracked a stale transform; force the arm-bone `flg`.
   commit [`393faf46d`](https://github.com/SlickAmogus/silent-hill-decomp/commit/393faf46d)
+- **Invisible school cat — duplicated chara anim array.** The Jun 2026 merge left
+  the same PSX array under two names: fork `g_CharaTypeAnimInfo` (written by the
+  loader) and upstream `g_CharaModelAnimsData` (read by `Chara_BonesInit`, never
+  written past slot 0). The cat — the only cutscene character driven through
+  `Chara_BonesInit` — got `activeAnmHdr=NULL`, the §1 `Anim_BoneInit` guard
+  silently skipped bone init, and the model rendered as a degenerate point.
+  Unified on the upstream name (single definition). Also fixed the
+  `Anim_CharaTypeAnimInfoClear` PSX byte-count `bzero(…, 72)` that only cleared
+  1.8 of 3 slots with 64-bit pointers (stale anim headers across map loads —
+  prime suspect for the "warped gray polygon blob" in school hallways).
+  [`fs_chara_anim.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/game_boot/fs_chara_anim.c) ·
+  commit [`0d57ece35`](https://github.com/SlickAmogus/silent-hill-decomp/commit/0d57ece35)
 
 > Already covered above and also cutscene-relevant: `CAT_ANIM_INFOS` zero-stub
-> (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1).
+> (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1) — both of which
+> turned out to be masking the duplicated-array bug above.
