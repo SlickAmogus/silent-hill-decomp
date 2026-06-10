@@ -359,8 +359,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             {
 
 #ifdef SH_PC_PORT
-#endif
-#ifdef SH_PC_PORT
                 {
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
                     if (mapId < 0) mapId = 0;
@@ -369,33 +367,19 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
 #endif
-#ifdef SH_PC_PORT
-#endif
                 GameBoot_PlayerInit();
-#ifdef SH_PC_PORT
-#endif
 
                 g_SysWork.processFlags = ProcessFlag_NewGame;
 
 
 #ifdef SH_PC_PORT
-#endif
-#ifdef SH_PC_PORT
                 GameBoot_MapLoad(g_SavegamePtr->mapIdx);
 #else
                 GameBoot_MapLoad(MapOverlayId_MAP0_S00);
 #endif
-#ifdef SH_PC_PORT
-#endif
                 GameFs_StreamBinLoad();
-#ifdef SH_PC_PORT
-#endif
                 SD_Call(Sfx_MenuStartGame);
-#ifdef SH_PC_PORT
-#endif
                 ScreenFade_Start(true, false, false);
-#ifdef SH_PC_PORT
-#endif
                 g_MainMenuState     = 4;
             }
             // Cancel.
@@ -417,14 +401,8 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #endif
             if (ScreenFade_IsFinished())
             {
-#ifdef SH_PC_PORT
-#endif
                 Screen_Refresh(SCREEN_WIDTH, 0);
-#ifdef SH_PC_PORT
-#endif
                 Fs_QueueWaitForEmpty();
-#ifdef SH_PC_PORT
-#endif
 
                 if (g_GameWork.autosave.playerHealth > Q12(0.0f))
                 {
@@ -433,8 +411,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
                 if (g_MainMenu_SelectedEntry == MainMenuEntry_Start)
                 {
-#ifdef SH_PC_PORT
-#endif
                     Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
                 }
 
@@ -449,8 +425,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 g_SysWork.counters_1C[1]        = 0;
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
-#ifdef SH_PC_PORT
-#endif
                 SysWork_StateSetNext(SysState_Gameplay);
             }
             break;

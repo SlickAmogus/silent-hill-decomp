@@ -1199,11 +1199,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
             g_Map.chunkTextures.fullPage.count = 4;
 
             LmHeader_FixOffsets(g_Map.globalLm.lmHdr);
-#ifdef SH_PC_PORT
-#endif
             Lm_MaterialsLoadWithFilter(g_Map.globalLm.lmHdr, &g_Map.chunkTextures.fullPage, NULL, g_Map.textureFileIdx, BlendMode_Additive);
-#ifdef SH_PC_PORT
-#endif
             Lm_MaterialFlagsApply(g_Map.globalLm.lmHdr);
 
             g_Map.chunkTextures.fullPage.count = fullPageTexCount;
@@ -1304,11 +1300,7 @@ void Ipd_ChunkInit(q19_12 posX0, q19_12 posZ0, q19_12 posX1, q19_12 posZ1) // 0x
         g_Map.chunkTextures.fullPage.count = 4;
 
         LmHeader_FixOffsets(g_Map.globalLm.lmHdr);
-#ifdef SH_PC_PORT
-#endif
         Lm_MaterialsLoadWithFilter(g_Map.globalLm.lmHdr, &g_Map.chunkTextures.fullPage, NULL, g_Map.textureFileIdx, BlendMode_Additive);
-#ifdef SH_PC_PORT
-#endif
         Lm_MaterialFlagsApply(g_Map.globalLm.lmHdr);
 
         g_Map.chunkTextures.fullPage.count = fullPageTexCount;
@@ -1732,8 +1724,6 @@ s32 Ipd_LoadStart(s_Chunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19_12
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
 
-#ifdef SH_PC_PORT
-#endif
 
     return chunk->queueIdx;
 }
@@ -2095,8 +2085,6 @@ void Ipd_HeaderModelLinkObjectLists(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s3
                 }
             }
         }
-#ifdef SH_PC_PORT
-#endif
     }
 }
 

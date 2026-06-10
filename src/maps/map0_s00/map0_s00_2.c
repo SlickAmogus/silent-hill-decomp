@@ -177,8 +177,6 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
         g_SysWork.sysStateSteps[0] >= EventState_3 &&
         g_SysWork.sysStateSteps[0] <  EventState_13)
     {
-#ifdef SH_PC_PORT
-#endif
         skip = true;
         SysWork_StateStepReset();
     }
@@ -321,16 +319,10 @@ void MapEvent_CutsceneOpening(void) // 0x0x800D9748
             break;
     }
 
-#ifdef SH_PC_PORT
-#endif
     // Control player and camera.
     if (g_Cutscene_Timer >= Q12(0.0f))
     {
-#ifdef SH_PC_PORT
-#endif
         Dms_CharacterTransformGet(&g_SysWork.playerWork.player.position, &g_SysWork.playerWork.player.rotation, "HERO", g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16);
-#ifdef SH_PC_PORT
-#endif
         vcChangeProjectionValue(Dms_CameraTargetGet(&g_Cutscene_CameraPositionTarget, &g_Cutscene_CameraLookAtTarget, NULL, g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_16));
         vcUserCamTarget(&g_Cutscene_CameraPositionTarget, NULL, true);
         vcUserWatchTarget(&g_Cutscene_CameraLookAtTarget, NULL, true);
@@ -652,18 +644,10 @@ void MapEvent_CutsceneCherylSpotted(void) // 0x800DA5A0
             break;
 
         case 3:
-#ifdef SH_PC_PORT
-#endif
             cherylChara.properties.player.headingAngle = Q12(1.8f);
 
-#ifdef SH_PC_PORT
-#endif
             func_80086728(&cherylChara, 2, 1, 0);
-#ifdef SH_PC_PORT
-#endif
             SysWork_StateStepIncrementDelayed(Q12(1.5f), false);
-#ifdef SH_PC_PORT
-#endif
             break;
 
         case 4:

@@ -1116,8 +1116,6 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
 #endif
             temp_a1 = g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&airScreamerChara.model));
-#ifdef SH_PC_PORT
-#endif
 
             ptr = &g_Cutscene_Timer;
             if (temp_a1 < Q12(25.0f))
@@ -1130,12 +1128,8 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
             }
             *ptr = var_a2;
 
-#ifdef SH_PC_PORT
-#endif
             Dms_CharacterTransformGet(&airScreamerChara.position, &airScreamerChara.rotation, "BIRD",
                                       g_Cutscene_Timer, (s_DmsHeader*)FS_BUFFER_11);
-#ifdef SH_PC_PORT
-#endif
 
             if (g_Cutscene_Timer >= Q12(25.0f) ||
                 ABS(playerChara.position.vx - Q12(4.586f)) > Q12(0.7f) ||
@@ -1154,11 +1148,7 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
                  D_800E2560 > Q12(7.5f))
         {
             Savegame_EventFlagSet(EventFlag_41);
-#ifdef SH_PC_PORT
-#endif
             func_800D3AC0(&airScreamerChara);
-#ifdef SH_PC_PORT
-#endif
         }
         else
         {

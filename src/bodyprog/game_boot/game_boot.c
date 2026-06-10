@@ -46,20 +46,12 @@ void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 
 void GameBoot_PlayerInit(void) // 0x80035178
 {
-#ifdef SH_PC_PORT
-#endif
     WorldGfx_MapInit();
-#ifdef SH_PC_PORT
-#endif
     CharaModel_AllModelsFree();
-#ifdef SH_PC_PORT
-#endif
     Item_HeldItemModelFree();
     Anim_BoneInit(FS_BUFFER_0, g_SysWork.playerBoneCoords); // Load player anim file?
     WorldGfx_PlayerModelProcessLoad();
 
-#ifdef SH_PC_PORT
-#endif
     g_SysWork.unused_229C = NO_VALUE;
 
     if ((g_SavegamePtr->itemToggleFlags >> 1) & (1 << 0)) // `& ItemToggleFlag_FlashlightOff`
@@ -73,11 +65,7 @@ void GameBoot_PlayerInit(void) // 0x80035178
 
     g_CharaTypeAnimInfo[0].activeSize = 0x2E630;
     g_CharaTypeAnimInfo[0].allocSize  = 0x2E630;
-#ifdef SH_PC_PORT
-#endif
     Game_PlayerInfoInit();
-#ifdef SH_PC_PORT
-#endif
 }
 
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C

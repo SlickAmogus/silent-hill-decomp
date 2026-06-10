@@ -825,8 +825,6 @@ void SysState_LoadArea_Update(void) // 0x80039C40
 
     D_800BCDB0 = g_MapOverlayHdr.mapPoints[g_MapEventData->eventParam];
 
-#ifdef SH_PC_PORT
-#endif
 
     if (D_800BCDB0.triggerParam1 == 1)
     {
@@ -1128,8 +1126,6 @@ void SysState_EventCallback_Update(void) // 0x8003A3C8
     {
         Savegame_EventFlagSetAlt(g_MapEventData->disabledEventFlag);
     }
-#ifdef SH_PC_PORT
-#endif
 
     g_DeltaTime = g_DeltaTimeCpy;
 #ifdef SH_PC_PORT

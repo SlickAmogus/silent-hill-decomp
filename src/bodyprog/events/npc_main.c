@@ -309,8 +309,6 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             chara                    = &g_SysWork.npcs[npcIdx];
             chara->model.anim.flags |= AnimFlag_Visible;
-#ifdef SH_PC_PORT
-#endif
         }
     }
 
@@ -519,8 +517,6 @@ void Game_NpcUpdate(void) // 0x80038354
 
                 if (new_var > ((var_t5 == 0 && npc->health < Q12(0.0f)) ? SQUARE(24) : SQUARE(40)))
                 {
-#ifdef SH_PC_PORT
-#endif
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
                     CLEAR_FLAG(g_SysWork.field_228C, npc->field_40);
@@ -716,8 +712,6 @@ void Game_NpcUpdate(void) // 0x80038354
                 }
                 continue;
             }
-#endif
-#ifdef SH_PC_PORT
 #endif
             g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaTypeAnimInfo[animDataInfoIdx].activeAnmHdr, boneCoords);
 
