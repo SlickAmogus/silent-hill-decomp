@@ -2703,6 +2703,22 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
     ptr->field_160 = (((ptr->field_158 >> 6) + 16) * ptr->field_0.field_2C) / ptr->field_150;
 
 #ifdef SH_PC_PORT
+    /* Giant-blob diagnosis: size field_160 = (f158-based factor * f2C) /
+     * projected depth f150. A stale/small GTE SZ (f150) explodes the quad. */
+    {
+        static int s_flashLog = 0;
+        if (s_flashLog < 16) {
+            SH_DBG("[MUZZLE] depth150=%d size160=%d f158=%d f2C=%d xy=(%d,%d) rgb=(%d,%d,%d) fieldB=%d",
+                   (int)ptr->field_150, (int)ptr->field_160, (int)ptr->field_158,
+                   (int)ptr->field_0.field_2C, ptr->field_154.vx, ptr->field_154.vy,
+                   ptr->field_130.r, ptr->field_130.g, ptr->field_130.b,
+                   (int)g_MapOverlayHdr.unkTable1_4C[idx].field_B);
+            s_flashLog++;
+        }
+    }
+#endif
+
+#ifdef SH_PC_PORT
     /* Zero the entire 136-byte allocation up front (2x POLY_FT4 + 2x DR_MODE).
      * PSX gets away with stale pkt buffer data because every prim field is
      * explicitly written below. On PC the prim header is wider (12 B vs 4 B)

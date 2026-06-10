@@ -2,6 +2,9 @@
 #include "bodyprog/math/math.h"
 #include "main/rng.h"
 #include "maps/characters/cat.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #define catProps cat->properties.cat
 
@@ -43,6 +46,26 @@ void Cat_Update(s_SubCharacter* cat, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoo
     Math_MatrixTransform(&cat->position, &cat->rotation, boneCoords);
 
     animInfo = &CAT_ANIM_INFOS[cat->model.anim.status];
+#ifdef SH_PC_PORT
+    /* Invisible-cat diagnosis: one line per state/anim change names which
+     * link fails — update not called (no lines at all), anim not advancing
+     * (kf frozen), or position wrong (pos far from the locker room). */
+    {
+        static s32 s_prevCs = -1, s_prevSs = -1, s_prevSt = -1, s_prevKf = -1;
+        if ((s32)cat->model.controlState != s_prevCs || (s32)cat->model.stateStep != s_prevSs ||
+            (s32)cat->model.anim.status != s_prevSt || (s32)cat->model.anim.keyframeIdx != s_prevKf)
+        {
+            s_prevCs = cat->model.controlState;
+            s_prevSs = cat->model.stateStep;
+            s_prevSt = cat->model.anim.status;
+            s_prevKf = cat->model.anim.keyframeIdx;
+            SH_DBG("[CAT] cs=%d ss=%d anim=%d kf=%d time=%d pos=(%d,%d,%d) fn=%p",
+                   s_prevCs, s_prevSs, s_prevSt, s_prevKf, (int)cat->model.anim.time,
+                   (int)cat->position.vx, (int)cat->position.vy, (int)cat->position.vz,
+                   (void*)animInfo->playbackFunc);
+        }
+    }
+#endif
 #ifdef SH_PC_PORT
     /* Guard NULL playbackFunc -- some CAT_ANIM_INFOS entries have unmerged PSX
      * function pointers on PC (same as CHERYL_ANIM_INFOS, cheryl.c). The merge
