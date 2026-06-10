@@ -448,7 +448,14 @@ typedef struct _SysWork
     /* 0x2380   */ q19_12           cameraRadiusXz;
     /* 0x2384   */ q19_12           cameraY_2384;
     /* 0x2388   */ s_SysWork_2388   field_2388;
+#ifdef SH_PC_PORT
+    /* Controller-handler node list head (s_SysWork_2510*). PSX stored the
+     * pointer in an s32; on 64-bit that truncates exe addresses and the
+     * vibration engine walks garbage — crash at first pad poll. */
+    /* 0x2510   */ struct _s_SysWork_2510* field_2510;
+#else
     /* 0x2510   */ s32              field_2510;
+#endif
     /* 0x2514   */ s_SysWork_2514   field_2514;
     /* 0x254C   */ s8               field_254C[508]; /** Used through indirect pointer calls. Tied to `lib_unk`.*/
     /* 0x2748   */ q3_12            bgmLayerVolumes[BGM_LAYER_COUNT];
