@@ -16,7 +16,7 @@ function name is the stable anchor. Each entry cites the commit with the full di
 Repo: `https://github.com/SlickAmogus/silent-hill-decomp` (branch `pc-port`)
 
 ## Index
-- [1. NULL-pointer guards (PSX had no memory protection)](#1-null-pointer-guards-psx-had-no-memory-protection)
+- [1. Faults PSX hardware tolerated that x86 traps on (NULL deref, div-by-zero)](#1-faults-psx-hardware-tolerated-that-x86-traps-on)
 - [2. Zero-stubbed data tables → real tables](#2-zero-stubbed-data-tables--real-tables)
 - [3. IPD chunk streaming & buffer sizing](#3-ipd-chunk-streaming--buffer-sizing)
 - [4. Fixed-point overflow](#4-fixed-point-overflow)
@@ -26,11 +26,14 @@ Repo: `https://github.com/SlickAmogus/silent-hill-decomp` (branch `pc-port`)
 
 ---
 
-## 1. NULL-pointer guards (PSX had no memory protection)
+## 1. Faults PSX hardware tolerated that x86 traps on
 
-On PSX a NULL (or small-integer) pointer dereference reads valid low RAM and
-usually does harmless garbage work; on PC the same read access-violates. These
-guards skip the work the pointer can't do, matching the PSX outcome.
+The PSX CPU silently tolerated two things that x86 turns into a hard exception:
+(a) a NULL / small-integer pointer dereference reads valid low RAM and does
+harmless garbage work — x86 access-violates; (b) MIPS integer `div`/rem by zero
+returns garbage in LO/HI without trapping — x86 `idiv` raises `#DE`. Each guard
+skips the work the bad value can't produce, matching the PSX "garbage but no
+crash" outcome.
 
 - **`Anim_BoneInit` — cat locker scene-end crash.** The cat scene's end cleanup
   (`func_800D87C0` → `Chara_BonesInit(0)`) passes `g_CharaModelAnimsData[1].activeAnmHdr`,
@@ -48,6 +51,13 @@ guards skip the work the pointer can't do, matching the PSX outcome.
   `func_8006A42C`. The merge reordered an expression whose side effect must run
   before the deref; restored MIPS left-to-right order. Caused an in-game NULL deref.
   commit [`c49602177`](https://github.com/SlickAmogus/silent-hill-decomp/commit/c49602177)
+- **Integer divide-by-zero — chemical-on-hand cutscene crash.** The melting-smoke
+  particle updater `sharedFunc_800CBB30_1_s01` does `Rng_Rand16() % temp_s1`; a
+  freshly-spawned particle has ~zero velocity so `temp_s1` (its speed) is 0 → `#DE`.
+  WinDbg-confirmed. Guard the `%` and the sibling growth-term `/` (its denominator
+  reaches 0 as the cos input sweeps); also fixes map6_s04 (shares the file).
+  [`unk_draw_m1s01.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/unk_draw_m1s01.c#L136) ·
+  commit [`f7cd4ff5c`](https://github.com/SlickAmogus/silent-hill-decomp/commit/f7cd4ff5c)
 
 ## 2. Zero-stubbed data tables → real tables
 
