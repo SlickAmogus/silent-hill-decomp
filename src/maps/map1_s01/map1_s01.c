@@ -14,6 +14,9 @@
 #include "maps/characters/larval_stalker.h"
 #include "maps/characters/player.h"
 #include "maps/characters/stalker.h"
+#ifdef SH_PC_PORT
+#include "pc_timing.h" /* PC_Tick30HzReady — locker-bang 30 Hz gate */
+#endif
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D6F34
 
@@ -1145,6 +1148,14 @@ void func_800D9EC4(void) // 0x800D9EC4
 
     if (!Savegame_EventFlagGet(EventFlag_76))
     {
+#ifdef SH_PC_PORT
+        /* The bang state machine assumes one call = 1/30 s: a 1-in-32
+         * per-call burst chance and per-call door rotation steps. At PC
+         * framerates the locker rattled and banged ~10x too fast. */
+        static int s_bangAccum = 0;
+        if (PC_Tick30HzReady(&s_bangAccum))
+        {
+#endif
         if (D_800DD57C == 0)
         {
             if (Rng_GenerateUInt(0, 31) == 0) // 1 in 32 chance.
@@ -1187,6 +1198,9 @@ void func_800D9EC4(void) // 0x800D9EC4
                 D_800DD57C = MAX(D_800DD57C, 1);
             }
         }
+#ifdef SH_PC_PORT
+        }
+#endif
     }
     else if (!Savegame_EventFlagGet(EventFlag_77))
     {

@@ -202,21 +202,24 @@ void Math_MatrixVectorMul(MATRIX* mat, VECTOR3* in, VECTOR3* out)
 }
 
 /*
- * ReadGeomOffset / ReadGeomScreen - GTE geometry parameter access
- * These read GTE registers. On PC, return reasonable defaults.
+ * ReadGeomOffset / ReadGeomScreen - GTE geometry parameter access.
+ * Must return the LIVE GTE control registers: the game varies H
+ * (projection distance) with camera FOV and uses it to scale screen-space
+ * effect sizes. The old hardcoded 256/0 defaults silently skewed every
+ * caller (flare depth gate, effect quad sizing).
+ * gte_ReadGeomScreen(out) is a macro in inline_no_dmpsx.h; the old void()
+ * fallback that ignored its out pointer is gone on purpose so stragglers
+ * fail at link time instead of reading stale memory.
  */
+extern unsigned int CFC2(int reg); /* PsyCross GTE control reg read */
+
 void ReadGeomOffset(s32* ofx, s32* ofy)
 {
-    if (ofx) *ofx = 0;
-    if (ofy) *ofy = 0;
+    if (ofx) *ofx = (s32)CFC2(24) >> 16;
+    if (ofy) *ofy = (s32)CFC2(25) >> 16;
 }
 
 s32 ReadGeomScreen(void)
 {
-    return 256; /* Default projection distance */
-}
-
-s32 gte_ReadGeomScreen(void)
-{
-    return 256;
+    return (s32)(s16)CFC2(26);
 }
