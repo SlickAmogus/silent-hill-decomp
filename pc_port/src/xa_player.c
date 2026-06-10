@@ -360,6 +360,7 @@ static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
 // Initialize playback for a specific XA index
 void XaPlayer_Play(uint16_t xaIdx) {
     if (xaIdx >= 727) {
+        SH_DBG("[XA] Play REJECTED: xaIdx=%u out of range", xaIdx);
         return;
     }
 
@@ -367,6 +368,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint16_t fileIdx = item->xaFileIdx_0;
 
     if (fileIdx < 1 || fileIdx > 9) {
+        SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u out of range (zero g_XaItemData row?)", xaIdx, fileIdx);
         return;
     }
 
@@ -379,6 +381,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     // Resolve disc base sector for this XA file (and open the BIN if needed)
     uint32_t baseSector = BeginXaStream(fileIdx);
     if (!baseSector) {
+        SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u — BeginXaStream failed (disc image?)", xaIdx, fileIdx);
         return;
     }
 
@@ -386,6 +389,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     // (file, channel) filter — XA streams are multiplexed across many channels.
     uint8_t firstSector[XA_SECTOR_SIZE];
     if (!ReadXaSectorFromBin(baseSector, item->sector_4_bits, firstSector)) {
+        SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u sector=%u — first-sector read failed", xaIdx, fileIdx, (uint32_t)item->sector_4_bits);
         return;
     }
     const uint8_t* headBuf = firstSector; /* first 8 bytes = subheader */
@@ -414,6 +418,9 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.filterChannel = filterChannel;
     g_XaPlayer.isPlaying = 1;
     g_XaPlayer.needsInitialFill = 1;
+    SH_DBG("[XA] Play xaIdx=%u file=%u sector=%u sectors=%u %s %dHz filter=(%u,%u)",
+           xaIdx, fileIdx, (uint32_t)item->sector_4_bits, numSectors,
+           isStereo ? "stereo" : "mono", sampleRate, filterFile, filterChannel);
     /* Reset per-track ADPCM filter state. */
     memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
     /* Mono replication test confirmed not the issue — leave off. */
@@ -440,6 +447,11 @@ void XaPlayer_Play(uint16_t xaIdx) {
 }
 
 void XaPlayer_Stop(void) {
+
+    if (g_XaPlayer.isPlaying) {
+        SH_DBG("[XA] Stop xaIdx=%u (remaining=%u/%u sectors)",
+               (unsigned)g_XaPlayer.xaIdx, g_XaPlayer.remainingSectors, g_XaPlayer.totalSectors);
+    }
 
     if (g_XaPlayer.alSource) {
         alSourceStop(g_XaPlayer.alSource);
@@ -581,6 +593,7 @@ void XaPlayer_Update(void) {
 
     /* Detect end-of-playback: no more sectors AND source has stopped. */
     if (g_XaPlayer.remainingSectors == 0 && sourceState == AL_STOPPED) {
+        SH_DBG("[XA] finished xaIdx=%u (drained)", (unsigned)g_XaPlayer.xaIdx);
         g_XaPlayer.isPlaying = 0;
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
