@@ -69,6 +69,10 @@ void Fs_QueueWaitForEmpty(void)
         waitCount++;
         if (waitCount > 500) {
             /* Force the queue empty to prevent infinite loop */
+            extern FILE* g_ShDebugLog;
+            SH_DBG("[FSQ] WaitForEmpty TIMEOUT after %d vsyncs — forcing queue empty (len=%d state=%d)",
+                   waitCount, (int)Fs_QueueGetLength(), (int)g_FsQueue.state);
+            if (g_ShDebugLog) fflush(g_ShDebugLog);
             g_FsQueue.read.idx = g_FsQueue.last.idx + 1;
             g_FsQueue.postLoad.idx = g_FsQueue.read.idx;
             break;
