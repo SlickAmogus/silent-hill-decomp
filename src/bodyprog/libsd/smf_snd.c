@@ -1483,6 +1483,12 @@ s16 SdUtKeyOnV(s16 voice, s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16
         sd_vh       = vab_h[vabid].vh_addr_4;
 #ifdef SH_PC_PORT
         if (!sd_vh) { sd_int_flag = false; return -1; }
+        /* Garbage VAB image (e.g. unused map6_s05 has no MAP605.VAB on disc,
+         * so the load times out and the buffer keeps junk): vab_h.ps is the
+         * program count (<= 128 in any valid VAB) and feeds
+         * addr_p = vh + (ps << 9) + 0x820 below. PSX read the garbage without
+         * faulting; x86 AVs megabytes past the buffer. Refuse the key-on. */
+        if ((u32)sd_vh->vab_h.ps > 128) { sd_int_flag = false; return -1; }
 #endif
         sd_vab_prog = &sd_vh->vab_prog[prog];
         note_base   = note << 8;
