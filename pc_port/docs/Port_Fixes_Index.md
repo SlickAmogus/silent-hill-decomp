@@ -60,6 +60,28 @@ crash" outcome.
   reaches 0 as the cos input sweeps); also fixes map6_s04 (shares the file).
   [`unk_draw_m1s01.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/unk_draw_m1s01.c#L136) ·
   commit [`f7cd4ff5c`](https://github.com/SlickAmogus/silent-hill-decomp/commit/f7cd4ff5c)
+- **Drain-valve cutscene crash — GTE SZ saturates to 0.** `func_800CE164`
+  (map1_s03 drip drawer) divides the quad size by the projected depth; a drip
+  on/behind the camera plane stores SZ 0. Skip the quad that frame.
+  [`unk_draw_800CDCE0.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/map1_s03/unk_draw_800CDCE0.c) ·
+  commit [`ace3bc504`](https://github.com/SlickAmogus/silent-hill-decomp/commit/ace3bc504)
+- **Classroom-key crash + camera-warp crash (user crash dumps).** The school
+  water-drip drawer `sharedFunc_800CBDA8_1_s02` divides by emitter duration
+  fields that can be 0; `vcAutoRenewalCamTgtPos` divides the warp delta by
+  `g_DeltaTime`, which is 0 on pause/console/sub-hblank frames on PC.
+  commit [`773bc4f29`](https://github.com/SlickAmogus/silent-hill-decomp/commit/773bc4f29)
+- **Systematic div/rem-by-zero sweep (13 files).** Audited every division and
+  modulo by a runtime value that can be zero. Same-class guards: the two
+  remaining `/ g_DeltaTime` sites (`stalker.c`, `air_screamer.c`); two more
+  unguarded GTE-SZ divisions (`func_80064FC0`, `bodyprog_800652F4.c`); glass
+  shard spin `% (mag >> 2)` which faults once a settling shard's lateral speed
+  drops below 4 (M0S01 alley / M7S01); spawner/ribbon divisions by emitter
+  config fields in `particle_water.c` (plus a scratch-overrun cap on the
+  ribbon's unbounded row loop), `unk_draw.c`, `unk_draw_m1s01.c`,
+  `unk_draw_800CDCE0.c`, `particle_acid.c`; collision ray walk `/ subcellSize`
+  and point-ray slope in `ray.c`; LOS `% spanAngleStep` in `los.c`; snow
+  spawn-box corner `% temp_s3` in `particle.c`.
+  commit [`0aa67ef1e`](https://github.com/SlickAmogus/silent-hill-decomp/commit/0aa67ef1e)
 
 ## 2. Zero-stubbed data tables → real tables
 
