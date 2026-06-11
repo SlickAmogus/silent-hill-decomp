@@ -108,14 +108,19 @@ static const FmvFileEntry s_fmvFiles[] = {
 /* First XA file index in the file enum (FILE_XA_05_02152 = 2044 across versions) */
 #define FIRST_XA_FILE_IDX 2044
 
-/* Console command accessors (pc_console_cmd.c): list + play by table index. */
-extern "C" int FMV_GetCount(void) { return (int)FMV_FILE_COUNT; }
-extern "C" const char* FMV_GetName(int tableIdx)
+/* Console command accessors (pc_console_cmd.c): list + play by table index.
+ * Entries 0..8 are XA voice banks (multiple interleaved audio channels, no
+ * video) — feeding them to FMV_Play decodes every channel back-to-back into
+ * fast garbled audio with a black screen. Only expose the real movies. */
+#define FIRST_MOVIE_TABLE_IDX 9
+extern "C" int FMV_GetCount(void) { return (int)FMV_FILE_COUNT - FIRST_MOVIE_TABLE_IDX; }
+extern "C" const char* FMV_GetName(int movieIdx)
 {
-    if (tableIdx < 0 || tableIdx >= (int)FMV_FILE_COUNT) return "";
+    int tableIdx = FIRST_MOVIE_TABLE_IDX + movieIdx;
+    if (movieIdx < 0 || tableIdx >= (int)FMV_FILE_COUNT) return "";
     return s_fmvFiles[tableIdx].name;
 }
-extern "C" int FMV_GetFileIdx(int tableIdx) { return FIRST_XA_FILE_IDX + tableIdx; }
+extern "C" int FMV_GetFileIdx(int movieIdx) { return FIRST_XA_FILE_IDX + FIRST_MOVIE_TABLE_IDX + movieIdx; }
 
 /* GL resources */
 static GLuint s_fmvTexture = 0;
