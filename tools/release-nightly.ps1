@@ -5,7 +5,9 @@
 #   - Computes today's next version: YYYY.MM.DD.N where N increments per release.
 #   - Prepends the new release section to local CHANGELOG.md (so the uploaded
 #     copy already contains this release's notes).
-#   - Hashes the local build files (SilentHillPC.exe + maps/*.dll + CHANGELOG.md).
+#   - Hashes the local build files (SilentHillPC.exe + maps/*.dll + CHANGELOG.md
+#     + SilentHillPC_Launcher.exe + SH1Updater.exe from the launcher solution's
+#     Release output; warns and skips/carries-forward if those aren't built).
 #   - Diffs against the manifest. If nothing changed, exits.
 #   - Creates a release on the nightly repo, uploads ONLY changed files.
 #   - Generates a new manifest: changed files point to new release URLs,
@@ -39,6 +41,11 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 
 $exe  = Join-Path $BuildDir "SilentHillPC.exe"
 $maps = Join-Path $BuildDir "maps"
+
+# Launcher + standalone updater (built by the user via the launcher solution).
+# Optional: warn-and-skip when missing so a game-only release still works.
+$launcherExe = Join-Path $PSScriptRoot "..\pc_port\launcher\SilentHillPC_Launcher\bin\Release\SilentHillPC_Launcher.exe"
+$updaterExe  = Join-Path $PSScriptRoot "..\pc_port\launcher\SH1Updater\bin\Release\SH1Updater.exe"
 
 if (-not (Test-Path $exe))  { throw "SilentHillPC.exe not found at $exe. Run cmake --build first." }
 if (-not (Test-Path $maps)) { throw "maps/ folder not found at $maps." }
@@ -166,6 +173,18 @@ if (Test-Path $changelogPath) {
     $localFiles["CHANGELOG.md"] = Get-Sha256 $changelogPath
 }
 
+if (Test-Path $launcherExe) {
+    $localFiles["SilentHillPC_Launcher.exe"] = Get-Sha256 $launcherExe
+} else {
+    Write-Host "Warning: launcher exe not found at $launcherExe - not included in this release." -ForegroundColor Yellow
+}
+
+if (Test-Path $updaterExe) {
+    $localFiles["SH1Updater.exe"] = Get-Sha256 $updaterExe
+} else {
+    Write-Host "Warning: SH1Updater.exe not found at $updaterExe - not included in this release." -ForegroundColor Yellow
+}
+
 Write-Host "Local files: $($localFiles.Count) entries hashed" -ForegroundColor Cyan
 
 # ---- Diff local vs remote ---------------------------------------------------
@@ -176,6 +195,16 @@ if ($prevManifest) {
     foreach ($f in $prevManifest.files) {
         $prevHashes[$f.path] = $f.sha256
         $prevUrls[$f.path]   = $f.url
+    }
+}
+
+# If a launcher/updater exe isn't built locally but exists in the previous
+# manifest, carry the old entry forward instead of dropping it (a drop would
+# silently stop hash-checking it for every user).
+foreach ($opt in @("SilentHillPC_Launcher.exe", "SH1Updater.exe")) {
+    if (-not $localFiles.ContainsKey($opt) -and $prevHashes.ContainsKey($opt)) {
+        $localFiles[$opt] = $prevHashes[$opt]
+        Write-Host "Carrying forward previous $opt manifest entry." -ForegroundColor Yellow
     }
 }
 
@@ -236,6 +265,8 @@ foreach ($path in $changed) {
     $src = if ($path -eq "SilentHillPC.exe") { $exe }
            elseif ($path -eq "config.cfg") { $cfg }
            elseif ($path -eq "CHANGELOG.md") { $changelogPath }
+           elseif ($path -eq "SilentHillPC_Launcher.exe") { $launcherExe }
+           elseif ($path -eq "SH1Updater.exe") { $updaterExe }
            else { Join-Path $BuildDir $path }
     $assetName = $path -replace '/', '__'
     $dst = Join-Path $stagingDir $assetName

@@ -159,7 +159,7 @@ namespace SilentHillPC_Launcher
 
                     // File.Move fails across drives (temp dir vs install dir may differ).
                     // Copy then delete is safe on all configurations.
-                    File.Copy(tmpFile, dst, overwrite: true);
+                    ReplaceFile(tmpFile, dst);
                 }
 
                 progress?.Invoke(1.0, $"Updated to {plan.RemoteVersion}");
@@ -171,6 +171,29 @@ namespace SilentHillPC_Launcher
         }
 
         // -- Helpers ----------------------------------------------------------
+
+        /// <summary>
+        /// Copy with a locked-target fallback. A running exe (the launcher or
+        /// SH1Updater updating itself) can't be overwritten, but Windows DOES
+        /// allow renaming it — so move the live file aside to *.old and copy
+        /// the fresh one into place. The new exe is picked up on next launch;
+        /// stale *.old files are deleted on the updater's next startup.
+        /// </summary>
+        private static void ReplaceFile(string src, string dst)
+        {
+            try
+            {
+                File.Copy(src, dst, overwrite: true);
+            }
+            catch (Exception) when (File.Exists(dst))
+            {
+                string old = dst + ".old";
+                try { if (File.Exists(old)) File.Delete(old); }
+                catch { old = dst + "." + DateTime.UtcNow.Ticks + ".old"; }
+                File.Move(dst, old);
+                File.Copy(src, dst, overwrite: true);
+            }
+        }
 
         private static async Task<Manifest> FetchManifestAsync()
         {
