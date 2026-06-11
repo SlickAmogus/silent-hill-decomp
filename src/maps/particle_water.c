@@ -152,6 +152,21 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
 
     idx0 = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0 >> 2;
 
+#ifdef SH_PC_PORT
+    /* PSX MIPS div-by-zero returns garbage without trapping; x86 idiv raises
+     * #DE. School key/water events can reference emitter entries whose
+     * duration fields are still zero (user crash map1_s02.dll+0x15F65 while
+     * grabbing the classroom key / when keys become visible) — the phase
+     * math below divides by field_64[idx0], field_28[idx0] and
+     * field_28[field_78]. Skip the drip this frame instead of faulting. */
+    if (sharedData_800E30C8_1_s02.field_64[idx0] == 0 ||
+        sharedData_800E30C8_1_s02.field_28[idx0] == 0 ||
+        sharedData_800E30C8_1_s02.field_28[sharedData_800E30C8_1_s02.field_78] == 0)
+    {
+        return false;
+    }
+#endif
+
     if (sharedData_800E30C8_1_s02.field_30[idx0] == 0)
     {
         temp_s4 = Q12_MULT_PRECISE(g_DeltaTime, sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2);
