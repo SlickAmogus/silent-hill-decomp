@@ -807,12 +807,10 @@ void DbgOverlay_Update(void)
             s_prev_keys[sc] = ks[sc];
     }
 
-    /* Release the input swallow only once the trigger keys are physically up,
-     * so the game never sees a click edge from the submit/exit keystroke. */
-    if (g_PcConsoleSwallowInput && !g_PcConsoleInputActive &&
-        !ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_GRAVE]) {
-        g_PcConsoleSwallowInput = 0;
-    }
+    /* The swallow is released in MainLoop (game_main.c), next to the input
+     * suppression: it must also see the PARSED pad state, which lags the SDL
+     * array here by a frame — clearing on SDL alone leaked the submit Enter
+     * as a Start click. */
 
     /* Ease the slide toward visible (ingame bit set) or hidden. Runs every
      * frame regardless of state so the console can animate back out. */

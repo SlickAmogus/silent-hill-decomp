@@ -662,8 +662,22 @@ static int PlayFromBin(int table_idx, int max_frames)
     SDL_FlushEvent(SDL_KEYDOWN);
     SDL_FlushEvent(SDL_KEYUP);
 
+    /* Skip is armed only after the skip keys have been seen released once:
+     * the keystroke that STARTED playback (console Enter, menu confirm) is
+     * usually still held on the first loop iterations and would otherwise
+     * skip the video at frame 0. */
+    int skip_armed = 0;
+
     while (1) {
-        if (PollSkipOrQuit(&want_quit)) {
+        int skipHeld = PollSkipOrQuit(&want_quit);
+        if (want_quit) {
+            printf("[FMV] Quit at frame %d\n", done_frames);
+            break;
+        }
+        if (!skip_armed) {
+            if (!skipHeld)
+                skip_armed = 1;
+        } else if (skipHeld) {
             printf("[FMV] Skipped at frame %d\n", done_frames);
             break;
         }
@@ -819,6 +833,10 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
     SDL_FlushEvent(SDL_KEYDOWN);
     SDL_FlushEvent(SDL_KEYUP);
 
+    /* Skip is armed only after the skip keys have been seen released once —
+     * see PlayFromBin for why (keystroke that started playback still held). */
+    int skip_armed = 0;
+
     /* Main playback loop */
     while (1)
     {
@@ -831,9 +849,12 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         /* Check for skip using keyboard state (event-independent) */
         SDL_PumpEvents();
         const Uint8* keystate = SDL_GetKeyboardState(NULL);
-        if (keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
-            keystate[SDL_SCANCODE_SPACE])
-        {
+        int skipHeld = keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
+                       keystate[SDL_SCANCODE_SPACE];
+        if (!skip_armed) {
+            if (!skipHeld)
+                skip_armed = 1;
+        } else if (skipHeld) {
             printf("[FMV] Skipped at frame %d/%d\n", done_frames, avi_header.TotalNumberOfFrames);
             break;
         }
