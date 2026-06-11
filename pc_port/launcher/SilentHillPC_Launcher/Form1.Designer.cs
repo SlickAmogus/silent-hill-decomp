@@ -146,7 +146,7 @@ partial class Form1
             "Fullscreen",
             "Windowed",
             "Borderless"});
-            this.comboFullscreen.Location = new System.Drawing.Point(80, 120);
+            this.comboFullscreen.Location = new System.Drawing.Point(80, 123);
             this.comboFullscreen.Name = "comboFullscreen";
             this.comboFullscreen.Size = new System.Drawing.Size(120, 21);
             this.comboFullscreen.TabIndex = 16;
@@ -380,7 +380,7 @@ partial class Form1
             this.fullscreenLabel.AutoSize = true;
             this.fullscreenLabel.Location = new System.Drawing.Point(6, 125);
             this.fullscreenLabel.Name = "fullscreenLabel";
-            this.fullscreenLabel.Size = new System.Drawing.Size(58, 13);
+            this.fullscreenLabel.Size = new System.Drawing.Size(44, 13);
             this.fullscreenLabel.TabIndex = 2;
             this.fullscreenLabel.Text = "Display:";
             // 
