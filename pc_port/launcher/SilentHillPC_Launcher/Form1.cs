@@ -87,15 +87,15 @@ public partial class Form1 : Form
 
         const string fullscreenTip =
             "Run the game fullscreen at the chosen resolution.\n" +
-            "Off = windowed at the chosen resolution.";
+            "No = windowed at the chosen resolution.";
         Set(fullscreenLabel,    fullscreenTip);
         Set(radioFullscreenYes, fullscreenTip);
         Set(radioFullscreenNo,  fullscreenTip);
 
         const string vsyncTip =
             "Synchronize frame presentation to your monitor's refresh rate.\n" +
-            "On = no tearing, may add a frame of input latency.\n" +
-            "Off = lowest latency, possible tearing.";
+            "Yes = no tearing, may add a frame of input latency.\n" +
+            "No = lowest latency, possible tearing.";
         Set(vsyncLabel,     vsyncTip);
         Set(radioVsyncYes,  vsyncTip);
         Set(radioVsyncNo,   vsyncTip);
@@ -115,20 +115,20 @@ public partial class Form1 : Form
         Set(comboFiltering, filteringTip);
 
         const string pgxpTip =
-            "WORK IN PROGRESS — leave Off for now.\n" +
+            "WORK IN PROGRESS — leave set to No for now.\n" +
             "PGXP gives sub-pixel-precision GTE coords (no PSX vertex jitter)\n" +
             "and perspective-correct texture mapping. Many prim emit sites\n" +
             "are still being migrated, so most of the game looks worse with\n" +
-            "this on until the wiring is finished.";
+            "this enabled until the wiring is finished.";
         Set(pgxpLabel,  pgxpTip);
         Set(pgxpYes,    pgxpTip);
         Set(pgxpNo,     pgxpTip);
 
         const string cullingTip =
             "Disable the game's aggressive PSX view culling.\n" +
-            "On = render everything (recommended) — stops fences, trees and\n" +
+            "Yes = render everything (recommended) — stops fences, trees and\n" +
             "      other geometry from popping in/out as the camera turns.\n" +
-            "Off = original PSX behavior (objects culled by view angle).";
+            "No = original PSX behavior (objects culled by view angle).";
         Set(cullLabel,        cullingTip);
         Set(radioCullingYes,  cullingTip);
         Set(radioCullingNo,   cullingTip);
@@ -136,7 +136,7 @@ public partial class Form1 : Form
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
             "them in as you walk. Eliminates pop-in but uses more memory\n" +
-            "and lengthens the initial load. Yes is recommended; Off =\n" +
+            "and lengthens the initial load. Yes is recommended; No =\n" +
             "original PSX streaming.";
         Set(chunksLabel,      preloadTip);
         Set(radioPreloadYes,  preloadTip);
@@ -162,7 +162,7 @@ public partial class Form1 : Form
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
             "Required for diagnosing crashes/regressions; small disk-write\n" +
-            "overhead. Leave on if you might report a bug.";
+            "overhead. Leave set to Yes if you might report a bug.";
         Set(loggingLabel,  loggingTip);
         Set(loggingYes,    loggingTip);
         Set(loggingNo,     loggingTip);
@@ -178,7 +178,7 @@ public partial class Form1 : Form
         const string looseTip =
             "Allow the game to load replacement assets from\n" +
             "gamedata/load/{folder}/{name}.{ext} instead of the packed\n" +
-            "originals. Enables texture mods. Off = packed assets only.";
+            "originals. Enables texture mods. No = packed assets only.";
         Set(looseLabel,  looseTip);
         Set(looseYes,    looseTip);
         Set(looseNo,     looseTip);

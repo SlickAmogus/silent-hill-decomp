@@ -37,6 +37,13 @@ public class ControlsForm : Form
         new[] { "Select",           "key_select" },
     };
 
+    // PC-only hotkeys, shown under the PSX binds with a small gap.
+    private static readonly string[][] QuickBinds =
+    {
+        new[] { "Quick Save",       "key_quicksave" },
+        new[] { "Quick Load",       "key_quickload" },
+    };
+
     private static readonly string[][] ControllerBinds =
     {
         new[] { "Action / Shoot",   "pad_cross" },
@@ -68,6 +75,7 @@ public class ControlsForm : Form
         { "key_cross", "C" }, { "key_circle", "V" }, { "key_triangle", "Z" }, { "key_square", "X" },
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
         { "key_l3", "[" }, { "key_r3", "]" }, { "key_start", "Return" }, { "key_select", "Space" },
+        { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -127,28 +135,12 @@ public class ControlsForm : Form
         AddHeader("Controller Controls", colPadX, headerY);
 
         for (int i = 0; i < KeyboardBinds.Length; i++)
-        {
-            int y = rowY0 + i * rowH;
-            AddLabel(KeyboardBinds[i][0], colKbX, y, labelW);
+            AddKeyRow(KeyboardBinds[i][0], KeyboardBinds[i][1], colKbX, rowY0 + i * rowH, labelW, inputW);
 
-            TextBox tb = new TextBox
-            {
-                Left = colKbX + labelW,
-                Top = y - 3,
-                Width = inputW,
-                ReadOnly = true,           // click-to-rebind; no free typing
-                Cursor = Cursors.Hand,
-                BackColor = PanelBack,
-                ForeColor = TextColor,
-                BorderStyle = BorderStyle.FixedSingle,
-            };
-            tb.Enter += KeyBox_Enter;
-            tb.Leave += KeyBox_Leave;
-            tb.PreviewKeyDown += KeyBox_PreviewKeyDown; // make arrows/Tab reach KeyDown
-            tb.KeyDown += KeyBox_KeyDown;
-            inputs[KeyboardBinds[i][1]] = tb;
-            Controls.Add(tb);
-        }
+        // Quick Save / Quick Load: under the PSX binds, set off by a small gap.
+        int quickY0 = rowY0 + KeyboardBinds.Length * rowH + 12;
+        for (int i = 0; i < QuickBinds.Length; i++)
+            AddKeyRow(QuickBinds[i][0], QuickBinds[i][1], colKbX, quickY0 + i * rowH, labelW, inputW);
 
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
@@ -171,24 +163,12 @@ public class ControlsForm : Form
         }
 
         // Below the (taller) keyboard column.
-        int debugY = rowY0 + KeyboardBinds.Length * rowH + 16;
+        int debugY = quickY0 + QuickBinds.Length * rowH + 16;
         AddLabel("Allow debug controls:", colKbX, debugY, 150);
         debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         Controls.Add(debugYes);
         Controls.Add(debugNo);
-
-        Label note = new Label
-        {
-            Text = "Click a keyboard box and press the key you want. Controller buttons pick from the list. " +
-                   "NONE = unbound. D-pad and analog sticks are reserved for movement.",
-            Left = colKbX,
-            Top = debugY + 30,
-            Width = ClientSize.Width - 40,
-            Height = 34,
-            ForeColor = Color.Silver,
-        };
-        Controls.Add(note);
 
         Button btnReset = new Button { Text = "Reset to Defaults", Width = 130, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
         btnReset.Left = 20;
@@ -226,6 +206,29 @@ public class ControlsForm : Form
     private void AddLabel(string text, int x, int y, int w)
     {
         Controls.Add(new Label { Text = text, Left = x, Top = y, Width = w, ForeColor = TextColor });
+    }
+
+    private void AddKeyRow(string label, string cfgKey, int x, int y, int labelW, int inputW)
+    {
+        AddLabel(label, x, y, labelW);
+
+        TextBox tb = new TextBox
+        {
+            Left = x + labelW,
+            Top = y - 3,
+            Width = inputW,
+            ReadOnly = true,           // click-to-rebind; no free typing
+            Cursor = Cursors.Hand,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+        tb.Enter += KeyBox_Enter;
+        tb.Leave += KeyBox_Leave;
+        tb.PreviewKeyDown += KeyBox_PreviewKeyDown; // make arrows/Tab reach KeyDown
+        tb.KeyDown += KeyBox_KeyDown;
+        inputs[cfgKey] = tb;
+        Controls.Add(tb);
     }
 
     // --- Keyboard rebind capture ----------------------------------------

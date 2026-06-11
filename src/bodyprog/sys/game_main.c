@@ -1247,6 +1247,12 @@ void MainLoop(void) // 0x80032EE0
                 g_Controller0->sticks_24.rawData_0 = 0;
             }
         }
+
+        /* Quick Save (F6) / Quick Load (F8) — always on, not debug-gated. */
+        {
+            extern void Pc_QuickSaveLoadUpdate(void);
+            Pc_QuickSaveLoadUpdate();
+        }
 #endif
 
         if (MainLoop_ShouldWarmReset() == 2)
