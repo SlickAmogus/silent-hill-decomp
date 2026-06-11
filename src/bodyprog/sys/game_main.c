@@ -1269,6 +1269,13 @@ void MainLoop(void) // 0x80032EE0
             extern void Pc_QuickSaveLoadUpdate(void);
             Pc_QuickSaveLoadUpdate();
         }
+
+        /* Console `fmv`: once the fade-out it started lands, this blocks in
+         * FMV_Play and fades back in afterwards. */
+        {
+            extern void Pc_ConsoleFmvUpdate(void);
+            Pc_ConsoleFmvUpdate();
+        }
 #endif
 
         if (MainLoop_ShouldWarmReset() == 2)

@@ -9,12 +9,14 @@
  *   MAP <name>           - new-game warp to a map (mirrors title.c auto-start)
  *   GIVE <thing>         - HANDGUN / RIFLE / SHOTGUN / AMMO / HEALTH
  *   NOCLIP               - toggle walking through walls (player only)
- *   FMV                  - list all FMV names
- *   FMV <name>           - play an FMV
+ *   FMV                  - list all FMV names (numbered)
+ *   FMV <name|number>    - play an FMV (fades out, plays, fades back in)
+ *   FMV INTROn / ENDn    - alias for the nth intro (C*) / ending (Z*) movie
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/items.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "sh_log.h"
 #include "map_registry.h"
 #include "dbg_overlay.h"
@@ -139,35 +141,97 @@ static void cmd_give(const char* arg)
     }
 }
 
+/* FMV start is deferred so the screen can fade to black first, like the
+ * game's own movie transitions: cmd_fmv arms the pending index and starts a
+ * fade-out; Pc_ConsoleFmvUpdate (called every frame from MainLoop) blocks in
+ * FMV_Play once the fade lands, then fades back in. */
+static int s_pendingFmvFileIdx = -1;
+
+void Pc_ConsoleFmvUpdate(void)
+{
+    int fileIdx;
+
+    if (s_pendingFmvFileIdx < 0 || !ScreenFade_IsFinished())
+        return;
+
+    fileIdx             = s_pendingFmvFileIdx;
+    s_pendingFmvFileIdx = -1;
+    FMV_Play(fileIdx, 0);
+    ScreenFade_Start(true, true, false);
+}
+
 static void cmd_fmv(const char* arg)
 {
     int i, count = FMV_GetCount();
+    int pick = -1;
 
     if (!arg[0]) {
         char line[64];
         int  used = 0;
         line[0] = '\0';
         for (i = 0; i < count; i++) {
-            const char* nm = FMV_GetName(i);
-            if (used + (int)strlen(nm) + 1 >= 60) {
+            char entry[24];
+            snprintf(entry, sizeof(entry), "%d=%s", i + 1, FMV_GetName(i));
+            if (used + (int)strlen(entry) + 1 >= 60) {
                 DbgOverlay_PushLine(line);
                 line[0] = '\0';
                 used    = 0;
             }
-            used += snprintf(line + used, sizeof(line) - used, "%s%s", used ? " " : "", nm);
+            used += snprintf(line + used, sizeof(line) - used, "%s%s", used ? " " : "", entry);
         }
         if (used) DbgOverlay_PushLine(line);
+        DbgOverlay_PushLine("also: fmv <number>, intro1-2, end1-5");
         return;
     }
 
-    for (i = 0; i < count; i++) {
-        if (strcmp(arg, FMV_GetName(i)) == 0) {
-            cprintf("Playing %s...", arg);
-            FMV_Play(FMV_GetFileIdx(i), 0);
+    /* Plain number: 1-based position in the list above. */
+    {
+        int digits = 1;
+        for (i = 0; arg[i]; i++) {
+            if (!isdigit((unsigned char)arg[i])) {
+                digits = 0;
+                break;
+            }
+        }
+        if (digits)
+            pick = atoi(arg) - 1;
+    }
+
+    /* INTROn / ENDn aliases: nth movie whose filename starts with C (the
+     * intros) or Z (the endings block), in disc order. */
+    if (pick < 0 && (strncmp(arg, "INTRO", 5) == 0 || strncmp(arg, "END", 3) == 0)) {
+        char lead = (arg[0] == 'I') ? 'C' : 'Z';
+        int  n    = atoi(arg + ((lead == 'C') ? 5 : 3));
+        int  seen = 0;
+
+        for (i = 0; i < count && pick < 0; i++) {
+            if (FMV_GetName(i)[0] == lead && ++seen == n)
+                pick = i;
+        }
+        if (pick < 0) {
+            cprintf("No such %s", (lead == 'C') ? "intro" : "ending");
             return;
         }
     }
-    cprintf("Unknown FMV: %s (try 'fmv' to list)", arg);
+
+    /* Full filename. */
+    if (pick < 0) {
+        for (i = 0; i < count; i++) {
+            if (strcmp(arg, FMV_GetName(i)) == 0) {
+                pick = i;
+                break;
+            }
+        }
+    }
+
+    if (pick < 0 || pick >= count) {
+        cprintf("Unknown FMV: %s (try 'fmv' to list)", arg);
+        return;
+    }
+
+    cprintf("Playing %s...", FMV_GetName(pick));
+    s_pendingFmvFileIdx = FMV_GetFileIdx(pick);
+    ScreenFade_Start(true, false, false);
 }
 
 /* line is the uppercase console input ('_' typed via the - key). */
@@ -190,7 +254,7 @@ void Pc_ConsoleExec(const char* line)
         SH_DBG("[CONSOLE] quit");
         exit(0);
     } else if (strcmp(cmd, "HELP") == 0) {
-        DbgOverlay_PushLine("quit map [name] give <thing> noclip fmv [name]");
+        DbgOverlay_PushLine("quit map [name] give <thing> noclip fmv [name|#|intro1|end1]");
     } else if (strcmp(cmd, "MAP") == 0) {
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
