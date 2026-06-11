@@ -38,6 +38,7 @@ namespace SH1Updater
             Shown += async (s, e) =>
             {
                 CleanupOldFiles();
+                EnsureGameDataFolder();
                 await RunCheckAsync();
             };
         }
@@ -105,6 +106,25 @@ namespace SH1Updater
         private void Log(string line)
         {
             txtLog.AppendText(line + Environment.NewLine);
+        }
+
+        /// <summary>
+        /// First-run bootstrap: the updater can download everything except the
+        /// disc image. Create gamedata/ and tell the user where the BIN goes.
+        /// </summary>
+        private void EnsureGameDataFolder()
+        {
+            string gamedata = Path.Combine(_installDir, "gamedata");
+            if (Directory.Exists(gamedata)) return;
+
+            try { Directory.CreateDirectory(gamedata); }
+            catch { return; }
+
+            Log("Created gamedata folder.");
+            MessageBox.Show(this,
+                "Please put Silent Hill (USA).bin in the gamedata folder!",
+                "Silent Hill PC — Updater",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>Delete *.old leftovers from previous in-place exe swaps.</summary>
