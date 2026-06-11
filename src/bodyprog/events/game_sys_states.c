@@ -76,7 +76,15 @@ static s32 g_DeltaTimeCpy;
 // GLOBAL VARIABLES
 // ========================================
 
-s_EventData* g_ItemTriggerEvents[];
+/* MUST be [5] to match g_ItemTriggerItemIds[5] and the registration loops.
+ * The previous unsized tentative definition compiled to ONE element, so
+ * registering 2+ item triggers (or the 5-slot clear loop) wrote s_EventData
+ * pointers/NULLs over the next BSS globals: D_800BCDA8 and D_800BCDB0 (the
+ * room-transition spawn point). That was both the historical "D_800BCDB0
+ * gets zeroed" mystery patched with the backup/restore hack below, and the
+ * otherworld-school item-door crash (spawn target = low half of a DLL
+ * pointer, 0xEC444444). */
+s_EventData* g_ItemTriggerEvents[5];
 s_800BCDA8   D_800BCDA8[2];
 s_MapPoint2d D_800BCDB0;
 s32          g_ItemTriggerItemIds[5];
