@@ -143,6 +143,17 @@ bool func_800CE164(POLY_FT4** poly, s32 idx) // 0x800CE164
     gte_stsxy(&scratch->field_134.vx);
     gte_stsz(&scratch->field_138);
 
+#ifdef SH_PC_PORT
+    /* PSX MIPS div-by-zero returns garbage without trapping; x86 idiv raises
+     * #DE. SZ saturates to 0 when a drip lands on/behind the camera plane
+     * (drain-valve cutscene warps the camera the same step the drips spawn).
+     * Skip the quad that frame — the PSX result was a garbage quad anyway. */
+    if (scratch->field_138 == 0)
+    {
+        return true;
+    }
+#endif
+
     var_lo = FP_TO((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0, Q12_SHIFT) / D_800E3A40[idx2].field_10;
 
     setPolyFT4(*poly);
