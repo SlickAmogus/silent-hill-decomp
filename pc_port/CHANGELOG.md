@@ -1,5 +1,17 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.1 -- 2026-06-11
+- Interactive console: hold ~ for Half-Life-style command input
+- Console commands: help, map, give, noclip, fmv
+- Log + flush FS queue WaitForEmpty timeout (was a silent escape)
+- Fix console Enter leaking into the game as Start
+- Fix drain-valve cutscene div-by-zero in map1_s03 drip draw
+- Console input: suppress controls after pad parse; remove menu half-boot
+- Quick Save/Load hotkeys (F6/F8) + console noclip fix + launcher tweaks
+- Fix console Enter leaking to main menu + FMV instant-skip from console
+- Console fmv: hide XA voice banks, list only real movies
+- Console fmv: fade transition, numeric indices, intro/end aliases
+
 ## v2026.06.10.10 -- 2026-06-10
 - Fix plates-door crash: raw PSX pointer as FS read destination
 - Crash telemetry, eclipse-door black background, world-object resolve trace
