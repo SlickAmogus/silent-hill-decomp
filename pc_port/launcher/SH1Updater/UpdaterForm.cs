@@ -110,21 +110,26 @@ namespace SH1Updater
 
         /// <summary>
         /// First-run bootstrap: the updater can download everything except the
-        /// disc image. Create gamedata/ and tell the user where the BIN goes.
+        /// disc image. Create gamedata/ if needed, and prompt whenever the BIN
+        /// itself is missing (covers an existing-but-empty gamedata folder).
         /// </summary>
         private void EnsureGameDataFolder()
         {
             string gamedata = Path.Combine(_installDir, "gamedata");
-            if (Directory.Exists(gamedata)) return;
+            if (!Directory.Exists(gamedata))
+            {
+                try { Directory.CreateDirectory(gamedata); }
+                catch { return; }
+                Log("Created gamedata folder.");
+            }
 
-            try { Directory.CreateDirectory(gamedata); }
-            catch { return; }
-
-            Log("Created gamedata folder.");
-            MessageBox.Show(this,
-                "Please put Silent Hill (USA).bin in the gamedata folder!",
-                "Silent Hill PC — Updater",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!File.Exists(Path.Combine(gamedata, "Silent Hill (USA).bin")))
+            {
+                MessageBox.Show(this,
+                    "Please put Silent Hill (USA).bin in the gamedata folder!",
+                    "Silent Hill PC — Updater",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
         }
 
         /// <summary>Delete *.old leftovers from previous in-place exe swaps.</summary>

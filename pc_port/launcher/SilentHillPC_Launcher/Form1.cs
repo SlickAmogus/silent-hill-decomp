@@ -22,7 +22,34 @@ public partial class Form1 : Form
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
-        this.Shown += (s, e) => SilentAutoCheckForUpdates();
+        this.Shown += (s, e) =>
+        {
+            CheckDiscImage();
+            SilentAutoCheckForUpdates();
+        };
+    }
+
+    /// <summary>
+    /// Warn at startup when the disc image is missing (creating gamedata/ if
+    /// needed). Gated on SilentHillPC.exe being present so dev runs from
+    /// bin\Release don't nag or scaffold stray folders.
+    /// </summary>
+    private void CheckDiscImage()
+    {
+        string dir = AppDomain.CurrentDomain.BaseDirectory;
+        if (!File.Exists(Path.Combine(dir, "SilentHillPC.exe"))) return;
+
+        string gamedata = Path.Combine(dir, "gamedata");
+        try { if (!Directory.Exists(gamedata)) Directory.CreateDirectory(gamedata); }
+        catch { return; }
+
+        if (!File.Exists(Path.Combine(gamedata, "Silent Hill (USA).bin")))
+        {
+            MessageBox.Show(this,
+                "Please put Silent Hill (USA).bin in the gamedata folder!",
+                "Silent Hill PC",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     /// <summary>
