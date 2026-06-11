@@ -1930,6 +1930,22 @@ void vcAutoRenewalCamTgtPos(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type, VC_CAM_MV_
         w_p->cam_tgt_pos.vy += tgt_vec.vy;
         w_p->cam_tgt_pos.vz += tgt_vec.vz;
 
+#ifdef SH_PC_PORT
+        /* This branch is entered when dt != 0 OR the warp flag is set — a
+         * camera warp on a dt==0 frame (console freeze, sub-hblank frame at
+         * uncapped fps; PSX dt was never 0 here) reached the divide below
+         * and faulted (user crash SilentHillPC.exe vcAutoRenewalCamTgtPos).
+         * Velocity is delta/dt; report 0 for an instantaneous warp. */
+        if (g_DeltaTime == Q12(0.0f))
+        {
+            w_p->cam_tgt_velo.vx = Q12(0.0f);
+            w_p->cam_tgt_velo.vy = Q12(0.0f);
+            w_p->cam_tgt_velo.vz = Q12(0.0f);
+            w_p->cam_tgt_spd     = Q12(0.0f);
+            return;
+        }
+#endif
+
         w_p->cam_tgt_velo.vx = Q12(tgt_vec.vx) / g_DeltaTime;
         w_p->cam_tgt_velo.vy = Q12(tgt_vec.vy) / g_DeltaTime;
         w_p->cam_tgt_velo.vz = Q12(tgt_vec.vz) / g_DeltaTime;
