@@ -761,22 +761,34 @@ void DbgOverlay_Update(void)
                 }
             }
         }
+        /* Space separates command from argument; `-` types `_` (map and FMV
+         * names use underscores, and the console has no shift handling). */
+        if (ks[SDL_SCANCODE_SPACE] && !s_prev_keys[SDL_SCANCODE_SPACE] &&
+            s_input_len > 0 && s_input_len < INPUT_BUF_CAP - 1) {
+            s_input_buf[s_input_len++] = ' ';
+            s_input_buf[s_input_len]   = '\0';
+            s_console_dirty            = 1;
+        }
+        if (ks[SDL_SCANCODE_MINUS] && !s_prev_keys[SDL_SCANCODE_MINUS] &&
+            s_input_len < INPUT_BUF_CAP - 1) {
+            s_input_buf[s_input_len++] = '_';
+            s_input_buf[s_input_len]   = '\0';
+            s_console_dirty            = 1;
+        }
         if (ks[SDL_SCANCODE_BACKSPACE] && !s_prev_keys[SDL_SCANCODE_BACKSPACE] && s_input_len > 0) {
             s_input_buf[--s_input_len] = '\0';
             s_console_dirty            = 1;
         }
         if (ks[SDL_SCANCODE_RETURN] && !s_prev_keys[SDL_SCANCODE_RETURN]) {
+            extern void Pc_ConsoleExec(const char* line);
             char echo[LINE_LEN];
             snprintf(echo, LINE_LEN, "> %s", s_input_buf);
             push_console(echo);
-            if (strcmp(s_input_buf, "QUIT") == 0) {
-                SH_DBG("[CONSOLE] quit");
-                exit(0);
-            } else if (s_input_len > 0) {
-                push_console("Command not found!");
-            }
-            g_PcConsoleInputActive = 0; /* enter submits AND unpauses */
-            s_console_dirty        = 1;
+            g_PcConsoleInputActive = 0; /* enter submits AND unpauses (before
+                                         * exec so map/fmv run with live time) */
+            if (s_input_len > 0)
+                Pc_ConsoleExec(s_input_buf);
+            s_console_dirty = 1;
         }
     }
     {

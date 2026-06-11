@@ -190,6 +190,18 @@ s32 Collision_WallDetect(s_CollisionResult* collResult, const VECTOR3* moveOffse
     s32 stackPtr;
     s32 response;
 
+#ifdef SH_PC_PORT
+    /* Console `noclip`: the player ignores walls (floor queries are separate,
+     * so Harry still walks on ground). Debug-only, off by default. */
+    {
+        extern int g_PcNoclip;
+        if (g_PcNoclip && chara == &g_SysWork.playerWork.player) {
+            memset(collResult, 0, sizeof(*collResult));
+            return 0;
+        }
+    }
+#endif
+
     stackPtr = SetSp(PSX_SCRATCH_ADDR(0x3D8));
     response = Collision_WallResponse(collResult, moveOffset, chara, Collision_CharaCollisionSetup(collResult, moveOffset, chara));
     SetSp(stackPtr);
