@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.4 -- 2026-06-11
+- Update to test launcher self-update functionality.
+
 ## v2026.06.11.3 -- 2026-06-11
 - SH1Updater: create gamedata/ on first run + disc image prompt
 - Disc image presence check in updater + launcher
