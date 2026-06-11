@@ -170,6 +170,14 @@ reverted fork pointer-width fixes back to `s32`. Symptom: faulting address like
 - **`s_CharaAnimData.allocAddr` — school save-load crash.** Field used as a pointer
   was `s32`; widened on PC.
   commit [`301061e86`](https://github.com/SlickAmogus/silent-hill-decomp/commit/301061e86)
+- **Split Head boss crash — decompiled PSX stack-frame aliasing.** The matched
+  idiom `ptr = &sp18[i * 16] + 32` encodes "sp38 sits 0x20 past sp18 in the PSX
+  frame"; PC local layout differs, so the alias write smashed the stack and a
+  garbage index AV'd (`map1_s05.dll+0x586E`, two user dumps, deterministic).
+  PC path uses `&sp38[i]` directly. Swept all of `src/` for the
+  `&local[idx * stride] + offset` signature — this was the only instance.
+  [`split_head.c` `sharedFunc_800D3388_1_s05`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/split_head.c#L1437) ·
+  commit [`e14be74b7`](https://github.com/SlickAmogus/silent-hill-decomp/commit/e14be74b7)
 - General guidance on finding these lives in
   [`struct_offset_portability.md`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/docs/struct_offset_portability.md).
 
