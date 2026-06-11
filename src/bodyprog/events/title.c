@@ -70,36 +70,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         }
     }
 
-    /* Auto-start: for non-default maps, skip the menu and go directly to gameplay.
-     * map0_s00 always shows the main menu so the user can navigate it normally.
-     * skip_intros only skips logos; the menu itself is still shown for map0_s00. */
-    {
-        static int autoStartDone = 0;
-        if (!autoStartDone && g_GameWork.gameStateSteps[0] == 1 &&
-            strcmp(g_PcConfig.mapName, "map0_s00") != 0)
-        {
-            autoStartDone = 1;
-
-            int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
-            if (mapId < 0) mapId = 0;
-            GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
-            GameBoot_PlayerInit();
-            g_SysWork.processFlags = ProcessFlag_NewGame;
-            GameBoot_MapLoad(g_SavegamePtr->mapIdx);
-            GameFs_StreamBinLoad();
-
-            Fs_QueueWaitForEmpty();
-            Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
-            MemCard_SysDisable();
-            g_SysWork.counters_1C[0]        = 0;
-            g_SysWork.counters_1C[1]        = 0;
-            g_GameWork.gameStateSteps[0]  = 0;
-            g_GameWork.gameStateSteps[1]  = 0;
-            g_GameWork.gameStateSteps[2]  = 0;
-            SysWork_StateSetNext(SysState_Gameplay);
-            return;
-        }
-    }
+    /* The old "auto-start" block that lived here ran the entire boot pipeline
+     * (savegame init, map DLL load, STREAM.BIN load, FS wait, memcard disable)
+     * on the first menu frame for any non-map0_s00 config — but never switched
+     * g_GameWork.gameState, so the menu kept displaying over a half-booted
+     * map. Mostly invisible because New Game re-initializes everything, but
+     * maps whose load path differs (map4_s00) crashed at the menu. The config
+     * map must have NO effect until New Game selects it (title.c New Game
+     * path below). */
 #endif
     #define MAIN_MENU_GAME_STATE_COUNT 5
 
