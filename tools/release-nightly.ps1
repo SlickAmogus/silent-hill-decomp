@@ -6,6 +6,7 @@
 #   - Prepends the new release section to local CHANGELOG.md (so the uploaded
 #     copy already contains this release's notes).
 #   - Hashes the local build files (SilentHillPC.exe + maps/*.dll + CHANGELOG.md
+#     + runtime DLLs in the build root (MinGW/SDL2/OpenAL/libjpeg)
 #     + SilentHillPC_Launcher.exe from the launcher solution's Release output;
 #     warns and skips/carries-forward if it isn't built).
 #   - Diffs against the manifest. If nothing changed, exits.
@@ -167,6 +168,14 @@ $localFiles["SilentHillPC.exe"] = Get-Sha256 $exe
 Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
     $rel = "maps/" + $_.Name
     $localFiles[$rel] = Get-Sha256 $_.FullName
+}
+
+# Runtime DLLs next to the exe (MinGW runtime, SDL2, OpenAL, libjpeg). They
+# almost never change: the hash diff uploads them once, and later manifests
+# keep pointing at the release that shipped them — users who lack them get
+# them on their next update, everyone else skips them.
+Get-ChildItem $BuildDir -Filter "*.dll" | ForEach-Object {
+    $localFiles[$_.Name] = Get-Sha256 $_.FullName
 }
 
 if (Test-Path $changelogPath) {
