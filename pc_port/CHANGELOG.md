@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.9 -- 2026-06-11
+- Fix fog-color flash during puzzle key insertion
+- Fix two user-reported div-by-zero crashes (school key + camera warp)
+
 ## v2026.06.11.8 -- 2026-06-11
 - [SPEED] probe: gate on logging instead of debug controls
 - Guard SdUtKeyOnV against garbage VAB images (unused map6_s05 crash)
