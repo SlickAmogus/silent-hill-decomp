@@ -54,6 +54,11 @@ u16 sharedData_800D1D1C_3_s02[60] = {
     0x0002, 0x000A, 0x000E, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 };
 
+// 0x800D6B54  size 0x4 (4 bytes)
+u16 D_800D6B54[2] = {
+    0x1233, 0x0000
+};
+
 // 0x800D6B58  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 12 B from ROM
 u8 sharedData_800D4CD4_3_s01[256] = {

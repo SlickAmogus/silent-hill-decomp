@@ -78,6 +78,11 @@ u8 sharedData_800ED458_4_s02[256] = {
     0x80, 0x80, 0x60, 0x50, 0x50, 0x70, 0x00, 0x00
 };
 
+// 0x800DB92C  size 0x4 (4 bytes)
+u16 D_800DB92C[2] = {
+    0x1175, 0x0000
+};
+
 // 0x800DB930  size 0x3C (60 bytes)
 s_WorldObjectPose g_CommonWorldObjectPoses[3] = {
     { { 891904, -2048, -70860 }, { 0, 1160, 0 } },

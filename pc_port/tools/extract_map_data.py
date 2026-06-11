@@ -116,6 +116,46 @@ TARGETS = {
     "sharedData_800ECA4C_2_s02":        ("s32", 4),
     "sharedData_800ECACC_2_s02":        ("s32", 4),
     "sharedData_800ECBD0_2_s02":        ("s16", 2),
+    # Cutscene voice-command tables (Event_DisplayMapMsgWithAudio /
+    # Map_MessageWithAudio third arg): u16 SD_Call commands (0x1xxx = XA
+    # voice line), one per dialogue page. All 32 were zero stubs — SD_Call(0)
+    # is a no-op, so every cutscene using a raw D_*-named table played NO
+    # voices, while maps whose table got the g_Cutscene_MapMsgAudioCmds name
+    # were extracted and worked. Headers declare these as scalar `extern
+    # u16`, so auto-discovery never saw an array; they enter via
+    # EXTRA_SYMBOLS like the BGM limit tables.
+    "D_800D24F0":                       ("u16", 2),  # map3_s00 voices
+    "D_800D26D0":                       ("u16", 2),  # map3_s06 voices
+    "D_800D31C4":                       ("u16", 2),  # map7_s00 voices
+    "D_800D3734":                       ("u16", 2),  # map4_s04 voices
+    "D_800D3778":                       ("u16", 2),  # map4_s04 voices
+    "D_800D3B40":                       ("u16", 2),  # map6_s02 voices
+    "D_800D3B6C":                       ("u16", 2),  # map6_s02 voices
+    "D_800D3BDC":                       ("u16", 2),  # map5_s03 voices
+    "D_800D4108":                       ("u16", 2),  # map6_s01 voices
+    "D_800D599C":                       ("u16", 2),  # map3_s04 voices
+    "D_800D6B54":                       ("u16", 2),  # map3_s03 voices
+    "D_800D775C":                       ("u16", 2),  # map1_s06 voices
+    "D_800D7D74":                       ("u16", 2),  # map4_s05 voices
+    "D_800D947C":                       ("u16", 2),  # map5_s02 voices (Dahlia)
+    "D_800DAC70":                       ("u16", 2),  # map3_s05 voices
+    "D_800DB92C":                       ("u16", 2),  # map4_s03 voices
+    "D_800E14E8":                       ("u16", 2),  # map7_s01 voices
+    "D_800E1500":                       ("u16", 2),  # map7_s01 voices
+    "D_800E9CE4":                       ("u16", 2),  # map7_s02 voices
+    "D_800E9CFC":                       ("u16", 2),  # map7_s02 voices
+    "D_800E9D30":                       ("u16", 2),  # map7_s02 voices
+    "D_800E9D50":                       ("u16", 2),  # map7_s02 voices
+    "D_800EBA34":                       ("u16", 2),  # map6_s04 voices
+    "D_800EBA64":                       ("u16", 2),  # map6_s04 voices
+    "D_800ED768":                       ("u16", 2),  # map7_s03 voices
+    "D_800ED77C":                       ("u16", 2),  # map7_s03 voices
+    "D_800ED7B4":                       ("u16", 2),  # map7_s03 voices
+    "D_800ED88C":                       ("u16", 2),  # map7_s03 voices
+    "D_800ED898":                       ("u16", 2),  # map7_s03 voices
+    "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
+    "D_800F0038":                       ("u16", 2),  # map6_s00 voices
+    "D_800F0174":                       ("u16", 2),  # map5_s01 voices
 }
 
 # MAP_ROOM_IDXS byte size = strideX * strideZ, stride = (MAX - MIN) / CHUNK_CELL_SIZE
@@ -153,10 +193,46 @@ EXTRA_SYMBOLS = {
     "map1_s01": [("D_800DC9FC", 0x800DC9FC, 8), ("D_800DCA04", 0x800DCA04, 84)],
     "map1_s04": [("D_800CCF54", 0x800CCF54, 8)],
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
-    "map1_s06": [("D_800D71E8", 0x800D71E8, 8)],
+    "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
+                 ("D_800D775C", 0x800D775C, 8)],
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44)],
-    "map5_s01": [("D_800EFC74", 0x800EFC74, 8)],
+    "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
+                 ("D_800F0174", 0x800F0174, 24)],
     "map6_s03": [("D_800DBCDC", 0x800DBCDC, 8)],
+    # Cutscene voice-command tables (see TARGETS). Sizes = gap to the next
+    # known symbol (same-cluster D_* table where adjacent, else the next
+    # sym-file symbol). Over-extraction copies inert ROM bytes — the scenes
+    # index only as many entries as they have dialogue pages.
+    "map3_s00": [("D_800D24F0", 0x800D24F0, 76)],
+    "map3_s03": [("D_800D6B54", 0x800D6B54, 4)],
+    "map3_s04": [("D_800D599C", 0x800D599C, 64)],
+    "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
+    "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
+    "map4_s03": [("D_800DB92C", 0x800DB92C, 4)],
+    "map4_s04": [("D_800D3734", 0x800D3734, 68),
+                 ("D_800D3778", 0x800D3778, 64)],
+    "map4_s05": [("D_800D7D74", 0x800D7D74, 4)],
+    "map5_s02": [("D_800D947C", 0x800D947C, 32)],
+    "map5_s03": [("D_800D3BDC", 0x800D3BDC, 32)],
+    "map6_s00": [("D_800F0038", 0x800F0038, 8)],
+    "map6_s01": [("D_800D4108", 0x800D4108, 32)],
+    "map6_s02": [("D_800D3B40", 0x800D3B40, 4),
+                 ("D_800D3B6C", 0x800D3B6C, 272)],
+    "map6_s04": [("D_800EBA34", 0x800EBA34, 48),
+                 ("D_800EBA64", 0x800EBA64, 210)],
+    "map7_s00": [("D_800D31C4", 0x800D31C4, 12)],
+    "map7_s01": [("D_800E14E8", 0x800E14E8, 24),
+                 ("D_800E1500", 0x800E1500, 112)],
+    "map7_s02": [("D_800E9CE4", 0x800E9CE4, 24),
+                 ("D_800E9CFC", 0x800E9CFC, 52),
+                 ("D_800E9D30", 0x800E9D30, 32),
+                 ("D_800E9D50", 0x800E9D50, 64)],
+    "map7_s03": [("D_800ED768", 0x800ED768, 20),
+                 ("D_800ED77C", 0x800ED77C, 56),
+                 ("D_800ED7B4", 0x800ED7B4, 216),
+                 ("D_800ED88C", 0x800ED88C, 12),
+                 ("D_800ED898", 0x800ED898, 284),
+                 ("D_800ED9B4", 0x800ED9B4, 68)],
 }
 
 # Hard size overrides (bytes). Used where the sym-file annotation or the

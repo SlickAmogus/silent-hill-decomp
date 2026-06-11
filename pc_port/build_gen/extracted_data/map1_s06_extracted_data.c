@@ -104,6 +104,11 @@ u8 D_800D71E8[8] = {
     0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
 };
 
+// 0x800D775C  size 0x8 (8 bytes)
+u16 D_800D775C[4] = {
+    0x1045, 0x1048, 0x0000, 0x0000
+};
+
 // 0x800D7774  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 16 B from ROM
 u8 sharedData_800D5CF8_1_s05[256] = {
