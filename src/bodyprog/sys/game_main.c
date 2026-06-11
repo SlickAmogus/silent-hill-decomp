@@ -1295,6 +1295,8 @@ void MainLoop(void) // 0x80032EE0
             static Uint64  s_spdT0;
             static VECTOR3 s_spdPrev;
             static s64     s_spdAccumSq; /* sum of per-frame |dXZ| in Q12 */
+            static s64     s_animAccum;  /* sum of forward anim.time deltas (Q12 kf) */
+            static s32     s_prevAnimT;
             static int     s_spdFrames, s_spdInit;
             s_SubCharacter* pl  = &g_SysWork.playerWork.player;
             Uint64          now = SDL_GetPerformanceCounter();
@@ -1314,20 +1316,34 @@ void MainLoop(void) // 0x80032EE0
                 s_spdPrev     = pl->position;
                 s_spdFrames++;
 
+                /* Anim playback rate: forward anim.time deltas only (loop
+                 * wraps go negative and are skipped). animKf/s should be
+                 * fps-invariant if the anim clock is wall-correct. */
+                {
+                    s32 at = pl->model.anim.time;
+                    s32 ad = at - s_prevAnimT;
+                    s_prevAnimT = at;
+                    if (ad > 0 && ad < Q12(5.0f))
+                        s_animAccum += ad;
+                }
+
                 {
                     double el = (double)(now - s_spdT0) / (double)SDL_GetPerformanceFrequency();
                     if (el >= 1.0) {
                         if (s_spdAccumSq > Q12(0.2f)) {
                             extern s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ);
-                            SH_DBG("[SPEED] %.2f u/s fps=%.0f moveSpeed=%.2f zone=%d state=%d",
+                            SH_DBG("[SPEED] %.2f u/s fps=%.0f moveSpeed=%.2f zone=%d state=%d animKf/s=%.1f anim=%d",
                                    ((double)s_spdAccumSq / 4096.0) / el,
                                    (double)s_spdFrames / el,
                                    (double)pl->moveSpeed / 4096.0,
                                    (int)Map_SpeedZoneTypeGet(pl->position.vx, pl->position.vz),
-                                   (int)g_SysWork.playerWork.extra.lowerBodyState);
+                                   (int)g_SysWork.playerWork.extra.lowerBodyState,
+                                   ((double)s_animAccum / 4096.0) / el,
+                                   (int)pl->model.anim.status);
                         }
                         s_spdT0      = now;
                         s_spdAccumSq = 0;
+                        s_animAccum  = 0;
                         s_spdFrames  = 0;
                     }
                 }
