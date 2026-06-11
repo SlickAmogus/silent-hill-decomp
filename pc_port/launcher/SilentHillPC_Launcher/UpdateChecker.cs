@@ -170,62 +170,14 @@ namespace SilentHillPC_Launcher
             }
         }
 
-        /// <summary>
-        /// Bootstrap helper: download ONE file by its manifest path (the
-        /// launcher fetching SH1Updater.exe when it's missing). Verifies the
-        /// hash before installing, like the full flow.
-        /// </summary>
-        public static async Task DownloadSingleFileAsync(string installDir, string manifestPath)
-        {
-            var manifest = await FetchManifestAsync().ConfigureAwait(false);
-
-            FileEntry entry = null;
-            foreach (var f in manifest.Files)
-            {
-                if (string.Equals(f.Path, manifestPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    entry = f;
-                    break;
-                }
-            }
-            if (entry == null)
-                throw new Exception($"{manifestPath} is not in the update manifest.");
-
-            string tmpFile = Path.Combine(Path.GetTempPath(),
-                "sh-boot-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".tmp");
-            try
-            {
-                using (var resp = await _http.GetAsync(entry.Url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
-                {
-                    resp.EnsureSuccessStatusCode();
-                    using (var fs = new FileStream(tmpFile, FileMode.Create, FileAccess.Write, FileShare.None))
-                    using (var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    {
-                        await stream.CopyToAsync(fs).ConfigureAwait(false);
-                    }
-                }
-
-                string actualHash = Sha256Of(tmpFile);
-                if (actualHash != entry.Sha256.ToLowerInvariant())
-                    throw new Exception($"Hash mismatch for {manifestPath}: expected {entry.Sha256}, got {actualHash}.");
-
-                string dst = Path.Combine(installDir, manifestPath.Replace('/', Path.DirectorySeparatorChar));
-                ReplaceFile(tmpFile, dst);
-            }
-            finally
-            {
-                try { File.Delete(tmpFile); } catch { /* best effort */ }
-            }
-        }
-
         // -- Helpers ----------------------------------------------------------
 
         /// <summary>
-        /// Copy with a locked-target fallback. A running exe (the launcher or
-        /// SH1Updater updating itself) can't be overwritten, but Windows DOES
-        /// allow renaming it — so move the live file aside to *.old and copy
-        /// the fresh one into place. The new exe is picked up on next launch;
-        /// stale *.old files are deleted on the updater's next startup.
+        /// Copy with a locked-target fallback. A running exe (the launcher
+        /// updating itself) can't be overwritten, but Windows DOES allow
+        /// renaming it — so move the live file aside to *.old and copy the
+        /// fresh one into place. The new exe is picked up on next launch;
+        /// stale *.old files are deleted at launcher startup.
         /// </summary>
         private static void ReplaceFile(string src, string dst)
         {
