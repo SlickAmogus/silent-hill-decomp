@@ -1327,6 +1327,17 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         return;
     }
 
+    /* The world fog path reprograms the GTE depth-cue registers every frame
+     * in fog-enabled maps (gte_lddqa(g_WorldEnvWork.field_4C) + DQB=0 in
+     * bodyprog_80055028.c). Our TMD renderers bucket prims by IR0 (`p` from
+     * RotTransPers), so under the world's coefficients p<=0 at item depth
+     * and EVERY prim of the pickup/inventory preview got dropped — previews
+     * showed in the unfogged school but vanished in foggy/dark maps.
+     * Re-assert the calibration from ItemScreen GS init; the world reloads
+     * its own values before each fogged batch, so no restore is needed. */
+    SetDQA(1024);
+    SetDQB(1988608);
+
     tmd = (struct TMD_STRUCT*)obj->tmd;
     vp  = (SVECTOR*)tmd->vertop;
     np  = (SVECTOR*)tmd->nortop;
