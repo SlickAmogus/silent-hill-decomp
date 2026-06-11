@@ -1409,8 +1409,14 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
 
     {
 #ifdef SH_PC_PORT
-    s32 scanMin = g_DebugCamEnabled ? -4 : -1;
-    s32 scanMax = g_DebugCamEnabled ? 5 : 1;
+    /* Interiors must LOAD the same +-2 X / +-1 Z window that
+     * Ipd_CellPositionMatchCheck DRAWS. Vanilla loaded only the center
+     * cell because the exact-cell match never drew anything else; the PC
+     * widened draw window without a widened load window showed stale
+     * resident chunks (other rooms/floors) and left visible neighbors
+     * with no geometry or collision until walked into. */
+    s32 scanMin = g_DebugCamEnabled ? -4 : (map->isExterior ? -1 : -2);
+    s32 scanMax = g_DebugCamEnabled ? 5 : (map->isExterior ? 1 : 2);
     s32 loadsThisFrame = 0;
     s32 maxLoadsPerFrame = g_DebugCamEnabled ? 2 : 9;
 #else
@@ -1422,7 +1428,7 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
         for (x = scanMin; x <= scanMax; x++)
         {
 #ifdef SH_PC_PORT
-            if (g_DebugCamEnabled || map->isExterior || (x == 0 && z == 0))
+            if (g_DebugCamEnabled || map->isExterior || (z >= -1 && z <= 1))
 #else
             if (map->isExterior || (x == 0 && z == 0))
 #endif
@@ -1433,7 +1439,10 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
                 chunkIdx = Map_IpdIdxGet(projCellX, projCellZ);
                 if (chunkIdx != NO_VALUE &&
 #ifdef SH_PC_PORT
-                    (g_DebugCamEnabled || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
+                    /* Interior neighbor cells are by definition outside the
+                     * player's cell (distance > 0); the window itself is the
+                     * load gate. */
+                    (g_DebugCamEnabled || !map->isExterior || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
 #else
                     Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f) &&
 #endif
@@ -1579,7 +1588,17 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
     s_Chunk* curChunk;
 
 #ifdef SH_PC_PORT
-    q19_12 _matDist = (g_PcConfig.preloadChunks && g_Map.isExterior && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
+    /* Interiors: keep materials resident for the whole +-2-cell draw
+     * window (farthest drawn chunk edge is <= 2 cells = 80 units away).
+     * Vanilla freed materials for any chunk the player wasn't inside,
+     * which is correct when only the current cell draws — but the PC
+     * widened draw window then rendered neighbors with their textures
+     * freed (black/untextured room shells in school/hospital). */
+    q19_12 _matDist;
+    if (!g_Map.isExterior)
+        _matDist = Q12(80.0f);
+    else
+        _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
 #else
     #define _matDist Q12(0.0f)
 #endif

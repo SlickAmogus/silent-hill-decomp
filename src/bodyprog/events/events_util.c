@@ -15,6 +15,18 @@
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+/* The upstream merge moved the paper-map state machines here from
+ * bodyprog_80085D78.c (Event_MapTake/func_800867B4, same PSX addresses);
+ * the PC fixes below must live in THIS copy — the old one is dead code.
+ * See PaperMap_ReuploadTimToVram_PC in bodyprog_80085D78.c for why the
+ * TIM must be re-uploaded every tick (framebuffer-store CLUT clobber),
+ * and game_main.c MainLoop for the g_PcMapScreenActive horplus gate
+ * (without it the 320-wide map renders pillarboxed with garbage bars). */
+void PaperMap_ReuploadTimToVram_PC(void);
+extern int g_PcMapScreenActive;
+#endif
+
 /** @brief EVENT AND INTERACTION HELPERS
  *
  * The following are helper functions for map events.
@@ -514,9 +526,15 @@ void Event_PaperMapCmd(e_PaperMapCmd cmd, s32 paperMapIdx) // 0x800867B4
             Screen_Init(SCREEN_WIDTH, true);
             GsSwapDispBuff();
             Fs_QueueWaitForEmpty();
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 1;
+#endif
             break;
 
         case PaperMapCmd_Draw:
+#ifdef SH_PC_PORT
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             break;
 
@@ -524,6 +542,9 @@ void Event_PaperMapCmd(e_PaperMapCmd cmd, s32 paperMapIdx) // 0x800867B4
             LoadImage(&D_8002AB10, IMAGE_BUFFER_2);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 0;
+#endif
             break;
     }
 }
@@ -1172,6 +1193,9 @@ void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMs
             DrawSync(SyncMode_Wait);
             Fs_QueueStartReadTim(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[paperMapFlagIdx], FS_BUFFER_2, &g_PaperMapImg);
             Screen_Init(SCREEN_WIDTH, true);
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 1;
+#endif
 
             g_IntervalVBlanks = 1;
 
@@ -1184,6 +1208,9 @@ void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMs
         case 3:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             Event_DisplayMapMsg(true, mapMsgIdx, 4, 5, 0, true); // 4 is "No", 5 is "Yes".
             break;
@@ -1227,6 +1254,9 @@ void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMs
         case 5:
             g_Screen_BackgroundImgGamma = Q8(11.0f / 32.0f);
 
+#ifdef SH_PC_PORT
+            PaperMap_ReuploadTimToVram_PC();
+#endif
             Screen_BackgroundImgDraw(&g_PaperMapImg);
             Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), true);
             break;
@@ -1235,6 +1265,9 @@ void Event_PaperMapTake(s32 paperMapFlagIdx, e_EventFlag eventFlagIdx, s32 mapMs
             LoadImage(&RECT, IMAGE_BUFFER);
             DrawSync(SyncMode_Wait);
             Screen_Init(SCREEN_WIDTH, false);
+#ifdef SH_PC_PORT
+            g_PcMapScreenActive = 0;
+#endif
             Event_ScreenFadeCmd(ScreenFadeCmd_Start, false, 0, Q12(0.0f), false);
 
             // Restore player control.
