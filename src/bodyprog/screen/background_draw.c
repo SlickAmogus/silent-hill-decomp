@@ -13,12 +13,26 @@
 q0_8 g_Screen_BackgroundImgGamma = Q8(0.5f);
 s16  D_800A8E5A                  = 3; // @unused.
 
+#ifdef SH_PC_PORT
+/* Frames-remaining counter: nonzero while a fullscreen 2D background image
+ * screen is active (eclipse door, plates door, item inspection, pickups).
+ * game_main.c reads it to suppress the PC fog-color background override —
+ * on PSX the fog void isn't the clear color, so these screens naturally
+ * cleared to the game's black; our per-frame fog override painted their
+ * empty borders fog-gray instead. Decremented once per frame in MainLoop. */
+s32 g_Pc2dBackgroundActive = 0;
+#endif
+
 // ========================================
 // 2D BACKGROUND IMAGE DRAWING
 // ========================================
 
 void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
 {
+#ifdef SH_PC_PORT
+    extern s32 g_Pc2dBackgroundActive;
+    g_Pc2dBackgroundActive = 2;
+#endif
     s32       baseYOffset;
     s32       tileX;
     s32       tileIdxX;
@@ -230,6 +244,10 @@ void Screen_BackgroundImgDrawAlt(s_FsImageDesc* image) // 0x80031AAC
     s32          xOffset;
     u8           tPageY;
     POLY_FT4*    poly;
+
+#ifdef SH_PC_PORT
+    g_Pc2dBackgroundActive = 2; /* survive draw->clear frame ordering */
+#endif
 
     poly = (POLY_FT4*)GsOUT_PACKET_P;
 

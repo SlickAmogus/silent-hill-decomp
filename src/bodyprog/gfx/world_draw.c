@@ -494,6 +494,18 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
             }
 
             model->metadata.lmIdx = lmIdx;
+#ifdef SH_PC_PORT
+            /* First-resolve trace (paper-on-street diagnosis): if an object
+             * is invisible AND absent here AND no find-fail printed, its
+             * draw call never ran (cell/chunk gating). */
+            {
+                static int s_wobjResolveLogged = 0;
+                if (s_wobjResolveLogged < 24) {
+                    SH_DBG("[WOBJ] resolved '%.8s' lmIdx=%d", model->metadata.name.str, (int)lmIdx);
+                    s_wobjResolveLogged++;
+                }
+            }
+#endif
         }
 
         // Compute geometry position and rotation.
