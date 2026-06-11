@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.10.10 -- 2026-06-10
+- Fix plates-door crash: raw PSX pointer as FS read destination
+- Crash telemetry, eclipse-door black background, world-object resolve trace
+- Fix item-door corruption: g_ItemTriggerEvents was a ONE-element array
+
 ## v2026.06.10.9 -- 2026-06-10
 - Fix rumble launch crash: PC-sized effect node pool
 - Fix second rumble launch crash: field_2510 pointer truncation
