@@ -1227,6 +1227,28 @@ void MainLoop(void) // 0x80032EE0
         Demo_ControllerDataUpdate();
         Joy_ControllerDataUpdate();
 
+#ifdef SH_PC_PORT
+        /* Console input mode: suppress controller input HERE, after the pad
+         * parse refills g_Controller0 and before game logic reads it — zeroing
+         * later in the loop gets overwritten by the next frame's parse before
+         * any consumer sees it. Swallow extends past input mode until the
+         * submit/exit keys release, so Enter can't leak into the game as
+         * Start. */
+        {
+            extern int g_PcConsoleInputActive;
+            extern int g_PcConsoleSwallowInput;
+            if (g_PcConsoleInputActive || g_PcConsoleSwallowInput) {
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+                g_Controller0->sticks_20.rawData_0 = 0;
+                g_Controller0->sticks_24.rawData_0 = 0;
+            }
+        }
+#endif
+
         if (MainLoop_ShouldWarmReset() == 2)
         {
             Game_WarmBoot();
@@ -1504,27 +1526,16 @@ void MainLoop(void) // 0x80032EE0
 
 #ifdef SH_PC_PORT
         /* Interactive console input mode (hold `~`): freeze the game like the
-         * pause screen — zero game time and suppress all controller input so
-         * typed letters don't fire game actions. The world keeps rendering;
-         * only simulation time stops. */
+         * pause screen — zero game time so the world stops simulating. Must
+         * happen here, after the dt recompute above, so next frame's game
+         * update sees 0. Controller suppression lives next to the pad parse
+         * at the top of the loop. */
         {
             extern int g_PcConsoleInputActive;
-            extern int g_PcConsoleSwallowInput;
             if (g_PcConsoleInputActive) {
                 g_DeltaTime    = 0;
                 g_DeltaTimeRaw = 0;
                 g_GravitySpeed = 0;
-            }
-            if (g_PcConsoleInputActive || g_PcConsoleSwallowInput) {
-                /* Swallow extends past input mode until the submit/exit keys
-                 * release, so Enter can't leak into the game as Start. */
-                g_Controller0->heldBtnFlags      = 0;
-                g_Controller0->clickedBtnFlags   = 0;
-                g_Controller0->releasedBtnFlags  = 0;
-                g_Controller0->pulsedBtnFlags    = 0;
-                g_Controller0->pulsedGuiBtnFlags = 0;
-                g_Controller0->sticks_20.rawData_0 = 0;
-                g_Controller0->sticks_24.rawData_0 = 0;
             }
         }
 #endif
