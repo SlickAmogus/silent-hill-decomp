@@ -483,109 +483,39 @@ public partial class Form1 : Form
     }
 
     // ------------------------------------------------------------------
-    // Check-for-Updates handler. Hands off to the standalone SH1Updater.exe
-    // (which updates the game, the launcher AND itself) and closes the
-    // launcher so its own exe isn't locked during the replace.
-    //
-    // Bootstrap fallback: installs that don't have SH1Updater.exe yet run
-    // the old inline flow below — SH1Updater.exe is in the nightly manifest,
-    // so that update delivers it and every later check uses the hand-off.
+    // Check-for-Updates handler. The launcher does NOT update files itself —
+    // all updating is handled by the standalone SH1Updater.exe (which
+    // replaces the game, the launcher AND itself). This button only makes
+    // sure the updater exists (downloading just that one manifest file when
+    // missing — the bootstrap case), starts it, and closes the launcher so
+    // its own exe isn't locked during the replace.
     // ------------------------------------------------------------------
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
-
         string updaterExe = Path.Combine(installDir, "SH1Updater.exe");
-        if (File.Exists(updaterExe))
-        {
-            try
-            {
-                Process.Start(updaterExe);
-                Close();
-                return;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, "Couldn't start SH1Updater.exe:\n\n" + ex.Message +
-                    "\n\nFalling back to the built-in updater.", "Update",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        btnUpdate.Enabled = false;
-        btnPlay.Enabled   = false;
-        lblUpdateStatus.Text = "Checking for updates...";
-        progUpdate.Style   = ProgressBarStyle.Marquee;
-        progUpdate.Visible = true;
 
         try
         {
-            var plan = await UpdateChecker.CheckAsync(installDir);
-
-            if (!plan.HasUpdate)
+            if (!File.Exists(updaterExe))
             {
-                lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
-                progUpdate.Visible = false;
-                MessageBox.Show(this, "You're up to date!", "Check for Updates",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                btnUpdate.Enabled = false;
+                btnPlay.Enabled   = false;
+                lblUpdateStatus.Text = "Downloading updater...";
+                progUpdate.Style   = ProgressBarStyle.Marquee;
+                progUpdate.Visible = true;
+
+                await UpdateChecker.DownloadSingleFileAsync(installDir, "SH1Updater.exe");
             }
 
-            // Build a human summary for the confirm dialog. Cap at ~10 files
-            // so we don't blow out a MessageBox on a large changeset.
-            var sb = new StringBuilder();
-            sb.AppendLine($"Update available: {plan.RemoteVersion}");
-            sb.AppendLine($"Built: {plan.BuildDate}");
-            sb.AppendLine();
-            sb.AppendLine($"{plan.Changed.Count} file(s) to download:");
-            int i = 0;
-            foreach (var f in plan.Changed)
-            {
-                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
-                else { sb.AppendLine($"  • ... and {plan.Changed.Count - 10} more"); break; }
-            }
-            sb.AppendLine();
-            sb.AppendLine("Download and install now?");
-
-            var resp = MessageBox.Show(this, sb.ToString(), "Update available",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-            if (resp != DialogResult.Yes)
-            {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
-                progUpdate.Visible = false;
-                return;
-            }
-
-            progUpdate.Style = ProgressBarStyle.Continuous;
-            progUpdate.Minimum = 0;
-            progUpdate.Maximum = 100;
-
-            await UpdateChecker.ApplyAsync(installDir, plan, (frac, msg) =>
-            {
-                // Marshal back to UI thread — the progress callback fires on
-                // whatever thread HttpClient happens to be on.
-                BeginInvoke((Action)(() =>
-                {
-                    if (frac >= 0 && frac <= 1)
-                        progUpdate.Value = (int)(frac * 100);
-                    lblUpdateStatus.Text = msg ?? "";
-                }));
-            });
-
-            lblUpdateStatus.Text      = $"Up to date ({plan.RemoteVersion}).";
-            lblUpdateStatus.ForeColor = Color.LightGray;
-            btnUpdate.Text            = "Check for Updates";
-            MessageBox.Show(this, "Update complete!", "Update",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Process.Start(updaterExe);
+            Close();
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Update failed (see message).";
-            MessageBox.Show(this, "Update failed:\n\n" + ex.Message, "Update error",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        finally
-        {
+            lblUpdateStatus.Text = "Couldn't start the updater.";
+            MessageBox.Show(this, "Couldn't get the updater running:\n\n" + ex.Message,
+                "Update error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             btnUpdate.Enabled  = true;
             btnPlay.Enabled    = true;
             progUpdate.Visible = false;
