@@ -32,6 +32,7 @@ s_PcConfig g_PcConfig = {
     .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
     .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
     .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
+    .keyQuickSave = "F6", .keyQuickLoad = "F8",
     /* Controller defaults (SDL game-controller names) */
     .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
     .padL1 = "leftshoulder", .padR1 = "rightshoulder",
@@ -61,6 +62,8 @@ static const struct { const char* key; size_t off; } s_ControlBinds[] = {
     { "key_r3",       offsetof(s_PcConfig, keyR3)       },
     { "key_start",    offsetof(s_PcConfig, keyStart)    },
     { "key_select",   offsetof(s_PcConfig, keySelect)   },
+    { "key_quicksave", offsetof(s_PcConfig, keyQuickSave) },
+    { "key_quickload", offsetof(s_PcConfig, keyQuickLoad) },
     { "pad_cross",    offsetof(s_PcConfig, padCross)    },
     { "pad_circle",   offsetof(s_PcConfig, padCircle)   },
     { "pad_triangle", offsetof(s_PcConfig, padTriangle) },

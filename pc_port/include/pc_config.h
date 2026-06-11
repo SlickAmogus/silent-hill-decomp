@@ -34,6 +34,7 @@ typedef struct {
     char keyCross[24], keyCircle[24], keyTriangle[24], keySquare[24];
     char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
     char keyStart[24], keySelect[24];
+    char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
     char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
     char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
     char padStart[24], padSelect[24];

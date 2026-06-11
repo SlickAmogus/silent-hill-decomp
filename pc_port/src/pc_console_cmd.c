@@ -31,9 +31,9 @@ extern int         FMV_GetCount(void);
 extern const char* FMV_GetName(int tableIdx);
 extern int         FMV_GetFileIdx(int tableIdx);
 
-/* Read by Collision_WallDetect — player passes through walls when set.
- * Floor collision stays active so Harry still walks on ground. */
-int g_PcNoclip = 0;
+/* Same toggle as debug key 0: player_control.c skips Collision_WallDetect and
+ * substitutes the floor surface directly, so Harry keeps walking on ground. */
+extern int g_DebugNoWallCollision;
 
 static void cprintf(const char* fmt, ...)
 {
@@ -196,8 +196,8 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "GIVE") == 0) {
         cmd_give(arg);
     } else if (strcmp(cmd, "NOCLIP") == 0) {
-        g_PcNoclip = !g_PcNoclip;
-        cprintf("noclip %s", g_PcNoclip ? "ON" : "OFF");
+        g_DebugNoWallCollision = !g_DebugNoWallCollision;
+        cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else {
