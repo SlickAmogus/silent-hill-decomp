@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.5 -- 2026-06-11
+- release-nightly: ship runtime DLLs (MinGW/SDL2/OpenAL/libjpeg)
+
 ## v2026.06.11.4 -- 2026-06-11
 - Update to test launcher self-update functionality.
 
