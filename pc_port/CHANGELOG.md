@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.8 -- 2026-06-11
+- [SPEED] probe: gate on logging instead of debug controls
+- Guard SdUtKeyOnV against garbage VAB images (unused map6_s05 crash)
+- Fix Cybil boss not spawning: remove NoEnemySpawn force-clear band-aid
+- Guard Lm_MaterialRefCountDec against unloaded LM headers (map6_s05)
+- Fix vanishing world objects (doghouse papers/GOLD_HID) + spawn/groaner probes
+- Fix radio static stuck after door transitions + anim-rate probe
+- Throttle [WOBJ] find-fail to once per name per session
+
 ## v2026.06.11.7 -- 2026-06-11
 - Fix missing cutscene voices game-wide: 32 zero-stubbed voice tables
 - Adjusted positioning of launcher dropdown.
