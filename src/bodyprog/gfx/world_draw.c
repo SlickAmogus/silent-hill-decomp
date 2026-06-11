@@ -210,8 +210,20 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
      * Floor at 4 covers the worst-case 1.46x extent in any rotation
      * (player at corner of 2x2 cells, view extending into 1 more on
      * each side). Map slot count maxes at PC_MAX_IPD_CHUNKS=256 so
-     * upping the count costs ~50KB/chunk extra RAM at most. */
-    if (activeIpdCount < 4) {
+     * upping the count costs ~50KB/chunk extra RAM at most.
+     *
+     * Interiors get 16: Map_ChunkLoad now loads the full +-2 X / +-1 Z
+     * window that Ipd_CellPositionMatchCheck draws (15 cells), so the
+     * window must fit in slots without evicting itself. With only 4
+     * slots the hospital cycled rooms through the same slots every
+     * door/cell crossing: the +-2 draw window then showed stale
+     * residents (other rooms/floors) while the player's own cell was
+     * still mid-load — floating neighbor rooms, void where the current
+     * room should be, popping floor patches, and no collision for
+     * visible-but-unloaded neighbors. */
+    if (flags & MapFlag_Interior) {
+        activeIpdCount = 16;
+    } else if (activeIpdCount < 4) {
         activeIpdCount = 4;
     }
 #endif
@@ -406,21 +418,25 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
 
 #ifdef SH_PC_PORT
-    /* On PC, CdRead is synchronous via PsyCross. Flush all pending chunk
-     * reads from the FS queue so they're available before we draw.
-     * Then re-run Ipd_CloseRangeChunksInit to fix up newly-loaded chunks
-     * and queue any additional chunks that became visible. */
+    /* On PC, CdRead is synchronous via PsyCross. The PSX while-loop
+     * blocked rendering until the player's cell chunk was loaded; the
+     * old PC replacement flushed the queue BEFORE Ipd_CloseRangeChunksInit
+     * queued the new cell's read, so every cell crossing drew 1+ frames
+     * with the current room missing. Order must be queue -> flush ->
+     * fix up: each init queues reads and reformats completed ones, so
+     * two init/flush rounds plus a final init guarantee the window is
+     * loaded, reformatted, and drawable this same frame. */
     {
-        int flushLimit = 500;
-        int flushed = 0;
-        while (Fs_QueueGetLength() > 0 && --flushLimit > 0)
+        int pass;
+        for (pass = 0; pass < 2; pass++)
         {
-            Fs_QueueUpdate();
-            flushed++;
-        }
-        {
-            static s32 drawLogCD = 0;
-            if ((drawLogCD++ % 300) == 0) {
+            Ipd_CloseRangeChunksInit();
+            {
+                int flushLimit = 500;
+                while (Fs_QueueGetLength() > 0 && --flushLimit > 0)
+                {
+                    Fs_QueueUpdate();
+                }
             }
         }
         Ipd_CloseRangeChunksInit();
