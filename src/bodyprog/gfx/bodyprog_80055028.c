@@ -1152,6 +1152,17 @@ void Lm_MaterialRefCountDec(s_LmHeader* lmHdr) // 0x80056BF8
     s_Material* curMat;
     s_Texture*  tex;
 
+#ifdef SH_PC_PORT
+    /* Unused-map path (map6_s05): its LM file never loads, so the header
+     * keeps junk/sentinel bytes — materials can be NO_VALUE and the walk
+     * below dereferences -1. Gate on the header magic like Bone_ModelAssign
+     * and Lm_ModelFind already do. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        return;
+    }
+#endif
+
     // Run through materials.
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
