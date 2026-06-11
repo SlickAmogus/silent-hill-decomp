@@ -95,6 +95,11 @@ u8 sharedData_800ED458_4_s02[256] = {
     0x80, 0x80, 0x60, 0x50, 0x50, 0x70, 0x00, 0x00
 };
 
+// 0x800D7D74  size 0x4 (4 bytes)
+u16 D_800D7D74[2] = {
+    0x1177, 0x2463
+};
+
 // 0x800D7D98  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 4 B from ROM
 u8 g_Particle_SpeedX[256] = {
