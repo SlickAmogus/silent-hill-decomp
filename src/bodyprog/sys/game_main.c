@@ -1238,13 +1238,29 @@ void MainLoop(void) // 0x80032EE0
             extern int g_PcConsoleInputActive;
             extern int g_PcConsoleSwallowInput;
             if (g_PcConsoleInputActive || g_PcConsoleSwallowInput) {
-                g_Controller0->heldBtnFlags      = 0;
-                g_Controller0->clickedBtnFlags   = 0;
-                g_Controller0->releasedBtnFlags  = 0;
-                g_Controller0->pulsedBtnFlags    = 0;
-                g_Controller0->pulsedGuiBtnFlags = 0;
-                g_Controller0->sticks_20.rawData_0 = 0;
-                g_Controller0->sticks_24.rawData_0 = 0;
+                /* Release the swallow only when BOTH the raw SDL keys and the
+                 * parsed pad are clear of the submit/exit keystroke. The
+                 * keyboard→pad emulation lags the SDL array by a frame, so an
+                 * SDL-only check lets the final Enter through: with prev-held
+                 * zeroed, the stale Start parses as a fresh click edge and
+                 * fires a menu action. */
+                int swallowRelease =
+                    !g_PcConsoleInputActive &&
+                    g_sdlKeyboardState != NULL &&
+                    !g_sdlKeyboardState[SDL_SCANCODE_RETURN] &&
+                    !g_sdlKeyboardState[SDL_SCANCODE_GRAVE] &&
+                    !(g_Controller0->heldBtnFlags & ControllerFlag_Start);
+                if (swallowRelease) {
+                    g_PcConsoleSwallowInput = 0;
+                } else {
+                    g_Controller0->heldBtnFlags      = 0;
+                    g_Controller0->clickedBtnFlags   = 0;
+                    g_Controller0->releasedBtnFlags  = 0;
+                    g_Controller0->pulsedBtnFlags    = 0;
+                    g_Controller0->pulsedGuiBtnFlags = 0;
+                    g_Controller0->sticks_20.rawData_0 = 0;
+                    g_Controller0->sticks_24.rawData_0 = 0;
+                }
             }
         }
 
