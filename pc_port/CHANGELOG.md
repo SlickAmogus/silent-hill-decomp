@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.11 -- 2026-06-11
+- Fix Split Head boss crash: PSX stack-frame aliasing + boss div-zero audit
+- docs: index Split Head stack-aliasing fix + boss audit additions
+
 ## v2026.06.11.10 -- 2026-06-11
 - Systematic div-by-zero sweep: guard all x86 idiv/rem fault sites
 - docs: index drain-valve, school-key/cam-warp, and div-by-zero sweep fixes
