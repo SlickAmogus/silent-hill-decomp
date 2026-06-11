@@ -359,8 +359,14 @@ static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
 
 // Initialize playback for a specific XA index
 void XaPlayer_Play(uint16_t xaIdx) {
+    /* Every rejection must clear the streaming-state flags:
+     * Sd_XaAudioPlayTaskAdd sets xaAudioIdx_4/D_800C37DC BEFORE the task
+     * pool reaches us, so bailing without the signal leaves
+     * Sd_AudioStreamingCheck() == 1 forever — scene scripts waiting for the
+     * voice to "finish" stall and Bgm_Init blocks for the rest of the map. */
     if (xaIdx >= 727) {
         SH_DBG("[XA] Play REJECTED: xaIdx=%u out of range", xaIdx);
+        Xa_SignalPlaybackFinished();
         return;
     }
 
@@ -369,6 +375,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
 
     if (fileIdx < 1 || fileIdx > 9) {
         SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u out of range (zero g_XaItemData row?)", xaIdx, fileIdx);
+        Xa_SignalPlaybackFinished();
         return;
     }
 
@@ -382,6 +389,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint32_t baseSector = BeginXaStream(fileIdx);
     if (!baseSector) {
         SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u — BeginXaStream failed (disc image?)", xaIdx, fileIdx);
+        Xa_SignalPlaybackFinished();
         return;
     }
 
@@ -390,6 +398,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     uint8_t firstSector[XA_SECTOR_SIZE];
     if (!ReadXaSectorFromBin(baseSector, item->sector_4_bits, firstSector)) {
         SH_DBG("[XA] Play REJECTED: xaIdx=%u fileIdx=%u sector=%u — first-sector read failed", xaIdx, fileIdx, (uint32_t)item->sector_4_bits);
+        Xa_SignalPlaybackFinished();
         return;
     }
     const uint8_t* headBuf = firstSector; /* first 8 bytes = subheader */
@@ -545,7 +554,14 @@ static int FillAndUploadOne(ALuint alBuffer) {
         matchedCount++;
     }
 
-    if (matchedCount == 0) return 0;
+    if (matchedCount == 0) {
+        /* Channel ended early (scan cap or EOF without a matching sector).
+         * Declare the stream drained so XaPlayer_Update can finish cleanly —
+         * leaving remainingSectors nonzero strands isPlaying=1 with an empty
+         * queue and the finished signal never fires. */
+        g_XaPlayer.remainingSectors = 0;
+        return 0;
+    }
     g_XaPlayer.remainingSectors -= matchedCount;
 
     int byteCount = totalSamples * (int)sizeof(int16_t);
@@ -591,8 +607,10 @@ void XaPlayer_Update(void) {
         alSourcePlay(g_XaPlayer.alSource);
     }
 
-    /* Detect end-of-playback: no more sectors AND source has stopped. */
-    if (g_XaPlayer.remainingSectors == 0 && sourceState == AL_STOPPED) {
+    /* Detect end-of-playback: no more sectors AND source not playing.
+     * AL_INITIAL counts too — if the initial fill found zero matching
+     * sectors the source never started and would never reach AL_STOPPED. */
+    if (g_XaPlayer.remainingSectors == 0 && sourceState != AL_PLAYING) {
         SH_DBG("[XA] finished xaIdx=%u (drained)", (unsigned)g_XaPlayer.xaIdx);
         g_XaPlayer.isPlaying = 0;
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
