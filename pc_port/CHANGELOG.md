@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.2 -- 2026-06-11
+- SH1Updater.exe: standalone game+launcher updater
+
 ## v2026.06.11.1 -- 2026-06-11
 - Interactive console: hold ~ for Half-Life-style command input
 - Console commands: help, map, give, noclip, fmv
