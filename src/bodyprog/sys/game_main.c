@@ -1745,10 +1745,20 @@ void MainLoop(void) // 0x80032EE0
             /* Fullscreen 2D background screens (eclipse/plates doors, item
              * inspection) must clear to the game's own color (black) — on
              * PSX the fog void isn't the clear color, so these screens were
-             * never fog-tinted. Counter set by Screen_BackgroundImgDraw*. */
+             * never fog-tinted. Counter set by Screen_BackgroundImgDraw*.
+             * Time-based bridge: puzzle interactions (key insertion) swap
+             * TIMs across a few frames where the background draw doesn't
+             * run, so the 2-frame counter lapsed and the fog color flashed
+             * through. Hold black for 300ms past the last 2D-background
+             * frame instead of counting frames (frame counts are fps-
+             * dependent anyway). */
             extern s32 g_Pc2dBackgroundActive;
+            static Uint32 s_bg2dHoldUntilMs;
             if (g_Pc2dBackgroundActive > 0) {
                 g_Pc2dBackgroundActive--;
+                s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
+            }
+            if (SDL_GetTicks() < s_bg2dHoldUntilMs) {
                 g_GameWork.background2dColor.r = 0;
                 g_GameWork.background2dColor.g = 0;
                 g_GameWork.background2dColor.b = 0;
