@@ -1283,6 +1283,54 @@ void MainLoop(void) // 0x80032EE0
             extern void Pc_ConsoleFmvUpdate(void);
             Pc_ConsoleFmvUpdate();
         }
+
+        /* [SPEED] probe: wall-clock ground speed averaged over 1s while
+         * moving, with fps/zone/state — to compare run speed across fps
+         * caps and areas ("runs too fast in some scenarios"). Debug-gated. */
+        if (g_PcAllowDebugControls && g_GameWork.gameState == GameState_InGame &&
+            g_SysWork.sysState == SysState_Gameplay)
+        {
+            static Uint64  s_spdT0;
+            static VECTOR3 s_spdPrev;
+            static s64     s_spdAccumSq; /* sum of per-frame |dXZ| in Q12 */
+            static int     s_spdFrames, s_spdInit;
+            s_SubCharacter* pl  = &g_SysWork.playerWork.player;
+            Uint64          now = SDL_GetPerformanceCounter();
+
+            if (!s_spdInit) {
+                s_spdInit = 1;
+                s_spdT0   = now;
+                s_spdPrev = pl->position;
+            }
+            {
+                s32 dx = pl->position.vx - s_spdPrev.vx;
+                s32 dz = pl->position.vz - s_spdPrev.vz;
+                /* Ignore teleport spikes (room transitions, debug warps) —
+                 * they'd pollute the average and can overflow SQUARE(). */
+                if (ABS(dx) < Q12(2.0f) && ABS(dz) < Q12(2.0f))
+                    s_spdAccumSq += SquareRoot0(SQUARE(dx) + SQUARE(dz));
+                s_spdPrev     = pl->position;
+                s_spdFrames++;
+
+                {
+                    double el = (double)(now - s_spdT0) / (double)SDL_GetPerformanceFrequency();
+                    if (el >= 1.0) {
+                        if (s_spdAccumSq > Q12(0.2f)) {
+                            extern s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ);
+                            SH_DBG("[SPEED] %.2f u/s fps=%.0f moveSpeed=%.2f zone=%d state=%d",
+                                   ((double)s_spdAccumSq / 4096.0) / el,
+                                   (double)s_spdFrames / el,
+                                   (double)pl->moveSpeed / 4096.0,
+                                   (int)Map_SpeedZoneTypeGet(pl->position.vx, pl->position.vz),
+                                   (int)g_SysWork.playerWork.extra.lowerBodyState);
+                        }
+                        s_spdT0      = now;
+                        s_spdAccumSq = 0;
+                        s_spdFrames  = 0;
+                    }
+                }
+            }
+        }
 #endif
 
         if (MainLoop_ShouldWarmReset() == 2)
