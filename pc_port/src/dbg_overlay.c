@@ -42,6 +42,14 @@ static int  s_prev_b = 0;
  * submits (and unpauses); tapping `~` exits without submitting. */
 int g_PcConsoleInputActive = 0;
 
+/* Set when input mode ends (submit or ~ exit) and held until the keys are
+ * physically released: DbgOverlay_Update runs BEFORE the game's input parse,
+ * so without this the submitting Enter reached the game the same frame as
+ * Start — on the main menu that activated Continue with no save and crashed
+ * in AddPrim on a NO_VALUE-derived OT pointer. game_main suppresses
+ * controller input while this or input mode is active. */
+int g_PcConsoleSwallowInput = 0;
+
 #define CONSOLE_HOLD_MS  350
 #define INPUT_BUF_CAP    (LINE_LEN - 4) /* room for "> " + "_" */
 static char          s_input_buf[INPUT_BUF_CAP];
@@ -712,9 +720,10 @@ void DbgOverlay_Update(void)
             s_tilde_down_ms    = SDL_GetTicks();
             s_hold_enter_armed = !g_PcConsoleInputActive;
             if (g_PcConsoleInputActive) {
-                g_PcConsoleInputActive = 0;
-                s_console_dirty        = 1;
-                s_tilde_tap_consumed   = 1;
+                g_PcConsoleInputActive  = 0;
+                g_PcConsoleSwallowInput = 1;
+                s_console_dirty         = 1;
+                s_tilde_tap_consumed    = 1;
             } else if (!(g_PcConfig.showConsole & 2)) {
                 g_PcConfig.showConsole |= 2; /* open immediately on press */
                 s_tilde_tap_consumed    = 1;
@@ -784,8 +793,9 @@ void DbgOverlay_Update(void)
             char echo[LINE_LEN];
             snprintf(echo, LINE_LEN, "> %s", s_input_buf);
             push_console(echo);
-            g_PcConsoleInputActive = 0; /* enter submits AND unpauses (before
-                                         * exec so map/fmv run with live time) */
+            g_PcConsoleInputActive  = 0; /* enter submits AND unpauses (before
+                                          * exec so map/fmv run with live time) */
+            g_PcConsoleSwallowInput = 1; /* don't leak this Enter as Start */
             if (s_input_len > 0)
                 Pc_ConsoleExec(s_input_buf);
             s_console_dirty = 1;
@@ -795,6 +805,13 @@ void DbgOverlay_Update(void)
         int sc;
         for (sc = 0; sc < 64; sc++)
             s_prev_keys[sc] = ks[sc];
+    }
+
+    /* Release the input swallow only once the trigger keys are physically up,
+     * so the game never sees a click edge from the submit/exit keystroke. */
+    if (g_PcConsoleSwallowInput && !g_PcConsoleInputActive &&
+        !ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_GRAVE]) {
+        g_PcConsoleSwallowInput = 0;
     }
 
     /* Ease the slide toward visible (ingame bit set) or hidden. Runs every

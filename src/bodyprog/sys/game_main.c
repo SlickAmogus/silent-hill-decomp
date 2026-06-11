@@ -1509,10 +1509,15 @@ void MainLoop(void) // 0x80032EE0
          * only simulation time stops. */
         {
             extern int g_PcConsoleInputActive;
+            extern int g_PcConsoleSwallowInput;
             if (g_PcConsoleInputActive) {
                 g_DeltaTime    = 0;
                 g_DeltaTimeRaw = 0;
                 g_GravitySpeed = 0;
+            }
+            if (g_PcConsoleInputActive || g_PcConsoleSwallowInput) {
+                /* Swallow extends past input mode until the submit/exit keys
+                 * release, so Enter can't leak into the game as Start. */
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->releasedBtnFlags  = 0;
