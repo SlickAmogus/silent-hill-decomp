@@ -391,8 +391,10 @@ int main(int argc, char* argv[])
     }
 
     /* Apply refresh rate and vsync from config.
-     * PsyCross defaults to vsync=off; we override via SDL directly. */
-    if (g_PcConfig.refreshRate > 0 && g_PcConfig.fullscreen)
+     * PsyCross defaults to vsync=off; we override via SDL directly.
+     * Exclusive fullscreen only — borderless (fullscreen==2) runs at the
+     * desktop mode, where SDL_SetWindowDisplayMode has no effect. */
+    if (g_PcConfig.refreshRate > 0 && g_PcConfig.fullscreen == 1)
     {
         extern SDL_Window* g_window;
         SDL_DisplayMode mode;

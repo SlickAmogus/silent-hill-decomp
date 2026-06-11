@@ -135,11 +135,12 @@ public partial class Form1 : Form
         }
 
         const string fullscreenTip =
-            "Run the game fullscreen at the chosen resolution.\n" +
-            "No = windowed at the chosen resolution.";
-        Set(fullscreenLabel,    fullscreenTip);
-        Set(radioFullscreenYes, fullscreenTip);
-        Set(radioFullscreenNo,  fullscreenTip);
+            "Fullscreen = exclusive fullscreen at the chosen resolution.\n" +
+            "Windowed = a normal window at the chosen resolution.\n" +
+            "Borderless = covers the screen at desktop resolution\n" +
+            "(no mode switch, fast alt-tab; refresh-rate setting not used).";
+        Set(fullscreenLabel,   fullscreenTip);
+        Set(comboFullscreen,   fullscreenTip);
 
         const string vsyncTip =
             "Synchronize frame presentation to your monitor's refresh rate.\n" +
@@ -294,8 +295,14 @@ public partial class Form1 : Form
         config = new ConfigManager(cfgPath);
 
         // fullscreen
-        radioFullscreenYes.Checked = config.Get("fullscreen", "0") == "1";
-        radioFullscreenNo.Checked = config.Get("fullscreen", "0") == "0";
+        // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
+        // Dropdown order: Fullscreen(0), Windowed(1), Borderless(2).
+        switch (config.Get("fullscreen", "0"))
+        {
+            case "1":  comboFullscreen.SelectedIndex = 0; break;
+            case "2":  comboFullscreen.SelectedIndex = 2; break;
+            default:   comboFullscreen.SelectedIndex = 1; break;
+        }
 
         // vsync
         radioVsyncYes.Checked = config.Get("vsync", "0") == "1";
@@ -396,7 +403,10 @@ public partial class Form1 : Form
 
     private void SaveConfig()
     {
-        config.Set("fullscreen", radioFullscreenYes.Checked ? "1" : "0");
+        config.Set("fullscreen",
+            comboFullscreen.SelectedIndex == 0 ? "1" :   // Fullscreen
+            comboFullscreen.SelectedIndex == 2 ? "2" :   // Borderless
+            "0");                                        // Windowed
         config.Set("vsync", radioVsyncYes.Checked ? "1" : "0");
         // Persist only the map id, not the displayed " - description" suffix
         if (comboMap.SelectedItem != null)

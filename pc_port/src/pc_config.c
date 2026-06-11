@@ -151,7 +151,10 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "fullscreen") == 0)
         {
-            g_PcConfig.fullscreen = (atoi(value) != 0);
+            /* 0 = windowed, 1 = exclusive fullscreen, 2 = borderless. */
+            int v = atoi(value);
+            if (v < 0 || v > 2) v = 0;
+            g_PcConfig.fullscreen = v;
         }
         else if (strcmp(key, "disable_culling") == 0)
         {

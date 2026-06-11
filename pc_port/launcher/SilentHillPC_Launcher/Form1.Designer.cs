@@ -6,8 +6,7 @@ partial class Form1
     private System.ComponentModel.IContainer components = null;
 
     private PictureBox banner;
-    private RadioButton radioFullscreenYes;
-    private RadioButton radioFullscreenNo;
+    private ComboBox comboFullscreen;
     private RadioButton radioVsyncYes;
     private RadioButton radioVsyncNo;
     private ComboBox comboMap;
@@ -36,7 +35,6 @@ partial class Form1
     private Label levelLabel;
     private Label introLabel;
 
-    private Panel fullscreenPanel;
     private Panel vsyncPanel;
     private Panel cullingPanel;
     private Panel preloadPanel;
@@ -78,9 +76,7 @@ partial class Form1
 
     private void InitializeComponent()
     {
-            this.fullscreenPanel = new System.Windows.Forms.Panel();
-            this.radioFullscreenYes = new System.Windows.Forms.RadioButton();
-            this.radioFullscreenNo = new System.Windows.Forms.RadioButton();
+            this.comboFullscreen = new System.Windows.Forms.ComboBox();
             this.vsyncPanel = new System.Windows.Forms.Panel();
             this.radioVsyncYes = new System.Windows.Forms.RadioButton();
             this.radioVsyncNo = new System.Windows.Forms.RadioButton();
@@ -132,7 +128,6 @@ partial class Form1
             this.looseYes = new System.Windows.Forms.RadioButton();
             this.looseNo = new System.Windows.Forms.RadioButton();
             this.btnControls = new System.Windows.Forms.Button();
-            this.fullscreenPanel.SuspendLayout();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -144,30 +139,17 @@ partial class Form1
             this.loosePanel.SuspendLayout();
             this.SuspendLayout();
             // 
-            // fullscreenPanel
+            // comboFullscreen
             // 
-            this.fullscreenPanel.Controls.Add(this.radioFullscreenYes);
-            this.fullscreenPanel.Controls.Add(this.radioFullscreenNo);
-            this.fullscreenPanel.Location = new System.Drawing.Point(80, 116);
-            this.fullscreenPanel.Name = "fullscreenPanel";
-            this.fullscreenPanel.Size = new System.Drawing.Size(120, 30);
-            this.fullscreenPanel.TabIndex = 16;
-            // 
-            // radioFullscreenYes
-            // 
-            this.radioFullscreenYes.Location = new System.Drawing.Point(5, 5);
-            this.radioFullscreenYes.Name = "radioFullscreenYes";
-            this.radioFullscreenYes.Size = new System.Drawing.Size(51, 24);
-            this.radioFullscreenYes.TabIndex = 7;
-            this.radioFullscreenYes.Text = "Yes";
-            // 
-            // radioFullscreenNo
-            // 
-            this.radioFullscreenNo.Location = new System.Drawing.Point(60, 5);
-            this.radioFullscreenNo.Name = "radioFullscreenNo";
-            this.radioFullscreenNo.Size = new System.Drawing.Size(47, 24);
-            this.radioFullscreenNo.TabIndex = 8;
-            this.radioFullscreenNo.Text = "No";
+            this.comboFullscreen.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboFullscreen.Items.AddRange(new object[] {
+            "Fullscreen",
+            "Windowed",
+            "Borderless"});
+            this.comboFullscreen.Location = new System.Drawing.Point(80, 120);
+            this.comboFullscreen.Name = "comboFullscreen";
+            this.comboFullscreen.Size = new System.Drawing.Size(120, 21);
+            this.comboFullscreen.TabIndex = 16;
             // 
             // vsyncPanel
             // 
@@ -400,7 +382,7 @@ partial class Form1
             this.fullscreenLabel.Name = "fullscreenLabel";
             this.fullscreenLabel.Size = new System.Drawing.Size(58, 13);
             this.fullscreenLabel.TabIndex = 2;
-            this.fullscreenLabel.Text = "Fullscreen:";
+            this.fullscreenLabel.Text = "Display:";
             // 
             // vsyncLabel
             // 
@@ -658,7 +640,7 @@ partial class Form1
             this.Controls.Add(this.progUpdate);
             this.Controls.Add(this.resolutionLabel);
             this.Controls.Add(this.refreshLabel);
-            this.Controls.Add(this.fullscreenPanel);
+            this.Controls.Add(this.comboFullscreen);
             this.Controls.Add(this.vsyncPanel);
             this.Controls.Add(this.cullingPanel);
             this.Controls.Add(this.preloadPanel);
@@ -678,7 +660,6 @@ partial class Form1
             this.Name = "Form1";
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
-            this.fullscreenPanel.ResumeLayout(false);
             this.vsyncPanel.ResumeLayout(false);
             this.cullingPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
