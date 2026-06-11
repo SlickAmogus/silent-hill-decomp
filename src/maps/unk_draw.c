@@ -214,7 +214,14 @@ bool sharedFunc_800CB040_1_s05(POLY_FT4** poly, s32 idx)
     ptr->field_138 = sharedData_800DFB7C_0_s00[idx].field_4.vz_4 +
                      Q12_MULT(Math_Cos(sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_2), var_s1);
 
+#ifdef SH_PC_PORT
+    /* x86 idiv faults on zero where MIPS returns garbage; field_4 is 0 when
+     * the weather config table is a zero stub for the including map. */
+    if ((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2 < (u16)ptr->field_0.field_C8 &&
+        sharedData_800D8568_1_s05.field_4 != 0)
+#else
     if ((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2 < (u16)ptr->field_0.field_C8)
+#endif
     {
         q19_12 angle = func_8005C7B0(Q12_ANGLE(90.0f) - (((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_2 << 6) / sharedData_800D8568_1_s05.field_4));
         var_s1    = Q12_MULT((u16)ptr->field_0.field_CA, Math_Sin(angle)) + (u16)ptr->field_0.field_CC;

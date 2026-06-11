@@ -58,7 +58,14 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
     s_SubCharacter*    sub;
 
     if (sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_0 == 0 ||
-        sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 == 0)
+        sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 == 0
+#ifdef SH_PC_PORT
+        /* x86 idiv faults on zero: the acid config is map-set at runtime
+         * (e.g. map4_s05), so a particle alive before/without it would
+         * divide by field_A/field_C == 0 below. Kill it instead. */
+        || D_800C4418.field_A == 0 || D_800C4418.field_C == 0
+#endif
+        )
     {
         sharedData_800DFB7C_0_s00[idx].field_A = 0;
         return false;

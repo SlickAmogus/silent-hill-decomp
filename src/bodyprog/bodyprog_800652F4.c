@@ -203,6 +203,16 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* Drain-valve crash class: the check above rejects almost nothing
+     * (&&), so SZ == 0 reaches the `/ field_40` below and faults x86
+     * idiv where MIPS returned garbage. Skip the glow that frame. */
+    if (ptr->field_40 == 0)
+    {
+        return;
+    }
+#endif
+
     ptr->field_0 = (POLY_FT4*)GsOUT_PACKET_P;
     setPolyFT4(ptr->field_0);
     *(s32*)&ptr->field_0->u0 = 0x014C4020;

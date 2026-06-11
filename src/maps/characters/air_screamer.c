@@ -12666,7 +12666,13 @@ s32 sharedFunc_800D6A60_0_s01(VECTOR3* offset, VECTOR3* vec1, s_SubCharacter* ai
     else
     {
         flags |= PlayerFlag_Unk31;
+#ifdef SH_PC_PORT
+        /* g_DeltaTime can be 0 on PC; x86 div-by-zero raises #DE. With no
+         * elapsed time the per-second velocity contribution is 0. */
+        time = (g_DeltaTime != Q12(0.0f)) ? (Q12(4096.0f) / g_DeltaTime) : 0;
+#else
         time   = Q12(4096.0f) / g_DeltaTime;
+#endif
 
         if (!(offsetX | offsetZ))
         {

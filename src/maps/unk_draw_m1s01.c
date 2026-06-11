@@ -22,6 +22,16 @@ void sharedFunc_800CB7F4_1_s01(void)
     s32 i;
 
     count = sharedData_800DEE50_1_s01.field_4;
+
+#ifdef SH_PC_PORT
+    /* x86 idiv faults on the zero divisors MIPS tolerates; an empty/unset
+     * smoke config means there is nothing to spawn. */
+    if (sharedData_800DEE50_1_s01.field_4 == 0 || sharedData_800DEE50_1_s01.field_C == 0)
+    {
+        return;
+    }
+#endif
+
     for (i = 0; i < ARRAY_SIZE(sharedData_800DFB7C_0_s00); i++)
     {
         if (sharedData_800DFB7C_0_s00[i].field_A != 0)
@@ -54,6 +64,15 @@ void sharedFunc_800CB8A0_1_s01(s32 idx)
         sharedData_800DFB7C_0_s00[idx].field_A = 14;
     }
 
+#ifdef SH_PC_PORT
+    /* x86 rem-by-zero faults; spawn radius 0 just means spawn at origin. */
+    if (sharedData_800DEE50_1_s01.field_A == 0)
+    {
+        sharedData_800DFB7C_0_s00[idx].field_0.vx_0 = 0;
+        sharedData_800DFB7C_0_s00[idx].field_4.vz_4 = 0;
+    }
+    else
+#endif
     if (sharedData_800DEE50_1_s01.field_0 == 0)
     {
         rngX                                = (Rng_Rand16() % sharedData_800DEE50_1_s01.field_A);
@@ -75,6 +94,15 @@ void sharedFunc_800CB8A0_1_s01(s32 idx)
 bool sharedFunc_800CBA38_1_s01(s32 idx)
 {
     sharedData_800DFB7C_0_s00[idx].field_C.field_0 += Q12_MULT_PRECISE(g_DeltaTime, ((Rng_Rand16() % Q12_ANGLE(144.0f)) + Q12_ANGLE(288.0f)));
+
+#ifdef SH_PC_PORT
+    /* x86 idiv faults on zero; field_C == 0 means no rise speed, so the
+     * lifetime threshold is unreachable — keep the particle as-is. */
+    if (sharedData_800DEE50_1_s01.field_C == 0)
+    {
+        return false;
+    }
+#endif
 
     if (Q12_DIV(sharedData_800DEE50_1_s01.field_6 - sharedData_800DEE50_1_s01.field_8, sharedData_800DEE50_1_s01.field_C) < sharedData_800DFB7C_0_s00[idx].field_C.field_0)
     {
@@ -230,7 +258,13 @@ bool sharedFunc_800CBB30_1_s01(POLY_FT4** poly, s32 idx)
         setXY3Fast(*poly, (u16)ptr->field_138.vx + 1, ptr->field_138.vy + 1);
     }
 
+#ifdef SH_PC_PORT
+    /* field_134 passed the `<= 0` check above but the OT bias can push it
+     * negative, indexing org[] before the array — clamp instead. */
+    ptr->field_134 = CLAMP_LOW(ptr->field_134 - sharedData_800DEE50_1_s01.field_12, 0);
+#else
     ptr->field_134 -= sharedData_800DEE50_1_s01.field_12;
+#endif
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_134 >> 3], *poly, 9);
     *poly += 1;
 
