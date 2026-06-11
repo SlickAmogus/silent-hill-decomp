@@ -476,14 +476,30 @@ void WorldGfx_ObjectAdd(s_WorldObjectModel* model, const VECTOR3* pos, const SVE
                 if (!Lm_ModelFind(model, &g_WorldGfxWork.itemLmHdr, &model->metadata))
                 {
 #ifdef SH_PC_PORT
-                    /* TEMP: log the failing object name + item-LM magic so we can
-                     * tell a specific bad/stale object from an invalid item LM
-                     * (map1_s00 interior<->hallway banding + spam). */
-                    SH_DBG("[WOBJ] find-fail name='%.8s' itemLmMagic=0x%x lmIdx=%d cell=(%d,%d)",
-                           model->metadata.name.str, (unsigned)g_WorldGfxWork.itemLmHdr.magic,
-                           (int)model->metadata.lmIdx,
-                           (int)(g_SysWork.playerWork.player.position.vx >> 16),
-                           (int)(g_SysWork.playerWork.player.position.vz >> 16));
+                    /* Once per distinct name per session (used to fire every
+                     * frame — thousands of lines/min in the streets/school).
+                     * Kept as a one-shot because it found the chunks[4]-cap
+                     * bug (vanishing papers/GOLD_HID); note itemLmMagic '0'
+                     * (0x30) is the VALID LM magic, not an error. */
+                    {
+                        static char s_failNames[8][8];
+                        static int  s_failCount = 0;
+                        int _k, _seen = 0;
+                        for (_k = 0; _k < s_failCount; _k++) {
+                            if (memcmp(s_failNames[_k], model->metadata.name.str, 8) == 0) {
+                                _seen = 1;
+                                break;
+                            }
+                        }
+                        if (!_seen && s_failCount < 8) {
+                            memcpy(s_failNames[s_failCount++], model->metadata.name.str, 8);
+                            SH_DBG("[WOBJ] find-fail name='%.8s' itemLmMagic=0x%x lmIdx=%d cell=(%d,%d)",
+                                   model->metadata.name.str, (unsigned)g_WorldGfxWork.itemLmHdr.magic,
+                                   (int)model->metadata.lmIdx,
+                                   (int)(g_SysWork.playerWork.player.position.vx >> 16),
+                                   (int)(g_SysWork.playerWork.player.position.vz >> 16));
+                        }
+                    }
 #endif
                     return;
                 }
