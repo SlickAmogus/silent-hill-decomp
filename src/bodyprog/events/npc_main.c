@@ -79,20 +79,14 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     curCharaSpawn      = g_MapOverlayHdr.charaSpawnInfos[0];
     ovlEnemiesStatePtr = &g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapIdx];
 
-#ifdef SH_PC_PORT
-    /* Force-clear SysFlag_NoEnemySpawn every frame on non-tutorial maps. Vanilla
-     * sets this flag in map2_s00.c:1948 unless EventFlag_146 / WaterWorks
-     * cutscene event is set, gating ALL enemy spawning. On a fresh PC
-     * playthrough we never reach that cutscene via the normal path so the
-     * flag stays set forever, leaving streets enemy-less. Clearing here
-     * (right before the spawn gate that reads it) guarantees the gate
-     * sees a clean state regardless of when map init re-sets it. */
-    if (g_SavegamePtr->mapIdx != MapIdx_MAP0_S00 &&
-        g_SavegamePtr->mapIdx != MapIdx_MAP0_S01)
-    {
-        g_SysWork.sysFlags &= ~SysFlag_NoEnemySpawn;
-    }
-#endif
+    /* NOTE: a PC band-aid here used to force-clear SysFlag_NoEnemySpawn every
+     * frame on non-tutorial maps ("streets enemy-less" during level-select
+     * testing). That was VANILLA behavior — map2_s00 suppresses street
+     * enemies pre-WaterWorks and clears the flag from its own events. The
+     * blanket clear broke every cutscene that sets the flag to keep the
+     * 3-slot NPC cap free: the map6_s04 Cybil boss cutscene's post-scene
+     * Chara_Spawn found the cap filled by regular enemies and the boss
+     * never spawned. Do not re-add. */
 
     if (cond == false)
     {
