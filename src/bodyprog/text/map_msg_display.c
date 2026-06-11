@@ -13,6 +13,10 @@
 #include "bodyprog/text/text_draw.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+#include <SDL_timer.h>
+#endif
+
 // ========================================
 // STATIC VARIABLES
 // ========================================
@@ -111,9 +115,42 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             if (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog)
             {
 #ifdef SH_PC_PORT
-                /* XA audio streaming not implemented on PC — skip the wait
-                 * for streaming state 4 so text can proceed immediately. */
-                D_800BCD74 = 0;
+                /* This wait was bypassed early in the port ("XA streaming
+                 * not implemented"); xa_player.c has long since maintained
+                 * the streaming flags (Sd_XaAudioPlayTaskAdd sets them,
+                 * Xa_SignalPlaybackFinished clears them). Without the wait,
+                 * dialogue pages advance on the text timer alone and each
+                 * new page's SD_Call preempts the still-playing line —
+                 * overlapping/cut-off voices in the Kaufmann intro et al.
+                 * Restore the vanilla hold, with a wall-clock fail-open in
+                 * case a page has no voice cmd (zero-stub table remnant)
+                 * so a missing line degrades to silence, not a hang. */
+                {
+                    static Uint32 s_voiceWaitStartMs = 0;
+
+                    if (Sd_AudioStreamingCheck() == 4)
+                    {
+                        D_800BCD74         = 0;
+                        s_voiceWaitStartMs = 0;
+                        break;
+                    }
+
+                    if (D_800BCD74 != 0)
+                    {
+                        if (s_voiceWaitStartMs == 0)
+                        {
+                            s_voiceWaitStartMs = SDL_GetTicks();
+                        }
+
+                        if ((SDL_GetTicks() - s_voiceWaitStartMs) < 1000)
+                        {
+                            break;
+                        }
+
+                        D_800BCD74         = 0;
+                        s_voiceWaitStartMs = 0;
+                    }
+                }
 #else
                 if (Sd_AudioStreamingCheck() == 4)
                 {

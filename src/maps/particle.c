@@ -2452,6 +2452,19 @@ void Particle_SnowDraw(s_Particle* part)
     }
 #endif
 
+#if defined(SH_PC_PORT) && defined(MAP2_S00)
+    /* Same leak as map0_s02 above: room 37 is the Levin St house
+     * interior. Vanilla authors a mode-9 doorway aperture for it
+     * (sharedData_800DD591 switch, case 37), but the aperture clip
+     * only bounds X/Z and relied on PSX depth-sorting to hide the
+     * rest — on PC snow falls visibly inside the living room
+     * ([BGM-ROOM] 26 -> 37 in the user's snow log). Skip the draw
+     * for that room; the through-door flakes are the only loss. */
+    if (g_SavegamePtr->mapRoomIdx == 37) {
+        return;
+    }
+#endif
+
     if (part->type_1F >= 240)
     {
         part->type_1F += 16;
