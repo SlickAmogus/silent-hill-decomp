@@ -281,6 +281,16 @@ void func_8006E150(s_func_8006E490* arg0, DVECTOR arg1, DVECTOR arg2) // 0x8006E
     flags = OrientationFlags_None;
     arg0->field_1C = Q8(0.0f);
 
+#ifdef SH_PC_PORT
+    /* x86 idiv faults on zero where MIPS returns garbage. field_18 is the
+     * IPD subcellSize — 0 means a malformed/unreformatted collision header
+     * (school isLoaded crash class), so there is no grid to walk. */
+    if (arg0->field_18 == 0)
+    {
+        return;
+    }
+#endif
+
     if (arg0->field_8.vx < 0 && arg0->field_C < 0 &&
         arg0->field_8.vy < 0 && arg0->field_E < 0)
     {
@@ -352,7 +362,14 @@ void func_8006E150(s_func_8006E490* arg0, DVECTOR arg1, DVECTOR arg2) // 0x8006E
     pos.vy = Q12(subroutine_arg4.vy) / arg0->field_18;
     pos.vz = Q12(1.0f);
 
+#ifdef SH_PC_PORT
+    /* arg1.vx is the larger horizontal extent after the swap above; it is 0
+     * only for a point/pure-vertical ray, where the walk should just visit
+     * the start cell with no Z drift per X step. */
+    pos.pad  = (arg1.vx != 0) ? Q12(arg2.vx) / arg1.vx : 0;
+#else
     pos.pad  = Q12(arg2.vx) / arg1.vx;
+#endif
     temp_lo_4 = Q12_MULT(pos.pad, Q12_FRACT(pos.vx));
 
     if (FP_FROM(sp18.vx, Q12_SHIFT) < FP_FROM(pos.vx, Q12_SHIFT))

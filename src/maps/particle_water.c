@@ -24,10 +24,26 @@ void sharedFunc_800CBA4C_1_s02(s32 idx, s32 arg1, s32 arg2)
 
     var_s2 = arg2;
 
+#ifdef SH_PC_PORT
+    /* Same crash class as the sharedFunc_800CBDA8_1_s02 entry guard: x86
+     * idiv faults on the zero divisors MIPS tolerates. With no emitter
+     * segments there is nothing to spawn — free the particle slot. */
+    if (sharedData_800E30C8_1_s02.field_78 == 0)
+    {
+        sharedData_800DFB7C_0_s00[idx].field_A = 0;
+        return;
+    }
+#endif
+
     if (arg1 == 2)
     {
         var_s2                                              = Rng_Rand16() % sharedData_800E30C8_1_s02.field_78;
+#ifdef SH_PC_PORT
+        sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0 = (sharedData_800E30C8_1_s02.field_28[var_s2] != 0)
+            ? Rng_Rand16() % sharedData_800E30C8_1_s02.field_28[var_s2] : 0;
+#else
         sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0 = Rng_Rand16() % sharedData_800E30C8_1_s02.field_28[var_s2];
+#endif
     }
     else
     {
@@ -497,6 +513,17 @@ void sharedFunc_800CCE60_1_s02(void)
 
     for (i = 0; i < sharedData_800E30C8_1_s02.field_78; i++)
     {
+#ifdef SH_PC_PORT
+        /* Same crash class as the sharedFunc_800CBDA8_1_s02 entry guard:
+         * field_44[i] == 0 faults the x86 idiv in the UV loop below and
+         * stalls the j-loop advance (var_s4 never reaches field_28[i]),
+         * which then overruns the 16-entry scratch arrays. */
+        if (sharedData_800E30C8_1_s02.field_44[i] == 0)
+        {
+            continue;
+        }
+#endif
+
         temp_s0 = sharedData_800E30C8_1_s02.field_3C[i] >> 1;
 
         if (sharedData_800E30C8_1_s02.field_30[i] == 0)
@@ -552,7 +579,12 @@ void sharedFunc_800CCE60_1_s02(void)
                     }
                 }
 
+#ifdef SH_PC_PORT
+                if (ptr->field_26E < var_s4 &&
+                    sharedData_800E30C8_1_s02.field_28[sharedData_800E30C8_1_s02.field_78] != 0)
+#else
                 if (ptr->field_26E < var_s4)
+#endif
                 {
                     var_s2 = Q12(var_s4 - ptr->field_26E) / sharedData_800E30C8_1_s02.field_28[sharedData_800E30C8_1_s02.field_78];
 
@@ -656,6 +688,16 @@ void sharedFunc_800CCE60_1_s02(void)
             {
                 break;
             }
+
+#ifdef SH_PC_PORT
+            /* field_13C/field_1BC/field_23C are [16][2]; the render loop
+             * below reads index j, so truncate the ribbon rather than
+             * smash the scratchpad if the segment data implies >16 rows. */
+            if (j >= 15)
+            {
+                break;
+            }
+#endif
         }
 
         for (k = 0; k < j; k++)

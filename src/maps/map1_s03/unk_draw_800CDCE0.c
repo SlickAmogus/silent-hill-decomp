@@ -32,13 +32,29 @@ void func_800CDCE0(s32 arg0, s32 arg1, s32 arg2) // 0x800CDCE0
 
         case 1:
             // TODO: Not sure if this fits any RNG macro?
+#ifdef SH_PC_PORT
+            /* D_800E3A40 is a BSS work buffer the map event code fills
+             * per-entry; x86 idiv/rem fault on the zero fields MIPS
+             * tolerated, so unconfigured entries get no random offset. */
+            tmp0 = (D_800E3A40[arg1].field_C != 0)
+                ? (Rng_Rand16() % D_800E3A40[arg1].field_C) - (D_800E3A40[arg1].field_C >> 1) : 0;
+#else
             tmp0 = (Rng_Rand16() % D_800E3A40[arg1].field_C) - (D_800E3A40[arg1].field_C >> 1);
+#endif
             sharedData_800DFB7C_0_s00[arg0].field_0.vx_0 = D_800E3A40[arg1].vx_0 + FP_FROM((tmp0 * Math_Sin(D_800E3A40[arg1].field_A)), Q12_SHIFT);
             zOff2 = FP_FROM((tmp0 * Math_Cos(D_800E3A40[arg1].field_A)), Q12_SHIFT);
             sharedData_800DFB7C_0_s00[arg0].field_4.vz_4 = D_800E3A40[arg1].vz_4 + zOff2;
             break;
 
         case 2:
+#ifdef SH_PC_PORT
+            /* Rng_GenerateInt modulos by 2 * field_C — see case 1. */
+            if (D_800E3A40[arg1].field_C == 0)
+            {
+                i = 8;
+            }
+            else
+#endif
             for (i = 0; i < 8; i++)
             {
                 offsetX = Rng_GenerateInt(-D_800E3A40[arg1].field_C, D_800E3A40[arg1].field_C - 1);
@@ -78,7 +94,13 @@ void func_800CDCE0(s32 arg0, s32 arg1, s32 arg2) // 0x800CDCE0
 
     if (arg2 == 0)
     {
+#ifdef SH_PC_PORT
+        /* Rng_GenerateInt modulos by field_10 — see case 1. */
+        sharedData_800DFB7C_0_s00[arg0].field_C.s_0.field_0 = (D_800E3A40[arg1].field_10 != 0)
+            ? Rng_GenerateInt(0, D_800E3A40[arg1].field_10 - 1) : 0;
+#else
         sharedData_800DFB7C_0_s00[arg0].field_C.s_0.field_0 = Rng_GenerateInt(0, D_800E3A40[arg1].field_10 - 1);
+#endif
     }
     else
     {
@@ -154,7 +176,14 @@ bool func_800CE164(POLY_FT4** poly, s32 idx) // 0x800CE164
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* See func_800CDCE0: unconfigured entry -> field_10 == 0 -> x86 idiv
+     * fault. Phase 0 keeps the drip at its spawn point. */
+    var_lo = (D_800E3A40[idx2].field_10 != 0)
+        ? FP_TO((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0, Q12_SHIFT) / D_800E3A40[idx2].field_10 : 0;
+#else
     var_lo = FP_TO((u16)sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0, Q12_SHIFT) / D_800E3A40[idx2].field_10;
+#endif
 
     setPolyFT4(*poly);
 

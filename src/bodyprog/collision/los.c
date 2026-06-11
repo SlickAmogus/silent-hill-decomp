@@ -85,6 +85,16 @@ q19_12 Chara_HeadingAngleGet(s_SubCharacter* chara, q19_12 dist, q19_12 toX, q19
     spanAngleStep = spanAngle / SPAN_STEP_COUNT;
     unkAngle = Q12_ANGLE(-360.0f);
 
+#ifdef SH_PC_PORT
+    /* x86 rem-by-zero faults: a span angle below SPAN_STEP_COUNT makes the
+     * step 0 and `% spanAngleStep` below crashes. Step 1 degenerates to a
+     * straight probe with no random spread, which is what a ~0 span means. */
+    if (spanAngleStep == 0)
+    {
+        spanAngleStep = 1;
+    }
+#endif
+
     // Define step count.
     stepCount = 7;
     if (spanAngle == Q12_ANGLE(360.0f))

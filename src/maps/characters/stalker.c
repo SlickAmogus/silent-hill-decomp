@@ -579,6 +579,16 @@ void Ai_Stalker_ControlUpdate(s_SubCharacter* stalker)
         // TODO: Use `Math_Vector2MagCalc`.
         temp_v0                      = ((g_SysWork.playerWork.player.position.vx - sharedData_800E39E4_0_s00) >> 6);
         temp_v0_2                    = (g_SysWork.playerWork.player.position.vz - sharedData_800E39E8_0_s00) >> 6;
+#ifdef SH_PC_PORT
+        /* g_DeltaTime can be 0 on PC (pause/console/sub-hblank frames);
+         * x86 div-by-zero raises #DE where MIPS returns garbage. Player
+         * can't have moved on a 0-dt frame, so the speed sample is 0. */
+        if (g_DeltaTime == Q12(0.0f))
+        {
+            sharedData_800E39EC_0_s00[0] = 0;
+        }
+        else
+#endif
         sharedData_800E39EC_0_s00[0] = (FP_TO(SquareRoot0(SQUARE(temp_v0) + SQUARE(temp_v0_2)), Q12_SHIFT) << 6) / g_DeltaTime;
         sharedData_800E3A0C_0_s00[0] = ratan2(g_SysWork.playerWork.player.position.vx - sharedData_800E39E4_0_s00, g_SysWork.playerWork.player.position.vz - sharedData_800E39E8_0_s00);
         sharedData_800E39E4_0_s00    = g_SysWork.playerWork.player.position.vx;

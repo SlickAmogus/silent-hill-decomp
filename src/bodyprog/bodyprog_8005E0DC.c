@@ -336,7 +336,14 @@ void func_8005E89C(void) // 0x8005E89C
         ptr->field_C8 = g_MapOverlayHdr.field_5C->field_4 * 16;
         ptr->field_CA = g_MapOverlayHdr.field_5C->field_5 * 16;
         ptr->field_CC = (0x100 - g_MapOverlayHdr.field_5C->field_5) * 16;
+#ifdef SH_PC_PORT
+        /* x86 idiv faults on zero; a map with a zeroed weather config
+         * (field_16 == 0) just gets no rotation step. */
+        ptr->field_CE = (g_MapOverlayHdr.field_5C->field_16 != 0)
+            ? (g_DeltaTime * g_MapOverlayHdr.field_5C->field_E) / g_MapOverlayHdr.field_5C->field_16 : 0;
+#else
         ptr->field_CE = (g_DeltaTime * g_MapOverlayHdr.field_5C->field_E) / g_MapOverlayHdr.field_5C->field_16;
+#endif
         ptr->field_C6 = (u16)g_MapOverlayHdr.field_5C->field_A >> 2;
         ptr->field_D0 = g_MapOverlayHdr.field_5C->field_20;
         ptr->field_D4 = g_MapOverlayHdr.field_5C->field_24;
@@ -2905,6 +2912,16 @@ bool func_80064FC0(POLY_FT4** polys, s32 idx) // 0x80064FC0
     {
         return false;
     }
+
+#ifdef SH_PC_PORT
+    /* Drain-valve crash class: SZ saturates to 0 on/behind the camera
+     * plane and x86 idiv faults where MIPS returned garbage. Skip the
+     * quad — it was a garbage quad on PSX anyway. */
+    if (ptr->field_140 == 0)
+    {
+        return false;
+    }
+#endif
 
     ptr->field_144 = ((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_0.field_2 * ptr->field_0.field_2C) / ptr->field_140) >> 4;
     setPolyFT4(*polys);

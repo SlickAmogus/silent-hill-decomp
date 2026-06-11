@@ -85,10 +85,23 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
                 continue;
             }
 
+#ifdef SH_PC_PORT
+            /* x86 idiv/rem fault on zero where MIPS returns garbage. The
+             * modulo operand hits 0 when the cell sits exactly on the spawn
+             * radius — treat that as "spawn" instead of faulting. */
+            {
+                s32 _denom = 0x20 - (((SquareRoot0(sp20 + SQUARE(var_s5 >> 6)) << 6) * 24) / ptr->field_44);
+                if (_denom != 0 && (Rng_Rand16() % _denom) == 0)
+                {
+                    continue;
+                }
+            }
+#else
             if ((Rng_Rand16() % (0x20 - (((SquareRoot0(sp20 + SQUARE(var_s5 >> 6)) << 6) * 24) / ptr->field_44))) == 0)
             {
                 continue;
             }
+#endif
 
             temp_v0_8 = func_8005E7E0(arg7 + 0x17);
             if (temp_v0_8 == NO_VALUE)
@@ -111,7 +124,12 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
 
             temp_s0_2 = Math_Vector3MagCalcSafe(ptr->field_34.vx, ptr->field_34.vy, ptr->field_34.vz);
 
+#ifdef SH_PC_PORT
+            sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_2 =
+                ((arg2 >> 10) != 0) ? MIN(temp_s0_2 / (arg2 >> 10), Q12(1.0f)) : Q12(1.0f);
+#else
             sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_2 = MIN(temp_s0_2 / (arg2 >> 10), Q12(1.0f));
+#endif
 
             sharedData_800DFB7C_0_s00[temp_v0_8].field_B = ((Rng_Rand16() % MIN(((temp_s0_2 * 6) / ptr->field_44) + 3, 8)) * 16) - 0x80 + Rng_GenerateUInt(0, 15);
 
@@ -121,19 +139,41 @@ void sharedFunc_800CCB8C_0_s01(VECTOR* arg0, VECTOR* arg1, s16 arg2, s32 arg3, s
 
             temp_s0_2 = Math_Vector3MagCalcSafe(ptr->field_34.vx, ptr->field_34.vy, ptr->field_34.vz);
 
+#ifdef SH_PC_PORT
+            /* Zero-length direction vector -> no launch velocity. */
+            if (temp_s0_2 == 0)
+            {
+                sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_0  = 0;
+                sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_2  = 0;
+                sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_0 = 0;
+            }
+            else
+            {
+#endif
             sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_0  = (arg2 * Rng_GenerateUInt(64, 191) >> 7) * ptr->field_34.vx / temp_s0_2;
             sharedData_800DFB7C_0_s00[temp_v0_8].field_C.s_0.field_2  = (arg2 * Rng_GenerateUInt(64, 191) >> 7) * ptr->field_34.vy / temp_s0_2;
             sharedData_800DFB7C_0_s00[temp_v0_8].field_10.s_0.field_0 = (arg2 * Rng_GenerateUInt(64, 191) >> 7) * ptr->field_34.vz / temp_s0_2;
+#ifdef SH_PC_PORT
+            }
+#endif
 
             sharedData_800DFB7C_0_s00[temp_v0_8].field_0.s_0.field_2 = Rng_AddGeneratedUInt(ptr->field_48, -255, 256);
             sharedData_800DFB7C_0_s00[temp_v0_8].field_4.s_0.field_2 = Rng_AddGeneratedUInt(ptr->field_4A, -255, 256);
 
+#ifdef SH_PC_PORT
+            temp_lo  = (var_s1 != 0) ? (var_s5 * arg6) / var_s1 : 0;
+#else
             temp_lo  = (var_s5 * arg6) / var_s1;
+#endif
             var_v0_2 = var_s5 + ((ABS(temp_lo) + sp24) >> 2);
             var_s5   = var_v0_2;
         }
 
+#ifdef SH_PC_PORT
+        temp_lo_2 = (arg4 != 0) ? (var_s7 * arg6) / arg4 : 0;
+#else
         temp_lo_2 = (var_s7 * arg6) / arg4;
+#endif
         var_v0_2  = var_s7 + ((ABS(temp_lo_2) + sp24) >> 2);
         var_s7    = var_v0_2;
     }
@@ -182,14 +222,25 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
             temp_s1   = temp_s2_2 >> 2;
             temp_s3   = temp_s2_2 >> 3;
 
+#ifdef SH_PC_PORT
+            /* x86 rem-by-zero faults. A shard that settles with lateral
+             * speed < 4 makes temp_s1 == 0 here — skip the random spin
+             * jitter, keep the base term. Same below. */
+            sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 += CLAMP_HIGH(((temp_s2_2 + (temp_s1 != 0 ? Rng_Rand16() % temp_s1 : 0)) - temp_s3), 0x7FFF) / 256;
+#else
             sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 += CLAMP_HIGH(((temp_s2_2 + (Rng_Rand16() % temp_s1)) - temp_s3), 0x7FFF) / 256;
+#endif
 
             temp_s2_2 = Math_Vector2MagCalcSafeQ6(sharedData_800DFB7C_0_s00[idx].field_C.s_0.field_0,
                                                 sharedData_800DFB7C_0_s00[idx].field_10.s_0.field_0);
             temp_s1_2 = temp_s2_2 >> 2;
             temp_s3   = temp_s2_2 >> 3;
 
+#ifdef SH_PC_PORT
+            sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 += (CLAMP_HIGH(((temp_s2_2 + (temp_s1_2 != 0 ? Rng_Rand16() % temp_s1_2 : 0)) - temp_s3), 0x7FFF) / 256) << 8;
+#else
             sharedData_800DFB7C_0_s00[idx].field_10.s_3.field_2 += (CLAMP_HIGH(((temp_s2_2 + (Rng_Rand16() % temp_s1_2)) - temp_s3), 0x7FFF) / 256) << 8;
+#endif
         }
     }
     else
