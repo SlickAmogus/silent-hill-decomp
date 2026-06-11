@@ -24,9 +24,31 @@ public partial class Form1 : Form
         SetupTooltips();
         this.Shown += (s, e) =>
         {
+            CleanupOldFiles();
             CheckDiscImage();
             SilentAutoCheckForUpdates();
         };
+    }
+
+    /// <summary>
+    /// Delete *.old leftovers from a previous self-update (a running exe
+    /// can't be overwritten, so ReplaceFile renames it aside; by the next
+    /// launcher start the old process is gone and the file is unlocked).
+    /// </summary>
+    private void CleanupOldFiles()
+    {
+        try
+        {
+            string dir = AppDomain.CurrentDomain.BaseDirectory;
+            foreach (var f in Directory.GetFiles(dir, "*.old"))
+                try { File.Delete(f); } catch { /* still locked — next time */ }
+
+            string maps = Path.Combine(dir, "maps");
+            if (Directory.Exists(maps))
+                foreach (var f in Directory.GetFiles(maps, "*.old"))
+                    try { File.Delete(f); } catch { }
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>
@@ -483,39 +505,96 @@ public partial class Form1 : Form
     }
 
     // ------------------------------------------------------------------
-    // Check-for-Updates handler. The launcher does NOT update files itself —
-    // all updating is handled by the standalone SH1Updater.exe (which
-    // replaces the game, the launcher AND itself). This button only makes
-    // sure the updater exists (downloading just that one manifest file when
-    // missing — the bootstrap case), starts it, and closes the launcher so
-    // its own exe isn't locked during the replace.
+    // Check-for-Updates handler. Pulls version.json from the nightly repo
+    // (UpdateChecker.cs), diffs SHA-256 hashes against local files, and
+    // downloads only the changed ones. The launcher can replace its OWN
+    // exe too: a running exe can't be overwritten but CAN be renamed, so
+    // ReplaceFile moves it aside to *.old and the new version loads on the
+    // next start (*.old leftovers are cleaned up at launcher startup).
     // ------------------------------------------------------------------
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
-        string updaterExe = Path.Combine(installDir, "SH1Updater.exe");
+        btnUpdate.Enabled = false;
+        btnPlay.Enabled   = false;
+        lblUpdateStatus.Text = "Checking for updates...";
+        progUpdate.Style   = ProgressBarStyle.Marquee;
+        progUpdate.Visible = true;
 
         try
         {
-            if (!File.Exists(updaterExe))
-            {
-                btnUpdate.Enabled = false;
-                btnPlay.Enabled   = false;
-                lblUpdateStatus.Text = "Downloading updater...";
-                progUpdate.Style   = ProgressBarStyle.Marquee;
-                progUpdate.Visible = true;
+            var plan = await UpdateChecker.CheckAsync(installDir);
 
-                await UpdateChecker.DownloadSingleFileAsync(installDir, "SH1Updater.exe");
+            if (!plan.HasUpdate)
+            {
+                lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
+                progUpdate.Visible = false;
+                MessageBox.Show(this, "You're up to date!", "Check for Updates",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
 
-            Process.Start(updaterExe);
-            Close();
+            // Build a human summary for the confirm dialog. Cap at ~10 files
+            // so we don't blow out a MessageBox on a large changeset.
+            var sb = new StringBuilder();
+            sb.AppendLine($"Update available: {plan.RemoteVersion}");
+            sb.AppendLine($"Built: {plan.BuildDate}");
+            sb.AppendLine();
+            sb.AppendLine($"{plan.Changed.Count} file(s) to download:");
+            int i = 0;
+            foreach (var f in plan.Changed)
+            {
+                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
+                else { sb.AppendLine($"  • ... and {plan.Changed.Count - 10} more"); break; }
+            }
+            sb.AppendLine();
+            sb.AppendLine("Download and install now?");
+
+            var resp = MessageBox.Show(this, sb.ToString(), "Update available",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (resp != DialogResult.Yes)
+            {
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                progUpdate.Visible = false;
+                return;
+            }
+
+            bool selfUpdated = plan.Changed.Any(f =>
+                f.Path.Equals("SilentHillPC_Launcher.exe", StringComparison.OrdinalIgnoreCase));
+
+            progUpdate.Style = ProgressBarStyle.Continuous;
+            progUpdate.Minimum = 0;
+            progUpdate.Maximum = 100;
+
+            await UpdateChecker.ApplyAsync(installDir, plan, (frac, msg) =>
+            {
+                // Marshal back to UI thread — the progress callback fires on
+                // whatever thread HttpClient happens to be on.
+                BeginInvoke((Action)(() =>
+                {
+                    if (frac >= 0 && frac <= 1)
+                        progUpdate.Value = (int)(frac * 100);
+                    lblUpdateStatus.Text = msg ?? "";
+                }));
+            });
+
+            lblUpdateStatus.Text      = $"Up to date ({plan.RemoteVersion}).";
+            lblUpdateStatus.ForeColor = Color.LightGray;
+            btnUpdate.Text            = "Check for Updates";
+            MessageBox.Show(this,
+                selfUpdated
+                    ? "Update complete!\n\nThe launcher itself was updated — the new version loads the next time you open it."
+                    : "Update complete!",
+                "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Couldn't start the updater.";
-            MessageBox.Show(this, "Couldn't get the updater running:\n\n" + ex.Message,
-                "Update error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblUpdateStatus.Text = "Update failed (see message).";
+            MessageBox.Show(this, "Update failed:\n\n" + ex.Message, "Update error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
             btnUpdate.Enabled  = true;
             btnPlay.Enabled    = true;
             progUpdate.Visible = false;
