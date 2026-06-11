@@ -1502,6 +1502,28 @@ void MainLoop(void) // 0x80032EE0
         g_GravitySpeed = Q12_MULT(vCount, H_BLANKS_GRAVITY_SCALE);
         GsClearVcount();
 
+#ifdef SH_PC_PORT
+        /* Interactive console input mode (hold `~`): freeze the game like the
+         * pause screen — zero game time and suppress all controller input so
+         * typed letters don't fire game actions. The world keeps rendering;
+         * only simulation time stops. */
+        {
+            extern int g_PcConsoleInputActive;
+            if (g_PcConsoleInputActive) {
+                g_DeltaTime    = 0;
+                g_DeltaTimeRaw = 0;
+                g_GravitySpeed = 0;
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+                g_Controller0->sticks_20.rawData_0 = 0;
+                g_Controller0->sticks_24.rawData_0 = 0;
+            }
+        }
+#endif
+
         ML_TRACE("GsSwapDispBuff");
         // Draw objects?
         GsSwapDispBuff();

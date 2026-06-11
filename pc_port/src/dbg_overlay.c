@@ -6,6 +6,8 @@
 #include <string.h>
 #include <SDL_scancode.h>
 #include <SDL_keyboard.h>
+#include <SDL_timer.h>
+#include <stdlib.h> /* exit() for the console `quit` command */
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
@@ -24,14 +26,30 @@ extern void Collision_SurfaceGet(s_CollisionSurface* coll, q19_12 posX, q19_12 p
 #define GLYPH_H     8
 #define SCALE       2
 
-#define TEX_W (LINE_LEN * GLYPH_W)     /* 256 */
-#define TEX_H (MAX_CONSOLE * GLYPH_H)  /* 80  */
+#define TEX_W (LINE_LEN * GLYPH_W)            /* 512 */
+#define TEX_H ((MAX_CONSOLE + 1) * GLYPH_H)   /* +1 row for the input prompt */
 
 static char s_console[MAX_CONSOLE][LINE_LEN];
 static int  s_console_count  = 0;
 static int  s_console_dirty  = 0;
 static int  s_prev_a = 0;
 static int  s_prev_b = 0;
+
+/* ---- Interactive console input mode (Half-Life style) ----
+ * Hold `~` (≥350 ms) while the console is open to get a "> _" prompt under
+ * the newest line. While active, game_main freezes game time and controller
+ * input (g_PcConsoleInputActive). A-Z/0-9 type; Backspace deletes; Enter
+ * submits (and unpauses); tapping `~` exits without submitting. */
+int g_PcConsoleInputActive = 0;
+
+#define CONSOLE_HOLD_MS  350
+#define INPUT_BUF_CAP    (LINE_LEN - 4) /* room for "> " + "_" */
+static char          s_input_buf[INPUT_BUF_CAP];
+static int           s_input_len = 0;
+static Uint32        s_tilde_down_ms = 0;
+static int           s_tilde_tap_consumed = 0;
+static int           s_hold_enter_armed = 0;
+static unsigned char s_prev_keys[64]; /* scancodes used here are all < 64 */
 
 /* Slide animation: 0 = fully off-screen above the top edge, 1 = at rest.
  * Eased toward the target each frame in DbgOverlay_Update; the continuous value
@@ -374,34 +392,46 @@ static void overlay_gl_init(void)
 }
 
 /* Caller must have s_tex bound to GL_TEXTURE_2D before calling. */
-static void overlay_update_texture(void)
+static unsigned char s_pixels[TEX_H][TEX_W][4];
+
+static void overlay_render_row(int rowIdx, const char* str)
 {
-    static unsigned char pixels[TEX_H][TEX_W][4];
-    int line, cx, x, y;
+    int cx, x, y;
 
-    memset(pixels, 0, sizeof(pixels));
-
-    for (line = 0; line < s_console_count; line++) {
-        const char* str = s_console[s_console_count - 1 - line];
-        for (cx = 0; *str && cx < LINE_LEN; cx++, str++) {
-            unsigned int ch = (unsigned char)*str;
-            if (ch >= 128) continue;
-            for (y = 0; y < GLYPH_H; y++) {
-                unsigned char row = s_font[ch][y];
-                for (x = 0; x < GLYPH_W; x++) {
-                    if (row & (1u << x)) {
-                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][0] = 255;
-                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][1] = 255;
-                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][2] = 255;
-                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][3] = 255;
-                    }
+    for (cx = 0; *str && cx < LINE_LEN; cx++, str++) {
+        unsigned int ch = (unsigned char)*str;
+        if (ch >= 128) continue;
+        for (y = 0; y < GLYPH_H; y++) {
+            unsigned char row = s_font[ch][y];
+            for (x = 0; x < GLYPH_W; x++) {
+                if (row & (1u << x)) {
+                    s_pixels[rowIdx * GLYPH_H + y][cx * GLYPH_W + x][0] = 255;
+                    s_pixels[rowIdx * GLYPH_H + y][cx * GLYPH_W + x][1] = 255;
+                    s_pixels[rowIdx * GLYPH_H + y][cx * GLYPH_W + x][2] = 255;
+                    s_pixels[rowIdx * GLYPH_H + y][cx * GLYPH_W + x][3] = 255;
                 }
             }
         }
     }
+}
+
+static void overlay_update_texture(void)
+{
+    int line;
+
+    memset(s_pixels, 0, sizeof(s_pixels));
+
+    for (line = 0; line < s_console_count; line++)
+        overlay_render_row(line, s_console[s_console_count - 1 - line]);
+
+    if (g_PcConsoleInputActive) {
+        char prompt[LINE_LEN];
+        snprintf(prompt, LINE_LEN, "> %s_", s_input_buf);
+        overlay_render_row(s_console_count, prompt); /* row under newest; fits the +1 row */
+    }
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEX_W, TEX_H,
-                    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+                    GL_RGBA, GL_UNSIGNED_BYTE, s_pixels);
 }
 
 /* Query the floor-collision function at the player + 4 probe points and format
@@ -669,14 +699,91 @@ void DbgOverlay_Update(void)
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
 
-    /* `~` toggles the in-game console's visibility, preserving the external
-     * bit (bit 0): off<->ingame (0<->2), external<->ingame+external (1<->3).
-     * Handled before the showConsole<2 gate so it works while hidden.
-     * Debug control — only when allow_debug_controls is set. */
+    /* `~` console control (debug builds only):
+     *   - tap while closed  -> open
+     *   - tap while open    -> close
+     *   - HOLD (≥350 ms) while open -> interactive input mode ("> _" prompt,
+     *     game frozen via g_PcConsoleInputActive)
+     *   - tap while in input mode   -> leave input mode (console stays open)
+     * Tap-to-close is decided on RELEASE so a hold doesn't first close it. */
     cur_tilde = ks[SDL_SCANCODE_GRAVE];
-    if (cur_tilde && !s_prev_tilde && g_PcAllowDebugControls)
-        g_PcConfig.showConsole ^= 2;
+    if (g_PcAllowDebugControls) {
+        if (cur_tilde && !s_prev_tilde) { /* press edge */
+            s_tilde_down_ms    = SDL_GetTicks();
+            s_hold_enter_armed = !g_PcConsoleInputActive;
+            if (g_PcConsoleInputActive) {
+                g_PcConsoleInputActive = 0;
+                s_console_dirty        = 1;
+                s_tilde_tap_consumed   = 1;
+            } else if (!(g_PcConfig.showConsole & 2)) {
+                g_PcConfig.showConsole |= 2; /* open immediately on press */
+                s_tilde_tap_consumed    = 1;
+            } else {
+                s_tilde_tap_consumed = 0;    /* open: close on release unless held */
+            }
+        }
+        if (cur_tilde && s_hold_enter_armed && (g_PcConfig.showConsole & 2) &&
+            !g_PcConsoleInputActive &&
+            (SDL_GetTicks() - s_tilde_down_ms) >= CONSOLE_HOLD_MS) {
+            g_PcConsoleInputActive = 1;      /* enter input mode */
+            s_input_len            = 0;
+            s_input_buf[0]         = '\0';
+            s_console_dirty        = 1;
+            s_tilde_tap_consumed   = 1;
+            s_hold_enter_armed     = 0;
+        }
+        if (!cur_tilde && s_prev_tilde) { /* release edge */
+            if (!s_tilde_tap_consumed)
+                g_PcConfig.showConsole &= ~2;
+        }
+    }
     s_prev_tilde = cur_tilde;
+
+    /* Interactive input: A-Z and 0-9 append, Backspace deletes, Enter
+     * submits. Edge-detected against s_prev_keys. The submitted command is
+     * echoed half-life style; `quit` exits the game, anything else prints
+     * "Command not found!". Submitting or tapping `~` unpauses. */
+    if (g_PcConsoleInputActive) {
+        int sc;
+        for (sc = SDL_SCANCODE_A; sc <= SDL_SCANCODE_0; sc++) { /* A..Z, 1..9, 0 are contiguous */
+            if (ks[sc] && !s_prev_keys[sc]) {
+                char c;
+                if (sc <= SDL_SCANCODE_Z)
+                    c = (char)('A' + (sc - SDL_SCANCODE_A));
+                else if (sc == SDL_SCANCODE_0)
+                    c = '0';
+                else
+                    c = (char)('1' + (sc - SDL_SCANCODE_1));
+                if (s_input_len < INPUT_BUF_CAP - 1) {
+                    s_input_buf[s_input_len++] = c;
+                    s_input_buf[s_input_len]   = '\0';
+                    s_console_dirty            = 1;
+                }
+            }
+        }
+        if (ks[SDL_SCANCODE_BACKSPACE] && !s_prev_keys[SDL_SCANCODE_BACKSPACE] && s_input_len > 0) {
+            s_input_buf[--s_input_len] = '\0';
+            s_console_dirty            = 1;
+        }
+        if (ks[SDL_SCANCODE_RETURN] && !s_prev_keys[SDL_SCANCODE_RETURN]) {
+            char echo[LINE_LEN];
+            snprintf(echo, LINE_LEN, "> %s", s_input_buf);
+            push_console(echo);
+            if (strcmp(s_input_buf, "QUIT") == 0) {
+                SH_DBG("[CONSOLE] quit");
+                exit(0);
+            } else if (s_input_len > 0) {
+                push_console("Command not found!");
+            }
+            g_PcConsoleInputActive = 0; /* enter submits AND unpauses */
+            s_console_dirty        = 1;
+        }
+    }
+    {
+        int sc;
+        for (sc = 0; sc < 64; sc++)
+            s_prev_keys[sc] = ks[sc];
+    }
 
     /* Ease the slide toward visible (ingame bit set) or hidden. Runs every
      * frame regardless of state so the console can animate back out. */
@@ -753,7 +860,7 @@ void DbgOverlay_Render(void)
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. */
-    drawConsole = (s_console_slide > 0.0f && s_console_count > 0);
+    drawConsole = (s_console_slide > 0.0f && (s_console_count > 0 || g_PcConsoleInputActive));
     drawColl    = (s_coll_on && s_coll_count > 0);
     if (!drawConsole && !drawColl && !s_coll_on) return;
 
