@@ -136,6 +136,7 @@ partial class Form1
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
+            this.pillarboxPanel.SuspendLayout();
             this.introPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.pgxpPanel.SuspendLayout();
@@ -245,32 +246,32 @@ partial class Form1
             this.radioPreloadNo.Size = new System.Drawing.Size(53, 24);
             this.radioPreloadNo.TabIndex = 5;
             this.radioPreloadNo.Text = "No";
-            //
+            // 
             // pillarboxPanel
-            //
+            // 
             this.pillarboxPanel.Controls.Add(this.radioPillarboxYes);
             this.pillarboxPanel.Controls.Add(this.radioPillarboxNo);
             this.pillarboxPanel.Location = new System.Drawing.Point(80, 207);
             this.pillarboxPanel.Name = "pillarboxPanel";
             this.pillarboxPanel.Size = new System.Drawing.Size(120, 30);
             this.pillarboxPanel.TabIndex = 21;
-            //
+            // 
             // radioPillarboxYes
-            //
+            // 
             this.radioPillarboxYes.Location = new System.Drawing.Point(4, 3);
             this.radioPillarboxYes.Name = "radioPillarboxYes";
             this.radioPillarboxYes.Size = new System.Drawing.Size(45, 24);
             this.radioPillarboxYes.TabIndex = 4;
             this.radioPillarboxYes.Text = "Yes";
-            //
+            // 
             // radioPillarboxNo
-            //
+            // 
             this.radioPillarboxNo.Location = new System.Drawing.Point(59, 3);
             this.radioPillarboxNo.Name = "radioPillarboxNo";
             this.radioPillarboxNo.Size = new System.Drawing.Size(53, 24);
             this.radioPillarboxNo.TabIndex = 5;
             this.radioPillarboxNo.Text = "No";
-            //
+            // 
             // introYes
             // 
             this.introYes.Location = new System.Drawing.Point(5, 5);
@@ -424,7 +425,7 @@ partial class Form1
             this.refreshLabel.AutoSize = true;
             this.refreshLabel.Location = new System.Drawing.Point(7, 215);
             this.refreshLabel.Name = "refreshLabel";
-            this.refreshLabel.Size = new System.Drawing.Size(73, 13);
+            this.refreshLabel.Size = new System.Drawing.Size(63, 13);
             this.refreshLabel.TabIndex = 14;
             this.refreshLabel.Text = "Pillarboxing:";
             // 
@@ -524,6 +525,7 @@ partial class Form1
             this.pgxpYes.Size = new System.Drawing.Size(49, 24);
             this.pgxpYes.TabIndex = 47;
             this.pgxpYes.Text = "Yes";
+            this.pgxpYes.CheckedChanged += new System.EventHandler(this.pgxpYes_CheckedChanged);
             // 
             // pgxpNo
             // 
@@ -680,6 +682,7 @@ partial class Form1
             this.vsyncPanel.ResumeLayout(false);
             this.cullingPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
+            this.pillarboxPanel.ResumeLayout(false);
             this.introPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.pgxpPanel.ResumeLayout(false);

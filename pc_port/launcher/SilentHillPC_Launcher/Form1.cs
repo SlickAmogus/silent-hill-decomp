@@ -758,4 +758,9 @@ public partial class Form1 : Form
             dlg.ShowDialog(this);
         }
     }
+
+    private void pgxpYes_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
 }
