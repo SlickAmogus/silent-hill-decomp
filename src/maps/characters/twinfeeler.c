@@ -340,6 +340,16 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* The overflow flag only fires when H/SZ3 exceeds 0x1FFFF; SZ3 of 1..3
+     * passes the check yet yields otz == 0, and the `/ sz` below faults
+     * x86 idiv where MIPS returned garbage. */
+    if (sz == 0)
+    {
+        return;
+    }
+#endif
+
     packet = GsOUT_PACKET_P;
     ot     = &ord[sz >> 1];
 

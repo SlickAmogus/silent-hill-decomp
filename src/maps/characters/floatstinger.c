@@ -931,7 +931,13 @@ void func_800D3F84(VECTOR3* floatstinger, s32 arg1, s32 arg2) // 0x800D3F84
     gte_rt();
     gte_stlvnl(&sp48);
 
+#ifdef SH_PC_PORT
+    /* Belt for x86 idiv: vz >= sp58 only excludes 0 if the GeomScreen
+     * distance is nonzero. */
+    if (sp48.vz >= sp58 && sp48.vz > 0)
+#else
     if (sp48.vz >= sp58)
+#endif
     {
         s32 x = (sp48.vx * sp58) / sp48.vz;
         s32 y = (sp48.vy * sp58) / sp48.vz;

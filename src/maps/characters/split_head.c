@@ -717,6 +717,16 @@ void SplitHead_Control_4(s_SubCharacter* splitHead)
             timer1      = sharedData_800D5880_1_s05;
             timer1_div6 = timer1 / 6;
 
+#ifdef SH_PC_PORT
+            /* sharedData_800D5880_1_s05 is BSS-zero until the first roar
+             * cycle sets it (Q12(3.8f)); timer1_div6 == 0 then faults the
+             * x86 idiv below. Mid-volume matches the vanilla else-branch. */
+            if (timer1_div6 == 0)
+            {
+                vol = Q8(0.5f);
+            }
+            else
+#endif
             if (timer0 < timer1_div6)
             {
                 vol = (timer0 << 7) / timer1_div6;
@@ -1434,8 +1444,19 @@ void sharedFunc_800D3388_1_s05(s_SubCharacter* splitHead, q19_12* offsetX, q19_1
                          (sp38[i].field_E == 8 ? sharedData_800D5AAE_1_s05 : sp38[i].field_E + 1) == sp38[(i + 1) % temp_s7].field_E) ||
                         (j == 2 && sp38[i].field_D != 0))
                     {
+#ifdef SH_PC_PORT
+                        /* `&sp18[i * 16] + 32` is decompiled PSX stack-frame
+                         * aliasing for `&sp38[i]` (sp38 sat exactly 0x20 past
+                         * sp18 on PSX). The PC compiler lays locals out
+                         * differently, so the alias writes smash the stack and
+                         * sp38[i].field_E later indexes wild (boss-fight AV,
+                         * map1_s05.dll+0x586E, two user reports). */
+                        ptr0 = &sp38[i];
+                        ptr1 = &sp38[k];
+#else
                         ptr0 = &sp18[i * 16] + 32;
                         ptr1 = &sp18[k * 16] + 32;
+#endif
 
                         ptr1->field_0 = ptr0->field_0;
                         ptr1->field_4 = ptr0->field_4;
@@ -1514,8 +1535,14 @@ void sharedFunc_800D3388_1_s05(s_SubCharacter* splitHead, q19_12* offsetX, q19_1
                         (j == 4 && sharedData_800D5CF8_1_s05[sp38[i].field_E] != 2 &&
                          (sharedData_800D5D08_1_s05[sp38[i].field_E] != 0 || sharedData_800D5D08_1_s05[new_var] != 0)))
                     {
+#ifdef SH_PC_PORT
+                        /* Same PSX stack-frame aliasing as above. */
+                        ptr0 = &sp38[i];
+                        ptr1 = &sp38[k];
+#else
                         ptr0 = &sp18[i * 16] + 32;
                         ptr1 = &sp18[k * 16] + 32;
+#endif
 
                         ptr1->field_0 = ptr0->field_0;
                         ptr1->field_4 = ptr0->field_4;
