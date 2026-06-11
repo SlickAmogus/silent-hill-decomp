@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.7 -- 2026-06-11
+- Fix missing cutscene voices game-wide: 32 zero-stubbed voice tables
+- Adjusted positioning of launcher dropdown.
+- Fix cursor-click puzzles: extract keypad rects/codes (4 maps)
+
 ## v2026.06.11.6 -- 2026-06-11
 - Console: help + debug command references; block debug keys while typing
 - Game-over screen: black background, not fog color

@@ -1286,8 +1286,10 @@ void MainLoop(void) // 0x80032EE0
 
         /* [SPEED] probe: wall-clock ground speed averaged over 1s while
          * moving, with fps/zone/state — to compare run speed across fps
-         * caps and areas ("runs too fast in some scenarios"). Debug-gated. */
-        if (g_PcAllowDebugControls && g_GameWork.gameState == GameState_InGame &&
+         * caps and areas ("runs too fast in some scenarios"). Gated on
+         * logging only (not debug controls) so any user log captures it;
+         * SH_DBG is a no-op without enable_debug_log anyway. */
+        if (g_PcConfig.enableDebugLog && g_GameWork.gameState == GameState_InGame &&
             g_SysWork.sysState == SysState_Gameplay)
         {
             static Uint64  s_spdT0;
