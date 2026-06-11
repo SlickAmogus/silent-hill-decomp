@@ -156,6 +156,33 @@ TARGETS = {
     "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
     "D_800F0038":                       ("u16", 2),  # map6_s00 voices
     "D_800F0174":                       ("u16", 2),  # map5_s01 voices
+    # Cursor-click puzzle data (keypads/dials): button hit rects, answer
+    # codes, layout RECTs, sfx positions. All were zero stubs — the cursor
+    # moved but no click could land inside an all-zero rect (map5_s01 door
+    # keypad reported; map3_s03 / map7_s01 / map7_s02 share the pattern).
+    "D_800F0158":                       ("u8",  1),  # map5_s01 keypad rects
+    "D_800F0170":                       ("u8",  1),  # map5_s01 door code
+    "D_800D6B40":                       ("u8",  1),  # map3_s03 keypad rects
+    "D_800D6B50":                       ("u8",  1),  # map3_s03 code
+    "D_800E1504":                       ("u8",  1),  # map7_s01 sfx pos (VECTOR3)
+    "D_800E1510":                       ("u8",  1),  # map7_s01 keypad rects
+    "D_800E1544":                       ("u8",  1),  # map7_s01 entry buffer init
+    "D_800E154C":                       ("u16", 2),  # map7_s01 table
+    "D_800E1680":                       ("u8",  1),  # map7_s01 puzzle state init
+    "D_800E1688":                       ("u8",  1),  # map7_s01 answer code
+    "D_800E168D":                       ("u8",  1),  # map7_s01
+    "D_800E168E":                       ("u16", 2),  # map7_s01 (q4_12)
+    "D_800E1690":                       ("u8",  1),  # map7_s01
+    "D_800E9D00":                       ("u8",  1),  # map7_s02 sfx pos (VECTOR3)
+    "D_800E9D0C":                       ("u8",  1),  # map7_s02 layout RECTs
+    "D_800E9D1C":                       ("u8",  1),  # map7_s02 layout RECT
+    "D_800E9D24":                       ("u16", 2),  # map7_s02 table
+    "D_800E9D2C":                       ("u16", 2),  # map7_s02
+    "D_800E9D6C":                       ("u16", 2),  # map7_s02 table
+    "D_800E9D7C":                       ("u16", 2),  # map7_s02
+    "D_800E9D80":                       ("s16", 2),  # map7_s02 table
+    "D_800E9D8E":                       ("u8",  1),  # map7_s02
+    "D_800E9DE8":                       ("u8",  1),  # map7_s02 keypad rects
 }
 
 # MAP_ROOM_IDXS byte size = strideX * strideZ, stride = (MAX - MIN) / CHUNK_CELL_SIZE
@@ -197,6 +224,8 @@ EXTRA_SYMBOLS = {
                  ("D_800D775C", 0x800D775C, 8)],
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
+                 ("D_800F0158", 0x800F0158, 24),
+                 ("D_800F0170", 0x800F0170, 4),
                  ("D_800F0174", 0x800F0174, 24)],
     "map6_s03": [("D_800DBCDC", 0x800DBCDC, 8)],
     # Cutscene voice-command tables (see TARGETS). Sizes = gap to the next
@@ -204,7 +233,9 @@ EXTRA_SYMBOLS = {
     # sym-file symbol). Over-extraction copies inert ROM bytes — the scenes
     # index only as many entries as they have dialogue pages.
     "map3_s00": [("D_800D24F0", 0x800D24F0, 76)],
-    "map3_s03": [("D_800D6B54", 0x800D6B54, 4)],
+    "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
+                 ("D_800D6B50", 0x800D6B50, 4),
+                 ("D_800D6B54", 0x800D6B54, 4)],
     "map3_s04": [("D_800D599C", 0x800D599C, 64)],
     "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
     "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
@@ -222,11 +253,30 @@ EXTRA_SYMBOLS = {
                  ("D_800EBA64", 0x800EBA64, 210)],
     "map7_s00": [("D_800D31C4", 0x800D31C4, 12)],
     "map7_s01": [("D_800E14E8", 0x800E14E8, 24),
-                 ("D_800E1500", 0x800E1500, 112)],
+                 ("D_800E1500", 0x800E1500, 4),
+                 ("D_800E1504", 0x800E1504, 12),
+                 ("D_800E1510", 0x800E1510, 52),
+                 ("D_800E1544", 0x800E1544, 8),
+                 ("D_800E154C", 0x800E154C, 36),
+                 ("D_800E1680", 0x800E1680, 8),
+                 ("D_800E1688", 0x800E1688, 5),
+                 ("D_800E168D", 0x800E168D, 1),
+                 ("D_800E168E", 0x800E168E, 2),
+                 ("D_800E1690", 0x800E1690, 4)],
     "map7_s02": [("D_800E9CE4", 0x800E9CE4, 24),
-                 ("D_800E9CFC", 0x800E9CFC, 52),
+                 ("D_800E9CFC", 0x800E9CFC, 4),
+                 ("D_800E9D00", 0x800E9D00, 12),
+                 ("D_800E9D0C", 0x800E9D0C, 16),
+                 ("D_800E9D1C", 0x800E9D1C, 8),
+                 ("D_800E9D24", 0x800E9D24, 8),
+                 ("D_800E9D2C", 0x800E9D2C, 4),
                  ("D_800E9D30", 0x800E9D30, 32),
-                 ("D_800E9D50", 0x800E9D50, 64)],
+                 ("D_800E9D50", 0x800E9D50, 28),
+                 ("D_800E9D6C", 0x800E9D6C, 16),
+                 ("D_800E9D7C", 0x800E9D7C, 4),
+                 ("D_800E9D80", 0x800E9D80, 14),
+                 ("D_800E9D8E", 0x800E9D8E, 2),
+                 ("D_800E9DE8", 0x800E9DE8, 52)],
     "map7_s03": [("D_800ED768", 0x800ED768, 20),
                  ("D_800ED77C", 0x800ED77C, 56),
                  ("D_800ED7B4", 0x800ED7B4, 216),
