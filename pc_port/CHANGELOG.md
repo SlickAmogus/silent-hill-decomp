@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.10 -- 2026-06-11
+- Systematic div-by-zero sweep: guard all x86 idiv/rem fault sites
+- docs: index drain-valve, school-key/cam-warp, and div-by-zero sweep fixes
+
 ## v2026.06.11.9 -- 2026-06-11
 - Fix fog-color flash during puzzle key insertion
 - Fix two user-reported div-by-zero crashes (school key + camera warp)
