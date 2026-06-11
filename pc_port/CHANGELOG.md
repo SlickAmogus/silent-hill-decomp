@@ -1,5 +1,13 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.6 -- 2026-06-11
+- Console: help + debug command references; block debug keys while typing
+- Game-over screen: black background, not fog color
+- XA voice deep-dive: harden stuck-state paths + disc audit tool
+- Fix item TMD previews vanishing in foggy/dark maps
+- Borderless display mode + launcher Fullscreen/Windowed/Borderless dropdown
+- Add [SPEED] probe: 1s wall-clock ground speed log (debug-gated)
+
 ## v2026.06.11.5 -- 2026-06-11
 - release-nightly: ship runtime DLLs (MinGW/SDL2/OpenAL/libjpeg)
 
