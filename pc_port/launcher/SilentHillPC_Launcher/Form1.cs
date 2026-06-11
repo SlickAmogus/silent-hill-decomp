@@ -456,15 +456,35 @@ public partial class Form1 : Form
     }
 
     // ------------------------------------------------------------------
-    // Check-for-Updates handler. Pulls version.json from the nightly repo
-    // (UpdateChecker.cs), diffs SHA-256 hashes against local files, and
-    // downloads only the changed ones. Safe to run while game exe isn't
-    // executing — the launcher always runs before the game, so file
-    // overwrites of SilentHillPC.exe don't hit a "file in use" lock.
+    // Check-for-Updates handler. Hands off to the standalone SH1Updater.exe
+    // (which updates the game, the launcher AND itself) and closes the
+    // launcher so its own exe isn't locked during the replace.
+    //
+    // Bootstrap fallback: installs that don't have SH1Updater.exe yet run
+    // the old inline flow below — SH1Updater.exe is in the nightly manifest,
+    // so that update delivers it and every later check uses the hand-off.
     // ------------------------------------------------------------------
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        string updaterExe = Path.Combine(installDir, "SH1Updater.exe");
+        if (File.Exists(updaterExe))
+        {
+            try
+            {
+                Process.Start(updaterExe);
+                Close();
+                return;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Couldn't start SH1Updater.exe:\n\n" + ex.Message +
+                    "\n\nFalling back to the built-in updater.", "Update",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         btnUpdate.Enabled = false;
         btnPlay.Enabled   = false;
         lblUpdateStatus.Text = "Checking for updates...";
