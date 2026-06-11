@@ -3,7 +3,8 @@
  * output goes back through DbgOverlay_PushLine.
  *
  * Commands:
- *   HELP                 - list commands
+ *   HELP                 - command list with descriptions
+ *   DEBUG [page]         - debug & cheat key reference (2 pages)
  *   QUIT                 - exit the game
  *   MAP                  - list all map names
  *   MAP <name>           - new-game warp to a map (mirrors title.c auto-start)
@@ -141,6 +142,65 @@ static void cmd_give(const char* arg)
     }
 }
 
+/* help / debug reference pages. The in-game console viewport shows
+ * MAX_CONSOLE (20) lines and each line buffer is LINE_LEN (64) chars, so
+ * pages stay under ~16 lines of <=63 chars and longer lists split into
+ * numbered pages ("debug 2"). */
+static const char* const HELP_LINES[] = {
+    "Commands:",
+    " help [n]       command list",
+    " debug [n]      debug & cheat key reference",
+    " quit           exit the game",
+    " map            list all map names",
+    " map <name>     new-game warp to a map",
+    " give <thing>   HANDGUN RIFLE SHOTGUN AMMO HEALTH",
+    " noclip         walk through walls (floor stays on)",
+    " fmv            list movies (numbered)",
+    " fmv <name|#>   play a movie (also intro1-2, end1-5)",
+    "Quick Save: F6   Quick Load: F8 (work outside console)",
+};
+
+static const char* const DEBUG_PAGE1[] = {
+    "Debug keys (page 1/2) - cheats & tools:",
+    " Esc     warm reset to the title screen",
+    " 0       noclip toggle (walk through walls)",
+    " 1       kill Harry",
+    " 4 / 5   map config prev / next (loads on New Game)",
+    " 6       spawn Grey Child in front of Harry",
+    " 7       invincibility toggle",
+    " 8       +15 handgun bullets",
+    " 9       no-target toggle (enemies ignore Harry)",
+    " -       give Hunting Rifle + 30 shells",
+    " =       give Shotgun + 30 shells",
+    " '       collision visualizer panel",
+    " [ / ]   drop A/B position markers into the log",
+    " ~       tap: console open/close, hold: command input",
+    "type DEBUG 2 for the camera keys",
+};
+
+static const char* const DEBUG_PAGE2[] = {
+    "Debug keys (page 2/2) - camera:",
+    " Num *        free debug camera on/off",
+    " Num 2        third-person chase cam (mouse look)",
+    " Num 8/5/4/6  fly forward / back / strafe left / right",
+    " Num 7 / 9    turn left / right",
+    " Num + / -    tilt up / down",
+    " PgUp / PgDn  move up / down",
+    " Num /        print camera coordinates to the log",
+    " (with debug cam OFF the same numpad keys nudge the",
+    "  normal game camera - live camera tuning aid)",
+    " Num 3        reset cam nudge / in-game rescue teleport",
+    " Num 0        raw cam mode (zero all nudges)",
+    " Num .        log Harry position (+fog toggle in cam)",
+};
+
+static void push_lines(const char* const* lines, int count)
+{
+    int i;
+    for (i = 0; i < count; i++)
+        DbgOverlay_PushLine(lines[i]);
+}
+
 /* FMV start is deferred so the screen can fade to black first, like the
  * game's own movie transitions: cmd_fmv arms the pending index and starts a
  * fade-out; Pc_ConsoleFmvUpdate (called every frame from MainLoop) blocks in
@@ -254,7 +314,12 @@ void Pc_ConsoleExec(const char* line)
         SH_DBG("[CONSOLE] quit");
         exit(0);
     } else if (strcmp(cmd, "HELP") == 0) {
-        DbgOverlay_PushLine("quit map [name] give <thing> noclip fmv [name|#|intro1|end1]");
+        push_lines(HELP_LINES, (int)(sizeof(HELP_LINES) / sizeof(HELP_LINES[0])));
+    } else if (strcmp(cmd, "DEBUG") == 0) {
+        if (strcmp(arg, "2") == 0)
+            push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
+        else
+            push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "MAP") == 0) {
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {

@@ -191,6 +191,13 @@ void DebugCamera_Update(void)
         extern int g_PcAllowDebugControls;
         if (!g_PcAllowDebugControls) return;
     }
+    /* Console input mode: typed characters land on the same top-row keys the
+     * debug binds use (0-9, -, =), and the controller suppression doesn't
+     * cover these direct SDL reads — block them all while typing. */
+    {
+        extern int g_PcConsoleInputActive;
+        if (g_PcConsoleInputActive) return;
+    }
 #endif
     if (g_GameWork.gameState != GameState_InGame) return;
 
