@@ -1599,9 +1599,21 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.b = 0;
         }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
-            g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
-            g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
-            g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
+            /* Fullscreen 2D background screens (eclipse/plates doors, item
+             * inspection) must clear to the game's own color (black) — on
+             * PSX the fog void isn't the clear color, so these screens were
+             * never fog-tinted. Counter set by Screen_BackgroundImgDraw*. */
+            extern s32 g_Pc2dBackgroundActive;
+            if (g_Pc2dBackgroundActive > 0) {
+                g_Pc2dBackgroundActive--;
+                g_GameWork.background2dColor.r = 0;
+                g_GameWork.background2dColor.g = 0;
+                g_GameWork.background2dColor.b = 0;
+            } else {
+                g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
+                g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
+                g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
+            }
             g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;

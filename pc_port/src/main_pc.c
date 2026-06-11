@@ -127,6 +127,10 @@ static void Sh_LogAtExitFlush(void) {
     if (g_ShDebugLog && g_ShDebugLog != stdout) fflush(g_ShDebugLog);
 }
 
+/* Crash telemetry lives in pc_crash.c (windows.h conflicts with the decomp
+ * `byte` typedef, so it can't be included here). */
+extern void Sh_InstallCrashFilter(void);
+
 
 /* Game data path - where the extracted game files are located */
 static char g_GameDataPath[512] = "./gamedata";
@@ -176,6 +180,7 @@ int main(int argc, char* argv[])
      * that point are silently no-ops (the macro short-circuits on a NULL
      * handle). Avoids creating SilentHill.log when enable_debug_log=0. */
     atexit(Sh_LogAtExitFlush);
+    Sh_InstallCrashFilter();
 
     PrintBanner();
     ParseArgs(argc, argv);
