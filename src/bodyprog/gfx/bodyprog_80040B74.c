@@ -1003,8 +1003,19 @@ s_IpdCollisionData* func_800426E4(s32 posX, s32 posZ) // 0x800426E4
 
 s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q19_12 posX, q19_12 posZ) // 0x8004287C
 {
+#ifdef SH_PC_PORT
+    /* The ±1-cell window below matches at most 3x3 = 9 chunks. PSX sized
+     * these arrays for its 4 streaming-active chunks; with PC preloading
+     * every chunk, up to 9 candidates exist and the old size-4 cap dropped
+     * them in ENCOUNTER order (not nearest), so world objects vanished at
+     * specific spots (street doghouse papers PPR*_NEA, school GOLD_HID).
+     * Search all 9 possible candidates instead. */
+    s_Chunk* chunks[9];
+    q19_12      distsToEdges[9];
+#else
     s_Chunk* chunks[4];
     q19_12      distsToEdges[4];
+#endif
     q23_8       geomX;
     q23_8       geomZ;
     s32         cellX;
@@ -1083,19 +1094,11 @@ s32 func_8004287C(s_WorldObjectModel* model, s_WorldObjectMetadata* metadata, q1
                 curChunk->cellZ >= (cellZ - 1) && (cellZ + 1) >= curChunk->cellZ)
             {
 #ifdef SH_PC_PORT
-                /* `chunks[4]` is a fixed stack array. With PC's chunk
-                 * count bump (PC_MAX_IPD_CHUNKS=256, vs PSX's 4), more
-                 * loaded chunks can pass the ±1 cell-range check and
-                 * the loop OOB-writes past chunks[4]/distsToEdges[4],
-                 * stomping adjacent stack — that's the source of the
-                 * "NHS." filename bytes appearing in OT addr fields
-                 * (chunks[] holds s_Chunk* whose names begin with
-                 * "BG_*.PLM" etc.) and the func_8004287C+0x422 crash.
-                 *
-                 * Cap chunkIdx at 4 (the original PSX max). Sorting
-                 * inserts only when there's room; we drop further
-                 * matches outside the 4 nearest. */
-                if (chunkIdx >= 4) {
+                /* Belt-and-suspenders for the array bound (9 = max possible
+                 * matches in the ±1 window; see declaration). The previous
+                 * cap of 4 dropped candidates in encounter order and lost
+                 * objects at specific spots. */
+                if (chunkIdx >= (s32)ARRAY_SIZE(chunks)) {
                     continue;
                 }
 #endif

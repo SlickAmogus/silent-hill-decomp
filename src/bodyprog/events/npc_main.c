@@ -290,6 +290,13 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             g_SysWork.npcs[npcIdx].field_40           = i;
             g_SysWork.npcs[npcIdx].model.controlState = 0;
             g_SysWork.npcs[npcIdx].model.stateStep    = curCharaSpawn->flags;
+#ifdef SH_PC_PORT
+            SH_DBG("[SPAWN] slot=%d -> npc[%d] charaId=%d stateStep=%d pos=(%d,%d)",
+                   i, npcIdx, (int)g_SysWork.npcs[npcIdx].model.charaId,
+                   (int)curCharaSpawn->flags,
+                   FP_FROM(curCharaSpawn->positionX, Q12_SHIFT),
+                   FP_FROM(curCharaSpawn->positionZ, Q12_SHIFT));
+#endif
             g_SysWork.npcs[npcIdx].position.vx        = curCharaSpawn->positionX;
             g_SysWork.npcs[npcIdx].position.vz        = curCharaSpawn->positionZ;
 
