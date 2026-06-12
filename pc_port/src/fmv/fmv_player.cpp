@@ -611,7 +611,8 @@ static int PollSkipOrQuit(int* out_quit)
     const Uint8* keystate = SDL_GetKeyboardState(NULL);
     return (keystate[SDL_SCANCODE_RETURN] ||
             keystate[SDL_SCANCODE_ESCAPE] ||
-            keystate[SDL_SCANCODE_SPACE]);
+            keystate[SDL_SCANCODE_SPACE] ||
+            PsyX_Pad_SkipButtonHeld());
 }
 
 /* Play an FMV directly from the BIN disc image using the MDEC software
@@ -745,14 +746,15 @@ static int PlayFromBin(int table_idx, int max_frames)
 
     /* Wait for skip keys to release before returning so the still-held key
      * doesn't carry into the next state's first Joy_Update (Enter → phantom
-     * Confirm on the title). Same protection as the AVI path. */
+     * Confirm on the title; Cross on pad = Confirm too). Same protection as
+     * the AVI path. */
     {
         int wait_frames = 0;
         while (wait_frames < 30) {
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE])
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;
@@ -855,7 +857,7 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         SDL_PumpEvents();
         const Uint8* keystate = SDL_GetKeyboardState(NULL);
         int skipHeld = keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
-                       keystate[SDL_SCANCODE_SPACE];
+                       keystate[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
         if (!skip_armed) {
             if (!skipHeld)
                 skip_armed = 1;
@@ -935,7 +937,7 @@ done:
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE])
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;
