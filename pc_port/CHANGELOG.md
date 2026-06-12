@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.5 -- 2026-06-12
+- blood: fix effect-descriptor leak + make [BLOOD-CFG] actually fire
+- walls: [COLL-MISS] diagnostic in Ipd_CollisionDataGet NULL path
+
 ## v2026.06.12.4 -- 2026-06-12
 - remove visibility force-set bypasses + sanitize blood color on load
 - fix invisible walls: IPD header clobber zeroed collision surfaces
