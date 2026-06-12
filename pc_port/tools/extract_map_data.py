@@ -289,6 +289,18 @@ EXTRA_SYMBOLS = {
 # next-symbol gap would give the wrong size (e.g. sharedData_800EB740_6_s04
 # is annotated size:2 but Bgm_Update reads 8 limit bytes; the map7 limit
 # tables have large gaps to the next listed symbol).
+# Per-map hard size overrides (bytes) for symbol names that recur across maps
+# with different real sizes. Checked before the global SIZE_OVERRIDE.
+SIZE_OVERRIDE_PER_MAP = {
+    # Cybil basement scene: the upstream sym file sizes this table at 0x52
+    # (41 entries) but the on-disc data continues with 42 more valid XA cmds
+    # up to where g_Cutscene_MapMsgAudioCmds0 starts (0x800D5A1C + 0xA8 ==
+    # 0x800D5AC4). The truncation made page 42+ of the scene read the
+    # neighbouring tables (voices from other scenes) and then non-voice
+    # data (silence) — user log decoded 1:1 against the PC data layout.
+    ("map4_s01", "g_Cutscene_MapMsgAudioCmds"): 0xA8,
+}
+
 SIZE_OVERRIDE = {
     "sharedData_800ECA4C_2_s02": 4,
     "sharedData_800ECACC_2_s02": 4,
@@ -772,6 +784,8 @@ def extract_map(map_name, sym_path, bin_path):
                 print(f"  [{map_name}] MAP_ROOM_IDXS: no grid size known; skipping",
                       file=sys.stderr)
                 continue
+        elif (map_name, name) in SIZE_OVERRIDE_PER_MAP:
+            size = SIZE_OVERRIDE_PER_MAP[(map_name, name)]
         elif name in SIZE_OVERRIDE:
             size = SIZE_OVERRIDE[name]
         else:
