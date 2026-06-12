@@ -564,13 +564,13 @@ void Game_NpcUpdate(void) // 0x80038354
                  * really only needs the model and not the full AI dispatch. */
                 bool isRenderOnlyNpc = false;
 
-                /* Force AnimFlag_Visible for charaId > Chara_MonsterCybil --
-                 * the distance-check block above only runs for ids <= 24,
-                 * so Cybil (26) and AirScreamer would otherwise never get
-                 * the flag set and would skip the func_8003DA9C render call. */
-                if (isFullAiNpc && npc->model.charaId > Chara_MonsterCybil) {
-                    npc->model.anim.flags |= AnimFlag_Visible;
-                }
+                /* NOTE: a per-frame `flags |= AnimFlag_Visible` force-set for
+                 * charaId > Chara_MonsterCybil used to live here. Chara_Spawn
+                 * already sets the flag at spawn (chara_spawn.c), and the
+                 * authentic per-frame distance show/hide only covers ids <= 24
+                 * — high ids are meant to keep their spawn-time flag until
+                 * game code hides/shows them explicitly. The force-set fought
+                 * every legitimate hide (cutscene actors, scripted reveals). */
 
                 if (!animLoaded || !isFullAiNpc)
                 {
