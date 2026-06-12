@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.6 -- 2026-06-12
+- fix Floatstinger boss: dead AI dispatch table + zero-stubbed rodata
+- retire exe-side D_800D7A04 stub (DLL now defines the real table)
+
 ## v2026.06.12.5 -- 2026-06-12
 - blood: fix effect-descriptor leak + make [BLOOD-CFG] actually fire
 - walls: [COLL-MISS] diagnostic in Ipd_CollisionDataGet NULL path
