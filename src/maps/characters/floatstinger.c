@@ -195,7 +195,13 @@ void Floatstinger_ControlUpdate(s_SubCharacter* floatstinger) // 0x800D1B98
     // Handle control state.
     if (D_800D7A04[floatstinger->model.controlState] != NULL)
     {
+#ifdef SH_PC_PORT
+        /* PSX passed no explicit arg; handlers read the floatstinger from a0,
+         * which this function still holds at the call. Pass it explicitly. */
+        D_800D7A04[floatstinger->model.controlState](floatstinger);
+#else
         D_800D7A04[floatstinger->model.controlState]();
+#endif
     }
 }
 
@@ -1380,3 +1386,11 @@ void func_800D4A3C(s_SubCharacter* floatstinger, VECTOR3* pos, q3_12 newRotY) //
 
     func_800D41F0(floatstinger);
 }
+
+#ifdef SH_PC_PORT
+/* PC port: pull in the AI dispatch table extracted from
+ * disc_extract/VIN/MAP4_S05.BIN. Same per-DLL reasoning as
+ * romper_rodata.inc — the table must live in the TU that defines
+ * the handler functions it references. */
+#include "floatstinger_rodata.inc"
+#endif
