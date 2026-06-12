@@ -1482,7 +1482,7 @@ void func_8003DE60(s_Skeleton* skel, s32 arg1) // 0x8003DE60
     static s32 D_800A9EEC = 0x0000FE12;
 
     // Process first masked value.
-    idx = MODEL_BONE_IDX_1_GET(arg1);
+    idx = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (idx != 0)
     {
         func_80045468(skel, &D_800A9ECC, false);
@@ -1539,7 +1539,7 @@ void func_8003DF84(s_Skeleton* skel, s32 arg1) // 0x8003DF84
     static s32 D_800A9EF8 = 0x0000FE12;
     static s32 D_800A9EFC = 0x00FE1312;
 
-    idx = MODEL_BONE_IDX_1_GET(arg1);
+    idx = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (idx != 0)
     {
         switch (idx)
@@ -1583,7 +1583,7 @@ void func_8003E08C(s_Skeleton* skel, s32 arg1) // 0x8003E08C
     static s32 D_800A9F08 = 0x0000FE00;
     static s32 D_800A9F0C = 0x00FE0100;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
         switch (maskedVal)
@@ -1627,7 +1627,7 @@ void func_8003E194(s_Skeleton* skel, s32 arg1) // 0x8003E194
     static s32 D_800A9F18 = 0x00FE0201;
     static s32 D_800A9F1C = 0x0000FE03;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
         func_80045468(skel, &D_800A9F10, false);
@@ -1664,7 +1664,7 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
     static s32 D_800A9F40 = 0x0000FE01;
     static s32 D_800A9F44 = 0x00FE0201;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
         func_80045468(skel, &D_800A9F20, false);
@@ -1719,7 +1719,7 @@ void func_8003E388(s_Skeleton* skel, s32 arg1) // 0x8003E388
     static s32 D_800A9F48 = 0x0000FE05;
     static s32 D_800A9F4C = 0x0000FE06;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
         switch (maskedVal)
@@ -1774,7 +1774,7 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
     static s32 D_800A9F64 = 0x00FE0603;
     static s32 D_800A9F68 = 0x00FE0704;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
         func_80045468(skel, &D_800A9F58, false);
@@ -1806,7 +1806,7 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
     static s32 D_800A9F78 = 0x00FE0603;
     static s32 D_800A9F7C = 0x00FE0704;
 
-    maskedVal = MODEL_BONE_IDX_1_GET(arg1);
+    maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal == 0)
     {
         return;

@@ -120,13 +120,11 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
                       0);                              /* no brightness overlay */
         g_WorldEnvWork.isFogEnabled = 0;
     }
-    /* Force all skeleton bones visible (same as InGame Harry render) */
-    {
-        s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels[Chara_Harry];
-        if (harryModel != NULL) {
-            func_800453E8(&harryModel->skeleton, true);
-        }
-    }
+    /* NOTE: the per-load func_800453E8(skel, true) force-show was removed —
+     * it re-showed Harry's hidden weapon-hand variant meshes (duplicate
+     * hands). The merge-era invisibility it covered for was the mis-mapped
+     * MODEL_BONE_IDX_0_GET in world_draw.c's variant selectors, now fixed. */
+
     /* Reset ALL bone flg values to force full hierarchy recomputation.
      * This eliminates stale cached workm matrices from previous frames. */
     {
