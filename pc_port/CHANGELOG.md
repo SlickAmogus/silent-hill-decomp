@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.21 -- 2026-06-11
+- Fix larva-boss intro crash: VECTOR* truncated through s32 param
+- Fix larva crash follow-up: widen func_800D185C in header + twinfeeler.c copy
+
 ## v2026.06.11.20 -- 2026-06-11
 - Fix black rooms from pinned texture pages: nearer chunks steal from farthest
 
