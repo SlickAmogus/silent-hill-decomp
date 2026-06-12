@@ -2609,6 +2609,33 @@ s_IpdCollisionData* Ipd_CollisionDataGet(q19_12 posX, q19_12 posZ) // 0x800426E4
     // Fallback.
     if (((s16*)(&g_Map.chunkGridCenter[cellZ]))[cellX] != NO_VALUE)
     {
+#ifdef SH_PC_PORT
+        /* [COLL-MISS] (#42 invisible walls): this NULL means "a chunk exists
+         * for this cell but isn't serving collision" — downstream the miss
+         * reads as ground 8 units down and movement refuses the step, i.e.
+         * an invisible wall at the chunk border. Dump WHY each active slot
+         * rejected the query (window membership, Fs load state, isLoaded) so
+         * the failing gate is named. Rate-limited; the probes hit this many
+         * times per frame while pushing against the block. */
+        {
+            static s32 s_lastMissLog = -1000;
+            if (g_TickCount - s_lastMissLog > 30)
+            {
+                s_Chunk* c;
+                s_lastMissLog = g_TickCount;
+                SH_DBG("[COLL-MISS] cell(%d,%d) pos(%.1f,%.1f) activeCount=%d",
+                       cellX, cellZ, (double)posX / 4096.0, (double)posZ / 4096.0,
+                       (int)g_Map.activeChunkCount);
+                for (c = g_Map.activeChunks; c < &g_Map.activeChunks[g_Map.activeChunkCount]; c++)
+                {
+                    SH_DBG("[COLL-MISS]   slot cell(%d,%d) qIdx=%d loadState=%d isLoaded=%d",
+                           (int)c->cellX, (int)c->cellZ, (int)c->queueIdx,
+                           (int)Map_ChunkLoadStateGet(c->queueIdx),
+                           (c->ipdHdr != NULL) ? (int)c->ipdHdr->isLoaded : -1);
+                }
+            }
+        }
+#endif
         return NULL;
     }
     else
