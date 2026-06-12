@@ -589,6 +589,15 @@ void func_80055B74(CVECTOR* result, CVECTOR* color, s32 arg2) // 0x80055B74
 
     arg2 >>= 4;
 
+#ifdef SH_PC_PORT
+    /* Same signedness hazard as the per-vertex ramp above: a negative
+     * depth passes the `<` test and indexes fogRamp[] out of bounds. */
+    if (arg2 < 0)
+    {
+        arg2 = 0;
+    }
+#endif
+
     var_t0 = g_WorldEnvWork.field_20 >> 5;
 
     if (arg2 < (1 << g_WorldEnvWork.fog.depthShift))
@@ -1755,6 +1764,18 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
 
     temp_s2 = g_WorldEnvWork.fog.depthShift;
 
+#ifdef SH_PC_PORT
+    /* The per-vertex depths below live in s16 slots; a GTE SZ >= 32768
+     * reads back negative, passes the `< (1 << depthShift)` fog test and
+     * indexes fogRamp[] with a large NEGATIVE value — garbage fog bytes
+     * that corrupted character vertex colors (this was the reason Harry's
+     * gameplay render disabled fog entirely). Read the depth as u16:
+     * negative-as-stored is just "very far" -> full fog, and the taken
+     * index is always 0..127. */
+    #define PC_FOG_VTX_RAMP(zv) \
+        (((u16)(zv)) < (1u << temp_s2) ? g_WorldEnvWork.fogRamp[(((u32)(u16)(zv)) << 7) >> temp_s2] : 0xFF)
+#endif
+
     SetRotMatrix(mat);
     SetTransMatrix(mat);
 
@@ -1803,9 +1824,15 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
             gte_ldv3c(&scratchData->field_380.field_0);
             gte_rtpt();
 
+#ifdef SH_PC_PORT
+            var_t1[-3] = PC_FOG_VTX_RAMP(temp_a2[-3]);
+            var_t1[-2] = PC_FOG_VTX_RAMP(temp_a2[-2]);
+            var_t1[-1] = PC_FOG_VTX_RAMP(temp_a2[-1]);
+#else
             var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
             var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
             var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
+#endif
 
             gte_stsxy3c(screenXy);
             gte_stsz3(&scratchData->field_380.field_0.m[0][2], &scratchData->field_380.field_0.m[2][0], &scratchData->field_380.field_0.t[0]);
@@ -1815,9 +1842,15 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
             temp_a2[2] = scratchData->field_380.field_0.t[0];
         }
 
+#ifdef SH_PC_PORT
+        var_t1[-3] = PC_FOG_VTX_RAMP(temp_a2[-3]);
+        var_t1[-2] = PC_FOG_VTX_RAMP(temp_a2[-2]);
+        var_t1[-1] = PC_FOG_VTX_RAMP(temp_a2[-1]);
+#else
         var_t1[-3] = temp_a2[-3] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-3] << 7) >> temp_s2] : 0xFF;
         var_t1[-2] = temp_a2[-2] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-2] << 7) >> temp_s2] : 0xFF;
         var_t1[-1] = temp_a2[-1] < (1 << temp_s2) ? g_WorldEnvWork.fogRamp[(temp_a2[-1] << 7) >> temp_s2] : 0xFF;
+#endif
     }
     else
     {

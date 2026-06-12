@@ -288,22 +288,14 @@ void GameState_InGame_Update(void) // 0x80038BD4
                     g_SysWork.playerBoneCoords[_bi].flg = 0;
                 }
             }
-            /* Temporarily disable fog for Harry's render -- the fogRamp_CC
-             * lookup can produce out-of-range indices that corrupt his
-             * vertex colors when fed through the full lighting pipeline.
-             * NOTE: this used to also force field_0=0 (baked-light mode),
-             * which stomped the map's real lighting mode and rendered Harry
-             * pitch-black in every flashlight/lighter-dark scene (the map
-             * correctly sets field_0=1 point-light there, matching PSX).
-             * isFogEnabled=0 alone takes the no-fog lit branch (field_0!=0 &&
-             * !isFogEnabled in func_80057090), avoiding the fog path while
-             * keeping Harry's dynamic lighting. */
-            {
-                u8 savedFog = g_WorldEnvWork.isFogEnabled;
-                g_WorldEnvWork.isFogEnabled = 0;
-                func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
-                g_WorldEnvWork.isFogEnabled = savedFog;
-            }
+            /* Harry now renders WITH fog, matching PSX (he previously
+             * rendered unfogged via a temporary isFogEnabled=0 wrap here).
+             * The corruption that wrap hid was the s16 per-vertex depth
+             * passing the fogRamp range test when a GTE SZ >= 32768 read
+             * back negative — fixed at the lookup itself (PC_FOG_VTX_RAMP
+             * in bodyprog_80055028.c), so the full fog+lighting pipeline
+             * is safe for characters. */
+            func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
 #else
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
 #endif
@@ -380,6 +372,15 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     }
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.pause)
     {
+#ifdef SH_PC_PORT
+        /* Arm the freeze on the entry tick so PsyCross captures THIS
+         * frame (the last gameplay render) and the first paused frame
+         * already presents it — no one-frame background flash. */
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 1;
+        }
+#endif
         SysWork_StateSetNext(SysState_GamePaused);
     }
     else if (Player_IsAttacking() == true)
@@ -426,31 +427,18 @@ void SysState_GamePaused_Update(void) // 0x800391E8
      * screen, cutscene borders, various event states) already do this. */
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
 
-    /* PC: render the world while paused. SysState_GamePaused_Update on PSX
-     * relied on the framebuffer surviving from the previous frame — PSX did
-     * not auto-clear, so the last InGame render stayed on screen and we just
-     * drew "PAUSED" text on top. PsyCross with double-buffering + per-frame
-     * GsSortClear does NOT preserve the previous frame, so without an explicit
-     * world render here pause looks like a solid gray screen with PAUSED text.
-     *
-     * Drive a world render once per pause frame: same path that SysState_Gameplay_Update
-     * runs, but SKIP every update path (camera, player, particles, NPCs).
-     * Charas + chunks are at their last update state — re-rendering them is
-     * safe because none of their update timers tick during pause. */
+    /* PC: present the captured last gameplay frame under the PAUSED text.
+     * PSX never auto-cleared the framebuffer, so pausing simply left the
+     * last InGame render on screen. The old PC approach re-rendered chunks
+     * + Harry here, which missed everything drawn from update paths —
+     * enemies, particles, effects — and rendered Harry without the
+     * gameplay path's lighting wrapper (he turned gray). PsyCross now
+     * captures every composed frame; holding g_PsxPresentLastFrame
+     * re-presents it each frame with only this state's UI on top, so the
+     * paused scene is pixel-identical to the moment of pausing. */
     {
-        Ipd_CloseRangeChunksInit();
-        Gfx_InGameDraw(1);
-
-        /* Re-render Harry (and his held weapon). Without this Harry vanishes
-         * on the pause frame because his bone matrices need the per-frame
-         * func_8003DA9C call to push prims into the OT. We can't invoke the
-         * full character-update loop (it'd unfreeze him); just push the
-         * render-side call with the state from the last gameplay tick.
-         * (func_8003DA9C signature comes from bodyprog/bodyprog.h.) */
-        if (g_SysWork.playerWork.player.model.anim.flags & AnimFlag_Visible) {
-            func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1,
-                          g_SysWork.playerWork.player.timer_C6, 0);
-        }
+        extern int g_PsxPresentLastFrame;
+        g_PsxPresentLastFrame = 1;
     }
 #endif
 
@@ -489,6 +477,12 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         D_800A9A68 = 0;
         SD_Call(4);
         g_MapEventParam = 0;
+#ifdef SH_PC_PORT
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 0;
+        }
+#endif
         SysWork_StateSetNext(SysState_SaveMenu1);
         return;
     }
@@ -498,6 +492,12 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         D_800A9A68 = 0;
 
         SD_Call(4);
+#ifdef SH_PC_PORT
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 0;
+        }
+#endif
         SysWork_StateSetNext(SysState_Gameplay);
     }
 }
@@ -680,12 +680,24 @@ void SysState_MapScreen_Update(void) // 0x800396D4
          * MainLoop clears bgmStatusFlags every frame, and the world-object /
          * collision-trigger updates (~lines 204/214) gate on BgmStatusFlag_Pause;
          * without re-setting it each tick the player can walk into and fire
-         * triggers behind the message. Mirrors the SysState_GamePaused fix. */
+         * triggers behind the message. Mirrors the SysState_GamePaused fix.
+         * Present the captured last gameplay frame behind the message —
+         * the pause gate skips all world/character rendering. */
         g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 1;
+        }
 #endif
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map ||
             Gfx_MapMsg_Draw(MapMsgIdx_NoMap) > MapMsgState_Idle)
         {
+#ifdef SH_PC_PORT
+            {
+                extern int g_PsxPresentLastFrame;
+                g_PsxPresentLastFrame = 0;
+            }
+#endif
             SysWork_StateSetNext(SysState_Gameplay);
         }
     }
@@ -695,10 +707,20 @@ void SysState_MapScreen_Update(void) // 0x800396D4
     {
 #ifdef SH_PC_PORT
         g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 1;
+        }
 #endif
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map ||
             Gfx_MapMsg_Draw(MapMsgIdx_TooDarkForMap) > MapMsgState_Idle)
         {
+#ifdef SH_PC_PORT
+            {
+                extern int g_PsxPresentLastFrame;
+                g_PsxPresentLastFrame = 0;
+            }
+#endif
             SysWork_StateSetNext(SysState_Gameplay);
         }
     }
