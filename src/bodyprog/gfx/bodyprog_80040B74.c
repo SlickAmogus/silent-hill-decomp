@@ -1499,6 +1499,19 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
                         queueIdx = curQueueIdx;
 #ifdef SH_PC_PORT
                         loadsThisFrame++;
+                        /* The chunk we just loaded is in the window by
+                         * definition, but its outsideCount/distances are
+                         * stale from the pre-load sample. After a door
+                         * teleport the whole window changes at once: every
+                         * resident carried outsideCount >= 1, so a LATER
+                         * load in this same loop could pick the chunk we
+                         * JUST loaded as its eviction victim — including
+                         * the player's own room (the "room is a black void
+                         * until quicksave/load" reports). Zero them so
+                         * same-frame eviction can never target it. */
+                        chunk->outsideCount = 0;
+                        chunk->paddedDistanceToEdge0 = Q12(0.0f);
+                        chunk->paddedDistanceToEdge1 = Q12(0.0f);
 #endif
                     }
                 }
@@ -1725,6 +1738,16 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
 s32 Map_IpdIdxGet(s32 cellX, s32 cellZ) // 0x80043554
 {
+#ifdef SH_PC_PORT
+    /* The grid spans x -8..7, z -8..10 (Map_MakeIpdGrid). The interior
+     * load window probes player cell +-2/+-1, which can step past the
+     * grid edge; the unbounded read then returns garbage that looks like
+     * a file index and a junk file gets loaded as an IPD. */
+    if (cellX < -8 || cellX > 7 || cellZ < -8 || cellZ > 10)
+    {
+        return NO_VALUE;
+    }
+#endif
     // @hack
     return ((s16*)&g_Map.chunkGridCenter[cellZ])[cellX];
 }
