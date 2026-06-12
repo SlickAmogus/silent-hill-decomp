@@ -260,12 +260,12 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
         Demo_DemoRandSeedRestore();
 
-#ifdef SH_PC_PORT
-        /* PC: AnimFlag_Visible gets cleared during/after cutscenes and never
-         * restored, leaving Harry permanently invisible.  Force it back on each
-         * InGame frame so the render block below always runs. */
-        player->model.anim.flags |= AnimFlag_Visible;
-#endif
+        /* NOTE: a per-frame `flags |= AnimFlag_Visible` force-set used to live
+         * here (early-port band-aid for Harry staying invisible after
+         * cutscenes; the real cause was the merge-era selector mis-mapping
+         * fixed in world_draw.c). It overrode every legitimate cutscene hide —
+         * e.g. the intro's LookAtDeadBody shot clears AnimFlag_Visible so
+         * Harry doesn't block the camera, and PC showed his face anyway. */
 
         if (player->model.anim.flags & AnimFlag_Visible)
         {

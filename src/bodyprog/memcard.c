@@ -756,6 +756,21 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             if (statusPtr->processId == MemCardProcess_Load_Game)
             {
                 memcpy(&g_GameWorkConst->config, &g_MemCard_SaveWork.optionsConfig.config, sizeof(s_OptionsConfig));
+#ifdef SH_PC_PORT
+                /* Saves written by older PC builds can carry garbage in config
+                 * bytes the player never set. extraBloodColor indexes blood
+                 * CLUT rows (func_8005F55C), so a stray value re-palettes every
+                 * blood effect in the session ("blue blood"). Valid values are
+                 * the e_BloodColor set: Normal=0/Green=2/Violet=5/Black=11. */
+                {
+                    u8 bc = g_GameWorkConst->config.extraBloodColor;
+                    if (bc != 0 && bc != 2 && bc != 5 && bc != 11)
+                    {
+                        SH_DBG("[BLOOD-CFG] save had invalid extraBloodColor=%d, reset to Normal", (int)bc);
+                        g_GameWorkConst->config.extraBloodColor = 0;
+                    }
+                }
+#endif
             }
             else
             {
