@@ -16,6 +16,7 @@
 #include "main/fsqueue.h"
 
 #ifdef SH_PC_PORT
+#include "sh_log.h"
 /* The upstream merge moved the paper-map state machines here from
  * bodyprog_80085D78.c (Event_MapTake/func_800867B4, same PSX addresses);
  * the PC fixes below must live in THIS copy — the old one is dead code.
