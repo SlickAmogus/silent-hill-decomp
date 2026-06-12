@@ -99,6 +99,13 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* Blue-blood triage (#41): blood color is a savegame byte (Extra Options;
+     * Normal=0/Green=2/Violet=5/Black=11) that selects blood CLUT rows via
+     * func_8005F55C. A non-zero value here = the whole area bleeds off-color. */
+    SH_DBG("[BLOOD-CFG] extraBloodColor=%d", (int)g_GameWork.config.extraBloodColor);
+#endif
+
     // Run through effect texture flags.
     loadedEffectTextureFlags = EffectTextureFlag_None;
     for (i = 0; i < 16; i++)
