@@ -99,6 +99,12 @@ TARGETS = {
     "D_800D7A38":                       ("u8",  1),  # s16[16] wing amplitudes
     "D_800D7A58":                       ("u8",  1),  # bone index list
     "D_800D7A5C":                       ("u8",  1),  # SVECTOR[3]
+    # map4_s03 TV-bank static/sigil effect cluster (raw u8, byte-exact).
+    "D_800DB7C8":                       ("u8",  1),  # WorldGfx object ref
+    "D_800DB7D4":                       ("u8",  1),  # big TV quad corners
+    "D_800DB7E4":                       ("u8",  1),  # 3x3 TV grid quad corners
+    "D_800DB874":                       ("u8",  1),  # pattern tpage/clut/UV table
+    "D_800DB924":                       ("u8",  1),  # sign position SVECTOR3
     "D_800DCC4C":                       ("u8",  1),  # map1_s00 limits
     "D_800DCC54":                       ("u16", 2),  # map1_s00 room flags
     "D_800DC9FC":                       ("u8",  1),  # map1_s01 limits
@@ -248,7 +254,14 @@ EXTRA_SYMBOLS = {
     "map3_s04": [("D_800D599C", 0x800D599C, 64)],
     "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
     "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
-    "map4_s03": [("D_800DB92C", 0x800DB92C, 4)],
+    # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
+    # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
+    "map4_s03": [("D_800DB92C", 0x800DB92C, 4),
+                 ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
+                 ("D_800DB7D4", 0x800DB7D4, 0x10),  # big TV quad corners (SVECTOR pair)
+                 ("D_800DB7E4", 0x800DB7E4, 0x90),  # 3x3 TV grid quad corners
+                 ("D_800DB874", 0x800DB874, 0x24),  # screen pattern tpage/clut/UV windows
+                 ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
     "map4_s04": [("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
     # map4_s05: D_800D7D74 (pre-existing) + the Floatstinger boss rodata
