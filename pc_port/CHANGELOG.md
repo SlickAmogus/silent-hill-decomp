@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.3 -- 2026-06-12
+- speed probe: add pos/zone-cap/dtR to [SPEED] log line
+- FMV: controller skip (Cross/Start) + [MESHCULL] backface diagnostic
+- strip stale debug logging (60-96% of log volume)
+- blue-blood triage: log extraBloodColor once per map load
+
 ## v2026.06.12.2 -- 2026-06-12
 - Fix Cybil basement voice desync: cmd table truncated to half its real size
 
