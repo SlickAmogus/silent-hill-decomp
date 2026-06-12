@@ -420,7 +420,10 @@ u8 D_800E05AE[256] = {0};
 u8 D_800E05E0[256] = {0};
 u8 D_800E05E1[256] = {0};
 u8 D_800E05E2[256] = {0};
-u8 D_800E0698[256] = {0};
+/* map4_s03 TV-bank runtime state: 10x s_800E06A0 (0x38 each) at +8 plus the
+ * WorldGfx objRef at +0x238 — PSX extent to the next symbol (0x800E08F0) is
+ * 0x258. The old 256-byte stub overflowed into the neighbouring stubs. */
+u8 D_800E0698[0x258] = {0};
 u8 D_800E08F0[256] = {0};
 u8 D_800E0900[256] = {0};
 u8 D_800E0930[256] = {0};
