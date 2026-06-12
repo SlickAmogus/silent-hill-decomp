@@ -1695,10 +1695,52 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
         }
 
         /* Load nearest-first so the pool can never be exhausted before
-         * the player's own cell gets its pages. */
+         * the player's own cell gets its pages.
+         *
+         * Stealing: keep members textured in EARLIER frames (when they
+         * were the nearest) hold their pages with refCount > 0, so a
+         * freshly entered room can find every slot pinned — the 2-slot
+         * half-page pool especially. The room's chunk then never passes
+         * Ipd_IsTextureLoaded, is never drawn, and the screen is black
+         * except world objects, which resolve from the chunk's LM
+         * without needing its pages (school turnstile-room report:
+         * valves visible, room black). When a nearer chunk still has
+         * NULL-texture materials after its load pass, release the
+         * farthest keep members and retry. Steals only flow nearer ->
+         * farther, so there is no oscillation: a farthest chunk that
+         * lost its pages simply stays undrawn, exactly like vanilla's
+         * out-of-cell chunks. (A NULL texture is the pool-exhausted
+         * signal; a non-NULL texture with a still-pending TIM read is
+         * fine and must not trigger a steal.) */
         for (ins = 0; ins < keepCount; ins++)
         {
+            s32 stealFrom;
+
             Ipd_MaterialsLoad(keep[ins]->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+
+            for (stealFrom = keepCount - 1; stealFrom > ins; stealFrom--)
+            {
+                s_Material* m;
+                s_LmHeader* lm   = keep[ins]->ipdHdr->lmHdr;
+                s32         miss = 0;
+
+                for (m = &lm->materials[0]; m < &lm->materials[lm->materialCount]; m++)
+                {
+                    if (m->field_C == 0 && m->texture == NULL)
+                    {
+                        miss = 1;
+                        break;
+                    }
+                }
+                if (!miss)
+                {
+                    break;
+                }
+
+                Lm_MaterialRefCountDec(keep[stealFrom]->ipdHdr->lmHdr);
+                Ipd_MaterialsLoad(keep[ins]->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            }
+
             Lm_MaterialFlagsApply(keep[ins]->ipdHdr->lmHdr);
         }
 
