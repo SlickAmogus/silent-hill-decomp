@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.1 -- 2026-06-12
+- Pointer-truncation audit: fix live sites found via full warning harvest
+- Cybil-scene voice desync: consumption trace + table-overrun guard
+- fixup: include sh_log.h for the [VOICE] trace (link error)
+
 ## v2026.06.11.21 -- 2026-06-11
 - Fix larva-boss intro crash: VECTOR* truncated through s32 param
 - Fix larva crash follow-up: widen func_800D185C in header + twinfeeler.c copy
