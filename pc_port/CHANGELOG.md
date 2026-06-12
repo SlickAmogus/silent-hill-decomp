@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.14 -- 2026-06-11
+- Pause shows the true frozen frame + Harry receives fog in gameplay
+- docs: index character-fog negative-index fix
+- Fix all-gray/all-black interiors: stale shared-buffer pointers in chunk slots
+
 ## v2026.06.11.13 -- 2026-06-11
 - launcher/config: canonical map names from upstream README + config regeneration
 
