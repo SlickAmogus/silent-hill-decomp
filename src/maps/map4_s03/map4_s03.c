@@ -568,7 +568,14 @@ void func_800D17FC(void) // 0x800D17FC
     }
 }
 
+#ifdef SH_PC_PORT
+/* arg0 is really the VECTOR* forwarded to func_800D0DE4; declaring it s32
+ * truncated the 64-bit pointer (larva-boss intro crash, AV reading
+ * 0x00000000_419ff240 in func_800D0DE4 via map4_s03.dll+0x2104). */
+void func_800D185C(VECTOR* arg0, s32 arg1) // 0x800D185C
+#else
 void func_800D185C(s32 arg0, s32 arg1) // 0x800D185C
+#endif
 {
     s_800DF580* ptr;
 
