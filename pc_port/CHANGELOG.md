@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.20 -- 2026-06-11
+- Fix black rooms from pinned texture pages: nearer chunks steal from farthest
+
 ## v2026.06.11.19 -- 2026-06-11
 - Fix room void after teleport doors: same-frame eviction of fresh chunks
 
