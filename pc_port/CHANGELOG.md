@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.4 -- 2026-06-12
+- remove visibility force-set bypasses + sanitize blood color on load
+- fix invisible walls: IPD header clobber zeroed collision surfaces
+
 ## v2026.06.12.3 -- 2026-06-12
 - speed probe: add pos/zone-cap/dtR to [SPEED] log line
 - FMV: controller skip (Cross/Start) + [MESHCULL] backface diagnostic
