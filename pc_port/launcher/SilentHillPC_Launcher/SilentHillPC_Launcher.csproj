@@ -64,6 +64,13 @@
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
+         missing config.cfg with the full detailed template; the link keeps
+         it in sync with the repo copy at build time. -->
+    <EmbeddedResource Include="..\..\config.cfg">
+      <Link>DefaultConfig.cfg</Link>
+      <LogicalName>SilentHillPC_Launcher.DefaultConfig.cfg</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>

@@ -246,12 +246,66 @@ public partial class Form1 : Form
     }
 
     /// <summary>
-    /// Parse `# mapX_sY  Description text` lines from config.cfg comments
-    /// into a map of id → description so the dropdown can show both.
+    /// Canonical map descriptions (per the upstream decomp README). These
+    /// are the primary source for the dropdown, so the launcher shows
+    /// correct names even against an old/minimal config.cfg. Keep in sync
+    /// with the `# Available maps` comment block in pc_port/config.cfg.
+    /// </summary>
+    private static readonly Dictionary<string, string> BuiltinMapDescriptions = new Dictionary<string, string>
+    {
+        { "map0_s00", "Old Silent Hill - intro sequence" },
+        { "map0_s01", "Old Silent Hill - cafe" },
+        { "map0_s02", "Old Silent Hill - bonus unlockable areas" },
+        { "map1_s00", "School - 1F, courtyard, basement" },
+        { "map1_s01", "School - 2F" },
+        { "map1_s02", "School Otherworld - 1F and courtyard" },
+        { "map1_s03", "School Otherworld - 2F and roof" },
+        { "map1_s04", "Unused" },
+        { "map1_s05", "School - boss fight (Split Head)" },
+        { "map1_s06", "School - 1F and basement after the boss" },
+        { "map2_s00", "Old Silent Hill - streets" },
+        { "map2_s01", "Church" },
+        { "map2_s02", "Central Silent Hill - streets" },
+        { "map2_s03", "Unused" },
+        { "map2_s04", "Police station (Central Silent Hill)" },
+        { "map3_s00", "Hospital - until Kaufmann meeting" },
+        { "map3_s01", "Hospital - 1F and basement after Kaufmann" },
+        { "map3_s02", "Hospital - antique shop cutscene" },
+        { "map3_s03", "Hospital Otherworld - 3F and 2F" },
+        { "map3_s04", "Hospital Otherworld - 1F" },
+        { "map3_s05", "Hospital Otherworld - basement" },
+        { "map3_s06", "Hospital - 1F after Otherworld" },
+        { "map4_s00", "Unused" },
+        { "map4_s01", "Green Lion Antiques (normal + Otherworld)" },
+        { "map4_s02", "Central Silent Hill Otherworld - streets" },
+        { "map4_s03", "Mall and boss fight" },
+        { "map4_s04", "Hospital - 1F (Lisa cutscene)" },
+        { "map4_s05", "Central SH Otherworld - Floatstinger boss" },
+        { "map4_s06", "Unused" },
+        { "map5_s00", "Sewers - lower and upper levels" },
+        { "map5_s01", "Resort Area" },
+        { "map5_s02", "Annie's Bar and Indian Runner (Resort Area)" },
+        { "map5_s03", "Norman's Motel (Resort Area)" },
+        { "map6_s00", "Resort Area Otherworld" },
+        { "map6_s01", "Boat at Lakeside Pier" },
+        { "map6_s02", "Lakeside Pier and Lighthouse" },
+        { "map6_s03", "Sewer to Lakeside Amusement Park" },
+        { "map6_s04", "Amusement Park - Cybil boss, Alessa kidnapping" },
+        { "map6_s05", "Unused" },
+        { "map7_s00", "Nowhere - hospital 1F, Lisa cutscene" },
+        { "map7_s01", "Nowhere" },
+        { "map7_s02", "Nowhere - Alessa vs. Dahlia cutscene" },
+        { "map7_s03", "Nowhere - final boss" },
+    };
+
+    /// <summary>
+    /// Map id → description for the dropdown. Built-in canonical names win;
+    /// `# mapX_sY  Description` comment lines from config.cfg only fill ids
+    /// the built-in table doesn't know (future/renamed maps).
     /// </summary>
     private Dictionary<string, string> LoadMapDescriptions(string cfgPath)
     {
-        var result = new Dictionary<string, string>();
+        var result = new Dictionary<string, string>(BuiltinMapDescriptions);
         if (!File.Exists(cfgPath)) return result;
 
         var rx = new Regex(@"^#\s+(map\d+_s\d+)\s+(.+?)\s*$");
@@ -264,8 +318,32 @@ public partial class Form1 : Form
                     result[m.Groups[1].Value] = m.Groups[2].Value.Trim();
             }
         }
-        catch { /* best-effort; missing descs just fall back to plain id */ }
+        catch { /* best-effort; unknown ids just fall back to plain id */ }
         return result;
+    }
+
+    /// <summary>
+    /// If config.cfg is missing, regenerate it from the embedded copy of
+    /// pc_port/config.cfg (linked into the project as an EmbeddedResource,
+    /// so it is always the current detailed template with full comments).
+    /// </summary>
+    private void EnsureConfigExists(string cfgPath)
+    {
+        if (File.Exists(cfgPath)) return;
+
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            using (var s = asm.GetManifestResourceStream("SilentHillPC_Launcher.DefaultConfig.cfg"))
+            {
+                if (s == null) return; // resource missing: ConfigManager defaults still apply
+                using (var f = File.Create(cfgPath))
+                {
+                    s.CopyTo(f);
+                }
+            }
+        }
+        catch { /* read-only dir etc.; launcher still works off in-memory defaults */ }
     }
 
     private void PopulateDisplayOptions()
@@ -292,6 +370,7 @@ public partial class Form1 : Form
     private void LoadConfig()
     {
         string cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.cfg");
+        EnsureConfigExists(cfgPath);
         config = new ConfigManager(cfgPath);
 
         // fullscreen
