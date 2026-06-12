@@ -1296,6 +1296,7 @@ void MainLoop(void) // 0x80032EE0
             static VECTOR3 s_spdPrev;
             static s64     s_spdAccumSq; /* sum of per-frame |dXZ| in Q12 */
             static s64     s_animAccum;  /* sum of forward anim.time deltas (Q12 kf) */
+            static s64     s_dtAccum;    /* sum of g_DeltaTime (Q12 sec) — dtR should be ~1.00 */
             static s32     s_prevAnimT;
             static int     s_spdFrames, s_spdInit;
             s_SubCharacter* pl  = &g_SysWork.playerWork.player;
@@ -1315,6 +1316,7 @@ void MainLoop(void) // 0x80032EE0
                     s_spdAccumSq += SquareRoot0(SQUARE(dx) + SQUARE(dz));
                 s_spdPrev     = pl->position;
                 s_spdFrames++;
+                s_dtAccum    += g_DeltaTime;
 
                 /* Anim playback rate: forward anim.time deltas only (loop
                  * wraps go negative and are skipped). animKf/s should be
@@ -1332,11 +1334,22 @@ void MainLoop(void) // 0x80032EE0
                     if (el >= 1.0) {
                         if (s_spdAccumSq > Q12(0.2f)) {
                             extern s32 Map_SpeedZoneTypeGet(q19_12 posX, q19_12 posZ);
-                            SH_DBG("[SPEED] %.2f u/s fps=%.0f moveSpeed=%.2f zone=%d state=%d animKf/s=%.1f anim=%d",
+                            /* cap = authored max run speed for the zone Harry is in
+                             * (Slow=3.5 / Normal=4.0 / Fast=5.0, see GET_MOVE_SPEED).
+                             * pos is in world units so each sample can be checked
+                             * against the SPEED_ZONES_* rects in map_info.c.
+                             * dtR = sum(g_DeltaTime)/wall-time; 1.00 means the game
+                             * clock is wall-true and u/s can be trusted as-is. */
+                            int _zone = (int)Map_SpeedZoneTypeGet(pl->position.vx, pl->position.vz);
+                            double _cap = (_zone == 2) ? 5.0 : ((_zone == 0) ? 3.5 : 4.0);
+                            SH_DBG("[SPEED] %.2f u/s fps=%.0f moveSpeed=%.2f zone=%d cap=%.1f pos=(%.1f,%.1f) dtR=%.2f state=%d animKf/s=%.1f anim=%d",
                                    ((double)s_spdAccumSq / 4096.0) / el,
                                    (double)s_spdFrames / el,
                                    (double)pl->moveSpeed / 4096.0,
-                                   (int)Map_SpeedZoneTypeGet(pl->position.vx, pl->position.vz),
+                                   _zone, _cap,
+                                   (double)pl->position.vx / 4096.0,
+                                   (double)pl->position.vz / 4096.0,
+                                   ((double)s_dtAccum / 4096.0) / el,
                                    (int)g_SysWork.playerWork.extra.lowerBodyState,
                                    ((double)s_animAccum / 4096.0) / el,
                                    (int)pl->model.anim.status);
@@ -1344,6 +1357,7 @@ void MainLoop(void) // 0x80032EE0
                         s_spdT0      = now;
                         s_spdAccumSq = 0;
                         s_animAccum  = 0;
+                        s_dtAccum    = 0;
                         s_spdFrames  = 0;
                     }
                 }
