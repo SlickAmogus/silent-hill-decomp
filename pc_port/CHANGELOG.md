@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.15 -- 2026-06-11
+- Fix school black void: texture-page pool starved by interior window
+
 ## v2026.06.11.14 -- 2026-06-11
 - Pause shows the true frozen frame + Harry receives fog in gameplay
 - docs: index character-fog negative-index fix
