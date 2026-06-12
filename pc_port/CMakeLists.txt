@@ -195,6 +195,24 @@ if(SH_DEBUG)
 endif()
 
 # =============================================================================
+# Build identification
+# =============================================================================
+# Regenerated on EVERY build so the running exe can log exactly which commit
+# it was built from ([SH] build line in SilentHill.log) — user crash logs were
+# untriageable because nothing identified the game build (the PsyCross
+# "Build date" stamp only changes when PsyCross itself recompiles).
+add_custom_target(gen_build_info ALL
+    COMMAND ${CMAKE_COMMAND}
+        -DOUT_FILE=${CMAKE_BINARY_DIR}/sh_build_info.h
+        -DGIT_DIR=${DECOMP_DIR}
+        -P ${CMAKE_SOURCE_DIR}/cmake/gen_build_info.cmake
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/sh_build_info.h
+    COMMENT "Generating sh_build_info.h"
+)
+add_dependencies(SilentHillPC gen_build_info)
+target_include_directories(SilentHillPC PRIVATE ${CMAKE_BINARY_DIR})
+
+# =============================================================================
 # Include paths
 # =============================================================================
 target_include_directories(SilentHillPC PRIVATE
