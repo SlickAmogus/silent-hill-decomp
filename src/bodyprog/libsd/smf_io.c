@@ -1227,29 +1227,8 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
 
             set_note_on(vo, c1, chan, s_attr.volume.left, s_attr.volume.right);
 
-#ifdef SH_PC_PORT
-            {
-                static int bgm_keyon_count = 0;
-                if (bgm_keyon_count < 40) {
-                    SH_DBG("[SH_BGM] key_on final: vo=%d chan=%d sp48=%d mvol3=%d vol_l=%d vol_r=%d pitch=%u addr=0x%x vab=%d",
-                            vo, chan, sp48, midi->mvol_3, s_attr.volume.left, s_attr.volume.right,
-                            s_attr.pitch, s_attr.addr, vabId);
-                    bgm_keyon_count++;
-                }
-            }
-#endif
             if (sp48 == 0 && (s_attr.volume.right | s_attr.volume.left) != 0)
             {
-#ifdef SH_PC_PORT
-                {
-                    static int spukey_count = 0;
-                    if (spukey_count < 5) {
-                        SH_DBG("[SH_BGM] SpuSetKeyOnWithAttr: voice=0x%x addr=0x%x pitch=%u vol=%d/%d",
-                                s_attr.voice, s_attr.addr, s_attr.pitch, s_attr.volume.left, s_attr.volume.right);
-                        spukey_count++;
-                    }
-                }
-#endif
                 do
                 {
                     SpuSetKeyOnWithAttr(&s_attr);
@@ -1259,16 +1238,6 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 }
                 while (SpuGetKeyStatus(spu_ch_tbl[vo] == 1) == 0);
             }
-#ifdef SH_PC_PORT
-            else {
-                static int skipped = 0;
-                if (skipped < 40) {
-                    SH_DBG("[SH_BGM] key_on SKIPPED chan=%d mvol3=%d (sp48=%d vol=%d/%d)",
-                            chan, midi->mvol_3, sp48, s_attr.volume.left, s_attr.volume.right);
-                    skipped++;
-                }
-            }
-#endif
 
             if (midi->rev_depth_24 == 0)
             {
@@ -1651,22 +1620,6 @@ void control_change(u8 chan, u8 c1, u8 c2)
         case 0x7:
             p->mvol_3 = c2;
             vol_flag  = 1;
-#ifdef SH_PC_PORT
-            /* Log per-channel on quantised change so fades produce a handful
-             * of lines forever, instead of a session quota that exhausts in
-             * the first seconds and hides all later activity. */
-            {
-                static s16 s_lastCc7[32];
-                static int s_cc7Init = 0;
-                if (!s_cc7Init) { int k; for (k = 0; k < 32; k++) s_lastCc7[k] = -1; s_cc7Init = 1; }
-                if (chan < 32 &&
-                    ((c2 >> 4) != (s_lastCc7[chan] >> 4) ||
-                     (c2 == 0) != (s_lastCc7[chan] == 0))) {
-                    SH_DBG("[SH_BGM] CC7 volume: chan=%d val=%d", chan, c2);
-                    s_lastCc7[chan] = c2;
-                }
-            }
-#endif
             set_midi_info(SD_MIDI_VOL, chan, p->mvol_3);
             break;
 

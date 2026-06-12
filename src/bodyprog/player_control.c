@@ -9154,13 +9154,6 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             extern int g_SH_PostFireTrace;
             if (player->field_44.field_0 > 0) {
                 g_SH_PostFireTrace = 8;
-                /* DIAG (temporary): an attack is dispatching to func_8008A0E4.
-                 * Confirms field_44 (attack-active), the weapon, and the locked
-                 * target so we can tell apart "no attack" vs "attack misses". */
-                SH_DBG("[ATKDISP] field44=%d weaponAttack=%d targetNpc=%d lower=%d upper=%d",
-                       (int)player->field_44.field_0, (int)playerCombat.weaponAttack,
-                       (int)g_Player_TargetNpcIdx, (int)playerExtra.lowerBodyState,
-                       (int)playerExtra.upperBodyState);
             }
 #endif
             if (playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
