@@ -721,6 +721,19 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                            (s1 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s1].groundType    : -1,
                            (s1 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s1].disableHeight : -1,
                            (int)state.groundType, _dist, _rad);
+                    /* Speed-dependence triage: contact only happens at top run
+                     * speed (walkable otherwise), so the deciding variables are
+                     * VERTICAL — the cylinder's span vs the face's span at the
+                     * moment of contact (Q8). If bottom sits below the face top
+                     * only while moving fast, Harry's height is lagging the
+                     * ground across the step and clipping the riser. */
+                    SH_DBG("[WALL-HIT]   cylBot=%d cylTop=%d sv0y=%d sv1y=%d harryY=%d ground=%d fall=%d spd=%d",
+                           (int)state.charaState.bottomPos, (int)state.charaState.topPos,
+                           (int)state.point.splitVertex0.vy, (int)state.point.splitVertex1.vy,
+                           (int)Q12_TO_Q8(g_SysWork.playerWork.player.position.vy),
+                           (int)Q12_TO_Q8(g_SysWork.playerWork.player.properties.player.groundHeight),
+                           (int)g_SysWork.playerWork.player.fallSpeed,
+                           (int)g_SysWork.playerWork.player.moveSpeed);
                 }
             }
         }
