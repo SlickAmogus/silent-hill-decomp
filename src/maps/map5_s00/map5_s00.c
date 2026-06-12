@@ -154,7 +154,13 @@ void func_800D5EE8(void) // 0x800D5EE8
     s32              idx;
     int              code;
 
+#ifdef SH_PC_PORT
+    /* Raw PSX address — must go through the emulated-RAM translation or
+     * the deref below reads unmapped memory (truncation-audit find). */
+    ptr = (s_func_800D5B00*)PSX_ADDR(0x801E2600);
+#else
     ptr = 0x801E2600;
+#endif
 
     packet = GsOUT_PACKET_P;
     poly   = packet;
