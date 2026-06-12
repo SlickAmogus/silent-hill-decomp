@@ -2,6 +2,9 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "maps/characters/floatstinger.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #define floatstingerProps floatstinger->properties.floatstinger
 
@@ -186,6 +189,24 @@ void func_800D1968(s_SubCharacter* floatstinger) // 0x800D1968
 
 void Floatstinger_ControlUpdate(s_SubCharacter* floatstinger) // 0x800D1B98
 {
+#ifdef SH_PC_PORT
+    /* [MOTH] wing/anim triage: 1/sec state dump. Wings move two ways —
+     * keyframe playback (anim.status loops) and the procedural stroke
+     * (states 2<->3 writing D_800DB8A8 from phase D_800D7858). This names
+     * which one is idle when the wings look frozen. */
+    {
+        static s32 s_lastLog = -1000;
+        if (g_TickCount - s_lastLog > 60)
+        {
+            s_lastLog = g_TickCount;
+            SH_DBG("[MOTH] ctrl=%d step=%d anim=%d kf=%d phase=%d wing0=%d hp=%d",
+                   (int)floatstinger->model.controlState, (int)floatstinger->model.stateStep,
+                   (int)floatstinger->model.anim.status, (int)floatstinger->model.anim.keyframeIdx,
+                   (int)D_800D7858, (int)D_800DB8A8[4], (int)floatstinger->health);
+        }
+    }
+#endif
+
     if (floatstinger->model.anim.status != ANIM_STATUS(FloatstingerAnim_1, true))
     {
         floatstinger->field_44.field_0 = 0;
