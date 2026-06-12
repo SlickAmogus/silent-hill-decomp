@@ -156,6 +156,86 @@ static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8
     memcpy(dst->subcellCheckIdx, &collraw[0x34], 256);
 }
 
+/* The 64-bit s_IpdHeader written in place over the file buffer is LARGER than
+ * the PSX on-disk header (0x188 bytes), so writing it overwrites the first
+ * sizeof(s_IpdHeader)-0x188 bytes of whatever file data follows — which is the
+ * head of the collision sub-arrays (they start right after the PSX collision
+ * struct, at +0x134 from the collision base = file offset 0x188). Zeroed
+ * s_IpdCollSurface entries read as height-0/tilt-0 ground, and the wall check
+ * (ground >= 0.5u above the character) then reports phantom walls at fixed
+ * spots every time the chunk loads ("invisible walls", worst on stairs).
+ *
+ * Relocate every sub-array that begins inside the clobber window to the heap
+ * BEFORE the header write. Array ends are bounded by the next array's file
+ * offset (the arrays are laid out in ascending order), capped by lmHdrOff.
+ * Small (typically one array, <2KB); freed never — matches the existing
+ * modelInfos/modelBuffers per-reformat allocation pattern. */
+static void IpdColl_RelocateClobbered(s_IpdCollisionData* dst, const u8* collraw, u8* collbase, u32 lmHdrOff)
+{
+    u32    offs[7];
+    void** slots[7];
+    u32    clobberEnd;
+    u32    cap;
+    int    i, j;
+
+    offs[0] = rd32(&collraw[0x0C]); slots[0] = (void**)&dst->splitVertices;
+    offs[1] = rd32(&collraw[0x10]); slots[1] = (void**)&dst->surfaces;
+    offs[2] = rd32(&collraw[0x14]); slots[2] = (void**)&dst->subcells;
+    offs[3] = rd32(&collraw[0x18]); slots[3] = (void**)&dst->ptr_18;
+    offs[4] = rd32(&collraw[0x20]); slots[4] = (void**)&dst->subcellRanges;
+    offs[5] = rd32(&collraw[0x28]); slots[5] = (void**)&dst->ptr_28;
+    offs[6] = rd32(&collraw[0x2C]); slots[6] = (void**)&dst->ptr_2C;
+
+    clobberEnd = (u32)sizeof(s_IpdHeader) - 0x54; /* relative to collbase */
+    cap        = (lmHdrOff > 0x54) ? (lmHdrOff - 0x54) : 0;
+
+    for (i = 0; i < 7; i++)
+    {
+        u32 end, size;
+        u8* heap;
+
+        /* Real sub-arrays start at/after the end of the PSX collision struct
+         * (0x134 rel). Smaller values mean "absent" — leave those alone. */
+        if (offs[i] < PSX_IPD_COLLISION_SIZE || offs[i] >= clobberEnd)
+        {
+            continue;
+        }
+
+        /* End bound = nearest larger sub-array offset, else the LM header. */
+        end = cap;
+        for (j = 0; j < 7; j++)
+        {
+            if (offs[j] > offs[i] && (end <= offs[i] || offs[j] < end))
+            {
+                end = offs[j];
+            }
+        }
+        if (end <= offs[i])
+        {
+            end = offs[i] + 0x1000;
+        }
+        if (end - offs[i] > 0x4000)
+        {
+            end = offs[i] + 0x4000;
+        }
+
+        size = end - offs[i];
+        heap = (u8*)malloc(size);
+        memcpy(heap, collbase + offs[i], size);
+        *slots[i] = heap;
+
+        {
+            static int s_relocLogged = 0;
+            if (s_relocLogged < 4)
+            {
+                SH_DBG("[IPD-RELOC] sub-array %d at +0x%X (%u bytes) was in the header clobber window [0x%X,0x%X) — relocated",
+                       i, offs[i], size, (u32)PSX_IPD_COLLISION_SIZE, clobberEnd);
+                s_relocLogged++;
+            }
+        }
+    }
+}
+
 /**
  * PC replacement for IpdHeader_FixHeaderOffsets + IpdCollData_FixOffsets.
  *
@@ -213,6 +293,14 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     /* The collision sub-data base for pointer fixup is raw + 0x54 (where collData lives in PSX) */
     u8* collbase = raw + 0x54;
 
+    /* Parse collision into a local and rescue clobber-window arrays NOW,
+     * while the file bytes past 0x188 are still intact — the header
+     * memset/writes below stomp [0x188, sizeof(s_IpdHeader)). */
+    s_IpdCollisionData collParsed;
+    memset(&collParsed, 0, sizeof(collParsed));
+    ParseIpdCollisionData(&collParsed, collraw, collbase);
+    IpdColl_RelocateClobbered(&collParsed, collraw, collbase, lmHdrOff);
+
     /* Parse model info array (PSX stride = 16 bytes) */
     s_IpdModelInfo* modelInfos = NULL;
     if (modelCount > 0)
@@ -260,8 +348,24 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 
     ipdHdr->modelOrderList = raw + modelOrderOff;
 
-    /* Parse collision data into the embedded struct */
-    ParseIpdCollisionData(&ipdHdr->collisionData, collraw, collbase);
+    /* Sanity: the in-place header also clobbers [0x188, sizeof(s_IpdHeader))
+     * for NON-collision sections. The collision arrays are rescued above; if
+     * any model-side section ever starts that early too, surface it. */
+    {
+        static int s_modelClobLogged = 0;
+        if (s_modelClobLogged < 4 &&
+            ((modelInfoOff    && modelInfoOff    < sizeof(s_IpdHeader)) ||
+             (modelBuffersOff && modelBuffersOff < sizeof(s_IpdHeader)) ||
+             (modelOrderOff   && modelOrderOff   < sizeof(s_IpdHeader))))
+        {
+            SH_DBG("[IPD-RELOC] WARNING: model section in clobber window (info=0x%X bufs=0x%X order=0x%X hdr=0x%X)",
+                   modelInfoOff, modelBuffersOff, modelOrderOff, (u32)sizeof(s_IpdHeader));
+            s_modelClobLogged++;
+        }
+    }
+
+    /* Install the collision data parsed (and clobber-rescued) above. */
+    ipdHdr->collisionData = collParsed;
 
     /* Register as valid collision data for stale-pointer detection */
     {
