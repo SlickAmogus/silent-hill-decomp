@@ -764,38 +764,51 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
         step = (map->chunkBufferSize / sharedCount) & ~0x3;
     }
 
-    for (i = 0; i < PC_MAX_IPD_CHUNKS; i++)
+    /* Per-slot owned buffers for slots past the shared-slice count. A slot's
+       role flips between maps (an exterior slices the shared buffer 4 ways,
+       an interior 2 ways), so curChunk->ipdHdr alone can't tell "owns a
+       calloc" from "points into the shared buffer". The old NULL-check kept
+       stale shared-buffer pointers in slots >= sharedCount: entering an
+       interior (2 slices) after an exterior (4 slices) left slots 2-3
+       pointing at shared offsets 90K/135K, and loading into them overwrote
+       slots 0-1's halves — corrupted chunk headers, nothing drawn (the
+       "all gray/black world" reports; church/school first because the
+       interior load window fills those slots immediately). The side table
+       remembers each slot's owned buffer across role flips, fixing both the
+       corruption and the leak of dropping callocs when a slot goes shared. */
     {
-        curChunk = &map->activeChunks[i];
+        static s_IpdHeader* s_pcSlotOwnedBuf[PC_MAX_IPD_CHUNKS];
+        s32 indivSize = (map->chunkBufferSize / 2) & ~0x3;
 
-        if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
+        for (i = 0; i < PC_MAX_IPD_CHUNKS; i++)
         {
-            ipdHdr1 = curChunk->ipdHdr;
-            if (ipdHdr1 != NULL && ipdHdr1->isLoaded)
+            curChunk = &map->activeChunks[i];
+
+            if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
             {
-                Lm_MaterialRefCountDec(ipdHdr1->lmHdr);
+                ipdHdr1 = curChunk->ipdHdr;
+                if (ipdHdr1 != NULL && ipdHdr1->isLoaded)
+                {
+                    Lm_MaterialRefCountDec(ipdHdr1->lmHdr);
+                }
             }
-        }
 
-        curChunk->queueIdx      = NO_VALUE;
-        curChunk->paddedDistanceToEdge1    = INT_MAX;
-        curChunk->outsideCount = 0;
+            curChunk->queueIdx      = NO_VALUE;
+            curChunk->paddedDistanceToEdge1    = INT_MAX;
+            curChunk->outsideCount = 0;
 
-        if (i < sharedCount)
-        {
-            curChunk->ipdHdr = ipdHdr0;
-            *(u8**)&ipdHdr0 += step;
-        }
-        else if (i < PC_MAX_IPD_CHUNKS)
-        {
-            /* Residency/preload slots get their own buffer. Fixed at half the
-               chunk buffer (90KB) — covers the largest chunk that can land in a
-               non-shared slot, and a constant size so a slot reused across maps
-               of different original counts is never left under-allocated. */
-            s32 indivSize = (map->chunkBufferSize / 2) & ~0x3;
-            if (curChunk->ipdHdr == NULL)
+            if (i < sharedCount)
             {
-                curChunk->ipdHdr = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
+                curChunk->ipdHdr = ipdHdr0;
+                *(u8**)&ipdHdr0 += step;
+            }
+            else
+            {
+                if (s_pcSlotOwnedBuf[i] == NULL)
+                {
+                    s_pcSlotOwnedBuf[i] = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
+                }
+                curChunk->ipdHdr = s_pcSlotOwnedBuf[i];
             }
         }
     }
