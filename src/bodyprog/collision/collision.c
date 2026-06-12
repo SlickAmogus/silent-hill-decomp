@@ -689,14 +689,22 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                     g_CollStateDbg.hold = 30; /* ~0.5s at 60fps */
                 }
             }
+        }
 
-            /* [WALL-HIT] (#42 invisible walls): on cylinder contact, name the
-             * face — subcell index, its EVENT CHANNEL vs the active trigger
-             * flags word (func_8006B318 gates each subcell on
-             * flags >> (field_0_14*4 | field_2_14)), and both surfaces' ground
-             * type + solid (disableHeight) bits. A conditional event barrier
-             * wrongly enabled shows as a solid fence-typed surface on a
-             * non-zero channel whose flag bit is set. */
+        /* [WALL-HIT] (#42 invisible walls): on cylinder contact, name the
+         * face — subcell index, its EVENT CHANNEL vs the active trigger
+         * flags word (func_8006B318 gates each subcell on
+         * flags >> (field_0_14*4 | field_2_14)), and both surfaces' ground
+         * type + solid (disableHeight) bits. NOT visualizer-gated: user
+         * reports must capture it (SilentHill(29).log had the bump but no
+         * line because the first version lived inside g_CollVisEnabled). */
+        {
+            s32 _pdx     = cylinder->position.vx - g_SysWork.playerWork.player.position.vx;
+            s32 _pdz     = cylinder->position.vz - g_SysWork.playerWork.player.position.vz;
+            s32 _dist    = state.point.field_20.radiusCollDiffDist;
+            s32 _rad     = state.charaState.radius;
+            int _contact = (_rad > 0 && _dist < _rad) || state.field_44.field_0.field_0;
+
             {
                 static s32 s_lastWallLog = -1000;
                 if (_contact && (g_TickCount - s_lastWallLog) > 15 &&
@@ -737,7 +745,7 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                 }
             }
         }
-#endif
+#endif /* SH_PC_PORT (collState inspector + [WALL-HIT]) */
 
         if (state.field_0_0)
         {
