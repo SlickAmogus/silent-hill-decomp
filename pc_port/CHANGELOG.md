@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.7 -- 2026-06-12
+- floatstinger: [MOTH] wing/anim state probe
+- fix Floatstinger idle wing flap: lost duration poke through alias
+- walls: [WALL-HIT] face-naming probe at cylinder contact
+
 ## v2026.06.12.6 -- 2026-06-12
 - fix Floatstinger boss: dead AI dispatch table + zero-stubbed rodata
 - retire exe-side D_800D7A04 stub (DLL now defines the real table)
