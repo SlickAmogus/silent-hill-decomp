@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.2 -- 2026-06-12
+- Fix Cybil basement voice desync: cmd table truncated to half its real size
+
 ## v2026.06.12.1 -- 2026-06-12
 - Pointer-truncation audit: fix live sites found via full warning harvest
 - Cybil-scene voice desync: consumption trace + table-overrun guard
