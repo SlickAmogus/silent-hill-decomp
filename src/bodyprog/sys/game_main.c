@@ -1646,9 +1646,26 @@ void MainLoop(void) // 0x80032EE0
          * we get here in MainLoop. (auto-clears in PsyX_EndScene.)
          *
          * Result: item pickups stay 16:9, map pickup goes to 4:3. */
-        g_PcHorPlusEnabled = (g_GameWork.gameState == GameState_InGame &&
-                              !g_PsxSkipFramebufferStore &&
-                              !g_PcMapScreenActive) ? 1 : 0;
+        /* Hysteresis on the wide->narrow edge: state transitions (white
+         * fades, menu opens) pass through non-InGame for a frame or two,
+         * which flashed the 4:3 pillarbox mid-fade ("4:3 swap" reports).
+         * Only drop to 4:3 after the narrow condition holds for several
+         * consecutive frames; returning to Hor+ stays instant. */
+        {
+            static int s_narrowFrames = 0;
+            int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
+                               !g_PsxSkipFramebufferStore &&
+                               !g_PcMapScreenActive) ? 1 : 0;
+            if (wantHorPlus)
+            {
+                s_narrowFrames     = 0;
+                g_PcHorPlusEnabled = 1;
+            }
+            else if (++s_narrowFrames >= 6)
+            {
+                g_PcHorPlusEnabled = 0;
+            }
+        }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
