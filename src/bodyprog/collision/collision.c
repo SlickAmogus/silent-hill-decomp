@@ -7,6 +7,9 @@
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/collision/collision.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/player.h"
@@ -684,6 +687,40 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                 if (_contact)
                 {
                     g_CollStateDbg.hold = 30; /* ~0.5s at 60fps */
+                }
+            }
+
+            /* [WALL-HIT] (#42 invisible walls): on cylinder contact, name the
+             * face — subcell index, its EVENT CHANNEL vs the active trigger
+             * flags word (func_8006B318 gates each subcell on
+             * flags >> (field_0_14*4 | field_2_14)), and both surfaces' ground
+             * type + solid (disableHeight) bits. A conditional event barrier
+             * wrongly enabled shows as a solid fence-typed surface on a
+             * non-zero channel whose flag bit is set. */
+            {
+                static s32 s_lastWallLog = -1000;
+                if (_contact && (g_TickCount - s_lastWallLog) > 15 &&
+                    ABS(_pdx) < Q12(4.0f) && ABS(_pdz) < Q12(4.0f) &&
+                    state.point.ipdCollisionData != NULL &&
+                    state.point.ipdCollisionData->subcells != NULL)
+                {
+                    const s_IpdCollisionData* cd = state.point.ipdCollisionData;
+                    s32                       sci = state.point.subcellIdx;
+                    const s_IpdCollSubcell*   sc  = &cd->subcells[sci];
+                    s32 chan = (sc->field_0_14 * 4) | sc->field_2_14;
+                    s32 s0   = state.point.field_C.cellSurfaces.surfaceIdx0;
+                    s32 s1   = state.point.field_C.cellSurfaces.surfaceIdx1;
+
+                    s_lastWallLog = g_TickCount;
+                    SH_DBG("[WALL-HIT] subcell=%d chan=%d flags=0x%04X s0=%d(t%d d%d) s1=%d(t%d d%d) gt=%d dist=%d rad=%d",
+                           sci, chan, (unsigned)g_ActiveCollisionTriggers.flags,
+                           s0,
+                           (s0 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s0].groundType    : -1,
+                           (s0 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s0].disableHeight : -1,
+                           s1,
+                           (s1 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s1].groundType    : -1,
+                           (s1 != UCHAR_MAX && cd->surfaces != NULL) ? (int)cd->surfaces[s1].disableHeight : -1,
+                           (int)state.groundType, _dist, _rad);
                 }
             }
         }
