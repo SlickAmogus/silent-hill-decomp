@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.16 -- 2026-06-11
+- Fix map4_s01 pickup crash (data stubbed as functions) + item-pickup softlock
+
 ## v2026.06.11.15 -- 2026-06-11
 - Fix school black void: texture-page pool starved by interior window
 
