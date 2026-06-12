@@ -8,6 +8,17 @@
 
 #define floatstingerProps floatstinger->properties.floatstinger
 
+#ifdef SH_PC_PORT
+/* D_800D799C is not a standalone variable: 0x800D799C = FLOATSTINGER_ANIM_INFOS
+ * (0x800D7864) + 19*sizeof(s_AnimInfo) + 8 = the DURATION field of anim entry
+ * 19 (ANIM_STATUS(FloatstingerAnim_9, true) — the idle hover wing-flap loop,
+ * authored with duration 0 on disc). The game sets the flap speed by writing
+ * through this alias each frame. On PC the named variable resolved to a
+ * disconnected zero-stub, the real entry kept duration 0, and the wings froze
+ * during idle/appear (flaps only showed via other anims during attacks). */
+#define D_800D799C FLOATSTINGER_ANIM_INFOS[ANIM_STATUS(FloatstingerAnim_9, true)].duration.constant
+#endif
+
 void Floatstinger_Update(s_SubCharacter* floatstinger, s_AnmHeader* anmHdr, GsCOORDINATE2* coords) // 0x800D16FC
 {
     D_800DB928 = coords;
