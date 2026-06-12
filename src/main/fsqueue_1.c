@@ -30,19 +30,32 @@ bool Fs_QueueChunksLoad(void)
 
     D_800C48F0 = true;
 
+#ifdef SH_PC_PORT
+    /* On PC, CD reads are synchronous — drain the queue HERE instead of
+     * requiring it to already be empty. Waiters on this function (item
+     * pickup AwaitLoad, BGM init, inventory entry) softlocked whenever
+     * background streaming kept re-queuing reads each frame (hospital
+     * basement-key report: interior texture churn meant the queue was
+     * never empty at event-update time). After a bounded flush the queue
+     * IS empty at this instant, which is all "chunks loaded" means with
+     * synchronous reads. The Ipd_ChunkInitCheck gate stays bypassed (it
+     * can report false while LM post-processing lags and would block the
+     * pickup state machine permanently). */
+    {
+        s32 flushLimit = 500;
+        while (Fs_QueueGetLength() > 0 && flushLimit-- > 0)
+        {
+            Fs_QueueUpdate();
+        }
+    }
+    result = Fs_QueueGetLength() == 0;
+#else
     result = false;
     if (Fs_QueueGetLength() == 0)
     {
-#ifdef SH_PC_PORT
-        /* On PC, CD reads are synchronous: if the queue is empty, the file
-         * is already loaded. Don't gate on Ipd_ChunkInitCheck() which can
-         * return false if LM hasn't fully processed chunks yet — this would
-         * permanently block the item pickup state machine. */
-        result = true;
-#else
         result = Ipd_ChunkInitCheck() != false;
-#endif
     }
+#endif
 
     return result;
 }
