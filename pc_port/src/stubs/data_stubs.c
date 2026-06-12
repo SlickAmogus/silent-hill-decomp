@@ -214,7 +214,12 @@ u8 D_800D7858[256] = {0};
 u8 D_800D785C[256] = {0};
 u8 D_800D7860[256] = {0};
 u8 D_800D799C[256] = {0};
-u8 D_800D7A04[256] = {0};
+/* D_800D7A04 (Floatstinger AI dispatch) now defined per-DLL in
+ * src/maps/characters/floatstinger_rodata.inc; the boss rodata cluster
+ * (D_800D780C/7848/7A20/7A30/7A38/7A58/7A5C) comes from extracted_data.
+ * The u8 stubs below remain as exe-side fallbacks but the map4_s05 DLL
+ * binds its own definitions. */
+u8 D_800D7A04_unused_exe_stub[4] = {0};
 u8 D_800D7A20[256] = {0};
 u8 D_800D7A30[256] = {0};
 u8 D_800D7A38[256] = {0};
