@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.18 -- 2026-06-11
+- Log git build hash at startup + widen void diagnostic to player-cell misses
+- build-info: drop dirty marker (CMake git autocrlf false positives)
+
 ## v2026.06.11.17 -- 2026-06-11
 - Fix character hand/held-item visibility: merge mis-mapped variant macro
 
