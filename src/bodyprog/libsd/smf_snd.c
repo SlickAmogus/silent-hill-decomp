@@ -1330,18 +1330,12 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 #endif
         while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
         {
-#ifdef SH_PC_PORT
-            if (vc == 0) { SH_DBG("[SH_AUDIO] SdVoKeyOn: voice %d busy (status=%d)", vc, SpuGetKeyStatus(spu_ch_tbl[vc])); }
-#endif
             if (++vc > (sd_reserved_voice - 1))
             {
                 vc = -1;
                 break;
             }
         }
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] SdVoKeyOn: found voice vc=%d", vc);
-#endif
 
         voice = vc << 16;
         if (vc == -1)

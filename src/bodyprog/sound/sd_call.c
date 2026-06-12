@@ -409,10 +409,6 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         return NO_VALUE;
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) bal=%d vol=%d", sfxId, sfxId - Sfx_Base, balance, vol);
-#endif
-
     audioIdx = sfxId - Sfx_Base;
     volCpy   = vol;
 
@@ -465,15 +461,8 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
     }
     else
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn vab=%d note=%d",
-                g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx * 0x100);
-#endif
         g_Sd_VabPlayingInfo.audioVabIdx = SdVoKeyOn(g_Vab_InfoTable[audioIdx].vab_progIdx_2, g_Sd_VabPlayingInfo.noteIdx * 0x100,
                                                       Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeLeft), Sd_GetVolSe(g_Sd_VabPlayingInfo.volumeRight));
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SdVoKeyOn returned %d", g_Sd_VabPlayingInfo.audioVabIdx);
-#endif
     }
 
     for (i = 0; i < ARRAY_SIZE(g_AudioPlayingIdxList); i++)
@@ -486,21 +475,12 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
 
     if (g_Sd_VabPlayingInfo.audioVabIdx < ARRAY_SIZE(g_AudioPlayingIdxList))
     {
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr voice=%d", g_Sd_VabPlayingInfo.audioVabIdx);
-#endif
         g_AudioPlayingIdxList[g_Sd_VabPlayingInfo.audioVabIdx] = sfxId;
         attr.voice                                               = 1 << g_Sd_VabPlayingInfo.audioVabIdx;
 
         SpuGetVoiceAttr(&attr);
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] Sd_PlaySfx: SpuGetVoiceAttr done, pitch=%d", attr.pitch);
-#endif
 
         g_AudioPlayingPitchList[g_Sd_VabPlayingInfo.audioVabIdx] = attr.pitch;
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] Sd_PlaySfx: returning voiceIdx=%d", g_Sd_VabPlayingInfo.audioVabIdx);
-#endif
         return g_Sd_VabPlayingInfo.audioVabIdx;
     }
 
@@ -870,21 +850,6 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
     s16 volCpy;
     u8  var1;
     u8  idx;
-
-#ifdef SH_PC_PORT
-    /* Log on change per layer (quantised to 8 steps so a fade logs a handful
-     * of lines, not one per frame). The old 20-call session quota exhausted
-     * itself during the first fade and hid all later layer activity. */
-    {
-        static s16 s_lastVol[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
-        if (layerIdx < 8 &&
-            ((vol >> 4) != (s_lastVol[layerIdx] >> 4) ||
-             (vol == 0) != (s_lastVol[layerIdx] == 0))) {
-            SH_DBG("[SH_BGM] Sd_BgmLayerVolumeSet: layer=%d vol=%d field_E=%d", layerIdx, vol, g_Sd_AudioWork.field_E);
-            s_lastVol[layerIdx] = vol;
-        }
-    }
-#endif
 
     if (layerIdx == 0)
     {
@@ -1383,16 +1348,6 @@ void Sd_VabLoad(void) // 0x80047B80
     u8 depth;
     u8 cmd;
 
-#ifdef SH_PC_PORT
-    {
-        static s32 prevState = -1;
-        if (g_Sd_AudioStreamingStates.audioLoadState_0 != prevState) {
-            SH_DBG("[SH_AUDIO] Sd_VabLoad state=%d task=%d",
-                   g_Sd_AudioStreamingStates.audioLoadState_0, g_Sd_TaskPool[0]);
-            prevState = g_Sd_AudioStreamingStates.audioLoadState_0;
-        }
-    }
-#endif
     switch (g_Sd_AudioStreamingStates.audioLoadState_0)
     {
         case AudioLoadState_Reset:

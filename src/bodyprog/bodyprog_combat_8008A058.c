@@ -446,20 +446,12 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
         var_s0 = &chara->model.anim;
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[COMBAT] A3E0 baseAnimInfos=%p mapAnimInfos=%p status=%d state1=%d",
-           (void*)var_s0->baseAnimInfos, (void*)var_s0->mapAnimInfos,
-           var_s0->status, var_s0->mapAnimStatusStart);
-#endif
     anim  = func_80044918(var_s0);
     sp28  = var_s0->time;
     sp28 -= Q12(anim->startKeyframeIdx);
 
     var_s0_2 = func_8008A270(sp14);
     var_a0   = func_8008A2E0(sp14);
-#ifdef SH_PC_PORT
-    SH_DBG("[COMBAT] var_s0_2=%d var_a0=%d", var_s0_2, var_a0);
-#endif
 
     i   = chara->field_44.field_14;
     sp2C     = Q12(var_s0_2 + var_a0);
@@ -504,9 +496,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
         sp20 = chara->field_44.field_C;
         sp24 = chara->field_44.field_E;
 
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] temp_s1=%d sp10=%d sp28=%d sp2C=%d", temp_s1, sp10, sp28, sp2C);
-#endif
         if (temp_s1 == 3)
         {
             sp3C = chara->field_44.field_3;
@@ -712,11 +701,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         chara->field_44.field_48[1].vx = temp_s1_4;
                         chara->field_44.field_48[1].vy = temp2;
                         chara->field_44.field_48[1].vz = temp_s0_9;
-#ifdef SH_PC_PORT
-                        SH_DBG("[COMBAT] A3E0 DA08 hit: calling B714 chara=%p ptr=%p pos=(%d,%d,%d)",
-                               (void*)chara, (void*)ptr,
-                               D_800C4728.target.vx, D_800C4728.target.vy, D_800C4728.target.vz);
-#endif
                         func_8008B714(chara, ptr, &D_800C4728.target, 0);
                     }
                 }
@@ -878,7 +862,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 
                 func_8008B1DC(chara, temp_s0_14->vx, temp_s0_14->vy);
 #ifdef SH_PC_PORT
-                SH_DBG("[COMBAT] pre-BF84 iter=%d ang=%d sp1C=%p sp5C=%d", temp_s1_3, temp_s0_14->vx, (void*)sp1C, sp5C);
                 { extern int g_RayLineCombat; g_RayLineCombat = 1; }
 #endif
                 if (func_8008BF84(chara, temp_s0_14->vx, sp1C, sp5C) != 0)
@@ -1750,12 +1733,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
     countY = chara->field_44.field_24[0].vy;
     coundZ = chara->field_44.field_24[0].vz;
 
-#ifdef SH_PC_PORT
-    SH_DBG("[COMBAT] BF84 entry: chara=%p(id=%d) angle=%d arg3=%d pos=(%d,%d,%d)",
-           (void*)chara, chara->model.charaId, angle, arg3,
-           chara->position.vx, chara->position.vy, chara->position.vz);
-#endif
-
     sinAngle = Math_Sin(angle);
     cosAngle = Math_Cos(angle);
 
@@ -1882,11 +1859,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             chara1->health < Q12(0.0f) ||
             !chara1->collision.state)
         {
-#ifdef SH_PC_PORT
-            SH_DBG("[COMBAT] BF84 loop i=%d chara1=%p(id=%d) skip (sysState=%d hp=%d active=%d)",
-                   i, (void*)chara1, chara1->model.charaId,
-                   g_SysWork.sysState, chara1->health, chara1->collision.state);
-#endif
             continue;
         }
 
@@ -1925,9 +1897,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         posZ             = temp_s2 - Q12_MULT_PRECISE(temp_s3, var_s1);
 
         D_800C47C8[1].vz = posZ;
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] BF84 Ray_LosHitCheck i=%d pos=(%d,%d,%d)", i, (int)D_800C47C8[0].vx, (int)D_800C47C8[0].vy, (int)D_800C47C8[0].vz);
-#endif
         /* Merge regression: the fork called Ray_LineCheck (0x8006D90C) here — a
          * world-geometry line check between two POINTS (from, to) that computes the
          * delta internally. The merge's rename pass mis-mapped it to Ray_LosHitCheck
@@ -1947,9 +1916,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         {
             continue;
         }
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] BF84 no hit path: reading chara1 fields");
-#endif
 
         temp_t4_2  = chara1->position.vx;
         temp_t4_2 += chara1->collision.shapeOffsets.box.vx;
@@ -2096,10 +2062,6 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         D_800C47B8.vx = temp_t4_2 + temp_s2;
         D_800C47B8.vy = (sp58 + sp5C) + temp_s0;
         D_800C47B8.vz = temp_t5 + var_s1;
-#ifdef SH_PC_PORT
-        SH_DBG("[COMBAT] BF84 calling B714: chara=%p chara1=%p pos=(%d,%d,%d) arg3=%d",
-               (void*)chara, (void*)chara1, D_800C47B8.vx, D_800C47B8.vy, D_800C47B8.vz, arg3);
-#endif
         if (func_8008B714(chara, chara1, &D_800C47B8, arg3))
         {
             sp14 |= sp18;

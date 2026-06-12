@@ -2229,9 +2229,6 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
 
     Collision_SurfaceGet(&coll, playerChara->position.vx, playerChara->position.vz);
     Player_FootstepSfxGet(coll.groundType, &sfx, &pitch0, &pitch1);
-#ifdef SH_PC_PORT
-    SH_DBG("[B8] post-coll");
-#endif
 
     switch (g_SysWork.playerWork.extra.state)
     {
@@ -2917,9 +2914,6 @@ void sharedFunc_800CDAA8_0_s02(s_SubCharacter* playerChara, s_PlayerExtra* extra
             break;
     }
 
-#ifdef SH_PC_PORT
-    SH_DBG("[B8] post-switch2");
-#endif
     newMoveSpeed = sharedData_800D32A0_0_s02;
 
     playerChara->rotation.vy  = Q12_ANGLE_NORM_U((playerChara->rotation.vy + (sharedData_800E39D8_0_s00 >> 4)) + Q12_ANGLE(360.0f));
