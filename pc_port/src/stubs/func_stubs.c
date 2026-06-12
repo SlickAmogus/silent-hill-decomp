@@ -75,13 +75,12 @@ void LoadAverageCol(unsigned char *v0, unsigned char *v1, long p0, long p1, unsi
  * no-op stub left attr.pitch=0, which made libsd's per-frame radio
  * update pass pitch=0 and our SetVoiceAttr handler pause the OpenAL
  * source — radio static played for one frame and went silent. */
-void WorldObject_D_800D7FF0() { }
-void WorldObject_D_800D8020() { }
-void WorldObject_D_800D8050() { }
-void WorldObject_D_800D8070() { }
-void WorldObject_D_800D8090() { }
-void WorldObject_D_800D80B0() { }
-void WorldObject_D_800D80E0() { }
+/* WorldObject_D_800D7FF0..80E0 (map4_s01 antique shop world-object work
+ * structs): were mistakenly stubbed HERE as empty FUNCTIONS — the symbols
+ * landed in .text, and Map_WorldObjectsInit's first
+ * WorldObject_PlacementInit write faulted on the read-only code page
+ * (user crash map4_s01.dll+0x7915 writing +0xE580). They are runtime-
+ * written BSS data; real definitions now live in data_stubs.c. */
 /* func_8005B62C: removed — upstream now has real implementation */
 /* func_8005CD38: real implementation in pc_port/src/combat_target.c */
 /* func_800692A4: paper-map tile renderer — real C body now lives in

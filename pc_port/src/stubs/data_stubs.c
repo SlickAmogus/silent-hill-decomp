@@ -1088,6 +1088,17 @@ u8 g_WorldObject_Real[256] = {0};
 u8 g_WorldObject_Ref[256] = {0};
 u8 g_WorldObject_Ring[256] = {0};
 u8 g_WorldObject_SFlauros[256] = {0};
+/* map4_s01 antique-shop world-object work structs (runtime-written by
+ * Map_WorldObjectsInit). Previously stubbed as empty FUNCTIONS in
+ * func_stubs.c — the symbols sat in .text and the first placement-init
+ * write crashed on the read-only code page (map4_s01.dll+0x7915). */
+u8 WorldObject_D_800D7FF0[256] = {0};
+u8 WorldObject_D_800D8020[256] = {0};
+u8 WorldObject_D_800D8050[256] = {0};
+u8 WorldObject_D_800D8070[256] = {0};
+u8 WorldObject_D_800D8090[256] = {0};
+u8 WorldObject_D_800D80B0[256] = {0};
+u8 WorldObject_D_800D80E0[256] = {0};
 u8 g_WorldObject_SavePad[256] = {0};
 u8 g_WorldObject_SavePad0[256] = {0};
 u8 g_WorldObject_SavePad1[256] = {0};
