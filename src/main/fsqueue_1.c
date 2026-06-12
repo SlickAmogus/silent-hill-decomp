@@ -221,6 +221,32 @@ void Fs_QueueUpdate(void)
     tick = g_FsQueue.read.ptr;
     if (g_FsQueue.read.idx <= g_FsQueue.last.idx)
     {
+#ifdef SH_PC_PORT
+        /* Sewer progression crash (SewerCrash*.log): a queue entry's info
+         * pointer was found holding 0xFFFFFFFFFFFFFFFF at Creeper spawn on
+         * map5_s00 — something stomps the live entry between enqueue and
+         * tick (corruptor unidentified; deterministic across users). info
+         * is ALWAYS &g_FileTable[idx], so validate before dereferencing.
+         * On violation: dump forensics, drop the entry, keep the queue
+         * alive — a skipped enemy load beats a hard crash. */
+        {
+            const s_FileInfo* lo = &g_FileTable[0];
+            const s_FileInfo* hi = &g_FileTable[FS_FILE_COUNT];
+            if (tick->info < lo || tick->info >= hi)
+            {
+                SH_DBG("[FSQ-CORRUPT] entry idx=%d info=%p op=%d postLoad=%d alloc=%d data=%p ext=%p — dropping",
+                       g_FsQueue.read.idx, (void*)tick->info, (int)tick->operation,
+                       (int)tick->postLoad, (int)tick->allocate,
+                       (void*)tick->data, (void*)tick->externalData);
+                g_FsQueue.state       = 0;
+                g_FsQueue.resetTimer0 = 0;
+                g_FsQueue.resetTimer1 = 0;
+                temp                  = ++g_FsQueue.read.idx;
+                g_FsQueue.read.ptr    = g_FsQueue.entries + (temp & (FS_QUEUE_LENGTH - 1));
+                return;
+            }
+        }
+#endif
         switch (tick->operation)
         {
             case FsQueueOp_Seek:
@@ -254,6 +280,17 @@ void Fs_QueueUpdate(void)
     tick = g_FsQueue.postLoad.ptr;
     if (g_FsQueue.postLoad.idx < g_FsQueue.read.idx)
     {
+#ifdef SH_PC_PORT
+        /* Same corruption guard for the post-load cursor (see above). */
+        if (tick->info < &g_FileTable[0] || tick->info >= &g_FileTable[FS_FILE_COUNT])
+        {
+            SH_DBG("[FSQ-CORRUPT] postload idx=%d info=%p — skipping", g_FsQueue.postLoad.idx, (void*)tick->info);
+            g_FsQueue.postLoadState = FsQueuePostLoadState_Init;
+            temp                    = ++g_FsQueue.postLoad.idx;
+            g_FsQueue.postLoad.ptr  = g_FsQueue.entries + (temp & (FS_QUEUE_LENGTH - 1));
+            return;
+        }
+#endif
         temp = Fs_QueueUpdatePostLoad(tick);
         if (temp == true)
         {
