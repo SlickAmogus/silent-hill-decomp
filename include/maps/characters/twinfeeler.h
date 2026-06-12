@@ -160,7 +160,13 @@ void func_800D1604(GsOT_TAG* ot, int arg1);
 
 void func_800D17FC(void);
 
+#ifdef SH_PC_PORT
+/* arg0 is the VECTOR* forwarded to func_800D0DE4; s32 truncated the
+ * 64-bit pointer (larva-boss intro crash). See map4_s03.c. */
+void func_800D185C(VECTOR* arg0, s32 idx);
+#else
 void func_800D185C(s32 arg0, s32 idx);
+#endif
 
 s_800DF580* func_800D1900(VECTOR* arg0, s32 arg1);
 
