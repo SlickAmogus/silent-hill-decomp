@@ -90,6 +90,15 @@ TARGETS = {
     "sharedData_800D2F84_7_s00":        ("u8",  1),
     # D_*-named BGM tables (addresses encoded in the names; not listed in the
     # sym files, so they enter through EXTRA_SYMBOLS below).
+    # map4_s05 Floatstinger boss rodata cluster (raw u8 keeps the mixed
+    # struct layouts byte-exact; the DLL externs re-type them).
+    "D_800D780C":                       ("u8",  1),  # flight boundary boxes
+    "D_800D7848":                       ("u8",  1),  # bone index list
+    "D_800D7A20":                       ("u8",  1),  # SVECTOR[2]
+    "D_800D7A30":                       ("u8",  1),  # SVECTOR
+    "D_800D7A38":                       ("u8",  1),  # s16[16] wing amplitudes
+    "D_800D7A58":                       ("u8",  1),  # bone index list
+    "D_800D7A5C":                       ("u8",  1),  # SVECTOR[3]
     "D_800DCC4C":                       ("u8",  1),  # map1_s00 limits
     "D_800DCC54":                       ("u16", 2),  # map1_s00 room flags
     "D_800DC9FC":                       ("u8",  1),  # map1_s01 limits
@@ -242,7 +251,20 @@ EXTRA_SYMBOLS = {
     "map4_s03": [("D_800DB92C", 0x800DB92C, 4)],
     "map4_s04": [("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
-    "map4_s05": [("D_800D7D74", 0x800D7D74, 4)],
+    # map4_s05: D_800D7D74 (pre-existing) + the Floatstinger boss rodata
+    # cluster. Sizes tile exactly: 780C+0x3C=7848, 7848+0x10=7858 (runtime
+    # state vars 7858..799C stay zero-stubbed), 7A20+0x10=7A30, +8=7A38,
+    # +0x20=7A58, +4=7A5C, +0x18=0x800D7A74=MAP_ROOM_IDXS. The dispatch
+    # table D_800D7A04 (7A04..7A20) is function pointers and lives in
+    # floatstinger_rodata.inc instead.
+    "map4_s05": [("D_800D7D74", 0x800D7D74, 4),
+                 ("D_800D780C", 0x800D780C, 0x3C),  # flight boundary boxes (3x s_func_800D4458)
+                 ("D_800D7848", 0x800D7848, 0x10),  # bone index list
+                 ("D_800D7A20", 0x800D7A20, 0x10),  # SVECTOR[2] acid-spit muzzle offsets
+                 ("D_800D7A30", 0x800D7A30, 8),     # SVECTOR stinger offset
+                 ("D_800D7A38", 0x800D7A38, 0x20),  # s16[16] wing motion amplitudes
+                 ("D_800D7A58", 0x800D7A58, 4),     # bone index list
+                 ("D_800D7A5C", 0x800D7A5C, 0x18)], # SVECTOR[3]
     "map5_s02": [("D_800D947C", 0x800D947C, 32)],
     "map5_s03": [("D_800D3BDC", 0x800D3BDC, 32)],
     "map6_s00": [("D_800F0038", 0x800F0038, 8)],
