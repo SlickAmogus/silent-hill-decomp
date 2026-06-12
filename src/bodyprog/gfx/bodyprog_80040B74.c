@@ -1980,15 +1980,36 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
-    /* Once/sec while nothing draws (black-void diagnosis): which stage
-     * drops to zero — residency, load state, or the cell match. */
+    /* Once/sec while the world is void (black-void diagnosis): fires when
+     * NOTHING draws OR when the player's own cell specifically isn't among
+     * the drawn chunks (a "room missing, neighbor visible" void would
+     * otherwise stay silent). Dumps which stage failed per slot. */
     {
         static u32 s_lastDrawLogMs = 0;
-        if (cellMatchChunks == 0 && (SDL_GetTicks() - s_lastDrawLogMs) > 1000)
+        int playerCellDrawn = 0;
+        if (!g_Map.isExterior)
+        {
+            s_Chunk* pc;
+            for (pc = &g_Map.activeChunks[0]; pc < &g_Map.activeChunks[g_Map.activeChunkCount]; pc++)
+            {
+                if (pc->queueIdx != NO_VALUE &&
+                    pc->cellX == g_Map.cellX && pc->cellZ == g_Map.cellZ &&
+                    IpdHeader_LoadStateGet(pc) >= StaticModelLoadState_Loaded)
+                {
+                    playerCellDrawn = 1;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            playerCellDrawn = (cellMatchChunks != 0);
+        }
+        if ((cellMatchChunks == 0 || !playerCellDrawn) && (SDL_GetTicks() - s_lastDrawLogMs) > 1000)
         {
             s_lastDrawLogMs = SDL_GetTicks();
-            SH_DBG("[IPD-DRAW] NOTHING DRAWN total=%d loaded=%d cellMatch=%d mapCell=(%d,%d) tag=%s",
-                   totalChunks, loadedChunks, cellMatchChunks,
+            SH_DBG("[IPD-DRAW] VOID playerCellDrawn=%d total=%d loaded=%d cellMatch=%d mapCell=(%d,%d) tag=%s",
+                   playerCellDrawn, totalChunks, loadedChunks, cellMatchChunks,
                    (int)g_Map.cellX, (int)g_Map.cellZ, g_Map.mapTag);
             {
                 s_Chunk* c;

@@ -193,6 +193,12 @@ int main(int argc, char* argv[])
     if (g_PcConfig.enableDebugLog) {
         SH_DebugLogInit();
         SH_DBG("[SH] main() entered (log opened post-config)");
+        {
+            /* Build identification — first thing to check in user logs.
+             * Generated fresh each build by cmake/gen_build_info.cmake. */
+            #include "sh_build_info.h"
+            SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
+        }
     }
 
     /* Apply pixel-aspect mode to PsyCross's runtime PAR global.
