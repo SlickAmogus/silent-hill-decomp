@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.17 -- 2026-06-11
+- Fix character hand/held-item visibility: merge mis-mapped variant macro
+
 ## v2026.06.11.16 -- 2026-06-11
 - Fix map4_s01 pickup crash (data stubbed as functions) + item-pickup softlock
 
