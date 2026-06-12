@@ -2,6 +2,7 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include <stdlib.h>
+#include <SDL_timer.h>
 #include "pc_config.h"
 #include "sh_log.h"
 /* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
@@ -1601,17 +1602,97 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
     s_Chunk* curChunk;
 
 #ifdef SH_PC_PORT
-    /* Interiors: keep materials resident for the whole +-2-cell draw
-     * window (farthest drawn chunk edge is <= 2 cells = 80 units away).
-     * Vanilla freed materials for any chunk the player wasn't inside,
-     * which is correct when only the current cell draws — but the PC
-     * widened draw window then rendered neighbors with their textures
-     * freed (black/untextured room shells in school/hospital). */
-    q19_12 _matDist;
+    /* Interiors: texture the K nearest resident chunks, nearest-first.
+     *
+     * First attempt held materials for the whole 15-cell residency
+     * window (_matDist = 2 cells) — but the texture-page pool is only
+     * 8 full + 2 half pages, and IpdHeader_LoadStateGet only reports
+     * Loaded when EVERY material has a resident texture. Pinning the
+     * window starved the pool in dense interiors (school: 105 IPD
+     * grid), leaving even the player's own cell in state Corrupted —
+     * never drawn (the all-black school void) — and the load screen's
+     * chunk wait timed out for the same reason. Distance-ordered
+     * loading guarantees the player's cell always wins a page; the
+     * nearest neighbors (the Hor+ screen-edge reveal, cafe side walls)
+     * take what remains, and farther residents keep geometry+collision
+     * but release their textures like vanilla's out-of-cell chunks. */
     if (!g_Map.isExterior)
-        _matDist = Q12(80.0f);
-    else
-        _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
+    {
+        enum { PC_INTERIOR_TEXTURED_CHUNKS = 4 };
+        s_Chunk* keep[PC_INTERIOR_TEXTURED_CHUNKS];
+        s32      keepCount = 0;
+        s32      ins;
+        s32      j;
+        q19_12   d;
+        q19_12   dk;
+
+        for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
+        {
+            if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
+                curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
+            {
+                continue;
+            }
+
+            d = MIN(curChunk->paddedDistanceToEdge0, curChunk->paddedDistanceToEdge1);
+            for (ins = 0; ins < keepCount; ins++)
+            {
+                dk = MIN(keep[ins]->paddedDistanceToEdge0, keep[ins]->paddedDistanceToEdge1);
+                if (d < dk)
+                {
+                    break;
+                }
+            }
+
+            if (ins < PC_INTERIOR_TEXTURED_CHUNKS)
+            {
+                for (j = (keepCount < PC_INTERIOR_TEXTURED_CHUNKS - 1) ? keepCount : (PC_INTERIOR_TEXTURED_CHUNKS - 1); j > ins; j--)
+                {
+                    keep[j] = keep[j - 1];
+                }
+                keep[ins] = curChunk;
+                if (keepCount < PC_INTERIOR_TEXTURED_CHUNKS)
+                {
+                    keepCount++;
+                }
+            }
+        }
+
+        /* Release textures held by residents outside the keep set
+         * (idempotent: RefCountDec NULLs material->texture). */
+        for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
+        {
+            if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
+                curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
+            {
+                continue;
+            }
+
+            for (ins = 0; ins < keepCount; ins++)
+            {
+                if (keep[ins] == curChunk)
+                {
+                    break;
+                }
+            }
+            if (ins == keepCount)
+            {
+                Lm_MaterialRefCountDec(curChunk->ipdHdr->lmHdr);
+            }
+        }
+
+        /* Load nearest-first so the pool can never be exhausted before
+         * the player's own cell gets its pages. */
+        for (ins = 0; ins < keepCount; ins++)
+        {
+            Ipd_MaterialsLoad(keep[ins]->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            Lm_MaterialFlagsApply(keep[ins]->ipdHdr->lmHdr);
+        }
+
+        return;
+    }
+
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
 #else
     #define _matDist Q12(0.0f)
 #endif
@@ -1899,6 +1980,30 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
+    /* Once/sec while nothing draws (black-void diagnosis): which stage
+     * drops to zero — residency, load state, or the cell match. */
+    {
+        static u32 s_lastDrawLogMs = 0;
+        if (cellMatchChunks == 0 && (SDL_GetTicks() - s_lastDrawLogMs) > 1000)
+        {
+            s_lastDrawLogMs = SDL_GetTicks();
+            SH_DBG("[IPD-DRAW] NOTHING DRAWN total=%d loaded=%d cellMatch=%d mapCell=(%d,%d) tag=%s",
+                   totalChunks, loadedChunks, cellMatchChunks,
+                   (int)g_Map.cellX, (int)g_Map.cellZ, g_Map.mapTag);
+            {
+                s_Chunk* c;
+                for (c = &g_Map.activeChunks[0]; c < &g_Map.activeChunks[g_Map.activeChunkCount]; c++)
+                {
+                    if (c->queueIdx == NO_VALUE) continue;
+                    SH_DBG("[IPD-DRAW]   slot=%d cell=(%d,%d) loadState=%d qState=%d isLoaded=%d",
+                           (int)(c - g_Map.activeChunks), (int)c->cellX, (int)c->cellZ,
+                           (int)IpdHeader_LoadStateGet(c),
+                           (int)Fs_QueueEntryLoadStatusGet(c->queueIdx),
+                           (c->ipdHdr != NULL) ? (int)c->ipdHdr->isLoaded : -1);
+                }
+            }
+        }
+    }
     }
 #endif
 }
