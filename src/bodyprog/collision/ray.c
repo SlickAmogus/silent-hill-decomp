@@ -27,6 +27,11 @@ bool Ray_TraceQuery(s_RayTrace* trace, const VECTOR3* from, const VECTOR3* to) /
 
     trace->hasHit = false;
 
+#ifdef SH_PC_PORT
+    /* Miss path below reads state->rayDistance even when TraceSetup
+     * rejects the ray; on PC `state` was an uninitialized stack ptr. */
+    state = (s_RayState*)PSX_SCRATCH;
+#endif
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, false, Q8(0.0f), from, &offset, Q12(0.0f), Q12(0.0f), NULL, 0))
     {
         prevScratchAddr = SetSp((s32)PSX_SCRATCH_ADDR(984));
@@ -55,6 +60,9 @@ bool Ray_CharaTraceQuery(s_RayTrace* trace, const VECTOR3* from, VECTOR3* offset
     collCharas = Collision_CollidableCharasGet(&collCharaCount, excludedChara, false);
 
     trace->hasHit = false;
+#ifdef SH_PC_PORT
+    state = (s_RayState*)PSX_SCRATCH; /* see Ray_TraceQuery miss-path note */
+#endif
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, false, Q8(0.0f), from, offset, Q12(0.0f), Q12(0.0f), collCharas, collCharaCount))
     {
         prevScratch   = SetSp((s32)PSX_SCRATCH_ADDR(0x3D8));
@@ -96,6 +104,9 @@ bool Ray_LosHitCheck(s_RayTrace* trace, const VECTOR3* from, const VECTOR3* offs
     collCharas = Collision_CollidableCharasGet(&collCharaCount, excludedChara, true);
     trace->hasHit    = false;
 
+#ifdef SH_PC_PORT
+    state = (s_RayState*)PSX_SCRATCH; /* see Ray_TraceQuery miss-path note */
+#endif
     if (Ray_TraceSetup((s_RayState*)PSX_SCRATCH, true, Q8(0.0f), from, offset, Q12(0.0f), Q12(0.0f), collCharas, collCharaCount))
     {
         prevScratchAddr = SetSp((s32)PSX_SCRATCH_ADDR(984));
@@ -120,7 +131,18 @@ bool func_8006DC18(s_RayTrace* trace, const VECTOR3* from, const VECTOR3* offset
     s_RayState* state;
 
     trace->hasHit = false;
+#ifdef SH_PC_PORT
+    /* The (s32) cast the sibling queries already dropped: it truncated
+     * the 64-bit scratchpad pointer (twinfeeler/map4_s03 ray traces).
+     * Also assign `state` unconditionally — the miss path below reads
+     * state->rayDistance even when TraceSetup rejects the ray, which on
+     * PSX harmlessly aliased scratch but on PC was an uninitialized
+     * stack pointer. */
+    state = (s_RayState*)PSX_SCRATCH;
+    if (Ray_TraceSetup(state, true, Q8(0.3f), from, offset, Q12(0.0f), Q12(0.0f), NULL, 0))
+#else
     if (Ray_TraceSetup((s32)PSX_SCRATCH, true, Q8(0.3f), from, offset, Q12(0.0f), Q12(0.0f), NULL, 0))
+#endif
     {
         prevScratchAddr = SetSp((s32)PSX_SCRATCH_ADDR(0x3D8));
 
