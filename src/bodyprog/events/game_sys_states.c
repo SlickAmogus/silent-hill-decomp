@@ -270,15 +270,15 @@ void GameState_InGame_Update(void) // 0x80038BD4
         if (player->model.anim.flags & AnimFlag_Visible)
         {
 #ifdef SH_PC_PORT
-            /* Force all Harry skeleton bones visible. PSX implicitly leaves
-             * them visible; PC sees stray AnimFlag clears that hide the
-             * model entirely after a cutscene. */
-            {
-                s_CharaModel* harryModel = g_WorldGfxWork.registeredCharaModels[Chara_Harry];
-                if (harryModel != NULL) {
-                    func_800453E8(&harryModel->skeleton, true);
-                }
-            }
+            /* NOTE: a per-frame func_800453E8(skel, true) force-show used to
+             * live here (merge-era band-aid for Harry turning invisible
+             * after cutscenes). The actual root was the merge mis-mapping
+             * MODEL_BONE_IDX_0_GET -> IDX_1_GET in the world_draw.c mesh
+             * variant selectors, which killed every WorldGfx_HeldItemAttach
+             * show/hide. With that fixed, the force-show only did harm:
+             * it re-showed ALL of Harry's hidden weapon-hand variant meshes
+             * every frame (the "duplicate hands inside his hand" report). */
+
             /* Reset bone-coord flg values so the matrix hierarchy gets
              * fully recomputed this frame. Stale cached workm matrices
              * cause Harry's model to alternate-frame shrink/collapse. */
