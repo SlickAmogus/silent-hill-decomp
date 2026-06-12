@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.13 -- 2026-06-11
+- launcher/config: canonical map names from upstream README + config regeneration
+
 ## v2026.06.11.12 -- 2026-06-11
 - Fix shrunk map pickups (merge-lost PC blocks) + interior chunk streaming rework
 - Fix overlapping/cut-off cutscene voices + Levin St house indoor snow
