@@ -94,17 +94,18 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Blue-blood triage (#41): blood color is a savegame byte (Extra Options;
+     * Normal=0/Green=2/Violet=5/Black=11) that selects blood CLUT rows via
+     * func_8005F55C. A non-zero value here = the whole area bleeds off-color.
+     * Must log BEFORE the no-flags early-out — most maps take it. */
+    SH_DBG("[BLOOD-CFG] map=%d extraBloodColor=%d", (int)mapIdx, (int)g_GameWork.config.extraBloodColor);
+#endif
+
     if (effectTexFlags == EffectTextureFlag_None)
     {
         return;
     }
-
-#ifdef SH_PC_PORT
-    /* Blue-blood triage (#41): blood color is a savegame byte (Extra Options;
-     * Normal=0/Green=2/Violet=5/Black=11) that selects blood CLUT rows via
-     * func_8005F55C. A non-zero value here = the whole area bleeds off-color. */
-    SH_DBG("[BLOOD-CFG] extraBloodColor=%d", (int)g_GameWork.config.extraBloodColor);
-#endif
 
     // Run through effect texture flags.
     loadedEffectTextureFlags = EffectTextureFlag_None;
@@ -127,15 +128,29 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
         // Load effect textures.
         switch (1 << i)
         {
+#ifdef SH_PC_PORT
+            /* The Ef case below permanently mutates the SHARED descriptor
+             * (v=64, clutY=4); on PSX the retail map order apparently never
+             * loads Glass/Water/Blood after an Ef map, but with level select
+             * and free roaming we do — and the TIM then uploads its pixels/
+             * palette to the wrong VRAM rows (off-palette "blue blood" class).
+             * Restore the static defaults (screen_data.c) before each use. */
+            #define EFFECT_IMG_RESET() (D_800A908C.v = 0, D_800A908C.clutY = 0)
+#else
+            #define EFFECT_IMG_RESET()
+#endif
             case EffectTextureFlag_Glass:
+                EFFECT_IMG_RESET();
                 Fs_QueueStartReadTim(FILE_TIM_GLASS_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_GLASS_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_WaterRefract:
+                EFFECT_IMG_RESET();
                 Fs_QueueStartReadTim(FILE_TIM_DR_WAVE_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_DR_WAVE_TIM), 0x800)), &D_800A908C);
                 break;
 
             case EffectTextureFlag_Water:
+                EFFECT_IMG_RESET();
                 Fs_QueueStartReadTim(FILE_TIM_WATER_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_WATER_TIM), 0x800)), &D_800A908C);
                 break;
 
@@ -151,6 +166,7 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
                 break;
 
             case EffectTextureFlag_Blood:
+                EFFECT_IMG_RESET();
                 Fs_QueueStartReadTim(FILE_TIM_BLOOD_TIM, (void*)((uintptr_t)FONT24_BUFFER - ALIGN(Fs_GetFileSize(FILE_TIM_BLOOD_TIM), 0x800)), &D_800A908C);
                 break;
 

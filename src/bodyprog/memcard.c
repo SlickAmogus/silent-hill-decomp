@@ -764,9 +764,10 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
                  * the e_BloodColor set: Normal=0/Green=2/Violet=5/Black=11. */
                 {
                     u8 bc = g_GameWorkConst->config.extraBloodColor;
+                    SH_DBG("[BLOOD-CFG] options loaded, extraBloodColor=%d", (int)bc);
                     if (bc != 0 && bc != 2 && bc != 5 && bc != 11)
                     {
-                        SH_DBG("[BLOOD-CFG] save had invalid extraBloodColor=%d, reset to Normal", (int)bc);
+                        SH_DBG("[BLOOD-CFG] invalid value, reset to Normal");
                         g_GameWorkConst->config.extraBloodColor = 0;
                     }
                 }
