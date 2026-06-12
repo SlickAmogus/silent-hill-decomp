@@ -70,6 +70,15 @@ crash" outcome.
   fields that can be 0; `vcAutoRenewalCamTgtPos` divides the warp delta by
   `g_DeltaTime`, which is 0 on pause/console/sub-hblank frames on PC.
   commit [`773bc4f29`](https://github.com/SlickAmogus/silent-hill-decomp/commit/773bc4f29)
+- **Character fog vertex-color corruption — negative fogRamp index.** The
+  per-vertex depths live in s16 slots; a GTE SZ ≥ 32768 reads back negative,
+  passes the `< (1 << depthShift)` range test and indexes `fogRamp[]` out of
+  bounds (PSX read harmless low RAM). This corruption is why Harry's gameplay
+  render used to disable fog entirely — that bypass is now removed and all
+  characters fog like the world. `PC_FOG_VTX_RAMP` reads the depth as u16;
+  same clamp in `func_80055B74`.
+  [`bodyprog_80055028.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/gfx/bodyprog_80055028.c) ·
+  commit [`74dbdbdbd`](https://github.com/SlickAmogus/silent-hill-decomp/commit/74dbdbdbd)
 - **Systematic div/rem-by-zero sweep (13 files).** Audited every division and
   modulo by a runtime value that can be zero. Same-class guards: the two
   remaining `/ g_DeltaTime` sites (`stalker.c`, `air_screamer.c`); two more
