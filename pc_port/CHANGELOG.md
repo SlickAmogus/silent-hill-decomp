@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.11.12 -- 2026-06-11
+- Fix shrunk map pickups (merge-lost PC blocks) + interior chunk streaming rework
+- Fix overlapping/cut-off cutscene voices + Levin St house indoor snow
+
 ## v2026.06.11.11 -- 2026-06-11
 - Fix Split Head boss crash: PSX stack-frame aliasing + boss div-zero audit
 - docs: index Split Head stack-aliasing fix + boss audit additions
