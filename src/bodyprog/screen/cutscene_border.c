@@ -30,37 +30,49 @@ static int     s_borderStaticsInited = 0;
 
 static void Screen_BorderInitStatics(void)
 {
+    /* Real drawable size from PsyCross (SDL window / desktop in borderless),
+     * NOT g_PcConfig.windowWidth/Height — those hold the *configured* values
+     * (4:3 default 640x480), so borderless-fullscreen on a 16:9 display kept
+     * horScale=1.0 and the bars only spanned the 4:3 width, leaving the
+     * widescreen side margins uncovered = black corner squares at the bar
+     * height (user report). */
+    extern int g_windowWidth;
+    extern int g_windowHeight;
+
     s32 i;
     s16 halfW;
 
-    if (s_borderStaticsInited)
+    /* One-time prim-type setup. Must run before setXY4 below, since setPolyG4
+     * clears the primitive (including coords). */
+    if (!s_borderStaticsInited)
     {
-        return;
+        s_borderStaticsInited = 1;
+
+        for (i = 0; i < 2; i++)
+        {
+            setcode(&D_800A8E98[i], 0xE1);  /* P_TAG code → ParsePrimitive 0xE0 → tpage */
+            setlen(&D_800A8E98[i], 1);
+            D_800A8E98[i].code[0] = 0xE1000240; /* tpage=64 → ABR=2 → BM_SUBTRACT */
+        }
+
+        for (i = 0; i < 4; i++)
+        {
+            setPolyG4(&D_800A8EB0[i]);
+            setSemiTrans(&D_800A8EB0[i], true);
+        }
     }
-    s_borderStaticsInited = 1;
 
     {
         const float psxAspect = 320.0f / 240.0f;
-        const float winAspect = g_PcConfig.windowHeight > 0
-            ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-            : psxAspect;
+        const int   rw = g_windowWidth  > 0 ? g_windowWidth  : g_PcConfig.windowWidth;
+        const int   rh = g_windowHeight > 0 ? g_windowHeight : g_PcConfig.windowHeight;
+        const float winAspect = rh > 0 ? (float)rw / (float)rh : psxAspect;
         const float horScale = winAspect / psxAspect;
         halfW = (s16)(160.0f * horScale + 10.0f);
     }
 
-    for (i = 0; i < 2; i++)
-    {
-        setcode(&D_800A8E98[i], 0xE1);  /* P_TAG code → ParsePrimitive 0xE0 → tpage */
-        setlen(&D_800A8E98[i], 1);
-        D_800A8E98[i].code[0] = 0xE1000240; /* tpage=64 → ABR=2 → BM_SUBTRACT */
-    }
-
-    for (i = 0; i < 4; i++)
-    {
-        setPolyG4(&D_800A8EB0[i]);
-        setSemiTrans(&D_800A8EB0[i], true);
-    }
-    /* [0]/[1] = top bar (per double-buffer), [2]/[3] = bottom bar. */
+    /* Width recomputed every call so a window resize is reflected.
+     * [0]/[1] = top bar (per double-buffer), [2]/[3] = bottom bar. */
     setXY4(&D_800A8EB0[0], -halfW, -112, halfW, -112, -halfW, -96, halfW, -96);
     setXY4(&D_800A8EB0[1], -halfW, -112, halfW, -112, -halfW, -96, halfW, -96);
     setXY4(&D_800A8EB0[2], -halfW,  112, halfW,  112, -halfW,  96, halfW,  96);
