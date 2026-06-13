@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.11 -- 2026-06-12
+- Fix instant otherworld transition: extract D_800F0084 threshold table (map6_s00)
+
 ## v2026.06.12.10 -- 2026-06-12
 - Fix motel dresser snap-back + BGM layer diagnostics for bar scene
 - Fix lighthouse-stair crash: collision offset-alpha div-by-zero
