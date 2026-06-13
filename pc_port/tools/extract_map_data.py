@@ -263,7 +263,13 @@ EXTRA_SYMBOLS = {
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
                  ("D_800DB7D4", 0x800DB7D4, 0x10),  # big TV quad corners (SVECTOR pair)
                  ("D_800DB7E4", 0x800DB7E4, 0x90),  # 3x3 TV grid quad corners
-                 ("D_800DB874", 0x800DB874, 0x24),  # screen pattern tpage/clut/UV windows
+                 # screen pattern tpage/clut/UV windows, s_800DB874[15] (10 B
+                 # each). func_800D88C8 indexes [field_30]; field_30 reaches
+                 # arg1+6 with arg1<=8 => index 14, so 15 entries = 150 B. The
+                 # old 0x24 (~3 entries) left the cult-symbol patterns (idx
+                 # 4-14) reading zeros = TVs showed only static. Extract the
+                 # full 0xB0 gap to D_800DB924 (covers all entries + padding).
+                 ("D_800DB874", 0x800DB874, 0xB0),
                  ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
     "map4_s04": [("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
