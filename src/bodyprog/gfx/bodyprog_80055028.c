@@ -262,6 +262,20 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
 void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, q23_8 brightness) // 0x80055330
 {
+#ifdef SH_PC_PORT
+    /* Console flashlight-color override (`fl <color>`). field_2C is the
+     * per-vertex light-color matrix; in dark/otherworld maps that light is
+     * the flashlight. Modulate the incoming tint by the chosen color so the
+     * beam takes on the hue while keeping the map's brightness. */
+    extern int g_PcFlashlightColorActive;
+    extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
+    if (g_PcFlashlightColorActive)
+    {
+        tintR = (tintR * g_PcFlashlightColorR) / 255;
+        tintG = (tintG * g_PcFlashlightColorG) / 255;
+        tintB = (tintB * g_PcFlashlightColorB) / 255;
+    }
+#endif
     g_WorldEnvWork.field_0             = arg0;
     g_WorldEnvWork.field_20            = arg1;
     g_WorldEnvWork.field_3             = arg2;

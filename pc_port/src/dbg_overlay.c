@@ -55,8 +55,7 @@ int g_PcConsoleSwallowInput = 0;
 static char          s_input_buf[INPUT_BUF_CAP];
 static int           s_input_len = 0;
 static Uint32        s_tilde_down_ms = 0;
-static int           s_tilde_tap_consumed = 0;
-static int           s_hold_enter_armed = 0;
+static int           s_tilde_hold_done = 0; /* hold already toggled the view this press */
 static unsigned char s_prev_keys[64]; /* scancodes used here are all < 64 */
 
 /* Slide animation: 0 = fully off-screen above the top edge, 1 = at rest.
@@ -707,43 +706,42 @@ void DbgOverlay_Update(void)
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
 
-    /* `~` console control (debug builds only):
-     *   - tap while closed  -> open
-     *   - tap while open    -> close
-     *   - HOLD (≥350 ms) while open -> interactive input mode ("> _" prompt,
-     *     game frozen via g_PcConsoleInputActive)
-     *   - tap while in input mode   -> leave input mode (console stays open)
-     * Tap-to-close is decided on RELEASE so a hold doesn't first close it. */
+    /* `~` console control (debug builds only) — tap/hold flipped per request:
+     *   - HOLD (≥350 ms)            -> toggle the top-left "ingame" console view
+     *   - TAP while fully shown     -> toggle interactive text input ("> _")
+     *   - TAP while typing          -> leave input mode (view stays)
+     *   - TAP while hidden/sliding  -> nothing (must hold to show first)
+     * The view toggle fires on the hold threshold; the tap action fires on
+     * release only if a hold didn't already consume this press. */
     cur_tilde = ks[SDL_SCANCODE_GRAVE];
     if (g_PcAllowDebugControls) {
         if (cur_tilde && !s_prev_tilde) { /* press edge */
-            s_tilde_down_ms    = SDL_GetTicks();
-            s_hold_enter_armed = !g_PcConsoleInputActive;
-            if (g_PcConsoleInputActive) {
-                g_PcConsoleInputActive  = 0;
+            s_tilde_down_ms   = SDL_GetTicks();
+            s_tilde_hold_done = 0;
+        }
+        /* HOLD: toggle the ingame view once the threshold elapses. */
+        if (cur_tilde && !s_tilde_hold_done &&
+            (SDL_GetTicks() - s_tilde_down_ms) >= CONSOLE_HOLD_MS) {
+            s_tilde_hold_done       = 1;
+            g_PcConfig.showConsole ^= 2;          /* show <-> hide */
+            s_console_dirty         = 1;
+            if (!(g_PcConfig.showConsole & 2) && g_PcConsoleInputActive) {
+                g_PcConsoleInputActive  = 0;      /* hiding -> drop input mode */
                 g_PcConsoleSwallowInput = 1;
-                s_console_dirty         = 1;
-                s_tilde_tap_consumed    = 1;
-            } else if (!(g_PcConfig.showConsole & 2)) {
-                g_PcConfig.showConsole |= 2; /* open immediately on press */
-                s_tilde_tap_consumed    = 1;
-            } else {
-                s_tilde_tap_consumed = 0;    /* open: close on release unless held */
             }
         }
-        if (cur_tilde && s_hold_enter_armed && (g_PcConfig.showConsole & 2) &&
-            !g_PcConsoleInputActive &&
-            (SDL_GetTicks() - s_tilde_down_ms) >= CONSOLE_HOLD_MS) {
-            g_PcConsoleInputActive = 1;      /* enter input mode */
-            s_input_len            = 0;
-            s_input_buf[0]         = '\0';
-            s_console_dirty        = 1;
-            s_tilde_tap_consumed   = 1;
-            s_hold_enter_armed     = 0;
-        }
-        if (!cur_tilde && s_prev_tilde) { /* release edge */
-            if (!s_tilde_tap_consumed)
-                g_PcConfig.showConsole &= ~2;
+        /* TAP: on release, if no hold consumed this press, toggle text input. */
+        if (!cur_tilde && s_prev_tilde && !s_tilde_hold_done) {
+            if (g_PcConsoleInputActive) {
+                g_PcConsoleInputActive  = 0;      /* exit input */
+                g_PcConsoleSwallowInput = 1;
+                s_console_dirty         = 1;
+            } else if ((g_PcConfig.showConsole & 2) && s_console_slide >= 1.0f) {
+                g_PcConsoleInputActive = 1;       /* enter input (only when fully shown) */
+                s_input_len            = 0;
+                s_input_buf[0]         = '\0';
+                s_console_dirty        = 1;
+            }
         }
     }
     s_prev_tilde = cur_tilde;
