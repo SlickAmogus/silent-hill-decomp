@@ -1291,10 +1291,8 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
 #ifdef SH_PC_PORT
     if (!sd_vh) {
-        SH_DBG("[SH_AUDIO] SdVoKeyOn: vab_h[%d] is NULL, skip", vabid);
         return -1;
     }
-    SH_DBG("[SH_AUDIO] SdVoKeyOn: vabid=%d prog=%d note=%d sd_vh=%p", vabid, prog, note, (void*)sd_vh);
 #endif
 
     sd_int_flag = true;
@@ -1310,10 +1308,6 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
     sd_vab_prog = &sd_vh->vab_prog[prog];
 
-#ifdef SH_PC_PORT
-    SH_DBG("[SH_AUDIO] SdVoKeyOn: tones=%d c=%d", sd_vab_prog->tones, c);
-#endif
-
     for (tone = 0; tone < sd_vab_prog->tones; tone++)
     {
         sd_vag_atr = &sd_vh->vag_atr[(c * 16) + tone];
@@ -1325,9 +1319,6 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
         vc = 0;
 
-#ifdef SH_PC_PORT
-        SH_DBG("[SH_AUDIO] SdVoKeyOn: tone=%d, finding free voice...", tone);
-#endif
         while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
         {
             if (++vc > (sd_reserved_voice - 1))

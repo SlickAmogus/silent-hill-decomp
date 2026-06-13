@@ -94,9 +94,6 @@ u8               g_Sd_CurrentTask;
 
 void SD_Call(u32 cmd) // 0x80045A7C
 {
-#ifdef SH_PC_PORT
-    SH_DBG("[SH_AUDIO] SD_Call cmd=%u (cat=%u)", cmd, (cmd >> 8) & 0xFF);
-#endif
     // Execute sound command based on category.
     switch ((cmd >> 8) & 0xFF)
     {
