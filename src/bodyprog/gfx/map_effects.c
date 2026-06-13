@@ -305,34 +305,21 @@ void func_8003EDA8(void) // 0x8003EDA8
 }
 
 #ifdef SH_PC_PORT
-/* Console flashlight-color override (`flashlight <color>` / `fl default`).
- * When active, replaces the beam's RGB while preserving per-map brightness:
- * the chosen tint is scaled by each original channel's luma so the beam keeps
- * its falloff/intensity instead of flattening to a flat color. */
+/* Console color overrides (set by pc_console_cmd.c). Applied in func_80055330:
+ *   `fl` / `flashlight` -> field_2C (the directional/point light the flashlight
+ *                          casts on surfaces),
+ *   `wl` / `worldlight` -> worldTintColor + field_24..26 (flat ambient tint).
+ * Each channel scales the map's value by the chosen color (keeps brightness). */
 s32 g_PcFlashlightColorActive = 0;
 u8  g_PcFlashlightColorR = 255, g_PcFlashlightColorG = 255, g_PcFlashlightColorB = 255;
-
-static void Pc_FlashlightTint(CVECTOR* c)
-{
-    /* original luma (approx) -> scale the chosen tint by it */
-    s32 luma = ((s32)c->r + c->g + c->b) / 3;
-    c->r = (u8)((g_PcFlashlightColorR * luma) / 255);
-    c->g = (u8)((g_PcFlashlightColorG * luma) / 255);
-    c->b = (u8)((g_PcFlashlightColorB * luma) / 255);
-}
+s32 g_PcWorldLightColorActive = 0;
+u8  g_PcWorldLightColorR = 255, g_PcWorldLightColorG = 255, g_PcWorldLightColorB = 255;
 #endif
 
 void func_8003EDB8(CVECTOR* color0, CVECTOR* color1) // 0x8003EDB8
 {
     *color0 = g_SysWork.field_2388.field_1C[g_SysWork.field_2388.isFlashlightOn_15].effectsInfo_0.field_21;
     *color1 = g_SysWork.field_2388.field_1C[g_SysWork.field_2388.isFlashlightOn_15].effectsInfo_0.field_25;
-#ifdef SH_PC_PORT
-    if (g_PcFlashlightColorActive)
-    {
-        Pc_FlashlightTint(color0);
-        Pc_FlashlightTint(color1);
-    }
-#endif
 }
 
 void func_8003EE30(s32 arg0, s32* arg1, s32 arg2, s32 arg3) // 0x8003EE30
