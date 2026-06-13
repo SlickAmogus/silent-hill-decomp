@@ -170,6 +170,15 @@ TARGETS = {
     "D_800ED898":                       ("u16", 2),  # map7_s03 voices
     "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
     "D_800F0038":                       ("u16", 2),  # map6_s00 voices
+    # INCLUDE_RODATA symbols that are no-op on PC -> zero-stubs (same class as
+    # the Cybil DMS strings). Pure data (positions/RECT/imageDesc), raw bytes,
+    # consumer casts via its extern type. map6_s02 lighthouse effect + map6_s04
+    # Cybil-boss positions.
+    "D_800CAB90":                       ("u8", 8),   # map6_s02 LHEFFECT TIM imageDesc
+    "D_800CAB98":                       ("u8", 8),   # map6_s02 LHEFFECT StoreImage RECT
+    "D_800CC7C0":                       ("u8", 12),  # map6_s04 boss SFX pos (VECTOR3)
+    "D_800CC7CC":                       ("u8", 12),  # map6_s04 boss SFX pos (VECTOR3)
+    "D_800CB728":                       ("u8", 12),  # map6_s04 VECTOR3
     # map6_s00 otherworld-transition per-cell thresholds, DVECTOR[17][17].
     # Raw u8 bytes; consumer indexes through the header's DVECTOR extern.
     "D_800F0084":                       ("u8", 0x484),
@@ -298,9 +307,14 @@ EXTRA_SYMBOLS = {
                  ("D_800F0084", 0x800F0084, 0x484)],
     "map6_s01": [("D_800D4108", 0x800D4108, 32)],
     "map6_s02": [("D_800D3B40", 0x800D3B40, 4),
-                 ("D_800D3B6C", 0x800D3B6C, 272)],
+                 ("D_800D3B6C", 0x800D3B6C, 272),
+                 ("D_800CAB90", 0x800CAB90, 8),
+                 ("D_800CAB98", 0x800CAB98, 8)],
     "map6_s04": [("D_800EBA34", 0x800EBA34, 48),
-                 ("D_800EBA64", 0x800EBA64, 210)],
+                 ("D_800EBA64", 0x800EBA64, 210),
+                 ("D_800CC7C0", 0x800CC7C0, 12),
+                 ("D_800CC7CC", 0x800CC7CC, 12),
+                 ("D_800CB728", 0x800CB728, 12)],
     "map7_s00": [("D_800D31C4", 0x800D31C4, 12)],
     "map7_s01": [("D_800E14E8", 0x800E14E8, 24),
                  ("D_800E1500", 0x800E1500, 4),
