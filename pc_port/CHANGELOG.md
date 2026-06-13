@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.16 -- 2026-06-13
+- Reduce log hitching: remove hot-path audio debug logs
+
 ## v2026.06.13.15 -- 2026-06-13
 - Fix final-boss crash (both variants): port projectile motion-script tables
 
