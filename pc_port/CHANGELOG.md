@@ -1,5 +1,15 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.24 -- 2026-06-13
+- Fix final-boss crash ROOT: D_800CAE30 zero-stub gave projectiles NULL ptr_0
+
+## v2026.06.13.23 -- 2026-06-13
+- (no commits since last release)
+
+## v2026.06.13.22 -- 2026-06-13
+- Bump PsyCross: SPU ADSR envelope for looping voices (clock bell ring-out)
+- Fix final-boss crash (incubus/incubator variants): seed ptr_0 in twin pool init
+
 ## v2026.06.13.21 -- 2026-06-13
 - Fix PuppetNurse/Doctor NULL field_124 crash in map7_s01 (astro.log)
 - Restore chest-flashlight lens flare strength (was dimmed by facing knee)
