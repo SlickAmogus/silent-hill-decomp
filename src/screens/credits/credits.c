@@ -428,7 +428,15 @@ bool func_801E3684(void) // 0x801E3684
     s32  var_v1;
     bool result;
     s8*  temp_s0;
+#ifdef SH_PC_PORT
+    /* g_CreditList is char*[]. PSX char* is 4B so the original s32* matched the
+     * 4-byte stride; on PC char* is 8B, so s32* var_s2++ advanced only half a
+     * pointer and *var_s2 read a truncated/garbage string ptr -> func_801E4394
+     * faulted on *str at the ending/credits transition (both endings crashed). */
+    char** var_s2;
+#else
     s32* var_s2;
+#endif
 
     temp_v1 = D_800C48F0 * 2;
     var_s0  = (s32)((temp_v1 - 504) * D_801E5E80);
@@ -488,7 +496,7 @@ bool func_801E3684(void) // 0x801E3684
 
         for (var_s1 = sp18; var_s1 > 0; var_s1--, var_s2++, var_s3 += sp10)
         {
-            temp_s0 = *var_s2;
+            temp_s0 = (s8*)*var_s2;
             func_801E42F8(0, var_s3);
             func_801E4394(temp_s0);
         }
