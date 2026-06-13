@@ -722,7 +722,13 @@ u8 D_800F2418[256] = {0};
 u8 D_800F2430[256] = {0};
 u8 D_800F2434[256] = {0};
 u8 D_800F2438[256] = {0};
-u8 D_800F2448[256] = {0};
+/* map7_s03 final-boss particle pool: really `s_800F3D48 D_800F2448[80]`
+ * (D_800F3D48 = &D_800F2448; the engine walks 80 entries and memsets 0x1900
+ * bytes). On PSX sizeof(s_800F3D48)=80 so 80*80=0x1900 fits exactly; on PC the
+ * struct grows (~96B from 64-bit fn-ptrs), so a 256B stub was overrun -> the
+ * memset/walk produced a garbage ptr1 and crashed func_800D952C in the
+ * post-aglaophotis cutscene. Size for the PC stride with margin. */
+u8 D_800F2448[0x3000] = {0};
 u8 D_800F3D48[256] = {0};
 u8 D_800F3D58[256] = {0};
 u8 D_800F3D8C[256] = {0};
