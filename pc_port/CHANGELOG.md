@@ -1,5 +1,12 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.10 -- 2026-06-13
+- PsyCross: bump to PGXP Z-fight fix v3 (per-vertex continuous depth)
+- PsyCross: PGXP v4 ΓÇö texture-only shader + un-quantised flat depth
+- PsyCross: revert PGXP to texture-only known-good
+- PGXP phase 1: store-macro capture + world-emit hooks (game side)
+- Fix Alessa-scene div-by-zero crash after Cybil boss (map6_s04)
+
 ## v2026.06.13.9 -- 2026-06-13
 - Bump PsyCross: revert PGXP per-vertex depth (restore texture-only)
 
