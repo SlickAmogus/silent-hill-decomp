@@ -57,9 +57,13 @@ persym = {s: "\n".join(v) for s, v in persym.items()}
 def classify(sym):
     b = re.escape(sym)
     t = persym.get(sym, "")
-    # writes: plain `=`, compound `+=,-=,*=,...`, and `++/--` (post/pre).
-    writes = len(re.findall(rf"\b{b}\b\s*(?:\[[^\]\n]*\])?\s*(?:\+\+|--|[-+*/%&|^]?=(?!=))", t))
+    # writes: plain `=`, compound `+=,...`, `++/--`, and member/index chains
+    # (X[i].f = , X.a.b = ) so written work structs aren't flagged as ROM tables.
+    chain = rf"\b{b}\b(?:\s*\[[^\]\n]*\]|\s*\.[A-Za-z_][A-Za-z0-9_]*)*"
+    writes = len(re.findall(chain + r"\s*(?:\+\+|--|[-+*/%&|^]?=(?!=))", t))
     writes += len(re.findall(rf"(?:\+\+|--)\s*{b}\b", t))
+    writes += len(re.findall(rf"\bmemset\s*\(\s*&?\s*{b}\b", t))   # memset(&X,..) inits it
+    writes += len(re.findall(rf"\bmemcpy\s*\(\s*&?\s*{b}\b", t))
     addrof = len(re.findall(rf"&\s*{b}\b", t))
     calls  = len(re.findall(rf"\b{b}\s*\(", t))
     cmps   = len(re.findall(rf"(?:\b{b}\b\s*(?:==|!=|<|>|<=|>=))|(?:(?:==|!=|<|>|<=|>=)\s*{b}\b)", t))

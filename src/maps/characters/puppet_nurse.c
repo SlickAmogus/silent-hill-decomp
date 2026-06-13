@@ -315,7 +315,18 @@ void PuppetNurse_Init(s_SubCharacter* nurse, bool isDoctor)
 void PuppetNurse_Update(s_SubCharacter* nurse, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     // Initialize.
+#ifdef SH_PC_PORT
+    /* field_124 (the per-variant instance ptr, set only by PuppetNurse_Init)
+     * is NULL until Init runs. In map7_s01 the nurse reaches here with a
+     * non-zero controlState but uninitialised props, so the controlState==0
+     * gate alone skips Init -> field_124 NULL -> animInfoBase NULL ->
+     * func_pointer read AV in PuppetNurse_AnimUpdate. On PSX the union held
+     * non-NULL garbage so it limped along; PC zero-inits to NULL. Also init
+     * when field_124 is unset. */
+    if (nurse->model.controlState == 0 || nurse->properties.puppetNurse.field_124 == NULL)
+#else
     if (nurse->model.controlState == 0)
+#endif
     {
         PuppetNurse_Init(nurse, false);
     }
@@ -326,7 +337,11 @@ void PuppetNurse_Update(s_SubCharacter* nurse, s_AnmHeader* anmHdr, GsCOORDINATE
 void PuppetDoctor_Update(s_SubCharacter* doctor, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     // Initialize.
+#ifdef SH_PC_PORT
+    if (doctor->model.controlState == 0 || doctor->properties.puppetNurse.field_124 == NULL)
+#else
     if (doctor->model.controlState == 0)
+#endif
     {
         PuppetNurse_Init(doctor, true);
     }

@@ -121,6 +121,11 @@ s_WorldObjectPose g_CommonWorldObjectPoses[32] = {
     { { 520847, -4096, 895422 }, { 0, 113, 0 } }
 };
 
+// 0x800F1CA8  size 0x3 (3 bytes)
+u8 D_800F1CA8[3] = {
+    0x00, 0x01, 0x02
+};
+
 // 0x800F213C  size 0x100 (256 bytes)
 // declared 256 B (stub capacity), 12 B from ROM
 u8 sharedData_800DE170_0_s01[256] = {

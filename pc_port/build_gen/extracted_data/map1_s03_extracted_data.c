@@ -61,6 +61,11 @@ u8 sharedData_800E1210_1_s02[256] = {
     0x02, 0x00, 0x04, 0x00
 };
 
+// 0x800E2000  size 0x2 (2 bytes)
+u8 D_800E2000[2] = {
+    0x77, 0x11
+};
+
 // 0x800E2020  size 0xC8 (200 bytes)
 s_WorldObjectPose g_CommonWorldObjectPoses[10] = {
     { { -562790, -2088, 402227 }, { 0, 0, 0 } },

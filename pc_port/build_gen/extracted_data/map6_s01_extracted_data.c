@@ -135,7 +135,7 @@ s_WorldObjectPose g_CommonWorldObjectPoses[3] = {
     { { -79872, -3686, 233963 }, { 0, 113, 0 } }
 };
 
-// 0x800D416E  size 0x4A (74 bytes)
+// 0x800D416E  size 0x6 (6 bytes)
 u8 g_Cutscene_MapMsgAudioIdx1 = 0x00;
 
 // 0x800D41B8  size 0x100 (256 bytes)
