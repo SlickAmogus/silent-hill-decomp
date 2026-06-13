@@ -229,6 +229,14 @@ TARGETS = {
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
     "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
     "D_800D3C2C":                       ("u16", 15), # map6_s02 threshold table
+    "D_800EA776":                       ("s16", 1),  # MonsterCybil keyframe triggers
+    "D_800EA7D4":                       ("s16", 1),
+    "D_800EA7D6":                       ("s16", 1),
+    "D_800EA816":                       ("s16", 1),
+    "D_800EA836":                       ("s16", 1),
+    "D_800EA856":                       ("s16", 1),
+    "D_800EA894":                       ("s16", 1),
+    "D_800EA896":                       ("s16", 1),
     "D_800E9DE8":                       ("u8",  1),  # map7_s02 keypad rects
 }
 
@@ -340,7 +348,18 @@ EXTRA_SYMBOLS = {
                  ("D_800CC7C0", 0x800CC7C0, 12),
                  ("D_800CC7CC", 0x800CC7CC, 12),
                  ("D_800CB728", 0x800CB728, 12),
-                 ("D_800CC4A4", 0x800CC4A4, 0x20)],
+                 ("D_800CC4A4", 0x800CC4A4, 0x20),
+                 # MonsterCybil keyframe-trigger constants (s16). Zero-stubbed =>
+                 # boss waits for keyframe 0 which never arrives => freezes on her
+                 # first attack (still takes hits) -> blocks Good/Bad endings.
+                 ("D_800EA776", 0x800EA776, 2),
+                 ("D_800EA7D4", 0x800EA7D4, 2),
+                 ("D_800EA7D6", 0x800EA7D6, 2),
+                 ("D_800EA816", 0x800EA816, 2),
+                 ("D_800EA836", 0x800EA836, 2),
+                 ("D_800EA856", 0x800EA856, 2),
+                 ("D_800EA894", 0x800EA894, 2),
+                 ("D_800EA896", 0x800EA896, 2)],
     "map7_s00": [("D_800D31C4", 0x800D31C4, 12),
                  ("D_800CB61C", 0x800CB61C, 8)],
     "map7_s01": [("D_800CC984", 0x800CC984, 12),
