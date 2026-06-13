@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.28 -- 2026-06-13
+- Flashlight color: tint the real light-color matrix; console: flip tap/hold
+- Split light-color console commands: fl = flashlight cast, wl = world ambient
+- Tint chest lens-flare by the fl flashlight color
+- Guard boss-projectile pool against wild entries during the ending (CutsceneGlitch.log)
+
 ## v2026.06.13.27 -- 2026-06-13
 - Air Screamer bite reach 3u->4u + flashlight color console command
 - Guard credits text drawers against NULL str (results.log crash)
