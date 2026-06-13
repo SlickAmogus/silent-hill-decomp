@@ -840,6 +840,19 @@ void DbgOverlay_Update(void)
             coll_gather();
     }
 
+    /* F1 toggles PGXP (perspective-correct rendering) on the fly. Independent
+     * of the console gate so it works any time debug controls are allowed. */
+    {
+        static int s_prev_f1 = 0;
+        int cur_f1 = ks[SDL_SCANCODE_F1];
+        if (cur_f1 && !s_prev_f1 && g_PcAllowDebugControls) {
+            extern int g_PsxUsePgxp;
+            g_PsxUsePgxp = !g_PsxUsePgxp;
+            SH_DBG_ECHO("[DEBUG] F1 PGXP: %s", g_PsxUsePgxp ? "ON" : "OFF");
+        }
+        s_prev_f1 = cur_f1;
+    }
+
     if (g_PcConfig.showConsole < 2) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
