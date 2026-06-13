@@ -11,6 +11,16 @@
 
 #include "../src/maps/chara_util.c" // 0x800D054C
 
+#ifdef SH_PC_PORT
+/* Lost-poke alias: PSX D_800D6F8C (0x800D6F8C) is g_WorldObject_Movaches
+ * (0x800D6F68) + 0x24 = position.vz of the motel dresser. The push cutscene
+ * mutates the live position; on re-entry Map_WorldObjectsUpdate re-applies
+ * the moved vz through this name. With the standalone PC stub the write was
+ * lost and the dresser snapped back to its init spot (barissue.log) while
+ * the flag-gated key events stayed correct. */
+#define D_800D6F8C g_WorldObject_Movaches.position.vz
+#endif
+
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D0F5C
 
 #include "maps/shared/Map_RoomIdxGet.h" // 0x800D0F6C
