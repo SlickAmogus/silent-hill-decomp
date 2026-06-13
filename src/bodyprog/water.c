@@ -242,13 +242,16 @@ s32 func_8008D850(void) // 0x8008D850
         {
             return 0;
         }
-        /* Saturating knee: full intensity across most frontal angles (PSX
-         * renders the full halo+star whenever the seed pixel survives, which
-         * is nearly always when facing the camera), fading only within the
-         * last ~20 degrees toward edge-on. The earlier linear ramp dimmed
-         * the whole flare to ~40% at ordinary viewing angles — the halo and
-         * ray star visibly vanished vs hardware. */
-        deltaZ *= 3;
+        /* PSX rendered the full halo+star whenever the chest light faced the
+         * camera (the 1x1 seed pixel survived the readback), i.e. an
+         * effectively binary "frontal -> full" response. Without framebuffer
+         * readback we approximate with the beam-vs-camera-Z cosine, but
+         * saturate it hard so the flare reads at full strength across nearly
+         * the whole frontal hemisphere (cos >= ~0.12, ~82 deg) and only fades
+         * within the last few degrees before edge-on. The earlier *3 knee
+         * left the flare scaled well below full at ordinary viewing angles,
+         * so the halo and ray star almost vanished vs hardware. */
+        deltaZ *= 8;
         if (deltaZ >= stepLen)
         {
             return Q12(1.0f);
