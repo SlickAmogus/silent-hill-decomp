@@ -10,6 +10,18 @@
 
 #include <inline_c.h>
 
+/* PGXP deterministic coverage: the store macros record the destination
+ * address -> precise GTE projection so prims built from a scratch buffer can
+ * be matched at draw time. Gated on g_PsxUsePgxp (zero effect when off). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int  g_PsxUsePgxp;
+extern void PGXP_StoreAddr(void* addr, int slot);
+#ifdef __cplusplus
+}
+#endif
+
 /* PsyCross GTE macros dereference args as pointers (*(uint*)(r0)),
  * but real PSX inline_c passes them as values (mtc2 r0, $reg).
  * Override all affected macros to match PSX value-passing behavior. */
@@ -52,6 +64,7 @@
 #define gte_stsxy3c( r0 ) do { \
     uint *_p = (uint*)((char*)(r0)); \
     _p[0] = MFC2(12); _p[1] = MFC2(13); _p[2] = MFC2(14); \
+    if (g_PsxUsePgxp) { PGXP_StoreAddr(&_p[0], 0); PGXP_StoreAddr(&_p[1], 1); PGXP_StoreAddr(&_p[2], 2); } \
 } while(0)
 
 /* gte_stsxy3_g3 - Store SXY0/SXY1/SXY2 (GTE C12-14) into the X/Y slots

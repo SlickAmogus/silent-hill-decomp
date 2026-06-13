@@ -2108,6 +2108,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                         arg3
                     );
+                    PsyX_SetNextPrimPgxp(
+                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
                     scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2323,6 +2328,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                     arg3
                 );
+                PsyX_SetNextPrimPgxp(
+                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
                 scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2459,6 +2469,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                 arg3
             );
+            PsyX_SetNextPrimPgxp(
+                &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2683,6 +2698,11 @@ __block1530:
             (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
             arg3
         );
+        PsyX_SetNextPrimPgxp(
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
