@@ -1097,6 +1097,33 @@ bool Lm_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
         {
             return false;
         }
+
+#ifdef SH_PC_PORT
+        /* [TEXVRAM] otherworld lighthouse rainbow (map6_s02): a chunk material's
+         * texture slot is loaded but holds wrong VRAM content. Log each resident
+         * chunk texture's name + the VRAM rect it claims (imageDesc), once per
+         * distinct name. Two DIFFERENT names reporting the SAME tPage/clutXY =
+         * a VRAM page collision (one poly samples the other's texture = rainbow).
+         * Ruled out: missing-TIM (only empty-name [FSQ] hits), world objects
+         * (no [WOBJ] for the tower), pending-read race (this gate already waits
+         * on Fs_QueueIsEntryLoaded), pool-exhaustion (yields black not rainbow). */
+        {
+            s_FsImageDesc* d = &curMat->texture->imageDesc;
+            static u_Filename s_seen[48];
+            static int s_seenCount = 0;
+            int _k, _dup = 0;
+            for (_k = 0; _k < s_seenCount; _k++)
+                if (s_seen[_k].u32[0] == curMat->texture->name.u32[0] &&
+                    s_seen[_k].u32[1] == curMat->texture->name.u32[1]) { _dup = 1; break; }
+            if (!_dup && s_seenCount < 48)
+            {
+                s_seen[s_seenCount++] = curMat->texture->name;
+                SH_DBG("[TEXVRAM] '%.8s' tPage=[%d,%d] clutXY=(%d,%d) uv=(%d,%d)",
+                       curMat->texture->name.str, d->tPage[0], d->tPage[1],
+                       d->clutX, d->clutY, d->u, d->v);
+            }
+        }
+#endif
     }
 
     return true;
