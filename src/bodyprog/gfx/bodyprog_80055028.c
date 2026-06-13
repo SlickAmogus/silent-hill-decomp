@@ -262,20 +262,6 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
 void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, q23_8 brightness) // 0x80055330
 {
-#ifdef SH_PC_PORT
-    /* Console flashlight-color override (`fl <color>`). field_2C is the
-     * per-vertex light-color matrix; in dark/otherworld maps that light is
-     * the flashlight. Modulate the incoming tint by the chosen color so the
-     * beam takes on the hue while keeping the map's brightness. */
-    extern int g_PcFlashlightColorActive;
-    extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
-    if (g_PcFlashlightColorActive)
-    {
-        tintR = (tintR * g_PcFlashlightColorR) / 255;
-        tintG = (tintG * g_PcFlashlightColorG) / 255;
-        tintB = (tintB * g_PcFlashlightColorB) / 255;
-    }
-#endif
     g_WorldEnvWork.field_0             = arg0;
     g_WorldEnvWork.field_20            = arg1;
     g_WorldEnvWork.field_3             = arg2;
@@ -295,6 +281,37 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
     g_WorldEnvWork.field_24            = (tintR * arg1) >> 17;
     g_WorldEnvWork.field_25            = (tintG * arg1) >> 17;
     g_WorldEnvWork.field_26            = (tintB * arg1) >> 17;
+#ifdef SH_PC_PORT
+    /* Console color overrides, applied per-output so they're independent:
+     *   `fl` tints field_2C (the per-vertex directional/point light — what the
+     *        flashlight casts on surfaces),
+     *   `wl` tints worldTintColor + field_24..26 (the flat ambient world tint).
+     * Each scales the map's value by the chosen color so brightness is kept. */
+    {
+        extern int g_PcFlashlightColorActive, g_PcWorldLightColorActive;
+        extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
+        extern unsigned char g_PcWorldLightColorR, g_PcWorldLightColorG, g_PcWorldLightColorB;
+        s32 c;
+        if (g_PcFlashlightColorActive)
+        {
+            for (c = 0; c < 3; c++)
+            {
+                g_WorldEnvWork.field_2C.m[0][c] = (s16)((s32)g_WorldEnvWork.field_2C.m[0][c] * g_PcFlashlightColorR / 255);
+                g_WorldEnvWork.field_2C.m[1][c] = (s16)((s32)g_WorldEnvWork.field_2C.m[1][c] * g_PcFlashlightColorG / 255);
+                g_WorldEnvWork.field_2C.m[2][c] = (s16)((s32)g_WorldEnvWork.field_2C.m[2][c] * g_PcFlashlightColorB / 255);
+            }
+        }
+        if (g_PcWorldLightColorActive)
+        {
+            g_WorldEnvWork.worldTintColor.r = (u8)((s32)g_WorldEnvWork.worldTintColor.r * g_PcWorldLightColorR / 255);
+            g_WorldEnvWork.worldTintColor.g = (u8)((s32)g_WorldEnvWork.worldTintColor.g * g_PcWorldLightColorG / 255);
+            g_WorldEnvWork.worldTintColor.b = (u8)((s32)g_WorldEnvWork.worldTintColor.b * g_PcWorldLightColorB / 255);
+            g_WorldEnvWork.field_24 = (s16)((s32)g_WorldEnvWork.field_24 * g_PcWorldLightColorR / 255);
+            g_WorldEnvWork.field_25 = (s16)((s32)g_WorldEnvWork.field_25 * g_PcWorldLightColorG / 255);
+            g_WorldEnvWork.field_26 = (s16)((s32)g_WorldEnvWork.field_26 * g_PcWorldLightColorB / 255);
+        }
+    }
+#endif
 }
 
 void WorldEnv_FogParamsSet(u8 isFogEnabled, u8 fogColorR, u8 fogColorG, u8 fogColorB) // 0x800553C4

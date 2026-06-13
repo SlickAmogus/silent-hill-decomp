@@ -335,9 +335,17 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
-    } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0) {
-        extern int g_PcFlashlightColorActive;
+    } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0 ||
+               strcmp(cmd, "WORLDLIGHT") == 0 || strcmp(cmd, "WL") == 0) {
+        extern int g_PcFlashlightColorActive, g_PcWorldLightColorActive;
         extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
+        extern unsigned char g_PcWorldLightColorR, g_PcWorldLightColorG, g_PcWorldLightColorB;
+        int isWorld = (cmd[0] == 'W');
+        const char* label = isWorld ? "world light" : "flashlight";
+        int* active = isWorld ? &g_PcWorldLightColorActive : &g_PcFlashlightColorActive;
+        unsigned char* cr = isWorld ? &g_PcWorldLightColorR : &g_PcFlashlightColorR;
+        unsigned char* cg = isWorld ? &g_PcWorldLightColorG : &g_PcFlashlightColorG;
+        unsigned char* cb = isWorld ? &g_PcWorldLightColorB : &g_PcFlashlightColorB;
         struct { const char* name; unsigned char r, g, b; } presets[] = {
             { "RED",    255,   0,   0 },
             { "GREEN",    0, 255,   0 },
@@ -351,17 +359,15 @@ void Pc_ConsoleExec(const char* line)
             { "WHITE",  255, 255, 255 },
         };
         if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "OFF") == 0 || arg[0] == '\0') {
-            g_PcFlashlightColorActive = 0;
-            cprintf("flashlight color: default");
+            *active = 0;
+            cprintf("%s color: default", label);
         } else {
             int found = 0, k;
             for (k = 0; k < (int)(sizeof(presets) / sizeof(presets[0])); k++) {
                 if (strcmp(arg, presets[k].name) == 0) {
-                    g_PcFlashlightColorR = presets[k].r;
-                    g_PcFlashlightColorG = presets[k].g;
-                    g_PcFlashlightColorB = presets[k].b;
-                    g_PcFlashlightColorActive = 1;
-                    cprintf("flashlight color: %s", presets[k].name);
+                    *cr = presets[k].r; *cg = presets[k].g; *cb = presets[k].b;
+                    *active = 1;
+                    cprintf("%s color: %s", label, presets[k].name);
                     found = 1;
                     break;
                 }
