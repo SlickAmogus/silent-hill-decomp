@@ -754,6 +754,13 @@ void func_80046A24(u16 cmd) // 0x80046A24
         g_Sd_AudioWork.field_10 = cmd;
         Sd_TaskPoolAdd(7);
     }
+#ifdef SH_PC_PORT
+    else
+    {
+        SH_DBG("[BGM] ChannelSet cmd=%d dropped (field_10=%d field_E=%d)",
+               (int)cmd, (int)g_Sd_AudioWork.field_10, (int)g_Sd_AudioWork.field_E);
+    }
+#endif
 }
 
 static inline void func_80046A70_0(u16 temp)

@@ -8,6 +8,9 @@
 #include "bodyprog/events/bgm.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/sound/sound_system.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 // ========================================
 // STATIC VARIABLES
@@ -136,6 +139,9 @@ void Bgm_ChannelSet(void) // 0x80035924
         return;
     }
 
+#ifdef SH_PC_PORT
+    SH_DBG("[BGM] ChannelSet bgmIdx=%d cmd=%d", g_GameWork.bgmIdx, g_BgmChannelSetTaskCmds[g_GameWork.bgmIdx]);
+#endif
     SD_Call(g_BgmChannelSetTaskCmds[g_GameWork.bgmIdx]);
 }
 
