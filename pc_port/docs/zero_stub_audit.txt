@@ -1,26 +1,16 @@
-latent zero-stubs: 712  referenced-in-source: 635
+latent zero-stubs: 710  referenced-in-source: 633
 
-==== HIGH(85+): 17 ====
+==== HIGH(85+): 11 ====
   [85] D_800A9945  COMPARED (3x) and never written -> expected ROM value
         decl: extern s8 D_800A9945;
   [85] D_800D3C2C  COMPARED (1x) and never written -> expected ROM value
         decl: extern u16 D_800D3C2C[];
   [85] D_800DB210  COMPARED (4x) and never written -> expected ROM value
         decl: extern s_800DB210 D_800DB210;
-  [85] D_800DD718  COMPARED (1x) and never written -> expected ROM value
-        decl: extern s32 D_800DD718;
-  [85] D_800DFACC  COMPARED (2x) and never written -> expected ROM value
-        decl: extern s32 D_800DFACC;
-  [85] D_800E1EE8  COMPARED (5x) and never written -> expected ROM value
-        decl: extern u16 D_800E1EE8;
   [85] D_800E1F7C  COMPARED (1x) and never written -> expected ROM value
         decl: extern u16     D_800E1F7C[];
   [85] D_800E3A40  COMPARED (2x) and never written -> expected ROM value
         decl: extern s_800E3A40 D_800E3A40[];
-  [85] D_800E6388  COMPARED (6x) and never written -> expected ROM value
-        decl: extern u8 D_800E6388;
-  [85] D_800E9E1C  COMPARED (1x) and never written -> expected ROM value
-        decl: extern u8 D_800E9E1C[5];
   [85] D_800EA776  COMPARED (1x) and never written -> expected ROM value
         decl: extern s16     D_800EA776;
   [85] D_800EA7D6  COMPARED (1x) and never written -> expected ROM value
@@ -33,9 +23,7 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern s16     D_800EA856;
   [85] D_800EA894  COMPARED (2x) and never written -> expected ROM value
         decl: extern s16     D_800EA894;
-  [85] D_800EBB30  COMPARED (1x) and never written -> expected ROM value
-        decl: extern q20_12 D_800EBB30;
-==== MED-HIGH(70-84): 75 ====
+==== MED-HIGH(70-84): 74 ====
   [78] D_80028544  INDEXED read (1x) and never written -> ROM table
         decl: extern char D_80028544[16];
   [78] D_800CAE30  INDEXED read (1x) and never written -> ROM table
@@ -162,8 +150,6 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern s_800ED7E0_ptr* D_800ED7E0[];
   [78] D_800ED848  INDEXED read (1x) and never written -> ROM table; &taken 2x
         decl: extern s_800ED848 D_800ED848[16];
-  [78] D_800ED8B0  INDEXED read (6x) and never written -> ROM table
-        decl: extern u16 D_800ED8B0[16];
   [78] D_800ED8EC  INDEXED read (2x) and never written -> ROM table
         decl: extern s_800ED7E0_ptr* D_800ED8EC[];
   [78] D_800ED984  INDEXED read (2x) and never written -> ROM table
@@ -184,7 +170,7 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern s_800E330C sharedData_800E330C_0_s00[20];
   [78] sharedData_800E34FC_0_s00  INDEXED read (9x) and never written -> ROM table; &taken 2x
         decl: extern s_800E34FC sharedData_800E34FC_0_s00[60];
-==== MED(40-69): 61 ====
+==== MED(40-69): 57 ====
   [60] D_8002B2CC  read (3x) and never written
         decl: extern u_Filename D_8002B2CC;
   [60] D_800A99B5  read (6x) and never written
@@ -209,8 +195,6 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern s32 D_800DAA54;
   [60] D_800DD190  read (2x) and never written
         decl: extern s16 D_800DD190;
-  [60] D_800DD4FC  read (3x) and never written
-        decl: extern s32 D_800DD4FC;
   [60] D_800DFB44  read (8x) and never written
         decl: extern s_800DFB44 D_800DFB44;
   [60] D_800DFB48  read (7x) and never written
@@ -233,20 +217,12 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern SVECTOR D_800EB330;
   [60] D_800EB810  read (4x) and never written
         decl: extern s32 D_800EB810;
-  [60] D_800EBB34  read (3x) and never written
-        decl: extern u8  D_800EBB34;
-  [60] D_800EBB38  read (3x) and never written
-        decl: extern s16 D_800EBB38;
   [60] D_800EBB58  read (19x) and never written
         decl: extern s_800EBB58 D_800EBB58;
   [60] D_800EBB5A  read (3x) and never written
         decl: extern s16        D_800EBB5A;
-  [60] D_800EBC14  read (3x) and never written
-        decl: extern s32 D_800EBC14;
   [60] D_800ED250  read (2x) and never written
         decl: extern VECTOR3 D_800ED250;
-  [60] D_800EFC7C  read (3x) and never written
-        decl: extern q19_12          D_800EFC7C;
   [60] D_800F4B30  read (7x) and never written
         decl: extern VECTOR3 D_800F4B30;
   [60] sharedData_800ECA4C_2_s02  read (2x) and never written
@@ -265,17 +241,17 @@ latent zero-stubs: 712  referenced-in-source: 635
   [40] D_800CB2DC  indexed 3x vs 1 writes (mixed)
   [40] D_800D31DC  indexed 23x vs 9 writes (mixed)
         decl: extern s16 D_800D31DC[];
-  [40] D_800D5A48  indexed 8x vs 4 writes (mixed)
+  [40] D_800D5A48  indexed 8x vs 5 writes (mixed)
         decl: extern s16 D_800D5A48[3];
   [40] D_800D8140  indexed 15x vs 4 writes (mixed)
         decl: extern u8 D_800D8140[];
-  [40] D_800D86F8  indexed 10x vs 4 writes (mixed)
+  [40] D_800D86F8  indexed 10x vs 6 writes (mixed)
         decl: extern s16 D_800D86F8[2];
   [40] D_800D86FC  indexed 7x vs 4 writes (mixed)
         decl: extern u8  D_800D86FC[2];
   [40] D_800DB8A8  indexed 9x vs 4 writes (mixed)
         decl: extern s16             D_800DB8A8[];
-  [40] D_800E1678  indexed 9x vs 5 writes (mixed)
+  [40] D_800E1678  indexed 9x vs 6 writes (mixed)
         decl: extern s16 D_800E1678[4];
   [40] D_800E16A8  indexed 11x vs 3 writes (mixed)
         decl: extern s16 D_800E16A8[2];
@@ -285,16 +261,18 @@ latent zero-stubs: 712  referenced-in-source: 635
         decl: extern s16                    D_800EB9F4[16];
   [40] D_800EBA14  indexed 4x vs 1 writes (mixed)
         decl: extern s16                    D_800EBA14[16];
-  [40] D_800EBB10  indexed 15x vs 4 writes (mixed)
+  [40] D_800EBB10  indexed 15x vs 7 writes (mixed)
         decl: extern q19_12 D_800EBB10[4];
-  [40] D_800EBB20  indexed 22x vs 8 writes (mixed)
+  [40] D_800EBB20  indexed 22x vs 11 writes (mixed)
         decl: extern q19_12 D_800EBB20[4];
+  [40] D_800ED8B0  indexed 6x vs 2 writes (mixed)
+        decl: extern u16 D_800ED8B0[16];
   [40] D_800F0350  indexed 7x vs 4 writes (mixed)
         decl: extern u8 D_800F0350[4];
   [40] D_800F1594  indexed 7x vs 2 writes (mixed)
         decl: extern s8            D_800F1594[];
-  [40] D_800F1598  indexed 17x vs 2 writes (mixed); &taken 1x
+  [40] D_800F1598  indexed 17x vs 4 writes (mixed); &taken 1x
         decl: extern s8            D_800F1598[];
-  [40] D_800F3D98  indexed 5x vs 2 writes (mixed)
+  [40] D_800F3D98  indexed 5x vs 3 writes (mixed)
         decl: extern q20_12 D_800F3D98[5];
-==== LOW(<40): 482 ====
+==== LOW(<40): 491 ====

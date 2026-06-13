@@ -57,7 +57,9 @@ persym = {s: "\n".join(v) for s, v in persym.items()}
 def classify(sym):
     b = re.escape(sym)
     t = persym.get(sym, "")
-    writes = len(re.findall(rf"\b{b}\b\s*(?:\[[^\]\n]*\])?\s*=(?!=)", t))
+    # writes: plain `=`, compound `+=,-=,*=,...`, and `++/--` (post/pre).
+    writes = len(re.findall(rf"\b{b}\b\s*(?:\[[^\]\n]*\])?\s*(?:\+\+|--|[-+*/%&|^]?=(?!=))", t))
+    writes += len(re.findall(rf"(?:\+\+|--)\s*{b}\b", t))
     addrof = len(re.findall(rf"&\s*{b}\b", t))
     calls  = len(re.findall(rf"\b{b}\s*\(", t))
     cmps   = len(re.findall(rf"(?:\b{b}\b\s*(?:==|!=|<|>|<=|>=))|(?:(?:==|!=|<|>|<=|>=)\s*{b}\b)", t))
