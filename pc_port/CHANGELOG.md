@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.13 -- 2026-06-12
+- Fix cutscene letterbox black corner squares in borderless widescreen
+- Fix Cybil carousel boss never spawning: set NoEnemySpawn on map6_s04 entry
+
 ## v2026.06.12.12 -- 2026-06-12
 - Fix mall TV cult-symbol animation: extract full D_800DB874 pattern table
 
