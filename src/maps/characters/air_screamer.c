@@ -115,6 +115,43 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
         }
         s_prevBiteActive = isBiteActive;
 
+        {
+            s_SubCharacter* pl = &g_SysWork.playerWork.player;
+            s32 dxh = pl->position.vx - airScreamer->position.vx;
+            s32 dzh = pl->position.vz - airScreamer->position.vz;
+            s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
+
+            /* [AS] attack-timing diagnostic. Logs once when a bite anim
+             * begins and once when proximity first enters bite range while
+             * NOT biting — so the next session shows whether the delay is
+             * (a) AI slow to enter HoverBiteAttack, (b) the 1.5s cooldown
+             * blocking damage, or (c) body-center proximity (3u) too tight
+             * vs the original fang-polygon hitbox. Rate-limited to edges. */
+            {
+                static u8 s_loggedBite = 0;
+                static u8 s_loggedNear = 0;
+                if (isBiteActive) {
+                    if (!s_loggedBite) {
+                        SH_DBG("[AS] bite-anim start: cs=%d kf=%d distSqr=%d (<9 hits) cooldown=%d",
+                               airScreamer->model.controlState, kf, distSqr, g_AsBiteCooldown);
+                        s_loggedBite = 1;
+                    }
+                } else {
+                    s_loggedBite = 0;
+                    /* Near-but-not-biting: AI hasn't entered the bite. */
+                    if (distSqr < Q12(9.0f)) {
+                        if (!s_loggedNear) {
+                            SH_DBG("[AS] in-range but NOT biting: cs=%d animStatus=%u distSqr=%d cooldown=%d",
+                                   airScreamer->model.controlState, curStatus, distSqr, g_AsBiteCooldown);
+                            s_loggedNear = 1;
+                        }
+                    } else {
+                        s_loggedNear = 0;
+                    }
+                }
+            }
+        }
+
         if (isBiteActive && !s_biteDamaged && g_AsBiteCooldown == Q12(0.0f)) {
             s_SubCharacter* pl = &g_SysWork.playerWork.player;
             s32 dxh = pl->position.vx - airScreamer->position.vx;
@@ -129,10 +166,14 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
                 pl->field_40        = Chara_NpcIdxGet(airScreamer);
                 s_biteDamaged       = 1;
+                SH_DBG("[AS] BITE HIT: cs=%d distSqr=%d", airScreamer->model.controlState, distSqr);
                 /* Arm post-bite cooldown â€” universal gate, also consumed
                  * by the legacy Control_47 transition guard (the
                  * countdown above is what actually drains it now). */
                 g_AsBiteCooldown    = Q12(1.5f);
+            } else {
+                SH_DBG("[AS] bite anim active but OUT OF RANGE: cs=%d distSqr=%d (need <%d)",
+                       airScreamer->model.controlState, distSqr, (s32)Q12(9.0f));
             }
         }
     }
