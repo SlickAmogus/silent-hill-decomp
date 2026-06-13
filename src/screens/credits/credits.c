@@ -1,4 +1,5 @@
 #include "game.h"
+#include "sh_log.h"
 
 #include <psyq/libetc.h>
 
