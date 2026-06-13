@@ -1875,10 +1875,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             g_Player_HeadingAngle =
             temp                  = headingAngle0;
 
+#ifndef SH_PC_PORT
+            /* `models` is never assigned — this match hack derefs an
+             * uninitialized stack local. PSX reads harmless garbage; on PC it
+             * access-violates (Romper pin/grab state crash, Romper.log). The
+             * branch body is a no-op, so skipping it changes nothing. */
             if ((*models) != NULL) // @hack Required for match.
             {
                 g_Player_HeadingAngle += Q12_ANGLE(0.0f);
             }
+#endif
 
             if (player->model.anim.keyframeIdx == g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
             {

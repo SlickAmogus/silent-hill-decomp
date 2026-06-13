@@ -10,6 +10,30 @@
 #include <errno.h>
 #include "pc_config.h"
 #include "hires_override.h"
+#include "sh_log.h"
+
+/* Forensics for the FS-queue stomp family (SaveLoad.log / SewerCrash*.log):
+ * dump the whole corrupted entry so the written byte pattern names the
+ * writer (observed so far: 64-bit -1 over info, 16-bit 0x8002 at info+4). */
+void FsQueue_DumpEntryHex(const char* tag, int idx, const s_FsQueueEntry* e)
+{
+    const u8* b = (const u8*)e;
+    SH_DBG("[FSQ-CORRUPT] %s idx=%d entry=%p hex="
+           "%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X "
+           "%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X "
+           "%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X "
+           "%02X%02X%02X%02X%02X%02X%02X%02X",
+           tag, idx, (const void*)e,
+           b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],
+           b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15],
+           b[16],b[17],b[18],b[19],b[20],b[21],b[22],b[23],
+           b[24],b[25],b[26],b[27],b[28],b[29],b[30],b[31],
+           b[32],b[33],b[34],b[35],b[36],b[37],b[38],b[39],
+           b[40],b[41],b[42],b[43],b[44],b[45],b[46],b[47],
+           b[48],b[49],b[50],b[51],b[52],b[53],b[54],b[55]);
+}
+
+#define FSQ_INFO_VALID(p) ((p) >= &g_FileTable[0] && (p) < &g_FileTable[FS_FILE_COUNT])
 #endif
 
 #include <psyq/libapi.h>
@@ -54,6 +78,25 @@ bool Fs_QueueCanRead(s_FsQueueEntry* entry)
         overlap = false;
         if (other->postLoad || other->allocate)
         {
+#ifdef SH_PC_PORT
+            /* This scan walks EVERY live entry between the postLoad and read
+             * cursors — the per-cursor guards in Fs_QueueUpdate never see the
+             * ones in the middle, and a stomped info pointer here was the
+             * SaveLoad.log crash (read at 0xFFFFFFFFFFFFFFFF). Treat a
+             * corrupt entry as non-overlapping and keep going. */
+            /* Self corrupt: report "can't read yet" — the read-cursor guard
+             * in Fs_QueueUpdate drops it next tick. */
+            if (!FSQ_INFO_VALID(entry->info))
+            {
+                FsQueue_DumpEntryHex("CanRead-self", g_FsQueue.read.idx, entry);
+                return false;
+            }
+            if (!FSQ_INFO_VALID(other->info))
+            {
+                FsQueue_DumpEntryHex("CanRead-other", (g_FsQueue.postLoad.idx + i) & (FS_QUEUE_LENGTH - 1), other);
+                continue;
+            }
+#endif
             overlap = Fs_QueueDoBuffersOverlap(entry->data,
                                                ALIGN(entry->info->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE),
                                                other->data,

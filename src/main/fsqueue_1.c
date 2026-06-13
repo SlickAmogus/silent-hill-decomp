@@ -148,6 +148,19 @@ s32 Fs_QueueEnqueue(e_FsFile fileIdx, u8 op, u8 postLoad, u8 alloc, void* data, 
     s_FsQueueEntry* newEntry;
     s_FsQueuePtr*   lastPtr;
 
+#ifdef SH_PC_PORT
+    /* Chokepoint guard: an out-of-range fileIdx makes info a wild pointer
+     * ((u32)-1 gives the non-canonical &g_FileTable[0xFFFFFFFF] every
+     * [FSQ-CORRUPT] log showed). Known producer fixed in func_800566B4
+     * (missing material TIM); refuse any others and name them here. */
+    if ((u32)fileIdx >= FS_FILE_COUNT)
+    {
+        SH_DBG("[FSQ] REJECT enqueue fileIdx=%d op=%d postLoad=%d data=%p",
+               (int)fileIdx, (int)op, (int)postLoad, data);
+        return g_FsQueue.last.idx;
+    }
+#endif
+
     // Wait for space in queue.
     while (Fs_QueueGetLength() >= FS_QUEUE_LENGTH)
     {
@@ -234,10 +247,12 @@ void Fs_QueueUpdate(void)
             const s_FileInfo* hi = &g_FileTable[FS_FILE_COUNT];
             if (tick->info < lo || tick->info >= hi)
             {
+                extern void FsQueue_DumpEntryHex(const char* tag, int idx, const s_FsQueueEntry* e);
                 SH_DBG("[FSQ-CORRUPT] entry idx=%d info=%p op=%d postLoad=%d alloc=%d data=%p ext=%p — dropping",
                        g_FsQueue.read.idx, (void*)tick->info, (int)tick->operation,
                        (int)tick->postLoad, (int)tick->allocate,
                        (void*)tick->data, (void*)tick->externalData);
+                FsQueue_DumpEntryHex("read-cursor", g_FsQueue.read.idx, tick);
                 g_FsQueue.state       = 0;
                 g_FsQueue.resetTimer0 = 0;
                 g_FsQueue.resetTimer1 = 0;
@@ -284,7 +299,9 @@ void Fs_QueueUpdate(void)
         /* Same corruption guard for the post-load cursor (see above). */
         if (tick->info < &g_FileTable[0] || tick->info >= &g_FileTable[FS_FILE_COUNT])
         {
+            extern void FsQueue_DumpEntryHex(const char* tag, int idx, const s_FsQueueEntry* e);
             SH_DBG("[FSQ-CORRUPT] postload idx=%d info=%p — skipping", g_FsQueue.postLoad.idx, (void*)tick->info);
+            FsQueue_DumpEntryHex("postload-cursor", g_FsQueue.postLoad.idx, tick);
             g_FsQueue.postLoadState = FsQueuePostLoadState_Init;
             temp                    = ++g_FsQueue.postLoad.idx;
             g_FsQueue.postLoad.ptr  = g_FsQueue.entries + (temp & (FS_QUEUE_LENGTH - 1));
