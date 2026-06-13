@@ -335,6 +335,40 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0) {
+        extern int g_PcFlashlightColorActive;
+        extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
+        struct { const char* name; unsigned char r, g, b; } presets[] = {
+            { "RED",    255,   0,   0 },
+            { "GREEN",    0, 255,   0 },
+            { "BLUE",     0,   0, 255 },
+            { "YELLOW", 255, 255,   0 },
+            { "CYAN",     0, 255, 255 },
+            { "PURPLE", 255,   0, 255 },
+            { "MAGENTA",255,   0, 255 },
+            { "ORANGE", 255, 128,   0 },
+            { "PINK",   255, 128, 192 },
+            { "WHITE",  255, 255, 255 },
+        };
+        if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "OFF") == 0 || arg[0] == '\0') {
+            g_PcFlashlightColorActive = 0;
+            cprintf("flashlight color: default");
+        } else {
+            int found = 0, k;
+            for (k = 0; k < (int)(sizeof(presets) / sizeof(presets[0])); k++) {
+                if (strcmp(arg, presets[k].name) == 0) {
+                    g_PcFlashlightColorR = presets[k].r;
+                    g_PcFlashlightColorG = presets[k].g;
+                    g_PcFlashlightColorB = presets[k].b;
+                    g_PcFlashlightColorActive = 1;
+                    cprintf("flashlight color: %s", presets[k].name);
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found)
+                cprintf("unknown color '%s' (red/green/blue/yellow/cyan/purple/orange/pink/white/default)", arg);
+        }
     } else if (strcmp(cmd, "ADSR") == 0) {
         extern void PsyX_SPUAL_SetAdsrEnabled(int on);
         extern int  PsyX_SPUAL_GetAdsrEnabled(void);

@@ -157,10 +157,12 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
             s32 dxh = pl->position.vx - airScreamer->position.vx;
             s32 dzh = pl->position.vz - airScreamer->position.vz;
             s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
-            /* Wide window since HoverBiteAttack kf range varies by control
-             * state. Q12(9.0) â‰ˆ 3 world units radiusÂ² is the same as the
-             * old C46 trigger. */
-            if (distSqr < Q12(9.0f)) {
+            /* Bite reach. The original connected on the fang polygon (forward
+             * of the AS body center); the PC shim measures body-center XZ
+             * distance, so a 3u radius missed bites that visibly landed.
+             * Q12(16.0) = 4u radiusÂ² approximates the fang reach so the AS
+             * hits about as readily as the original. */
+            if (distSqr < Q12(16.0f)) {
                 pl->damage.amount = Q12(15.0f);
                 pl->damage.position = airScreamer->position;
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
