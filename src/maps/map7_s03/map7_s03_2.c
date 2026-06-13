@@ -1,4 +1,5 @@
 #include <memory.h>
+#include "sh_log.h"
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/dms.h"
@@ -1884,7 +1885,17 @@ void func_800D917C(void) // 0x800D917C
         if (curPtr->field_4.field_4 != 0)
         {
 #ifdef SH_PC_PORT
-            if (SH_F3D48_ENTRY_CORRUPT(curPtr)) { curPtr->field_4.field_4 = 0; continue; }
+            if (SH_F3D48_ENTRY_CORRUPT(curPtr)) {
+                static u8 _loggedStomp = 0;
+                if (!_loggedStomp) {
+                    SH_DBG("[BOSSPOOL] corrupt entry i=%d pool=%p ptr_0=%p f44=%p f48=%p D_800F3D8C=%d D_800F2438=%d — dropped (ending-pool stomp?)",
+                           i, (void*)D_800F3D48, (void*)curPtr->ptr_0,
+                           (void*)curPtr->field_4.field_44, (void*)curPtr->field_4.field_48,
+                           (int)D_800F3D8C, (int)D_800F2438);
+                    _loggedStomp = 1;
+                }
+                curPtr->field_4.field_4 = 0; continue;
+            }
 #endif
             if (curPtr->field_4.field_44 != NULL)
             {
