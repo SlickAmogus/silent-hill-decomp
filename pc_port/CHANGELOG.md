@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.20 -- 2026-06-13
+- Header-driven auto-extraction: end the zero-stub whack-a-mole
+
 ## v2026.06.13.19 -- 2026-06-13
 - Fix carousel horses stacked at center: extract horse offset/angle tables
 - Add proactive latent-stub finder (header-driven, pre-empts the bug class)
