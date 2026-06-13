@@ -2006,6 +2006,16 @@ void func_800D952C(void) // 0x800D952C
     {
         ptr1->field_4.field_4 = 0;
         ptr1->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* The update loop (func_800D917C) runs an entry's field_44 callback,
+         * which derefs ptr_0, BEFORE the field_48 state-machine's case 0 assigns
+         * ptr_0 on the entry's first active frame. On PSX the 0xA5 pool memset
+         * left ptr_0 as non-NULL garbage (harmless read, no MMU); on PC the
+         * larger struct leaves high-index entries' ptr_0 == NULL -> AV at
+         * func_800D88E8 (final-boss attack crash). Seed a valid default so the
+         * first-frame read is safe; spawn overwrites it with the real script. */
+        ptr1->ptr_0 = &D_800EC680[0];
+#endif
     }
 
     D_800F3D8C = 0;
