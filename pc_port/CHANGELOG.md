@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.3 -- 2026-06-13
+- Extract more INCLUDE_RODATA zero-stubs: lighthouse-effect VRAM + boss positions
+- Extract remaining INCLUDE_RODATA zero-stubs: SFX positions + rotations + data
+
 ## v2026.06.13.2 -- 2026-06-13
 - Fix Cybil boss progression lock: DMS node-name strings were zero-stubs
 
