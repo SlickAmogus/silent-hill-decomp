@@ -1030,7 +1030,26 @@ void func_800566B4(s_LmHeader* lmHdr, s_FsImageDesc* images, s8 unused, s32 star
          i++, curMat++, curImage++)
     {
         Material_TimFileNameGet(filename, curMat);
+#ifdef SH_PC_PORT
+        /* Fs_FindNextFile returns NO_VALUE for a missing TIM name; enqueuing
+         * that gave info = &g_FileTable[0xFFFFFFFF], a non-canonical pointer
+         * Windows reports as a read at 0xFFFFFFFFFFFFFFFF — the whole
+         * sewer/save-load crash family (SewerCrash*.log, SaveLoad.log). PSX
+         * read garbage table bytes and limped on; skip the file instead. */
+        {
+            s32 timFileIdx = Fs_FindNextFile(filename, 0, startIdx);
+            if (timFileIdx == NO_VALUE)
+            {
+                SH_DBG("[FSQ] material TIM '%.8s' not in file table — skipping load", filename);
+            }
+            else
+            {
+                Fs_QueueStartReadTim(timFileIdx, FS_BUFFER_9, curImage);
+            }
+        }
+#else
         Fs_QueueStartReadTim(Fs_FindNextFile(filename, 0, startIdx), FS_BUFFER_9, curImage);
+#endif
         Material_FsImageApply(curMat, curImage, blendMode);
     }
 }
@@ -3795,6 +3814,21 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
 #if VERSION_EQUAL_OR_OLDER(PROTO_981216)
         // Code seen in 98-12-16 build.
         Text_Debug_Draw(debugStr);
+#endif
+
+#ifdef SH_PC_PORT
+        /* Retail PSX enqueued fileId = -1 here anyway: info became
+         * &g_FileTable[-1] and the CD read garbage — tolerated on PSX, but
+         * on 64-bit the (u32)-1 index makes a non-canonical pointer and the
+         * queue tick faults (the sewer/save-load crash family). Keep the
+         * PSX control flow (texture slot claimed, no retry loop) but skip
+         * the bogus read; the slot keeps its previous VRAM content exactly
+         * like PSX's garbage read effectively did. */
+        SH_DBG("[FSQ] chunk TIM '%.11s' not in file table — skipping read (Texture_Get)", filename);
+        foundTex->queueIdx = 0;
+        foundTex->refCount++;
+        foundTex->name     = mat->name;
+        return foundTex;
 #endif
     }
 
