@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.5 -- 2026-06-13
+- Fix D_800CC424 zero-stub: Harry's map6_s04 Cybil-boss anim overrides
+
 ## v2026.06.13.4 -- 2026-06-13
 - Fix Cybil boss-fight crash: variableFunc pointer was raw PSX address
 
