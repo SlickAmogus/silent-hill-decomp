@@ -227,6 +227,8 @@ TARGETS = {
     "D_800E9D8E":                       ("u8",  1),  # map7_s02
     "D_800E9E1C":                       ("u8",  5),  # map7_s02 keypad puzzle solution
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
+    "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
+    "D_800D3C2C":                       ("u16", 15), # map6_s02 threshold table
     "D_800E9DE8":                       ("u8",  1),  # map7_s02 keypad rects
 }
 
@@ -289,6 +291,7 @@ EXTRA_SYMBOLS = {
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
     # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
     "map4_s03": [("D_800CA788", 0x800CA788, 8),
+                 ("D_800DB210", 0x800DB210, 16),  # s_800DB210 twinfeeler bounding box (field_0/4/8/C); zero box -> boundary check always false
                  ("D_800DB92C", 0x800DB92C, 4),
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
                  ("D_800DB7D4", 0x800DB7D4, 0x10),  # big TV quad corners (SVECTOR pair)
@@ -327,7 +330,8 @@ EXTRA_SYMBOLS = {
     "map6_s00": [("D_800F0038", 0x800F0038, 8),
                  ("D_800F0084", 0x800F0084, 0x484)],
     "map6_s01": [("D_800D4108", 0x800D4108, 32)],
-    "map6_s02": [("D_800D3B40", 0x800D3B40, 4),
+    "map6_s02": [("D_800D3C2C", 0x800D3C2C, 30),  # u16[15] threshold table (D_800D3C8C < D_800D3C2C[i]); zero -> compare always false
+                 ("D_800D3B40", 0x800D3B40, 4),
                  ("D_800D3B6C", 0x800D3B6C, 272),
                  ("D_800CAB90", 0x800CAB90, 8),
                  ("D_800CAB98", 0x800CAB98, 8)],
