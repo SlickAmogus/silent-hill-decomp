@@ -225,6 +225,7 @@ TARGETS = {
     "D_800E9D7C":                       ("u16", 2),  # map7_s02
     "D_800E9D80":                       ("s16", 2),  # map7_s02 table
     "D_800E9D8E":                       ("u8",  1),  # map7_s02
+    "D_800E9E1C":                       ("u8",  5),  # map7_s02 keypad puzzle solution
     "D_800E9DE8":                       ("u8",  1),  # map7_s02 keypad rects
 }
 
@@ -366,7 +367,8 @@ EXTRA_SYMBOLS = {
                  ("D_800E9D7C", 0x800E9D7C, 4),
                  ("D_800E9D80", 0x800E9D80, 14),
                  ("D_800E9D8E", 0x800E9D8E, 2),
-                 ("D_800E9DE8", 0x800E9DE8, 52)],
+                 ("D_800E9DE8", 0x800E9DE8, 52),
+                 ("D_800E9E1C", 0x800E9E1C, 5)],  # u8[5] keypad puzzle solution (vs D_800EA4AC input -> EventFlag_488)
     "map7_s03": [("D_800ED768", 0x800ED768, 20),
                  ("D_800ED77C", 0x800ED77C, 56),
                  ("D_800ED7B4", 0x800ED7B4, 216),
