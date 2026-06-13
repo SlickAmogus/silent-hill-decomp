@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.6 -- 2026-06-13
+- PGXP: console `pgxp 0/1` + F1 hot-toggle; bump PsyCross
+- Bump PsyCross: PGXP hint-based vertex lookup fix
+- launcher: PGXP tooltip reflects working state + F1 toggle; banner click shows About box
+- Bump PsyCross: PGXP coverage probe
+
 ## v2026.06.13.5 -- 2026-06-13
 - Fix D_800CC424 zero-stub: Harry's map6_s04 Cybil-boss anim overrides
 
