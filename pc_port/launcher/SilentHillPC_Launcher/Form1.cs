@@ -165,11 +165,10 @@ public partial class Form1 : Form
         Set(comboFiltering, filteringTip);
 
         const string pgxpTip =
-            "WORK IN PROGRESS — leave set to No for now.\n" +
-            "PGXP gives sub-pixel-precision GTE coords (no PSX vertex jitter)\n" +
-            "and perspective-correct texture mapping. Many prim emit sites\n" +
-            "are still being migrated, so most of the game looks worse with\n" +
-            "this enabled until the wiring is finished.";
+            "On: sub-pixel-precision vertices and perspective-correct textures\n" +
+            "(reduced PSX vertex jitter and texture warping).\n" +
+            "Off: authentic PSX look (affine textures, vertex snapping).\n" +
+            "Press F1 in-game to toggle on the fly.";
         Set(pgxpLabel,  pgxpTip);
         Set(pgxpYes,    pgxpTip);
         Set(pgxpNo,     pgxpTip);
@@ -851,5 +850,22 @@ public partial class Form1 : Form
     private void pgxpYes_CheckedChanged(object sender, EventArgs e)
     {
 
+    }
+
+    private void banner_Click(object sender, EventArgs e)
+    {
+        string about =
+            "This port is based on the decompiled Silent Hill 1 for PSX Source Code:\n\n" +
+            "https://github.com/Vatuu/silent-hill-decomp\n\n" +
+            "This launcher and port were created by Chris Hardin aka KushAstronaut " +
+            "(kushastronaut@icloud.com), with many thanks and a lot of help from " +
+            "Psycross, Claude Code, and the wonderful decompilation community.\n\n" +
+            "The source code is here:\n\n" +
+            "https://github.com/SlickAmogus/silent-hill-decomp\n\n" +
+            "You should never pay for this software, and you should always provide " +
+            "your own legally obtained game data.\n\n" +
+            "Silent Hill is copyright Konami Entertainment.";
+        MessageBox.Show(about, "About Silent Hill PC Port",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 }

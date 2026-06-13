@@ -365,7 +365,9 @@ partial class Form1
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
-            // 
+            this.banner.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.banner.Click += new System.EventHandler(this.banner_Click);
+            //
             // cullLabel
             // 
             this.cullLabel.AutoSize = true;
