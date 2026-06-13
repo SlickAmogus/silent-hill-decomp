@@ -776,6 +776,18 @@ SAFE_AUTO_TYPES = {
     "s_sharedData_800E21D0_0_s01", "s_sharedData_800ED2D4_2_s02",
 }
 
+# Byte width of the safe fixed-layout types, used to size header-driven
+# auto-extraction EXACTLY (count * width) instead of gap inference — gap
+# inference over-grabs and swallows neighbouring symbols (e.g. D_800EBA64's
+# 210 B extent hid the carousel-horse tables; D_800E154C's 36 B hid the
+# astrology solution). Only types that are byte-identical PSX<->PC.
+TYPE_SIZEOF = {
+    "u8": 1, "s8": 1, "char": 1, "bool": 1,
+    "u16": 2, "s16": 2, "short": 2, "q3_12": 2, "q4_12": 2, "q11_4": 2, "q7_8": 2, "q12": 2,
+    "u32": 4, "s32": 4, "int": 4, "q19_12": 4, "q20_12": 4, "q23_8": 4,
+    "DVECTOR": 4, "SVECTOR3": 6, "SVECTOR": 8, "CVECTOR": 4, "VECTOR3": 12, "VECTOR": 16,
+}
+
 DECL_RE = re.compile(r"extern\s+(?:const\s+)?(\w+\**)\s+(\w+)\s*((?:\[[^\]]*\])*)\s*;")
 
 def _parse_decls(txt, types):
@@ -851,6 +863,26 @@ def extract_map(map_name, sym_path, bin_path):
 
     syms = syms + EXTRA_SYMBOLS.get(map_name, [])
 
+    # Header-driven candidates: zero-stub D_ symbols absent from the splat sym
+    # map (so they never appear in `syms` above) but declared in THIS map's
+    # decomp header with a fixed-width type + numeric array size. Their VA is
+    # encoded in the name (D_800EBAAC -> 0x800EBAAC). Scoping to the map's own
+    # header keeps a symbol from being mis-extracted into another overlay that
+    # happens to span the same address. The header_only gate downstream (safe
+    # type + non-zero ROM + pointer scan + in-binary bounds) does the rest.
+    # This auto-catches the carousel-horse / puzzle-solution / keyframe class
+    # instead of hand-listing each.
+    seg_names = set(seg_by_name)
+    existing = seg_names | {t[0] for t in syms}
+    for nm, (dty, dcnt) in load_map_extern_types(map_name).items():
+        if (not nm.startswith("D_") or nm in existing or nm not in STUB_SIZES
+                or not dcnt or (dty or "").rstrip("*") not in TYPE_SIZEOF):
+            continue
+        try:
+            syms = syms + [(nm, int(nm[2:], 16), None)]
+        except ValueError:
+            pass
+
     found = []
     for name, va, decl_size in syms:
         # Special-case: pointer-bearing struct table, custom emitter.
@@ -861,8 +893,19 @@ def extract_map(map_name, sym_path, bin_path):
         # Auto-extract any still-zero-stubbed symbol that lives in a
         # file-backed section (.data/.rodata) of this overlay. Stubs whose
         # symbols sit in .bss/.sbss are runtime state — zero is correct.
+        seg = seg_by_name.get(name)
         auto = (name not in TARGETS and name in STUB_SIZES and
-                "bss" not in seg_by_name.get(name, "bss"))
+                seg is not None and "bss" not in seg)
+        # Header-driven auto: symbols absent from the splat sym map (so seg is
+        # None) are never reached above, which is exactly how the carousel
+        # horses / astrology solution / boss keyframes slipped through. Accept
+        # them too — the in-binary bounds check below is the .data/.bss test
+        # (file-backed => real ROM), and they're gated on a safe header type +
+        # explicit array size + non-zero content + the PSX-pointer scan.
+        header_only = (not auto and name not in TARGETS and name in STUB_SIZES
+                       and seg is None)
+        if header_only:
+            auto = True
         if name not in TARGETS and not auto:
             continue
         wobj_kind = None
@@ -882,6 +925,14 @@ def extract_map(map_name, sym_path, bin_path):
             if wobj_kind is None and STUB_SIZES[name] is None:
                 print(f"  [{map_name}] {name}: skipped — stub element width "
                       f"unknown, cannot guarantee write capacity", file=sys.stderr)
+                continue
+            # Header-only symbols have no gap-inference fallback (they're not in
+            # the sym map, so there's no "next symbol" to bound them). Require an
+            # explicit array size + known fixed width so we extract EXACTLY the
+            # declared extent — no over-grab. Scalars/[] without a size are left
+            # stubbed (handled later or manually).
+            if header_only and (decl_count is None or
+                                (decl_type or "").rstrip("*") not in TYPE_SIZEOF):
                 continue
         if (map_name, name) in SKIP_SYMBOL_FOR_MAP:
             print(f"  [{map_name}] {name}: skipped (local definition exists in source)")
@@ -911,6 +962,10 @@ def extract_map(map_name, sym_path, bin_path):
             size = SIZE_OVERRIDE_PER_MAP[(map_name, name)]
         elif name in SIZE_OVERRIDE:
             size = SIZE_OVERRIDE[name]
+        elif header_only:
+            # Exact header-declared extent (validated above to be a fixed type
+            # with a numeric array size). No gap inference -> no over-grab.
+            size = decl_count * TYPE_SIZEOF[(decl_type or "").rstrip("*")]
         else:
             size = infer_size(name, va, decl_size, syms)
             if wobj_kind and decl_count:
@@ -923,6 +978,13 @@ def extract_map(map_name, sym_path, bin_path):
                   file=sys.stderr)
             continue
         data = binary[ofs:ofs + size]
+
+        # Header-only symbols that are all-zero in ROM are runtime work vars
+        # (the game inits them before reading) — the zero stub is already
+        # correct, so don't bother emitting them. Only real ROM data (non-zero)
+        # indicates a read-before-write table that the stub breaks.
+        if header_only and not any(data):
+            continue
 
         if wobj_kind:
             # Verified: ALL world-object symbols are zero in ROM (the engine
@@ -966,7 +1028,11 @@ def extract_map(map_name, sym_path, bin_path):
         # Never declare a DLL-local array smaller than its exe stub: the game
         # may WRITE up to the stub's (sometimes hand-enlarged) capacity. The
         # initializer keeps just the real ROM bytes; C zero-fills the tail.
-        if auto and STUB_SIZES[name] > size:
+        # EXCEPTION: header_only symbols have an authoritative exact size from
+        # their declaration — bumping them to the default 256 B stub would
+        # over-grab into the next symbol (the bug this whole change fixes), and
+        # the consumer's own typed extern bounds its accesses anyway.
+        if auto and not header_only and STUB_SIZES[name] > size:
             warn = (warn + " | " if warn else "") + \
                    f"declared {STUB_SIZES[name]} B (stub capacity), {size} B from ROM"
             size = STUB_SIZES[name]
