@@ -261,14 +261,16 @@ q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo) // 0x800449AC
     }
 
 #ifdef SH_PC_PORT
-    /* On PSX (MIPS), variableFunc is declared as `q19_12 (*)(void)` but
-     * the only real implementation, func_800706E4, takes an `s_Model*`.
-     * MIPS callers got away with this (extra arg lives in $a0 and is
-     * ignored), but x86-64 mismatched calling conventions crash.
-     * Cast to the real signature here so the model arg is passed. */
+    /* On PSX (MIPS), variableFunc is declared as `q19_12 (*)(void)` but the two
+     * real implementations take different args: Player_VariableAnimDurationGet
+     * (func_800706E4) reads an `s_Model*`, while MonsterCybil's func_800D8898
+     * reads the `s_AnimInfo*`. MIPS register passthrough fed each what it
+     * happened to read from $a0/$a1, but x86-64 needs explicit args. Pass BOTH
+     * (model, animInfo) so each implementation reads the one it wants; the
+     * extra register arg is harmless on x86-64. */
     {
-        typedef q19_12 (*variableFuncReal)(s_Model*);
-        return ((variableFuncReal)animInfo->duration.variableFunc)(unused);
+        typedef q19_12 (*variableFuncReal)(s_Model*, s_AnimInfo*);
+        return ((variableFuncReal)animInfo->duration.variableFunc)(unused, animInfo);
     }
 #else
     return animInfo->duration.variableFunc();

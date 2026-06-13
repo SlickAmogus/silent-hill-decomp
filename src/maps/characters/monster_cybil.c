@@ -284,7 +284,12 @@ void func_800D8848(s_Model* modelUpper) // 0x800D8848
     }
 }
 
-s32 func_800D8898(s_AnimInfo* animInfo) // 0x800D8898
+/* PSX passed animInfo in $a1 (Anim_DurationGet's 2nd param) via register
+ * passthrough; the original 1-arg decomp signature read $a0 (the s_Model*),
+ * which is harmless on MIPS but wrong on x86-64. Take both args explicitly so
+ * the PC call site (Anim_DurationGet) can pass (model, animInfo) and this reads
+ * the real animInfo. Matches Anim_DurationGet's own (s_Model* unused, ...). */
+s32 func_800D8898(s_Model* unused, s_AnimInfo* animInfo) // 0x800D8898
 {
     if (animInfo->status == ANIM_STATUS(MonsterCybilAnim_1, true))
     {
@@ -330,6 +335,29 @@ void MonsterCybil_Update(s_SubCharacter* monsterCybil, s_AnmHeader* anmHdr, GsCO
 
 void MonsterCybil_Init(s_SubCharacter* monsterCybil, s_Model* modelUpper) // 0x800D89CC
 {
+#ifdef SH_PC_PORT
+    /* MONSTER_CYBIL_ANIM_INFOS is binary-extracted in the EXE
+     * (pc_port/src/monster_cybil_anim_infos.c) via the seed+Init pattern, but
+     * that Init cannot reference func_800D8898 — it lives in this DLL, and
+     * MinGW rejects cross-module function pointers. So the seed stored the raw
+     * PSX address 0x800D8898 in the variableFunc union, and calling it crashed
+     * the boss fight on return-to-gameplay (cybilnewnew.log: 0xC0000005
+     * EXECUTING 0x800D8898). Patch the real PC function in here, DLL-side,
+     * before any MonsterCybil animation runs. func_800D8898 is MonsterCybil's
+     * only variable-duration callback, so every hasVariableDuration entry maps
+     * to it. */
+    {
+        s32 i;
+        for (i = 0; i < 44; i++)
+        {
+            if (MONSTER_CYBIL_ANIM_INFOS[i].hasVariableDuration)
+            {
+                MONSTER_CYBIL_ANIM_INFOS[i].duration.variableFunc = (q19_12 (*)(void))func_800D8898;
+            }
+        }
+    }
+#endif
+
     monsterCybil->model.controlState++;
     modelUpper->controlState++;
     monsterCybil->model.stateStep = 0;
