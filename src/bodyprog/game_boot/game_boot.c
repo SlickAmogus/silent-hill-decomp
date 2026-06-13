@@ -103,8 +103,22 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * progression) and gates all enemy spawning in Game_NpcRoomInitSpawn.
      * On a fresh PC playthrough we can't reach the cutscene that clears
      * it via the normal path, so streets stay enemy-free. Force-clearing
-     * here unblocks spawning on any non-tutorial map. */
-    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
+     * here unblocks spawning on any non-tutorial map.
+     *
+     * EXCEPT map6_s04 (Cybil carousel boss): grey children were spawning into
+     * the 3-slot NPC cap inside the boss arena (Cybil.log: slots filled by
+     * charaId 6/8 before the boss cutscene's case-0 set the flag at line 1781),
+     * so MonsterCybil's Chara_Spawn found no free slot and the boss never
+     * appeared. The carousel is boss-only — all its enemies are cutscene-
+     * spawned and the post-death cutscene clears the flag (line 3101) — so set
+     * NoEnemySpawn on entry to guarantee no regular spawn fills the slots
+     * before the boss does. Same hazard the Jun-11 npc_main per-frame clear
+     * caused; do NOT blanket-clear here. */
+    if (mapIdx == MapIdx_MAP6_S04)
+    {
+        g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
+    }
+    else if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
     {
         g_SysWork.sysFlags &= ~SysFlag_NoEnemySpawn;
     }
