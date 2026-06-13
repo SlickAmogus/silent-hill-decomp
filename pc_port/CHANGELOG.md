@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.9 -- 2026-06-13
+- Bump PsyCross: revert PGXP per-vertex depth (restore texture-only)
+
 ## v2026.06.13.8 -- 2026-06-13
 - Bump PsyCross: PGXP continuous-depth Z-fighting fix
 - Bump PsyCross: PGXP depth-warp fix (preserve b.w)
