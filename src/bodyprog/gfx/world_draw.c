@@ -644,12 +644,50 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
     modelHdr   = model->modelInfo.modelHdr;
     objMetaCpy = &model->metadata;
 
+#ifdef SH_PC_PORT
+    /* PSX had 4 streaming-active chunks (lmIdx 3..6), all textured, so the
+     * `< 7` bound covered every resolvable chunk. PC preloadChunks loads EVERY
+     * chunk's geometry but only textures the nearest K (8-full/2-half page
+     * pool), so a world object can resolve its model to a far chunk with
+     * lmIdx >= 7 that is loaded-but-UNtextured. Those bypassed this residency
+     * gate entirely and drew with stale/wrong VRAM pages = rainbow/garbage
+     * textures on specific far props (otherworld fence rails + cylinder posts)
+     * while the near textured floor rendered fine. Gate every active-chunk
+     * lmIdx on texture residency; IpdHeader_IsLoaded reports Loaded only when
+     * all the chunk's materials have resident textures, so an untextured far
+     * chunk drops the object (lmIdx=0 -> re-resolve next frame), exactly like
+     * PSX's out-of-window chunks. */
+    extern s_MapTerrain g_Map;
+    if (lmIdx >= 3 && (lmIdx - 3) < g_Map.activeChunkCount)
+#else
     if (lmIdx >= 3 && lmIdx < 7)
+#endif
     {
         if (!IpdHeader_IsLoaded(lmIdx - 3))
         {
             model->metadata.lmIdx = 0;
         }
+#ifdef SH_PC_PORT
+        else if (lmIdx >= 7)
+        {
+            /* These objects were previously ungated (lmIdx>=7 fell outside the
+             * old `< 7` bound). Log once per name: if a garbage-textured prop
+             * appears here its chunk IS textured -> the corruption is a stolen/
+             * wrong texture page, not a missing one. If it never appears, the
+             * gate above dropped it (untextured far chunk). */
+            static char s_seen[8][8];
+            static int  s_seenCount = 0;
+            int _k, _dup = 0;
+            for (_k = 0; _k < s_seenCount; _k++)
+                if (memcmp(s_seen[_k], model->metadata.name.str, 8) == 0) { _dup = 1; break; }
+            if (!_dup && s_seenCount < 8)
+            {
+                memcpy(s_seen[s_seenCount++], model->metadata.name.str, 8);
+                SH_DBG("[WOBJ-TEX] '%.8s' lmIdx=%d chunk textured=YES (drawn) — garbage here = wrong page",
+                       model->metadata.name.str, (int)lmIdx);
+            }
+        }
+#endif
     }
 
 #ifdef SH_PC_PORT
