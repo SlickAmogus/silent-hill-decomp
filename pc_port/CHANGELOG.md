@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.1 -- 2026-06-13
+- Fix otherworld garbage textures: gate far world objects on texture residency
+- Add [TEXVRAM] probe for otherworld lighthouse rainbow (map6_s02 chunk textures)
+
 ## v2026.06.12.14 -- 2026-06-12
 - Lost-poke census: fix D_800A9938 alias (Cybil boss anim buffer size)
 
