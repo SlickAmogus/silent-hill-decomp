@@ -1855,6 +1855,19 @@ void func_800D9114(s_800F3D48* arg0) // 0x800D9114
     }
 }
 
+#ifdef SH_PC_PORT
+/* A live boss-projectile entry's ptr_0 and callbacks point into the exe's
+ * data/text (canonical user addresses). During the ending the pool can be left
+ * with stale entries whose buffer was reused by cutscene TIM loads, leaving
+ * wild pointers -> func_800D88E8 / field_48 AV (CutsceneGlitch.log: map7_s03
+ * +0xEAB5 reading 0xffff...). Drop any entry that fails a canonical check. */
+#define SH_F3D48_PTR_OK(p) ((uintptr_t)(p) >= 0x10000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
+#define SH_F3D48_ENTRY_CORRUPT(e) \
+    (!SH_F3D48_PTR_OK((e)->ptr_0) || \
+     ((e)->field_4.field_44 != NULL && !SH_F3D48_PTR_OK((e)->field_4.field_44)) || \
+     ((e)->field_4.field_48 != NULL && !SH_F3D48_PTR_OK((e)->field_4.field_48)))
+#endif
+
 void func_800D917C(void) // 0x800D917C
 {
     s32             i;
@@ -1870,6 +1883,9 @@ void func_800D917C(void) // 0x800D917C
     {
         if (curPtr->field_4.field_4 != 0)
         {
+#ifdef SH_PC_PORT
+            if (SH_F3D48_ENTRY_CORRUPT(curPtr)) { curPtr->field_4.field_4 = 0; continue; }
+#endif
             if (curPtr->field_4.field_44 != NULL)
             {
                 if (D_800F3D8C == 0)
@@ -1899,7 +1915,9 @@ void func_800D917C(void) // 0x800D917C
         {
             curPtr->field_4.field_4 = 1;
             curPtr->field_4.field_6 = 0;
-
+#ifdef SH_PC_PORT
+            if (SH_F3D48_ENTRY_CORRUPT(curPtr)) { curPtr->field_4.field_4 = 0; continue; }
+#endif
             if (curPtr->field_4.field_44 != NULL)
             {
                 if (D_800F3D8C == 0)
