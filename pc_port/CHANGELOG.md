@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.13 -- 2026-06-13
+- Fix final-boss rifle div0 crash + repeating grunt SFX: D_800EC770 zero-stub
+
 ## v2026.06.13.12 -- 2026-06-13
 - Add zero-stub classification sweep (latent read-before-write bug finder)
 - Fix final-boss cutscene crash (post-aglaophotis): D_800F2448 stub too small
