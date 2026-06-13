@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.2 -- 2026-06-13
+- Fix Cybil boss progression lock: DMS node-name strings were zero-stubs
+
 ## v2026.06.13.1 -- 2026-06-13
 - Fix otherworld garbage textures: gate far world objects on texture residency
 - Add [TEXVRAM] probe for otherworld lighthouse rainbow (map6_s02 chunk textures)
