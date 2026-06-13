@@ -335,6 +335,12 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "ADSR") == 0) {
+        extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+        extern int  PsyX_SPUAL_GetAdsrEnabled(void);
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
+        PsyX_SPUAL_SetAdsrEnabled(on);
+        cprintf("ADSR envelope %s (looping-SFX ring-out, WIP)", on ? "ON" : "OFF");
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
