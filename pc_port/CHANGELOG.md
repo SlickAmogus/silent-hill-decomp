@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.9 -- 2026-06-12
+- ROOT FIX sewer/save-load crash family + Romper attack crash
+
 ## v2026.06.12.8 -- 2026-06-12
 - walls: extend [WALL-HIT] with vertical-span data (speed-dependence)
 - walls: un-gate [WALL-HIT] from the visualizer
