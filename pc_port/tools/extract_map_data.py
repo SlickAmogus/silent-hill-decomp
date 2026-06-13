@@ -170,6 +170,9 @@ TARGETS = {
     "D_800ED898":                       ("u16", 2),  # map7_s03 voices
     "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
     "D_800F0038":                       ("u16", 2),  # map6_s00 voices
+    # map6_s00 otherworld-transition per-cell thresholds, DVECTOR[17][17].
+    # Raw u8 bytes; consumer indexes through the header's DVECTOR extern.
+    "D_800F0084":                       ("u8", 0x484),
     "D_800F0174":                       ("u16", 2),  # map5_s01 voices
     # Cursor-click puzzle data (keypads/dials): button hit rects, answer
     # codes, layout RECTs, sfx positions. All were zero stubs — the cursor
@@ -280,7 +283,13 @@ EXTRA_SYMBOLS = {
                  ("D_800D7A5C", 0x800D7A5C, 0x18)], # SVECTOR[3]
     "map5_s02": [("D_800D947C", 0x800D947C, 32)],
     "map5_s03": [("D_800D3BDC", 0x800D3BDC, 32)],
-    "map6_s00": [("D_800F0038", 0x800F0038, 8)],
+    # D_800F0084: DVECTOR[17][17] per-cell otherworld-transition thresholds
+    # (map6_s00.c func_800EC4B4). Fills the gap to g_ParticleMapIdx0
+    # (0x800F0508): 0x800F0508-0x800F0084 = 0x484 = 17*17*4. Zero-stubbed it
+    # made every grid cell cross its (0,0) threshold at ramp=0 -> instant full
+    # otherworld instead of the real-time sweep (otherworld.log).
+    "map6_s00": [("D_800F0038", 0x800F0038, 8),
+                 ("D_800F0084", 0x800F0084, 0x484)],
     "map6_s01": [("D_800D4108", 0x800D4108, 32)],
     "map6_s02": [("D_800D3B40", 0x800D3B40, 4),
                  ("D_800D3B6C", 0x800D3B6C, 272)],
