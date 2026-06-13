@@ -59,7 +59,9 @@ u8 D_800CB61C[256] = {0};
 u8 D_800CB69C[256] = {0};
 u8 D_800CB6AC[256] = {0};
 u8 D_800CB728[256] = {0};
-u8 D_800CC424[256] = {0};
+/* D_800CC424 now defined with real values in pc_port/src/harry_m6s04_extra_anim_infos.c
+ * (s_AnimInfo[8], Harry's map6_s04 Cybil-boss anim overrides; seed+Init because
+ * s_AnimInfo holds function pointers). */
 u8 D_800CC4A4[256] = {0};
 /* map6_s04 Cybil-boss cutscene DMS node-name strings. INCLUDE_RODATA is a
  * no-op on PC so these fell back to empty zero-stubs — every
