@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.27 -- 2026-06-13
+- Air Screamer bite reach 3u->4u + flashlight color console command
+- Guard credits text drawers against NULL str (results.log crash)
+- Fix credits.c link error: include sh_log.h for SH_DBG
+
 ## v2026.06.13.26 -- 2026-06-13
 - Add adsr console command + bump PsyCross (envelope on audio thread, default OFF)
 - Fix ending/credits crash: s32* iterator over char*[] read half-pointers (64-bit)
