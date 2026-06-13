@@ -185,6 +185,19 @@ void func_800DE658(s_func_800DE274* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4
     }
 
     arg3   = Q12_MULT(arg3, arg4);
+
+#ifdef SH_PC_PORT
+    /* Q12_MULT can truncate a small arg3*arg4 product to 0 even though arg3
+     * was non-zero above; the five `/ arg3` divisions below then divide by
+     * zero. On PSX MIPS that yields garbage (no trap); on PC x86 it raises
+     * 0xC0000094 and crashes (Alessa scene after the Cybil boss fight). Bail
+     * on the degenerate scale exactly as the arg3==0 guard intends. */
+    if (arg3 == 0)
+    {
+        return;
+    }
+#endif
+
     var_t0 = arg2 - arg3;
 
     if (var_t0 > 0xE0)
