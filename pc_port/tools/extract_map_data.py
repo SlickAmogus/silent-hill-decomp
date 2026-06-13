@@ -209,6 +209,8 @@ TARGETS = {
     "D_800E1510":                       ("u8",  1),  # map7_s01 keypad rects
     "D_800E1544":                       ("u8",  1),  # map7_s01 entry buffer init
     "D_800E154C":                       ("u16", 2),  # map7_s01 table
+    "D_800E155C":                       ("u16", 1),  # map7_s01 astrology puzzle solution
+    "D_800E1560":                       ("s16", 7),  # map7_s01 astrology panel BG texture IDs
     "D_800E1680":                       ("u8",  1),  # map7_s01 puzzle state init
     "D_800E1688":                       ("u8",  1),  # map7_s01 answer code
     "D_800E168D":                       ("u8",  1),  # map7_s01
@@ -343,7 +345,9 @@ EXTRA_SYMBOLS = {
                  ("D_800E1504", 0x800E1504, 12),
                  ("D_800E1510", 0x800E1510, 52),
                  ("D_800E1544", 0x800E1544, 8),
-                 ("D_800E154C", 0x800E154C, 36),
+                 ("D_800E154C", 0x800E154C, 16),  # u16[8] msg-id table (idx D_800E168D, <8)
+                 ("D_800E155C", 0x800E155C, 2),   # u16 astrology puzzle solution (was swallowed by 154C's old 36)
+                 ("D_800E1560", 0x800E1560, 14),  # s16[7] astrology panel BG texture IDs
                  ("D_800E1680", 0x800E1680, 8),
                  ("D_800E1688", 0x800E1688, 5),
                  ("D_800E168D", 0x800E168D, 1),
