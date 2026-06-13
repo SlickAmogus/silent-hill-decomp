@@ -237,6 +237,9 @@ TARGETS = {
     "D_800EA856":                       ("s16", 1),
     "D_800EA894":                       ("s16", 1),
     "D_800EA896":                       ("s16", 1),
+    "D_800EBAAC":                       ("s32", 10),  # map6_s04 carousel horse X offsets
+    "D_800EBAD4":                       ("s32", 10),  # map6_s04 carousel horse Z offsets
+    "D_800EBAFC":                       ("s16", 10),  # map6_s04 carousel horse angles
     "D_800E9DE8":                       ("u8",  1),  # map7_s02 keypad rects
 }
 
@@ -344,7 +347,10 @@ EXTRA_SYMBOLS = {
                  ("D_800CAB90", 0x800CAB90, 8),
                  ("D_800CAB98", 0x800CAB98, 8)],
     "map6_s04": [("D_800EBA34", 0x800EBA34, 48),
-                 ("D_800EBA64", 0x800EBA64, 210),
+                 ("D_800EBA64", 0x800EBA64, 72),    # was 210 — over-grab swallowed the carousel-horse tables
+                 ("D_800EBAAC", 0x800EBAAC, 40),    # s32[10] carousel horse X offsets
+                 ("D_800EBAD4", 0x800EBAD4, 40),    # s32[10] carousel horse Z offsets
+                 ("D_800EBAFC", 0x800EBAFC, 20),    # q3_12[10] horse angles (zero -> all horses stacked at center)
                  ("D_800CC7C0", 0x800CC7C0, 12),
                  ("D_800CC7CC", 0x800CC7CC, 12),
                  ("D_800CB728", 0x800CB728, 12),
