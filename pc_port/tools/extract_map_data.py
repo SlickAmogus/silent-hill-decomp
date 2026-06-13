@@ -179,6 +179,20 @@ TARGETS = {
     "D_800CC7C0":                       ("u8", 12),  # map6_s04 boss SFX pos (VECTOR3)
     "D_800CC7CC":                       ("u8", 12),  # map6_s04 boss SFX pos (VECTOR3)
     "D_800CB728":                       ("u8", 12),  # map6_s04 VECTOR3
+    # Remaining INCLUDE_RODATA stubs — SFX 3D positions / object rotations /
+    # anim data (all pointer-free, raw bytes, consumer casts via extern type).
+    "D_800CB0CC":                       ("u8", 12),  # map5_s00 SFX pos (VECTOR3)
+    "D_800CB370":                       ("u8", 12),  # map3_s04 SFX pos (VECTOR3)
+    "D_800CC984":                       ("u8", 12),  # map7_s01 SFX pos (VECTOR3)
+    "D_800CC998":                       ("u8", 12),  # map7_s01 SFX pos (VECTOR3)
+    "D_800CC990":                       ("u8", 8),   # map7_s01 obj rotation (SVECTOR3)
+    "D_800CB61C":                       ("u8", 8),   # map7_s00 obj rotation (SVECTOR3)
+    "D_800CA788":                       ("u8", 8),   # map4_s03 twinfeeler (SVECTOR)
+    # D_800CC424 (s_AnimInfo[8]) is NOT extractable raw: s_AnimInfo has function
+    # pointers (playbackFunc + variableFunc union), so the PSX 16-byte layout is
+    # invalid on 64-bit (extracted 0x80044CA4 = dead PSX ptr). Needs pointer
+    # reformat; left zero-stubbed.
+    "D_800CC4A4":                       ("u8", 0x20),# map6_s04 field_38 (s_UnkStruct3_Mo[4], pointer-free)
     # map6_s00 otherworld-transition per-cell thresholds, DVECTOR[17][17].
     # Raw u8 bytes; consumer indexes through the header's DVECTOR extern.
     "D_800F0084":                       ("u8", 0x484),
@@ -249,7 +263,8 @@ EXTRA_SYMBOLS = {
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
     "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
                  ("D_800D775C", 0x800D775C, 8)],
-    "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44)],
+    "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44),
+                 ("D_800CB0CC", 0x800CB0CC, 12)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
                  ("D_800F0158", 0x800F0158, 24),
                  ("D_800F0170", 0x800F0170, 4),
@@ -263,12 +278,14 @@ EXTRA_SYMBOLS = {
     "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
                  ("D_800D6B50", 0x800D6B50, 4),
                  ("D_800D6B54", 0x800D6B54, 4)],
-    "map3_s04": [("D_800D599C", 0x800D599C, 64)],
+    "map3_s04": [("D_800D599C", 0x800D599C, 64),
+                 ("D_800CB370", 0x800CB370, 12)],
     "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
     "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
     # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
-    "map4_s03": [("D_800DB92C", 0x800DB92C, 4),
+    "map4_s03": [("D_800CA788", 0x800CA788, 8),
+                 ("D_800DB92C", 0x800DB92C, 4),
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
                  ("D_800DB7D4", 0x800DB7D4, 0x10),  # big TV quad corners (SVECTOR pair)
                  ("D_800DB7E4", 0x800DB7E4, 0x90),  # 3x3 TV grid quad corners
@@ -314,9 +331,14 @@ EXTRA_SYMBOLS = {
                  ("D_800EBA64", 0x800EBA64, 210),
                  ("D_800CC7C0", 0x800CC7C0, 12),
                  ("D_800CC7CC", 0x800CC7CC, 12),
-                 ("D_800CB728", 0x800CB728, 12)],
-    "map7_s00": [("D_800D31C4", 0x800D31C4, 12)],
-    "map7_s01": [("D_800E14E8", 0x800E14E8, 24),
+                 ("D_800CB728", 0x800CB728, 12),
+                 ("D_800CC4A4", 0x800CC4A4, 0x20)],
+    "map7_s00": [("D_800D31C4", 0x800D31C4, 12),
+                 ("D_800CB61C", 0x800CB61C, 8)],
+    "map7_s01": [("D_800CC984", 0x800CC984, 12),
+                 ("D_800CC990", 0x800CC990, 8),
+                 ("D_800CC998", 0x800CC998, 12),
+                 ("D_800E14E8", 0x800E14E8, 24),
                  ("D_800E1500", 0x800E1500, 4),
                  ("D_800E1504", 0x800E1504, 12),
                  ("D_800E1510", 0x800E1510, 52),
