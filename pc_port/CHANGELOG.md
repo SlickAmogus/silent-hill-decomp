@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.7 -- 2026-06-13
+- (no commits since last release)
+
 ## v2026.06.13.6 -- 2026-06-13
 - PGXP: console `pgxp 0/1` + F1 hot-toggle; bump PsyCross
 - Bump PsyCross: PGXP hint-based vertex lookup fix
