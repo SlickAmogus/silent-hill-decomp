@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.25 -- 2026-06-13
+- Revert PsyCross ADSR: caused hard freezes + save-load hangs (deadlock)
+
 ## v2026.06.13.24 -- 2026-06-13
 - Fix final-boss crash ROOT: D_800CAE30 zero-stub gave projectiles NULL ptr_0
 
