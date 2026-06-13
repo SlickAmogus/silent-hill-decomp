@@ -2142,8 +2142,20 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
         return Q12(1.0f);
     }
 
-    return Q12_DIV(state->charaState.distance, Math_Vector2MagCalc(state->charaState.distance,
-                                                                   groundHeight - state->charaState.bottomPos));
+    {
+        q19_12 mag = Math_Vector2MagCalc(state->charaState.distance, groundHeight - state->charaState.bottomPos);
+#ifdef SH_PC_PORT
+        /* Lighthouse-stair crash (progression SilentHill(3/4).log, 0xC0000094):
+         * a degenerate slope (distance==0 && groundHeight==bottomPos) makes the
+         * magnitude 0. PSX MIPS `div` by zero yields garbage and continues; PC
+         * traps. Return the same no-scaling alpha the degenerate cases above use. */
+        if (mag == 0)
+        {
+            return Q12(1.0f);
+        }
+#endif
+        return Q12_DIV(state->charaState.distance, mag);
+    }
 }
 
 q23_8 Ipd_GroundHeightGet(q23_8 posX, q23_8 posZ, const s_CollisionState* state) // 0x8006CC44
