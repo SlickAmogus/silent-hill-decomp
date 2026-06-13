@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.10 -- 2026-06-12
+- Fix motel dresser snap-back + BGM layer diagnostics for bar scene
+- Fix lighthouse-stair crash: collision offset-alpha div-by-zero
+
 ## v2026.06.12.9 -- 2026-06-12
 - ROOT FIX sewer/save-load crash family + Romper attack crash
 
