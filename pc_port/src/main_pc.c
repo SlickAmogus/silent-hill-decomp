@@ -351,6 +351,9 @@ int main(int argc, char* argv[])
     extern void Unkkown23AnimInfos_Init(void);
     Unkkown23AnimInfos_Init();
 
+    extern void Map6S04ExtraAnimInfos_Init(void);
+    Map6S04ExtraAnimInfos_Init();
+
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
     g_OvlDynamic  = PSX_ADDR(0x000CBAA8);
