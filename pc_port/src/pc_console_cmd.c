@@ -329,6 +329,12 @@ void Pc_ConsoleExec(const char* line)
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
+    } else if (strcmp(cmd, "PGXP") == 0) {
+        extern int g_PsxUsePgxp;
+        if (arg[0] == '1') g_PsxUsePgxp = 1;
+        else if (arg[0] == '0') g_PsxUsePgxp = 0;
+        else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
+        cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
