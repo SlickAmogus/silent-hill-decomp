@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.19 -- 2026-06-13
+- Fix carousel horses stacked at center: extract horse offset/angle tables
+- Add proactive latent-stub finder (header-driven, pre-empts the bug class)
+
 ## v2026.06.13.18 -- 2026-06-13
 - (no commits since last release)
 
