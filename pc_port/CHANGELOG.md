@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.15 -- 2026-06-13
+- Fix final-boss crash (both variants): port projectile motion-script tables
+
 ## v2026.06.13.14 -- 2026-06-13
 - Proactively extract 2 more zero-stub ROM tables + improve audit write-detection
 - Fix MonsterCybil AI freeze (blocks Good/Bad endings): keyframe constants zero-stub
