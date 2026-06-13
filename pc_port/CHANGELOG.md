@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.17 -- 2026-06-13
+- Fix lit-character backface culling (face through head in cutscenes)
+- Fix final-boss attack crash: seed projectile-pool ptr_0 (NULL-deref in func_800D88E8)
+
 ## v2026.06.13.16 -- 2026-06-13
 - Reduce log hitching: remove hot-path audio debug logs
 
