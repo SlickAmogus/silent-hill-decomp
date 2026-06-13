@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.8 -- 2026-06-13
+- Bump PsyCross: PGXP continuous-depth Z-fighting fix
+- Bump PsyCross: PGXP depth-warp fix (preserve b.w)
+
 ## v2026.06.13.7 -- 2026-06-13
 - (no commits since last release)
 
