@@ -1014,6 +1014,17 @@ void func_801E4394(u8* str) // 0x801E4394
     DR_TPAGE* tPage;
     GsOT*     ot;
 
+#ifdef SH_PC_PORT
+    /* A NULL line ptr reaches here at the credits->results transition (results.log
+     * crash, reading 0x0 via *strPtr). Skip drawing it; log once so the producer
+     * (which credit line/table entry is NULL on PC) can be tracked down. */
+    if (str == NULL)
+    {
+        static u8 _loggedNull4394 = 0;
+        if (!_loggedNull4394) { SH_DBG("[CREDITS] func_801E4394 NULL str — skipped (producer bug)"); _loggedNull4394 = 1; }
+        return;
+    }
+#endif
     strPtr     = str;
     textX      = D_800AFE08.field_0;
     textY      = D_800AFE08.field_2;
@@ -1306,6 +1317,15 @@ void func_801E4C1C(u8* str) // 0x801E4C1C
     u32 temp_v1;
     u32 temp;
     s32 idx;
+
+#ifdef SH_PC_PORT
+    if (str == NULL)
+    {
+        static u8 _loggedNull4C1C = 0;
+        if (!_loggedNull4C1C) { SH_DBG("[CREDITS] func_801E4C1C NULL str — skipped (producer bug)"); _loggedNull4C1C = 1; }
+        return;
+    }
+#endif
 
     packet = GsOUT_PACKET_P;
     ot     = &g_OtTags0[g_ActiveBufferIdx][6];
