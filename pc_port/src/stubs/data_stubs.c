@@ -61,10 +61,18 @@ u8 D_800CB6AC[256] = {0};
 u8 D_800CB728[256] = {0};
 u8 D_800CC424[256] = {0};
 u8 D_800CC4A4[256] = {0};
-u8 D_800CC4C4[256] = {0};
-u8 D_800CC4CC[256] = {0};
-u8 D_800CC4D4[256] = {0};
-u8 D_800CC4DC[256] = {0};
+/* map6_s04 Cybil-boss cutscene DMS node-name strings. INCLUDE_RODATA is a
+ * no-op on PC so these fell back to empty zero-stubs — every
+ * Dms_CharacterTransformGet in the boss cutscenes looked up "" and failed, so
+ * MonsterCybil ("MSB") was never positioned (invisible) and the cutscene light
+ * ("LIGHT"/"L_INT") was never placed (scene black except Harry's flashlight).
+ * THE Cybil progression-lock root cause (cybil2/cybil3.log). Values are the
+ * DMS node names from MAP6_S04 rodata. char[] (not u8[256]) to match the
+ * `extern char D_800CC4xx[]` decls in map6_s04_2.c. */
+char D_800CC4C4[] = "HERO";
+char D_800CC4CC[] = "LIGHT";
+char D_800CC4D4[] = "L_INT";
+char D_800CC4DC[] = "MSB";
 u8 D_800CC7C0[256] = {0};
 u8 D_800CC7CC[256] = {0};
 u8 D_800CC984[256] = {0};
