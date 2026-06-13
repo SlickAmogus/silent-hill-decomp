@@ -777,7 +777,19 @@ public partial class Form1 : Form
 
     private void banner_Click(object sender, EventArgs e)
     {
-
+        string about =
+    "This port is based on the decompiled Silent Hill 1 for PSX Source Code:\n\n" +
+    "https://github.com/Vatuu/silent-hill-decomp\n\n" +
+    "This launcher and port were created by Chris Hardin aka KushAstronaut " +
+    "(kushastronaut@icloud.com), with many thanks and a lot of help from " +
+    "Psycross, Claude Code, and the wonderful decompilation community.\n\n" +
+    "The source code is available here:\n\n" +
+    "https://github.com/SlickAmogus/silent-hill-decomp\n\n" +
+    "You should never pay for this software, and you should always provide " +
+    "your own legally obtained game data.\n\n" +
+    "Silent Hill is copyright © KONAMI";
+        MessageBox.Show(about, "About Silent Hill PC Port",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void comboResolution_SelectedIndexChanged(object sender, EventArgs e)
@@ -852,20 +864,5 @@ public partial class Form1 : Form
 
     }
 
-    private void banner_Click(object sender, EventArgs e)
-    {
-        string about =
-            "This port is based on the decompiled Silent Hill 1 for PSX Source Code:\n\n" +
-            "https://github.com/Vatuu/silent-hill-decomp\n\n" +
-            "This launcher and port were created by Chris Hardin aka KushAstronaut " +
-            "(kushastronaut@icloud.com), with many thanks and a lot of help from " +
-            "Psycross, Claude Code, and the wonderful decompilation community.\n\n" +
-            "The source code is here:\n\n" +
-            "https://github.com/SlickAmogus/silent-hill-decomp\n\n" +
-            "You should never pay for this software, and you should always provide " +
-            "your own legally obtained game data.\n\n" +
-            "Silent Hill is copyright Konami Entertainment.";
-        MessageBox.Show(about, "About Silent Hill PC Port",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
+
 }

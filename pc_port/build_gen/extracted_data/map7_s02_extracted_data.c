@@ -200,6 +200,11 @@ u8 D_800E9DE8[52] = {
     0xE2, 0xCD, 0xFE, 0xBF
 };
 
+// 0x800E9E1C  size 0x5 (5 bytes)
+u8 D_800E9E1C[5] = {
+    0x00, 0x0B, 0x04, 0x11, 0x13
+};
+
 // 0x800E9E24  size 0xA0 (160 bytes)
 s_WorldObjectPose g_CommonWorldObjectPoses[8] = {
     { { -749363, -5120, -421187 }, { 0, 0, 0 } },
@@ -269,9 +274,9 @@ u8 sharedData_800D4D14_3_s01[256] = {
 };
 
 // 0x800EA4A8  size 0x100 (256 bytes)
-// declared 256 B (stub capacity), 12 B from ROM
+// declared 256 B (stub capacity), 4 B from ROM
 u8 sharedData_800D4D18_3_s01[256] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    0x00, 0x00, 0x00, 0x00
 };
 
 // 0x800EA4B4  size 0x100 (256 bytes)
