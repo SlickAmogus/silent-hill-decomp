@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.29 -- 2026-06-13
+- Log boss-pool stomp (probe ending crash/corruption timing + cause)
+- Ending cutscene glitches: suppress framebuffer->VRAM store during map7_s03 ending
+
 ## v2026.06.13.28 -- 2026-06-13
 - Flashlight color: tint the real light-color matrix; console: flip tap/hold
 - Split light-color console commands: fl = flashlight cast, wl = world ambient
