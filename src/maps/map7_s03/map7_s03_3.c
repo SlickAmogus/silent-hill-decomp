@@ -1241,6 +1241,17 @@ void func_800E3B6C(void) // 0x800E3B6C
 
 void func_800E3C48(void) // 0x800E3C48
 {
+#ifdef SH_PC_PORT
+    /* The ending cutscene LoadImage's NPC/floor CLUTs into the VRAM display
+     * region (e.g. CLUT at (224,13) — the same spot as the paper-map victim
+     * (224,15)). With the framebuffer->VRAM store active, every frame stamps
+     * the rendered frame over those CLUTs -> garbled NPC textures, magenta
+     * walls, wrong floor (CutsceneGlitch screenshots). Suppress the store
+     * while this ending event runs, like the paper-map path does. Re-set each
+     * frame because PsyX_EndScene auto-clears it. */
+    extern int g_PsxSkipFramebufferStore;
+    g_PsxSkipFramebufferStore = 1;
+#endif
     switch (D_800F4805)
     {
         case 0:
