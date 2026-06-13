@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.14 -- 2026-06-13
+- Proactively extract 2 more zero-stub ROM tables + improve audit write-detection
+- Fix MonsterCybil AI freeze (blocks Good/Bad endings): keyframe constants zero-stub
+
 ## v2026.06.13.13 -- 2026-06-13
 - Fix final-boss rifle div0 crash + repeating grunt SFX: D_800EC770 zero-stub
 
