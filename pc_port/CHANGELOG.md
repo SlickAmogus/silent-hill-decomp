@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.12 -- 2026-06-12
+- Fix mall TV cult-symbol animation: extract full D_800DB874 pattern table
+
 ## v2026.06.12.11 -- 2026-06-12
 - Fix instant otherworld transition: extract D_800F0084 threshold table (map6_s00)
 
