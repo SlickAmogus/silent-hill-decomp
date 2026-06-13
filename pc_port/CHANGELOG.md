@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.21 -- 2026-06-13
+- Fix PuppetNurse/Doctor NULL field_124 crash in map7_s01 (astro.log)
+- Restore chest-flashlight lens flare strength (was dimmed by facing knee)
+
 ## v2026.06.13.20 -- 2026-06-13
 - Header-driven auto-extraction: end the zero-stub whack-a-mole
 
