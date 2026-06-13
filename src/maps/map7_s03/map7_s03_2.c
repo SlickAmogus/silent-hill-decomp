@@ -1978,6 +1978,14 @@ void func_800D947C(void) // 0x800D947C
     {
         ptr1->field_4.field_4 = 0;
         ptr1->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* Same NULL-ptr_0 hazard as func_800D952C: the 0xA7 memset only covers
+         * 0x1900 bytes, but the PC struct is larger, so high-index entries'
+         * ptr_0 falls past the memset and is left NULL -> func_800D88E8 AV
+         * (incubus/incubator boss variants init via this pool). Seed the same
+         * valid default; spawn overwrites it with the real script. */
+        ptr1->ptr_0 = &D_800EC680[0];
+#endif
     }
 
     D_800F3D8C = 0;
