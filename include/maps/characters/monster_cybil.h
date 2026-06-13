@@ -72,7 +72,7 @@ void func_800D87B0(s_SubCharacter* monsterCybil);
 
 void func_800D8848(s_Model* modelUpper);
 
-s32 func_800D8898(s_AnimInfo* animInfo);
+s32 func_800D8898(s_Model* unused, s_AnimInfo* animInfo);
 
 void MonsterCybil_Update(s_SubCharacter* monsterCybil, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
