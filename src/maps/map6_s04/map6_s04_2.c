@@ -15,6 +15,20 @@
 #include "maps/characters/alessa.h"
 #include "maps/characters/dahlia.h"
 #include "maps/characters/monster_cybil.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
+
+#ifdef SH_PC_PORT
+/* Lost-poke alias: PSX D_800A9938 (0x800A9938) is g_CharaModelAnimsData
+ * (0x800A992C) + 0xC = g_CharaModelAnimsData[0].allocSize. The boss cutscenes
+ * expand group-0's anim buffer to 0x38630 before Chara_Load(MonsterCybil)
+ * (her anims are bigger than the 0x2E630 default), then restore 0x2E630 after.
+ * The standalone PC stub swallowed those writes, so allocSize stayed at the
+ * default and MonsterCybil's anim data overran the buffer boundary computed
+ * from allocAddr+allocSize (fs_chara_anim.c). Alias by FIELD NAME, not raw
+ * address: the PC struct widened allocAddr to 8 bytes so the byte offset
+ * shifted. */
+#define D_800A9938 g_CharaModelAnimsData[0].allocSize
+#endif
 
 #include "../src/maps/chara_util.c" // 0x800DD5B8
 
