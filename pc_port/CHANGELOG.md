@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.11 -- 2026-06-13
+- PsyCross: PGXP coverage diagnostics
+- Fix map7_s01 astrology puzzle + JP-warning-screen (two zero-stubs)
+
 ## v2026.06.13.10 -- 2026-06-13
 - PsyCross: bump to PGXP Z-fight fix v3 (per-vertex continuous depth)
 - PsyCross: PGXP v4 ΓÇö texture-only shader + un-quantised flat depth
