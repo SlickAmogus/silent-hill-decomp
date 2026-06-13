@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.14 -- 2026-06-12
+- Lost-poke census: fix D_800A9938 alias (Cybil boss anim buffer size)
+
 ## v2026.06.12.13 -- 2026-06-12
 - Fix cutscene letterbox black corner squares in borderless widescreen
 - Fix Cybil carousel boss never spawning: set NoEnemySpawn on map6_s04 entry
