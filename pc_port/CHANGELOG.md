@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.4 -- 2026-06-13
+- Fix Cybil boss-fight crash: variableFunc pointer was raw PSX address
+
 ## v2026.06.13.3 -- 2026-06-13
 - Extract more INCLUDE_RODATA zero-stubs: lighthouse-effect VRAM + boss positions
 - Extract remaining INCLUDE_RODATA zero-stubs: SFX positions + rotations + data
