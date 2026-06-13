@@ -343,6 +343,26 @@ q3_12 D_800AFD7C[] = {
 
 s_FsImageDesc img0 = { .tPage = { 0, 13 } }; // 0x800AFD9C
 
+#ifdef SH_PC_PORT
+/* Tint the chest lens-flare by the `fl` flashlight color so the glare matches
+ * a custom flashlight tint. Luma-preserving: keeps each flare element's
+ * brightness, only shifts its hue. No-op (plain setRGB0) when `fl` is default. */
+extern int g_PcFlashlightColorActive;
+extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightColorB;
+#define FL_SETRGB0(p, r, g, b) do {                                  \
+        s32 _fr = (r), _fg = (g), _fb = (b);                         \
+        if (g_PcFlashlightColorActive) {                             \
+            s32 _l = (_fr + _fg + _fb) / 3;                          \
+            _fr = (_l * g_PcFlashlightColorR) / 255;                 \
+            _fg = (_l * g_PcFlashlightColorG) / 255;                 \
+            _fb = (_l * g_PcFlashlightColorB) / 255;                 \
+        }                                                            \
+        setRGB0((p), _fr, _fg, _fb);                                 \
+    } while (0)
+#else
+#define FL_SETRGB0 setRGB0
+#endif
+
 void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 0x8008D990
 {
     s32       sp20;
@@ -411,7 +431,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
 
     temp_a1 = (arg1 + Q12(3.0f)) >> 2;
 
-    setRGB0(poly, Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40));
+    FL_SETRGB0(poly, Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40));
     setSemiTrans(poly, 1);
 
     temp_a2   = arg2->vx + Q12_MULT(sinCurAngle, 5);
@@ -448,7 +468,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
     poly->clut  = 0x18C;
 
     setUV4(poly, 0, 0, 63, 0, 0, 63, 63, 63);
-    setRGB0(poly, 0x10, 0x10, 0x10);
+    FL_SETRGB0(poly, 0x10, 0x10, 0x10);
     setSemiTrans(poly, 1);
 
     temp_v0_3 = arg2->vx;
@@ -482,7 +502,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
     setSemiTrans(poly, 1);
 
     temp_v0_5 = Q12_MULT(MIN(arg1 * 2, Q12(1.0f)), 48);
-    setRGB0(poly, temp_v0_5, temp_v0_5, temp_v0_5);
+    FL_SETRGB0(poly, temp_v0_5, temp_v0_5, temp_v0_5);
 
     poly->tpage = 44;
     poly->clut  = 0x18C;
@@ -530,7 +550,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
         setSemiTrans(poly, 1);
 
         temp_v0_9 = (arg1 * var_s3) >> 18;
-        setRGB0(poly, temp_v0_9, temp_v0_9, temp_v0_9);
+        FL_SETRGB0(poly, temp_v0_9, temp_v0_9, temp_v0_9);
 
         temp_a0_4 = arg2->vy;
         temp_v1_6 = arg2->vx;
@@ -554,7 +574,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
 
     SetPolyFT4(poly);
 
-    setRGB0(poly, Q12_MULT(arg1, 32), Q12_MULT(arg1, 0x30), Q12_MULT(arg1, 32));
+    FL_SETRGB0(poly, Q12_MULT(arg1, 32), Q12_MULT(arg1, 0x30), Q12_MULT(arg1, 32));
 
     poly->tpage = 44;
     poly->clut  = 0x1CC;
@@ -580,7 +600,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
     SetPolyFT4(poly);
 
     temp_s0_6 = Q12_MULT(arg1, 0x18);
-    setRGB0(poly, ((u32)arg1 * 7) >> 9, ((u32)arg1 * 0x13) >> 0xB, temp_s0_6);
+    FL_SETRGB0(poly, ((u32)arg1 * 7) >> 9, ((u32)arg1 * 0x13) >> 0xB, temp_s0_6);
 
     poly->tpage = 44;
     poly->clut  = 0x1CC;
@@ -602,7 +622,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
 
     SetPolyFT4(poly);
 
-    setRGB0(poly, (u32)arg1 >> 6, temp_s0_6, ((u32)arg1 * 0x2F) >> 11);
+    FL_SETRGB0(poly, (u32)arg1 >> 6, temp_s0_6, ((u32)arg1 * 0x2F) >> 11);
 
     poly->tpage = 76;
     poly->clut  = 0x18C;
