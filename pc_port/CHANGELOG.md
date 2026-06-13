@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.12.8 -- 2026-06-12
+- walls: extend [WALL-HIT] with vertical-span data (speed-dependence)
+- walls: un-gate [WALL-HIT] from the visualizer
+- sewer crash guard + 4:3 flash hysteresis (user report batch 1/2)
+- Fix mall TV-bank static/sigil screens: extract zero-stubbed effect tables
+
 ## v2026.06.12.7 -- 2026-06-12
 - floatstinger: [MOTH] wing/anim state probe
 - fix Floatstinger idle wing flap: lost duration poke through alias
