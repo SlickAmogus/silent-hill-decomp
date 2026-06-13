@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.12 -- 2026-06-13
+- Add zero-stub classification sweep (latent read-before-write bug finder)
+- Fix final-boss cutscene crash (post-aglaophotis): D_800F2448 stub too small
+- Extract map7_s02 keypad puzzle solution D_800E9E1C (was zero-stub)
+- audit_zero_stubs: detect compound assignments (+=,++) -> fewer false positives
+
 ## v2026.06.13.11 -- 2026-06-13
 - PsyCross: PGXP coverage diagnostics
 - Fix map7_s01 astrology puzzle + JP-warning-screen (two zero-stubs)
