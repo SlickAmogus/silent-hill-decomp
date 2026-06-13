@@ -3637,12 +3637,15 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                            *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_2],
                            &r4);
 
-#ifndef SH_PC_PORT
+            /* PC: re-enabled — this backface cull was bypassed during the port,
+             * which let lit/transparent cutscene characters draw their back-face
+             * polys (face visible through the back of the head). The identical
+             * cull in the non-lit Gfx_MeshDraw path works correctly on PC, so
+             * the GTE NormalClip sign is right here too. */
             if (r4 <= 0)
             {
                 continue;
             }
-#endif
 
             *(s32*)&poly.gt3->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt3->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
@@ -3708,7 +3711,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             gte_nclip();
             gte_stopz(&sp4);
 
-#ifndef SH_PC_PORT
+            /* PC: re-enabled backface cull (see GT3 path above). */
             if (sp4 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
@@ -3720,7 +3723,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                     continue;
                 }
             }
-#endif
 
             *(s32*)&poly.gt4->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt4->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
