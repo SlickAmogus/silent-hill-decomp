@@ -172,3 +172,15 @@ __asm__(".global D_800EC614\n.set D_800EC614, D_800EC53C+432\n");
 __asm__(".global D_800EC680\n.set D_800EC680, D_800EC53C+648\n");
 __asm__(".global D_800EC6EC\n.set D_800EC6EC, D_800EC53C+864\n");
 
+/* The 3 boss-attack script entry points (func_800DA9F8 copies these into a
+ * local and assigns ptr->ptr_0 = D_800CAE30[arg1]). PSX rodata held
+ * { &D_800EC1B8[9], &D_800EC1B8[15], &D_800EC1B8[21] } (raw 0x800EC224/26C/2B4).
+ * Zero-stubbed it was 3 NULLs, so every spawned projectile got ptr_0 == NULL
+ * -> func_800D88E8 NULL-deref (incubus/incubator boss crash). This is the real
+ * producer; the func_800D947C/952C ptr_0 seeds only masked un-spawned entries. */
+void* D_800CAE30[3] = {
+    (void*)&D_800EC1B8[9],
+    (void*)&D_800EC1B8[15],
+    (void*)&D_800EC1B8[21],
+};
+
