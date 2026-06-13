@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.26 -- 2026-06-13
+- Add adsr console command + bump PsyCross (envelope on audio thread, default OFF)
+- Fix ending/credits crash: s32* iterator over char*[] read half-pointers (64-bit)
+- Add [AS] attack-timing diagnostic for Air Screamer hit delay
+
 ## v2026.06.13.25 -- 2026-06-13
 - Revert PsyCross ADSR: caused hard freezes + save-load hangs (deadlock)
 
