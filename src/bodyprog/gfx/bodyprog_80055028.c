@@ -3788,6 +3788,30 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
 #ifdef SH_PC_PORT
+            /* Diagnose the ending-arena magenta poles/floor: dump each distinct
+             * texture-page/CLUT combo used by map geometry once. A page that
+             * decodes to a CLUT-storage VRAM region (or wrong tp colormode) is
+             * the one sampling garbage (magenta). */
+            {
+                static u32 _mapTexSeen[96];
+                static int _mapTexN = 0;
+                u32 _clut = ((u32)*(s32*)&prim->field_0) >> 16;
+                u32 _tp   = ((u32)*(s32*)&prim->field_4) >> 16;
+                u32 _key  = (_clut << 16) | (_tp & 0xFFFF);
+                int _i, _found = 0;
+                for (_i = 0; _i < _mapTexN; _i++) { if (_mapTexSeen[_i] == _key) { _found = 1; break; } }
+                if (!_found && _mapTexN < 96) {
+                    _mapTexSeen[_mapTexN++] = _key;
+                    SH_DBG("[MAPTEX] GT4 clutXY=(%u,%u) tpageXY=(%u,%u) abr=%u tp=%u semi=%u raw_tp=0x%04x",
+                           (_clut & 0x3F) << 4, (_clut >> 6) & 0x1FF,
+                           (_tp & 0xF) * 64, ((_tp >> 4) & 1) * 256,
+                           (_tp >> 5) & 3, (_tp >> 7) & 3,
+                           (unsigned)((prim->field_6.flags >> 15) & 1), (unsigned)(_tp & 0xFFFF));
+                }
+            }
+#endif
+
+#ifdef SH_PC_PORT
             /* Encode per-vertex fog. PsyCross GT4 reads v0 fog from pad2,
              * v1<-p1, v2<-p2, v3<-p3. v0's color-word pad is the code byte,
              * so its fog rides in the unused pad2 short. */
