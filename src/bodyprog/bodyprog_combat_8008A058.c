@@ -1519,6 +1519,33 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* One hit per swing per target. The per-swing already-hit bitmask
+     * (sp14 & sp10, reset at swing start in func_8008A0E4) is computed
+     * above but PSX applied base damage unconditionally. At 30fps the
+     * active-hitbox window is only a couple frames so that read as a
+     * single hit; on PC the window spans the whole swing, so this
+     * re-applies damage AND the hurt SFX (e.g. PuppetNurse_DamageHandle
+     * plays it every frame damage>0) dozens of times — enemies die in one
+     * swing and the hit sound machine-guns. Skip re-application once this
+     * target is already marked hit this swing. Chainsaw/RockDrill are
+     * intentionally continuous-damage weapons and stay exempt. */
+    {
+        int _continuous =
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw,  AttackInputType_Tap)      ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw,  AttackInputType_Hold)     ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw,  AttackInputType_Multitap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap)       ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Hold)      ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Multitap);
+        if (target != &g_SysWork.playerWork.player && (sp14 & sp10) && !_continuous)
+        {
+            damageAmount = Q12(0.0f);
+            var_s7       = 0;
+        }
+    }
+#endif
+
     if (damageAmount != Q12(0.0f))
     {
         target->damage.amount += damageAmount;
