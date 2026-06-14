@@ -616,7 +616,12 @@ u8 D_800ECA50[256] = {0};
 u8 D_800ED218[8] = { 0x00, 28, 0x00, 0x00, 0xC0, 0x02, 0xD0, 0x01 }; /* tPage[0,28] clut(704,464) */
 u8 D_800ED220[8] = { 0x00, 29, 0x00, 0x00, 0xC0, 0x02, 0xE0, 0x01 }; /* tPage[0,29] clut(704,480) */
 u8 D_800ED228[8] = { 0x00, 30, 0x00, 0x00, 0xC0, 0x02, 0xF0, 0x01 }; /* tPage[0,30] clut(704,496) */
-u8 D_800ED230[256] = {0};
+/* map7_s03 ending: per-phase DMS header pointers (FS_BUFFER_20 / FS_BUFFER_18).
+ * Was a zero-stub (all NULL) -> the DMS redirect always used the single latest
+ * g_DmsHeapHeader, so the multi-phase ending got the wrong DMS = frozen/desynced
+ * characters. Real values are runtime FS buffer pointers; set in main_pc.c
+ * (Map7S03_CutsceneDmsPtrsInit) since PSX_ADDR is g_PsxRam-relative. */
+void* D_800ED230[2] = { 0, 0 };
 u8 D_800ED244[256] = {0};
 u8 D_800ED250[256] = {0};
 u8 D_800ED274[256] = {0};
