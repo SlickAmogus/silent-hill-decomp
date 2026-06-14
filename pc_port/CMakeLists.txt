@@ -160,6 +160,10 @@ if(WIN32)
     # location, so point it at res/ explicitly.
     set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I \"${CMAKE_SOURCE_DIR}/res\"")
     set(SH_APP_RESOURCES "${CMAKE_SOURCE_DIR}/res/app.rc")
+    # The .rc embeds app_icon.ico but the generator can't see that include, so
+    # editing only the .ico wouldn't trigger a recompile. Make it explicit.
+    set_source_files_properties(${SH_APP_RESOURCES} PROPERTIES
+        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/res/app_icon.ico")
 endif()
 
 add_executable(SilentHillPC
