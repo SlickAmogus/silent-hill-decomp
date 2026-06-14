@@ -152,12 +152,23 @@ file(GLOB_RECURSE PC_PORT_SOURCES
 # Exclude map overlay stub since we now compile map0_s00 which provides g_MapOverlayHeader
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
 
+# Windows: compile the .rc so the exe carries an application icon (Explorer,
+# taskbar, title bar). windres resolves the ICON path relative to the .rc dir.
+if(WIN32)
+    enable_language(RC)
+    # windres resolves the ICON path relative to its include dirs, not the .rc
+    # location, so point it at res/ explicitly.
+    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I \"${CMAKE_SOURCE_DIR}/res\"")
+    set(SH_APP_RESOURCES "${CMAKE_SOURCE_DIR}/res/app.rc")
+endif()
+
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
     ${MAIN_SOURCES}
     ${BODYPROG_SOURCES}
     ${SCREEN_SOURCES}
     ${MAP_SOURCES}
+    ${SH_APP_RESOURCES}
 )
 
 # Export symbols from the executable so map overlay DLLs can link against it.
