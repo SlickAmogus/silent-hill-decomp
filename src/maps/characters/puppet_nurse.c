@@ -6,6 +6,10 @@
 #include "maps/shared.h"
 #include "maps/characters/puppet_nurse.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 // TODO:
 // - Make this separate split in each map that uses it, instead of `#include`
 // - Move funcdecls/structs for these out of shared.h header.
@@ -187,6 +191,18 @@ void PuppetNurse_SfxPlay(s_SubCharacter* nurse, s32 idx)
 
     sfxPair = g_NursePuppetSfxs;
     idx0    = (nurseProps.field_124->idx_1C * 9) + idx;
+#ifdef SH_PC_PORT
+    /* Diagnose the "wrong/loud nurse damage sound": if this logs a tight
+     * burst of lines (call# jumping several per knife hit) the hurt SFX is
+     * machine-gunning (high-FPS retrigger). If it logs once per hit with the
+     * expected sfxId, the sample/playback itself is the issue. */
+    {
+        static s32 s_nurseSfxCall = 0;
+        SH_DBG("[NURSESFX] call=%d idx=%d idx_1C=%d idx0=%d sfxId=%d vol=%d dt=%d",
+               s_nurseSfxCall++, idx, (s32)nurseProps.field_124->idx_1C, idx0,
+               (s32)sfxPair[idx0].sfxId, (s32)sfxPair[idx0].vol, (s32)g_DeltaTime);
+    }
+#endif
     Sfx_WithFlagsPlay(sfxPair[idx0].sfxId, &nurse->position, sfxPair[idx0].vol, SfxFlag_None);
 }
 
