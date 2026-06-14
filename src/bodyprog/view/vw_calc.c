@@ -16,6 +16,9 @@ extern float g_PsxPixelAspect;
 #include "bodyprog/view/vw_calc.h"
 #include "bodyprog/view/vw_system.h"
 #include "bodyprog/math/math.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 // Reference view transform?
 MATRIX D_800C3868;
@@ -381,6 +384,22 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     GsCOORDINATE2* parentCoord;
     GsCOORDINATE2* curCoord;
 
+#ifdef SH_PC_PORT
+    /* A GsCOORDINATE2 chain link is either NULL (root) or a real pointer. A
+     * truncated/uninitialised PSX pointer shows up as ~0 / non-canonical and
+     * derefs to a wild read (the bad-ending crash: super == -1). Treat any
+     * non-canonical link as end-of-chain instead of crashing. */
+    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
+    if (!COORD_PTR_OK(rootCoord))
+    {
+        if (rootCoord != NULL) {
+            static int _badRootLogged = 0;
+            if (!_badRootLogged) { _badRootLogged = 1; SH_DBG("[COORD] non-canonical rootCoord=%p — identity", (void*)rootCoord); }
+        }
+        *transformMat = GsIDMATRIX;
+        return;
+    }
+#endif
     // If no root coord provided, set output matrix to identity.
     if (rootCoord == NULL)
     {
@@ -394,6 +413,14 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     while (true)
     {
         parentCoord = curCoord->super;
+#ifdef SH_PC_PORT
+        /* A non-canonical super (truncated/garbage) means "no parent" here. */
+        if (parentCoord != NULL && !COORD_PTR_OK(parentCoord)) {
+            static int _badSuperLogged = 0;
+            if (!_badSuperLogged) { _badSuperLogged = 1; SH_DBG("[COORD] non-canonical super=%p on coord=%p — treating as root", (void*)parentCoord, (void*)curCoord); }
+            parentCoord = NULL;
+        }
+#endif
 
         // Stop if node has already been processed.
         if (curCoord->flg)
@@ -423,6 +450,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
         do
         {
             prevCoord = curCoord->super;
+#ifdef SH_PC_PORT
+            if (!COORD_PTR_OK(prevCoord)) { prevCoord = NULL; }
+#endif
             curCoord->flg++; // Mark node as processed.
 
             // Compute cumulative transformation matrix.
@@ -442,6 +472,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
 
     // Set output.
     *transformMat = rootCoord->workm;
+#ifdef SH_PC_PORT
+    #undef COORD_PTR_OK
+#endif
 }
 
 void Vw_CoordToViewSpaceMatrix(GsCOORDINATE2* rootCoord, MATRIX* viewMat) // 0x80049AF8
