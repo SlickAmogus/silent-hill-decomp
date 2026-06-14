@@ -946,6 +946,18 @@ void func_800E3390(void) // 0x800E3390
      * auto-clears it). */
     extern int g_PsxSkipFramebufferStore;
     g_PsxSkipFramebufferStore = 1;
+
+    /* This ending uniquely loads its candle-pole textures + CLUTs into the
+     * (0,0) VRAM page (the geometry samples tpage(0,0)/clut(0,N) — confirmed
+     * by [MAPTEX]). That page overlaps the framebuffer region PsyX_EndScene
+     * stamps every frame, so the poles sample stomped pixels and render
+     * magenta. As with the paper-map screen, the skip flag is necessary but
+     * not sufficient, so force the loaded data from vram[] back into the GPU
+     * textures every frame, before the scene samples them. The region covers
+     * the (0,0) texture page and its CLUTs (all x<256, y<256). The near floor
+     * uses a separate page (768,256) and is unaffected. */
+    extern void GR_DirectUploadVRAMRegion(int x, int y, int w, int h);
+    GR_DirectUploadVRAMRegion(0, 0, 256, 256);
 #endif
 
     if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
