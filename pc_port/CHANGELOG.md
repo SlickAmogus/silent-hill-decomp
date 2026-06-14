@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.14.1 -- 2026-06-14
+- map7_s03 ending: stop crash + fix mid-scene CLUT corruption
+- Add application icon (Cheryl) to SilentHillPC.exe
+- Update app icon from revised source + track .ico as RC dependency
+
 ## v2026.06.13.30 -- 2026-06-13
 - Inventory: skip 3D item-preview stretch-correction when pillarboxed
 - Diag: log puppet-nurse hurt SFX to settle wrong-damage-sound report
