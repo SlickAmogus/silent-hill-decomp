@@ -311,6 +311,24 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
             g_WorldEnvWork.field_26 = (s16)((s32)g_WorldEnvWork.field_26 * g_PcWorldLightColorB / 255);
         }
     }
+    /* Diagnose the over-bright ending arena (PSX is dark; preset 18 has a low
+     * field_6 intensity + warm tint). Log each distinct lighting setup once:
+     * mode (field_0), raw tint, computed flat tint, ambient, brightness. */
+    {
+        static u32 _liSeen[64];
+        static int _liN = 0;
+        u32 _key = ((u32)(arg0 & 0xF) << 28) ^ ((u32)tintR << 8) ^ ((u32)(brightness & 0xFFF)) ^ ((u32)arg1 << 4);
+        int _i, _f = 0;
+        for (_i = 0; _i < _liN; _i++) { if (_liSeen[_i] == _key) { _f = 1; break; } }
+        if (!_f && _liN < 64) {
+            _liSeen[_liN++] = _key;
+            SH_DBG("[LIGHT] mode=%d intensity(f6)=%d rawTint=(%d,%d,%d) flatTint=(%d,%d,%d) ambient=(%d,%d,%d) bright=%d",
+                   (int)arg0, (int)arg1, (int)tintR, (int)tintG, (int)tintB,
+                   (int)g_WorldEnvWork.worldTintColor.r, (int)g_WorldEnvWork.worldTintColor.g, (int)g_WorldEnvWork.worldTintColor.b,
+                   (int)g_WorldEnvWork.field_24, (int)g_WorldEnvWork.field_25, (int)g_WorldEnvWork.field_26,
+                   (int)brightness);
+        }
+    }
 #endif
 }
 
