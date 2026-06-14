@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.14.2 -- 2026-06-14
+- Diag: dump distinct map-geometry texture-page/CLUT combos ([MAPTEX])
+- Fix ending-arena magenta poles: restore (0,0)-page textures each frame
+- Revert no-op (0,0) re-upload in ending handler
+- Diag: log world-lighting setup ([LIGHT]) to find ending over-brightness
+- Diag: one-shot VRAM dump during ending to inspect arena textures
+- Diag: per-object texture-page probe ([MT]) with screen-Y
+- Fix ending texture corruption: real cutscene chara texture descriptors
+
 ## v2026.06.14.1 -- 2026-06-14
 - map7_s03 ending: stop crash + fix mid-scene CLUT corruption
 - Add application icon (Cheryl) to SilentHillPC.exe
