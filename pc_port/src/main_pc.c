@@ -354,6 +354,17 @@ int main(int argc, char* argv[])
     extern void Map6S04ExtraAnimInfos_Init(void);
     Map6S04ExtraAnimInfos_Init();
 
+    /* map7_s03 ending DMS phase pointers: D_800ED230[phase] selects which FS
+     * buffer holds the active cutscene's reformatted DMS header. Was a zero-stub
+     * (NULL) which forced the DMS redirect onto the single latest g_DmsHeapHeader,
+     * desyncing the multi-phase ending. FS_BUFFER_* are g_PsxRam-relative so this
+     * must run after PsxMemory_Init (above). */
+    {
+        extern void* D_800ED230[2];
+        D_800ED230[0] = FS_BUFFER_20;
+        D_800ED230[1] = FS_BUFFER_18;
+    }
+
     /* Initialize overlay pointers to emulated PSX RAM */
 #if VERSION_IS(JAP0)
     g_OvlDynamic  = PSX_ADDR(0x000CBAA8);

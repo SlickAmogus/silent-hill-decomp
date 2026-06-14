@@ -21,9 +21,15 @@
 // ========================================
 
 #ifdef SH_PC_PORT
-/* Heap-backed DMS header that survives FS buffer overwrites (defined in dms_reformat.c) */
+/* Heap-backed DMS header that survives FS buffer overwrites (defined in dms_reformat.c).
+ * Dms_HeaderFixOffsets_PC also writes the reformatted header back into the FS
+ * buffer it processed, so a caller-supplied pointer to a reformatted buffer is
+ * itself valid. Only fall back to the single global when the passed pointer is
+ * null or not a loaded header — this lets the multi-DMS ending (map7_s03) use
+ * the correct per-phase buffer via D_800ED230[phase] instead of always getting
+ * whichever DMS was reformatted last (which froze/desynced the cutscene). */
 extern s_DmsHeader* g_DmsHeapHeader;
-#define DMS_HDR_REDIRECT(p) do { if (g_DmsHeapHeader) (p) = g_DmsHeapHeader; } while(0)
+#define DMS_HDR_REDIRECT(p) do { if ((!(p) || !((s_DmsHeader*)(p))->isLoaded) && g_DmsHeapHeader) (p) = g_DmsHeapHeader; } while(0)
 #else
 #define DMS_HDR_REDIRECT(p) ((void)0)
 #endif
