@@ -935,6 +935,19 @@ void func_800E3390(void) // 0x800E3390
 {
     s32 i;
 
+#ifdef SH_PC_PORT
+    /* This is the ending cutscene the player actually reaches (event param 2;
+     * func_800E3C48 is the alternate-ending sibling). It LoadImage's each
+     * NPC's CLUT into the VRAM display region as they appear, so with the
+     * framebuffer->VRAM store active every frame stamps the rendered frame
+     * over the freshly-loaded CLUTs -> Dahlia/Alessa textures corrupt
+     * mid-scene, magenta walls, wrong floor. Suppress the store while this
+     * event runs, like the paper-map path. Re-set each frame (PsyX_EndScene
+     * auto-clears it). */
+    extern int g_PsxSkipFramebufferStore;
+    g_PsxSkipFramebufferStore = 1;
+#endif
+
     if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         D_800F4805 > 0 && D_800F4805 < 4)
     {

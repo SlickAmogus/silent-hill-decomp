@@ -11,6 +11,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 extern u8 D_800AFD04;extern u8 D_800AFD05;extern bool (*D_800AFD08[])(s_SysWork_2514* arg0, s_func_8009ECCC* arg1, s_8002AC04* ptr, u32* arg3);
 
 // ========================================
@@ -103,6 +106,31 @@ s32 func_80089128(void) // 0x80089128
     temp_v0 = func_8009ED74(var_s2);
     var_s0  = func_8009ED7C(temp_v0);
 
+#ifdef SH_PC_PORT
+    /* The sentinel head_18 and every pool node live within a few MB of each
+     * other in the exe's data; a valid `next` is either the sentinel or that
+     * close. During the map7_s03 ending cutscene something stomps
+     * head_18.next_0 with a far half-pointer (e.g. 0x00007ff600000283 — ~1.6GB
+     * off), and walking it AVs in func_8009ED7C. Validate the head link; if
+     * corrupt, rebuild the list and skip this frame (vibration is non-critical,
+     * and func_800890B8 fully reinitialises it). Log once so the stomp source
+     * can still be traced. */
+    #define VIB_NODE_OK(n, ref) \
+        ((n) == (ref) || ((uintptr_t)((char*)(n) - (char*)(ref)) + 0x4000000u <= 0x8000000u))
+    if (!VIB_NODE_OK(var_s0, temp_v0))
+    {
+        static int _vibCorruptLogged = 0;
+        if (!_vibCorruptLogged) {
+            _vibCorruptLogged = 1;
+            SH_DBG("[VIB] corrupt vibration list: head.next=%p sentinel=%p — rebuilding",
+                   (void*)var_s0, (void*)temp_v0);
+        }
+        var_s2->field_0.field_0_16 = 0; /* force full re-init via the line-77 path next frame */
+        func_800890B8();
+        return 0;
+    }
+#endif
+
     if (!var_s2->field_0.field_0_17)
     {
         var_s3 = g_VBlanks;
@@ -117,6 +145,13 @@ s32 func_80089128(void) // 0x80089128
     for (; var_s0 != temp_v0; var_s5++)
     {
         temp_s1 = func_8009ED7C(var_s0);
+#ifdef SH_PC_PORT
+        if (!VIB_NODE_OK(temp_s1, temp_v0))
+        {
+            func_800890B8();
+            return var_s5;
+        }
+#endif
 
         if (!func_80089644(var_s2, var_s0, var_s6 & 0xFFFF, var_s3))
         {
@@ -125,6 +160,9 @@ s32 func_80089128(void) // 0x80089128
 
         var_s0 = temp_s1;
     }
+#ifdef SH_PC_PORT
+    #undef VIB_NODE_OK
+#endif
 
     func_8009E718(var_s2);
 
