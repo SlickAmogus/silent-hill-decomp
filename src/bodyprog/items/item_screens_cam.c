@@ -209,12 +209,22 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * Scale row-0 of the ls matrix (view-space X axis) and the X
          * translation by psxAspect/screenAspect so items appear with the
          * same proportions they had on the original 4:3 display.
-         * The 2D background is unaffected — it goes through a separate path. */
+         * The 2D background is unaffected — it goes through a separate path.
+         *
+         * Skip entirely when the inventory screen is pillarboxed: PsyCross
+         * then renders the 4:3 ortho into a centered 4:3 viewport, so there
+         * is NO horizontal stretch to undo — applying it here would squish
+         * the item preview. The inventory is a 2D screen (g_PcHorPlusEnabled
+         * forced to 0 by game_main.c), so pillarbox is active whenever
+         * g_PcMenuPillarbox is set. */
+        extern int g_PcHorPlusEnabled;
+        extern int g_PcMenuPillarbox;
+        int _pillarboxed = (!g_PcHorPlusEnabled && g_PcMenuPillarbox);
         int _sw, _sh;
         PsyX_GetScreenSize(&_sw, &_sh);
         float _dispAspect = (float)_sw / (float)_sh;
         float _psxAspect = 320.0f / 240.0f;
-        if (_dispAspect > _psxAspect) {
+        if (!_pillarboxed && _dispAspect > _psxAspect) {
             float _corr = _psxAspect / _dispAspect;
             int _j;
             for (_j = 0; _j < 3; _j++)
