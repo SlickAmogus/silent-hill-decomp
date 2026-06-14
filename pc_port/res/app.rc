@@ -1,0 +1,3 @@
+/* Windows executable icon. The lowest-numbered ICON resource is what Explorer,
+ * the taskbar, and the window title bar use for SilentHillPC.exe. */
+1 ICON "app_icon.ico"
