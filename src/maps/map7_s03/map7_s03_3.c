@@ -946,17 +946,6 @@ void func_800E3390(void) // 0x800E3390
      * auto-clears it). */
     extern int g_PsxSkipFramebufferStore;
     g_PsxSkipFramebufferStore = 1;
-
-    /* One-shot VRAM dump once the scene is up + textures loaded, so the arena's
-     * actual loaded textures/CLUTs can be inspected offline. */
-    {
-        static int s_vramDumped = 0;
-        if (!s_vramDumped && D_800F4805 >= 2) {
-            extern void GR_DumpVRAM(const char* path);
-            s_vramDumped = 1;
-            GR_DumpVRAM("arena_vram.bin");
-        }
-    }
 #endif
 
     if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&

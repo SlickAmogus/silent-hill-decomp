@@ -3788,27 +3788,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
 #ifdef SH_PC_PORT
-            /* Texture-correlation probe: each distinct (tpage,clut) once, tagged
-             * with the prim's avg screen Y so floor (high Y) vs poles/railing
-             * (low Y) can be told apart and matched against the VRAM dump. */
-            {
-                static u32 _mtSeen[128];
-                static int _mtN = 0;
-                u32 _clut = ((u32)*(s32*)&prim->field_0) >> 16;
-                u32 _tp   = ((u32)*(s32*)&prim->field_4) >> 16;
-                u32 _key  = (_clut << 16) | (_tp & 0xFFFF);
-                int _i, _f = 0;
-                for (_i = 0; _i < _mtN; _i++) { if (_mtSeen[_i] == _key) { _f = 1; break; } }
-                if (!_f && _mtN < 128) {
-                    s32 _y0 = (*(s32*)&poly.gt4->x0) >> 16, _y1 = (*(s32*)&poly.gt4->x1) >> 16;
-                    s32 _y2 = (*(s32*)&poly.gt4->x2) >> 16, _y3 = (*(s32*)&poly.gt4->x3) >> 16;
-                    _mtSeen[_mtN++] = _key;
-                    SH_DBG("[MT] tpage page=%u Y=%u abr=%u tp=%u clutXY=(%u,%u) semi=%u avgScrY=%d",
-                           (_tp & 0xF), ((_tp >> 4) & 1) * 256, (_tp >> 5) & 3, (_tp >> 7) & 3,
-                           (_clut & 0x3F) << 4, (_clut >> 6) & 0x1FF,
-                           (unsigned)((prim->field_6.flags >> 15) & 1), (int)((_y0 + _y1 + _y2 + _y3) / 4));
-                }
-            }
             /* Encode per-vertex fog. PsyCross GT4 reads v0 fog from pad2,
              * v1<-p1, v2<-p2, v3<-p3. v0's color-word pad is the code byte,
              * so its fog rides in the unused pad2 short. */
