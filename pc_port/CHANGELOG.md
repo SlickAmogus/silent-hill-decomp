@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.13.30 -- 2026-06-13
+- Inventory: skip 3D item-preview stretch-correction when pillarboxed
+- Diag: log puppet-nurse hurt SFX to settle wrong-damage-sound report
+- Melee: apply damage once per swing per target (fixes hurt-SFX machine-gun)
+
 ## v2026.06.13.29 -- 2026-06-13
 - Log boss-pool stomp (probe ending crash/corruption timing + cause)
 - Ending cutscene glitches: suppress framebuffer->VRAM store during map7_s03 ending
