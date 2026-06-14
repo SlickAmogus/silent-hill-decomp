@@ -311,24 +311,6 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
             g_WorldEnvWork.field_26 = (s16)((s32)g_WorldEnvWork.field_26 * g_PcWorldLightColorB / 255);
         }
     }
-    /* Diagnose the over-bright ending arena (PSX is dark; preset 18 has a low
-     * field_6 intensity + warm tint). Log each distinct lighting setup once:
-     * mode (field_0), raw tint, computed flat tint, ambient, brightness. */
-    {
-        static u32 _liSeen[64];
-        static int _liN = 0;
-        u32 _key = ((u32)(arg0 & 0xF) << 28) ^ ((u32)tintR << 8) ^ ((u32)(brightness & 0xFFF)) ^ ((u32)arg1 << 4);
-        int _i, _f = 0;
-        for (_i = 0; _i < _liN; _i++) { if (_liSeen[_i] == _key) { _f = 1; break; } }
-        if (!_f && _liN < 64) {
-            _liSeen[_liN++] = _key;
-            SH_DBG("[LIGHT] mode=%d intensity(f6)=%d rawTint=(%d,%d,%d) flatTint=(%d,%d,%d) ambient=(%d,%d,%d) bright=%d",
-                   (int)arg0, (int)arg1, (int)tintR, (int)tintG, (int)tintB,
-                   (int)g_WorldEnvWork.worldTintColor.r, (int)g_WorldEnvWork.worldTintColor.g, (int)g_WorldEnvWork.worldTintColor.b,
-                   (int)g_WorldEnvWork.field_24, (int)g_WorldEnvWork.field_25, (int)g_WorldEnvWork.field_26,
-                   (int)brightness);
-        }
-    }
 #endif
 }
 
@@ -3806,6 +3788,27 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             *(u16*)&poly.gt4->u3 = prim->field_A;
 
 #ifdef SH_PC_PORT
+            /* Texture-correlation probe: each distinct (tpage,clut) once, tagged
+             * with the prim's avg screen Y so floor (high Y) vs poles/railing
+             * (low Y) can be told apart and matched against the VRAM dump. */
+            {
+                static u32 _mtSeen[128];
+                static int _mtN = 0;
+                u32 _clut = ((u32)*(s32*)&prim->field_0) >> 16;
+                u32 _tp   = ((u32)*(s32*)&prim->field_4) >> 16;
+                u32 _key  = (_clut << 16) | (_tp & 0xFFFF);
+                int _i, _f = 0;
+                for (_i = 0; _i < _mtN; _i++) { if (_mtSeen[_i] == _key) { _f = 1; break; } }
+                if (!_f && _mtN < 128) {
+                    s32 _y0 = (*(s32*)&poly.gt4->x0) >> 16, _y1 = (*(s32*)&poly.gt4->x1) >> 16;
+                    s32 _y2 = (*(s32*)&poly.gt4->x2) >> 16, _y3 = (*(s32*)&poly.gt4->x3) >> 16;
+                    _mtSeen[_mtN++] = _key;
+                    SH_DBG("[MT] tpage page=%u Y=%u abr=%u tp=%u clutXY=(%u,%u) semi=%u avgScrY=%d",
+                           (_tp & 0xF), ((_tp >> 4) & 1) * 256, (_tp >> 5) & 3, (_tp >> 7) & 3,
+                           (_clut & 0x3F) << 4, (_clut >> 6) & 0x1FF,
+                           (unsigned)((prim->field_6.flags >> 15) & 1), (int)((_y0 + _y1 + _y2 + _y3) / 4));
+                }
+            }
             /* Encode per-vertex fog. PsyCross GT4 reads v0 fog from pad2,
              * v1<-p1, v2<-p2, v3<-p3. v0's color-word pad is the code byte,
              * so its fog rides in the unused pad2 short. */
