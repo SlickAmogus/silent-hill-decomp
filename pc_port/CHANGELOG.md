@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.14.3 -- 2026-06-14
+- Fix ending cutscene freeze/desync: per-phase DMS header selection
+
 ## v2026.06.14.2 -- 2026-06-14
 - Diag: dump distinct map-geometry texture-page/CLUT combos ([MAPTEX])
 - Fix ending-arena magenta poles: restore (0,0)-page textures each frame
