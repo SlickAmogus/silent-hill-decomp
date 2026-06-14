@@ -608,9 +608,14 @@ u8 D_800EC770[256] = {0};
 u8 D_800EC8C8[256] = {0};
 u8 D_800EC8FC[256] = {0};
 u8 D_800ECA50[256] = {0};
-u8 D_800ED218[256] = {0};
-u8 D_800ED220[256] = {0};
-u8 D_800ED228[256] = {0};
+/* map7_s03 ending cutscene character texture descriptors (s_FsImageDesc, 8B).
+ * Zero-stubbed -> all 3 chara slots loaded textures to VRAM (0,0), colliding
+ * with each other and the pole geometry that samples (0,0): wrong/swapping NPC
+ * textures + magenta poles. Real values extracted from MAP7_S03.BIN give each
+ * slot a distinct page. Layout: u8 tPage[2]; u8 u,v; s16 clutX,clutY (LE). */
+u8 D_800ED218[8] = { 0x00, 28, 0x00, 0x00, 0xC0, 0x02, 0xD0, 0x01 }; /* tPage[0,28] clut(704,464) */
+u8 D_800ED220[8] = { 0x00, 29, 0x00, 0x00, 0xC0, 0x02, 0xE0, 0x01 }; /* tPage[0,29] clut(704,480) */
+u8 D_800ED228[8] = { 0x00, 30, 0x00, 0x00, 0xC0, 0x02, 0xF0, 0x01 }; /* tPage[0,30] clut(704,496) */
 u8 D_800ED230[256] = {0};
 u8 D_800ED244[256] = {0};
 u8 D_800ED250[256] = {0};
