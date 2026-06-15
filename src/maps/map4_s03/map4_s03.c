@@ -1018,7 +1018,18 @@ void func_800D21AC(GsOT_TAG* ot, MATRIX* arg1, s32 arg2, s32 arg3) // 0x800D21AC
         var_s1 += 3;
     }
 
+#ifdef SH_PC_PORT
+    /* Clamp the OT bucket index — see func_800D2790. otz can drive the +25 fan past
+     * org[ORDERING_TABLE_SIZE] when the worm is near the camera, corrupting the OT. */
+    {
+        s32 _b = var_s4 >> 1;
+        if (_b < 0) _b = 0;
+        if (_b > ORDERING_TABLE_SIZE - 1 - 25) _b = ORDERING_TABLE_SIZE - 1 - 25;
+        temp_v0_3 = &ot[_b];
+    }
+#else
     temp_v0_3 = &ot[var_s4 >> 1];
+#endif
     ot1        = &temp_v0_3[25];
 
     poly = (POLY_GT4*)GsOUT_PACKET_P;
@@ -1237,7 +1248,22 @@ void func_800D2790(GsOT_TAG* arg0, MATRIX* arg1, s32 arg2, s32 arg3) // 0x800D27
         var_s1 += 3;
     }
 
+#ifdef SH_PC_PORT
+    /* Clamp the OT bucket index. var_s4 = otz (SZ3>>2) is not bounded against the
+     * org[ORDERING_TABLE_SIZE] array; when the worm erupts close to the camera the
+     * shifted index plus the +25/-25 segment fan can run past the table and addPrim
+     * writes prim data INTO the OT itself — truncated nextPtrs, black flicker, and
+     * stray geometry (bits of Harry) dropping. Same fix class as
+     * bodyprog_8005E0DC.c:1347; PSX geometry happens to stay in range, PC GTE does not. */
+    {
+        s32 _b = var_s4 >> 1;
+        if (_b < 0) _b = 0;
+        if (_b > ORDERING_TABLE_SIZE - 1 - 25) _b = ORDERING_TABLE_SIZE - 1 - 25;
+        temp_v0_3 = &arg0[_b];
+    }
+#else
     temp_v0_3 = &arg0[var_s4 >> 1];
+#endif
     ot        = &temp_v0_3[25];
 
     poly = (POLY_GT4*)GsOUT_PACKET_P;
