@@ -7,7 +7,15 @@ A zero-stub is a likely BUG if code READS/INDEXES/CALLS it without ever writing
 it (it expects real ROM data). It is likely FINE if code writes it before reading
 (runtime work/scratch var) — zero-init is correct there.
 
-Usage: python audit_zero_stubs.py   (prints ranked candidates)
+Usage:
+    python audit_zero_stubs.py              (rank ALL latent stubs, game-wide)
+    python audit_zero_stubs.py map4_s03     (only stubs referenced under that
+                                             path -> proactively clear one area)
+    python audit_zero_stubs.py map6_s 7_s03 (multiple path filters, OR'd)
+
+Pass any non-dash args as path substrings; only source files whose path contains
+one of them are scanned for references, so you get the zero-stubs THAT AREA uses
+(e.g. a boss arena or an ending map) instead of the whole game.
 """
 import re, sys, pathlib
 
@@ -15,6 +23,7 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 STUBS = REPO / "pc_port" / "src" / "stubs" / "data_stubs.c"
 EXTRACTED = REPO / "pc_port" / "build_gen" / "extracted_data"
 SRC_DIRS = [REPO / "src", REPO / "include"]
+FILTERS = [a for a in sys.argv[1:] if not a.startswith("-")]
 
 SYM = r"(?:D_|s_|g_|sharedData_|D_8|jtbl_)[A-Za-z0-9_]+"
 
@@ -38,21 +47,35 @@ for f in EXTRACTED.glob("*.c"):
     extracted |= defined_syms(f.read_text(errors="ignore"))
 latent = sorted(stubs - extracted)
 
-# Load all game source (exclude stubs file + extracted)
+# Load game source (exclude stubs file + extracted). With FILTERS, restrict to
+# files whose path contains one of the substrings -> per-area audit.
 files = []
 for d in SRC_DIRS:
     files += [p for p in d.rglob("*.c")] + [p for p in d.rglob("*.h")]
+if FILTERS:
+    files = [p for p in files if any(f in str(p).replace("\\", "/") for f in FILTERS)]
 blobs = {p: p.read_text(errors="ignore") for p in files}
 
-# Inverted index: symbol -> concatenated text of only the files that mention it.
+# Inverted index: symbol -> concatenated text of only the files that mention it,
+# plus the set of map names (from src/maps/<map>/...) that reference it.
 latent_set = set(latent)
 persym = {s: [] for s in latent_set}
+persym_maps = {s: set() for s in latent_set}
 tok = re.compile(r"\b(" + SYM + r")\b")
-for txt in blobs.values():
+map_re = re.compile(r"/maps/([^/]+)/")
+for p, txt in blobs.items():
     present = latent_set & set(tok.findall(txt))
+    mm = map_re.search(str(p).replace("\\", "/"))
+    mname = mm.group(1) if mm else "shared/bodyprog"
     for s in present:
         persym[s].append(txt)
+        persym_maps[s].add(mname)
 persym = {s: "\n".join(v) for s, v in persym.items()}
+
+# Pointer-bearing types can't be raw-extracted (PSX 32-bit pointers are invalid
+# on 64-bit) — they need a manual pointer-reformat/Init port, not extraction.
+def not_raw_extractable(decl):
+    return "*" in decl or "func" in decl.lower()
 
 def classify(sym):
     b = re.escape(sym)
@@ -64,6 +87,17 @@ def classify(sym):
     writes += len(re.findall(rf"(?:\+\+|--)\s*{b}\b", t))
     writes += len(re.findall(rf"\bmemset\s*\(\s*&?\s*{b}\b", t))   # memset(&X,..) inits it
     writes += len(re.findall(rf"\bmemcpy\s*\(\s*&?\s*{b}\b", t))
+    # Pointer-alias writes: `p = X;` / `p = &X[..];` then `p->f = ` / `p[i] = ` /
+    # `p++`. Array work structs (particles, segments) are iterated through such a
+    # local, so the symbol name itself looks "never written" — the #1 false
+    # positive that, if extracted, would stuff garbage rodata into work memory.
+    alias_w = 0
+    for am in re.finditer(rf"\b([A-Za-z_]\w*)\s*=\s*&?\s*{b}\b\s*(?:\[[^\]\n]*\])?\s*;", t):
+        p = re.escape(am.group(1))
+        alias_w += len(re.findall(rf"\b{p}\b(?:\s*\[[^\]\n]*\]|\s*->\s*[A-Za-z_]\w*|\s*\.\s*[A-Za-z_]\w*)+\s*(?:\+\+|--|[-+*/%&|^]?=(?!=))", t))
+        alias_w += len(re.findall(rf"(?:\+\+|--)\s*{p}\b|\b{p}\s*(?:\+\+|--)", t))
+        alias_w += len(re.findall(rf"\bmemset\s*\(\s*&?\s*{p}\b", t))
+    writes += alias_w
     addrof = len(re.findall(rf"&\s*{b}\b", t))
     calls  = len(re.findall(rf"\b{b}\s*\(", t))
     cmps   = len(re.findall(rf"(?:\b{b}\b\s*(?:==|!=|<|>|<=|>=))|(?:(?:==|!=|<|>|<=|>=)\s*{b}\b)", t))
@@ -109,7 +143,8 @@ for s in latent:
     rows.append((risk, s, refs, "; ".join(reasons), decl))
 
 rows.sort(key=lambda r: (-r[0], r[1]))
-print(f"latent zero-stubs: {len(latent)}  referenced-in-source: {len(rows)}\n")
+scope = f"  scope={FILTERS}" if FILTERS else "  scope=ALL"
+print(f"latent zero-stubs: {len(latent)}  referenced-in-source: {len(rows)}{scope}\n")
 buckets = {}
 for risk, s, refs, why, decl in rows:
     band = "HIGH(85+)" if risk >= 85 else "MED-HIGH(70-84)" if risk >= 70 else "MED(40-69)" if risk >= 40 else "LOW(<40)"
@@ -120,6 +155,9 @@ for band in ["HIGH(85+)", "MED-HIGH(70-84)", "MED(40-69)", "LOW(<40)"]:
     if band.startswith("LOW"):
         continue
     for s, risk, why, decl in items:
-        print(f"  [{risk}] {s}  {why}")
+        maps = ",".join(sorted(persym_maps.get(s, set()))) or "?"
+        flag = "  !! POINTER TYPE - needs reformat, NOT raw-extract" if not_raw_extractable(decl) else ""
+        print(f"  [{risk}] {s}  <{maps}>{flag}")
+        print(f"        {why}")
         if decl:
             print(f"        decl: {decl}")
