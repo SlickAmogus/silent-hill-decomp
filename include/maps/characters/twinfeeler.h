@@ -94,7 +94,16 @@ extern s_800E0698 D_800E0698;
 extern SVECTOR3 D_800DAE58;
 
 // Q19.12
+#ifdef SH_PC_PORT
+/* On PSX D_800E08F0 is the SAME VECTOR3 as D_800E0698.field_258 — the symbol
+ * sits at D_800E0698+0x258 (its last field). func_800D19CC writes the dust
+ * spawn position via D_800E08F0; func_800D1AFC reads it back as field_258. As
+ * separate 64-bit stubs that alias was lost (field_258 read OOB), so the worm's
+ * 5-particle dust bursts missed the burrow point. Restore the alias. */
+#define D_800E08F0 (D_800E0698.field_258)
+#else
 extern VECTOR3 D_800E08F0;
+#endif
 
 extern s32 D_800DAA58[];
 
