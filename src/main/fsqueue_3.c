@@ -526,8 +526,14 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
 
 #ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim entry: externalData=%p img.u=%u img.v=%u tPage=%u,%u clutX=%d clutY=%d\n",
-        entry->externalData, (unsigned)entry->extra.image.u, (unsigned)entry->extra.image.v,
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) {
+        char _fnm[16] = {0};
+        int _fidx = (entry->info >= &g_FileTable[0] && entry->info < &g_FileTable[FS_FILE_COUNT])
+                        ? (int)(entry->info - &g_FileTable[0]) : -1;
+        if (_fidx >= 0) Fs_GetFileInfoName(_fnm, entry->info);
+        fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim file=%d '%s' ss=0x%x img.u=%u img.v=%u tPage=%u,%u clutX=%d clutY=%d\n",
+        _fidx, _fnm, _fidx >= 0 ? (unsigned)entry->info->startSector : 0u,
+        (unsigned)entry->extra.image.u, (unsigned)entry->extra.image.v,
         (unsigned)entry->extra.image.tPage[0], (unsigned)entry->extra.image.tPage[1],
         (int)entry->extra.image.clutX, (int)entry->extra.image.clutY); fflush(g_ShDebugLog); } }
 #endif
