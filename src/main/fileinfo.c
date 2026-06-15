@@ -2,6 +2,8 @@
 
 #ifdef SH_PC_PORT
 #include <string.h> /* memcpy */
+#include "bodyprog/sound/sound_system.h" /* s_AudioItemData g_AudioData */
+#define AUDIO_DATA_COUNT 127
 #endif
 
 #define NAME_PART_CHARS  4
@@ -80,6 +82,29 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
                 g_FileTable[i].startSector = e->startSector;
                 g_FileTable[i].blockCount  = e->blockCount;
                 break;
+            }
+        }
+    }
+
+    /* The sound system seeks VAB/KDT (BGM/SFX) by absolute disc sector from its
+     * own table g_AudioData[].fileOffset_8 — a US-baked parallel to g_FileTable.
+     * Re-point each entry from its US sector to the active (EUR) sector of the
+     * same file so BGM/SFX load on PAL. (XA streaming uses g_FileXaLoc, already
+     * region-selected; its in-container offsets are identical since the HILL.
+     * archive is the same size on both discs.) */
+    {
+        extern s_AudioItemData g_AudioData[];
+        s32 a;
+        for (a = 0; a < AUDIO_DATA_COUNT; a++)
+        {
+            s32 us = g_AudioData[a].fileOffset_8;
+            for (j = 0; j < FS_FILE_COUNT; j++)
+            {
+                if ((s32)s_FileTable_USA[j].startSector == us)
+                {
+                    g_AudioData[a].fileOffset_8 = (s32)g_FileTable[j].startSector;
+                    break;
+                }
             }
         }
     }
