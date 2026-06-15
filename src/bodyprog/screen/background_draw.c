@@ -6,6 +6,10 @@
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 // ========================================
 // GLOBAL VARIABLES
 // ========================================
@@ -304,6 +308,28 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
     ot                 = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
     sprt               = (SPRT*)GsOUT_PACKET_P;
     interlacingEnabled = GsDISPENV.isinter;
+
+#ifdef SH_PC_PORT
+    /* Whole-screen black flicker (map4_s03 worm boss): this effect draws OPAQUE
+     * SPRTs sampling the framebuffer at VRAM Y = activeBufferIdx*256. If that
+     * region is black on one buffer parity, the screen blacks out every other
+     * frame. Read the region we are about to sample and log whether it holds a
+     * frame or is black, per buffer parity. Sparse + capped to avoid spam. */
+    {
+        extern void GR_ReadVRAM(unsigned short*, int, int, int, int);
+        static int _fbCall = 0, _fbN = 0;
+        if ((++_fbCall % 16) == 0 && _fbN < 48) {
+            unsigned short px[16];
+            int sy = (g_ActiveBufferIdx << 8) + 100;
+            int k, nz = 0;
+            GR_ReadVRAM(px, 80, sy, 16, 1);
+            for (k = 0; k < 16; k++) if (px[k]) nz++;
+            _fbN++;
+            SH_DBG("[FBFEED] buf=%d inter=%d sampleVRAM=(80,%d) nonzero=%d/16 px=0x%04x 0x%04x",
+                   g_ActiveBufferIdx, interlacingEnabled, sy, nz, px[0], px[8]);
+        }
+    }
+#endif
 
     for (i = 0; (i == 0 || (interlacingEnabled && i == 1)); i++)
     {
