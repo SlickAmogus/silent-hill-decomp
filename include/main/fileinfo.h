@@ -107,6 +107,24 @@ extern char* g_FileExts[];
  */
 extern u32 g_FileXaLoc[];
 
+#ifdef SH_PC_PORT
+/** @brief Game disc region. The PC port is a single executable that selects the
+ * file table / XA offsets at runtime from the disc it loads (US is canonical). */
+typedef enum _GameRegion
+{
+    Region_USA = 0,
+    Region_EUR = 1, /** PAL (SLES-01514). */
+} e_GameRegion;
+
+extern e_GameRegion g_GameRegion;
+
+/** @brief Populate g_FileTable and g_FileXaLoc for the detected disc region.
+ * g_FileTable keeps the US-canonical shape/indices so every FILE_* enum
+ * reference resolves unchanged; for EUR the actual disc sectors are filled in
+ * by matching each US file to its same-named EUR entry. */
+void Fs_InitFileTableForRegion(e_GameRegion region);
+#endif
+
 /** @brief Decrypts an encrypted overlay.
  *
  * The overlays in the `1ST` folder in the data archives are encrypted.
