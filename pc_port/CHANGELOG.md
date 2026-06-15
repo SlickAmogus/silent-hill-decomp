@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.15.2 -- 2026-06-15
+- Bump PsyCross: SetDrawStp/SetDrawOffset/SetPolyG3 (no-op prim-stub OT fix)
+- Fix map2_s00 street spawns: extract D_800F1CAC progression variants
+
 ## v2026.06.15.1 -- 2026-06-15
 - Diag: [FBFEED] probe ΓÇö is motion-blur sampling a black framebuffer?
 - Fix cult-TV cutscene crash: SetDrawStp was a no-op stub
