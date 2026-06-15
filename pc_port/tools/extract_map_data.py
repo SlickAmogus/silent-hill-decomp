@@ -228,6 +228,7 @@ TARGETS = {
     "D_800E9E1C":                       ("u8",  5),  # map7_s02 keypad puzzle solution
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
     "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
+    "D_800DAA58":                       ("s32", 4),  # map4_s03 twinfeeler dust/dirt color ramp
     "D_800D3C2C":                       ("u16", 15), # map6_s02 threshold table
     "D_800EA776":                       ("s16", 1),  # MonsterCybil keyframe triggers
     "D_800EA7D4":                       ("s16", 1),
@@ -309,6 +310,10 @@ EXTRA_SYMBOLS = {
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
     # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
     "map4_s03": [("D_800CA788", 0x800CA788, 8),
+                 # twinfeeler emerge dust/dirt color ramp, s32[256] (1024 B,
+                 # ends at D_800DAE58). func_800D0F40 indexes it 0..255; zero-stub
+                 # made every dust quad black (the dark grid on the floor).
+                 ("D_800DAA58", 0x800DAA58, 1024),
                  ("D_800DB210", 0x800DB210, 16),  # s_800DB210 twinfeeler bounding box (field_0/4/8/C); zero box -> boundary check always false
                  ("D_800DB92C", 0x800DB92C, 4),
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
