@@ -10,6 +10,9 @@
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/map4/map4_s03.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "maps/particle.h"
 #include "maps/characters/player.h"
 #include "maps/characters/twinfeeler.h"
@@ -4543,6 +4546,21 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
     POLY_FT4*       poly2;
 
     temp_fp = &D_800DB874[arg0->field_30];
+
+#ifdef SH_PC_PORT
+    {
+        static int _tvN = 0;
+        if (_tvN < 16) {
+            _tvN++;
+            SH_DBG("[TVSCR] cell idx=%d state=%d  D_800DB874[]: f0=0x%02x f4=%d f5=%d f6=%d f7=%d f8=%d f9=%d | base[0..3]=%02x %02x %02x %02x",
+                   (int)arg0->field_30, (int)arg0->field_20,
+                   (unsigned)temp_fp->field_0, (int)temp_fp->field_4, (int)temp_fp->field_5,
+                   (int)temp_fp->field_6, (int)temp_fp->field_7, (int)temp_fp->field_8, (int)temp_fp->field_9,
+                   ((unsigned char*)D_800DB874)[0], ((unsigned char*)D_800DB874)[1],
+                   ((unsigned char*)D_800DB874)[2], ((unsigned char*)D_800DB874)[3]);
+        }
+    }
+#endif
 
     spA8  = temp_fp->field_0 & 0x10;
     temp  = (temp_fp->field_0 & 0xF) | 0x20;
