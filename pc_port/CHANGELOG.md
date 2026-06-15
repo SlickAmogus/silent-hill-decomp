@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.15.1 -- 2026-06-15
+- Diag: [FBFEED] probe ΓÇö is motion-blur sampling a black framebuffer?
+- Fix cult-TV cutscene crash: SetDrawStp was a no-op stub
+- Fix SetDrawOffset no-op stub corrupting the OT (boss-fight [OT-SCAN])
+- Fix SetPolyG3 no-op stub (same garbage-OT-prim class)
+
 ## v2026.06.14.6 -- 2026-06-14
 - Diag: log TV screen data ([TVSCR]) to confirm D_800DB874 at runtime
 - Version resource: update per-commit (not per-build) to avoid needless relinks
