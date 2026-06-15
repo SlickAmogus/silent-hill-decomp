@@ -280,6 +280,13 @@ EXTRA_SYMBOLS = {
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
     "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
                  ("D_800D775C", 0x800D775C, 8)],
+    # map2_s00 progression-specific spawn variants. 3 variants x 32 s_SpawnInfo
+    # entries (12 B PSX layout) = 1152 B. func_800EE5D0 swaps the variant chosen
+    # by func_800EE518 (event flags 172/173/174/131/181) into charaSpawnInfos.
+    # Zero-stubbed -> the swap was skipped -> wrong street enemies (air screamers
+    # where the progression should spawn dogs). (D_800F1CA8 idx->state map is
+    # already auto-extracted.)
+    "map2_s00": [("D_800F1CAC", 0x800F1CAC, 1152)],
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44),
                  ("D_800CB0CC", 0x800CB0CC, 12)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
