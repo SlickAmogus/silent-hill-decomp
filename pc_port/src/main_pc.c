@@ -598,6 +598,10 @@ int main(int argc, char* argv[])
         }
     }
 
+    /* Region-specific data tweaks now that g_GameRegion is known (e.g. PAL's
+     * Grey-Child -> Mumbler model swap). */
+    { extern void CharaData_ApplyRegionPatches(void); CharaData_ApplyRegionPatches(); }
+
     CdInit();
 
     /* Initialize GPU */
