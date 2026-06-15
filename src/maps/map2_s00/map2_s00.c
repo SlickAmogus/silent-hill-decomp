@@ -2685,17 +2685,27 @@ void func_800EE5D0(void) // 0x800EE5D0
 
     idx = func_800EE518();
 #ifdef SH_PC_PORT
-    /* PC: D_800F1CAC is stubbed in pc_port/src/stubs/data_stubs.c as
-     * `u8[256] = {0}`. The header declares it as s_MapPoint2d[3][32]
-     * (768 bytes total). The DLL compiles with the header type, so
-     * sizeof(D_800F1CAC[idx]) = 32 * sizeof(s_MapPoint2d) = 256, and the
-     * memcpy writes 256 zero bytes over the start of charaSpawnInfos —
-     * wiping the first ~21 spawn slots that the header initializer set
-     * up via chara_spawns.h. Result: street enemies don't spawn because
-     * their spawn data was just zeroed. Skip the memcpy so the header's
-     * chara_spawns.h defaults stay intact. The progression-specific
-     * spawn variants (D_800F1CAC[0..2]) aren't decompiled yet — TODO:
-     * extract them from disc_extract/VIN/MAP2_S00.BIN like AS rodata. */
+    /* The raw memcpy doesn't work on PC: D_800F1CAC holds PSX-packed 12-byte
+     * s_SpawnInfo entries, but charaSpawnInfos is the 16-byte-on-MinGW
+     * s_SpawnInfo (the gameDifficultyMin s32:4 bitfield widens the struct).
+     * A byte-for-byte copy would land every entry misaligned. Reformat the
+     * selected variant's 32 entries field-by-field instead. D_800F1CAC is
+     * provided byte-exact by the map2_s00 extracted data. */
+    {
+        const u8*    src = (const u8*)D_800F1CAC + (idx * 32 * 12);
+        s_SpawnInfo* dst = (s_SpawnInfo*)g_MapOverlayHdr.charaSpawnInfos; /* flat [2][16] */
+        s32          e;
+        for (e = 0; e < 32; e++)
+        {
+            const u8* s = src + (e * 12);
+            dst[e].positionX         = *(const s32*)(s + 0);
+            dst[e].charaId           = (s8)s[4];
+            dst[e].rotationY         = s[5];
+            dst[e].flags             = (s8)s[6];
+            dst[e].gameDifficultyMin = s[7] & 0xF;
+            dst[e].positionZ         = *(const s32*)(s + 8);
+        }
+    }
     g_SavegamePtr->ovlEnemyStates[10] = g_SavegamePtr->ovlEnemyStates[idx];
     return;
 #else

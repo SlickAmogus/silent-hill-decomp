@@ -566,7 +566,8 @@ u8 D_800F159C[256] = {0};
 u8 D_800F159D[256] = {0};
 u8 D_800F15A0[256] = {0};
 u8 D_800F1A24[256] = {0};
-u8 D_800F1CAC[256] = {0};
+/* D_800F1CAC: real map2_s00 spawn variants provided by map2_s00 extracted data
+ * (1152 B, 3 x 32 s_SpawnInfo). Zero-stub broke progression street spawns. */
 u8 D_800F228C[256] = {0};
 u8 D_800F228E[256] = {0};
 u8 D_800F2295[256] = {0};
