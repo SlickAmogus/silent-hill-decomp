@@ -229,6 +229,11 @@ TARGETS = {
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
     "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
     "D_800DAA58":                       ("s32", 4),  # map4_s03 twinfeeler dust/dirt color ramp
+    "D_800DB1D8":                       ("s16", 2),  # map4_s03 twinfeeler bone scale per stateStep
+    "D_800DB1E0":                       ("s16", 2),  # map4_s03 twinfeeler Y positions (emerge depth)
+    "D_800DB1E8":                       ("s16", 2),  # map4_s03 twinfeeler X rotations
+    "D_800DB1F0":                       ("s16", 2),  # map4_s03 twinfeeler Y rotations
+    "D_800DB1F8":                       ("u16", 2),  # map4_s03 twinfeeler sfx table (s_SfxVolume[6])
     "D_800D3C2C":                       ("u16", 15), # map6_s02 threshold table
     "D_800EA776":                       ("s16", 1),  # MonsterCybil keyframe triggers
     "D_800EA7D4":                       ("s16", 1),
@@ -314,6 +319,16 @@ EXTRA_SYMBOLS = {
                  # ends at D_800DAE58). func_800D0F40 indexes it 0..255; zero-stub
                  # made every dust quad black (the dark grid on the floor).
                  ("D_800DAA58", 0x800DAA58, 1024),
+                 # twinfeeler emerge tables, indexed by stateStep. All were zero
+                 # stubs: D_800DB1E0 (Y positions) zeroed = worm never sinks
+                 # underground (body stays exposed); D_800DB1F8 (sfx id+vol)
+                 # zeroed = every anim sound event played id 0 at vol 0 (=full,
+                 # attenuation) = looping squish.
+                 ("D_800DB1D8", 0x800DB1D8, 8),
+                 ("D_800DB1E0", 0x800DB1E0, 8),
+                 ("D_800DB1E8", 0x800DB1E8, 8),
+                 ("D_800DB1F0", 0x800DB1F0, 8),
+                 ("D_800DB1F8", 0x800DB1F8, 24),
                  ("D_800DB210", 0x800DB210, 16),  # s_800DB210 twinfeeler bounding box (field_0/4/8/C); zero box -> boundary check always false
                  ("D_800DB92C", 0x800DB92C, 4),
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
