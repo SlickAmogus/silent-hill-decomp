@@ -293,16 +293,7 @@ void DebugCamera_Update(void)
         prevKey = cur;
     }
 
-    /* Number key 1: kill Harry (triggers death animation) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_1];
-        if (cur && !prevKey) {
-            g_SysWork.playerWork.player.health = -Q12(1.0f);
-            SH_DBG_ECHO("[DEBUG] Key 1: KILL HARRY (health set to -1.0)");
-        }
-        prevKey = cur;
-    }
+    /* Kill Harry moved to the `kill` console command (was number key 1). */
     /* Number keys 4/5: cycle the `map` config value (4 = previous, 5 = next,
      * wrapping). Prints the new map + description and saves it to config.cfg so
      * a warm-reset (Esc) + New Game loads the chosen map. */

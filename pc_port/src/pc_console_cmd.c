@@ -154,6 +154,7 @@ static const char* const HELP_LINES[] = {
     " map            list all map names",
     " map <name>     new-game warp to a map",
     " give <thing>   HANDGUN RIFLE SHOTGUN AMMO HEALTH",
+    " kill           kill Harry (death animation)",
     " noclip         walk through walls (floor stays on)",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
@@ -164,7 +165,6 @@ static const char* const DEBUG_PAGE1[] = {
     "Debug keys (page 1/2) - cheats & tools:",
     " Esc     warm reset to the title screen",
     " 0       noclip toggle (walk through walls)",
-    " 1       kill Harry",
     " 4 / 5   map config prev / next (loads on New Game)",
     " 6       spawn Grey Child in front of Harry",
     " 7       invincibility toggle",
@@ -324,6 +324,9 @@ void Pc_ConsoleExec(const char* line)
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
         cmd_give(arg);
+    } else if (strcmp(cmd, "KILL") == 0) {
+        g_SysWork.playerWork.player.health = -Q12(1.0f);
+        cprintf("killed Harry");
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
