@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.15.4 -- 2026-06-15
+- Twinfeeler: extract real dust/dirt color ramp (D_800DAA58)
+- Twinfeeler: extract emerge tables (Y-pos sink + sfx loop fixes)
+- Debug: move kill-Harry from number-1 key to `kill` console command
+
 ## v2026.06.15.3 -- 2026-06-15
 - Remove [FBFEED] probe; boss flicker addressed by SetDrawStp/SetDrawOffset OT fix
 - PAL/EUR: generate filetable.c.EUR.inc + fileenum.h.EUR.inc (2310 files)
