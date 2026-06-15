@@ -2111,6 +2111,15 @@ bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
     {
         s32 dx = (s32)chunk->cellX - map->cellX;
         s32 dz = (s32)chunk->cellZ - map->cellZ;
+        /* Single-cell boss arenas (map1_s05 school, map7_s03 final): the open
+         * arena is the player's cell; neighbor cells are different rooms that
+         * the wide window would draw far across the room. Draw exact-cell like
+         * PSX — the frustum cull still handles this cell's edge triangles. */
+        extern int MapRegistry_IsExactCellArena(void);
+        if (!map->isExterior && MapRegistry_IsExactCellArena())
+        {
+            return dx == 0 && dz == 0;
+        }
         if (dx >= -2 && dx <= 2 && dz >= -1 && dz <= 1) return true;
     }
 #else
