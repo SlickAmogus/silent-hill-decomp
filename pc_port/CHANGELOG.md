@@ -1,5 +1,13 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.14.5 -- 2026-06-14
+- Stop distant rooms showing in single-cell boss arenas (exact-cell draw)
+- Fix exe zero-stubs shadowing maps' extracted data (TVs, OT crash, +others)
+- Add Win32 version metadata to the exe (auto-updating File Version)
+
+## v2026.06.14.4 -- 2026-06-14
+- Guard coord-hierarchy walk against non-canonical (truncated) links
+
 ## v2026.06.14.3 -- 2026-06-14
 - Fix ending cutscene freeze/desync: per-phase DMS header selection
 
