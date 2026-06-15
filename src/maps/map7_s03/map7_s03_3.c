@@ -12,6 +12,20 @@
 #include "main/rng.h"
 #include "maps/map7/map7_s03.h"
 #include "maps/characters/alessa.h"
+
+#ifdef SH_PC_PORT
+/* Cross-map symbol-name collision: the decomp names data by VRAM address, and
+ * the overlays all load to the same region — so D_800ED740 / D_800ED8B0 are
+ * shared NAMES that mean different things per map (here: an s32 RNG-state and a
+ * runtime pointer table; in map4_s02/map6_s04 they are real extracted tables).
+ * map7_s03 has no extracted copy and previously read the exe zero-stub. Now
+ * that the exe stub is removed (so map4_s02/map6_s04 use their own extracted
+ * data instead of the stub shadowing it), define map7_s03's own zero-init
+ * copies locally in this DLL — matching the prior behaviour without shadowing
+ * the other maps. */
+s32             D_800ED740 = 0;
+s_800ED7E0_ptr* D_800ED8B0[32] = { 0 };
+#endif
 #include "maps/characters/bloody_incubator.h"
 #include "maps/characters/bloody_lisa.h"
 #include "maps/characters/cybil.h"
