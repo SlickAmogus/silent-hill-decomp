@@ -158,12 +158,15 @@ if(WIN32)
     enable_language(RC)
     # windres resolves the ICON path relative to its include dirs, not the .rc
     # location, so point it at res/ explicitly.
-    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I \"${CMAKE_SOURCE_DIR}/res\"")
+    # res/ for the icon; binary dir for the generated sh_version.h.
+    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I \"${CMAKE_SOURCE_DIR}/res\" -I \"${CMAKE_BINARY_DIR}\"")
     set(SH_APP_RESOURCES "${CMAKE_SOURCE_DIR}/res/app.rc")
-    # The .rc embeds app_icon.ico but the generator can't see that include, so
-    # editing only the .ico wouldn't trigger a recompile. Make it explicit.
+    # The .rc embeds app_icon.ico and includes the generated sh_version.h;
+    # neither is visible to the generator's dep scan, so list them explicitly.
+    # sh_version.h is rewritten every build, so the version resource (and only
+    # the resource) recompiles each build.
     set_source_files_properties(${SH_APP_RESOURCES} PROPERTIES
-        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/res/app_icon.ico")
+        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/res/app_icon.ico;${CMAKE_BINARY_DIR}/sh_version.h")
 endif()
 
 add_executable(SilentHillPC
@@ -219,10 +222,11 @@ endif()
 add_custom_target(gen_build_info ALL
     COMMAND ${CMAKE_COMMAND}
         -DOUT_FILE=${CMAKE_BINARY_DIR}/sh_build_info.h
+        -DVER_FILE=${CMAKE_BINARY_DIR}/sh_version.h
         -DGIT_DIR=${DECOMP_DIR}
         -P ${CMAKE_SOURCE_DIR}/cmake/gen_build_info.cmake
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/sh_build_info.h
-    COMMENT "Generating sh_build_info.h"
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/sh_build_info.h ${CMAKE_BINARY_DIR}/sh_version.h
+    COMMENT "Generating sh_build_info.h + sh_version.h"
 )
 add_dependencies(SilentHillPC gen_build_info)
 target_include_directories(SilentHillPC PRIVATE ${CMAKE_BINARY_DIR})
