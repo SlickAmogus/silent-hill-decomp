@@ -234,6 +234,20 @@ TARGETS = {
     "D_800DB1E8":                       ("s16", 2),  # map4_s03 twinfeeler X rotations
     "D_800DB1F0":                       ("s16", 2),  # map4_s03 twinfeeler Y rotations
     "D_800DB1F8":                       ("u16", 2),  # map4_s03 twinfeeler sfx table (s_SfxVolume[6])
+    # map4_s03 twinfeeler remaining ROM tables (audit_zero_stubs MED-HIGH)
+    "D_800DAA44":                       ("s32", 4),  # dust scalar multipliers
+    "D_800DAA48":                       ("s32", 4),
+    "D_800DAA4C":                       ("s32", 4),
+    "D_800DAA50":                       ("s32", 4),
+    "D_800DAA54":                       ("s32", 4),
+    "D_800DAE68":                       ("u8",  1),  # body GT4 quad vertex-index table
+    "D_800DAE80":                       ("u8",  1),  # body GT4 quad vertex-index table
+    "D_800DB190":                       ("u8",  1),  # anim-status lookup
+    "D_800DB1A8":                       ("u8",  1),  # 5-col bitmask grid
+    "D_800DB220":                       ("u8",  1),
+    "D_800DB27C":                       ("s32", 4),  # lookup table
+    "D_800DB2FC":                       ("s32", 4),  # lookup table
+    "D_800DB3A0":                       ("u8",  1),  # skeleton bone-index table
     "D_800D3C2C":                       ("u16", 15), # map6_s02 threshold table
     "D_800EA776":                       ("s16", 1),  # MonsterCybil keyframe triggers
     "D_800EA7D4":                       ("s16", 1),
@@ -329,6 +343,14 @@ EXTRA_SYMBOLS = {
                  ("D_800DB1E8", 0x800DB1E8, 8),
                  ("D_800DB1F0", 0x800DB1F0, 8),
                  ("D_800DB1F8", 0x800DB1F8, 24),
+                 # remaining twinfeeler ROM tables (sizes = next-symbol delta)
+                 ("D_800DAA44", 0x800DAA44, 4), ("D_800DAA48", 0x800DAA48, 4),
+                 ("D_800DAA4C", 0x800DAA4C, 4), ("D_800DAA50", 0x800DAA50, 4),
+                 ("D_800DAA54", 0x800DAA54, 4),
+                 ("D_800DAE68", 0x800DAE68, 16), ("D_800DAE80", 0x800DAE80, 16),
+                 ("D_800DB190", 0x800DB190, 24), ("D_800DB1A8", 0x800DB1A8, 48),
+                 ("D_800DB220", 0x800DB220, 24), ("D_800DB27C", 0x800DB27C, 128),
+                 ("D_800DB2FC", 0x800DB2FC, 164), ("D_800DB3A0", 0x800DB3A0, 4),
                  ("D_800DB210", 0x800DB210, 16),  # s_800DB210 twinfeeler bounding box (field_0/4/8/C); zero box -> boundary check always false
                  ("D_800DB92C", 0x800DB92C, 4),
                  ("D_800DB7C8", 0x800DB7C8, 0xC),   # WorldGfx object ref for TV sign
