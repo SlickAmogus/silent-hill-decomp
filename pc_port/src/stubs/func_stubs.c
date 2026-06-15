@@ -93,7 +93,6 @@ void gte_stsxy3c() { }
 void gte_stsz3c() { }
 void OuterProduct12() { }
 void SetMulRotMatrix(MATRIX* m) { (void)m; }
-void SetPolyG3(POLY_G3* p) { (void)p; }
 VECTOR* Square0(VECTOR* v0, VECTOR* v1) {
     v1->vx = v0->vx * v0->vx;
     v1->vy = v0->vy * v0->vy;
