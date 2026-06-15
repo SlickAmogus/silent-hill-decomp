@@ -10,6 +10,22 @@
  */
 s_MapOverlayHdr* g_pMapOverlayHeader = NULL;
 
+/* Currently loaded overlay area (set in MapRegistry_Load). Used by the chunk
+ * renderer to special-case specific areas. */
+e_MapIdx g_CurrentMapIdx = MapIdx_MAP0_S00;
+
+/* Single-cell interior boss arenas: open rooms whose neighbor cells are
+ * different rooms, so the PC's widened +-2/+-1 interior draw window renders
+ * those distant rooms across the open arena. Draw exact-cell (PSX behavior)
+ * for these instead. The arena's own geometry is in the player's cell and the
+ * frustum cull still handles its edge triangles, so this does NOT reintroduce
+ * the widescreen side-void (a separate, already-fixed system). */
+int MapRegistry_IsExactCellArena(void)
+{
+    return g_CurrentMapIdx == MapIdx_MAP1_S05 || /* Midwich school - otherworld (school boss) */
+           g_CurrentMapIdx == MapIdx_MAP7_S03;   /* Nowhere - final boss arena */
+}
+
 /* The fully-compiled map0_s00 header (renamed via -DSH_MAP_NAME=map0_s00). */
 extern s_MapOverlayHdr g_MapOverlayHeader_map0_s00;
 
@@ -205,6 +221,8 @@ void MapRegistry_Load(e_MapIdx id)
         fprintf(stderr, "[MapRegistry] Invalid overlay ID %d\n", id);
         return;
     }
+
+    g_CurrentMapIdx = id;
 
     /* Try loading the map overlay DLL first. */
     header = MapOverlay_Load(id);
