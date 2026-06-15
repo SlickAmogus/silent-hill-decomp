@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.14.6 -- 2026-06-14
+- Diag: log TV screen data ([TVSCR]) to confirm D_800DB874 at runtime
+- Version resource: update per-commit (not per-build) to avoid needless relinks
+- Diag: read off-screen TV texel+CLUT from VRAM ([TVSCR2])
+- Fix mall TV screens empty when off: restore D_800DB91C clutX=448
+
 ## v2026.06.14.5 -- 2026-06-14
 - Stop distant rooms showing in single-cell boss arenas (exact-cell draw)
 - Fix exe zero-stubs shadowing maps' extracted data (TVs, OT crash, +others)
