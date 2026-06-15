@@ -326,7 +326,11 @@ s32 func_800D0F40(s32 arg0, s32 arg1, s32 arg2) // 0x800D0F40
     return D_800DAA58[index];
 }
 
+#ifdef SH_PC_PORT
+void func_800D0FD4(GsOT_TAG* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 abr) // 0x800D0FD4
+#else
 void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 abr) // 0x800D0FD4
+#endif
 {
     SVECTOR   vtx = { 0 };
     s32       sxy;
@@ -339,7 +343,11 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
     s32       p;
     s32       flag;
     s32       col;
+#ifdef SH_PC_PORT
+    GsOT_TAG* ot;
+#else
     s32*      ot;
+#endif
     s32       depth;
     s16       sxy_l;
     s16       sxy_h;
@@ -366,7 +374,20 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
     }
 
     packet = GsOUT_PACKET_P;
+#ifdef SH_PC_PORT
+    /* PSX OT_TAG was 4 bytes (s32), so `&ord[sz>>1]` strode correctly; on 64-bit
+     * GsOT_TAG is 12 bytes, so indexing as s32* landed mid-bucket and addPrim
+     * stomped the OT chain (worm-emerge black flicker / dropped meshes). Index at
+     * the real bucket stride and clamp otz into the org[ORDERING_TABLE_SIZE] range. */
+    {
+        s32 _b = sz >> 1;
+        if (_b < 0) _b = 0;
+        if (_b > ORDERING_TABLE_SIZE - 1) _b = ORDERING_TABLE_SIZE - 1;
+        ot = &ord[_b];
+    }
+#else
     ot  = &ord[sz >> 1];
+#endif
 
     sxy_l = sxy;
     sxy_h = sxy >> 16;
@@ -828,7 +849,17 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     setPolyFT4(poly2);
     setSemiTrans(poly2, true);
 
+#ifdef SH_PC_PORT
+    /* Clamp otz-derived OT bucket (+25 fan) into org[ORDERING_TABLE_SIZE]. */
+    {
+        s32 _b = (s32)(temp_a1 >> 1);
+        if (_b < 0) _b = 0;
+        if (_b > ORDERING_TABLE_SIZE - 1 - 25) _b = ORDERING_TABLE_SIZE - 1 - 25;
+        temp_a1_2 = &tag[_b];
+    }
+#else
     temp_a1_2 = &tag[temp_a1 >> 1];
+#endif
     addPrim(&temp_a1_2[25], poly2);
 
     poly = poly2 + 1;
@@ -850,7 +881,17 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     setPolyFT4(poly);
     setSemiTrans(poly, true);
 
+#ifdef SH_PC_PORT
+    /* Clamp otz-derived OT bucket (+25 fan) into org[ORDERING_TABLE_SIZE]. */
+    {
+        s32 _b = (s32)(temp_a1 >> 1);
+        if (_b < 0) _b = 0;
+        if (_b > ORDERING_TABLE_SIZE - 1 - 25) _b = ORDERING_TABLE_SIZE - 1 - 25;
+        temp_a1_2 = &tag[_b];
+    }
+#else
     temp_a1_2 = &tag[temp_a1 >> 1];
+#endif
     addPrim(&temp_a1_2[25], poly);
 
     poly++;

@@ -149,7 +149,11 @@ void func_800D0EC0(u8* buf, s32 w, s32 h);
 
 s32 func_800D0F40(s32 arg0, s32 arg1, s32 arg2);
 
+#ifdef SH_PC_PORT
+void func_800D0FD4(GsOT_TAG* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 abr);
+#else
 void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7, s32 abr);
+#endif
 
 void func_800D13B4(u8* arg0, s32 arg1, s32 arg2, s32 arg3);
 
