@@ -216,7 +216,9 @@ u8 D_800DAA48[256] = {0};
 u8 D_800DAA4C[256] = {0};
 u8 D_800DAA50[256] = {0};
 u8 D_800DAA54[256] = {0};
-u8 D_800DAA58[256] = {0};
+/* D_800DAA58 (twinfeeler dust/dirt color ramp, s32[256]) now defined with real
+ * binary-extracted values in map4_s03_extracted_data.c. The exe zero-stub here
+ * would shadow the DLL copy under --export-all-symbols (= black dust grid). */
 u8 D_800DAAD0[256] = {0};
 u8 D_800DAAE4[256] = {0};
 u8 D_800DAAF8[256] = {0};
