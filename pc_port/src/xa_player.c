@@ -11,6 +11,7 @@
 
 /* Resolved from main_pc.c (where -data sets it). */
 extern const char* PcPort_GetGameDataPath(void);
+extern const char* PcPort_GetGameDiscPath(void);
 
 /* BIN/CUE disc image sector geometry. Each "raw" sector on a PSX BIN/CUE
  * image is 2352 bytes:
@@ -61,9 +62,10 @@ static FILE* s_BinFile = NULL;
 static int EnsureBinOpen(void) {
     if (s_BinFile) return 1;
 
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/Silent Hill (USA).bin",
-             PcPort_GetGameDataPath());
+    /* Same disc image main_pc resolved (US or PAL), so XA sector reads line up
+     * with the region's g_FileTable / g_FileXaLoc offsets. */
+    const char* path = PcPort_GetGameDiscPath();
+    if (!path[0]) return 0;
 
     s_BinFile = fopen(path, "rb");
     if (!s_BinFile) {

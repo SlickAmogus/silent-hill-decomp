@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -21,6 +22,7 @@
 #include "pc_config.h"
 #include "map_registry.h"
 #include "main/fsqueue.h"
+#include "main/fileinfo.h"
 #include "bodyprog/bodyprog.h"
 #include "maps/shared/SysWork_StateStepIncrementAfterTime.h"
 
@@ -141,6 +143,117 @@ static char g_GameDataPath[512] = "./gamedata";
 const char* PcPort_GetGameDataPath(void)
 {
     return g_GameDataPath;
+}
+
+/* Resolved disc image path (cached) and its region. The PC port is a single
+ * executable that supports multiple disc regions; the active file table / XA
+ * offsets are chosen here from whichever disc is present. */
+static char g_GameDiscPath[1024] = { 0 };
+static int  g_DiscResolved       = 0;
+
+/* Read the boot executable name (SLUS_* / SLES_*) from a BIN's ISO9660 root
+ * directory to identify the region. Returns Region_USA / Region_EUR, or -1. */
+static int Pc_DetectRegionFromBin(const char* path)
+{
+    FILE*         f = fopen(path, "rb");
+    unsigned char sec[2048];
+    unsigned int  rlba;
+    unsigned      o;
+    int           region = -1;
+
+    if (!f)
+        return -1;
+
+    /* PVD at LBA 16 (raw 2352-byte sectors; 2048 data bytes at offset 24). */
+    fseek(f, 16 * 2352 + 24, SEEK_SET);
+    if (fread(sec, 1, 2048, f) != 2048) { fclose(f); return -1; }
+    rlba = sec[156 + 2] | (sec[156 + 3] << 8) | (sec[156 + 4] << 16) | ((unsigned)sec[156 + 5] << 24);
+
+    fseek(f, (long)rlba * 2352 + 24, SEEK_SET);
+    if (fread(sec, 1, 2048, f) != 2048) { fclose(f); return -1; }
+    fclose(f);
+
+    for (o = 0; o + 33 < 2048; )
+    {
+        unsigned L  = sec[o];
+        unsigned nl = sec[o + 32];
+        if (L == 0)
+            break;
+        if (o + 33 + nl <= 2048 && nl >= 4)
+        {
+            if (memcmp(&sec[o + 33], "SLUS", 4) == 0) region = Region_USA;
+            else if (memcmp(&sec[o + 33], "SLES", 4) == 0) region = Region_EUR;
+        }
+        o += L;
+    }
+    return region;
+}
+
+/* Locate the disc image and select the matching region tables. Priority:
+ * USA, then PAL, then the long European name (US wins if several exist). If
+ * none of those names match but some .bin is present, autodetect by region. */
+const char* PcPort_GetGameDiscPath(void)
+{
+    static const struct { const char* name; int region; } s_known[] = {
+        { "Silent Hill (USA).bin",                        Region_USA },
+        { "Silent Hill (PAL).bin",                        Region_EUR },
+        { "Silent Hill (Europe) (En,Fr,De,Es,It).bin",    Region_EUR },
+    };
+    char path[1024];
+    int  i;
+    DIR* dir;
+
+    if (g_DiscResolved)
+        return g_GameDiscPath;
+    g_DiscResolved = 1;
+
+    for (i = 0; i < (int)(sizeof(s_known) / sizeof(s_known[0])); i++)
+    {
+        FILE* f;
+        snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, s_known[i].name);
+        f = fopen(path, "rb");
+        if (f)
+        {
+            fclose(f);
+            snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
+            Fs_InitFileTableForRegion((e_GameRegion)s_known[i].region);
+            SH_LOG("Disc: %s (region %s)", s_known[i].name,
+                   s_known[i].region == Region_EUR ? "EUR/PAL" : "USA");
+            return g_GameDiscPath;
+        }
+    }
+
+    dir = opendir(g_GameDataPath);
+    if (dir)
+    {
+        struct dirent* ent;
+        while ((ent = readdir(dir)) != NULL)
+        {
+            const char* nm = ent->d_name;
+            size_t      l  = strlen(nm);
+            if (l > 4 && (strcmp(nm + l - 4, ".bin") == 0 || strcmp(nm + l - 4, ".BIN") == 0))
+            {
+                int r;
+                snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, nm);
+                r = Pc_DetectRegionFromBin(path);
+                if (r >= 0)
+                {
+                    closedir(dir);
+                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
+                    Fs_InitFileTableForRegion((e_GameRegion)r);
+                    SH_LOG("Disc autodetected: %s (region %s)", nm,
+                           r == Region_EUR ? "EUR/PAL" : "USA");
+                    return g_GameDiscPath;
+                }
+            }
+        }
+        closedir(dir);
+    }
+
+    Fs_InitFileTableForRegion(Region_USA); /* keep g_FileTable populated even with no disc */
+    g_GameDiscPath[0] = '\0';
+    SH_WARN("No Silent Hill disc image (.bin) found in %s", g_GameDataPath);
+    return g_GameDiscPath;
 }
 
 static void PrintBanner(void)
@@ -463,18 +576,13 @@ int main(int argc, char* argv[])
     /* Initialize CD filesystem - try loading from image or directory */
     SH_LOG("Initializing CD filesystem...");
     {
-        char cdImagePath[512];
-        snprintf(cdImagePath, sizeof(cdImagePath), "%s/Silent Hill (USA).bin", g_GameDataPath);
+        /* Resolve the disc (US/PAL), select the region's file table, and open it. */
+        const char* cdImagePath = PcPort_GetGameDiscPath();
 
-        SH_LOG("Looking for CD image: %s", cdImagePath);
-
-        FILE* f = fopen(cdImagePath, "rb");
-        if (f) {
-            fclose(f);
+        if (cdImagePath[0]) {
             SH_LOG("CD image found, initializing CDFS...");
             PsyX_CDFS_Init(cdImagePath, 0, 0);
         } else {
-            SH_WARN("CD image not found at %s", cdImagePath);
             SH_WARN("Game will not be able to load assets without a disc image.");
         }
     }
