@@ -211,11 +211,6 @@ u8 D_800DA6CC[256] = {0};
 u8 D_800DA6DC[256] = {0};
 u8 D_800DA6E8[256] = {0};
 u8 D_800DA6EC[256] = {0};
-u8 D_800DAA44[256] = {0};
-u8 D_800DAA48[256] = {0};
-u8 D_800DAA4C[256] = {0};
-u8 D_800DAA50[256] = {0};
-u8 D_800DAA54[256] = {0};
 /* D_800DAA58 (twinfeeler dust/dirt color ramp, s32[256]) now defined with real
  * binary-extracted values in map4_s03_extracted_data.c. The exe zero-stub here
  * would shadow the DLL copy under --export-all-symbols (= black dust grid). */
@@ -234,9 +229,7 @@ u8 D_800DACEC[256] = {0};
 u8 D_800DACF0[256] = {0};
 u8 D_800DAE58[256] = {0};
 u8 D_800DAE60[256] = {0};
-u8 D_800DAE68[256] = {0};
 u8 D_800DAE78[256] = {0};
-u8 D_800DAE80[256] = {0};
 u8 D_800DAF78[256] = {0};
 u8 D_800DAF84[256] = {0};
 u8 D_800DAFB4[256] = {0};
@@ -246,17 +239,11 @@ u8 D_800DB024[256] = {0};
 u8 D_800DB054[256] = {0};
 u8 D_800DB055[256] = {0};
 u8 D_800DB064[256] = {0};
-u8 D_800DB190[256] = {0};
-u8 D_800DB1A8[256] = {0};
 /* D_800DB1D8/E0/E8/F0/F8 (twinfeeler emerge tables: bone scale, Y positions,
  * X/Y rotations, sfx id+vol) now defined with real binary-extracted values in
  * map4_s03_extracted_data.c. Zero-stubs here would shadow the DLL copies
  * (= worm never submerges + sfx id 0 looping at full volume). */
-u8 D_800DB220[256] = {0};
 u8 D_800DB238[256] = {0};
-u8 D_800DB27C[256] = {0};
-u8 D_800DB2FC[256] = {0};
-u8 D_800DB3A0[256] = {0};
 u8 D_800DB898[256] = {0};
 u8 D_800DB89A[256] = {0};
 u8 D_800DB89C[256] = {0};
