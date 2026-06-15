@@ -50,3 +50,22 @@ s_CharaFileInfo CHARA_FILE_INFOS[] = {
 /* Parasite         */ {  FILE_ANIM_ICU_ANM,     FILE_CHARA_ICU_ILM,    FILE_CHARA_ICU_TIM,    Q8(0.25f), BlendMode_Additive,      NULL,        CameraAnchor_Character, Q8(0.0f)           },
 /* Padlock          */ {  FILE_1ST_2ZANKO80_TIM, FILE_1ST_2ZANKO80_TIM, FILE_1ST_2ZANKO80_TIM, Q8(0.0f),  BlendMode_Average,       NULL,        CameraAnchor_Character, Q8(0.0f)           }
 };
+
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion */
+
+/* PAL (SLES-01514) censored the Grey Children into "Mumblers": same enemy, AI and
+ * animation, only a different model + texture (CLD3 -> CLD4). Replicate it by
+ * pointing the Grey Child's model/texture at the Mumbler's so PAL spawns render
+ * as Mumblers while keeping the working Grey Child AI/charaId. Called once after
+ * the disc region is detected. (A future option could keep the Grey Children by
+ * not applying this.) */
+void CharaData_ApplyRegionPatches(void)
+{
+    if (g_GameRegion == Region_EUR)
+    {
+        CHARA_FILE_INFOS[Chara_GreyChild].modelFileIdx   = FILE_CHARA_CLD4_ILM;
+        CHARA_FILE_INFOS[Chara_GreyChild].textureFileIdx = FILE_CHARA_CLD4_TIM;
+    }
+}
+#endif
