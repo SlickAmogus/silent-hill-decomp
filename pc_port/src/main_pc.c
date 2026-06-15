@@ -223,10 +223,16 @@ const char* PcPort_GetGameDiscPath(void)
         }
     }
 
+    /* Last resort: autodetect any other .bin by its ISO boot serial. Scan them
+     * all and still prefer a US disc over a PAL one, so named files and US
+     * always take precedence. */
     dir = opendir(g_GameDataPath);
     if (dir)
     {
         struct dirent* ent;
+        char usPath[1024] = { 0 };
+        char euPath[1024] = { 0 };
+
         while ((ent = readdir(dir)) != NULL)
         {
             const char* nm = ent->d_name;
@@ -236,18 +242,23 @@ const char* PcPort_GetGameDiscPath(void)
                 int r;
                 snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, nm);
                 r = Pc_DetectRegionFromBin(path);
-                if (r >= 0)
-                {
-                    closedir(dir);
-                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
-                    Fs_InitFileTableForRegion((e_GameRegion)r);
-                    SH_LOG("Disc autodetected: %s (region %s)", nm,
-                           r == Region_EUR ? "EUR/PAL" : "USA");
-                    return g_GameDiscPath;
-                }
+                if (r == Region_USA && !usPath[0])
+                    snprintf(usPath, sizeof(usPath), "%s", path);
+                else if (r == Region_EUR && !euPath[0])
+                    snprintf(euPath, sizeof(euPath), "%s", path);
             }
         }
         closedir(dir);
+
+        if (usPath[0] || euPath[0])
+        {
+            int useEur = (!usPath[0] && euPath[0]);
+            snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", useEur ? euPath : usPath);
+            Fs_InitFileTableForRegion(useEur ? Region_EUR : Region_USA);
+            SH_LOG("Disc autodetected: %s (region %s)", g_GameDiscPath,
+                   useEur ? "EUR/PAL" : "USA");
+            return g_GameDiscPath;
+        }
     }
 
     Fs_InitFileTableForRegion(Region_USA); /* keep g_FileTable populated even with no disc */
