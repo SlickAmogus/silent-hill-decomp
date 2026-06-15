@@ -93,7 +93,6 @@ void gte_stsxy3c() { }
 void gte_stsz3c() { }
 void OuterProduct12() { }
 void SetDrawOffset(DR_OFFSET* p, u_short* ofs) { (void)p; (void)ofs; }
-void SetDrawStp(DR_STP* p, int pbw) { (void)p; (void)pbw; }
 void SetMulRotMatrix(MATRIX* m) { (void)m; }
 void SetPolyG3(POLY_G3* p) { (void)p; }
 VECTOR* Square0(VECTOR* v0, VECTOR* v1) {
