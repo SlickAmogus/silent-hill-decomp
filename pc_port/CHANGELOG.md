@@ -1,5 +1,16 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.15.3 -- 2026-06-15
+- Remove [FBFEED] probe; boss flicker addressed by SetDrawStp/SetDrawOffset OT fix
+- PAL/EUR: generate filetable.c.EUR.inc + fileenum.h.EUR.inc (2310 files)
+- PAL/EUR: runtime region support (single exe, auto-detect disc)
+- PAL: autodetect fallback prefers US over PAL among unnamed .bins
+- Bump PsyCross (VRAM-bounds clamp) + log boot-TIM file index for PAL
+- PAL: fix no BGM/SFX ΓÇö region-remap the g_AudioData sound table
+- PAL: render Grey Children as Mumblers (the PAL censorship)
+- Twinfeeler: clamp worm-segment OT bucket index (black flicker fix)
+- Twinfeeler: fix worm-particle OT corruption (black flicker root)
+
 ## v2026.06.15.2 -- 2026-06-15
 - Bump PsyCross: SetDrawStp/SetDrawOffset/SetPolyG3 (no-op prim-stub OT fix)
 - Fix map2_s00 street spawns: extract D_800F1CAC progression variants
