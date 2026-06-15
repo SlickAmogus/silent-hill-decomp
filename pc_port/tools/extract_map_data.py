@@ -309,11 +309,18 @@ EXTRA_SYMBOLS = {
                  ("D_800DB7E4", 0x800DB7E4, 0x90),  # 3x3 TV grid quad corners
                  # screen pattern tpage/clut/UV windows, s_800DB874[15] (10 B
                  # each). func_800D88C8 indexes [field_30]; field_30 reaches
-                 # arg1+6 with arg1<=8 => index 14, so 15 entries = 150 B. The
-                 # old 0x24 (~3 entries) left the cult-symbol patterns (idx
-                 # 4-14) reading zeros = TVs showed only static. Extract the
-                 # full 0xB0 gap to D_800DB924 (covers all entries + padding).
-                 ("D_800DB874", 0x800DB874, 0xB0),
+                 # arg1+6 with arg1<=8 => index 14, so 15 entries = 150 B (0x96).
+                 # The old 0x24 (~3 entries) left the cult-symbol patterns (idx
+                 # 4-14) reading zeros = TVs showed only static.
+                 ("D_800DB874", 0x800DB874, 0x96),
+                 # TV screen upload imageDesc (s_FsImageDesc) reused for TV1/2/3
+                 # in func_800D7450. The switch sets tPage[1]/u/v/clutY per TV
+                 # but RELIES on clutX (=0x1C0=448) and tPage[0] persisting from
+                 # this initializer. Zero-stubbed it loaded every TV CLUT to
+                 # x=0 instead of 448, so the off screens (clut 0x5c=(448,1))
+                 # sampled empty VRAM = transparent "empty rectangles" instead
+                 # of TV1's CLUT[0]=0x8000 black.
+                 ("D_800DB91C", 0x800DB91C, 8),
                  ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
     "map4_s04": [("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
@@ -902,11 +909,17 @@ def extract_map(map_name, sym_path, bin_path):
         # them too — the in-binary bounds check below is the .data/.bss test
         # (file-backed => real ROM), and they're gated on a safe header type +
         # explicit array size + non-zero content + the PSX-pointer scan.
-        header_only = (not auto and name not in TARGETS and name in STUB_SIZES
-                       and seg is None)
+        # Explicit EXTRA_SYMBOLS entry (hand-given size) the auto/header-only
+        # classifier can't size — e.g. a struct-typed scalar like
+        # `s_FsImageDesc D_800DB91C` (no array count, type absent from
+        # TYPE_SIZEOF). Extract raw bytes at exactly the listed size.
+        explicit_raw = (decl_size is not None and name not in TARGETS
+                        and seg is None)
+        header_only = (not auto and not explicit_raw and name not in TARGETS
+                       and name in STUB_SIZES and seg is None)
         if header_only:
             auto = True
-        if name not in TARGETS and not auto:
+        if name not in TARGETS and not auto and not explicit_raw:
             continue
         wobj_kind = None
         decl_count = None
@@ -939,7 +952,7 @@ def extract_map(map_name, sym_path, bin_path):
             continue
         # Auto-discovered symbols default to raw u8 bytes — the exe stub is
         # u8[], and any consumer casts/indexes through its own extern type.
-        c_type = "u8" if auto else TARGETS[name][0]
+        c_type = "u8" if (auto or explicit_raw) else TARGETS[name][0]
         ofs = va - load_base
         if ofs < 0 or ofs >= len(binary):
             print(f"  [{map_name}] {name}: offset 0x{ofs:X} out of binary bounds",
@@ -962,6 +975,9 @@ def extract_map(map_name, sym_path, bin_path):
             size = SIZE_OVERRIDE_PER_MAP[(map_name, name)]
         elif name in SIZE_OVERRIDE:
             size = SIZE_OVERRIDE[name]
+        elif explicit_raw:
+            # Hand-given size from EXTRA_SYMBOLS — extract exactly that.
+            size = decl_size
         elif header_only:
             # Exact header-declared extent (validated above to be a fixed type
             # with a numeric array size). No gap inference -> no over-grab.
