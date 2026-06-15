@@ -4547,21 +4547,6 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
 
     temp_fp = &D_800DB874[arg0->field_30];
 
-#ifdef SH_PC_PORT
-    {
-        static int _tvN = 0;
-        if (_tvN < 16) {
-            _tvN++;
-            SH_DBG("[TVSCR] cell idx=%d state=%d  D_800DB874[]: f0=0x%02x f4=%d f5=%d f6=%d f7=%d f8=%d f9=%d | base[0..3]=%02x %02x %02x %02x",
-                   (int)arg0->field_30, (int)arg0->field_20,
-                   (unsigned)temp_fp->field_0, (int)temp_fp->field_4, (int)temp_fp->field_5,
-                   (int)temp_fp->field_6, (int)temp_fp->field_7, (int)temp_fp->field_8, (int)temp_fp->field_9,
-                   ((unsigned char*)D_800DB874)[0], ((unsigned char*)D_800DB874)[1],
-                   ((unsigned char*)D_800DB874)[2], ((unsigned char*)D_800DB874)[3]);
-        }
-    }
-#endif
-
     spA8  = temp_fp->field_0 & 0x10;
     temp  = (temp_fp->field_0 & 0xF) | 0x20;
     spA8 |= temp;
@@ -4570,6 +4555,42 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
     spB0    = arg0->field_34 + temp_fp->field_4 + func_800D7394() % (temp_fp->field_8 + 1) + temp_fp->field_6 - 1;
     temp_s4 = arg0->field_36 + temp_fp->field_5 + func_800D7394() % (temp_fp->field_9 + 1);
     var_t0  = temp_s4 + temp_fp->field_7 - 1;
+
+#ifdef SH_PC_PORT
+    /* Read the actual VRAM texel + CLUT entry the off-screen samples. The TV
+     * shows "empty rectangle" (transparent) instead of black when the resolved
+     * 16-bit color is 0x0000 (PsyCross discards it). This pins down whether the
+     * texture/CLUT is loaded and whether the off pixel is genuinely black. */
+    if (arg0->field_20 == 0) {
+        static int _tvD = 0;
+        if (_tvD < 8) {
+            _tvD++;
+            RECT rT, rC;
+            u16  texW = 0xDEAD;
+            u16  clut16[16];
+            int  pageX = (spA8 & 0xF) * 64;
+            int  pageY = ((spA8 >> 4) & 1) * 256;
+            int  wordX = pageX + (temp_s6 >> 2);
+            int  wordY = pageY + temp_s4;
+            int  nib   = temp_s6 & 3;
+            int  clutX = (temp_fp->field_2 & 0x3F) << 4;
+            int  clutY = (temp_fp->field_2 >> 6) & 0x1FF;
+            int  idx, entry;
+            rT.x = wordX; rT.y = wordY; rT.w = 1;  rT.h = 1;
+            StoreImage(&rT, (u_long*)&texW);
+            rC.x = clutX; rC.y = clutY; rC.w = 16; rC.h = 1;
+            StoreImage(&rC, (u_long*)clut16);
+            DrawSync(0);
+            idx   = (texW >> (nib * 4)) & 0xF;
+            entry = clut16[idx];
+            SH_DBG("[TVSCR2] cell=%d tpage=0x%02x clut=0x%04x texUV=(%d,%d) vram=(%d,%d) nib=%d texW=0x%04x idx=%d -> clutEntry=0x%04x  clut[0..3]=%04x %04x %04x %04x",
+                   (int)arg0->field_30, (unsigned)spA8, (unsigned)temp_fp->field_2,
+                   (int)temp_s6, (int)temp_s4, wordX, wordY, nib,
+                   (unsigned)texW, idx, (unsigned)entry,
+                   clut16[0], clut16[1], clut16[2], clut16[3]);
+        }
+    }
+#endif
 
     for (i = 0; i < ARRAY_SIZE(arg0->field_0); i++)
     {
