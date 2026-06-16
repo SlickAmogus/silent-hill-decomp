@@ -22,6 +22,21 @@
 #include "maps/characters/kaufmann.h"
 #include "screens/credits/credits.h"
 
+#ifdef SH_PC_PORT
+// The emulated GTE can return an otz outside the saturated range the real
+// hardware OTZ register produces; an unclamped (otz >> 1) bucket index then
+// overruns org[ORDERING_TABLE_SIZE] and addPrim writes the packet pointer into
+// adjacent memory (the ceremony split-pointer crash + bone/vertex stretching).
+#define SH_OT_CLAMP(idx)                              \
+    do {                                              \
+        if ((idx) < 0) { (idx) = 0; }                 \
+        else if ((idx) >= ORDERING_TABLE_SIZE)        \
+        { (idx) = ORDERING_TABLE_SIZE - 1; }          \
+    } while (0)
+#else
+#define SH_OT_CLAMP(idx) ((void)0)
+#endif
+
 void func_800D5D24(void) // 0x800D5D24
 {
     s32  i;
@@ -1678,6 +1693,7 @@ void func_800D8954(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8954
     bufferIdx = g_ActiveBufferIdx;
     ot        = g_OrderingTable0[bufferIdx].org;
     otIdx     = temp_s1 >> 1;
+    SH_OT_CLAMP(otIdx);
     ot        = &ot[otIdx];
 
     addPrim(ot, poly);
@@ -1797,6 +1813,7 @@ void func_800D8D90(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8D90
     bufferIdx = g_ActiveBufferIdx;
     ot        = g_OrderingTable0[bufferIdx].org;
     otIdx     = temp_s2 >> 1;
+    SH_OT_CLAMP(otIdx);
     ot        = &ot[otIdx];
 
     addPrim(ot, poly);
@@ -2844,6 +2861,7 @@ void func_800DADE0(s_func_800DAD54* arg0, s_800F3D48_0_0* arg1) // 0x800DADE0
     bufferIdx = g_ActiveBufferIdx;
     ot        = g_OrderingTable0[bufferIdx].org;
     otIdx     = temp_s1 >> 1;
+    SH_OT_CLAMP(otIdx);
     ot        = &ot[otIdx];
 
     addPrim(ot, poly);
@@ -3440,7 +3458,9 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
         setPolyFT4(poly);
         setSemiTrans(poly, 1);
 
-        temp_a0_3 = &ot[((sp3C + var_a2) / 2) >> 1];
+        var_a0 = ((sp3C + var_a2) / 2) >> 1;
+        SH_OT_CLAMP(var_a0);
+        temp_a0_3 = &ot[var_a0];
         addPrim(temp_a0_3, poly);
         poly++;
     }
