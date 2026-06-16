@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.16.1 -- 2026-06-16
+- Revise README with project status and known issues
+- Revise gameplay status and fix wording in README
+- Merge branch 'pc-port' of https://github.com/SlickAmogus/silent-hill-decomp into pc-port merging readme
+- Enhance support section with additional contact info
+- map7_s03: size g_NpcBoneCoords + D_800F4B40 correctly (stretch/crash fix)
+- Tooling: audit_stub_layout catches oversized struct work-buffer stubs
+- map7_s03: clamp otz-derived OT bucket indices in ceremony effect drawers
+
 ## v2026.06.15.5 -- 2026-06-15
 - Tooling: per-area scoping + alias-write detection + map attribution for audit_zero_stubs
 - Twinfeeler: extract remaining ROM tables found by zero-stub audit
