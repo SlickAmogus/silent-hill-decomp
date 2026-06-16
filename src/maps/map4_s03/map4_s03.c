@@ -1979,6 +1979,9 @@ void func_800D3E18(s_SubCharacter* chara) // 0x800D3E18
 
     Sd_SfxStop(Sfx_Unk1567);
     Sd_SfxStop(Sfx_Unk1559);
+#ifdef SH_PC_PORT
+    Sd_SfxStop(Sfx_Unk1561); /* safety: stop the acid-attack loop on worm reset */
+#endif
     func_800D354C(&chara->position);
 }
 
@@ -2454,6 +2457,14 @@ void Twinfeeler_Control_10(s_SubCharacter* twinfeeler) // 0x800D49C0
 {
     if (twinfeeler->model.stateStep == 0)
     {
+#ifdef SH_PC_PORT
+        /* Stop the acid-attack loop (1561) when the attack ends and the worm
+         * moves on. The sample is authored to loop and the decomp never stops
+         * it explicitly (PSX relied on SPU voice-stealing); on PC it would run
+         * forever, stacking into a constant squish. Both attack states exit
+         * through here. */
+        Sd_SfxStop(Sfx_Unk1561);
+#endif
         twinfeeler->moveSpeed            = Q12(1.2f);
         twinfeeler->model.anim.status = ANIM_STATUS(TwinfeelerAnim_InchForward, false);
 
