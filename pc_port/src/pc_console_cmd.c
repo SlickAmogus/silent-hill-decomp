@@ -17,6 +17,7 @@
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/items.h"
+#include "bodyprog/savegame.h"
 #include "bodyprog/screen/screen_fade.h"
 #include "sh_log.h"
 #include "map_registry.h"
@@ -112,34 +113,144 @@ static void cmd_map(const char* arg)
     }
 }
 
+/* name -> inventory item. Guns additionally grant ammo (see cmd_give). Ammo and
+ * recovery items stack (always add `count`); unique items are only added when not
+ * already held, to avoid inventory duplicates. */
+typedef struct { const char* name; u8 id; u8 count; } s_GiveItem;
+static const s_GiveItem GIVE_ITEMS[] = {
+    /* melee weapons */
+    { "KNIFE",        InvItemId_KitchenKnife,   1 },
+    { "PIPE",         InvItemId_SteelPipe,      1 },
+    { "ROCKDRILL",    InvItemId_RockDrill,      1 },
+    { "HAMMER",       InvItemId_Hammer,         1 },
+    { "CHAINSAW",     InvItemId_Chainsaw,       1 },
+    { "KATANA",       InvItemId_Katana,         1 },
+    { "AXE",          InvItemId_Axe,            1 },
+    /* firearms (ammo added in cmd_give) */
+    { "HANDGUN",      InvItemId_Handgun,        1 },
+    { "RIFLE",        InvItemId_HuntingRifle,   1 },
+    { "SHOTGUN",      InvItemId_Shotgun,        1 },
+    { "HYPERBLASTER", InvItemId_HyperBlaster,   1 },
+    /* ammo */
+    { "HANDGUNAMMO",  InvItemId_HandgunBullets, 30 },
+    { "RIFLEAMMO",    InvItemId_RifleShells,    30 },
+    { "SHOTGUNAMMO",  InvItemId_ShotgunShells,  30 },
+    /* recovery */
+    { "HEALTHDRINK",  InvItemId_HealthDrink,    1 },
+    { "FIRSTAID",     InvItemId_FirstAidKit,    1 },
+    { "AMPOULE",      InvItemId_Ampoule,        1 },
+    /* story / ending items */
+    { "FLAUROS",         InvItemId_Flauros,          1 },
+    { "CHANNELINGSTONE", InvItemId_ChannelingStone,  1 },
+    { "PLASTICBOTTLE",   InvItemId_PlasticBottle,    1 },
+    { "AGLAOPHOTIS",     InvItemId_UnknownLiquid,    1 },
+    { "KAUFMANNKEY",     InvItemId_KaufmannKey,      1 },
+    { "RINGOFCONTRACT",  InvItemId_RingOfContract,   1 },
+    { "STONEOFTIME",     InvItemId_StoneOfTime,      1 },
+    { "AMULET",          InvItemId_AmuletOfSolomon,  1 },
+    { "CRESTOFMERCURY",  InvItemId_CrestOfMercury,   1 },
+    { "ANKH",            InvItemId_Ankh,             1 },
+    { "DAGGER",          InvItemId_DaggerOfMelchior, 1 },
+    { "DISK",            InvItemId_DiskOfOuroboros,  1 },
+    { "GOLDMEDALLION",   InvItemId_GoldMedallion,    1 },
+    { "SILVERMEDALLION", InvItemId_SilverMedallion,  1 },
+    { "LIGHTER",         InvItemId_Lighter,          1 },
+    { "VIDEOTAPE",       InvItemId_VideoTape,        1 },
+    { "CAMERA",          InvItemId_Camera,           1 },
+    { "CHEMICAL",        InvItemId_Chemical,         1 },
+    { "BLOODPACK",       InvItemId_BloodPack,        1 },
+};
+#define N_GIVE_ITEMS ((int)(sizeof(GIVE_ITEMS) / sizeof(GIVE_ITEMS[0])))
+
+static void give_item(u8 id, u8 count)
+{
+    int stackable = (id >= InvItemId_HealthDrink && id <= InvItemId_Ampoule) ||
+                    (id >= InvItemId_HandgunBullets);
+    if (stackable || !inventory_has(id))
+        Inventory_AddSpecialItem(id, count ? count : 1);
+}
+
 static void cmd_give(const char* arg)
 {
-    if (strcmp(arg, "HANDGUN") == 0) {
-        if (!inventory_has(InvItemId_Handgun))
-            Inventory_AddSpecialItem(InvItemId_Handgun, 1);
-        Inventory_AddSpecialItem(InvItemId_HandgunBullets, 15);
-        cprintf("Given handgun + 15 bullets");
-    } else if (strcmp(arg, "RIFLE") == 0) {
-        if (!inventory_has(InvItemId_HuntingRifle))
-            Inventory_AddSpecialItem(InvItemId_HuntingRifle, 1);
-        Inventory_AddSpecialItem(InvItemId_RifleShells, 30);
-        cprintf("Given rifle + 30 shells");
-    } else if (strcmp(arg, "SHOTGUN") == 0) {
-        if (!inventory_has(InvItemId_Shotgun))
-            Inventory_AddSpecialItem(InvItemId_Shotgun, 1);
-        Inventory_AddSpecialItem(InvItemId_ShotgunShells, 30);
-        cprintf("Given shotgun + 30 shells");
-    } else if (strcmp(arg, "AMMO") == 0) {
-        Inventory_AddSpecialItem(InvItemId_HandgunBullets, 30);
-        Inventory_AddSpecialItem(InvItemId_RifleShells, 30);
-        Inventory_AddSpecialItem(InvItemId_ShotgunShells, 30);
-        cprintf("Given 30 of each ammo");
-    } else if (strcmp(arg, "HEALTH") == 0) {
+    int k;
+
+    if (arg[0] == '\0') {
+        cprintf("give <item> - see 'help give' for the list");
+        return;
+    }
+    if (strcmp(arg, "HEALTH") == 0) {
         g_SysWork.playerWork.player.health = Q12(100.0f);
         cprintf("Health restored");
-    } else {
-        cprintf("give what? HANDGUN RIFLE SHOTGUN AMMO HEALTH");
+        return;
     }
+    if (strcmp(arg, "AMMO") == 0) {
+        give_item(InvItemId_HandgunBullets, 30);
+        give_item(InvItemId_RifleShells, 30);
+        give_item(InvItemId_ShotgunShells, 30);
+        cprintf("Given 30 of each ammo");
+        return;
+    }
+    if (strcmp(arg, "ALLWEAPONS") == 0) {
+        for (k = 0; k < N_GIVE_ITEMS; k++)
+            if (GIVE_ITEMS[k].id >= InvItemId_KitchenKnife &&
+                GIVE_ITEMS[k].id <= InvItemId_HyperBlaster)
+                give_item(GIVE_ITEMS[k].id, 1);
+        give_item(InvItemId_HandgunBullets, 60);
+        give_item(InvItemId_RifleShells, 60);
+        give_item(InvItemId_ShotgunShells, 60);
+        cprintf("Given all weapons + ammo");
+        return;
+    }
+    for (k = 0; k < N_GIVE_ITEMS; k++) {
+        if (strcmp(arg, GIVE_ITEMS[k].name) == 0) {
+            give_item(GIVE_ITEMS[k].id, GIVE_ITEMS[k].count);
+            if (GIVE_ITEMS[k].id == InvItemId_Handgun)           give_item(InvItemId_HandgunBullets, 15);
+            else if (GIVE_ITEMS[k].id == InvItemId_HuntingRifle) give_item(InvItemId_RifleShells, 30);
+            else if (GIVE_ITEMS[k].id == InvItemId_Shotgun)      give_item(InvItemId_ShotgunShells, 30);
+            else if (GIVE_ITEMS[k].id == InvItemId_HyperBlaster) give_item(InvItemId_HandgunBullets, 30);
+            cprintf("Given %s", GIVE_ITEMS[k].name);
+            return;
+        }
+    }
+    cprintf("unknown item '%s' - see 'help give'", arg);
+}
+
+/* Ending-relevant event flags. The exact ending matrix isn't fully labelled in
+ * the decomp; these are the confirmed/strong candidates (Cybil saved = 445 from
+ * monster_cybil.c, Kaufmann key = 394, plus the 395-403 cluster read by the
+ * hospital/ending code). The ending is chosen when the FINAL BOSS is beaten, so
+ * set these BEFORE that fight, not during the ending cutscene. setflag accepts
+ * any flag number so nothing is locked out for experimentation. */
+typedef struct { const char* label; int flag; } s_EndFlag;
+static const s_EndFlag ENDING_FLAGS[] = {
+    { "Cybil saved", 445 },
+    { "Kaufmann key",  394 },
+    { "flag 395", 395 }, { "flag 396", 396 }, { "flag 397", 397 },
+    { "flag 398", 398 }, { "flag 401", 401 }, { "flag 402", 402 },
+    { "flag 403", 403 },
+};
+
+static void cmd_getflags(void)
+{
+    int k;
+    cprintf("Ending flags (set BEFORE final boss):");
+    for (k = 0; k < (int)(sizeof(ENDING_FLAGS) / sizeof(ENDING_FLAGS[0])); k++)
+        cprintf(" %3d %-12s = %d", ENDING_FLAGS[k].flag, ENDING_FLAGS[k].label,
+                Savegame_EventFlagGet(ENDING_FLAGS[k].flag) ? 1 : 0);
+    cprintf("setflag <n> 0|1 to change (any flag 0-1663)");
+}
+
+static void cmd_setflag(const char* arg)
+{
+    int n = -1, v = -1;
+    if (sscanf(arg, "%d %d", &n, &v) != 2 || n < 0 || n >= 52 * 32 ||
+        (v != 0 && v != 1)) {
+        cprintf("usage: setflag <number> 0|1");
+        return;
+    }
+    if (v) Savegame_EventFlagSet(n);
+    else   Savegame_EventFlagClear(n);
+    cprintf("flag %d = %d", n, v);
 }
 
 /* help / debug reference pages. The in-game console viewport shows
@@ -153,12 +264,32 @@ static const char* const HELP_LINES[] = {
     " quit           exit the game",
     " map            list all map names",
     " map <name>     new-game warp to a map",
-    " give <thing>   HANDGUN RIFLE SHOTGUN AMMO HEALTH",
+    " give <item>    see 'help give' for the full list",
+    " getflags       show ending flags / setflag <n> 0|1",
     " kill           kill Harry (death animation)",
     " noclip         walk through walls (floor stays on)",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
+};
+
+static const char* const HELP_GIVE_PAGE1[] = {
+    "give <item> (page 1/2) - weapons, ammo, recovery:",
+    " knife pipe rockdrill hammer chainsaw katana axe",
+    " handgun rifle shotgun hyperblaster (guns add ammo)",
+    " ammo  handgunammo rifleammo shotgunammo",
+    " allweapons    all melee + guns + ammo",
+    " health healthdrink firstaid ampoule",
+    "type 'help give 2' for story / ending items",
+};
+
+static const char* const HELP_GIVE_PAGE2[] = {
+    "give <item> (page 2/2) - story / ending items:",
+    " flauros channelingstone plasticbottle aglaophotis",
+    " kaufmannkey ringofcontract stoneoftime amulet",
+    " crestofmercury ankh dagger disk",
+    " goldmedallion silvermedallion lighter videotape",
+    " camera chemical bloodpack",
 };
 
 static const char* const DEBUG_PAGE1[] = {
@@ -314,7 +445,18 @@ void Pc_ConsoleExec(const char* line)
         SH_DBG("[CONSOLE] quit");
         exit(0);
     } else if (strcmp(cmd, "HELP") == 0) {
-        push_lines(HELP_LINES, (int)(sizeof(HELP_LINES) / sizeof(HELP_LINES[0])));
+        if (strncmp(arg, "GIVE", 4) == 0) {
+            if (strstr(arg, "2"))
+                push_lines(HELP_GIVE_PAGE2, (int)(sizeof(HELP_GIVE_PAGE2) / sizeof(HELP_GIVE_PAGE2[0])));
+            else
+                push_lines(HELP_GIVE_PAGE1, (int)(sizeof(HELP_GIVE_PAGE1) / sizeof(HELP_GIVE_PAGE1[0])));
+        } else {
+            push_lines(HELP_LINES, (int)(sizeof(HELP_LINES) / sizeof(HELP_LINES[0])));
+        }
+    } else if (strcmp(cmd, "GETFLAGS") == 0) {
+        cmd_getflags();
+    } else if (strcmp(cmd, "SETFLAG") == 0) {
+        cmd_setflag(arg);
     } else if (strcmp(cmd, "DEBUG") == 0) {
         if (strcmp(arg, "2") == 0)
             push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
