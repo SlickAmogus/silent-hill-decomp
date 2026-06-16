@@ -3,31 +3,47 @@
   This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance from Claude Opus 4.6 and 4.7.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
 
-  I'm going to get it playable as possible, and I'm aiming to get the full game playable from start to finish. Aside from that, there will be as many optional PC enhancements as possible and potentially support for custom assets. 
-  
-  Beyond that, the port that will be more fleshed out in the long run will be Silent Engine (https://github.com/Sezzary/SilentEngine), which is a non-AI multiplatform port in the works. However, I'm hoping this one can help hold people over in the meantime.
 
-  ### Status
+### Status
 
-  - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly
-  - **In-game 3D world**: rendering working — textured environment, fog, snow particles, trees, buildings, lamp posts, ground geometry
-  - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height working, stairs working.
-  - **Camera**: PSX fixed-camera system functional but isn't perfect; adjustable with numpad keys
-  - **Audio**: SFX and BGM all working. Voices working.
-  - **Map overlays**: All maps compile, most can be loaded.
-  - **NPC AI**: Enabled, grey children, air screamers, and groaners confirmed working.
-  - **Memory card**: save/load fully working, may still have progression bugs that will be fixed as they are found.
-  - **Graphics**: Supports high resolutions, 16:9, high refresh rates, and uncapped FPS. Graphic settings adjustable in launcher.
-  - **Updates**: Latest launcher can check for and install updates. Nightly builds posted at repo here: https://github.com/SlickAmogus/silent-hill-pc-nightly
+The port is 100% playable start-to-finish — the full game can be completed. Expect visual/audio glitches that are actively being fixed; none are progression-blocking.
+- **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly.
+- **In-game 3D world**: rendering working — textured environments, fog, snow/particle effects, trees, buildings, lamp posts, ground geometry. 
+- **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height and stairs working.
+- **Combat**: working — handgun, hunting rifle, and shotgun fire reliably; melee weapons hit; break-free, death, and grab animations work. Chainsaw and Rock Drill have issues, others not mentioned untested.
+- **Bosses**: functional — Twinfeeler (worm), Split Head, Floatstinger, and the Cybil fight all run; some boss visual effects still being polished.
+- **Cutscenes**: mostly working — DMS-driven scenes, animations, and letterboxing play; isolated scenes still have effect/timing glitches.
+- **Camera**: PSX fixed-camera system 1:1 with the original game for the most part.
+- **Audio**: SFX, BGM, and voices all working; XA streaming plays cutscene voices directly from the disc image.
+- **Map overlays**: all 42 maps compile as DLLs and load; room/door transitions working.
+- **NPC AI**: full AI enabled — Grey Children, Air Screamers, Groaners, and others confirmed working.
+- **Memory card**: save/load fully working; Quick save and quick load menus enabled with default keys F6 and F8.
+- **Graphics**: high resolutions, 16**:9 (Hor+), high refresh rates, and uncapped FPS; optional runtime PGXP (buggy); settings adjustable in the launcher.
+- **PAL/EUR support**: boots into English gameplay from a PAL disc and loads the censored "Mumbler" Grey Children; localized menus are still garbled (font-layout work pending) and an in-game language selector is planned.
+- **Data accuracy**: the port replaces hundreds of missing PSX ROM data tables ("zero-stubs") that cause invisible/black/silent/mis-positioned effects; automated audits (audit_zero_stubs.py, audit_stub_layout.py) now surface remaining ones proactively, with the endings (map7_s03) as the next target.
+- **Updates**: the latest launcher can check for and install updates. Nightly builds posted here**: https**://github.com/SlickAmogus/silent-hill-pc-nightly<br>
+
+### Known Issues / Bugs
+- Certain effects and textures may still be missing or glitchy in specific areas
+- Audio may loop incorrectly occasionally
+- Ending cutscenes are glitchy
+- Certain item placements seem angled or odd in the environment
+- PGXP barely works and is glitchy
+- Combat isn't perfect and may have slight issues.
+
+<br>
 
   <!-- Main menu screenshot -->
   <img width="636" height="503" alt="image" src="https://github.com/user-attachments/assets/48f597c2-e629-463d-a516-998ed646dc88" />
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 05 19 - 01 31 25 75" src="https://github.com/user-attachments/assets/3cb30c50-cbc2-4026-ab2d-c5717239f398" />
+<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 21 52 22 18" src="https://github.com/user-attachments/assets/38f94098-fc11-41a2-b1bd-6109703e9603" />
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 05 17 - 20 00 56 26" src="https://github.com/user-attachments/assets/96d6d279-3d52-446b-9837-96e3934e021d" />
+<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 21 52 59 83" src="https://github.com/user-attachments/assets/9e92ed6e-b7ca-4736-bdbd-aa4527d6063e" />
 
-<img width="1920" height="1080" alt="Build 2026 04 06 - 01 09 37 03_1 mp4_snapshot_01 30 483" src="https://github.com/user-attachments/assets/0aeeacaa-99b4-41ef-8b6f-65b6e7d1d14f" />
+<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 22 25 08 86" src="https://github.com/user-attachments/assets/13c6b711-4384-48c0-8821-7c4f8c2efde9" />
+
+<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 19 08 25 80" src="https://github.com/user-attachments/assets/6ce976f7-934d-4989-ad5d-22e0753dacf2" />
+
 
   <!-- In-game world screenshot -->
 
