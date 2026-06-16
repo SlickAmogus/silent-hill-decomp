@@ -30,6 +30,9 @@ s32             D_800ED740 = 0;
  * was here and the D_800ED7E0/8EC/984/9BC exe zero-stubs (removed from
  * data_stubs.c). Fixes the bad-ending cutscene crash (garbage ptr deref). */
 #include "map7_s03_cutscene_tables.inc"
+/* Ending-image palette/color lookup tables (D_800EB010/410/814/C18), map7_s03
+ * only; zero-stubbed they rendered the ending imagery black. Exe stubs removed. */
+#include "map7_s03_color_tables.inc"
 #endif
 #include "maps/characters/bloody_incubator.h"
 #include "maps/characters/bloody_lisa.h"
