@@ -24,6 +24,16 @@
  * copies locally in this DLL — matching the prior behaviour without shadowing
  * the other maps. */
 s32             D_800ED740 = 0;
+/* Runtime-built work structs whose exe stub was u8[256] — far too small on
+ * 64-bit: g_NpcBoneCoords is GsCOORDINATE2[18] (~1.7KB; the super/sub/param
+ * pointer fields widen) and s_800F4B40 is ~1KB (field_118[6][16]). The cutscene
+ * fills all of them, so the writes ran off the 256-byte stub and smashed
+ * adjacent stub memory -> garbage GsCOORDINATE2 super/rootCoord pointers
+ * ([COORD]/[VIB] sanitizer hits) -> bone transforms flung vertices across the
+ * room (stretching models) and then a deref of the garbage pointer crashed.
+ * Define them at the real struct size (zero-init; the engine builds them). */
+GsCOORDINATE2   g_NpcBoneCoords[HarryBone_Count] = { 0 };
+s_800F4B40      D_800F4B40 = { 0 };
 /* The 5 ending-cutscene step pointer tables (D_800ED7E0/8B0/8EC/984/9BC) were
  * PSX pointer tables into overlay rodata. Reformatted from the disc here (the
  * structs have no nested pointers). Replaces both the D_800ED8B0 zero-init that
