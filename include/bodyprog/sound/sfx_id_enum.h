@@ -249,6 +249,7 @@ typedef enum _SfxId
     Sfx_Unk1557 = 1557, // Harry footstep for unknown material.
 
     Sfx_Unk1559 = 1559,
+    Sfx_Unk1561 = 1561, // Twinfeeler acid-attack loop (squish); needs explicit stop.
 
     Sfx_Unk1563 = 1563,
     Sfx_Unk1564 = 1564,
