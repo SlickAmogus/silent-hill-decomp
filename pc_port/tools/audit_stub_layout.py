@@ -51,7 +51,8 @@ for d in HDR_DIRS:
         for m in declre.finditer(txt):
             ty, star, name, arr, n = m.group(1).strip(), m.group(2), m.group(3), m.group(4), m.group(5)
             if name not in decl:
-                decl[name] = (ty.split()[-1] if ty.split() else ty, p.name, bool(star))
+                cnt = int(n) if (arr and n and n.isdigit()) else (1 if not arr else None)
+                decl[name] = (ty.split()[-1] if ty.split() else ty, p.name, bool(star), cnt)
 
 # --- live zero-stubs with their declared byte size ---
 stub_bytes = {}
@@ -66,7 +67,7 @@ for name in set(stub_bytes) | set(decl):
     a = addr_of(name)
     if a is None: continue
     addrs[name] = a
-    sym_hdr[name] = decl.get(name, (None, "stub-only", None))[1]
+    sym_hdr[name] = decl.get(name, (None, "stub-only", None, None))[1]
 for sf in SYM_DIR.rglob("sym.*.txt"):
     for m in re.finditer(r"\b((?:D_|sharedData_)\w+)\s*=\s*0x([0-9A-Fa-f]+)", sf.read_text(errors="ignore")):
         addrs.setdefault(m.group(1), int(m.group(2), 16))
@@ -76,18 +77,36 @@ def is_ptr(name):
     d = decl.get(name)
     return bool(d and d[2])
 
+# fixed-width scalar element types whose u8[N] stub size is its own business.
+# Anything else used as a stub's element type is a STRUCT -> work-buffer that was
+# stubbed at a guessed 256 and may overflow on 64-bit (g_NpcBoneCoords class).
+FIXED = {"u8","s8","char","u16","s16","short","u32","s32","int","long",
+         "q3_12","q4_12","q19_12","q20_12","q23_8","q7_8",
+         "VECTOR","VECTOR3","SVECTOR","SVECTOR3","DVECTOR","MATRIX"}
+# structs known to contain pointers (or function pointers) -> PC size > PSX size.
+def struct_has_ptr(ty):
+    for d in HDR_DIRS:
+        for p in d.rglob("*.h"):
+            t = p.read_text(errors="ignore")
+            m = re.search(r"typedef struct[^{]*\{(.*?)\}\s*"+re.escape(ty)+r"\s*;", t, re.S)
+            if m: return "*" in m.group(1)
+    return False
+
 # ---------------- TRUNCATED ----------------
-# Skip pointer-typed symbols: `s_X* P` stubbed as u8[256] is a NULL/garbage
-# pointer bug, not a struct truncation (sizeof is the pointee, not P).
-trunc, nullptr = [], []
+trunc, nullptr, structbuf = [], [], []
 for name, nbytes in stub_bytes.items():
-    ty, _, ptr = decl.get(name, (None, None, False))
-    if ptr:
-        if ty in sizeof:
-            nullptr.append((name, ty))
+    ty, _, ptr, cnt = decl.get(name, (None, None, False, None))
+    if ptr:                                  # `s_X* P` stubbed -> NULL/garbage pointer
+        if ty in sizeof: nullptr.append((name, ty))
         continue
-    if ty in sizeof and nbytes < sizeof[ty]:
-        trunc.append((name, ty, nbytes, sizeof[ty]))
+    if ty in sizeof:                         # definite: count*sizeof > stub
+        full = (cnt or 1) * sizeof[ty]
+        if nbytes < full:
+            trunc.append((name, ty, nbytes, full, cnt))
+    elif ty and ty not in FIXED:             # struct work-buffer, size unknown on PC
+        # array, or a pointer-bearing struct -> 256 is a guess that can overflow.
+        if (cnt and cnt != 1) or struct_has_ptr(ty):
+            structbuf.append((name, ty, nbytes, cnt))
 
 # ---------------- OVERLAP ----------------
 # For each symbol A with a known struct sizeof, find other symbols B inside its
@@ -106,10 +125,18 @@ for name, a in addrs.items():
             live = b_name in stub_bytes
             overlaps.append((name, ty, s, b_name, b_addr - a, live))
 
-print("=== TRUNCATED struct stubs (array smaller than sizeof -> OOB tail read) ===")
-for name, ty, nb, s in sorted(trunc):
-    print(f"  {name:24} u8[{nb}] but sizeof({ty})={s}  (+{s-nb}B OOB)")
+print("=== TRUNCATED struct stubs (stub smaller than count*sizeof -> OOB write/read) ===")
+for name, ty, nb, s, cnt in sorted(trunc):
+    arr = f"[{cnt}]" if cnt and cnt != 1 else ""
+    print(f"  {name:24} u8[{nb}] but sizeof({ty}{arr})={s}  (+{s-nb}B OOB)")
 if not trunc: print("  (none)")
+
+print("\n=== STRUCT WORK-BUFFER stubs (struct/array stubbed u8[256]; PC size unknown")
+print("    -> may overflow when the engine fills it; the g_NpcBoneCoords class) ===")
+for name, ty, nb, cnt in sorted(structbuf):
+    arr = f"[{cnt}]" if cnt else "[]"
+    print(f"  {name:24} u8[{nb}]  extern {ty}{arr}  <{decl.get(name,(None,'?'))[1]}>")
+if not structbuf: print("  (none)")
 
 print("\n=== NULL-pointer stubs (s_X* P stubbed as u8[256] -> deref crash/garbage) ===")
 for name, ty in sorted(nullptr):
