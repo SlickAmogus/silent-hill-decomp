@@ -221,23 +221,49 @@ static void cmd_give(const char* arg)
  * hospital/ending code). The ending is chosen when the FINAL BOSS is beaten, so
  * set these BEFORE that fight, not during the ending cutscene. setflag accepts
  * any flag number so nothing is locked out for experimentation. */
+/* The SH1 ending is selected from two binary flags read by the map7_s03 ending
+ * code: 449 = Cybil saved (Aglaophotis on her in the map6_s04 boss) and 391 =
+ * "good path" (the map5_s03 Kaufmann subplot completed). The four combinations
+ * are Bad / Bad+ / Good / Good+ — see cmd_setending. The others below are the
+ * supporting/in-fight flags shown for reference. */
+#define ENDFLAG_CYBIL 449
+#define ENDFLAG_GOOD  391
 typedef struct { const char* label; int flag; } s_EndFlag;
 static const s_EndFlag ENDING_FLAGS[] = {
-    { "Cybil saved", 445 },
+    { "Cybil saved",   ENDFLAG_CYBIL },
+    { "Good path",     ENDFLAG_GOOD  },
+    { "Cybil(infight)", 445 },
     { "Kaufmann key",  394 },
-    { "flag 395", 395 }, { "flag 396", 396 }, { "flag 397", 397 },
-    { "flag 398", 398 }, { "flag 401", 401 }, { "flag 402", 402 },
-    { "flag 403", 403 },
+    { "flag 397", 397 }, { "flag 398", 398 },
 };
 
 static void cmd_getflags(void)
 {
     int k;
-    cprintf("Ending flags (set BEFORE final boss):");
+    cprintf("Ending = Cybil(449) + Good(391). set BEFORE ending:");
     for (k = 0; k < (int)(sizeof(ENDING_FLAGS) / sizeof(ENDING_FLAGS[0])); k++)
-        cprintf(" %3d %-12s = %d", ENDING_FLAGS[k].flag, ENDING_FLAGS[k].label,
+        cprintf(" %3d %-13s = %d", ENDING_FLAGS[k].flag, ENDING_FLAGS[k].label,
                 Savegame_EventFlagGet(ENDING_FLAGS[k].flag) ? 1 : 0);
-    cprintf("setflag <n> 0|1 to change (any flag 0-1663)");
+    cprintf("setending bad|bad+|good|good+  | setflag <n> 0|1");
+}
+
+/* Set the two ending flags for a target ending. Must be done BEFORE the ending
+ * cutscene triggers (the ending reads them at the final boss / cutscene start;
+ * changing them mid-cutscene is too late). Does NOT advance story progress —
+ * you still have to reach the ending. */
+static void cmd_setending(const char* arg)
+{
+    int cybil, good;
+    if      (strcmp(arg, "BAD") == 0)                                 { cybil = 0; good = 0; }
+    else if (strcmp(arg, "BAD+") == 0  || strcmp(arg, "BADPLUS") == 0)  { cybil = 1; good = 0; }
+    else if (strcmp(arg, "GOOD") == 0)                                { cybil = 0; good = 1; }
+    else if (strcmp(arg, "GOOD+") == 0 || strcmp(arg, "GOODPLUS") == 0) { cybil = 1; good = 1; }
+    else { cprintf("usage: setending bad | bad+ | good | good+"); return; }
+
+    if (cybil) Savegame_EventFlagSet(ENDFLAG_CYBIL); else Savegame_EventFlagClear(ENDFLAG_CYBIL);
+    if (good)  Savegame_EventFlagSet(ENDFLAG_GOOD);  else Savegame_EventFlagClear(ENDFLAG_GOOD);
+    cprintf("ending '%s': Cybil(449)=%d Good(391)=%d", arg, cybil, good);
+    cprintf("set before reaching the ending");
 }
 
 static void cmd_setflag(const char* arg)
@@ -265,7 +291,9 @@ static const char* const HELP_LINES[] = {
     " map            list all map names",
     " map <name>     new-game warp to a map",
     " give <item>    see 'help give' for the full list",
-    " getflags       show ending flags / setflag <n> 0|1",
+    " getflags       show ending flags",
+    " setending <e>  bad | bad+ | good | good+",
+    " setflag <n> 0|1  set any event flag",
     " kill           kill Harry (death animation)",
     " noclip         walk through walls (floor stays on)",
     " fmv            list movies (numbered)",
@@ -457,6 +485,8 @@ void Pc_ConsoleExec(const char* line)
         cmd_getflags();
     } else if (strcmp(cmd, "SETFLAG") == 0) {
         cmd_setflag(arg);
+    } else if (strcmp(cmd, "SETENDING") == 0) {
+        cmd_setending(arg);
     } else if (strcmp(cmd, "DEBUG") == 0) {
         if (strcmp(arg, "2") == 0)
             push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
