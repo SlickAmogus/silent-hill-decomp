@@ -3236,6 +3236,18 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 #define SH_AIM_KF_REACHED(kf) (extra->model.anim.keyframeIdx == (kf))
 #endif
 
+/* Same fix for the idle-aim -> aim-walk transition, which gates on the UPPER
+ * body anim (player->) hitting the aim-ready keyframe exactly. At uncapped FPS
+ * the anim parks one frame past field_6, so `== field_6` never matched and you
+ * could not START walking while aiming from a standstill (walk-then-aim worked
+ * because it entered AimWalk from the move state). The "only one facing"
+ * symptom was the combat branch having a second keyframe to match. */
+#ifdef SH_PC_PORT
+#define SH_AIM_KF_REACHED_P(kf) (player->model.anim.keyframeIdx >= (kf))
+#else
+#define SH_AIM_KF_REACHED_P(kf) (player->model.anim.keyframeIdx == (kf))
+#endif
+
 bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80075504
 {
     s32        enemyAttackedIdx;
@@ -5844,8 +5856,8 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                     ANIM_STATUS_IS_ACTIVE(extra->model.anim.status))
                 {
                     if (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) ||
-                        player->model.anim.keyframeIdx == D_800C44F0[0].field_6 ||
-                        player->model.anim.keyframeIdx == D_800C44F0[5].field_6)
+                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6) ||
+                        SH_AIM_KF_REACHED_P(D_800C44F0[5].field_6))
                     {
                         if (g_Player_IsMovingForward)
                         {
@@ -5868,7 +5880,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     if ((aimState == 0 && playerProps.moveSpeed == Q12(0.0f))||
                         player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) ||
-                        player->model.anim.keyframeIdx == D_800C44F0[0].field_6)
+                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6))
                     {
                         if (g_Player_IsMovingForward)
                         {
