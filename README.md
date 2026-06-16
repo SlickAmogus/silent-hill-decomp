@@ -197,13 +197,13 @@ The port is 100% playable start-to-finish — the full game can be completed. Ex
 
 
   ### Support
-  Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut.
+  Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut, and I have a thread dedicated to this project in the Silent Hill channel of the PSX decompilation discord..
   
   I work with more than just AI. If you like what I do:\
   [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F3K8V3B)
 
 
-<br/><br/>
+<br/>
 
 Silent Hill is © Konami and this does not contain any game assets. You must provide a legally obtained dump of Silent Hill for PSX to use.
 
