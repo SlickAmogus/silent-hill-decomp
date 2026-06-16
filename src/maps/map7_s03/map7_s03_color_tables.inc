@@ -166,3 +166,6 @@ s32 D_800EBC18[726] = {
     -2146516004, 0, 0, -2146515988, 0, 0, -2146515220, 1,
     0, 819, 1638, 8192, 12288, 10240,
 };
+
+/* position-spread scale (Q12 1.0); zero-stub collapsed ending particle offsets. */
+s32 D_800EB810 = 4096;
