@@ -24,7 +24,12 @@
  * copies locally in this DLL — matching the prior behaviour without shadowing
  * the other maps. */
 s32             D_800ED740 = 0;
-s_800ED7E0_ptr* D_800ED8B0[32] = { 0 };
+/* The 5 ending-cutscene step pointer tables (D_800ED7E0/8B0/8EC/984/9BC) were
+ * PSX pointer tables into overlay rodata. Reformatted from the disc here (the
+ * structs have no nested pointers). Replaces both the D_800ED8B0 zero-init that
+ * was here and the D_800ED7E0/8EC/984/9BC exe zero-stubs (removed from
+ * data_stubs.c). Fixes the bad-ending cutscene crash (garbage ptr deref). */
+#include "map7_s03_cutscene_tables.inc"
 #endif
 #include "maps/characters/bloody_incubator.h"
 #include "maps/characters/bloody_lisa.h"
