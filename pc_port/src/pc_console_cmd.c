@@ -286,6 +286,15 @@ static void cmd_getflags(void)
  * cutscene triggers (the ending reads them at the final boss / cutscene start;
  * changing them mid-cutscene is too late). Does NOT advance story progress —
  * you still have to reach the ending. */
+/* Forget the flags recorded by setflag/setending so they stop riding along on
+ * the next console `map` warp. Does NOT revert flags already written to the live
+ * savegame — load a save for that. */
+static void cmd_clearflags(void)
+{
+    s_pendingFlagCount = 0;
+    cprintf("cleared pending flags (live flags unchanged; load a save to reset)");
+}
+
 static void cmd_setending(const char* arg)
 {
     int cybil, good;
@@ -525,6 +534,8 @@ void Pc_ConsoleExec(const char* line)
         cmd_setflag(arg);
     } else if (strcmp(cmd, "SETENDING") == 0) {
         cmd_setending(arg);
+    } else if (strcmp(cmd, "CLEARFLAGS") == 0) {
+        cmd_clearflags();
     } else if (strcmp(cmd, "DEBUG") == 0) {
         if (strcmp(arg, "2") == 0)
             push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
