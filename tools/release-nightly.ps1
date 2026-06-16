@@ -16,7 +16,12 @@
 #   - Uploads the new manifest as version.json.
 #
 # Usage:
-#   .\tools\release-nightly.ps1 [-DryRun] [-BuildDir path] [-Notes string]
+#   .\tools\release-nightly.ps1 [-DryRun] [-BuildDir path] [-Notes string] [-NoPause]
+#
+# By default the script PAUSES after writing CHANGELOG.md (auto-generated from
+# commit subjects) and before hashing/uploading, so you can hand-edit the notes
+# (e.g. add command usage). Press Enter to resume; the edited file is what ships.
+# Pass -NoPause for unattended runs.
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -28,7 +33,8 @@ param(
     [string]$BuildDir = "$PSScriptRoot\..\pc_port\build",
     [string]$Repo     = "SlickAmogus/silent-hill-pc-nightly",
     [string]$Notes    = "",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$NoPause
 )
 
 $ErrorActionPreference = "Stop"
@@ -156,6 +162,20 @@ if (Test-Path $changelogPath) {
     Write-Host "CHANGELOG.md updated locally." -ForegroundColor Cyan
 } else {
     Write-Host "Warning: CHANGELOG.md not found at $changelogPath - skipping." -ForegroundColor Yellow
+}
+
+# ---- Pause for manual changelog edit ----------------------------------------
+# The section above is auto-generated from commit subjects. Pause so it can be
+# hand-edited (add command usage, regroup, reword) BEFORE the file is hashed and
+# uploaded below. The hash (Get-Sha256 $changelogPath) and the upload both read
+# CHANGELOG.md from disk after this point, so whatever is saved now is exactly
+# what ships in the release.
+if (-not $NoPause) {
+    Write-Host ""
+    Write-Host "==> CHANGELOG.md updated with auto-generated notes for $newTag." -ForegroundColor Yellow
+    Write-Host "    Edit and SAVE it now if you want (e.g. add command usage)." -ForegroundColor Yellow
+    Write-Host "    File: $changelogPath" -ForegroundColor Yellow
+    [void](Read-Host "    Press Enter to hash + publish the release (Ctrl+C to abort)")
 }
 
 # ---- Hash local files -------------------------------------------------------
