@@ -96,6 +96,7 @@ extern void PGXP_StoreAddr(void* addr, int slot);
     *(uint*)(_b + 16) = MFC2(12); \
     *(uint*)(_b + 24) = MFC2(13); \
     *(uint*)(_b + 32) = MFC2(14); \
+    if (g_PsxUsePgxp) { PGXP_StoreAddr(_b + 16, 0); PGXP_StoreAddr(_b + 24, 1); PGXP_StoreAddr(_b + 32, 2); } \
 } while(0)
 #else
 #define gte_stsxy3_g3( p ) do { \
