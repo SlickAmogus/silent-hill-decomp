@@ -59,6 +59,8 @@ static int inventory_has(s32 itemId)
     return 0;
 }
 
+static void apply_pending_flags(void); /* defined with the flag commands below */
+
 static void cmd_map(const char* arg)
 {
     int i, count = MapRegistry_Count();
@@ -103,6 +105,9 @@ static void cmd_map(const char* arg)
         GameBoot_MapLoad(g_SavegamePtr->mapIdx);
         GameFs_StreamBinLoad();
         Fs_QueueWaitForEmpty();
+        /* re-apply console-set flags wiped by GameBoot_SavegameInitialize's bzero,
+         * so "setending in the menu, then map to the ending" works. */
+        apply_pending_flags();
         Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
         g_SysWork.counters_1C[0]     = 0;
         g_SysWork.counters_1C[1]     = 0;
@@ -221,6 +226,36 @@ static void cmd_give(const char* arg)
  * hospital/ending code). The ending is chosen when the FINAL BOSS is beaten, so
  * set these BEFORE that fight, not during the ending cutscene. setflag accepts
  * any flag number so nothing is locked out for experimentation. */
+/* `map` warps via GameBoot_SavegameInitialize, which bzero's the whole savegame
+ * (all event flags). To let "setending / setflag in the menu, then map to the
+ * ending" work, every flag the user sets is also remembered here and re-applied
+ * by cmd_map AFTER the savegame reset (and after MapLoad), just before gameplay
+ * starts — so the ending cutscene reads the intended flags. */
+#define MAX_PENDING_FLAGS 24
+static struct { int flag; int val; } s_pendingFlags[MAX_PENDING_FLAGS];
+static int s_pendingFlagCount = 0;
+
+static void pending_flag_set(int flag, int val)
+{
+    int i;
+    for (i = 0; i < s_pendingFlagCount; i++)
+        if (s_pendingFlags[i].flag == flag) { s_pendingFlags[i].val = val; return; }
+    if (s_pendingFlagCount < MAX_PENDING_FLAGS) {
+        s_pendingFlags[s_pendingFlagCount].flag = flag;
+        s_pendingFlags[s_pendingFlagCount].val  = val;
+        s_pendingFlagCount++;
+    }
+}
+
+static void apply_pending_flags(void)
+{
+    int i;
+    for (i = 0; i < s_pendingFlagCount; i++) {
+        if (s_pendingFlags[i].val) Savegame_EventFlagSet(s_pendingFlags[i].flag);
+        else                       Savegame_EventFlagClear(s_pendingFlags[i].flag);
+    }
+}
+
 /* The SH1 ending is selected from two binary flags read by the map7_s03 ending
  * code: 449 = Cybil saved (Aglaophotis on her in the map6_s04 boss) and 391 =
  * "good path" (the map5_s03 Kaufmann subplot completed). The four combinations
@@ -262,8 +297,10 @@ static void cmd_setending(const char* arg)
 
     if (cybil) Savegame_EventFlagSet(ENDFLAG_CYBIL); else Savegame_EventFlagClear(ENDFLAG_CYBIL);
     if (good)  Savegame_EventFlagSet(ENDFLAG_GOOD);  else Savegame_EventFlagClear(ENDFLAG_GOOD);
+    pending_flag_set(ENDFLAG_CYBIL, cybil);
+    pending_flag_set(ENDFLAG_GOOD,  good);
     cprintf("ending '%s': Cybil(449)=%d Good(391)=%d", arg, cybil, good);
-    cprintf("set before reaching the ending");
+    cprintf("persists across 'map' warp; set before the ending");
 }
 
 static void cmd_setflag(const char* arg)
@@ -276,6 +313,7 @@ static void cmd_setflag(const char* arg)
     }
     if (v) Savegame_EventFlagSet(n);
     else   Savegame_EventFlagClear(n);
+    pending_flag_set(n, v);
     cprintf("flag %d = %d", n, v);
 }
 
