@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.16.2 -- 2026-06-16
+- PGXP: record effect-quad vertex addresses for deterministic matching
+- PGXP: bump PsyCross ΓÇö reject mismatched precise coords (geometry-warp fix)
+- PGXP: bump PsyCross ΓÇö deterministic environment rendering working
+
 ## v2026.06.16.1 -- 2026-06-16
 - Revise README with project status and known issues
 - Revise gameplay status and fix wording in README
