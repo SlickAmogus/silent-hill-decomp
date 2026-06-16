@@ -352,6 +352,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
 #ifdef SH_PC_PORT
                 GameBoot_MapLoad(g_SavegamePtr->mapIdx);
+                /* Re-apply console-set flags (setending/setflag) wiped by the
+                 * savegame init above, so they persist into a New Game boot to a
+                 * config-selected map (e.g. ending testing). No-op unless the
+                 * console set any. */
+                {
+                    extern void Pc_ConsoleApplyPendingFlags(void);
+                    Pc_ConsoleApplyPendingFlags();
+                }
 #else
                 GameBoot_MapLoad(MapOverlayId_MAP0_S00);
 #endif
