@@ -8,17 +8,17 @@
 
 The port is 100% playable start-to-finish — the full game can be completed. Expect visual/audio glitches that are actively being fixed; none are progression-blocking.
 - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly.
-- **In-game 3D world**: rendering working — textured environments, fog, snow/particle effects, trees, buildings, lamp posts, ground geometry. Some scenes still show color-banding / CLUT texture glitches (school, store) and occasional effect artifacts.
+- **In-game 3D world**: rendering working — textured environments, fog, snow/particle effects, trees, buildings, lamp posts, ground geometry. 
 - **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height and stairs working.
-- **Combat**: working — handgun, hunting rifle, and shotgun fire reliably; melee weapons hit; break-free, death, and grab animations work. Chainsaw and Hyper Blaster are known-broken.
+- **Combat**: working — handgun, hunting rifle, and shotgun fire reliably; melee weapons hit; break-free, death, and grab animations work. Chainsaw and Rock Drill have issues, others not mentioned untested.
 - **Bosses**: functional — Twinfeeler (worm), Split Head, Floatstinger, and the Cybil fight all run; some boss visual effects still being polished.
 - **Cutscenes**: mostly working — DMS-driven scenes, animations, and letterboxing play; isolated scenes still have effect/timing glitches.
-- **Camera**: PSX fixed-camera system functional but not perfect; adjustable/tunable with numpad keys.
+- **Camera**: PSX fixed-camera system 1:1 with the original game for the most part.
 - **Audio**: SFX, BGM, and voices all working; XA streaming plays cutscene voices directly from the disc image.
 - **Map overlays**: all 42 maps compile as DLLs and load; room/door transitions working.
 - **NPC AI**: full AI enabled — Grey Children, Air Screamers, Groaners, and others confirmed working.
-- **Memory card**: save/load fully working; remaining progression bugs are fixed as they surface.
-- **Graphics**: high resolutions, 16**:9 (Hor+), high refresh rates, and uncapped FPS; optional runtime PGXP; settings adjustable in the launcher.
+- **Memory card**: save/load fully working; Quick save and quick load menus enabled with default keys F6 and F8.
+- **Graphics**: high resolutions, 16**:9 (Hor+), high refresh rates, and uncapped FPS; optional runtime PGXP (buggy); settings adjustable in the launcher.
 - **PAL/EUR support**: boots into English gameplay from a PAL disc and loads the censored "Mumbler" Grey Children; localized menus are still garbled (font-layout work pending) and an in-game language selector is planned.
 - **Data accuracy**: the port replaces hundreds of missing PSX ROM data tables ("zero-stubs") that cause invisible/black/silent/mis-positioned effects; automated audits (audit_zero_stubs.py, audit_stub_layout.py) now surface remaining ones proactively, with the endings (map7_s03) as the next target.
 - **Updates**: the latest launcher can check for and install updates. Nightly builds posted here**: https**://github.com/SlickAmogus/silent-hill-pc-nightly<br>
@@ -29,7 +29,7 @@ The port is 100% playable start-to-finish — the full game can be completed. Ex
 - Ending cutscenes are glitchy
 - Certain item placements seem angled or odd in the environment
 - PGXP barely works and is glitchy
-- Combat isn't perfect and may have slight issues
+- Combat isn't perfect and may have slight issues.
 
 <br>
 
