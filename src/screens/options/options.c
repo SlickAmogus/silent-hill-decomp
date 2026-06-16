@@ -365,6 +365,14 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
                         g_GameWork.config.extraBloodColor = BloodColor_Black;
                         break;
                 }
+#ifdef SH_PC_PORT
+                /* Mirror the legit blood-color choice so Map_EffectTexturesLoad
+                 * can restore it after per-map corruption (#41). */
+                {
+                    extern unsigned char g_PcTrustedBloodColor;
+                    g_PcTrustedBloodColor = (unsigned char)g_GameWork.config.extraBloodColor;
+                }
+#endif
                 break;
 
             case ExtraOptionsMenuEntry_ViewCtrl:

@@ -43,6 +43,13 @@ s_PcConfig g_PcConfig = {
     .mapName        = "map0_s00"
 };
 
+/* Blue-blood fix (#41): a per-map buffer overrun writes a stray value into
+ * g_GameWork.config.extraBloodColor on some maps (e.g. 2 = green), re-paletting
+ * all blood. The only legitimate writers (options menu, save load, settings
+ * reset) mirror their value here; Map_EffectTexturesLoad re-applies it every map
+ * load, so map corruption can't change the player's blood color. Default 0/red. */
+unsigned char g_PcTrustedBloodColor = 0;
+
 /* Control-binding config keys -> string field in g_PcConfig. Table-driven so
  * the parser stays compact (28 binds). */
 static const struct { const char* key; size_t off; } s_ControlBinds[] = {

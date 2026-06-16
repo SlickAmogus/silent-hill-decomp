@@ -770,6 +770,12 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
                         SH_DBG("[BLOOD-CFG] invalid value, reset to Normal");
                         g_GameWorkConst->config.extraBloodColor = 0;
                     }
+                    /* Mirror the loaded value for Map_EffectTexturesLoad's per-map
+                     * re-apply (#41). */
+                    {
+                        extern unsigned char g_PcTrustedBloodColor;
+                        g_PcTrustedBloodColor = (unsigned char)g_GameWorkConst->config.extraBloodColor;
+                    }
                 }
 #endif
             }

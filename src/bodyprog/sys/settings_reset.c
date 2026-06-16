@@ -25,6 +25,12 @@ void Settings_RestoreDefaults(void) // 0x8003342C
     Settings_ScreenAndVolUpdate();
 
     g_GameWork.config.extraBloodColor = 0;
+#ifdef SH_PC_PORT
+    {
+        extern unsigned char g_PcTrustedBloodColor;
+        g_PcTrustedBloodColor = 0; /* mirror for Map_EffectTexturesLoad re-apply (#41) */
+    }
+#endif
 }
 
 void Settings_RestoreControlDefaults(s32 configIdx) // 0x80033480
