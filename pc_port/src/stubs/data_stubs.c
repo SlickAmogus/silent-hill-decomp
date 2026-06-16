@@ -624,7 +624,6 @@ u8 D_800F483C[256] = {0};
 u8 D_800F48A4[256] = {0};
 u8 D_800F48A8[256] = {0};
 u8 D_800F4B30[256] = {0};
-u8 D_800F4B40[256] = {0};
 u8 D_800F534E[256] = {0};
 u8 D_800F5350[256] = {0};
 u8 D_800F535C[256] = {0};
@@ -758,7 +757,6 @@ void* g_Cutscene_UpdateMar = 0;
 void* g_Cutscene_UpdateKau = 0;
 void* g_Cutscene_UpdateArsia = 0;
 void* g_Cutscene_UpdateHero = 0;
-u8 g_NpcBoneCoords[256] = {0};
 /* Binary-extracted MAP3_S03.BIN @0x800D57F0 (SfxPair[9] as u16 words). */
 u16 g_NursePuppetSfxs[18] = { 1506, 128, 1507, 128, 1508, 128, 1509, 128, 1510, 160, 1511, 255, 1512, 128, 1512, 128, 1519, 128 };
 /* Binary-extracted from MAP3_S03.BIN (anim time -> nurse SFX map). */
