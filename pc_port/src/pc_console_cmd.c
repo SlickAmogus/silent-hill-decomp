@@ -59,7 +59,7 @@ static int inventory_has(s32 itemId)
     return 0;
 }
 
-static void apply_pending_flags(void); /* defined with the flag commands below */
+void Pc_ConsoleApplyPendingFlags(void); /* public: re-apply console-set flags after a savegame reset (cmd_map + New Game boot) */
 
 static void cmd_map(const char* arg)
 {
@@ -107,7 +107,7 @@ static void cmd_map(const char* arg)
         Fs_QueueWaitForEmpty();
         /* re-apply console-set flags wiped by GameBoot_SavegameInitialize's bzero,
          * so "setending in the menu, then map to the ending" works. */
-        apply_pending_flags();
+        Pc_ConsoleApplyPendingFlags();
         Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
         g_SysWork.counters_1C[0]     = 0;
         g_SysWork.counters_1C[1]     = 0;
@@ -247,7 +247,7 @@ static void pending_flag_set(int flag, int val)
     }
 }
 
-static void apply_pending_flags(void)
+void Pc_ConsoleApplyPendingFlags(void)
 {
     int i;
     for (i = 0; i < s_pendingFlagCount; i++) {
