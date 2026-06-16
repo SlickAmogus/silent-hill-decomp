@@ -95,11 +95,21 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
     }
 
 #ifdef SH_PC_PORT
-    /* Blue-blood triage (#41): blood color is a savegame byte (Extra Options;
-     * Normal=0/Green=2/Violet=5/Black=11) that selects blood CLUT rows via
-     * func_8005F55C. A non-zero value here = the whole area bleeds off-color.
-     * Must log BEFORE the no-flags early-out — most maps take it. */
-    SH_DBG("[BLOOD-CFG] map=%d extraBloodColor=%d", (int)mapIdx, (int)g_GameWork.config.extraBloodColor);
+    /* Blue-blood fix (#41): blood color is config.extraBloodColor (Extra Options;
+     * Normal=0/Green=2/Violet=5/Black=11), selecting blood CLUT rows via
+     * func_8005F55C. A per-map buffer overrun corrupts it on some maps (seen as 2
+     * = green on maps 2/10), re-paletting all blood. The legit writers mirror the
+     * real value into g_PcTrustedBloodColor; re-apply it here each map load so map
+     * corruption can't change blood color. Runs BEFORE the no-flags early-out. */
+    {
+        extern unsigned char g_PcTrustedBloodColor;
+        if (g_GameWork.config.extraBloodColor != g_PcTrustedBloodColor)
+        {
+            SH_DBG("[BLOOD-CFG] map=%d corrupted=%d -> restored=%d", (int)mapIdx,
+                   (int)g_GameWork.config.extraBloodColor, (int)g_PcTrustedBloodColor);
+            g_GameWork.config.extraBloodColor = g_PcTrustedBloodColor;
+        }
+    }
 #endif
 
     if (effectTexFlags == EffectTextureFlag_None)
