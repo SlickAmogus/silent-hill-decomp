@@ -1,5 +1,16 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.15.5 -- 2026-06-15
+- Tooling: per-area scoping + alias-write detection + map attribution for audit_zero_stubs
+- Twinfeeler: extract remaining ROM tables found by zero-stub audit
+- Twinfeeler: restore D_800E08F0 == D_800E0698.field_258 alias (burrow dust pos)
+- Tooling: audit_stub_layout.py ΓÇö find truncated stubs, NULL-ptr stubs, lost aliases
+- Twinfeeler: stop the acid-attack loop SFX (1561) - constant squish fix
+- Player: fix can't-start-walking-while-aiming at high FPS
+- map7_s03: reformat ending-cutscene pointer tables (bad-ending crash fix)
+- map7_s03: extract ending-image color/palette tables (D_800EB010/410/814/C18)
+- map7_s03: extract D_800EB810 position-spread scale (Q12 1.0)
+
 ## v2026.06.15.4 -- 2026-06-15
 - Twinfeeler: extract real dust/dirt color ramp (D_800DAA58)
 - Twinfeeler: extract emerge tables (Y-pos sink + sfx loop fixes)
