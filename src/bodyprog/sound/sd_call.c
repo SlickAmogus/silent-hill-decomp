@@ -406,6 +406,13 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         return NO_VALUE;
     }
 
+#ifdef SH_PC_PORT
+    /* Temporary: log every SPU SFX play so a looping sound (e.g. the good+
+     * ending's stuck Cybil-grunt / boss-attack loops) can be identified by id
+     * and given an explicit Sd_SfxStop on PC (no SPU voice-stealing here). */
+    SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) vol=%d", sfxId, sfxId - Sfx_Base, vol);
+#endif
+
     audioIdx = sfxId - Sfx_Base;
     volCpy   = vol;
 

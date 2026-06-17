@@ -157,12 +157,11 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
             s32 dxh = pl->position.vx - airScreamer->position.vx;
             s32 dzh = pl->position.vz - airScreamer->position.vz;
             s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
-            /* Bite reach. The original connected on the fang polygon (forward
-             * of the AS body center); the PC shim measures body-center XZ
-             * distance, so a 3u radius missed bites that visibly landed.
-             * Q12(16.0) = 4u radiusÂ² approximates the fang reach so the AS
-             * hits about as readily as the original. */
-            if (distSqr < Q12(16.0f)) {
+            /* Bite reach = 3u radius². 4u (Q12(16)) made the AS bite + knock
+             * Harry back ~1u further out, which prevented him from reaching a
+             * downed AS to kick it (game softlocked waiting for it to die). 3u
+             * keeps the approach/kick window the player had before that change. */
+            if (distSqr < Q12(9.0f)) {
                 pl->damage.amount = Q12(15.0f);
                 pl->damage.position = airScreamer->position;
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
