@@ -2499,7 +2499,10 @@ q19_12 func_800DA420(VECTOR3* result) // 0x800DA420
 
 void func_800DA4B4(s32* arg0, s32* arg1) // 0x800DA4B4
 {
-    arg0[0] += (arg1[0] * arg0[1]) / arg1[1];
+    if (arg1[1] != 0) /* x86 traps on divide-by-zero; PSX MIPS did not */
+    {
+        arg0[0] += (arg1[0] * arg0[1]) / arg1[1];
+    }
 }
 
 s32 func_800DA4EC(s32 min, s32 max) // 0x800DA4EC
@@ -2514,7 +2517,13 @@ s32 func_800DA4EC(s32 min, s32 max) // 0x800DA4EC
     }
 
     range = max - min;
-    min  += Rng_Rand16() / ((0x7FFF / range) + 1);
+    /* range==0 (max==min) -> 0x7FFF/range is a divide-by-zero. PSX MIPS returns
+     * garbage and carries on; x86 traps (0xC0000094, bad-ending cutscene crash).
+     * With no range there is nothing to randomize, so the result is just min. */
+    if (range != 0)
+    {
+        min += Rng_Rand16() / ((0x7FFF / range) + 1);
+    }
     return min;
 }
 
