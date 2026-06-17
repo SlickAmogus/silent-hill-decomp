@@ -2102,6 +2102,17 @@ void func_800E514C(void) // 0x800E514C
             if (Sd_AudioStreamingCheck() != 1)
             {
                 Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
+#ifdef SH_PC_PORT
+                /* Good+ ending freeze ROOT (confirmed by [END-FREEZE]: stuck at
+                 * step 32, xaStream=0, timer=Q12(320)). Case 30 starts XA 606;
+                 * case 31 waits for it to FINISH (check!=1); this step waits for
+                 * it to START (check==1). On PC the XA already started+finished
+                 * during case 31, so check==1 is never observed here and the
+                 * cutscene hangs with the bottle spinning. The voice has had its
+                 * full window once the timer reaches its 281->320 end, so fall
+                 * through then instead of waiting on a state that can't recur. */
+                if (g_Cutscene_Timer < Q12(320.0f))
+#endif
                 break;
             }
 

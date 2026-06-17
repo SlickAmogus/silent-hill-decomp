@@ -1465,6 +1465,24 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
             (*poly)->b0         = ptr->field_130.b;
 
+#ifdef SH_PC_PORT
+            /* [BLOOD-SPRAY] func_80060044 = the blood SPRAY (when an enemy is
+             * hit). Log the actual tpage (0x4B=subtractive / 0x2B=additive) +
+             * color per map so the working red school spray and the blue
+             * air-screamer spray can be compared against the pool path. */
+            {
+                static s32 s_spraySeenMap = -2;
+                s32 _m = (s32)g_SavegamePtr->mapIdx;
+                if (_m != s_spraySeenMap)
+                {
+                    s_spraySeenMap = _m;
+                    SH_DBG("[BLOOD-SPRAY] map=%d func=80060044 tpage=0x%X color=(%d,%d,%d)",
+                           (int)_m, (unsigned)((*poly)->tpage),
+                           ptr->field_130.r, ptr->field_130.g, ptr->field_130.b);
+                }
+            }
+#endif
+
             {
                 s32 _bucket2 = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucket2 < 0) _bucket2 = 0;
@@ -1890,7 +1908,7 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
             if (_m != s_drawSeenMap)
             {
                 s_drawSeenMap = _m;
-                SH_DBG("[BLOOD-DRAW] map=%d row=%d rawColor=(%d,%d,%d) [post func_80055A90 fog/tint depth-cue] tpage=0x2B(additive)",
+                SH_DBG("[BLOOD-DRAW] map=%d row=%d rawColor=(%d,%d,%d) [pool path, now tpage=0x4B SUBTRACTIVE]",
                        (int)_m, (int)g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2,
                        ptr->field_12C.r, ptr->field_12C.g, ptr->field_12C.b);
             }
@@ -1898,35 +1916,21 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         /* Red-bias + tpage fix for the ground-decal blood. Two issues
          * the PSX 3-prim emit hid that surface in our single-prim PC
          * simplification:
-         *   1. tpage is set at line 1791 via the u1-word write to 0x4B
-         *      (some other texture page), then OVERRIDDEN later in the
-         *      PSX path at `(*poly)->tpage = 0x2B` after the struct
-         *      copy. We dropped the struct copy and the override along
-         *      with it, so the prim sampled from page 0x4B and blood
-         *      rendered as an unrelated bluish texture (user reported
-         *      "blood is still blue"). Restore the override.
-         *   2. func_80055A90 fog-blends the color toward fogColor
-         *      → near-black in dark areas. Bias toward red so the
-         *      texture-modulated blood is actually visible as red. */
-        (*poly)->tpage = 0x2B;
+         *   tpage 0x4B and 0x2B are the SAME texture page (704) — they differ
+         *   ONLY in the ABR (semi-transparency) bits: 0x4B = ABR 2 (SUBTRACTIVE),
+         *   0x2B = ABR 1 (ADDITIVE). The prior override to 0x2B misread 0x4B as
+         *   "a different texture page". The blood CLUT (row 0) is CYAN (R low,
+         *   G/B high); SUBTRACTIVE removes G/B from the floor -> leaves RED (what
+         *   PSX/Duckstation shows). ADDITIVE adds the cyan -> blue. The drawers
+         *   that kept 0x4B (func_80064334/func_80064FC0) render red; restore 0x4B
+         *   here so this blood matches. */
+        (*poly)->tpage = 0x4B;
         (*poly)->clut  = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
-        {
-            static int _decalLogN = 0;
-            if (_decalLogN < 30) {
-                _decalLogN++;
-            }
-            {
-                int r = (int)ptr->field_12C.r + 96;
-                int g = (int)ptr->field_12C.g >> 2;
-                int b = (int)ptr->field_12C.b >> 2;
-                if (r > 255) r = 255;
-                ptr->field_12C.r = (u8)r;
-                ptr->field_12C.g = (u8)g;
-                ptr->field_12C.b = (u8)b;
-            }
-            *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
-            (*poly)->b0         = ptr->field_12C.b;
-        }
+        /* No +96 red boost: it was tuned for additive blend and HURTS the
+         * subtractive blend (lowering the poly's G/B reduces the G/B subtraction
+         * that creates red). With subtractive + the raw fog-tinted color, the
+         * cyan texel removes G/B from the floor and the result is red. r0/g0/b0
+         * were already set from the raw field_12C above. */
 #endif
 
 #ifdef SH_PC_PORT
