@@ -140,6 +140,8 @@ static const s_GiveItem GIVE_ITEMS[] = {
     { "HANDGUNAMMO",  InvItemId_HandgunBullets, 30 },
     { "RIFLEAMMO",    InvItemId_RifleShells,    30 },
     { "SHOTGUNAMMO",  InvItemId_ShotgunShells,  30 },
+    { "GASOLINE",     InvItemId_GasolineTank,    5 }, /* chainsaw / rock drill fuel */
+    { "GAS",          InvItemId_GasolineTank,    5 },
     /* recovery */
     { "HEALTHDRINK",  InvItemId_HealthDrink,    1 },
     { "FIRSTAID",     InvItemId_FirstAidKit,    1 },
@@ -203,7 +205,8 @@ static void cmd_give(const char* arg)
         give_item(InvItemId_HandgunBullets, 60);
         give_item(InvItemId_RifleShells, 60);
         give_item(InvItemId_ShotgunShells, 60);
-        cprintf("Given all weapons + ammo");
+        give_item(InvItemId_GasolineTank, 5); /* chainsaw / drill fuel */
+        cprintf("Given all weapons + ammo + gas");
         return;
     }
     for (k = 0; k < N_GIVE_ITEMS; k++) {
@@ -353,7 +356,8 @@ static const char* const HELP_GIVE_PAGE1[] = {
     " knife pipe rockdrill hammer chainsaw katana axe",
     " handgun rifle shotgun hyperblaster (guns add ammo)",
     " ammo  handgunammo rifleammo shotgunammo",
-    " allweapons    all melee + guns + ammo",
+    " gasoline (chainsaw/drill fuel)",
+    " allweapons    all melee + guns + ammo + gas",
     " health healthdrink firstaid ampoule",
     "type 'help give 2' for story / ending items",
 };
