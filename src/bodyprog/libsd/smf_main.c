@@ -62,6 +62,16 @@ s32  chantype[18]   = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 2, 0, 0, 0 };
 
 extern bool sd_timer_flag; // TODO: Only used in this file.
 
+#ifdef SH_PC_PORT
+/* [SEQ-RATE] decide whether the cutscene drone is over-driven (sequencer bug) or
+ * just the boss music at the right rate. Count midi_smf_main calls from each
+ * driver per second. Expected single-drive: timer~577, vsync~0 (gated). If
+ * vsync is non-zero too, the double-drive is still active = notes retrigger too
+ * fast. */
+u32 g_seqTimerTicks = 0;
+u32 g_seqVsyncTicks = 0;
+#endif
+
 bool smf_timer(void) // 0x800A6D18
 {
     if (!sd_interrupt_start_flag || sd_int_flag)
@@ -72,6 +82,9 @@ bool smf_timer(void) // 0x800A6D18
     if (!sd_int_flag2)
     {
         sd_int_flag2 = true;
+#ifdef SH_PC_PORT
+        g_seqTimerTicks++;
+#endif
         midi_smf_main();
 
         if (sd_timer_sync >= 11)
@@ -167,6 +180,9 @@ void smf_vsync(void) // 0x800A6F14
     if (smf_start_flag)
 #endif
     {
+#ifdef SH_PC_PORT
+        g_seqVsyncTicks += 10;
+#endif
         midi_smf_main();
         midi_smf_main();
         midi_smf_main();
@@ -182,4 +198,20 @@ void smf_vsync(void) // 0x800A6F14
     midi_vsync();
     SdAutoKeyOffCheck();
     sd_int_flag2 = false;
+
+#ifdef SH_PC_PORT
+    /* [SEQ-RATE] Log the per-second tick split once a second (smf_vsync runs ~60Hz).
+     * timer~577 vsync~0 = correct single-drive; vsync non-zero = double-drive bug. */
+    {
+        static u32 s_seqFrames = 0;
+        if (++s_seqFrames >= 60)
+        {
+            SH_DBG("[SEQ-RATE] last ~1s: timerTicks=%u vsyncTicks=%u (single-drive ok if vsync~0; sum ~577 ok)",
+                   g_seqTimerTicks, g_seqVsyncTicks);
+            g_seqTimerTicks = 0;
+            g_seqVsyncTicks = 0;
+            s_seqFrames     = 0;
+        }
+    }
+#endif
 }
