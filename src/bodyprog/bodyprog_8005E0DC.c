@@ -805,6 +805,25 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
         arg3 = func_8005F55C(arg3);
     }
 
+#ifdef SH_PC_PORT
+    /* Blue-blood root-cause probe: the blood poly's CLUT word is built as
+     * (arg3 << 6) | 0x13 -> clutX=304, clutY=arg3 (the row picked here). With
+     * Normal color (extraBloodColor=0) most blood types resolve to row 0 (red),
+     * but blood types 4/5/8/10/12 force rows 9/6/7 regardless of color. Log each
+     * distinct resolved row once so we can tell whether blue blood is (a) a wrong
+     * row (logic) or (b) row 0 reading a stomped VRAM palette at clutX=304. */
+    {
+        static unsigned s_bloodRowSeen = 0;
+        if (arg3 >= 0 && arg3 < 32 && !(s_bloodRowSeen & (1u << arg3)))
+        {
+            s_bloodRowSeen |= (1u << arg3);
+            SH_DBG("[BLOOD-ROW] color=%d type=%d -> row(clutY)=%d clutWord=0x%04X (clutX=304)",
+                   (int)g_GameWork.config.extraBloodColor, (int)arg2,
+                   (int)arg3, (unsigned)(((arg3 << 6) | 0x13) & 0xFFFF));
+        }
+    }
+#endif
+
     switch (arg2)
     {
         case 1:
