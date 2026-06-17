@@ -586,35 +586,58 @@ void func_800E1854(void) // 0x800E1854
     }
 
 #ifdef SH_PC_PORT
-    /* Good+ ending crash: func_800E20A4 derefs arg2 (=field_5C) at +0x2a and AVs
-     * with field_5C = 0x7ff8fffffffc (low-32-zeroed = truncated-pointer stomp).
-     * field_5C/field_60 are set by func_800E1FE0 to &D_800ED274[i].field_4[0/1],
-     * so a valid value must lie inside the D_800ED274 array. Log + skip when it
-     * doesn't, so we survive the AV and capture the bad value + whether the
-     * setter or an intervening call corrupted it. */
+    /* Good+ ending crash: a wild write stomps the D_800F4B40 region between the
+     * func_800E1FE0/func_800E17B8 setup and these consumers — corrupting both the
+     * field_1C[i].vec_0/vec_8 pointers (-> func_800E24A0 AV) and field_5C (->
+     * func_800E20A4 AV) to near-boundary garbage (0x00007ff8fffffff8/fffc). The
+     * producer isn't statically obvious, so:
+     *   - self-heal: the 8 vec pointers are CONSTANT (always &field_B8[k]) and
+     *     field_5C/60 are &D_800ED274[i].field_4[0/1] (48 bytes apart), so we can
+     *     restore the intended invariants every frame and let the ending play.
+     *   - log the watchpoint addresses once so a WinDbg `ba w8 <addr>` names the
+     *     exact instruction that does the wild write (the real fix). */
     {
         char* lo = (char*)&D_800ED274[0];
         char* hi = (char*)&D_800ED274[18];
         char* p5 = (char*)D_800F4B40.field_5C;
         char* p6 = (char*)D_800F4B40.field_60;
-        static int s_loggedBad = 0;
-        if (p5 < lo || p5 >= hi || p6 < lo || p6 >= hi)
+        int   f5ok = (p5 >= lo && p5 < hi);
+        int   f6ok = (p6 >= lo && p6 < hi);
+        static int s_logged = 0;
+        if (!s_logged)
         {
-            if (s_loggedBad < 8)
-            {
-                s_loggedBad++;
-                SH_DBG("[F4B40] field_5C/60 OOB: f5C=%p f60=%p arr=[%p,%p) state=%d/%d -> skip",
-                       (void*)D_800F4B40.field_5C, (void*)D_800F4B40.field_60,
-                       (void*)lo, (void*)hi, (int)D_800F4B40.field_0, (int)D_800F4B40.field_4);
-            }
+            s_logged = 1;
+            SH_DBG("[F4B40] watch &field_1C[0].vec_0=%p &field_5C=%p (set ba w8 here)",
+                   (void*)&D_800F4B40.field_1C[0].vec_0, (void*)&D_800F4B40.field_5C);
         }
-        else
+        if (!f5ok || !f6ok)
+            SH_DBG("[F4B40] stomp: f5C=%p f60=%p arr=[%p,%p) state=%d/%d",
+                   (void*)D_800F4B40.field_5C, (void*)D_800F4B40.field_60,
+                   (void*)lo, (void*)hi, (int)D_800F4B40.field_0, (int)D_800F4B40.field_4);
+
+        /* Restore the constant scratch-vector pointers (see init at ~line 200). */
+        D_800F4B40.field_1C[0].vec_0 = &D_800F4B40.field_B8[0];
+        D_800F4B40.field_1C[0].vec_8 = &D_800F4B40.field_B8[1];
+        D_800F4B40.field_1C[1].vec_0 = &D_800F4B40.field_B8[2];
+        D_800F4B40.field_1C[1].vec_8 = &D_800F4B40.field_B8[3];
+        D_800F4B40.field_64[0].vec_0 = &D_800F4B40.field_B8[4];
+        D_800F4B40.field_64[0].vec_8 = &D_800F4B40.field_B8[5];
+        D_800F4B40.field_64[1].vec_0 = &D_800F4B40.field_B8[6];
+        D_800F4B40.field_64[1].vec_8 = &D_800F4B40.field_B8[7];
+
+        /* field_60 = field_5C + 48; repair whichever is bad from the good one. */
+        if (f6ok && !f5ok)
+            D_800F4B40.field_5C = (s_800F4B40_1C*)((char*)D_800F4B40.field_60 - sizeof(s_800F4B40_1C));
+        else if (f5ok && !f6ok)
+            D_800F4B40.field_60 = (s_800F4B40_1C*)((char*)D_800F4B40.field_5C + sizeof(s_800F4B40_1C));
+
+        if (f5ok || f6ok)
+        {
 #endif
-    {
     func_800E20A4(&D_800F4B40.field_1C[0], &D_800F4B40.field_A4[0], D_800F4B40.field_5C, &D_800F4B40.field_64[0]);
     func_800E20A4(&D_800F4B40.field_1C[1], &D_800F4B40.field_A4[1], D_800F4B40.field_60, &D_800F4B40.field_64[1]);
-    }
 #ifdef SH_PC_PORT
+        }
     }
 #endif
     func_800E24A0(&D_800F4B40.field_1C[0]);
