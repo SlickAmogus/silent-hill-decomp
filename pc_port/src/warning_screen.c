@@ -241,12 +241,21 @@ void Pc_PlayWarningScreen(void)
         Warn_SwapAndDraw();
         fade += 8;
     }
-    /* Last frame at fade=255 — guarantees the screen is solidly black
-     * (image - 255 = 0 for every pixel) before we return and the next
-     * boot screen takes over. The loop's `fade += 4` could otherwise
-     * end at fade=252, leaving the brightest image pixels at RGB=3. */
-    Warn_DrawFadeTile(255);
-    Warn_DrawImage();
-    Warn_SwapAndDraw();
-
+    /* Flush several solid-black frames before returning. Warn_SwapAndDraw
+     * swaps the display BEFORE drawing the current OT, so the last frame built
+     * is shown one iteration later — a single final frame leaves the DISPLAYED
+     * buffer at the next-to-last fade level (near-black but a few RGB of the
+     * brightest image pixels still show), and the konami transition then briefly
+     * exposes a stale framebuffer = the warning "flashing back" after the fade.
+     * Drawing black (image - 255 = 0) to BOTH display buffers + the presented
+     * frame guarantees a clean black hand-off with no stale warning frame. */
+    {
+        s32 blackFrame;
+        for (blackFrame = 0; blackFrame < 3; blackFrame++)
+        {
+            Warn_DrawFadeTile(255);
+            Warn_DrawImage();
+            Warn_SwapAndDraw();
+        }
+    }
 }
