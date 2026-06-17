@@ -103,6 +103,16 @@ void Map_EffectTexturesLoad(s32 mapIdx) // 0x8005E0DC
      * corruption can't change blood color. Runs BEFORE the no-flags early-out. */
     {
         extern unsigned char g_PcTrustedBloodColor;
+        /* Root-cause aid: log the byte's fixed address once so a write watchpoint
+         * can be set on the overrun (WinDbg: `ba w1 <addr>`, then enter map 2/10
+         * — it breaks on whatever stomps the byte, before our restore below). */
+        static int s_loggedBloodAddr = 0;
+        if (!s_loggedBloodAddr)
+        {
+            s_loggedBloodAddr = 1;
+            SH_DBG("[BLOOD-CFG] &config.extraBloodColor=%p  (watchpoint: ba w1 <addr>)",
+                   (void*)&g_GameWork.config.extraBloodColor);
+        }
         if (g_GameWork.config.extraBloodColor != g_PcTrustedBloodColor)
         {
             SH_DBG("[BLOOD-CFG] map=%d corrupted=%d -> restored=%d", (int)mapIdx,
