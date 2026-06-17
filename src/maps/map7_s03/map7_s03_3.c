@@ -615,15 +615,22 @@ void func_800E1854(void) // 0x800E1854
                    (void*)D_800F4B40.field_5C, (void*)D_800F4B40.field_60,
                    (void*)lo, (void*)hi, (int)D_800F4B40.field_0, (int)D_800F4B40.field_4);
 
-        /* Restore the constant scratch-vector pointers (see init at ~line 200). */
-        D_800F4B40.field_1C[0].vec_0 = &D_800F4B40.field_B8[0];
-        D_800F4B40.field_1C[0].vec_8 = &D_800F4B40.field_B8[1];
-        D_800F4B40.field_1C[1].vec_0 = &D_800F4B40.field_B8[2];
-        D_800F4B40.field_1C[1].vec_8 = &D_800F4B40.field_B8[3];
-        D_800F4B40.field_64[0].vec_0 = &D_800F4B40.field_B8[4];
-        D_800F4B40.field_64[0].vec_8 = &D_800F4B40.field_B8[5];
-        D_800F4B40.field_64[1].vec_0 = &D_800F4B40.field_B8[6];
-        D_800F4B40.field_64[1].vec_8 = &D_800F4B40.field_B8[7];
+        /* Restore the constant scratch-vector pointers (see init at ~line 200).
+         * Write ONLY when actually wrong, so these slots aren't touched every
+         * frame — that keeps a WinDbg `ba w8` on them quiet until the real wild
+         * write trips it (our repair would otherwise be the only writer seen). */
+        #define HEAL_VEC(field, idx) do { \
+            VECTOR3* want = &D_800F4B40.field_B8[idx]; \
+            if ((field) != want) (field) = want; } while (0)
+        HEAL_VEC(D_800F4B40.field_1C[0].vec_0, 0);
+        HEAL_VEC(D_800F4B40.field_1C[0].vec_8, 1);
+        HEAL_VEC(D_800F4B40.field_1C[1].vec_0, 2);
+        HEAL_VEC(D_800F4B40.field_1C[1].vec_8, 3);
+        HEAL_VEC(D_800F4B40.field_64[0].vec_0, 4);
+        HEAL_VEC(D_800F4B40.field_64[0].vec_8, 5);
+        HEAL_VEC(D_800F4B40.field_64[1].vec_0, 6);
+        HEAL_VEC(D_800F4B40.field_64[1].vec_8, 7);
+        #undef HEAL_VEC
 
         /* field_60 = field_5C + 48; repair whichever is bad from the good one. */
         if (f6ok && !f5ok)
