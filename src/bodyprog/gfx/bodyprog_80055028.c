@@ -35,6 +35,20 @@ extern float g_PsxPixelAspect;
  * This prevents double-fogging and seam lines at face boundaries. */
 #define VTXCOL_LDDP(dp) gte_lddp(0)
 
+/* Clamp a polygon's OT depth so the bucket index (depth>>shift>>2) can't overrun
+ * org[ORDERING_TABLE_SIZE]; the emulated GTE can return an SZ outside the range
+ * real hardware's OTZ register saturates to, and an out-of-range addPrim writes
+ * the packet pointer into adjacent memory -> split-pointer cutscene crashes. */
+#ifdef SH_PC_PORT
+#define SH_CLAMP_OT_DEPTH(depth, shift)                                         \
+    do {                                                                        \
+        if ((((depth) >> (shift)) >> 2) >= ORDERING_TABLE_SIZE)                 \
+            (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
+    } while (0)
+#else
+#define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
+#endif
+
 /* [MESHCULL] diagnostic for #21 (Harry's face visible through head /
  * visible-from-inside in the intro): per-window counts of model polys
  * total vs nclip-backface-culled, plus model matrices with a negative
@@ -2172,6 +2186,8 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         scratchData->field_380.s_0.field_18 = 32;
                     }
 
+                    SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
+
                     if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
                     {
                         continue;
@@ -2392,6 +2408,8 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     scratchData->field_380.s_0.field_18 = 32;
                 }
 
+                SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
+
                 if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
                 {
                     continue;
@@ -2532,6 +2550,8 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             {
                 scratchData->field_380.s_0.field_18 = 0x20;
             }
+
+            SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
             if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
             {
@@ -2764,6 +2784,8 @@ __block1530:
         {
             scratchData->field_380.s_0.field_18 = 32;
         }
+
+        SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
         if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
         {
