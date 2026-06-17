@@ -3020,6 +3020,28 @@ void func_800E787C(void) // 0x800E787C
     s_800ED7E0_ptr* ptr;
     s32             flags;
 
+#ifdef SH_PC_PORT
+    /* Good+ ending freeze tracer: the bone-buffer fix removed the corruption but
+     * the cutscene still hangs at the Incubator->Incubus transformation. Log each
+     * step entry (flushed, so it survives an abnormal shutdown) + the timer/anim
+     * state so the next run shows the exact stuck step and what it's waiting on. */
+    {
+        extern FILE* g_ShDebugLog;
+        static s32 s_lastStep = -1;
+        s32 st = (s32)g_SysWork.sysStateSteps[0];
+        if (st != s_lastStep)
+        {
+            s_lastStep = st;
+            SH_DBG("[END787C] step=%d timer=%d npc5.anim.status=0x%X npc0.anim.status=0x%X player.anim.status=0x%X",
+                   (int)st, (int)g_Cutscene_Timer,
+                   (unsigned)g_SysWork.npcs[5].model.anim.status,
+                   (unsigned)g_SysWork.npcs[0].model.anim.status,
+                   (unsigned)g_SysWork.playerWork.player.model.anim.status);
+            if (g_ShDebugLog) fflush(g_ShDebugLog);
+        }
+    }
+#endif
+
     if (g_SysWork.sysStateSteps[0] == 31)
     {
         sharedFunc_800D08B8_0_s00(2, 127);
