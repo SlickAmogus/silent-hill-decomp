@@ -1405,6 +1405,36 @@ void func_800E3E84(void) // 0x800E3E84
     Map_CutsceneObjectsUpdate();
 }
 
+#ifdef SH_PC_PORT
+/* The good+ ending Cybil portion (func_800E3F30) plays a looping sequencer BGM
+ * voice that rings forever without the SPU ADSR envelope (the "swish" loop).
+ * The envelope is otherwise shipped OFF (runtime `adsr` toggle) because it is
+ * not yet validated game-wide. Scope it to exactly this portion: force it on at
+ * the Cybil entry and restore the user's setting when the Harry portion
+ * (func_800E4714) begins, so no other scene's behavior changes. */
+extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+extern int  PsyX_SPUAL_GetAdsrEnabled(void);
+static s32 s_endingAdsrSaved = -1; /* -1 = not overridden */
+
+static void Ending_AdsrScopeBegin(void)
+{
+    if (s_endingAdsrSaved < 0)
+    {
+        s_endingAdsrSaved = PsyX_SPUAL_GetAdsrEnabled();
+        PsyX_SPUAL_SetAdsrEnabled(1);
+    }
+}
+
+static void Ending_AdsrScopeEnd(void)
+{
+    if (s_endingAdsrSaved >= 0)
+    {
+        PsyX_SPUAL_SetAdsrEnabled(s_endingAdsrSaved);
+        s_endingAdsrSaved = -1;
+    }
+}
+#endif
+
 void func_800E3F30(void) // 0x800E3F30
 {
     typedef struct
@@ -1462,6 +1492,9 @@ void func_800E3F30(void) // 0x800E3F30
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
+#ifdef SH_PC_PORT
+            Ending_AdsrScopeBegin();
+#endif
             D_800F4804 = 0;
 
             func_800E9260(Chara_EndingCybil, 1);
@@ -1585,6 +1618,9 @@ void func_800E4714(void) // 0x800E4714
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
+#ifdef SH_PC_PORT
+            Ending_AdsrScopeEnd();
+#endif
             g_Cutscene_UpdateHero = true;
             D_800F4828 = 0;
 
