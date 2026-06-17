@@ -1428,68 +1428,37 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
 
 #ifdef SH_PC_PORT
-            /* PC simplification: emit a single POLY_FT4 instead of the
-             * PSX 4×POLY_FT4 + 2×DR_MODE layered layout. The multi-prim
-             * structure was the cause of long-lived OT corruption when
-             * the user knifed enemies — blood splat particles persist
-             * for ~50s @60fps, so corruption from these 4-prim emits
-             * (with addr-field-clobbering struct copies on lines 1314)
-             * compounded across thousands of frames. The OT0 sanitizer
-             * was trapping the corruption and re-linking the chain to
-             * org[0], dropping every mid-distance bucket and producing
-             * the "huge swaths of world geometry disappear" symptom.
-             *
-             * Same trade-off as the muzzle-flash fix
-             * (bodyprog_8005E0DC.c:2610-2632): visual is slightly less
-             * "layered" than PSX but doesn't trash adjacent geometry.
-             *
-             * Color: func_80055A90 above filled field_130 with the
-             * FOG-tinted color (gte_dpcs blends fogColor_1C toward 0,0,0
-             * far color). In dark map areas fogColor is near-black, so
-             * field_130 was near-black too, and the textured POLY_FT4
-             * modulated to fully black blood — the user just hit this.
-             * Switch to func_80055E90 (the muzzle-flash pattern), which
-             * pulls from worldTintColor_28 instead of fogColor and stays
-             * usable in low-fog areas. Then bias the result toward red
-             * so the blood is visibly red regardless of map tint. */
-            func_80055E90(&ptr->field_130, var_a2);
-            {
-                int r = (int)ptr->field_130.r + 96;  /* red boost */
-                int g = (int)ptr->field_130.g >> 2;  /* desaturate green */
-                int b = (int)ptr->field_130.b >> 2;  /* desaturate blue */
-                if (r > 255) r = 255;
-                ptr->field_130.r = (u8)r;
-                ptr->field_130.g = (u8)g;
-                ptr->field_130.b = (u8)b;
-            }
-            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
-            (*poly)->b0         = ptr->field_130.b;
+            /* Faithful layered spray emit (restored from the PSX path below).
+             * The earlier single-poly collapse rendered the spray black/blue: a
+             * lone SUBTRACTIVE (0x4B) cyan quad only resolves to red over a
+             * BRIGHT destination — that's why the floor pool works — but over
+             * Harry or dark fog subtractive can only darken to black, and
+             * biasing the vertex color toward red just turned that blue. The PSX
+             * spray layers 2 ADDITIVE (tpage 43) + 2 SUBTRACTIVE (0x4B) passes,
+             * so it stays visibly red over any background. The only PSX prims
+             * dropped here are the two SetPriority DR_MODE nodes — those are
+             * len-0 OT pass-throughs on PC (libgs_stub.c) and carry no color;
+             * each POLY_FT4 already holds its own tpage/ABR. The garbage-size
+             * (above) and OOB-bucket (here) guards — the real cause of the
+             * original OT corruption that prompted the collapse — stay. */
+            *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
-#ifdef SH_PC_PORT
-            /* [BLOOD-SPRAY] func_80060044 = the blood SPRAY (when an enemy is
-             * hit). Log the actual tpage (0x4B=subtractive / 0x2B=additive) +
-             * color per map so the working red school spray and the blue
-             * air-screamer spray can be compared against the pool path. */
-            {
-                static s32 s_spraySeenMap = -2;
-                s32 _m = (s32)g_SavegamePtr->mapIdx;
-                if (_m != s_spraySeenMap)
-                {
-                    s_spraySeenMap = _m;
-                    SH_DBG("[BLOOD-SPRAY] map=%d func=80060044 tpage=0x%X color=(%d,%d,%d)",
-                           (int)_m, (unsigned)((*poly)->tpage),
-                           ptr->field_130.r, ptr->field_130.g, ptr->field_130.b);
-                }
-            }
-#endif
+            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
+            (*poly + 1)->b0         = ptr->field_134.b;
+            (*poly)->tpage          = 43;
+            (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
+            (*poly + 3)->tpage      = 43;
 
             {
-                s32 _bucket2 = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
-                if (_bucket2 < 0) _bucket2 = 0;
-                if (_bucket2 >= ORDERING_TABLE_SIZE) _bucket2 = ORDERING_TABLE_SIZE - 1;
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket2], *poly);
+                s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
+                if (_bucketS < 0) _bucketS = 0;
+                if (_bucketS >= ORDERING_TABLE_SIZE) _bucketS = ORDERING_TABLE_SIZE - 1;
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 1);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 2);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 3);
             }
-            *poly += 1;
+            *poly += 4;
 #else
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
@@ -2273,56 +2242,33 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 func_80055A90(&ptr->field_12C, &ptr->field_130, temp_s2, ptr->field_20C * 0x10);
 
 #ifdef SH_PC_PORT
-                /* PC: simplified single-prim emit (matching state-1 / state-2
-                 * fixes). The PSX 3-prim layered emit
-                 *   *(*poly + 2) = *(*poly + 1) = **poly;
-                 *   addPrim(...); addPrim(... +1); addPrim(... +2);
-                 * was the persistent OT0 corruption source on PC. The
-                 * struct copy pulls poly[0]'s tag bytes (uninitialized
-                 * packet-buffer junk before the first addPrim) into
-                 * poly[1] and poly[2]; subsequent addPrim setaddr writes
-                 * the head pointer correctly but a downstream walker can
-                 * land on a stale chain link if the second/third addPrim
-                 * sequence is interrupted by other code touching the
-                 * same OT bucket.
-                 *
-                 * In testing: state-3 cloud particles spawn around AS
-                 * death (and during knife hits) and this multi-prim emit
-                 * corrupted buckets near AS body — the OT0 sanitizer
-                 * dropped mid-distance buckets, vanishing world geometry
-                 * + Harry's upper-body bones whenever Harry walked near
-                 * the corpse. The user shipped a screenshot showing
-                 * Harry with no head/torso standing where AS died.
-                 *
-                 * Drop the layered + clut overlay; emit just one POLY_FT4
-                 * with the red-biased fog color. Visual is slightly less
-                 * blended but no longer trashes adjacent OT buckets. */
-                {
-                    int r = (int)ptr->field_12C.r + 96;
-                    int g = (int)ptr->field_12C.g >> 2;
-                    int b = (int)ptr->field_12C.b >> 2;
-                    if (r > 255) r = 255;
-                    ptr->field_12C.r = (u8)r;
-                    ptr->field_12C.g = (u8)g;
-                    ptr->field_12C.b = (u8)b;
-                }
+                /* Faithful layered cloud emit (restored). Same fix as the spray
+                 * (func_80060044): the single SUBTRACTIVE poly went black over
+                 * dark backgrounds (and a red bias turned it blue). Restore the
+                 * PSX 1 ADDITIVE (tpage 43) + 2 SUBTRACTIVE (0x4B, from the
+                 * 0x4B0007 u1 word above) layers so enemy-death / knife blood
+                 * clouds stay red anywhere. The OOB-bucket guard (the real
+                 * corruption cause) stays. poly[0] color = field_12C, filled by
+                 * func_80055A90 above. */
                 *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
                 (*poly)->b0         = ptr->field_12C.b;
 
-                {
-                    static int _cloudLogN = 0;
-                    if (_cloudLogN < 30) {
-                        _cloudLogN++;
-                    }
-                }
+                *(*poly + 2) = *(*poly + 1) = **poly;
+
+                (*poly)->tpage          = 43;
+                (*poly)->clut           = (*poly + 2)->clut = 147;
+                *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+                (*poly + 1)->b0         = ptr->field_130.b;
 
                 {
-                    s32 _bucket = (ptr->field_20C + var_s7) >> 3;
-                    if (_bucket < 0) _bucket = 0;
-                    if (_bucket >= ORDERING_TABLE_SIZE) _bucket = ORDERING_TABLE_SIZE - 1;
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucket], *poly);
+                    s32 _bucketC = (ptr->field_20C + var_s7) >> 3;
+                    if (_bucketC < 0) _bucketC = 0;
+                    if (_bucketC >= ORDERING_TABLE_SIZE) _bucketC = ORDERING_TABLE_SIZE - 1;
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly);
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly + 1);
+                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly + 2);
                 }
-                *poly = *poly + 1;
+                *poly = *poly + 3;
 #else
                 *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
                 (*poly)->b0         = ptr->field_12C.b;
