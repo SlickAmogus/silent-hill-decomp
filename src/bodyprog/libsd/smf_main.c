@@ -152,7 +152,20 @@ void smf_vsync(void) // 0x800A6F14
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* BGM-slightly-fast + cutscene note-buzz ROOT: the sequencer is driven by
+     * BOTH the RCnt2 hardware timer (smf_timer @ ~577.8Hz, started because
+     * sd_tick_mode==1) AND this per-VSync 10x advance (vsync.c -> SdSeqCalledTbyT
+     * -> smf_vsync). On PSX tick_mode 1-3 means the TIMER is the sequence clock;
+     * the per-frame 10x advance is the alternate clock for tick_mode 0/>=4. On PC
+     * both ran, double-driving the sequence -> BGM plays fast and short notes
+     * retrigger every frame (the 0x6b840 buzz). When the RCnt2 timer is active it
+     * is the sole sequence clock; smf_vsync then only does modulation below. */
+    extern int g_rcnt2_timer_active;
+    if (smf_start_flag && !g_rcnt2_timer_active)
+#else
     if (smf_start_flag)
+#endif
     {
         midi_smf_main();
         midi_smf_main();
