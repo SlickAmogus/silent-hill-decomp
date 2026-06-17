@@ -12,9 +12,6 @@
 #include "main/rng.h"
 #include "maps/map7/map7_s03.h"
 #include "maps/characters/alessa.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 #ifdef SH_PC_PORT
 /* Cross-map symbol-name collision: the decomp names data by VRAM address, and
@@ -28,16 +25,18 @@
  * the other maps. */
 s32             D_800ED740 = 0;
 /* Runtime-built work structs whose exe stub was u8[256] — far too small on
- * 64-bit: the super/sub/param pointer fields widen. Define at real struct size.
- *
- * g_NpcBoneCoords was sized [HarryBone_Count]=18, but func_800E9260 case 3 loads
- * full cutscene characters (Chara_Incubator/EndingDahlia/LittleIncubus) here via
- * &g_NpcBoneCoords[HarryBone_Root], and those have MORE than 18 bones (the other
- * cases use g_SysWork.npcBoneCoordBuffer in 30-coord slots). Since a GsCOORDINATE2
- * is ~104 bytes, bone 18 lands exactly on D_800F4B40 (defined right after) and
- * every frame's bone transform stomped field_1C[].vec_0 / field_5C with garbage
- * super pointers -> the good+ ending crash/freeze chain. Size it like the sibling
- * buffer so a full character fits and can't overflow into D_800F4B40. */
+ * 64-bit: g_NpcBoneCoords is GsCOORDINATE2[18] (~1.7KB; the super/sub/param
+ * pointer fields widen) and s_800F4B40 is ~1KB (field_118[6][16]). The cutscene
+ * fills all of them, so the writes ran off the 256-byte stub and smashed
+ * adjacent stub memory -> garbage GsCOORDINATE2 super/rootCoord pointers
+ * ([COORD]/[VIB] sanitizer hits) -> bone transforms flung vertices across the
+ * room (stretching models) and then a deref of the garbage pointer crashed.
+ * Define them at the real struct size (zero-init; the engine builds them). */
+/* Sized for a full cutscene character, not just Harry's 18 bones: func_800E9260
+ * case 3 loads Chara_Incubator/EndingDahlia/LittleIncubus into this buffer, and
+ * those have >18 bones. A GsCOORDINATE2 is ~104 bytes, so bone 18 would land on
+ * the next static (D_800F4B40) and every frame's bone transform stomped it ->
+ * the good+ ending crash. NPC_BONE_COUNT_MAX matches g_SysWork.npcBoneCoordBuffer. */
 GsCOORDINATE2   g_NpcBoneCoords[NPC_BONE_COUNT_MAX] = { 0 };
 s_800F4B40      D_800F4B40 = { 0 };
 /* The 5 ending-cutscene step pointer tables (D_800ED7E0/8B0/8EC/984/9BC) were
@@ -588,68 +587,8 @@ void func_800E1854(void) // 0x800E1854
             break;
     }
 
-#ifdef SH_PC_PORT
-    /* Good+ ending crash: a wild write stomps the D_800F4B40 region between the
-     * func_800E1FE0/func_800E17B8 setup and these consumers — corrupting both the
-     * field_1C[i].vec_0/vec_8 pointers (-> func_800E24A0 AV) and field_5C (->
-     * func_800E20A4 AV) to near-boundary garbage (0x00007ff8fffffff8/fffc). The
-     * producer isn't statically obvious, so:
-     *   - self-heal: the 8 vec pointers are CONSTANT (always &field_B8[k]) and
-     *     field_5C/60 are &D_800ED274[i].field_4[0/1] (48 bytes apart), so we can
-     *     restore the intended invariants every frame and let the ending play.
-     *   - log the watchpoint addresses once so a WinDbg `ba w8 <addr>` names the
-     *     exact instruction that does the wild write (the real fix). */
-    {
-        char* lo = (char*)&D_800ED274[0];
-        char* hi = (char*)&D_800ED274[18];
-        char* p5 = (char*)D_800F4B40.field_5C;
-        char* p6 = (char*)D_800F4B40.field_60;
-        int   f5ok = (p5 >= lo && p5 < hi);
-        int   f6ok = (p6 >= lo && p6 < hi);
-        static int s_logged = 0;
-        if (!s_logged)
-        {
-            s_logged = 1;
-            SH_DBG("[F4B40] watch &field_1C[0].vec_0=%p &field_5C=%p (set ba w8 here)",
-                   (void*)&D_800F4B40.field_1C[0].vec_0, (void*)&D_800F4B40.field_5C);
-        }
-        if (!f5ok || !f6ok)
-            SH_DBG("[F4B40] stomp: f5C=%p f60=%p arr=[%p,%p) state=%d/%d",
-                   (void*)D_800F4B40.field_5C, (void*)D_800F4B40.field_60,
-                   (void*)lo, (void*)hi, (int)D_800F4B40.field_0, (int)D_800F4B40.field_4);
-
-        /* Restore the constant scratch-vector pointers (see init at ~line 200).
-         * Write ONLY when actually wrong, so these slots aren't touched every
-         * frame — that keeps a WinDbg `ba w8` on them quiet until the real wild
-         * write trips it (our repair would otherwise be the only writer seen). */
-        #define HEAL_VEC(field, idx) do { \
-            VECTOR3* want = &D_800F4B40.field_B8[idx]; \
-            if ((field) != want) (field) = want; } while (0)
-        HEAL_VEC(D_800F4B40.field_1C[0].vec_0, 0);
-        HEAL_VEC(D_800F4B40.field_1C[0].vec_8, 1);
-        HEAL_VEC(D_800F4B40.field_1C[1].vec_0, 2);
-        HEAL_VEC(D_800F4B40.field_1C[1].vec_8, 3);
-        HEAL_VEC(D_800F4B40.field_64[0].vec_0, 4);
-        HEAL_VEC(D_800F4B40.field_64[0].vec_8, 5);
-        HEAL_VEC(D_800F4B40.field_64[1].vec_0, 6);
-        HEAL_VEC(D_800F4B40.field_64[1].vec_8, 7);
-        #undef HEAL_VEC
-
-        /* field_60 = field_5C + 48; repair whichever is bad from the good one. */
-        if (f6ok && !f5ok)
-            D_800F4B40.field_5C = (s_800F4B40_1C*)((char*)D_800F4B40.field_60 - sizeof(s_800F4B40_1C));
-        else if (f5ok && !f6ok)
-            D_800F4B40.field_60 = (s_800F4B40_1C*)((char*)D_800F4B40.field_5C + sizeof(s_800F4B40_1C));
-
-        if (f5ok || f6ok)
-        {
-#endif
     func_800E20A4(&D_800F4B40.field_1C[0], &D_800F4B40.field_A4[0], D_800F4B40.field_5C, &D_800F4B40.field_64[0]);
     func_800E20A4(&D_800F4B40.field_1C[1], &D_800F4B40.field_A4[1], D_800F4B40.field_60, &D_800F4B40.field_64[1]);
-#ifdef SH_PC_PORT
-        }
-    }
-#endif
     func_800E24A0(&D_800F4B40.field_1C[0]);
     func_800E24A0(&D_800F4B40.field_1C[1]);
 
@@ -664,18 +603,6 @@ void func_800E1FE0(s_func_800E1FE0* arg0) // 0x800E1FE0
 
     D_800F4B40.field_5C = &arg0->field_4[0];
     D_800F4B40.field_60 = &arg0->field_4[1];
-
-#ifdef SH_PC_PORT
-    {
-        char* lo = (char*)&D_800ED274[0];
-        char* hi = (char*)&D_800ED274[18];
-        char* p5 = (char*)D_800F4B40.field_5C;
-        if (p5 < lo || p5 >= hi)
-            SH_DBG("[F4B40] func_800E1FE0 SET bad: arg0=%p idx=%ld f5C=%p arr=[%p,%p)",
-                   (void*)arg0, (long)((s_func_800E1FE0*)arg0 - D_800ED274),
-                   (void*)D_800F4B40.field_5C, (void*)lo, (void*)hi);
-    }
-#endif
 
     if (arg0->field_0 != 0)
     {
@@ -2137,17 +2064,6 @@ void func_800E514C(void) // 0x800E514C
             if (Sd_AudioStreamingCheck() != 1)
             {
                 Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
-#ifdef SH_PC_PORT
-                /* Good+ ending freeze ROOT: this step waits for the XA voice
-                 * (started in case 30) to read as "streaming" (== 1). On PC the
-                 * XA start->finish transition can happen inside a single polled
-                 * frame, so the == 1 window is never observed and the cutscene
-                 * hangs here forever (the log shows XA 606 already played+drained).
-                 * Fall through once the timer has run its full intended 281->320
-                 * span — the voice has had its full duration — so the ending
-                 * continues instead of waiting on a state we can never catch. */
-                if (g_Cutscene_Timer < Q12(320.0f))
-#endif
                 break;
             }
 
@@ -3030,28 +2946,6 @@ void func_800E787C(void) // 0x800E787C
 {
     s_800ED7E0_ptr* ptr;
     s32             flags;
-
-#ifdef SH_PC_PORT
-    /* Good+ ending freeze tracer: the bone-buffer fix removed the corruption but
-     * the cutscene still hangs at the Incubator->Incubus transformation. Log each
-     * step entry (flushed, so it survives an abnormal shutdown) + the timer/anim
-     * state so the next run shows the exact stuck step and what it's waiting on. */
-    {
-        extern FILE* g_ShDebugLog;
-        static s32 s_lastStep = -1;
-        s32 st = (s32)g_SysWork.sysStateSteps[0];
-        if (st != s_lastStep)
-        {
-            s_lastStep = st;
-            SH_DBG("[END787C] step=%d timer=%d npc5.anim.status=0x%X npc0.anim.status=0x%X player.anim.status=0x%X",
-                   (int)st, (int)g_Cutscene_Timer,
-                   (unsigned)g_SysWork.npcs[5].model.anim.status,
-                   (unsigned)g_SysWork.npcs[0].model.anim.status,
-                   (unsigned)g_SysWork.playerWork.player.model.anim.status);
-            if (g_ShDebugLog) fflush(g_ShDebugLog);
-        }
-    }
-#endif
 
     if (g_SysWork.sysStateSteps[0] == 31)
     {

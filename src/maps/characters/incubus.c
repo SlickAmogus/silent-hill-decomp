@@ -3,9 +3,6 @@
 #include "main/rng.h"
 #include "maps/map7/map7_s03.h"
 #include "maps/characters/incubus.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 #define incubusProps      incubus->properties.incubus
 #define localIncubusProps localIncubus->properties.incubus
@@ -1059,35 +1056,15 @@ void Incubus_Update(s_SubCharacter* incubus, s_AnmHeader* anmHdr, GsCOORDINATE2*
     {
         if (g_DeltaTime != Q12(0.0f))
         {
-#ifdef SH_PC_PORT
-            /* Good+ ending crash: by the time func_800DED68 -> func_800DE2A4
-             * runs, `incubus` is a split pointer (e.g. 0x00007ff9ffffff26) and
-             * the incubus->properties.incubus.timer_E8 deref AVs. It is valid on
-             * entry (the controlState check above would crash otherwise), so one
-             * of the calls below smashes this stack slot. Snapshot it and name
-             * the first call that changes it, then skip the rest to avoid the AV. */
-            s_SubCharacter* dbgInc = incubus;
-            #define INC_CHK(name)                                                         \
-                if (incubus != dbgInc)                                                    \
-                {                                                                         \
-                    SH_DBG("[INCUBUS] ptr smashed after %s: %p -> %p (ctrl=%d step=%d)",  \
-                           name, (void*)dbgInc, (void*)incubus,                           \
-                           (int)dbgInc->model.controlState, (int)dbgInc->model.stateStep);\
-                    incubus = dbgInc;                                                     \
-                }
-#else
-            #define INC_CHK(name)
-#endif
-            func_800DDBBC(incubus);                          INC_CHK("DDBBC");
-            func_800DEC74(incubus, boneCoords);             INC_CHK("DEC74");
-            func_800DF044(incubus, boneCoords);             INC_CHK("DF044");
-            func_800DEE44(incubus);                         INC_CHK("DEE44");
-            func_800DEE90(incubus, anmHdr, boneCoords);     INC_CHK("DEE90");
-            func_800DEFE8(incubus, boneCoords);             INC_CHK("DEFE8");
-            func_800DED68(incubus, boneCoords);             INC_CHK("DED68");
+            func_800DDBBC(incubus);
+            func_800DEC74(incubus, boneCoords);
+            func_800DF044(incubus, boneCoords);
+            func_800DEE44(incubus);
+            func_800DEE90(incubus, anmHdr, boneCoords);
+            func_800DEFE8(incubus, boneCoords);
+            func_800DED68(incubus, boneCoords);
             func_800DF074(incubus);
             func_800DD98C(incubus->flags & CharaFlag_Unk2);
-            #undef INC_CHK
         }
         else
         {
