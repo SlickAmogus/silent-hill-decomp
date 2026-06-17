@@ -388,7 +388,7 @@ extern s_WorldObjectPose g_WorldObject_Nu;
 
 extern s_WorldObjectPose g_WorldObject_Baby;
 
-extern GsCOORDINATE2 g_NpcBoneCoords[HarryBone_Count];
+extern GsCOORDINATE2 g_NpcBoneCoords[NPC_BONE_COUNT_MAX];
 
 extern q19_12 g_Cutscene_Timer; // Count of objects to load?
 
