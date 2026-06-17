@@ -641,10 +641,13 @@ void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A9
      * map so we can see whether the inputs are themselves blue (data/load bug)
      * or the blend produces blue from reasonable inputs. */
     {
-        static int s_n = 0;
-        if (s_n < 4)
+        /* Log once per distinct fog.color so each area/scene reports — lets us
+         * compare a working-red-blood area against a broken-black one. */
+        static int s_lastFog = -1;
+        int fogKey = (g_WorldEnvWork.fog.color.r << 16) | (g_WorldEnvWork.fog.color.g << 8) | g_WorldEnvWork.fog.color.b;
+        if (s_lastFog != fogKey)
         {
-            s_n++;
+            s_lastFog = fogKey;
             SH_DBG("[BLOOD-TINT] fog.color=(%d,%d,%d) worldTint=(%d,%d,%d) intensity=%d -> out0=(%d,%d,%d) out1=(%d,%d,%d)",
                    g_WorldEnvWork.fog.color.r, g_WorldEnvWork.fog.color.g, g_WorldEnvWork.fog.color.b,
                    g_WorldEnvWork.worldTintColor.r, g_WorldEnvWork.worldTintColor.g, g_WorldEnvWork.worldTintColor.b,

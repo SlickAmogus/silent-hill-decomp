@@ -28,14 +28,17 @@
  * the other maps. */
 s32             D_800ED740 = 0;
 /* Runtime-built work structs whose exe stub was u8[256] — far too small on
- * 64-bit: g_NpcBoneCoords is GsCOORDINATE2[18] (~1.7KB; the super/sub/param
- * pointer fields widen) and s_800F4B40 is ~1KB (field_118[6][16]). The cutscene
- * fills all of them, so the writes ran off the 256-byte stub and smashed
- * adjacent stub memory -> garbage GsCOORDINATE2 super/rootCoord pointers
- * ([COORD]/[VIB] sanitizer hits) -> bone transforms flung vertices across the
- * room (stretching models) and then a deref of the garbage pointer crashed.
- * Define them at the real struct size (zero-init; the engine builds them). */
-GsCOORDINATE2   g_NpcBoneCoords[HarryBone_Count] = { 0 };
+ * 64-bit: the super/sub/param pointer fields widen. Define at real struct size.
+ *
+ * g_NpcBoneCoords was sized [HarryBone_Count]=18, but func_800E9260 case 3 loads
+ * full cutscene characters (Chara_Incubator/EndingDahlia/LittleIncubus) here via
+ * &g_NpcBoneCoords[HarryBone_Root], and those have MORE than 18 bones (the other
+ * cases use g_SysWork.npcBoneCoordBuffer in 30-coord slots). Since a GsCOORDINATE2
+ * is ~104 bytes, bone 18 lands exactly on D_800F4B40 (defined right after) and
+ * every frame's bone transform stomped field_1C[].vec_0 / field_5C with garbage
+ * super pointers -> the good+ ending crash/freeze chain. Size it like the sibling
+ * buffer so a full character fits and can't overflow into D_800F4B40. */
+GsCOORDINATE2   g_NpcBoneCoords[NPC_BONE_COUNT_MAX] = { 0 };
 s_800F4B40      D_800F4B40 = { 0 };
 /* The 5 ending-cutscene step pointer tables (D_800ED7E0/8B0/8EC/984/9BC) were
  * PSX pointer tables into overlay rodata. Reformatted from the disc here (the
