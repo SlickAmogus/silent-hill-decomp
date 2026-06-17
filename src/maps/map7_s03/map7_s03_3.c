@@ -12,6 +12,9 @@
 #include "main/rng.h"
 #include "maps/map7/map7_s03.h"
 #include "maps/characters/alessa.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #ifdef SH_PC_PORT
 /* Cross-map symbol-name collision: the decomp names data by VRAM address, and
@@ -582,8 +585,38 @@ void func_800E1854(void) // 0x800E1854
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Good+ ending crash: func_800E20A4 derefs arg2 (=field_5C) at +0x2a and AVs
+     * with field_5C = 0x7ff8fffffffc (low-32-zeroed = truncated-pointer stomp).
+     * field_5C/field_60 are set by func_800E1FE0 to &D_800ED274[i].field_4[0/1],
+     * so a valid value must lie inside the D_800ED274 array. Log + skip when it
+     * doesn't, so we survive the AV and capture the bad value + whether the
+     * setter or an intervening call corrupted it. */
+    {
+        char* lo = (char*)&D_800ED274[0];
+        char* hi = (char*)&D_800ED274[18];
+        char* p5 = (char*)D_800F4B40.field_5C;
+        char* p6 = (char*)D_800F4B40.field_60;
+        static int s_loggedBad = 0;
+        if (p5 < lo || p5 >= hi || p6 < lo || p6 >= hi)
+        {
+            if (s_loggedBad < 8)
+            {
+                s_loggedBad++;
+                SH_DBG("[F4B40] field_5C/60 OOB: f5C=%p f60=%p arr=[%p,%p) state=%d/%d -> skip",
+                       (void*)D_800F4B40.field_5C, (void*)D_800F4B40.field_60,
+                       (void*)lo, (void*)hi, (int)D_800F4B40.field_0, (int)D_800F4B40.field_4);
+            }
+        }
+        else
+#endif
+    {
     func_800E20A4(&D_800F4B40.field_1C[0], &D_800F4B40.field_A4[0], D_800F4B40.field_5C, &D_800F4B40.field_64[0]);
     func_800E20A4(&D_800F4B40.field_1C[1], &D_800F4B40.field_A4[1], D_800F4B40.field_60, &D_800F4B40.field_64[1]);
+    }
+#ifdef SH_PC_PORT
+    }
+#endif
     func_800E24A0(&D_800F4B40.field_1C[0]);
     func_800E24A0(&D_800F4B40.field_1C[1]);
 
@@ -598,6 +631,18 @@ void func_800E1FE0(s_func_800E1FE0* arg0) // 0x800E1FE0
 
     D_800F4B40.field_5C = &arg0->field_4[0];
     D_800F4B40.field_60 = &arg0->field_4[1];
+
+#ifdef SH_PC_PORT
+    {
+        char* lo = (char*)&D_800ED274[0];
+        char* hi = (char*)&D_800ED274[18];
+        char* p5 = (char*)D_800F4B40.field_5C;
+        if (p5 < lo || p5 >= hi)
+            SH_DBG("[F4B40] func_800E1FE0 SET bad: arg0=%p idx=%ld f5C=%p arr=[%p,%p)",
+                   (void*)arg0, (long)((s_func_800E1FE0*)arg0 - D_800ED274),
+                   (void*)D_800F4B40.field_5C, (void*)lo, (void*)hi);
+    }
+#endif
 
     if (arg0->field_0 != 0)
     {
