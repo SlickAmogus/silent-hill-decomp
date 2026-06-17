@@ -388,13 +388,8 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     /* A GsCOORDINATE2 chain link is either NULL (root) or a real pointer. A
      * truncated/uninitialised PSX pointer shows up as ~0 / non-canonical and
      * derefs to a wild read (the bad-ending crash: super == -1). Treat any
-     * non-canonical link as end-of-chain instead of crashing.
-     * Lower bound is 4GB: on win64 every real coord lives well above it (exe
-     * ~0x7ff6…, map DLLs ~0x7ff8…, malloc'd PSX RAM > 4GB), so a pointer whose
-     * high 32 bits are zero (e.g. the good+ ending's 0xfff8baa7) is a truncated
-     * 32-bit store and must be rejected — the old 0x10000 bound let it through
-     * and Vw crashed writing parentCoord->sub. */
-    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x100000000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
+     * non-canonical link as end-of-chain instead of crashing. */
+    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
     if (!COORD_PTR_OK(rootCoord))
     {
         if (rootCoord != NULL) {

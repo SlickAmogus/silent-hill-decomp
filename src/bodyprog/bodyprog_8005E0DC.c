@@ -805,30 +805,6 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
         arg3 = func_8005F55C(arg3);
     }
 
-#ifdef SH_PC_PORT
-    /* Blue-blood root-cause probe: the blood poly's CLUT word is built as
-     * (arg3 << 6) | 0x13 -> clutX=304, clutY=arg3 (the row picked here). With
-     * Normal color (extraBloodColor=0) most blood types resolve to row 0 (red),
-     * but blood types 4/5/8/10/12 force rows 9/6/7 regardless of color. Log each
-     * distinct resolved row once so we can tell whether blue blood is (a) a wrong
-     * row (logic) or (b) row 0 reading a stomped VRAM palette at clutX=304. */
-    {
-        static unsigned s_bloodRowSeen = 0;
-        if (arg3 >= 0 && arg3 < 32 && !(s_bloodRowSeen & (1u << arg3)))
-        {
-            extern int StoreImage(RECT16* rect, u_long* p);
-            u16   clut[16];
-            RECT16 r;
-            r.x = 304; r.y = (s16)arg3; r.w = 16; r.h = 1;
-            StoreImage(&r, (u_long*)clut);
-            s_bloodRowSeen |= (1u << arg3);
-            SH_DBG("[BLOOD-ROW] color=%d type=%d row(clutY)=%d clut@(304,%d): %04X %04X %04X %04X %04X %04X %04X %04X",
-                   (int)g_GameWork.config.extraBloodColor, (int)arg2, (int)arg3, (int)arg3,
-                   clut[0], clut[1], clut[2], clut[3], clut[4], clut[5], clut[6], clut[7]);
-        }
-    }
-#endif
-
     switch (arg2)
     {
         case 1:
@@ -1431,18 +1407,25 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * (bodyprog_8005E0DC.c:2610-2632): visual is slightly less
              * "layered" than PSX but doesn't trash adjacent geometry.
              *
-             * Color: field_130 holds the fog-tinted color from the
-             * func_80055A90 call above (gte_dpcs blends fog/world tint),
-             * used directly like PSX (no red-boost band-aid).
-             *
-             * REAL blue/black-blood ROOT: the PSX path below sets
-             * (*poly)->tpage = 43 (0x2B) and the blood CLUT, but this PC
-             * single-prim branch dropped both — so the splat sampled a
-             * stale/wrong texture page (a bluish texture) and modulated to
-             * blue/black. Restore the tpage + clut like PSX/the ground decal;
-             * then the correct red blood texture shows, dimmed by fog. */
-            (*poly)->tpage = 43;
-            (*poly)->clut  = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
+             * Color: func_80055A90 above filled field_130 with the
+             * FOG-tinted color (gte_dpcs blends fogColor_1C toward 0,0,0
+             * far color). In dark map areas fogColor is near-black, so
+             * field_130 was near-black too, and the textured POLY_FT4
+             * modulated to fully black blood — the user just hit this.
+             * Switch to func_80055E90 (the muzzle-flash pattern), which
+             * pulls from worldTintColor_28 instead of fogColor and stays
+             * usable in low-fog areas. Then bias the result toward red
+             * so the blood is visibly red regardless of map tint. */
+            func_80055E90(&ptr->field_130, var_a2);
+            {
+                int r = (int)ptr->field_130.r + 96;  /* red boost */
+                int g = (int)ptr->field_130.g >> 2;  /* desaturate green */
+                int b = (int)ptr->field_130.b >> 2;  /* desaturate blue */
+                if (r > 255) r = 255;
+                ptr->field_130.r = (u8)r;
+                ptr->field_130.g = (u8)g;
+                ptr->field_130.b = (u8)b;
+            }
             *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
             (*poly)->b0         = ptr->field_130.b;
 
@@ -1874,10 +1857,23 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
          *      texture-modulated blood is actually visible as red. */
         (*poly)->tpage = 0x2B;
         (*poly)->clut  = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
-        /* Natural fog-tinted color on the correct (0x2B) blood texture — no red
-         * boost. The +96 boost here was compensating for the same wrong-tpage
-         * bug now fixed on the spray path; with the right texture it just made
-         * ground blood pink. r0/g0/b0 from field_12C were already set above. */
+        {
+            static int _decalLogN = 0;
+            if (_decalLogN < 30) {
+                _decalLogN++;
+            }
+            {
+                int r = (int)ptr->field_12C.r + 96;
+                int g = (int)ptr->field_12C.g >> 2;
+                int b = (int)ptr->field_12C.b >> 2;
+                if (r > 255) r = 255;
+                ptr->field_12C.r = (u8)r;
+                ptr->field_12C.g = (u8)g;
+                ptr->field_12C.b = (u8)b;
+            }
+            *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
+            (*poly)->b0         = ptr->field_12C.b;
+        }
 #endif
 
 #ifdef SH_PC_PORT

@@ -634,27 +634,6 @@ void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A9
     gte_dpcl();
 
     gte_strgb(arg1);
-
-#ifdef SH_PC_PORT
-    /* Blue-blood probe: blood poly color is this function's output (fog.color /
-     * worldTintColor depth-cued). Log the tint inputs + both outputs once per
-     * map so we can see whether the inputs are themselves blue (data/load bug)
-     * or the blend produces blue from reasonable inputs. */
-    {
-        /* Log once per distinct fog.color so each area/scene reports — lets us
-         * compare a working-red-blood area against a broken-black one. */
-        static int s_lastFog = -1;
-        int fogKey = (g_WorldEnvWork.fog.color.r << 16) | (g_WorldEnvWork.fog.color.g << 8) | g_WorldEnvWork.fog.color.b;
-        if (s_lastFog != fogKey)
-        {
-            s_lastFog = fogKey;
-            SH_DBG("[BLOOD-TINT] fog.color=(%d,%d,%d) worldTint=(%d,%d,%d) intensity=%d -> out0=(%d,%d,%d) out1=(%d,%d,%d)",
-                   g_WorldEnvWork.fog.color.r, g_WorldEnvWork.fog.color.g, g_WorldEnvWork.fog.color.b,
-                   g_WorldEnvWork.worldTintColor.r, g_WorldEnvWork.worldTintColor.g, g_WorldEnvWork.worldTintColor.b,
-                   (int)arg2, arg0->r, arg0->g, arg0->b, arg1->r, arg1->g, arg1->b);
-        }
-    }
-#endif
 }
 
 void func_80055B74(CVECTOR* result, CVECTOR* color, s32 arg2) // 0x80055B74
