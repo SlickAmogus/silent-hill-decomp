@@ -1,5 +1,37 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.16.4 -- 2026-06-16
+NOTES: This should fix a couple of ending cutscene and post ending crashes.
+Blood color is being worked on. Also working on fixing a bug that prevents you from kicking air screamers.
+
+- Fix off-color blood on certain maps: re-apply trusted blood color per map (#41)  --NOT FIXED YET
+- blood-cfg: log extraBloodColor byte address for root-cause watchpoint (#41)
+- console: give gasoline (chainsaw/drill fuel) + include it in allweapons
+- Fix good+ ending crash: clamp Gfx_MeshDraw OT depth (split-pointer stomp)
+- Fix bad-ending crash: guard divide-by-zero in func_800DA4EC / func_800DA4B4
+
+## v2026.06.16.3 -- 2026-06-16
+
+---New debug console commands
+
+Open the console with ~ (tap to toggle, hold to type a command, debug controls must be enabled in launcher).
+
+- give <item> — grant weapons, ammo, recovery, and story/ending items. Run help give and help give 2 for the full list. Firearms come with ammo; give allweapons grants everything. Examples: give shotgun, give flauros, give aglaophotis.
+- getflags — show the event flags that determine the ending and their current state.
+- setending bad | bad+ | good | good+ — set the two flags that select the SH1 ending (Cybil saved + the Kaufmann/good path) in one go. Set it before reaching the ending.
+- setflag <n> 0|1 — set any event flag (0–1663) directly.
+- clearflags — forget console-set flags so they stop carrying into the next New Game / map load.
+
+Flags set via the console persist through a New Game boot, so you can choose an ending in the menu, set it, then start a New Game into the ending map to test it without a save.
+
+- PGXP: bump PsyCross ΓÇö persist shared-vertex parks, strip diagnostics
+- console: expand give (story items), add getflags/setflag for ending testing
+- console: add setending bad|bad+|good|good+
+- console: persist console-set flags across map warp
+- console: add clearflags to forget pending console-set flags
+- console: re-apply pending flags on New Game boot (config-map ending tests)
+- release-nightly: pause after writing CHANGELOG.md for manual edit
+
 ## v2026.06.16.2 -- 2026-06-16
 - PGXP: record effect-quad vertex addresses for deterministic matching
 - PGXP: bump PsyCross ΓÇö reject mismatched precise coords (geometry-warp fix)
