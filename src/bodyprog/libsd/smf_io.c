@@ -1125,6 +1125,19 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
             s_attr.adsr2         = sd_vag_atr->adsr2;
             port->adsr2_48          = s_attr.adsr2;
 
+#ifdef SH_PC_PORT
+            /* [SEQ-KEY] Note key-on probe for the cutscene looping-sound hunt.
+             * Logs song (chan>>4), MIDI channel, note, velocity, the SPU sample
+             * addr (matches the 0x6b840 that was seen rapidly re-keyed), the
+             * voice, and ADSR. The looping sound re-keys the same note every
+             * frame, so near the user's loop mark this line repeats — naming the
+             * exact song/channel/note/sample so its source (a BGM track vs a
+             * sequenced SFX) and why it retriggers can be found. */
+            SH_DBG("[SEQ-KEY] song=%d ch=%d note=%d vel=%d addr=0x%x voice=%d adsr=%04X/%04X",
+                   (int)(chan >> 4), (int)chan, (int)c1, (int)c2,
+                   (unsigned)s_attr.addr, (int)vo, (unsigned)s_attr.adsr1, (unsigned)s_attr.adsr2);
+#endif
+
             if (!(sd_vag_atr->adsr1 & 0x80))
             {
                 s_attr.a_mode = 1;
