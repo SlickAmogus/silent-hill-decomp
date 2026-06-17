@@ -2137,6 +2137,17 @@ void func_800E514C(void) // 0x800E514C
             if (Sd_AudioStreamingCheck() != 1)
             {
                 Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
+#ifdef SH_PC_PORT
+                /* Good+ ending freeze ROOT: this step waits for the XA voice
+                 * (started in case 30) to read as "streaming" (== 1). On PC the
+                 * XA start->finish transition can happen inside a single polled
+                 * frame, so the == 1 window is never observed and the cutscene
+                 * hangs here forever (the log shows XA 606 already played+drained).
+                 * Fall through once the timer has run its full intended 281->320
+                 * span — the voice has had its full duration — so the ending
+                 * continues instead of waiting on a state we can never catch. */
+                if (g_Cutscene_Timer < Q12(320.0f))
+#endif
                 break;
             }
 
