@@ -805,6 +805,42 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
         arg3 = func_8005F55C(arg3);
     }
 
+#ifdef SH_PC_PORT
+    /* [BLOOD-CMP] Blood-color comparison probe. BLD.TIM's 16-row CLUT has row 0 =
+     * CYAN (R~1 G~11 B~11), row 10 = pure RED, row 1 = reddish; rows 5-15 are the
+     * green/violet "extra color" options. The air screamer (type 3, color 0)
+     * resolves to row 0 (cyan) yet school grey-children blood renders red.
+     * Capture map + blood TYPE (arg2) + resolved CLUT row (arg3) + the live VRAM
+     * palette at that row, once per distinct (map,type,row), so the WORKING spot
+     * (school/grey children) and BAD spot (cafe/air screamer) can be compared
+     * directly — is it a different row, or the same row with a different blend? */
+    {
+        extern int StoreImage(RECT16* rect, u_long* p);
+        static u32 s_bloodSeen[64];
+        static s32 s_bloodSeenN = 0;
+        s32 mapIdx = (s32)g_SavegamePtr->mapIdx;
+        u32 key    = ((u32)(mapIdx & 0xFF) << 16) | ((u32)(arg2 & 0xFF) << 8) | (u32)(arg3 & 0xFF);
+        s32 found  = 0;
+        s32 i;
+        for (i = 0; i < s_bloodSeenN; i++)
+        {
+            if (s_bloodSeen[i] == key) { found = 1; break; }
+        }
+        if (!found && s_bloodSeenN < 64 && arg3 >= 0 && arg3 < 16)
+        {
+            u16    clut[16];
+            RECT16 r;
+            r.x = 304; r.y = (s16)arg3; r.w = 16; r.h = 1;
+            s_bloodSeen[s_bloodSeenN++] = key;
+            StoreImage(&r, (u_long*)clut);
+            SH_DBG("[BLOOD-CMP] map=%d type=%d row=%d color=%d clut@(304,%d): %04X %04X %04X %04X  (e1 R%d G%d B%d)",
+                   (int)mapIdx, (int)arg2, (int)arg3, (int)g_GameWork.config.extraBloodColor, (int)arg3,
+                   clut[0], clut[1], clut[2], clut[3],
+                   clut[1] & 0x1F, (clut[1] >> 5) & 0x1F, (clut[1] >> 10) & 0x1F);
+        }
+    }
+#endif
+
     switch (arg2)
     {
         case 1:
@@ -1842,6 +1878,23 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         (*poly)->b0         = ptr->field_12C.b;
 
 #ifdef SH_PC_PORT
+        /* [BLOOD-DRAW] Ground-decal draw probe: capture the area's tint inputs
+         * and the resolved CLUT row per map (paired with [BLOOD-CMP] at spawn).
+         * Blend is additive (tpage 0x2B, ABR=1), so final = floor + texel(row) x
+         * polyColor; the row's texture color dominates. Logs raw fog-tinted color
+         * (field_12C, before the +96 band-aid below) so school vs air-screamer
+         * tint + row can be compared. Once per map. */
+        {
+            static s32 s_drawSeenMap = -2;
+            s32 _m = (s32)g_SavegamePtr->mapIdx;
+            if (_m != s_drawSeenMap)
+            {
+                s_drawSeenMap = _m;
+                SH_DBG("[BLOOD-DRAW] map=%d row=%d rawColor=(%d,%d,%d) [post func_80055A90 fog/tint depth-cue] tpage=0x2B(additive)",
+                       (int)_m, (int)g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2,
+                       ptr->field_12C.r, ptr->field_12C.g, ptr->field_12C.b);
+            }
+        }
         /* Red-bias + tpage fix for the ground-decal blood. Two issues
          * the PSX 3-prim emit hid that surface in our single-prim PC
          * simplification:
