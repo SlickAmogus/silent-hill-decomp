@@ -816,10 +816,15 @@ void func_8005F6B0(s_SubCharacter* chara, VECTOR* pos, s32 arg2, s32 arg3) // 0x
         static unsigned s_bloodRowSeen = 0;
         if (arg3 >= 0 && arg3 < 32 && !(s_bloodRowSeen & (1u << arg3)))
         {
+            extern int StoreImage(RECT16* rect, u_long* p);
+            u16   clut[16];
+            RECT16 r;
+            r.x = 304; r.y = (s16)arg3; r.w = 16; r.h = 1;
+            StoreImage(&r, (u_long*)clut);
             s_bloodRowSeen |= (1u << arg3);
-            SH_DBG("[BLOOD-ROW] color=%d type=%d -> row(clutY)=%d clutWord=0x%04X (clutX=304)",
-                   (int)g_GameWork.config.extraBloodColor, (int)arg2,
-                   (int)arg3, (unsigned)(((arg3 << 6) | 0x13) & 0xFFFF));
+            SH_DBG("[BLOOD-ROW] color=%d type=%d row(clutY)=%d clut@(304,%d): %04X %04X %04X %04X %04X %04X %04X %04X",
+                   (int)g_GameWork.config.extraBloodColor, (int)arg2, (int)arg3, (int)arg3,
+                   clut[0], clut[1], clut[2], clut[3], clut[4], clut[5], clut[6], clut[7]);
         }
     }
 #endif

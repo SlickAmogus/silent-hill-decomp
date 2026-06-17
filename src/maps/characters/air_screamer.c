@@ -157,11 +157,10 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
             s32 dxh = pl->position.vx - airScreamer->position.vx;
             s32 dzh = pl->position.vz - airScreamer->position.vz;
             s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
-            /* Bite reach = 3u radius². 4u (Q12(16)) made the AS bite + knock
-             * Harry back ~1u further out, which prevented him from reaching a
-             * downed AS to kick it (game softlocked waiting for it to die). 3u
-             * keeps the approach/kick window the player had before that change. */
-            if (distSqr < Q12(9.0f)) {
+            /* Bite reach = 4u radius². (The earlier 3u revert was a wrong guess
+             * at the can't-kick-downed-AS bug; that's an anim-stuck issue, not
+             * bite reach — see the AS anim/behavior audit. Restored to 4u.) */
+            if (distSqr < Q12(16.0f)) {
                 pl->damage.amount = Q12(15.0f);
                 pl->damage.position = airScreamer->position;
                 pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
