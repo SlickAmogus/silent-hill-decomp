@@ -1428,37 +1428,26 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
 
 #ifdef SH_PC_PORT
-            /* Faithful layered spray emit (restored from the PSX path below).
-             * The earlier single-poly collapse rendered the spray black/blue: a
-             * lone SUBTRACTIVE (0x4B) cyan quad only resolves to red over a
-             * BRIGHT destination — that's why the floor pool works — but over
-             * Harry or dark fog subtractive can only darken to black, and
-             * biasing the vertex color toward red just turned that blue. The PSX
-             * spray layers 2 ADDITIVE (tpage 43) + 2 SUBTRACTIVE (0x4B) passes,
-             * so it stays visibly red over any background. The only PSX prims
-             * dropped here are the two SetPriority DR_MODE nodes — those are
-             * len-0 OT pass-throughs on PC (libgs_stub.c) and carry no color;
-             * each POLY_FT4 already holds its own tpage/ABR. The garbage-size
-             * (above) and OOB-bucket (here) guards — the real cause of the
-             * original OT corruption that prompted the collapse — stay. */
-            *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
-
-            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
-            (*poly + 1)->b0         = ptr->field_134.b;
-            (*poly)->tpage          = 43;
-            (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
-            (*poly + 3)->tpage      = 43;
-
+            /* Single SUBTRACTIVE poly (tpage 0x4B set above via the u1 word).
+             * The faithful PSX layered emit (2 additive + 2 subtractive) renders
+             * correct red in mid-air but reintroduces the OT corruption that
+             * vanishes world geometry + Harry for the blood's on-screen lifetime
+             * (the OT0 sanitizer drops mid-distance buckets) — the original
+             * cafe-combat bug the single-poly collapse was made to avoid. That
+             * PC-specific multi-prim corruption is not yet isolated, so keep one
+             * subtractive quad like the floor pool: red over lit surfaces, dark
+             * over dark, never blue, never corrupting. Color = field_130 (set
+             * above by func_80055A90). NO red-bias hack (that made subtractive
+             * read blue). Garbage-size + OOB-bucket guards stay. */
+            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
+            (*poly)->b0         = ptr->field_130.b;
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucketS < 0) _bucketS = 0;
                 if (_bucketS >= ORDERING_TABLE_SIZE) _bucketS = ORDERING_TABLE_SIZE - 1;
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 1);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 2);
-                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 3);
             }
-            *poly += 4;
+            *poly += 1;
 #else
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
@@ -2242,33 +2231,21 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 func_80055A90(&ptr->field_12C, &ptr->field_130, temp_s2, ptr->field_20C * 0x10);
 
 #ifdef SH_PC_PORT
-                /* Faithful layered cloud emit (restored). Same fix as the spray
-                 * (func_80060044): the single SUBTRACTIVE poly went black over
-                 * dark backgrounds (and a red bias turned it blue). Restore the
-                 * PSX 1 ADDITIVE (tpage 43) + 2 SUBTRACTIVE (0x4B, from the
-                 * 0x4B0007 u1 word above) layers so enemy-death / knife blood
-                 * clouds stay red anywhere. The OOB-bucket guard (the real
-                 * corruption cause) stays. poly[0] color = field_12C, filled by
-                 * func_80055A90 above. */
+                /* Single SUBTRACTIVE poly (tpage 0x4B from the 0x4B0007 u1 word
+                 * above). See func_80060044: the PSX layered emit renders red in
+                 * mid-air but reintroduces OT corruption (vanishing geometry +
+                 * Harry). Until that is isolated, one subtractive quad — color =
+                 * field_12C (func_80055A90 above), no red-bias hack. */
                 *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
                 (*poly)->b0         = ptr->field_12C.b;
-
-                *(*poly + 2) = *(*poly + 1) = **poly;
-
-                (*poly)->tpage          = 43;
-                (*poly)->clut           = (*poly + 2)->clut = 147;
-                *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
-                (*poly + 1)->b0         = ptr->field_130.b;
 
                 {
                     s32 _bucketC = (ptr->field_20C + var_s7) >> 3;
                     if (_bucketC < 0) _bucketC = 0;
                     if (_bucketC >= ORDERING_TABLE_SIZE) _bucketC = ORDERING_TABLE_SIZE - 1;
                     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly);
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly + 1);
-                    addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketC], *poly + 2);
                 }
-                *poly = *poly + 3;
+                *poly = *poly + 1;
 #else
                 *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
                 (*poly)->b0         = ptr->field_12C.b;
