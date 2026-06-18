@@ -321,30 +321,33 @@ void DebugCamera_Update(void)
         prevKey5 = cur5;
     }
 
-    /* Number key 6: spawn a Grey Child ~2.5 units in front of Harry, facing him
-     * (debug enemy spawn). Chara_Spawn refuses once the active NPC count reaches
-     * the per-area cap (g_SysWork.npcFlagsId) — which is already met in rooms
-     * that have Grey Children, and tiny during the Cheryl chase — so raise the
-     * cap just for this one spawn. Also needs the Grey Child model loaded
-     * (registeredCharaModels[Chara_GreyChild]); skip with a note if it isn't. */
+    /* Number key 6: kill every active enemy near Harry (debug). Each enemy's own
+     * update applies damage.amount to its health (health = MAX(health - amount, 0))
+     * and then runs its normal death path, so forcing a huge damage.amount routes
+     * the kill through each enemy's real death/cleanup — works for every type, and
+     * the value clears all per-enemy damage thresholds (e.g. Creeper needs >=200).
+     * Replaces the old (non-working) Grey Child spawn. */
     {
         static int prevKey6 = 0;
         int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
         if (cur6 && !prevKey6) {
-            s_SubCharacter* hr  = &g_SysWork.playerWork.player;
-            q3_12           yaw = hr->rotation.vy;
-            q19_12          sx  = hr->position.vx + Q12_MULT_PRECISE(Q12(2.5f), Math_Sin(yaw));
-            q19_12          sz  = hr->position.vz + Q12_MULT_PRECISE(Q12(2.5f), Math_Cos(yaw));
-            if (g_WorldGfxWork.registeredCharaModels[Chara_GreyChild] == NULL) {
-                SH_DBG_ECHO("[DEBUG] Key 6: Grey Child model not loaded in this area — can't spawn visibly");
-            } else {
-                s32 savedCap = g_SysWork.npcFlagsId;
-                g_SysWork.npcFlagsId = ARRAY_SIZE(g_SysWork.npcs);
-                s32 idx = Chara_Spawn(Chara_GreyChild, 0, sx, sz, yaw ^ Q12_ANGLE(180.0f), 5);
-                g_SysWork.npcFlagsId = savedCap;
-                SH_DBG_ECHO("[DEBUG] Key 6: spawn Grey Child -> slot %d at (%ld,%ld) modelOK",
-                    (int)idx, (long)sx, (long)sz);
+            s_SubCharacter* hr   = &g_SysWork.playerWork.player;
+            s32             killed = 0;
+            s32             i;
+            for (i = 0; i < NPC_COUNT_MAX; i++) {
+                s_SubCharacter* npc = &g_SysWork.npcs[i];
+                if (npc->model.charaId == Chara_None || npc->model.charaId == Chara_Harry ||
+                    npc->health <= Q12(0.0f)) {
+                    continue;
+                }
+                if (ABS(npc->position.vx - hr->position.vx) > Q12(50.0f) ||
+                    ABS(npc->position.vz - hr->position.vz) > Q12(50.0f)) {
+                    continue;
+                }
+                npc->damage.amount = Q12(99999.0f);
+                killed++;
             }
+            SH_DBG_ECHO("[DEBUG] Key 6: killed %d nearby enemies", (int)killed);
         }
         prevKey6 = cur6;
     }
