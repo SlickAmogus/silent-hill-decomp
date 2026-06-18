@@ -1428,26 +1428,55 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
 
 #ifdef SH_PC_PORT
-            /* Single SUBTRACTIVE poly (tpage 0x4B set above via the u1 word).
-             * The faithful PSX layered emit (2 additive + 2 subtractive) renders
-             * correct red in mid-air but reintroduces the OT corruption that
-             * vanishes world geometry + Harry for the blood's on-screen lifetime
-             * (the OT0 sanitizer drops mid-distance buckets) — the original
-             * cafe-combat bug the single-poly collapse was made to avoid. That
-             * PC-specific multi-prim corruption is not yet isolated, so keep one
-             * subtractive quad like the floor pool: red over lit surfaces, dark
-             * over dark, never blue, never corrupting. Color = field_130 (set
-             * above by func_80055A90). NO red-bias hack (that made subtractive
-             * read blue). Garbage-size + OOB-bucket guards stay. */
-            *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
-            (*poly)->b0         = ptr->field_130.b;
+            /* DIAGNOSTIC BUILD (temporary): layered emit (2 additive tpage 43 +
+             * 2 subtractive) re-enabled to REPRODUCE the OT corruption, with a
+             * per-emit dump to locate the buffer overlap. EXPECT geometry/Harry
+             * to vanish on enemy hits in this build — it is for capture only and
+             * will be reverted once the overlap is pinned. */
+            *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
+            *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
+            (*poly + 1)->b0         = ptr->field_134.b;
+            (*poly)->tpage          = 43;
+            (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
+            (*poly + 3)->tpage      = 43;
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucketS < 0) _bucketS = 0;
                 if (_bucketS >= ORDERING_TABLE_SIZE) _bucketS = ORDERING_TABLE_SIZE - 1;
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 1);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 2);
+                addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[_bucketS], *poly + 3);
+
+                /* [BLOOD-EMIT] direct overlap probe: a new spray emit should
+                 * never START before the previous one's END (within the same
+                 * frame). A small backward delta = the 4-prim write overlapped a
+                 * prior prim -> garbage addr fields. The big rewind at the
+                 * per-frame buffer reset is ignored via the 0x40000 window. Also
+                 * dumps the first emits' prim addrs + sizeof for the layout. */
+                {
+                    static u8* s_prevEnd = NULL;
+                    static s32 s_dbgN    = 0;
+                    u8* curStart = (u8*)*poly;
+                    u8* curEnd   = (u8*)(*poly + 4);
+                    if (s_prevEnd && curStart < s_prevEnd &&
+                        (uintptr_t)(s_prevEnd - curStart) < 0x40000) {
+                        SH_DBG("[BLOOD-OVERLAP] cur=%p prevEnd=%p back=%ld sz=%d bkt=%d a0=%p a3=%p",
+                               (void*)curStart, (void*)s_prevEnd,
+                               (long)(s_prevEnd - curStart), (int)sizeof(POLY_FT4),
+                               (int)_bucketS, (void*)getaddr(*poly), (void*)getaddr(*poly + 3));
+                    }
+                    if (s_dbgN < 12) {
+                        s_dbgN++;
+                        SH_DBG("[BLOOD-EMIT] poly=%p sz=%d next=%p bkt=%d a0=%p a1=%p a2=%p a3=%p",
+                               (void*)curStart, (int)sizeof(POLY_FT4), (void*)curEnd,
+                               (int)_bucketS, (void*)getaddr(*poly), (void*)getaddr(*poly + 1),
+                               (void*)getaddr(*poly + 2), (void*)getaddr(*poly + 3));
+                    }
+                    s_prevEnd = curEnd;
+                }
             }
-            *poly += 1;
+            *poly += 4;
 #else
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
 
