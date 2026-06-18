@@ -1548,6 +1548,23 @@ void MainLoop(void) // 0x80032EE0
             // Update V count.
             vCount     = MIN(GsGetVcount(), H_BLANKS_PER_FRAME_MIN); // NOTE: Will call `GsGetVcount` twice.
             vCountCopy = vCount;
+
+#ifdef SH_PC_PORT
+            /* Invisible-wall fix (#42): the original 15fps floor lets a single
+             * frame's timestep reach 2x the PSX 30fps step during a streaming
+             * hitch (chunk loads while running through open areas). Movement is
+             * moveSpeed*g_DeltaTime, and Collision_WallDetect SWEEPS that full
+             * per-frame distance against wall segments (it tests the movement
+             * line, not the body radius), so an inflated step over-reaches and
+             * snags walls the body never touches — Harry bumps invisible walls
+             * at full run. Cap the GAMEPLAY step (vCount feeds g_DeltaTime and
+             * g_GravitySpeed) at the PSX 30fps move so the worst-case sweep can
+             * never exceed what PSX itself swept. Frames faster than 30fps are
+             * unaffected; a real hitch just slows time slightly instead of
+             * teleporting Harry forward. g_DeltaTimeRaw (vCountCopy) is left raw
+             * for the wall-clock accumulators / cutscene timers. */
+            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
+#endif
         }
 
         ML_TRACE("deltaTime");
