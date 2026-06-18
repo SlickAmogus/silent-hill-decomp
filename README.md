@@ -1,17 +1,19 @@
 ## Silent Hill AI-Assisted Xbox Port
 
   This is an experimental Xbox port of Silent Hill 1 built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance from Claude Opus 4.6 and 4.7.<br/>
-  <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/
+  <br/>PsyCross: https://github.com/OpenDriver2/PsyCross
 
 ### Status
 
-WIP
+This port is based on the PC port and will likely share bug fixing status. However, as the Xbox is a 32 bit console, it may actually be more bug free here before PC. Currently it is still being built.
 
-<br>
+### Planned Features
 
+- 5.1 Surround Sound
+- Potentially couch coop
+- Online updates from console
 
-
-  ### Support
+ ### Support
   Message me wherever and I should answer. I am in most of the discords related to these projects as KushAstronaut, and I have a thread dedicated to this project in the Silent Hill channel of the PSX decompilation discord..
   
   I work with more than just AI. If you like what I do:\
