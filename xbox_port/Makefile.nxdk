@@ -67,6 +67,11 @@ SRCS = \
 	$(XBOX_PORT)/src/sh_log_xbox.c \
 	$(XBOX_PORT)/src/pgxp_stub.c \
 	$(XBOX_PORT)/src/gte_selftest.c \
+	$(XBOX_PORT)/src/gpu_nv2a.c \
 	$(GTE_SRCS)
+
+# Cg shaders compiled to .inl by nxdk's vp20/fp20 host tools, #included by
+# gpu_nv2a.c. (vs.inl <- vs.vs.cg, ps.inl <- ps.ps.cg)
+SHADER_OBJS = $(XBOX_PORT)/src/vs.inl $(XBOX_PORT)/src/ps.inl
 
 include $(NXDK_DIR)/Makefile

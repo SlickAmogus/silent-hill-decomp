@@ -1,0 +1,14 @@
+/*
+ * ps.ps.cg - modulate pixel shader (NV2A register combiner): texture * diffuse.
+ * Matches PSX gouraud-textured primitive semantics (per-vertex colour modulates
+ * the texel). Reused by the real DrawOTag path.
+ */
+struct vOut {
+	float4 col  : COLOR;
+	float2 tex0 : TEXCOORD0;
+};
+
+float4 main(vOut I, uniform sampler2D tex0) : COLOR
+{
+	return tex2D(tex0, I.tex0.xy) * I.col;
+}

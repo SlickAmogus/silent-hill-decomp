@@ -21,7 +21,9 @@
 
 #include "sh_log.h"
 
-extern void Gte_SelfTest(void); /* milestone-2b software-GTE proof (gte_selftest.c) */
+extern void Gte_SelfTest(void);           /* milestone-2b software-GTE proof (gte_selftest.c) */
+extern void GpuNv2a_Init(void);           /* milestone-2a NV2A backend (gpu_nv2a.c) */
+extern void GpuNv2a_DrawTestTriangle(void);
 
 int main(void)
 {
@@ -44,6 +46,8 @@ int main(void)
     pb_show_front_screen();
     SH_DBG("[SH-XBOX] pbkit initialised");
 
+    GpuNv2a_Init();
+
     int width  = pb_back_buffer_width();
     int height = pb_back_buffer_height();
 
@@ -57,10 +61,12 @@ int main(void)
         pb_fill(0, 0, width, height, 0xff000000); /* black */
         pb_erase_text_screen();
 
+        GpuNv2a_DrawTestTriangle();
+
         while (pb_busy()) { }
 
         pb_print("Silent Hill - Xbox port\n");
-        pb_print("Milestone 1: boot + pbkit + logging\n");
+        pb_print("Milestone 2: GTE + NV2A textured triangle\n");
         pb_print("Log: D:\\silenthill.log\n");
         pb_draw_text_screen();
 
