@@ -12,9 +12,11 @@
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
 /* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
- * vertically squished in interlaced 448), 1 = square (true proportions).
- * Toggled by the `invaspect` console command. */
-int g_PcInvAspectSquare = 0;
+ * vertically squished in interlaced 448), 1 = square (true proportions, default).
+ * Toggled by `invaspect`. g_PcInvAspectPct fine-tunes the vertical scale as a
+ * percent of the geometric square factor (100 = exactly square); `invscale`. */
+int g_PcInvAspectSquare = 1;
+int g_PcInvAspectPct    = 107;
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -252,11 +254,14 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * horizontal path already normalizes to a 4:3 display. Default OFF =
          * PSX-faithful (the raw 4:3-display look). */
         if (g_PcInvAspectSquare && g_GameWork.gsScreenWidth > 0) {
-            float _fY = (4.0f / 3.0f) * ((float)g_GameWork.gsScreenHeight / (float)g_GameWork.gsScreenWidth);
+            /* Scale only the size rows (m[1]) — NOT the Y translation (t[1]):
+             * the model must get taller IN PLACE. Scaling t[1] also moved
+             * off-center items (the equipped weapon, placed high) further up. */
+            float _fY = (4.0f / 3.0f) * ((float)g_GameWork.gsScreenHeight / (float)g_GameWork.gsScreenWidth)
+                        * ((float)g_PcInvAspectPct / 100.0f);
             int _j;
             for (_j = 0; _j < 3; _j++)
                 localToScreenMat.m[1][_j] = (s16)((float)localToScreenMat.m[1][_j] * _fY);
-            localToScreenMat.t[1] = (s32)((float)localToScreenMat.t[1] * _fY);
         }
     }
 #endif

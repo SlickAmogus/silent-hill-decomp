@@ -581,6 +581,11 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcInvAspectSquare = 0;
         else g_PcInvAspectSquare = !g_PcInvAspectSquare;
         cprintf("inventory item aspect: %s", g_PcInvAspectSquare ? "SQUARE (true proportions)" : "PSX-faithful");
+    } else if (strcmp(cmd, "INVSCALE") == 0) {
+        extern int g_PcInvAspectPct;
+        int v = atoi(arg);
+        if (v >= 50 && v <= 200) g_PcInvAspectPct = v;
+        cprintf("inventory item vertical scale: %d%% of square", g_PcInvAspectPct);
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
