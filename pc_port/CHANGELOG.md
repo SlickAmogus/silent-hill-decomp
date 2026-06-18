@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.18.4 -- 2026-06-18
+- Debug: replace key 6 non-working grey-child spawn with kill-nearby-enemies + killall cmd
+
 ## v2026.06.18.3 -- 2026-06-18
 - Restored screen fade in between rooms (any FPS)
 - Bump PsyCross: [WORLDSPLIT] world-draw-path diagnostic
