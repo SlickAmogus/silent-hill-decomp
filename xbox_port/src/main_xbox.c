@@ -21,6 +21,8 @@
 
 #include "sh_log.h"
 
+extern void Gte_SelfTest(void); /* milestone-2b software-GTE proof (gte_selftest.c) */
+
 int main(void)
 {
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
@@ -28,6 +30,8 @@ int main(void)
     SH_DebugLogInit();
     debugPrint("Silent Hill (Xbox) booting...\n");
     SH_DBG("[SH-XBOX] boot: video 640x480x32");
+
+    Gte_SelfTest();
 
     int status = pb_init();
     if (status)

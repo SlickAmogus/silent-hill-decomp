@@ -21,30 +21,52 @@ export NXDK_DIR
 XBOX_PORT = $(CURDIR)
 PCPORT    = $(CURDIR)/../pc_port
 DECOMP    = $(CURDIR)/..
+PSYCROSS  = $(PCPORT)/PsyCross
 
-# --- Port identifier --------------------------------------------------------
+# --- Shared compile flags ---------------------------------------------------
+# nxdk uses SEPARATE flag vars per language (NXDK_CFLAGS for .c, NXDK_CXXFLAGS
+# for .cpp), so defines + include paths must go into BOTH or C++ TUs (e.g. the
+# PsyCross GTE) won't see them.
+#
 # Xbox-specific game-code paths sit behind #ifdef SH_XBOX_PORT. (A shared
 # SH_NATIVE_PORT macro for "not-PSX" fixes common to PC+Xbox is planned but not
 # defined yet — it will be introduced when the first such fix is migrated.)
-NXDK_CFLAGS += -DSH_XBOX_PORT
-
-# --- Include paths (must precede nxdk's own -I via NXDK_CFLAGS) --------------
-NXDK_CFLAGS += -I$(XBOX_PORT)/include
-NXDK_CFLAGS += -I$(PCPORT)/include   # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
+SH_CPPFLAGS  = -DSH_XBOX_PORT
+SH_CPPFLAGS += -I$(XBOX_PORT)/include
+SH_CPPFLAGS += -I$(PCPORT)/include   # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
+# PsyCross PSX-compatible headers: <libgte.h> etc. and "psx/..."/"PsyX/..." forms.
+SH_CPPFLAGS += -I$(PSYCROSS)/include/psx
+SH_CPPFLAGS += -I$(PSYCROSS)/include
 
 # Explicit nxdk include paths using make's $(NXDK_DIR): MSYS2 make.exe does not
 # propagate NXDK_DIR into nxdk-cc's shell, so nxdk-cc's own -I${NXDK_DIR}/...
 # flags would expand empty. (See Duke port build notes.)
-NXDK_CFLAGS += -I$(NXDK_DIR)/lib/winapi
-NXDK_CFLAGS += -I$(NXDK_DIR)/lib
-NXDK_CFLAGS += -I$(NXDK_DIR)/lib/xboxrt/libc_extensions
-NXDK_CFLAGS += -isystem $(NXDK_DIR)/lib/pdclib/include
-NXDK_CFLAGS += -I$(NXDK_DIR)/lib/pdclib/platform/xbox/include
-NXDK_CFLAGS += -I$(NXDK_DIR)/lib/xboxrt/vcruntime
+SH_CPPFLAGS += -I$(NXDK_DIR)/lib/winapi
+SH_CPPFLAGS += -I$(NXDK_DIR)/lib
+SH_CPPFLAGS += -I$(NXDK_DIR)/lib/xboxrt/libc_extensions
+SH_CPPFLAGS += -isystem $(NXDK_DIR)/lib/pdclib/include
+SH_CPPFLAGS += -I$(NXDK_DIR)/lib/pdclib/platform/xbox/include
+SH_CPPFLAGS += -I$(NXDK_DIR)/lib/xboxrt/vcruntime
+
+NXDK_CFLAGS   += $(SH_CPPFLAGS)
+NXDK_CXXFLAGS += $(SH_CPPFLAGS)
+
+# --- Reused PsyCross software GTE (platform-agnostic; replaces MIPS GTE asm) -
+# inline_c.c = cop2 MTC2/CTC2/MFC2 interface, PsyX_GTE.cpp = the GTE math,
+# libgte.c = high-level libgte API (RotTransPers, matrices), abs.c = helpers.
+# (half_float.cpp is PGXP-only and unreferenced by the GTE -> excluded.)
+GTE_SRCS = \
+	$(PSYCROSS)/src/psx/inline_c.c \
+	$(PSYCROSS)/src/psx/libgte.c \
+	$(PSYCROSS)/src/psx/abs.c \
+	$(PSYCROSS)/src/gte/PsyX_GTE.cpp
 
 # --- Sources ----------------------------------------------------------------
 SRCS = \
 	$(XBOX_PORT)/src/main_xbox.c \
-	$(XBOX_PORT)/src/sh_log_xbox.c
+	$(XBOX_PORT)/src/sh_log_xbox.c \
+	$(XBOX_PORT)/src/pgxp_stub.c \
+	$(XBOX_PORT)/src/gte_selftest.c \
+	$(GTE_SRCS)
 
 include $(NXDK_DIR)/Makefile

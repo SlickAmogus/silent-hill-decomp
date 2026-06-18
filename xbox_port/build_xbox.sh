@@ -19,22 +19,26 @@ export PATH="/c/Program Files/LLVM/bin:/c/msys64/mingw64/bin:${NXDK_DIR}/bin:/c/
 unset INCLUDE LIB LIBPATH
 
 # nxdk's host tools (cxbe, vp20compiler, fp20compiler) are compiled with the host
-# C++ compiler ($(CXX), default g++). MSYS2 g++ 13.1.0 on this machine cannot
-# create its temporary files (it always probes C:\Windows\ -> "Permission denied"),
-# so build the host tools with MSYS2 mingw clang++ (integrated assembler, no
-# external temp) up front. Once present the main make sees them up-to-date and
-# skips them. The Xbox target itself always uses nxdk-cc, never $(CXX), so this
-# does not affect game-code compilation.
-#   NOTE: vp20compiler/fp20compiler (shaders, milestone 2) and extract-xiso (iso)
-#   need the same CXX=clang++ treatment when first built.
+# C/C++ compiler ($(CC)/$(CXX), default gcc/g++). MSYS2 gcc/g++ 13.1.0 on this
+# machine cannot create its temporary files (it always probes C:\Windows\ ->
+# "Permission denied"), so build the host tools with MSYS2 mingw clang/clang++
+# (integrated assembler, no external temp) up front. Once present the main make
+# sees them up-to-date and skips them. The Xbox target itself always uses
+# nxdk-cc, never $(CC)/$(CXX), so this does not affect game-code compilation.
+#   (extract-xiso, for the .iso target, uses CMake->gcc and needs the same
+#   treatment when an ISO is first built — not wired up here.)
+HOST_CC="/c/msys64/mingw64/bin/clang"
 HOST_CXX="/c/msys64/mingw64/bin/clang++"
 build_host_tool() {
-    local dir="$1" out="$2"
-    if [ ! -f "$NXDK_DIR/$dir/$out" ]; then
-        echo "[ HOSTCXX  ] $dir/$out (clang++)"
-        make -C "$NXDK_DIR/$dir" CXX="$HOST_CXX"
+    # $1=dir  $2=output-binary  $3..=make var overrides (e.g. CXX=...)
+    local dir="$1" out="$2"; shift 2
+    if [ ! -f "$NXDK_DIR/$dir/$out" ] && [ ! -f "$NXDK_DIR/$dir/$out.exe" ]; then
+        echo "[ HOSTCC   ] $dir/$out"
+        make -C "$NXDK_DIR/$dir" "$@"
     fi
 }
-build_host_tool tools/cxbe cxbe
+build_host_tool tools/cxbe         cxbe         CXX="$HOST_CXX"
+build_host_tool tools/vp20compiler vp20compiler CC="$HOST_CC"
+build_host_tool tools/fp20compiler fp20compiler CXX="$HOST_CXX"
 
 exec /c/msys64/usr/bin/make.exe -f Makefile.nxdk "$@"
