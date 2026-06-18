@@ -1,46 +1,34 @@
 /*
  * gpu_nv2a.c - NV2A rendering backend (pbkit) for the Silent Hill Xbox port.
  *
- * Milestone 2a: prove the texture + register-combiner pipeline by drawing one
- * textured triangle in 2D screen space (the form PSX libgpu primitives take
- * after the software GTE projects them). The vertex shader (vs.vs.cg) maps
- * screen pixels -> clip space; the pixel shader (ps.ps.cg) does texture *
- * diffuse. This infrastructure (2D-ortho VS, modulate combiner, texture upload,
- * vertex submission) is the foundation of the real DrawOTag (milestone 3).
+ * Low-level NV2A surface used by the PSX libgpu (gpu_xbox.c, which walks the OT
+ * and converts PSX primitives into screen-space triangles). Provides frame
+ * begin/end (pbkit double-buffer) and a triangle-list emit. PSX prims arrive
+ * already projected by the software GTE, so vertices are in screen pixels and
+ * the vertex shader (vs.vs.cg) is a window-space passthrough; the pixel shader
+ * (ps.ps.cg) does texture * diffuse. Untextured prims bind a 1x1 white texture
+ * so texture*colour collapses to the per-vertex colour.
  *
- * pbkit sequences mirror nxdk's `mesh` sample (proven register values).
+ * pbkit sequences mirror nxdk's `mesh` sample. See the nv2a-backend memory for
+ * the gotchas (window coords, DRAW_ARRAYS vs 16-bit indices, texel UVs, sfence).
  */
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
 #include <stdint.h>
 #include <string.h>
 
+#include "gpu_nv2a.h"
 #include "sh_log.h"
 
 #define MAXRAM 0x03FFAFFF
 #define MASK(mask, val) (((val) << (__builtin_ffs(mask) - 1)) & (mask))
 
-/* Screen-space vertex: position in pixels, diffuse colour, texcoord. Matches
- * the vs.vs.cg input layout (attribs POSITION=0, DIFFUSE=3, TEXCOORD0=9). */
-#pragma pack(1)
-typedef struct {
-    float pos[3];
-    float col[4];
-    float tex[2];
-} ShVertex;
-#pragma pack()
+#define MAX_BATCH_VERTS 1024
 
-#define TEX_DIM 64
+static ShVertex* s_batch;     /* contiguous staging buffer for vertex submission */
+static uint32_t* s_whiteTex;  /* 1x1 opaque white, for untextured prims */
 
-static uint32_t* s_vertices;
-static unsigned  s_numVerts;
-
-static struct {
-    uint16_t width;
-    uint16_t height;
-    uint16_t pitch;
-    void*    addr;
-} s_texture;
+static int s_frameW, s_frameH;
 
 static void GpuNv2a_InitShader(void)
 {
@@ -71,76 +59,27 @@ static void GpuNv2a_InitShader(void)
         pb_end(p);
     }
 
-    /* Fragment shader (register combiners) */
+    /* Fragment shader (register combiners): texture * diffuse */
     p = pb_begin();
     #include "ps.inl"
     pb_end(p);
 }
 
-static void GpuNv2a_InitTexture(void)
-{
-    uint32_t* tex;
-    int x, y;
-
-    s_texture.width  = TEX_DIM;
-    s_texture.height = TEX_DIM;
-    s_texture.pitch  = TEX_DIM * 4;
-    s_texture.addr   = MmAllocateContiguousMemoryEx(s_texture.pitch * s_texture.height, 0, MAXRAM, 0,
-                                                    PAGE_READWRITE | PAGE_WRITECOMBINE);
-    tex = (uint32_t*)s_texture.addr;
-
-    /* 8x8 magenta / cyan checkerboard so a correct render is unmistakable. */
-    for (y = 0; y < TEX_DIM; y++) {
-        for (x = 0; x < TEX_DIM; x++) {
-            int on = ((x >> 3) ^ (y >> 3)) & 1;
-            tex[y * TEX_DIM + x] = on ? 0xffff00ff : 0xff00ffff; /* ARGB */
-        }
-    }
-
-    /* Flush the write-combine store buffer so the GPU sees the texel data we
-     * just wrote (otherwise the fetch can read stale memory -> flat texture). */
-    __asm__ __volatile__("sfence" ::: "memory");
-
-    SH_DBG("[SH-XBOX] texture @ %p (phys 0x%08x) texel[0]=0x%08x texel[8]=0x%08x",
-           s_texture.addr, (unsigned)((uintptr_t)s_texture.addr & 0x03ffffff), tex[0], tex[8]);
-}
-
 void GpuNv2a_Init(void)
 {
-    static const ShVertex verts[3] = {
-        /* pos(px)                    col(rgba)         tex(TEXELS, not 0..1 --
-         * NV2A linear/NPOT textures use unnormalized texel coordinates) */
-        { { 320.0f,  80.0f, 0.0f }, { 1, 1, 1, 1 }, {       TEX_DIM / 2.0f, 0.0f    } },
-        { { 120.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, {       0.0f,           TEX_DIM } },
-        { { 520.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, {       TEX_DIM,        TEX_DIM } },
-    };
     GpuNv2a_InitShader();
-    GpuNv2a_InitTexture();
 
-    s_vertices = MmAllocateContiguousMemoryEx(sizeof(verts), 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    memcpy(s_vertices, verts, sizeof(verts));
-    s_numVerts = sizeof(verts) / sizeof(verts[0]);
+    s_batch    = MmAllocateContiguousMemoryEx(MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
+                                              PAGE_READWRITE | PAGE_WRITECOMBINE);
+    s_whiteTex = MmAllocateContiguousMemoryEx(4, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
+    s_whiteTex[0] = 0xffffffff;
+    __asm__ __volatile__("sfence" ::: "memory");
 
-    SH_DBG("[SH-XBOX] NV2A backend init: shaders loaded, %dx%d checker texture, %u-vert test tri",
-           TEX_DIM, TEX_DIM, s_numVerts);
+    SH_DBG("[SH-XBOX] NV2A backend ready (batch=%d verts)", MAX_BATCH_VERTS);
 }
 
-static void SetAttribPointer(unsigned index, unsigned format, unsigned size, unsigned stride, const void* data)
-{
-    uint32_t* p = pb_begin();
-    p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_FORMAT + index * 4,
-                 MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE, format)
-                 | MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE, size)
-                 | MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE, stride));
-    p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_OFFSET + index * 4, (uint32_t)data & 0x03ffffff);
-    pb_end(p);
-}
-
-/* Render state for a 2D blit path. NV2A defaults (and what the 3D mesh sample
- * relied on) are not all right for flat 2D screen-space prims, so set them
- * explicitly: no depth test (z is flat), no culling (winding-independent),
- * z-clamp (never drop a prim on near/far), specular-enable on (required for
- * register-combiner / final-combiner output), no alpha test / blend. */
+/* Render state for flat 2D screen-space prims: no depth/cull, specular-enable
+ * on (required for combiner output), no alpha-test/blend, z-clamp. */
 static void GpuNv2a_SetRenderState(void)
 {
     uint32_t* p = pb_begin();
@@ -156,18 +95,71 @@ static void GpuNv2a_SetRenderState(void)
     pb_end(p);
 }
 
-void GpuNv2a_DrawTestTriangle(void)
+void GpuNv2a_FrameBegin(void)
+{
+    pb_wait_for_vbl();
+    pb_reset();
+    pb_target_back_buffer();
+
+    s_frameW = pb_back_buffer_width();
+    s_frameH = pb_back_buffer_height();
+
+    pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
+    pb_fill(0, 0, s_frameW, s_frameH, 0xff000000);
+    pb_erase_text_screen();
+    while (pb_busy()) { }
+}
+
+void GpuNv2a_FrameEnd(void)
+{
+    while (pb_busy()) { }
+    while (pb_finished()) { }
+}
+
+static void SetAttribPointer(unsigned index, unsigned size, const void* data)
+{
+    uint32_t* p = pb_begin();
+    p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_FORMAT + index * 4,
+                 MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)
+                 | MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE, size)
+                 | MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE, sizeof(ShVertex)));
+    p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_OFFSET + index * 4, (uint32_t)data & 0x03ffffff);
+    pb_end(p);
+}
+
+/* Bind a linear A8R8G8B8 texture (texel coords, clamp, bilinear) to stage 0. */
+static void GpuNv2a_BindTexture(const void* addr, int w, int h)
+{
+    uint32_t* p = pb_begin();
+    p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)addr & 0x03ffffff, 0x0001122a);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_PITCH(0), (w * 4) << 16);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (w << 16) | h);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x04074000);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(1), 0x0003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
+    pb_end(p);
+}
+
+/* Emit `count` vertices as a triangle list. Untextured (white texture bound),
+ * so the per-vertex colour shows through unchanged. */
+void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 {
     uint32_t* p;
     int       i;
 
-    GpuNv2a_SetRenderState();
+    if (count <= 0 || count > MAX_BATCH_VERTS)
+        return;
 
-    /* Upload the vertex-program literal constants. vp20 does NOT embed float
-     * literals in the program — the compiler emits them as c[] constants that
-     * must be uploaded to the hardware constant bank (program c[0] maps to
-     * hardware slot 96). Check the `// const c[0] = ...` line in vs.inl after
-     * editing the shader; without this upload the transform reads garbage. */
+    memcpy(s_batch, verts, count * sizeof(ShVertex));
+    __asm__ __volatile__("sfence" ::: "memory");
+
+    GpuNv2a_SetRenderState();
+    GpuNv2a_BindTexture(s_whiteTex, 1, 1);
+
+    /* Upload the vertex-program literal constant c[0] = {1,...} (pos.w). */
     {
         static const float c0[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
         p = pb_begin();
@@ -178,44 +170,21 @@ void GpuNv2a_DrawTestTriangle(void)
         pb_end(p);
     }
 
-    /* Texture stage 0: linear A8R8G8B8 (0x12), clamp, bilinear. */
-    p = pb_begin();
-    p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)s_texture.addr & 0x03ffffff, 0x0001122a);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_PITCH(0), s_texture.pitch << 16);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (s_texture.width << 16) | s_texture.height);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x04074000);
-    pb_end(p);
-
-    /* Disable texture stages 1-3. */
-    p = pb_begin();
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(1), 0x0003ffc0);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
-    pb_end(p);
-
-    /* Clear all 16 vertex attribute arrays (format 2 = none). */
+    /* Clear all 16 attribute arrays, then point pos/col/tex at the batch. */
     p = pb_begin();
     pb_push(p++, NV097_SET_VERTEX_DATA_ARRAY_FORMAT, 16);
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < 16; i++)
         *(p++) = 2;
-    }
     pb_end(p);
 
-    SetAttribPointer(0, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F, 3, sizeof(ShVertex), &s_vertices[0]);
-    SetAttribPointer(3, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F, 4, sizeof(ShVertex), &((char*)s_vertices)[12]);
-    SetAttribPointer(9, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F, 2, sizeof(ShVertex), &((char*)s_vertices)[28]);
+    SetAttribPointer(0, 3, &s_batch[0].pos);
+    SetAttribPointer(3, 4, &s_batch[0].col);
+    SetAttribPointer(9, 2, &s_batch[0].tex);
 
-    /* Draw sequential vertices via DRAW_ARRAYS. (NOT the INDEX_DATA method:
-     * that register is ARRAY_ELEMENT16 = two 16-bit indices per dword, so
-     * uint32 indices {0,1,2} would be misread as 0,0,1,0,2,0 -> degenerate
-     * triangles -> nothing rasterizes.) */
     p = pb_begin();
     p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
     pb_push(p++, 0x40000000 | NV097_DRAW_ARRAYS, 1);
-    *(p++) = MASK(NV097_DRAW_ARRAYS_COUNT, s_numVerts - 1)
-           | MASK(NV097_DRAW_ARRAYS_START_INDEX, 0);
+    *(p++) = MASK(NV097_DRAW_ARRAYS_COUNT, count - 1) | MASK(NV097_DRAW_ARRAYS_START_INDEX, 0);
     p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
     pb_end(p);
 }

@@ -1,38 +1,69 @@
 /*
  * main_xbox.c - Original Xbox (NXDK / NV2A) entry point for the Silent Hill 1 port.
  *
- * Mirror of pc_port/src/main_pc.c: the platform shell that brings up the Xbox HAL
- * and then hands control to the game's MainLoop() (in BODYPROG). main_pc.c has no
- * per-frame loop of its own — PsyCross hooks the PSX libgpu/libspu/libpad calls and
- * renders/pumps each frame. On Xbox that HAL is replaced piece by piece:
- *   - GPU:   PSX OT/prim rasterizer -> NV2A via pbkit (gpu_nv2a.c, TODO)
- *   - Audio: PSX SPU mix -> Xbox hardware audio (spu_xbox.c, TODO)
- *   - Input: USB controller -> PSX pad bits (pad_xbox.c, TODO)
- *   - File:  BIN disc image on HDD, sector reads via reused xa_player.c (fs_xbox.c, TODO)
- *
- * MILESTONE 1 (this file, current): prove the toolchain. Set a video mode, init
- * pbkit, clear to black, and log to D:\silenthill.log. The game MainLoop() is not
- * wired in yet (next milestone links the shared game code).
+ * Mirror of pc_port/src/main_pc.c: brings up the Xbox HAL and (eventually) hands
+ * control to the game's MainLoop(). Until the shared game code is wired in, this
+ * exercises the HAL pieces built so far: the software GTE (gte_selftest.c) and
+ * the PSX libgpu (gpu_xbox.c DrawOTag) on the NV2A backend, by walking a small
+ * hand-built ordering table of polygons each frame.
  */
 #include <hal/debug.h>
 #include <hal/video.h>
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
+#include <libgte.h>
+#include <libgpu.h>
+
+#include "gpu_nv2a.h"
 #include "sh_log.h"
 
-extern void XboxFs_MountHomeDrive(void);   /* mount the XBE's dir as D: (fs_xbox.c) */
-extern void Gte_SelfTest(void);           /* milestone-2b software-GTE proof (gte_selftest.c) */
-extern void GpuNv2a_Init(void);           /* milestone-2a NV2A backend (gpu_nv2a.c) */
-extern void GpuNv2a_DrawTestTriangle(void);
+extern void XboxFs_MountHomeDrive(void);
+extern void Gte_SelfTest(void);
+
+/* Hand-built ordering table: a flat-white triangle + a gouraud quad, linked
+ * head -> quad -> tri -> terminator. DrawOTag walks it and renders via NV2A. */
+static OT_TAG   g_testOt;
+static POLY_G4  g_testQuad;
+static POLY_F3  g_testTri;
+
+static void BuildTestOT(void)
+{
+    /* empty OT head bucket (len 0), terminates the chain */
+    setlen(&g_testOt, 0);
+    setaddr(&g_testOt, 0xffffffff);
+
+    /* gouraud quad (code 0x38, 8 longs): R/G/B/Y corners */
+    setlen(&g_testQuad, 8);
+    setcode(&g_testQuad, 0x38);
+    g_testQuad.r0 = 255; g_testQuad.g0 = 0;   g_testQuad.b0 = 0;
+    g_testQuad.r1 = 0;   g_testQuad.g1 = 255; g_testQuad.b1 = 0;
+    g_testQuad.r2 = 0;   g_testQuad.g2 = 0;   g_testQuad.b2 = 255;
+    g_testQuad.r3 = 255; g_testQuad.g3 = 255; g_testQuad.b3 = 0;
+    g_testQuad.x0 = 80;  g_testQuad.y0 = 80;
+    g_testQuad.x1 = 300; g_testQuad.y1 = 90;
+    g_testQuad.x2 = 90;  g_testQuad.y2 = 300;
+    g_testQuad.x3 = 300; g_testQuad.y3 = 300;
+
+    /* flat white triangle (code 0x20, 4 longs) */
+    setlen(&g_testTri, 4);
+    setcode(&g_testTri, 0x20);
+    g_testTri.r0 = 255; g_testTri.g0 = 255; g_testTri.b0 = 255;
+    g_testTri.x0 = 420; g_testTri.y0 = 100;
+    g_testTri.x1 = 360; g_testTri.y1 = 320;
+    g_testTri.x2 = 540; g_testTri.y2 = 340;
+
+    /* link: head -> quad -> tri -> terminator */
+    setaddr(&g_testTri,  0xffffffff);
+    setaddr(&g_testQuad, (uintptr_t)&g_testTri);
+    setaddr(&g_testOt,   (uintptr_t)&g_testQuad);
+}
 
 int main(void)
 {
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
-    /* Mount the XBE's own directory as D: BEFORE opening the log there. */
     XboxFs_MountHomeDrive();
-
     SH_DebugLogInit();
     debugPrint("Silent Hill (Xbox) booting...\n");
     SH_DBG("[SH-XBOX] boot: video 640x480x32");
@@ -40,8 +71,7 @@ int main(void)
     Gte_SelfTest();
 
     int status = pb_init();
-    if (status)
-    {
+    if (status) {
         debugPrint("pb_init failed: %d\n", status);
         SH_DBG("[SH-XBOX] pb_init FAILED (%d)", status);
         Sleep(5000);
@@ -51,31 +81,19 @@ int main(void)
     SH_DBG("[SH-XBOX] pbkit initialised");
 
     GpuNv2a_Init();
+    BuildTestOT();
+    SH_DBG("[SH-XBOX] entering render loop (DrawOTag test)");
 
-    int width  = pb_back_buffer_width();
-    int height = pb_back_buffer_height();
+    while (1) {
+        GpuNv2a_FrameBegin();
 
-    while (1)
-    {
-        pb_wait_for_vbl();
-        pb_reset();
-        pb_target_back_buffer();
-
-        pb_erase_depth_stencil_buffer(0, 0, width, height);
-        pb_fill(0, 0, width, height, 0xff000000); /* black */
-        pb_erase_text_screen();
-
-        GpuNv2a_DrawTestTriangle();
-
-        while (pb_busy()) { }
+        DrawOTag((u_long*)&g_testOt);
 
         pb_print("Silent Hill - Xbox port\n");
-        pb_print("Milestone 2: GTE + NV2A textured triangle\n");
-        pb_print("Log: D:\\silenthill.log\n");
+        pb_print("Milestone 3: PSX libgpu DrawOTag on NV2A\n");
         pb_draw_text_screen();
 
-        while (pb_busy()) { }
-        while (pb_finished()) { }
+        GpuNv2a_FrameEnd();
     }
 
     pb_kill();
