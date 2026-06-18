@@ -2952,6 +2952,38 @@ void func_800E1DAC(void) // 0x800E1DAC
             Event_DisplayMapMsg(false, 17, 0, 0, 0, false);
             break;
 
+#ifdef SH_PC_PORT
+        /* Restore the PAL/NTSC-J Gillespie house-fire pages (msgs 18/19) the
+         * NTSC-U build cut, slotted before the blaze-date line (msg 20) just
+         * like map7_s01 (msgs 33/34). */
+        case 8:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 18, 0, 0, 0, false);
+            break;
+
+        case 9:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 19, 0, 0, 0, false);
+            break;
+
+        case 10:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 20, 0, 0, 0, false);
+            break;
+
+        case 11:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
+            break;
+#else
         case 8:
             g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
 
@@ -2965,6 +2997,7 @@ void func_800E1DAC(void) // 0x800E1DAC
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
             Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
+#endif
 
         default:
             Player_ControlUnfreeze(false);
