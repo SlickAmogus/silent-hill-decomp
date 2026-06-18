@@ -1892,6 +1892,40 @@ void func_800DBDE0(void) // 0x800DBDE0
             Event_DisplayMapMsg(false, 32, 0, 0, 0, false);
             break;
 
+#ifdef SH_PC_PORT
+        /* Restore the PAL/NTSC-J Gillespie house-fire pages (msgs 33/34) the
+         * NTSC-U build cut from this newspaper. Without them the next line
+         * (msg 35: "the date of the blaze... same day we found Cheryl!") refers
+         * to a blaze that was never shown. They slot between "Are there others?"
+         * (32) and the blaze-date reaction (35). */
+        case 8:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 33, 0, 0, 0, false);
+            break;
+
+        case 9:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 34, 0, 0, 0, false);
+            break;
+
+        case 10:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_DisplayMapMsg(false, 35, 0, 0, 0, false);
+            break;
+
+        case 11:
+            g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
+
+            Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
+            Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
+            break;
+#else
         case 8:
             g_Screen_BackgroundImgGamma = Q8(6.0f / 32.0f);
 
@@ -1905,6 +1939,7 @@ void func_800DBDE0(void) // 0x800DBDE0
             Event_BgTextureCmd(BgTextureCmd_Draw, 0, false);
             Event_ScreenFadeCmd(ScreenFadeCmd_Auto, true, 0, Q12(0.0f), false);
             break;
+#endif
 
         default:
             Player_ControlUnfreeze(false);
