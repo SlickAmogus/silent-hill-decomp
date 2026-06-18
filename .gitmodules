@@ -16,3 +16,4 @@
 [submodule "xbox_port/nxdk"]
 	path = xbox_port/nxdk
 	url = https://github.com/SlickAmogus/nxdk.git
+	ignore = dirty
