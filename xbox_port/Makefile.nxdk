@@ -65,6 +65,7 @@ GTE_SRCS = \
 SRCS = \
 	$(XBOX_PORT)/src/main_xbox.c \
 	$(XBOX_PORT)/src/sh_log_xbox.c \
+	$(XBOX_PORT)/src/fs_xbox.c \
 	$(XBOX_PORT)/src/pgxp_stub.c \
 	$(XBOX_PORT)/src/gte_selftest.c \
 	$(XBOX_PORT)/src/gpu_nv2a.c \

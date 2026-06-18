@@ -21,6 +21,7 @@
 
 #include "sh_log.h"
 
+extern void XboxFs_MountHomeDrive(void);   /* mount the XBE's dir as D: (fs_xbox.c) */
 extern void Gte_SelfTest(void);           /* milestone-2b software-GTE proof (gte_selftest.c) */
 extern void GpuNv2a_Init(void);           /* milestone-2a NV2A backend (gpu_nv2a.c) */
 extern void GpuNv2a_DrawTestTriangle(void);
@@ -28,6 +29,9 @@ extern void GpuNv2a_DrawTestTriangle(void);
 int main(void)
 {
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+
+    /* Mount the XBE's own directory as D: BEFORE opening the log there. */
+    XboxFs_MountHomeDrive();
 
     SH_DebugLogInit();
     debugPrint("Silent Hill (Xbox) booting...\n");

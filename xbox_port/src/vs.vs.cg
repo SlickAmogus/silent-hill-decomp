@@ -1,11 +1,13 @@
 /*
  * vs.vs.cg - 2D screen-space passthrough vertex shader for the NV2A backend.
  *
- * Input position is in SCREEN PIXELS (x: 0..640, y: 0..480) — the form PSX
- * libgpu primitives arrive in after the software GTE has projected them. Maps
- * straight to clip space; no perspective (PSX 2D prims are already projected).
- * Screen size is baked in (640x480) so there is no uniform-constant to upload.
- * Diffuse colour is passed through; the pixel shader modulates the texture by it.
+ * IMPORTANT: NV2A's vp20 vertex program (with pbkit's setup) outputs WINDOW
+ * coordinates directly — pbkit applies no viewport scale/offset, so the VS must
+ * emit pixels (x: 0..640, y: 0..480 with y down), NOT normalized device coords.
+ * (The nxdk `mesh` sample bakes the viewport matrix into m_proj for the same
+ * reason.) Input position is already in screen pixels — the form PSX libgpu
+ * primitives take after the software GTE projects them — so this is a true
+ * passthrough. Diffuse colour is passed to the pixel shader for modulation.
  */
 struct vIn {
 	float4 pos : POSITION;
@@ -22,8 +24,8 @@ struct vOut {
 vOut main(vIn I)
 {
 	vOut o;
-	o.pos.x = I.pos.x * (2.0 / 640.0) - 1.0;
-	o.pos.y = 1.0 - I.pos.y * (2.0 / 480.0);
+	o.pos.x = I.pos.x;
+	o.pos.y = I.pos.y;
 	o.pos.z = I.pos.z;
 	o.pos.w = 1.0;
 	o.col   = I.col;

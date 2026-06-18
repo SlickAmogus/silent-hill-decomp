@@ -133,18 +133,40 @@ static void SetAttribPointer(unsigned index, unsigned format, unsigned size, uns
     pb_end(p);
 }
 
+/* Render state for a 2D blit path. NV2A defaults (and what the 3D mesh sample
+ * relied on) are not all right for flat 2D screen-space prims, so set them
+ * explicitly: no depth test (z is flat), no culling (winding-independent),
+ * z-clamp (never drop a prim on near/far), specular-enable on (required for
+ * register-combiner / final-combiner output), no alpha test / blend. */
+static void GpuNv2a_SetRenderState(void)
+{
+    uint32_t* p = pb_begin();
+    p = pb_push1(p, NV097_SET_SPECULAR_ENABLE, 1);
+    p = pb_push1(p, NV097_SET_LIGHTING_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_SKIN_MODE, NV097_SET_SKIN_MODE_OFF);
+    p = pb_push1(p, NV097_SET_DEPTH_TEST_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_DEPTH_MASK, 0);
+    p = pb_push1(p, NV097_SET_CULL_FACE_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_ALPHA_TEST_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_BLEND_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_ZMIN_MAX_CONTROL, NV097_SET_ZMIN_MAX_CONTROL_ZCLAMP_CLAMP);
+    pb_end(p);
+}
+
 void GpuNv2a_DrawTestTriangle(void)
 {
     uint32_t* p;
     int       i;
 
+    GpuNv2a_SetRenderState();
+
     /* Upload the vertex-program literal constants. vp20 does NOT embed float
      * literals in the program — the compiler emits them as c[] constants that
      * must be uploaded to the hardware constant bank (program c[0] maps to
-     * hardware slot 96). vs.inl says: c[0] = {1, 2/480, 2/640}. Without this
-     * the screen->clip transform reads garbage and the triangle vanishes. */
+     * hardware slot 96). Check the `// const c[0] = ...` line in vs.inl after
+     * editing the shader; without this upload the transform reads garbage. */
     {
-        static const float c0[4] = { 1.0f, 0.0041666669f, 0.003125f, 1.0f };
+        static const float c0[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
         p = pb_begin();
         p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_ID, 96);
         pb_push(p++, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_X, 4);
