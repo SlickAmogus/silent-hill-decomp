@@ -214,12 +214,30 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         PsyX_GetScreenSize(&_sw, &_sh);
         float _dispAspect = (float)_sw / (float)_sh;
         float _psxAspect = 320.0f / 240.0f;
+        float _corrApplied = 1.0f;
         if (!_pillarboxed && _dispAspect > _psxAspect) {
             float _corr = _psxAspect / _dispAspect;
             int _j;
             for (_j = 0; _j < 3; _j++)
                 localToScreenMat.m[0][_j] = (s16)((float)localToScreenMat.m[0][_j] * _corr);
             localToScreenMat.t[0] = (s32)((float)localToScreenMat.t[0] * _corr);
+            _corrApplied = _corr;
+        }
+        /* [INV-ASPECT] one-shot ground truth for the squished-item report: the
+         * item's on-screen proportion = framebuffer aspect (gsScreenW/H) mapped
+         * to the window/viewport. gsScreenHeight 224 (progressive) vs 448
+         * (interlaced) flips the vertical scaling; _corrApplied shows if the
+         * horizontal undo ran. ls-matrix diagonal = item's X/Y/Z scale pre-GTE. */
+        {
+            static int _logged = 0;
+            if (!_logged) {
+                _logged = 1;
+                SH_DBG("[INV-ASPECT] gsScreen=%dx%d win=%dx%d dispAspect=%d/1000 psxAspect=%d/1000 pillarbox=%d corrApplied=%d/1000 lsDiag=(%d,%d,%d)",
+                       (int)g_GameWork.gsScreenWidth, (int)g_GameWork.gsScreenHeight, _sw, _sh,
+                       (int)(_dispAspect * 1000.0f), (int)(_psxAspect * 1000.0f),
+                       _pillarboxed, (int)(_corrApplied * 1000.0f),
+                       (int)localToScreenMat.m[0][0], (int)localToScreenMat.m[1][1], (int)localToScreenMat.m[2][2]);
+            }
         }
     }
 #endif
