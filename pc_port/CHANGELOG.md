@@ -1,5 +1,38 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.18.3 -- 2026-06-18
+- Restored screen fade in between rooms (any FPS)
+- Bump PsyCross: [WORLDSPLIT] world-draw-path diagnostic
+- walls: log swept-collision geometry in [WALL-HIT] (#42)
+- Fix invisible walls at full run: cap gameplay timestep at 30fps (#42)
+- Fix missing room-transition / level-load fade: clamp fade dt, drop *4
+
+## v2026.06.18.2 -- 2026-06-18
+- Reverted an update that I didn't mean to include yet that wasn't working and hasn't been tested enough (aspect correction).
+
+- Bump PsyCross: 4:3 display-aspect fix for Harry-too-wide
+- Bump PsyCross: revert 4:3 aspect fix (no visual effect; investigating)
+
+## v2026.06.18.1 -- 2026-06-18
+- Restore PAL/NTSC-J Gillespie house-fire newspaper (missing from NTSC-U). It is located in Nowhere and you have to read the earlier newspaper to find it. You can manually unlock it by typing "setflag 393 1" in the console
+- TMD cache: ring eviction instead of memmove (fix inventory-scroll GTE crash)
+- Inventory preview: skip malformed TMD object instead of crashing + log it
+- Inventory: clear carousel model slots up front (fix stale-model flung verts + crash)
+- Diagnostic: [ITEM-DRAW] flushed dump of each item preview model before draw
+- Bump PsyCross: [ASPECT] diagnostic
+- Remove session diagnostics ahead of release
+- Bump PsyCross: route [ASPECT] probe to log + dump GTE FOV/viewport
+
+
+## v2026.06.17.1 -- 2026-06-17
+- Blood should now be RED everywhere except where it's not intentionally! (still minor issues but will work on it)
+- BGM speed may be fixed but haven't tested everywhere
+- Good and Good+ endings both now play without SFX looping and you can watch the whole cutscene before the fight
+- Fixed other random crashes like some cases when using cheats to give all weapons
+
+Coming soon: Aspect fixes, real game targeting system code brought in to replace shim, PGXP clean up, Updated launcher with custom build support
+
+
 ## v2026.06.16.4 -- 2026-06-16
 NOTES: This should fix a couple of ending cutscene and post ending crashes.
 Blood color is being worked on. Also working on fixing a bug that prevents you from kicking air screamers.
