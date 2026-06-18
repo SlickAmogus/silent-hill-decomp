@@ -1,5 +1,17 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.18.5 -- 2026-06-18
+- This update reduces the issues with the inventory screen to match the original PSX by fixing vertical scaling, positioning, and dimming. Backface issue still present, will be fixed soon. 
+Coming soon: More aspect fixes, monster reworks to fix animations, real PSX style targeting, sound fixes, and corruption/crash fixes.
+
+- walls/worm: [WORM] vulnerability-window probe in the LIVE twinfeeler code
+- worm: port stranded sz==0 div-by-zero guard into the LIVE twinfeeler copy
+- inventory: [INV-ASPECT] one-shot probe for the squished-item report
+- inventory: add `invaspect` toggle for squished item-preview models
+- inventory: default square aspect, scale size-only (fix equipped pos), tunable
+- inventory: default scale 125, Y nudges, off-center dimming
+- inventory: per-slot dimming + defaults invcary 50 / inveqy -50
+
 ## v2026.06.18.4 -- 2026-06-18
 - Debug: replace key 6 non-working grey-child spawn with kill-nearby-enemies + killall cmd
 
