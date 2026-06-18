@@ -591,12 +591,13 @@ void Pc_ConsoleExec(const char* line)
         if (v >= 50 && v <= 200) g_PcInvAspectPct = v;
         cprintf("inventory item vertical scale: %d%% of square", g_PcInvAspectPct);
     } else if (strcmp(cmd, "INVCARY") == 0) {
+        /* the console minus key types '_', so accept a leading '_' as '-'. */
         extern int g_PcInvCarouselYOff;
-        if (arg[0]) g_PcInvCarouselYOff = atoi(arg);
+        if (arg[0]) g_PcInvCarouselYOff = (arg[0] == '_') ? -atoi(arg + 1) : atoi(arg);
         cprintf("carousel item Y offset: %d (+ down)", g_PcInvCarouselYOff);
     } else if (strcmp(cmd, "INVEQY") == 0) {
         extern int g_PcInvEquipYOff;
-        if (arg[0]) g_PcInvEquipYOff = atoi(arg);
+        if (arg[0]) g_PcInvEquipYOff = (arg[0] == '_') ? -atoi(arg + 1) : atoi(arg);
         cprintf("equipped item Y offset: %d (+ down)", g_PcInvEquipYOff);
     } else if (strcmp(cmd, "INVDIM") == 0) {
         extern int g_PcInvDimStrength;

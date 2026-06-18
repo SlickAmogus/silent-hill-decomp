@@ -18,12 +18,13 @@
 int g_PcInvAspectSquare = 1;
 int g_PcInvAspectPct    = 125;
 /* Slight Y placement match vs Duckstation (view-Y units; + = down). Carousel a
- * touch down, equipped weapon a touch up. Tunable: invcary / inveqy. */
-int g_PcInvCarouselYOff = 24;
-int g_PcInvEquipYOff    = -24;
-/* Off-center carousel dimming strength (% darken at the far edge of the Z
- * curve). 0 = no dim. Tunable: invdim. */
-int g_PcInvDimStrength  = 55;
+ * touch down, equipped weapon up. Tunable: invcary / inveqy. */
+int g_PcInvCarouselYOff = 50;
+int g_PcInvEquipYOff    = -50;
+/* Off-center carousel dimming: PER-SLOT darken %. The carousel curves in Z, one
+ * "slot" per Math_Sin step; darken by this % times the slot distance from center
+ * (slot 1 = 30%, slot 2 = 60%, ...). 0 = no dim. Tunable: invdim. */
+int g_PcInvDimStrength  = 30;
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -277,10 +278,14 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         extern int g_PcItemDimNum;
         g_PcItemDimNum = 256;
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
-            s32 _dz = g_Items_Coords[displayItemIdx].coord.t[2] - Q8(-4.0f);
-            if (_dz < 0)        _dz = 0;
-            if (_dz > Q8(1.0f)) _dz = Q8(1.0f);
-            g_PcItemDimNum = 256 - (_dz * ((256 * g_PcInvDimStrength) / 100)) / Q8(1.0f);
+            /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
+             * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and
+             * darken g_PcInvDimStrength% per slot. */
+            s32 _depth = g_Items_Coords[displayItemIdx].coord.t[2] + Q8(4.0f);
+            s32 _slot  = (_depth < 800) ? 0 : (_depth < 2200) ? 1 : (_depth < 3300) ? 2 : 3;
+            s32 _dim   = _slot * g_PcInvDimStrength;
+            if (_dim > 100) _dim = 100;
+            g_PcItemDimNum = 256 - (256 * _dim) / 100;
         }
     }
 #endif
