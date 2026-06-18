@@ -347,6 +347,7 @@ static const char* const HELP_LINES[] = {
     " kill           kill Harry (death animation)",
     " killall        kill all nearby enemies",
     " noclip         walk through walls (floor stays on)",
+    " invaspect 0|1  inventory item proportions: PSX | square",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
@@ -574,6 +575,12 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
+    } else if (strcmp(cmd, "INVASPECT") == 0) {
+        extern int g_PcInvAspectSquare;
+        if (arg[0] == '1') g_PcInvAspectSquare = 1;
+        else if (arg[0] == '0') g_PcInvAspectSquare = 0;
+        else g_PcInvAspectSquare = !g_PcInvAspectSquare;
+        cprintf("inventory item aspect: %s", g_PcInvAspectSquare ? "SQUARE (true proportions)" : "PSX-faithful");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {

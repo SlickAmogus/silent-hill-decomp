@@ -11,6 +11,10 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
+/* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
+ * vertically squished in interlaced 448), 1 = square (true proportions).
+ * Toggled by the `invaspect` console command. */
+int g_PcInvAspectSquare = 0;
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -238,6 +242,21 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
                        _pillarboxed, (int)(_corrApplied * 1000.0f),
                        (int)localToScreenMat.m[0][0], (int)localToScreenMat.m[1][1], (int)localToScreenMat.m[2][2]);
             }
+        }
+
+        /* Square mode (toggle `invaspect 1`): item models project symmetrically
+         * into the gsScreenW x gsScreenH framebuffer, which is then shown at 4:3,
+         * so a square model comes out at aspect (4/3)/(gsW/gsH) — ~1.87x too wide
+         * in interlaced 448. Scale the Y axis by that factor to restore true
+         * (square-pixel) proportions. Independent of window/pillarbox since the
+         * horizontal path already normalizes to a 4:3 display. Default OFF =
+         * PSX-faithful (the raw 4:3-display look). */
+        if (g_PcInvAspectSquare && g_GameWork.gsScreenWidth > 0) {
+            float _fY = (4.0f / 3.0f) * ((float)g_GameWork.gsScreenHeight / (float)g_GameWork.gsScreenWidth);
+            int _j;
+            for (_j = 0; _j < 3; _j++)
+                localToScreenMat.m[1][_j] = (s16)((float)localToScreenMat.m[1][_j] * _fY);
+            localToScreenMat.t[1] = (s32)((float)localToScreenMat.t[1] * _fY);
         }
     }
 #endif
