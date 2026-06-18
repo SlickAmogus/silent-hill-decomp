@@ -249,6 +249,21 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 #endif
     GsSetLsMatrix(&localToScreenMat);
 
+#ifdef SH_PC_PORT
+    /* [ITEM-DRAW] flushed dump of the exact model about to be transformed. The
+     * crash is inside the GsSortObject4J right below, so the LAST [ITEM-DRAW]
+     * before [CRASH] names the offending item's model metadata. */
+    {
+        struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
+        extern FILE* g_ShDebugLog;
+        SH_DBG("[ITEM-DRAW] idx=%d arg2=%d vern=%lu primn=%lu vertop=%p primtop=%p scale=%d",
+               (int)displayItemIdx, (int)arg2, (unsigned long)_t->vern, (unsigned long)_t->primn,
+               (void*)_t->vertop, (void*)_t->primtop,
+               (int)g_Items_Transforms[displayItemIdx].scale.vx);
+        if (g_ShDebugLog) fflush(g_ShDebugLog);
+    }
+#endif
+
     if (arg2 == 2)
     {
         GsClearOt(0, 0, &g_OrderingTable1[g_ActiveBufferIdx]);
