@@ -49,14 +49,6 @@ extern float g_PsxPixelAspect;
 #define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
 #endif
 
-/* [MESHCULL] diagnostic for #21 (Harry's face visible through head /
- * visible-from-inside in the intro): per-window counts of model polys
- * total vs nclip-backface-culled, plus model matrices with a negative
- * rotation determinant (a reflection flips winding and inverts every
- * nclip verdict). culled==0 → culling never fires; negDet>0 → flipped
- * matrices; normal ratios → backfaces legitimately culled and the
- * symptom is depth-tie instead. */
-static s32 s_pcMeshPolyTotal, s_pcMeshPolyCulled, s_pcMeshNegDet, s_pcMeshReportTick;
 
 /* Compute per-vertex fog factors (0-127) from each vertex's fog ramp.
  * p1=vertex1, p2=vertex2, p3=vertex3. Vertex 0's pad byte in the color
@@ -1606,23 +1598,9 @@ void func_80057344(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 
         func_80057B7C(curMeshHdr, vertOffset, scratchData, mat);
 
-#ifdef SH_PC_PORT
-        s_pcMeshPolyTotal += curMeshHdr->primitiveCount;
-#endif
         Gfx_MeshDraw(curMeshHdr, scratchData, otTag, arg2);
     }
 
-#ifdef SH_PC_PORT
-    if (++s_pcMeshReportTick >= 900)
-    {
-        SH_DBG("[MESHCULL] polys=%d culled=%d negDet=%d",
-               s_pcMeshPolyTotal, s_pcMeshPolyCulled, s_pcMeshNegDet);
-        s_pcMeshPolyTotal  = 0;
-        s_pcMeshPolyCulled = 0;
-        s_pcMeshNegDet     = 0;
-        s_pcMeshReportTick = 0;
-    }
-#endif
 }
 
 void func_800574D4(s_MeshHeader* meshHdr, s_GteScratchData* scratchData) // 0x800574D4
@@ -1878,20 +1856,6 @@ void func_80057B7C(s_MeshHeader* meshHdr, s32 offset, s_GteScratchData* scratchD
     u8*      var_t1;
 
     temp_s2 = g_WorldEnvWork.fog.depthShift;
-
-#ifdef SH_PC_PORT
-    /* [MESHCULL] winding sanity: negative rotation determinant = reflection. */
-    {
-        const s16 (*m)[3] = mat->m;
-        s64 det = (s64)m[0][0] * ((s32)m[1][1] * m[2][2] - (s32)m[1][2] * m[2][1])
-                - (s64)m[0][1] * ((s32)m[1][0] * m[2][2] - (s32)m[1][2] * m[2][0])
-                + (s64)m[0][2] * ((s32)m[1][0] * m[2][1] - (s32)m[1][1] * m[2][0]);
-        if (det < 0)
-        {
-            s_pcMeshNegDet++;
-        }
-    }
-#endif
 
 #ifdef SH_PC_PORT
     /* The per-vertex depths below live in s16 slots; a GTE SZ >= 32768
@@ -2205,9 +2169,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
                         if (sp10 >= 0)
                         {
-#ifdef SH_PC_PORT
-                            s_pcMeshPolyCulled++;
-#endif
                             continue;
                         }
                     }
@@ -2429,9 +2390,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
                     if (sp14 >= 0)
                     {
-#ifdef SH_PC_PORT
-                        s_pcMeshPolyCulled++;
-#endif
                         continue;
                     }
                 }
@@ -2572,9 +2530,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
                 if (sp18 >= 0)
                 {
-#ifdef SH_PC_PORT
-                    s_pcMeshPolyCulled++;
-#endif
                     continue;
                 }
             }
@@ -2809,9 +2764,6 @@ __block1530:
 
             if (sp1C >= 0)
             {
-#ifdef SH_PC_PORT
-                s_pcMeshPolyCulled++;
-#endif
                 continue;
             }
         }
@@ -3007,9 +2959,6 @@ __block19CC:
 
             if (sp20 >= 0)
             {
-#ifdef SH_PC_PORT
-                s_pcMeshPolyCulled++;
-#endif
                 continue;
             }
         }

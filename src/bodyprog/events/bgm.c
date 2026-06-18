@@ -142,26 +142,6 @@ void Bgm_Update(s32 bgmFlags, q19_12 fadeSpeed, s_BgmLayerLimits* layerLimits) /
     layerLimitsCpy = layerLimits;
     layerVols      = g_SysWork.bgmLayerVolumes;
 
-#ifdef SH_PC_PORT
-    /* MissingMusic.log (Annie's bar Kaufmann scene): the seq is stopped by
-     * the pre-scene MuteAll and never restarts after EventFlag_381 raises
-     * the layers. Logs only on change — names the exact flags/state/seq
-     * status so the broken transition is visible in one user run. */
-    {
-        static s32 s_prevFlags = -999;
-        static s32 s_prevState = -1;
-        if (bgmFlags != s_prevFlags || D_800A99A0 != s_prevState)
-        {
-            const u8* lim = (layerLimitsCpy != NULL) ? layerLimitsCpy : g_Bgm_LayerLimits;
-            SH_DBG("[BGM-UPD] flags=0x%03X state=%d seqStat=0x%X room=%d bgmIdx=%d lim=%02X%02X%02X%02X",
-                   bgmFlags, D_800A99A0, func_80045BC8(),
-                   g_SavegamePtr->mapRoomIdx, g_GameWork.bgmIdx,
-                   lim[0], lim[1], lim[2], lim[3]);
-            s_prevFlags = bgmFlags;
-            s_prevState = D_800A99A0;
-        }
-    }
-#endif
 
     // Ensure layer limits are valid.
     if (layerLimitsCpy == NULL)
@@ -397,12 +377,6 @@ void Game_MapRoomIdxUpdate(void) // 0x80036420
     {
         newMapRoomIdx = g_MapOverlayHdr.mapRoomIdxGet(posX, posZ);
     }
-#ifdef SH_PC_PORT
-    if (newMapRoomIdx != g_SavegamePtr->mapRoomIdx)
-    {
-        SH_DBG("[BGM-ROOM] mapRoomIdx %d -> %d", g_SavegamePtr->mapRoomIdx, newMapRoomIdx);
-    }
-#endif
     g_SavegamePtr->mapRoomIdx = newMapRoomIdx;
 
     #undef playerChara

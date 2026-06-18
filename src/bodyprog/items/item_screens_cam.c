@@ -151,43 +151,19 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
      * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
      * that used to kill the process with SIGFPE. */
     if (arg1->coord2 == NULL) return;
-    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) {
-        static u8 s_scale0logged[16] = {0};
-        if (displayItemIdx < 16 && !s_scale0logged[displayItemIdx]) {
-            s_scale0logged[displayItemIdx] = 1;
-        }
-        return;
-    }
-    /* Diagnostic: log when item TMD is missing — manifests as a blue
-     * wireframe outline in inventory preview. Once-per-idx-per-session so
-     * we don't spam (capped at 8 distinct hits). */
-    if (arg1->tmd == NULL) {
-        static u8 s_loggedNullTmd[16] = {0};
-        if (displayItemIdx < 16 && !s_loggedNullTmd[displayItemIdx]) {
-            s_loggedNullTmd[displayItemIdx] = 1;
-        }
-        return;
-    }
+    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
+    if (arg1->tmd == NULL) return;
     /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can still
      * resolve to a garbage TMD object when the inventory holds an item not in
      * this map's item TMD (hit on the gas tank with give-all-weapons). Absurd
      * vert/prim counts or NULL data pointers make GsSortObject4J over-read ->
-     * wild GTE vertex read -> AV crash. Skip the draw instead of crashing, and
-     * log the bad object once so the offending item can be traced. */
+     * wild GTE vertex read -> AV crash. Skip the draw instead of crashing. */
     {
         struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
         int _bad = (_t->vertop == NULL || _t->primtop == NULL ||
                     _t->vern == 0 || _t->vern > 0x2000 ||
                     _t->primn == 0 || _t->primn > 0x2000);
         if (_bad) {
-            static int s_badN = 0;
-            if (s_badN < 16) {
-                s_badN++;
-                SH_DBG("[ITEM-PREVIEW] idx=%d arg2=%d MALFORMED vern=%lu norn=%lu primn=%lu vertop=%p primtop=%p -> SKIP",
-                       (int)displayItemIdx, (int)arg2,
-                       (unsigned long)_t->vern, (unsigned long)_t->norn, (unsigned long)_t->primn,
-                       (void*)_t->vertop, (void*)_t->primtop);
-            }
             return;
         }
     }
@@ -248,21 +224,6 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);
-
-#ifdef SH_PC_PORT
-    /* [ITEM-DRAW] flushed dump of the exact model about to be transformed. The
-     * crash is inside the GsSortObject4J right below, so the LAST [ITEM-DRAW]
-     * before [CRASH] names the offending item's model metadata. */
-    {
-        struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
-        extern FILE* g_ShDebugLog;
-        SH_DBG("[ITEM-DRAW] idx=%d arg2=%d vern=%lu primn=%lu vertop=%p primtop=%p scale=%d",
-               (int)displayItemIdx, (int)arg2, (unsigned long)_t->vern, (unsigned long)_t->primn,
-               (void*)_t->vertop, (void*)_t->primtop,
-               (int)g_Items_Transforms[displayItemIdx].scale.vx);
-        if (g_ShDebugLog) fflush(g_ShDebugLog);
-    }
-#endif
 
     if (arg2 == 2)
     {

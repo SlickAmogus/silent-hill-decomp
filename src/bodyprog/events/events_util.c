@@ -595,25 +595,16 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
     else if (mapMsgState == MapMsgState_Finish)
     {
 #ifdef SH_PC_PORT
-        /* Cybil basement scene (map4_s01): voices drifted into other
-         * scenes' lines mid-cutscene and then went silent — the log
-         * showed all 41 authored cmds fire IN ORDER, then the index
-         * kept going into the neighboring tables (valid-looking 0x1xxx
-         * cmds = "wrong part of the game" lines) and finally into
-         * non-voice data (silence). Some message is consuming more
-         * page-finishes than authored; this log names it on the next
-         * repro, and the range guard turns the overrun into silence
-         * instead of chaos until the page-count root is found. */
+        /* Cybil basement scene (map4_s01): some message consumes more
+         * page-finishes than authored, so the audio index overruns into
+         * neighboring tables (valid-looking 0x1xxx cmds = wrong scene's
+         * lines) and then into non-voice data. Range-guard the cmd so the
+         * overrun turns into silence instead of playing garbage. */
         {
             u16 _cmd = audioCmds[*audioIdx];
-            SH_DBG("[VOICE] msg=%d idx=%d cmd=0x%04X", (int)mapMsgIdx, (int)*audioIdx, (unsigned)_cmd);
             if (_cmd >= 0x1000 && _cmd < 0x1700)
             {
                 SD_Call(_cmd);
-            }
-            else
-            {
-                SH_DBG("[VOICE] OVERRUN: cmd out of XA range, suppressed");
             }
         }
         *audioIdx += 1;
