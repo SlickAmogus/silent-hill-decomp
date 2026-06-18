@@ -3921,6 +3921,15 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
         obj = GsGetTMDObject(tmd_hdr, loadableItemIdx);
         if (obj != NULL) {
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
+        } else {
+            /* loadableItemIdx has no model in the loaded TMD — e.g. a cheat-added
+             * item that isn't in this map's loadableItems, or idx >= nobj.
+             * Without clearing, the slot keeps a STALE ->tmd from an earlier link
+             * that can point into a since-evicted/freed TMD cache slot, and the
+             * draw (GsSortObject4J) transforms it -> wild GTE vertex pointer ->
+             * stretched verts across the screen + AV crash. NULL makes the draw
+             * skip this slot (GsSortObject4J / func_8004BD74 NULL-check ->tmd). */
+            g_Items_ItemsModelData[displayItemIdx].tmd = NULL;
         }
     }
 #else
