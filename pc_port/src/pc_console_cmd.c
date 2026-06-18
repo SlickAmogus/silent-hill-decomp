@@ -348,6 +348,10 @@ static const char* const HELP_LINES[] = {
     " killall        kill all nearby enemies",
     " noclip         walk through walls (floor stays on)",
     " invaspect 0|1  inventory item proportions: PSX | square",
+    " invscale <pct> inventory item vertical scale (def 125)",
+    " invcary <n>    carousel item Y offset (+down)",
+    " inveqy <n>     equipped item Y offset (+down)",
+    " invdim <pct>   off-center carousel dim strength",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
@@ -586,6 +590,19 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 50 && v <= 200) g_PcInvAspectPct = v;
         cprintf("inventory item vertical scale: %d%% of square", g_PcInvAspectPct);
+    } else if (strcmp(cmd, "INVCARY") == 0) {
+        extern int g_PcInvCarouselYOff;
+        if (arg[0]) g_PcInvCarouselYOff = atoi(arg);
+        cprintf("carousel item Y offset: %d (+ down)", g_PcInvCarouselYOff);
+    } else if (strcmp(cmd, "INVEQY") == 0) {
+        extern int g_PcInvEquipYOff;
+        if (arg[0]) g_PcInvEquipYOff = atoi(arg);
+        cprintf("equipped item Y offset: %d (+ down)", g_PcInvEquipYOff);
+    } else if (strcmp(cmd, "INVDIM") == 0) {
+        extern int g_PcInvDimStrength;
+        int v = atoi(arg);
+        if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
+        cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {

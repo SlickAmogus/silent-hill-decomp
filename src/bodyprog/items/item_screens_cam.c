@@ -16,7 +16,14 @@
  * Toggled by `invaspect`. g_PcInvAspectPct fine-tunes the vertical scale as a
  * percent of the geometric square factor (100 = exactly square); `invscale`. */
 int g_PcInvAspectSquare = 1;
-int g_PcInvAspectPct    = 107;
+int g_PcInvAspectPct    = 125;
+/* Slight Y placement match vs Duckstation (view-Y units; + = down). Carousel a
+ * touch down, equipped weapon a touch up. Tunable: invcary / inveqy. */
+int g_PcInvCarouselYOff = 24;
+int g_PcInvEquipYOff    = -24;
+/* Off-center carousel dimming strength (% darken at the far edge of the Z
+ * curve). 0 = no dim. Tunable: invdim. */
+int g_PcInvDimStrength  = 55;
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -229,30 +236,14 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             localToScreenMat.t[0] = (s32)((float)localToScreenMat.t[0] * _corr);
             _corrApplied = _corr;
         }
-        /* [INV-ASPECT] one-shot ground truth for the squished-item report: the
-         * item's on-screen proportion = framebuffer aspect (gsScreenW/H) mapped
-         * to the window/viewport. gsScreenHeight 224 (progressive) vs 448
-         * (interlaced) flips the vertical scaling; _corrApplied shows if the
-         * horizontal undo ran. ls-matrix diagonal = item's X/Y/Z scale pre-GTE. */
-        {
-            static int _logged = 0;
-            if (!_logged) {
-                _logged = 1;
-                SH_DBG("[INV-ASPECT] gsScreen=%dx%d win=%dx%d dispAspect=%d/1000 psxAspect=%d/1000 pillarbox=%d corrApplied=%d/1000 lsDiag=(%d,%d,%d)",
-                       (int)g_GameWork.gsScreenWidth, (int)g_GameWork.gsScreenHeight, _sw, _sh,
-                       (int)(_dispAspect * 1000.0f), (int)(_psxAspect * 1000.0f),
-                       _pillarboxed, (int)(_corrApplied * 1000.0f),
-                       (int)localToScreenMat.m[0][0], (int)localToScreenMat.m[1][1], (int)localToScreenMat.m[2][2]);
-            }
-        }
+        (void)_corrApplied;
 
         /* Square mode (toggle `invaspect 1`): item models project symmetrically
          * into the gsScreenW x gsScreenH framebuffer, which is then shown at 4:3,
          * so a square model comes out at aspect (4/3)/(gsW/gsH) — ~1.87x too wide
-         * in interlaced 448. Scale the Y axis by that factor to restore true
-         * (square-pixel) proportions. Independent of window/pillarbox since the
-         * horizontal path already normalizes to a 4:3 display. Default OFF =
-         * PSX-faithful (the raw 4:3-display look). */
+         * in interlaced 448. Scale the Y size axis by that factor (x invscale%)
+         * to restore true (square-pixel) proportions. Independent of window/
+         * pillarbox since the horizontal path already normalizes to a 4:3 display. */
         if (g_PcInvAspectSquare && g_GameWork.gsScreenWidth > 0) {
             /* Scale only the size rows (m[1]) — NOT the Y translation (t[1]):
              * the model must get taller IN PLACE. Scaling t[1] also moved
@@ -263,9 +254,36 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             for (_j = 0; _j < 3; _j++)
                 localToScreenMat.m[1][_j] = (s16)((float)localToScreenMat.m[1][_j] * _fY);
         }
+
+        /* Slight Y placement match vs Duckstation: carousel items (idx < 7) a
+         * touch down, equipped weapon (idx 7) a touch up. Translation only. */
+        if (displayItemIdx == 7)
+            localToScreenMat.t[1] += g_PcInvEquipYOff;
+        else if (displayItemIdx < 7)
+            localToScreenMat.t[1] += g_PcInvCarouselYOff;
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);
+
+#ifdef SH_PC_PORT
+    /* Off-center carousel dimming (the PSX depth-cue the no-light TMD render
+     * path drops). The carousel curves in Z: the centered item sits at
+     * t[2]=Q8(-4) (nearest), side items further back. Darken the whole model in
+     * proportion to how far past center it sits, up to g_PcInvDimStrength% at a
+     * full Q8(1.0) of extra depth. Equipped (idx 7) and any non-carousel index
+     * stay full bright. g_PcItemDimNum (256 = full) is read by the GsTMDfast*
+     * renderers in libgs_stub.c; reset after the draw so nothing else dims. */
+    {
+        extern int g_PcItemDimNum;
+        g_PcItemDimNum = 256;
+        if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
+            s32 _dz = g_Items_Coords[displayItemIdx].coord.t[2] - Q8(-4.0f);
+            if (_dz < 0)        _dz = 0;
+            if (_dz > Q8(1.0f)) _dz = Q8(1.0f);
+            g_PcItemDimNum = 256 - (_dz * ((256 * g_PcInvDimStrength) / 100)) / Q8(1.0f);
+        }
+    }
+#endif
 
     if (arg2 == 2)
     {
@@ -277,6 +295,10 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     {
         GsSortObject4J(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
     }
+
+#ifdef SH_PC_PORT
+    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; }
+#endif
 }
 
 /** Removing this causes the models of items to appear farther from the camera.

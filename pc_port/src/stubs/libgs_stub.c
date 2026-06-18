@@ -348,6 +348,13 @@ struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
  
 /* Clamp s32 to u8 */
 static inline unsigned char clamp8(int v) { return (unsigned char)(v < 0 ? 0 : (v > 255 ? 255 : v)); }
+
+/* Per-item brightness modulation for the inventory carousel depth-cue dimming
+ * (set by func_8004BD74; 256 = full). The SH item TMDs are no-light, so the
+ * depth fade the PSX applied is dropped here — re-apply it as a flat color
+ * scale. 256 default = no-op for every other GsSortObject4J caller. */
+int g_PcItemDimNum = 256;
+#define ITEMDIM(c) clamp8(((int)(c) * g_PcItemDimNum) >> 8)
  
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
@@ -692,13 +699,13 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
         addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
     }
 }
- 
+
 /* No-light gouraud tri */
 void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -722,15 +729,15 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
         addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
     }
 }
- 
+
 /* No-light flat quad */
 void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -755,14 +762,14 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
         addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
     }
 }
- 
+
 /* No-light gouraud quad */
 void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -787,10 +794,10 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
-        setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
+        setRGB3(poly, ITEMDIM(prim->r3), ITEMDIM(prim->g3), ITEMDIM(prim->b3));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
         addPrim(&ot->org[otz], poly);
@@ -825,7 +832,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
@@ -913,9 +920,9 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
         /* No per-vertex colours in data; use neutral 0x80 (= 100% modulation). */
-        setRGB0(poly, 0x80, 0x80, 0x80);
-        setRGB1(poly, 0x80, 0x80, 0x80);
-        setRGB2(poly, 0x80, 0x80, 0x80);
+        setRGB0(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
+        setRGB1(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
+        setRGB2(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
         poly->p1 = 0; poly->p2 = 0;
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
@@ -951,7 +958,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
@@ -988,10 +995,10 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
-        setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
+        setRGB3(poly, ITEMDIM(prim->r3), ITEMDIM(prim->g3), ITEMDIM(prim->b3));
         poly->p1 = 0; poly->p2 = 0; poly->p3 = 0; /* zero fog bytes */
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
