@@ -742,6 +742,21 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                            (int)Q12_TO_Q8(g_SysWork.playerWork.player.properties.player.groundHeight),
                            (int)g_SysWork.playerWork.player.fallSpeed,
                            (int)g_SysWork.playerWork.player.moveSpeed);
+                    /* Swept-vs-real disambiguation (#42): the response fires from
+                     * the MOVING path (func_8006BE40/BF88), which tests Harry's
+                     * per-frame movement LINE (charaState.distance) against the
+                     * wall segment — not his body radius. Log the segment's world
+                     * XZ endpoints, Harry's from-XZ, and his swept move vector so
+                     * the sweep can be reconstructed: if the line genuinely crosses
+                     * a real wall ahead the wall is invisible-but-real; if the
+                     * sweep is abnormally long for the speed, the PC per-frame
+                     * distance over-reaches (lower-body movement shim). */
+                    SH_DBG("[WALL-HIT]   harryXZ=(%d,%d) moveXZ=(%d,%d) sweepDist=%d face0=(%d,%d) face1=(%d,%d)",
+                           (int)state.charaPositionFrom.offset.vx, (int)state.charaPositionFrom.offset.vz,
+                           (int)state.point.field_20.charaMoveOffset.vx, (int)state.point.field_20.charaMoveOffset.vz,
+                           (int)state.charaState.distance,
+                           (int)state.point.splitVertex0.vx, (int)state.point.splitVertex0.vz,
+                           (int)state.point.splitVertex1.vx, (int)state.point.splitVertex1.vz);
                 }
             }
         }
