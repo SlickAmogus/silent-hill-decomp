@@ -1,0 +1,50 @@
+# Silent Hill 1 - Original Xbox (NXDK / NV2A) port
+#
+# GNU-make build wrapping the nxdk toolchain -> default.xbe. Invoke via
+# build_xbox.sh (sets NXDK_DIR + PATH + scrubs host MSVC INCLUDE/LIB).
+#
+# MILESTONE 1: build only the platform shell (main_xbox.c + log shim) to a
+# booting black-screen xbe. Shared game code + reused pc_port files get added to
+# SRCS in the next milestone.
+
+XBE_TITLE = SilentHill
+NXDK_DIR  ?= $(CURDIR)/nxdk
+# GEN_XISO intentionally unset: the default target then builds only default.xbe
+# (boots directly in xemu / via HDD). Packing an .iso pulls in nxdk's extract-xiso
+# host tool, which is built with CMake->gcc and hits the same temp-file bug as the
+# other host tools; wire it up (with CXX=clang++) when an ISO is actually needed.
+
+# nxdk-cc subprocesses need NXDK_DIR; MSYS2 make does not always propagate it.
+export NXDK_DIR
+
+# --- Repo layout ------------------------------------------------------------
+XBOX_PORT = $(CURDIR)
+PCPORT    = $(CURDIR)/../pc_port
+DECOMP    = $(CURDIR)/..
+
+# --- Port identifier --------------------------------------------------------
+# Xbox-specific game-code paths sit behind #ifdef SH_XBOX_PORT. (A shared
+# SH_NATIVE_PORT macro for "not-PSX" fixes common to PC+Xbox is planned but not
+# defined yet — it will be introduced when the first such fix is migrated.)
+NXDK_CFLAGS += -DSH_XBOX_PORT
+
+# --- Include paths (must precede nxdk's own -I via NXDK_CFLAGS) --------------
+NXDK_CFLAGS += -I$(XBOX_PORT)/include
+NXDK_CFLAGS += -I$(PCPORT)/include   # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
+
+# Explicit nxdk include paths using make's $(NXDK_DIR): MSYS2 make.exe does not
+# propagate NXDK_DIR into nxdk-cc's shell, so nxdk-cc's own -I${NXDK_DIR}/...
+# flags would expand empty. (See Duke port build notes.)
+NXDK_CFLAGS += -I$(NXDK_DIR)/lib/winapi
+NXDK_CFLAGS += -I$(NXDK_DIR)/lib
+NXDK_CFLAGS += -I$(NXDK_DIR)/lib/xboxrt/libc_extensions
+NXDK_CFLAGS += -isystem $(NXDK_DIR)/lib/pdclib/include
+NXDK_CFLAGS += -I$(NXDK_DIR)/lib/pdclib/platform/xbox/include
+NXDK_CFLAGS += -I$(NXDK_DIR)/lib/xboxrt/vcruntime
+
+# --- Sources ----------------------------------------------------------------
+SRCS = \
+	$(XBOX_PORT)/src/main_xbox.c \
+	$(XBOX_PORT)/src/sh_log_xbox.c
+
+include $(NXDK_DIR)/Makefile

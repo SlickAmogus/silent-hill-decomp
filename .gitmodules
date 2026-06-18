@@ -13,3 +13,6 @@
 [submodule "pc_port/PsyCross"]
 	path = pc_port/PsyCross
 	url = https://github.com/SlickAmogus/PsyCross.git
+[submodule "xbox_port/nxdk"]
+	path = xbox_port/nxdk
+	url = https://github.com/SlickAmogus/nxdk.git

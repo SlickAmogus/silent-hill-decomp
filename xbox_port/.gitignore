@@ -1,0 +1,11 @@
+# nxdk build artifacts (objects land next to sources; xbe/iso at the root)
+*.obj
+*.o
+*.exe
+*.xbe
+*.iso
+*.lib
+*.c.d
+*.cpp.d
+*.inl
+bin/
