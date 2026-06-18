@@ -345,6 +345,7 @@ static const char* const HELP_LINES[] = {
     " setending <e>  bad | bad+ | good | good+",
     " setflag <n> 0|1  set any event flag",
     " kill           kill Harry (death animation)",
+    " killall        kill all nearby enemies",
     " noclip         walk through walls (floor stays on)",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
@@ -376,7 +377,7 @@ static const char* const DEBUG_PAGE1[] = {
     " Esc     warm reset to the title screen",
     " 0       noclip toggle (walk through walls)",
     " 4 / 5   map config prev / next (loads on New Game)",
-    " 6       spawn Grey Child in front of Harry",
+    " 6       kill nearby enemies",
     " 7       invincibility toggle",
     " 8       +15 handgun bullets",
     " 9       no-target toggle (enemies ignore Harry)",
@@ -552,6 +553,24 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "KILL") == 0) {
         g_SysWork.playerWork.player.health = -Q12(1.0f);
         cprintf("killed Harry");
+    } else if (strcmp(cmd, "KILLALL") == 0) {
+        s_SubCharacter* hr   = &g_SysWork.playerWork.player;
+        int             killed = 0;
+        int             i;
+        for (i = 0; i < NPC_COUNT_MAX; i++) {
+            s_SubCharacter* npc = &g_SysWork.npcs[i];
+            if (npc->model.charaId == Chara_None || npc->model.charaId == Chara_Harry ||
+                npc->health <= Q12(0.0f)) {
+                continue;
+            }
+            if (ABS(npc->position.vx - hr->position.vx) > Q12(50.0f) ||
+                ABS(npc->position.vz - hr->position.vz) > Q12(50.0f)) {
+                continue;
+            }
+            npc->damage.amount = Q12(99999.0f);
+            killed++;
+        }
+        cprintf("killed %d nearby enemies", killed);
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
