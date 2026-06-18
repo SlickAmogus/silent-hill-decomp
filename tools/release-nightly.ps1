@@ -270,13 +270,32 @@ if ($DryRun) {
 # ---- Create release + upload changed files ----------------------------------
 
 if (-not $Notes) {
-    $sb = [System.Text.StringBuilder]::new()
-    if ($commitLog.Count -gt 0) {
-        $commitLog | ForEach-Object { [void]$sb.AppendLine($_) }
-    } else {
-        [void]$sb.AppendLine("(no commits since last release)")
+    # Use the (hand-edited) CHANGELOG.md section for THIS release as the GitHub
+    # release body, so edits made during the pause above actually ship. The old
+    # code rebuilt notes from $commitLog (captured before the pause), so the
+    # posted release always showed the unedited auto-generated text. Falls back
+    # to $commitLog only if the section can't be found.
+    if (Test-Path $changelogPath) {
+        $clText  = [System.IO.File]::ReadAllText($changelogPath)
+        # "## <newTag> ..." up to (but excluding) the next "## " heading or EOF.
+        $pattern = "(?ms)^##\s+" + [regex]::Escape($newTag) + ".*?(?=^##\s|\z)"
+        $m       = [regex]::Match($clText, $pattern)
+        if ($m.Success) {
+            # Drop the heading line (the release already has a title); keep the
+            # edited body.
+            $parts = $m.Value -split "`n", 2
+            if ($parts.Count -eq 2) { $Notes = $parts[1].Trim() }
+        }
     }
-    $Notes = $sb.ToString()
+    if (-not $Notes) {
+        $sb = [System.Text.StringBuilder]::new()
+        if ($commitLog.Count -gt 0) {
+            $commitLog | ForEach-Object { [void]$sb.AppendLine($_) }
+        } else {
+            [void]$sb.AppendLine("(no commits since last release)")
+        }
+        $Notes = $sb.ToString()
+    }
 }
 
 # Stage changed files in a temp dir with sanitized names for upload.
