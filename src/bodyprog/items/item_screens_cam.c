@@ -168,13 +168,27 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         }
         return;
     }
-    /* TMD non-NULL but maybe empty: log primn so we know if the
-     * model-data link populated correctly. */
+    /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can still
+     * resolve to a garbage TMD object when the inventory holds an item not in
+     * this map's item TMD (hit on the gas tank with give-all-weapons). Absurd
+     * vert/prim counts or NULL data pointers make GsSortObject4J over-read ->
+     * wild GTE vertex read -> AV crash. Skip the draw instead of crashing, and
+     * log the bad object once so the offending item can be traced. */
     {
         struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
-        static u8 s_loggedTmd[16] = {0};
-        if (displayItemIdx < 16 && !s_loggedTmd[displayItemIdx]) {
-            s_loggedTmd[displayItemIdx] = 1;
+        int _bad = (_t->vertop == NULL || _t->primtop == NULL ||
+                    _t->vern == 0 || _t->vern > 0x2000 ||
+                    _t->primn == 0 || _t->primn > 0x2000);
+        if (_bad) {
+            static int s_badN = 0;
+            if (s_badN < 16) {
+                s_badN++;
+                SH_DBG("[ITEM-PREVIEW] idx=%d arg2=%d MALFORMED vern=%lu norn=%lu primn=%lu vertop=%p primtop=%p -> SKIP",
+                       (int)displayItemIdx, (int)arg2,
+                       (unsigned long)_t->vern, (unsigned long)_t->norn, (unsigned long)_t->primn,
+                       (void*)_t->vertop, (void*)_t->primtop);
+            }
+            return;
         }
     }
 #endif
