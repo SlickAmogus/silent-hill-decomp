@@ -3727,6 +3727,23 @@ void Gfx_Items_Draw(void) // 0x80054200
 
     GameFs_TmdDataAlloc(FS_BUFFER_8);
 
+#ifdef SH_PC_PORT
+    /* Clear every carousel model slot up front. The loops below only call
+     * Gfx_Items_Display for items found in g_Item_MapLoadableItems (this map's
+     * item TMD). An item NOT in that list -- e.g. a cheat-added gas tank /
+     * chainsaw -- is never refreshed, so its slot keeps a STALE ->tmd from
+     * whatever item last occupied that scroll position; once the TMD cache
+     * recycles that entry the pointer is garbage and the preview draws flung
+     * vertices, then GTE crashes on a wild vertex read. NULL slots are skipped
+     * by the draw (GsSortObject4J / func_8004BD74 NULL-check ->tmd), so an item
+     * with no model in this map simply shows a blank preview. */
+    {
+        int _s;
+        for (_s = 0; _s < (int)(sizeof(g_Items_ItemsModelData) / sizeof(g_Items_ItemsModelData[0])); _s++)
+            g_Items_ItemsModelData[_s].tmd = NULL;
+    }
+#endif
+
     temp_s5 = (g_SysWork.invItemSelectedIdx - 3 + g_SavegamePtr->inventorySlotCount) % g_SavegamePtr->inventorySlotCount;
 
     if (g_GameWork.gameStateSteps[1] < 21) // If screen is inventory
