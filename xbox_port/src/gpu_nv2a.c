@@ -33,8 +33,7 @@ typedef struct {
 #define TEX_DIM 64
 
 static uint32_t* s_vertices;
-static uint32_t* s_indices;
-static unsigned  s_numIndices;
+static unsigned  s_numVerts;
 
 static struct {
     uint16_t width;
@@ -97,29 +96,33 @@ static void GpuNv2a_InitTexture(void)
             tex[y * TEX_DIM + x] = on ? 0xffff00ff : 0xff00ffff; /* ARGB */
         }
     }
+
+    /* Flush the write-combine store buffer so the GPU sees the texel data we
+     * just wrote (otherwise the fetch can read stale memory -> flat texture). */
+    __asm__ __volatile__("sfence" ::: "memory");
+
+    SH_DBG("[SH-XBOX] texture @ %p (phys 0x%08x) texel[0]=0x%08x texel[8]=0x%08x",
+           s_texture.addr, (unsigned)((uintptr_t)s_texture.addr & 0x03ffffff), tex[0], tex[8]);
 }
 
 void GpuNv2a_Init(void)
 {
     static const ShVertex verts[3] = {
-        /* pos(px)            col(rgba)            tex      */
-        { { 320.0f,  80.0f, 0.0f }, { 1, 1, 1, 1 }, { 0.5f, 0.0f } },
-        { { 120.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, { 0.0f, 1.0f } },
-        { { 520.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, { 1.0f, 1.0f } },
+        /* pos(px)                    col(rgba)         tex(TEXELS, not 0..1 --
+         * NV2A linear/NPOT textures use unnormalized texel coordinates) */
+        { { 320.0f,  80.0f, 0.0f }, { 1, 1, 1, 1 }, {       TEX_DIM / 2.0f, 0.0f    } },
+        { { 120.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, {       0.0f,           TEX_DIM } },
+        { { 520.0f, 400.0f, 0.0f }, { 1, 1, 1, 1 }, {       TEX_DIM,        TEX_DIM } },
     };
-    static const uint32_t indices[3] = { 0, 1, 2 };
-
     GpuNv2a_InitShader();
     GpuNv2a_InitTexture();
 
     s_vertices = MmAllocateContiguousMemoryEx(sizeof(verts), 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
     memcpy(s_vertices, verts, sizeof(verts));
-    s_indices = MmAllocateContiguousMemoryEx(sizeof(indices), 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    memcpy(s_indices, indices, sizeof(indices));
-    s_numIndices = sizeof(indices) / sizeof(indices[0]);
+    s_numVerts = sizeof(verts) / sizeof(verts[0]);
 
-    SH_DBG("[SH-XBOX] NV2A backend init: shaders loaded, %dx%d checker texture, %u-index test tri",
-           TEX_DIM, TEX_DIM, s_numIndices);
+    SH_DBG("[SH-XBOX] NV2A backend init: shaders loaded, %dx%d checker texture, %u-vert test tri",
+           TEX_DIM, TEX_DIM, s_numVerts);
 }
 
 static void SetAttribPointer(unsigned index, unsigned format, unsigned size, unsigned stride, const void* data)
@@ -182,7 +185,7 @@ void GpuNv2a_DrawTestTriangle(void)
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (s_texture.width << 16) | s_texture.height);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x02022000);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x04074000);
     pb_end(p);
 
     /* Disable texture stages 1-3. */
@@ -204,11 +207,15 @@ void GpuNv2a_DrawTestTriangle(void)
     SetAttribPointer(3, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F, 4, sizeof(ShVertex), &((char*)s_vertices)[12]);
     SetAttribPointer(9, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F, 2, sizeof(ShVertex), &((char*)s_vertices)[28]);
 
+    /* Draw sequential vertices via DRAW_ARRAYS. (NOT the INDEX_DATA method:
+     * that register is ARRAY_ELEMENT16 = two 16-bit indices per dword, so
+     * uint32 indices {0,1,2} would be misread as 0,0,1,0,2,0 -> degenerate
+     * triangles -> nothing rasterizes.) */
     p = pb_begin();
     p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
-    pb_push(p++, 0x40000000 | NV20_TCL_PRIMITIVE_3D_INDEX_DATA, s_numIndices);
-    memcpy(p, &s_indices[0], s_numIndices * sizeof(uint32_t));
-    p += s_numIndices;
+    pb_push(p++, 0x40000000 | NV097_DRAW_ARRAYS, 1);
+    *(p++) = MASK(NV097_DRAW_ARRAYS_COUNT, s_numVerts - 1)
+           | MASK(NV097_DRAW_ARRAYS_START_INDEX, 0);
     p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
     pb_end(p);
 }
