@@ -323,14 +323,17 @@ typedef struct {
 } GsTmdCacheEntry;
 
 static GsTmdCacheEntry gs_tmd_cache[GS_TMD_CACHE_SLOTS];
-static int gs_tmd_cache_count = 0;
- 
+static int gs_tmd_cache_count = 0; /* number of valid entries (<= SLOTS) */
+static int gs_tmd_cache_head  = 0; /* ring: index of the oldest entry */
+
 struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
 {
-    int i;
+    int k, i;
     /* Search newest-first so the most recent GsMapModelingData wins for a
-     * given base pointer (FS_BUFFER_8 is reused across all inventory items). */
-    for (i = gs_tmd_cache_count - 1; i >= 0; i--) {
+     * given base pointer (FS_BUFFER_8 is reused across all inventory items).
+     * Ring order: newest = head+count-1, oldest = head. */
+    for (k = gs_tmd_cache_count - 1; k >= 0; k--) {
+        i = (gs_tmd_cache_head + k) % GS_TMD_CACHE_SLOTS;
         if (gs_tmd_cache[i].base == base && index < gs_tmd_cache[i].nobj) {
             struct TMD_STRUCT *o = &gs_tmd_cache[i].objs[index];
             return o;
@@ -1236,14 +1239,21 @@ void GsMapModelingData(unsigned long *p)
      * slot 0 (oldest). Links from evicted slots render garbage for one frame
      * before the inventory re-links on next open — acceptable trade-off. */
     if (gs_tmd_cache_count >= GS_TMD_CACHE_SLOTS) {
-        /* Evict oldest (slot 0). Clear its data_copy before shifting so the
-         * moved slot[gs_tmd_cache_count-1] doesn't alias a freed pointer. */
-        if (gs_tmd_cache[0].data_copy) { free(gs_tmd_cache[0].data_copy); gs_tmd_cache[0].data_copy = NULL; }
-        memmove(&gs_tmd_cache[0], &gs_tmd_cache[1], (GS_TMD_CACHE_SLOTS - 1) * sizeof(GsTmdCacheEntry));
-        gs_tmd_cache_count--;
-        gs_tmd_cache[gs_tmd_cache_count].data_copy = NULL; /* avoid double-free */
+        /* Ring full: reuse the OLDEST slot (head) IN PLACE — do NOT memmove.
+         * The old code memmove'd entries 1..N down to 0..N-1, which relocates
+         * every entry's data and invalidates the raw GsDOBJ2.tmd pointers that
+         * point into gs_tmd_cache[] — including the CURRENT frame's items, which
+         * the inventory had just linked. GTE then transformed those stale
+         * pointers -> wild vertex read -> crash on inventory scroll. A ring
+         * keeps every other slot's address fixed; only the oldest (longest
+         * orphaned, already re-linked on later frames) is recycled. */
+        slot = gs_tmd_cache_head;
+        if (gs_tmd_cache[slot].data_copy) { free(gs_tmd_cache[slot].data_copy); gs_tmd_cache[slot].data_copy = NULL; }
+        gs_tmd_cache_head = (gs_tmd_cache_head + 1) % GS_TMD_CACHE_SLOTS;
+    } else {
+        slot = (gs_tmd_cache_head + gs_tmd_cache_count) % GS_TMD_CACHE_SLOTS;
+        gs_tmd_cache_count++;
     }
-    slot = gs_tmd_cache_count++;
 
     entry = &gs_tmd_cache[slot];
     entry->data_copy = NULL;
