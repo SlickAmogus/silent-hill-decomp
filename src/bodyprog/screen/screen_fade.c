@@ -76,6 +76,25 @@ static TILE D_800A8E74[] = {
 
 static q19_12 g_ScreenFadeProgress = Q12(0.0f);
 
+#ifdef SH_PC_PORT
+/* The fade step is timestep*dt, so it is naturally fps-independent (~PSX
+ * duration at any framerate). Two PC hazards: (1) g_DeltaTimeRaw can read 0/
+ * stale inside blocking load loops -> the fade never advances (315-frame hangs
+ * the old *4 hack papered over); (2) during a room/area load g_DeltaTimeRaw
+ * SPIKES (the load runs alongside the fade), and an un-clamped step jumps
+ * progress 1.0->0 in one frame -> the fade is invisible (the reported "no fade
+ * on transitions"). Clamp the fade's dt to [1/60, 1/30]: floored so it always
+ * advances, capped so a load hitch can't skip it. No *4 — that just made PC
+ * fades 4x too fast. */
+static q19_12 Screen_FadeDtGet(void)
+{
+    q19_12 dt = g_DeltaTimeRaw;
+    if (dt < Q12(1.0f / 60.0f)) dt = Q12(1.0f / 60.0f);
+    if (dt > Q12(1.0f / 30.0f)) dt = Q12(1.0f / 30.0f);
+    return dt;
+}
+#endif
+
 void Screen_FadeDrawModeSet(DR_MODE* drMode) // 0x800325A4
 {
     if (IS_SCREEN_FADE_WHITE(g_Screen_FadeStatus))
@@ -137,12 +156,7 @@ void Screen_FadeUpdate(void) // 0x8003260C
             }
 
 #ifdef SH_PC_PORT
-            /* Accelerate fades on PC: ensure minimum delta and use larger timestep
-             * to avoid 315-frame waits in internal loops where delta time may be stale. */
-            {
-                s32 effectiveDt = g_DeltaTimeRaw > 0 ? g_DeltaTimeRaw : Q12(1.0f / 60.0f);
-                g_ScreenFadeProgress += Q12_MULT_PRECISE(timestep * 4, effectiveDt);
-            }
+            g_ScreenFadeProgress += Q12_MULT_PRECISE(timestep, Screen_FadeDtGet());
 #else
             g_ScreenFadeProgress += Q12_MULT_PRECISE(timestep, g_DeltaTimeRaw);
 #endif
@@ -188,11 +202,7 @@ void Screen_FadeUpdate(void) // 0x8003260C
             }
 
 #ifdef SH_PC_PORT
-            {
-                s32 effectiveDt = g_DeltaTimeRaw > 0 ? g_DeltaTimeRaw : Q12(1.0f / 60.0f);
-                s32 decrement = Q12_MULT_PRECISE(timestep * 4, effectiveDt);
-                g_ScreenFadeProgress -= decrement;
-            }
+            g_ScreenFadeProgress -= Q12_MULT_PRECISE(timestep, Screen_FadeDtGet());
 #else
             g_ScreenFadeProgress -= Q12_MULT_PRECISE(timestep, g_DeltaTimeRaw);
 #endif
