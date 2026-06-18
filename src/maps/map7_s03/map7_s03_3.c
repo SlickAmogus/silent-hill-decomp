@@ -1890,41 +1890,6 @@ void func_800E514C(void) // 0x800E514C
     VECTOR3 pos; // Q19.12
     s32     localRand;
 
-#ifdef SH_PC_PORT
-    /* [END-FREEZE] Good+ ending freeze tracer. This is the real ending step
-     * machine (mapEventFuncs[2]=func_800E3390 case 3 -> here). The cutscene
-     * freezes with the bottle (BIN) spinning. Log the step + cutscene timer +
-     * XA-streaming state + bottle position on each step CHANGE, and again once
-     * if a step holds for >5s (a hang). Flushed so it survives Alt+F4. Several
-     * steps (e.g. 32) gate on Sd_AudioStreamingCheck() — the value will reveal
-     * whether the XA wait never satisfies, vs the timer not advancing, etc. */
-    {
-        extern FILE* g_ShDebugLog;
-        static s32 s_lastStep   = -1;
-        static s32 s_stuckCount = 0;
-        static s32 s_stuckLogged = 0;
-        s32 st = (s32)g_SysWork.sysStateSteps[0];
-        if (st != s_lastStep)
-        {
-            s_lastStep    = st;
-            s_stuckCount  = 0;
-            s_stuckLogged = 0;
-            SH_DBG("[END-FREEZE] step=%d timer=%d xaStream=%d bin=(%d,%d,%d)",
-                   (int)st, (int)g_Cutscene_Timer, (int)Sd_AudioStreamingCheck(),
-                   (int)g_WorldObject_Bin.position.vx, (int)g_WorldObject_Bin.position.vy,
-                   (int)g_WorldObject_Bin.position.vz);
-            if (g_ShDebugLog) fflush(g_ShDebugLog);
-        }
-        else if (++s_stuckCount > 300 && !s_stuckLogged)
-        {
-            s_stuckLogged = 1;
-            SH_DBG("[END-FREEZE] STUCK at step=%d for >5s: timer=%d xaStream=%d D_800F4806=%d",
-                   (int)st, (int)g_Cutscene_Timer, (int)Sd_AudioStreamingCheck(), (int)D_800F4806);
-            if (g_ShDebugLog) fflush(g_ShDebugLog);
-        }
-    }
-#endif
-
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
@@ -2139,8 +2104,8 @@ void func_800E514C(void) // 0x800E514C
             {
                 Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
 #ifdef SH_PC_PORT
-                /* Good+ ending freeze ROOT (confirmed by [END-FREEZE]: stuck at
-                 * step 32, xaStream=0, timer=Q12(320)). Case 30 starts XA 606;
+                /* Good+ ending freeze ROOT: stuck at step 32 with xaStream=0 and
+                 * timer=Q12(320). Case 30 starts XA 606;
                  * case 31 waits for it to FINISH (check!=1); this step waits for
                  * it to START (check==1). On PC the XA already started+finished
                  * during case 31, so check==1 is never observed here and the

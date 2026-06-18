@@ -1135,8 +1135,13 @@ void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
     }
 }
 
+/* Pure-diagnostic OT corruption walker — fixes nothing, just logs. Off by
+ * default so release builds don't pay the per-frame OT-chain walk (×2 OTs ×
+ * several phases) or spam the log. Flip g_PcOtScanEnabled=1 to re-arm when
+ * chasing OT corruption. */
+int g_PcOtScanEnabled = 0;
 #define PC_OT_SCAN(phase) do { \
-    if (g_GameWork.gameState == GameState_InGame) { \
+    if (g_PcOtScanEnabled && g_GameWork.gameState == GameState_InGame) { \
         Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], phase, "OT0"); \
         Pc_OtSentinelScan(&g_OrderingTable2[g_ActiveBufferIdx], phase, "OT2"); \
     } \

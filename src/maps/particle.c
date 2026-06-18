@@ -2458,7 +2458,7 @@ void Particle_SnowDraw(s_Particle* part)
      * (sharedData_800DD591 switch, case 37), but the aperture clip
      * only bounds X/Z and relied on PSX depth-sorting to hide the
      * rest — on PC snow falls visibly inside the living room
-     * ([BGM-ROOM] 26 -> 37 in the user's snow log). Skip the draw
+     * (mapRoomIdx 37 in the user's snow log). Skip the draw
      * for that room; the through-door flakes are the only loss. */
     if (g_SavegamePtr->mapRoomIdx == 37) {
         return;
