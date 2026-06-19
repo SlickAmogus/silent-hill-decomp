@@ -2318,6 +2318,10 @@ void func_8006CC9C(s_CollisionState* state) // 0x8006CC9C
         {
             temp3 = state->field_A0.s_1.field_4 - temp_s4;
             func_8006BCC4(&state->field_44, state->field_A0.s_1.field_8, 2, deltaX, deltaZ, temp3);
+#ifdef SH_PC_PORT
+            WALLSTOP_SET(4, -1, state->charaPositionFrom.field_0, state->charaPositionTo.field_0,
+                         0, 0, state->field_A0.s_1.field_4, temp_s4, 0);
+#endif
         }
     }
     else if (state->isCharaMoving && state->field_44.field_0.field_0 == 0 && func_8006C1B8(1, temp_v0, state))
@@ -2336,6 +2340,10 @@ void func_8006CC9C(s_CollisionState* state) // 0x8006CC9C
         state->field_3A = Q12_TO_Q4(state->charaState.distance * temp_v0);
         state->field_3C = temp + temp4;
         state->field_3E = temp2 + tarCharaBottom;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(4, -1, state->charaPositionFrom.field_0, state->charaPositionTo.field_0,
+                     0, 0, state->field_A0.s_1.field_4, temp_s4, temp_v0);
+#endif
     }
 }
 
