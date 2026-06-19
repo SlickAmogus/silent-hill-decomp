@@ -616,6 +616,10 @@ void Pc_ConsoleExec(const char* line)
         extern int g_pgxpCharPersp;
         if (arg[0]) g_pgxpCharPersp = atoi(arg) ? 1 : 0;
         cprintf("PGXP char texture: %s", g_pgxpCharPersp ? "perspective" : "affine");
+    } else if (strcmp(cmd, "CHARSNAP") == 0) {
+        extern int g_pgxpCharSnap;
+        if (arg[0]) g_pgxpCharSnap = atoi(arg) ? 1 : 0;
+        cprintf("PGXP char mode: %s", g_pgxpCharSnap ? "pixel-snap (no seams)" : "full PGXP");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
