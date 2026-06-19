@@ -379,6 +379,9 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
                 *(s32*)&viewMat.m[0][0] = 0;
             }
 
+#ifdef SH_PC_PORT
+            PsyX_PgxpNextBone();   /* new bone -> weld may fuse its joint verts to the previous bone's */
+#endif
             func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
 
             if (g_WorldEnvWork.isFogEnabled)
