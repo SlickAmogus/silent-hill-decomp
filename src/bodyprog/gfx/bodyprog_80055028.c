@@ -3704,6 +3704,19 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt3, 9);
 
+#ifdef SH_PC_PORT
+            /* PGXP: this model drawer (GT3/GT4 — tree foliage and other placed
+             * models) copies scratch screen verts into the poly but never parked
+             * them, so PGXP fell to the (x,y) ring and grabbed a wrong-W neighbour
+             * on dense meshes -> alpha-texture smear (the "warped tree", PGXP-only).
+             * Park the prim's verts (addresses recorded by gte_stsxy3c) so each
+             * resolves its exact W by slot. NULL 4th = triangle. */
+            PsyX_SetNextPrimPgxp(
+                &scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                &scratchData->screenXy_0[scratchData->u.s_1.field_2],
+                NULL);
+#endif
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
             poly.gt3++;
 #ifdef SH_PC_PORT
@@ -3786,6 +3799,13 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt4, 12);
 
+#ifdef SH_PC_PORT
+            PsyX_SetNextPrimPgxp(
+                &scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                &scratchData->screenXy_0[scratchData->u.s_1.field_2],
+                &scratchData->screenXy_0[scratchData->u.s_1.field_3]);
+#endif
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt4);
             poly.gt4++;
 #ifdef SH_PC_PORT
