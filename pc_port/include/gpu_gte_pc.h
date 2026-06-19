@@ -19,6 +19,18 @@
  * We redefine the Silent Hill custom GTE macros to use those.
  */
 
+/* PGXP shadow store: gte_FetchScreen0_1_2_XYZ records the destination address ->
+ * precise GTE projection (like gte_stsxy3c), so the lit-character drawer's
+ * screenXy_0 entries are shadow-backed and propagate to prims. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern int  g_PsxUsePgxp;
+extern void PGXP_StoreAddr(void* addr, int slot);
+#ifdef __cplusplus
+}
+#endif
+
 /* gte_lddqa - Load DQA register (COP2 control reg 27) */
 #undef gte_lddqa
 #define gte_lddqa(r0) CTC2(r0, 27)
@@ -122,6 +134,7 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
     _xy[1] = MFC2(13); \
     _z[2] = (unsigned short)MFC2(19); \
     _xy[2] = MFC2(14); \
+    if (g_PsxUsePgxp) { PGXP_StoreAddr(&_xy[0], 0); PGXP_StoreAddr(&_xy[1], 1); PGXP_StoreAddr(&_xy[2], 2); } \
 } while(0)
 
 /* gte_SetRotMatrix_custom - TRANSPOSED rotation matrix load (rotates
