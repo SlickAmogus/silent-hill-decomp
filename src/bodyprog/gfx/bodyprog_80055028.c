@@ -4274,6 +4274,12 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 }
                 poly_gt4->pad2 = poly_gt4->p1; /* v0 fog (uniform billboard) */
 
+                /* PGXP: billboard corners are built in screen space from the one
+                 * projected centre (field_1C) — the 4th vertex IS that centre, so
+                 * with PGXP it alone matches the ring (centre W) while the other
+                 * corners go affine, warping the quad ("tree-foliage spikes").
+                 * Billboards are camera-facing flat quads, so affine is correct. */
+                PsyX_SetNextPrimAffine();
                 addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
                 poly_gt4++;
             }
