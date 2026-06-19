@@ -29,7 +29,16 @@
  * the correct per-phase buffer via D_800ED230[phase] instead of always getting
  * whichever DMS was reformatted last (which froze/desynced the cutscene). */
 extern s_DmsHeader* g_DmsHeapHeader;
-#define DMS_HDR_REDIRECT(p) do { if ((!(p) || !((s_DmsHeader*)(p))->isLoaded) && g_DmsHeapHeader) (p) = g_DmsHeapHeader; } while(0)
+extern s_DmsHeader* Dms_HeapHeaderForBuffer(void* buf);
+/* Prefer the heap copy made for THIS source buffer (immune to the FS buffer being
+ * overwritten by later file loads mid-cutscene). Only when there's no per-buffer
+ * copy do we fall back to the latest global, and only if the passed header is
+ * null / not loaded — so genuinely-valid per-phase pointers are still honored. */
+#define DMS_HDR_REDIRECT(p) do { \
+    s_DmsHeader* _dh = Dms_HeapHeaderForBuffer(p); \
+    if (_dh) { (p) = _dh; } \
+    else if ((!(p) || !((s_DmsHeader*)(p))->isLoaded) && g_DmsHeapHeader) { (p) = g_DmsHeapHeader; } \
+} while(0)
 #else
 #define DMS_HDR_REDIRECT(p) ((void)0)
 #endif
