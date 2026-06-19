@@ -612,6 +612,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP char weld W ratio: %.2f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "CHARTEX") == 0) {
+        extern int g_pgxpCharPersp;
+        if (arg[0]) g_pgxpCharPersp = atoi(arg) ? 1 : 0;
+        cprintf("PGXP char texture: %s", g_pgxpCharPersp ? "perspective" : "affine");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
