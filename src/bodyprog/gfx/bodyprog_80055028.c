@@ -49,6 +49,26 @@ extern float g_PsxPixelAspect;
 #define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
 #endif
 
+#ifdef SH_PC_PORT
+/* PGXP shadow-memory propagation (Step 3): after the drawer copies a vertex word
+ * from a GTE scratch slot (screenXy_0[idx], shadow-stored at gte_stsxy3c time)
+ * into a prim field, propagate the precise GTE projection along the same path so
+ * MakeVertex resolves the prim field BY ADDRESS at draw. Address-exact and
+ * deterministic — no slot/ring/closest matching. No-op when PGXP is off or the
+ * source slot is untracked (-> clean affine). */
+#define SH_PGXP_PROP4(sd, p, i0, i1, i2, i3) do {        \
+    Shadow_Copy(&(p)->x0, &(sd)->screenXy_0[(i0)]);      \
+    Shadow_Copy(&(p)->x1, &(sd)->screenXy_0[(i1)]);      \
+    Shadow_Copy(&(p)->x2, &(sd)->screenXy_0[(i2)]);      \
+    Shadow_Copy(&(p)->x3, &(sd)->screenXy_0[(i3)]);      \
+} while (0)
+#define SH_PGXP_PROP3(sd, p, i0, i1, i2) do {            \
+    Shadow_Copy(&(p)->x0, &(sd)->screenXy_0[(i0)]);      \
+    Shadow_Copy(&(p)->x1, &(sd)->screenXy_0[(i1)]);      \
+    Shadow_Copy(&(p)->x2, &(sd)->screenXy_0[(i2)]);      \
+} while (0)
+#endif
+
 
 /* Compute per-vertex fog factors (0-127) from each vertex's fog ramp.
  * p1=vertex1, p2=vertex2, p3=vertex3. Vertex 0's pad byte in the color
@@ -2193,6 +2213,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         *(s32*)&poly1->x2  = temp_a0;
                         *(s32*)&poly3->x3 = temp_v1_5;
                         *(s32*)&poly1->x3  = temp_v1_5;
+#ifdef SH_PC_PORT
+                        SH_PGXP_PROP4(scratchData, poly3,
+                            scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                            scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                         *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2410,6 +2435,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     *(s32*)&poly3->x1 = temp_a1_2;
                     *(s32*)&poly3->x2 = temp_a0_5;
                     *(s32*)&poly3->x3 = temp_v1_11;
+#ifdef SH_PC_PORT
+                    SH_PGXP_PROP4(scratchData, poly3,
+                        scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                        scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                     *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2554,6 +2584,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 *(s32*)&poly2->x2 = temp_a0_9;
                 *(s32*)&poly3->x3  = temp_v1_21;
                 *(s32*)&poly2->x3 = temp_v1_21;
+#ifdef SH_PC_PORT
+                SH_PGXP_PROP4(scratchData, poly3,
+                    scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                    scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                 temp4    = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_10] * 0x10;
                 var_t3_2 = temp4 - scratchData->field_380.s_0.field_4;
@@ -2784,6 +2819,11 @@ __block1530:
             *(s32*)&poly0->x1 = temp_a1_3;
             *(s32*)&poly0->x2 = temp_a0_7;
             *(s32*)&poly0->x3 = temp_v1_16;
+#ifdef SH_PC_PORT
+            SH_PGXP_PROP4(scratchData, poly0,
+                scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
             *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2980,6 +3020,11 @@ __block19CC:
             *(s32*)&poly4->x1 = temp_a1_5;
             *(s32*)&poly4->x2 = temp_a0_13;
             *(s32*)&poly4->x3 = temp_v1_27;
+#ifdef SH_PC_PORT
+            SH_PGXP_PROP4(scratchData, poly4,
+                scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
             *(s32*)&poly4->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
 
@@ -3169,6 +3214,11 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         *(s32*)&poly->x1 = x1;
         *(s32*)&poly->x2 = x2;
         *(s32*)&poly->x3 = x3;
+#ifdef SH_PC_PORT
+        SH_PGXP_PROP4(scratchData, poly,
+            scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+            scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
         *(s32*)&poly->r0 = packedColor;
         *(s32*)&poly->u0 = *(s32*)&prim->field_0;
@@ -3674,6 +3724,8 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 _dbgPrimOobFail++;
                 continue;
             }
+            SH_PGXP_PROP3(scratchData, poly.gt3,
+                scratchData->u.s_1.field_0, scratchData->u.s_1.field_1, scratchData->u.s_1.field_2);
 #endif
 
             if (var_a3 != 0)
@@ -3766,6 +3818,9 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 _dbgPrimOobFail++;
                 continue;
             }
+            SH_PGXP_PROP4(scratchData, poly.gt4,
+                scratchData->u.s_1.field_0, scratchData->u.s_1.field_1,
+                scratchData->u.s_1.field_2, scratchData->u.s_1.field_3);
 #endif
 
             if (var_a3 != 0)

@@ -14,8 +14,8 @@
 
 - Bump PsyCross: PGXP slot-index vertex matching (tree-warp fix)
 - PGXP: park verts in the second mesh-render path (fix tree-foliage smear)
-- PGXP: park verts in the model GT3/GT4 drawer (func_8005AC50) ΓÇö tree foliage
-- PGXP: force billboards affine (Gfx_BillboardDraw) ΓÇö fix tree-foliage spikes
+- PGXP: park verts in the model GT3/GT4 drawer (func_8005AC50) — tree foliage
+- PGXP: force billboards affine (Gfx_BillboardDraw) — fix tree-foliage spikes
 - PGXP: snap-XY around the character bone-draw loop (fix joint seams)
 
 ## v2026.06.18.5 -- 2026-06-18
@@ -90,7 +90,7 @@ Open the console with ~ (tap to toggle, hold to type a command, debug controls m
 
 Flags set via the console persist through a New Game boot, so you can choose an ending in the menu, set it, then start a New Game into the ending map to test it without a save.
 
-- PGXP: bump PsyCross ΓÇö persist shared-vertex parks, strip diagnostics
+- PGXP: bump PsyCross — persist shared-vertex parks, strip diagnostics
 - console: expand give (story items), add getflags/setflag for ending testing
 - console: add setending bad|bad+|good|good+
 - console: persist console-set flags across map warp
@@ -100,8 +100,8 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 
 ## v2026.06.16.2 -- 2026-06-16
 - PGXP: record effect-quad vertex addresses for deterministic matching
-- PGXP: bump PsyCross ΓÇö reject mismatched precise coords (geometry-warp fix)
-- PGXP: bump PsyCross ΓÇö deterministic environment rendering working
+- PGXP: bump PsyCross — reject mismatched precise coords (geometry-warp fix)
+- PGXP: bump PsyCross — deterministic environment rendering working
 
 ## v2026.06.16.1 -- 2026-06-16
 - Revise README with project status and known issues
@@ -116,7 +116,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - Tooling: per-area scoping + alias-write detection + map attribution for audit_zero_stubs
 - Twinfeeler: extract remaining ROM tables found by zero-stub audit
 - Twinfeeler: restore D_800E08F0 == D_800E0698.field_258 alias (burrow dust pos)
-- Tooling: audit_stub_layout.py ΓÇö find truncated stubs, NULL-ptr stubs, lost aliases
+- Tooling: audit_stub_layout.py — find truncated stubs, NULL-ptr stubs, lost aliases
 - Twinfeeler: stop the acid-attack loop SFX (1561) - constant squish fix
 - Player: fix can't-start-walking-while-aiming at high FPS
 - map7_s03: reformat ending-cutscene pointer tables (bad-ending crash fix)
@@ -134,7 +134,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - PAL/EUR: runtime region support (single exe, auto-detect disc)
 - PAL: autodetect fallback prefers US over PAL among unnamed .bins
 - Bump PsyCross (VRAM-bounds clamp) + log boot-TIM file index for PAL
-- PAL: fix no BGM/SFX ΓÇö region-remap the g_AudioData sound table
+- PAL: fix no BGM/SFX — region-remap the g_AudioData sound table
 - PAL: render Grey Children as Mumblers (the PAL censorship)
 - Twinfeeler: clamp worm-segment OT bucket index (black flicker fix)
 - Twinfeeler: fix worm-particle OT corruption (black flicker root)
@@ -144,7 +144,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - Fix map2_s00 street spawns: extract D_800F1CAC progression variants
 
 ## v2026.06.15.1 -- 2026-06-15
-- Diag: [FBFEED] probe ΓÇö is motion-blur sampling a black framebuffer?
+- Diag: [FBFEED] probe — is motion-blur sampling a black framebuffer?
 - Fix cult-TV cutscene crash: SetDrawStp was a no-op stub
 - Fix SetDrawOffset no-op stub corrupting the OT (boss-fight [OT-SCAN])
 - Fix SetPolyG3 no-op stub (same garbage-OT-prim class)
@@ -261,7 +261,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 
 ## v2026.06.13.10 -- 2026-06-13
 - PsyCross: bump to PGXP Z-fight fix v3 (per-vertex continuous depth)
-- PsyCross: PGXP v4 ΓÇö texture-only shader + un-quantised flat depth
+- PsyCross: PGXP v4 — texture-only shader + un-quantised flat depth
 - PsyCross: revert PGXP to texture-only known-good
 - PGXP phase 1: store-macro capture + world-emit hooks (game side)
 - Fix Alessa-scene div-by-zero crash after Cybil boss (map6_s04)
@@ -434,8 +434,8 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 ## v2026.06.11.3 -- 2026-06-11
 - SH1Updater: create gamedata/ on first run + disc image prompt
 - Disc image presence check in updater + launcher
-- Launcher: strip inline update flow ΓÇö updater is the only update path
-- Retire SH1Updater ΓÇö launcher self-updates via the rename swap
+- Launcher: strip inline update flow — updater is the only update path
+- Retire SH1Updater — launcher self-updates via the rename swap
 
 ## v2026.06.11.2 -- 2026-06-11
 - SH1Updater.exe: standalone game+launcher updater
@@ -520,33 +520,33 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - Fix interior chunk-buffer overrun thrash (school void/exploded geometry)
 - Fix cat locker cutscene freeze: real CAT_ANIM_INFOS table (was zero-stub)
 - Fix cat locker scene-end crash: NULL-guard Anim_BoneInit (WinDbg-confirmed)
-- docs: add Port_Fixes_Index ΓÇö curated game-code PC-port fixes
+- docs: add Port_Fixes_Index — curated game-code PC-port fixes
 - logging: remove ~345 stale troubleshooting traces (keep infra)
 - logging: trim [SH] boot/chunk spam + gate per-frame state logs
 - logging: strip dead scaffolding left by the trace removal
 - docs: add combat/animation/cutscene band-aids to Port_Fixes_Index
 - Fix chemical-on-hand cutscene crash: guard div-by-zero in smoke particle
-- docs: ┬º1 now covers div-by-zero (hand cutscene crash) alongside NULL derefs
+- docs: §1 now covers div-by-zero (hand cutscene crash) alongside NULL derefs
 
 ## v2026.06.09.4 -- 2026-06-09
 - log: remove stale per-frame [MCRD2] spam + the [ALLEY1] Cheryl diagnostic
 - debug: key 6 spawns a Grey Child; add [CHMOVE] Cheryl movement trace
 - math: restore overflow-safe Math_Vector2/3MagCalc on PC (merge regression)
 - math/cheryl: target the overflow fix to the chase gates, not the global macro
-- debug: grey-child spawn ΓÇö bypass per-area NPC cap + guard model load
+- debug: grey-child spawn — bypass per-area NPC cap + guard model load
 - cheryl: remove [CHMOVE] diagnostic trace (Cheryl run-through fix confirmed)
 - diag: log failing object name + item-LM magic in [WOBJ] find-fail (map1_s00 banding)
-- cat: guard NULL playbackFunc ΓÇö fixes school crash (merge regression)
+- cat: guard NULL playbackFunc — fixes school crash (merge regression)
 
 ## v2026.06.09.3 -- 2026-06-09
-- pc_port: bump PsyCross ΓÇö pillarbox bars stay black on item-examine screen
+- pc_port: bump PsyCross — pillarbox bars stay black on item-examine screen
 
 ## v2026.06.09.2 -- 2026-06-09
 - (no commits since last release)
 
 ## v2026.06.09.1 -- 2026-06-09
 - Merge upstream Vatuu/master (Jun 2026) + merge resolution (squashed)
-- pc-port: fix merge regressions ΓÇö grey-child crash, melee, map, transition flash
+- pc-port: fix merge regressions — grey-child crash, melee, map, transition flash
 - pc-port: fix exterior/preload map regressions (intro environment)
 - pc-port: revert merge player-state corruption in cutscene walk (player.c)
 - Fix cutscene turn-in-place: restore dropped/renamed HAS_PlayerState defines
@@ -603,7 +603,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - Enhance [LIGHTERPOSE] trace with keyframe-settle detection
 - Add [FMVEND] diagnostic for early FMV cutoff (Cheryl M2_01190)
 - Fix Harry dropping the lighter-hold pose on gameplay resume (alley3)
-- Revert lighter-hold idle guard (382a96139) ΓÇö no-op for the actual bug
+- Revert lighter-hold idle guard (382a96139) — no-op for the actual bug
 - Capture demux-error detail at [FMVEND] (Cheryl M2 secCount mismatch)
 - Fix FMV early cutoff: skip interleaved null/padding sectors in demux
 - Clean up FMV cutoff debugging after null-sector fix
@@ -689,8 +689,8 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 
 ## v2026.05.30.1 -- 2026-05-30
 - gfx: wire OT bucket count into PsyCross depth tracking
-- gfx: bump PsyCross ΓÇö fix OT depth direction
-- gfx: bump PsyCross ΓÇö fix a_zw attrib binding in non-PGXP path
+- gfx: bump PsyCross — fix OT depth direction
+- gfx: bump PsyCross — fix a_zw attrib binding in non-PGXP path
 - PsyCross: advance submodule to 99417e8
 - PsyCross: bucket-accurate OT depth assignment
 - pc_port: per-vertex GTE SZ depth + clear table in GsDrawOt
@@ -709,7 +709,7 @@ Flags set via the console persist through a New Game boot, so you can choose an 
 - dbg_overlay: fix marker logging; strip per-frame log spam
 - logging: strip per-frame SH_DBG spam; fix dbg_overlay key detection
 - logging: remove remaining [2D_FX] spam; add one-shot overlay diagnostics
-- dbg_overlay: fix rendering ΓÇö correct UV orientation, LSB font bit order, GL init timing
+- dbg_overlay: fix rendering — correct UV orientation, LSB font bit order, GL init timing
 - Add ingame debug overlay with 4-mode show_console config
 - dbg_overlay: increase LINE_LEN/MAX_CONSOLE, fix line render order
 - sh_log: route SH_LOG/SH_WARN to ingame overlay; fix MapRegistry fprintf
