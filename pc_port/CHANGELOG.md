@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.19.1 -- 2026-06-19
+- PGXP: I was a little hasty, seams were only gone because it's mostly affine. Actively working on a fix but left it as is for this release to get crash fixes out.
+- Crash Fixes: The Church cutscene crash and similar crash points should be fixed. Late game boat door crash *might* be fixed but needs testing. If not it will be tonight.
+- Console: You can now type ., -/_, and =/+ (Shift-aware) — so commands like weld 2.5 and inveqy -50 work.
+- Console: tays open after a command now (run several in a row); press Enter on an empty line, or ~, to close it.
+- Controls: Esc now always works (no debug mode needed): warm-resets to the title in-game, and quits the game at the title screen.
+- Controls: F1 (PGXP toggle) now always works without debug controls.
+- Debug: Crashes now write a full call-stack backtrure crash reports are self-diagnosing.
+
 ## v2026.06.18.6 -- 2026-06-18
 - PGXP Improved! No more seams or messed up tree billboards. Still working on making characters look better. 
 
