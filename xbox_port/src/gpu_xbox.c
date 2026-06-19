@@ -19,6 +19,17 @@
 #include "gpu_nv2a.h"
 #include "sh_log.h"
 
+/* Active environments + display state (PSX libgpu bookkeeping). Frame present is
+ * driven by GpuNv2a_FrameBegin/End; these are wired to the present when the game
+ * loop is integrated. */
+static int     g_gpuDisabled = 0;
+static DISPENV g_activeDispEnv;
+static DRAWENV g_activeDrawEnv;
+
+/* OT terminator the termPrim() macro points at (PsyCross defines this in its GL
+ * PsyX_GPU.cpp, which we don't build). addr = -1 ends a DrawOTag walk. */
+OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
+
 /* --- primitive -> triangle conversion ------------------------------------- */
 
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
@@ -143,6 +154,9 @@ void DrawOTag(u_long* p)
     uintptr_t base = (uintptr_t)p;
     int       safety;
 
+    if (g_gpuDisabled)
+        return;
+
     if (s_otLog) SH_DBG("[OT] DrawOTag head=%p", (void*)base);
 
     for (safety = 0; safety < 16384; safety++) {
@@ -178,4 +192,105 @@ void DrawOTagEnv(u_long* p, DRAWENV* env)
 void DrawPrim(void* p)
 {
     ParsePrim((P_TAG*)p);
+}
+
+/* --- GPU control surface (PSX libgpu API; semantics per PsyCross libgpu.c) -- */
+
+int ResetGraph(int mode)
+{
+    (void)mode;
+    g_gpuDisabled = 0;
+    return 0;
+}
+
+int SetGraphDebug(int level)
+{
+    (void)level;
+    return 0;
+}
+
+void SetDispMask(int mask)
+{
+    g_gpuDisabled = (mask == 0);
+}
+
+int DrawSync(int mode)
+{
+    (void)mode; /* drawing is flushed at frame end (GpuNv2a_FrameEnd) */
+    return 0;
+}
+
+int GetODE(void)
+{
+    return 0;
+}
+
+/* OT buckets are OT_TAG (P_LEN longs each, extended pointers). ClearOTagR builds
+ * a reverse-linked list (DrawOTag(&ot[n-1]) walks high->low bucket); ClearOTag
+ * forward. */
+u_long* ClearOTagR(u_long* ot, int n)
+{
+    OT_TAG* t = (OT_TAG*)ot;
+    int     i;
+
+    if (n == 0)
+        return NULL;
+
+    termPrim(&t[0]);
+    setlen(&t[0], 0);
+    for (i = 1; i < n; ++i) {
+        setaddr(&t[i], &t[i - 1]);
+        setlen(&t[i], 0);
+    }
+    return NULL;
+}
+
+u_long* ClearOTag(u_long* ot, int n)
+{
+    OT_TAG* t = (OT_TAG*)ot;
+    int     i;
+
+    if (n == 0)
+        return NULL;
+
+    termPrim(&t[n - 1]);
+    setlen(&t[n - 1], 0);
+    for (i = n - 1; i >= 0; --i) {
+        setaddr(&t[i], &t[i + 1]);
+        setlen(&t[i], 0);
+    }
+    return NULL;
+}
+
+DISPENV* SetDefDispEnv(DISPENV* env, int x, int y, int w, int h)
+{
+    env->disp.x = x;   env->disp.y = y;   env->disp.w = w;   env->disp.h = h;
+    env->screen.x = 0; env->screen.y = 0; env->screen.w = 0; env->screen.h = 0;
+    env->isrgb24 = 0;  env->isinter = 0;  env->pad0 = 0;     env->pad1 = 0;
+    return env;
+}
+
+DRAWENV* SetDefDrawEnv(DRAWENV* env, int x, int y, int w, int h)
+{
+    env->clip.x = x; env->clip.y = y; env->clip.w = w; env->clip.h = h;
+    env->tw.x = 0; env->tw.y = 0; env->tw.w = 0; env->tw.h = 0;
+    env->r0 = 0; env->g0 = 0; env->b0 = 0;
+    env->dtd = 1;
+    env->dfe = (h < 289) ? 1 : 0; /* NTSC */
+    env->ofs[0] = x; env->ofs[1] = y;
+    env->tpage = 10;
+    env->isbg = 0;
+    return env;
+}
+
+DISPENV* PutDispEnv(DISPENV* env)
+{
+    g_activeDispEnv = *env;
+    return env;
+}
+
+DRAWENV* PutDrawEnv(DRAWENV* env)
+{
+    g_activeDrawEnv = *env;
+    return env;
 }
