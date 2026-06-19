@@ -1,5 +1,17 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.19.2 -- 2026-06-19
+- PGXP: FIXED!! From testing, PGXP has been greatly improved. There are still ocassional seams or missing faces, but much better than before.
+Coming soon: Aspect ratio fixes (no more wide harry) + things already mentioned 
+
+- docs: PGXP complete shadow-memory rewrite plan (DuckStation-faithful)
+- Bump PsyCross: PGXP shadow-memory rewrite Steps 0-2 (safe floor)
+- PGXP rewrite Steps 3-4: shadow copy propagation in the world+char drawers
+- PGXP rewrite Step 6: remove dead bridge call sites + weld console cmds
+- PGXP: shadow-store lit-character verts (Harry was affine)
+- PGXP: WELD/WELDW console tunables + bump PsyCross (seam weld)
+- Bump PsyCross: default PGXP seam weld OFF
+
 ## v2026.06.19.1 -- 2026-06-19
 - PGXP: I was a little hasty, seams were only gone because it's mostly affine. Actively working on a fix but left it as is for this release to get crash fixes out.
 - Crash Fixes: The Church cutscene crash and similar crash points should be fixed. Late game boat door crash *might* be fixed but needs testing. If not it will be tonight.
@@ -7,7 +19,7 @@
 - Console: tays open after a command now (run several in a row); press Enter on an empty line, or ~, to close it.
 - Controls: Esc now always works (no debug mode needed): warm-resets to the title in-game, and quits the game at the title screen.
 - Controls: F1 (PGXP toggle) now always works without debug controls.
-- Debug: Crashes now write a full call-stack backtrure crash reports are self-diagnosing.
+- Debug: Crashes now write a full call-stack; crash reports are self-diagnosing.
 
 ## v2026.06.18.6 -- 2026-06-18
 - PGXP Improved! No more seams or messed up tree billboards. Still working on making characters look better. 
