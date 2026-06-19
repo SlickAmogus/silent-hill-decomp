@@ -29,13 +29,26 @@ extern int g_CollVisEnabled; /* Collision visualizer toggle (dbg_overlay.c, ' ke
  * element AT each block site, then log it once per pass for Harry. kind:
  * 1=swept wall, 2=static wall, 3=ROUND OBSTACLE (ptr_18, no split face -> invisible
  * to the [WALL-HIT] probe and the visualizer; prime invisible-wall suspect). */
-struct s_WallStopDbg { int active, kind; s32 sub, ax, az, bx, bz, rad, dist, frac; };
+struct s_WallStopDbg { int active, kind; s32 sub, ax, az, bx, bz, rad, dist, frac;
+                       s32 fullx, fullz, cellw, cellh, offx, offz; };
 static struct s_WallStopDbg g_WallStopDbg;
+/* `state` is in scope at every call site (the 3 block fns all take s_CollisionState*).
+ * fullx/z = the UN-truncated s32 chunk-local offset (positionFrom - chunk origin);
+ * offx/z = the s16 DVECTOR_XZ that the collision actually used. fullx!=offx => the
+ * s16 offset WRAPPED (long-chunk overflow). cellw/h = chunk extent (s32). */
 #define WALLSTOP_SET(k, s, _ax, _az, _bx, _bz, _r, _d, _f) do { \
+    const s_IpdCollisionData* _cd = state->point.ipdCollisionData; \
     g_WallStopDbg.active = 1; g_WallStopDbg.kind = (k); g_WallStopDbg.sub = (s); \
     g_WallStopDbg.ax = (_ax); g_WallStopDbg.az = (_az); g_WallStopDbg.bx = (_bx); \
     g_WallStopDbg.bz = (_bz); g_WallStopDbg.rad = (_r); g_WallStopDbg.dist = (_d); \
-    g_WallStopDbg.frac = (_f); } while (0)
+    g_WallStopDbg.frac = (_f); \
+    g_WallStopDbg.offx = state->charaPositionFrom.offset.vx; \
+    g_WallStopDbg.offz = state->charaPositionFrom.offset.vz; \
+    g_WallStopDbg.fullx = _cd ? (state->charaState.positionFromX - _cd->positionX) : 0; \
+    g_WallStopDbg.fullz = _cd ? (state->charaState.positionFromZ - _cd->positionZ) : 0; \
+    g_WallStopDbg.cellw = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountX) : 0; \
+    g_WallStopDbg.cellh = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountZ) : 0; \
+    } while (0)
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -725,14 +738,20 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                 ABS(_wpdx) < Q12(4.0f) && ABS(_wpdz) < Q12(4.0f))
             {
                 s_lastStopLog = g_TickCount;
-                SH_DBG("[WALLSTOP] kind=%d sub=%d a=(%d,%d) b=(%d,%d) rad=%d dist=%d frac=%d sweepDist=%d spd=%d harry=(%d,%d) head=%d",
+                SH_DBG("[WALLSTOP] kind=%d sub=%d a=(%d,%d) b=(%d,%d) rad=%d dist=%d frac=%d sweepDist=%d spd=%d world=(%d,%d) head=%d",
                        g_WallStopDbg.kind, g_WallStopDbg.sub,
                        g_WallStopDbg.ax, g_WallStopDbg.az, g_WallStopDbg.bx, g_WallStopDbg.bz,
                        g_WallStopDbg.rad, g_WallStopDbg.dist, g_WallStopDbg.frac,
                        (int)state.charaState.distance,
                        (int)g_SysWork.playerWork.player.moveSpeed,
-                       (int)state.charaPositionFrom.offset.vx, (int)state.charaPositionFrom.offset.vz,
+                       (int)g_SysWork.playerWork.player.position.vx, (int)g_SysWork.playerWork.player.position.vz,
                        (int)g_SysWork.playerWork.player.rotation.vy);
+                SH_DBG("[WALLSTOP]   off=(%d,%d) full=(%d,%d) wrap=%d cellWH=(%d,%d) fall=%d hp=%d",
+                       g_WallStopDbg.offx, g_WallStopDbg.offz, g_WallStopDbg.fullx, g_WallStopDbg.fullz,
+                       (g_WallStopDbg.fullx != g_WallStopDbg.offx) || (g_WallStopDbg.fullz != g_WallStopDbg.offz),
+                       g_WallStopDbg.cellw, g_WallStopDbg.cellh,
+                       (int)g_SysWork.playerWork.player.fallSpeed,
+                       (int)g_SysWork.playerWork.player.health);
             }
         }
 
