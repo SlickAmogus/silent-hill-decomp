@@ -67,7 +67,7 @@ static float s_console_slide = 0.0f;
 /* After a console command, the game runs unfrozen for this long so the command's
  * effect renders/animates, then input mode resumes (frozen) for the next command.
  * 0 = not in an apply window. */
-#define CONSOLE_APPLY_MS 1500u
+#define CONSOLE_APPLY_MS 350u
 static unsigned s_console_apply_until = 0;
 
 /* GL overlay resources, initialised once on first Render call */
