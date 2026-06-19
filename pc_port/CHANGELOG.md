@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.18.6 -- 2026-06-18
+- PGXP Improved! No more seams or messed up tree billboards. Still working on making characters look better. 
+
+- Bump PsyCross: PGXP slot-index vertex matching (tree-warp fix)
+- PGXP: park verts in the second mesh-render path (fix tree-foliage smear)
+- PGXP: park verts in the model GT3/GT4 drawer (func_8005AC50) ΓÇö tree foliage
+- PGXP: force billboards affine (Gfx_BillboardDraw) ΓÇö fix tree-foliage spikes
+- PGXP: snap-XY around the character bone-draw loop (fix joint seams)
+
 ## v2026.06.18.5 -- 2026-06-18
 - This update reduces the issues with the inventory screen to match the original PSX by fixing vertical scaling, positioning, and dimming. Backface issue still present, will be fixed soon. 
 Coming soon: More aspect fixes, monster reworks to fix animations, real PSX style targeting, sound fixes, and corruption/crash fixes.
