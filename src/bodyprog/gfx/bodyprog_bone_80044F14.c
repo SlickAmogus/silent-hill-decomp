@@ -358,10 +358,10 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
     }
 
 #ifdef SH_PC_PORT
-    /* PGXP: each bone is a separate rigid mesh on its own matrix, so overlapping
-     * joint verts land sub-pixel apart with true precision and show seams at the
-     * joints. Snap-XY mode keeps the texture perspective-correct but pins each
-     * vertex to the affine pixel grid, so segments meet exactly as on PSX. */
+    /* PGXP: each bone is a separate rigid mesh on its own matrix, so a shared joint
+     * projects to two verts a sub-pixel apart and seams. This mode keeps full
+     * perspective PGXP (no faceting) and WELDS those coincident joint verts to a
+     * common precise position so the seam closes. Reset+scoped per character. */
     PsyX_SetPgxpSnapMode(1);
 #endif
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
