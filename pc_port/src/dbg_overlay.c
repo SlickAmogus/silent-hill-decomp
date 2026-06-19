@@ -64,6 +64,12 @@ static unsigned char s_prev_keys[64]; /* scancodes used here are all < 64 */
 static float s_console_slide = 0.0f;
 #define CONSOLE_SLIDE_STEP 0.18f
 
+/* After a console command, the game runs unfrozen for this long so the command's
+ * effect renders/animates, then input mode resumes (frozen) for the next command.
+ * 0 = not in an apply window. */
+#define CONSOLE_APPLY_MS 1500u
+static unsigned s_console_apply_until = 0;
+
 /* GL overlay resources, initialised once on first Render call */
 static GLuint s_prog = 0;
 static GLuint s_vao  = 0;
@@ -746,6 +752,21 @@ void DbgOverlay_Update(void)
     }
     s_prev_tilde = cur_tilde;
 
+    /* Console apply window: while it runs the game is unfrozen (so the last
+     * command's effect shows) and pad input is suppressed; when it elapses, drop
+     * back into input mode if the console is still open. */
+    if (s_console_apply_until) {
+        if (SDL_GetTicks() < s_console_apply_until) {
+            g_PcConsoleSwallowInput = 1;
+        } else {
+            s_console_apply_until = 0;
+            if (g_PcConfig.showConsole & 2) {
+                g_PcConsoleInputActive = 1;
+                s_console_dirty        = 1;
+            }
+        }
+    }
+
     /* Interactive input: A-Z and 0-9 append, Backspace deletes, Enter
      * submits. Edge-detected against s_prev_keys. The submitted command is
      * echoed half-life style; `quit` exits the game, anything else prints
@@ -776,26 +797,53 @@ void DbgOverlay_Update(void)
             s_input_buf[s_input_len]   = '\0';
             s_console_dirty            = 1;
         }
-        if (ks[SDL_SCANCODE_MINUS] && !s_prev_keys[SDL_SCANCODE_MINUS] &&
-            s_input_len < INPUT_BUF_CAP - 1) {
-            s_input_buf[s_input_len++] = '_';
-            s_input_buf[s_input_len]   = '\0';
-            s_console_dirty            = 1;
+        /* `-`/`_`, `=`/`+`, `.` for numeric and path args (e.g. `weld 2.5`,
+         * `inveqy -50`, map names with `_`). Shift gives the upper glyph; there's
+         * no full shift handling, just these three keys. */
+        {
+            int shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
+            const struct { int sc; char lo, hi; } syms[] = {
+                { SDL_SCANCODE_MINUS,  '-', '_' },
+                { SDL_SCANCODE_EQUALS, '=', '+' },
+                { SDL_SCANCODE_PERIOD, '.', '.' },
+            };
+            int i;
+            for (i = 0; i < 3; i++) {
+                if (ks[syms[i].sc] && !s_prev_keys[syms[i].sc] &&
+                    s_input_len < INPUT_BUF_CAP - 1) {
+                    s_input_buf[s_input_len++] = shift ? syms[i].hi : syms[i].lo;
+                    s_input_buf[s_input_len]   = '\0';
+                    s_console_dirty            = 1;
+                }
+            }
         }
         if (ks[SDL_SCANCODE_BACKSPACE] && !s_prev_keys[SDL_SCANCODE_BACKSPACE] && s_input_len > 0) {
             s_input_buf[--s_input_len] = '\0';
             s_console_dirty            = 1;
         }
         if (ks[SDL_SCANCODE_RETURN] && !s_prev_keys[SDL_SCANCODE_RETURN]) {
-            extern void Pc_ConsoleExec(const char* line);
-            char echo[LINE_LEN];
-            snprintf(echo, LINE_LEN, "> %s", s_input_buf);
-            push_console(echo);
-            g_PcConsoleInputActive  = 0; /* enter submits AND unpauses (before
-                                          * exec so map/fmv run with live time) */
-            g_PcConsoleSwallowInput = 1; /* don't leak this Enter as Start */
-            if (s_input_len > 0)
+            if (s_input_len > 0) {
+                extern void Pc_ConsoleExec(const char* line);
+                char echo[LINE_LEN];
+                snprintf(echo, LINE_LEN, "> %s", s_input_buf);
+                push_console(echo);
                 Pc_ConsoleExec(s_input_buf);
+                /* Keep the console OPEN: clear the line and briefly unfreeze so the
+                 * command's effect renders/animates, then drop back into input mode
+                 * (apply-window check at the top of the function). Lets the user run
+                 * several commands without reopening. */
+                s_input_len    = 0;
+                s_input_buf[0] = '\0';
+                g_PcConsoleInputActive  = 0;          /* unfreeze for the window */
+                g_PcConsoleSwallowInput = 1;          /* don't leak this Enter   */
+                s_console_apply_until   = SDL_GetTicks() + CONSOLE_APPLY_MS;
+            } else {
+                /* Empty Enter closes the console (hide + unfreeze). */
+                g_PcConsoleInputActive  = 0;
+                g_PcConsoleSwallowInput = 1;
+                g_PcConfig.showConsole &= ~2;
+                s_console_apply_until   = 0;
+            }
             s_console_dirty = 1;
         }
     }
