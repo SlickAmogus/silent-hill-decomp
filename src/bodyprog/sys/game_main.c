@@ -201,19 +201,8 @@ void DebugCamera_Update(void)
 #endif
     if (g_GameWork.gameState != GameState_InGame) return;
 
-    /* Esc: warm-reboot to the title screen (edge-triggered) — same path as the
-     * controller Select+Start reset and the death warm-boot. Works in gameplay
-     * and cutscenes (both are GameState_InGame), so it also escapes a stuck
-     * scene. SysFlag_DoWarmReset is consumed by MainLoop_ShouldWarmReset(). */
-    {
-        static int s_escPrev = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_ESCAPE];
-        if (cur && !s_escPrev) {
-            g_SysWork.sysFlags |= SysFlag_DoWarmReset;
-            SH_DBG_ECHO("[DEBUG] Esc: warm reboot to title");
-        }
-        s_escPrev = cur;
-    }
+    /* (Esc warm-reboot / title quit moved to DbgOverlay_Update so it works without
+     * debug controls and in every game state, including the title menu.) */
 
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
     {

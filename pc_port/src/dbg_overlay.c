@@ -852,6 +852,24 @@ void DbgOverlay_Update(void)
         s_prev_f1 = cur_f1;
     }
 
+    /* Esc is NOT a debug control — always handled, in every state. At the title /
+     * main menu it quits the game; otherwise (gameplay or cutscene) it warm-reboots
+     * to the title (consumed by MainLoop_ShouldWarmReset, which ignores it on the
+     * menu / during boot). Suppressed only while typing in the console. */
+    {
+        static int s_prev_esc = 0;
+        int cur_esc = ks[SDL_SCANCODE_ESCAPE];
+        if (cur_esc && !s_prev_esc && !g_PcConsoleInputActive) {
+            if (g_GameWork.gameState == GameState_MainMenu) {
+                exit(0);
+            } else {
+                g_SysWork.sysFlags |= SysFlag_DoWarmReset;
+                SH_DBG_ECHO("[DEBUG] Esc: warm reboot to title");
+            }
+        }
+        s_prev_esc = cur_esc;
+    }
+
     if (g_PcConfig.showConsole < 2) return;
 
     cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
