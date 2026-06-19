@@ -38,13 +38,16 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
  * off, so winding does not matter. */
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
-    ShVertex tri[3] = { *a, *b, *c };
+    ShVertex tri[3];
+    tri[0] = *a; tri[1] = *b; tri[2] = *c;
     GpuNv2a_EmitTris(tri, 3);
 }
 
 static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
 {
-    ShVertex q[6] = { *v0, *v1, *v2, *v1, *v2, *v3 };
+    ShVertex q[6];
+    q[0] = *v0; q[1] = *v1; q[2] = *v2;
+    q[3] = *v1; q[4] = *v2; q[5] = *v3;
     GpuNv2a_EmitTris(q, 6);
 }
 
@@ -91,6 +94,18 @@ static int ProcessPoly(P_TAG* tag)
         if (quad) PutVert(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3);
     }
 
+    {
+        static int logN = 8;
+        if (logN > 0) {
+            logN--;
+            SH_DBG("[GPU] poly code=0x%02x quad=%d v0=(%d,%d) v1=(%d,%d) v2=(%d,%d)",
+                   code, quad ? 1 : 0,
+                   (int)v[0].pos[0], (int)v[0].pos[1],
+                   (int)v[1].pos[0], (int)v[1].pos[1],
+                   (int)v[2].pos[0], (int)v[2].pos[1]);
+        }
+    }
+
     if (quad)
         EmitQuad(&v[0], &v[1], &v[2], &v[3]);
     else
@@ -121,13 +136,18 @@ static int ParsePrim(P_TAG* tag)
 
 /* --- public PSX libgpu API ------------------------------------------------ */
 
+static int s_otLog = 1; /* one-shot OT-walk trace */
+
 void DrawOTag(u_long* p)
 {
     uintptr_t base = (uintptr_t)p;
     int       safety;
 
+    if (s_otLog) SH_DBG("[OT] DrawOTag head=%p", (void*)base);
+
     for (safety = 0; safety < 16384; safety++) {
         const int len = getlen(base);
+        uintptr_t next;
         if (len > 0 && len <= 32) {
             uintptr_t cur = base;
             const uintptr_t end = base + (len + P_LEN) * sizeof(u_int);
@@ -138,13 +158,15 @@ void DrawOTag(u_long* p)
             }
         }
 
-        {
-            const uintptr_t next = getaddr(base);
-            if (next == (uintptr_t)0xffffffff || next < 0x10000)
-                break;
-            base = next;
-        }
+        next = getaddr(base);
+        if (s_otLog) SH_DBG("[OT] node=%p len=%d code=0x%02x next=%p",
+                            (void*)base, len, ((P_TAG*)base)->code, (void*)next);
+        if (next == (uintptr_t)0xffffffff || next < 0x10000)
+            break;
+        base = next;
     }
+
+    if (s_otLog) { SH_DBG("[OT] walk done after %d nodes", safety); s_otLog = 0; }
 }
 
 void DrawOTagEnv(u_long* p, DRAWENV* env)

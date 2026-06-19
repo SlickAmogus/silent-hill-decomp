@@ -25,10 +25,21 @@
 
 #define MAX_BATCH_VERTS 1024
 
-static ShVertex* s_batch;     /* contiguous staging buffer for vertex submission */
-static uint32_t* s_whiteTex;  /* 1x1 opaque white, for untextured prims */
+/* NV2A linear/NPOT textures need an aligned pitch (>= 64 bytes); a 1x1 (pitch 4)
+ * triggers a GPU "invalid data error". Use 64x64 (pitch 256), proven-good. */
+#define WHITE_TEX_DIM 64
+
+static ShVertex* s_batch;     /* contiguous staging pool for vertex submission */
+static int       s_batchUsed; /* running offset: each draw gets its own slice so
+                               * a later draw never overwrites verts the GPU is
+                               * still DMA-reading from an earlier draw */
+static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
 
 static int s_frameW, s_frameH;
+
+static void GpuNv2a_SetRenderState(void);
+static void GpuNv2a_BindTexture(const void* addr, int w, int h);
+static void SetAttribPointer(unsigned index, unsigned size, const void* data);
 
 static void GpuNv2a_InitShader(void)
 {
@@ -71,8 +82,13 @@ void GpuNv2a_Init(void)
 
     s_batch    = MmAllocateContiguousMemoryEx(MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
                                               PAGE_READWRITE | PAGE_WRITECOMBINE);
-    s_whiteTex = MmAllocateContiguousMemoryEx(4, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    s_whiteTex[0] = 0xffffffff;
+    s_whiteTex = MmAllocateContiguousMemoryEx(WHITE_TEX_DIM * WHITE_TEX_DIM * 4, 0, MAXRAM, 0,
+                                              PAGE_READWRITE | PAGE_WRITECOMBINE);
+    {
+        int i;
+        for (i = 0; i < WHITE_TEX_DIM * WHITE_TEX_DIM; i++)
+            s_whiteTex[i] = 0xffffffff;
+    }
     __asm__ __volatile__("sfence" ::: "memory");
 
     SH_DBG("[SH-XBOX] NV2A backend ready (batch=%d verts)", MAX_BATCH_VERTS);
@@ -107,7 +123,42 @@ void GpuNv2a_FrameBegin(void)
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
     pb_fill(0, 0, s_frameW, s_frameH, 0xff000000);
     pb_erase_text_screen();
-    while (pb_busy()) { }
+
+    s_batchUsed = 0; /* recycle the vertex pool each frame */
+
+    /* Establish all draw state ONCE per frame (render state, texture, vertex-
+     * program constant, attribute arrays). Per-draw EmitTris then only issues
+     * BEGIN/DRAW_ARRAYS/END — re-doing vertex-program/attribute state between
+     * draws corrupts the 2nd+ draw on NV2A (the mesh sample also sets up once,
+     * draws many). Attribute base is fixed at s_batch[0]; draws select their
+     * slice via DRAW_ARRAYS START_INDEX. */
+    {
+        uint32_t* p;
+        int       i;
+
+        GpuNv2a_SetRenderState();
+        GpuNv2a_BindTexture(s_whiteTex, WHITE_TEX_DIM, WHITE_TEX_DIM);
+
+        {
+            static const float c0[4] = { 1.0f, 0.0f, 0.0f, 0.0f }; /* vs c[0] = pos.w */
+            p = pb_begin();
+            p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_ID, 96);
+            pb_push(p++, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_X, 4);
+            memcpy(p, c0, sizeof(c0));
+            p += 4;
+            pb_end(p);
+        }
+
+        p = pb_begin();
+        pb_push(p++, NV097_SET_VERTEX_DATA_ARRAY_FORMAT, 16);
+        for (i = 0; i < 16; i++)
+            *(p++) = 2;
+        pb_end(p);
+
+        SetAttribPointer(0, 3, &s_batch[0].pos);
+        SetAttribPointer(3, 4, &s_batch[0].col);
+        SetAttribPointer(9, 2, &s_batch[0].tex);
+    }
 }
 
 void GpuNv2a_FrameEnd(void)
@@ -143,48 +194,49 @@ static void GpuNv2a_BindTexture(const void* addr, int w, int h)
     pb_end(p);
 }
 
-/* Emit `count` vertices as a triangle list. Untextured (white texture bound),
- * so the per-vertex colour shows through unchanged. */
+/* Append `count` vertices to the frame's pool and draw them as a triangle list.
+ * Per-frame draw state (render state, texture, vertex program, attribute arrays)
+ * was set once in FrameBegin; here we ONLY copy the verts and issue the draw,
+ * selecting this draw's slice via DRAW_ARRAYS START_INDEX. Untextured (white
+ * texture bound), so the per-vertex colour shows through unchanged. */
 void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 {
     uint32_t* p;
-    int       i;
+    int       start;
 
     if (count <= 0 || count > MAX_BATCH_VERTS)
         return;
+    if (s_batchUsed + count > MAX_BATCH_VERTS)
+        return; /* pool full this frame — drop (don't corrupt in-flight verts) */
 
-    memcpy(s_batch, verts, count * sizeof(ShVertex));
+    start = s_batchUsed;
+    memcpy(s_batch + start, verts, count * sizeof(ShVertex));
     __asm__ __volatile__("sfence" ::: "memory");
+    s_batchUsed += count;
 
-    GpuNv2a_SetRenderState();
-    GpuNv2a_BindTexture(s_whiteTex, 1, 1);
-
-    /* Upload the vertex-program literal constant c[0] = {1,...} (pos.w). */
+    /* Draw via the INDEX_DATA (ARRAY_ELEMENT16) method — two 16-bit vertex
+     * indices per dword — referencing this draw's slice [start, start+count).
+     * (DRAW_ARRAYS with a non-zero START_INDEX misrenders on this NV2A; the
+     * mesh sample uses INDEX_DATA for multi-batch draws and it works.) */
     {
-        static const float c0[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+        int ndwords = (count + 1) / 2; /* 2 indices/dword, round up */
+        int i;
         p = pb_begin();
-        p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_ID, 96);
-        pb_push(p++, NV20_TCL_PRIMITIVE_3D_VP_UPLOAD_CONST_X, 4);
-        memcpy(p, c0, sizeof(c0));
-        p += 4;
+        /* Invalidate the NV2A vertex cache so this draw fetches fresh verts
+         * instead of reusing a previous draw's cached (stale) vertices — the
+         * cause of the 2nd-draw-per-frame corruption. (Star Fox does this before
+         * every batch.) */
+        p = pb_push1(p, NV097_BREAK_VERTEX_BUFFER_CACHE, 0);
+        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
+        pb_push(p++, 0x40000000 | NV20_TCL_PRIMITIVE_3D_INDEX_DATA, ndwords);
+        for (i = 0; i < ndwords; i++) {
+            int a = start + i * 2;
+            int b = start + i * 2 + 1;
+            if (b >= start + count)
+                b = start + count - 1; /* odd count: pad with last (dangling, ignored) */
+            *(p++) = (uint32_t)(a & 0xFFFF) | ((uint32_t)(b & 0xFFFF) << 16);
+        }
+        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
         pb_end(p);
     }
-
-    /* Clear all 16 attribute arrays, then point pos/col/tex at the batch. */
-    p = pb_begin();
-    pb_push(p++, NV097_SET_VERTEX_DATA_ARRAY_FORMAT, 16);
-    for (i = 0; i < 16; i++)
-        *(p++) = 2;
-    pb_end(p);
-
-    SetAttribPointer(0, 3, &s_batch[0].pos);
-    SetAttribPointer(3, 4, &s_batch[0].col);
-    SetAttribPointer(9, 2, &s_batch[0].tex);
-
-    p = pb_begin();
-    p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
-    pb_push(p++, 0x40000000 | NV097_DRAW_ARRAYS, 1);
-    *(p++) = MASK(NV097_DRAW_ARRAYS_COUNT, count - 1) | MASK(NV097_DRAW_ARRAYS_START_INDEX, 0);
-    p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
-    pb_end(p);
 }

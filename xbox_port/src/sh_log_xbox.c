@@ -23,9 +23,10 @@ void SH_DebugLogInit(void)
     g_ShDebugLog = fopen("D:\\silenthill.log", "w");
     if (g_ShDebugLog)
     {
-        /* Line-buffered so a crash mid-frame still flushes complete lines, and
-         * to avoid the per-call fflush cost the PC port documented (combat can
-         * emit thousands of SH_DBG lines per frame). */
-        setvbuf(g_ShDebugLog, NULL, _IOLBF, 0);
+        /* Unbuffered: the render loop never exits to fclose, and nxdk does not
+         * reliably commit line-buffered writes to the HDD mid-loop, so log lines
+         * written during the loop were lost. _IONBF forces each line to disk.
+         * (Revert to _IOLBF for perf once the renderer is stable.) */
+        setvbuf(g_ShDebugLog, NULL, _IONBF, 0);
     }
 }
