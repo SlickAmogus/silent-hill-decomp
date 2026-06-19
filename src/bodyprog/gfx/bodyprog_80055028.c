@@ -3095,6 +3095,22 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     {
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 
+#ifdef SH_PC_PORT
+        /* PGXP: this second mesh-render path (textured FT4 — tree foliage etc.)
+         * copies the scratch screen verts into the poly but never parked them,
+         * so PGXP fell to the (x,y) ring and grabbed a wrong-depth (W) neighbour
+         * on dense foliage -> alpha-texture smear ("warped tree", PGXP-only).
+         * Park this prim's four scratch verts like the main drawer does (their
+         * addresses were recorded by gte_stsxy3c), so MakeVertex resolves the
+         * exact per-vertex W by slot. Harmless off (PsyX_SetNextPrimPgxp early-
+         * outs when PGXP is disabled). */
+        PsyX_SetNextPrimPgxp(
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+            &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+#endif
+
         var_t2 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_11], var_t2);
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_12], var_t2);
