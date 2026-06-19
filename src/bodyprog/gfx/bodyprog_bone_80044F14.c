@@ -357,6 +357,13 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
         }
     }
 
+#ifdef SH_PC_PORT
+    /* PGXP: each bone is a separate rigid mesh on its own matrix, so overlapping
+     * joint verts land sub-pixel apart with true precision and show seams at the
+     * joints. Snap-XY mode keeps the texture perspective-correct but pins each
+     * vertex to the affine pixel grid, so segments meet exactly as on PSX. */
+    PsyX_SetPgxpSnapMode(1);
+#endif
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
     {
         if (curBone->bone.modelInfo.field_0 >= 0)
@@ -416,6 +423,9 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             }
         }
     }
+#ifdef SH_PC_PORT
+    PsyX_SetPgxpSnapMode(0);
+#endif
 
     if (g_WorldEnvWork.isFogEnabled)
     {
