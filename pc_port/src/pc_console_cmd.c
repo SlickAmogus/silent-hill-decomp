@@ -604,22 +604,6 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
         cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
-    } else if (strcmp(cmd, "WELD") == 0) {
-        extern float g_pgxpWeldDistPx;
-        if (arg[0]) g_pgxpWeldDistPx = (float)atof(arg);
-        cprintf("PGXP char weld dist: %.2f px", g_pgxpWeldDistPx);
-    } else if (strcmp(cmd, "WELDW") == 0) {
-        extern float g_pgxpWeldWRatio;
-        if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
-        cprintf("PGXP char weld W ratio: %.2f", g_pgxpWeldWRatio);
-    } else if (strcmp(cmd, "CHARTEX") == 0) {
-        extern int g_pgxpCharPersp;
-        if (arg[0]) g_pgxpCharPersp = atoi(arg) ? 1 : 0;
-        cprintf("PGXP char texture: %s", g_pgxpCharPersp ? "perspective" : "affine");
-    } else if (strcmp(cmd, "CHARSNAP") == 0) {
-        extern int g_pgxpCharSnap;
-        if (arg[0]) g_pgxpCharSnap = atoi(arg) ? 1 : 0;
-        cprintf("PGXP char mode: %s", g_pgxpCharSnap ? "pixel-snap (no seams)" : "full PGXP");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {

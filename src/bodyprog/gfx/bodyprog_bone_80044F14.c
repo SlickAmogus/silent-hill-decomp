@@ -357,13 +357,6 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
         }
     }
 
-#ifdef SH_PC_PORT
-    /* PGXP: each bone is a separate rigid mesh on its own matrix, so a shared joint
-     * projects to two verts a sub-pixel apart and seams. This mode keeps full
-     * perspective PGXP (no faceting) and WELDS those coincident joint verts to a
-     * common precise position so the seam closes. Reset+scoped per character. */
-    PsyX_SetPgxpSnapMode(1);
-#endif
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
     {
         if (curBone->bone.modelInfo.field_0 >= 0)
@@ -379,9 +372,6 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
                 *(s32*)&viewMat.m[0][0] = 0;
             }
 
-#ifdef SH_PC_PORT
-            PsyX_PgxpNextBone();   /* new bone -> weld may fuse its joint verts to the previous bone's */
-#endif
             func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
 
             if (g_WorldEnvWork.isFogEnabled)
@@ -426,9 +416,6 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             }
         }
     }
-#ifdef SH_PC_PORT
-    PsyX_SetPgxpSnapMode(0);
-#endif
 
     if (g_WorldEnvWork.isFogEnabled)
     {
