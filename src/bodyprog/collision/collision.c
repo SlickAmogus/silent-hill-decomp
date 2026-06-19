@@ -2110,6 +2110,11 @@ void func_8006C794(s_CollisionState* state, s32 arg1, s32 dist) // 0x8006C794
                       state->charaPositionFrom.offset.vx - state->point.field_6.vx,
                       state->charaPositionFrom.offset.vz - state->point.field_6.vz,
                       (state->charaState.radius + state->point.field_C.field_0) - dist);
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(5, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
+                     state->point.field_6.vy, state->point.field_C.field_0,
+                     state->charaState.radius + state->point.field_C.field_0, dist, arg1);
+#endif
     }
 }
 
