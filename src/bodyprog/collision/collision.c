@@ -21,6 +21,21 @@
 #ifdef SH_PC_PORT
 #include "dbg_overlay.h"
 extern int g_CollVisEnabled; /* Collision visualizer toggle (dbg_overlay.c, ' key) */
+
+/* [WALLSTOP] (#42 v2): the [WALL-HIT] probe logged proximity to wall faces, but
+ * the actual movement block can come from THREE paths, and the deciding element
+ * (field_34/38 swept clamp or field_44 angle block) is often set by a DIFFERENT
+ * subcell than state.point holds when the pass ends. Stash the real blocking
+ * element AT each block site, then log it once per pass for Harry. kind:
+ * 1=swept wall, 2=static wall, 3=ROUND OBSTACLE (ptr_18, no split face -> invisible
+ * to the [WALL-HIT] probe and the visualizer; prime invisible-wall suspect). */
+struct s_WallStopDbg { int active, kind; s32 sub, ax, az, bx, bz, rad, dist, frac; };
+static struct s_WallStopDbg g_WallStopDbg;
+#define WALLSTOP_SET(k, s, _ax, _az, _bx, _bz, _r, _d, _f) do { \
+    g_WallStopDbg.active = 1; g_WallStopDbg.kind = (k); g_WallStopDbg.sub = (s); \
+    g_WallStopDbg.ax = (_ax); g_WallStopDbg.az = (_az); g_WallStopDbg.bx = (_bx); \
+    g_WallStopDbg.bz = (_bz); g_WallStopDbg.rad = (_r); g_WallStopDbg.dist = (_d); \
+    g_WallStopDbg.frac = (_f); } while (0)
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -603,6 +618,9 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
         }
 
         // Run through collision data.
+#ifdef SH_PC_PORT
+        g_WallStopDbg.active = 0;
+#endif
         for (curCollData = collDataPtrs; curCollData < &collDataPtrs[collDataIdx]; curCollData++)
         {
             Collision_CharaCollisionHandle(&state, *curCollData);
@@ -688,6 +706,33 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                 {
                     g_CollStateDbg.hold = 30; /* ~0.5s at 60fps */
                 }
+            }
+        }
+
+        /* [WALLSTOP] read: a block actually clamped Harry's move this pass
+         * (g_WallStopDbg set by one of the three block sites). Player-gated via
+         * cylinder-near-Harry + throttled. Captures the REAL stop the [WALL-HIT]
+         * proximity probe misses — especially kind=3 (round obstacle, otherwise
+         * invisible). kind 1/2=wall: a/b = split-face XZ endpoints, dist = perp
+         * distance, rad = body radius, frac = swept crossing (Q12, kind 1).
+         * kind 3=obstacle: a = obstacle XZ, b = (obstY, obstRadius), rad = body+obst
+         * reach, dist = center distance, frac = swept crossing. */
+        {
+            s32 _wpdx = cylinder->position.vx - g_SysWork.playerWork.player.position.vx;
+            s32 _wpdz = cylinder->position.vz - g_SysWork.playerWork.player.position.vz;
+            static s32 s_lastStopLog = -1000;
+            if (g_WallStopDbg.active && (g_TickCount - s_lastStopLog) > 8 &&
+                ABS(_wpdx) < Q12(4.0f) && ABS(_wpdz) < Q12(4.0f))
+            {
+                s_lastStopLog = g_TickCount;
+                SH_DBG("[WALLSTOP] kind=%d sub=%d a=(%d,%d) b=(%d,%d) rad=%d dist=%d frac=%d sweepDist=%d spd=%d harry=(%d,%d) head=%d",
+                       g_WallStopDbg.kind, g_WallStopDbg.sub,
+                       g_WallStopDbg.ax, g_WallStopDbg.az, g_WallStopDbg.bx, g_WallStopDbg.bz,
+                       g_WallStopDbg.rad, g_WallStopDbg.dist, g_WallStopDbg.frac,
+                       (int)state.charaState.distance,
+                       (int)g_SysWork.playerWork.player.moveSpeed,
+                       (int)state.charaPositionFrom.offset.vx, (int)state.charaPositionFrom.offset.vz,
+                       (int)g_SysWork.playerWork.player.rotation.vy);
             }
         }
 
@@ -1577,6 +1622,11 @@ void func_8006BB50(s_CollisionState* state, s32 arg1) // 0x8006BB50
 
     temp2 = state->charaState.radius - state->point.field_20.radiusCollDiffDist;
     func_8006BCC4(&state->field_44, &state->point.ipdCollisionData->subcellCheckIdx[state->point.subcellIdx], arg1, charaCollDistX, charaCollDistZ, temp2);
+#ifdef SH_PC_PORT
+    WALLSTOP_SET(2, state->point.subcellIdx, state->point.splitVertex0.vx, state->point.splitVertex0.vz,
+                 state->point.splitVertex1.vx, state->point.splitVertex1.vz,
+                 state->charaState.radius, state->point.field_20.radiusCollDiffDist, arg1);
+#endif
 }
 
 q23_8 func_8006BC34(s_CollisionState* state)
@@ -1780,6 +1830,10 @@ void func_8006BF88(s_CollisionState* state, const SVECTOR3* splitVert) // 0x8006
         state->field_3C = temp2 - splitVert->vx;
         temp3               = state->charaPositionFrom.offset.vz + Q12_MULT(state->charaState.offset.vz, temp_v0);
         state->field_3E = temp3 - splitVert->vz;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(1, state->point.subcellIdx, splitVert->vx, splitVert->vz, splitVert->vy, 0,
+                     state->charaState.radius, state->point.field_20.radiusCollDiffDist, temp_v0);
+#endif
     }
 }
 
@@ -2020,6 +2074,10 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
         state->field_3C = temp - state->point.field_6.vx;
         temp2               = state->charaPositionFrom.offset.vz + Q12_MULT(state->charaState.offset.vz, var_s2);
         state->field_3E = temp2 - state->point.field_6.vz;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(3, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
+                     state->point.field_6.vy, state->point.field_C.field_0, distMax, dist, var_s2);
+#endif
     }
 }
 
