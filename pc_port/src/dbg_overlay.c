@@ -503,6 +503,21 @@ static void coll_gather(void)
      * engine's real numbers, not float conversions. */
     CL("== COLLISION  (' toggle)  [Q12] ==");
     CL("pos %d,%d,%d", (int)px, (int)py, (int)pz);
+    /* [WALLEDGE] latched wall-edge bump (the "ran into a wall" reaction, no
+     * movement clamp). cnt>=3 = FIRED -> Harry bumped. hY vs gH shows whether his
+     * Y lagged the ground (the falling-through-smoothing link). "Nt ago" persists
+     * through a delayed mark. Kept near the top so it's on-screen. */
+    {
+        extern struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; } g_WallEdgeDbg;
+        extern s32 g_TickCount;
+        if (g_WallEdgeDbg.active)
+            CL("WALLEDGE gH=%d bnd=%d cnt=%d hY=%d %dt ago %s",
+               g_WallEdgeDbg.gH, g_WallEdgeDbg.bound, g_WallEdgeDbg.wallCount,
+               g_WallEdgeDbg.harryY, (int)(g_TickCount - g_WallEdgeDbg.tick),
+               g_WallEdgeDbg.wallCount >= 3 ? "FIRED" : "");
+        else
+            CL("WALLEDGE (none yet)");
+    }
     CL("ground H=%d", (int)c0.groundHeight);
     CL("tilt X=%d Z=%d type=%d", (int)c0.tiltAngleX, (int)c0.tiltAngleZ, (int)c0.groundType);
     CL("playerY-ground %+d", (int)(py - c0.groundHeight));
@@ -540,20 +555,6 @@ static void coll_gather(void)
        (int)g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz,
        (int)g_SysWork.playerWork.player.collision.cylinder.radius,
        (int)g_SysWork.playerWork.player.collision.cylinder.field_2);
-    /* [WALLEDGE] latched wall-edge reaction (the "ran into a wall" trigger, no
-     * movement clamp). FIRED when cnt>=3 -> Harry bumps. gH<bound on flat ground =
-     * spurious. "Nt ago" persists after a delayed mark so you can read it. */
-    {
-        extern struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; } g_WallEdgeDbg;
-        extern s32 g_TickCount;
-        if (g_WallEdgeDbg.active)
-            CL("WALLEDGE gH=%d bound=%d cnt=%d hY=%d %dt ago %s",
-               g_WallEdgeDbg.gH, g_WallEdgeDbg.bound, g_WallEdgeDbg.wallCount,
-               g_WallEdgeDbg.harryY, (int)(g_TickCount - g_WallEdgeDbg.tick),
-               g_WallEdgeDbg.wallCount >= 3 ? "FIRED" : "");
-        else
-            CL("WALLEDGE (none yet)");
-    }
 #undef CL
 
     /* Decrement the contact latch each frame so a held snapshot eventually
