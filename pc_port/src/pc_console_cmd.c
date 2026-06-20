@@ -604,6 +604,10 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
         cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
+    } else if (strcmp(cmd, "OBST") == 0) {
+        extern int g_PcObstacleCollision;
+        if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
+        cprintf("round-obstacle (ptr_18) collision: %s", g_PcObstacleCollision ? "ON" : "OFF (sprint-through)");
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);

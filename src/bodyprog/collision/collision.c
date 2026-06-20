@@ -64,6 +64,12 @@ extern void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r);
                                    (_vcd->positionZ + state->point.field_6.vz) << 4, \
                                    state->point.field_C.field_0 << 4); \
     } } while (0)
+
+/* Invisible-wall fix (#42): ptr_18 round obstacles (street poles/hydrants — point
+ * colliders with no rendered model) hard-stop a SPRINTING Harry from far via the
+ * swept test, in adjacent chunks, with nothing visible. 0 = their solid blocking
+ * is OFF (ground-height use is kept; walls/buildings still block). Console `OBST`. */
+int g_PcObstacleCollision = 0;
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -2061,6 +2067,15 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
         state->subcellIdx   = state->point.subcellIdx;
         state->groundHeight = state->point.field_6.vy;
     }
+
+#ifdef SH_PC_PORT
+    /* Skip the round-obstacle SOLID response (keep the ground-height capture
+     * above) so a sprinting Harry stops bumping invisible ptr_18 colliders. */
+    if (!g_PcObstacleCollision)
+    {
+        return;
+    }
+#endif
 
     if (!state->isCharaMoving && !state->field_0_9 || dist < state->point.field_C.field_0)
     {
