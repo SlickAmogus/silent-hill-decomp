@@ -434,6 +434,7 @@ int main(int argc, char* argv[])
      *   3 = both      — overlay + console window (same overlay content as 2) */
     {
         int show = g_PcConfig.showConsole;
+#ifdef _WIN32
         if (show == 1 || show == 3) {
             /* GUI-subsystem app: no console exists at launch, so create one for
              * external mode and point stdout/stderr at it. */
@@ -445,8 +446,6 @@ int main(int argc, char* argv[])
             setvbuf(stdout, NULL, _IONBF, 0);
             setvbuf(stderr, NULL, _IONBF, 0);
         } else {
-            /* No console in a GUI-subsystem app — just route stdout/stderr to
-             * the log file (or NUL) so stray printf doesn't hit an invalid handle. */
             if (g_PcConfig.enableDebugLog) {
                 freopen(SH_LogPath(), "a", stdout);
                 freopen(SH_LogPath(), "a", stderr);
@@ -457,6 +456,14 @@ int main(int argc, char* argv[])
                 freopen("NUL", "w", stderr);
             }
         }
+#else
+        if (show == 1 || show == 3) {
+            g_ShDebugEchoStdout = 1;
+        } else if (!g_PcConfig.enableDebugLog) {
+            freopen("/dev/null", "w", stdout);
+            freopen("/dev/null", "w", stderr);
+        }
+#endif
         /* Always capture log lines into the overlay ring buffer so the in-game
          * console can be toggled on at runtime (`~`) and immediately show recent
          * output, even when it booted disabled. Visibility is gated in
