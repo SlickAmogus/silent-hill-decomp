@@ -2319,12 +2319,16 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 #endif
         alpha = Q12_DIV(state->charaState.distance, mag);
 #ifdef SH_PC_PORT
-        /* Invisible-wall ROOT FIX: alpha = cos(slope). A walkable slope is gentle
-         * (alpha well above 0.5 = <60deg). A near-zero alpha means a near-vertical
-         * "slope" -> a spurious extrapolated ground read, not a real surface; it
-         * must NOT zero a sprinting Harry's movement (real walls block via the
-         * separate clamp/wall-edge paths). Treat it as flat. See g_PcSlopeAlphaFix. */
-        if (g_PcSlopeAlphaFix && alpha < Q12(0.5f))
+        /* Invisible-wall ROOT FIX: alpha = cos(slope). Real SH ground is gentle —
+         * the bug-spots are ~5.7deg floors (alpha ~0.99) that Ipd_GroundHeightGet
+         * mis-extrapolates into a near-vertical fake rise -> tiny alpha -> movement
+         * scaled toward zero == "ran into a wall" on a flat/gently-sloped floor.
+         * Cut at 0.8 (~37deg): anything steeper than a walkable slope is either a
+         * spurious read or a real wall (which blocks via the separate clamp/wall-
+         * edge paths, not this slope factor) -> treat as flat. 0.5 was too low: at
+         * WALK speed the same fake rise lands ~0.5 and slipped through as a hard
+         * slowdown (user A1/A2 floor-spots, not top-speed). Real slopes stay >0.85. */
+        if (g_PcSlopeAlphaFix && alpha < Q12(0.8f))
         {
             return Q12(1.0f);
         }
