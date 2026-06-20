@@ -9912,7 +9912,23 @@ void Player_Controller(void) // 0x8007F32C
 {
     s32 attackBtnInput;
 
-    g_Player_IsMovingForward    = (g_Player_IsMovingForward * 2) & 0x3;
+#ifdef SH_PC_PORT
+    /* Age the forward-input history at 30 Hz, not per render frame (#42). This is
+     * a 2-bit shift register {prevTick, currTick} of the forward input; the
+     * RunForward case reads !g_Player_IsMovingForward (BOTH bits clear) as "player
+     * released forward" to play the skid-stop RunForwardWallStop — the random
+     * "ran into an invisible wall" hands-up smack. Aged per PC frame it reaches 0
+     * after only 2 frames (~8 ms at 240 fps), so a transient stick/key gap while
+     * the player is still holding forward fires the skid on open ground. PSX ages
+     * it once per 30 Hz tick (needs ~66 ms of genuine release). The current-input
+     * OR below stays per frame, so forward held in ANY sub-frame keeps bit0 set.
+     * Same throttle the attack shift register uses further down. */
+    static int s_moveFwdShiftAccum = 0;
+    if (PC_Tick30HzReady(&s_moveFwdShiftAccum))
+#endif
+    {
+        g_Player_IsMovingForward = (g_Player_IsMovingForward * 2) & 0x3;
+    }
     g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
     g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
 
