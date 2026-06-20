@@ -90,6 +90,21 @@ q19_12     g_Player_HeadingAngle;
 s32        __pad_bss_800C460C;
 VECTOR3    D_800C4610;
 
+#ifdef SH_PC_PORT
+/* Invisible-wall gate (#42): intended horizontal step magnitude of the LAST
+ * func_8007C0D8 integration (Q12). travelDistStep measures the ACTUAL displacement
+ * of that SAME integration, so `actual < intended/2` is a dt/speed/tilt-consistent
+ * "was I really blocked this frame" test. The previous gate recomputed the threshold
+ * from playerProps.moveSpeed (properties.player) * g_DeltaTime, but Harry is actually
+ * moved by player->moveSpeed (a different field, tilt-adjusted in func_8007C0D8); when
+ * the intended field exceeds the one that moved him the threshold inflates and the
+ * smack fires on open ground. */
+s32 g_Player_LastMoveStep;
+/* func_8007D6F0 forward-anticipation raycast result, stashed for the [WALLANIM]
+ * trigger log so a user capture shows what the ray hit when the smack fired. */
+s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundHeight;
+#endif
+
 #define playerProps g_SysWork.playerWork.player.properties.player
 
 q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
@@ -6329,14 +6344,24 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                              * "hands up + stop" (RunForwardWallStop) when Harry is
                              * ACTUALLY blocked this frame, not merely because the
                              * forward-anticipation raycast (func_8007D6F0) saw a surface
-                             * ahead. travelDistStep is his real per-frame displacement;
-                             * on open ground / threading trees it stays near his sprint
-                             * step, so the smack is suppressed. A real wall collides his
-                             * movement to ~0 first, so the smack still fires there. */
-                            && travelDistStep < (Q12_MULT(playerProps.moveSpeed, g_DeltaTime) >> 1)
+                             * ahead. travelDistStep is his realized per-frame displacement;
+                             * g_Player_LastMoveStep is what that SAME integration intended
+                             * before collision clamped it, so this is a dt/speed/tilt-
+                             * consistent "blocked to under half my step" test. On open
+                             * ground he keeps moving so the smack is suppressed; a real
+                             * wall collides his movement to ~0 first, so it still fires. */
+                            && travelDistStep < (g_Player_LastMoveStep >> 1)
 #endif
                             )
                         {
+#ifdef SH_PC_PORT
+                            SH_DBG("[WALLANIM] pathA travel=%d intended=%d runDist=%d spdProp=%d spdTop=%d dt=%d rayHit=%d rayAng=%d rayGH=%d pos=(%d,%d)",
+                                   (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                   (int)player->properties.player.runDistance,
+                                   (int)playerProps.moveSpeed, (int)player->moveSpeed, (int)g_DeltaTime,
+                                   (int)g_Player_WallRayHitDist, (int)g_Player_WallRayAngleDelta, (int)g_Player_WallRayGroundHeight,
+                                   (int)player->position.vx, (int)player->position.vz);
+#endif
                             g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_RunForwardWallStop;
                         }
                         else if (player->model.anim.keyframeIdx >= 30 &&
@@ -6383,12 +6408,24 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                                 if (player->model.anim.keyframeIdx >= 33 &&
                                     player->model.anim.keyframeIdx <= 34)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags &= ~PlayerFlag_WallStopRight;
                                 }
                                 else if (player->model.anim.keyframeIdx >= 43 &&
                                          player->model.anim.keyframeIdx <= 44)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags |= PlayerFlag_WallStopRight;
                                 }
@@ -7953,6 +7990,13 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
     temp_s0_2 = Q12_MULT_PRECISE(player->moveSpeed, g_DeltaTime);
 
+#ifdef SH_PC_PORT
+    /* Intended horizontal step this frame, before collision clamps `offset`.
+     * The RunForward wall-smack gate compares the realized displacement against
+     * half of this. See g_Player_LastMoveStep. */
+    g_Player_LastMoveStep = ABS(temp_s0_2);
+#endif
+
     temp_v0_3 = player->headingAngle;
     temp      = temp_s0_2 + SHRT_MAX;
     temp_s2_2 = (temp > (SHRT_MAX * 2)) * 4;
@@ -8908,6 +8952,12 @@ s32 func_8007D6F0(s_SubCharacter* player, s_800C45C8* arg1) // 0x8007D6F0
 
             angle      = Q12_ANGLE_NORM_U(((rays[0].field_1C + rays[1].field_1C) >> 1) + Q12_ANGLE(360.0f));
             angleDelta = ABS_DIFF(angle, player->headingAngle);
+
+#ifdef SH_PC_PORT
+            g_Player_WallRayHitDist      = arg1->field_14;
+            g_Player_WallRayAngleDelta   = angleDelta;
+            g_Player_WallRayGroundHeight = rays[0].groundHeight;
+#endif
 
             if (angleDelta > Q12_ANGLE(160.0f) && angleDelta < Q12_ANGLE(200.0f))
             {
