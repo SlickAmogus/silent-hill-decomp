@@ -6323,7 +6323,19 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         break;
 
                     case PlayerLowerBodyState_RunForward:
-                        if (player->properties.player.runDistance >= (u32)Q12(10.0f))
+                        if (player->properties.player.runDistance >= (u32)Q12(10.0f)
+#ifdef SH_PC_PORT
+                            /* Invisible-wall ROOT FIX: only play the run-into-wall
+                             * "hands up + stop" (RunForwardWallStop) when Harry is
+                             * ACTUALLY blocked this frame, not merely because the
+                             * forward-anticipation raycast (func_8007D6F0) saw a surface
+                             * ahead. travelDistStep is his real per-frame displacement;
+                             * on open ground / threading trees it stays near his sprint
+                             * step, so the smack is suppressed. A real wall collides his
+                             * movement to ~0 first, so the smack still fires there. */
+                            && travelDistStep < (Q12_MULT(playerProps.moveSpeed, g_DeltaTime) >> 1)
+#endif
+                            )
                         {
                             g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_RunForwardWallStop;
                         }
@@ -8007,6 +8019,7 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
         if (newGround == Q12(8.0f)) {
             D_800C4590.surface.groundHeight = prevGround;
         } else if (newGround < player->position.vy - Q12(2.0f)) {
+            extern int g_PhantomRejectCount; g_PhantomRejectCount++;
             /* Phantom floor far ABOVE Harry's feet (-Y is up): a surface 2+ units
              * over his head is not a floor he's standing on. The map2_s00 kitchen
              * spot has one whose ground flips -11840<->0 (~2.9u up) as you cross it;

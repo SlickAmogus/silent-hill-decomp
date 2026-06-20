@@ -88,6 +88,14 @@ struct s_WallEdgeDbg g_WallEdgeDbg;
  * the reported bug, and worse the faster he runs. 1 = cap the slope factor so a
  * non-walkable (near-vertical) "slope" can't zero movement; console `ALPHA 0/1`. */
 int g_PcSlopeAlphaFix = 1;
+
+/* Live diagnostics for the invisible-wall fixes (shown on the collision panel) so
+ * we can tell at a glance whether they're firing: g_LastOffsetAlphaQ12 = the RAW
+ * slope factor this frame (Q12; 4096=1.0=no slowdown, low=slope choke);
+ * g_SlopeAlphaCapCount bumps each time the <0.8 cap kicks in. */
+q3_12 g_LastOffsetAlphaQ12 = Q12(1.0f);
+int   g_SlopeAlphaCapCount = 0;
+int   g_PhantomRejectCount = 0; /* bumped by the phantom-floor reject in player_control.c */
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -2292,6 +2300,10 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 {
     q23_8 groundHeight;
 
+#ifdef SH_PC_PORT
+    g_LastOffsetAlphaQ12 = Q12(1.0f); /* default: the early-return (no-slope) cases */
+#endif
+
     if (state->slopedGroundHeight == Q8(30.0f))
     {
         return Q12(1.0f);
@@ -2319,6 +2331,7 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 #endif
         alpha = Q12_DIV(state->charaState.distance, mag);
 #ifdef SH_PC_PORT
+        g_LastOffsetAlphaQ12 = alpha; /* raw slope factor this frame (panel diag) */
         /* Invisible-wall ROOT FIX: alpha = cos(slope). Real SH ground is gentle —
          * the bug-spots are ~5.7deg floors (alpha ~0.99) that Ipd_GroundHeightGet
          * mis-extrapolates into a near-vertical fake rise -> tiny alpha -> movement
@@ -2330,6 +2343,7 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
          * slowdown (user A1/A2 floor-spots, not top-speed). Real slopes stay >0.85. */
         if (g_PcSlopeAlphaFix && alpha < Q12(0.8f))
         {
+            g_SlopeAlphaCapCount++;
             return Q12(1.0f);
         }
 #endif
