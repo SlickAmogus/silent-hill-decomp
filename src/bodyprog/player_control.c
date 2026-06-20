@@ -7466,7 +7466,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         player->model.stateStep++;
                     }
 
-                    if (player->model.anim.keyframeIdx == D_800C44F0[0].field_6 || player->model.anim.keyframeIdx == D_800C44F0[5].field_6)
+                    if (SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6) || SH_AIM_KF_REACHED_P(D_800C44F0[5].field_6))
                     {
                         player->model.anim.status      = extra->model.anim.status;
                         player->model.anim.keyframeIdx = extra->model.anim.keyframeIdx;
@@ -7541,7 +7541,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                  WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack) != EquippedWeaponId_Katana))
             {
                 if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
-                    (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || player->model.anim.keyframeIdx == D_800C44F0[0].field_6))
+                    (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6)))
                 {
                     if (!g_Player_IsMovingForward)
                     {
@@ -7589,7 +7589,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             }
 
             if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
-                (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || player->model.anim.keyframeIdx == D_800C44F0[0].field_6))
+                (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6)))
             {
                 if (g_Player_IsMovingForward)
                 {
