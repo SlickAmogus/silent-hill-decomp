@@ -8006,6 +8006,15 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
         if (newGround == Q12(8.0f)) {
             D_800C4590.surface.groundHeight = prevGround;
+        } else if (newGround < player->position.vy - Q12(2.0f)) {
+            /* Phantom floor far ABOVE Harry's feet (-Y is up): a surface 2+ units
+             * over his head is not a floor he's standing on. The map2_s00 kitchen
+             * spot has one whose ground flips -11840<->0 (~2.9u up) as you cross it;
+             * selecting it snaps his ground/Y up and hitches the sprint == invisible
+             * wall on flat floor. Compared to his actual Y (not a per-frame delta)
+             * so it also catches the 30fps case where the climb limit is looser.
+             * Keep the real floor he was already on. */
+            D_800C4590.surface.groundHeight = prevGround;
         } else {
             s32 delta = newGround - prevGround;
             if (delta > maxDownDelta) {
