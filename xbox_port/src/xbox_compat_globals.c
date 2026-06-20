@@ -38,7 +38,12 @@ s_PcConfig g_PcConfig = {
     .vsync           = 1,
     .refreshRate     = 60,
     .fpsCap          = 30,  /* PSX-accurate */
-    .skipIntros      = 0,
+    /* Skip the Konami/Kcet logos + intro movie and jump Boot->MainMenu. This is a
+     * supported PC-port path (Settings_RestoreDefaults runs in its place). We use
+     * it for now because the logos' "checking memory card" step spins forever on
+     * the stubbed memcard HAL (func_80033548 never reports ready). Revisit once a
+     * real memcard HAL (HDD-backed) + FMV are implemented. */
+    .skipIntros      = 1,
     .widescreenMode  = 0,   /* pillarbox / PSX-faithful */
     .menuPillarbox   = 0,
     .allowLooseFiles = 0,

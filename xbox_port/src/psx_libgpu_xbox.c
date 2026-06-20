@@ -55,14 +55,23 @@ extern void GpuNv2a_FrameEnd(void);
 extern void Pad_Poll(void);   /* refresh the PSX pad buffer (pad_xbox.c) */
 
 static volatile int s_vsyncCount = 0;
+static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
 
 /* The game calls VSync(0) once per frame to wait for vblank; we use it as the
  * present point — finish + swap the frame the game just rendered, then open the
- * next. main_xbox.c opens the very first frame before entering MainLoop. */
+ * next. main_xbox.c opens the very first frame before entering MainLoop.
+ *
+ * On PSX the registered VSyncCallback fires on every vblank interrupt; the game
+ * relies on it (Screen_VSyncCallback: increments counters_1C[] — the boot-logo
+ * timers — and pumps the MIDI sequencer). We have no vblank IRQ, so fire it here
+ * once per frame. Without this, all frame timers freeze and boot logos never
+ * advance. */
 int VSync(int mode)
 {
     (void)mode;
     Pad_Poll();
+    if (s_vsyncCb)
+        s_vsyncCb();
     GpuNv2a_FrameEnd();
     GpuNv2a_FrameBegin();
     ++s_vsyncCount;
@@ -71,4 +80,4 @@ int VSync(int mode)
     return s_vsyncCount;
 }
 
-int VSyncCallback(void (*f)(void)) { (void)f; return 0; }
+int VSyncCallback(void (*f)(void)) { s_vsyncCb = f; return 0; }

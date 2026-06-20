@@ -162,6 +162,13 @@ PCPORT_STUBS := \
 MAP_OBJS := $(addsuffix .obj,$(basename $(MAP_SRCS)))
 $(MAP_OBJS): CFLAGS += -DMAP0_S00 -DSH_MAP_NAME=map0_s00
 
+# USB host stack for the controller — scoped to pad_xbox.c (the headers/config
+# define are nxdk-USB-specific and shouldn't leak into the rest of the build).
+# The prebuilt $(NXDK_DIR)/lib/nxdk_usb.lib is linked below.
+$(XBOX_PORT)/src/pad_xbox.obj: CFLAGS += \
+	-I$(NXDK_DIR)/lib/usb/libusbohci/inc -I$(NXDK_DIR)/lib/usb/libusbohci_xbox \
+	-DUSBH_USE_EXTERNAL_CONFIG=\"usbh_config_xbox.h\"
+
 # --- Sources ----------------------------------------------------------------
 # Xbox platform shell + NV2A/PSX-libgpu HAL.
 XBOX_SRCS = \
@@ -195,3 +202,9 @@ SRCS = \
 SHADER_OBJS = $(XBOX_PORT)/src/vs.inl $(XBOX_PORT)/src/ps.inl
 
 include $(NXDK_DIR)/Makefile
+
+# Link the prebuilt USB host lib (pad_xbox.c) — extra prerequisite merged into the
+# nxdk main.exe rule so it joins $^ on the link line. MUST come AFTER the include:
+# placed before it, this rule became make's first target (default goal), so `make`
+# built only main.exe and skipped the CXBE step -> a stale default.xbe.
+main.exe: $(NXDK_DIR)/lib/nxdk_usb.lib

@@ -32,10 +32,16 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 
 /* --- primitive -> triangle conversion ------------------------------------- */
 
+/* The game draws in PSX logical coords (SCREEN_WIDTH x SCREEN_HEIGHT = 320x240);
+ * the NV2A framebuffer is 640x480. Scale 2x so it fills the screen instead of
+ * rendering into the top-left quarter. */
+#define SH_X_SCALE (640.0f / 320.0f)
+#define SH_Y_SCALE (480.0f / 240.0f)
+
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
-    v->pos[0] = (float)x;
-    v->pos[1] = (float)y;
+    v->pos[0] = (float)x * SH_X_SCALE;
+    v->pos[1] = (float)y * SH_Y_SCALE;
     v->pos[2] = 0.0f;
     v->col[0] = (float)r * (1.0f / 255.0f);
     v->col[1] = (float)g * (1.0f / 255.0f);
