@@ -2069,8 +2069,11 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
     }
 
 #ifdef SH_PC_PORT
-    /* Skip the round-obstacle SOLID response (keep the ground-height capture
-     * above) so a sprinting Harry stops bumping invisible ptr_18 colliders. */
+    /* Draw this near obstacle in the visualizer (red) whether or not it blocks,
+     * so you can still SEE the ptr_18 colliders even with collision disabled.
+     * Then skip the SOLID response (ground-height capture above is kept) so a
+     * sprinting Harry stops bumping the invisible ones. */
+    WALLSTOP_VIS_OBST();
     if (!g_PcObstacleCollision)
     {
         return;
@@ -2126,7 +2129,6 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
 #ifdef SH_PC_PORT
         WALLSTOP_SET(3, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
                      state->point.field_6.vy, state->point.field_C.field_0, distMax, dist, var_s2);
-        WALLSTOP_VIS_OBST();
 #endif
     }
 }
@@ -2145,7 +2147,6 @@ void func_8006C794(s_CollisionState* state, s32 arg1, s32 dist) // 0x8006C794
         WALLSTOP_SET(5, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
                      state->point.field_6.vy, state->point.field_C.field_0,
                      state->charaState.radius + state->point.field_C.field_0, dist, arg1);
-        WALLSTOP_VIS_OBST();
 #endif
     }
 }
