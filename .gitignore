@@ -43,3 +43,11 @@ maprenames.txt
 pc_port/launcher/**/obj/
 pc_port/launcher/**/bin/
 *.user
+
+# Xbox nxdk build artifacts: the nxdk build compiles game code in-place, dropping
+# object + dependency files next to the shared sources (src/, pc_port/src/,
+# build_gen/). The .xbe / host-tool / shader outputs live under xbox_port/ and are
+# covered by xbox_port/.gitignore.
+*.obj
+*.c.d
+*.cpp.d

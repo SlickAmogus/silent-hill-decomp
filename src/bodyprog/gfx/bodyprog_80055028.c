@@ -12,6 +12,10 @@ extern float g_PsxPixelAspect;
 #include <psyq/libapi.h>
 #include <psyq/strings.h>
 
+/* Forward decl: used before its definition below; clang errors on the
+ * conflicting implicit declaration otherwise (gcc only warns). */
+void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"

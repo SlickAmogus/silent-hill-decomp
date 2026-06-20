@@ -11,6 +11,20 @@
 #include "bodyprog/math/math.h"
 #include "sh_log.h"
 
+// 0x80037388 — un-nested from Event_Update: clang/nxdk does not support GCC's
+// nested-function extension. A file-scope static is behavior-identical (no parent
+// locals were captured) and still compiles fine under the PC port's gcc.
+static void Event_ItemTriggersClear(void)
+{
+    s32 i;
+
+    for (i = 0; i < 5; i++)
+    {
+        g_ItemTriggerItemIds[i] = NO_VALUE;
+        g_ItemTriggerEvents[i]  = NULL;
+    }
+}
+
 void Event_Update(bool disableButtonEvents) // 0x800373CC
 {
     s_MapPoint2d* mapPoint;
@@ -20,17 +34,6 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
     q19_12        pointRadiusX;
     q19_12        pointRadiusZ;
     s32           i;
-
-    void Event_ItemTriggersClear() // 0x80037388
-    {
-        s32 i;
-
-        for (i = 0; i < 5; i++)
-        {
-            g_ItemTriggerItemIds[i] = NO_VALUE;
-            g_ItemTriggerEvents[i]  = NULL;
-        }
-    }
 
     // `lastUsedItem` is set by `Inventory_ItemUse` when player uses an item that matches one of the item trigger events.
     // If it's set, find its index in `g_ItemTriggerItemIds` and use that to get the corresponding `s_EventData` from `g_ItemTriggerEvents`.

@@ -15,6 +15,10 @@
 #include "sh_log.h"
 #endif
 
+/* Forward decl: called before its definition below; clang errors on the
+ * conflicting implicit declaration otherwise (gcc only warns). */
+void Gfx_Inventory_2dBackgroundDraw(s32* arg0);
+
 const s32 pad_rodata_800262F8 = 0;
 
 GsF_LIGHT g_Items_Lights[7][2];

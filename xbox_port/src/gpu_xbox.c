@@ -157,7 +157,7 @@ void DrawOTag(u_long* p)
     if (g_gpuDisabled)
         return;
 
-    if (s_otLog) SH_DBG("[OT] DrawOTag head=%p", (void*)base);
+    if (s_otLog) SH_DBG("[OT] DrawOTag head=%p (walking; per-node trace off)", (void*)base);
 
     for (safety = 0; safety < 16384; safety++) {
         const int len = getlen(base);
@@ -172,15 +172,17 @@ void DrawOTag(u_long* p)
             }
         }
 
+        /* Per-node tracing is intentionally OFF: a real game OT is ~1000+ buckets,
+         * and one unbuffered D: write per node makes the first frame crawl (and
+         * never completed on hardware). The one-shot summary below is enough to
+         * confirm the walk terminates. */
         next = getaddr(base);
-        if (s_otLog) SH_DBG("[OT] node=%p len=%d code=0x%02x next=%p",
-                            (void*)base, len, ((P_TAG*)base)->code, (void*)next);
         if (next == (uintptr_t)0xffffffff || next < 0x10000)
             break;
         base = next;
     }
 
-    if (s_otLog) { SH_DBG("[OT] walk done after %d nodes", safety); s_otLog = 0; }
+    if (s_otLog) { SH_DBG("[OT] walk done after %d nodes (cap hit=%d)", safety, safety >= 16384); s_otLog = 0; }
 }
 
 void DrawOTagEnv(u_long* p, DRAWENV* env)

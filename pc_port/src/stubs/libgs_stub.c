@@ -13,10 +13,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifndef SH_XBOX_PORT
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#endif
 #include "sh_log.h"
 
+#ifndef SH_XBOX_PORT
 /* Screenshot helper - captures back buffer (call before EndScene/swap) */
 void SH_TakeScreenshot(const char* filename)
 {
@@ -38,6 +41,7 @@ void SH_TakeScreenshot(const char* filename)
     free(px);
     printf("[SH] Screenshot saved: %s (%dx%d)\n", filename, w, h);
 }
+#endif /* !SH_XBOX_PORT */
 
 /* Double-buffered display */
 static int gs_active_buff = 0;
@@ -57,10 +61,20 @@ static MATRIX gs_light_matrix;
 static long gs_last_ls_t[3] = {0, 0, 0}; /* last translation from GsSetLsMatrix */
 
 /* VCount emulation - simulate PSX H-blank counter using real time */
-#include <SDL.h>
 #define H_BLANKS_PER_SECOND 15780
-static Uint64 gs_vcount_start = 0;
+static unsigned long long gs_vcount_start = 0;
 static int gs_vcount_active = 0;
+
+/* High-resolution monotonic counter, abstracted per platform. */
+#ifndef SH_XBOX_PORT
+#include <SDL.h>
+static unsigned long long Gs_PerfCounter(void) { return (unsigned long long)SDL_GetPerformanceCounter(); }
+static unsigned long long Gs_PerfFreq(void)    { return (unsigned long long)SDL_GetPerformanceFrequency(); }
+#else
+#include <xboxkrnl/xboxkrnl.h>
+static unsigned long long Gs_PerfCounter(void) { return (unsigned long long)KeQueryPerformanceCounter(); }
+static unsigned long long Gs_PerfFreq(void)    { return (unsigned long long)KeQueryPerformanceFrequency(); }
+#endif
 
 void GsInitGraph(int x, int y, int mode, int a, int b)
 {
@@ -167,22 +181,22 @@ void GsInit3D(void)
 
 void GsInitVcount(void)
 {
-    gs_vcount_start = SDL_GetPerformanceCounter();
+    gs_vcount_start = Gs_PerfCounter();
     gs_vcount_active = 1;
 }
 
 int GsGetVcount(void)
 {
     if (!gs_vcount_active) return 0;
-    Uint64 now = SDL_GetPerformanceCounter();
-    Uint64 freq = SDL_GetPerformanceFrequency();
+    unsigned long long now = Gs_PerfCounter();
+    unsigned long long freq = Gs_PerfFreq();
     /* Convert elapsed time to H-blank count (15780 per second on PSX) */
     return (int)(((now - gs_vcount_start) * H_BLANKS_PER_SECOND) / freq);
 }
 
 void GsClearVcount(void)
 {
-    gs_vcount_start = SDL_GetPerformanceCounter();
+    gs_vcount_start = Gs_PerfCounter();
 }
 
 void GsDrawOt_ResetFrameCount(void);
@@ -217,7 +231,7 @@ void GsDrawOt(GsOT *ot)
 {
     if (ot && ot->tag)
     {
-#ifdef SH_PC_PORT
+#if defined(SH_PC_PORT) && !defined(SH_XBOX_PORT)
         extern int g_currentOTBucketCount;
         extern void PsyX_ClearGteDepthTable(void);
         g_currentOTBucketCount = 1 << ot->length;
@@ -226,6 +240,7 @@ void GsDrawOt(GsOT *ot)
         glClearDepth(1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
+        /* Xbox: the NV2A backend clears depth in GpuNv2a_FrameBegin. */
         DrawOTag((u_long*)ot->tag);
     }
 }

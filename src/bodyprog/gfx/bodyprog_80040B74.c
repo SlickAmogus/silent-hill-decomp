@@ -19,6 +19,10 @@
 #include "main/fsqueue.h"
 #include "types.h"
 
+/* Forward decl: called before its definition below; clang errors on the
+ * conflicting implicit declaration otherwise (gcc only warns). */
+void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount, s_ActiveChunkTextures* fullPageActiveTexs, s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
+
 /** Known contents:
  * - Map loading funcs
  * - Animation funcs

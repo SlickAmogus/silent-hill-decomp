@@ -1,62 +1,122 @@
 /*
  * main_xbox.c - Original Xbox (NXDK / NV2A) entry point for the Silent Hill 1 port.
  *
- * Mirror of pc_port/src/main_pc.c: brings up the Xbox HAL and (eventually) hands
- * control to the game's MainLoop(). Until the shared game code is wired in, this
- * exercises the HAL pieces built so far: the software GTE (gte_selftest.c) and
- * the PSX libgpu (gpu_xbox.c DrawOTag) on the NV2A backend, by walking a small
- * hand-built ordering table of polygons each frame.
+ * Mirror of pc_port/src/main_pc.c: brings up the Xbox HAL (video / pbkit / NV2A /
+ * D: log), initializes the PSX-RAM-emulated runtime data the way the PC port does
+ * (PsxMemory_Init + the anim-info builders + overlay pointers), then hands control
+ * to the shared game MainLoop(). Frame presentation is driven from VSync()
+ * (psx_libgpu_xbox.c) onto GpuNv2a_FrameBegin/FrameEnd.
+ *
+ * We do NOT include game.h here: it pulls the decomp `byte` typedef which clashes
+ * with <windows.h>. Game entry points are declared extern instead (as main_pc.c
+ * also does for the data builders).
  */
 #include <hal/debug.h>
 #include <hal/video.h>
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
-#include <libgte.h>
-#include <libgpu.h>
-
 #include "gpu_nv2a.h"
 #include "sh_log.h"
+#include "psx_memory.h"   /* PSX_ADDR, PsxMemory_Init (includes only <stdint.h>) */
 
 extern void XboxFs_MountHomeDrive(void);
 extern void Gte_SelfTest(void);
 
-/* Hand-built ordering table: a flat-white triangle + a gouraud quad, linked
- * head -> quad -> tri -> terminator. DrawOTag walks it and renders via NV2A. */
-static OT_TAG   g_testOt;
-static POLY_G4  g_testQuad;
-static POLY_F3  g_testTri;
+/* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
+extern void MainLoop(void);
+extern void Fs_QueueInitialize(void);
+extern void ResetGraph(int mode);
+extern void SetGraphDebug(int level);
+extern void SpuInit(void);
+extern void PcPort_InitCharaAnimInfo(void);
+extern void PcPort_InitSdBuffers(void);
 
-static void BuildTestOT(void)
+/* Overlay base pointers — on PSX these are fixed RAM addresses; here they point
+ * into the emulated PSX RAM (g_PsxRam) via PSX_ADDR, matching main_pc.c (USA). */
+extern void* g_OvlDynamic;
+extern void* g_OvlBodyprog;
+typedef struct s_DemoFrameData s_DemoFrameData;
+extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
+
+/* Runtime data builders (zero-stub anim infos + rodata reformat). main_pc.c calls
+ * these before MainLoop because MinGW/clang reject function pointers in static
+ * initializers; the data is assembled at runtime instead. */
+extern void AsRodata_Reformat(void);
+extern void GroanerAnimInfos_Init(void);
+extern void BloodsuckerAnimInfos_Init(void);
+extern void BloodyLisaAnimInfos_Init(void);
+extern void AlessaAnimInfos_Init(void);
+extern void GhostChildAlessaAnimInfos_Init(void);
+extern void LisaAnimInfos_Init(void);
+extern void KaufmannAnimInfos_Init(void);
+extern void DahliaAnimInfos_Init(void);
+extern void CatAnimInfos_Init(void);
+extern void PuppetNurseData_Init(void);
+extern void LarvalStalkerAnimInfos_Init(void);
+extern void HangedScratcherAnimInfos_Init(void);
+extern void CreeperAnimInfos_Init(void);
+extern void SplitHeadAnimInfos_Init(void);
+extern void RomperAnimInfos_Init(void);
+extern void LockerDeadBodyAnimInfos_Init(void);
+extern void TwinfeelerAnimInfos_Init(void);
+extern void FloatstingerAnimInfos_Init(void);
+extern void MonsterCybilAnimInfos_Init(void);
+extern void FlaurosAnimInfos_Init(void);
+extern void ParasiteAnimInfos_Init(void);
+extern void GhostDoctorAnimInfos_Init(void);
+extern void BloodyIncubatorAnimInfos_Init(void);
+extern void IncubatorAnimInfos_Init(void);
+extern void LittleIncubusAnimInfos_Init(void);
+extern void IncubusAnimInfos_Init(void);
+extern void Unkkown23AnimInfos_Init(void);
+extern void Map6S04ExtraAnimInfos_Init(void);
+
+static void Sh_InitGameData(void)
 {
-    /* empty OT head bucket (len 0), terminates the chain */
-    setlen(&g_testOt, 0);
-    setaddr(&g_testOt, 0xffffffff);
+    /* PSX memory emulation first — everything below is g_PsxRam-relative. */
+    PsxMemory_Init();
+    SH_DBG("[SH-XBOX] PSX RAM @ %p", (void*)g_PsxRam);
 
-    /* gouraud quad (code 0x38, 8 longs): R/G/B/Y corners */
-    setlen(&g_testQuad, 8);
-    setcode(&g_testQuad, 0x38);
-    g_testQuad.r0 = 255; g_testQuad.g0 = 0;   g_testQuad.b0 = 0;
-    g_testQuad.r1 = 0;   g_testQuad.g1 = 255; g_testQuad.b1 = 0;
-    g_testQuad.r2 = 0;   g_testQuad.g2 = 0;   g_testQuad.b2 = 255;
-    g_testQuad.r3 = 255; g_testQuad.g3 = 255; g_testQuad.b3 = 0;
-    g_testQuad.x0 = 80;  g_testQuad.y0 = 80;
-    g_testQuad.x1 = 300; g_testQuad.y1 = 90;
-    g_testQuad.x2 = 90;  g_testQuad.y2 = 300;
-    g_testQuad.x3 = 300; g_testQuad.y3 = 300;
+    PcPort_InitCharaAnimInfo();
+    PcPort_InitSdBuffers();
+    AsRodata_Reformat();
 
-    /* flat white triangle (code 0x20, 4 longs) */
-    setlen(&g_testTri, 4);
-    setcode(&g_testTri, 0x20);
-    g_testTri.r0 = 255; g_testTri.g0 = 255; g_testTri.b0 = 255;
-    g_testTri.x0 = 420; g_testTri.y0 = 100;
-    g_testTri.x1 = 360; g_testTri.y1 = 320;
-    g_testTri.x2 = 540; g_testTri.y2 = 340;
+    GroanerAnimInfos_Init();
+    BloodsuckerAnimInfos_Init();
+    BloodyLisaAnimInfos_Init();
+    AlessaAnimInfos_Init();
+    GhostChildAlessaAnimInfos_Init();
+    LisaAnimInfos_Init();
+    KaufmannAnimInfos_Init();
+    DahliaAnimInfos_Init();
+    CatAnimInfos_Init();
+    PuppetNurseData_Init();
+    LarvalStalkerAnimInfos_Init();
+    HangedScratcherAnimInfos_Init();
+    CreeperAnimInfos_Init();
+    SplitHeadAnimInfos_Init();
+    RomperAnimInfos_Init();
+    LockerDeadBodyAnimInfos_Init();
+    TwinfeelerAnimInfos_Init();
+    FloatstingerAnimInfos_Init();
+    MonsterCybilAnimInfos_Init();
+    FlaurosAnimInfos_Init();
+    ParasiteAnimInfos_Init();
+    GhostDoctorAnimInfos_Init();
+    BloodyIncubatorAnimInfos_Init();
+    IncubatorAnimInfos_Init();
+    LittleIncubusAnimInfos_Init();
+    IncubusAnimInfos_Init();
+    Unkkown23AnimInfos_Init();
+    Map6S04ExtraAnimInfos_Init();
 
-    /* link: head -> quad -> tri -> terminator */
-    setaddr(&g_testTri,  0xffffffff);
-    setaddr(&g_testQuad, (uintptr_t)&g_testTri);
-    setaddr(&g_testOt,   (uintptr_t)&g_testQuad);
+    /* Overlay base pointers into emulated PSX RAM (USA addresses, per main_pc.c). */
+    g_OvlDynamic             = PSX_ADDR(0x000C9578);
+    g_OvlBodyprog            = PSX_ADDR(0x00024B60);
+    g_Demo_PlayFileBufferPtr = (s_DemoFrameData*)PSX_ADDR(0x000F5E00);
+
+    SH_DBG("[SH-XBOX] game data initialised");
 }
 
 int main(void)
@@ -81,21 +141,23 @@ int main(void)
     SH_DBG("[SH-XBOX] pbkit initialised");
 
     GpuNv2a_Init();
-    BuildTestOT();
-    SH_DBG("[SH-XBOX] entering render loop (DrawOTag test)");
 
-    while (1) {
-        GpuNv2a_FrameBegin();
+    /* PSX subsystem init (mirrors main_pc.c order). */
+    Sh_InitGameData();
+    SpuInit();
+    ResetGraph(0);
+    SetGraphDebug(0);
+    Fs_QueueInitialize();
+    SH_DBG("[SH-XBOX] subsystems up; entering MainLoop");
 
-        DrawOTag((u_long*)&g_testOt);
+    /* Open the first NV2A frame; VSync() presents + opens the next each frame. */
+    GpuNv2a_FrameBegin();
 
-        pb_print("Silent Hill - Xbox port\n");
-        pb_print("Milestone 3: PSX libgpu DrawOTag on NV2A\n");
-        pb_draw_text_screen();
+    /* Hands off to the shared game code. On PSX this is in BODYPROG; on PC/Xbox
+     * everything is statically linked so we call it directly. Does not return. */
+    MainLoop();
 
-        GpuNv2a_FrameEnd();
-    }
-
+    SH_DBG("[SH-XBOX] MainLoop returned (unexpected); shutting down");
     pb_kill();
     return 0;
 }

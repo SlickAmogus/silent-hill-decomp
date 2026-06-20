@@ -1326,6 +1326,17 @@ void MainLoop(void) // 0x80032EE0
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
         PC_OT_SCAN("pre-GameStateUpdate");
+#ifdef SH_XBOX_PORT
+        {   /* Log boot/title state transitions so we can see how far the game
+             * progresses without a screen (Boot->Konami->...->MainMenu->...). */
+            static int s_xbLastState = -1;
+            if (g_GameWork.gameState != s_xbLastState) {
+                SH_DBG("[SH-XBOX] GameState -> %d (step %d)",
+                       g_GameWork.gameState, g_GameWork.gameStateSteps[0]);
+                s_xbLastState = g_GameWork.gameState;
+            }
+        }
+#endif
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
         PC_OT_SCAN("post-GameStateUpdate");

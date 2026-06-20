@@ -13,6 +13,11 @@
 #include "sh_log.h"
 #endif
 
+/* Forward decl: used before its definition below. clang treats the implicit
+ * declaration the call would otherwise create as a conflicting type (gcc only
+ * warns); an explicit prototype fixes it for both compilers. */
+void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, s32 pitch);
+
 VECTOR3 D_800C42C0;
 VECTOR3* D_800C42CC;
 

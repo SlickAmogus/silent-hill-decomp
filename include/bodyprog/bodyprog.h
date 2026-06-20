@@ -2037,7 +2037,9 @@ void SysWork_SavegameReadPlayer(void);
 /** @brief Handles a warm game reboot. */
 void Game_WarmBoot(void);
 
-s32 func_800382B0(s32 arg0);
+/* func_800382B0 was a GCC nested function inside Game_NpcUpdate (npc_main.c);
+ * un-nested there to a file-scope static taking its captured slot array, so this
+ * stale 1-arg extern prototype (never had an external definition) is removed. */
 
 /** @brief Computes the distance between two positions.
  *

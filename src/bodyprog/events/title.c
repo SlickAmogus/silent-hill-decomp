@@ -11,6 +11,11 @@
 #include <psyq/libpad.h>
 #include <psyq/strings.h>
 
+/* Forward decls: both are called before their definitions below. clang errors on
+ * the conflicting implicit declaration the call would create (gcc only warns). */
+void func_8003B560(void);
+void MainMenu_FogUpdate(void);
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/memcard.h"

@@ -5,6 +5,10 @@
 #include <psyq/libgte.h>
 #include <psyq/strings.h>
 
+/* Forward decl: called before its definition below; clang errors on the
+ * conflicting implicit declaration otherwise (gcc only warns). */
+void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords);
+
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include <signal.h>
@@ -3248,72 +3252,15 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 #define SH_AIM_KF_REACHED_P(kf) (player->model.anim.keyframeIdx == (kf))
 #endif
 
-bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80075504
-{
-    s32        enemyAttackedIdx;
-    s16        sp20;
-    s16        sp22;
-    s32        currentAmmoVar;
-    s32        totalAmmoVar;
-    s32        temp_s1_2;
-    s16        temp_v0_3;
-    s16        temp_v1_3;
-    s32        i;
-    s16        var_s0;
-    s32        playerTurn;
-    static s32 D_800C44D0;
-    static s32 D_800C44D4;
+/* Un-nested from Player_UpperBodyMainUpdate: clang/nxdk has no GCC nested-
+ * function extension. The 3 static locals it shared are hoisted to file scope
+ * (same storage + init, names are unique) and the captured player/extra are
+ * threaded as params. Structural only -> behavior-identical; gcc still builds it. */
+static s32 D_800C44D0;
+static s32 D_800C44D4;
+static int s_pcMtClickQueue = 0;
 
-#ifdef SH_PC_PORT
-    /* Multi-tap click queue + post-swing release latch.
-     *
-     * Click queue: counts NEW action-button presses (rising edge via joy.c's
-     * clickedBtnFlags) so a fast double-tap (both presses before the slash anim
-     * even starts) doesn't lose the second press. Slash-start consumes one
-     * queued click; the multi-tap window mid-swing consumes another.
-     *
-     * Release latch: PSX's shift register IsHoldAttack refills as long as
-     * the user holds the action button, which lets the fire gate dispatch
-     * a "phantom" follow-up swing after a real mash if the user holds C
-     * slightly past the swing end. Latch a "needs release" flag on every
-     * melee swing's pcAttackDone (see line ~3760), require it cleared
-     * (action button physically lifted) before the next melee dispatch.
-     * Intentional mashing still works — each release+press cycle re-arms.
-     *
-     * Click-queue gates:
-     *   - Only count when a melee weapon is equipped (multi-tap is melee-only;
-     *     handgun has its own continuous-fire gate, not this queue).
-     *   - Drop the click when running — clicks while running shouldn't queue
-     *     up and dispense as extra swings the moment the player stops sprinting.
-     *   - Clear stale queue whenever no melee weapon is equipped, so a
-     *     previously-buffered click can't carry across weapon swaps. */
-    static int s_pcMtClickQueue = 0;
-    {
-        s8 wa = g_SysWork.playerCombat.weaponAttack;
-        bool meleeReady = (wa != (s8)NO_VALUE) &&
-                          (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
-        u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
-
-        /* Fresh rising edge re-arms melee dispatch (clears the post-swing
-         * "needs release" latch). See latch comment near declaration. */
-        if (g_Controller0->clickedBtnFlags & actionMask) {
-            s_pcMeleeNeedsRelease = false;
-        }
-
-        /* Actively clear the queue when conditions don't allow multi-tap.
-         * Suppressing increments isn't enough — a click pressed BEFORE the
-         * user starts sprinting would already be queued, then dispense the
-         * moment sprint ends. Same for weapon swaps. Clearing each frame
-         * the gate fails guarantees no stale clicks survive a state change. */
-        if (!meleeReady || g_Player_IsRunning) {
-            s_pcMtClickQueue = 0;
-        } else if (g_Controller0->clickedBtnFlags & actionMask) {
-            if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
-        }
-    }
-#endif
-
-    bool Player_CombatAnimUpdate(void) // 0x80074350
+static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s32* enemyAttackedIdx) // 0x80074350 (un-nested from Player_UpperBodyMainUpdate)
     {
         s16 ssp20;
         s16 temp_a1;
@@ -3457,30 +3404,30 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & 1))
                 {
-                    func_8005CD38(&enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, 0x238, Q12(10.0f), 0);
-                    func_8005D50C(&g_Player_TargetNpcIdx, &D_800C4554, &D_800C4556, &g_SysWork.playerCombat, enemyAttackedIdx, Q12_ANGLE(20.0f));
+                    func_8005CD38(enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, 0x238, Q12(10.0f), 0);
+                    func_8005D50C(&g_Player_TargetNpcIdx, &D_800C4554, &D_800C4556, &g_SysWork.playerCombat, (*enemyAttackedIdx), Q12_ANGLE(20.0f));
                 }
                 else
                 {
-                    func_8005CD38(&enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, 0x238, Q12(3.0f), 0);
-                    func_8005D50C(&g_Player_TargetNpcIdx, &D_800C4554, &D_800C4556, &g_SysWork.playerCombat, enemyAttackedIdx, Q12_ANGLE(20.0f));
+                    func_8005CD38(enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, 0x238, Q12(3.0f), 0);
+                    func_8005D50C(&g_Player_TargetNpcIdx, &D_800C4554, &D_800C4556, &g_SysWork.playerCombat, (*enemyAttackedIdx), Q12_ANGLE(20.0f));
                 }
             }
             else
             {
-                enemyAttackedIdx = g_SysWork.targetNpcIdx;
+                (*enemyAttackedIdx) = g_SysWork.targetNpcIdx;
             }
 
-            if (enemyAttackedIdx == NO_VALUE && enemyAttackedIdx == g_Player_TargetNpcIdx)
+            if ((*enemyAttackedIdx) == NO_VALUE && (*enemyAttackedIdx) == g_Player_TargetNpcIdx)
             {
                 D_800C4556 = NO_VALUE;
                 D_800C4554 = NO_VALUE;
             }
 
-            if (enemyAttackedIdx == g_SysWork.targetNpcIdx)
+            if ((*enemyAttackedIdx) == g_SysWork.targetNpcIdx)
             {
-                player->angleToTarget = Q12_FRACT(ratan2((g_SysWork.npcs[enemyAttackedIdx].position.vx + g_SysWork.npcs[enemyAttackedIdx].collision.shapeOffsets.box.vx) - g_SysWork.playerWork.player.position.vx,
-                                                   (g_SysWork.npcs[enemyAttackedIdx].position.vz + g_SysWork.npcs[enemyAttackedIdx].collision.shapeOffsets.box.vz) - g_SysWork.playerWork.player.position.vz) +
+                player->angleToTarget = Q12_FRACT(ratan2((g_SysWork.npcs[(*enemyAttackedIdx)].position.vx + g_SysWork.npcs[(*enemyAttackedIdx)].collision.shapeOffsets.box.vx) - g_SysWork.playerWork.player.position.vx,
+                                                   (g_SysWork.npcs[(*enemyAttackedIdx)].position.vz + g_SysWork.npcs[(*enemyAttackedIdx)].collision.shapeOffsets.box.vz) - g_SysWork.playerWork.player.position.vz) +
                                             Q12_ANGLE(360.0f));
             }
             else
@@ -3540,17 +3487,17 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)))
                 {
-                    func_8005CD38(&enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(3.0f), Q12(3.0f), 5);
+                    func_8005CD38(enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(3.0f), Q12(3.0f), 5);
                 }
                 else
                 {
-                    func_8005CD38(&enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(1.0f), Q12(1.0f), 5);
+                    func_8005CD38(enemyAttackedIdx, &playerProps.field_122, &g_SysWork.playerCombat, Q12(1.0f), Q12(1.0f), 5);
                 }
 
-                if (enemyAttackedIdx == g_SysWork.targetNpcIdx)
+                if ((*enemyAttackedIdx) == g_SysWork.targetNpcIdx)
                 {
-                    temp_a1 = Q12_FRACT(ratan2((g_SysWork.npcs[enemyAttackedIdx].position.vx + g_SysWork.npcs[enemyAttackedIdx].collision.shapeOffsets.box.vx) - g_SysWork.playerWork.player.position.vx,
-                                               (g_SysWork.npcs[enemyAttackedIdx].position.vz + g_SysWork.npcs[enemyAttackedIdx].collision.shapeOffsets.box.vz) - g_SysWork.playerWork.player.position.vz) + Q12(1.0f));
+                    temp_a1 = Q12_FRACT(ratan2((g_SysWork.npcs[(*enemyAttackedIdx)].position.vx + g_SysWork.npcs[(*enemyAttackedIdx)].collision.shapeOffsets.box.vx) - g_SysWork.playerWork.player.position.vx,
+                                               (g_SysWork.npcs[(*enemyAttackedIdx)].position.vz + g_SysWork.npcs[(*enemyAttackedIdx)].collision.shapeOffsets.box.vz) - g_SysWork.playerWork.player.position.vz) + Q12(1.0f));
 
                     Math_ShortestAngleGet(player->rotation.vy, temp_a1, &ssp20);
                     D_800C454C = g_DeltaTime * 0xF;
@@ -3571,7 +3518,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             }
             else
             {
-                enemyAttackedIdx                                           = NO_VALUE;
+                (*enemyAttackedIdx)                                           = NO_VALUE;
                 playerProps.field_122 = Q12_ANGLE(90.0f);
                 player->angleToTarget                                            = player->rotation.vy;
             }
@@ -4082,6 +4029,69 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
         return false;
     }
+
+bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80075504
+{
+    s32        enemyAttackedIdx;
+    s16        sp20;
+    s16        sp22;
+    s32        currentAmmoVar;
+    s32        totalAmmoVar;
+    s32        temp_s1_2;
+    s16        temp_v0_3;
+    s16        temp_v1_3;
+    s32        i;
+    s16        var_s0;
+    s32        playerTurn;
+
+#ifdef SH_PC_PORT
+    /* Multi-tap click queue + post-swing release latch.
+     *
+     * Click queue: counts NEW action-button presses (rising edge via joy.c's
+     * clickedBtnFlags) so a fast double-tap (both presses before the slash anim
+     * even starts) doesn't lose the second press. Slash-start consumes one
+     * queued click; the multi-tap window mid-swing consumes another.
+     *
+     * Release latch: PSX's shift register IsHoldAttack refills as long as
+     * the user holds the action button, which lets the fire gate dispatch
+     * a "phantom" follow-up swing after a real mash if the user holds C
+     * slightly past the swing end. Latch a "needs release" flag on every
+     * melee swing's pcAttackDone (see line ~3760), require it cleared
+     * (action button physically lifted) before the next melee dispatch.
+     * Intentional mashing still works — each release+press cycle re-arms.
+     *
+     * Click-queue gates:
+     *   - Only count when a melee weapon is equipped (multi-tap is melee-only;
+     *     handgun has its own continuous-fire gate, not this queue).
+     *   - Drop the click when running — clicks while running shouldn't queue
+     *     up and dispense as extra swings the moment the player stops sprinting.
+     *   - Clear stale queue whenever no melee weapon is equipped, so a
+     *     previously-buffered click can't carry across weapon swaps. */
+    {
+        s8 wa = g_SysWork.playerCombat.weaponAttack;
+        bool meleeReady = (wa != (s8)NO_VALUE) &&
+                          (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+        u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
+
+        /* Fresh rising edge re-arms melee dispatch (clears the post-swing
+         * "needs release" latch). See latch comment near declaration. */
+        if (g_Controller0->clickedBtnFlags & actionMask) {
+            s_pcMeleeNeedsRelease = false;
+        }
+
+        /* Actively clear the queue when conditions don't allow multi-tap.
+         * Suppressing increments isn't enough — a click pressed BEFORE the
+         * user starts sprinting would already be queued, then dispense the
+         * moment sprint ends. Same for weapon swaps. Clearing each frame
+         * the gate fails guarantees no stale clicks survive a state change. */
+        if (!meleeReady || g_Player_IsRunning) {
+            s_pcMtClickQueue = 0;
+        } else if (g_Controller0->clickedBtnFlags & actionMask) {
+            if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
+        }
+    }
+#endif
+
 
     enemyAttackedIdx = NO_VALUE;
 
@@ -4981,7 +4991,7 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             break;
 
         case PlayerUpperBodyState_Attack:
-            if (Player_CombatAnimUpdate())
+            if (Player_CombatAnimUpdate(player, extra, &enemyAttackedIdx))
             {
                 return true;
             }

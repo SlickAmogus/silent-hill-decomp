@@ -329,16 +329,56 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 #endif
 }
 
+// Hoisted out of Game_NpcUpdate: clang/nxdk has no GCC nested-function extension.
+// The local type and the two helpers Game_NpcUpdate nested are lifted to file
+// scope; the captured locals (field_0[], field_40) are passed in explicitly.
+// Behavior-identical, and still compiles under the PC port's gcc.
+typedef struct
+{
+    s8      bitIdx_0;
+    u8      unk_1[3];
+    s32     field_4;
+    VECTOR3 field_8;
+} s_func_800382EC_0;
+
+static s32 func_800382B0(const s_func_800382EC_0* field_0, s32 arg0)
+{
+    s32 i;
+
+    for (i = 0; i < 2; i++)
+    {
+        if (arg0 == field_0[i].bitIdx_0)
+        {
+            return i;
+        }
+    }
+
+    return NO_VALUE;
+}
+
+static s32 func_800382EC(const s_func_800382EC_0* field_0, u32* field_40)
+{
+    s32 i;
+
+    for (i = 0; i < 2; i++)
+    {
+        if (field_0[i].bitIdx_0 == NO_VALUE)
+        {
+            break;
+        }
+
+        if ((*field_40 & (1 << field_0[i].bitIdx_0)) == 0)
+        {
+            *field_40 |= (1 << field_0[i].bitIdx_0);
+            return i;
+        }
+    }
+
+    return NO_VALUE;
+}
+
 void Game_NpcUpdate(void) // 0x80038354
 {
-    typedef struct
-    {
-        s8      bitIdx_0;
-        u8      unk_1[3];
-        s32     field_4;
-        VECTOR3 field_8;
-    } s_func_800382EC_0;
-
     s_func_800382EC_0  field_0[3];
     u32                field_40;
     s32                posZShift6;
@@ -366,43 +406,6 @@ void Game_NpcUpdate(void) // 0x80038354
     GsCOORDINATE2*     boneCoords;
     s_SubCharacter*    npc;
     s_func_800382EC_0* temp_s0_3;
-
-    // GCC extension funcs.
-    s32 func_800382B0(s32 arg0)
-    {
-        s32 i;
-
-        for (i = 0; i < 2; i++)
-        {
-            if (arg0 == field_0[i].bitIdx_0)
-            {
-                return i;
-            }
-        }
-
-        return NO_VALUE;
-    }
-
-    s32 func_800382EC()
-    {
-        s32 i;
-
-        for (i = 0; i < 2; i++)
-        {
-            if (field_0[i].bitIdx_0 == NO_VALUE)
-            {
-                break;
-            }
-
-            if ((field_40 & (1 << field_0[i].bitIdx_0)) == 0)
-            {
-                field_40 |= (1 << field_0[i].bitIdx_0);
-                return i;
-            }
-        }
-
-        return NO_VALUE;
-    }
 
     posXShift6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vx);
     posZShift6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vz);
@@ -738,7 +741,7 @@ void Game_NpcUpdate(void) // 0x80038354
         }
         else
         {
-            var_v0_4 = func_800382B0(temp_s0_2);
+            var_v0_4 = func_800382B0(field_0, temp_s0_2);
         }
 
         if (var_v0_4 >= 0)
@@ -757,7 +760,7 @@ void Game_NpcUpdate(void) // 0x80038354
         temp_s1 = D_800BCDA8[l].field_1;
         if (temp_s1 == NO_VALUE)
         {
-            temp_v0_4 = func_800382EC();
+            temp_v0_4 = func_800382EC(field_0, &field_40);
             if (temp_v0_4 != temp_s1)
             {
                 var_v0_5 = field_0[temp_v0_4].bitIdx_0;

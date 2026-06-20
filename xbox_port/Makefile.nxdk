@@ -31,10 +31,44 @@ PSYCROSS  = $(PCPORT)/PsyCross
 # Xbox-specific game-code paths sit behind #ifdef SH_XBOX_PORT. (A shared
 # SH_NATIVE_PORT macro for "not-PSX" fixes common to PC+Xbox is planned but not
 # defined yet — it will be introduced when the first such fix is migrated.)
-SH_CPPFLAGS  = -DSH_XBOX_PORT
+# SH_PC_PORT is the decomp's de-facto "native (non-PSX) port" switch: it selects
+# the software-GTE bridge (gpu_gte_pc.h), C fallbacks for the MIPS-asm/cop2 bodies
+# (inline_no_dmpsx.h etc.), and PSX-RAM-emulated addresses (FS_BUFFER/FS_MEM_BASE
+# via PSX_ADDR) — ALL of which the Xbox (flat-address x86, software GTE, emulated
+# PSX memory) needs exactly as the PC port does. The non-PC branches emit raw MIPS
+# opcodes (`.word ...`) that assemble silently but crash on x86, so we MUST take the
+# native paths. SH_XBOX_PORT marks the Xbox-specific deltas (GPU/audio/file-IO) and
+# overrides SH_PC_PORT where the two native ports must differ.
+SH_CPPFLAGS  = -DSH_XBOX_PORT -DSH_PC_PORT
+# Game-code defines mirrored from the PC port's CMakeLists (target-only, NOT
+# PsyCross): region select, skip the MIPS asm bodies (we use the C decomp),
+# PGXP compiled out (no perspective-correction path on Xbox).
+SH_CPPFLAGS += -DVER_USA -DSKIP_ASM -DUSE_PGXP=0
+# PSX structs are gcc/MIPS-bitfield-packed and overlay disc data verbatim. clang's
+# i386-pc-win32 target defaults to MSVC bitfield layout (new storage unit per type
+# change) -> wrong sizes/offsets. Force GNU/Itanium packing to match PSX + the PC
+# port (mingw gcc). Without this, every STATIC_ASSERT_SIZEOF on a bitfield struct
+# fails and disc-backed structs read garbage.
+SH_CPPFLAGS += -mno-ms-bitfields
+# The decomp leans on gcc-permissive diagnostics (the PC build passes the gcc
+# spellings via CMake). clang promotes several of these to hard errors, so silence
+# them here to match the PC port's tolerance (implicit decls, K&R pointer/int
+# punning, benign fn-pointer signature drift).
+SH_CPPFLAGS += -Wno-implicit-function-declaration -Wno-implicit-int \
+	-Wno-incompatible-function-pointer-types -Wno-incompatible-pointer-types \
+	-Wno-int-conversion -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast \
+	-Wno-sign-compare -Wno-unused-variable -Wno-unused-function \
+	-Wno-missing-braces -Wno-parentheses -Wno-tautological-constant-out-of-range-compare \
+	-Wno-return-type -Wno-pointer-sign -Wno-microsoft-include
+# Include order mirrors pc_port/CMakeLists.txt: PC/Xbox compat headers FIRST so
+# they override the original psyq/ copies, then the decomp headers, then the
+# PsyCross PSX-HAL headers (<libgte.h>/<libgpu.h> resolve here).
 SH_CPPFLAGS += -I$(XBOX_PORT)/include
-SH_CPPFLAGS += -I$(PCPORT)/include   # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
-# PsyCross PSX-compatible headers: <libgte.h> etc. and "psx/..."/"PsyX/..." forms.
+SH_CPPFLAGS += -I$(PCPORT)/include            # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
+SH_CPPFLAGS += -I$(PCPORT)/include/psyq_compat # PC-adapted libgs.h (overrides psyq/)
+SH_CPPFLAGS += -I$(PCPORT)/src                 # pc_port-relative includes (e.g. "main/...")
+SH_CPPFLAGS += -I$(DECOMP)/include             # game headers: game.h, bodyprog/, main/, maps/
+SH_CPPFLAGS += -I$(DECOMP)/include/decomp      # common.h, types.h, version.h, include_asm.h
 SH_CPPFLAGS += -I$(PSYCROSS)/include/psx
 SH_CPPFLAGS += -I$(PSYCROSS)/include
 
@@ -51,6 +85,11 @@ SH_CPPFLAGS += -I$(NXDK_DIR)/lib/xboxrt/vcruntime
 NXDK_CFLAGS   += $(SH_CPPFLAGS)
 NXDK_CXXFLAGS += $(SH_CPPFLAGS)
 
+# The decomp uses C11 `static_assert` as a bare keyword. Map it to _Static_assert
+# for C TUs only — applying it to C++ breaks libc++/std headers (matches the PC
+# port's CMake, which scopes this define to C sources).
+NXDK_CFLAGS += -Dstatic_assert=_Static_assert
+
 # --- Reused PsyCross software GTE (platform-agnostic; replaces MIPS GTE asm) -
 # inline_c.c = cop2 MTC2/CTC2/MFC2 interface, PsyX_GTE.cpp = the GTE math,
 # libgte.c = high-level libgte API (RotTransPers, matrices), abs.c = helpers.
@@ -61,8 +100,71 @@ GTE_SRCS = \
 	$(PSYCROSS)/src/psx/abs.c \
 	$(PSYCROSS)/src/gte/PsyX_GTE.cpp
 
+# --- Decomp game code (shared; PC bits sit behind #ifdef SH_PC_PORT) --------
+# Recursive wildcard (pure make; no shell `find` dependency).
+rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+
+# Mirror pc_port/CMakeLists.txt source selection exactly:
+#   main/   : all *.c except main.c (replaced by main_xbox.c) and memcpy.c (MIPS asm)
+#   bodyprog: all *.c except bodyprog_80032D1C.c (dup symbol) and text_draw_jp.c (JP-only)
+#   screens : all *.c except hp_safe1.c / s__safe2.c (JP anti-modchip, undefined on USA)
+MAIN_SRCS     := $(filter-out %/main.c %/memcpy.c,$(wildcard $(DECOMP)/src/main/*.c))
+BODYPROG_SRCS := $(filter-out %/bodyprog_80032D1C.c %/text_draw_jp.c,$(call rwildcard,$(DECOMP)/src/bodyprog,*.c))
+SCREEN_SRCS   := $(filter-out %/hp_safe1.c %/s__safe2.c,$(call rwildcard,$(DECOMP)/src/screens,*.c))
+
+# Map overlay: static-link only the starting map (map0_s00). Statically linking
+# all maps = 500+ symbol collisions (shared AI/particle/player code #included
+# into each). Explicit list + the binary-extracted cutscene data, all built with
+# the map's compile define so its g_MapOverlayHeader_map0_s00 symbol is emitted.
+MAP_DIR  := $(DECOMP)/src/maps/map0_s00
+MAP_SRCS := \
+	$(MAP_DIR)/player.c \
+	$(MAP_DIR)/map0_s00_2.c \
+	$(MAP_DIR)/map0_s00_anim_info.c \
+	$(MAP_DIR)/map0_s00_events_data.c \
+	$(MAP_DIR)/map0_s00_header.c \
+	$(MAP_DIR)/Chara_Cheryl.c \
+	$(MAP_DIR)/Chara_Stalker.c \
+	$(MAP_DIR)/particle.c \
+	$(PCPORT)/build_gen/extracted_data/map0_s00_extracted_data.c
+
+# --- Reused pc_port sources (platform-agnostic) -----------------------------
+# pc_port/src/*.c is mostly extracted anim-info data + rodata reformatters +
+# PSX RAM emulation + math helpers, all platform-agnostic -> REUSE. Exclude the
+# PC-HAL files (SDL/GL/OpenAL/dlopen/Windows) and the ones the Xbox port replaces:
+#   main_pc            -> main_xbox.c
+#   pc_config/console/crash/quicksave/combat/timing, dbg_overlay -> PC input/UI/cfg
+#   warning_screen, hires_override -> PC-only screens (skip intros / GL hires)
+#   fs_pc              -> Xbox uses fs_xbox.c + (later) xa_player sector reads
+#   dll_loader, map_overlay_loader, map_registry -> PC overlay DLLs; Xbox static-links map0_s00
+#   xa_player          -> DEFERRED (OpenAL playback); not needed to boot MainLoop
+# (fmv/ and stubs/ are subdirs, excluded by the non-recursive glob; stubs added below.)
+PCPORT_HAL_EXCLUDE := main_pc pc_config pc_combat pc_console_cmd pc_crash pc_quicksave \
+	pc_timing dbg_overlay warning_screen hires_override fs_pc dll_loader \
+	map_overlay_loader map_registry xa_player \
+	map7_s03_boss_motion   # map7 boss data; not needed to boot map0_s00
+PCPORT_REUSE := $(filter-out $(foreach f,$(PCPORT_HAL_EXCLUDE),$(PCPORT)/src/$(f).c),\
+	$(wildcard $(PCPORT)/src/*.c))
+
+# PSX HAL stubs (libgs scene graph, libsnd/libds/libapi shims, zero-stub data +
+# func bodies). map_overlay_stub excluded: map0_s00 provides g_MapOverlayHeader.
+PCPORT_STUBS := \
+	$(PCPORT)/src/stubs/libgs_stub.c \
+	$(PCPORT)/src/stubs/libsnd_stub.c \
+	$(PCPORT)/src/stubs/libds_stub.c \
+	$(PCPORT)/src/stubs/libapi_stub.c \
+	$(PCPORT)/src/stubs/data_stubs.c \
+	$(PCPORT)/src/stubs/func_stubs.c
+
+# Per-map compile define (mirrors CMake set_source_files_properties). The C
+# pattern rule appends $(CFLAGS), so a target-specific addition scopes it to the
+# map TUs only. Covers the shared chara/particle code they #include.
+MAP_OBJS := $(addsuffix .obj,$(basename $(MAP_SRCS)))
+$(MAP_OBJS): CFLAGS += -DMAP0_S00 -DSH_MAP_NAME=map0_s00
+
 # --- Sources ----------------------------------------------------------------
-SRCS = \
+# Xbox platform shell + NV2A/PSX-libgpu HAL.
+XBOX_SRCS = \
 	$(XBOX_PORT)/src/main_xbox.c \
 	$(XBOX_PORT)/src/sh_log_xbox.c \
 	$(XBOX_PORT)/src/fs_xbox.c \
@@ -70,6 +172,22 @@ SRCS = \
 	$(XBOX_PORT)/src/gte_selftest.c \
 	$(XBOX_PORT)/src/gpu_nv2a.c \
 	$(XBOX_PORT)/src/gpu_xbox.c \
+	$(XBOX_PORT)/src/sdl_compat_xbox.c \
+	$(XBOX_PORT)/src/psx_libgpu_xbox.c \
+	$(XBOX_PORT)/src/xbox_compat_stubs.c \
+	$(XBOX_PORT)/src/xbox_compat_globals.c \
+	$(XBOX_PORT)/src/map_xbox.c \
+	$(XBOX_PORT)/src/libc_compat_xbox.c \
+	$(XBOX_PORT)/src/pad_xbox.c
+
+SRCS = \
+	$(XBOX_SRCS) \
+	$(MAIN_SRCS) \
+	$(BODYPROG_SRCS) \
+	$(SCREEN_SRCS) \
+	$(MAP_SRCS) \
+	$(PCPORT_REUSE) \
+	$(PCPORT_STUBS) \
 	$(GTE_SRCS)
 
 # Cg shaders compiled to .inl by nxdk's vp20/fp20 host tools, #included by
