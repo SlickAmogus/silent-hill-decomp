@@ -32,16 +32,19 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 
 /* --- primitive -> triangle conversion ------------------------------------- */
 
-/* The game draws in PSX logical coords (SCREEN_WIDTH x SCREEN_HEIGHT = 320x240);
- * the NV2A framebuffer is 640x480. Scale 2x so it fills the screen instead of
- * rendering into the top-left quarter. */
-#define SH_X_SCALE (640.0f / 320.0f)
-#define SH_Y_SCALE (480.0f / 240.0f)
+/* Screen transform, derived from the active draw env (cached by PutDrawEnv):
+ * vertex = (raw + ofs) * (640/clip.w, 480/clip.h). The PSX GPU adds the draw-env
+ * offset to every prim (PsyCross does the same on PC) — ofs is the clip-area
+ * center — then we scale that clip area (320x224 in-game, 320x448 interlaced 2D)
+ * to fill the 640x480 NV2A framebuffer. Defaults are the common in-game values
+ * until the first PutDrawEnv. */
+static float s_ofsX = 160.0f, s_ofsY = 112.0f;
+static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
-    v->pos[0] = (float)x * SH_X_SCALE;
-    v->pos[1] = (float)y * SH_Y_SCALE;
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX;
+    v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
     v->pos[2] = 0.0f;
     v->col[0] = (float)r * (1.0f / 255.0f);
     v->col[1] = (float)g * (1.0f / 255.0f);
@@ -300,5 +303,11 @@ DISPENV* PutDispEnv(DISPENV* env)
 DRAWENV* PutDrawEnv(DRAWENV* env)
 {
     g_activeDrawEnv = *env;
+    /* Recompute the screen transform (see PutVert): center prims by the draw-env
+     * offset, then scale the clip area to fill the 640x480 NV2A framebuffer. */
+    s_ofsX   = (float)env->ofs[0];
+    s_ofsY   = (float)env->ofs[1];
+    s_scaleX = 640.0f / (env->clip.w ? (float)env->clip.w : 320.0f);
+    s_scaleY = 480.0f / (env->clip.h ? (float)env->clip.h : 240.0f);
     return env;
 }
