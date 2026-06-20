@@ -17,7 +17,7 @@ s_PcConfig g_PcConfig = {
     .skipIntros     = 0,
     .showConsole    = 0,
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
-    .pixelAspectMode = 1, /* 1=CRT NTSC (1.09375), 2=square (1.0), 3=8:7 (1.143) */
+    .pixelAspectMode = 1, /* 1=correct 320x224->4:3 (15/14), 2=1.09375, 3=8:7 (1.143) */
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
