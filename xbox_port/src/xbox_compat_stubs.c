@@ -13,14 +13,7 @@ typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
 
-/* --- PSX libcd (CD-ROM) ----------------------------------------------------*/
-int   CdControl(void)    { return 1; }
-int   CdControlB(void)   { return 1; }
-void* CdIntToPos(int i, void* p) { (void)i; return p; }
-int   CdRead(void)       { return 1; }
-int   CdReadSync(void)   { return 0; }   /* 0 = transfer complete */
-void* CdSearchFile(void) { return 0; }   /* file not found (no disc yet) */
-int   CdSync(void)       { return 2; }   /* 2 = CdlComplete */
+/* --- PSX libcd (CD-ROM): real BIN-on-HDD reader moved to cd_xbox.c --------- */
 
 /* --- PSX libspu (sound) ----------------------------------------------------*/
 void SpuInit(void)                  { }

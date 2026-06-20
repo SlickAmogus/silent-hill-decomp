@@ -185,7 +185,8 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/xbox_compat_globals.c \
 	$(XBOX_PORT)/src/map_xbox.c \
 	$(XBOX_PORT)/src/libc_compat_xbox.c \
-	$(XBOX_PORT)/src/pad_xbox.c
+	$(XBOX_PORT)/src/pad_xbox.c \
+	$(XBOX_PORT)/src/cd_xbox.c
 
 SRCS = \
 	$(XBOX_SRCS) \

@@ -23,6 +23,7 @@
 extern void XboxFs_MountHomeDrive(void);
 extern void Gte_SelfTest(void);
 extern void Pad_XboxInit(void);   /* USB controller init (pad_xbox.c) */
+extern void Cd_XboxInit(void);    /* open the BIN disc image on D: (cd_xbox.c) */
 
 /* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
 extern void MainLoop(void);
@@ -146,6 +147,9 @@ int main(void)
     /* Bring up the USB controller (safe no-op if none is connected). */
     Pad_XboxInit();
     SH_DBG("[SH-XBOX] USB pad init done");
+
+    /* Open the BIN disc image on D: for real asset loading (libcd reads). */
+    Cd_XboxInit();
 
     /* PSX subsystem init (mirrors main_pc.c order). */
     Sh_InitGameData();
