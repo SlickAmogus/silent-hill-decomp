@@ -70,6 +70,14 @@ extern void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r);
  * swept test, in adjacent chunks, with nothing visible. 0 = their solid blocking
  * is OFF (ground-height use is kept; walls/buildings still block). Console `OBST`. */
 int g_PcObstacleCollision = 0;
+
+/* [WALLEDGE] latched diagnostic: the player wall-EDGE reaction (Collision_WallResponse
+ * classifies CollisionType_Wall from ground-height drops, NOT a movement clamp -> never
+ * logs a WALLSTOP). Captured when it fires for Harry, with g_TickCount, so the panel can
+ * show it seconds after a delayed mark. gH/bound = the deciding ground heights; if gH
+ * spuriously dips below bound on flat ground, that's the random invisible-wall bump. */
+struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; };
+struct s_WallEdgeDbg g_WallEdgeDbg;
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -330,6 +338,20 @@ s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* moveOff
                 }
             }
 
+#ifdef SH_PC_PORT
+            /* [WALLEDGE]: latch the wall-edge classification for the player so the
+             * panel can show it after a delayed mark. wallCount>=threshold here ==
+             * the actual "ran into a wall" reaction. */
+            if (chara == &g_SysWork.playerWork && collType == CollisionType_Wall)
+            {
+                g_WallEdgeDbg.active    = 1;
+                g_WallEdgeDbg.gH        = (s32)collResult->surface.groundHeight;
+                g_WallEdgeDbg.bound     = (s32)wallHeightBound;
+                g_WallEdgeDbg.wallCount = wallCount;
+                g_WallEdgeDbg.harryY    = (s32)chara->position.vy;
+                g_WallEdgeDbg.tick      = g_TickCount;
+            }
+#endif
             switch (collType)
             {
                 case CollisionType_Wall:

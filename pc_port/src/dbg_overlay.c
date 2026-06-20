@@ -540,6 +540,20 @@ static void coll_gather(void)
        (int)g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz,
        (int)g_SysWork.playerWork.player.collision.cylinder.radius,
        (int)g_SysWork.playerWork.player.collision.cylinder.field_2);
+    /* [WALLEDGE] latched wall-edge reaction (the "ran into a wall" trigger, no
+     * movement clamp). FIRED when cnt>=3 -> Harry bumps. gH<bound on flat ground =
+     * spurious. "Nt ago" persists after a delayed mark so you can read it. */
+    {
+        extern struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; } g_WallEdgeDbg;
+        extern s32 g_TickCount;
+        if (g_WallEdgeDbg.active)
+            CL("WALLEDGE gH=%d bound=%d cnt=%d hY=%d %dt ago %s",
+               g_WallEdgeDbg.gH, g_WallEdgeDbg.bound, g_WallEdgeDbg.wallCount,
+               g_WallEdgeDbg.harryY, (int)(g_TickCount - g_WallEdgeDbg.tick),
+               g_WallEdgeDbg.wallCount >= 3 ? "FIRED" : "");
+        else
+            CL("WALLEDGE (none yet)");
+    }
 #undef CL
 
     /* Decrement the contact latch each frame so a held snapshot eventually
