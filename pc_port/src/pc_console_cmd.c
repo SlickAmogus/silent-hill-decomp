@@ -608,6 +608,10 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PcObstacleCollision;
         if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
         cprintf("round-obstacle (ptr_18) collision: %s", g_PcObstacleCollision ? "ON" : "OFF (sprint-through)");
+    } else if (strcmp(cmd, "ALPHA") == 0) {
+        extern int g_PcSlopeAlphaFix;
+        if (arg[0]) g_PcSlopeAlphaFix = atoi(arg) ? 1 : 0;
+        cprintf("slope-alpha invisible-wall fix: %s", g_PcSlopeAlphaFix ? "ON (capped)" : "OFF (original)");
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);

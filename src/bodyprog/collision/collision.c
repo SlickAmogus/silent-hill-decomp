@@ -78,6 +78,16 @@ int g_PcObstacleCollision = 0;
  * spuriously dips below bound on flat ground, that's the random invisible-wall bump. */
 struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; };
 struct s_WallEdgeDbg g_WallEdgeDbg;
+
+/* Invisible-wall ROOT FIX (#42, "ran into a wall" at full speed, nothing nearby):
+ * Collision_OffsetAlphaGet scales movement by the slope factor (distance / hypot
+ * of horizontal move + ground rise to the NEXT position). At sprint the next
+ * position is far, so Ipd_GroundHeightGet extrapolates the cell's tilt out a long
+ * way and can return a HUGE fake rise -> alpha -> ~0 -> Harry's whole step is
+ * zeroed on flat ground. No wall-clamp, no wall-edge, nothing touching him: exactly
+ * the reported bug, and worse the faster he runs. 1 = cap the slope factor so a
+ * non-walkable (near-vertical) "slope" can't zero movement; console `ALPHA 0/1`. */
+int g_PcSlopeAlphaFix = 1;
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -2296,6 +2306,7 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 
     {
         q19_12 mag = Math_Vector2MagCalc(state->charaState.distance, groundHeight - state->charaState.bottomPos);
+        q3_12  alpha;
 #ifdef SH_PC_PORT
         /* Lighthouse-stair crash (progression SilentHill(3/4).log, 0xC0000094):
          * a degenerate slope (distance==0 && groundHeight==bottomPos) makes the
@@ -2306,7 +2317,19 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
             return Q12(1.0f);
         }
 #endif
-        return Q12_DIV(state->charaState.distance, mag);
+        alpha = Q12_DIV(state->charaState.distance, mag);
+#ifdef SH_PC_PORT
+        /* Invisible-wall ROOT FIX: alpha = cos(slope). A walkable slope is gentle
+         * (alpha well above 0.5 = <60deg). A near-zero alpha means a near-vertical
+         * "slope" -> a spurious extrapolated ground read, not a real surface; it
+         * must NOT zero a sprinting Harry's movement (real walls block via the
+         * separate clamp/wall-edge paths). Treat it as flat. See g_PcSlopeAlphaFix. */
+        if (g_PcSlopeAlphaFix && alpha < Q12(0.5f))
+        {
+            return Q12(1.0f);
+        }
+#endif
+        return alpha;
     }
 }
 
