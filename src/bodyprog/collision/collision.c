@@ -49,6 +49,21 @@ static struct s_WallStopDbg g_WallStopDbg;
     g_WallStopDbg.cellw = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountX) : 0; \
     g_WallStopDbg.cellh = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountZ) : 0; \
     } while (0)
+
+/* Draw the round obstacle (ptr_18) that actually blocked Harry as a RED box in
+ * the collision visualizer — at its world position in WHATEVER chunk it lives in
+ * (the cached cyan cylinders only cover Harry's current cell, so the swept-caught
+ * one in an adjacent cell was invisible). World Q12 = (origin + offset) << 4. */
+extern int g_CollVisEnabled;
+extern void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r);
+#define WALLSTOP_VIS_OBST() do { \
+    const s_IpdCollisionData* _vcd = state->point.ipdCollisionData; \
+    if (g_CollVisEnabled && _vcd) { \
+        CollVis_CaptureHitCylinder((_vcd->positionX + state->point.field_6.vx) << 4, \
+                                   (s32)state->point.field_6.vy << 4, \
+                                   (_vcd->positionZ + state->point.field_6.vz) << 4, \
+                                   state->point.field_C.field_0 << 4); \
+    } } while (0)
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -2096,6 +2111,7 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
 #ifdef SH_PC_PORT
         WALLSTOP_SET(3, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
                      state->point.field_6.vy, state->point.field_C.field_0, distMax, dist, var_s2);
+        WALLSTOP_VIS_OBST();
 #endif
     }
 }
@@ -2114,6 +2130,7 @@ void func_8006C794(s_CollisionState* state, s32 arg1, s32 dist) // 0x8006C794
         WALLSTOP_SET(5, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
                      state->point.field_6.vy, state->point.field_C.field_0,
                      state->charaState.radius + state->point.field_C.field_0, dist, arg1);
+        WALLSTOP_VIS_OBST();
 #endif
     }
 }

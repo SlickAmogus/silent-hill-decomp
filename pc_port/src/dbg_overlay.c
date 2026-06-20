@@ -106,8 +106,9 @@ extern void   CollVis_CaptureCell(q19_12 px, q19_12 pz); /* full-cell wall captu
 #define CV_MAX_SEGS 2048
 #define CV_MAX_CYLS 256
 #define CV_MAX_HITS 256
-/* worst-case GL vertices: cell segs + hit segs (1 line) + cylinders (12-edge box) */
-#define CV_VERT_CAP (((CV_MAX_SEGS + CV_MAX_HITS) * 2) + (CV_MAX_CYLS * 12 * 2))
+/* worst-case GL vertices: cell segs + hit segs (1 line) + cylinders (12-edge box)
+ * + per-frame hit cylinders (32, 12-edge box). */
+#define CV_VERT_CAP (((CV_MAX_SEGS + CV_MAX_HITS) * 2) + (CV_MAX_CYLS * 12 * 2) + (32 * 12 * 2))
 typedef struct { s32 ax, ay, az, bx, by, bz; int hit; } s_CvSeg;
 
 /* Cell geometry (green) — cached; only re-walked when Harry's collision cell
@@ -125,6 +126,14 @@ typedef struct { s32 cx, cy, cz, r; } s_CvCyl;
 static s_CvCyl s_cvCyls[CV_MAX_CYLS];
 static int     s_cvCylCount = 0;
 static s32     s_cvFloorY   = 0; /* player ground Y (Q12), box base for cylinders */
+
+/* Per-frame RED cylinders for the obstacle/NPC actually BLOCKING Harry this
+ * frame, captured at the collision point in collision.c (any chunk, not just
+ * Harry's current cell — that's why the cached cyan cylinders miss the one that
+ * stops you when running fast into an adjacent cell). cy = the collider's own Y. */
+#define CV_MAX_HITCYLS 32
+static s_CvCyl s_cvHitCyls[CV_MAX_HITCYLS];
+static int     s_cvHitCylCount = 0;
 
 /* collState snapshot from the player's func_8006A4A8 pass (filled by collision.c). */
 s_CollStateDbg g_CollStateDbg = {0};
@@ -164,6 +173,17 @@ void CollVis_CaptureCylinder(s32 cx, s32 cy, s32 cz, s32 r)
     s_cvCyls[s_cvCylCount].cx = cx; s_cvCyls[s_cvCylCount].cy = cy;
     s_cvCyls[s_cvCylCount].cz = cz; s_cvCyls[s_cvCylCount].r  = r;
     s_cvCylCount++;
+}
+
+/* The obstacle/NPC that actually blocked Harry this frame (drawn RED). Called
+ * from collision.c at the block site with WORLD coords (origin + offset) << 4. */
+void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r)
+{
+    if (s_cvHitCylCount >= CV_MAX_HITCYLS)
+        return;
+    s_cvHitCyls[s_cvHitCylCount].cx = cx; s_cvHitCyls[s_cvHitCylCount].cy = cy;
+    s_cvHitCyls[s_cvHitCylCount].cz = cz; s_cvHitCyls[s_cvHitCylCount].r  = r;
+    s_cvHitCylCount++;
 }
 
 /* Clear the cached cell geometry — called by collision.c when Harry's cell
@@ -624,7 +644,7 @@ static void collvis_render_lines(void)
     float   H, halfW;
     int     i, nv = 0;
 
-    if (s_cvSegCount == 0 && s_cvCylCount == 0 && s_cvHitCount == 0)
+    if (s_cvSegCount == 0 && s_cvCylCount == 0 && s_cvHitCount == 0 && s_cvHitCylCount == 0)
         return;
 
     vcGetNowCamPos(&cam);
@@ -675,6 +695,25 @@ static void collvis_render_lines(void)
             CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],fy,czn[k], cxn[k1],fy,czn[k1]);  /* base */
             CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],ty,czn[k], cxn[k1],ty,czn[k1]);  /* top  */
             CV_PUSH_LINE(0.2f,0.8f,1.0f, cxn[k],fy,czn[k], cxn[k],ty,czn[k]);    /* vert */
+        }
+    }
+
+    /* The actual blocker this frame (red box) — obstacle or NPC cylinder that
+     * stopped Harry, captured at the collision point regardless of which cell. */
+    for (i = 0; i < s_cvHitCylCount; i++) {
+        s32 cx = s_cvHitCyls[i].cx, cz = s_cvHitCyls[i].cz, r = s_cvHitCyls[i].r;
+        s32 fy = s_cvFloorY;
+        s32 ty = s_cvFloorY - CV_CYL_H;
+        s32 cxn[4], czn[4], k;
+        cxn[0] = cx - r; czn[0] = cz - r;
+        cxn[1] = cx + r; czn[1] = cz - r;
+        cxn[2] = cx + r; czn[2] = cz + r;
+        cxn[3] = cx - r; czn[3] = cz + r;
+        for (k = 0; k < 4; k++) {
+            int k1 = (k + 1) & 3;
+            CV_PUSH_LINE(1.0f,0.1f,0.1f, cxn[k],fy,czn[k], cxn[k1],fy,czn[k1]);
+            CV_PUSH_LINE(1.0f,0.1f,0.1f, cxn[k],ty,czn[k], cxn[k1],ty,czn[k1]);
+            CV_PUSH_LINE(1.0f,0.1f,0.1f, cxn[k],fy,czn[k], cxn[k],ty,czn[k]);
         }
     }
 
@@ -1041,7 +1080,8 @@ void DbgOverlay_Render(void)
      * per-frame segment buffer captured during this frame's collision pass. */
     if (s_coll_on) {
         collvis_render_lines();
-        s_cvHitCount = 0; /* per-frame; cell segs/cyls cached until the cell changes */
+        s_cvHitCount = 0;    /* per-frame; cell segs/cyls cached until the cell changes */
+        s_cvHitCylCount = 0; /* per-frame blocker markers */
     }
 
     /* Restore ALL state. */
