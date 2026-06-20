@@ -531,6 +531,15 @@ static void coll_gather(void)
     } else {
         CL("(player pass not seen)");
     }
+    /* Animation-driven collision cylinder OFFSET from Harry's visual center
+     * (Collision_CharaCollisionSet, per keyframe). If this spikes large (|val| >>
+     * 4096 = 1u) while sprinting, the collision body has drifted off Harry ->
+     * the invisible-wall desync. r/h are the keyframe radius/height (also vary). */
+    CL("cylOff=(%d,%d) r=%d h=%d",
+       (int)g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vx,
+       (int)g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz,
+       (int)g_SysWork.playerWork.player.collision.cylinder.radius,
+       (int)g_SysWork.playerWork.player.collision.cylinder.field_2);
 #undef CL
 
     /* Decrement the contact latch each frame so a held snapshot eventually
