@@ -70,7 +70,7 @@ static void Console_LoadHist(int nav) {
     s_input_len = (int)strlen(s_input_buf);
 }
 static int           s_tilde_hold_done = 0; /* hold already toggled the view this press */
-static unsigned char s_prev_keys[64]; /* scancodes used here are all < 64 */
+static unsigned char s_prev_keys[128]; /* must cover arrow keys (scancodes 79-82) */
 
 /* Slide animation: 0 = fully off-screen above the top edge, 1 = at rest.
  * Eased toward the target each frame in DbgOverlay_Update; the continuous value
@@ -956,7 +956,7 @@ void DbgOverlay_Update(void)
     }
     {
         int sc;
-        for (sc = 0; sc < 64; sc++)
+        for (sc = 0; sc < 128; sc++)
             s_prev_keys[sc] = ks[sc];
     }
 
