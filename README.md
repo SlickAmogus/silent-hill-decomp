@@ -26,7 +26,7 @@ The port is 100% playable start-to-finish — the full game can be completed. Ex
 
 ### Known Issues / Bugs
 
-Major items currently being worked on (priority order):
+Major items currently being worked on (priority but in no particular order):
 
 - Crash entering the clock tower in Midwich
 - PGXP: seams at character joints and distant faces dropping out; warped geometry at screen edges
@@ -39,7 +39,7 @@ Major items currently being worked on (priority order):
 - Linux / Steam Deck visuals broken (red tint)
 - PAL text and languages not working
 
-There's also a long tail of ending/Nowhere, audio, and per-cutscene issues.
+There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issues.
 
 **Full tracked bug list:** https://github.com/SlickAmogus/silent-hill-decomp/issues/13
 
@@ -61,7 +61,7 @@ There's also a long tail of ending/Nowhere, audio, and per-cutscene issues.
 
  ### Short Instructions
 -Extract somewhere on your PC<br>
--Put your game data inside the gamedata folder and name it Silent Hill (USA).bin<br>
+-Put your game data inside the gamedata folder and name it Silent Hill (USA).bin (or any name, it will find it automatically as of recent updates)<br>
 -Run SilentHillPC_Launcher to configure the game, or just run SIlentHillPC. You may need to run the game once before the launcher will work because of smartscreen.<br>
 
 
