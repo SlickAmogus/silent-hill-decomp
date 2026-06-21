@@ -370,6 +370,12 @@ static const char* const HELP_GIVE_PAGE2[] = {
  * 3D-world vertical-FOV bottom crop. Console MSGSHIFT; read by text_draw.c. */
 int g_PsxMsgVShift = 35;
 
+/* Cutscene letterbox bar Y (centered coords): bars span +/-Outer (screen edge) to
+ * +/-Inner. Tunable via console BARY while the interlaced-buffer mapping is dialed in.
+ * Read by cutscene_border.c. */
+int g_PsxBarOuter = 112;
+int g_PsxBarInner = 96;
+
 static const char* const DEBUG_PAGE1[] = {
     "Debug keys (page 1/2) - cheats & tools:",
     " Esc     warm reset to the title screen",
@@ -617,6 +623,10 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PsxMsgVShift;
         if (arg[0]) g_PsxMsgVShift = atoi(arg);
         cprintf("message box up-shift: %d psx-units (compensates the VFOV bottom crop)", g_PsxMsgVShift);
+    } else if (strcmp(cmd, "BARY") == 0) {
+        extern int g_PsxBarOuter, g_PsxBarInner;
+        if (arg[0]) { g_PsxBarOuter = atoi(arg); g_PsxBarInner = g_PsxBarOuter - 16; }
+        cprintf("letterbox bar Y: outer=%d inner=%d (raise until bars hit the screen edges)", g_PsxBarOuter, g_PsxBarInner);
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);

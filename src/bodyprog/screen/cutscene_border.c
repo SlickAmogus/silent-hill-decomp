@@ -72,11 +72,17 @@ static void Screen_BorderInitStatics(void)
     }
 
     /* Width recomputed every call so a window resize is reflected.
-     * [0]/[1] = top bar (per double-buffer), [2]/[3] = bottom bar. */
-    setXY4(&D_800A8EB0[0], -halfW, -112, halfW, -112, -halfW, -96, halfW, -96);
-    setXY4(&D_800A8EB0[1], -halfW, -112, halfW, -112, -halfW, -96, halfW, -96);
-    setXY4(&D_800A8EB0[2], -halfW,  112, halfW,  112, -halfW,  96, halfW,  96);
-    setXY4(&D_800A8EB0[3], -halfW,  112, halfW,  112, -halfW,  96, halfW,  96);
+     * [0]/[1] = top bar (per double-buffer), [2]/[3] = bottom bar.
+     * Outer/inner bar Y are runtime-tunable (console BARTOP/BARBOT) while we pin
+     * down the interlaced-buffer mapping; defaults are the PSX ±112/±96. */
+    {
+        extern int g_PsxBarOuter, g_PsxBarInner;
+        const s16 o = (s16)g_PsxBarOuter, in = (s16)g_PsxBarInner;
+        setXY4(&D_800A8EB0[0], -halfW, -o, halfW, -o, -halfW, -in, halfW, -in);
+        setXY4(&D_800A8EB0[1], -halfW, -o, halfW, -o, -halfW, -in, halfW, -in);
+        setXY4(&D_800A8EB0[2], -halfW,  o, halfW,  o, -halfW,  in, halfW,  in);
+        setXY4(&D_800A8EB0[3], -halfW,  o, halfW,  o, -halfW,  in, halfW,  in);
+    }
 }
 #else
 static DR_MODE D_800A8E98[] = {
