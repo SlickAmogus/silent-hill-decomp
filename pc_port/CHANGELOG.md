@@ -1,11 +1,24 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.21.2 -- 2026-06-21
+- Fixed text going off screen and cutscene letterbox issues that started after the last patch, let me know if you see any issues anywhere.
+- PGXP: Improved warping on edges of screen,  gone at 4:3 and barely noticeable at 16:9. Working on more tweaks and fixing the seams/invisible spots at a distance.
+- Timestamped per-run logs
+- Changed map console command to edit map in config and not instantly to go the map (wasn't working)
+Please check the github to see all the known issues that are being worked on. Also if you experience a random crash, posting your log file somewhere like github is really helpful.                                         
+
+Claude list:                 
+- docs: add Controls (R/F6/F8) + Console Commands section; fix Debug keys
+- console: Up/Down arrows recall recent commands (8-entry history)
+- fixes: cutscene vfov-crop skip, subtitle msgshift, map=config, console history
+- fix: cutscene letterbox bars — border-state gate + no fixed-cam vshift
+
 ## v2026.06.21.1 -- 2026-06-21
 - ASPECT RATIO FIX!! Game now has proper aspect ratio and FOV in 4:3 and 16:9. Fixed camera framing should be corrected as well. Please inform me of anything that is still wrong with FOV or camera framing.
 - Running into walls: Hopefully fixed now even at high FPS, let me know if not.
 - Invisible health drinks fixed courtesy of sergiomanzur on GitHub!
 
-Claude noise:
+Claude list:
 - Player: make run-into-wall smack gate self-consistent + [WALLANIM] probe (#42)
 - Player: throttle forward-input history to 30 Hz ΓÇö fixes random run-into-wall smack (#42)
 - Aspect: fix Harry-too-wide in Hor+ ΓÇö 320x224 framebuffer needs 15/14 PAR, not square
@@ -26,7 +39,7 @@ Claude noise:
 Next: Still working on aspect ratio fixes and fine tuning PGXP. Everything else mentioned coming after those.
 There are a lot of bugs that I am aware of and still working on, will post a github issue for consolidation.
 
-Claude noise:
+Claude list:
 - collision: [WALLSTOP] probe ΓÇö capture the ACTUAL invisible-wall block
 - collision: [WALLSTOP] v2 ΓÇö same-frame wrap/chunk/world capture
 - collision: [WALLSTOP] kind=4 ΓÇö capture chara-vs-chara (NPC) blocks
