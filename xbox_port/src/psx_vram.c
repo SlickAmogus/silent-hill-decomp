@@ -18,7 +18,7 @@
 #define VRAM_W   1024
 #define VRAM_H   512
 #define TEX_DIM  256                 /* a PSX texture page is 256x256 texels */
-#define CACHE_N  24
+#define CACHE_N  48                  /* 48 * 256KB = 12 MB of decoded textures */
 
 static uint16_t s_vram[VRAM_W * VRAM_H];
 
@@ -26,6 +26,7 @@ typedef struct { int key; uint32_t* argb; } TexEntry;
 static TexEntry s_cache[CACHE_N];
 static int      s_cacheNext;
 static int      s_cacheReady;
+static int      s_decodeTotal;
 
 static void InvalidateCache(void)
 {
@@ -117,12 +118,14 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     int i;
 
     if (!s_cacheReady) {
+        int ok = 0;
         for (i = 0; i < CACHE_N; i++) {
             s_cache[i].argb = (uint32_t*)GpuNv2a_AllocTexMem(TEX_DIM * TEX_DIM * 4);
             s_cache[i].key  = -1;
+            if (s_cache[i].argb) ok++;
         }
         s_cacheReady = 1;
-        SH_DBG("[VRAM] texture cache ready (%d x 256x256)", CACHE_N);
+        SH_DBG("[VRAM] texture cache: %d/%d slots (256KB each)", ok, CACHE_N);
     }
 
     for (i = 0; i < CACHE_N; i++)
@@ -135,5 +138,9 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
         return 0;
     DecodePage(tpage, clut, s_cache[i].argb);
     s_cache[i].key = key;
+    /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
+     * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
+    if ((++s_decodeTotal & 511) == 0)
+        SH_DBG("[VRAM] decode #%d", s_decodeTotal);
     return s_cache[i].argb;
 }

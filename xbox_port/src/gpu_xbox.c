@@ -41,6 +41,10 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 static float s_ofsX = 160.0f, s_ofsY = 112.0f;
 static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 
+/* Currently-bound NV2A texture (bind-dedup in ProcessPoly); reset each DrawOTag.
+ * -1 = unknown, forcing a bind on the first prim of the walk. */
+static const void* s_curTex = (const void*)-1;
+
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
     v->pos[0] = ((float)x + s_ofsX) * s_scaleX;
@@ -150,13 +154,16 @@ static int ProcessPoly(P_TAG* tag)
         }
     }
 
-    /* Bind this prim's texture (or restore white for untextured). Per-prim binds
-     * are fine — only texture state changes between draws, not the vertex program
-     * / attribute arrays that FrameBegin set up. */
-    if (texAddr)
-        GpuNv2a_BindTexture(texAddr, 256, 256);
-    else
-        GpuNv2a_BindWhite();
+    /* Bind this prim's texture (or restore white for untextured), but only when it
+     * actually changes — re-binding on every prim (incl. untextured) was the main
+     * texture-pipeline slowdown. s_curTex is reset per DrawOTag. */
+    if (texAddr != s_curTex) {
+        if (texAddr)
+            GpuNv2a_BindTexture(texAddr, 256, 256);
+        else
+            GpuNv2a_BindWhite();
+        s_curTex = texAddr;
+    }
 
     if (quad)
         EmitQuad(&v[0], &v[1], &v[2], &v[3]);
@@ -197,6 +204,8 @@ void DrawOTag(u_long* p)
 
     if (g_gpuDisabled)
         return;
+
+    s_curTex = (const void*)-1;   /* force a texture bind on the first prim */
 
     if (s_otLog) SH_DBG("[OT] DrawOTag head=%p (walking; per-node trace off)", (void*)base);
 
