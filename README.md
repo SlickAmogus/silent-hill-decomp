@@ -31,7 +31,6 @@ Major items currently being worked on (priority order):
 - Crash entering the clock tower in Midwich
 - PGXP: seams at character joints and distant faces dropping out; warped geometry at screen edges
 - Harry stops abruptly on invisible walls while sprinting
-- Some regressions can block story progression in places
 - Placeholder aiming shim — real aiming/camera-follow not yet wired in
 - Combat runs too fast at high FPS
 - Enemy AI needs a rework (some jerk through the floor during combat)
