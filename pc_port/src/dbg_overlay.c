@@ -55,6 +55,20 @@ int g_PcConsoleSwallowInput = 0;
 static char          s_input_buf[INPUT_BUF_CAP];
 static int           s_input_len = 0;
 static Uint32        s_tilde_down_ms = 0;
+
+/* Console command history: Up/Down recall recently entered commands. */
+#define CONSOLE_HIST_MAX 8
+static char s_hist[CONSOLE_HIST_MAX][INPUT_BUF_CAP];
+static int  s_hist_count = 0;   /* number stored (<= MAX)                          */
+static int  s_hist_write = 0;   /* next circular write slot                        */
+static int  s_hist_nav   = -1;  /* -1 = live edit; 0 = newest .. count-1 = oldest  */
+static char s_hist_edit[INPUT_BUF_CAP];  /* live input parked while browsing       */
+static void Console_LoadHist(int nav) {
+    int idx = (s_hist_write - 1 - nav + 2 * CONSOLE_HIST_MAX) % CONSOLE_HIST_MAX;
+    strncpy(s_input_buf, s_hist[idx], INPUT_BUF_CAP - 1);
+    s_input_buf[INPUT_BUF_CAP - 1] = '\0';
+    s_input_len = (int)strlen(s_input_buf);
+}
 static int           s_tilde_hold_done = 0; /* hold already toggled the view this press */
 static unsigned char s_prev_keys[64]; /* scancodes used here are all < 64 */
 
@@ -884,6 +898,25 @@ void DbgOverlay_Update(void)
             s_input_buf[--s_input_len] = '\0';
             s_console_dirty            = 1;
         }
+        /* Up / Down: recall recently entered commands (most-recent first). */
+        if (ks[SDL_SCANCODE_UP] && !s_prev_keys[SDL_SCANCODE_UP] && s_hist_count > 0) {
+            if (s_hist_nav < 0) {  /* park the live edit before browsing into history */
+                strncpy(s_hist_edit, s_input_buf, INPUT_BUF_CAP - 1);
+                s_hist_edit[INPUT_BUF_CAP - 1] = '\0';
+            }
+            if (s_hist_nav < s_hist_count - 1) { Console_LoadHist(++s_hist_nav); s_console_dirty = 1; }
+        }
+        if (ks[SDL_SCANCODE_DOWN] && !s_prev_keys[SDL_SCANCODE_DOWN] && s_hist_nav >= 0) {
+            if (s_hist_nav > 0) {
+                Console_LoadHist(--s_hist_nav);
+            } else {  /* stepped past the newest -> restore the parked live edit */
+                s_hist_nav  = -1;
+                strncpy(s_input_buf, s_hist_edit, INPUT_BUF_CAP - 1);
+                s_input_buf[INPUT_BUF_CAP - 1] = '\0';
+                s_input_len = (int)strlen(s_input_buf);
+            }
+            s_console_dirty = 1;
+        }
         if (ks[SDL_SCANCODE_RETURN] && !s_prev_keys[SDL_SCANCODE_RETURN]) {
             if (s_input_len > 0) {
                 extern void Pc_ConsoleExec(const char* line);
@@ -891,6 +924,17 @@ void DbgOverlay_Update(void)
                 snprintf(echo, LINE_LEN, "> %s", s_input_buf);
                 push_console(echo);
                 Pc_ConsoleExec(s_input_buf);
+                /* Save to history (skip an immediate duplicate of the most recent). */
+                {
+                    int prev = (s_hist_write - 1 + CONSOLE_HIST_MAX) % CONSOLE_HIST_MAX;
+                    if (s_hist_count == 0 || strcmp(s_hist[prev], s_input_buf) != 0) {
+                        strncpy(s_hist[s_hist_write], s_input_buf, INPUT_BUF_CAP - 1);
+                        s_hist[s_hist_write][INPUT_BUF_CAP - 1] = '\0';
+                        s_hist_write = (s_hist_write + 1) % CONSOLE_HIST_MAX;
+                        if (s_hist_count < CONSOLE_HIST_MAX) s_hist_count++;
+                    }
+                }
+                s_hist_nav = -1;
                 /* Keep the console OPEN: clear the line and briefly unfreeze so the
                  * command's effect renders/animates, then drop back into input mode
                  * (apply-window check at the top of the function). Lets the user run
