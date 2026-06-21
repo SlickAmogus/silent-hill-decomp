@@ -113,7 +113,8 @@ static void GpuNv2a_SetRenderState(void)
 
 void GpuNv2a_FrameBegin(void)
 {
-    pb_wait_for_vbl();
+    /* No pb_wait_for_vbl() here: VSync() now drives the vblank waits (one present
+     * per frame, held for the requested vblank count) via GpuNv2a_WaitVbl. */
     pb_reset();
     pb_target_back_buffer();
 
@@ -165,6 +166,11 @@ void GpuNv2a_FrameEnd(void)
 {
     while (pb_busy()) { }
     while (pb_finished()) { }
+}
+
+void GpuNv2a_WaitVbl(void)
+{
+    pb_wait_for_vbl();
 }
 
 static void SetAttribPointer(unsigned index, unsigned size, const void* data)

@@ -52,32 +52,44 @@ int ClearImage2(RECT* rect, u_char r, u_char g, u_char b) { (void)rect; (void)r;
  * windows.h include tangle. */
 extern void GpuNv2a_FrameBegin(void);
 extern void GpuNv2a_FrameEnd(void);
+extern void GpuNv2a_WaitVbl(void);
 extern void Pad_Poll(void);   /* refresh the PSX pad buffer (pad_xbox.c) */
 
-static volatile int s_vsyncCount = 0;
+static volatile int s_vblanks = 0;
 static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
 
-/* The game calls VSync(0) once per frame to wait for vblank; we use it as the
- * present point — finish + swap the frame the game just rendered, then open the
- * next. main_xbox.c opens the very first frame before entering MainLoop.
+/* PSX VSync():
+ *   mode <0 (SyncMode_Count): return the vblank counter WITHOUT blocking. The game
+ *     reads this several times per frame for timing — the old code presented on
+ *     every call, so we were swapping the framebuffer ~12x/frame -> flicker.
+ *   mode 0 (SyncMode_Wait): wait one vblank. mode N>0: wait N vblanks.
  *
- * On PSX the registered VSyncCallback fires on every vblank interrupt; the game
- * relies on it (Screen_VSyncCallback: increments counters_1C[] — the boot-logo
- * timers — and pumps the MIDI sequencer). We have no vblank IRQ, so fire it here
- * once per frame. Without this, all frame timers freeze and boot logos never
- * advance. */
+ * For the wait modes we present the frame the game just rendered (FrameEnd swaps),
+ * hold it for N vblanks, then open the next frame (FrameBegin). The registered
+ * VSyncCallback (Screen_VSyncCallback: boot-logo timers counters_1C[] + MIDI pump)
+ * is fired once per real vblank — we have no vblank IRQ, so this is its tick. */
 int VSync(int mode)
 {
-    (void)mode;
+    int n, i;
+
+    if (mode < 0)
+        return s_vblanks;
+
     Pad_Poll();
-    if (s_vsyncCb)
-        s_vsyncCb();
-    GpuNv2a_FrameEnd();
-    GpuNv2a_FrameBegin();
-    ++s_vsyncCount;
-    if ((s_vsyncCount % 600) == 0)   /* ~10s heartbeat: confirms MainLoop loops */
-        SH_DBG("[SH-XBOX] frame %d", s_vsyncCount);
-    return s_vsyncCount;
+    GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
+
+    n = (mode == 0) ? 1 : mode;
+    for (i = 0; i < n; i++) {
+        GpuNv2a_WaitVbl();          /* hold the presented frame for one vblank */
+        ++s_vblanks;
+        if (s_vsyncCb)
+            s_vsyncCb();
+    }
+
+    GpuNv2a_FrameBegin();           /* clear + target the next frame's back buffer */
+    if ((s_vblanks % 600) == 0)
+        SH_DBG("[SH-XBOX] vblank %d", s_vblanks);
+    return s_vblanks;
 }
 
 int VSyncCallback(void (*f)(void)) { s_vsyncCb = f; return 0; }
