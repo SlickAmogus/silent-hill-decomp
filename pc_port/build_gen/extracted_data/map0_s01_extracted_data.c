@@ -21,7 +21,7 @@
 #include "game.h"             /* VECTOR3 */
 #include "bodyprog/bodyprog.h" /* s_AnmHeader, s_WorldObjectModel etc. (shared.h prereqs) */
 #include "main/fsqueue.h"     /* s_FsImageDesc (background_draw.h prereq) */
-#include "maps/shared.h"      /* s_WorldObjectPose (D_800DE12C/D_800DE140) */
+#include "maps/shared.h"
 
 // 0x800DDC98  size 0xE0 (224 bytes) — fallback room-index grid for
 // Map_RoomIdxGet (same street layout as map0_s00; byte-identical table).
@@ -71,15 +71,15 @@ const u16 D_800DE124[4] = { 0x102A, 0x1004, 0x1005, 0x0000 };
 // PSX aliases this into g_Cutscene_MapMsgAudioCmds[46..47]; PC duplicates.
 const u16 D_800DE128[2] = { 0x1005, 0x0000 };
 
-// 0x800DE12C  s_WorldObjectPose — health drink #0 placement.
-// PSX aliases into g_Cutscene_MapMsgAudioCmds[48..]; PC stores as proper struct.
-s_WorldObjectPose D_800DE12C = {
+// 0x800DE12C  s_Pose — health drink #0 placement.
+// PSX aliases into g_Cutscene_MapMsgAudioCmds[48..]; PC stores as a plain pose.
+s_Pose D_800DE12C = {
     .position   = { 0x00005199, (s32)0xFFFFF000, 0x00111B33 },
     .rotation = { 0, 0x024F, 0 },
 };
 
-// 0x800DE140  s_WorldObjectPose — health drink #1 placement.
-s_WorldObjectPose D_800DE140 = {
+// 0x800DE140  s_Pose — health drink #1 placement.
+s_Pose D_800DE140 = {
     .position   = { 0x00004F33, (s32)0xFFFFF000, 0x0010B800 },
     .rotation = { 0, 0x0311, 0 },
 };
@@ -99,4 +99,3 @@ s32 g_Cutscene_Timer = 0;
 
 // 0x800E23A0  size 0xF0 (240 bytes)
 u8 g_Cutscene_MapMsgAudioIdx = 0x00;
-
