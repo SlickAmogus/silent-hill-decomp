@@ -325,23 +325,15 @@ int main(int argc, char* argv[])
         }
     }
 
-    /* Apply pixel-aspect mode to PsyCross's runtime PAR global.
-     * Silent Hill renders a 320x224 framebuffer that the PSX displays as a 4:3
-     * picture, so its pixels are NOT square: PAR = (4/3)/(320/224) = 14/15. Both
-     * PsyCross's Hor+ ortho and the matching game-side cull bounds scale the
-     * framebuffer-aspect horizontal extent by g_PsxPixelAspect; the value that
-     * restores the 4:3 picture (Harry as thin as on PSX, while still revealing the
-     * extra Hor+ side FOV at 16:9) is (320/224)*(3/4) = 15/14 ~= 1.0714. The old
-     * default 1.0 assumed a 320x240 framebuffer (square pixels) and rendered
-     * everything ~7% too wide. Modes 2/3 are non-faithful "looks". */
+    /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224
+     * framebuffer the PSX displays as a 4:3 picture, so its pixels are NOT square
+     * (PAR = (4/3)/(320/224) = 14/15). PsyCross's Hor+ ortho and the matching game-side
+     * cull bounds scale the framebuffer-aspect horizontal extent by g_PsxPixelAspect;
+     * the value that restores the 4:3 picture is (320/224)*(3/4) = 15/14 ~= 1.0714.
+     * Baked in — it was a config knob, but no other value is correct for this game. */
     {
         extern float g_PsxPixelAspect;
-        switch (g_PcConfig.pixelAspectMode) {
-            case 2:  g_PsxPixelAspect = 1.09375f; break; /* legacy "NTSC" look */
-            case 3:  g_PsxPixelAspect = 1.143f;   break; /* 8:7 (overscan) look */
-            case 1:
-            default: g_PsxPixelAspect = (320.0f / 224.0f) * (3.0f / 4.0f); break; /* 320x224 -> 4:3 (correct) */
-        }
+        g_PsxPixelAspect = (320.0f / 224.0f) * (3.0f / 4.0f);
     }
 
     /* Apply widescreen mode to PsyCross. */

@@ -13,7 +13,6 @@ typedef struct {
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
     int showConsole;     /* 0=off, 1=external window, 2=ingame overlay, 3=ingame+external */
     int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
-    int pixelAspectMode; /* 1 = CRT NTSC (1.09375), 2 = square (1.0), 3 = 8:7 (1.143) */
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
