@@ -38,7 +38,6 @@ static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
 static int s_frameW, s_frameH;
 
 static void GpuNv2a_SetRenderState(void);
-static void GpuNv2a_BindTexture(const void* addr, int w, int h);
 static void SetAttribPointer(unsigned index, unsigned size, const void* data);
 
 static void GpuNv2a_InitShader(void)
@@ -185,7 +184,7 @@ static void SetAttribPointer(unsigned index, unsigned size, const void* data)
 }
 
 /* Bind a linear A8R8G8B8 texture (texel coords, clamp, bilinear) to stage 0. */
-static void GpuNv2a_BindTexture(const void* addr, int w, int h)
+void GpuNv2a_BindTexture(const void* addr, int w, int h)
 {
     uint32_t* p = pb_begin();
     p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)addr & 0x03ffffff, 0x0001122a);
@@ -198,6 +197,18 @@ static void GpuNv2a_BindTexture(const void* addr, int w, int h)
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
     pb_end(p);
+}
+
+/* Restore the 1x1-white default texture (untextured prims -> colour passes through). */
+void GpuNv2a_BindWhite(void)
+{
+    GpuNv2a_BindTexture(s_whiteTex, WHITE_TEX_DIM, WHITE_TEX_DIM);
+}
+
+/* GPU-DMA-able contiguous, write-combined memory for decoded textures. */
+void* GpuNv2a_AllocTexMem(int bytes)
+{
+    return MmAllocateContiguousMemoryEx(bytes, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
 }
 
 /* Append `count` vertices to the frame's pool and draw them as a triangle list.

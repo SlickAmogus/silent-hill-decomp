@@ -41,9 +41,20 @@ void SetDrawMove(DR_MOVE* p, RECT* rect, int x, int y) { (void)p; (void)rect; (v
 void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env) { (void)dr_env; (void)env; }
 DRAWENV* GetDrawEnv(DRAWENV* env)             { return env; }
 
-/* --- VRAM image transfers (stubbed; real VRAM emulation = texturing TODO) ---*/
-int LoadImage(RECT* rect, u_long* p)  { (void)rect; (void)p; return 0; }
-int StoreImage(RECT* rect, u_long* p) { (void)rect; (void)p; return 0; }
+/* --- VRAM image transfers -> PSX VRAM emulation (psx_vram.c) ----------------*/
+extern void PsxVram_Load(int x, int y, int w, int h, const unsigned short* src);
+extern void PsxVram_Store(int x, int y, int w, int h, unsigned short* dst);
+
+int LoadImage(RECT* rect, u_long* p)
+{
+    if (rect) PsxVram_Load(rect->x, rect->y, rect->w, rect->h, (const unsigned short*)p);
+    return 0;
+}
+int StoreImage(RECT* rect, u_long* p)
+{
+    if (rect) PsxVram_Store(rect->x, rect->y, rect->w, rect->h, (unsigned short*)p);
+    return 0;
+}
 int ClearImage(RECT* rect, u_char r, u_char g, u_char b)  { (void)rect; (void)r; (void)g; (void)b; return 0; }
 int ClearImage2(RECT* rect, u_char r, u_char g, u_char b) { (void)rect; (void)r; (void)g; (void)b; return 0; }
 

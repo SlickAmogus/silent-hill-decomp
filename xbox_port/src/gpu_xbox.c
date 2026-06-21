@@ -54,6 +54,27 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
     v->tex[1] = 0.0f;
 }
 
+/* Textured vertex: texel UV (the decoded page is 256x256, PSX UVs are 0..255 so
+ * they index it 1:1) + PSX texel modulation, where colour 0x80 = 1.0, so we scale
+ * the prim colour by 2 (clamped). Texel 0x0000 already decoded to transparent. */
+extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
+
+static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int tv)
+{
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX;
+    v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
+    v->pos[2] = 0.0f;
+    r <<= 1; if (r > 255) r = 255;
+    g <<= 1; if (g > 255) g = 255;
+    b <<= 1; if (b > 255) b = 255;
+    v->col[0] = (float)r * (1.0f / 255.0f);
+    v->col[1] = (float)g * (1.0f / 255.0f);
+    v->col[2] = (float)b * (1.0f / 255.0f);
+    v->col[3] = 1.0f;
+    v->tex[0] = (float)u;
+    v->tex[1] = (float)tv;
+}
+
 /* PSX quad verts are in a Z/strip order (0,1,2,3) -> two triangles. Culling is
  * off, so winding does not matter. */
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
@@ -83,6 +104,7 @@ static int ProcessPoly(P_TAG* tag)
     const int quad     = code & POLY_QUAD;
     const int textured = code & POLY_TEXTURE;
     ShVertex  v[4];
+    const void* texAddr = 0;   /* decoded PSX texture for this prim, else white */
     int       i;
 
     if (!gouraud && !textured) {
@@ -92,12 +114,13 @@ static int ProcessPoly(P_TAG* tag)
         for (i = 0; i < (quad ? 4 : 3); i++)
             PutVert(&v[i], xy[i * 2], xy[i * 2 + 1], p->r0, p->g0, p->b0);
     } else if (!gouraud && textured) {
-        /* POLY_FT3 / POLY_FT4 (textured: colour only for now) */
+        /* POLY_FT3 / POLY_FT4 (flat textured) */
         POLY_FT4* p = (POLY_FT4*)tag;
-        PutVert(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0);
-        PutVert(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0);
-        PutVert(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0);
-        if (quad) PutVert(&v[3], p->x3, p->y3, p->r0, p->g0, p->b0);
+        texAddr = PsxVram_GetTexture(p->tpage, p->clut);
+        PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
+        PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
+        PutVertUV(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0, p->u2, p->v2);
+        if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r0, p->g0, p->b0, p->u3, p->v3);
     } else if (gouraud && !textured) {
         /* POLY_G3 / POLY_G4 */
         POLY_G4* p = (POLY_G4*)tag;
@@ -106,12 +129,13 @@ static int ProcessPoly(P_TAG* tag)
         PutVert(&v[2], p->x2, p->y2, p->r2, p->g2, p->b2);
         if (quad) PutVert(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3);
     } else {
-        /* POLY_GT3 / POLY_GT4 (textured gouraud: colour only for now) */
+        /* POLY_GT3 / POLY_GT4 (gouraud textured) */
         POLY_GT4* p = (POLY_GT4*)tag;
-        PutVert(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0);
-        PutVert(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1);
-        PutVert(&v[2], p->x2, p->y2, p->r2, p->g2, p->b2);
-        if (quad) PutVert(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3);
+        texAddr = PsxVram_GetTexture(p->tpage, p->clut);
+        PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
+        PutVertUV(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1, p->u1, p->v1);
+        PutVertUV(&v[2], p->x2, p->y2, p->r2, p->g2, p->b2, p->u2, p->v2);
+        if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3, p->u3, p->v3);
     }
 
     {
@@ -125,6 +149,14 @@ static int ProcessPoly(P_TAG* tag)
                    (int)v[2].pos[0], (int)v[2].pos[1]);
         }
     }
+
+    /* Bind this prim's texture (or restore white for untextured). Per-prim binds
+     * are fine — only texture state changes between draws, not the vertex program
+     * / attribute arrays that FrameBegin set up. */
+    if (texAddr)
+        GpuNv2a_BindTexture(texAddr, 256, 256);
+    else
+        GpuNv2a_BindWhite();
 
     if (quad)
         EmitQuad(&v[0], &v[1], &v[2], &v[3]);
