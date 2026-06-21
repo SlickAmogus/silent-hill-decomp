@@ -24,6 +24,7 @@ extern void XboxFs_MountHomeDrive(void);
 extern void Gte_SelfTest(void);
 extern void Pad_XboxInit(void);   /* USB controller init (pad_xbox.c) */
 extern void Cd_XboxInit(void);    /* open the BIN disc image on D: (cd_xbox.c) */
+extern void Fs_InitFileTableForRegion(int region);  /* fill g_FileTable (USA=0) */
 
 /* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
 extern void MainLoop(void);
@@ -150,6 +151,12 @@ int main(void)
 
     /* Open the BIN disc image on D: for real asset loading (libcd reads). */
     Cd_XboxInit();
+
+    /* Populate g_FileTable with the USA disc layout. Under SH_PC_PORT this table
+     * ships empty and must be filled at runtime (main_pc.c does the same). Without
+     * it every file's startSector is 0, so every CD read hits sector 0 (the ISO
+     * volume descriptor) and returns garbage. */
+    Fs_InitFileTableForRegion(0 /* Region_USA */);
 
     /* PSX subsystem init (mirrors main_pc.c order). */
     Sh_InitGameData();

@@ -47,29 +47,58 @@ static int CdPosToInt(const CdlLOC* p)
     return 75 * (60 * DecodeBcd(p->minute) + DecodeBcd(p->second)) + DecodeBcd(p->sector) - 150;
 }
 
-/* Open the first *.bin sitting next to the XBE (D:). Idempotent. */
+/* Open the game's BIN disc image, which lives next to the XBE on D: (the launch
+ * dir; same place the log is written via fopen). Idempotent. Tries the expected
+ * filenames by direct fopen first — FindFirstFile is unreliable on the nxdk D:
+ * mount — then falls back to scanning D:\*.bin. */
 void Cd_XboxInit(void)
 {
+    /* Check both layouts: next to the XBE (D: root) and in a gamedata\ subfolder
+     * (matching the PC port's ./gamedata convention, so a copied PC setup works). */
+    static const char* const names[] = {
+        "D:\\Silent Hill (USA).bin",
+        "D:\\gamedata\\Silent Hill (USA).bin",
+        "D:\\Silent Hill (USA) (Track 1).bin",
+        "D:\\gamedata\\Silent Hill (USA) (Track 1).bin",
+        "D:\\Silent Hill (USA) (Track 01).bin",
+        "D:\\gamedata\\Silent Hill (USA) (Track 01).bin",
+        "D:\\Silent Hill.bin",
+        "D:\\gamedata\\Silent Hill.bin",
+    };
+    static const char* const scanDirs[] = { "D:\\", "D:\\gamedata\\" };
     WIN32_FIND_DATAA fd;
     HANDLE           h;
+    unsigned         i;
 
     if (s_bin)
         return;
 
-    h = FindFirstFileA("D:\\*.bin", &fd);
-    if (h != INVALID_HANDLE_VALUE) {
-        char path[MAX_PATH];
-        snprintf(path, sizeof(path), "D:\\%s", fd.cFileName);
-        FindClose(h);
-        s_bin = fopen(path, "rb");
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        s_bin = fopen(names[i], "rb");
         if (s_bin) {
-            SH_DBG("[CD] disc image: %s", path);
+            SH_DBG("[CD] disc image: %s", names[i]);
             return;
         }
-        SH_DBG("[CD] found %s but fopen failed", path);
-        return;
+        SH_DBG("[CD] not found: %s", names[i]);
     }
-    SH_DBG("[CD] no .bin disc image on D: — asset loading will return nothing");
+
+    /* Fallback: any *.bin in either directory. */
+    for (i = 0; i < sizeof(scanDirs) / sizeof(scanDirs[0]); i++) {
+        char pattern[MAX_PATH];
+        snprintf(pattern, sizeof(pattern), "%s*.bin", scanDirs[i]);
+        h = FindFirstFileA(pattern, &fd);
+        if (h != INVALID_HANDLE_VALUE) {
+            char path[MAX_PATH];
+            snprintf(path, sizeof(path), "%s%s", scanDirs[i], fd.cFileName);
+            FindClose(h);
+            s_bin = fopen(path, "rb");
+            if (s_bin) {
+                SH_DBG("[CD] disc image (scan): %s", path);
+                return;
+            }
+        }
+    }
+    SH_DBG("[CD] NO .bin found on D:\\ or D:\\gamedata\\ — see filenames tried above");
 }
 
 void CdInit(void) { Cd_XboxInit(); }
