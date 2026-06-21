@@ -3,7 +3,7 @@
   This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance from Claude Opus 4.6 and 4.7.<br/>
   <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
 
-  Project Website: https://kushastronaut.net/silent-hill.html
+  Project Website: https://sh1pc.com/
 
 ### Status
 
@@ -173,9 +173,9 @@ There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issu
 
   An in-game command console for cheats, warps, and live tuning. Enable it in `config.cfg`:
   - `allow_debug_controls = 1`
-  - `show_console = 2` (in-game overlay) or `3` (overlay + external window)
+  - `show_console = 2` (in-game overlay) or `3` (overlay + external window) - Note that even if console is set to off, holding ~ ingame will still toggle it. Really this setting is useless and will be updated to just external on or off.
 
-  In-game, **tap `` ` ``** (the backtick / tilde key) to open the console, then **hold it** to bring up a `>` input prompt. Type a command and press **Enter** — commands are case-insensitive, Backspace edits. Type **`HELP`**, or **`DEBUG`** / **`DEBUG 2`**, to list everything live.
+  In-game, **hold `` ` ``** (the backtick / tilde key) to open the console, then ** tap** to bring up a `>` input prompt. Type a command and press **Enter** — commands are case-insensitive, Backspace edits. Type **`HELP`**, or **`DEBUG`** / **`DEBUG 2`**, to list everything live.
 
   | Command | What it does |
   |---------|--------------|
