@@ -90,7 +90,18 @@ $curCommitShort = (git rev-parse --short HEAD).Trim()
 
 $commitLog = @()
 if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
-    $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+    # Decode git's UTF-8 output correctly. By default PowerShell decodes
+    # native-command output with the console's OEM code page, which turns UTF-8
+    # punctuation (em dashes, curly quotes, etc.) into mojibake like 'GCo' and
+    # bakes it into CHANGELOG.md. Scope the UTF-8 switch to this capture and
+    # restore the previous encoding afterward so nothing else is affected.
+    $prevOutEnc = $null
+    try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    try {
+        $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+    } finally {
+        if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Warning: couldn't compute commit log since $($prevManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
         $commitLog = @()

@@ -628,6 +628,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "PGXPEDGE") == 0) {
+        extern float g_PgxpEdgeMax;
+        if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
+        cprintf("PGXP off-screen position clamp: %.0f psx-units (higher = less edge warp)", g_PgxpEdgeMax);
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
