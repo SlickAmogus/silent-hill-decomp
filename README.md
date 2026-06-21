@@ -81,6 +81,16 @@ There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issu
   | L2 | RSHIFT |
   | R2 | LSHIFT |
 
+  PC-only keys (not on the PSX pad):
+
+  | Action | Key |
+  |--------|-----|
+  | Reload weapon | R |
+  | Quick Save | F6 |
+  | Quick Load | F8 |
+
+  All bindings are editable in the launcher or `config.cfg`.
+
 
   ### Building Prerequisites
 
@@ -159,52 +169,67 @@ There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issu
 
   The game expects the disc image at `./gamedata/Silent Hill (USA).bin` relative to the working directory.
   
+  ### Console Commands
+
+  An in-game command console for cheats, warps, and live tuning. Enable it in `config.cfg`:
+  - `allow_debug_controls = 1`
+  - `show_console = 2` (in-game overlay) or `3` (overlay + external window)
+
+  In-game, **tap `` ` ``** (the backtick / tilde key) to open the console, then **hold it** to bring up a `>` input prompt. Type a command and press **Enter** — commands are case-insensitive, Backspace edits. Type **`HELP`**, or **`DEBUG`** / **`DEBUG 2`**, to list everything live.
+
+  | Command | What it does |
+  |---------|--------------|
+  | `give <item>` | Give a weapon / ammo / health — e.g. `give all`, `give health`, `give ammo`. `help give` lists items. |
+  | `kill` / `killall` | Kill nearby / all enemies |
+  | `map <name>` | Warp to a map (e.g. `map map0_s00`) |
+  | `noclip` | Toggle wall collision (walk through walls) |
+  | `obst` | Toggle round-obstacle collision (sprint-through) |
+  | `pgxp [0\|1]` | Toggle PGXP perspective-correct rendering |
+  | `fl` / `wl [color]` | Toggle flashlight / world light (optional color: red, green, blue, yellow, cyan, purple, orange, pink, white, default) |
+  | `fmv [name]` | Play an intro / ending FMV (bare `fmv` lists them) |
+  | `setending bad\|bad+\|good\|good+` | Force the ending path (set before the ending) |
+  | `setflag <n> 0\|1` · `getflags` · `clearflags` | Inspect / set story event flags |
+  | `quit` | Exit the game |
+
+  **Live tuning knobs** (run with no argument to read the current value): `vfov`, `vshift` (vertical FOV / framing), `pgxpedge`, `weld`, `weldw` (PGXP), `alpha` (slope invisible-wall fix), `adsr` (looping-SFX envelope), and `invaspect` / `invscale` / `invcary` / `inveqy` / `invdim` (inventory item display). `DEBUG 2` documents them.
+
   ### Debug Controls
 
-  Most debug events get echoed to **`SilentHill.log`**. To also see them live in-game, set `show_console` in `config.cfg`:
-  - `0` = off (default)
-  - `1` = external console window (stdout)
-  - `2` = in-game overlay (renders inside the game window)
-  - `3` = both
+  Also requires `allow_debug_controls = 1`. Debug events echo to the per-run **`SilentHill_<timestamp>.log`**; set `show_console` (above) to watch them live in-game.
 
-  **Top-row number keys** (gameplay cheats / loggers):
+  **Cheats & tools (top-row keys):**
 
   | Key | Action |
   |-----|--------|
-  | `0` | Toggle wall collision (noclip) |
-  | `1` | Kill Harry (force death animation) |
-  | `4` | Log current camera state as **BAD CAMERA POSITION** |
-  | `5` | Log current camera state as **GOOD CAMERA POSITION** (paste `posDelta` / `yawDelta` / `pitchDelta` into a `s_camCorrections[]` entry) |
-  | `6` | Log Harry's position |
-  | `7` | Toggle invincibility (locks HP to max) |
-  | `8` | Give 15 handgun bullets |
-  | `9` | Toggle no-target (enemies ignore Harry via `CharaFlag_Unk4`) |
-  | `-` | Give Chainsaw (+ 1 Gasoline Tank if you don't already have one) |
-  | `=` | Give Rock Drill (+ 1 Gasoline Tank if you don't already have one) |
-  | `` ` `` (backtick) | Open the debug command console (type `HELP` for commands) |
+  | `Esc` | Warm reset to the title screen |
+  | `0` | Noclip toggle (walk through walls) |
+  | `4` / `5` | Map config prev / next (loads on New Game) |
+  | `6` | Kill nearby enemies |
+  | `7` | Invincibility toggle |
+  | `8` | +15 handgun bullets |
+  | `9` | No-target toggle (enemies ignore Harry) |
+  | `-` | Give Hunting Rifle + 30 shells |
+  | `=` | Give Shotgun + 30 shells |
+  | `'` | Collision visualizer panel |
+  | `[` / `]` | Drop A / B position markers into the log |
+  | `` ` `` | Open the console (see above) |
 
-  **Numpad — mode toggles and utilities:**
-
-  | Key | Action |
-  |-----|--------|
-  | Numpad `*` | Toggle free-fly debug camera |
-  | Numpad `0` | Toggle "raw cam mode" (bypass camera corrections + zero nudges — use to capture a clean BAD baseline) |
-  | Numpad `2` | Toggle third-person follow camera (mouse aims, RMB aim, LMB fire) |
-  | Numpad `3` | In gameplay: rescue-Y teleport (vy back to last safe Y + 2.5u push back). In normal-cam mode: clear nudge accumulator. |
-  | Numpad `.` | Log Harry's position with the `HARRY POSITION LOGGED` tag. Also toggles fog when debug cam is on. |
-
-  **Numpad — camera nudges** (move the currently active camera, debug-cam or normal):
+  **Camera (numpad):**
 
   | Key | Action |
   |-----|--------|
-  | `8` / `5` | Move forward / back (cam-relative) |
-  | `4` / `6` | Strafe left / right |
-  | `7` / `9` | Turn left / right (yaw) |
-  | `+` / `-` | Tilt up / down (pitch) |
-  | PgUp / PgDn | Move up / down (vertical) |
-  | `/` | Print current camera coordinates |
+  | Num `*` | Free debug camera on/off |
+  | Num `2` | Third-person chase cam (mouse look) |
+  | Num `8` / `5` / `4` / `6` | Fly forward / back / strafe left / right |
+  | Num `7` / `9` | Turn left / right |
+  | Num `+` / `-` | Tilt up / down |
+  | PgUp / PgDn | Move up / down |
+  | Num `/` | Print camera coordinates to the log |
+  | Num `3` | Reset cam nudge / in-game rescue teleport |
+  | Num `0` | Raw cam mode (zero all nudges) |
+  | Num `.` | Log Harry's position (+ fog toggle in debug cam) |
 
-  Hold any nudge key for continuous adjustment. After tuning a cam, press top-row `5` (GOOD) to dump a paste-ready `s_camCorrections[]` delta.
+  With the debug camera **off**, the same numpad keys nudge the normal game camera — a live camera-tuning aid.
 
 
 
