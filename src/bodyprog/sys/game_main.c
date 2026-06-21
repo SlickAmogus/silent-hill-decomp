@@ -1678,7 +1678,8 @@ void MainLoop(void) // 0x80032EE0
          * GR_SetOffscreenState skips the vertical crop while a cutscene is active. */
         {
             extern int g_PsxCutsceneActive;
-            g_PsxCutsceneActive = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ? 1 : 0;
+            g_PsxCutsceneActive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                   g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
         }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
