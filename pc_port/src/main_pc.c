@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <time.h>
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -102,10 +103,26 @@ extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
 void (*g_ShOverlayPushLine)(const char* line) = NULL;
+/* Per-run timestamped log path so a new run never overwrites the previous log.
+ * Computed once on the first call and cached, so the main log handle and the
+ * stdout/stderr freopen all target the same file for this run. */
+const char* SH_LogPath(void)
+{
+    static char s_logPath[64] = {0};
+    if (!s_logPath[0]) {
+        time_t now = time(NULL);
+        struct tm* lt = localtime(&now);
+        if (!lt || strftime(s_logPath, sizeof(s_logPath), "SilentHill_%Y%m%d_%H%M%S.log", lt) == 0) {
+            snprintf(s_logPath, sizeof(s_logPath), "SilentHill.log");
+        }
+    }
+    return s_logPath;
+}
+
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
-        g_ShDebugLog = fopen("SilentHill.log", "w");
+        g_ShDebugLog = fopen(SH_LogPath(), "w");
         if (!g_ShDebugLog) {
             /* Last resort — fall back to stdout so we don't crash on the
              * first SH_DBG. Caller (main) normally pre-opens this. */
@@ -365,8 +382,8 @@ int main(int argc, char* argv[])
             /* No console in a GUI-subsystem app — just route stdout/stderr to
              * the log file (or NUL) so stray printf doesn't hit an invalid handle. */
             if (g_PcConfig.enableDebugLog) {
-                freopen("SilentHill.log", "a", stdout);
-                freopen("SilentHill.log", "a", stderr);
+                freopen(SH_LogPath(), "a", stdout);
+                freopen(SH_LogPath(), "a", stderr);
                 setvbuf(stdout, NULL, _IONBF, 0);
                 setvbuf(stderr, NULL, _IONBF, 0);
             } else {
