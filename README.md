@@ -25,12 +25,24 @@ The port is 100% playable start-to-finish — the full game can be completed. Ex
 - **Updates**: the latest launcher can check for and install updates. Nightly builds posted here**: https**://github.com/SlickAmogus/silent-hill-pc-nightly<br>
 
 ### Known Issues / Bugs
-- Certain effects and textures may still be missing or glitchy in specific areas
-- Audio may loop incorrectly occasionally
-- Ending cutscenes are glitchy
-- Certain item placements seem angled or odd in the environment
-- PGXP barely works and is glitchy
-- Combat isn't perfect and may have slight issues.
+
+Major items currently being worked on (priority order):
+
+- Crash entering the clock tower in Midwich
+- PGXP: seams at character joints and distant faces dropping out; warped geometry at screen edges
+- Harry stops abruptly on invisible walls while sprinting
+- Some regressions can block story progression in places
+- Placeholder aiming shim — real aiming/camera-follow not yet wired in
+- Combat runs too fast at high FPS
+- Enemy AI needs a rework (some jerk through the floor during combat)
+- Cutscene corruption, texture issues, and stray stretched vertices
+- Missing/corrupted graphics in the options menu
+- Linux / Steam Deck visuals broken (red tint)
+- PAL text and languages not working
+
+There's also a long tail of ending/Nowhere, audio, and per-cutscene issues.
+
+**Full tracked bug list:** https://github.com/SlickAmogus/silent-hill-decomp/issues/13
 
 <br>
 
