@@ -616,6 +616,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
         cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+    } else if (strcmp(cmd, "VSHIFT") == 0) {
+        extern float g_PsxWorldVShift;
+        if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
+        cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);
