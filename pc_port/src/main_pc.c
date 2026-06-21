@@ -35,6 +35,7 @@
 
 /* PsyCross public API */
 #include <PsyX/PsyX_public.h>
+#include <PsyX/common/glad.h>
 
 /* Forward declarations from game code */
 extern void MainLoop(void);
@@ -527,6 +528,15 @@ int main(int argc, char* argv[])
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
+
+    {
+        const char* gl_renderer = (const char*)glGetString(GL_RENDERER);
+        const char* gl_vendor   = (const char*)glGetString(GL_VENDOR);
+        const char* gl_version  = (const char*)glGetString(GL_VERSION);
+        SH_LOG("GL Renderer: %s", gl_renderer ? gl_renderer : "(null)");
+        SH_LOG("GL Vendor:   %s", gl_vendor   ? gl_vendor   : "(null)");
+        SH_LOG("GL Version:  %s", gl_version  ? gl_version  : "(null)");
+    }
 
     /* Apply keyboard/controller bindings + movement/debug options from config
      * (overrides the PsyCross defaults set inside PsyX_Initialise). */
