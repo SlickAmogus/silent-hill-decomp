@@ -1,5 +1,25 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.21.1 -- 2026-06-21
+- ASPECT RATIO FIX!! Game now has proper aspect ratio and FOV in 4:3 and 16:9. Fixed camera framing should be corrected as well. Please inform me of anything that is still wrong with FOV or camera framing.
+- Running into walls: Hopefully fixed now even at high FPS, let me know if not.
+- Invisible health drinks fixed courtesy of sergiomanzur on GitHub!
+
+Claude noise:
+- Player: make run-into-wall smack gate self-consistent + [WALLANIM] probe (#42)
+- Player: throttle forward-input history to 30 Hz ΓÇö fixes random run-into-wall smack (#42)
+- Aspect: fix Harry-too-wide in Hor+ ΓÇö 320x224 framebuffer needs 15/14 PAR, not square
+- config: correct pixel_aspect comment (default is now 15/14 PSX-faithful, not square)
+- Fix invisible cafe health drink placement
+- Aspect/vertical: render the 224-line field, not the full 448 buffer (squish + over-tall FOV)
+- Aspect/vertical: gate the interlace-field fix to the 3D world only (un-break title)
+- Aspect/vertical: console `vfov` to tune the 3D-world vertical FOV crop (PsyCross)
+- PsyCross: bump to 212093d (vertical-FOV fix + strip aspect debug logging)
+- config: drop the pixel_aspect knob ΓÇö bake the correct 15/14 (PSX 320x224 -> 4:3)
+- console: fix VFOV command (was lowercase; console uppercases all input)
+- camera: shift fixed-angle-camera shots' vertical framing up to match PSX
+- Merge pull request #12 from sergiomanzur/pc-port
+
 ## v2026.06.20.1 -- 2026-06-20
 - Fixed walking while aiming, can now walk and aim always.
 - Invisible wall collisions while running should be greatly reduced, let me know if they still happen frequently.
