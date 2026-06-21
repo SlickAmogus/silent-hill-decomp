@@ -612,7 +612,7 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PcSlopeAlphaFix;
         if (arg[0]) g_PcSlopeAlphaFix = atoi(arg) ? 1 : 0;
         cprintf("slope-alpha invisible-wall fix: %s", g_PcSlopeAlphaFix ? "ON (capped)" : "OFF (original)");
-    } else if (strcmp(cmd, "vfov") == 0) {
+    } else if (strcmp(cmd, "VFOV") == 0) {
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
         cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
