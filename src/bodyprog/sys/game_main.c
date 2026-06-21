@@ -1672,6 +1672,15 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        /* Cutscenes get their vertical framing from the letterbox bars, so the gameplay
+         * vfov crop (g_PsxWorldVScale) must NOT apply during them — it scaled/clipped the
+         * bars and subtitles off the bottom. Hand the cutscene state to PsyCross so
+         * GR_SetOffscreenState skips the vertical crop while a cutscene is active. */
+        {
+            extern int g_PsxCutsceneActive;
+            g_PsxCutsceneActive = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ? 1 : 0;
+        }
+
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
          * art look chewed-up at high resolution. Keep it for 3D gameplay

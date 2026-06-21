@@ -442,6 +442,23 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* The 3D-world vertical-FOV crop (g_PsxWorldVScale, top-anchored) clips the bottom of
+     * the frame, where the bottom-anchored message boxes (positionIdx 1/3/4) sit — cutting
+     * the lower lines off-screen on multi-line messages. Lift those boxes up by
+     * g_PsxMsgVShift (console MSGSHIFT) to compensate. Top boxes (0/2) are above the clip. */
+    {
+        u8 pidx = (u8)D_800C38B0.positionIdx;
+        extern int g_PsxCutsceneActive;
+        /* Only during gameplay — cutscenes skip the crop (g_PsxCutsceneActive), so their
+         * message boxes are already at their true positions and must NOT be shifted. */
+        if ((pidx == 1 || pidx == 3 || pidx == 4) && !g_PsxCutsceneActive) {
+            extern int g_PsxMsgVShift;
+            g_StringPosition.vy -= (s16)g_PsxMsgVShift;
+        }
+    }
+#endif
+
     longestLineWidth = g_MapMsg_Widths[0];
     for (i = 0; i < g_MapMsg_WidthIdx; i++)
     {
