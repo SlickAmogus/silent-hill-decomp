@@ -333,6 +333,16 @@ s32 vcExecCamera(void) // 0x80080FBC
     cur_rd_area_size = vcWork.cur_near_road.road_p->area_size_type;
     cur_cam_mv_type  = vcRetCurCamMvType(&vcWork);
 
+#ifdef SH_PC_PORT
+    /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a medkit
+     * off the top of frame); PsyCross shifts the world ortho up by g_PsxWorldVShift only
+     * while this is set. Chase/settle/door/self-view cameras are unaffected. */
+    {
+        extern int g_PsxFixedCamActive;
+        g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG);
+    }
+#endif
+
     far_watch_rate     = vcRetFarWatchRate(CHECK_FLAG(vcWork.flags, VC_PRS_F_VIEW_F, !g_GameWorkConst->config.extraViewCtrl), cur_cam_mv_type, &vcWork);
     self_view_eff_rate = vcRetSelfViewEffectRate(cur_cam_mv_type, far_watch_rate, &vcWork);
 
