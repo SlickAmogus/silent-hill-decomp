@@ -192,15 +192,33 @@ void GsSwapDispBuff(void)
     gs_active_buff = gs_active_buff ? 0 : 1;
     GsDrawOt_ResetFrameCount();
 
-    /* Sync background color from GsDRAWENV (game modifies this global).
-     * Do NOT sync clip or ofs — the game's clip.h=224 override is a PSX
-     * interlace optimization (one field at a time). On PC we render the
-     * full 448-line space with ofs at center. */
+    /* Sync background color from GsDRAWENV (game modifies this global). */
     gs_draw_env[gs_active_buff].isbg = GsDRAWENV.isbg;
     gs_draw_env[gs_active_buff].r0 = GsDRAWENV.r0;
     gs_draw_env[gs_active_buff].g0 = GsDRAWENV.g0;
     gs_draw_env[gs_active_buff].b0 = GsDRAWENV.b0;
     gs_draw_env[gs_active_buff].dfe = 1; /* Always force on-screen */
+
+    /* Honor the game's per-field display/clip height (#aspect — vertical squish).
+     * SH gameplay is interlaced, so GsInitGraph sized the buffers 320x448 and put the
+     * draw offset at the buffer center (224). But the game renders ONE 224-line field
+     * per frame and marks it via screen.h = clip.h = FRAMEBUFFER_HEIGHT_PROGRESSIVE
+     * (224). Centering on 224 in a 448 space showed the near foreground that PSX clips
+     * at the field bottom AND mapped the taller span through the ortho, squishing
+     * everything (Harry short, legs pushed out of frame). One field IS the full
+     * deinterlaced image, and the VRAM double-buffer (y=0 / y=256) only has room for a
+     * 224-tall buffer anyway — so display and center on the field, matching PSX. Only
+     * applied when the game's override is shorter than the buffer (leaves genuine
+     * full-height screens alone). */
+    if (GsDRAWENV.clip.h > 0 && GsDRAWENV.clip.h < gs_draw_env[gs_active_buff].clip.h)
+    {
+        gs_draw_env[gs_active_buff].clip.h = GsDRAWENV.clip.h;
+        gs_draw_env[gs_active_buff].ofs[1] = GsDRAWENV.clip.y + (GsDRAWENV.clip.h / 2);
+    }
+    if (GsDISPENV.screen.h > 0 && GsDISPENV.screen.h < gs_disp_env[gs_active_buff].disp.h)
+    {
+        gs_disp_env[gs_active_buff].disp.h = GsDISPENV.screen.h;
+    }
 
     PutDispEnv(&gs_disp_env[gs_active_buff]);
     PutDrawEnv(&gs_draw_env[gs_active_buff]);
