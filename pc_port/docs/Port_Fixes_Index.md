@@ -23,6 +23,7 @@ Repo: `https://github.com/SlickAmogus/silent-hill-decomp` (branch `pc-port`)
 - [5. 64-bit pointer width & struct layout](#5-64-bit-pointer-width--struct-layout)
 - [6. High-FPS keyframe / frame-count timing (combat + cutscenes)](#6-high-fps-keyframe--frame-count-timing-combat--cutscenes)
 - [7. Cutscene-specific regressions](#7-cutscene-specific-regressions)
+- [8. Widescreen (Hor+) 2D-UI rendering](#8-widescreen-hor-2d-ui-rendering)
 
 ---
 
@@ -326,3 +327,23 @@ Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
 > Already covered above and also cutscene-relevant: `CAT_ANIM_INFOS` zero-stub
 > (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1) — both of which
 > turned out to be masking the duplicated-array bug above.
+
+## 8. Widescreen (Hor+) 2D-UI rendering
+
+PsyCross-side framing fixes (mostly `pc_port/PsyCross/`) with a small game hook.
+
+- **Subtitles / letterbox bars clipped at the bottom in Hor+ widescreen.** The
+  Hor+ path crops the 3D-world ortho to `g_PsxWorldVScale` (0.872, top-anchored)
+  to match DuckStation's vertical FOV — but that crop was applied to the *shared*
+  on-screen ortho, so it also ate the bottom ~14.7% of the frame where 2D UI
+  lives (map-message subtitles, screen fade, cutscene letterbox bars). The dev
+  escape-hatch (`g_PsxCutsceneActive`) was never wired, so every bottom-anchored
+  subtitle and the bottom letterbox bar were clipped. Fix: the 3D world
+  (`OrderingTable0`) and 2D UI (`OrderingTable2`) are already separate `GsDrawOt`
+  passes — flag the UI pass's render splits (`uiOrtho`, stamped from
+  `g_PsxUIOrthoPass` which the game sets around the `OrderingTable2` draw) and
+  give those splits the full vertical ortho (`vscale=1.0`) while the world keeps
+  its crop. Horizontal Hor+ widening is left intact so UI stays aligned.
+  [`PsyX_GPU.cpp` `AddSplit`/`DrawSplit`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/PsyCross/src/gpu/PsyX_GPU.cpp),
+  [`PsyX_render.cpp` `GR_SetOffscreenState`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/PsyCross/src/render/PsyX_render.cpp),
+  game hook in [`game_main.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/sys/game_main.c) (OT2 draw)
