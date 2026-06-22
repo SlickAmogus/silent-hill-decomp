@@ -20,7 +20,7 @@
 // CHARACTER & GAME INIT
 // ========================================
 
-static void GameBoot_NpcClear(void) // 0x80034EC8
+void GameBoot_NpcClear(void) // 0x80034EC8
 {
     s32 i;
 
