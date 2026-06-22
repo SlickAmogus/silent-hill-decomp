@@ -743,9 +743,23 @@ public partial class Form1 : Form
                 else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
             }
             sb.AppendLine();
-            sb.AppendLine("Download and switch now?");
-            if (MessageBox.Show(this, sb.ToString(), "Download Build",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
+            bool hasExisting = File.Exists(Path.Combine(installDir, "SilentHillPC.exe"));
+            string promptTitle;
+            MessageBoxIcon promptIcon;
+            if (hasExisting)
+            {
+                sb.AppendLine("This will overwrite your existing files. Are you sure you want to continue?");
+                promptTitle = "Overwrite existing files?";
+                promptIcon  = MessageBoxIcon.Warning;
+            }
+            else
+            {
+                sb.AppendLine("Download and install now?");
+                promptTitle = "Download Build";
+                promptIcon  = MessageBoxIcon.Information;
+            }
+            if (MessageBox.Show(this, sb.ToString(), promptTitle,
+                    MessageBoxButtons.YesNo, promptIcon) != DialogResult.Yes)
             {
                 lblUpdateStatus.Text = "Download cancelled.";
                 progUpdate.Visible = false;

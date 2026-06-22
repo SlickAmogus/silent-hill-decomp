@@ -40,7 +40,7 @@ public class ControlsForm : Form
         new[] { "View",             "key_l2" },
         new[] { "Aim",              "key_r2" },
         new[] { "Pause",            "key_start" },
-        new[] { "Select",           "key_select" },
+        new[] { "Inventory",        "key_select" },
     };
 
     // PC-only hotkeys, shown under the PSX binds with a small gap.
@@ -61,7 +61,7 @@ public class ControlsForm : Form
         new[] { "View",             "pad_l2" },
         new[] { "Aim",              "pad_r2" },
         new[] { "Pause",            "pad_start" },
-        new[] { "Select",           "pad_select" },
+        new[] { "Inventory",        "pad_select" },
     };
 
     // Valid controller buttons (SDL names). D-pad/sticks excluded (movement).
@@ -86,11 +86,12 @@ public class ControlsForm : Form
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
-        // Secondary binds: Mouse1 = Action/Shoot, Mouse2 = Aim; rest unbound.
+        // Alternate binds: Action=Mouse1, Aim=Mouse2, Flashlight=F, Map=Tab,
+        // Sidestep L/R=A/D; rest unbound.
         { "key_cross_2", "Mouse1" }, { "key_r2_2", "Mouse2" },
+        { "key_circle_2", "F" }, { "key_triangle_2", "Tab" }, { "key_l1_2", "A" }, { "key_r1_2", "D" },
         { "key_up_2", "NONE" }, { "key_down_2", "NONE" }, { "key_left_2", "NONE" }, { "key_right_2", "NONE" },
-        { "key_circle_2", "NONE" }, { "key_triangle_2", "NONE" }, { "key_square_2", "NONE" },
-        { "key_l1_2", "NONE" }, { "key_r1_2", "NONE" }, { "key_l2_2", "NONE" },
+        { "key_square_2", "NONE" }, { "key_l2_2", "NONE" },
         { "key_start_2", "NONE" }, { "key_select_2", "NONE" },
     };
 
@@ -106,13 +107,11 @@ public class ControlsForm : Form
 
     private ComboBox cmbControlStyle;
     private readonly List<string> styleIds = new List<string>();
-    private CheckBox chkMouseSecondary;
     private CheckBox chkInvertMouseY;
     private CheckBox chkInvertControllerY;
+    private CheckBox chkTpsAimZoom;
 
-    // True while a bind box has focus and is showing the "Press a key..." prompt;
-    // the click that focused a box must NOT be captured as a Mouse1 binding.
-    private bool mouseSecondaryEnabled;
+    // The click that focuses a bind box must NOT be captured as a Mouse1 binding.
     private bool ignoreNextMouseBind;
 
     private static readonly Color Back = Color.FromArgb(30, 30, 30);
@@ -159,7 +158,7 @@ public class ControlsForm : Form
         const int secGap = 6;
 
         AddHeader("Keyboard Controls", colKbX, headerY);
-        AddLabel("(2nd / mouse)", colKbX + labelW + inputW + secGap, headerY + 4, inputW);
+        AddLabel("Alternate", colKbX + labelW + inputW + secGap, headerY + 4, inputW);
         AddHeader("Controller Controls", colPadX, headerY);
 
         // Keyboard PSX binds — each gets a hidden secondary box (shown when the
@@ -208,26 +207,11 @@ public class ControlsForm : Form
         };
         Controls.Add(cmbControlStyle);
 
-        chkMouseSecondary = new CheckBox
-        {
-            Text = "Allow mouse controls / secondary inputs",
-            Left = colPadX,
-            Top = styleY + 30,
-            Width = 300,
-            ForeColor = TextColor,
-        };
-        chkMouseSecondary.CheckedChanged += (s, e) =>
-        {
-            mouseSecondaryEnabled = chkMouseSecondary.Checked;
-            SetSecondaryVisible(mouseSecondaryEnabled);
-        };
-        Controls.Add(chkMouseSecondary);
-
         chkInvertMouseY = new CheckBox
         {
             Text = "Invert Mouse Y",
             Left = colPadX,
-            Top = styleY + 58,
+            Top = styleY + 30,
             Width = 160,
             ForeColor = TextColor,
         };
@@ -235,12 +219,21 @@ public class ControlsForm : Form
         {
             Text = "Invert Controller Y",
             Left = colPadX,
-            Top = styleY + 84,
+            Top = styleY + 56,
+            Width = 180,
+            ForeColor = TextColor,
+        };
+        chkTpsAimZoom = new CheckBox
+        {
+            Text = "TPS Aim Zoom",
+            Left = colPadX,
+            Top = styleY + 82,
             Width = 180,
             ForeColor = TextColor,
         };
         Controls.Add(chkInvertMouseY);
         Controls.Add(chkInvertControllerY);
+        Controls.Add(chkTpsAimZoom);
 
         // Allow debug controls — below the (taller) keyboard column.
         int debugY = changeCamY + rowH + 14;
@@ -336,15 +329,8 @@ public class ControlsForm : Form
         if (withSecondary)
         {
             TextBox tb2 = MakeBindBox(cfgKey + "_2", x + labelW + inputW + 6, y - 3, inputW);
-            tb2.Visible = false;       // shown only when mouse/secondary is enabled
-            secondaryBoxes.Add(tb2);
+            secondaryBoxes.Add(tb2);   // alternate binds are always shown
         }
-    }
-
-    private void SetSecondaryVisible(bool on)
-    {
-        foreach (TextBox tb in secondaryBoxes)
-            tb.Visible = on;
     }
 
     // --- Keyboard rebind capture ----------------------------------------
@@ -403,9 +389,6 @@ public class ControlsForm : Form
 
     private void KeyBox_MouseDown(object sender, MouseEventArgs e)
     {
-        if (!mouseSecondaryEnabled)
-            return;
-
         TextBox tb = (TextBox)sender;
 
         // Only bind when the box is actively listening (focused, showing the
@@ -516,11 +499,9 @@ public class ControlsForm : Form
 
         PopulateControlStyles();
 
-        chkMouseSecondary.Checked = config.Get("allow_mouse_secondary", "0") == "1";
         chkInvertMouseY.Checked = config.Get("invert_mouse_y", "0") == "1";
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
-        mouseSecondaryEnabled = chkMouseSecondary.Checked;
-        SetSecondaryVisible(mouseSecondaryEnabled);
+        chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -551,11 +532,9 @@ public class ControlsForm : Form
 
         if (cmbControlStyle.Items.Count > 0)
             cmbControlStyle.SelectedIndex = 0;     // Classic
-        chkMouseSecondary.Checked = false;
         chkInvertMouseY.Checked = false;
         chkInvertControllerY.Checked = false;
-        mouseSecondaryEnabled = false;
-        SetSecondaryVisible(false);
+        chkTpsAimZoom.Checked = true;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -578,9 +557,9 @@ public class ControlsForm : Form
 
         if (cmbControlStyle.SelectedIndex >= 0 && cmbControlStyle.SelectedIndex < styleIds.Count)
             config.Set("control_style", styleIds[cmbControlStyle.SelectedIndex]);
-        config.Set("allow_mouse_secondary", chkMouseSecondary.Checked ? "1" : "0");
         config.Set("invert_mouse_y", chkInvertMouseY.Checked ? "1" : "0");
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
+        config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();
