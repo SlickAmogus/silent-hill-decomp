@@ -244,6 +244,13 @@ void PcConfig_Load(const char* path)
                 g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
             }
         }
+        else if (strncmp(key, "launcher_", 9) == 0)
+        {
+            /* Launcher-managed keys (launcher_repo_url / _branch / _build) live in
+             * this same config.cfg under the "## Launcher" section. The game owns
+             * none of them — ignore silently so they don't hit the unknown-key
+             * warning below. */
+        }
         else
         {
             /* Control bindings (key_ and pad_ keys): table-driven copy into

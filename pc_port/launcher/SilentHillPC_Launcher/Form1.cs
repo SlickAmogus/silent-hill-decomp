@@ -25,6 +25,7 @@ public partial class Form1 : Form
         this.Shown += (s, e) =>
         {
             CleanupOldFiles();
+            UpdateChecker.CleanupStaleTemp();
             CheckDiscImage();
             SilentAutoCheckForUpdates();
         };
@@ -88,7 +89,8 @@ public partial class Form1 : Form
         try
         {
             lblUpdateStatus.Text = "Checking for updates...";
-            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory);
+            var settings = LauncherSettings.Load(config);
+            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory, settings);
             if (plan.HasUpdate)
             {
                 lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion} ({plan.Changed.Count} file(s))";
@@ -603,6 +605,22 @@ public partial class Form1 : Form
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
+        var settings = LauncherSettings.Load(config);
+
+        // Pinned to a specific build? The update button always moves you toward
+        // the newest, so offer to switch to "latest" and update.
+        if (!settings.IsLatestBuild)
+        {
+            var ask = MessageBox.Show(this,
+                $"You're pinned to a specific build:\n  {settings.Build}\n\n" +
+                "Checking for updates switches you to the LATEST build on this branch and updates.\n\n" +
+                "Switch to latest and continue?",
+                "Pinned build", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (ask != DialogResult.Yes) return;
+            settings.Build = "latest";
+            settings.Save(config);
+        }
+
         btnUpdate.Enabled = false;
         btnPlay.Enabled   = false;
         lblUpdateStatus.Text = "Checking for updates...";
@@ -611,44 +629,71 @@ public partial class Form1 : Form
 
         try
         {
-            var plan = await UpdateChecker.CheckAsync(installDir);
+            var plan = await UpdateChecker.CheckAsync(installDir, settings);
 
             if (!plan.HasUpdate)
             {
                 lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
                 progUpdate.Visible = false;
-                MessageBox.Show(this, "You're up to date!", "Check for Updates",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this,
+                    $"You're up to date!\n\nSource: {plan.RepoLabel}\nBuild: {plan.RemoteVersion}",
+                    "Check for Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            // Build a human summary for the confirm dialog. Cap at ~10 files
-            // so we don't blow out a MessageBox on a large changeset.
-            var sb = new StringBuilder();
-            sb.AppendLine($"Update available: {plan.RemoteVersion}");
-            sb.AppendLine($"Built: {plan.BuildDate}");
-            sb.AppendLine();
-            sb.AppendLine($"{plan.Changed.Count} file(s) to download:");
-            int i = 0;
-            foreach (var f in plan.Changed)
+            // Launcher self-update is a SEPARATE, explicit decision. CheckAsync
+            // only keeps the launcher in the plan when the incoming one is
+            // strictly newer than ours (never a downgrade or reinstall).
+            var launcherEntry = plan.LauncherEntry;
+            bool applyLauncher = false;
+            if (launcherEntry != null && plan.LauncherIsNewer)
             {
-                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
-                else { sb.AppendLine($"  • ... and {plan.Changed.Count - 10} more"); break; }
+                var lmsg =
+                    "Launcher has an update available, are you sure you want to update?\n\n" +
+                    $"New launcher version: {plan.LauncherVersion}\n" +
+                    $"Current version:      {LauncherSettings.OwnLauncherVersion()}\n" +
+                    $"Build:  {plan.RemoteVersion}  ({plan.BuildDate})\n" +
+                    $"Source: {plan.RepoLabel}\n\n" +
+                    "The launcher is replaced and the new version loads the next time you open it.";
+                applyLauncher = MessageBox.Show(this, lmsg, "Launcher update",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
             }
-            sb.AppendLine();
-            sb.AppendLine("Download and install now?");
 
-            var resp = MessageBox.Show(this, sb.ToString(), "Update available",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-            if (resp != DialogResult.Yes)
+            // Everything else (game exe, maps, runtime dlls, changelog).
+            var others = plan.Changed.Where(f => !UpdateChecker.IsLauncherFile(f.Path)).ToList();
+            bool applyOthers = false;
+            if (others.Count > 0)
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"Update available: {plan.RemoteVersion}");
+                sb.AppendLine($"Built: {plan.BuildDate}");
+                sb.AppendLine($"Source: {plan.RepoLabel}");
+                sb.AppendLine();
+                sb.AppendLine($"{others.Count} file(s) to {(plan.Mode == "zip" ? "install (from zip)" : "download")}:");
+                int i = 0;
+                foreach (var f in others)
+                {
+                    if (i++ < 10) sb.AppendLine($"  • {f.Path}");
+                    else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
+                }
+                sb.AppendLine();
+                sb.AppendLine("Download and install now?");
+                applyOthers = MessageBox.Show(this, sb.ToString(), "Update available",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
+            }
+
+            // Apply only what was approved.
+            var apply = new List<UpdateChecker.FileEntry>();
+            if (applyLauncher && launcherEntry != null) apply.Add(launcherEntry);
+            if (applyOthers) apply.AddRange(others);
+
+            if (apply.Count == 0)
             {
                 lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
                 progUpdate.Visible = false;
                 return;
             }
-
-            bool selfUpdated = plan.Changed.Any(f =>
-                f.Path.Equals("SilentHillPC_Launcher.exe", StringComparison.OrdinalIgnoreCase));
+            plan.Changed = apply;
 
             progUpdate.Style = ProgressBarStyle.Continuous;
             progUpdate.Minimum = 0;
@@ -670,7 +715,7 @@ public partial class Form1 : Form
             lblUpdateStatus.ForeColor = Color.LightGray;
             btnUpdate.Text            = "Check for Updates";
             MessageBox.Show(this,
-                selfUpdated
+                applyLauncher
                     ? "Update complete!\n\nThe launcher itself was updated — the new version loads the next time you open it."
                     : "Update complete!",
                 "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -849,7 +894,7 @@ public partial class Form1 : Form
 
     }
 
-    private void button1_Click(object sender, EventArgs e)
+    private void btnControls_Click(object sender, EventArgs e)
     {
         // Controls button: open the keyboard/controller binding window. Shares
         // this form's ConfigManager so its Save lands in the same config.cfg.
@@ -857,6 +902,18 @@ public partial class Form1 : Form
         {
             dlg.ShowDialog(this);
         }
+    }
+
+    private void btnBuildSettings_Click(object sender, EventArgs e)
+    {
+        // Build Settings: choose the repo/branch/build the launcher tracks for
+        // updates (saved into config.cfg's ## Launcher section). Re-probe the
+        // silent status afterward so the label reflects the new selection.
+        using (var dlg = new BuildSettingsForm(config))
+        {
+            dlg.ShowDialog(this);
+        }
+        SilentAutoCheckForUpdates();
     }
 
     private void pgxpYes_CheckedChanged(object sender, EventArgs e)
