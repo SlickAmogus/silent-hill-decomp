@@ -1280,7 +1280,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * the body lags slightly.) */
                     player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
 
-                    g_Player_IsMovingForward     = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
+                    /* Invisible-wall ROOT FIX (#42): preserve the aged bit1 of the forward
+                     * shift register instead of clobbering it. A bare `= input` here wipes
+                     * the 30 Hz-aged history that Player_Controller maintains, so a single
+                     * dropped-input frame (a preload frame hitch) reads as "released" and
+                     * fires the skid-stop "ran into a wall" smack while forward is still held.
+                     * Keep bit1, OR the current input into bit0 — matches the |= at ~9941. */
+                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (g_sdlKeyboardState[SDL_SCANCODE_W] != 0);
                     g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
                     g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
                     g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
@@ -1297,7 +1303,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * appear swapped with backward. Force a clean snapshot from the
                      * PSX pad buttons (which the PC joy bridge maps from arrow keys/
                      * D-pad) so forward/back are deterministic every frame. */
-                    g_Player_IsMovingForward  = (g_Controller0->heldBtnFlags & ControllerFlag_LStickUp)   ? 1 : 0;
+                    /* Preserve aged bit1 (see ROOT FIX #42 in the TPS branch above): a bare
+                     * `= input` clobbers the 30 Hz debounce so a 1-frame input dropout fires
+                     * the skid-stop invisible-wall smack while forward is held. */
+                    g_Player_IsMovingForward  = (g_Player_IsMovingForward & 0x2) | ((g_Controller0->heldBtnFlags & ControllerFlag_LStickUp) ? 1 : 0);
                     g_Player_IsMovingBackward = (g_Controller0->heldBtnFlags & ControllerFlag_LStickDown) ? 1 : 0;
                     /* Reset heading offset. PlayerLowerBodyState_WalkBackward sets
                      * g_Player_HeadingAngle = 180° for the backward-walk case, but
