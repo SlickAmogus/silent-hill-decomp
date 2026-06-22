@@ -91,8 +91,9 @@ namespace SilentHillPC_Launcher
             _suppressBranchChange = true;
             _cmbBranch.Items.Clear();
             _cmbBuild.Items.Clear();
-            // The stable / default stream is always available (Branch = "").
-            _cmbBranch.Items.Add(new Item { Display = "(stable / default)", Value = "" });
+            // The alpha stream (repo default / non-prerelease) is always available
+            // (Branch = ""): this launcher build and every loose build before it.
+            _cmbBranch.Items.Add(new Item { Display = "alpha (this build & older)", Value = "" });
             _lblStatus.Text = "Loading branches...";
             try
             {
@@ -147,8 +148,25 @@ namespace SilentHillPC_Launcher
 
         private void BtnApply_Click(object sender, EventArgs e)
         {
-            _settings.Branch = SelectedValue(_cmbBranch);
-            _settings.Build  = string.IsNullOrEmpty(SelectedValue(_cmbBuild)) ? "latest" : SelectedValue(_cmbBuild);
+            string newBranch = SelectedValue(_cmbBranch);
+            string newBuild  = string.IsNullOrEmpty(SelectedValue(_cmbBuild)) ? "latest" : SelectedValue(_cmbBuild);
+
+            // First time the user pins a specific (older) build, warn once about
+            // bugs / save corruption and tell them to back up their saves.
+            bool pinningSpecific = !newBuild.Equals("latest", StringComparison.OrdinalIgnoreCase);
+            if (pinningSpecific && !_settings.OldBuildWarned)
+            {
+                MessageBox.Show(this,
+                    "Heads up — switching to an older build can cause unexpected bugs and may even " +
+                    "corrupt your save data.\n\n" +
+                    "Back up your gamedata\\save folder first, just in case.\n\n" +
+                    "This message will not be shown again.",
+                    "Old build", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _settings.OldBuildWarned = true;
+            }
+
+            _settings.Branch = newBranch;
+            _settings.Build  = newBuild;
             _settings.Save(_config);
             _lblStatus.Text = "Saved. The launcher will check this branch/build for updates.";
             DialogResult = DialogResult.OK;
