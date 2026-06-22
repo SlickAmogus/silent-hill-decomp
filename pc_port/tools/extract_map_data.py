@@ -371,7 +371,10 @@ EXTRA_SYMBOLS = {
                  # of TV1's CLUT[0]=0x8000 black.
                  ("D_800DB91C", 0x800DB91C, 8),
                  ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
-    "map4_s04": [("D_800D3734", 0x800D3734, 68),
+    "map4_s04": [("D_800D3710", 0x800D3710, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip = rainbow corruption over HERO/LISA/bed VRAM
+                 ("D_800D3720", 0x800D3720, 8),   # RECT cutscene SetDrawArea
+                 ("D_800D3730", 0x800D3730, 4),   # DVECTOR cutscene SetDrawOffset
+                 ("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
     # map4_s05: D_800D7D74 (pre-existing) + the Floatstinger boss rodata
     # cluster. Sizes tile exactly: 780C+0x3C=7848, 7848+0x10=7858 (runtime
