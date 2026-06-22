@@ -27,9 +27,10 @@ s_PcConfig g_PcConfig = {
     .movementOriginal = 1,   /* 1 = PSX lower-body movement machine (default); 0 = legacy PC shim */
 
     .controlStyle        = 0, /* 0 = Classic (default), 1 = TPS */
-    .allowMouseSecondary = 0, /* 0 = primary key/pad binds only */
+    .allowMouseSecondary = 1, /* deprecated: mouse + alternate binds always active */
     .invertMouseY        = 0,
     .invertControllerY   = 0,
+    .tpsAimZoom          = 1, /* zoom TPS camera in while aiming */
 
     /* Keyboard defaults (SDL scancode names) */
     .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
@@ -38,9 +39,10 @@ s_PcConfig g_PcConfig = {
     .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyChangeCam = "F9", .padChangeCam = "rightstick",
-    /* Secondary binds: mouse seeded for TPS (Action=Mouse1, Aim=Mouse2). The
-     * rest default empty ("" == unset). */
+    /* Alternate binds (always active): Action=Mouse1, Aim=Mouse2, Flashlight=F,
+     * Map=Tab, Sidestep L/R=A/D. The rest default empty ("" == unset). */
     .keyCross2 = "Mouse1", .keyR22 = "Mouse2",
+    .keyCircle2 = "F", .keyTriangle2 = "Tab", .keyL12 = "A", .keyR12 = "D",
     /* Controller defaults (SDL game-controller names) */
     .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
     .padL1 = "leftshoulder", .padR1 = "rightshoulder",
@@ -282,6 +284,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "invert_controller_y") == 0)
         {
             g_PcConfig.invertControllerY = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "tps_aim_zoom") == 0)
+        {
+            g_PcConfig.tpsAimZoom = (atoi(value) != 0);
         }
         else if (strcmp(key, "control_styles") == 0)
         {

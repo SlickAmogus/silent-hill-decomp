@@ -1307,8 +1307,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         g_Player_IsTurningRight      = 0;
                         g_Player_HasMoveInput        = fwd || back || left || right;
                     }
-                    g_Player_HeadingAngle        = Q12_ANGLE(0.0f);
-                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                    /* Diagonal strafe: when moving forward/back AND sidestepping,
+                     * angle the movement 45° toward the strafe side via the normal
+                     * (collision-checked) heading mechanism, so Harry strafes while
+                     * advancing and keeps the walk-forward/backward animation. Pure
+                     * sidestep (no fwd/back) still plays the sidestep anim below. */
+                    {
+                        int   mZ = (g_Player_IsMovingForward    ? 1 : 0) - (g_Player_IsMovingBackward    ? 1 : 0);
+                        int   mX = (g_Player_IsSteppingRightHold ? 1 : 0) - (g_Player_IsSteppingLeftHold ? 1 : 0);
+                        q3_12 heading = Q12_ANGLE(0.0f);
+                        if (mZ != 0 && mX != 0) {
+                            heading = (mX > 0) ? Q12_ANGLE(45.0f) : -Q12_ANGLE(45.0f);
+                            if (mZ < 0) heading = -heading;   /* backward flips the strafe side (D is negative) */
+                        }
+                        g_Player_HeadingAngle = heading;
+                        g_SysWork.playerWork.player.properties.player.headingAngle = heading;
+                    }
                 } else {
                     /* Non-TPS: after cutscenes, Player_Controller's `*2 & 0x3` shift
                      * register can leave stale bits in g_Player_IsMovingForward that
