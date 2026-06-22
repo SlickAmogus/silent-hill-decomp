@@ -19,7 +19,7 @@ namespace SilentHillPC_Launcher
     /// and computes which local files differ.
     ///
     ///   loose mode - manifest files each carry a per-file download URL; only the
-    ///                changed files are pulled. (Stable stream / default branch.)
+    ///                changed files are pulled. (alpha stream / default branch.)
     ///   zip   mode - manifest carries a single zip_url; the launcher does a cheap
     ///                hash check, and only when applying does it download + extract
     ///                the zip and copy the changed files. (beta branch.)
@@ -217,9 +217,11 @@ namespace SilentHillPC_Launcher
                 throw new Exception("Invalid repo URL: " + settings.RepoUrl);
 
             var rels = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
-            IEnumerable<GhRelease> cand = rels;
-            if (!string.IsNullOrWhiteSpace(branch))
-                cand = cand.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
+            IEnumerable<GhRelease> cand;
+            if (string.IsNullOrWhiteSpace(branch))
+                cand = rels.Where(r => !r.Prerelease); // alpha = the non-prerelease (loose) stream
+            else
+                cand = rels.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
 
             return cand.Select(r => new BuildInfo
             {
@@ -252,16 +254,16 @@ namespace SilentHillPC_Launcher
         private static async Task<ManifestSource> ResolveManifestSourceAsync(
             string owner, string repo, LauncherSettings s, CancellationToken ct)
         {
-            // Common path: stable/default branch + latest -> GitHub's stable
+            // Common path: alpha (default branch) + latest -> GitHub's
             // "releases/latest" redirect. It excludes prereleases, so beta zip
             // releases (published as prereleases on the beta branch) never leak
-            // into the stable stream or onto launchers that track stable.
+            // into the alpha stream or onto launchers that track alpha.
             if (s.IsDefaultBranch && s.IsLatestBuild)
             {
                 return new ManifestSource
                 {
                     Url   = $"https://github.com/{owner}/{repo}/releases/latest/download/version.json",
-                    Label = $"{owner}/{repo} (stable, latest)",
+                    Label = $"{owner}/{repo} (alpha, latest)",
                     Tag   = null
                 };
             }
@@ -288,16 +290,26 @@ namespace SilentHillPC_Launcher
 
             string url = AssetUrl(target, "version.json")
                          ?? $"https://github.com/{owner}/{repo}/releases/download/{target.TagName}/version.json";
-            string label = $"{owner}/{repo} @ {(branch ?? "stable")} ({target.TagName})";
+            string label = $"{owner}/{repo} @ {(branch ?? "alpha")} ({target.TagName})";
             return new ManifestSource { Url = url, Label = label, Tag = target.TagName };
         }
 
         private static async Task<List<GhRelease>> ListReleasesAsync(string owner, string repo, CancellationToken ct)
         {
-            var url = $"https://api.github.com/repos/{owner}/{repo}/releases?per_page=100";
-            var rels = await GetApiJsonAsync<List<GhRelease>>(url, ct).ConfigureAwait(false) ?? new List<GhRelease>();
-            return rels.Where(r => r != null && !r.Draft)
-                       .OrderByDescending(r => ParseDate(r.CreatedAt)).ToList();
+            // GitHub caps the releases API at 100 per page, so paginate to pull
+            // ALL releases — the nightly repo has 140+ and users should be able
+            // to reach the very oldest. Cap at 10 pages (1000) as a runaway guard.
+            var all = new List<GhRelease>();
+            for (int page = 1; page <= 10; page++)
+            {
+                var url  = $"https://api.github.com/repos/{owner}/{repo}/releases?per_page=100&page={page}";
+                var rels = await GetApiJsonAsync<List<GhRelease>>(url, ct).ConfigureAwait(false);
+                if (rels == null || rels.Count == 0) break;
+                all.AddRange(rels);
+                if (rels.Count < 100) break; // last page reached
+            }
+            return all.Where(r => r != null && !r.Draft)
+                      .OrderByDescending(r => ParseDate(r.CreatedAt)).ToList();
         }
 
         // -- Internals: apply (loose / zip) -----------------------------------

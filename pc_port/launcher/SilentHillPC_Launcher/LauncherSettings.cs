@@ -11,7 +11,7 @@ namespace SilentHillPC_Launcher
     ///
     ///   launcher_repo_url - GitHub repo the launcher checks for updates against
     ///                       (full URL or "owner/repo").
-    ///   launcher_branch   - branch to track. "" = the repo's default/stable
+    ///   launcher_branch   - branch to track. "" = the repo's default (alpha)
     ///                       stream (loose per-file releases). "beta" = the
     ///                       zip-release stream.
     ///   launcher_build    - "latest" (track the newest release on the branch)
@@ -22,8 +22,12 @@ namespace SilentHillPC_Launcher
         public const string DefaultRepoUrl = "https://github.com/SlickAmogus/silent-hill-pc-nightly";
 
         public string RepoUrl = DefaultRepoUrl;
-        public string Branch  = "";        // "" = stable / repo default branch
+        public string Branch  = "";        // "" = alpha (repo default / non-prerelease stream)
         public string Build   = "latest";  // "latest" or a specific release tag
+
+        // One-time acknowledgement: shown the first time the user pins an older
+        // build (bugs / save-corruption / back-up-your-saves warning).
+        public bool OldBuildWarned = false;
 
         public bool IsLatestBuild =>
             string.IsNullOrWhiteSpace(Build) || Build.Equals("latest", StringComparison.OrdinalIgnoreCase);
@@ -56,6 +60,7 @@ namespace SilentHillPC_Launcher
             s.Branch = (cfg.Get("launcher_branch", "") ?? "").Trim();
             var build = cfg.Get("launcher_build", "latest");
             s.Build = string.IsNullOrWhiteSpace(build) ? "latest" : build.Trim();
+            s.OldBuildWarned = cfg.Get("launcher_old_build_warned", "0").Trim() == "1";
             return s;
         }
 
@@ -65,6 +70,7 @@ namespace SilentHillPC_Launcher
             cfg.Set("launcher_repo_url", string.IsNullOrWhiteSpace(RepoUrl) ? DefaultRepoUrl : RepoUrl.Trim());
             cfg.Set("launcher_branch", Branch ?? "");
             cfg.Set("launcher_build", IsLatestBuild ? "latest" : Build.Trim());
+            cfg.Set("launcher_old_build_warned", OldBuildWarned ? "1" : "0");
             cfg.Save();
         }
 
