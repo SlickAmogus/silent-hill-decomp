@@ -607,6 +607,10 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PcObstacleCollision;
         if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
         cprintf("round-obstacle (ptr_18) collision: %s", g_PcObstacleCollision ? "ON" : "OFF (sprint-through)");
+    } else if (strcmp(cmd, "COLLSCOPE") == 0) {
+        extern int g_PcChunkCollisionLocalScope;
+        if (arg[0]) g_PcChunkCollisionLocalScope = atoi(arg) ? 1 : 0;
+        cprintf("preload collision local-cell scope: %s", g_PcChunkCollisionLocalScope ? "ON (vanilla window)" : "OFF (all chunks)");
     } else if (strcmp(cmd, "ALPHA") == 0) {
         extern int g_PcSlopeAlphaFix;
         if (arg[0]) g_PcSlopeAlphaFix = atoi(arg) ? 1 : 0;

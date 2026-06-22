@@ -65,11 +65,15 @@ extern void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r);
                                    state->point.field_C.field_0 << 4); \
     } } while (0)
 
-/* Invisible-wall fix (#42): ptr_18 round obstacles (street poles/hydrants — point
- * colliders with no rendered model) hard-stop a SPRINTING Harry from far via the
- * swept test, in adjacent chunks, with nothing visible. 0 = their solid blocking
- * is OFF (ground-height use is kept; walls/buildings still block). Console `OBST`. */
-int g_PcObstacleCollision = 0;
+/* ptr_18 round obstacles (street poles/hydrants/streetlights — point colliders
+ * with no rendered model). Their solid collision was disabled (default 0) while
+ * diagnosing the #42 invisible-wall sprint-smack, but that root cause turned out
+ * to be the over-eager raycast (fixed in 8210970b8), NOT these obstacles —
+ * func_8006C45C below only blocks when Harry's CURRENT position is within the
+ * radius sum, so it can't stop him "from far". With it off Harry walked straight
+ * through poles and onto hydrants, so it defaults back ON. Console `OBST 0/1`
+ * keeps the A/B toggle. 1 = solid blocking on; 0 = sprint-through. */
+int g_PcObstacleCollision = 1;
 
 /* [WALLEDGE] latched diagnostic: the player wall-EDGE reaction (Collision_WallResponse
  * classifies CollisionType_Wall from ground-height drops, NOT a movement clamp -> never
