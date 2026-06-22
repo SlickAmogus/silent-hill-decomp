@@ -1205,14 +1205,46 @@ def generate_c(map_name, found, bin_filename):
 
 # ---------- main ----------
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+USAGE = """usage: extract_map_data.py <map_name [map_name ...]> | all
 
+Regenerate build_gen/extracted_data/ for the named map(s), or 'all' for every map.
+A target MUST be given explicitly. The output is git-tracked and can drift from this
+tool's config, so a blind full regen can DROP symbols and break the build (see the
+project_extracted_data_regen_gotcha note). Prefer one map at a time and review the diff.
+
+  extract_map_data.py map6_s04
+  extract_map_data.py map6_s01 map6_s02 map6_s04
+  extract_map_data.py all
+"""
+
+
+def main():
+    import sys
+
+    args = sys.argv[1:]
+    if not args:
+        print(USAGE)
+        sys.exit(2)
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     sym_files = sorted(SYM_DIR.glob("sym.map*.txt"))
-    print(f"Found {len(sym_files)} sym files in {SYM_DIR}")
+
+    if len(args) == 1 and args[0] == "all":
+        selected = sym_files
+        print(f"Regenerating ALL {len(selected)} maps (explicit 'all').")
+    else:
+        wanted = set(args)
+        by_name = {map_name_from_sym(sf.name): sf for sf in sym_files}
+        missing = [m for m in sorted(wanted) if m not in by_name]
+        if missing:
+            print(f"ERROR: no sym file for: {', '.join(missing)}")
+            print(f"  (known maps: {', '.join(sorted(by_name))})")
+            sys.exit(2)
+        selected = [by_name[m] for m in sorted(wanted)]
+        print(f"Regenerating {len(selected)} map(s): {', '.join(sorted(wanted))}")
 
     total_extracted = 0
-    for sf in sym_files:
+    for sf in selected:
         map_name = map_name_from_sym(sf.name)
         bin_path = bin_path_for_map(map_name)
         bin_fname = bin_path.name
@@ -1241,7 +1273,7 @@ def main():
         total_extracted += len(found)
         print(f"  [{map_name}] {len(found):2d} syms -> {out_path.name}")
 
-    print(f"\nDone: extracted {total_extracted} symbols across all maps.")
+    print(f"\nDone: extracted {total_extracted} symbols.")
     print(f"Output: {OUT_DIR}")
 
 if __name__ == "__main__":
