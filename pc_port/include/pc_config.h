@@ -40,6 +40,12 @@ typedef struct {
     char keyStart[24], keySelect[24];
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
     char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (toggle control style) */
+    /* Secondary bind per PSX action; active when allow_mouse_secondary (or TPS).
+     * Value is "MouseN" (N=1..5), an SDL key name, or "NONE". */
+    char keyUp2[24], keyDown2[24], keyLeft2[24], keyRight2[24];
+    char keyCross2[24], keyCircle2[24], keyTriangle2[24], keySquare2[24];
+    char keyL12[24], keyR12[24], keyL22[24], keyR22[24], keyL32[24], keyR32[24];
+    char keyStart2[24], keySelect2[24];
     char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
     char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
     char padStart[24], padSelect[24];

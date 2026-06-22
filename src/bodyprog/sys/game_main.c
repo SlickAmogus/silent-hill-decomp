@@ -186,22 +186,42 @@ static void Pc_TpsCamera_Apply(void)
     #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
     #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
     #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
-    #define TP_MOUSE_SENS   6            /* Q12 units per pixel for yaw */
-    #define TP_PITCH_SENS   2            /* Q12 units per pixel for pitch */
+    #define TP_MOUSE_SENS     6          /* Q12 units per pixel for yaw */
+    #define TP_PITCH_SENS     2          /* Q12 units per pixel for pitch */
+    #define TP_STICK_DEADZONE 24         /* right-stick deadzone (of 128) */
+    #define TP_STICK_YAW      40         /* per-30fps-frame yaw at full deflection */
+    #define TP_STICK_PITCH    28         /* per-30fps-frame pitch at full deflection */
 
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
 
-    /* Mouse: orbit the camera, decoupled from Harry's body */
+    /* Mouse + right stick: orbit the camera, decoupled from Harry's body. */
     {
         int mdx = 0, mdy = 0;
         s32 dPitch;
+        s32 rx, ry;
+
         SDL_GetRelativeMouseState(&mdx, &mdy);
         /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
          * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
         g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
-        g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
         dPitch         = (s32)(mdy * TP_PITCH_SENS);
         g_TpsCamPitch += g_PcConfig.invertMouseY ? dPitch : -dPitch;
+
+        /* Right stick (controller look parity). 0..255 centered at 128;
+         * deadzone, then accumulate frame-rate-scaled. ry>0 = stick down →
+         * look down by default; invert_controller_y flips it. */
+        rx = (s32)g_Controller0->analogController.rightX - 128;
+        ry = (s32)g_Controller0->analogController.rightY - 128;
+        if (rx > -TP_STICK_DEADZONE && rx < TP_STICK_DEADZONE) rx = 0;
+        if (ry > -TP_STICK_DEADZONE && ry < TP_STICK_DEADZONE) ry = 0;
+        if (rx != 0 || ry != 0) {
+            s32 sYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (rx * TP_STICK_YAW)   >> 7);
+            s32 sPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (ry * TP_STICK_PITCH) >> 7);
+            g_TpsCamYaw   += sYaw;
+            g_TpsCamPitch += g_PcConfig.invertControllerY ? sPitch : -sPitch;
+        }
+
+        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
         /* Tighter clamp on the look-down side so the camera doesn't rise far
          * over Harry's head. */
         if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
@@ -246,6 +266,9 @@ static void Pc_TpsCamera_Apply(void)
     #undef TP_LOOKAT_OFS
     #undef TP_MOUSE_SENS
     #undef TP_PITCH_SENS
+    #undef TP_STICK_DEADZONE
+    #undef TP_STICK_YAW
+    #undef TP_STICK_PITCH
 }
 
 void DebugCamera_Update(void)

@@ -1286,15 +1286,27 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * dropped-input frame (a preload frame hitch) reads as "released" and
                      * fires the skid-stop "ran into a wall" smack while forward is still held.
                      * Keep bit1, OR the current input into bit0 — matches the |= at ~9941. */
-                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (g_sdlKeyboardState[SDL_SCANCODE_W] != 0);
-                    g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
-                    g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
-                    g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
-                    g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
-                    g_Player_IsTurningLeft       = 0;
-                    g_Player_IsTurningRight      = 0;
-                    g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
-                                                   g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
+                    /* Camera-relative movement from the global input system:
+                     * legacy WASD + bound d-pad keys (arrows) + controller left
+                     * stick all drive forward/back/strafe in Harry's (== camera)
+                     * frame. Right stick / mouse own the look (handled in the
+                     * camera). */
+                    {
+                        s32  held  = g_Controller0->heldBtnFlags;
+                        int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
+                        int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
+                        int  left  = (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) || (held & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft));
+                        int  right = (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) || (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight));
+
+                        g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (fwd ? 1 : 0);
+                        g_Player_IsMovingBackward    = back  ? 1 : 0;
+                        g_Player_IsSteppingLeftHold  = left  ? 1 : 0;
+                        g_Player_IsSteppingRightHold = right ? 1 : 0;
+                        g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
+                        g_Player_IsTurningLeft       = 0;
+                        g_Player_IsTurningRight      = 0;
+                        g_Player_HasMoveInput        = fwd || back || left || right;
+                    }
                     g_Player_HeadingAngle        = Q12_ANGLE(0.0f);
                     g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
                 } else {
@@ -1578,19 +1590,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool aimHeld;
                     bool fireHeld;
 
-                    /* TPS mode: mouse-only for aim/fire so LSHIFT can stay
-                     * a pure run modifier (LSHIFT is mapped to R2/aim in
-                     * the PSX-button layer; if we honored that here, aim
-                     * would steal sprint).  Outside TPS keep the keyboard
-                     * mapping (LSHIFT aim, C fire). */
-                    if (g_DebugThirdPersonCam) {
-                        Uint32 mb = SDL_GetMouseState(NULL, NULL);
-                        aimHeld  = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
-                        fireHeld = (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
-                    } else {
-                        aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
-                        fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
-                    }
+                    /* Aim/fire come straight from the global input word now:
+                     * mouse (Mouse1->Action, Mouse2->Aim via the secondary-bind
+                     * layer), controller (R2/Cross), and keyboard all arrive in
+                     * g_Controller0, so TPS no longer reads SDL mouse state
+                     * itself. LSHIFT==R2 overlaps the run key, but the
+                     * sprint-cancel below drops aim while running. */
+                    aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
+                    fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
 
                     /* Sprint overrides weapon ready: running and aiming at
                      * the same time produces the sprint-in-place bug (D_800C4550
