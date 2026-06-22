@@ -95,9 +95,9 @@ u8 D_800D2738[256] = {0};
 u8 D_800D3154[256] = {0};
 u8 D_800D31D8[256] = {0};
 u8 D_800D31DC[256] = {0};
-u8 D_800D3710[256] = {0};
-u8 D_800D3720[256] = {0};
-u8 D_800D3730[256] = {0};
+/* D_800D3710/3720/3730 now provided with real values by
+ * build_gen/extracted_data/map4_s04_extracted_data.c (cutscene SetDrawArea/
+ * SetDrawOffset rects — zero stubs gave a degenerate clip = rainbow corruption). */
 u8 D_800D37C1[256] = {0};
 u8 D_800D3B70[256] = {0};
 u8 D_800D3B78[256] = {0};
