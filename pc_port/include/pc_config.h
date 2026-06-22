@@ -24,6 +24,11 @@ typedef struct {
                              * machine (accel/decel, wall smack, authored sidesteps)
                              * (default). 0 = legacy PC movement shim (TPS debug cam + fallback). */
 
+    int controlStyle;       /* active camera/control style: 0 = Classic, 1 = TPS (config key: control_style) */
+    int allowMouseSecondary;/* 1 = mouse-button binds + secondary (*_2) binds are active (config key: allow_mouse_secondary) */
+    int invertMouseY;       /* 1 = invert mouse Y for TPS look (config key: invert_mouse_y) */
+    int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
+
     /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
      * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
      * names ("a","b","x","y","leftshoulder","righttrigger","leftstick",
@@ -34,6 +39,7 @@ typedef struct {
     char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
     char keyStart[24], keySelect[24];
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
+    char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (toggle control style) */
     char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
     char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
     char padStart[24], padSelect[24];
@@ -49,6 +55,12 @@ void PcConfig_Load(const char* path);
 /* Rewrite only the `map = ...` line in the loaded config file (preserves the
  * rest). Persists a runtime map change so the next New Game loads it. */
 void PcConfig_SaveMapName(const char* mapName);
+
+/* Rewrite (or append) a single `key = value` line in the loaded config file,
+ * preserving every other line + comment. Used to persist runtime changes
+ * (control_style) and to publish game-owned lists (control_styles) so the
+ * launcher reflects whatever the installed build supports. */
+void PcConfig_SaveKeyValue(const char* key, const char* value);
 
 #endif /* PC_CONFIG_H */
 
