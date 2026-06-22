@@ -95,11 +95,13 @@ public partial class Form1 : Form
     private async void SilentAutoCheckForUpdates()
     {
         var settings = LauncherSettings.Load(config);
-        btnUpdate.Text = "Check for Updates";
+        string installDir = AppDomain.CurrentDomain.BaseDirectory;
+        btnUpdate.Text     = "Check for Updates";
+        downloadBuild.Text = "Download Build";
         try
         {
             lblUpdateStatus.Text = "Checking for updates...";
-            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory, ForceLatest(settings));
+            var plan = await UpdateChecker.CheckAsync(installDir, ForceLatest(settings));
 
             // If the install already matches the latest, remember that so it
             // isn't mis-reported as an update later.
@@ -117,6 +119,14 @@ public partial class Form1 : Form
                 lblUpdateStatus.ForeColor = Color.LightGray;
                 lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
             }
+
+            // "Download Build" vs "Redownload Build": is the SELECTED build already
+            // installed? For "latest" reuse the check above; for a pinned build do
+            // a quick second check.
+            bool selectedInstalled = settings.IsLatestBuild
+                ? !plan.HasUpdate
+                : !(await UpdateChecker.CheckAsync(installDir, settings)).HasUpdate;
+            downloadBuild.Text = selectedInstalled ? "Redownload Build" : "Download Build";
         }
         catch
         {
@@ -259,6 +269,9 @@ public partial class Form1 : Form
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
         Set(btnChangelog, "Show the release changelog (reads CHANGELOG.md next to the launcher).");
         Set(btnControls, "Customize keyboard and controller bindings, and toggle debug/cheat keys.");
+        Set(btnUpdate, "Check the selected branch for a build newer than any you've installed, and offer to update + switch to the latest.");
+        Set(btnBuildSettings, "Choose the repo, branch, and specific build the launcher tracks for updates.");
+        Set(downloadBuild, "Download (or re-download) the exact build selected in Build Settings, replacing your game files with it.");
     }
 
     /// <summary>
@@ -674,6 +687,7 @@ public partial class Form1 : Form
                 settings.Save(config);
                 settings.RecordInstalled(config, plan.RemoteVersion);
                 btnUpdate.Text = "Check for Updates";
+                downloadBuild.Text = "Redownload Build"; // latest is now installed
                 lblUpdateStatus.ForeColor = Color.LightGray;
                 lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
                 MessageBox.Show(this, "Update complete!", "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
