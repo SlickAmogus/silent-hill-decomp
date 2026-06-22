@@ -37,8 +37,9 @@ param(
     [string]$Repo       = "SlickAmogus/silent-hill-pc-nightly",
     [ValidateSet("", "zip", "loose")]
     [string]$Mode       = "",
-    [string]$BetaBranch = "beta",
-    [string]$Notes      = "",
+    [string]$BetaBranch    = "beta",
+    [string]$SourceRepoUrl = "https://github.com/SlickAmogus/silent-hill-decomp",
+    [string]$Notes         = "",
     [switch]$DryRun,
     [switch]$NoPause
 )
@@ -131,6 +132,10 @@ if ($prevReleaseTag) {
 
 $curCommitFull  = (git rev-parse HEAD).Trim()
 $curCommitShort = (git rev-parse --short HEAD).Trim()
+
+# Footer appended to every release body so a nightly build links straight back to
+# the exact source commit it was built from (the manifest also carries git_commit).
+$sourceFooter = "`r`n`r`n---`r`nBuilt from source commit $curCommitShort`r`nSource: $SourceRepoUrl/commit/$curCommitFull"
 
 $commitLog = @()
 if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
@@ -308,6 +313,7 @@ if ($isZip) {
             }
         }
         if (-not $Notes) { $Notes = "Beta zip release $newVersion" }
+        $Notes = $Notes + $sourceFooter
         $notesFile = Join-Path ([IO.Path]::GetTempPath()) "release_notes_$newVersion.txt"
         [System.IO.File]::WriteAllText($notesFile, $Notes)
 
@@ -459,6 +465,8 @@ if (-not $Notes) {
         $Notes = $sb.ToString()
     }
 }
+
+$Notes = $Notes + $sourceFooter
 
 $stagingDir = Join-Path ([IO.Path]::GetTempPath()) "sh-nightly-$newVersion"
 New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null

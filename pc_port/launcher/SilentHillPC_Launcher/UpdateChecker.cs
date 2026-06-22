@@ -152,19 +152,29 @@ namespace SilentHillPC_Launcher
                     if (entry == null || string.IsNullOrEmpty(entry.Path)) continue;
                     if (IsUserDataPath(entry.Path)) continue; // config.cfg / saves: never an update
 
-                    var localPath = Path.Combine(installDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+                    string localPath;
+                    if (!TryResolveInstallPath(installDir, entry.Path, out localPath))
+                        continue; // path escapes the install dir -> ignore (malicious/broken manifest)
+
                     if (!File.Exists(localPath) || Sha256Of(localPath) != (entry.Sha256 ?? "").ToLowerInvariant())
                         plan.Changed.Add(entry);
                 }
             }
 
-            // Launcher self-update gate: keep the launcher in the plan ONLY if the
-            // incoming build's launcher is strictly newer than ours. Otherwise
-            // drop it so an older/equal launcher never lands on top of this one.
+            // Launcher self-update gate.
             var launcherEntry = plan.LauncherEntry;
             if (launcherEntry != null)
             {
-                if (LauncherSettings.IsLauncherNewer(manifest.LauncherVersion, LauncherSettings.OwnLauncherVersion()))
+                // NEVER self-update the launcher from a non-default (untrusted)
+                // repo. A third-party repo may update game data, but replacing the
+                // launcher exe from it would hand that repo arbitrary code
+                // execution on every launch — legit forks should ship their own
+                // launcher download instead.
+                if (!settings.IsDefaultRepo)
+                    plan.Changed.Remove(launcherEntry);
+                // Otherwise keep it only if it's strictly newer than ours, so an
+                // older/equal launcher never lands on top of this one.
+                else if (LauncherSettings.IsLauncherNewer(manifest.LauncherVersion, LauncherSettings.OwnLauncherVersion()))
                     plan.LauncherIsNewer = true;
                 else
                     plan.Changed.Remove(launcherEntry);
@@ -324,7 +334,9 @@ namespace SilentHillPC_Launcher
                 foreach (var entry in plan.Changed)
                 {
                     string tmpFile = Path.Combine(tmpRoot, entry.Path.Replace('/', '_'));
-                    string dst     = Path.Combine(installDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+                    string dst;
+                    if (!TryResolveInstallPath(installDir, entry.Path, out dst))
+                        throw new Exception($"Refusing to write '{entry.Path}' — it escapes the install directory. Aborting.");
 
                     if (IsUserDataPath(entry.Path) && File.Exists(dst)) continue;
 
@@ -374,33 +386,49 @@ namespace SilentHillPC_Launcher
                     }
                 }
 
-                progress?.Invoke(0.68, "Extracting...");
-                ZipFile.ExtractToDirectory(zipPath, extractDir);
-
-                // Verify every changed file's hash from the extracted copy BEFORE
-                // touching the install dir (all-or-nothing, like loose mode).
-                progress?.Invoke(0.85, "Verifying...");
-                foreach (var entry in plan.Changed)
+                // Extract ONLY the files named in the (hash-checked) manifest, each
+                // to a validated path inside extractDir — never a blanket
+                // ExtractToDirectory — so a malicious "../" zip entry can't write
+                // outside our temp dir (zip-slip). Verify hashes before touching
+                // the install dir (all-or-nothing).
+                progress?.Invoke(0.68, "Extracting + verifying...");
+                var staged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                using (var archive = ZipFile.OpenRead(zipPath))
                 {
-                    string srcFile = Path.Combine(extractDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
-                    if (!File.Exists(srcFile))
-                        throw new Exception($"{entry.Path} is missing from the update zip. Aborting.");
-                    if (!string.IsNullOrEmpty(entry.Sha256) && Sha256Of(srcFile) != entry.Sha256.ToLowerInvariant())
-                        throw new Exception($"Hash mismatch for {entry.Path} in the zip. Aborting (no files replaced).");
+                    foreach (var entry in plan.Changed)
+                    {
+                        var ze = FindZipEntry(archive, entry.Path);
+                        if (ze == null)
+                            throw new Exception($"{entry.Path} is missing from the update zip. Aborting.");
+
+                        string tmpFile;
+                        if (!TryResolveInstallPath(extractDir, entry.Path, out tmpFile))
+                            throw new Exception($"Update zip entry '{entry.Path}' escapes the staging directory. Aborting.");
+
+                        var tmpDir = Path.GetDirectoryName(tmpFile);
+                        if (!string.IsNullOrEmpty(tmpDir) && !Directory.Exists(tmpDir)) Directory.CreateDirectory(tmpDir);
+                        ze.ExtractToFile(tmpFile, true);
+
+                        if (!string.IsNullOrEmpty(entry.Sha256) && Sha256Of(tmpFile) != entry.Sha256.ToLowerInvariant())
+                            throw new Exception($"Hash mismatch for {entry.Path} in the zip. Aborting (no files replaced).");
+
+                        staged[entry.Path] = tmpFile;
+                    }
                 }
 
                 progress?.Invoke(0.92, "Installing files...");
                 foreach (var entry in plan.Changed)
                 {
-                    string srcFile = Path.Combine(extractDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
-                    string dst     = Path.Combine(installDir, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+                    string dst;
+                    if (!TryResolveInstallPath(installDir, entry.Path, out dst))
+                        throw new Exception($"Refusing to write '{entry.Path}' — it escapes the install directory. Aborting.");
 
                     if (IsUserDataPath(entry.Path) && File.Exists(dst)) continue;
 
                     var dstDir = Path.GetDirectoryName(dst);
                     if (!string.IsNullOrEmpty(dstDir) && !Directory.Exists(dstDir)) Directory.CreateDirectory(dstDir);
 
-                    ReplaceFile(srcFile, dst);
+                    ReplaceFile(staged[entry.Path], dst);
                 }
 
                 progress?.Invoke(1.0, $"Updated to {plan.RemoteVersion}");
@@ -426,6 +454,41 @@ namespace SilentHillPC_Launcher
             var p = (relPath ?? "").Replace('\\', '/');
             return p.Equals("config.cfg", StringComparison.OrdinalIgnoreCase)
                 || p.StartsWith("gamedata/save/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static ZipArchiveEntry FindZipEntry(ZipArchive archive, string relPath)
+        {
+            string want = NormalizeRel(relPath);
+            return archive.Entries.FirstOrDefault(z =>
+                string.Equals(NormalizeRel(z.FullName), want, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string NormalizeRel(string p)
+        {
+            return (p ?? "").Replace('\\', '/').TrimStart('/');
+        }
+
+        /// <summary>
+        /// Resolve relPath under baseDir and confirm it stays inside it. Rejects
+        /// absolute paths and "../" traversal (zip-slip / manifest path-traversal):
+        /// a manifest/zip can only ever write inside the install (or staging) dir.
+        /// false = unsafe; caller skips or aborts.
+        /// </summary>
+        private static bool TryResolveInstallPath(string baseDir, string relPath, out string fullPath)
+        {
+            fullPath = null;
+            if (string.IsNullOrEmpty(relPath)) return false;
+            try
+            {
+                string baseFull = Path.GetFullPath(baseDir);
+                string combined = Path.GetFullPath(Path.Combine(baseFull, relPath.Replace('/', Path.DirectorySeparatorChar)));
+                string baseWithSep = baseFull.EndsWith(Path.DirectorySeparatorChar.ToString())
+                    ? baseFull : baseFull + Path.DirectorySeparatorChar;
+                if (!combined.StartsWith(baseWithSep, StringComparison.OrdinalIgnoreCase)) return false;
+                fullPath = combined;
+                return true;
+            }
+            catch { return false; }
         }
 
         /// <summary>
