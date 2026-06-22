@@ -16,6 +16,7 @@
 #include "maps/characters/dahlia.h"
 #include "maps/characters/monster_cybil.h"
 #include "bodyprog/game_boot/fs_chara_anim.h"
+#include "bodyprog/game_boot/chara_init.h"
 
 #ifdef SH_PC_PORT
 /* Lost-poke alias: PSX D_800A9938 (0x800A9938) is g_CharaModelAnimsData
@@ -1824,6 +1825,14 @@ void func_800E1D50(void) // 0x800E1D50
             D_800ED5AC = 0;
             g_Cutscene_Timer = Q12(0.0f);
             g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
+#ifdef SH_PC_PORT
+            /* The approach area now spawns ambient larval stalkers / grey
+             * children (the game_boot map6_s04 entry-block that used to suppress
+             * them was removed). Free the 3-slot NPC cap before the boss spawns
+             * so an alive ambient enemy can't deny MonsterCybil's Chara_Spawn a
+             * slot. NoEnemySpawn is already set above, so nothing re-fills it. */
+            GameBoot_NpcClear();
+#endif
 
             Game_TurnFlashlightOn();
             func_800E1CA0();
@@ -2115,6 +2124,11 @@ void func_800E2724(void) // 0x800E2724
             Player_ControlFreeze();
             ScreenFade_ResetTimestep();
             g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
+#ifdef SH_PC_PORT
+            /* Free the NPC cap before this path's immediate MonsterCybil
+             * Chara_Spawn (see the cinematic path above for rationale). */
+            GameBoot_NpcClear();
+#endif
 
             func_800E1CA0();
             func_8007E860();
