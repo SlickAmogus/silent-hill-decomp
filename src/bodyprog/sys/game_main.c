@@ -176,6 +176,78 @@ static int           g_PcCamAppliedValid  = 0;
  * snapshot before adjusting. Toggle on/off with KP_0. */
 static int           g_DebugRawCamMode    = 0;
 
+/* TPS orbit camera application. Promoted out of the debug-only path: runs
+ * whenever the TPS control style is active (g_DebugThirdPersonCam, mirrored
+ * from g_ControlStyle), with or without allow_debug_controls. Mouse delta
+ * orbits the camera around Harry; body-yaw follow + movement live in
+ * player_control.c's TPS branch. */
+static void Pc_TpsCamera_Apply(void)
+{
+    #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
+    #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
+    #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
+    #define TP_MOUSE_SENS   6            /* Q12 units per pixel for yaw */
+    #define TP_PITCH_SENS   2            /* Q12 units per pixel for pitch */
+
+    s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
+
+    /* Mouse: orbit the camera, decoupled from Harry's body */
+    {
+        int mdx = 0, mdy = 0;
+        s32 dPitch;
+        SDL_GetRelativeMouseState(&mdx, &mdy);
+        /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
+         * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
+        g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
+        g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
+        dPitch         = (s32)(mdy * TP_PITCH_SENS);
+        g_TpsCamPitch += g_PcConfig.invertMouseY ? dPitch : -dPitch;
+        /* Tighter clamp on the look-down side so the camera doesn't rise far
+         * over Harry's head. */
+        if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+        if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
+    }
+
+    /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12.
+     * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
+    {
+        s32 sy = Math_Sin(g_TpsCamYaw);
+        s32 cy = Math_Cos(g_TpsCamYaw);
+        s32 sp = Math_Sin(g_TpsCamPitch);
+        s32 cp = Math_Cos(g_TpsCamPitch);
+
+        s32 fwdX = (s32)((s64)sy * cp >> 12);
+        s32 fwdY = -sp;
+        s32 fwdZ = (s32)((s64)cy * cp >> 12);
+
+        VECTOR3 tpCamPos, tpLookAt;
+        s32     anchorY;
+        #define TP_LOOKAT_DIST Q12(25.0f)
+
+        /* Camera D units BACK along forward, lifted by TP_HEIGHT */
+        tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * fwdX >> 12);
+        tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
+        tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
+
+        /* lookAt projects FAR ahead (anti-jitter), Y-anchored to Harry's chest
+         * so the screen-center crosshair lands on him, biased by pitch. */
+        anchorY     = tp_hr->position.vy + TP_LOOKAT_OFS;
+        tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+        tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+        tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+        #undef TP_LOOKAT_DIST
+
+        Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
+        vwSetViewInfo();
+    }
+
+    #undef TP_DIST
+    #undef TP_HEIGHT
+    #undef TP_LOOKAT_OFS
+    #undef TP_MOUSE_SENS
+    #undef TP_PITCH_SENS
+}
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
@@ -189,7 +261,14 @@ void DebugCamera_Update(void)
      * is set in config. */
     {
         extern int g_PcAllowDebugControls;
-        if (!g_PcAllowDebugControls) return;
+        if (!g_PcAllowDebugControls) {
+            /* TPS is a normal (non-debug) camera now: apply it even with dev
+             * keys off, then skip the dev-key handlers below. Classic just
+             * lets the game camera stand. */
+            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+                Pc_TpsCamera_Apply();
+            return;
+        }
     }
     /* Console input mode: typed characters land on the same top-row keys the
      * debug binds use (0-9, -, =), and the controller suppression doesn't
@@ -269,18 +348,9 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Numpad 2: toggle third-person follow camera (edge-triggered) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_2];
-        if (cur && !prevKey) {
-            g_DebugThirdPersonCam = !g_DebugThirdPersonCam;
-            /* Capture/release mouse for TPS mode */
-            SDL_SetRelativeMouseMode(g_DebugThirdPersonCam ? SDL_TRUE : SDL_FALSE);
-            SH_DBG_ECHO("[DEBUG] Numpad 2: Third-person camera: %s", g_DebugThirdPersonCam ? "ON (mouse captured)" : "OFF (mouse released)");
-        }
-        prevKey = cur;
-    }
+    /* (Third-person camera toggle moved out of debug controls: it's now the
+     * rebindable Change-Camera action / control_style config, handled every
+     * frame by Pc_ControlStyleUpdate.) */
 
     /* Kill Harry moved to the `kill` console command (was number key 1). */
     /* Number keys 4/5: cycle the `map` config value (4 = previous, 5 = next,
@@ -742,89 +812,10 @@ void DebugCamera_Update(void)
 
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
-        /* Third-person orbit camera. Mouse moves the camera around Harry
-         * (head-look style); Harry's body only rotates when a movement
-         * key is pressed and snaps toward the camera-relative direction.
-         * Movement input handling lives in player_control.c TPS branch. */
+        /* TPS orbit camera (when the TPS control style is active). Body-yaw
+         * follow + movement live in player_control.c's TPS branch. */
         if (g_DebugThirdPersonCam) {
-            #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
-            #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
-            #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
-            #define TP_MOUSE_SENS   6            /* Q12 units per pixel for yaw */
-            #define TP_PITCH_SENS   2            /* Q12 units per pixel for pitch */
-
-            s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
-
-            /* Mouse: orbit the camera, decoupled from Harry's body */
-            {
-                int mdx = 0, mdy = 0;
-                SDL_GetRelativeMouseState(&mdx, &mdy);
-                /* GTA-style orbit camera. Convention:
-                 *   yaw=0   → camera south of Harry, looking north
-                 *   pitch>0 → camera looks UP (pitches up, dips below)
-                 *   pitch<0 → camera looks DOWN (pitches down, rises above)
-                 *
-                 * Mouse-RIGHT (mdx>0) → += yaw → view rotates right (FPS) ✓
-                 * Mouse-UP    (mdy<0) → -=mdy → += pitch → view tilts up   ✓
-                 * Mouse-DOWN  (mdy>0) → -=mdy → -= pitch → view tilts down ✓ */
-                g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
-                g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
-                /* Tighter clamp on the look-down side so the camera doesn't
-                 * rise far over Harry's head; symmetric range was making the
-                 * cam pop overhead easily. */
-                if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
-                if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
-            }
-
-            /* Compute view direction (forward unit vector) from yaw+pitch.
-             * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
-            s32 sy = Math_Sin(g_TpsCamYaw);
-            s32 cy = Math_Cos(g_TpsCamYaw);
-            s32 sp = Math_Sin(g_TpsCamPitch);
-            s32 cp = Math_Cos(g_TpsCamPitch);
-
-            /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12 */
-            s32 fwdX = (s32)((s64)sy * cp >> 12);
-            s32 fwdY = -sp;
-            s32 fwdZ = (s32)((s64)cy * cp >> 12);
-
-            /* Camera D units BACK along forward, lifted by TP_HEIGHT */
-            VECTOR3 tpCamPos, tpLookAt;
-            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * fwdX >> 12);
-            tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
-            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
-
-            /* lookAt FAR ahead, Y-anchored to Harry's chest. Previous
-             * impl projected straight forward from camera origin (vy
-             * = camPos.vy) which placed screen-center at the camera's
-             * own Y — TP_HEIGHT above Harry's feet, ≈ his mid-back.
-             * Hence the user complaint that the cam sits "halfway up
-             * Harry's back". TP_LOOKAT_OFS was declared but never
-             * applied. Anchor lookAt.vy at harry.y + TP_LOOKAT_OFS so
-             * the screen-center crosshair lands on Harry's chest. The
-             * X/Z still project forward by TP_LOOKAT_DIST so we keep
-             * the Q12→Q8 anti-jitter benefit of a far target.
-             *
-             * Pitch contribution: bias additionally by sin(pitch) so
-             * looking up/down still works — at pitch=0 the cam looks
-             * dead-on at chest; at pitch=+50° the look target rides
-             * higher; at pitch=-40° lower. */
-            #define TP_LOOKAT_DIST Q12(25.0f)
-            s32 anchorY = tp_hr->position.vy + TP_LOOKAT_OFS;
-            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
-            tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
-            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
-            #undef TP_LOOKAT_DIST
-
-            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
-            vwSetViewInfo();
-
-            #undef TP_DIST
-            #undef TP_HEIGHT
-            #undef TP_LOOKAT_OFS
-            #undef TP_MOUSE_SENS
-            #undef TP_PITCH_SENS
+            Pc_TpsCamera_Apply();
         }
         return;
     }
@@ -1263,6 +1254,13 @@ void MainLoop(void) // 0x80032EE0
         {
             extern void Pc_QuickSaveLoadUpdate(void);
             Pc_QuickSaveLoadUpdate();
+        }
+
+        /* Change Camera (F9 / R3): toggle control style; manages TPS mouse
+         * capture. Always on, not debug-gated. */
+        {
+            extern void Pc_ControlStyleUpdate(void);
+            Pc_ControlStyleUpdate();
         }
 
         /* Console `fmv`: once the fade-out it started lands, this blocks in

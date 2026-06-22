@@ -542,6 +542,13 @@ int main(int argc, char* argv[])
      * (overrides the PsyCross defaults set inside PsyX_Initialise). */
     Pc_ApplyControlConfig();
 
+    /* Apply the saved control style + publish the style registry to config.cfg
+     * so the launcher's Control Style dropdown reflects this build. */
+    {
+        extern void Pc_ControlStyleInit(void);
+        Pc_ControlStyleInit();
+    }
+
     /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
      * console-subsystem app, so Windows spawns a console window at startup that
      * grabs focus before this SDL window exists (and, with console off, is then

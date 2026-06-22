@@ -26,12 +26,18 @@ s_PcConfig g_PcConfig = {
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
     .movementOriginal = 1,   /* 1 = PSX lower-body movement machine (default); 0 = legacy PC shim */
 
+    .controlStyle        = 0, /* 0 = Classic (default), 1 = TPS */
+    .allowMouseSecondary = 0, /* 0 = primary key/pad binds only */
+    .invertMouseY        = 0,
+    .invertControllerY   = 0,
+
     /* Keyboard defaults (SDL scancode names) */
     .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
     .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
     .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
     .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
+    .keyChangeCam = "F9", .padChangeCam = "rightstick",
     /* Controller defaults (SDL game-controller names) */
     .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
     .padL1 = "leftshoulder", .padR1 = "rightshoulder",
@@ -70,6 +76,8 @@ static const struct { const char* key; size_t off; } s_ControlBinds[] = {
     { "key_select",   offsetof(s_PcConfig, keySelect)   },
     { "key_quicksave", offsetof(s_PcConfig, keyQuickSave) },
     { "key_quickload", offsetof(s_PcConfig, keyQuickLoad) },
+    { "key_change_cam", offsetof(s_PcConfig, keyChangeCam) },
+    { "pad_change_cam", offsetof(s_PcConfig, padChangeCam) },
     { "pad_cross",    offsetof(s_PcConfig, padCross)    },
     { "pad_circle",   offsetof(s_PcConfig, padCircle)   },
     { "pad_triangle", offsetof(s_PcConfig, padTriangle) },
@@ -236,6 +244,31 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.movementOriginal = (atoi(value) != 0);
         }
+        else if (strcmp(key, "control_style") == 0)
+        {
+            /* Style id string (matches the registry in control_style.c). The
+             * launcher writes the id; map the known ones to the index. Unknown
+             * -> Classic. control_style.c re-validates against its registry. */
+            if (strcmp(value, "tps") == 0) g_PcConfig.controlStyle = 1;
+            else                           g_PcConfig.controlStyle = 0;
+        }
+        else if (strcmp(key, "allow_mouse_secondary") == 0)
+        {
+            g_PcConfig.allowMouseSecondary = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "invert_mouse_y") == 0)
+        {
+            g_PcConfig.invertMouseY = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "invert_controller_y") == 0)
+        {
+            g_PcConfig.invertControllerY = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "control_styles") == 0)
+        {
+            /* Game-owned registry list, published for the launcher's dropdown.
+             * The game writes it on boot; it reads nothing back. Ignore. */
+        }
         else if (strcmp(key, "map") == 0)
         {
             if (strlen(value) > 0 && strlen(value) < sizeof(g_PcConfig.mapName))
@@ -280,10 +313,9 @@ void PcConfig_Load(const char* path)
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
 }
 
-/* Rewrite the `map = ...` line in the loaded config file, preserving every
- * other line and comment. Used by the in-game map-cycle debug keys so the
- * choice persists to the next New Game / launch. */
-void PcConfig_SaveMapName(const char* mapName)
+/* Rewrite (or append) a single `key = value` line in the loaded config file,
+ * preserving every other line and comment. */
+void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
 {
     static char lines[400][256];
     int   n = 0;
@@ -291,7 +323,7 @@ void PcConfig_SaveMapName(const char* mapName)
     int   found = 0;
     FILE* f;
 
-    if (mapName == NULL || mapName[0] == '\0')
+    if (cfgKey == NULL || cfgKey[0] == '\0' || cfgValue == NULL)
         return;
 
     f = fopen(s_configPath, "r");
@@ -317,9 +349,9 @@ void PcConfig_SaveMapName(const char* mapName)
         strncpy(key, p, kl);
         key[kl] = '\0';
         TrimWhitespace(key);
-        if (strcmp(key, "map") == 0)
+        if (strcmp(key, cfgKey) == 0)
         {
-            snprintf(lines[i], sizeof(lines[i]), "map = %s\n", mapName);
+            snprintf(lines[i], sizeof(lines[i]), "%s = %s\n", cfgKey, cfgValue);
             found = 1;
             break;
         }
@@ -331,7 +363,16 @@ void PcConfig_SaveMapName(const char* mapName)
     for (i = 0; i < n; i++)
         fputs(lines[i], f);
     if (!found)
-        fprintf(f, "map = %s\n", mapName);
+        fprintf(f, "%s = %s\n", cfgKey, cfgValue);
     fclose(f);
+}
+
+/* Rewrite the `map = ...` line. Used by the in-game map-cycle debug keys so the
+ * choice persists to the next New Game / launch. */
+void PcConfig_SaveMapName(const char* mapName)
+{
+    if (mapName == NULL || mapName[0] == '\0')
+        return;
+    PcConfig_SaveKeyValue("map", mapName);
 }
 
