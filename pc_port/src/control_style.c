@@ -44,14 +44,6 @@ const char* Pc_ControlStyleLabel(int idx)
     return g_ControlStyles[idx].label;
 }
 
-/* Mouse + secondary binds are forced on in TPS (it relies on the mouse) and
- * otherwise follow the config flag. PsyCross reads g_cfg_allowMouseSecondary. */
-static void Pc_ControlStyleApplyMouseGate(int style)
-{
-    extern int g_cfg_allowMouseSecondary;
-    g_cfg_allowMouseSecondary = g_PcConfig.allowMouseSecondary || (style == ControlStyle_Tps);
-}
-
 void Pc_ControlStyleSet(int style)
 {
     if (style < 0 || style >= Pc_ControlStyleCount())
@@ -59,7 +51,6 @@ void Pc_ControlStyleSet(int style)
 
     g_ControlStyle        = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps);
-    Pc_ControlStyleApplyMouseGate(style);
 
     /* Persist so the choice survives a restart and the launcher reflects it.
      * Mouse capture is managed per-frame in Pc_ControlStyleUpdate. */
@@ -96,7 +87,6 @@ void Pc_ControlStyleInit(void)
 
     g_ControlStyle        = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps);
-    Pc_ControlStyleApplyMouseGate(style);
 
     Pc_ControlStylePublish();
 

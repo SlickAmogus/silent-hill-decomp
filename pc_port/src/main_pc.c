@@ -109,10 +109,8 @@ static void Pc_ApplySecondaryBinds(void)
         else        { *sec[i].kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
     }
 
-    /* Mouse + secondary binds are active when explicitly enabled, or always in
-     * TPS (which relies on the mouse). control_style.c keeps this in sync as the
-     * style changes at runtime. */
-    g_cfg_allowMouseSecondary = g_PcConfig.allowMouseSecondary || (g_PcConfig.controlStyle != 0);
+    /* Mouse + alternate binds are always active now. */
+    g_cfg_allowMouseSecondary = 1;
 }
 
 /* Apply control bindings + movement/debug options from g_PcConfig onto the

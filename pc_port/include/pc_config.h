@@ -25,9 +25,10 @@ typedef struct {
                              * (default). 0 = legacy PC movement shim (TPS debug cam + fallback). */
 
     int controlStyle;       /* active camera/control style: 0 = Classic, 1 = TPS (config key: control_style) */
-    int allowMouseSecondary;/* 1 = mouse-button binds + secondary (*_2) binds are active (config key: allow_mouse_secondary) */
+    int allowMouseSecondary;/* deprecated: mouse + alternate (*_2) binds are always active now */
     int invertMouseY;       /* 1 = invert mouse Y for TPS look (config key: invert_mouse_y) */
     int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
+    int tpsAimZoom;         /* 1 = zoom the TPS camera in behind Harry while aiming/attacking (config key: tps_aim_zoom) */
 
     /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
      * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller

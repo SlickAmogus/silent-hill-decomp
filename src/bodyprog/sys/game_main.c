@@ -191,8 +191,20 @@ static void Pc_TpsCamera_Apply(void)
     #define TP_STICK_DEADZONE 24         /* right-stick deadzone (of 128) */
     #define TP_STICK_YAW      40         /* per-30fps-frame yaw at full deflection */
     #define TP_STICK_PITCH    28         /* per-30fps-frame pitch at full deflection */
+    #define TP_DIST_AIM       Q12(1.3f)  /* zoomed-in orbit radius while aiming */
 
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
+
+    /* Aim zoom: ease the orbit distance in while aiming a gun or attacking, so
+     * the shot lines up better. tps_aim_zoom config gates it (on by default). */
+    static s32 s_tpDist = TP_DIST;
+    {
+        extern u16 g_Player_IsAttacking;
+        int aiming = g_PcConfig.tpsAimZoom &&
+                     (g_SysWork.playerCombat.isAiming || g_Player_IsAttacking);
+        s32 target = aiming ? TP_DIST_AIM : TP_DIST;
+        s_tpDist += (target - s_tpDist) >> 3;
+    }
 
     /* Mouse + right stick: orbit the camera, decoupled from Harry's body. */
     {
@@ -245,9 +257,9 @@ static void Pc_TpsCamera_Apply(void)
         #define TP_LOOKAT_DIST Q12(25.0f)
 
         /* Camera D units BACK along forward, lifted by TP_HEIGHT */
-        tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * fwdX >> 12);
-        tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
-        tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
+        tpCamPos.vx = tp_hr->position.vx - (s32)((s64)s_tpDist * fwdX >> 12);
+        tpCamPos.vy = tp_hr->position.vy - (s32)((s64)s_tpDist * fwdY >> 12) + TP_HEIGHT;
+        tpCamPos.vz = tp_hr->position.vz - (s32)((s64)s_tpDist * fwdZ >> 12);
 
         /* lookAt projects FAR ahead (anti-jitter), Y-anchored to Harry's chest
          * so the screen-center crosshair lands on him, biased by pitch. */
@@ -262,6 +274,7 @@ static void Pc_TpsCamera_Apply(void)
     }
 
     #undef TP_DIST
+    #undef TP_DIST_AIM
     #undef TP_HEIGHT
     #undef TP_LOOKAT_OFS
     #undef TP_MOUSE_SENS
