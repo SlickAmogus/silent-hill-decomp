@@ -169,6 +169,22 @@ The map chunk pipeline was reworked for PC (synchronous reads, wider Hor+ view,
   [`map0_s00_2.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/map0_s00/map0_s00_2.c) ·
   commits [`fc59e57de`](https://github.com/SlickAmogus/silent-hill-decomp/commit/fc59e57de),
   [`6a2fa2995`](https://github.com/SlickAmogus/silent-hill-decomp/commit/6a2fa2995)
+- **`MSG_TIMER_MAX` float→int overflow — map-message cutscenes freeze.** The
+  map-message auto-advance timer clamps to `MSG_TIMER_MAX = Q12(524288.0f) - 1`,
+  which computes `(s32)(524288.0f * 4096)` = `(s32)(2^31)` — a float→int
+  conversion that's out of `s32` range. PSX/MIPS `cvt.w.s` **saturates** out-of-range
+  conversions to `0x7FFFFFFF`, so the sentinel was a valid "unbounded" max. x86
+  `cvttss2si` returns the *integer-indefinite* `INT_MIN` (`0x80000000`) instead, and
+  the resulting overflow-UB macro makes `timer > MSG_TIMER_MAX` evaluate **true** for
+  normal small timer values. So `Gfx_MapMsg_Draw`'s per-frame clamp pins
+  `mapMsgTimer` to `INT_MAX` on its first decrement; a timer-only subtitle (`~J0(n)`,
+  no button-skip) never counts down to 0, so the cutscene state step never advances —
+  e.g. the map0 "Footsteps?" / "Cheryl..." subtitles hang forever (with their
+  per-frame `Cheryl_DistantFootstepSfxPlay()` SFX looping). **Not** FPS- or
+  resolution-dependent. Fix: define the sentinel as the literal `0x7FFFFFFF` on PC
+  instead of the overflowing `Q12()` form. Confirmed with a standalone repro of the
+  exact compiled values (`Q12(524288.0f)` → `0x80000000`; `6063 > MSG_TIMER_MAX` → 1).
+  [`map_msg_display.c` `Gfx_MapMsg_Draw`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/text/map_msg_display.c)
 
 ## 5. 64-bit pointer width & struct layout
 

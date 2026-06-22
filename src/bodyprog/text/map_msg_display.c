@@ -41,7 +41,21 @@ s8             g_MapMsg_SelectCancelIdx;
 
 s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 {
+#ifdef SH_PC_PORT
+    /* MSG_TIMER_MAX is the auto-advance timer's upper clamp. The original
+     * `Q12(524288.0f) - 1` computes `(s32)(524288.0f * 4096)` = `(s32)(2^31)`,
+     * a float->int overflow. PSX/MIPS (cvt.w.s) SATURATES that to 0x7FFFFFFF,
+     * so the sentinel was a valid "effectively unbounded" max. x86 (cvttss2si)
+     * returns INT_MIN (0x80000000) for the same conversion, and the resulting
+     * overflow-UB macro makes `timer > MSG_TIMER_MAX` evaluate TRUE for normal
+     * small timer values — so the per-frame clamp pins mapMsgTimer to INT_MAX
+     * on its first decrement. A timer-only subtitle (`~J0(n)`, e.g. map0's
+     * "Footsteps?"/"Cheryl...") then never counts down to 0 and the cutscene
+     * freezes (with its looped SFX). Use the intended literal sentinel. */
+    #define MSG_TIMER_MAX   0x7FFFFFFF
+#else
     #define MSG_TIMER_MAX   (Q12(524288.0f) - 1)
+#endif
     #define FINISH_CUTSCENE 0xFF
     #define FINISH_MAP_MSG  0xFF
 
