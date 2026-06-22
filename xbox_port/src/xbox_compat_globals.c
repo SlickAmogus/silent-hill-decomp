@@ -33,7 +33,8 @@ s_PcConfig g_PcConfig = {
     .windowWidth     = 640,
     .windowHeight    = 480,
     .pixelAspectMode = 1,   /* 1.0 = square = PSX (per main_pc.c) */
-    .disableCulling  = 0,   /* cull on (PSX) */
+    .disableCulling  = 0,   /* PSX-accurate. (The sliver is a GTE projection issue,
+                             * not this flag — flipping it had no visible effect.) */
     .preloadChunks   = 0,   /* stream chunks like PSX */
     .vsync           = 1,
     .refreshRate     = 60,

@@ -44,6 +44,23 @@ static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 /* Currently-bound NV2A texture (bind-dedup in ProcessPoly); reset each DrawOTag.
  * -1 = unknown, forcing a bind on the first prim of the walk. */
 static const void* s_curTex = (const void*)-1;
+static int         s_curBlend = -1;   /* current blend-enable state (dedup) */
+/* Current PSX texture page for SPRT sprites — they carry no tpage of their own and
+ * inherit it from the most recent DR_TPAGE the game prepends into the OT bucket.
+ * Reset per DrawOTag to the draw-env default. */
+static int         s_curTpage = 0;
+
+/* Diagnostic: post-transform screen-space bounds of drawn prims, logged per ~180
+ * DrawOTag calls — tells us if in-game geometry fills the screen or a strip. */
+static int s_bbMinX = 99999, s_bbMaxX = -99999, s_bbMinY = 99999, s_bbMaxY = -99999;
+static void TrackBB(const ShVertex* v)
+{
+    int sx = (int)v->pos[0], sy = (int)v->pos[1];
+    if (sx < s_bbMinX) s_bbMinX = sx;
+    if (sx > s_bbMaxX) s_bbMaxX = sx;
+    if (sy < s_bbMinY) s_bbMinY = sy;
+    if (sy > s_bbMaxY) s_bbMaxY = sy;
+}
 
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
@@ -56,6 +73,7 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
     v->col[3] = 1.0f;
     v->tex[0] = 0.0f;
     v->tex[1] = 0.0f;
+    TrackBB(v);
 }
 
 /* Textured vertex: texel UV (the decoded page is 256x256, PSX UVs are 0..255 so
@@ -77,6 +95,7 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
     v->col[3] = 1.0f;
     v->tex[0] = (float)u;
     v->tex[1] = (float)tv;
+    TrackBB(v);
 }
 
 /* PSX quad verts are in a Z/strip order (0,1,2,3) -> two triangles. Culling is
@@ -107,6 +126,7 @@ static int ProcessPoly(P_TAG* tag)
     const int gouraud  = code & POLY_GOURAUD;
     const int quad     = code & POLY_QUAD;
     const int textured = code & POLY_TEXTURE;
+    const int abe      = code & 0x02;   /* semi-transparency (ABE) */
     ShVertex  v[4];
     const void* texAddr = 0;   /* decoded PSX texture for this prim, else white */
     int       i;
@@ -142,15 +162,25 @@ static int ProcessPoly(P_TAG* tag)
         if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3, p->u3, p->v3);
     }
 
-    {
-        static int logN = 8;
-        if (logN > 0) {
-            logN--;
-            SH_DBG("[GPU] poly code=0x%02x quad=%d v0=(%d,%d) v1=(%d,%d) v2=(%d,%d)",
+    {   /* Sample a few prims periodically (incl. in-game) — code tells us if the OT
+         * walk is reading valid polys or garbage; coords show typical vs outlier. */
+        static unsigned n = 0;
+        if ((n++ & 0xFFF) < 5)
+            SH_DBG("[GPU] code=0x%02x quad=%d scr=(%d,%d)(%d,%d)(%d,%d)",
                    code, quad ? 1 : 0,
                    (int)v[0].pos[0], (int)v[0].pos[1],
                    (int)v[1].pos[0], (int)v[1].pos[1],
                    (int)v[2].pos[0], (int)v[2].pos[1]);
+    }
+
+    /* Semi-transparent (ABE) prims blend 0.5*back + 0.5*front (constant factor set
+     * in SetRenderState); opaque prims render with blend off. Dedup'd per DrawOTag.
+     * This is what un-blacks the menu overlay / pause / fog. */
+    {
+        const int wantBlend = abe ? 1 : 0;
+        if (wantBlend != s_curBlend) {
+            GpuNv2a_SetBlend(wantBlend);
+            s_curBlend = wantBlend;
         }
     }
 
@@ -176,6 +206,76 @@ static int ProcessPoly(P_TAG* tag)
     return quad ? 5 : 4;
 }
 
+/* DR_MODE / DR_TPAGE (code 0xE0/0xE1) — the GPU draw-mode packets. We only need
+ * the texture page out of them so subsequent SPRTs sample the right VRAM region. */
+static int ProcessDrawMode(P_TAG* tag)
+{
+    const u_long* w = ((const u_long*)tag) + 1; /* data longs follow the tag long */
+    const int     n = getlen(tag);
+    int           i;
+
+    for (i = 0; i < n; i++)
+        if ((w[i] >> 24) == 0xE1)               /* GP0(E1) = set draw mode (tpage) */
+            s_curTpage = (int)(w[i] & 0x1FF);
+    return n;
+}
+
+/* SPRT (textured sprite) / TILE (flat rect), codes 0x60-0x77. Menu / inventory /
+ * HUD text are SPRTs (the game runs in standard-res glyph mode) — these were being
+ * skipped, so all 2D text was missing while polygon UI (portraits) rendered. SPRT
+ * carries no tpage; it inherits s_curTpage from the preceding DR_TPAGE. */
+static int ProcessSprtTile(P_TAG* tag)
+{
+    const int code     = tag->code;
+    const int abe      = code & 0x02;
+    const int textured = code & 0x04;           /* SPRT (textured) vs TILE (flat) */
+    const int sizeMode = (code >> 3) & 3;       /* 0=var 1=1x1 2=8x8 3=16x16 */
+    const int fixedSz  = sizeMode == 1 ? 1 : sizeMode == 2 ? 8 : sizeMode == 3 ? 16 : 0;
+    int x0, y0, w, h, r, g, b, u0 = 0, v0 = 0, clut = 0;
+    const void* texAddr = 0;
+    ShVertex v[4];
+
+    if (textured) {
+        SPRT* p = (SPRT*)tag;
+        x0 = p->x0; y0 = p->y0; r = p->r0; g = p->g0; b = p->b0;
+        u0 = p->u0; v0 = p->v0; clut = p->clut;
+        w = fixedSz ? fixedSz : p->w;
+        h = fixedSz ? fixedSz : p->h;
+        texAddr = PsxVram_GetTexture(s_curTpage, clut);
+        PutVertUV(&v[0], x0,     y0,     r, g, b, u0,     v0);
+        PutVertUV(&v[1], x0 + w, y0,     r, g, b, u0 + w, v0);
+        PutVertUV(&v[2], x0,     y0 + h, r, g, b, u0,     v0 + h);
+        PutVertUV(&v[3], x0 + w, y0 + h, r, g, b, u0 + w, v0 + h);
+    } else {
+        TILE* p = (TILE*)tag;
+        x0 = p->x0; y0 = p->y0; r = p->r0; g = p->g0; b = p->b0;
+        w = fixedSz ? fixedSz : p->w;
+        h = fixedSz ? fixedSz : p->h;
+        PutVert(&v[0], x0,     y0,     r, g, b);
+        PutVert(&v[1], x0 + w, y0,     r, g, b);
+        PutVert(&v[2], x0,     y0 + h, r, g, b);
+        PutVert(&v[3], x0 + w, y0 + h, r, g, b);
+    }
+
+    {
+        const int wantBlend = abe ? 1 : 0;
+        if (wantBlend != s_curBlend) {
+            GpuNv2a_SetBlend(wantBlend);
+            s_curBlend = wantBlend;
+        }
+    }
+    if (texAddr != s_curTex) {
+        if (texAddr)
+            GpuNv2a_BindTexture(texAddr, 256, 256);
+        else
+            GpuNv2a_BindWhite();
+        s_curTex = texAddr;
+    }
+
+    EmitQuad(&v[0], &v[1], &v[2], &v[3]);
+    return getlen(tag);
+}
+
 /* Returns the parsed primitive's length in longs (excl. tag), or the tag's
  * declared length for unhandled prims so the packet walk stays in sync. */
 static int ParsePrim(P_TAG* tag)
@@ -186,9 +286,13 @@ static int ParsePrim(P_TAG* tag)
     case 0x20: /* flat polygons   */
     case 0x30: /* gouraud polygons*/
         return ProcessPoly(tag);
+    case 0x60: /* SPRT / TILE (variable + 1x1) */
+    case 0x70: /* SPRT / TILE (8x8 / 16x16)    */
+        return ProcessSprtTile(tag);
+    case 0xE0: /* DR_MODE / DR_TPAGE — track the texture page for SPRTs */
+        return ProcessDrawMode(tag);
     default:
-        /* lines (0x40/0x50), sprites/tiles (0x60/0x70), DR_LOAD (0xA0),
-         * draw-env (0xE0): not handled yet — skip by declared length. */
+        /* lines (0x40/0x50), DR_LOAD (0xA0): not handled yet — skip by length. */
         return getlen(tag);
     }
 }
@@ -205,7 +309,9 @@ void DrawOTag(u_long* p)
     if (g_gpuDisabled)
         return;
 
-    s_curTex = (const void*)-1;   /* force a texture bind on the first prim */
+    s_curTex   = (const void*)-1; /* force a texture bind on the first prim */
+    s_curBlend = -1;              /* force a blend-state set on the first prim */
+    s_curTpage = g_activeDrawEnv.tpage; /* SPRTs use this until a DR_TPAGE updates it */
 
     if (s_otLog) SH_DBG("[OT] DrawOTag head=%p (walking; per-node trace off)", (void*)base);
 
@@ -233,6 +339,23 @@ void DrawOTag(u_long* p)
     }
 
     if (s_otLog) { SH_DBG("[OT] walk done after %d nodes (cap hit=%d)", safety, safety >= 16384); s_otLog = 0; }
+
+    {   /* Periodic screen-space bounds: y filling [0..480] = full screen; a narrow
+         * band = the in-game "sliver". Pair it with the GTE geom offset/screen so
+         * we can see if the projection is double-centred. */
+        extern void Gte_LogGeom(const char* tag);
+        static int s_bbFrames = 0;
+        if ((++s_bbFrames % 180) == 0 && s_bbMaxY >= s_bbMinY) {
+            SH_DBG("[BB] scr x[%d..%d] y[%d..%d] drawofs=(%d,%d) clip=(%d,%d %dx%d) disp=(%d,%d %dx%d) nodes=%d",
+                   s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY, (int)s_ofsX, (int)s_ofsY,
+                   (int)g_activeDrawEnv.clip.x, (int)g_activeDrawEnv.clip.y,
+                   (int)g_activeDrawEnv.clip.w, (int)g_activeDrawEnv.clip.h,
+                   (int)g_activeDispEnv.disp.x, (int)g_activeDispEnv.disp.y,
+                   (int)g_activeDispEnv.disp.w, (int)g_activeDispEnv.disp.h, safety);
+            Gte_LogGeom("ot");
+            s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
+        }
+    }
 }
 
 void DrawOTagEnv(u_long* p, DRAWENV* env)
@@ -335,20 +458,40 @@ DRAWENV* SetDefDrawEnv(DRAWENV* env, int x, int y, int w, int h)
     return env;
 }
 
+/* Map the game's drawing space to the 640x480 framebuffer. The PSX draws prims at
+ * (raw + draw-env offset) in VRAM, and the DISPLAY env (disp.x/y/w/h) selects the
+ * VRAM region actually shown on screen — so screen = (raw + drawofs - disp.xy)
+ * scaled to fill 640x480. This is what positions the menu correctly: its 2D
+ * content sits in a part of VRAM that the display window, not the draw clip,
+ * defines. Falls back to the draw clip until a display env is set. */
+static void RecomputeTransform(void)
+{
+    int dw = g_activeDispEnv.disp.w;
+    int dh = g_activeDispEnv.disp.h;
+
+    if (dw > 0 && dh > 0) {
+        s_ofsX   = (float)(g_activeDrawEnv.ofs[0] - g_activeDispEnv.disp.x);
+        s_ofsY   = (float)(g_activeDrawEnv.ofs[1] - g_activeDispEnv.disp.y);
+        s_scaleX = 640.0f / (float)dw;
+        s_scaleY = 480.0f / (float)dh;
+    } else {
+        s_ofsX   = (float)g_activeDrawEnv.ofs[0];
+        s_ofsY   = (float)g_activeDrawEnv.ofs[1];
+        s_scaleX = 640.0f / (g_activeDrawEnv.clip.w ? (float)g_activeDrawEnv.clip.w : 320.0f);
+        s_scaleY = 480.0f / (g_activeDrawEnv.clip.h ? (float)g_activeDrawEnv.clip.h : 240.0f);
+    }
+}
+
 DISPENV* PutDispEnv(DISPENV* env)
 {
     g_activeDispEnv = *env;
+    RecomputeTransform();
     return env;
 }
 
 DRAWENV* PutDrawEnv(DRAWENV* env)
 {
     g_activeDrawEnv = *env;
-    /* Recompute the screen transform (see PutVert): center prims by the draw-env
-     * offset, then scale the clip area to fill the 640x480 NV2A framebuffer. */
-    s_ofsX   = (float)env->ofs[0];
-    s_ofsY   = (float)env->ofs[1];
-    s_scaleX = 640.0f / (env->clip.w ? (float)env->clip.w : 320.0f);
-    s_scaleY = 480.0f / (env->clip.h ? (float)env->clip.h : 240.0f);
+    RecomputeTransform();
     return env;
 }

@@ -23,7 +23,11 @@
 #define MAXRAM 0x03FFAFFF
 #define MASK(mask, val) (((val) << (__builtin_ffs(mask) - 1)) & (mask))
 
-#define MAX_BATCH_VERTS 1024
+/* Sized for a whole frame's geometry. At 1024 (~170 quads) the pool filled mid-
+ * frame and EmitTris silently DROPPED the rest of the scene — and since DrawOTag
+ * walks far->near, the dropped remainder was the near-camera geometry (Harry + his
+ * surroundings), leaving the clear colour as a "grey void". 65536 verts = ~2.3 MB. */
+#define MAX_BATCH_VERTS 65536
 
 /* NV2A linear/NPOT textures need an aligned pitch (>= 64 bytes); a 1x1 (pitch 4)
  * triggers a GPU "invalid data error". Use 64x64 (pitch 256), proven-good. */
@@ -106,7 +110,24 @@ static void GpuNv2a_SetRenderState(void)
     p = pb_push1(p, NV097_SET_CULL_FACE_ENABLE, 0);
     p = pb_push1(p, NV097_SET_ALPHA_TEST_ENABLE, 0);
     p = pb_push1(p, NV097_SET_BLEND_ENABLE, 0);
+    /* Per-prim blend (ABE) uses a CONSTANT 0.5 factor: 0.5*back + 0.5*front (PSX
+     * semi-transparency mode 0). Constant factors don't depend on any per-pixel or
+     * combiner alpha (not wired), so opaque prims (blend off) are unaffected and
+     * enabling blend only averages — it cannot make geometry vanish. */
+    p = pb_push1(p, NV097_SET_BLEND_FUNC_SFACTOR, NV097_SET_BLEND_FUNC_SFACTOR_V_CONSTANT_ALPHA);
+    p = pb_push1(p, NV097_SET_BLEND_FUNC_DFACTOR, NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_CONSTANT_ALPHA);
+    p = pb_push1(p, NV097_SET_BLEND_EQUATION, NV097_SET_BLEND_EQUATION_V_FUNC_ADD);
+    p = pb_push1(p, NV097_SET_BLEND_COLOR, 0x80000000);   /* constant alpha = 0.5 */
     p = pb_push1(p, NV097_SET_ZMIN_MAX_CONTROL, NV097_SET_ZMIN_MAX_CONTROL_ZCLAMP_CLAMP);
+    pb_end(p);
+}
+
+/* Toggle alpha blending per-prim (PSX ABE). Func/equation set once in SetRenderState.
+ * Currently unused (per-prim blend reverted pending a correct combiner alpha). */
+void GpuNv2a_SetBlend(int enable)
+{
+    uint32_t* p = pb_begin();
+    p = pb_push1(p, NV097_SET_BLEND_ENABLE, enable ? 1 : 0);
     pb_end(p);
 }
 
@@ -163,7 +184,11 @@ void GpuNv2a_FrameBegin(void)
 
 void GpuNv2a_FrameEnd(void)
 {
-    while (pb_busy()) { }
+    /* No pb_busy() drain: that forced strict CPU-then-GPU serialization every frame
+     * (frame time = CPU_build + GPU_render + vblank). pb_finished() queues the swap
+     * at vblank and only blocks when we're >2 frames ahead (the triple-buffer table
+     * is full) — correct backpressure that lets the CPU build frame N+1 while the
+     * GPU rasterizes frame N. */
     while (pb_finished()) { }
 }
 
@@ -223,8 +248,16 @@ void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 
     if (count <= 0 || count > MAX_BATCH_VERTS)
         return;
-    if (s_batchUsed + count > MAX_BATCH_VERTS)
-        return; /* pool full this frame — drop (don't corrupt in-flight verts) */
+    if (s_batchUsed + count > MAX_BATCH_VERTS) {
+        /* Pool full mid-frame: flush rather than drop. Wait for the GPU to finish
+         * reading the current pool (attribute base is fixed at s_batch[0]), then
+         * recycle from 0 — already-submitted draws have rendered into the
+         * framebuffer, so the scene accumulates. Rare at this pool size. */
+        static int s_flushLogged = 0;
+        if (!s_flushLogged) { SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", MAX_BATCH_VERTS); s_flushLogged = 1; }
+        while (pb_busy()) { }
+        s_batchUsed = 0;
+    }
 
     start = s_batchUsed;
     memcpy(s_batch + start, verts, count * sizeof(ShVertex));

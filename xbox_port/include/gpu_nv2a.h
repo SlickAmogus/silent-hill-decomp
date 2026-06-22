@@ -26,5 +26,6 @@ void GpuNv2a_EmitTris(const ShVertex* verts, int count);
 void  GpuNv2a_BindTexture(const void* addr, int w, int h);
 void  GpuNv2a_BindWhite(void);
 void* GpuNv2a_AllocTexMem(int bytes);
+void  GpuNv2a_SetBlend(int enable);
 
 #endif /* SH_GPU_NV2A_H */
