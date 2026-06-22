@@ -200,20 +200,6 @@ void Event_DisplayMapMsg(bool hasSelection, s32 mapMsgIdx, s32 step0, s32 step1,
     s32 mapMsgState;
 
     mapMsgState = Gfx_MapMsg_Draw(mapMsgIdx);
-#ifdef SH_PC_PORT
-    /* Hold the world still while a message box is up during gameplay (examining
-     * objects, reading notes, yes/no prompts) — like the pause screen, so
-     * enemies/world don't keep acting while you read. BgmStatusFlag_Pause gates
-     * the world/camera/player/NPC updates; the text itself keeps drawing
-     * (Gfx_MapMsg_Draw above) and input still advances the message. Scoped to
-     * SysState_Gameplay so cutscenes (which manage this flag themselves and
-     * show messages mid-scene) are untouched. MainLoop clears the flag each
-     * frame, so re-set it while the box is shown. */
-    if (mapMsgState > MapMsgState_Idle && g_SysWork.sysState == SysState_Gameplay)
-    {
-        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
-    }
-#endif
     if (mapMsgState <= MapMsgState_Idle)
     {
         return;
