@@ -13,6 +13,12 @@ using System.Windows.Forms;
 /// is set to that key's SDL scancode name (no free typing, so you can't save
 /// an invalid name). Controller values are dropdowns of valid SDL button names.
 /// "NONE" = unbound. D-pad + analog sticks are movement and are not rebindable.
+///
+/// Experimental: a Control Style dropdown (Classic / Thirdperson Shooter, etc.;
+/// list is published by the game in control_styles), a Change-Camera bind on
+/// both keyboard + controller, and an "Allow mouse controls / secondary inputs"
+/// toggle that reveals a second bind box per keyboard row and lets bind boxes
+/// capture mouse buttons (Mouse1..Mouse5). Esc/Backspace clears a binding.
 /// </summary>
 public class ControlsForm : Form
 {
@@ -76,9 +82,16 @@ public class ControlsForm : Form
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
         { "key_l3", "[" }, { "key_r3", "]" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
+        { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
+        // Secondary binds: Mouse1 = Action/Shoot, Mouse2 = Aim; rest unbound.
+        { "key_cross_2", "Mouse1" }, { "key_r2_2", "Mouse2" },
+        { "key_up_2", "NONE" }, { "key_down_2", "NONE" }, { "key_left_2", "NONE" }, { "key_right_2", "NONE" },
+        { "key_circle_2", "NONE" }, { "key_triangle_2", "NONE" }, { "key_square_2", "NONE" },
+        { "key_l1_2", "NONE" }, { "key_r1_2", "NONE" }, { "key_l2_2", "NONE" },
+        { "key_start_2", "NONE" }, { "key_select_2", "NONE" },
     };
 
     // WinForms Keys -> SDL scancode name (what PsyX_LookupKeyboardMapping wants).
@@ -87,8 +100,20 @@ public class ControlsForm : Form
     private const string ListenPrompt = "Press a key...";
 
     private readonly Dictionary<string, Control> inputs = new Dictionary<string, Control>();
+    private readonly List<TextBox> secondaryBoxes = new List<TextBox>();
     private RadioButton debugYes;
     private RadioButton debugNo;
+
+    private ComboBox cmbControlStyle;
+    private readonly List<string> styleIds = new List<string>();
+    private CheckBox chkMouseSecondary;
+    private CheckBox chkInvertMouseY;
+    private CheckBox chkInvertControllerY;
+
+    // True while a bind box has focus and is showing the "Press a key..." prompt;
+    // the click that focused a box must NOT be captured as a Mouse1 binding.
+    private bool mouseSecondaryEnabled;
+    private bool ignoreNextMouseBind;
 
     private static readonly Color Back = Color.FromArgb(30, 30, 30);
     private static readonly Color PanelBack = Color.FromArgb(45, 45, 45);
@@ -121,49 +146,104 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(640, 600);
+        ClientSize = new Size(760, 610);
 
         const int colKbX = 20;
-        const int colPadX = 330;
+        const int colPadX = 420;
         const int headerY = 14;
         const int rowY0 = 44;
         const int rowH = 26;
-        const int labelW = 140;
-        const int inputW = 150;
+        const int labelW = 120;
+        const int inputW = 118;
+        const int padInputW = 150;
+        const int secGap = 6;
 
         AddHeader("Keyboard Controls", colKbX, headerY);
+        AddLabel("(2nd / mouse)", colKbX + labelW + inputW + secGap, headerY + 4, inputW);
         AddHeader("Controller Controls", colPadX, headerY);
 
+        // Keyboard PSX binds — each gets a hidden secondary box (shown when the
+        // mouse/secondary toggle is on).
         for (int i = 0; i < KeyboardBinds.Length; i++)
-            AddKeyRow(KeyboardBinds[i][0], KeyboardBinds[i][1], colKbX, rowY0 + i * rowH, labelW, inputW);
+            AddKeyRow(KeyboardBinds[i][0], KeyboardBinds[i][1], colKbX, rowY0 + i * rowH, labelW, inputW, true);
 
         // Quick Save / Quick Load: under the PSX binds, set off by a small gap.
         int quickY0 = rowY0 + KeyboardBinds.Length * rowH + 12;
         for (int i = 0; i < QuickBinds.Length; i++)
-            AddKeyRow(QuickBinds[i][0], QuickBinds[i][1], colKbX, quickY0 + i * rowH, labelW, inputW);
+            AddKeyRow(QuickBinds[i][0], QuickBinds[i][1], colKbX, quickY0 + i * rowH, labelW, inputW, false);
 
+        // Change Camera (keyboard) — between Quick Load and Allow Debug.
+        int changeCamY = quickY0 + QuickBinds.Length * rowH + 8;
+        AddKeyRow("Change Camera", "key_change_cam", colKbX, changeCamY, labelW, inputW, false);
+
+        // Controller binds.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
             int y = rowY0 + i * rowH;
             AddLabel(ControllerBinds[i][0], colPadX, y, labelW);
-
-            ComboBox cb = new ComboBox
-            {
-                Left = colPadX + labelW,
-                Top = y - 3,
-                Width = inputW,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                BackColor = PanelBack,
-                ForeColor = TextColor,
-                FlatStyle = FlatStyle.Flat,
-            };
-            cb.Items.AddRange(ControllerButtons);
-            inputs[ControllerBinds[i][1]] = cb;
-            Controls.Add(cb);
+            AddPadCombo(ControllerBinds[i][1], colPadX + labelW, y - 3, padInputW);
         }
 
-        // Below the (taller) keyboard column.
-        int debugY = quickY0 + QuickBinds.Length * rowH + 16;
+        // Change Camera (controller) — below Select.
+        int padChangeCamY = rowY0 + ControllerBinds.Length * rowH;
+        AddLabel("Change Camera", colPadX, padChangeCamY, labelW);
+        AddPadCombo("pad_change_cam", colPadX + labelW, padChangeCamY - 3, padInputW);
+
+        // --- Experimental section (right column, gap left above for a future
+        // control under Select) ---
+        int expY = padChangeCamY + rowH + 16;
+        AddHeader("Experimental", colPadX, expY);
+
+        int styleY = expY + 30;
+        AddLabel("Control Style", colPadX, styleY, 90);
+        cmbControlStyle = new ComboBox
+        {
+            Left = colPadX + 90,
+            Top = styleY - 3,
+            Width = 180,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            FlatStyle = FlatStyle.Flat,
+        };
+        Controls.Add(cmbControlStyle);
+
+        chkMouseSecondary = new CheckBox
+        {
+            Text = "Allow mouse controls / secondary inputs",
+            Left = colPadX,
+            Top = styleY + 30,
+            Width = 300,
+            ForeColor = TextColor,
+        };
+        chkMouseSecondary.CheckedChanged += (s, e) =>
+        {
+            mouseSecondaryEnabled = chkMouseSecondary.Checked;
+            SetSecondaryVisible(mouseSecondaryEnabled);
+        };
+        Controls.Add(chkMouseSecondary);
+
+        chkInvertMouseY = new CheckBox
+        {
+            Text = "Invert Mouse Y",
+            Left = colPadX,
+            Top = styleY + 58,
+            Width = 160,
+            ForeColor = TextColor,
+        };
+        chkInvertControllerY = new CheckBox
+        {
+            Text = "Invert Controller Y",
+            Left = colPadX,
+            Top = styleY + 84,
+            Width = 180,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkInvertMouseY);
+        Controls.Add(chkInvertControllerY);
+
+        // Allow debug controls — below the (taller) keyboard column.
+        int debugY = changeCamY + rowH + 14;
         AddLabel("Allow debug controls:", colKbX, debugY, 150);
         debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = debugY - 3, Width = 50, ForeColor = TextColor };
@@ -208,15 +288,30 @@ public class ControlsForm : Form
         Controls.Add(new Label { Text = text, Left = x, Top = y, Width = w, ForeColor = TextColor });
     }
 
-    private void AddKeyRow(string label, string cfgKey, int x, int y, int labelW, int inputW)
+    private void AddPadCombo(string cfgKey, int left, int top, int width)
     {
-        AddLabel(label, x, y, labelW);
+        ComboBox cb = new ComboBox
+        {
+            Left = left,
+            Top = top,
+            Width = width,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            FlatStyle = FlatStyle.Flat,
+        };
+        cb.Items.AddRange(ControllerButtons);
+        inputs[cfgKey] = cb;
+        Controls.Add(cb);
+    }
 
+    private TextBox MakeBindBox(string cfgKey, int left, int top, int width)
+    {
         TextBox tb = new TextBox
         {
-            Left = x + labelW,
-            Top = y - 3,
-            Width = inputW,
+            Left = left,
+            Top = top,
+            Width = width,
             ReadOnly = true,           // click-to-rebind; no free typing
             Cursor = Cursors.Hand,
             BackColor = PanelBack,
@@ -227,8 +322,29 @@ public class ControlsForm : Form
         tb.Leave += KeyBox_Leave;
         tb.PreviewKeyDown += KeyBox_PreviewKeyDown; // make arrows/Tab reach KeyDown
         tb.KeyDown += KeyBox_KeyDown;
+        tb.MouseDown += KeyBox_MouseDown;           // bind mouse buttons (when enabled)
         inputs[cfgKey] = tb;
         Controls.Add(tb);
+        return tb;
+    }
+
+    private void AddKeyRow(string label, string cfgKey, int x, int y, int labelW, int inputW, bool withSecondary)
+    {
+        AddLabel(label, x, y, labelW);
+        MakeBindBox(cfgKey, x + labelW, y - 3, inputW);
+
+        if (withSecondary)
+        {
+            TextBox tb2 = MakeBindBox(cfgKey + "_2", x + labelW + inputW + 6, y - 3, inputW);
+            tb2.Visible = false;       // shown only when mouse/secondary is enabled
+            secondaryBoxes.Add(tb2);
+        }
+    }
+
+    private void SetSecondaryVisible(bool on)
+    {
+        foreach (TextBox tb in secondaryBoxes)
+            tb.Visible = on;
     }
 
     // --- Keyboard rebind capture ----------------------------------------
@@ -239,6 +355,8 @@ public class ControlsForm : Form
         tb.Tag = tb.Text;            // remember current value
         tb.Text = ListenPrompt;
         tb.BackColor = Listening;
+        // The click that focuses a box must not also bind as Mouse1.
+        ignoreNextMouseBind = true;
     }
 
     private void KeyBox_Leave(object sender, EventArgs e)
@@ -247,6 +365,7 @@ public class ControlsForm : Form
         if (tb.Text == ListenPrompt && tb.Tag != null)
             tb.Text = (string)tb.Tag; // left without pressing a key -> restore
         tb.BackColor = PanelBack;
+        ignoreNextMouseBind = false;
     }
 
     private void KeyBox_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -261,6 +380,16 @@ public class ControlsForm : Form
         e.Handled = true;
 
         TextBox tb = (TextBox)sender;
+
+        // Esc / Backspace clears the binding rather than binding that key.
+        if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Back)
+        {
+            tb.Text = "NONE";
+            tb.Tag = "NONE";
+            ActiveControl = null;   // commit + stop listening
+            return;
+        }
+
         Keys kc = ResolveSidedModifier(e.KeyCode);
         string name;
         if (KeyToSdl.TryGetValue(kc, out name))
@@ -270,6 +399,49 @@ public class ControlsForm : Form
             ActiveControl = null;   // commit + stop listening
         }
         // Unmapped key: keep listening for a recognized one.
+    }
+
+    private void KeyBox_MouseDown(object sender, MouseEventArgs e)
+    {
+        if (!mouseSecondaryEnabled)
+            return;
+
+        TextBox tb = (TextBox)sender;
+
+        // Only bind when the box is actively listening (focused, showing the
+        // prompt). This skips the focusing click whether MouseDown fires before
+        // KeyBox_Enter (not listening yet) or after it (guarded below).
+        if (tb.Text != ListenPrompt)
+            return;
+
+        // The click that focused the box arrives right after KeyBox_Enter armed
+        // the guard — swallow it so it doesn't self-bind as Mouse1.
+        if (ignoreNextMouseBind)
+        {
+            ignoreNextMouseBind = false;
+            return;
+        }
+
+        string name = MouseButtonName(e.Button);
+        if (name == null)
+            return;
+
+        tb.Text = name;
+        tb.Tag = name;
+        ActiveControl = null;       // commit + stop listening
+    }
+
+    private static string MouseButtonName(MouseButtons b)
+    {
+        switch (b)
+        {
+            case MouseButtons.Left:     return "Mouse1";
+            case MouseButtons.Right:    return "Mouse2";
+            case MouseButtons.Middle:   return "Mouse3";
+            case MouseButtons.XButton1: return "Mouse4";
+            case MouseButtons.XButton2: return "Mouse5";
+            default:                    return null;
+        }
     }
 
     [DllImport("user32.dll")]
@@ -290,6 +462,34 @@ public class ControlsForm : Form
     }
 
     // --- Load / save ----------------------------------------------------
+
+    private void PopulateControlStyles()
+    {
+        cmbControlStyle.Items.Clear();
+        styleIds.Clear();
+
+        // The game publishes "id:Label|id:Label|..." each launch.
+        string raw = config.Get("control_styles", "classic:Classic (Default)|tps:Thirdperson Shooter");
+        foreach (string part in raw.Split('|'))
+        {
+            if (part.Trim().Length == 0) continue;
+            int c = part.IndexOf(':');
+            string id = (c >= 0 ? part.Substring(0, c) : part).Trim();
+            string label = (c >= 0 ? part.Substring(c + 1) : part).Trim();
+            if (id.Length == 0) continue;
+            styleIds.Add(id);
+            cmbControlStyle.Items.Add(label.Length > 0 ? label : id);
+        }
+        if (cmbControlStyle.Items.Count == 0)
+        {
+            styleIds.Add("classic");
+            cmbControlStyle.Items.Add("Classic (Default)");
+        }
+
+        string cur = config.Get("control_style", "classic");
+        int idx = styleIds.IndexOf(cur);
+        cmbControlStyle.SelectedIndex = idx >= 0 ? idx : 0;
+    }
 
     private void LoadValues()
     {
@@ -313,6 +513,14 @@ public class ControlsForm : Form
                 cb.SelectedIndex = idx >= 0 ? idx : 0;
             }
         }
+
+        PopulateControlStyles();
+
+        chkMouseSecondary.Checked = config.Get("allow_mouse_secondary", "0") == "1";
+        chkInvertMouseY.Checked = config.Get("invert_mouse_y", "0") == "1";
+        chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
+        mouseSecondaryEnabled = chkMouseSecondary.Checked;
+        SetSecondaryVisible(mouseSecondaryEnabled);
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -341,6 +549,14 @@ public class ControlsForm : Form
             }
         }
 
+        if (cmbControlStyle.Items.Count > 0)
+            cmbControlStyle.SelectedIndex = 0;     // Classic
+        chkMouseSecondary.Checked = false;
+        chkInvertMouseY.Checked = false;
+        chkInvertControllerY.Checked = false;
+        mouseSecondaryEnabled = false;
+        SetSecondaryVisible(false);
+
         debugNo.Checked = true;
         debugYes.Checked = false;
     }
@@ -359,6 +575,12 @@ public class ControlsForm : Form
             if (val.Length == 0) val = "NONE";
             config.Set(kv.Key, val);
         }
+
+        if (cmbControlStyle.SelectedIndex >= 0 && cmbControlStyle.SelectedIndex < styleIds.Count)
+            config.Set("control_style", styleIds[cmbControlStyle.SelectedIndex]);
+        config.Set("allow_mouse_secondary", chkMouseSecondary.Checked ? "1" : "0");
+        config.Set("invert_mouse_y", chkInvertMouseY.Checked ? "1" : "0");
+        config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();
