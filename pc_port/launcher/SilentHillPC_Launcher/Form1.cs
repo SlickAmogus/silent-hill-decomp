@@ -267,7 +267,7 @@ public partial class Form1 : Form
         Set(comboMap,    levelTip);
 
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
-        Set(btnChangelog, "Show the release changelog (reads CHANGELOG.md next to the launcher).");
+        Set(btnChangelog, "Shows the LOCAL copy of CHANGELOG.md that's currently installed. (Build Settings and the update prompt preview other builds' changelogs.)");
         Set(btnControls, "Customize keyboard and controller bindings, and toggle debug/cheat keys.");
         Set(btnUpdate, "Check the selected branch for a build newer than any you've installed, and offer to update + switch to the latest.");
         Set(btnBuildSettings, "Choose the repo, branch, and specific build the launcher tracks for updates.");
@@ -656,26 +656,19 @@ public partial class Form1 : Form
             btnUpdate.Text = "Update available!";
             lblUpdateStatus.ForeColor = Color.LightGreen;
 
-            // Already said "no" to this exact version? Don't nag again until a
-            // newer one ships or something is actually installed.
-            if (string.Equals(plan.RemoteVersion, settings.GetDismissed(config), StringComparison.OrdinalIgnoreCase))
-            {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} available (dismissed).";
-                progUpdate.Visible = false;
-                return;
-            }
-
-            var ask = MessageBox.Show(this,
+            // Always re-promptable: clicking the button offers the update every
+            // time, even if you said "no" before. (View Changelog previews the
+            // incoming build's notes without downloading it.)
+            bool wantUpdate = PromptUpdate("Update available",
                 $"A newer build is available: {plan.RemoteVersion}\n" +
                 $"Built: {plan.BuildDate}\n" +
                 $"Source: {plan.RepoLabel}\n\n" +
                 (settings.IsLatestBuild ? "" : $"You currently have build '{settings.Build}' selected.\n") +
                 "Update to the latest build and switch to it now?",
-                "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-            if (ask != DialogResult.Yes)
+                plan.ChangelogUrl);
+            if (!wantUpdate)
             {
-                settings.SetDismissed(config, plan.RemoteVersion);
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} dismissed.";
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
                 progUpdate.Visible = false;
                 return;
             }
@@ -862,55 +855,55 @@ public partial class Form1 : Form
     private void btnChangelog_Click(object sender, EventArgs e)
     {
         string changelogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CHANGELOG.md");
-        string text;
-        if (File.Exists(changelogPath))
-        {
-            text = File.ReadAllText(changelogPath, System.Text.Encoding.UTF8);
-        }
-        else
-        {
-            text = "CHANGELOG.md not found next to the launcher.\n\n" +
-                   "Run 'Check for Updates' to download the latest build which includes the changelog.";
-        }
+        string text = File.Exists(changelogPath)
+            ? File.ReadAllText(changelogPath, System.Text.Encoding.UTF8)
+            : "CHANGELOG.md not found next to the launcher.\n\n" +
+              "Run 'Check for Updates' to download the latest build which includes the changelog.";
+        ChangelogViewer.Show(this, "Silent Hill PC Port — Changelog (installed)", text);
+    }
 
-        var dlg = new Form
+    // Update prompt with a "View Changelog" button that previews the INCOMING
+    // build's notes (fetched from the release, not the local copy). Returns true
+    // if the user chose to update.
+    private bool PromptUpdate(string title, string message, string changelogUrl)
+    {
+        bool update = false;
+        using (var dlg = new Form
         {
-            Text            = "Silent Hill PC Port — Changelog",
-            Size            = new Size(680, 520),
-            MinimumSize     = new Size(400, 300),
+            Text            = title,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition   = FormStartPosition.CenterParent,
-            BackColor       = Color.FromArgb(30, 30, 30),
-            ForeColor       = Color.White,
-            Font            = new Font("Consolas", 9f),
-        };
-
-        var tb = new RichTextBox
+            MaximizeBox     = false,
+            MinimizeBox     = false,
+            ShowInTaskbar   = false,
+            ClientSize      = new Size(432, 195),
+            BackColor       = Color.FromArgb(32, 32, 32),
+            ForeColor       = Color.Gainsboro,
+        })
         {
-            Dock        = DockStyle.Fill,
-            ReadOnly    = true,
-            Text        = text,
-            BackColor   = Color.FromArgb(30, 30, 30),
-            ForeColor   = Color.White,
-            BorderStyle = BorderStyle.None,
-            ScrollBars  = RichTextBoxScrollBars.Vertical,
-            Font        = new Font("Consolas", 9f),
-            WordWrap    = true,
-        };
+            var lbl    = new Label  { Text = message, Left = 14, Top = 14, Width = 404, Height = 112, AutoSize = false };
+            var btnCl  = new Button { Text = "View Changelog", Left = 14,  Top = 150, Width = 120, Height = 28 };
+            var btnYes = new Button { Text = "Update",         Left = 246, Top = 150, Width = 80,  Height = 28 };
+            var btnNo  = new Button { Text = "Not now",        Left = 332, Top = 150, Width = 86,  Height = 28, DialogResult = DialogResult.Cancel };
+            btnYes.Click += (s, e) => { update = true; dlg.Close(); };
+            btnCl.Enabled = !string.IsNullOrWhiteSpace(changelogUrl);
+            btnCl.Click += async (s, e) =>
+            {
+                btnCl.Enabled = false;
+                try { ChangelogViewer.Show(dlg, "Changelog — incoming build", await UpdateChecker.FetchTextAsync(changelogUrl)); }
+                catch (Exception ex) { MessageBox.Show(dlg, "Couldn't load the changelog:\n\n" + ex.Message, "Changelog", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                finally { btnCl.Enabled = true; }
+            };
 
-        var closeBtn = new Button
-        {
-            Text      = "Close",
-            Dock      = DockStyle.Bottom,
-            Height    = 28,
-            BackColor = Color.FromArgb(60, 60, 60),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-        };
-        closeBtn.Click += (s2, e2) => dlg.Close();
-
-        dlg.Controls.Add(tb);
-        dlg.Controls.Add(closeBtn);
-        dlg.ShowDialog(this);
+            dlg.Controls.Add(lbl);
+            dlg.Controls.Add(btnCl);
+            dlg.Controls.Add(btnYes);
+            dlg.Controls.Add(btnNo);
+            dlg.AcceptButton = btnYes;
+            dlg.CancelButton = btnNo;
+            dlg.ShowDialog(this);
+        }
+        return update;
     }
 
     private void ApplyDarkMode()

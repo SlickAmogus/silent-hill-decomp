@@ -75,11 +75,13 @@ namespace SilentHillPC_Launcher
             var btnApply = new Button { Text = "Apply", Left = 232, Top = 178, Width = 80, Height = 26 };
             btnApply.Click += BtnApply_Click;
             var btnClose = new Button { Text = "Close", Left = 322, Top = 178, Width = 80, Height = 26, DialogResult = DialogResult.Cancel };
+            var btnChangelog = new Button { Text = "View Changelog", Left = 12, Top = 178, Width = 120, Height = 26 };
+            btnChangelog.Click += BtnChangelog_Click;
 
             Controls.Add(lblRepo);  Controls.Add(_txtRepo);  Controls.Add(btnRepo);
             Controls.Add(lblBranch); Controls.Add(_cmbBranch);
             Controls.Add(lblBuild);  Controls.Add(_cmbBuild);
-            Controls.Add(_lblStatus); Controls.Add(btnApply); Controls.Add(btnClose);
+            Controls.Add(_lblStatus); Controls.Add(btnChangelog); Controls.Add(btnApply); Controls.Add(btnClose);
             CancelButton = btnClose;
 
             Load        += async (s, e) => await LoadBranchesAsync();
@@ -143,6 +145,36 @@ namespace SilentHillPC_Launcher
                     _settings.Save(_config);      // persist the repo immediately
                     await LoadBranchesAsync();    // refresh against the new repo
                 }
+            }
+        }
+
+        private async void BtnChangelog_Click(object sender, EventArgs e)
+        {
+            // Preview the changelog of the currently SELECTED build (the dropdowns,
+            // not what's saved), fetched from its release — no full download.
+            var sel = new LauncherSettings
+            {
+                RepoUrl        = _settings.RepoUrl,
+                Branch         = SelectedValue(_cmbBranch),
+                Build          = string.IsNullOrEmpty(SelectedValue(_cmbBuild)) ? "latest" : SelectedValue(_cmbBuild),
+                OldBuildWarned = _settings.OldBuildWarned,
+            };
+            var btn = sender as Button;
+            if (btn != null) btn.Enabled = false;
+            _lblStatus.Text = "Loading changelog...";
+            try
+            {
+                string text = await UpdateChecker.GetChangelogTextAsync(sel, _cts.Token);
+                ChangelogViewer.Show(this, "Changelog — " + (sel.IsLatestBuild ? "latest" : sel.Build), text);
+                _lblStatus.Text = "";
+            }
+            catch (Exception ex)
+            {
+                _lblStatus.Text = "Couldn't load changelog: " + ShortMsg(ex);
+            }
+            finally
+            {
+                if (btn != null) btn.Enabled = true;
             }
         }
 

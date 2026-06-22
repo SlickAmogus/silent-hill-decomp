@@ -64,6 +64,7 @@ namespace SilentHillPC_Launcher
             public string Mode = "loose";   // "loose" | "zip"
             public string ZipUrl;           // zip mode only
             public string RepoLabel;        // for dialogs, e.g. "owner/repo @ beta (beta-2026.06.22.1)"
+            public string ChangelogUrl;     // CHANGELOG.md asset for this build (preview before installing)
             public string LauncherVersion;  // incoming launcher version (if any)
             public bool   LauncherIsNewer;  // incoming launcher strictly newer than ours
             public List<FileEntry> Changed = new List<FileEntry>();
@@ -142,6 +143,7 @@ namespace SilentHillPC_Launcher
                 Mode            = mode,
                 ZipUrl          = manifest.ZipUrl,
                 RepoLabel       = src.Label,
+                ChangelogUrl    = DeriveChangelogUrl(src.Url),
                 LauncherVersion = manifest.LauncherVersion,
             };
 
@@ -534,6 +536,40 @@ namespace SilentHillPC_Launcher
                 var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 return DeserializeJson<Manifest>(bytes);
             }
+        }
+
+        /// <summary>Resolve + fetch the changelog text for the configured
+        /// repo/branch/build, to preview a build before installing it.</summary>
+        public static async Task<string> GetChangelogTextAsync(LauncherSettings settings, CancellationToken ct = default(CancellationToken))
+        {
+            string owner, repo;
+            if (!settings.TryGetOwnerRepo(out owner, out repo))
+                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+            var src = await ResolveManifestSourceAsync(owner, repo, settings, ct).ConfigureAwait(false);
+            return await FetchTextAsync(DeriveChangelogUrl(src.Url), ct).ConfigureAwait(false);
+        }
+
+        /// <summary>Fetch a CHANGELOG.md asset's text (raw, BOM-stripped).</summary>
+        public static async Task<string> FetchTextAsync(string url, CancellationToken ct = default(CancellationToken))
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "";
+            using (var resp = await _http.GetAsync(url, ct).ConfigureAwait(false))
+            {
+                resp.EnsureSuccessStatusCode();
+                var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                int start = 0;
+                if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) start = 3;
+                return Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
+            }
+        }
+
+        // The changelog ships as a CHANGELOG.md asset next to version.json in the
+        // same release, so swap the filename on the resolved manifest URL.
+        private static string DeriveChangelogUrl(string manifestUrl)
+        {
+            if (string.IsNullOrEmpty(manifestUrl)) return manifestUrl;
+            int i = manifestUrl.LastIndexOf("version.json", StringComparison.OrdinalIgnoreCase);
+            return i >= 0 ? manifestUrl.Substring(0, i) + "CHANGELOG.md" : manifestUrl;
         }
 
         private static async Task<T> GetApiJsonAsync<T>(string url, CancellationToken ct)

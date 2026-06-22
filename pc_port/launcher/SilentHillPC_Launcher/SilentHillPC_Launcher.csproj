@@ -66,6 +66,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
     <Compile Include="LauncherSettings.cs" />
+    <Compile Include="ChangelogViewer.cs" />
     <Compile Include="BuildSettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
