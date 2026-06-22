@@ -84,33 +84,38 @@ public partial class Form1 : Form
     /// Failures are silent (no network, no remote, etc.) — startup
     /// shouldn't yell at users about a missing connection.
     /// </summary>
+    // Always checks the configured branch's LATEST build, regardless of which
+    // build is pinned, and reports an update only when that latest is newer than
+    // the highest version ever installed from this branch (so deliberately
+    // running an old build isn't flagged). Build switching is the Download Build
+    // button's job.
+    private static LauncherSettings ForceLatest(LauncherSettings s)
+        => new LauncherSettings { RepoUrl = s.RepoUrl, Branch = s.Branch, Build = "latest", OldBuildWarned = s.OldBuildWarned };
+
     private async void SilentAutoCheckForUpdates()
     {
         var settings = LauncherSettings.Load(config);
-        bool specificBuild = !settings.IsLatestBuild;
-        // Reflect the mode on the button even if the network check fails.
-        btnUpdate.Text = specificBuild ? "Download Build" : "Check for Updates";
+        btnUpdate.Text = "Check for Updates";
         try
         {
-            lblUpdateStatus.Text = specificBuild ? "Checking selected build..." : "Checking for updates...";
-            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory, settings);
-            if (specificBuild)
+            lblUpdateStatus.Text = "Checking for updates...";
+            var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory, ForceLatest(settings));
+
+            // If the install already matches the latest, remember that so it
+            // isn't mis-reported as an update later.
+            if (!plan.HasUpdate) settings.RecordSeenAtLeast(config, plan.RemoteVersion);
+
+            bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
+            if (available)
             {
-                lblUpdateStatus.ForeColor = plan.HasUpdate ? Color.LightGreen : Color.LightGray;
-                lblUpdateStatus.Text = plan.HasUpdate
-                    ? $"Build {plan.RemoteVersion} selected — {plan.Changed.Count} file(s) differ. Click Download Build."
-                    : $"Build {plan.RemoteVersion} is installed.";
-            }
-            else if (plan.HasUpdate)
-            {
-                lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion} ({plan.Changed.Count} file(s))";
-                lblUpdateStatus.ForeColor = Color.LightGreen;
                 btnUpdate.Text = "Update available!";
+                lblUpdateStatus.ForeColor = Color.LightGreen;
+                lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion}";
             }
             else
             {
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
                 lblUpdateStatus.ForeColor = Color.LightGray;
+                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
             }
         }
         catch
@@ -604,143 +609,79 @@ public partial class Form1 : Form
         Close();
     }
 
-    // ------------------------------------------------------------------
-    // Check-for-Updates handler. Pulls version.json from the nightly repo
-    // (UpdateChecker.cs), diffs SHA-256 hashes against local files, and
-    // downloads only the changed ones. The launcher can replace its OWN
-    // exe too: a running exe can't be overwritten but CAN be renamed, so
-    // ReplaceFile moves it aside to *.old and the new version loads on the
-    // next start (*.old leftovers are cleaned up at launcher startup).
-    // ------------------------------------------------------------------
+    // Check for Updates: always checks the configured branch's LATEST build and
+    // offers to update + switch to it — but only when that latest is newer than
+    // the highest version ever installed from this branch, so an old build you
+    // chose on purpose doesn't nag you. (Switching to a specific build is the
+    // Download Build button's job.)
     private async void btnUpdate_Click(object sender, EventArgs e)
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
         var settings = LauncherSettings.Load(config);
-        // A pinned build is a deliberate "switch to and play THIS build" action,
-        // not an update — download/replace its files regardless of newer/older.
-        // "latest" behaves as a normal update check against the branch.
-        bool specificBuild = !settings.IsLatestBuild;
 
-        btnUpdate.Enabled = false;
-        btnPlay.Enabled   = false;
-        lblUpdateStatus.Text = specificBuild ? "Checking selected build..." : "Checking for updates...";
+        SetUpdateBusy(true);
+        lblUpdateStatus.Text = "Checking for updates...";
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
-
         try
         {
-            var plan = await UpdateChecker.CheckAsync(installDir, settings);
+            var plan = await UpdateChecker.CheckAsync(installDir, ForceLatest(settings));
+            if (!plan.HasUpdate) settings.RecordSeenAtLeast(config, plan.RemoteVersion);
 
-            if (!plan.HasUpdate)
+            bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
+            if (!available)
             {
+                btnUpdate.Text = "Check for Updates";
+                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
                 progUpdate.Visible = false;
-                if (specificBuild)
-                {
-                    lblUpdateStatus.Text = $"Build {plan.RemoteVersion} is installed.";
-                    MessageBox.Show(this,
-                        $"You already have build {plan.RemoteVersion}.\n\nSource: {plan.RepoLabel}",
-                        "Download Build", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
-                    MessageBox.Show(this,
-                        $"You're up to date!\n\nSource: {plan.RepoLabel}\nBuild: {plan.RemoteVersion}",
-                        "Check for Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                MessageBox.Show(this,
+                    $"You're up to date!\n\nSource: {plan.RepoLabel}\nLatest: {plan.RemoteVersion}",
+                    "Check for Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            // Launcher self-update is a SEPARATE, explicit decision. CheckAsync
-            // only keeps the launcher in the plan when the incoming one is
-            // strictly newer than ours AND from the official repo (so this never
-            // fires for a pinned older build or an untrusted repo).
-            var launcherEntry = plan.LauncherEntry;
-            bool applyLauncher = false;
-            if (launcherEntry != null && plan.LauncherIsNewer)
-            {
-                var lmsg =
-                    "Launcher has an update available, are you sure you want to update?\n\n" +
-                    $"New launcher version: {plan.LauncherVersion}\n" +
-                    $"Current version:      {LauncherSettings.OwnLauncherVersion()}\n" +
-                    $"Build:  {plan.RemoteVersion}  ({plan.BuildDate})\n" +
-                    $"Source: {plan.RepoLabel}\n\n" +
-                    "The launcher is replaced and the new version loads the next time you open it.";
-                applyLauncher = MessageBox.Show(this, lmsg, "Launcher update",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
-            }
+            btnUpdate.Text = "Update available!";
+            lblUpdateStatus.ForeColor = Color.LightGreen;
 
-            // Everything else (game exe, maps, runtime dlls, changelog).
-            var others = plan.Changed.Where(f => !UpdateChecker.IsLauncherFile(f.Path)).ToList();
-            bool applyOthers = false;
-            if (others.Count > 0)
+            // Already said "no" to this exact version? Don't nag again until a
+            // newer one ships or something is actually installed.
+            if (string.Equals(plan.RemoteVersion, settings.GetDismissed(config), StringComparison.OrdinalIgnoreCase))
             {
-                var sb = new StringBuilder();
-                if (specificBuild)
-                {
-                    sb.AppendLine($"Switch to build {plan.RemoteVersion}?");
-                    sb.AppendLine($"Built: {plan.BuildDate}");
-                    sb.AppendLine($"Source: {plan.RepoLabel}");
-                    sb.AppendLine();
-                    sb.AppendLine($"{others.Count} file(s) will be replaced with this build:");
-                }
-                else
-                {
-                    sb.AppendLine($"Update available: {plan.RemoteVersion}");
-                    sb.AppendLine($"Built: {plan.BuildDate}");
-                    sb.AppendLine($"Source: {plan.RepoLabel}");
-                    sb.AppendLine();
-                    sb.AppendLine($"{others.Count} file(s) to {(plan.Mode == "zip" ? "install (from zip)" : "download")}:");
-                }
-                int i = 0;
-                foreach (var f in others)
-                {
-                    if (i++ < 10) sb.AppendLine($"  • {f.Path}");
-                    else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
-                }
-                sb.AppendLine();
-                sb.AppendLine(specificBuild ? "Download and switch now?" : "Download and install now?");
-                applyOthers = MessageBox.Show(this, sb.ToString(),
-                    specificBuild ? "Download Build" : "Update available",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
-            }
-
-            // Apply only what was approved.
-            var apply = new List<UpdateChecker.FileEntry>();
-            if (applyLauncher && launcherEntry != null) apply.Add(launcherEntry);
-            if (applyOthers) apply.AddRange(others);
-
-            if (apply.Count == 0)
-            {
-                lblUpdateStatus.Text = specificBuild ? "Download cancelled." : $"Update {plan.RemoteVersion} skipped.";
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} available (dismissed).";
                 progUpdate.Visible = false;
                 return;
             }
-            plan.Changed = apply;
 
-            progUpdate.Style = ProgressBarStyle.Continuous;
-            progUpdate.Minimum = 0;
-            progUpdate.Maximum = 100;
-
-            await UpdateChecker.ApplyAsync(installDir, plan, (frac, msg) =>
+            var ask = MessageBox.Show(this,
+                $"A newer build is available: {plan.RemoteVersion}\n" +
+                $"Built: {plan.BuildDate}\n" +
+                $"Source: {plan.RepoLabel}\n\n" +
+                (settings.IsLatestBuild ? "" : $"You currently have build '{settings.Build}' selected.\n") +
+                "Update to the latest build and switch to it now?",
+                "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (ask != DialogResult.Yes)
             {
-                // Marshal back to UI thread — the progress callback fires on
-                // whatever thread HttpClient happens to be on.
-                BeginInvoke((Action)(() =>
-                {
-                    if (frac >= 0 && frac <= 1)
-                        progUpdate.Value = (int)(frac * 100);
-                    lblUpdateStatus.Text = msg ?? "";
-                }));
-            });
+                settings.SetDismissed(config, plan.RemoteVersion);
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} dismissed.";
+                progUpdate.Visible = false;
+                return;
+            }
 
-            lblUpdateStatus.ForeColor = Color.LightGray;
-            lblUpdateStatus.Text = specificBuild ? $"Build {plan.RemoteVersion} installed." : $"Up to date ({plan.RemoteVersion}).";
-            if (!specificBuild) btnUpdate.Text = "Check for Updates";
-            MessageBox.Show(this,
-                (specificBuild ? $"Build {plan.RemoteVersion} installed!" : "Update complete!")
-                    + (applyLauncher ? "\n\nThe launcher itself was updated — the new version loads the next time you open it." : ""),
-                specificBuild ? "Download Build" : "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            bool applied = await RunApplyAsync(installDir, plan, showFileConfirm: false);
+            if (applied)
+            {
+                settings.Build = "latest";   // switch to latest
+                settings.Save(config);
+                settings.RecordInstalled(config, plan.RemoteVersion);
+                btnUpdate.Text = "Check for Updates";
+                lblUpdateStatus.ForeColor = Color.LightGray;
+                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                MessageBox.Show(this, "Update complete!", "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+            }
         }
         catch (Exception ex)
         {
@@ -750,10 +691,158 @@ public partial class Form1 : Form
         }
         finally
         {
-            btnUpdate.Enabled  = true;
-            btnPlay.Enabled    = true;
+            SetUpdateBusy(false);
             progUpdate.Visible = false;
         }
+    }
+
+    // Download Build: download (or re-download) the SELECTED build and replace
+    // the differing game files with it, regardless of newer/older. The launcher
+    // exe is never downgraded (CheckAsync's gate handles that).
+    private async void downloadBuild_Click(object sender, EventArgs e)
+    {
+        string installDir = AppDomain.CurrentDomain.BaseDirectory;
+        var settings = LauncherSettings.Load(config);
+
+        SetUpdateBusy(true);
+        lblUpdateStatus.Text = "Checking selected build...";
+        progUpdate.Style   = ProgressBarStyle.Marquee;
+        progUpdate.Visible = true;
+        try
+        {
+            var plan = await UpdateChecker.CheckAsync(installDir, settings);
+
+            if (!plan.HasUpdate)
+            {
+                progUpdate.Visible = false;
+                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} is installed.";
+                MessageBox.Show(this,
+                    $"Build {plan.RemoteVersion} is already installed.\n\nSource: {plan.RepoLabel}",
+                    "Download Build", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var others = plan.Changed.Where(f => !UpdateChecker.IsLauncherFile(f.Path)).ToList();
+            var sb = new StringBuilder();
+            sb.AppendLine($"Download build {plan.RemoteVersion}?");
+            sb.AppendLine($"Built: {plan.BuildDate}");
+            sb.AppendLine($"Source: {plan.RepoLabel}");
+            sb.AppendLine();
+            sb.AppendLine($"{others.Count} file(s) will be replaced with this build:");
+            int i = 0;
+            foreach (var f in others)
+            {
+                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
+                else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
+            }
+            sb.AppendLine();
+            sb.AppendLine("Download and switch now?");
+            if (MessageBox.Show(this, sb.ToString(), "Download Build",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
+            {
+                lblUpdateStatus.Text = "Download cancelled.";
+                progUpdate.Visible = false;
+                return;
+            }
+
+            bool applied = await RunApplyAsync(installDir, plan, showFileConfirm: false);
+            if (applied)
+            {
+                settings.RecordInstalled(config, plan.RemoteVersion);
+                lblUpdateStatus.ForeColor = Color.LightGray;
+                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} installed.";
+                MessageBox.Show(this, $"Build {plan.RemoteVersion} installed!", "Download Build",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                SilentAutoCheckForUpdates(); // refresh the update indicator
+            }
+            else
+            {
+                lblUpdateStatus.Text = "Download cancelled.";
+            }
+        }
+        catch (Exception ex)
+        {
+            lblUpdateStatus.Text = "Download failed (see message).";
+            MessageBox.Show(this, "Download failed:\n\n" + ex.Message, "Download error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetUpdateBusy(false);
+            progUpdate.Visible = false;
+        }
+    }
+
+    private void SetUpdateBusy(bool busy)
+    {
+        btnUpdate.Enabled     = !busy;
+        downloadBuild.Enabled = !busy;
+        btnPlay.Enabled       = !busy;
+    }
+
+    // Shared apply: a SEPARATE launcher self-update confirm (only when the
+    // incoming launcher is strictly newer), an optional file-list confirm, then
+    // the download/install with progress. Returns true if anything was installed.
+    private async Task<bool> RunApplyAsync(string installDir, UpdateChecker.UpdatePlan plan, bool showFileConfirm)
+    {
+        var launcherEntry = plan.LauncherEntry;
+        bool applyLauncher = false;
+        if (launcherEntry != null && plan.LauncherIsNewer)
+        {
+            var lmsg =
+                "Launcher has an update available, are you sure you want to update?\n\n" +
+                $"New launcher version: {plan.LauncherVersion}\n" +
+                $"Current version:      {LauncherSettings.OwnLauncherVersion()}\n" +
+                $"Build:  {plan.RemoteVersion}  ({plan.BuildDate})\n" +
+                $"Source: {plan.RepoLabel}\n\n" +
+                "The launcher is replaced and the new version loads the next time you open it.";
+            applyLauncher = MessageBox.Show(this, lmsg, "Launcher update",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        var others = plan.Changed.Where(f => !UpdateChecker.IsLauncherFile(f.Path)).ToList();
+        bool applyOthers = others.Count > 0;
+        if (applyOthers && showFileConfirm)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"{others.Count} file(s) to {(plan.Mode == "zip" ? "install (from zip)" : "download")}:");
+            int i = 0;
+            foreach (var f in others)
+            {
+                if (i++ < 10) sb.AppendLine($"  • {f.Path}");
+                else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
+            }
+            sb.AppendLine();
+            sb.AppendLine("Continue?");
+            applyOthers = MessageBox.Show(this, sb.ToString(), "Update",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
+        }
+
+        var apply = new List<UpdateChecker.FileEntry>();
+        if (applyLauncher && launcherEntry != null) apply.Add(launcherEntry);
+        if (applyOthers) apply.AddRange(others);
+        if (apply.Count == 0) return false;
+        plan.Changed = apply;
+
+        progUpdate.Style = ProgressBarStyle.Continuous;
+        progUpdate.Minimum = 0;
+        progUpdate.Maximum = 100;
+        await UpdateChecker.ApplyAsync(installDir, plan, (frac, msg) =>
+        {
+            // Marshal back to UI thread — the progress callback fires on
+            // whatever thread HttpClient happens to be on.
+            BeginInvoke((Action)(() =>
+            {
+                if (frac >= 0 && frac <= 1) progUpdate.Value = (int)(frac * 100);
+                lblUpdateStatus.Text = msg ?? "";
+            }));
+        });
+
+        if (applyLauncher)
+            MessageBox.Show(this,
+                "The launcher itself was updated — the new version loads the next time you open it.",
+                "Launcher updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        return true;
     }
 
     private void btnChangelog_Click(object sender, EventArgs e)
