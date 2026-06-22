@@ -1571,10 +1571,17 @@ void MainLoop(void) // 0x80032EE0
          * pause screen — zero game time so the world stops simulating. Must
          * happen here, after the dt recompute above, so next frame's game
          * update sees 0. Controller suppression lives next to the pad parse
-         * at the top of the loop. */
+         * at the top of the loop.
+         *
+         * BUT only when the game isn't ALREADY paused. The pause screen /
+         * inventory / status / map / any state that sets BgmStatusFlag_Pause
+         * already froze the world its own way; zeroing dt on top makes the two
+         * pauses fight — the menu's own blink/animation freezes, and the world
+         * stays stuck after you unpause until the console is closed. When
+         * already paused, leave dt alone and let that pause own the freeze. */
         {
             extern int g_PcConsoleInputActive;
-            if (g_PcConsoleInputActive) {
+            if (g_PcConsoleInputActive && !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause)) {
                 g_DeltaTime    = 0;
                 g_DeltaTimeRaw = 0;
                 g_GravitySpeed = 0;
