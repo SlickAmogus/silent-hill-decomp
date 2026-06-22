@@ -323,14 +323,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(16, 417);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(16, 418);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(29, 397);
+            this.progUpdate.Location = new System.Drawing.Point(19, 399);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(356, 16);
             this.progUpdate.TabIndex = 15;
@@ -641,7 +641,7 @@ partial class Form1
             this.downloadBuild.Text = "Download Build";
             this.downloadBuild.UseVisualStyleBackColor = true;
             this.downloadBuild.Click += new System.EventHandler(this.downloadBuild_Click);
-            //
+            // 
             // Form1
             // 
             this.ClientSize = new System.Drawing.Size(420, 437);
