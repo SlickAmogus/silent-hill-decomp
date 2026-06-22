@@ -50,6 +50,71 @@ extern void* g_OvlBodyprog;
  * Read by DebugCamera_Update + the few stragglers. Off by default. */
 int g_PcAllowDebugControls = 0;
 
+/* "Mouse1".."Mouse5" -> SDL mouse button number (Mouse1=left, Mouse2=right,
+ * Mouse3=middle, Mouse4=X1, Mouse5=X2). Returns 0 if not a mouse name. */
+static int Pc_ParseMouseName(const char* v)
+{
+    if (!v) return 0;
+    if ((v[0] == 'M' || v[0] == 'm') && (v[1] == 'o' || v[1] == 'O') &&
+        (v[2] == 'u' || v[2] == 'U') && (v[3] == 's' || v[3] == 'S') &&
+        (v[4] == 'e' || v[4] == 'E'))
+    {
+        switch (atoi(v + 5))
+        {
+            case 1: return SDL_BUTTON_LEFT;
+            case 2: return SDL_BUTTON_RIGHT;
+            case 3: return SDL_BUTTON_MIDDLE;
+            case 4: return SDL_BUTTON_X1;
+            case 5: return SDL_BUTTON_X2;
+        }
+    }
+    return 0;
+}
+
+/* Build the secondary keyboard mapping + the mouse-button -> PSX-bit table from
+ * the key_*_2 config binds. A secondary value is "MouseN", a key name, or
+ * "NONE". Re-applied whenever the active control style changes the gate. */
+static void Pc_ApplySecondaryBinds(void)
+{
+    struct { const char* val; unsigned short bit; int* kc; } sec[16] = {
+        { g_PcConfig.keyUp2,       0x10,   &g_cfg_keyboardMapping2.kc_dpad_up    },
+        { g_PcConfig.keyDown2,     0x40,   &g_cfg_keyboardMapping2.kc_dpad_down  },
+        { g_PcConfig.keyLeft2,     0x80,   &g_cfg_keyboardMapping2.kc_dpad_left  },
+        { g_PcConfig.keyRight2,    0x20,   &g_cfg_keyboardMapping2.kc_dpad_right },
+        { g_PcConfig.keyCross2,    0x4000, &g_cfg_keyboardMapping2.kc_cross      },
+        { g_PcConfig.keyCircle2,   0x2000, &g_cfg_keyboardMapping2.kc_circle     },
+        { g_PcConfig.keyTriangle2, 0x1000, &g_cfg_keyboardMapping2.kc_triangle   },
+        { g_PcConfig.keySquare2,   0x8000, &g_cfg_keyboardMapping2.kc_square     },
+        { g_PcConfig.keyL12,       0x400,  &g_cfg_keyboardMapping2.kc_l1         },
+        { g_PcConfig.keyR12,       0x800,  &g_cfg_keyboardMapping2.kc_r1         },
+        { g_PcConfig.keyL22,       0x100,  &g_cfg_keyboardMapping2.kc_l2         },
+        { g_PcConfig.keyR22,       0x200,  &g_cfg_keyboardMapping2.kc_r2         },
+        { g_PcConfig.keyL32,       0x2,    &g_cfg_keyboardMapping2.kc_l3         },
+        { g_PcConfig.keyR32,       0x4,    &g_cfg_keyboardMapping2.kc_r3         },
+        { g_PcConfig.keyStart2,    0x8,    &g_cfg_keyboardMapping2.kc_start      },
+        { g_PcConfig.keySelect2,   0x1,    &g_cfg_keyboardMapping2.kc_select     },
+    };
+    int i;
+
+    memset(&g_cfg_keyboardMapping2, 0, sizeof(g_cfg_keyboardMapping2));
+    for (i = 0; i < 8; i++) g_cfg_mouseButtonMask[i] = 0;
+
+    for (i = 0; i < 16; i++)
+    {
+        const char* v = sec[i].val;
+        int         mb;
+        if (!v || !v[0] || strcmp(v, "NONE") == 0) { *sec[i].kc = SDL_SCANCODE_UNKNOWN; continue; }
+        mb = Pc_ParseMouseName(v);
+        if (mb > 0) { g_cfg_mouseButtonMask[mb] |= sec[i].bit; *sec[i].kc = SDL_SCANCODE_UNKNOWN; }
+        else        { *sec[i].kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
+    }
+
+    /* Mouse + secondary binds are active when explicitly enabled, or always in
+     * TPS (which relies on the mouse). control_style.c keeps this in sync as the
+     * style changes at runtime. */
+    g_cfg_allowMouseSecondary = g_PcConfig.allowMouseSecondary || (g_PcConfig.controlStyle != 0);
+}
+
 /* Apply control bindings + movement/debug options from g_PcConfig onto the
  * PsyCross input mapping. Call AFTER PsyX_Initialise (which sets the built-in
  * defaults) so config overrides them; the lookups fall back to the current
@@ -90,6 +155,8 @@ static void Pc_ApplyControlConfig(void)
 
     g_PcAllowDebugControls  = g_PcConfig.allowDebugControls;
     g_cfg_controllerMovement = g_PcConfig.controllerMovement;
+
+    Pc_ApplySecondaryBinds();
 }
 
 /* Demo play file buffer pointer - default PSX address needs runtime init */
