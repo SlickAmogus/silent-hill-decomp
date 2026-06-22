@@ -86,12 +86,22 @@ public partial class Form1 : Form
     /// </summary>
     private async void SilentAutoCheckForUpdates()
     {
+        var settings = LauncherSettings.Load(config);
+        bool specificBuild = !settings.IsLatestBuild;
+        // Reflect the mode on the button even if the network check fails.
+        btnUpdate.Text = specificBuild ? "Download Build" : "Check for Updates";
         try
         {
-            lblUpdateStatus.Text = "Checking for updates...";
-            var settings = LauncherSettings.Load(config);
+            lblUpdateStatus.Text = specificBuild ? "Checking selected build..." : "Checking for updates...";
             var plan = await UpdateChecker.CheckAsync(AppDomain.CurrentDomain.BaseDirectory, settings);
-            if (plan.HasUpdate)
+            if (specificBuild)
+            {
+                lblUpdateStatus.ForeColor = plan.HasUpdate ? Color.LightGreen : Color.LightGray;
+                lblUpdateStatus.Text = plan.HasUpdate
+                    ? $"Build {plan.RemoteVersion} selected — {plan.Changed.Count} file(s) differ. Click Download Build."
+                    : $"Build {plan.RemoteVersion} is installed.";
+            }
+            else if (plan.HasUpdate)
             {
                 lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion} ({plan.Changed.Count} file(s))";
                 lblUpdateStatus.ForeColor = Color.LightGreen;
@@ -606,24 +616,14 @@ public partial class Form1 : Form
     {
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
         var settings = LauncherSettings.Load(config);
-
-        // Pinned to a specific build? The update button always moves you toward
-        // the newest, so offer to switch to "latest" and update.
-        if (!settings.IsLatestBuild)
-        {
-            var ask = MessageBox.Show(this,
-                $"You're pinned to a specific build:\n  {settings.Build}\n\n" +
-                "Checking for updates switches you to the LATEST build on this branch and updates.\n\n" +
-                "Switch to latest and continue?",
-                "Pinned build", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (ask != DialogResult.Yes) return;
-            settings.Build = "latest";
-            settings.Save(config);
-        }
+        // A pinned build is a deliberate "switch to and play THIS build" action,
+        // not an update — download/replace its files regardless of newer/older.
+        // "latest" behaves as a normal update check against the branch.
+        bool specificBuild = !settings.IsLatestBuild;
 
         btnUpdate.Enabled = false;
         btnPlay.Enabled   = false;
-        lblUpdateStatus.Text = "Checking for updates...";
+        lblUpdateStatus.Text = specificBuild ? "Checking selected build..." : "Checking for updates...";
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
 
@@ -633,17 +633,28 @@ public partial class Form1 : Form
 
             if (!plan.HasUpdate)
             {
-                lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
                 progUpdate.Visible = false;
-                MessageBox.Show(this,
-                    $"You're up to date!\n\nSource: {plan.RepoLabel}\nBuild: {plan.RemoteVersion}",
-                    "Check for Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (specificBuild)
+                {
+                    lblUpdateStatus.Text = $"Build {plan.RemoteVersion} is installed.";
+                    MessageBox.Show(this,
+                        $"You already have build {plan.RemoteVersion}.\n\nSource: {plan.RepoLabel}",
+                        "Download Build", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    lblUpdateStatus.Text = $"Up to date (latest: {plan.RemoteVersion}).";
+                    MessageBox.Show(this,
+                        $"You're up to date!\n\nSource: {plan.RepoLabel}\nBuild: {plan.RemoteVersion}",
+                        "Check for Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
                 return;
             }
 
             // Launcher self-update is a SEPARATE, explicit decision. CheckAsync
             // only keeps the launcher in the plan when the incoming one is
-            // strictly newer than ours (never a downgrade or reinstall).
+            // strictly newer than ours AND from the official repo (so this never
+            // fires for a pinned older build or an untrusted repo).
             var launcherEntry = plan.LauncherEntry;
             bool applyLauncher = false;
             if (launcherEntry != null && plan.LauncherIsNewer)
@@ -665,11 +676,22 @@ public partial class Form1 : Form
             if (others.Count > 0)
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"Update available: {plan.RemoteVersion}");
-                sb.AppendLine($"Built: {plan.BuildDate}");
-                sb.AppendLine($"Source: {plan.RepoLabel}");
-                sb.AppendLine();
-                sb.AppendLine($"{others.Count} file(s) to {(plan.Mode == "zip" ? "install (from zip)" : "download")}:");
+                if (specificBuild)
+                {
+                    sb.AppendLine($"Switch to build {plan.RemoteVersion}?");
+                    sb.AppendLine($"Built: {plan.BuildDate}");
+                    sb.AppendLine($"Source: {plan.RepoLabel}");
+                    sb.AppendLine();
+                    sb.AppendLine($"{others.Count} file(s) will be replaced with this build:");
+                }
+                else
+                {
+                    sb.AppendLine($"Update available: {plan.RemoteVersion}");
+                    sb.AppendLine($"Built: {plan.BuildDate}");
+                    sb.AppendLine($"Source: {plan.RepoLabel}");
+                    sb.AppendLine();
+                    sb.AppendLine($"{others.Count} file(s) to {(plan.Mode == "zip" ? "install (from zip)" : "download")}:");
+                }
                 int i = 0;
                 foreach (var f in others)
                 {
@@ -677,8 +699,9 @@ public partial class Form1 : Form
                     else { sb.AppendLine($"  • ... and {others.Count - 10} more"); break; }
                 }
                 sb.AppendLine();
-                sb.AppendLine("Download and install now?");
-                applyOthers = MessageBox.Show(this, sb.ToString(), "Update available",
+                sb.AppendLine(specificBuild ? "Download and switch now?" : "Download and install now?");
+                applyOthers = MessageBox.Show(this, sb.ToString(),
+                    specificBuild ? "Download Build" : "Update available",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
             }
 
@@ -689,7 +712,7 @@ public partial class Form1 : Form
 
             if (apply.Count == 0)
             {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                lblUpdateStatus.Text = specificBuild ? "Download cancelled." : $"Update {plan.RemoteVersion} skipped.";
                 progUpdate.Visible = false;
                 return;
             }
@@ -711,14 +734,13 @@ public partial class Form1 : Form
                 }));
             });
 
-            lblUpdateStatus.Text      = $"Up to date ({plan.RemoteVersion}).";
             lblUpdateStatus.ForeColor = Color.LightGray;
-            btnUpdate.Text            = "Check for Updates";
+            lblUpdateStatus.Text = specificBuild ? $"Build {plan.RemoteVersion} installed." : $"Up to date ({plan.RemoteVersion}).";
+            if (!specificBuild) btnUpdate.Text = "Check for Updates";
             MessageBox.Show(this,
-                applyLauncher
-                    ? "Update complete!\n\nThe launcher itself was updated — the new version loads the next time you open it."
-                    : "Update complete!",
-                "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                (specificBuild ? $"Build {plan.RemoteVersion} installed!" : "Update complete!")
+                    + (applyLauncher ? "\n\nThe launcher itself was updated — the new version loads the next time you open it." : ""),
+                specificBuild ? "Download Build" : "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
