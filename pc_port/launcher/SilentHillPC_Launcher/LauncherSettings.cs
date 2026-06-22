@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 
 namespace SilentHillPC_Launcher
 {
@@ -120,6 +121,82 @@ namespace SilentHillPC_Launcher
                 return FileVersionInfo.GetVersionInfo(loc).FileVersion;
             }
             catch { return null; }
+        }
+
+        // --- Per-branch update tracking -------------------------------------
+        // Update prompts are gated on the HIGHEST version ever installed from a
+        // given repo+branch, not on what's currently on disk — so deliberately
+        // running an old build doesn't nag you to "update". Each repo+branch gets
+        // a stable identifier (same across uninstall/reinstall) and two config
+        // values: launcher_seen_<id> (highest installed) and
+        // launcher_dismissed_<id> (a version the user said "no" to).
+
+        /// <summary>Stable identifier for this repo+branch (owner_repo_branch).</summary>
+        public string BranchKey()
+        {
+            string owner, repo;
+            if (!TryGetOwnerRepo(out owner, out repo)) { owner = "unknown"; repo = "repo"; }
+            string br = string.IsNullOrWhiteSpace(Branch) ? "alpha" : Branch;
+            return Sanitize(owner) + "_" + Sanitize(repo) + "_" + Sanitize(br);
+        }
+
+        private string SeenKey()      => "launcher_seen_" + BranchKey();
+        private string DismissedKey() => "launcher_dismissed_" + BranchKey();
+
+        public string GetSeen(ConfigManager cfg)      => cfg.Get(SeenKey(), "");
+        public string GetDismissed(ConfigManager cfg) => cfg.Get(DismissedKey(), "");
+
+        /// <summary>Record that <paramref name="version"/> was just installed: bump the
+        /// highest-installed marker, and clear a dismissal once we've caught up to it.</summary>
+        public void RecordInstalled(ConfigManager cfg, string version)
+        {
+            cfg.EnsureLauncherSection();
+            if (CompareVersions(version, cfg.Get(SeenKey(), "")) > 0)
+                cfg.Set(SeenKey(), version ?? "");
+            string dis = cfg.Get(DismissedKey(), "");
+            if (!string.IsNullOrEmpty(dis) && CompareVersions(version, dis) >= 0)
+                cfg.Set(DismissedKey(), "");
+            cfg.Save();
+        }
+
+        /// <summary>Bump the highest-installed marker when local already matches the
+        /// latest (so a fresh install of the latest doesn't read as an update).</summary>
+        public void RecordSeenAtLeast(ConfigManager cfg, string version)
+        {
+            if (CompareVersions(version, cfg.Get(SeenKey(), "")) > 0)
+            {
+                cfg.EnsureLauncherSection();
+                cfg.Set(SeenKey(), version ?? "");
+                cfg.Save();
+            }
+        }
+
+        public void SetDismissed(ConfigManager cfg, string version)
+        {
+            cfg.EnsureLauncherSection();
+            cfg.Set(DismissedKey(), version ?? "");
+            cfg.Save();
+        }
+
+        /// <summary>Compare nightly version strings (yyyy.MM.dd.N). >0 if a newer than b.</summary>
+        public static int CompareVersions(string a, string b)
+        {
+            Version va, vb;
+            bool pa = Version.TryParse((a ?? "").Trim(), out va);
+            bool pb = Version.TryParse((b ?? "").Trim(), out vb);
+            if (pa && pb) return va.CompareTo(vb);
+            if (pa) return 1;
+            if (pb) return -1;
+            return string.Compare((a ?? "").Trim(), (b ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string Sanitize(string s)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in (s ?? "").ToLowerInvariant())
+                sb.Append(char.IsLetterOrDigit(c) ? c : '_');
+            var r = sb.ToString().Trim('_');
+            return r.Length == 0 ? "x" : r;
         }
     }
 }
