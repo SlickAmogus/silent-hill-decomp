@@ -30,6 +30,24 @@ namespace SilentHillPC_Launcher
 
         public bool IsDefaultBranch => string.IsNullOrWhiteSpace(Branch);
 
+        /// <summary>
+        /// True when the configured repo resolves to the same owner/repo as the
+        /// official default. Used to refuse risky operations (launcher
+        /// self-update) when pointed at a third-party repo.
+        /// </summary>
+        public bool IsDefaultRepo
+        {
+            get
+            {
+                string o, r;
+                if (!TryGetOwnerRepo(out o, out r)) return false;
+                string o2, r2;
+                if (!new LauncherSettings { RepoUrl = DefaultRepoUrl }.TryGetOwnerRepo(out o2, out r2)) return false;
+                return string.Equals(o, o2, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(r, r2, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         public static LauncherSettings Load(ConfigManager cfg)
         {
             var s = new LauncherSettings();

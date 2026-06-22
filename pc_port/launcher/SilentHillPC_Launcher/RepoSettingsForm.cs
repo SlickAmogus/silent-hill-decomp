@@ -63,6 +63,20 @@ namespace SilentHillPC_Launcher
                         "Repo Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+                if (!test.IsDefaultRepo)
+                {
+                    var warn = MessageBox.Show(this,
+                        $"You're pointing the launcher at a NON-OFFICIAL repository:\n  {o}/{r}\n\n" +
+                        "Updates from it download and RUN executable code (the game exe and its DLLs) " +
+                        "on your PC. File hashes only prove the download wasn't corrupted in transit — " +
+                        "they do NOT prove the files are safe, and a malicious repo controls both the " +
+                        "files and their hashes.\n\n" +
+                        "For safety the launcher will refuse to update ITSELF from a non-official repo " +
+                        "(it will only update game files).\n\n" +
+                        "Only continue if you fully trust this repo's owner. Use this repository?",
+                        "Untrusted repository", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    if (warn != DialogResult.Yes) return;
+                }
                 DialogResult = DialogResult.OK;
                 Close();
             };
