@@ -158,7 +158,7 @@ namespace SilentHillPC_Launcher
             {
                 MessageBox.Show(this,
                     "Heads up — switching to an older build can cause unexpected bugs and may even " +
-                    "corrupt your save data.\n\n" +
+                    "break your save data if you aren't careful.\n\n" +
                     "Back up your gamedata\\save folder first, just in case.\n\n" +
                     "This message will not be shown again.",
                     "Old build", MessageBoxButtons.OK, MessageBoxIcon.Warning);
