@@ -166,7 +166,12 @@ s32 func_8005CB20(s_SubCharacter* chara, s_CollisionResult* arg1, q3_12 offsetX,
 }
 
 // Important for combat.
-#ifdef SH_PC_PORT
+/* PC PORT: switched from the combat_target.c shim to the real decompiled
+ * func_8005CD38 below (the #else body) so gun-aim does PSX-faithful target
+ * selection (multi-target sort, turn modes, LOS raycast, sticky lock) — which
+ * is what drives the boss/locked-enemy camera framing (vc_main.c:959).
+ * combat_target.c is excluded from the build (CMakeLists). */
+#if 0 /* PSX-asm branch (INCLUDE_ASM was already a no-op on PC) */
 /* PC build uses pc_port/src/combat_target.c — that's the implementation
  * actively driving Air Screamer targeting / pistol aim today. The PSX-faithful
  * decompiled body below (decomp.me scratch ufUsN, ~95%-matching, gcc2.8.1-psx)
@@ -191,7 +196,7 @@ INCLUDE_ASM("bodyprog/nonmatchings/bodyprog_combat_8005BF38", func_8005CD38); //
 void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 arg5) // 0x8005CD38
 {
     VECTOR3   sp10;
-    s_RayState sp20;
+    s_RayTrace sp20;
     VECTOR3   sp40;
     VECTOR3   sp50;
     VECTOR3   sp60;
@@ -247,7 +252,7 @@ void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 
 
             sp98[var_s5] = ratan2(sp60.vx - temp_s7, sp60.vz - temp_s6);
 
-            if (arg3 < ABS(func_8005BF38(g_SysWork.playerWork.player.rotation.vy - sp98[var_s5])))
+            if (arg3 < ABS(Math_AngleNormalizeSigned(g_SysWork.playerWork.player.rotation.vy - sp98[var_s5])))
             {
                 continue;
             }
@@ -259,7 +264,7 @@ void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 
                     continue;
                 }
 
-                sp98[var_s5] = func_8005BF38(sp98[var_s5] - g_SysWork.playerWork.player.angleToTarget);
+                sp98[var_s5] = Math_AngleNormalizeSigned(sp98[var_s5] - g_SysWork.playerWork.player.angleToTarget);
 
                 if (arg5 == 1 && sp98[var_s5] < 0)
                 {
@@ -282,7 +287,7 @@ void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 
                 continue;
             }
 
-            sp98[var_s5] = func_8005BF38((ratan2(sp60.vx - temp_s7, sp60.vz - temp_s6) - g_SysWork.playerWork.player.rotation.vy));
+            sp98[var_s5] = Math_AngleNormalizeSigned((ratan2(sp60.vx - temp_s7, sp60.vz - temp_s6) - g_SysWork.playerWork.player.rotation.vy));
 
             if (arg5 != 3)
             {
@@ -402,7 +407,7 @@ void func_8005CD38(s32* arg0, s16* arg1, VECTOR3* arg2, s16 arg3, s32 arg4, s32 
         sp40.vy = (g_SysWork.npcs[var_t0].position.vy + g_SysWork.npcs[var_t0].collision.box.offsetY) - temp_t8;
         sp40.vz = (g_SysWork.npcs[var_t0].position.vz + g_SysWork.npcs[var_t0].collision.shapeOffsets.box.vz) - temp_s6;
 
-        if (Ray_CharaTraceQuery(&sp20, &sp10, &sp40, &g_SysWork.playerWork.player) && sp20.chara_10 == &g_SysWork.npcs[var_t0])
+        if (Ray_CharaTraceQuery(&sp20, &sp10, &sp40, &g_SysWork.playerWork.player) && sp20.character == &g_SysWork.npcs[var_t0])
         {
             break;
         }
