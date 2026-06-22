@@ -128,6 +128,7 @@ partial class Form1
             this.looseYes = new System.Windows.Forms.RadioButton();
             this.looseNo = new System.Windows.Forms.RadioButton();
             this.btnControls = new System.Windows.Forms.Button();
+            this.btnBuildSettings = new System.Windows.Forms.Button();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -292,7 +293,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(315, 342);
+            this.btnPlay.Location = new System.Drawing.Point(315, 365);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
@@ -321,14 +322,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(14, 390);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(14, 415);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(30, 370);
+            this.progUpdate.Location = new System.Drawing.Point(30, 394);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(356, 16);
             this.progUpdate.TabIndex = 15;
@@ -357,17 +358,17 @@ partial class Form1
             // banner
             // 
             this.banner.BackColor = System.Drawing.Color.DarkSlateGray;
+            this.banner.Cursor = System.Windows.Forms.Cursors.Hand;
             this.banner.Dock = System.Windows.Forms.DockStyle.Top;
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(415, 111);
+            this.banner.Size = new System.Drawing.Size(432, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
-            this.banner.Cursor = System.Windows.Forms.Cursors.Hand;
             this.banner.Click += new System.EventHandler(this.banner_Click);
-            //
+            // 
             // cullLabel
             // 
             this.cullLabel.AutoSize = true;
@@ -618,11 +619,22 @@ partial class Form1
             this.btnControls.TabIndex = 50;
             this.btnControls.Text = "Controls";
             this.btnControls.UseVisualStyleBackColor = true;
-            this.btnControls.Click += new System.EventHandler(this.button1_Click);
+            this.btnControls.Click += new System.EventHandler(this.btnControls_Click);
+            //
+            // btnBuildSettings
+            //
+            this.btnBuildSettings.Location = new System.Drawing.Point(314, 340);
+            this.btnBuildSettings.Name = "btnBuildSettings";
+            this.btnBuildSettings.Size = new System.Drawing.Size(98, 23);
+            this.btnBuildSettings.TabIndex = 51;
+            this.btnBuildSettings.Text = "Build Settings";
+            this.btnBuildSettings.UseVisualStyleBackColor = true;
+            this.btnBuildSettings.Click += new System.EventHandler(this.btnBuildSettings_Click);
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(415, 392);
+            this.ClientSize = new System.Drawing.Size(432, 437);
+            this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
@@ -678,4 +690,5 @@ partial class Form1
 
     private Label chunksLabel;
     private Button btnControls;
+    private Button btnBuildSettings;
 }
