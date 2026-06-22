@@ -229,6 +229,21 @@ range/timestep form — watch for regressions reverting them.
   register is set to 0x1F (full history) when the button is still held at swing end.
   [`player_control.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/player_control.c) ·
   commit [`1c5f7835e`](https://github.com/SlickAmogus/silent-hill-decomp/commit/1c5f7835e)
+- **Combat too fast — one melee hit applied every frame of the swing.** PSX
+  applied base damage + knockback in `func_8008B714` unconditionally; the
+  active-hitbox window is ~2 frames at 30 fps so that read as one hit, but on
+  PC it spans the whole swing (dozens of frames). `06ae78901` gated this with
+  the engine's per-swing already-hit bitmask (`sp14 & sp10`) but only for
+  `target != player` (player attacking enemies: enemies died in one swing,
+  hurt-SFX machine-gunned). The symmetric enemy-attacking-player case was left
+  ungated, so a single enemy swing did ~Nframes x damage and N x knockback —
+  Harry took multiplied damage at high fps (the player damage handler subtracts
+  and clears `damage.amount` every frame). The guard now applies in both
+  directions; for the player target `sp10 == NO_VALUE (-1)`, so
+  `(sp14 & sp10) == sp14` is a valid once-per-swing test and `sp14 |= sp10`
+  latches it. Chainsaw/RockDrill (player-only continuous weapons) stay exempt.
+  [`func_8008B714`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/bodyprog_combat_8008A058.c#L1522) ·
+  builds on commit [`06ae78901`](https://github.com/SlickAmogus/silent-hill-decomp/commit/06ae78901)
 - **Cutscene desync from anim-stuck detectors (Cybil scene).**
   `Player_AnimPlaybackStateGet` (polled by map-event scripts) compared
   `kf == endKeyframeIdx` (skippable at PC delta-time — the real stuck root, now
