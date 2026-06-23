@@ -75,6 +75,27 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         -include "${CMAKE_SOURCE_DIR}/include/map_dll_fixups.h"
     )
 
+    # Same warning suppressions as the main exe (CMakeLists.txt). The decomp
+    # has many un-finalized signatures (e.g. q3_12* vs q19_12*, void(*)() vs
+    # typed fn ptrs); GCC 14 promotes -Wincompatible-pointer-types and friends
+    # to hard errors by default, which breaks the map DLL build even though the
+    # exe (which carries these flags) compiles the same sources fine. Without
+    # this, no map except the built-in map0_s00 can be built, so every map
+    # transition crashes on a NULL overlay header.
+    if(NOT MSVC)
+        target_compile_options(${MAP_NAME} PRIVATE
+            -Wno-incompatible-pointer-types
+            -Wno-discarded-qualifiers
+            -Wno-builtin-declaration-mismatch
+            -Wno-int-to-pointer-cast
+            -Wno-pointer-to-int-cast
+            -Wno-sign-compare
+            -Wno-missing-braces
+            -Wno-unused-variable
+            -Wno-unused-function
+        )
+    endif()
+
     # Link against the main executable's import library.
     # Map DLL functions call back into game code (g_SysWork, etc.),
     # so they need the exe's exported symbols to resolve at load time.
