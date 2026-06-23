@@ -677,6 +677,8 @@ public partial class Form1 : Form
             if (applied)
             {
                 settings.Build = "latest";   // switch to latest
+                if (!string.IsNullOrEmpty(plan.MigrateToBranch))
+                    settings.Branch = plan.MigrateToBranch;   // auto-migrate alpha -> beta
                 settings.Save(config);
                 settings.RecordInstalled(config, plan.RemoteVersion);
                 btnUpdate.Text = "Check for Updates";
