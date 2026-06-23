@@ -20,6 +20,10 @@
 int g_ControlStyle = ControlStyle_Classic;
 int g_OtsSide      = 1; /* +1 = right shoulder, -1 = left */
 
+/* Set when entering TPS/OTS from classic so the orbit camera reseeds behind Harry
+ * (read + cleared in Pc_TpsCamera_Apply) instead of popping from a stale pose. */
+int g_TpsCamNeedsReset = 0;
+
 /* Runtime "TPS camera active" flag the camera + player_control code already
  * read. Driven (mirrored) by g_ControlStyle so those read sites stay unchanged.
  * Set for both TPS and OTS (OTS is TPS with a lateral offset). */
@@ -50,11 +54,19 @@ const char* Pc_ControlStyleLabel(int idx)
 
 void Pc_ControlStyleSet(int style)
 {
+    int wasTps = g_DebugThirdPersonCam;
+
     if (style < 0 || style >= Pc_ControlStyleCount())
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
+
+    /* Entering TPS/OTS from classic: reseed the orbit camera (yaw/pitch/zoom/
+     * shoulder) so it starts behind Harry rather than snapping to a stale pose.
+     * Not flagged on tps<->ots so cycling between them doesn't jerk the view. */
+    if (!wasTps && g_DebugThirdPersonCam)
+        g_TpsCamNeedsReset = 1;
 
     /* Persist so the choice survives a restart and the launcher reflects it.
      * Mouse capture is managed per-frame in Pc_ControlStyleUpdate. */

@@ -205,7 +205,20 @@ static void Pc_TpsCamera_Apply(void)
     /* Aim zoom: ease the orbit distance in while aiming a gun or attacking, so
      * the shot lines up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
+    static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
     {
+        extern int g_TpsCamNeedsReset;
+        if (g_TpsCamNeedsReset)
+        {
+            /* First frame after entering TPS/OTS from classic: seed the orbit
+             * behind Harry's current facing and clear the eased zoom/shoulder so
+             * nothing pops in from the previous third-person session. */
+            g_TpsCamNeedsReset = 0;
+            g_TpsCamYaw   = tp_hr->rotation.vy;
+            g_TpsCamPitch = 0;
+            s_tpDist      = TP_DIST;
+            s_otsOff      = 0;
+        }
         s32 target = (g_PcConfig.tpsAimZoom && isAiming) ? TP_DIST_AIM : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
     }
@@ -279,7 +292,6 @@ static void Pc_TpsCamera_Apply(void)
         {
             #define OTS_OFFSET     Q12(0.55f)
             #define OTS_OFFSET_AIM Q12(0.9f)
-            static s32 s_otsOff = 0;
             s32 targetOff = (isAiming ? OTS_OFFSET_AIM : OTS_OFFSET) * g_OtsSide;
             s32 rX = Math_Cos(g_TpsCamYaw);   /* horizontal right vector = (cos yaw, -sin yaw) */
             s32 rZ = -Math_Sin(g_TpsCamYaw);

@@ -88,10 +88,10 @@ public class ControlsForm : Form
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
         // Alternate binds: Action=Mouse1, Aim=Mouse2, Flashlight=F, Map=Tab,
-        // Sidestep L/R=A/D; rest unbound.
+        // Up/Down=W/S (Left/Right already default to A/D as the L1/R1 primaries).
         { "key_cross_2", "Mouse1" }, { "key_r2_2", "Mouse2" },
-        { "key_circle_2", "F" }, { "key_triangle_2", "Tab" }, { "key_l1_2", "A" }, { "key_r1_2", "D" },
-        { "key_up_2", "NONE" }, { "key_down_2", "NONE" }, { "key_left_2", "NONE" }, { "key_right_2", "NONE" },
+        { "key_circle_2", "F" }, { "key_triangle_2", "Tab" }, { "key_l1_2", "NONE" }, { "key_r1_2", "NONE" },
+        { "key_up_2", "W" }, { "key_down_2", "S" }, { "key_left_2", "NONE" }, { "key_right_2", "NONE" },
         { "key_square_2", "NONE" }, { "key_l2_2", "NONE" },
         { "key_start_2", "NONE" }, { "key_select_2", "NONE" },
     };
