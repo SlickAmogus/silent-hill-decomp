@@ -141,8 +141,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                  * so a missing line degrades to silence, not a hang. */
                 {
                     static Uint32 s_voiceWaitStartMs = 0;
+                    u8 xaState = Sd_AudioStreamingCheck();
 
-                    if (Sd_AudioStreamingCheck() == 4)
+                    if (xaState == 4)
                     {
                         D_800BCD74         = 0;
                         s_voiceWaitStartMs = 0;
@@ -151,18 +152,35 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
                     if (D_800BCD74 != 0)
                     {
-                        if (s_voiceWaitStartMs == 0)
+                        /* Release the subtitle the instant the voice is actually
+                         * streaming (state 1 = xaAudioIdx active) and fall through
+                         * to render, so the text appears IN SYNC with the spoken
+                         * line. The original release watched only for the 'ready'
+                         * state 4; on PC the XA stream jumps loading(2)->playing(1)
+                         * without dwelling on 4, so it always hit the 1s fail-open
+                         * below -> "voice plays, subtitle appears ~1s later". The
+                         * fail-open still covers pages whose voice never starts. */
+                        if (xaState == 1)
                         {
-                            s_voiceWaitStartMs = SDL_GetTicks();
+                            D_800BCD74         = 0;
+                            s_voiceWaitStartMs = 0;
+                            /* no break: render this frame, synced with the voice */
                         }
-
-                        if ((SDL_GetTicks() - s_voiceWaitStartMs) < 1000)
+                        else
                         {
-                            break;
-                        }
+                            if (s_voiceWaitStartMs == 0)
+                            {
+                                s_voiceWaitStartMs = SDL_GetTicks();
+                            }
 
-                        D_800BCD74         = 0;
-                        s_voiceWaitStartMs = 0;
+                            if ((SDL_GetTicks() - s_voiceWaitStartMs) < 1000)
+                            {
+                                break;
+                            }
+
+                            D_800BCD74         = 0;
+                            s_voiceWaitStartMs = 0;
+                        }
                     }
                 }
 #else
@@ -197,6 +215,18 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                 g_SysWork.mapMsgTimer  = CLAMP(g_SysWork.mapMsgTimer, Q12(0.0f), MSG_TIMER_MAX);
             }
 
+#ifdef SH_PC_PORT
+            /* Hold the page's AUTO (timer) advance while this line's voice is
+             * still playing (state 1), so the next page's SD_Call can't cut it
+             * off. PSX serialised voices via long CD load latency; PC loads
+             * instantly, so without this an early text timer overlaps voices
+             * (the bug the voice-wait was meant to fix). Manual skip (input) is
+             * NOT gated. Cleared automatically when the XA finishes
+             * (Xa_SignalPlaybackFinished -> state != 1), so it can't hang. */
+            const int pcVoiceHold =
+                (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
+                (Sd_AudioStreamingCheck() == 1);
+#endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)
             {
@@ -211,7 +241,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     if (g_MapMsg_Select.maxIdx == temp)
                     {
                         if (!((g_MapMsg_AudioLoadBlock & (1 << 0)) || !hasInput) ||
-                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
+                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0
+#ifdef SH_PC_PORT
+                             && !pcVoiceHold
+#endif
+                            ))
                         {
                             stateMachineIdx1 = FINISH_MAP_MSG;
 
@@ -260,7 +294,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
                 }
                 else if ((!(g_MapMsg_AudioLoadBlock & (1 << 0)) && hasInput && g_MapMsg_Select.maxIdx != 0) ||
-                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
+                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0
+#ifdef SH_PC_PORT
+                          && !pcVoiceHold
+#endif
+                         ))
                 {
                     if (g_MapMsg_Select.maxIdx != NO_VALUE)
                     {
