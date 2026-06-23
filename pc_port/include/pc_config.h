@@ -28,7 +28,8 @@ typedef struct {
     int allowMouseSecondary;/* deprecated: mouse + alternate (*_2) binds are always active now */
     int invertMouseY;       /* 1 = invert mouse Y for TPS look (config key: invert_mouse_y) */
     int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
-    int tpsAimZoom;         /* 1 = zoom the TPS camera in behind Harry while aiming/attacking (config key: tps_aim_zoom) */
+    int tpsAimZoom;         /* 1 = zoom the TPS/OTS camera in while aiming/attacking (config key: tps_aim_zoom) */
+    int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
 
     /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
      * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
@@ -41,6 +42,7 @@ typedef struct {
     char keyStart[24], keySelect[24];
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
     char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (toggle control style) */
+    char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     /* Secondary bind per PSX action; active when allow_mouse_secondary (or TPS).
      * Value is "MouseN" (N=1..5), an SDL key name, or "NONE". */
     char keyUp2[24], keyDown2[24], keyLeft2[24], keyRight2[24];

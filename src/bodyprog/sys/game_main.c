@@ -41,6 +41,7 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/memcard.h"
 #include "bodyprog/sound/sound_system.h"
 #include "screens/b_konami/b_konami.h"
+#include "control_style.h"
 
 #include "bodyprog/memcard.h"
 #include "bodyprog/sys/game_main.h"
@@ -194,15 +195,18 @@ static void Pc_TpsCamera_Apply(void)
     #define TP_DIST_AIM       Q12(1.3f)  /* zoomed-in orbit radius while aiming */
 
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
+    int             isAiming;
+
+    {
+        extern u16 g_Player_IsAttacking;
+        isAiming = (g_SysWork.playerCombat.isAiming || g_Player_IsAttacking);
+    }
 
     /* Aim zoom: ease the orbit distance in while aiming a gun or attacking, so
      * the shot lines up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
     {
-        extern u16 g_Player_IsAttacking;
-        int aiming = g_PcConfig.tpsAimZoom &&
-                     (g_SysWork.playerCombat.isAiming || g_Player_IsAttacking);
-        s32 target = aiming ? TP_DIST_AIM : TP_DIST;
+        s32 target = (g_PcConfig.tpsAimZoom && isAiming) ? TP_DIST_AIM : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
     }
 
@@ -268,6 +272,27 @@ static void Pc_TpsCamera_Apply(void)
         tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
         tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
         #undef TP_LOOKAT_DIST
+
+        /* Over-the-Shoulder: shift the camera + look target laterally so Harry
+         * sits to one side; more while aiming. g_OtsSide (middle-mouse) flips it. */
+        if (g_ControlStyle == ControlStyle_Ots)
+        {
+            #define OTS_OFFSET     Q12(0.55f)
+            #define OTS_OFFSET_AIM Q12(0.9f)
+            static s32 s_otsOff = 0;
+            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : OTS_OFFSET) * g_OtsSide;
+            s32 rX = Math_Cos(g_TpsCamYaw);   /* horizontal right vector = (cos yaw, -sin yaw) */
+            s32 rZ = -Math_Sin(g_TpsCamYaw);
+            s32 ox, oz;
+
+            s_otsOff += (targetOff - s_otsOff) >> 3;
+            ox = (s32)((s64)s_otsOff * rX >> 12);
+            oz = (s32)((s64)s_otsOff * rZ >> 12);
+            tpCamPos.vx += ox; tpCamPos.vz += oz;
+            tpLookAt.vx += ox; tpLookAt.vz += oz;
+            #undef OTS_OFFSET
+            #undef OTS_OFFSET_AIM
+        }
 
         Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
         vwSetViewInfo();
