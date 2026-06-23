@@ -42,9 +42,10 @@ s_PcConfig g_PcConfig = {
     .keyChangeCam = "F9", .padChangeCam = "rightstick",
     .keySwapShoulder = "Mouse3",
     /* Alternate binds (always active): Action=Mouse1, Aim=Mouse2, Flashlight=F,
-     * Map=Tab, Sidestep L/R=A/D. The rest default empty ("" == unset). */
+     * Map=Tab, Up/Down=W/S. Sidestep L/R already default to A/D as primaries, so
+     * no alternates there. The rest default empty ("" == unset). */
     .keyCross2 = "Mouse1", .keyR22 = "Mouse2",
-    .keyCircle2 = "F", .keyTriangle2 = "Tab", .keyL12 = "A", .keyR12 = "D",
+    .keyCircle2 = "F", .keyTriangle2 = "Tab", .keyUp2 = "W", .keyDown2 = "S",
     /* Controller defaults (SDL game-controller names) */
     .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
     .padL1 = "leftshoulder", .padR1 = "rightshoulder",
