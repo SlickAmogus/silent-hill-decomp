@@ -1525,11 +1525,23 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
      * above but PSX applied base damage unconditionally. At 30fps the
      * active-hitbox window is only a couple frames so that read as a
      * single hit; on PC the window spans the whole swing, so this
-     * re-applies damage AND the hurt SFX (e.g. PuppetNurse_DamageHandle
-     * plays it every frame damage>0) dozens of times — enemies die in one
-     * swing and the hit sound machine-guns. Skip re-application once this
-     * target is already marked hit this swing. Chainsaw/RockDrill are
-     * intentionally continuous-damage weapons and stay exempt. */
+     * re-applies damage AND knockback every frame for dozens of frames.
+     *
+     * This bites in BOTH directions:
+     *   - player -> enemy: enemies die in one swing and the hurt SFX
+     *     (e.g. PuppetNurse_DamageHandle, played every frame damage>0)
+     *     machine-guns.
+     *   - enemy -> player: Harry loses health every frame the enemy's
+     *     hitbox overlaps him (the player damage handler subtracts and
+     *     clears damage.amount per frame), so a single enemy swing does
+     *     ~Nframes x damage and N x knockback at high fps. For the player
+     *     target sp10 == NO_VALUE (-1), so (sp14 & sp10) == sp14 is a
+     *     valid "already hit this swing" test and sp14 |= sp10 latches it.
+     *
+     * Skip re-application once this target is already marked hit this
+     * swing, for either direction. Chainsaw/RockDrill are intentionally
+     * continuous-damage weapons (player-only) and stay exempt; enemies
+     * never wield them so the player-damage path is always gated. */
     {
         int _continuous =
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw,  AttackInputType_Tap)      ||
@@ -1538,7 +1550,7 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap)       ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Hold)      ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Multitap);
-        if (target != &g_SysWork.playerWork.player && (sp14 & sp10) && !_continuous)
+        if ((sp14 & sp10) && !_continuous)
         {
             damageAmount = Q12(0.0f);
             var_s7       = 0;
