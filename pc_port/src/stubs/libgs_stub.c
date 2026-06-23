@@ -227,10 +227,6 @@ void GsDrawOt(GsOT *ot)
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
         DrawOTag((u_long*)ot->tag);
-#ifdef SH_PC_PORT
-        /* Item pass done — stop forcing the depth test / table-keep (see GsSortObject4J). */
-        { extern int g_forceItemDepth; g_forceItemDepth = 0; }
-#endif
     }
 }
 
@@ -359,31 +355,6 @@ static inline unsigned char clamp8(int v) { return (unsigned char)(v < 0 ? 0 : (
  * scale. 256 default = no-op for every other GsSortObject4J caller. */
 int g_PcItemDimNum = 256;
 #define ITEMDIM(c) clamp8(((int)(c) * g_PcItemDimNum) >> 8)
-
-/* Precise (float, sub-pixel) backface test — replaces the integer NormalClip cull
- * below so rotating items don't shed near-edge-on faces (see-through). PGXP-
- * independent: it re-projects through the live GTE matrix. Implemented in
- * PsyCross PsyX_GTE.cpp. */
-extern int PsyX_TriBackfaceF(const short* v0, const short* v1, const short* v2, int intNcl);
-#define GS_BACKFACE_CULL(prim) \
-    PsyX_TriBackfaceF((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], (const short*)&vtx[(prim)->v2], nclip)
-
-/* OT sort key from the face CENTROID depth (not a single vertex), so rotating
- * items don't show their interior through the front. Implemented in PsyX_GTE.cpp. */
-extern long PsyX_OtzCentroid(const short* v0, const short* v1, const short* v2, int shift);
-#define GS_OTZ(prim) \
-    PsyX_OtzCentroid((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], (const short*)&vtx[(prim)->v2], shift)
-
-/* Feed each item face's true per-prim depth into the depth system (PsyX_SetNextPrimSz
- * -> g_szTable -> ApplyGtePerVertexDepth -> per-vertex z) right before addPrim — the
- * same channel world geometry uses. Without it the item prim gets a clobbered GTE SZ
- * and overlapping faces (antenna vs body) sharing one coarse OT bucket can't be
- * resolved by the GL depth test, so the interior shows through. v3==v2 for tris. */
-extern void PsyX_PrimSz4(const short* v0, const short* v1, const short* v2, const short* v3, unsigned short out[4]);
-#define GS_SETSZ(prim) do { unsigned short _psz[4]; \
-    PsyX_PrimSz4((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], \
-                 (const short*)&vtx[(prim)->v2], (const short*)&vtx[(prim)->v2], _psz); \
-    PsyX_SetNextPrimSzExact(_psz[0], _psz[1], _psz[2], _psz[3]); } while (0)
  
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
@@ -402,8 +373,8 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        otz = GS_OTZ(prim);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        otz = p >> shift;
+        if (nclip <= 0) continue;
 
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
@@ -415,7 +386,7 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setPolyF3(poly);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
     }
 }
@@ -437,13 +408,13 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -453,7 +424,7 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
     }
 }
@@ -476,12 +447,12 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -490,7 +461,7 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
     }
 }
@@ -513,13 +484,13 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -532,7 +503,7 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setRGB3(poly, c2.r, c2.g, c2.b);
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
     }
 }
@@ -554,14 +525,14 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         /* Textured prims have no base color; use neutral 0x80 (half-bright
          * so NormalColorCol output stays in-range after lighting). */
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -572,7 +543,7 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
     }
 }
@@ -594,13 +565,13 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -613,7 +584,7 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -637,12 +608,12 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
 
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -655,7 +626,7 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT4);
     }
 }
@@ -678,13 +649,13 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -700,7 +671,7 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
@@ -720,9 +691,9 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -730,7 +701,7 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         setPolyF3(poly);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
     }
 }
@@ -750,9 +721,9 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -762,7 +733,7 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
         setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
     }
 }
@@ -783,9 +754,9 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -794,7 +765,7 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
     }
 }
@@ -815,9 +786,9 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (GS_BACKFACE_CULL(prim)) continue;
+        if (nclip <= 0) continue;
  
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -829,7 +800,7 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         setRGB3(poly, ITEMDIM(prim->r3), ITEMDIM(prim->g3), ITEMDIM(prim->b3));
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
     }
 
@@ -852,10 +823,10 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         /* FCE (flag bit 1): double-sided — skip back-face cull */
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (GS_BACKFACE_CULL(prim)) continue;
+            if (nclip <= 0) continue;
         }
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -866,7 +837,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
     }
 }
@@ -939,10 +910,10 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         if (!(prim->flag & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (GS_BACKFACE_CULL(prim)) continue;
+            if (nclip <= 0) continue;
         }
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -957,7 +928,7 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -978,10 +949,10 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (GS_BACKFACE_CULL(prim)) continue;
+            if (nclip <= 0) continue;
         }
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -994,7 +965,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT4);
     }
 }
@@ -1015,10 +986,10 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (GS_BACKFACE_CULL(prim)) continue;
+            if (nclip <= 0) continue;
         }
 
-        otz = GS_OTZ(prim);
+        otz = p >> shift;
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -1035,7 +1006,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly->clut  = prim->clut;
         *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
         *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        GS_SETSZ(prim); addPrim(&ot->org[otz], poly);
+        addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
