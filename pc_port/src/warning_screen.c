@@ -232,39 +232,49 @@ void Pc_PlayWarningScreen(void)
      * doubles the loop durations below. */
     g_IntervalVBlanks = 1;
 
-    /* Fade-in: ~0.5s at 60fps. fade goes 255 → -1 in steps of 8 → 32
-     * iterations × ~16ms ≈ 0.5s. */
+    /* `skipped` tracks an early exit (boot-skip key) from the fade-in or hold so the
+     * fade-out below CONTINUES darkening from the current brightness instead of
+     * snapping the image back to full-bright and fading THAT out — which looked like
+     * the warning "playing a second time" when a held skip key caught the fade-in. */
+    s32 skipped = 0;
+
+    /* Fade-in: ~0.5s at 60fps. fade goes 255 → 0 (image appears). */
     fade = 255;
     while (fade >= 0)
     {
         Warn_DrawFadeTile(fade);
         Warn_DrawImage();
         Warn_SwapAndDraw();
+        if (Warn_SkipPressed())
+        {
+            skipped = 1;
+            break;
+        }
         fade -= 8;
-        if (Warn_SkipPressed())
-        {
-            break;
-        }
     }
 
-
-    /* Hold the fully-faded-in image — 180 frames at 60fps ≈ 3 seconds. */
-    for (holdFrame = 0; holdFrame < 180; holdFrame++)
+    /* Hold the fully-faded-in image — only if the fade-in completed (no skip). */
+    if (!skipped)
     {
-        Warn_DrawImage();
-        Warn_SwapAndDraw();
-        if (Warn_SkipPressed())
+        fade = 0; /* fully visible */
+        for (holdFrame = 0; holdFrame < 180; holdFrame++)
         {
-            break;
+            Warn_DrawImage();
+            Warn_SwapAndDraw();
+            if (Warn_SkipPressed())
+            {
+                break;
+            }
         }
     }
+    if (fade < 0)
+    {
+        fade = 0;
+    }
 
-
-    /* Fade-out: ~0.5s at 60fps. fade climbs 0 → 248 in steps of 8 → 32
-     * iterations, matching the fade-in cadence in reverse. Subtractive
-     * blend dims the image to solid black; the next boot screen's own
-     * fade-in then takes over from black. */
-    fade = 0;
+    /* Fade-out to solid black, CONTINUING from the current fade level (so an early
+     * skip darkens smoothly from where it was rather than re-showing the full image).
+     * The next boot screen fades in from black. */
     while (fade < 255)
     {
         Warn_DrawFadeTile(fade);
