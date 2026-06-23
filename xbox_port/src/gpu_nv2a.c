@@ -217,7 +217,11 @@ void GpuNv2a_BindTexture(const void* addr, int w, int h)
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (w << 16) | h);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x04074000);
+    /* PSX rasterization is nearest-neighbour (no bilinear). Point sampling is
+     * correct for both 3D world textures and 2D sprites; bilinear bled adjacent
+     * texels across the unpadded, page-split FONT16 atlas -> garbled text.
+     * 0x01014000 = MIN nearest(1) | MAG nearest(1) | enable. (was 0x04074000 linear) */
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x01014000);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(1), 0x0003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);

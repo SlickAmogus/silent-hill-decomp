@@ -93,6 +93,9 @@ int VSync(int mode)
     for (i = 0; i < n; i++) {
         GpuNv2a_WaitVbl();          /* hold the presented frame for one vblank */
         ++s_vblanks;
+        /* Commit the RAM-buffered log to HDD ~once/second (here, not on the mode<0
+         * timing reads) so SH_DBG stays a cheap memcpy in the hot path. */
+        if ((s_vblanks % 60) == 0) { extern void SH_DebugLogFlush(void); SH_DebugLogFlush(); }
         if (s_vsyncCb)
             s_vsyncCb();
     }

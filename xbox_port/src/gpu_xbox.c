@@ -162,8 +162,11 @@ static int ProcessPoly(P_TAG* tag)
         if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3, p->u3, p->v3);
     }
 
+#ifdef SH_GPU_PRIM_TRACE
     {   /* Sample a few prims periodically (incl. in-game) — code tells us if the OT
-         * walk is reading valid polys or garbage; coords show typical vs outlier. */
+         * walk is reading valid polys or garbage; coords show typical vs outlier.
+         * OFF by default: even throttled (5/4096) this produced 213k unbuffered HDD
+         * writes in one run, a real perf drag. Define SH_GPU_PRIM_TRACE to re-enable. */
         static unsigned n = 0;
         if ((n++ & 0xFFF) < 5)
             SH_DBG("[GPU] code=0x%02x quad=%d scr=(%d,%d)(%d,%d)(%d,%d)",
@@ -172,6 +175,7 @@ static int ProcessPoly(P_TAG* tag)
                    (int)v[1].pos[0], (int)v[1].pos[1],
                    (int)v[2].pos[0], (int)v[2].pos[1]);
     }
+#endif
 
     /* Semi-transparent (ABE) prims blend 0.5*back + 0.5*front (constant factor set
      * in SetRenderState); opaque prims render with blend off. Dedup'd per DrawOTag.
@@ -210,7 +214,15 @@ static int ProcessPoly(P_TAG* tag)
  * the texture page out of them so subsequent SPRTs sample the right VRAM region. */
 static int ProcessDrawMode(P_TAG* tag)
 {
-    const u_long* w = ((const u_long*)tag) + 1; /* data longs follow the tag long */
+    /* The GP0 code words live in the prim's code[] array, which begins P_LEN
+     * longs into the packet — NOT one long in. Under USE_EXTENDED_PRIM_POINTERS
+     * (this build) the tag header is P_LEN==2 longs (uintptr_t addr + len/pgxp),
+     * so DR_TPAGE/DR_MODE.code[0] is at offset +P_LEN. Reading +1 landed on the
+     * len/pgxp_index field, so (w>>24)==0xE1 never matched and s_curTpage was
+     * never updated — every SPRT (title image, menu/HUD text) then sampled the
+     * draw-env default tpage instead of the page the game prepended, decoding
+     * the wrong VRAM region (invisible / garbage). */
+    const u_long* w = ((const u_long*)tag) + P_LEN;
     const int     n = getlen(tag);
     int           i;
 
@@ -237,15 +249,23 @@ static int ProcessSprtTile(P_TAG* tag)
 
     if (textured) {
         SPRT* p = (SPRT*)tag;
+        int   uw, vh;
         x0 = p->x0; y0 = p->y0; r = p->r0; g = p->g0; b = p->b0;
         u0 = p->u0; v0 = p->v0; clut = p->clut;
         w = fixedSz ? fixedSz : p->w;
         h = fixedSz ? fixedSz : p->h;
+        /* Clamp the UV span (not the screen size) so the bottom-right texel never
+         * samples past the 256x256 decoded page — a 16-tall glyph at v0=240 would
+         * otherwise land on row 256, one past the page (mirrors PsyCross
+         * MakeTexcoordRect). Screen w/h stay, so the glyph covers the same pixels. */
+        uw = w; vh = h;
+        if (u0 + uw > 255) uw = 255 - u0;
+        if (v0 + vh > 255) vh = 255 - v0;
         texAddr = PsxVram_GetTexture(s_curTpage, clut);
-        PutVertUV(&v[0], x0,     y0,     r, g, b, u0,     v0);
-        PutVertUV(&v[1], x0 + w, y0,     r, g, b, u0 + w, v0);
-        PutVertUV(&v[2], x0,     y0 + h, r, g, b, u0,     v0 + h);
-        PutVertUV(&v[3], x0 + w, y0 + h, r, g, b, u0 + w, v0 + h);
+        PutVertUV(&v[0], x0,     y0,     r, g, b, u0,      v0);
+        PutVertUV(&v[1], x0 + w, y0,     r, g, b, u0 + uw, v0);
+        PutVertUV(&v[2], x0,     y0 + h, r, g, b, u0,      v0 + vh);
+        PutVertUV(&v[3], x0 + w, y0 + h, r, g, b, u0 + uw, v0 + vh);
     } else {
         TILE* p = (TILE*)tag;
         x0 = p->x0; y0 = p->y0; r = p->r0; g = p->g0; b = p->b0;

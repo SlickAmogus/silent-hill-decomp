@@ -15,6 +15,13 @@ FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
 void (*g_ShOverlayPushLine)(const char*) = NULL;
 
+/* RAM staging buffer for the log. Unbuffered (_IONBF) flushed every SH_DBG to the
+ * HDD, which on the 733MHz/HDD path is a real per-line cost in the render loop.
+ * A large full buffer (_IOFBF) makes SH_DBG a cheap memcpy; the loop flushes
+ * periodically (SH_DebugLogFlush, called ~1/sec from VSync) so nothing is lost
+ * mid-loop the way line-buffering dropped it. */
+static char s_logBuf[256 * 1024];
+
 void SH_DebugLogInit(void)
 {
     if (g_ShDebugLog)
@@ -22,11 +29,13 @@ void SH_DebugLogInit(void)
 
     g_ShDebugLog = fopen("D:\\silenthill.log", "w");
     if (g_ShDebugLog)
-    {
-        /* Unbuffered: the render loop never exits to fclose, and nxdk does not
-         * reliably commit line-buffered writes to the HDD mid-loop, so log lines
-         * written during the loop were lost. _IONBF forces each line to disk.
-         * (Revert to _IOLBF for perf once the renderer is stable.) */
-        setvbuf(g_ShDebugLog, NULL, _IONBF, 0);
-    }
+        setvbuf(g_ShDebugLog, s_logBuf, _IOFBF, sizeof(s_logBuf));
+}
+
+/* Commit the RAM buffer to the HDD. The render loop never exits to fclose, so the
+ * VSync wait path calls this every ~60 vblanks to bound log loss on a hang to ~1s. */
+void SH_DebugLogFlush(void)
+{
+    if (g_ShDebugLog)
+        fflush(g_ShDebugLog);
 }
