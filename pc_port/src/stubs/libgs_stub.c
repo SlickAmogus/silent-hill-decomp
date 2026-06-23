@@ -1373,15 +1373,6 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         return;
     }
 
-#ifdef SH_PC_PORT
-    /* This frame renders 3D items (inventory / pickup viewer). Force the GL depth
-     * test on for the OT draw (even with the PGXP Z-buffer off) and keep the
-     * per-prim item depth (GS_SETSZ) alive through PsyX_ClearGteDepthTable, so the
-     * depth test can resolve overlapping faces (antenna vs body) that share one
-     * coarse OT bucket. Cleared after the item OT is drawn (GsDrawOt). */
-    { extern int g_forceItemDepth; g_forceItemDepth = 1; }
-#endif
-
     /* The world fog path reprograms the GTE depth-cue registers every frame
      * in fog-enabled maps (gte_lddqa(g_WorldEnvWork.field_4C) + DQB=0 in
      * bodyprog_80055028.c). Our TMD renderers bucket prims by IR0 (`p` from

@@ -290,6 +290,15 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Force the GL depth test on for this item ONLY when the world is frozen
+     * (status menu etc.). During active gameplay the in-world pickup preview shares
+     * OT0 with live world geometry, so forcing depth there occluded the preview and
+     * dropped world faces. g_forceItemDepth (PsyX_render.cpp) is consumed by the
+     * shared GsDrawOt(OT0) and cleared after it draws. */
+    { extern int g_forceItemDepth;
+      g_forceItemDepth = (g_SysWork.sysState != SysState_Gameplay) ? 1 : 0; }
+#endif
     if (arg2 == 2)
     {
         GsClearOt(0, 0, &g_OrderingTable1[g_ActiveBufferIdx]);
