@@ -643,6 +643,12 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
         cprintf("PGXP off-screen position clamp: %.0f psx-units (higher = less edge warp)", g_PgxpEdgeMax);
+    } else if (strcmp(cmd, "PGXPDEPTH") == 0) {
+        extern int g_PgxpUseUnquantizedDepth;
+        if (arg[0] == '1') g_PgxpUseUnquantizedDepth = 1;
+        else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
+        else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
+        cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
