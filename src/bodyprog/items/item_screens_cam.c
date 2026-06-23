@@ -291,15 +291,15 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 #endif
 
 #ifdef SH_PC_PORT
-    /* Force the GL depth test on for this item ONLY when the game is PAUSED
-     * (inventory / status / map — world frozen, OT0 = items only). During active
-     * gameplay an in-world pickup preview shares OT0 with LIVE world geometry, so
-     * forcing depth there occludes the preview and drops world faces. Use the pause
-     * flag, NOT sysState: the status menu runs under SysState_Gameplay yet freezes
-     * the world, while a pickup never sets the pause flag. g_forceItemDepth
-     * (PsyX_render.cpp) is consumed by the shared GsDrawOt(OT0), cleared after it draws. */
+    /* Force the GL depth test on for this item ONLY for the inventory/status view.
+     * Empirically that view runs under SysState_Gameplay with the world FROZEN
+     * (OT0 = items only), whereas an in-world pickup preview runs under a NON-gameplay
+     * state with the world LIVE in OT0 — forcing depth there occluded the preview and
+     * dropped world faces. Normal gameplay never calls this item display, so a plain
+     * == Gameplay test is safe. g_forceItemDepth (PsyX_render.cpp) is consumed by the
+     * shared GsDrawOt(OT0) and cleared after it draws. */
     { extern int g_forceItemDepth;
-      g_forceItemDepth = (g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) ? 1 : 0; }
+      g_forceItemDepth = (g_SysWork.sysState == SysState_Gameplay) ? 1 : 0; }
 #endif
     if (arg2 == 2)
     {
