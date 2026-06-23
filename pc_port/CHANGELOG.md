@@ -1,5 +1,88 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.23.1 -- 2026-06-23
+- BIG UPDATE! Sorry for the delay on this one, but wanted to get this new launcher out so that I wouldn't be so hesitant to push updates in the future. I will make a video going over this update as well, but I will list the big change below, and all the Claude commit summaries are below that.
+- PGXP: Seams/Missing faces FIXED, warping almost fixed and is barely noticeable now. PGXP is near perfect!
+- Collision into Invisible Walls: FIXED!! None so far after extensive testing!
+- Launcher: Added build settings to choose a custom build from any point (will not overwrite the launcher). After choosing a custom build, click apply and then download build! This will be useful if I ever break things in an update and you need to revert to an old Version
+- Launcher: Also added ability to use a custom repo. Meaning if anyone forks and mods my port, you can load their version directly through the launcher! They just have to post releases in their fork in a way the launcher will recognize (more on that soon)
+- Launcher: Controls section, added mouse bindings and EXPERIMENTAL Thirdperson\Over the shoulder camera options! Be sure to bind the keys appropriately for these modes, and with it enabled you can press F9 or the right stick to cycle camera modes.
+- Thirdperson/Over the Shoulder: Use right stick or mouse to look, left stick\WASD (optional) to move. Strafing is enabled in this mode as well.
+- OTS Camera: By default press middle mouse to swap shoulders!
+- TPS/OTS: You can turn on a crosshair, or invert the mouse/right stick
+- Steam Deck: Merged fix from PR from sergiomanzur that may fix Steam Deck graphics. If not there is also more logging available to help. Please post in the github issue if you're still seeing issues!
+- Crashing\Visual glitches: Lots should be fixed, let me know what remains! Please comment on the comprehensive issue list in GitHub
+- Console: Now has history via up/down and will not glitch while the game is paused. Should be doc available for setflags console command usage for triggering cutscenes manually, if not will make it soon.
+
+Coming soon: Inventory item backface visibility issue fix. Other visual bug and crash fixes.
+
+
+Claude commits:
+- PsyCross: Mesa VRAM color fix (Steam Deck / Proton) — cherry-pick of #14
+- fix: ending/Nowhere crashes — map7_s03 endings + map6_s04 Cybil boss
+- data: extract ending/park zero-stub tables (force-field, Dahlia lightning, sand, disc, sprites)
+- fix: invisible-wall random sprint-smack — preserve forward-input debounce
+- feat: switch PC aiming from the combat_target.c shim to the real decompiled targeting
+- tools: extract_map_data.py requires an explicit map name (or 'all')
+- fix: boss camera framing — read the live swing angle, not the dead D_800EBB5A alias
+- targeting: remove the PC Air Screamer melee carve-out — func_8005CD38 is now the unmodified original
+- Restore Cybil-approach ambient enemies (larval stalkers / grey children)
+- Fix map4_s04 (Lisa/Dahlia) cutscene rainbow corruption -- extract 3 draw-rect stubs
+- Collision: re-enable round-obstacle collision + scope preload collision to local cells
+- Launcher + nightly: zip releases on a beta branch, configurable repo/branch/build, safe launcher self-update
+- Launcher: harden custom-repo updates + link nightly releases to source
+- Launcher: a pinned build now downloads/plays that build ("Download Build")
+- Pause: stop console/game double-pause fight + pause world while examining
+- Revert the examine/message world-pause — PSX doesn't pause plain examines
+- Launcher: paginate all releases, alpha/beta wording, one-time old-build warning
+- Launcher: soften old-build warning wording (break vs corrupt)
+- Launcher: separate Download Build from Check for Updates; track highest-ever build per branch
+- Launcher: "Redownload Build" when the selected build is installed + button tooltips
+- Launcher: nudge update status label + progress bar position
+- Launcher: preview changelog before installing + always re-promptable updates
+- Control styles: promote TPS camera out of debug into a real camera-mode system
+- Control styles Stage 2: de-isolate TPS input + secondary/mouse binds + sticks
+- Launcher Stage 3: Experimental controls — Control Style, Change Camera, mouse/secondary
+- TPS refinements: aim zoom, diagonal strafe, always-on alternate binds
+- Launcher: simplify controls — always-on alternate binds, Inventory, aim zoom, overwrite prompt
+- Launcher: auto-migrate alpha -> beta when the beta stream goes live
+- Add Over-the-Shoulder camera mode + aim crosshair
+- Launcher: Over-the-Shoulder + crosshair + Swap Shoulder bind
+- Launcher: rename "TPS/OTS Aim Zoom" + add Experimental tooltips
+- Blood white-edge fix + PGXP pgxpdepth console + crosshair tweak
+- Launcher: OTS always in Control Style dropdown + Allow-debug moved off Reset button
+- Blood: lower additive-color cap 0xA0 -> 0x80 to further reduce white edges
+- Characters: precise backface cull so faces stop dropping at distance (PGXP)
+- Melee: stop phantom swings after release (flush tap-queue on button release)
+- Inventory: precise float backface cull so rotating items stop being see-through
+- Launcher: single-instance — warn and exit if already running
+- Inventory: sort item faces by centroid depth (fix rotation see-through)
+- TPS/OTS: fix shooting dying after mode-cycling + config-bound controller run
+- TPS/OTS: reset orbit camera on entry + control-default cleanup + F4/Backspace
+- TPS/OTS: drain mouse delta on capture transition (no camera jerk on entry)
+- Inventory: resolve see-through via per-prim depth + forced depth test (item pass)
+- Inventory depth fix: scope force-depth to the world-frozen item screen only
+- Inventory depth fix: gate force-depth on the PAUSE flag, not sysState
+- Inventory depth fix: force-depth when sysState == Gameplay (status-menu view)
+- Revert inventory see-through work (backface cull / centroid otz / per-prim depth)
+
+
+## v2026.06.22.1 -- 2026-06-22
+- Revise website link and console command details
+- PsyCross: Mesa VRAM color fix (Steam Deck / Proton) — cherry-pick of #14
+- fix: ending/Nowhere crashes — map7_s03 endings + map6_s04 Cybil boss
+- data: extract ending/park zero-stub tables (force-field, Dahlia lightning, sand, disc, sprites)
+- fix: invisible-wall random sprint-smack — preserve forward-input debounce
+- feat: switch PC aiming from the combat_target.c shim to the real decompiled targeting
+- tools: extract_map_data.py requires an explicit map name (or 'all')
+- fix: boss camera framing — read the live swing angle, not the dead D_800EBB5A alias
+- targeting: remove the PC Air Screamer melee carve-out — func_8005CD38 is now the unmodified original
+- fix: Cybil approach area — restore ambient larval stalkers / grey children (free the NPC cap at the boss cutscene instead of blocking the whole map)
+- fix: map4_s04 (Lisa/Dahlia) cutscene rainbow corruption — extract the 3 zero-stub draw-area/offset rects
+- fix: walk-through poles / hydrants / streetlights — re-enable round-obstacle collision (console `OBST 0/1`)
+- fix: preload-only phantom invisible walls — scope collision to the player's local chunk window (console `COLLSCOPE 0/1`)
+- launcher: new Build Settings (pick repo / branch / build), zip-release support, and safer self-update — the launcher now only updates itself when the build is actually newer, and asks first
+
 ## v2026.06.21.2 -- 2026-06-21
 - Fixed text going off screen and cutscene letterbox issues that started after the last patch, let me know if you see any issues anywhere.
 - PGXP: Improved warping on edges of screen,  gone at 4:3 and barely noticeable at 16:9. Working on more tweaks and fixing the seams/invisible spots at a distance.
