@@ -221,5 +221,10 @@ void Pc_ControlStyleUpdate(void)
      * menus / pause / console. */
     wantCapture = (g_DebugThirdPersonCam && inGameplay);
     if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != (wantCapture != 0))
+    {
         SDL_SetRelativeMouseMode(wantCapture ? SDL_TRUE : SDL_FALSE);
+        /* Drain any accumulated relative motion on the capture transition so the
+         * first TPS/OTS frame doesn't jerk the camera by the cursor's menu travel. */
+        SDL_GetRelativeMouseState(NULL, NULL);
+    }
 }
