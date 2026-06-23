@@ -1,7 +1,34 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <SDL_scancode.h>
 extern void PsyX_EndScene(void);
+extern const unsigned char* g_sdlKeyboardState;
+extern int PsyX_Pad_SkipButtonHeld(void);
+
+/* QOL boot-logo skip. The stock logo loops only react to heldBtnFlags, but neither the
+ * keyboard nor the gamepad is wired into the game's controller flags this early in boot
+ * on PC, so that is always 0 here and the logos can never be skipped manually. Read the
+ * raw SDL keyboard + the controller skip-button (A/Start) directly so any confirm/start
+ * key or gamepad A/Start skips. */
+static int BootSkip_Pressed(void)
+{
+    if (g_Controller0 != NULL && g_Controller0->heldBtnFlags != 0)
+        return 1;
+
+    if (g_sdlKeyboardState != NULL &&
+        (g_sdlKeyboardState[SDL_SCANCODE_RETURN]   ||
+         g_sdlKeyboardState[SDL_SCANCODE_KP_ENTER] ||
+         g_sdlKeyboardState[SDL_SCANCODE_RETURN2]  ||
+         g_sdlKeyboardState[SDL_SCANCODE_SPACE]    ||
+         g_sdlKeyboardState[SDL_SCANCODE_C]        ||
+         g_sdlKeyboardState[SDL_SCANCODE_V]))
+    {
+        return 1;
+    }
+
+    return PsyX_Pad_SkipButtonHeld();
+}
 #endif
 
 #include <psyq/libcd.h>
@@ -24,6 +51,22 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
     while (g_GameWork.gameState == GameState_KonamiLogo)
     {
         Joy_Update();
+
+#ifdef SH_PC_PORT
+        /* QOL: any confirm/start key skips the boot logo from any visible phase. The
+         * stock skip only fires during the hold-delay, so the fade-in couldn't be
+         * skipped. Jump to the fade-out + finish; the asset loads kicked off in Init
+         * are still awaited by Fs_QueueWaitForEmpty there, so this only drops the
+         * on-screen logo time, never a load. */
+        if (BootSkip_Pressed() &&
+            (g_GameWork.gameStateSteps[0] == KonamiLogoStateStep_WaitForFade ||
+             g_GameWork.gameStateSteps[0] == KonamiLogoStateStep_LogoDelay))
+        {
+            ScreenFade_Start(false, false, false);
+            g_ScreenFadeTimestep         = Q12(0.4f);
+            g_GameWork.gameStateSteps[0] = KonamiLogoStateStep_FinishAfterFade;
+        }
+#endif
 
         switch (g_GameWork.gameStateSteps[0])
         {
@@ -74,25 +117,10 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
         BootScreen_KonamiScreenDraw();
         Screen_FadeUpdate();
         Fs_QueueUpdate();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] pre MemCard_Update\n"); fflush(g_ShDebugLog); } }
-#endif
         MemCard_Update();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] pre func_80033548\n"); fflush(g_ShDebugLog); } }
-#endif
         func_80033548();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post func_80033548\n"); fflush(g_ShDebugLog); } }
-#endif
         nullsub_800334C8();
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post nullsub\n"); fflush(g_ShDebugLog); } }
-#endif
         VSync(SyncMode_Wait);
-#ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[KL] post VSync\n"); fflush(g_ShDebugLog); } }
-#endif
 #ifdef SH_PC_PORT
         g_DeltaTime = Q12(1.0f / 60.0f);
         g_DeltaTimeRaw = Q12(1.0f / 60.0f);
@@ -163,6 +191,37 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
     while (g_GameWork.gameState == GameState_KcetLogo)
     {
         Joy_Update();
+
+#ifdef SH_PC_PORT
+        /* QOL: any confirm/start key (or gamepad A/Start) skips the KCET logo. Its entire
+         * visible time is the CheckMemCards fade-in (~5s on PC: the Q12(0.2) timestep with
+         * dt forced to 1/60), which has no stock skip. On skip, accelerate that fade-in so
+         * the memcard check + loads run immediately (detection still happens — Continue/Load
+         * stay correct), then collapse the post-load LogoDelay hold into a quick fade-out.
+         * Latched so a brief tap fully skips even mid-fade. */
+        {
+            static int s_kcetSkip = 0;
+
+            if (BootSkip_Pressed())
+            {
+                s_kcetSkip = 1;
+            }
+
+            if (s_kcetSkip)
+            {
+                if (g_GameWork.gameStateSteps[0] == KcetLogoStateStep_CheckMemCards && !ScreenFade_IsNone())
+                {
+                    g_ScreenFadeTimestep = Q12(8.0f);
+                }
+                else if (g_GameWork.gameStateSteps[0] == KcetLogoStateStep_LogoDelay)
+                {
+                    ScreenFade_Start(false, false, false);
+                    g_ScreenFadeTimestep         = Q12(8.0f);
+                    g_GameWork.gameStateSteps[0] = KcetLogoStateStep_FinishAfterFade;
+                }
+            }
+        }
+#endif
 
         switch (g_GameWork.gameStateSteps[0])
         {
