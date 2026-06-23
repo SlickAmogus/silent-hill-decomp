@@ -349,6 +349,8 @@ static const char* const HELP_LINES[] = {
     " noclip         walk through walls (floor stays on)",
     " invaspect 0|1  inventory item proportions: PSX | square",
     " invscale <pct> inventory item vertical scale (def 125)",
+    " vfov <pct>     3D world vertical scale, lower=taller/narrower (def 90)",
+    " hfov <pct>     3D world width, higher=wider models/chest (def 97)",
     " invcary <n>    carousel item Y offset (+down)",
     " inveqy <n>     equipped item Y offset (+down)",
     " invdim <pct>   off-center carousel dim strength",
@@ -590,6 +592,22 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 50 && v <= 200) g_PcInvAspectPct = v;
         cprintf("inventory item vertical scale: %d%% of square", g_PcInvAspectPct);
+    } else if (strcmp(cmd, "VFOV") == 0) {
+        /* 3D world vertical-ortho scale (g_PsxWorldVScale). Arg is a percent so
+         * it fits the integer console parser: 100 = full native vertical (correct
+         * model proportions), lower = taller/narrower, higher = shorter/wider.
+         * Live-tune to match DuckStation, then we bake the value as the default. */
+        extern float g_PsxWorldVScale;
+        int v = atoi(arg);
+        if (v >= 50 && v <= 150) g_PsxWorldVScale = (float)v / 100.0f;
+        cprintf("world vertical scale (vfov): %d%% (%.3f)", (int)(g_PsxWorldVScale * 100.0f + 0.5f), g_PsxWorldVScale);
+    } else if (strcmp(cmd, "HFOV") == 0) {
+        /* 3D world horizontal width (g_PsxWorldHScale). Higher = wider models
+         * (bigger chest) without changing vfov height. Live-tune vs DuckStation. */
+        extern float g_PsxWorldHScale;
+        int v = atoi(arg);
+        if (v >= 50 && v <= 150) g_PsxWorldHScale = (float)v / 100.0f;
+        cprintf("world horizontal scale (hfov): %d%% (%.3f)", (int)(g_PsxWorldHScale * 100.0f + 0.5f), g_PsxWorldHScale);
     } else if (strcmp(cmd, "INVCARY") == 0) {
         /* the console minus key types '_', so accept a leading '_' as '-'. */
         extern int g_PcInvCarouselYOff;
