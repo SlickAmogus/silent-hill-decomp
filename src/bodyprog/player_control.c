@@ -3349,8 +3349,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
          * Suppressing increments isn't enough — a click pressed BEFORE the
          * user starts sprinting would already be queued, then dispense the
          * moment sprint ends. Same for weapon swaps. Clearing each frame
-         * the gate fails guarantees no stale clicks survive a state change. */
-        if (!meleeReady || g_Player_IsRunning) {
+         * the gate fails guarantees no stale clicks survive a state change.
+         *
+         * Also flush the instant the attack button is RELEASED: buffered taps
+         * only survive while it's held. Without this, rapidly spamming attack
+         * then letting go leaves several queued clicks that keep dispatching
+         * "phantom" swings for a second or two (the PSX original required the
+         * attack to be live at the multi-tap window, so it stopped on release).
+         * Hold-to-repeat is unaffected — that runs through the dispatch gate. */
+        if (!meleeReady || g_Player_IsRunning || !(g_Controller0->heldBtnFlags & actionMask)) {
             s_pcMtClickQueue = 0;
         } else if (g_Controller0->clickedBtnFlags & actionMask) {
             if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
