@@ -15,16 +15,20 @@
 #include <SDL.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int g_ControlStyle = ControlStyle_Classic;
+int g_OtsSide      = 1; /* +1 = right shoulder, -1 = left */
 
 /* Runtime "TPS camera active" flag the camera + player_control code already
- * read. Driven (mirrored) by g_ControlStyle so those read sites stay unchanged. */
+ * read. Driven (mirrored) by g_ControlStyle so those read sites stay unchanged.
+ * Set for both TPS and OTS (OTS is TPS with a lateral offset). */
 extern int g_DebugThirdPersonCam;
 
 static const struct { const char* id; const char* label; } g_ControlStyles[] = {
     { "classic", "Classic (Default)" },
     { "tps",     "Thirdperson Shooter" },
+    { "ots",     "Over the Shoulder" },
 };
 
 int Pc_ControlStyleCount(void)
@@ -50,7 +54,7 @@ void Pc_ControlStyleSet(int style)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
-    g_DebugThirdPersonCam = (style == ControlStyle_Tps);
+    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
 
     /* Persist so the choice survives a restart and the launcher reflects it.
      * Mouse capture is managed per-frame in Pc_ControlStyleUpdate. */
@@ -86,7 +90,7 @@ void Pc_ControlStyleInit(void)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
-    g_DebugThirdPersonCam = (style == ControlStyle_Tps);
+    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
 
     Pc_ControlStylePublish();
 
@@ -110,6 +114,26 @@ static int ChangeCam_PadFlag(const char* name)
     if (!strcmp(name, "b"))             return ControllerFlag_Circle;
     if (!strcmp(name, "x"))             return ControllerFlag_Square;
     if (!strcmp(name, "y"))             return ControllerFlag_Triangle;
+    return 0;
+}
+
+/* "Mouse1".."Mouse5" -> SDL mouse button number (else 0 = it's a key). */
+static int SwapShoulder_MouseButton(const char* name)
+{
+    if (!name) return 0;
+    if ((name[0] == 'M' || name[0] == 'm') && (name[1] == 'o' || name[1] == 'O') &&
+        (name[2] == 'u' || name[2] == 'U') && (name[3] == 's' || name[3] == 'S') &&
+        (name[4] == 'e' || name[4] == 'E'))
+    {
+        switch (atoi(name + 5))
+        {
+            case 1: return SDL_BUTTON_LEFT;
+            case 2: return SDL_BUTTON_RIGHT;
+            case 3: return SDL_BUTTON_MIDDLE;
+            case 4: return SDL_BUTTON_X1;
+            case 5: return SDL_BUTTON_X2;
+        }
+    }
     return 0;
 }
 
@@ -153,7 +177,35 @@ void Pc_ControlStyleUpdate(void)
     prevKey = curKey;
     prevPad = curPad;
 
-    /* Capture the mouse only while actually playing in TPS — free cursor in
+    /* Swap the OTS shoulder side (default middle mouse) — gameplay + OTS only. */
+    {
+        static SDL_Scancode scSwap   = SDL_SCANCODE_UNKNOWN;
+        static int          mbSwap   = 0;
+        static int          swapRes  = 0;
+        static int          prevSwap = 0;
+        int                 curSwap  = 0;
+
+        if (!swapRes)
+        {
+            mbSwap = SwapShoulder_MouseButton(g_PcConfig.keySwapShoulder);
+            if (mbSwap == 0) scSwap = SDL_GetScancodeFromName(g_PcConfig.keySwapShoulder);
+            swapRes = 1;
+        }
+
+        if (mbSwap != 0)
+            curSwap = (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(mbSwap)) != 0;
+        else if (keys && scSwap != SDL_SCANCODE_UNKNOWN)
+            curSwap = keys[scSwap];
+
+        if (inGameplay && g_ControlStyle == ControlStyle_Ots && curSwap && !prevSwap)
+        {
+            g_OtsSide = -g_OtsSide;
+            SH_DBG_ECHO("[CTRLSTYLE] OTS shoulder: %s", g_OtsSide > 0 ? "right" : "left");
+        }
+        prevSwap = curSwap;
+    }
+
+    /* Capture the mouse only while actually playing in TPS/OTS — free cursor in
      * menus / pause / console. */
     wantCapture = (g_DebugThirdPersonCam && inGameplay);
     if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != (wantCapture != 0))

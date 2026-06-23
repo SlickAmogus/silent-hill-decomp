@@ -30,7 +30,8 @@ s_PcConfig g_PcConfig = {
     .allowMouseSecondary = 1, /* deprecated: mouse + alternate binds always active */
     .invertMouseY        = 0,
     .invertControllerY   = 0,
-    .tpsAimZoom          = 1, /* zoom TPS camera in while aiming */
+    .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
+    .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
 
     /* Keyboard defaults (SDL scancode names) */
     .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
@@ -39,6 +40,7 @@ s_PcConfig g_PcConfig = {
     .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyChangeCam = "F9", .padChangeCam = "rightstick",
+    .keySwapShoulder = "Mouse3",
     /* Alternate binds (always active): Action=Mouse1, Aim=Mouse2, Flashlight=F,
      * Map=Tab, Sidestep L/R=A/D. The rest default empty ("" == unset). */
     .keyCross2 = "Mouse1", .keyR22 = "Mouse2",
@@ -83,6 +85,7 @@ static const struct { const char* key; size_t off; } s_ControlBinds[] = {
     { "key_quickload", offsetof(s_PcConfig, keyQuickLoad) },
     { "key_change_cam", offsetof(s_PcConfig, keyChangeCam) },
     { "pad_change_cam", offsetof(s_PcConfig, padChangeCam) },
+    { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_up_2",       offsetof(s_PcConfig, keyUp2)       },
     { "key_down_2",     offsetof(s_PcConfig, keyDown2)     },
     { "key_left_2",     offsetof(s_PcConfig, keyLeft2)     },
@@ -270,8 +273,9 @@ void PcConfig_Load(const char* path)
             /* Style id string (matches the registry in control_style.c). The
              * launcher writes the id; map the known ones to the index. Unknown
              * -> Classic. control_style.c re-validates against its registry. */
-            if (strcmp(value, "tps") == 0) g_PcConfig.controlStyle = 1;
-            else                           g_PcConfig.controlStyle = 0;
+            if (strcmp(value, "tps") == 0)      g_PcConfig.controlStyle = 1;
+            else if (strcmp(value, "ots") == 0) g_PcConfig.controlStyle = 2;
+            else                                g_PcConfig.controlStyle = 0;
         }
         else if (strcmp(key, "allow_mouse_secondary") == 0)
         {
@@ -288,6 +292,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_aim_zoom") == 0)
         {
             g_PcConfig.tpsAimZoom = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "crosshair") == 0)
+        {
+            g_PcConfig.crosshair = (atoi(value) != 0);
         }
         else if (strcmp(key, "control_styles") == 0)
         {

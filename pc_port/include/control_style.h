@@ -17,9 +17,11 @@
 typedef enum {
     ControlStyle_Classic = 0,
     ControlStyle_Tps     = 1,
+    ControlStyle_Ots     = 2,  /* Over the Shoulder — TPS offset to one side */
 } e_ControlStyle;
 
 extern int g_ControlStyle; /* active e_ControlStyle */
+extern int g_OtsSide;      /* OTS shoulder side: +1 = right, -1 = left */
 
 /* Boot: apply control_style from config + publish the registry to config. */
 void Pc_ControlStyleInit(void);
