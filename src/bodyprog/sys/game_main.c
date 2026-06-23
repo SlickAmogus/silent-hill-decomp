@@ -2063,7 +2063,21 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         ML_TRACE("OT2-draw");
+#ifdef SH_PC_PORT
+        /* OT2 = 2D UI (text/subtitles, screen fade, cutscene letterbox bars).
+         * Flag its splits so the renderer draws them with the full vertical
+         * ortho instead of the Hor+ world crop (g_PsxWorldVScale), which would
+         * otherwise clip bottom-anchored subtitles and the bottom letterbox
+         * bar off-screen. The world (OT0, drawn above) keeps the crop. */
+        {
+            extern int g_PsxUIOrthoPass;
+            g_PsxUIOrthoPass = 1;
+            GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+            g_PsxUIOrthoPass = 0;
+        }
+#else
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+#endif
         ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
         DbgOverlay_Render();
