@@ -83,6 +83,7 @@ public class ControlsForm : Form
         { "key_l3", "[" }, { "key_r3", "]" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
+        { "key_swap_shoulder", "Mouse3" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -110,6 +111,7 @@ public class ControlsForm : Form
     private CheckBox chkInvertMouseY;
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsAimZoom;
+    private CheckBox chkCrosshair;
 
     // The click that focuses a bind box must NOT be captured as a Mouse1 binding.
     private bool ignoreNextMouseBind;
@@ -175,6 +177,10 @@ public class ControlsForm : Form
         int changeCamY = quickY0 + QuickBinds.Length * rowH + 8;
         AddKeyRow("Change Camera", "key_change_cam", colKbX, changeCamY, labelW, inputW, false);
 
+        // Swap Shoulder (OTS side) — defaults to middle mouse; rebindable.
+        int swapShoulderY = changeCamY + rowH;
+        AddKeyRow("Swap Shoulder", "key_swap_shoulder", colKbX, swapShoulderY, labelW, inputW, false);
+
         // Controller binds.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
@@ -225,18 +231,27 @@ public class ControlsForm : Form
         };
         chkTpsAimZoom = new CheckBox
         {
-            Text = "TPS Aim Zoom",
+            Text = "TPS/OTS Zoom",
             Left = colPadX,
             Top = styleY + 82,
             Width = 180,
             ForeColor = TextColor,
         };
+        chkCrosshair = new CheckBox
+        {
+            Text = "Crosshair (aiming, TPS/OTS)",
+            Left = colPadX,
+            Top = styleY + 108,
+            Width = 220,
+            ForeColor = TextColor,
+        };
         Controls.Add(chkInvertMouseY);
         Controls.Add(chkInvertControllerY);
         Controls.Add(chkTpsAimZoom);
+        Controls.Add(chkCrosshair);
 
         // Allow debug controls — below the (taller) keyboard column.
-        int debugY = changeCamY + rowH + 14;
+        int debugY = swapShoulderY + rowH + 14;
         AddLabel("Allow debug controls:", colKbX, debugY, 150);
         debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = debugY - 3, Width = 50, ForeColor = TextColor };
@@ -502,6 +517,7 @@ public class ControlsForm : Form
         chkInvertMouseY.Checked = config.Get("invert_mouse_y", "0") == "1";
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
         chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
+        chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -535,6 +551,7 @@ public class ControlsForm : Form
         chkInvertMouseY.Checked = false;
         chkInvertControllerY.Checked = false;
         chkTpsAimZoom.Checked = true;
+        chkCrosshair.Checked = false;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -560,6 +577,7 @@ public class ControlsForm : Form
         config.Set("invert_mouse_y", chkInvertMouseY.Checked ? "1" : "0");
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
         config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
+        config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();
