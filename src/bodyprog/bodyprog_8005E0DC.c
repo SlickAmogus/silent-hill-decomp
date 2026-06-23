@@ -20,7 +20,7 @@
  * is unclamped; in high-fog maps it goes near-white and the additive pass blows
  * the sprite's soft edge to white. Capping it keeps dark-scene red intact (dim
  * tint is already below this) while killing the white fringe. Tunable. */
-#define BLOOD_ADD_MAX 0xA0
+#define BLOOD_ADD_MAX 0x80
 #include <string.h>
 #include "sh_log.h"
 #endif
