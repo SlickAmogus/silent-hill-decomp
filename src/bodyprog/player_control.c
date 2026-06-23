@@ -1302,7 +1302,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         g_Player_IsMovingBackward    = back  ? 1 : 0;
                         g_Player_IsSteppingLeftHold  = left  ? 1 : 0;
                         g_Player_IsSteppingRightHold = right ? 1 : 0;
-                        g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
+                        /* Run from the BOUND sprint control (mirrors classic at
+                         * ~10009, incl. the extraWalkRunCtrl inversion) plus the
+                         * controller left stick sprints. No hardcoded keys — the
+                         * keyboard sprint key reaches this through its config ->
+                         * heldBtnFlags mapping, same as every other action. */
+                        {
+                            u16 runBtn   = g_GameWorkPtr->config.controllerConfig.run;
+                            int cfgRun   = g_GameWork.config.extraWalkRunCtrl
+                                             ? !(held & runBtn) : (held & runBtn) != 0;
+                            int stickRun = (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown |
+                                                    ControllerFlag_LStickLeft | ControllerFlag_LStickRight)) != 0;
+                            g_Player_IsRunning = cfgRun || stickRun;
+                        }
                         g_Player_IsTurningLeft       = 0;
                         g_Player_IsTurningRight      = 0;
                         g_Player_HasMoveInput        = fwd || back || left || right;
@@ -1618,7 +1630,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * zeroed by aim path, run anim still plays).  Cancel aim
                      * when the run button is held. */
                     static bool s_sprintCancelledAim = false;
-                    if (g_Player_IsRunning) {
+                    /* TPS/OTS-only: this sprint-cancel-aim latch + the attack-bit
+                     * edge-flush further down are camera-shim behavior. Gate them
+                     * on the mode (the else-branch below resets the latch off-TPS)
+                     * so they never touch the classic upper-body state machine —
+                     * running them in classic on a mode switch wedged the attack
+                     * state and killed shooting until restart. */
+                    if (g_DebugThirdPersonCam && g_Player_IsRunning) {
                         aimHeld = false;
                         g_Player_IsAiming = false;
                         if (hasWeapon) s_sprintCancelledAim = true;
@@ -1628,7 +1646,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * and snap straight back to Aim.  Without this, Harry plays
                      * the full lower-weapon then raise-weapon sequence (~30 frames)
                      * before attacks are allowed again. */
-                    else if (s_sprintCancelledAim && !g_Player_IsRunning &&
+                    else if (g_DebugThirdPersonCam && s_sprintCancelledAim && !g_Player_IsRunning &&
                              (g_Controller0->heldBtnFlags & aimBtn) && hasWeapon)
                     {
                         s_sprintCancelledAim = false;
@@ -1710,7 +1728,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
 
-                    if (g_Player_IsAiming && hasWeapon) {
+                    if (g_DebugThirdPersonCam && g_Player_IsAiming && hasWeapon) {
                         if (g_Player_IsRunning)
                             D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
@@ -1723,7 +1741,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * aimHeld=false, which reset IsHoldAttack to 0 mid-hold and
                      * made swipe impossible; and it prevented attacks from working
                      * during the sprint-return frame before aimHeld recovered. */
-                    if (s_prevAimHeld && !aimHeld) {
+                    if (g_DebugThirdPersonCam && s_prevAimHeld && !aimHeld) {
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
                     }
