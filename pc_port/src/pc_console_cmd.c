@@ -351,6 +351,7 @@ static const char* const HELP_LINES[] = {
     " invscale <pct> inventory item vertical scale (def 125)",
     " vfov <pct>     3D world vertical scale, lower=taller/narrower (def 90)",
     " hfov <pct>     3D world width, higher=wider models/chest (def 97)",
+    " fogstr <pct>   world fog density, higher=more oppressive (def 100)",
     " invcary <n>    carousel item Y offset (+down)",
     " inveqy <n>     equipped item Y offset (+down)",
     " invdim <pct>   off-center carousel dim strength",
@@ -608,6 +609,15 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 50 && v <= 150) g_PsxWorldHScale = (float)v / 100.0f;
         cprintf("world horizontal scale (hfov): %d%% (%.3f)", (int)(g_PsxWorldHScale * 100.0f + 0.5f), g_PsxWorldHScale);
+    } else if (strcmp(cmd, "FOGSTR") == 0) {
+        /* World fog density multiplier (g_PsyX_FogStrength), percent. The PSX
+         * layered a 2nd semi-transparent fog poly the PC port drops, so the
+         * single-pass shader fog is thinner ("filter" look); >100 deepens it
+         * toward the oppressive PSX wall. Live-tune vs DuckStation, then bake. */
+        extern float g_PsyX_FogStrength;
+        int v = atoi(arg);
+        if (v >= 50 && v <= 500) g_PsyX_FogStrength = (float)v / 100.0f;
+        cprintf("world fog strength (fogstr): %d%% (%.3f)", (int)(g_PsyX_FogStrength * 100.0f + 0.5f), g_PsyX_FogStrength);
     } else if (strcmp(cmd, "INVCARY") == 0) {
         /* the console minus key types '_', so accept a leading '_' as '-'. */
         extern int g_PcInvCarouselYOff;
