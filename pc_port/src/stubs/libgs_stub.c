@@ -355,6 +355,14 @@ static inline unsigned char clamp8(int v) { return (unsigned char)(v < 0 ? 0 : (
  * scale. 256 default = no-op for every other GsSortObject4J caller. */
 int g_PcItemDimNum = 256;
 #define ITEMDIM(c) clamp8(((int)(c) * g_PcItemDimNum) >> 8)
+
+/* Precise (float, sub-pixel) backface test — replaces the integer NormalClip cull
+ * below so rotating items don't shed near-edge-on faces (see-through). PGXP-
+ * independent: it re-projects through the live GTE matrix. Implemented in
+ * PsyCross PsyX_GTE.cpp. */
+extern int PsyX_TriBackfaceF(const short* v0, const short* v1, const short* v2, int intNcl);
+#define GS_BACKFACE_CULL(prim) \
+    PsyX_TriBackfaceF((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], (const short*)&vtx[(prim)->v2], nclip)
  
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
@@ -374,7 +382,7 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
         otz = p >> shift;
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
 
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
@@ -408,7 +416,7 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
@@ -447,7 +455,7 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
@@ -484,7 +492,7 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
@@ -525,7 +533,7 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         /* Textured prims have no base color; use neutral 0x80 (half-bright
          * so NormalColorCol output stays in-range after lighting). */
@@ -565,7 +573,7 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
@@ -608,7 +616,7 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
 
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
@@ -649,7 +657,7 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
@@ -691,7 +699,7 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         otz = p >> shift;
         if (otz <= 0) continue;
@@ -721,7 +729,7 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         otz = p >> shift;
         if (otz <= 0) continue;
@@ -754,7 +762,7 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         otz = p >> shift;
         if (otz <= 0) continue;
@@ -786,7 +794,7 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         RotTransPers(&vtx[prim->v3], (int*)&sxy3, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        if (nclip <= 0) continue;
+        if (GS_BACKFACE_CULL(prim)) continue;
  
         otz = p >> shift;
         if (otz <= 0) continue;
@@ -823,7 +831,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         /* FCE (flag bit 1): double-sided — skip back-face cull */
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (nclip <= 0) continue;
+            if (GS_BACKFACE_CULL(prim)) continue;
         }
 
         otz = p >> shift;
@@ -910,7 +918,7 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         if (!(prim->flag & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (nclip <= 0) continue;
+            if (GS_BACKFACE_CULL(prim)) continue;
         }
 
         otz = p >> shift;
@@ -949,7 +957,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (nclip <= 0) continue;
+            if (GS_BACKFACE_CULL(prim)) continue;
         }
 
         otz = p >> shift;
@@ -986,7 +994,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                       &sxy0, &sxy1, &sxy2, &sxy3, &p, &flg);
         if (!(prim->dummy & 2)) {
             nclip = NormalClip(sxy0, sxy1, sxy2);
-            if (nclip <= 0) continue;
+            if (GS_BACKFACE_CULL(prim)) continue;
         }
 
         otz = p >> shift;
