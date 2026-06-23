@@ -112,6 +112,7 @@ public class ControlsForm : Form
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
+    private ToolTip  tips;
 
     // The click that focuses a bind box must NOT be captured as a Mouse1 binding.
     private bool ignoreNextMouseBind;
@@ -148,6 +149,8 @@ public class ControlsForm : Form
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
         ClientSize = new Size(760, 610);
+
+        tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
         const int colKbX = 20;
         const int colPadX = 420;
@@ -231,10 +234,10 @@ public class ControlsForm : Form
         };
         chkTpsAimZoom = new CheckBox
         {
-            Text = "TPS/OTS Zoom",
+            Text = "TPS/OTS Aim Zoom",
             Left = colPadX,
             Top = styleY + 82,
-            Width = 180,
+            Width = 200,
             ForeColor = TextColor,
         };
         chkCrosshair = new CheckBox
@@ -249,6 +252,15 @@ public class ControlsForm : Form
         Controls.Add(chkInvertControllerY);
         Controls.Add(chkTpsAimZoom);
         Controls.Add(chkCrosshair);
+
+        tips.SetToolTip(cmbControlStyle,
+            "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
+            "Over the Shoulder = the same, offset to one side (middle mouse swaps sides).");
+        tips.SetToolTip(chkTpsAimZoom,
+            "When you aim a gun or attack in Thirdperson / Over-the-Shoulder mode, the camera eases in closer behind " +
+            "Harry so your shot lines up better. Off = the camera keeps its normal distance while aiming.");
+        tips.SetToolTip(chkCrosshair,
+            "Draws a small crosshair at the center of the screen while you're aiming in Thirdperson / Over-the-Shoulder mode.");
 
         // Allow debug controls — below the (taller) keyboard column.
         int debugY = swapShoulderY + rowH + 14;
