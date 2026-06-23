@@ -633,6 +633,14 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PsxBarOuter, g_PsxBarInner;
         if (arg[0]) { g_PsxBarOuter = atoi(arg); g_PsxBarInner = g_PsxBarOuter - 16; }
         cprintf("letterbox bar Y: outer=%d inner=%d (raise until bars hit the screen edges)", g_PsxBarOuter, g_PsxBarInner);
+    } else if (strcmp(cmd, "FOGSTR") == 0) {
+        /* World fog density multiplier. The PSX layered a 2nd semi-transparent fog
+         * poly the PC port drops, so the single-pass shader fog reads thinner ("filter"
+         * look); >1.0 deepens it toward the oppressive PSX wall. 1.0 = native (default).
+         * Live-tune vs DuckStation, then we can bake a value as the default. */
+        extern float g_PsyX_FogStrength;
+        if (arg[0]) g_PsyX_FogStrength = (float)atof(arg);
+        cprintf("world fog strength: %.2f (1.0=native PC fog; >1 deepens toward PSX)", g_PsyX_FogStrength);
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);
