@@ -33,6 +33,11 @@ namespace SilentHillPC_Launcher
     {
         public const string LauncherFileName = "SilentHillPC_Launcher.exe";
 
+        // The beta stream lives on this branch in the official repo. alpha+latest
+        // users are auto-migrated to it once a newer beta release appears, so the
+        // move to beta zip builds needs no manual Build Settings change.
+        public const string BetaBranch = "beta";
+
         // -- DTOs (manifest) --------------------------------------------------
 
         [DataContract]
@@ -67,6 +72,7 @@ namespace SilentHillPC_Launcher
             public string ChangelogUrl;     // CHANGELOG.md asset for this build (preview before installing)
             public string LauncherVersion;  // incoming launcher version (if any)
             public bool   LauncherIsNewer;  // incoming launcher strictly newer than ours
+            public string MigrateToBranch;  // non-null => switch the user's branch to this on apply (alpha->beta)
             public List<FileEntry> Changed = new List<FileEntry>();
             public bool HasUpdate => Changed.Count > 0;
 
@@ -145,6 +151,7 @@ namespace SilentHillPC_Launcher
                 RepoLabel       = src.Label,
                 ChangelogUrl    = DeriveChangelogUrl(src.Url),
                 LauncherVersion = manifest.LauncherVersion,
+                MigrateToBranch = src.MigrateBranch,
             };
 
             if (manifest.Files != null)
@@ -251,20 +258,35 @@ namespace SilentHillPC_Launcher
 
         // -- Internals: manifest resolution -----------------------------------
 
-        private class ManifestSource { public string Url; public string Label; public string Tag; }
+        private class ManifestSource { public string Url; public string Label; public string Tag; public string MigrateBranch; }
 
         private static async Task<ManifestSource> ResolveManifestSourceAsync(
             string owner, string repo, LauncherSettings s, CancellationToken ct)
         {
             // Common path: alpha (default branch) + latest -> GitHub's
-            // "releases/latest" redirect. It excludes prereleases, so beta zip
-            // releases (published as prereleases on the beta branch) never leak
-            // into the alpha stream or onto launchers that track alpha.
+            // "releases/latest" redirect. It excludes prereleases, so it always
+            // yields the clean latest alpha (the migration base + fallback);
+            // old launchers that track alpha never accidentally grab a beta. New
+            // launchers then explicitly check the beta branch below to migrate.
             if (s.IsDefaultBranch && s.IsLatestBuild)
             {
+                string alphaUrl = $"https://github.com/{owner}/{repo}/releases/latest/download/version.json";
+
+                // Auto-migrate alpha -> beta: once the project moves to the beta
+                // stream, an alpha+latest user on the official repo should follow
+                // the newest beta release without changing Build Settings by hand.
+                // Betas are prereleases (kept out of releases/latest), so query the
+                // beta branch explicitly and prefer it when it's newer than alpha.
+                if (s.IsDefaultRepo)
+                {
+                    var betaSrc = await TryResolveBetaMigrationAsync(owner, repo, alphaUrl, ct).ConfigureAwait(false);
+                    if (betaSrc != null)
+                        return betaSrc;
+                }
+
                 return new ManifestSource
                 {
-                    Url   = $"https://github.com/{owner}/{repo}/releases/latest/download/version.json",
+                    Url   = alphaUrl,
                     Label = $"{owner}/{repo} (alpha, latest)",
                     Tag   = null
                 };
@@ -294,6 +316,55 @@ namespace SilentHillPC_Launcher
                          ?? $"https://github.com/{owner}/{repo}/releases/download/{target.TagName}/version.json";
             string label = $"{owner}/{repo} @ {(branch ?? "alpha")} ({target.TagName})";
             return new ManifestSource { Url = url, Label = label, Tag = target.TagName };
+        }
+
+        // If the beta branch has a release newer than the alpha-latest manifest at
+        // alphaUrl, return a source pointing at that beta release, flagged to switch
+        // the user's branch to beta on apply. Best-effort: returns null (stay on
+        // alpha) on any error or when there's no newer beta.
+        private static async Task<ManifestSource> TryResolveBetaMigrationAsync(
+            string owner, string repo, string alphaUrl, CancellationToken ct)
+        {
+            try
+            {
+                // First page is newest-first; the latest beta is the newest beta here.
+                var url  = $"https://api.github.com/repos/{owner}/{repo}/releases?per_page=100";
+                var rels = await GetApiJsonAsync<List<GhRelease>>(url, ct).ConfigureAwait(false);
+                if (rels == null) return null;
+
+                GhRelease beta = rels.FirstOrDefault(r => r != null && !r.Draft && IsBetaRelease(r));
+                if (beta == null) return null;
+
+                string betaUrl = AssetUrl(beta, "version.json")
+                                 ?? $"https://github.com/{owner}/{repo}/releases/download/{beta.TagName}/version.json";
+
+                string betaVer = (await FetchManifestAsync(betaUrl, ct).ConfigureAwait(false))?.Version;
+                if (string.IsNullOrWhiteSpace(betaVer)) return null;
+
+                string alphaVer = null;
+                try { alphaVer = (await FetchManifestAsync(alphaUrl, ct).ConfigureAwait(false))?.Version; }
+                catch { /* no alpha-latest published -> beta wins */ }
+
+                if (string.IsNullOrWhiteSpace(alphaVer) ||
+                    LauncherSettings.CompareVersions(betaVer, alphaVer) > 0)
+                {
+                    return new ManifestSource
+                    {
+                        Url           = betaUrl,
+                        Label         = $"{owner}/{repo} @ beta ({beta.TagName})",
+                        Tag           = beta.TagName,
+                        MigrateBranch = BetaBranch,
+                    };
+                }
+            }
+            catch { /* migration is best-effort; fall back to alpha */ }
+            return null;
+        }
+
+        private static bool IsBetaRelease(GhRelease r)
+        {
+            return string.Equals(r.TargetCommitish, BetaBranch, StringComparison.OrdinalIgnoreCase) ||
+                   (r.TagName != null && r.TagName.StartsWith("beta-", StringComparison.OrdinalIgnoreCase));
         }
 
         private static async Task<List<GhRelease>> ListReleasesAsync(string owner, string repo, CancellationToken ct)
