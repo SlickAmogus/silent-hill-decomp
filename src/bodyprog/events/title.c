@@ -59,17 +59,6 @@ s8* D_800BCDE0;
 void GameState_MainMenu_Update(void) // 0x8003AB28
 {
 #ifdef SH_PC_PORT
-    {
-        static s32 prevStep = -1, prevMenuState = -1;
-        if (g_GameWork.gameStateSteps[0] != prevStep || g_MainMenuState != prevMenuState) {
-            printf("[SH] MainMenu: step=%d mainMenuState=%d\n",
-                g_GameWork.gameStateSteps[0], g_MainMenuState);
-            fflush(stdout);
-            prevStep = g_GameWork.gameStateSteps[0];
-            prevMenuState = g_MainMenuState;
-        }
-    }
-
     /* The old "auto-start" block that lived here ran the entire boot pipeline
      * (savegame init, map DLL load, STREAM.BIN load, FS wait, memcard disable)
      * on the first menu frame for any non-map0_s00 config — but never switched
@@ -137,15 +126,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenuState++;
 
         case MenuState_Main:
-#ifdef SH_PC_PORT
-            {
-                static int mainOnce = 0;
-                if (!mainOnce) {
-                    printf("[SH] MainMenu: MenuState_Main (first entry)\n"); fflush(stdout);
-                    mainOnce = 1;
-                }
-            }
-#endif
             if (playInGameDemo)
             {
                 GameBoot_GameStartup();
@@ -378,13 +358,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         case MenuState_LoadGame:
         case MenuState_NewGameStart:
-#ifdef SH_PC_PORT
-            {
-                static int fadeWaitCount = 0;
-                if (fadeWaitCount++ % 60 == 0)
-                    ;
-            }
-#endif
             if (ScreenFade_IsFinished())
             {
                 Screen_Refresh(SCREEN_WIDTH, 0);
