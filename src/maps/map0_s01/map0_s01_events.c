@@ -1102,8 +1102,9 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
         {
 #ifdef SH_PC_PORT
             /* Flyby is DMS-driven (position/rotation come from Dms_CharacterTransformGet),
-             * so the AI state machine isn't running and wings never animate. Force
-             * FlyIdle playback once so wings flap during the flyby pass. */
+             * so the AI state machine isn't running — nothing forces a wing-flap anim OR
+             * advances the skeleton, so the wings sat frozen. Force the HoverVariable
+             * (wing-flap) status AND drive the bird's normal animate+pose each frame. */
             {
                 s_SubCharacter* _bird = &airScreamerChara;
                 u8 _wantStatus = ANIM_STATUS(AirScreamerAnim_HoverVariable, true);
@@ -1113,6 +1114,13 @@ void Map_WorldObjectsUpdate(void) // 0x800DCCF4
                     _bird->model.anim.time = 0;
                     _bird->model.stateStep = 0;
                 }
+                /* Setting the status alone left anim.time frozen at 0 (the AI, which
+                 * normally ticks the animate, isn't running). Drive the bird's own
+                 * animate+pose — what Ai_AirScreamer_Control calls each tick — so the
+                 * wings actually flap. It only poses the skeleton; the position is set
+                 * by the DMS call below. The status re-force above re-arms HoverVariable
+                 * when the clip ends, so the flap loops through the whole pass. */
+                sharedFunc_800D7AB0_0_s01(_bird);
             }
 #endif
             temp_a1 = g_Cutscene_Timer + Q12_MULT_PRECISE(g_DeltaTime, Model_AnimDurationGet(&airScreamerChara.model));
