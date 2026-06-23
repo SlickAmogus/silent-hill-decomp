@@ -1779,16 +1779,25 @@ void MainLoop(void) // 0x80032EE0
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState == 11 &&
-            ((g_SysWork.sysFlags & SysFlag_MenuActive) || g_SysWork.sysState == SysState_GameOver)) {
-            /* A 2D menu (inventory/status/options/paper map) is open or opening
-             * within InGame. These transition through gameState==InGame for a
-             * few frames before the menu draws, so the fog-color background
-             * clear below would flash gray (the void fog color) on open. Force
-             * black for the 2D background instead; fog params are left untouched
-             * so 3D gameplay fog is unaffected once the menu closes.
-             * Same for the GAME OVER screen: it's a SysState within InGame that
-             * draws text/tips over what must be the game's own black clear. */
+        if (g_PcMapScreenActive) {
+            /* Paper-map / map-pickup screens (Screen_BackgroundImgDraw) run under
+             * GameState_MapEvent (12) for the pickup, so the gameState==11 forcing below
+             * is skipped and the pillarbox bars kept the stale gameplay fog color (read
+             * as garbage/old scenery). Force black so the map sits on black bars like the
+             * inventory does. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+        }
+        else if (g_GameWork.gameState == 11 &&
+            (g_SysWork.sysFlags & SysFlag_MenuActive)) {
+            /* A 2D menu (inventory/status/options) is open or opening within InGame.
+             * These transition through gameState==InGame for a few frames before the
+             * menu draws, so the fog-color background clear below would flash gray (the
+             * void fog color) on open. Force black for the 2D background instead; fog
+             * params are left untouched so 3D gameplay fog is unaffected once the menu
+             * closes. (GAME OVER is intentionally NOT forced black here — it falls through
+             * to the fog clear below so the death scene keeps the foggy sky, not black.) */
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
