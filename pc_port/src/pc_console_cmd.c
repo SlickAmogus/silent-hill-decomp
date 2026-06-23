@@ -366,9 +366,11 @@ static const char* const HELP_GIVE_PAGE2[] = {
     " camera chemical bloodpack",
 };
 
-/* Up-shift (psx-units) for bottom-anchored message boxes, to lift them out of the
- * 3D-world vertical-FOV bottom crop. Console MSGSHIFT; read by text_draw.c. */
-int g_PsxMsgVShift = 35;
+/* Up-shift (psx-units) for bottom-anchored message boxes. Was 35 to lift subtitles
+ * out of the 3D-world vertical-FOV bottom crop, but the UI now draws at full vertical
+ * ortho (g_PsxUIOrthoPass) so no compensation is needed — default 0. Console MSGSHIFT
+ * (read by text_draw.c) stays for fine-tuning. */
+int g_PsxMsgVShift = 0;
 
 /* Cutscene letterbox bar Y (centered coords): bars span +/-Outer (screen edge) to
  * +/-Inner. Tunable via console BARY while the interlaced-buffer mapping is dialed in.
