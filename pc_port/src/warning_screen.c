@@ -298,5 +298,18 @@ void Pc_PlayWarningScreen(void)
             Warn_DrawImage();
             Warn_SwapAndDraw();
         }
+        /* Warn_SwapAndDraw swaps the display BEFORE drawing this frame's OT, so the
+         * last black OT built in the loop above isn't actually presented before we
+         * return. The next screen (Konami) then runs Screen_Init, which double-swaps
+         * with no draw — exposing the stale, partially-faded warning still in the GL
+         * window ("the warning fades back in then out"). Build one more solid-black
+         * frame and present it explicitly so a genuinely black frame reaches the
+         * displayed buffer + GL window before Screen_Init runs. */
+        Warn_DrawFadeTile(255);
+        Warn_DrawImage();
+        VSync(SyncMode_Wait);
+        GsSwapDispBuff();
+        GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+        PsyX_EndScene();
     }
 }
