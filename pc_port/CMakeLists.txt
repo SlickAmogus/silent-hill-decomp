@@ -155,6 +155,12 @@ list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
 # (src/bodyprog/bodyprog_combat_8005BF38.c) now provides target selection.
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
 
+# pc_crash.c is Windows-only (SEH crash telemetry); exclude on non-Windows platforms.
+# dll_loader.c and fmv_player.cpp both have #ifdef _WIN32 guards and work on POSIX.
+if(NOT WIN32)
+    list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "pc_crash\\.c$")
+endif()
+
 # Windows: compile the .rc so the exe carries an application icon (Explorer,
 # taskbar, title bar). windres resolves the ICON path relative to the .rc dir.
 if(WIN32)
@@ -250,6 +256,10 @@ target_include_directories(SilentHillPC PRIVATE
     "${PSYCROSS_DIR}/include/psx"
     "${PSYCROSS_DIR}/include"
 )
+# OpenAL headers for xa_player.c and any other game code using AL directly
+if(OPENAL_INCLUDE_DIR)
+    target_include_directories(SilentHillPC PRIVATE "${OPENAL_INCLUDE_DIR}")
+endif()
 
 # =============================================================================
 # libjpeg (for FMV playback - MJPG decoding)
@@ -311,6 +321,14 @@ else()
         -Wno-discarded-qualifiers
         -Wno-builtin-declaration-mismatch
     )
+    if(APPLE)
+        target_compile_options(SilentHillPC PRIVATE
+            -Wno-implicit-function-declaration
+            -Wno-ignored-qualifiers
+            -Wno-int-conversion
+            -Wno-return-mismatch
+        )
+    endif()
 endif()
 
 # =============================================================================
