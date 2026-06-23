@@ -78,8 +78,8 @@ void Dahlia_MovementUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* boneCoords)
     scaleReduceShift  = scaleRestoreShift >> 1;
 
     // Compute movement offset.
-    offset.vx = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Sin(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
-    offset.vz = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Cos(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
+    offset.vx = (s32)((u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Sin(headingAngle) >> scaleReduceShift) << scaleRestoreShift);
+    offset.vz = (s32)((u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Cos(headingAngle) >> scaleReduceShift) << scaleRestoreShift);
     offset.vy = Q12_MULT_PRECISE(dahlia->fallSpeed, g_DeltaTime);
 
     Collision_WallDetect(&sharedData_800E39BC_0_s00, &offset, dahlia);

@@ -61,8 +61,22 @@ static void ParseIpdModelBufferC(s_IpdModelInstance* dst, const u8* src)
     u32 modelIdx = rd32(&src[0]);
     dst->modelHdr = (s_ModelHeader*)(uintptr_t)modelIdx;
 
-    /* MATRIX at offset 4 (32 bytes): short m[3][3], short pad, long t[3] */
-    memcpy(&dst->mat, &src[4], sizeof(MATRIX));
+    /* PSX MATRIX is 32 bytes: short m[3][3] (18 bytes) + 2-byte pad + s32 t[3] (12 bytes).
+     * On macOS LP64, sizeof(MATRIX) = 48 (long t[] widens to 8 bytes each, 6-byte pad),
+     * so memcpy(sizeof(MATRIX)) would read 16 bytes past the binary data — parse
+     * field-by-field instead. PSX offsets from src[4]:
+     *   m[r][c] at (r*3+c)*2  (0..16)
+     *   t[0] at 20, t[1] at 24, t[2] at 28 */
+    {
+        int r, c;
+        const u8* msrc = &src[4];
+        for (r = 0; r < 3; r++)
+            for (c = 0; c < 3; c++)
+                dst->mat.m[r][c] = rds16(&msrc[(r * 3 + c) * 2]);
+        dst->mat.t[0] = rds32(&msrc[20]);
+        dst->mat.t[1] = rds32(&msrc[24]);
+        dst->mat.t[2] = rds32(&msrc[28]);
+    }
 }
 
 static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)

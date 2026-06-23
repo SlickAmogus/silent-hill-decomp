@@ -3,6 +3,9 @@
 #include "bodyprog/player.h"
 #include "maps/shared.h"
 #include "maps/characters/cheryl.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 /** AI code for `Chara_Cheryl`
  *
@@ -88,8 +91,8 @@ void Cheryl_MovementUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x8
     scaleRestoreShift = OVERFLOW_GUARD(moveDist);
     scaleReduceShift  = scaleRestoreShift >> 1;
 
-    offset.vx = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Sin(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
-    offset.vz = (u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Cos(headingAngle) >> scaleReduceShift) << scaleRestoreShift;
+    offset.vx = (s32)((u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Sin(headingAngle) >> scaleReduceShift) << scaleRestoreShift);
+    offset.vz = (s32)((u32)Q12_MULT_PRECISE(moveDist >> scaleReduceShift, Math_Cos(headingAngle) >> scaleReduceShift) << scaleRestoreShift);
     offset.vy = Q12_MULT_PRECISE(cheryl->fallSpeed, g_DeltaTime);
 
     Collision_WallDetect(&sharedData_800E39BC_0_s00, &offset, cheryl);

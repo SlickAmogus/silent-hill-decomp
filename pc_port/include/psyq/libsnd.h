@@ -59,11 +59,14 @@
 #endif
 
 /* VAB structures */
+/* long is 8 bytes on LP64 (macOS/Linux) but 4 bytes on PSX and Windows LLP64.
+ * These structs map directly to binary disc data (PSX 4-byte fields), so use
+ * fixed-width types to match the on-disc layout on all platforms. */
 typedef struct VabHdr {
-    long           form;
-    long           ver;
-    long           id;
-    unsigned long  fsize;
+    s32            form;
+    s32            ver;
+    s32            id;
+    u32            fsize;
     unsigned short reserved0;
     unsigned short ps;
     unsigned short ts;
@@ -72,7 +75,7 @@ typedef struct VabHdr {
     unsigned char  pan;
     unsigned char  attr1;
     unsigned char  attr2;
-    unsigned long  reserved1;
+    u32            reserved1;
 } VabHdr;
 
 typedef struct ProgAtr {
@@ -83,8 +86,8 @@ typedef struct ProgAtr {
     unsigned char mpan;
     char          reserved0;
     short         attr;
-    unsigned long reserved1;
-    unsigned long reserved2;
+    u32           reserved1;
+    u32           reserved2;
 } ProgAtr;
 
 typedef struct VagAtr {
