@@ -15,6 +15,7 @@
 #include "game.h"
 #include <psyq/libetc.h>
 #include <psyq/libapi.h>
+#include <SDL_scancode.h>
 #include "main/fsqueue.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -23,6 +24,28 @@
 #include "pc_config.h"
 
 extern void PsyX_EndScene(void); /* forward decl — defined in PsyX_main.cpp */
+extern const unsigned char* g_sdlKeyboardState;
+extern int PsyX_AnyControllerButtonPressed(void);
+
+/* QOL: any confirm/start key or gamepad button skips the warning. Read raw SDL
+ * directly — the controller mapping is not wired up this early in boot, so the
+ * game's button flags are all 0 here. Warn_SwapAndDraw pumps SDL events via
+ * VSync/PsyX_EndScene, so this state is refreshed every frame. */
+static int Warn_SkipPressed(void)
+{
+    if (g_sdlKeyboardState != NULL &&
+        (g_sdlKeyboardState[SDL_SCANCODE_RETURN]   ||
+         g_sdlKeyboardState[SDL_SCANCODE_KP_ENTER] ||
+         g_sdlKeyboardState[SDL_SCANCODE_RETURN2]  ||
+         g_sdlKeyboardState[SDL_SCANCODE_SPACE]    ||
+         g_sdlKeyboardState[SDL_SCANCODE_C]        ||
+         g_sdlKeyboardState[SDL_SCANCODE_V]))
+    {
+        return 1;
+    }
+
+    return PsyX_AnyControllerButtonPressed();
+}
 
 /* TIM lives at VRAM tpage row 0 columns 13/14/15, CLUT at (768, 480). */
 static s_FsImageDesc s_WarnImg = {
@@ -218,6 +241,10 @@ void Pc_PlayWarningScreen(void)
         Warn_DrawImage();
         Warn_SwapAndDraw();
         fade -= 8;
+        if (Warn_SkipPressed())
+        {
+            break;
+        }
     }
 
 
@@ -226,6 +253,10 @@ void Pc_PlayWarningScreen(void)
     {
         Warn_DrawImage();
         Warn_SwapAndDraw();
+        if (Warn_SkipPressed())
+        {
+            break;
+        }
     }
 
 
