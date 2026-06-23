@@ -214,6 +214,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
 
     Screen_CutsceneCameraStateUpdate();
+#ifdef SH_PC_PORT
+    { extern void Pc_CrosshairDraw(void); Pc_CrosshairDraw(); }
+#endif
     Bgm_TrackUpdate(false);
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();

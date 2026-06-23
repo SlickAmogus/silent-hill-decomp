@@ -2653,6 +2653,16 @@ s_IpdCollisionData* Ipd_CollisionDataGet(q19_12 posX, q19_12 posZ) // 0x800426E4
     }
 }
 
+#ifdef SH_PC_PORT
+/* Preload sets activeChunkCount to the WHOLE map (for rendering). Collision must
+ * stay scoped to the player's local cell window (±1 — the exterior window the
+ * chunk-select / Lm_ModelFind use, see ~L1107) like vanilla, which never had far
+ * chunks active. Iterating far preloaded chunks lets their subcells fire phantom
+ * wall-edges at the player = the preload-only invisible walls (#42). Console
+ * `COLLSCOPE 0/1` (default 1 = scoped) for live A/B against a stuck spot. */
+int g_PcChunkCollisionLocalScope = 1;
+#endif
+
 s_IpdCollisionData** Ipd_ActiveChunksCollisionDataGet(s32* collDataIdx) // 0x800425D8
 {
     s_Chunk*            curChunk;
@@ -2665,6 +2675,15 @@ s_IpdCollisionData** Ipd_ActiveChunksCollisionDataGet(s32* collDataIdx) // 0x800
     // Run through active chunks.
     while (curChunk < &g_Map.activeChunks[g_Map.activeChunkCount])
     {
+#ifdef SH_PC_PORT
+        if (g_PcChunkCollisionLocalScope && g_PcConfig.preloadChunks && g_Map.isExterior &&
+            !(curChunk->cellX >= (g_Map.cellX - 1) && (g_Map.cellX + 1) >= curChunk->cellX &&
+              curChunk->cellZ >= (g_Map.cellZ - 1) && (g_Map.cellZ + 1) >= curChunk->cellZ))
+        {
+            curChunk++;
+            continue;
+        }
+#endif
         if (Map_ChunkLoadStateGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
         {
             ipdHdr = curChunk->ipdHdr;

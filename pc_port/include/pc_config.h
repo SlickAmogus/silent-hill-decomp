@@ -13,7 +13,6 @@ typedef struct {
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
     int showConsole;     /* 0=off, 1=external window, 2=ingame overlay, 3=ingame+external */
     int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
-    int pixelAspectMode; /* 1 = CRT NTSC (1.09375), 2 = square (1.0), 3 = 8:7 (1.143) */
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
@@ -25,6 +24,13 @@ typedef struct {
                              * machine (accel/decel, wall smack, authored sidesteps)
                              * (default). 0 = legacy PC movement shim (TPS debug cam + fallback). */
 
+    int controlStyle;       /* active camera/control style: 0 = Classic, 1 = TPS (config key: control_style) */
+    int allowMouseSecondary;/* deprecated: mouse + alternate (*_2) binds are always active now */
+    int invertMouseY;       /* 1 = invert mouse Y for TPS look (config key: invert_mouse_y) */
+    int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
+    int tpsAimZoom;         /* 1 = zoom the TPS/OTS camera in while aiming/attacking (config key: tps_aim_zoom) */
+    int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
+
     /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
      * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
      * names ("a","b","x","y","leftshoulder","righttrigger","leftstick",
@@ -35,6 +41,14 @@ typedef struct {
     char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
     char keyStart[24], keySelect[24];
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
+    char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (toggle control style) */
+    char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
+    /* Secondary bind per PSX action; active when allow_mouse_secondary (or TPS).
+     * Value is "MouseN" (N=1..5), an SDL key name, or "NONE". */
+    char keyUp2[24], keyDown2[24], keyLeft2[24], keyRight2[24];
+    char keyCross2[24], keyCircle2[24], keyTriangle2[24], keySquare2[24];
+    char keyL12[24], keyR12[24], keyL22[24], keyR22[24], keyL32[24], keyR32[24];
+    char keyStart2[24], keySelect2[24];
     char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
     char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
     char padStart[24], padSelect[24];
@@ -50,6 +64,12 @@ void PcConfig_Load(const char* path);
 /* Rewrite only the `map = ...` line in the loaded config file (preserves the
  * rest). Persists a runtime map change so the next New Game loads it. */
 void PcConfig_SaveMapName(const char* mapName);
+
+/* Rewrite (or append) a single `key = value` line in the loaded config file,
+ * preserving every other line + comment. Used to persist runtime changes
+ * (control_style) and to publish game-owned lists (control_styles) so the
+ * launcher reflects whatever the installed build supports. */
+void PcConfig_SaveKeyValue(const char* key, const char* value);
 
 #endif /* PC_CONFIG_H */
 

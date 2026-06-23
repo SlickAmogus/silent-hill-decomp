@@ -90,6 +90,21 @@ q19_12     g_Player_HeadingAngle;
 s32        __pad_bss_800C460C;
 VECTOR3    D_800C4610;
 
+#ifdef SH_PC_PORT
+/* Invisible-wall gate (#42): intended horizontal step magnitude of the LAST
+ * func_8007C0D8 integration (Q12). travelDistStep measures the ACTUAL displacement
+ * of that SAME integration, so `actual < intended/2` is a dt/speed/tilt-consistent
+ * "was I really blocked this frame" test. The previous gate recomputed the threshold
+ * from playerProps.moveSpeed (properties.player) * g_DeltaTime, but Harry is actually
+ * moved by player->moveSpeed (a different field, tilt-adjusted in func_8007C0D8); when
+ * the intended field exceeds the one that moved him the threshold inflates and the
+ * smack fires on open ground. */
+s32 g_Player_LastMoveStep;
+/* func_8007D6F0 forward-anticipation raycast result, stashed for the [WALLANIM]
+ * trigger log so a user capture shows what the ray hit when the smack fired. */
+s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundHeight;
+#endif
+
 #define playerProps g_SysWork.playerWork.player.properties.player
 
 q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
@@ -1265,24 +1280,71 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * the body lags slightly.) */
                     player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
 
-                    g_Player_IsMovingForward     = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
-                    g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
-                    g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
-                    g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
-                    g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
-                    g_Player_IsTurningLeft       = 0;
-                    g_Player_IsTurningRight      = 0;
-                    g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
-                                                   g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
-                    g_Player_HeadingAngle        = Q12_ANGLE(0.0f);
-                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                    /* Invisible-wall ROOT FIX (#42): preserve the aged bit1 of the forward
+                     * shift register instead of clobbering it. A bare `= input` here wipes
+                     * the 30 Hz-aged history that Player_Controller maintains, so a single
+                     * dropped-input frame (a preload frame hitch) reads as "released" and
+                     * fires the skid-stop "ran into a wall" smack while forward is still held.
+                     * Keep bit1, OR the current input into bit0 — matches the |= at ~9941. */
+                    /* Camera-relative movement from the global input system:
+                     * legacy WASD + bound d-pad keys (arrows) + controller left
+                     * stick all drive forward/back/strafe in Harry's (== camera)
+                     * frame. Right stick / mouse own the look (handled in the
+                     * camera). */
+                    {
+                        s32  held  = g_Controller0->heldBtnFlags;
+                        int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
+                        int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
+                        int  left  = (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) || (held & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft));
+                        int  right = (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) || (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight));
+
+                        g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (fwd ? 1 : 0);
+                        g_Player_IsMovingBackward    = back  ? 1 : 0;
+                        g_Player_IsSteppingLeftHold  = left  ? 1 : 0;
+                        g_Player_IsSteppingRightHold = right ? 1 : 0;
+                        /* Run from the BOUND sprint control (mirrors classic at
+                         * ~10009, incl. the extraWalkRunCtrl inversion) plus the
+                         * controller left stick sprints. No hardcoded keys — the
+                         * keyboard sprint key reaches this through its config ->
+                         * heldBtnFlags mapping, same as every other action. */
+                        {
+                            u16 runBtn   = g_GameWorkPtr->config.controllerConfig.run;
+                            int cfgRun   = g_GameWork.config.extraWalkRunCtrl
+                                             ? !(held & runBtn) : (held & runBtn) != 0;
+                            int stickRun = (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown |
+                                                    ControllerFlag_LStickLeft | ControllerFlag_LStickRight)) != 0;
+                            g_Player_IsRunning = cfgRun || stickRun;
+                        }
+                        g_Player_IsTurningLeft       = 0;
+                        g_Player_IsTurningRight      = 0;
+                        g_Player_HasMoveInput        = fwd || back || left || right;
+                    }
+                    /* Diagonal strafe: when moving forward/back AND sidestepping,
+                     * angle the movement 45° toward the strafe side via the normal
+                     * (collision-checked) heading mechanism, so Harry strafes while
+                     * advancing and keeps the walk-forward/backward animation. Pure
+                     * sidestep (no fwd/back) still plays the sidestep anim below. */
+                    {
+                        int   mZ = (g_Player_IsMovingForward    ? 1 : 0) - (g_Player_IsMovingBackward    ? 1 : 0);
+                        int   mX = (g_Player_IsSteppingRightHold ? 1 : 0) - (g_Player_IsSteppingLeftHold ? 1 : 0);
+                        q3_12 heading = Q12_ANGLE(0.0f);
+                        if (mZ != 0 && mX != 0) {
+                            heading = (mX > 0) ? Q12_ANGLE(45.0f) : -Q12_ANGLE(45.0f);
+                            if (mZ < 0) heading = -heading;   /* backward flips the strafe side (D is negative) */
+                        }
+                        g_Player_HeadingAngle = heading;
+                        g_SysWork.playerWork.player.properties.player.headingAngle = heading;
+                    }
                 } else {
                     /* Non-TPS: after cutscenes, Player_Controller's `*2 & 0x3` shift
                      * register can leave stale bits in g_Player_IsMovingForward that
                      * appear swapped with backward. Force a clean snapshot from the
                      * PSX pad buttons (which the PC joy bridge maps from arrow keys/
                      * D-pad) so forward/back are deterministic every frame. */
-                    g_Player_IsMovingForward  = (g_Controller0->heldBtnFlags & ControllerFlag_LStickUp)   ? 1 : 0;
+                    /* Preserve aged bit1 (see ROOT FIX #42 in the TPS branch above): a bare
+                     * `= input` clobbers the 30 Hz debounce so a 1-frame input dropout fires
+                     * the skid-stop invisible-wall smack while forward is held. */
+                    g_Player_IsMovingForward  = (g_Player_IsMovingForward & 0x2) | ((g_Controller0->heldBtnFlags & ControllerFlag_LStickUp) ? 1 : 0);
                     g_Player_IsMovingBackward = (g_Controller0->heldBtnFlags & ControllerFlag_LStickDown) ? 1 : 0;
                     /* Reset heading offset. PlayerLowerBodyState_WalkBackward sets
                      * g_Player_HeadingAngle = 180° for the backward-walk case, but
@@ -1554,26 +1616,27 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool aimHeld;
                     bool fireHeld;
 
-                    /* TPS mode: mouse-only for aim/fire so LSHIFT can stay
-                     * a pure run modifier (LSHIFT is mapped to R2/aim in
-                     * the PSX-button layer; if we honored that here, aim
-                     * would steal sprint).  Outside TPS keep the keyboard
-                     * mapping (LSHIFT aim, C fire). */
-                    if (g_DebugThirdPersonCam) {
-                        Uint32 mb = SDL_GetMouseState(NULL, NULL);
-                        aimHeld  = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
-                        fireHeld = (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
-                    } else {
-                        aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
-                        fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
-                    }
+                    /* Aim/fire come straight from the global input word now:
+                     * mouse (Mouse1->Action, Mouse2->Aim via the secondary-bind
+                     * layer), controller (R2/Cross), and keyboard all arrive in
+                     * g_Controller0, so TPS no longer reads SDL mouse state
+                     * itself. LSHIFT==R2 overlaps the run key, but the
+                     * sprint-cancel below drops aim while running. */
+                    aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
+                    fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
 
                     /* Sprint overrides weapon ready: running and aiming at
                      * the same time produces the sprint-in-place bug (D_800C4550
                      * zeroed by aim path, run anim still plays).  Cancel aim
                      * when the run button is held. */
                     static bool s_sprintCancelledAim = false;
-                    if (g_Player_IsRunning) {
+                    /* TPS/OTS-only: this sprint-cancel-aim latch + the attack-bit
+                     * edge-flush further down are camera-shim behavior. Gate them
+                     * on the mode (the else-branch below resets the latch off-TPS)
+                     * so they never touch the classic upper-body state machine —
+                     * running them in classic on a mode switch wedged the attack
+                     * state and killed shooting until restart. */
+                    if (g_DebugThirdPersonCam && g_Player_IsRunning) {
                         aimHeld = false;
                         g_Player_IsAiming = false;
                         if (hasWeapon) s_sprintCancelledAim = true;
@@ -1583,7 +1646,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * and snap straight back to Aim.  Without this, Harry plays
                      * the full lower-weapon then raise-weapon sequence (~30 frames)
                      * before attacks are allowed again. */
-                    else if (s_sprintCancelledAim && !g_Player_IsRunning &&
+                    else if (g_DebugThirdPersonCam && s_sprintCancelledAim && !g_Player_IsRunning &&
                              (g_Controller0->heldBtnFlags & aimBtn) && hasWeapon)
                     {
                         s_sprintCancelledAim = false;
@@ -1665,7 +1728,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
 
-                    if (g_Player_IsAiming && hasWeapon) {
+                    if (g_DebugThirdPersonCam && g_Player_IsAiming && hasWeapon) {
                         if (g_Player_IsRunning)
                             D_800C4550 = Q12(0.0f);
                         g_SysWork.playerCombat.isAiming = true;
@@ -1678,7 +1741,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * aimHeld=false, which reset IsHoldAttack to 0 mid-hold and
                      * made swipe impossible; and it prevented attacks from working
                      * during the sprint-return frame before aimHeld recovered. */
-                    if (s_prevAimHeld && !aimHeld) {
+                    if (g_DebugThirdPersonCam && s_prevAimHeld && !aimHeld) {
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
                     }
@@ -3304,8 +3367,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
          * Suppressing increments isn't enough — a click pressed BEFORE the
          * user starts sprinting would already be queued, then dispense the
          * moment sprint ends. Same for weapon swaps. Clearing each frame
-         * the gate fails guarantees no stale clicks survive a state change. */
-        if (!meleeReady || g_Player_IsRunning) {
+         * the gate fails guarantees no stale clicks survive a state change.
+         *
+         * Also flush the instant the attack button is RELEASED: buffered taps
+         * only survive while it's held. Without this, rapidly spamming attack
+         * then letting go leaves several queued clicks that keep dispatching
+         * "phantom" swings for a second or two (the PSX original required the
+         * attack to be live at the multi-tap window, so it stopped on release).
+         * Hold-to-repeat is unaffected — that runs through the dispatch gate. */
+        if (!meleeReady || g_Player_IsRunning || !(g_Controller0->heldBtnFlags & actionMask)) {
             s_pcMtClickQueue = 0;
         } else if (g_Controller0->clickedBtnFlags & actionMask) {
             if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
@@ -6329,14 +6399,24 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                              * "hands up + stop" (RunForwardWallStop) when Harry is
                              * ACTUALLY blocked this frame, not merely because the
                              * forward-anticipation raycast (func_8007D6F0) saw a surface
-                             * ahead. travelDistStep is his real per-frame displacement;
-                             * on open ground / threading trees it stays near his sprint
-                             * step, so the smack is suppressed. A real wall collides his
-                             * movement to ~0 first, so the smack still fires there. */
-                            && travelDistStep < (Q12_MULT(playerProps.moveSpeed, g_DeltaTime) >> 1)
+                             * ahead. travelDistStep is his realized per-frame displacement;
+                             * g_Player_LastMoveStep is what that SAME integration intended
+                             * before collision clamped it, so this is a dt/speed/tilt-
+                             * consistent "blocked to under half my step" test. On open
+                             * ground he keeps moving so the smack is suppressed; a real
+                             * wall collides his movement to ~0 first, so it still fires. */
+                            && travelDistStep < (g_Player_LastMoveStep >> 1)
 #endif
                             )
                         {
+#ifdef SH_PC_PORT
+                            SH_DBG("[WALLANIM] pathA travel=%d intended=%d runDist=%d spdProp=%d spdTop=%d dt=%d rayHit=%d rayAng=%d rayGH=%d pos=(%d,%d)",
+                                   (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                   (int)player->properties.player.runDistance,
+                                   (int)playerProps.moveSpeed, (int)player->moveSpeed, (int)g_DeltaTime,
+                                   (int)g_Player_WallRayHitDist, (int)g_Player_WallRayAngleDelta, (int)g_Player_WallRayGroundHeight,
+                                   (int)player->position.vx, (int)player->position.vz);
+#endif
                             g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_RunForwardWallStop;
                         }
                         else if (player->model.anim.keyframeIdx >= 30 &&
@@ -6383,12 +6463,24 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                                 if (player->model.anim.keyframeIdx >= 33 &&
                                     player->model.anim.keyframeIdx <= 34)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags &= ~PlayerFlag_WallStopRight;
                                 }
                                 else if (player->model.anim.keyframeIdx >= 43 &&
                                          player->model.anim.keyframeIdx <= 44)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags |= PlayerFlag_WallStopRight;
                                 }
@@ -7953,6 +8045,13 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
     temp_s0_2 = Q12_MULT_PRECISE(player->moveSpeed, g_DeltaTime);
 
+#ifdef SH_PC_PORT
+    /* Intended horizontal step this frame, before collision clamps `offset`.
+     * The RunForward wall-smack gate compares the realized displacement against
+     * half of this. See g_Player_LastMoveStep. */
+    g_Player_LastMoveStep = ABS(temp_s0_2);
+#endif
+
     temp_v0_3 = player->headingAngle;
     temp      = temp_s0_2 + SHRT_MAX;
     temp_s2_2 = (temp > (SHRT_MAX * 2)) * 4;
@@ -8909,6 +9008,12 @@ s32 func_8007D6F0(s_SubCharacter* player, s_800C45C8* arg1) // 0x8007D6F0
             angle      = Q12_ANGLE_NORM_U(((rays[0].field_1C + rays[1].field_1C) >> 1) + Q12_ANGLE(360.0f));
             angleDelta = ABS_DIFF(angle, player->headingAngle);
 
+#ifdef SH_PC_PORT
+            g_Player_WallRayHitDist      = arg1->field_14;
+            g_Player_WallRayAngleDelta   = angleDelta;
+            g_Player_WallRayGroundHeight = rays[0].groundHeight;
+#endif
+
             if (angleDelta > Q12_ANGLE(160.0f) && angleDelta < Q12_ANGLE(200.0f))
             {
                 if ((player->position.vy - Q12(1.3f)) < rays[0].groundHeight || rays[0].groundType == 0 || rays[0].groundType == 12)
@@ -9862,7 +9967,23 @@ void Player_Controller(void) // 0x8007F32C
 {
     s32 attackBtnInput;
 
-    g_Player_IsMovingForward    = (g_Player_IsMovingForward * 2) & 0x3;
+#ifdef SH_PC_PORT
+    /* Age the forward-input history at 30 Hz, not per render frame (#42). This is
+     * a 2-bit shift register {prevTick, currTick} of the forward input; the
+     * RunForward case reads !g_Player_IsMovingForward (BOTH bits clear) as "player
+     * released forward" to play the skid-stop RunForwardWallStop — the random
+     * "ran into an invisible wall" hands-up smack. Aged per PC frame it reaches 0
+     * after only 2 frames (~8 ms at 240 fps), so a transient stick/key gap while
+     * the player is still holding forward fires the skid on open ground. PSX ages
+     * it once per 30 Hz tick (needs ~66 ms of genuine release). The current-input
+     * OR below stays per frame, so forward held in ANY sub-frame keeps bit0 set.
+     * Same throttle the attack shift register uses further down. */
+    static int s_moveFwdShiftAccum = 0;
+    if (PC_Tick30HzReady(&s_moveFwdShiftAccum))
+#endif
+    {
+        g_Player_IsMovingForward = (g_Player_IsMovingForward * 2) & 0x3;
+    }
     g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
     g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
 

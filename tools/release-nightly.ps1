@@ -1,27 +1,30 @@
 # Silent Hill PC nightly release script
 #
-# Workflow:
-#   - Reads the latest version.json manifest from the nightly repo (via gh CLI).
-#   - Computes today's next version: YYYY.MM.DD.N where N increments per release.
-#   - Prepends the new release section to local CHANGELOG.md (so the uploaded
-#     copy already contains this release's notes).
-#   - Hashes the local build files (SilentHillPC.exe + maps/*.dll + CHANGELOG.md
-#     + runtime DLLs in the build root (MinGW/SDL2/OpenAL/libjpeg)
-#     + SilentHillPC_Launcher.exe from the launcher solution's Release output;
-#     warns and skips/carries-forward if it isn't built).
-#   - Diffs against the manifest. If nothing changed, exits.
-#   - Creates a release on the nightly repo, uploads ONLY changed files.
-#   - Generates a new manifest: changed files point to new release URLs,
-#     unchanged files keep pointing to their previous release URLs.
-#   - Uploads the new manifest as version.json.
+# Two release modes (prompted if -Mode is not given):
+#
+#   loose  - the original per-file flow. Hashes the local build files, diffs
+#            them against the previous loose release's version.json, creates a
+#            release on the default branch, and uploads ONLY the changed files +
+#            a new version.json. Used for the public/stable stream and for the
+#            final loose build before everyone is on the zip-capable launcher.
+#
+#   zip    - bundles the whole launchable file set (everything in the reference
+#            SHPC_Alpha8.zip EXCEPT the disc image and the save .MCD files) from
+#            the build folder into one timestamped .zip, and publishes it as a
+#            release on the dedicated `beta` branch (auto-created on first use)
+#            together with a small version.json (per-file hashes + the zip URL)
+#            so the launcher can do a cheap update check and only pull the zip
+#            when it actually needs to apply. No pre-release hash diff is done in
+#            zip mode -- the maintainer is the only publisher, so every run
+#            produces a release.
+#
+# Both modes prepend an auto-generated section to CHANGELOG.md (from commit
+# subjects since the previous release of the SAME stream) and PAUSE so it can be
+# hand-edited before anything is hashed/zipped/uploaded.
 #
 # Usage:
-#   .\tools\release-nightly.ps1 [-DryRun] [-BuildDir path] [-Notes string] [-NoPause]
-#
-# By default the script PAUSES after writing CHANGELOG.md (auto-generated from
-# commit subjects) and before hashing/uploading, so you can hand-edit the notes
-# (e.g. add command usage). Press Enter to resume; the edited file is what ships.
-# Pass -NoPause for unattended runs.
+#   .\tools\release-nightly.ps1 [-Mode zip|loose] [-DryRun] [-BuildDir path]
+#                               [-Notes string] [-NoPause] [-BetaBranch beta]
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -30,9 +33,13 @@
 
 [CmdletBinding()]
 param(
-    [string]$BuildDir = "$PSScriptRoot\..\pc_port\build",
-    [string]$Repo     = "SlickAmogus/silent-hill-pc-nightly",
-    [string]$Notes    = "",
+    [string]$BuildDir   = "$PSScriptRoot\..\pc_port\build",
+    [string]$Repo       = "SlickAmogus/silent-hill-pc-nightly",
+    [ValidateSet("", "zip", "loose")]
+    [string]$Mode       = "",
+    [string]$BetaBranch    = "beta",
+    [string]$SourceRepoUrl = "https://github.com/SlickAmogus/silent-hill-decomp",
+    [string]$Notes         = "",
     [switch]$DryRun,
     [switch]$NoPause
 )
@@ -51,36 +58,74 @@ $maps = Join-Path $BuildDir "maps"
 
 # Launcher (built by the user via the launcher solution; it self-updates via
 # the *.old rename swap in UpdateChecker.ReplaceFile).
-# Optional: warn-and-skip when missing so a game-only release still works.
 $launcherExe = Join-Path $PSScriptRoot "..\pc_port\launcher\SilentHillPC_Launcher\bin\Release\SilentHillPC_Launcher.exe"
 
 if (-not (Test-Path $exe))  { throw "SilentHillPC.exe not found at $exe. Run cmake --build first." }
 if (-not (Test-Path $maps)) { throw "maps/ folder not found at $maps." }
 
+$changelogPath = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
+
 function Get-Sha256([string]$path) {
     (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
 }
 
-# ---- Fetch existing manifest (if any release exists) ------------------------
+# Launcher FileVersion (AssemblyFileVersion, date-based yyyy.M.d.rev). Carried in
+# version.json so the launcher can decide self-updates WITHOUT downloading: it
+# only replaces itself when this is strictly greater than its own version.
+function Get-LauncherVersion([string]$path) {
+    try { return ([System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)).FileVersion }
+    catch { return $null }
+}
+$launcherVersion = if (Test-Path $launcherExe) { Get-LauncherVersion $launcherExe } else { $null }
+
+# ---- Resolve release mode ---------------------------------------------------
+
+if (-not $Mode) {
+    Write-Host ""
+    Write-Host "Release mode:" -ForegroundColor Magenta
+    Write-Host "  [1] loose  - per-file release on the default branch (current/stable)" -ForegroundColor Gray
+    Write-Host "  [2] zip    - bundled zip release on the '$BetaBranch' branch (beta)" -ForegroundColor Gray
+    $ans  = Read-Host "Choose 1 or 2"
+    $Mode = if ($ans.Trim() -eq '2') { 'zip' } else { 'loose' }
+}
+$isZip     = ($Mode -eq 'zip')
+$tagPrefix = if ($isZip) { 'beta-' } else { 'v' }
+Write-Host "Mode: $Mode" -ForegroundColor Magenta
+
+# ---- Find the previous release of THIS stream -------------------------------
+# Loose and zip releases are interleaved in time; key the version counter and
+# the changelog commit range off the previous release of the SAME stream
+# (loose = v*, zip = beta-*), not whatever is globally newest.
+
+function Get-LatestStreamReleaseTag {
+    param([bool]$Zip)
+    $json = gh release list --repo $Repo --limit 100 --json tagName,createdAt 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
+    $rels = $json | ConvertFrom-Json
+    if (-not $rels) { return $null }
+    $stream = if ($Zip) { $rels | Where-Object { $_.tagName -like 'beta-*' } }
+              else       { $rels | Where-Object { $_.tagName -notlike 'beta-*' } }
+    if (-not $stream) { return $null }
+    return ($stream | Sort-Object createdAt -Descending | Select-Object -First 1).tagName
+}
 
 $prevManifest   = $null
-$prevReleaseTag = $null
-try {
-    $latest = gh release view --repo $Repo --json tagName,assets | ConvertFrom-Json
-    if ($latest) {
-        $prevReleaseTag = $latest.tagName
-        $manifestAsset = $latest.assets | Where-Object { $_.name -eq "version.json" }
-        if ($manifestAsset) {
-            $tmpManifest = New-TemporaryFile
-            gh release download $prevReleaseTag --repo $Repo --pattern "version.json" --output $tmpManifest --clobber | Out-Null
+$prevReleaseTag = Get-LatestStreamReleaseTag -Zip $isZip
+if ($prevReleaseTag) {
+    try {
+        $tmpManifest = New-TemporaryFile
+        gh release download $prevReleaseTag --repo $Repo --pattern "version.json" --output $tmpManifest --clobber 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
             $prevManifest = Get-Content $tmpManifest -Raw | ConvertFrom-Json
-            Remove-Item $tmpManifest -Force
-            $prevFileCount = if ($prevManifest -and $prevManifest.files) { $prevManifest.files.Count } else { 0 }
-            Write-Host "Previous release: $prevReleaseTag ($prevFileCount files in manifest)" -ForegroundColor Cyan
+            $prevFileCount = if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains 'files' -and $prevManifest.files) { $prevManifest.files.Count } else { 0 }
+            Write-Host "Previous $Mode release: $prevReleaseTag ($prevFileCount files in manifest)" -ForegroundColor Cyan
         }
+        Remove-Item $tmpManifest -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "Previous $Mode release $prevReleaseTag has no readable version.json." -ForegroundColor Yellow
     }
-} catch {
-    Write-Host "No previous release found (first release for this repo)." -ForegroundColor Yellow
+} else {
+    Write-Host "No previous $Mode release found (first $Mode release for this repo)." -ForegroundColor Yellow
 }
 
 # ---- Compute changelog: commits since the previous release's git_commit -----
@@ -88,9 +133,19 @@ try {
 $curCommitFull  = (git rev-parse HEAD).Trim()
 $curCommitShort = (git rev-parse --short HEAD).Trim()
 
+# Footer appended to every release body so a nightly build links straight back to
+# the exact source commit it was built from (the manifest also carries git_commit).
+$sourceFooter = "`r`n`r`n---`r`nBuilt from source commit $curCommitShort`r`nSource: $SourceRepoUrl/commit/$curCommitFull"
+
 $commitLog = @()
 if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
-    $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+    $prevOutEnc = $null
+    try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    try {
+        $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+    } finally {
+        if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Warning: couldn't compute commit log since $($prevManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
         $commitLog = @()
@@ -99,7 +154,6 @@ if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_com
     } elseif ($commitLog -is [string]) {
         $commitLog = @($commitLog)
     }
-    # Strip meta-commits that are just changelog bookkeeping (e.g. "changelog: v2026.05.18.2").
     $commitLog = @($commitLog | Where-Object { $_ -notmatch '^- changelog:' })
 }
 
@@ -109,33 +163,29 @@ $today   = (Get-Date).ToString("yyyy.MM.dd")
 $counter = 1
 
 if ($prevReleaseTag) {
-    $prev = $prevReleaseTag.TrimStart('v')
+    $prev = $prevReleaseTag
+    if ($prev.StartsWith($tagPrefix)) { $prev = $prev.Substring($tagPrefix.Length) }
     if ($prev -match "^$([regex]::Escape($today))\.(\d+)$") {
         $counter = [int]$matches[1] + 1
     }
 }
 
 $newVersion = "$today.$counter"
-$newTag     = "v$newVersion"
+$newTag     = "$tagPrefix$newVersion"
 
 Write-Host ""
-Write-Host "New version: $newVersion  tag: $newTag" -ForegroundColor Magenta
+Write-Host "New version: $newVersion  tag: $newTag  branch: $(if ($isZip) { $BetaBranch } else { 'default' })" -ForegroundColor Magenta
 
 # ---- Prepend release section to local CHANGELOG.md --------------------------
-# Done BEFORE hashing so the uploaded CHANGELOG.md already contains this
-# release's notes. Previously this ran after the upload, so the downloaded
-# copy was always one release behind.
-$changelogPath = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
+
 if (Test-Path $changelogPath) {
     $existingBytes = [System.IO.File]::ReadAllBytes($changelogPath)
-    # Strip UTF-8 BOM if present (PS5.1 Set-Content adds one)
     $bomStart = 0
     if ($existingBytes.Length -ge 3 -and $existingBytes[0] -eq 0xEF -and $existingBytes[1] -eq 0xBB -and $existingBytes[2] -eq 0xBF) {
         $bomStart = 3
     }
     $existing = [System.Text.Encoding]::UTF8.GetString($existingBytes, $bomStart, $existingBytes.Length - $bomStart)
 
-    # Build the new entry: just date + commit messages.
     $section = [System.Text.StringBuilder]::new()
     [void]$section.AppendLine("## $newTag -- $((Get-Date).ToString('yyyy-MM-dd'))")
     if ($commitLog.Count -gt 0) {
@@ -145,7 +195,6 @@ if (Test-Path $changelogPath) {
     }
     [void]$section.AppendLine()
 
-    # Find end of first heading line ("# ...") and inject the new entry after it.
     $lines = $existing -split "`n"
     $headingIdx = -1
     for ($i = 0; $i -lt $lines.Length; $i++) {
@@ -165,11 +214,7 @@ if (Test-Path $changelogPath) {
 }
 
 # ---- Pause for manual changelog edit ----------------------------------------
-# The section above is auto-generated from commit subjects. Pause so it can be
-# hand-edited (add command usage, regroup, reword) BEFORE the file is hashed and
-# uploaded below. The hash (Get-Sha256 $changelogPath) and the upload both read
-# CHANGELOG.md from disk after this point, so whatever is saved now is exactly
-# what ships in the release.
+
 if (-not $NoPause) {
     Write-Host ""
     Write-Host "==> CHANGELOG.md updated with auto-generated notes for $newTag." -ForegroundColor Yellow
@@ -178,9 +223,156 @@ if (-not $NoPause) {
     [void](Read-Host "    Press Enter to hash + publish the release (Ctrl+C to abort)")
 }
 
+# =============================================================================
+# ZIP MODE - bundle the launchable file set + publish to the beta branch
+# =============================================================================
+
+if ($isZip) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    # Reference set = pc_port/build/SHPC_Alpha8.zip MINUS the disc image (never
+    # present here) and the save .MCD files (omitted -- the game creates the
+    # save folder fresh; we never publish anyone's playthrough). config.cfg is
+    # the clean template from source so a fresh install starts on the stable
+    # stream, not whatever the dev's local config points at.
+    $cfgTemplate = Join-Path $PSScriptRoot "..\pc_port\config.cfg"
+
+    if (-not (Test-Path $launcherExe)) {
+        throw "Launcher exe not found at $launcherExe. Build the launcher (Release) before a zip release."
+    }
+
+    $stage = Join-Path ([IO.Path]::GetTempPath()) "sh-zip-$newVersion"
+    if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+    try {
+        # Top-level files.
+        Copy-Item $exe         (Join-Path $stage "SilentHillPC.exe") -Force
+        Copy-Item $launcherExe (Join-Path $stage "SilentHillPC_Launcher.exe") -Force
+        if (Test-Path $changelogPath) { Copy-Item $changelogPath (Join-Path $stage "CHANGELOG.md") -Force }
+        if (Test-Path $cfgTemplate)   { Copy-Item $cfgTemplate   (Join-Path $stage "config.cfg")   -Force }
+
+        # Runtime DLLs next to the exe (MinGW runtime, SDL2, OpenAL, libjpeg).
+        Get-ChildItem $BuildDir -Filter "*.dll" | ForEach-Object {
+            Copy-Item $_.FullName (Join-Path $stage $_.Name) -Force
+        }
+
+        # Map overlay DLLs.
+        $stageMaps = Join-Path $stage "maps"
+        New-Item -ItemType Directory -Force -Path $stageMaps | Out-Null
+        Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
+            Copy-Item $_.FullName (Join-Path $stageMaps $_.Name) -Force
+        }
+
+        # Empty save folder so the game has somewhere to write (no cards shipped).
+        New-Item -ItemType Directory -Force -Path (Join-Path $stage "gamedata\save") | Out-Null
+
+        # Hash every staged file for the manifest (relative POSIX paths).
+        $stageFull = (Resolve-Path $stage).Path
+        $files = @()
+        Get-ChildItem -Recurse -File $stage | ForEach-Object {
+            $rel = $_.FullName.Substring($stageFull.Length).TrimStart('\','/').Replace('\','/')
+            $files += [ordered]@{ path = $rel; sha256 = (Get-Sha256 $_.FullName) }
+        }
+        Write-Host "Staged $($files.Count) files for the zip." -ForegroundColor Cyan
+
+        # Build the zip (CreateFromDirectory keeps the empty gamedata/save dir).
+        $zipName = "SHPC_$newTag.zip"
+        $zipPath = Join-Path ([IO.Path]::GetTempPath()) $zipName
+        if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath)
+        $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+        Write-Host "Built $zipName ($zipSize MB)." -ForegroundColor Cyan
+
+        # Manifest: per-file hashes for the launcher's cheap check + the zip URL
+        # it pulls when it actually applies an update.
+        $baseUrl  = "https://github.com/$Repo/releases/download/$newTag"
+        $manifest = [ordered]@{
+            version    = $newVersion
+            tag        = $newTag
+            mode       = "zip"
+            branch     = $BetaBranch
+            build_date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+            git_commit = $curCommitFull
+            launcher_version = $launcherVersion
+            zip_name   = $zipName
+            zip_url    = "$baseUrl/$zipName"
+            files      = $files
+        }
+        $manifestPath = Join-Path ([IO.Path]::GetTempPath()) "version.json"
+        [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 6))
+
+        # Release notes from the (hand-edited) CHANGELOG.md section for $newTag.
+        if (-not $Notes -and (Test-Path $changelogPath)) {
+            $clText  = [System.IO.File]::ReadAllText($changelogPath)
+            $pattern = "(?ms)^##\s+" + [regex]::Escape($newTag) + ".*?(?=^##\s|\z)"
+            $m       = [regex]::Match($clText, $pattern)
+            if ($m.Success) {
+                $parts = $m.Value -split "`n", 2
+                if ($parts.Count -eq 2) { $Notes = $parts[1].Trim() }
+            }
+        }
+        if (-not $Notes) { $Notes = "Beta zip release $newVersion" }
+        $Notes = $Notes + $sourceFooter
+        $notesFile = Join-Path ([IO.Path]::GetTempPath()) "release_notes_$newVersion.txt"
+        [System.IO.File]::WriteAllText($notesFile, $Notes)
+
+        if ($DryRun) {
+            Write-Host "[DryRun] Would publish $newTag to branch '$BetaBranch' with:" -ForegroundColor Yellow
+            Write-Host "  $zipName ($zipSize MB) + version.json ($($files.Count) files)" -ForegroundColor Gray
+            Write-Host "  Zip kept at: $zipPath" -ForegroundColor Gray
+            Remove-Item $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
+            exit 0
+        }
+
+        # Ensure the beta branch exists (releases target it). Create it from the
+        # repo's default branch head on first use.
+        $branchOk = $true
+        gh api "repos/$Repo/branches/$BetaBranch" 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { $branchOk = $false }
+        if (-not $branchOk) {
+            Write-Host "Creating '$BetaBranch' branch on $Repo..." -ForegroundColor Cyan
+            $defBranch = (gh api "repos/$Repo" --jq ".default_branch").Trim()
+            $defSha    = (gh api "repos/$Repo/git/refs/heads/$defBranch" --jq ".object.sha").Trim()
+            if (-not $defSha) { throw "Couldn't resolve $Repo default branch head to seed '$BetaBranch'." }
+            gh api "repos/$Repo/git/refs" -f "ref=refs/heads/$BetaBranch" -f "sha=$defSha" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create '$BetaBranch' branch." }
+        }
+
+        Write-Host "Creating release $newTag on branch '$BetaBranch'..." -ForegroundColor Cyan
+        # CHANGELOG.md goes up as its OWN asset (next to version.json) so the
+        # launcher can preview it without downloading the whole zip. Mark the
+        # release --prerelease so GitHub's releases/latest (the alpha stream)
+        # never returns a beta zip, and the launcher's alpha filter (!prerelease)
+        # excludes it.
+        $betaAssets = @($zipPath, $manifestPath)
+        if (Test-Path $changelogPath) { $betaAssets += $changelogPath }
+        gh release create $newTag `
+            --repo $Repo `
+            --target $BetaBranch `
+            --prerelease `
+            --title "Beta $newVersion" `
+            --notes-file $notesFile `
+            @betaAssets
+        if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published." }
+
+        Remove-Item $zipPath, $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
+        Write-Host ""
+        Write-Host "Done. Beta zip release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
+        Write-Host "Commit the updated CHANGELOG.md when ready:" -ForegroundColor Cyan
+        Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
+    }
+    finally {
+        if (Test-Path $stage) { Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue }
+    }
+    exit 0
+}
+
+# =============================================================================
+# LOOSE MODE - per-file hash diff + upload (original behavior)
+# =============================================================================
+
 # ---- Hash local files -------------------------------------------------------
-# CHANGELOG.md is hashed after being updated above, so the manifest hash
-# matches the file that will actually be uploaded.
 
 $localFiles = @{}
 $localFiles["SilentHillPC.exe"] = Get-Sha256 $exe
@@ -190,10 +382,6 @@ Get-ChildItem $maps -Filter "*.dll" | ForEach-Object {
     $localFiles[$rel] = Get-Sha256 $_.FullName
 }
 
-# Runtime DLLs next to the exe (MinGW runtime, SDL2, OpenAL, libjpeg). They
-# almost never change: the hash diff uploads them once, and later manifests
-# keep pointing at the release that shipped them — users who lack them get
-# them on their next update, everyone else skips them.
 Get-ChildItem $BuildDir -Filter "*.dll" | ForEach-Object {
     $localFiles[$_.Name] = Get-Sha256 $_.FullName
 }
@@ -214,17 +402,13 @@ Write-Host "Local files: $($localFiles.Count) entries hashed" -ForegroundColor C
 
 $prevHashes = @{}
 $prevUrls   = @{}
-if ($prevManifest) {
+if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains 'files' -and $prevManifest.files) {
     foreach ($f in $prevManifest.files) {
         $prevHashes[$f.path] = $f.sha256
         $prevUrls[$f.path]   = $f.url
     }
 }
 
-# If the launcher exe isn't built locally but exists in the previous
-# manifest, carry the old entry forward instead of dropping it (a drop would
-# silently stop hash-checking it for every user). SH1Updater.exe is retired —
-# deliberately NOT carried forward so it falls out of the manifest.
 foreach ($opt in @("SilentHillPC_Launcher.exe")) {
     if (-not $localFiles.ContainsKey($opt) -and $prevHashes.ContainsKey($opt)) {
         $localFiles[$opt] = $prevHashes[$opt]
@@ -270,19 +454,11 @@ if ($DryRun) {
 # ---- Create release + upload changed files ----------------------------------
 
 if (-not $Notes) {
-    # Use the (hand-edited) CHANGELOG.md section for THIS release as the GitHub
-    # release body, so edits made during the pause above actually ship. The old
-    # code rebuilt notes from $commitLog (captured before the pause), so the
-    # posted release always showed the unedited auto-generated text. Falls back
-    # to $commitLog only if the section can't be found.
     if (Test-Path $changelogPath) {
         $clText  = [System.IO.File]::ReadAllText($changelogPath)
-        # "## <newTag> ..." up to (but excluding) the next "## " heading or EOF.
         $pattern = "(?ms)^##\s+" + [regex]::Escape($newTag) + ".*?(?=^##\s|\z)"
         $m       = [regex]::Match($clText, $pattern)
         if ($m.Success) {
-            # Drop the heading line (the release already has a title); keep the
-            # edited body.
             $parts = $m.Value -split "`n", 2
             if ($parts.Count -eq 2) { $Notes = $parts[1].Trim() }
         }
@@ -298,15 +474,14 @@ if (-not $Notes) {
     }
 }
 
-# Stage changed files in a temp dir with sanitized names for upload.
-# Asset names can't contain '/', so map "maps/foo.dll" -> "maps__foo.dll".
+$Notes = $Notes + $sourceFooter
+
 $stagingDir = Join-Path ([IO.Path]::GetTempPath()) "sh-nightly-$newVersion"
 New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
 
 $uploadAssets = @()
 foreach ($path in $changed) {
     $src = if ($path -eq "SilentHillPC.exe") { $exe }
-           elseif ($path -eq "config.cfg") { $cfg }
            elseif ($path -eq "CHANGELOG.md") { $changelogPath }
            elseif ($path -eq "SilentHillPC_Launcher.exe") { $launcherExe }
            else { Join-Path $BuildDir $path }
@@ -316,16 +491,9 @@ foreach ($path in $changed) {
     $uploadAssets += $dst
 }
 
-# Write notes to a file and use --notes-file.
-# --notes "$Notes" breaks in PS5.1 when the string contains embedded double
-# quotes (e.g. commit subjects like `show "You're up to date!" dialog`) —
-# PS5.1 splits on the quotes and gh receives stray tokens as file-glob args,
-# causing "no matches found for `up`" and a silent empty release.
 $notesFile = Join-Path $stagingDir "release_notes.txt"
 [System.IO.File]::WriteAllText($notesFile, $Notes)
 
-# Create the release first (without manifest -- we'll upload manifest after we
-# know the asset URLs).
 Write-Host "Creating release $newTag..." -ForegroundColor Cyan
 gh release create $newTag `
     --repo $Repo `
@@ -359,14 +527,14 @@ foreach ($path in $localFiles.Keys | Sort-Object) {
 $manifest = [ordered]@{
     version    = $newVersion
     tag        = $newTag
+    mode       = "loose"
     build_date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     git_commit = $curCommitFull
+    launcher_version = $launcherVersion
     files      = $newFiles
 }
 
 $manifestPath = Join-Path $stagingDir "version.json"
-# Write without BOM -- PS5.1's Set-Content -Encoding UTF8 adds a BOM that
-# DataContractJsonSerializer can't handle, producing "unexpected character 'T'".
 $jsonContent = $manifest | ConvertTo-Json -Depth 5
 [System.IO.File]::WriteAllText($manifestPath, $jsonContent)
 
@@ -377,7 +545,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "gh release upload version.json failed (exit $LASTEXITCODE)."
 }
 
-# Cleanup
 Remove-Item -Recurse -Force $stagingDir
 
 Write-Host ""

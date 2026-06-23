@@ -193,9 +193,9 @@ void GsSwapDispBuff(void)
     GsDrawOt_ResetFrameCount();
 
     /* Sync background color from GsDRAWENV (game modifies this global).
-     * Do NOT sync clip or ofs — the game's clip.h=224 override is a PSX
-     * interlace optimization (one field at a time). On PC we render the
-     * full 448-line space with ofs at center. */
+     * Do NOT sync clip or ofs here — the interlaced-field correction is applied
+     * per-draw in PsyCross GR_SetOffscreenState (gated on the 3D-world HorPlus flag)
+     * so it does not touch 2D screens (title/menus). */
     gs_draw_env[gs_active_buff].isbg = GsDRAWENV.isbg;
     gs_draw_env[gs_active_buff].r0 = GsDRAWENV.r0;
     gs_draw_env[gs_active_buff].g0 = GsDRAWENV.g0;

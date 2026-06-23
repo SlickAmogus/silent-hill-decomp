@@ -2,9 +2,9 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "pc_config.h"
-/* PsyCross runtime PAR (cca5660). main_pc.c sets this from
- * g_PcConfig.pixelAspectMode at startup; the per-poly cull bounds
- * here must track the same factor PsyCross's Hor+ ortho uses. */
+/* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)
+ * at startup; the per-poly cull bounds here must track the same factor PsyCross's
+ * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
 #endif
 
@@ -3675,10 +3675,23 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
              * polys (face visible through the back of the head). The identical
              * cull in the non-lit Gfx_MeshDraw path works correctly on PC, so
              * the GTE NormalClip sign is right here too. */
+#ifdef SH_PC_PORT
+            /* Backface decision on the PGXP-precise projection, not the rounded
+             * 16-bit coords, so distant near-edge-on faces don't flip sign and
+             * vanish (the "model sheds chunks far away" holes). Integer fallback. */
+            {
+                extern int PsyX_PGXP_TriBackface(const void*, const void*, const void*, int);
+                if (PsyX_PGXP_TriBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                                          &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                                          &scratchData->screenXy_0[scratchData->u.s_1.field_2], r4))
+                    continue;
+            }
+#else
             if (r4 <= 0)
             {
                 continue;
             }
+#endif
 
             *(s32*)&poly.gt3->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt3->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
@@ -3747,6 +3760,21 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             gte_stopz(&sp4);
 
             /* PC: re-enabled backface cull (see GT3 path above). */
+#ifdef SH_PC_PORT
+            /* Precise backface cull on both triangles of the quad (see GT3). */
+            {
+                s32 _sp4b = 0;
+                extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
+                gte_nclip();
+                gte_stopz(&_sp4b);
+                if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_2],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_3], sp4, _sp4b))
+                    continue;
+            }
+#else
             if (sp4 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
@@ -3758,6 +3786,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                     continue;
                 }
             }
+#endif
 
             *(s32*)&poly.gt4->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt4->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];

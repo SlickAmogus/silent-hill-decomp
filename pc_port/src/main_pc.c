@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <time.h>
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -34,6 +35,7 @@
 
 /* PsyCross public API */
 #include <PsyX/PsyX_public.h>
+#include <PsyX/common/glad.h>
 
 /* Forward declarations from game code */
 extern void MainLoop(void);
@@ -47,6 +49,69 @@ extern void* g_OvlBodyprog;
 /* PC port: master gate for dev/cheat keys (config: allow_debug_controls).
  * Read by DebugCamera_Update + the few stragglers. Off by default. */
 int g_PcAllowDebugControls = 0;
+
+/* "Mouse1".."Mouse5" -> SDL mouse button number (Mouse1=left, Mouse2=right,
+ * Mouse3=middle, Mouse4=X1, Mouse5=X2). Returns 0 if not a mouse name. */
+static int Pc_ParseMouseName(const char* v)
+{
+    if (!v) return 0;
+    if ((v[0] == 'M' || v[0] == 'm') && (v[1] == 'o' || v[1] == 'O') &&
+        (v[2] == 'u' || v[2] == 'U') && (v[3] == 's' || v[3] == 'S') &&
+        (v[4] == 'e' || v[4] == 'E'))
+    {
+        switch (atoi(v + 5))
+        {
+            case 1: return SDL_BUTTON_LEFT;
+            case 2: return SDL_BUTTON_RIGHT;
+            case 3: return SDL_BUTTON_MIDDLE;
+            case 4: return SDL_BUTTON_X1;
+            case 5: return SDL_BUTTON_X2;
+        }
+    }
+    return 0;
+}
+
+/* Build the secondary keyboard mapping + the mouse-button -> PSX-bit table from
+ * the key_*_2 config binds. A secondary value is "MouseN", a key name, or
+ * "NONE". Re-applied whenever the active control style changes the gate. */
+static void Pc_ApplySecondaryBinds(void)
+{
+    struct { const char* val; unsigned short bit; int* kc; } sec[16] = {
+        { g_PcConfig.keyUp2,       0x10,   &g_cfg_keyboardMapping2.kc_dpad_up    },
+        { g_PcConfig.keyDown2,     0x40,   &g_cfg_keyboardMapping2.kc_dpad_down  },
+        { g_PcConfig.keyLeft2,     0x80,   &g_cfg_keyboardMapping2.kc_dpad_left  },
+        { g_PcConfig.keyRight2,    0x20,   &g_cfg_keyboardMapping2.kc_dpad_right },
+        { g_PcConfig.keyCross2,    0x4000, &g_cfg_keyboardMapping2.kc_cross      },
+        { g_PcConfig.keyCircle2,   0x2000, &g_cfg_keyboardMapping2.kc_circle     },
+        { g_PcConfig.keyTriangle2, 0x1000, &g_cfg_keyboardMapping2.kc_triangle   },
+        { g_PcConfig.keySquare2,   0x8000, &g_cfg_keyboardMapping2.kc_square     },
+        { g_PcConfig.keyL12,       0x400,  &g_cfg_keyboardMapping2.kc_l1         },
+        { g_PcConfig.keyR12,       0x800,  &g_cfg_keyboardMapping2.kc_r1         },
+        { g_PcConfig.keyL22,       0x100,  &g_cfg_keyboardMapping2.kc_l2         },
+        { g_PcConfig.keyR22,       0x200,  &g_cfg_keyboardMapping2.kc_r2         },
+        { g_PcConfig.keyL32,       0x2,    &g_cfg_keyboardMapping2.kc_l3         },
+        { g_PcConfig.keyR32,       0x4,    &g_cfg_keyboardMapping2.kc_r3         },
+        { g_PcConfig.keyStart2,    0x8,    &g_cfg_keyboardMapping2.kc_start      },
+        { g_PcConfig.keySelect2,   0x1,    &g_cfg_keyboardMapping2.kc_select     },
+    };
+    int i;
+
+    memset(&g_cfg_keyboardMapping2, 0, sizeof(g_cfg_keyboardMapping2));
+    for (i = 0; i < 8; i++) g_cfg_mouseButtonMask[i] = 0;
+
+    for (i = 0; i < 16; i++)
+    {
+        const char* v = sec[i].val;
+        int         mb;
+        if (!v || !v[0] || strcmp(v, "NONE") == 0) { *sec[i].kc = SDL_SCANCODE_UNKNOWN; continue; }
+        mb = Pc_ParseMouseName(v);
+        if (mb > 0) { g_cfg_mouseButtonMask[mb] |= sec[i].bit; *sec[i].kc = SDL_SCANCODE_UNKNOWN; }
+        else        { *sec[i].kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
+    }
+
+    /* Mouse + alternate binds are always active now. */
+    g_cfg_allowMouseSecondary = 1;
+}
 
 /* Apply control bindings + movement/debug options from g_PcConfig onto the
  * PsyCross input mapping. Call AFTER PsyX_Initialise (which sets the built-in
@@ -88,6 +153,8 @@ static void Pc_ApplyControlConfig(void)
 
     g_PcAllowDebugControls  = g_PcConfig.allowDebugControls;
     g_cfg_controllerMovement = g_PcConfig.controllerMovement;
+
+    Pc_ApplySecondaryBinds();
 }
 
 /* Demo play file buffer pointer - default PSX address needs runtime init */
@@ -102,10 +169,26 @@ extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
 void (*g_ShOverlayPushLine)(const char* line) = NULL;
+/* Per-run timestamped log path so a new run never overwrites the previous log.
+ * Computed once on the first call and cached, so the main log handle and the
+ * stdout/stderr freopen all target the same file for this run. */
+const char* SH_LogPath(void)
+{
+    static char s_logPath[64] = {0};
+    if (!s_logPath[0]) {
+        time_t now = time(NULL);
+        struct tm* lt = localtime(&now);
+        if (!lt || strftime(s_logPath, sizeof(s_logPath), "SilentHill_%Y%m%d_%H%M%S.log", lt) == 0) {
+            snprintf(s_logPath, sizeof(s_logPath), "SilentHill.log");
+        }
+    }
+    return s_logPath;
+}
+
 void SH_DebugLogInit(void)
 {
     if (!g_ShDebugLog) {
-        g_ShDebugLog = fopen("SilentHill.log", "w");
+        g_ShDebugLog = fopen(SH_LogPath(), "w");
         if (!g_ShDebugLog) {
             /* Last resort — fall back to stdout so we don't crash on the
              * first SH_DBG. Caller (main) normally pre-opens this. */
@@ -325,19 +408,15 @@ int main(int argc, char* argv[])
         }
     }
 
-    /* Apply pixel-aspect mode to PsyCross's runtime PAR global.
-     * Mode 1 (default) = 1.0 = square pixels = matches 320×240 PSX CRT
-     * exactly (since framebuffer aspect 320/240 = 4/3 equals CRT visible
-     * aspect, so PSX pixels are square on CRT). Modes 2/3 are stretches
-     * for users who want non-CRT-accurate "looks". */
+    /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224
+     * framebuffer the PSX displays as a 4:3 picture, so its pixels are NOT square
+     * (PAR = (4/3)/(320/224) = 14/15). PsyCross's Hor+ ortho and the matching game-side
+     * cull bounds scale the framebuffer-aspect horizontal extent by g_PsxPixelAspect;
+     * the value that restores the 4:3 picture is (320/224)*(3/4) = 15/14 ~= 1.0714.
+     * Baked in — it was a config knob, but no other value is correct for this game. */
     {
         extern float g_PsxPixelAspect;
-        switch (g_PcConfig.pixelAspectMode) {
-            case 2:  g_PsxPixelAspect = 1.09375f; break; /* old "NTSC" guess */
-            case 3:  g_PsxPixelAspect = 1.143f;   break; /* 8:7 (overscan) */
-            case 1:
-            default: g_PsxPixelAspect = 1.0f;     break; /* square = PSX CRT */
-        }
+        g_PsxPixelAspect = (320.0f / 224.0f) * (3.0f / 4.0f);
     }
 
     /* Apply widescreen mode to PsyCross. */
@@ -369,8 +448,8 @@ int main(int argc, char* argv[])
             /* No console in a GUI-subsystem app — just route stdout/stderr to
              * the log file (or NUL) so stray printf doesn't hit an invalid handle. */
             if (g_PcConfig.enableDebugLog) {
-                freopen("SilentHill.log", "a", stdout);
-                freopen("SilentHill.log", "a", stderr);
+                freopen(SH_LogPath(), "a", stdout);
+                freopen(SH_LogPath(), "a", stderr);
                 setvbuf(stdout, NULL, _IONBF, 0);
                 setvbuf(stderr, NULL, _IONBF, 0);
             } else {
@@ -515,9 +594,25 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
+    {
+        const char* gl_renderer = (const char*)glGetString(GL_RENDERER);
+        const char* gl_vendor   = (const char*)glGetString(GL_VENDOR);
+        const char* gl_version  = (const char*)glGetString(GL_VERSION);
+        SH_LOG("GL Renderer: %s", gl_renderer ? gl_renderer : "(null)");
+        SH_LOG("GL Vendor:   %s", gl_vendor   ? gl_vendor   : "(null)");
+        SH_LOG("GL Version:  %s", gl_version  ? gl_version  : "(null)");
+    }
+
     /* Apply keyboard/controller bindings + movement/debug options from config
      * (overrides the PsyCross defaults set inside PsyX_Initialise). */
     Pc_ApplyControlConfig();
+
+    /* Apply the saved control style + publish the style registry to config.cfg
+     * so the launcher's Control Style dropdown reflects this build. */
+    {
+        extern void Pc_ControlStyleInit(void);
+        Pc_ControlStyleInit();
+    }
 
     /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
      * console-subsystem app, so Windows spawns a console window at startup that

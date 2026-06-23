@@ -371,7 +371,10 @@ EXTRA_SYMBOLS = {
                  # of TV1's CLUT[0]=0x8000 black.
                  ("D_800DB91C", 0x800DB91C, 8),
                  ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
-    "map4_s04": [("D_800D3734", 0x800D3734, 68),
+    "map4_s04": [("D_800D3710", 0x800D3710, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip = rainbow corruption over HERO/LISA/bed VRAM
+                 ("D_800D3720", 0x800D3720, 8),   # RECT cutscene SetDrawArea
+                 ("D_800D3730", 0x800D3730, 4),   # DVECTOR cutscene SetDrawOffset
+                 ("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
     # map4_s05: D_800D7D74 (pre-existing) + the Floatstinger boss rodata
     # cluster. Sizes tile exactly: 780C+0x3C=7848, 7848+0x10=7858 (runtime
@@ -396,12 +399,19 @@ EXTRA_SYMBOLS = {
     # otherworld instead of the real-time sweep (otherworld.log).
     "map6_s00": [("D_800F0038", 0x800F0038, 8),
                  ("D_800F0084", 0x800F0084, 0x484)],
-    "map6_s01": [("D_800D4108", 0x800D4108, 32)],
+    "map6_s01": [("D_800D4108", 0x800D4108, 32),
+                 # ENBAN disc-effect particle base velocities (DVECTOR[5], 20 B).
+                 # Zero-stubbed -> no spread/animation on the spinning disc.
+                 ("D_800D4114", 0x800D4114, 20)],
     "map6_s02": [("D_800D3C2C", 0x800D3C2C, 30),  # u16[15] threshold table (D_800D3C8C < D_800D3C2C[i]); zero -> compare always false
                  ("D_800D3B40", 0x800D3B40, 4),
                  ("D_800D3B6C", 0x800D3B6C, 272),
                  ("D_800CAB90", 0x800CAB90, 8),
-                 ("D_800CAB98", 0x800CAB98, 8)],
+                 ("D_800CAB98", 0x800CAB98, 8),
+                 # 2D overlay sprite UV/pos table s_800D3C4C[8] (8 B/elem: s16 x,y
+                 # + u8 w[2],h[2]). POLY_FT4 quads are built entirely from these;
+                 # zero -> quad at (0,0), 0 size, 0 UVs -> invisible/degenerate sprite.
+                 ("D_800D3C4C", 0x800D3C4C, 64)],
     "map6_s04": [("D_800EBA34", 0x800EBA34, 48),
                  ("D_800EBA64", 0x800EBA64, 72),    # was 210 — over-grab swallowed the carousel-horse tables
                  ("D_800EBAAC", 0x800EBAAC, 40),    # s32[10] carousel horse X offsets
@@ -421,7 +431,26 @@ EXTRA_SYMBOLS = {
                  ("D_800EA836", 0x800EA836, 2),
                  ("D_800EA856", 0x800EA856, 2),
                  ("D_800EA894", 0x800EA894, 2),
-                 ("D_800EA896", 0x800EA896, 2)],
+                 ("D_800EA896", 0x800EA896, 2),
+                 # Force-field grid (func_800DF6C4): without these the 27x18 G4
+                 # grid collapses to (0,0,0) / all-black -> the invisible force
+                 # field in the park + when Cybil is thrown back in Nowhere.
+                 # EB008/EB00C between EAF20 and EB320 are unreferenced stub
+                 # artifacts, so the color ramp spans the full 0x400 to EB320.
+                 ("D_800EAF20", 0x800EAF20, 1024), # per-vertex color ramp s32[]; func_800DF670 indexes [0,100]
+                 ("D_800EB320", 0x800EB320, 4),    # cell X spacing (s32); zero -> x collapses
+                 ("D_800EB324", 0x800EB324, 4),    # cell Y spacing (s32); zero -> y collapses
+                 ("D_800EB328", 0x800EB328, 8),    # world-transform rotation (SVECTOR, Q3.12)
+                 ("D_800EB330", 0x800EB330, 8),    # world-transform rotation (SVECTOR, Q3.12)
+                 # Sand/quicksand distortion grid color ramp (func_800E0878),
+                 # indexed by field_5D (u8) -> 256 s32 entries; spans exactly to
+                 # the BGM limit table at 0x800EB738. Zero -> flat black overlay.
+                 ("D_800EB338", 0x800EB338, 1024),
+                 ("D_800EBB5A", 0x800EBB5A, 2),    # boss auto-camera angle threshold (s16); zero -> wrong boss framing
+                 # Dahlia-burn / Flauros lightning+spark spawn tables. Zero ->
+                 # all 6 spark idx==0 are skipped: no lightning when Dahlia burns.
+                 ("D_800CB6AC", 0x800CB6AC, 96),   # s_800CB6AC[6] (4x s32 field_0/4/8/C)
+                 ("D_800CB69C", 0x800CB69C, 16)],  # s_800CB69C (SVECTOR field_0 + 2x s32)
     "map7_s00": [("D_800D31C4", 0x800D31C4, 12),
                  ("D_800CB61C", 0x800CB61C, 8)],
     "map7_s01": [("D_800CC984", 0x800CC984, 12),
@@ -1179,14 +1208,46 @@ def generate_c(map_name, found, bin_filename):
 
 # ---------- main ----------
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+USAGE = """usage: extract_map_data.py <map_name [map_name ...]> | all
 
+Regenerate build_gen/extracted_data/ for the named map(s), or 'all' for every map.
+A target MUST be given explicitly. The output is git-tracked and can drift from this
+tool's config, so a blind full regen can DROP symbols and break the build (see the
+project_extracted_data_regen_gotcha note). Prefer one map at a time and review the diff.
+
+  extract_map_data.py map6_s04
+  extract_map_data.py map6_s01 map6_s02 map6_s04
+  extract_map_data.py all
+"""
+
+
+def main():
+    import sys
+
+    args = sys.argv[1:]
+    if not args:
+        print(USAGE)
+        sys.exit(2)
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     sym_files = sorted(SYM_DIR.glob("sym.map*.txt"))
-    print(f"Found {len(sym_files)} sym files in {SYM_DIR}")
+
+    if len(args) == 1 and args[0] == "all":
+        selected = sym_files
+        print(f"Regenerating ALL {len(selected)} maps (explicit 'all').")
+    else:
+        wanted = set(args)
+        by_name = {map_name_from_sym(sf.name): sf for sf in sym_files}
+        missing = [m for m in sorted(wanted) if m not in by_name]
+        if missing:
+            print(f"ERROR: no sym file for: {', '.join(missing)}")
+            print(f"  (known maps: {', '.join(sorted(by_name))})")
+            sys.exit(2)
+        selected = [by_name[m] for m in sorted(wanted)]
+        print(f"Regenerating {len(selected)} map(s): {', '.join(sorted(wanted))}")
 
     total_extracted = 0
-    for sf in sym_files:
+    for sf in selected:
         map_name = map_name_from_sym(sf.name)
         bin_path = bin_path_for_map(map_name)
         bin_fname = bin_path.name
@@ -1215,7 +1276,7 @@ def main():
         total_extracted += len(found)
         print(f"  [{map_name}] {len(found):2d} syms -> {out_path.name}")
 
-    print(f"\nDone: extracted {total_extracted} symbols across all maps.")
+    print(f"\nDone: extracted {total_extracted} symbols.")
     print(f"Output: {OUT_DIR}")
 
 if __name__ == "__main__":

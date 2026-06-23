@@ -16,6 +16,7 @@
 #include "maps/characters/dahlia.h"
 #include "maps/characters/monster_cybil.h"
 #include "bodyprog/game_boot/fs_chara_anim.h"
+#include "bodyprog/game_boot/chara_init.h"
 
 #ifdef SH_PC_PORT
 /* Lost-poke alias: PSX D_800A9938 (0x800A9938) is g_CharaModelAnimsData
@@ -1117,12 +1118,27 @@ void func_800E02E0(void) // 0x800E02E0
     func_800DF64C();
 }
 
+#ifdef SH_PC_PORT
+/* The lightning/force-field effect overlays s_func_800E05C8 on FS_BUFFER_1. Its
+ * 800-entry field_494[] pool of s_func_800E030C grew from 0x38 to 0x40 per entry
+ * on 64-bit (funcPtr_30 is an 8-byte callback, not 4), so the array runs ~4KB past
+ * the PSX-sized FS_BUFFER_1 region into adjacent buffers; a 4-byte cutscene write
+ * then lands across an 8-byte funcPtr_30, truncating it to e.g. 0x00007ffb, and
+ * func_800E068C calls it -> C0000005 EXECUTING 0x7ffb. Back the effect with a
+ * dedicated static so the oversized array can't overrun. (STATIC_ASSERT_SIZEOF on
+ * s_func_800E030C is no-op'd on PC, so the growth was never flagged.) */
+static s_func_800E05C8 g_Map6S04Effect;
+#define MAP6S04_FXBUF ((void*)&g_Map6S04Effect)
+#else
+#define MAP6S04_FXBUF FS_BUFFER_1
+#endif
+
 s_func_800E030C* func_800E030C(void) // 0x800E030C
 {
     s32              i;
     s_func_800E030C* ptr;
 
-    ptr = (s_func_800E030C*)((u8*)FS_BUFFER_1 + 0x494);
+    ptr = (s_func_800E030C*)((u8*)MAP6S04_FXBUF + 0x494);
 
     for (i = 0; i < 800; i++, ptr++)
     {
@@ -1201,7 +1217,7 @@ void func_800E05C8(s32 x, s32 y, s32 val) // 0x800E05C8
     s_func_800E05C8* ptr;
     u8*              buf;
 
-    ptr = FS_BUFFER_1;
+    ptr = MAP6S04_FXBUF;
 
     row = y + 96;
     col = x + 160;
@@ -1230,7 +1246,7 @@ void func_800E068C(void) // 0x800E068C
     s_func_800E030C* ptr;
     s_func_800E05C8* base;
 
-    base = FS_BUFFER_1;
+    base = MAP6S04_FXBUF;
     ptr  = base->field_494;
 
     for (i = 0; i < 800; i++, ptr++)
@@ -1264,7 +1280,7 @@ s32 func_800E0878(s32 arg0, s32 arg1) // 0x800E0878
 {
     s_func_800E05C8* buf;
 
-    buf = (s_func_800E05C8*)FS_BUFFER_1;
+    buf = (s_func_800E05C8*)MAP6S04_FXBUF;
 
     return D_800EB338[buf->field_5D[(arg1 * 41) + arg0]];
 }
@@ -1287,7 +1303,7 @@ void func_800E08B8(void) // 0x800E08B8
     s32              index;
     s32              code;
 
-    ptr = (s_func_800E05C8*)FS_BUFFER_1;
+    ptr = (s_func_800E05C8*)MAP6S04_FXBUF;
 
     packet = GsOUT_PACKET_P;
     poly   = packet;
@@ -1381,7 +1397,7 @@ void func_800E0BB0(void) // 0x800E0BB0
     s_func_800E05C8* buf;
     u8*              tab;
 
-    buf = FS_BUFFER_1;
+    buf = MAP6S04_FXBUF;
 
     for (i = 0; i < 25; i++)
     {
@@ -1431,7 +1447,7 @@ void func_800E0C58(void) // 0x800E0C58
     s_func_800E030C* ptr;
     s_func_800E05C8* base;
 
-    base = FS_BUFFER_1;
+    base = MAP6S04_FXBUF;
     ptr  = base->field_494;
 
     memset(base->field_34, 0, sizeof(base->field_34));
@@ -1472,7 +1488,7 @@ void func_800E0CCC(VECTOR* arg0, s32 arg1) // 0x800E0CCC
 
 void func_800E0D8C(VECTOR3* arg0) // 0x800E0D8C
 {
-    s_func_800E05C8* buf = FS_BUFFER_1;
+    s_func_800E05C8* buf = MAP6S04_FXBUF;
     buf->field_4.vx      = arg0->vx >> 4;
     buf->field_4.vy      = arg0->vy >> 4;
     buf->field_4.vz      = arg0->vz >> 4;
@@ -1531,7 +1547,7 @@ void func_800E0FAC(s32 arg0) // 0x800E0FAC
     s32              i;
     s_func_800E05C8* ptr;
 
-    ptr = FS_BUFFER_1;
+    ptr = MAP6S04_FXBUF;
 
     switch (D_800ED58C)
     {
@@ -1633,7 +1649,10 @@ void func_800E15FC(s_SubCharacter* player, s_SubCharacter* npc, bool arg2) // 0x
     }
     else
     {
-        if (arg2 || ((D_800EBB5A - angle2) << 20) > 0)
+        /* PSX D_800EBB5A aliases D_800EBB58.field_2 (same addr 0x800EBB5A — the live
+         * camera swing angle written below). On PC they're separate symbols, so the
+         * stale stub D_800EBB5A read 0 and the boss camera swung the wrong way. */
+        if (arg2 || ((D_800EBB58.field_2 - angle2) << 20) > 0)
         {
             angle3 = Q12_MULT(Math_Cos(player->rotation.vy - angle1), Q12_ANGLE(22.5f)) + Q12_ANGLE(37.5f);
         }
@@ -1697,7 +1716,7 @@ void func_800E15FC(s_SubCharacter* player, s_SubCharacter* npc, bool arg2) // 0x
         angle6   = angle5 + Q12_ANGLE(90.0f);
         angle7 = Q12_ANGLE_NORM_S(angle4 - angle6);
 
-        if (((D_800EBB5A - angle2) << 20) > 0)
+        if (((D_800EBB58.field_2 - angle2) << 20) > 0)
         {
             if (((angle7 - Q12_ANGLE(135.0f)) << 20) < 0)
             {
@@ -1806,6 +1825,14 @@ void func_800E1D50(void) // 0x800E1D50
             D_800ED5AC = 0;
             g_Cutscene_Timer = Q12(0.0f);
             g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
+#ifdef SH_PC_PORT
+            /* The approach area now spawns ambient larval stalkers / grey
+             * children (the game_boot map6_s04 entry-block that used to suppress
+             * them was removed). Free the 3-slot NPC cap before the boss spawns
+             * so an alive ambient enemy can't deny MonsterCybil's Chara_Spawn a
+             * slot. NoEnemySpawn is already set above, so nothing re-fills it. */
+            GameBoot_NpcClear();
+#endif
 
             Game_TurnFlashlightOn();
             func_800E1CA0();
@@ -2097,6 +2124,11 @@ void func_800E2724(void) // 0x800E2724
             Player_ControlFreeze();
             ScreenFade_ResetTimestep();
             g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
+#ifdef SH_PC_PORT
+            /* Free the NPC cap before this path's immediate MonsterCybil
+             * Chara_Spawn (see the cinematic path above for rationale). */
+            GameBoot_NpcClear();
+#endif
 
             func_800E1CA0();
             func_8007E860();

@@ -151,6 +151,9 @@ file(GLOB_RECURSE PC_PORT_SOURCES
 # =============================================================================
 # Exclude map overlay stub since we now compile map0_s00 which provides g_MapOverlayHeader
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
+# PC PORT: drop the combat_target.c aiming shim; the real decompiled func_8005CD38
+# (src/bodyprog/bodyprog_combat_8005BF38.c) now provides target selection.
+list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
 
 # Windows: compile the .rc so the exe carries an application icon (Explorer,
 # taskbar, title bar). windres resolves the ICON path relative to the .rc dir.

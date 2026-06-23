@@ -16,6 +16,11 @@
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+/* Cap for the ADDITIVE blood layer color (spray/cloud). func_80055A90's fog-tint
+ * is unclamped; in high-fog maps it goes near-white and the additive pass blows
+ * the sprite's soft edge to white. Capping it keeps dark-scene red intact (dim
+ * tint is already below this) while killing the white fringe. Tunable. */
+#define BLOOD_ADD_MAX 0x80
 #include <string.h>
 #include "sh_log.h"
 #endif
@@ -1394,6 +1399,21 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
+            /* Cap the ADDITIVE layer color (poly[0]/poly[3]). func_80055A90's
+             * fog-tint is unclamped, so in high-fog maps (e.g. map4_s05) it goes
+             * near-white; additive (GL_ONE,GL_ONE) over the texture's soft alpha
+             * edge — where the subtractive layer is already transparent — then
+             * blows that fringe to WHITE (the "white blood edges"). Dark scenes
+             * have a dim tint already below the cap, so red-over-dark is untouched. */
+            {
+                int _c;
+                POLY_FT4* _add[2]; _add[0] = *poly; _add[1] = *poly + 3;
+                for (_c = 0; _c < 2; _c++) {
+                    if (_add[_c]->r0 > BLOOD_ADD_MAX) _add[_c]->r0 = BLOOD_ADD_MAX;
+                    if (_add[_c]->g0 > BLOOD_ADD_MAX) _add[_c]->g0 = BLOOD_ADD_MAX;
+                    if (_add[_c]->b0 > BLOOD_ADD_MAX) _add[_c]->b0 = BLOOD_ADD_MAX;
+                }
+            }
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucketS < 0) _bucketS = 0;
@@ -2184,6 +2204,12 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 (*poly)->clut           = (*poly + 2)->clut = 147;
                 *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0         = ptr->field_130.b;
+
+                /* Cap the ADDITIVE layer color (poly[0]) so a bright per-map
+                 * fog-tint can't blow the soft edge to white (see BLOOD_ADD_MAX). */
+                if ((*poly)->r0 > BLOOD_ADD_MAX) (*poly)->r0 = BLOOD_ADD_MAX;
+                if ((*poly)->g0 > BLOOD_ADD_MAX) (*poly)->g0 = BLOOD_ADD_MAX;
+                if ((*poly)->b0 > BLOOD_ADD_MAX) (*poly)->b0 = BLOOD_ADD_MAX;
 
                 {
                     s32 _bucketC = (ptr->field_20C + var_s7) >> 3;

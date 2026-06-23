@@ -564,8 +564,10 @@ extern VECTOR3 D_800C4610;
 // FUNCTIONS
 // ==========
 
-/** Used for enemy target locking. Arg at index 3 is an angle? */
-void func_8005CD38(s32*, s32*, s_PlayerCombat*, q19_12, q19_12, s32);
+/** Used for enemy target locking. arg1 = vertical aim angle out (q3_12), arg2 =
+ * attack-origin VECTOR3 (callers pass &playerCombat, whose first field aliases it),
+ * arg3 = angle constraint (q3_12), arg4 = range, arg5 = turn/select mode. */
+void func_8005CD38(s32*, s16*, VECTOR3*, s16, s32, s32);
 
 /** Used for player run displacement.
  *

@@ -22,6 +22,7 @@
 #include "sh_log.h"
 #include "map_registry.h"
 #include "dbg_overlay.h"
+#include "pc_config.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -97,24 +98,12 @@ static void cmd_map(const char* arg)
             return;
         }
 
-        /* New-game warp — same recipe as title.c's config-map auto-start. */
-        cprintf("Warping to %s...", lower);
-        GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
-        GameBoot_PlayerInit();
-        g_SysWork.processFlags = ProcessFlag_NewGame;
-        GameBoot_MapLoad(g_SavegamePtr->mapIdx);
-        GameFs_StreamBinLoad();
-        Fs_QueueWaitForEmpty();
-        /* re-apply console-set flags wiped by GameBoot_SavegameInitialize's bzero,
-         * so "setending in the menu, then map to the ending" works. */
-        Pc_ConsoleApplyPendingFlags();
-        Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
-        g_SysWork.counters_1C[0]     = 0;
-        g_SysWork.counters_1C[1]     = 0;
-        g_GameWork.gameStateSteps[0] = 0;
-        g_GameWork.gameStateSteps[1] = 0;
-        g_GameWork.gameStateSteps[2] = 0;
-        SysWork_StateSetNext(SysState_Gameplay);
+        /* Don't warp mid-session — just set the map config value so the next New Game
+         * starts on this map (same effect as the 4/5 debug keys). */
+        (void)mapId;
+        strncpy(g_PcConfig.mapName, lower, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        cprintf("map config set to %s (loads on New Game)", lower);
     }
 }
 
@@ -380,6 +369,16 @@ static const char* const HELP_GIVE_PAGE2[] = {
     " camera chemical bloodpack",
 };
 
+/* Up-shift (psx-units) for bottom-anchored message boxes, to lift them out of the
+ * 3D-world vertical-FOV bottom crop. Console MSGSHIFT; read by text_draw.c. */
+int g_PsxMsgVShift = 35;
+
+/* Cutscene letterbox bar Y (centered coords): bars span +/-Outer (screen edge) to
+ * +/-Inner. Tunable via console BARY while the interlaced-buffer mapping is dialed in.
+ * Read by cutscene_border.c. */
+int g_PsxBarOuter = 112;
+int g_PsxBarInner = 96;
+
 static const char* const DEBUG_PAGE1[] = {
     "Debug keys (page 1/2) - cheats & tools:",
     " Esc     warm reset to the title screen",
@@ -636,10 +635,30 @@ void Pc_ConsoleExec(const char* line)
         extern int g_PcObstacleCollision;
         if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
         cprintf("round-obstacle (ptr_18) collision: %s", g_PcObstacleCollision ? "ON" : "OFF (sprint-through)");
+    } else if (strcmp(cmd, "COLLSCOPE") == 0) {
+        extern int g_PcChunkCollisionLocalScope;
+        if (arg[0]) g_PcChunkCollisionLocalScope = atoi(arg) ? 1 : 0;
+        cprintf("preload collision local-cell scope: %s", g_PcChunkCollisionLocalScope ? "ON (vanilla window)" : "OFF (all chunks)");
     } else if (strcmp(cmd, "ALPHA") == 0) {
         extern int g_PcSlopeAlphaFix;
         if (arg[0]) g_PcSlopeAlphaFix = atoi(arg) ? 1 : 0;
         cprintf("slope-alpha invisible-wall fix: %s", g_PcSlopeAlphaFix ? "ON (capped)" : "OFF (original)");
+    } else if (strcmp(cmd, "VFOV") == 0) {
+        extern float g_PsxWorldVScale;
+        if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
+        cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+    } else if (strcmp(cmd, "VSHIFT") == 0) {
+        extern float g_PsxWorldVShift;
+        if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
+        cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
+    } else if (strcmp(cmd, "MSGSHIFT") == 0) {
+        extern int g_PsxMsgVShift;
+        if (arg[0]) g_PsxMsgVShift = atoi(arg);
+        cprintf("message box up-shift: %d psx-units (compensates the VFOV bottom crop)", g_PsxMsgVShift);
+    } else if (strcmp(cmd, "BARY") == 0) {
+        extern int g_PsxBarOuter, g_PsxBarInner;
+        if (arg[0]) { g_PsxBarOuter = atoi(arg); g_PsxBarInner = g_PsxBarOuter - 16; }
+        cprintf("letterbox bar Y: outer=%d inner=%d (raise until bars hit the screen edges)", g_PsxBarOuter, g_PsxBarInner);
     } else if (strcmp(cmd, "WELD") == 0) {
         extern float g_pgxpWeldPx;
         if (arg[0]) g_pgxpWeldPx = (float)atof(arg);
@@ -648,6 +667,16 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "PGXPEDGE") == 0) {
+        extern float g_PgxpEdgeMax;
+        if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
+        cprintf("PGXP off-screen position clamp: %.0f psx-units (higher = less edge warp)", g_PgxpEdgeMax);
+    } else if (strcmp(cmd, "PGXPDEPTH") == 0) {
+        extern int g_PgxpUseUnquantizedDepth;
+        if (arg[0] == '1') g_PgxpUseUnquantizedDepth = 1;
+        else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
+        else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
+        cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
