@@ -262,11 +262,13 @@ public class ControlsForm : Form
         tips.SetToolTip(chkCrosshair,
             "Draws a small crosshair at the center of the screen while you're aiming in Thirdperson / Over-the-Shoulder mode.");
 
-        // Allow debug controls — below the (taller) keyboard column.
-        int debugY = swapShoulderY + rowH + 14;
-        AddLabel("Allow debug controls:", colKbX, debugY, 150);
-        debugYes = new RadioButton { Text = "Yes", Left = colKbX + 160, Top = debugY - 3, Width = 50, ForeColor = TextColor };
-        debugNo = new RadioButton { Text = "No", Left = colKbX + 215, Top = debugY - 3, Width = 50, ForeColor = TextColor };
+        // Allow debug controls — on the bottom button row, to the right of Reset
+        // to Defaults (clear of the keyboard column AND the Reset button).
+        int debugY = ClientSize.Height - 37;
+        int debugX = 165;
+        AddLabel("Allow debug controls:", debugX, debugY, 140);
+        debugYes = new RadioButton { Text = "Yes", Left = debugX + 145, Top = debugY - 3, Width = 50, ForeColor = TextColor };
+        debugNo = new RadioButton { Text = "No", Left = debugX + 200, Top = debugY - 3, Width = 50, ForeColor = TextColor };
         Controls.Add(debugYes);
         Controls.Add(debugNo);
 
@@ -473,27 +475,33 @@ public class ControlsForm : Form
 
     // --- Load / save ----------------------------------------------------
 
+    private void AddStyle(string id, string label)
+    {
+        if (string.IsNullOrEmpty(id) || styleIds.Contains(id)) return;
+        styleIds.Add(id);
+        cmbControlStyle.Items.Add(string.IsNullOrEmpty(label) ? id : label);
+    }
+
     private void PopulateControlStyles()
     {
         cmbControlStyle.Items.Clear();
         styleIds.Clear();
 
-        // The game publishes "id:Label|id:Label|..." each launch.
-        string raw = config.Get("control_styles", "classic:Classic (Default)|tps:Thirdperson Shooter");
+        // Built-in styles this launcher knows — always offered, even if the game
+        // hasn't republished control_styles yet (a stale / pre-OTS config.cfg).
+        AddStyle("classic", "Classic (Default)");
+        AddStyle("tps",     "Thirdperson Shooter");
+        AddStyle("ots",     "Over the Shoulder");
+
+        // Union in whatever the game published (forward-compat with future modes).
+        string raw = config.Get("control_styles", "");
         foreach (string part in raw.Split('|'))
         {
             if (part.Trim().Length == 0) continue;
             int c = part.IndexOf(':');
-            string id = (c >= 0 ? part.Substring(0, c) : part).Trim();
+            string id    = (c >= 0 ? part.Substring(0, c) : part).Trim();
             string label = (c >= 0 ? part.Substring(c + 1) : part).Trim();
-            if (id.Length == 0) continue;
-            styleIds.Add(id);
-            cmbControlStyle.Items.Add(label.Length > 0 ? label : id);
-        }
-        if (cmbControlStyle.Items.Count == 0)
-        {
-            styleIds.Add("classic");
-            cmbControlStyle.Items.Add("Classic (Default)");
+            AddStyle(id, label);
         }
 
         string cur = config.Get("control_style", "classic");
