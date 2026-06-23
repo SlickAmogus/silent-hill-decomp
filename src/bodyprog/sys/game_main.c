@@ -1649,10 +1649,17 @@ void MainLoop(void) // 0x80032EE0
          * already froze the world its own way; zeroing dt on top makes the two
          * pauses fight — the menu's own blink/animation freezes, and the world
          * stays stuck after you unpause until the console is closed. When
-         * already paused, leave dt alone and let that pause own the freeze. */
+         * already paused, leave dt alone and let that pause own the freeze.
+         *
+         * Same applies while a map-message is on screen (e.g. "I don't have a
+         * map"): it runs on the live mapMsgTimer (-= g_DeltaTimeRaw), so zeroing
+         * dt freezes the message's own timing and the console fights it. isMgsStringSet
+         * is true while a map-message is being displayed — leave dt alone then too. */
         {
             extern int g_PcConsoleInputActive;
-            if (g_PcConsoleInputActive && !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause)) {
+            if (g_PcConsoleInputActive &&
+                !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
+                !g_SysWork.isMgsStringSet) {
                 g_DeltaTime    = 0;
                 g_DeltaTimeRaw = 0;
                 g_GravitySpeed = 0;
