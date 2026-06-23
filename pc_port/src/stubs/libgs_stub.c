@@ -363,6 +363,12 @@ int g_PcItemDimNum = 256;
 extern int PsyX_TriBackfaceF(const short* v0, const short* v1, const short* v2, int intNcl);
 #define GS_BACKFACE_CULL(prim) \
     PsyX_TriBackfaceF((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], (const short*)&vtx[(prim)->v2], nclip)
+
+/* OT sort key from the face CENTROID depth (not a single vertex), so rotating
+ * items don't show their interior through the front. Implemented in PsyX_GTE.cpp. */
+extern long PsyX_OtzCentroid(const short* v0, const short* v1, const short* v2, int shift);
+#define GS_OTZ(prim) \
+    PsyX_OtzCentroid((const short*)&vtx[(prim)->v0], (const short*)&vtx[(prim)->v1], (const short*)&vtx[(prim)->v2], shift)
  
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
@@ -381,7 +387,7 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         RotTransPers3(&vtx[prim->v0], &vtx[prim->v1], &vtx[prim->v2],
                       &sxy0, &sxy1, &sxy2, &p, &flg);
         nclip = NormalClip(sxy0, sxy1, sxy2);
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (GS_BACKFACE_CULL(prim)) continue;
 
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
@@ -422,7 +428,7 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -460,7 +466,7 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         col_in.r = prim->r0; col_in.g = prim->g0; col_in.b = prim->b0; col_in.cd = prim->code;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -498,7 +504,7 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -540,7 +546,7 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -579,7 +585,7 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -621,7 +627,7 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         col_in.r = 0x80; col_in.g = 0x80; col_in.b = 0x80; col_in.cd = prim->cd;
         NormalColorCol(&nrm[prim->n0], &col_in, &col_out);
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -663,7 +669,7 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         NormalColorCol3(&nrm[prim->n0], &nrm[prim->n1], &nrm[prim->n2],
                         &col_in, &c0, &c1, &c2);
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -701,7 +707,7 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (GS_BACKFACE_CULL(prim)) continue;
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -731,7 +737,7 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (GS_BACKFACE_CULL(prim)) continue;
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -764,7 +770,7 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (GS_BACKFACE_CULL(prim)) continue;
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -796,7 +802,7 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
         nclip = NormalClip(sxy0, sxy1, sxy2);
         if (GS_BACKFACE_CULL(prim)) continue;
  
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
  
@@ -834,7 +840,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
             if (GS_BACKFACE_CULL(prim)) continue;
         }
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -921,7 +927,7 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
             if (GS_BACKFACE_CULL(prim)) continue;
         }
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -960,7 +966,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
             if (GS_BACKFACE_CULL(prim)) continue;
         }
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
@@ -997,7 +1003,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
             if (GS_BACKFACE_CULL(prim)) continue;
         }
 
-        otz = p >> shift;
+        otz = GS_OTZ(prim);
         if (otz <= 0) continue;
         if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
 
