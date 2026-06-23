@@ -89,20 +89,28 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
     # comes first — both are byte-identical since they came from the same
     # static archive originally. Long-term cleanup: drop psycross_static
     # from this link and rely solely on the exe's import lib. */
-    target_link_options(${MAP_NAME} PRIVATE
-        "LINKER:--allow-multiple-definition"
-        # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
-        # generated .def listing every global, but on this CMake/MinGW
-        # combo it silently does nothing for the map DLLs — the resulting
-        # build.ninja link rule has neither `--export-all-symbols` nor a
-        # generated def file, and DllLoader_GetSymbol fails with
-        # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
-        # at runtime. Falling back to the global ld flag bypasses CMake's
-        # auto-export machinery and exports every TU-global in the DLL.
-        # Same flag the main exe uses; identical behavior to the old
-        # working state. */
-        "LINKER:--export-all-symbols"
-    )
+    if(MINGW)
+        # --export-all-symbols: WINDOWS_EXPORT_ALL_SYMBOLS silently no-ops on
+        # this CMake/MinGW combo, so force the ld flag directly.
+        target_link_options(${MAP_NAME} PRIVATE
+            "LINKER:--allow-multiple-definition"
+            "LINKER:--export-all-symbols"
+        )
+    elseif(APPLE)
+        # Symbols are exported by default from dylibs on macOS.
+        # Undefined symbols (resolved from the main exe at dlopen time) need
+        # this or ld64 errors on "undefined symbol" at link time.
+        target_link_options(${MAP_NAME} PRIVATE
+            "-Wl,-undefined,dynamic_lookup"
+        )
+    else()
+        # Linux: ENABLE_EXPORTS on the main exe adds -rdynamic; undefined
+        # symbols in .so files resolve from the exe automatically.
+        # psycross_static is in both exe and .so, so allow duplicates.
+        target_link_options(${MAP_NAME} PRIVATE
+            "LINKER:--allow-multiple-definition"
+        )
+    endif()
 
     # Export the g_MapOverlayHeader_<name> symbol from the DLL.
     # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on

@@ -11,9 +11,11 @@
 #include <string.h>
 
 #ifdef _WIN32
-#define DLL_EXT ".dll"
+#  define DLL_EXT ".dll"
+#elif defined(__APPLE__)
+#  define DLL_EXT ".dylib"
 #else
-#define DLL_EXT ".so"
+#  define DLL_EXT ".so"
 #endif
 
 /* Currently loaded overlay */
