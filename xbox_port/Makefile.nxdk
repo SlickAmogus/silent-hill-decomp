@@ -169,6 +169,11 @@ $(XBOX_PORT)/src/pad_xbox.obj: CFLAGS += \
 	-I$(NXDK_DIR)/lib/usb/libusbohci/inc -I$(NXDK_DIR)/lib/usb/libusbohci_xbox \
 	-DUSBH_USE_EXTERNAL_CONFIG=\"usbh_config_xbox.h\"
 
+# RXDK DirectSound headers — scoped to the dsound driver TU only so they don't
+# leak into the rest of the build. The xtl.h shim lives in $(XBOX_PORT)/include
+# (on the global include path, searched first) so it wins over RXDK's xtl.h.
+$(XBOX_PORT)/src/dsound_xbox.obj: CFLAGS += -I$(XBOX_PORT)/src/dsound/rxdk_include
+
 # --- Sources ----------------------------------------------------------------
 # Xbox platform shell + NV2A/PSX-libgpu HAL.
 XBOX_SRCS = \
@@ -188,7 +193,11 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/pad_xbox.c \
 	$(XBOX_PORT)/src/cd_xbox.c \
 	$(XBOX_PORT)/src/psx_vram.c \
-	$(XBOX_PORT)/src/gte_diag.c
+	$(XBOX_PORT)/src/gte_diag.c \
+	$(XBOX_PORT)/src/audio_xbox.c \
+	$(XBOX_PORT)/src/dsound_xbox.c \
+	$(XBOX_PORT)/src/dsound_bridge.c \
+	$(XBOX_PORT)/src/msvc_compat.c
 
 SRCS = \
 	$(XBOX_SRCS) \
@@ -203,6 +212,39 @@ SRCS = \
 # Cg shaders compiled to .inl by nxdk's vp20/fp20 host tools, #included by
 # gpu_nv2a.c. (vs.inl <- vs.vs.cg, ps.inl <- ps.ps.cg)
 SHADER_OBJS = $(XBOX_PORT)/src/vs.inl $(XBOX_PORT)/src/ps.inl
+
+# --- RXDK DirectSound: link the prebuilt (debug-stripped) XDK objects --------
+# Hardware audio path: dsound_xbox.c drives these via the dsound_bridge.c
+# (stdcall<->cdecl) + msvc_compat.c (x87 CRT intrinsics) shims. The objects were
+# extracted from the XDK dsound.lib and pre-stripped of .debug$F/.debug$S (which
+# crash lld). Order matters (dsapi/globals first). /safeseh:no: the MSVC objects
+# reference SEH (__except_handler3 is provided by msvc_compat.c).
+DSOUND_OBJS_DIR = $(XBOX_PORT)/src/dsound_objs
+DSOUND_OBJS = \
+	$(DSOUND_OBJS_DIR)/dsapi.obj \
+	$(DSOUND_OBJS_DIR)/globals.obj \
+	$(DSOUND_OBJS_DIR)/mcpxcore.obj \
+	$(DSOUND_OBJS_DIR)/mcpvoice.obj \
+	$(DSOUND_OBJS_DIR)/mcpstrm.obj \
+	$(DSOUND_OBJS_DIR)/mcpbuf.obj \
+	$(DSOUND_OBJS_DIR)/mcpapu.obj \
+	$(DSOUND_OBJS_DIR)/gpdsp.obj \
+	$(DSOUND_OBJS_DIR)/epdsp.obj \
+	$(DSOUND_OBJS_DIR)/dspdma.obj \
+	$(DSOUND_OBJS_DIR)/dsmath.obj \
+	$(DSOUND_OBJS_DIR)/dscommon.obj \
+	$(DSOUND_OBJS_DIR)/heap.obj \
+	$(DSOUND_OBJS_DIR)/ac97.obj \
+	$(DSOUND_OBJS_DIR)/dsperf.obj \
+	$(DSOUND_OBJS_DIR)/dsoundi.obj \
+	$(DSOUND_OBJS_DIR)/hrtf.obj \
+	$(DSOUND_OBJS_DIR)/i3dl2.obj \
+	$(DSOUND_OBJS_DIR)/cipher.obj \
+	$(DSOUND_OBJS_DIR)/ac97xmo.obj \
+	$(DSOUND_OBJS_DIR)/wavexmo.obj \
+	$(DSOUND_OBJS_DIR)/wavfileio.obj
+NXDK_LDFLAGS += $(DSOUND_OBJS)
+NXDK_LDFLAGS += /safeseh:no
 
 include $(NXDK_DIR)/Makefile
 

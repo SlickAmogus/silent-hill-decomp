@@ -64,7 +64,8 @@ int ClearImage2(RECT* rect, u_char r, u_char g, u_char b) { (void)rect; (void)r;
 extern void GpuNv2a_FrameBegin(void);
 extern void GpuNv2a_FrameEnd(void);
 extern void GpuNv2a_WaitVbl(void);
-extern void Pad_Poll(void);   /* refresh the PSX pad buffer (pad_xbox.c) */
+extern void Pad_Poll(void);       /* refresh the PSX pad buffer (pad_xbox.c) */
+extern void Audio_XboxPump(void); /* refill the DirectSound ring (dsound_xbox.c) */
 
 static volatile int s_vblanks = 0;
 static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
@@ -87,6 +88,7 @@ int VSync(int mode)
         return s_vblanks;
 
     Pad_Poll();
+    Audio_XboxPump();               /* keep the DirectSound ring fed (once per frame) */
     GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
 
     n = (mode == 0) ? 1 : mode;

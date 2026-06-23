@@ -15,25 +15,9 @@ typedef unsigned int   u32;
 
 /* --- PSX libcd (CD-ROM): real BIN-on-HDD reader moved to cd_xbox.c --------- */
 
-/* --- PSX libspu (sound) ----------------------------------------------------*/
-void SpuInit(void)                  { }
-void SpuQuit(void)                  { }
-void SpuInitMalloc(void)            { }
-u32  SpuSetTransferStartAddr(void)  { return 0; }
-u32  SpuSetTransferMode(void)       { return 0; }
-u32  SpuWrite(void)                 { return 0; }
-int  SpuIsTransferCompleted(void)   { return 1; }   /* 1 = done */
-void SpuSetKey(void)                { }
-void SpuSetKeyOnWithAttr(void)      { }
-void SpuSetVoiceAttr(void)          { }
-void SpuGetVoiceAttr(void)          { }
-u32  SpuGetKeyStatus(void)          { return 0; }
-void SpuSetCommonAttr(void)         { }
-u32  SpuSetReverb(void)             { return 0; }
-void SpuSetReverbModeParam(void)    { }
-u32  SpuSetReverbVoice(void)        { return 0; }
-u32  SpuReserveReverbWorkArea(void) { return 1; }
-void SpuClearReverbWorkArea(void)   { }
+/* --- PSX libspu (sound): now implemented for real in audio_xbox.c (software
+ * SPU mixer) + dsound_xbox.c (DirectSound hardware output). The no-op stubs
+ * that used to live here were removed so the linker resolves the real ones. -- */
 
 /* --- PSX libpad (controller): moved to pad_xbox.c (fills the PSX pad buffer) - */
 

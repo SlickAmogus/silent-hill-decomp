@@ -32,6 +32,7 @@ extern void Fs_QueueInitialize(void);
 extern void ResetGraph(int mode);
 extern void SetGraphDebug(int level);
 extern void SpuInit(void);
+extern void Audio_XboxInit(void);   /* RXDK DirectSound HAL (dsound_xbox.c) */
 extern void PcPort_InitCharaAnimInfo(void);
 extern void PcPort_InitSdBuffers(void);
 
@@ -161,6 +162,7 @@ int main(void)
     /* PSX subsystem init (mirrors main_pc.c order). */
     Sh_InitGameData();
     SpuInit();
+    Audio_XboxInit();               /* bring up RXDK DirectSound + start the APU ring */
     ResetGraph(0);
     SetGraphDebug(0);
     Fs_QueueInitialize();
