@@ -621,6 +621,12 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
         cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+    } else if (strcmp(cmd, "HFOV") == 0) {
+        /* 3D-world horizontal scale (Hor+ only). 1.0 = current behaviour; >1 = wider
+         * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
+        extern float g_PsxWorldHScale;
+        if (arg[0]) g_PsxWorldHScale = (float)atof(arg);
+        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower)", g_PsxWorldHScale);
     } else if (strcmp(cmd, "VSHIFT") == 0) {
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
