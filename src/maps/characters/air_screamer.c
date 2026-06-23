@@ -1142,6 +1142,14 @@ s32 sharedFunc_800D3814_0_s01(s_SubCharacter* airScreamer)
     return dist;
 }
 
+#ifdef SH_PC_PORT
+/* Set by the map0_s01 post-pickup "bird fly-by" event while it owns the Air Screamer
+ * (DMS-driven position). Tells Ai_AirScreamer_Control to play the looping wing-flap and
+ * skip the normal AI, which would otherwise clobber the flap status back to idle every
+ * frame (the AI runs AFTER the event code). 0 everywhere else. */
+int g_PcAsFlybyActive = 0;
+#endif
+
 bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
 {
     q20_12 someTime;
@@ -1162,6 +1170,23 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer)
      * compositor takes over the camera so it doesn't matter. */
     if (airScreamer->health == NO_VALUE) {
         return false;
+    }
+
+    /* map0_s01 fly-by: the event drives position via DMS and the normal AI would
+     * overwrite the wing-flap status with an idle pose each frame. Force the looping
+     * HoverVariable flap and advance it HERE (the last anim write of the frame, after
+     * the event code) so the wings actually flap; skip the AI dispatch. AnimFlag_Unlocked
+     * is required or Anim_TimestepGet returns 0 and the clip never advances. */
+    if (g_PcAsFlybyActive) {
+        u8 _want = ANIM_STATUS(AirScreamerAnim_HoverVariable, true);
+        if (airScreamer->model.anim.status != _want) {
+            airScreamer->model.anim.status      = _want;
+            airScreamer->model.anim.time        = 0;
+            airScreamer->model.anim.keyframeIdx = 0;
+        }
+        airScreamer->model.anim.flags |= AnimFlag_Unlocked;
+        sharedFunc_800D7AB0_0_s01(airScreamer);
+        return true;
     }
 #endif
 
