@@ -796,7 +796,20 @@ void DbgOverlay_Update(void)
      *   - TAP while hidden/sliding  -> nothing (must hold to show first)
      * The view toggle fires on the hold threshold; the tap action fires on
      * release only if a hold didn't already consume this press. */
-    cur_tilde = ks[SDL_SCANCODE_GRAVE];
+    /* Console toggle key is configurable (key_console; default tilde "`") so layouts
+     * that can't reach tilde can rebind it. Resolved once: empty falls back to tilde
+     * (old configs keep working); "NONE" yields UNKNOWN = keyboard-unbindable. */
+    {
+        static SDL_Scancode s_consoleSc = SDL_SCANCODE_GRAVE;
+        static int          s_consoleScResolved = 0;
+        if (!s_consoleScResolved) {
+            s_consoleSc = (g_PcConfig.keyConsole[0] == '\0')
+                            ? SDL_SCANCODE_GRAVE
+                            : SDL_GetScancodeFromName(g_PcConfig.keyConsole);
+            s_consoleScResolved = 1;
+        }
+        cur_tilde = ks[s_consoleSc];
+    }
     if (g_PcAllowDebugControls) {
         if (cur_tilde && !s_prev_tilde) { /* press edge */
             s_tilde_down_ms   = SDL_GetTicks();

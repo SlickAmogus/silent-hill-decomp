@@ -83,7 +83,7 @@ public class ControlsForm : Form
         { "key_l3", "[" }, { "key_r3", "]" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
-        { "key_swap_shoulder", "Mouse3" },
+        { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -180,7 +180,7 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(860, 610);
+        ClientSize = new Size(860, 640);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -247,6 +247,13 @@ public class ControlsForm : Form
         // Swap Shoulder (OTS side) — defaults to middle mouse; rebindable.
         int swapShoulderY = changeCamY + rowH;
         AddKeyRow("Swap Shoulder", "key_swap_shoulder", colKbX, swapShoulderY, labelW, inputW, false);
+
+        // Console toggle key — keyboard-only, not per-camera, no alternate. Rebindable
+        // for layouts that can't reach tilde.
+        int consoleY = swapShoulderY + rowH;
+        AddKeyRow("Console", "key_console", colKbX, consoleY, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_console"],
+            "Developer console toggle (needs Allow debug controls = Yes). Hold to show/hide it; tap while open to type a command.");
 
         // Controller binds — primary + an alternate (second button) per action.
         for (int i = 0; i < ControllerBinds.Length; i++)

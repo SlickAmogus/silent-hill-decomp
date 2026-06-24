@@ -65,6 +65,7 @@ s_PcConfig g_PcConfig = {
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyChangeCam = "F9", .padChangeCam = "rightstick",
     .keySwapShoulder = "Mouse3",
+    .keyConsole = "`",
 
     .mapName        = "map0_s00"
 };
@@ -145,6 +146,7 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_change_cam",    offsetof(s_PcConfig, keyChangeCam)    },
     { "pad_change_cam",    offsetof(s_PcConfig, padChangeCam)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
+    { "key_console",       offsetof(s_PcConfig, keyConsole)      },
 };
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
