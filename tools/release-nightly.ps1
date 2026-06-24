@@ -103,10 +103,21 @@ function Get-LatestStreamReleaseTag {
     if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
     $rels = $json | ConvertFrom-Json
     if (-not $rels) { return $null }
+    $prefix = if ($Zip) { 'beta-' } else { 'v' }
     $stream = if ($Zip) { $rels | Where-Object { $_.tagName -like 'beta-*' } }
               else       { $rels | Where-Object { $_.tagName -notlike 'beta-*' } }
     if (-not $stream) { return $null }
-    return ($stream | Sort-Object createdAt -Descending | Select-Object -First 1).tagName
+    # Sort by the PARSED version (YYYY.MM.DD.N), NOT createdAt: the nightly repo's
+    # release timestamps are all identical (a bulk re-upload reset them), so a
+    # createdAt sort returns an arbitrary release -> wrong version counter + a giant
+    # changelog spanning dozens of already-released commits.
+    $sorted = $stream | Sort-Object -Property @{ Expression = {
+        $v = $_.tagName
+        if ($v.StartsWith($prefix)) { $v = $v.Substring($prefix.Length) }
+        $ver = $null
+        if ([version]::TryParse($v, [ref]$ver)) { $ver } else { [version]'0.0.0.0' }
+    } } -Descending
+    return ($sorted | Select-Object -First 1).tagName
 }
 
 $prevManifest   = $null
