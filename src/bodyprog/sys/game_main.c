@@ -1263,24 +1263,11 @@ void MainLoop(void) // 0x80032EE0
      * main loop starts. */
     {
         extern int g_PcHorPlusEnabled;
-        extern int g_PcMenuPillarbox;
         extern void Pc_PlayWarningScreen(void);
-        const int prevHor  = g_PcHorPlusEnabled;
-        const int prevPbox = g_PcMenuPillarbox;
-        /* The warning's quads are built for a FULL-WINDOW ortho (Hor+ off). But the
-         * VIEWPORT is a separate decision: g_PcMenuPillarbox (default 1) forces a
-         * centered 4:3 pillarbox viewport even with Hor+ off, so the warning rendered
-         * into a 4:3 sub-rect while its ortho spanned the whole window. At the
-         * warning->Konami boundary the viewport flips full<->pillarbox (the "console
-         * fullscreen->pillarbox" the user sees) and re-reveals the warning pixels still
-         * sitting in the GL backbuffer = the warning "fading back in". Force pillarbox OFF
-         * too so the viewport matches the ortho (full window), painting every pixel and
-         * leaving nothing stale to re-present. */
+        const int prevHor = g_PcHorPlusEnabled;
         g_PcHorPlusEnabled = 0;
-        g_PcMenuPillarbox  = 0;
         Pc_PlayWarningScreen();
         g_PcHorPlusEnabled = prevHor;
-        g_PcMenuPillarbox  = prevPbox;
     }
 #endif
     // Run game.
