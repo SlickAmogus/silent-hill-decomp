@@ -216,7 +216,7 @@ partial class Form1
             // 
             // radioPreloadYes
             // 
-            this.radioPreloadYes.Location = new System.Drawing.Point(4, 3);
+            this.radioPreloadYes.Location = new System.Drawing.Point(4, 5);
             this.radioPreloadYes.Name = "radioPreloadYes";
             this.radioPreloadYes.Size = new System.Drawing.Size(45, 24);
             this.radioPreloadYes.TabIndex = 4;
@@ -225,7 +225,7 @@ partial class Form1
             // 
             // radioPreloadNo
             // 
-            this.radioPreloadNo.Location = new System.Drawing.Point(59, 3);
+            this.radioPreloadNo.Location = new System.Drawing.Point(59, 5);
             this.radioPreloadNo.Name = "radioPreloadNo";
             this.radioPreloadNo.Size = new System.Drawing.Size(53, 24);
             this.radioPreloadNo.TabIndex = 5;
@@ -258,7 +258,7 @@ partial class Form1
             // 
             // introYes
             // 
-            this.introYes.Location = new System.Drawing.Point(5, 5);
+            this.introYes.Location = new System.Drawing.Point(5, 4);
             this.introYes.Name = "introYes";
             this.introYes.Size = new System.Drawing.Size(49, 24);
             this.introYes.TabIndex = 6;
@@ -294,7 +294,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(314, 369);
+            this.btnPlay.Location = new System.Drawing.Point(314, 370);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
@@ -643,8 +643,10 @@ partial class Form1
             this.downloadBuild.Click += new System.EventHandler(this.downloadBuild_Click);
             // 
             // Form1
-            // 
+            //
             this.ClientSize = new System.Drawing.Size(420, 437);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);

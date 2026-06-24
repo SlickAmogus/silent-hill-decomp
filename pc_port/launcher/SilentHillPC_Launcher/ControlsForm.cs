@@ -180,7 +180,7 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(940, 610);
+        ClientSize = new Size(860, 610);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -204,30 +204,29 @@ public class ControlsForm : Form
         chkAltCamControls = new CheckBox
         {
             Text = "Alt. Cam Controls",
-            Left = ClientSize.Width - 220,
+            Left = ClientSize.Width - 160,
             Top = headerY,
-            Width = 140,
+            Width = 150,
             ForeColor = TextColor,
         };
         chkAltCamControls.CheckedChanged += AltCamControls_CheckedChanged;
         Controls.Add(chkAltCamControls);
 
+        // "?" sits directly under the "Alt. Cam Controls" text.
         Button btnAltCamHelp = new Button
         {
             Text = "?",
-            Left = ClientSize.Width - 72,
-            Top = headerY - 3,
+            Left = ClientSize.Width - 100,
+            Top = headerY + 24,
             Width = 26,
-            Height = 24,
+            Height = 22,
             BackColor = PanelBack,
             ForeColor = TextColor,
             FlatStyle = FlatStyle.Flat,
         };
         btnAltCamHelp.Click += (s, e) => MessageBox.Show(this,
-            "One set of controls is for the default, classic gameplay style with tank controls and traditional " +
-            "camera angles. The other set is for when you're using a modern control style like TPS or OTS. Leave " +
-            "the box unchecked to set classic controls, check it to set modern controls. Each control style also " +
-            "has alternates, so that you can use more than one button for the same action.",
+            "Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
+            "Each control style also has alternates, so that you can use more than one button for the same action.",
             "Alternate Camera Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
         Controls.Add(btnAltCamHelp);
 
@@ -346,9 +345,9 @@ public class ControlsForm : Form
 
         Button btnSave = new Button { Text = "Save", Width = 90, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
         Button btnCancel = new Button { Text = "Cancel", Width = 90, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
-        btnSave.Left = ClientSize.Width - 200;
+        btnSave.Left = ClientSize.Width - 220;
         btnSave.Top = ClientSize.Height - 42;
-        btnCancel.Left = ClientSize.Width - 100;
+        btnCancel.Left = ClientSize.Width - 120;
         btnCancel.Top = ClientSize.Height - 42;
         btnSave.Click += (s, e) => { SaveValues(); DialogResult = DialogResult.OK; Close(); };
         btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
