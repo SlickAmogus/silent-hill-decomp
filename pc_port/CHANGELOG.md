@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.24.2 -- 2026-06-24
+- Reconciled launcher on alpha branch to support auto update to beta branch, so users don't have to manually change to beta. If you're seeing this update, you're all set to keep receiving updates without any issues.
+
+- Launcher: bump AssemblyFileVersion 2026.6.22.1 -> 2026.6.24.1 (ship the beta auto-migration)
+
+
 ## v2026.06.24.1 -- 2026-06-24
 - Update to make launcher support automatic migration to beta branch
 
