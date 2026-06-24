@@ -1263,11 +1263,24 @@ void MainLoop(void) // 0x80032EE0
      * main loop starts. */
     {
         extern int g_PcHorPlusEnabled;
+        extern int g_PcMenuPillarbox;
         extern void Pc_PlayWarningScreen(void);
-        const int prevHor = g_PcHorPlusEnabled;
+        const int prevHor  = g_PcHorPlusEnabled;
+        const int prevPbox = g_PcMenuPillarbox;
+        /* The warning's quads are built for a FULL-WINDOW ortho (Hor+ off). But the
+         * VIEWPORT is a separate decision: g_PcMenuPillarbox (default 1) forces a
+         * centered 4:3 pillarbox viewport even with Hor+ off, so the warning rendered
+         * into a 4:3 sub-rect while its ortho spanned the whole window. At the
+         * warning->Konami boundary the viewport flips full<->pillarbox (the "console
+         * fullscreen->pillarbox" the user sees) and re-reveals the warning pixels still
+         * sitting in the GL backbuffer = the warning "fading back in". Force pillarbox OFF
+         * too so the viewport matches the ortho (full window), painting every pixel and
+         * leaving nothing stale to re-present. */
         g_PcHorPlusEnabled = 0;
+        g_PcMenuPillarbox  = 0;
         Pc_PlayWarningScreen();
         g_PcHorPlusEnabled = prevHor;
+        g_PcMenuPillarbox  = prevPbox;
     }
 #endif
     // Run game.
@@ -2104,7 +2117,10 @@ void MainLoop(void) // 0x80032EE0
 #endif
         ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
-        DbgOverlay_Render();
+        /* The dev console is now drawn via g_PsyX_PostCaptureHook (registered in main_pc.c)
+         * INSIDE PsyX_EndScene, AFTER the freeze-frame capture — so it's never baked into a
+         * frozen pause / "no map" image (which used to ghost the live console against the
+         * frozen copy when the console was already open before pausing). Not drawn here. */
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");
