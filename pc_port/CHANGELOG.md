@@ -103,15 +103,15 @@ Claude list:
 
 Claude list:
 - Player: make run-into-wall smack gate self-consistent + [WALLANIM] probe (#42)
-- Player: throttle forward-input history to 30 Hz ΓÇö fixes random run-into-wall smack (#42)
-- Aspect: fix Harry-too-wide in Hor+ ΓÇö 320x224 framebuffer needs 15/14 PAR, not square
+- Player: throttle forward-input history to 30 Hz — fixes random run-into-wall smack (#42)
+- Aspect: fix Harry-too-wide in Hor+ — 320x224 framebuffer needs 15/14 PAR, not square
 - config: correct pixel_aspect comment (default is now 15/14 PSX-faithful, not square)
 - Fix invisible cafe health drink placement
 - Aspect/vertical: render the 224-line field, not the full 448 buffer (squish + over-tall FOV)
 - Aspect/vertical: gate the interlace-field fix to the 3D world only (un-break title)
 - Aspect/vertical: console `vfov` to tune the 3D-world vertical FOV crop (PsyCross)
 - PsyCross: bump to 212093d (vertical-FOV fix + strip aspect debug logging)
-- config: drop the pixel_aspect knob ΓÇö bake the correct 15/14 (PSX 320x224 -> 4:3)
+- config: drop the pixel_aspect knob — bake the correct 15/14 (PSX 320x224 -> 4:3)
 - console: fix VFOV command (was lowercase; console uppercases all input)
 - camera: shift fixed-angle-camera shots' vertical framing up to match PSX
 - Merge pull request #12 from sergiomanzur/pc-port
@@ -123,36 +123,36 @@ Next: Still working on aspect ratio fixes and fine tuning PGXP. Everything else 
 There are a lot of bugs that I am aware of and still working on, will post a github issue for consolidation.
 
 Claude list:
-- collision: [WALLSTOP] probe ΓÇö capture the ACTUAL invisible-wall block
-- collision: [WALLSTOP] v2 ΓÇö same-frame wrap/chunk/world capture
-- collision: [WALLSTOP] kind=4 ΓÇö capture chara-vs-chara (NPC) blocks
-- collision: [WALLSTOP] kind=5 ΓÇö static obstacle block; complete path coverage
+- collision: [WALLSTOP] probe — capture the ACTUAL invisible-wall block
+- collision: [WALLSTOP] v2 — same-frame wrap/chunk/world capture
+- collision: [WALLSTOP] kind=4 — capture chara-vs-chara (NPC) blocks
+- collision: [WALLSTOP] kind=5 — static obstacle block; complete path coverage
 - collvis: draw the actual blocking obstacle as a RED box (any chunk)
 - collision: disable ptr_18 round-obstacle solid collision (invisible-wall fix)
 - collvis: draw near ptr_18 obstacles red even when collision is OFF
 - collvis panel: show Harry's animation-driven collision cylinder offset
 - collision: [WALLEDGE] latched diagnostic for the wall-edge bump reaction
 - collvis panel: move WALLEDGE readout to the top (was cut off bottom)
-- collision: ROOT FIX invisible walls at full speed ΓÇö cap spurious slope factor (#42)
+- collision: ROOT FIX invisible walls at full speed — cap spurious slope factor (#42)
 - Player: fix can't-start-walking-while-aiming (aim-state sites the prior fix missed)
 - collision: raise slope-alpha cutoff 0.5->0.8 (walk-speed floor-as-wall spots)
 - collision: reject phantom floor above Harry's head (indoor invisible-wall)
 - Bump PsyCross: re-apply 4:3 display-aspect fix (Harry-too-wide)
 - Player: stop spurious "run into wall" hands-up on open ground (root cause)
-- Revert aspect 4:3 re-apply ΓÇö was applied without approval
+- Revert aspect 4:3 re-apply — was applied without approval
 
 ## v2026.06.20.1 -- 2026-06-20
-- collision: [WALLSTOP] probe ΓÇö capture the ACTUAL invisible-wall block
-- collision: [WALLSTOP] v2 ΓÇö same-frame wrap/chunk/world capture
-- collision: [WALLSTOP] kind=4 ΓÇö capture chara-vs-chara (NPC) blocks
-- collision: [WALLSTOP] kind=5 ΓÇö static obstacle block; complete path coverage
+- collision: [WALLSTOP] probe — capture the ACTUAL invisible-wall block
+- collision: [WALLSTOP] v2 — same-frame wrap/chunk/world capture
+- collision: [WALLSTOP] kind=4 — capture chara-vs-chara (NPC) blocks
+- collision: [WALLSTOP] kind=5 — static obstacle block; complete path coverage
 - collvis: draw the actual blocking obstacle as a RED box (any chunk)
 - collision: disable ptr_18 round-obstacle solid collision (invisible-wall fix)
 - collvis: draw near ptr_18 obstacles red even when collision is OFF
 - collvis panel: show Harry's animation-driven collision cylinder offset
 - collision: [WALLEDGE] latched diagnostic for the wall-edge bump reaction
 - collvis panel: move WALLEDGE readout to the top (was cut off bottom)
-- collision: ROOT FIX invisible walls at full speed ΓÇö cap spurious slope factor (#42)
+- collision: ROOT FIX invisible walls at full speed — cap spurious slope factor (#42)
 - Player: fix can't-start-walking-while-aiming (aim-state sites the prior fix missed)
 - collision: raise slope-alpha cutoff 0.5->0.8 (walk-speed floor-as-wall spots)
 - collision: reject phantom floor above Harry's head (indoor invisible-wall)
