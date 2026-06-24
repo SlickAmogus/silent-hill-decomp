@@ -18,6 +18,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/items.h"
 #include "bodyprog/savegame.h"
+#include "bodyprog/item_screens.h" /* GameEndingFlag_Ufo (HyperBlaster give-unlock) */
 #include "bodyprog/screen/screen_fade.h"
 #include "sh_log.h"
 #include "map_registry.h"
@@ -195,6 +196,7 @@ static void cmd_give(const char* arg)
         give_item(InvItemId_RifleShells, 60);
         give_item(InvItemId_ShotgunShells, 60);
         give_item(InvItemId_GasolineTank, 5); /* chainsaw / drill fuel */
+        g_SavegamePtr->clearGameEndings |= GameEndingFlag_Ufo; /* unlock HyperBlaster fire gate */
         cprintf("Given all weapons + ammo + gas");
         return;
     }
@@ -204,7 +206,15 @@ static void cmd_give(const char* arg)
             if (GIVE_ITEMS[k].id == InvItemId_Handgun)           give_item(InvItemId_HandgunBullets, 15);
             else if (GIVE_ITEMS[k].id == InvItemId_HuntingRifle) give_item(InvItemId_RifleShells, 30);
             else if (GIVE_ITEMS[k].id == InvItemId_Shotgun)      give_item(InvItemId_ShotgunShells, 30);
-            else if (GIVE_ITEMS[k].id == InvItemId_HyperBlaster) give_item(InvItemId_HandgunBullets, 30);
+            else if (GIVE_ITEMS[k].id == InvItemId_HyperBlaster) {
+                give_item(InvItemId_HandgunBullets, 30);
+                /* The HyperBlaster's aim/fire is hard-gated by
+                 * Inventory_HyperBlasterFunctionalTest: without the UFO-ending
+                 * unlock (or a Konami gun controller on port 2) it force-disables
+                 * aiming, so a console-given blaster can't fire at all. Grant the
+                 * unlock so it actually works. */
+                g_SavegamePtr->clearGameEndings |= GameEndingFlag_Ufo;
+            }
             cprintf("Given %s", GIVE_ITEMS[k].name);
             return;
         }
