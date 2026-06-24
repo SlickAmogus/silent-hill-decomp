@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## v2026.06.24.1 -- 2026-06-24
+- Update to make launcher support automatic migration to beta branch
+
 ## beta-2026.06.24.1 -- 2026-06-24
 - Controls: Revamped control system so that the default camera and control style have their own, separated control scheme from the alternate control styles. Now in the launcher, under controls, you can check a checkbox to switch the control scheme you are customizing the controls for. By default, they control similarly to modern action games.
 - Pulled in more fixes from sergiomanzur to syncronize cutscene voices, fix cutscene stretching, improve fog, make intro screens skippable, misc cleanup, and combat improvements (apply enemy melee damage once per swing, before you could take more damage at high fps)
