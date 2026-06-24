@@ -227,6 +227,13 @@ TARGETS = {
     "D_800E9D8E":                       ("u8",  1),  # map7_s02
     "D_800E9E1C":                       ("u8",  5),  # map7_s02 keypad puzzle solution
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
+    # map7_s03 incubus/unknown23 boss ROM tables (contiguous between
+    # INCUBUS_ANIM_INFOS @0x800EC808 and UNKKOWN_23_ANIM_INFOS @0x800ECE50).
+    # All three were u8[256]={0} zero-stubs: incubus played NO SFX, the unknown23
+    # lightning-cage rendered black AND read OOB (s32[] indexed by u8 over 256 B).
+    "D_800EC8C8":                       ("u16", 2),  # incubus SFX volume table (s_SfxVolume[13])
+    "D_800EC8FC":                       ("u8",  1),  # incubus keyframe->SFX index map (u8[340])
+    "D_800ECA50":                       ("s32", 4),  # unknown23 lightning-cage color LUT (s32[256])
     "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
     "D_800DAA58":                       ("s32", 4),  # map4_s03 twinfeeler dust/dirt color ramp
     "D_800DB1D8":                       ("s16", 2),  # map4_s03 twinfeeler bone scale per stateStep
@@ -485,6 +492,12 @@ EXTRA_SYMBOLS = {
                  ("D_800E9DE8", 0x800E9DE8, 52),
                  ("D_800E9E1C", 0x800E9E1C, 5)],  # u8[5] keypad puzzle solution (vs D_800EA4AC input -> EventFlag_488)
     "map7_s03": [("D_800EC770", 0x800EC770, 40),  # s_800EC770[5] boss hit-SFX descriptors (sfxId/vol/interval); field_4=0 -> /0 crash + grunt SFX spam
+                 # incubus/unknown23 boss tables (tile exactly INCUBUS_ANIM_INFOS
+                 # end 0x800EC8C8 -> UNKKOWN_23_ANIM_INFOS 0x800ECE50):
+                 ("D_800EC8C8", 0x800EC8C8, 52),    # s_SfxVolume[13] incubus SFX volumes
+                 ("D_800EC8FC", 0x800EC8FC, 340),   # u8[340] incubus keyframe->SFX map
+                 ("D_800ECA50", 0x800ECA50, 1024),  # s32[256] unknown23 lightning-cage color LUT
+                 ("D_800ED744", 0x800ED744, 36),    # final-boss s32[9] threshold/timing table (was in the tracked extracted file but missing from config -> add so regen is reproducible)
                  ("D_800ED768", 0x800ED768, 20),
                  ("D_800ED77C", 0x800ED77C, 56),
                  ("D_800ED7B4", 0x800ED7B4, 216),
