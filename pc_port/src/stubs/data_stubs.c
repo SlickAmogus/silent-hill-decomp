@@ -470,9 +470,9 @@ u8 D_800EBB70[256] = {0};
 u8 D_800EBB7C[256] = {0};
 u8 D_800EBB94[256] = {0};
 u8 D_800EBC14[256] = {0};
-u8 D_800EC8C8[256] = {0};
-u8 D_800EC8FC[256] = {0};
-u8 D_800ECA50[256] = {0};
+/* D_800EC8C8 (incubus SFX volumes), D_800EC8FC (incubus keyframe->SFX map),
+ * D_800ECA50 (unknown23 lightning-cage color LUT) are now real ROM data in
+ * build_gen/extracted_data/map7_s03_extracted_data.c (extract_map_data.py). */
 /* map7_s03 ending cutscene character texture descriptors (s_FsImageDesc, 8B).
  * Zero-stubbed -> all 3 chara slots loaded textures to VRAM (0,0), colliding
  * with each other and the pole geometry that samples (0,0): wrong/swapping NPC
@@ -513,7 +513,7 @@ u8 D_800ED8E8[256] = {0};
 u8 D_800ED938[256] = {0};
 u8 D_800ED980[256] = {0};
 u8 D_800ED9B8[256] = {0};
-u8 D_800EDA00[256] = {0};
+s32 D_800EDA00 = 0; /* little_incubus.h scalar accumulator; was u8[256] */
 u8 D_800EDA04[256] = {0};
 u8 D_800EDA08[256] = {0};
 u8 D_800EDA0C[256] = {0};
@@ -579,7 +579,7 @@ u8 D_800F3D98[256] = {0};
 u8 D_800F3DAC[256] = {0};
 u8 D_800F3DB0[256] = {0};
 u8 D_800F3DB4[256] = {0};
-u8 D_800F3DB8[256] = {0};
+s32 D_800F3DB8 = 0; /* q19_12 unknown23 lightning-effect timer (unknown23.h); was u8[256] */
 u8 D_800F3DF0[256] = {0};
 u8 D_800F3E00[256] = {0};
 u8 D_800F3E0C[256] = {0};
@@ -1333,7 +1333,7 @@ u8 sharedData_800DE200_0_s01[256] = {0};
 u8 sharedData_800DE210_0_s01[256] = {0};
 u8 sharedData_800DE220_0_s01[256] = {0};
 u8 sharedData_800DE230_0_s01[256] = {0};
-u8 sharedData_800DE28C_5_s00[256] = {0};
+s32 sharedData_800DE28C_5_s00 = 0; /* q19_12 scratch (hanged_scratcher.h); was u8[256] */
 /* sharedData_800DE2C4_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DE2D8_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DE2EC_0_s00 now provided with real data by stalker_rodata.inc */
@@ -1414,16 +1414,19 @@ u8 sharedData_800E39BC_0_s00[256] = {0};
 u8 sharedData_800E39D8_0_s00[256] = {0};
 u8 sharedData_800E39E0_0_s00[256] = {0};
 u8 sharedData_800E39E2_0_s00[256] = {0};
-u8 sharedData_800E39E4_0_s00[256] = {0};
-u8 sharedData_800E39E8_0_s00[256] = {0};
-u8 sharedData_800E39EC_0_s00[256] = {0};
-u8 sharedData_800E3A0C_0_s00[256] = {0};
-u8 sharedData_800E3A18_0_s00[256] = {0};
-u8 sharedData_800E3A1C_0_s00[256] = {0};
-u8 sharedData_800E3A20_0_s00[256] = {0};
-u8 sharedData_800E3A24_0_s00[256] = {0};
-u8 sharedData_800E3A28_0_s00[256] = {0};
-u8 sharedData_800E3A2C_0_s00[256] = {0};
+/* Stalker runtime scratch — typed to match shared.h (q19_12 is s32) instead of
+ * generic u8[256] stubs. Zero-init is correct: Stalker_Update / Ai_Stalker write
+ * these before reading. Ring-buffer extents are from PSX symbol spacing. */
+s32 sharedData_800E39E4_0_s00 = 0;
+s32 sharedData_800E39E8_0_s00 = 0;
+s32 sharedData_800E39EC_0_s00[8] = {0};
+u16 sharedData_800E3A0C_0_s00[6] = {0};
+s32 sharedData_800E3A18_0_s00 = 0;
+s32 sharedData_800E3A1C_0_s00 = 0;
+s32 sharedData_800E3A20_0_s00 = 0;
+s32 sharedData_800E3A24_0_s00 = 0;
+s32 sharedData_800E3A28_0_s00 = 0;
+s32 sharedData_800E3A2C_0_s00 = 0;
 u8 sharedData_800E57CC_1_s02[256] = {0};
 u8 sharedData_800EB738_6_s04[256] = {0};
 u8 sharedData_800EB740_6_s04[256] = {0};
