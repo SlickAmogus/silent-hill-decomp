@@ -1,6 +1,27 @@
 #ifndef PC_CONFIG_H
 #define PC_CONFIG_H
 
+/* One full control scheme: keyboard primary + alternate, controller primary +
+ * alternate. Keyboard values are SDL scancode names ("C","Up","Left Shift","[")
+ * or "MouseN"; controller values are SDL game-controller names ("a",
+ * "leftshoulder","righttrigger"). "NONE" (or empty) = unbound. */
+typedef struct {
+    char keyUp[24], keyDown[24], keyLeft[24], keyRight[24];
+    char keyCross[24], keyCircle[24], keyTriangle[24], keySquare[24];
+    char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
+    char keyStart[24], keySelect[24];
+    char keyUp2[24], keyDown2[24], keyLeft2[24], keyRight2[24];
+    char keyCross2[24], keyCircle2[24], keyTriangle2[24], keySquare2[24];
+    char keyL12[24], keyR12[24], keyL22[24], keyR22[24], keyL32[24], keyR32[24];
+    char keyStart2[24], keySelect2[24];
+    char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
+    char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
+    char padStart[24], padSelect[24];
+    char padCross2[24], padCircle2[24], padTriangle2[24], padSquare2[24];
+    char padL12[24], padR12[24], padL22[24], padR22[24], padL32[24], padR32[24];
+    char padStart2[24], padSelect2[24];
+} ControlScheme;
+
 typedef struct {
     int windowWidth;
     int windowHeight;
@@ -31,27 +52,18 @@ typedef struct {
     int tpsAimZoom;         /* 1 = zoom the TPS/OTS camera in while aiming/attacking (config key: tps_aim_zoom) */
     int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
 
-    /* Control bindings. Keyboard = SDL scancode names ("C", "Z", "Return",
-     * "Space", "Up", "Left Shift", "["). Controller = SDL game-controller
-     * names ("a","b","x","y","leftshoulder","righttrigger","leftstick",
-     * "start","back"). "NONE" = unbound. D-pad + sticks are movement and not
-     * controller-rebindable here. Read by Pc_ApplyControlConfig in main_pc.c. */
-    char keyUp[24], keyDown[24], keyLeft[24], keyRight[24];
-    char keyCross[24], keyCircle[24], keyTriangle[24], keySquare[24];
-    char keyL1[24], keyR1[24], keyL2[24], keyR2[24], keyL3[24], keyR3[24];
-    char keyStart[24], keySelect[24];
+    /* Two control schemes, selected per-frame at runtime by camera mode and
+     * applied via Pc_ApplyActiveControlScheme (main_pc.c). classic = default
+     * camera (tank/fixed angles); altcam = ANY alternate/modern camera (TPS/OTS).
+     * Config keys: classic uses the key_ and pad_ names (with _2 alternates);
+     * altcam uses the same names plus an "_altcam" suffix. */
+    ControlScheme classic;
+    ControlScheme altcam;
+
+    /* Global (scheme-independent) binds. */
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
-    char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (toggle control style) */
+    char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (cycle control style) */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
-    /* Secondary bind per PSX action; active when allow_mouse_secondary (or TPS).
-     * Value is "MouseN" (N=1..5), an SDL key name, or "NONE". */
-    char keyUp2[24], keyDown2[24], keyLeft2[24], keyRight2[24];
-    char keyCross2[24], keyCircle2[24], keyTriangle2[24], keySquare2[24];
-    char keyL12[24], keyR12[24], keyL22[24], keyR22[24], keyL32[24], keyR32[24];
-    char keyStart2[24], keySelect2[24];
-    char padCross[24], padCircle[24], padTriangle[24], padSquare[24];
-    char padL1[24], padR1[24], padL2[24], padR2[24], padL3[24], padR3[24];
-    char padStart[24], padSelect[24];
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
