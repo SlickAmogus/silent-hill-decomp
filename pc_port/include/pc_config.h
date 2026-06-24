@@ -64,6 +64,7 @@ typedef struct {
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
     char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (cycle control style) */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
+    char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
