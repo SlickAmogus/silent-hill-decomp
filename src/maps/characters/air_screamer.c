@@ -1,8 +1,5 @@
 ﻿#include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/fs_chara_anim.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
@@ -21,175 +18,9 @@ bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer);bool Ai_AirScreamer_Ini
 
 #define airScreamerProps airScreamer->properties.airScreamer
 
-#ifdef SH_PC_PORT
-/* Post-bite cooldown counter. Armed in AirScreamer_Update on a
- * successful AS-BITE proximity hit; consumed in Ai_AirScreamer_Control_47
- * to gate the C47 â†’ C49 (re-attack) transition until it elapses. Slows
- * the AS's lunge cadence so the player has time to react. q19_12 seconds
- * counted down by g_DeltaTime each frame. */
-q19_12 g_AsBiteCooldown = Q12(0.0f);
-#endif
 
 void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
-#ifdef SH_PC_PORT
-    /* PC death short-circuit. The previous attempt put this in
-     * Ai_AirScreamer_Control, but Ai_AirScreamer_Init runs FIRST every
-     * frame and unconditionally resets `health = BASE_HEALTH + rand`
-     * because our fast-track set controlState = AirScreamerControl_None
-     * (= 0) â€” which is also Init's "uninitialized" sentinel. By the
-     * time Control's early-return ran, health was back to ~380.
-     * Putting the check here, before Init, keeps health == NO_VALUE
-     * stable. Also force-set EventFlag_M0S01_AirScreamerDied since
-     * the events.c gate normally requires EventFlag_47 too, and on PC
-     * that flag isn't set on the death frame for some reason. */
-    if (airScreamer->health == NO_VALUE) {
-        Savegame_EventFlagSet(EventFlag_M0S01_AirScreamerDied);
-        return;
-    }
-    sharedFunc_800D21E4_0_s01(anmHdr, coords);
-    sharedFunc_800D2200_0_s01(airScreamer);
-    Ai_AirScreamer_Init(airScreamer);
-    sharedFunc_800D2274_0_s01(airScreamer);
-    sharedFunc_800D2390_0_s01(airScreamer);
-    Ai_AirScreamer_Control(airScreamer);
-    /* Movement diagnosis: dump the per-frame state that drives the swoop
-     * movement chain. cs/ss = control state / state-step (selects which
-     * sharedFunc_800D5xxx helper writes field_B4[0]). moveSpd is what
-     * sharedFunc_800D63A4 will read this frame (after _6EC4 ramps it).
-     * accel/target = field_B4[0][1..2] which _6EC4 integrates into
-     * moveSpeed each tick â€” if these stay 0 during attack states, AS
-     * never accelerates â†’ "stuck in place" symptom. _4A80 gates the
-     * whole movement chain at sharedFunc_800D62D8. */
-    {
-        s32 _4a80 = sharedFunc_800D4A80_0_s01(airScreamer);
-    }
-    sharedFunc_800D62D8_0_s01(airScreamer);
-    sharedFunc_800D7AB0_0_s01(airScreamer);
-    sharedFunc_800D7EBC_0_s01(airScreamer);
-    sharedFunc_800D81B0_0_s01(airScreamer);
-
-    /* PC universal AS bite-damage trigger.
-     *
-     * The first attempt put proximity damage in Ai_AirScreamer_Control_46
-     * only. That fires once on the AS's INITIAL swoop, but after the first
-     * hit AS transitions through Control_47/48/49 for all subsequent
-     * bites â€” Control_49 owns AirScreamerAnim_HoverBiteAttack â€” and the
-     * old code never ran in those states.
-     *
-     * Move the trigger to the per-frame Update path and gate it on the
-     * BITE ANIMATION rather than controlState. Whenever the AS's anim is
-     * the active HoverBiteAttack and its keyframe is in the "fangs out"
-     * window, check Harry's XZ proximity and populate the four vanilla-
-     * damage trigger fields. Reset the per-bite lockout on the falling
-     * edge of "bite anim active" so each fresh bite gets one hit.
-     *
-     * On a successful hit we also arm g_AsBiteCooldown (consumed in
-     * Ai_AirScreamer_Control_47) so the AS can't immediately chain into
-     * another bite â€” gives the player a reaction window between lunges.
-     *
-     * field_40 = NPC index â†’ Player_ReceiveDamage uses g_SysWork.npcs
-     * [field_40].rotation.vy as the enemy yaw for angleState calc. */
-    {
-        static u32 s_prevBiteStatus = 0;
-        static u8  s_biteDamaged    = 0;
-        u32 curStatus = (u32)airScreamer->model.anim.status;
-        /* All THREE cone-attack anims deal damage on PSX via func_8008A3E0
-         * (dispatched in sharedFunc_800D7EBC). On PC the bone pointers ptr_D48[]
-         * are NULL so that path early-breaks and applies ZERO damage, leaving the
-         * wild-map Stand-bite and Glide-scratch harmless — the "barely attacks"
-         * symptom. Recognize all three so the PC proximity fallback fires for
-         * them too. HoverInjuredBiteAttack(9) is intentionally excluded: on PSX it
-         * is a speed switch-case that never calls the cone applier. */
-        u8  isBiteActive = (curStatus == ANIM_STATUS(AirScreamerAnim_StandBiteAttack, true) ||
-                            curStatus == ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true) ||
-                            curStatus == ANIM_STATUS(AirScreamerAnim_GlideScratchAttack, true));
-        s32 kf = airScreamer->model.anim.keyframeIdx;
-
-        /* Universal post-bite cooldown â€” count it down here (every frame
-         * the AS Update runs) so it works regardless of which control
-         * state the AS is in. The Control_47 path (cafe AS) is one user;
-         * wild ASes drive the bite from other control states like 25,
-         * which never goes through C47, so a C47-only countdown leaves
-         * them in an uninterrupted bite chain that locks Harry into
-         * back-to-back DamageTorsoX hits with no recovery window â€” the
-         * "frozen in place / input broken" symptom user reported. */
-        if (g_AsBiteCooldown > Q12(0.0f)) {
-            g_AsBiteCooldown -= g_DeltaTime;
-            if (g_AsBiteCooldown < Q12(0.0f)) g_AsBiteCooldown = Q12(0.0f);
-        }
-
-        /* Re-arm the one-hit-per-swing lockout when a bite begins OR the active
-         * bite anim changes, so a Stand-bite chained straight into a Glide-scratch
-         * each land once instead of the second being suppressed. */
-        if (isBiteActive && curStatus != s_prevBiteStatus) {
-            s_biteDamaged = 0;
-        }
-        s_prevBiteStatus = isBiteActive ? curStatus : 0;
-
-        {
-            s_SubCharacter* pl = &g_SysWork.playerWork.player;
-            s32 dxh = pl->position.vx - airScreamer->position.vx;
-            s32 dzh = pl->position.vz - airScreamer->position.vz;
-            s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
-
-            /* [AS] attack-timing diagnostic. Logs once when a bite anim
-             * begins and once when proximity first enters bite range while
-             * NOT biting — so the next session shows whether the delay is
-             * (a) AI slow to enter HoverBiteAttack, (b) the 1.5s cooldown
-             * blocking damage, or (c) body-center proximity (3u) too tight
-             * vs the original fang-polygon hitbox. Rate-limited to edges. */
-            {
-                static u8 s_loggedBite = 0;
-                static u8 s_loggedNear = 0;
-                if (isBiteActive) {
-                    if (!s_loggedBite) {
-                        SH_DBG("[AS] bite-anim start: cs=%d kf=%d distSqr=%d (<9 hits) cooldown=%d",
-                               airScreamer->model.controlState, kf, distSqr, g_AsBiteCooldown);
-                        s_loggedBite = 1;
-                    }
-                } else {
-                    s_loggedBite = 0;
-                    /* Near-but-not-biting: AI hasn't entered the bite. */
-                    if (distSqr < Q12(9.0f)) {
-                        if (!s_loggedNear) {
-                            SH_DBG("[AS] in-range but NOT biting: cs=%d animStatus=%u distSqr=%d cooldown=%d",
-                                   airScreamer->model.controlState, curStatus, distSqr, g_AsBiteCooldown);
-                            s_loggedNear = 1;
-                        }
-                    } else {
-                        s_loggedNear = 0;
-                    }
-                }
-            }
-        }
-
-        if (isBiteActive && !s_biteDamaged && g_AsBiteCooldown == Q12(0.0f)) {
-            s_SubCharacter* pl = &g_SysWork.playerWork.player;
-            s32 dxh = pl->position.vx - airScreamer->position.vx;
-            s32 dzh = pl->position.vz - airScreamer->position.vz;
-            s32 distSqr = (s32)(((s64)dxh * dxh + (s64)dzh * dzh) >> 12);
-            /* Bite reach = 4u radius². (The earlier 3u revert was a wrong guess
-             * at the can't-kick-downed-AS bug; that's an anim-stuck issue, not
-             * bite reach — see the AS anim/behavior audit. Restored to 4u.) */
-            if (distSqr < Q12(16.0f)) {
-                pl->damage.amount = Q12(15.0f);
-                pl->damage.position = airScreamer->position;
-                pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
-                pl->field_40        = Chara_NpcIdxGet(airScreamer);
-                s_biteDamaged       = 1;
-                SH_DBG("[AS] BITE HIT: cs=%d distSqr=%d", airScreamer->model.controlState, distSqr);
-                /* Arm post-bite cooldown â€” universal gate, also consumed
-                 * by the legacy Control_47 transition guard (the
-                 * countdown above is what actually drains it now). */
-                g_AsBiteCooldown    = Q12(1.5f);
-            } else {
-                SH_DBG("[AS] bite anim active but OUT OF RANGE: cs=%d distSqr=%d (need <%d)",
-                       airScreamer->model.controlState, distSqr, (s32)Q12(9.0f));
-            }
-        }
-    }
-#else
     sharedFunc_800D21E4_0_s01(anmHdr, coords);
     sharedFunc_800D2200_0_s01(airScreamer);
 
@@ -202,7 +33,6 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
     sharedFunc_800D7AB0_0_s01(airScreamer);
     sharedFunc_800D7EBC_0_s01(airScreamer);
     sharedFunc_800D81B0_0_s01(airScreamer);
-#endif
 }
 
 bool sharedFunc_800D21E4_0_s01(s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
@@ -8612,240 +8442,6 @@ void Ai_AirScreamer_Control_46(s_SubCharacter* airScreamer)
     sharedFunc_800D529C_0_s01(airScreamer, Q12(1.0f), func_80080478(&airScreamer->position, &g_SysWork.playerWork.player.position));
     sharedFunc_800D598C_0_s01(airScreamer);
 
-#ifdef SH_PC_PORT
-    /* PC: force forward target speed during the swoop bite. The
-     * accel-into-moveSpeed integration in sharedFunc_800D6EC4 reads
-     * field_B4[0][2] (target). cs=46 (this control function) doesn't
-     * write the target field anywhere â€” it relies on a chain of helpers
-     * that on PSX walked through sharedData_800CAA98_0_s01.field_380[N]
-     * to seed the accel/target pair, but on PC the rodata reformatter
-     * leaves field_380[2][0] (target speed) at 0 even though
-     * field_380[2][1] (accel) is correctly populated to 20480. Net effect:
-     * accel is 20480, target=0, integrator approaches 0 from 0 = no
-     * motion. AS animates the swoop in place, never reaches Harry.
-     *
-     * Override: when in the active swoop window (stateStep 1/2/3 with
-     * HoverBiteAttack anim), write a positive target speed directly.
-     * 8192 = Q12(2.0f) matches the cs=47 (hover-follow) target observed
-     * in the [ASMOV] log, which is a known-good forward speed. */
-    if ((airScreamer->model.stateStep == AirScreamerStateStep_1 ||
-         airScreamer->model.stateStep == AirScreamerStateStep_2 ||
-         airScreamer->model.stateStep == AirScreamerStateStep_3) &&
-        ANIM_STATUS(ANIM_STATUS_IDX_GET(animStatus), true) ==
-            ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true))
-    {
-        static int _swoopSpdLogN = 0;
-        if (_swoopSpdLogN < 30) {
-            _swoopSpdLogN++;
-        }
-        /* Force smooth integrator mode (sharedFunc_800D7120) and target=Q12(2.0f).
-         * sharedFunc_800D598C unconditionally sets [0][0]=1 every frame, which
-         * would route through 71F0 brake-mode and cap target to ~1 because
-         * [0][3] (brake distance) is 0. Override [0][0]=0 every frame to ensure
-         * smooth ramp toward target. */
-        sharedData_800E21D0_0_s01.field_B4[0][0] = 0;
-        sharedData_800E21D0_0_s01.field_B4[0][2] = Q12(2.0f);
-        sharedData_800E21D0_0_s01.field_B4[0][1] = Q12(5.0f); /* accel = 20480 */
-
-        /* PC: direct-translate AS toward Harry every swoop frame on top of
-         * the normal moveSpeedâ†’position pipeline. AS-HIT log shows the
-         * vanilla path closes ~30 raw Q12 units/frame which is slower than
-         * Harry's run (~37/frame), so AS never catches a moving player.
-         * Adding a constant delta of Q12(0.10f) per frame in the
-         * AS-toward-Harry direction (â‰ˆ410 raw units/frame) overrides the
-         * speed deficit cleanly without disabling collision (so AS still
-         * stops at walls / ceilings).  Y axis is left to the normal
-         * fallSpeed path; this only fixes the XZ plane closing. */
-        {
-            VECTOR3* hp = &g_SysWork.playerWork.player.position;
-            s32 dx = hp->vx - airScreamer->position.vx;
-            s32 dz = hp->vz - airScreamer->position.vz;
-            s32 distSqr = (s32)((s64)dx * dx + (s64)dz * dz >> 12);
-
-            /* Always rotate AS to face Harry during the swoop so the
-             * 180Â° cone actually points at him. Without this AS commits
-             * to its starting yaw and Harry can be way off-axis by the
-             * time the cone fires (log showed Harry at angle -81Â° from
-             * AS while cone faced +167Â°, so cone never connected). PSX
-             * vanilla likely committed yaw on swoop entry and missed
-             * if Harry dodged; tracking continuously is more aggressive
-             * but reliably lands hits. */
-            airScreamer->rotation.vy = ratan2(dx, dz);
-
-            /* Only translate while AS is FAR from Harry. Outer ring (>Q12(2.0f))
-             * gets a forward push so AS visibly approaches; inside Q12(2.0f)
-             * the nudge stops so AS doesn't overshoot and shove Harry around
-             * via collision overlap. The vanilla cone-collision damage path
-             * fires inside that radius, so we don't need to keep closing. */
-            if (distSqr > Q12(4.0f) /* 2.0f * 2.0f */)
-            {
-                s32 dist = SquareRoot12(distSqr);
-                if (dist > 0)
-                {
-                    s32 nx = (s32)(((s64)dx << 12) / dist);
-                    s32 nz = (s32)(((s64)dz << 12) / dist);
-                    /* Q12(0.10f) â‰ˆ 0.1 world units/frame â‰ˆ 3 world units/sec.
-                     * Slower than Harry's run, but combined with the cone hit
-                     * window's Q12(0.6f) reach it's enough to land bites when
-                     * Harry isn't actively running away. Goal: PSX-shaped
-                     * approach, not a homing missile. */
-                    s32 step = Q12(0.10f);
-                    airScreamer->position.vx += (s32)((s64)nx * step >> 12);
-                    airScreamer->position.vz += (s32)((s64)nz * step >> 12);
-                    static int _nudgeLogN = 0;
-                    if (_nudgeLogN < 30) {
-                        _nudgeLogN++;
-                    }
-                }
-            }
-        }
-    }
-
-    /* PC: damage application during the swoop (HoverBiteAttack).
-     * The AS file is the only enemy that doesn't call func_8008A0E4
-     * (the bodyprog cone-attack dispatcher used by every other enemy).
-     * We replicate the bloodsucker pattern: call A0E4 unconditionally
-     * during the active hit window of the swoop animation. A0E4 sets
-     * up the cone params then internally calls A3E0 â†’ BF84 â†’ B714 to
-     * apply damage as a side effect. Don't gate on the return value:
-     * for non-Harry attackers it returns NO_VALUE/0 based on whether
-     * the player was ALREADY taking damage going in, which is not
-     * what we want. Just rely on the side-effect path. Logging is
-     * unconditional so we can confirm the call runs and observe what
-     * A0E4 sees. */
-    {
-        static int _swoopLogN = 0;
-        s32 hitRet = -999;
-        /* Per-swoop damage lockout â€” tracked OUTSIDE the swoop branch so
-         * the prev-step persists across the non-swoop frames between
-         * swoops. Previous version only updated _asPrevSwoopStep INSIDE
-         * the swoop branch, which left the variable holding the LAST
-         * swoop step forever once the AS went idle. The next swoop
-         * entry then saw prevWasSwoop=true (from stale data) â†’ reset
-         * never fired â†’ only one bite per session ever landed. */
-        static u8  _asPrevSwoopStep_v2  = 0;
-        static u8  _asDamagedThisSwoop2 = 0;
-        static s32 _asPrevHarryHP2      = -1;
-        u8 curStep_v2 = airScreamer->model.stateStep;
-        u8 isCurSwoop = (curStep_v2 == AirScreamerStateStep_1 ||
-                         curStep_v2 == AirScreamerStateStep_2 ||
-                         curStep_v2 == AirScreamerStateStep_3);
-        u8 wasInSwoop = (_asPrevSwoopStep_v2 == AirScreamerStateStep_1 ||
-                         _asPrevSwoopStep_v2 == AirScreamerStateStep_2 ||
-                         _asPrevSwoopStep_v2 == AirScreamerStateStep_3);
-        /* Reset damage lockout on swoop ENTRY (curSwoop && !wasInSwoop). */
-        if (isCurSwoop && !wasInSwoop) {
-            _asDamagedThisSwoop2 = 0;
-        }
-        /* Always advance the prev-step tracker so non-swoop frames are
-         * reflected. */
-        _asPrevSwoopStep_v2 = curStep_v2;
-
-        if (airScreamer->model.stateStep == AirScreamerStateStep_1 ||
-            airScreamer->model.stateStep == AirScreamerStateStep_2 ||
-            airScreamer->model.stateStep == AirScreamerStateStep_3)
-        {
-            VECTOR3 _bitePos;
-            /* Arm the cone-collision sentinel + apply proximity-based
-             * fallback damage. The vanilla cone-collision (A0E4â†’A3E0â†’BF84
-             * â†’B714) frequently fails to land hits on PC: log shows f44.f0
-             * stays at 3 throughout the swoop with no transition to -1
-             * (the "consumed" state), and Harry's HP never drops despite
-             * AS being adjacent. Best guess: collision push-back keeps AS
-             * outside the cone's effective reach, or the bite radius in
-             * the Unk69 profile is too small for the actual AS-Harry gap.
-             *
-             * PC fallback: if AS is within Q12(1.5f) of Harry during the
-             * active swoop hit window (kf 12-18), subtract Q12(15.0f) HP
-             * directly. HP-delta lockout ensures one hit per swoop â€”
-             * once HP drops (from any source), no further AS damage this
-             * swoop. State-transition into swoop re-arms for next bite. */
-            {
-                s32 curHp = g_SysWork.playerWork.player.health;
-
-                /* HP-delta lockout: any HP drop locks out further hits
-                 * this swoop (covers both vanilla cone hits AND the
-                 * proximity fallback below). */
-                if (_asPrevHarryHP2 > 0 && curHp < _asPrevHarryHP2 &&
-                    !_asDamagedThisSwoop2) {
-                    _asDamagedThisSwoop2 = 1;
-                }
-
-                /* Re-arm vanilla cone-collision each frame until damage. */
-                if (!_asDamagedThisSwoop2) {
-                    airScreamer->field_44.field_0 = 1;
-                }
-
-                /* PC proximity hit using vanilla damage pipeline.
-                 *
-                 * Properly populate the four fields the vanilla damage
-                 * state machine reads each frame, then leave them alone.
-                 * Player_Update â†’ Player_ReceiveDamage (player_control.c:
-                 * 638, 7417) runs every frame on PC and processes:
-                 *   - attackReceived â†’ switch on weapon-attack id (69 =
-                 *     Unk69 / bloodsucker bite). case 69 falls through to
-                 *     case 68 â†’ case 40-46 which reads
-                 *     g_SysWork.npcs[player->field_40].rotation.vy as the
-                 *     enemy yaw, computes angleState (DamageTorsoFront/
-                 *     Back/Left/Right), and calls Player_ExtraStateSet.
-                 *   - damage.amount â†’ HP deduction with map+difficulty
-                 *     scaling (player_control.c:7779-7800).
-                 *
-                 * The next frame, state == DamageTorsoFront â†’ case 2625 in
-                 * Player_LogicUpdate fires â†’ func_8007FB94 looks up
-                 * field_38 entry status_2==0xD2 (map0_s01_anim_info.c:51
-                 * has it) and sets anim.status to the actual damage anim.
-                 * That's the PSX-identical path. */
-                {
-                    s_SubCharacter* pl = &g_SysWork.playerWork.player;
-                    VECTOR3* hp = &pl->position;
-                    s32 dxh = hp->vx - airScreamer->position.vx;
-                    s32 dzh = hp->vz - airScreamer->position.vz;
-                    s32 distSqr = (s32)((s64)dxh * dxh + (s64)dzh * dzh >> 12);
-                    s32 kf = airScreamer->model.anim.keyframeIdx;
-                    if (!_asDamagedThisSwoop2 &&
-                        distSqr < Q12(9.0f) /* 3.0f * 3.0f â€” generous radius */ &&
-                        kf >= 8 && kf <= 22 /* widened bite window */)
-                    {
-                        /* Set the damage trigger fields. Vanilla
-                         * Player_ReceiveDamage will read these and run the
-                         * full PSX-identical state-machine: HP deduction,
-                         * angleState calc, Player_ExtraStateSet, anim
-                         * dispatch. We DO NOT manually clear amount /
-                         * attackReceived here â€” that would let
-                         * Player_ReceiveDamage see them already-cleared
-                         * and skip processing. */
-                        pl->damage.amount = Q12(15.0f);
-                        pl->damage.position = airScreamer->position;
-                        pl->attackReceived  = WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap);
-                        pl->field_40        = Chara_NpcIdxGet(airScreamer);
-
-                        _asDamagedThisSwoop2 = 1;
-                    }
-                }
-
-                _asPrevHarryHP2 = curHp;
-            }
-            _bitePos.vx = airScreamer->position.vx;
-            _bitePos.vy = airScreamer->position.vy;
-            _bitePos.vz = airScreamer->position.vz;
-            /* Use Unk69 (bloodsucker bite profile) â€” vs Harry. */
-            hitRet = func_8008A0E4(1, WEAPON_ATTACK(EquippedWeaponId_Unk69, AttackInputType_Tap),
-                                   airScreamer, &_bitePos, &g_SysWork.playerWork.player,
-                                   airScreamer->rotation.vy, Q12_ANGLE(180.0f));
-            if (_swoopLogN < 50) {
-                /* Log AS pos vs player pos so we can see if Harry is
-                 * actually inside the bite cone or if AS swoop is
-                 * mistargeting. dx/dz reveal the relative offset; the
-                 * bbox-reject bug shows up as "AS swoops past, BF84-NHP
-                 * keeps rejecting because Harry is outside cone angle". */
-                VECTOR3* pp = &g_SysWork.playerWork.player.position;
-                _swoopLogN++;
-            }
-        }
-    }
-#endif
-
     switch (Ai_AirScreamer_DamageTake(airScreamer, Q12(1.0f)))
     {
         case AirScreamerDamage_None:
@@ -8930,18 +8526,6 @@ void Ai_AirScreamer_Control_47(s_SubCharacter* airScreamer)
                 unkAngleDelta = Q12_ANGLE_NORM_S(func_80080478(&airScreamer->position, &airScreamerProps.targetPosition) - airScreamer->rotation.vy);
                 if (unkAngleDelta >= Q12_ANGLE(-8.0f) && unkAngleDelta < Q12_ANGLE(8.0f))
                 {
-#ifdef SH_PC_PORT
-                    /* Cafe-AS post-bite cooldown gate. Cooldown countdown
-                     * itself lives in AirScreamer_Update so it works
-                     * across all control states; this just stops the
-                     * C47â†’C49 re-engagement during cooldown so the AS
-                     * stays in hover instead of repositioning for a bite
-                     * that won't damage anyway. */
-                    extern q19_12 g_AsBiteCooldown;
-                    if (g_AsBiteCooldown > Q12(0.0f)) {
-                        break;  /* still on cooldown â€” stay in C47 hover */
-                    }
-#endif
                     airScreamer->model.controlState = AirScreamerControl_49;
                     airScreamer->model.stateStep    = AirScreamerStateStep_0;
                 }
@@ -11754,14 +11338,6 @@ void sharedFunc_800D598C_0_s01(s_SubCharacter* airScreamer)
     element2 = ptr->field_380[7][0]; // Hardcoded 7 instead of `idx0`.
     element3 = ptr->field_380[7][1];
 
-#ifdef SH_PC_PORT
-    {
-        static int _598Clog = 0;
-        if (_598Clog < 12) {
-            _598Clog++;
-        }
-    }
-#endif
 
     idx3                                        = 0;
     sharedData_800E21D0_0_s01.field_B4[idx3][2] = element2;
@@ -13618,13 +13194,6 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                     temp_s1->field_0 = 1;
                 }
 
-#ifdef SH_PC_PORT
-                /* PC: ptr_D48[1] is NULL after the reformatter (PSX address
-                 * invalid). Skip the bone-derived target setup â€” the
-                 * cylinder hitbox in sharedFunc_800D82B8 is the
-                 * collision target. */
-                if (sharedData_800CAA98_0_s01.ptr_D48[1] == NULL) break;
-#endif
                 func_800805BC(&vec[0], sharedData_800CAA98_0_s01.ptr_D48[1], &coords[sharedData_800CAA98_0_s01.ptr_D48[1]->pad], 2);
 
                 temp_v0           = func_80080478(&vec[0], &vec[1]);
@@ -13646,11 +13215,6 @@ bool sharedFunc_800D7EBC_0_s01(s_SubCharacter* airScreamer)
                     temp_s1->field_0 = 1;
                 }
 
-#ifdef SH_PC_PORT
-                /* PC: ptr_D48[2,3] are NULL after the reformatter. */
-                if (sharedData_800CAA98_0_s01.ptr_D48[2] == NULL ||
-                    sharedData_800CAA98_0_s01.ptr_D48[3] == NULL) break;
-#endif
                 func_800805BC(vec, sharedData_800CAA98_0_s01.ptr_D48[2], &coords[sharedData_800CAA98_0_s01.ptr_D48[2]->pad], 2);
                 func_800805BC(&vec[2], sharedData_800CAA98_0_s01.ptr_D48[3], &coords[sharedData_800CAA98_0_s01.ptr_D48[3]->pad], 2);
 
@@ -13727,34 +13291,6 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
     sp10 = sharedFunc_800D4A80_0_s01(airScreamer);
     if (sp10 != 0)
     {
-#ifdef SH_PC_PORT
-        /* PC: ptr_D48[4] is set to NULL at startup by the reformatter
-         * (PSX 0x80XXXXXX address is invalid on PC). The original
-         * polygon-hitbox computation requires those bone vertex
-         * pointers; without them, fall back to a cylinder so AS is at
-         * least targetable. The reformatter could in theory point
-         * ptr_D48[] at PC-resident bone vertex tables, but no one has
-         * built those â€” until then, cylinder-only collision. */
-        if (sharedData_800CAA98_0_s01.ptr_D48[4] == NULL) {
-            airScreamer->collision.box.height = Q12( 1.5f);
-            airScreamer->collision.box.top = Q12(-1.5f);
-            airScreamer->collision.box.offsetY = Q12( 0.0f);
-            airScreamer->collision.box.field_8 = Q12( 0.0f);
-            airScreamer->collision.box.bottom = Q12( 1.5f);
-            /* Use the real per-keyframe hitbox radius from field_D70[sp10][1]
-             * (~0.6) â€” the same value the polygon path applies below. The old
-             * hardcoded 1.5 was a ~2.5x-oversized bubble that pushed Harry away
-             * before he could get close enough to kick the Air Screamer. */
-            airScreamer->collision.cylinder.radius = sharedData_800CAA98_0_s01.field_D70[sp10][1];
-            /* field_2 is the chara-to-chara push/separation extent. The vanilla
-             * polygon path derives it from the bone hull; with bones NULL on PC
-             * the old hardcoded 1.5 was a ~2.5x-oversized bubble that shoved Harry
-             * across the room before he could close in. Use the data radius. */
-            airScreamer->collision.cylinder.field_2  = sharedData_800CAA98_0_s01.field_D70[sp10][1];
-            airScreamer->collision.state        = 3;
-            return;
-        }
-#endif
         idx0 = 0;
         idx1 = 1;
 

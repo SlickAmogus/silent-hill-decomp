@@ -47,6 +47,28 @@ static inline u16 rd16(const u8* p) { return (u16)p[0] | ((u16)p[1] << 8); }
 static inline s16 rds16(const u8* p) { return (s16)rd16(p); }
 static inline s32 rds32(const u8* p) { return (s32)rd32(p); }
 
+/* Air Screamer bone-anchor SVECTORs (PSX rodata at 0x800CA9F0, immediately
+ * before the struct). ptr_D48[0..4] are five pointers INTO this one contiguous
+ * array, at element offsets 0/2/5/8/11; each SVECTOR's .pad is the parent bone
+ * index into coords[], and pad == -1 (NO_VALUE) terminates a group:
+ *   [1] stand/hover-bite fang anchor (bone 11), [2]/[3] glide-scratch claw
+ *   anchors (bones 8/5), [4] the body-hull vertex list (bones 1,3,6,4,7,9,12,
+ *   14,16) used to build the polygon collision box.
+ * These were zeroed at extract (only the struct blob was captured), which left
+ * the cone attack (sharedFunc_800D7EBC) and the polygon hitbox
+ * (sharedFunc_800D82B8) with no geometry on PC. Recovered verbatim from
+ * MAP0_S01.BIN — the same canonical overlay g_AsRodataPsxRaw came from. */
+static const SVECTOR g_AsPtrD48Vecs[21] = {
+    {   0,   0, -51,  10 }, {   0,   0,   0,  -1 },
+    {   0,  10, -25,  11 }, {   0,  30, -76,  11 }, {   0,   0,   0,  -1 },
+    {   0,   0,   0,   8 }, {   0,   0,  64,   8 }, {   0,   0,   0,  -1 },
+    {   0,   0,   0,   5 }, {   0,   0, -64,   5 }, {   0,   0,   0,  -1 },
+    {   0,   0,   0,   1 }, {   0,   0,   0,   3 }, {   0,   0,   0,   6 },
+    {   0,   0,   0,   4 }, {   0,   0,   0,   7 }, {   0,   0,   0,   9 },
+    {   0,   0,   0,  12 }, {   0,   0,   0,  14 }, {   0,   0,   0,  16 },
+    {   0,   0,   0,  -1 },
+};
+
 void AsRodata_Reformat(void)
 {
     s_func_800D2E04* dst = &sharedData_800CAA98_0_s01;
@@ -102,9 +124,14 @@ void AsRodata_Reformat(void)
     /* field_D3C[2][6] — 12 B u8 array. */
     memcpy(dst->field_D3C, &src[0xD3C], 2 * 6);
 
-    /* ptr_D48[5] — PSX 4-B addresses, already zeroed at extract → NULL on PC. */
-    for (i = 0; i < 5; i++)
-        dst->ptr_D48[i] = NULL;
+    /* ptr_D48[5] — point into the recovered bone-anchor SVECTOR table at the
+     * same element offsets the PSX pointers used (0/2/5/8/11). Read-only; the
+     * SVECTOR* (non-const) game field only ever reads through these. */
+    dst->ptr_D48[0] = (SVECTOR*)&g_AsPtrD48Vecs[0];
+    dst->ptr_D48[1] = (SVECTOR*)&g_AsPtrD48Vecs[2];
+    dst->ptr_D48[2] = (SVECTOR*)&g_AsPtrD48Vecs[5];
+    dst->ptr_D48[3] = (SVECTOR*)&g_AsPtrD48Vecs[8];
+    dst->ptr_D48[4] = (SVECTOR*)&g_AsPtrD48Vecs[11];
 
     /* field_D5C[4][2] — 16 B s16 array. */
     memcpy(dst->field_D5C, &src[0xD5C], 4 * 2 * sizeof(s16));
