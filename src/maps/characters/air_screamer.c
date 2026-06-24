@@ -91,10 +91,19 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
      * field_40 = NPC index â†’ Player_ReceiveDamage uses g_SysWork.npcs
      * [field_40].rotation.vy as the enemy yaw for angleState calc. */
     {
-        static u8  s_prevBiteActive = 0;
+        static u32 s_prevBiteStatus = 0;
         static u8  s_biteDamaged    = 0;
         u32 curStatus = (u32)airScreamer->model.anim.status;
-        u8  isBiteActive = (curStatus == ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true));
+        /* All THREE cone-attack anims deal damage on PSX via func_8008A3E0
+         * (dispatched in sharedFunc_800D7EBC). On PC the bone pointers ptr_D48[]
+         * are NULL so that path early-breaks and applies ZERO damage, leaving the
+         * wild-map Stand-bite and Glide-scratch harmless — the "barely attacks"
+         * symptom. Recognize all three so the PC proximity fallback fires for
+         * them too. HoverInjuredBiteAttack(9) is intentionally excluded: on PSX it
+         * is a speed switch-case that never calls the cone applier. */
+        u8  isBiteActive = (curStatus == ANIM_STATUS(AirScreamerAnim_StandBiteAttack, true) ||
+                            curStatus == ANIM_STATUS(AirScreamerAnim_HoverBiteAttack, true) ||
+                            curStatus == ANIM_STATUS(AirScreamerAnim_GlideScratchAttack, true));
         s32 kf = airScreamer->model.anim.keyframeIdx;
 
         /* Universal post-bite cooldown â€” count it down here (every frame
@@ -110,10 +119,13 @@ void AirScreamer_Update(s_SubCharacter* airScreamer, s_AnmHeader* anmHdr, GsCOOR
             if (g_AsBiteCooldown < Q12(0.0f)) g_AsBiteCooldown = Q12(0.0f);
         }
 
-        if (isBiteActive && !s_prevBiteActive) {
+        /* Re-arm the one-hit-per-swing lockout when a bite begins OR the active
+         * bite anim changes, so a Stand-bite chained straight into a Glide-scratch
+         * each land once instead of the second being suppressed. */
+        if (isBiteActive && curStatus != s_prevBiteStatus) {
             s_biteDamaged = 0;
         }
-        s_prevBiteActive = isBiteActive;
+        s_prevBiteStatus = isBiteActive ? curStatus : 0;
 
         {
             s_SubCharacter* pl = &g_SysWork.playerWork.player;
@@ -13734,7 +13746,11 @@ void sharedFunc_800D82B8_0_s01(s_SubCharacter* airScreamer)
              * hardcoded 1.5 was a ~2.5x-oversized bubble that pushed Harry away
              * before he could get close enough to kick the Air Screamer. */
             airScreamer->collision.cylinder.radius = sharedData_800CAA98_0_s01.field_D70[sp10][1];
-            airScreamer->collision.cylinder.field_2  = Q12( 1.5f);
+            /* field_2 is the chara-to-chara push/separation extent. The vanilla
+             * polygon path derives it from the bone hull; with bones NULL on PC
+             * the old hardcoded 1.5 was a ~2.5x-oversized bubble that shoved Harry
+             * across the room before he could close in. Use the data radius. */
+            airScreamer->collision.cylinder.field_2  = sharedData_800CAA98_0_s01.field_D70[sp10][1];
             airScreamer->collision.state        = 3;
             return;
         }
