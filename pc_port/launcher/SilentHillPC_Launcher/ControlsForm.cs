@@ -87,14 +87,37 @@ public class ControlsForm : Form
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
-        // Alternate binds: Action=Mouse1, Aim=Mouse2, Flashlight=F, Map=Tab,
-        // Up/Down=W/S (Left/Right already default to A/D as the L1/R1 primaries).
-        { "key_cross_2", "Mouse1" }, { "key_r2_2", "Mouse2" },
-        { "key_circle_2", "F" }, { "key_triangle_2", "Tab" }, { "key_l1_2", "NONE" }, { "key_r1_2", "NONE" },
-        { "key_up_2", "W" }, { "key_down_2", "S" }, { "key_left_2", "NONE" }, { "key_right_2", "NONE" },
-        { "key_square_2", "NONE" }, { "key_l2_2", "NONE" },
-        { "key_start_2", "NONE" }, { "key_select_2", "NONE" },
+        // Classic per-action alternates default to NONE (unbound) — handled by the
+        // NONE fallback, so none are seeded here.
     };
+
+    // Modern (altcam) scheme defaults — applied while an alternate camera (TPS/OTS)
+    // is active. Per-action keys not listed default to NONE (unbound).
+    private static readonly Dictionary<string, string> AltDefaults =
+        new Dictionary<string, string>
+    {
+        { "key_up", "W" }, { "key_down", "S" }, { "key_left", "NONE" }, { "key_right", "NONE" },
+        { "key_cross", "Mouse1" }, { "key_circle", "F" }, { "key_triangle", "Tab" }, { "key_square", "Left Shift" },
+        { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "NONE" }, { "key_r2", "Mouse2" },
+        { "key_start", "Return" }, { "key_select", "Space" },
+        { "key_cross_2", "E" },
+        { "pad_cross", "righttrigger" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "leftshoulder" },
+        { "pad_l1", "NONE" }, { "pad_r1", "NONE" }, { "pad_l2", "NONE" }, { "pad_r2", "lefttrigger" },
+        { "pad_start", "start" }, { "pad_select", "back" },
+        { "pad_cross_2", "a" },
+    };
+
+    // Per-scheme bind keys (saved twice: classic as-is, altcam with an "_altcam"
+    // suffix). Anything in `inputs` NOT in this set is a scheme-independent global.
+    private static readonly HashSet<string> SchemeKeys = BuildSchemeKeys();
+
+    private static HashSet<string> BuildSchemeKeys()
+    {
+        var s = new HashSet<string>();
+        foreach (var b in KeyboardBinds)   { s.Add(b[1]); s.Add(b[1] + "_2"); }
+        foreach (var b in ControllerBinds) { s.Add(b[1]); s.Add(b[1] + "_2"); }
+        return s;
+    }
 
     // WinForms Keys -> SDL scancode name (what PsyX_LookupKeyboardMapping wants).
     private static readonly Dictionary<Keys, string> KeyToSdl = BuildKeyMap();
@@ -112,7 +135,16 @@ public class ControlsForm : Form
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
+    private CheckBox chkAltCamControls;
     private ToolTip  tips;
+
+    // Two control schemes (0 = classic / default camera, 1 = altcam / any
+    // alternate-modern camera). The UI shows ONE scheme's per-action binds at a
+    // time; the "Alt. Cam Controls" checkbox switches which. Globals (change-cam,
+    // quick save/load, swap-shoulder) are not schemed.
+    private int activeScheme = 0;
+    private readonly Dictionary<string, string>[] schemeValues =
+        { new Dictionary<string, string>(), new Dictionary<string, string>() };
 
     // The click that focuses a bind box must NOT be captured as a Mouse1 binding.
     private bool ignoreNextMouseBind;
@@ -148,7 +180,7 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(760, 610);
+        ClientSize = new Size(940, 610);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -159,12 +191,45 @@ public class ControlsForm : Form
         const int rowH = 26;
         const int labelW = 120;
         const int inputW = 118;
-        const int padInputW = 150;
+        const int padInputW = 80;   /* ~half width to fit the controller alternate column */
         const int secGap = 6;
 
         AddHeader("Keyboard Controls", colKbX, headerY);
         AddLabel("Alternate", colKbX + labelW + inputW + secGap, headerY + 4, inputW);
         AddHeader("Controller Controls", colPadX, headerY);
+        AddLabel("Alternate", colPadX + labelW + padInputW + secGap, headerY + 4, padInputW);
+
+        // "Alt. Cam Controls" toggle (top-right): swaps the keyboard + controller
+        // binds shown between the default-camera scheme and the alternate-camera scheme.
+        chkAltCamControls = new CheckBox
+        {
+            Text = "Alt. Cam Controls",
+            Left = ClientSize.Width - 220,
+            Top = headerY,
+            Width = 140,
+            ForeColor = TextColor,
+        };
+        chkAltCamControls.CheckedChanged += AltCamControls_CheckedChanged;
+        Controls.Add(chkAltCamControls);
+
+        Button btnAltCamHelp = new Button
+        {
+            Text = "?",
+            Left = ClientSize.Width - 72,
+            Top = headerY - 3,
+            Width = 26,
+            Height = 24,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            FlatStyle = FlatStyle.Flat,
+        };
+        btnAltCamHelp.Click += (s, e) => MessageBox.Show(this,
+            "One set of controls is for the default, classic gameplay style with tank controls and traditional " +
+            "camera angles. The other set is for when you're using a modern control style like TPS or OTS. Leave " +
+            "the box unchecked to set classic controls, check it to set modern controls. Each control style also " +
+            "has alternates, so that you can use more than one button for the same action.",
+            "Alternate Camera Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Controls.Add(btnAltCamHelp);
 
         // Keyboard PSX binds — each gets a hidden secondary box (shown when the
         // mouse/secondary toggle is on).
@@ -184,12 +249,13 @@ public class ControlsForm : Form
         int swapShoulderY = changeCamY + rowH;
         AddKeyRow("Swap Shoulder", "key_swap_shoulder", colKbX, swapShoulderY, labelW, inputW, false);
 
-        // Controller binds.
+        // Controller binds — primary + an alternate (second button) per action.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
             int y = rowY0 + i * rowH;
             AddLabel(ControllerBinds[i][0], colPadX, y, labelW);
             AddPadCombo(ControllerBinds[i][1], colPadX + labelW, y - 3, padInputW);
+            AddPadCombo(ControllerBinds[i][1] + "_2", colPadX + labelW + padInputW + secGap, y - 3, padInputW);
         }
 
         // Change Camera (controller) — below Select.
@@ -317,6 +383,7 @@ public class ControlsForm : Form
             Left = left,
             Top = top,
             Width = width,
+            DropDownWidth = 150,   /* box is narrow; keep the open list readable */
             DropDownStyle = ComboBoxStyle.DropDownList,
             BackColor = PanelBack,
             ForeColor = TextColor,
@@ -509,28 +576,87 @@ public class ControlsForm : Form
         cmbControlStyle.SelectedIndex = idx >= 0 ? idx : 0;
     }
 
-    private void LoadValues()
+    // --- Scheme helpers -------------------------------------------------
+
+    // Show one scheme's per-action binds in the (shared) UI controls.
+    private void PopulateUiFromScheme(int scheme)
     {
         foreach (KeyValuePair<string, Control> kv in inputs)
         {
-            string def = Defaults.ContainsKey(kv.Key) ? Defaults[kv.Key] : "";
-            string val = config.Get(kv.Key, def);
-
-            TextBox tb = kv.Value as TextBox;
-            if (tb != null)
-            {
-                tb.Text = val;
-                continue;
-            }
-
-            ComboBox cb = kv.Value as ComboBox;
-            if (cb != null)
-            {
-                int idx = cb.Items.IndexOf(val);
-                if (idx < 0) idx = cb.Items.IndexOf(def);
-                cb.SelectedIndex = idx >= 0 ? idx : 0;
-            }
+            if (!SchemeKeys.Contains(kv.Key)) continue;
+            string val = schemeValues[scheme].ContainsKey(kv.Key) ? schemeValues[scheme][kv.Key] : "NONE";
+            SetControlValue(kv.Value, val, val);
         }
+    }
+
+    // Capture the UI's current per-action binds back into a scheme's value dict.
+    private void FlushUiToScheme(int scheme)
+    {
+        foreach (KeyValuePair<string, Control> kv in inputs)
+        {
+            if (!SchemeKeys.Contains(kv.Key)) continue;
+            schemeValues[scheme][kv.Key] = GetControlValue(kv.Value);
+        }
+    }
+
+    private void AltCamControls_CheckedChanged(object sender, EventArgs e)
+    {
+        int next = chkAltCamControls.Checked ? 1 : 0;
+        if (next == activeScheme) return;
+        FlushUiToScheme(activeScheme);   // keep edits to the scheme we're leaving
+        activeScheme = next;
+        PopulateUiFromScheme(activeScheme);
+    }
+
+    private static void SetControlValue(Control c, string val, string fallback)
+    {
+        TextBox tb = c as TextBox;
+        if (tb != null) { tb.Text = val; tb.Tag = val; return; }
+        ComboBox cb = c as ComboBox;
+        if (cb != null)
+        {
+            int idx = cb.Items.IndexOf(val);
+            if (idx < 0) idx = cb.Items.IndexOf(fallback);
+            cb.SelectedIndex = idx >= 0 ? idx : 0;
+        }
+    }
+
+    private static string GetControlValue(Control c)
+    {
+        TextBox tb = c as TextBox;
+        if (tb != null)
+        {
+            string v = (tb.Text == ListenPrompt) ? (tb.Tag as string ?? "") : tb.Text.Trim();
+            return v.Length == 0 ? "NONE" : v;
+        }
+        ComboBox cb = c as ComboBox;
+        if (cb != null)
+            return cb.SelectedItem != null ? cb.SelectedItem.ToString() : "NONE";
+        return "NONE";
+    }
+
+    private void LoadValues()
+    {
+        // Per-scheme binds: classic from the base key, altcam from base + "_altcam".
+        foreach (string key in SchemeKeys)
+        {
+            string defC = Defaults.ContainsKey(key) ? Defaults[key] : "NONE";
+            schemeValues[0][key] = config.Get(key, defC);
+            string defA = AltDefaults.ContainsKey(key) ? AltDefaults[key] : "NONE";
+            schemeValues[1][key] = config.Get(key + "_altcam", defA);
+        }
+
+        // Global (scheme-independent) inputs load straight from config.
+        foreach (KeyValuePair<string, Control> kv in inputs)
+        {
+            if (SchemeKeys.Contains(kv.Key)) continue;
+            string def = Defaults.ContainsKey(kv.Key) ? Defaults[kv.Key] : "";
+            SetControlValue(kv.Value, config.Get(kv.Key, def), def);
+        }
+
+        activeScheme = 0;
+        chkAltCamControls.Checked = false;
+        PopulateUiFromScheme(0);
 
         PopulateControlStyles();
 
@@ -546,24 +672,20 @@ public class ControlsForm : Form
 
     private void ResetDefaults()
     {
+        // Reset BOTH schemes to their defaults, then re-show the active one.
+        foreach (string key in SchemeKeys)
+        {
+            schemeValues[0][key] = Defaults.ContainsKey(key) ? Defaults[key] : "NONE";
+            schemeValues[1][key] = AltDefaults.ContainsKey(key) ? AltDefaults[key] : "NONE";
+        }
+        PopulateUiFromScheme(activeScheme);
+
+        // Global (scheme-independent) inputs.
         foreach (KeyValuePair<string, Control> kv in inputs)
         {
+            if (SchemeKeys.Contains(kv.Key)) continue;
             string def = Defaults.ContainsKey(kv.Key) ? Defaults[kv.Key] : "";
-
-            TextBox tb = kv.Value as TextBox;
-            if (tb != null)
-            {
-                tb.Text = def;
-                tb.Tag = def;
-                continue;
-            }
-
-            ComboBox cb = kv.Value as ComboBox;
-            if (cb != null)
-            {
-                int idx = cb.Items.IndexOf(def);
-                cb.SelectedIndex = idx >= 0 ? idx : 0;
-            }
+            SetControlValue(kv.Value, def, def);
         }
 
         if (cmbControlStyle.Items.Count > 0)
@@ -579,17 +701,26 @@ public class ControlsForm : Form
 
     private void SaveValues()
     {
+        // Capture the scheme currently shown in the UI before writing both out.
+        FlushUiToScheme(activeScheme);
+
+        // Per-scheme binds: classic to the base key, altcam to base + "_altcam".
+        foreach (string key in SchemeKeys)
+        {
+            string vC = schemeValues[0].ContainsKey(key) ? schemeValues[0][key] : "NONE";
+            if (vC.Length == 0) vC = "NONE";
+            config.Set(key, vC);
+
+            string vA = schemeValues[1].ContainsKey(key) ? schemeValues[1][key] : "NONE";
+            if (vA.Length == 0) vA = "NONE";
+            config.Set(key + "_altcam", vA);
+        }
+
+        // Global (scheme-independent) inputs.
         foreach (KeyValuePair<string, Control> kv in inputs)
         {
-            string val;
-            TextBox tb = kv.Value as TextBox;
-            if (tb != null)
-                val = (tb.Text == ListenPrompt) ? (tb.Tag as string ?? "") : tb.Text.Trim();
-            else
-                val = ((ComboBox)kv.Value).SelectedItem != null ? ((ComboBox)kv.Value).SelectedItem.ToString() : "";
-
-            if (val.Length == 0) val = "NONE";
-            config.Set(kv.Key, val);
+            if (SchemeKeys.Contains(kv.Key)) continue;
+            config.Set(kv.Key, GetControlValue(kv.Value));
         }
 
         if (cmbControlStyle.SelectedIndex >= 0 && cmbControlStyle.SelectedIndex < styleIds.Count)
