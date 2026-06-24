@@ -1099,7 +1099,15 @@ void GameState_Boot_Update(void) // 0x80032D1C
     }
 
     func_80033548();
+#ifndef SH_PC_PORT
+    /* g_MainImg0 is the 2ZANKO_E "violent images" warning (descriptor identical to
+     * warning_screen.c's s_WarnImg, same VRAM). On PSX the boot state IS the warning
+     * screen; on PC the warning is a separate pre-loop pass (Pc_PlayWarningScreen), so
+     * re-drawing the same VRAM image here just flashed the warning a SECOND time
+     * (snaps in 4:3-pillarboxed, then fades out). Boot clears to black (background2dColor=0)
+     * without it, so the hand-off to the Konami logo stays clean. */
     Screen_BackgroundImgDraw(&g_MainImg0);
+#endif
     func_80089090(1);
 }
 
