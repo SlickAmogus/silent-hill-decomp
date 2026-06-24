@@ -94,44 +94,47 @@ There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issu
 
   ### Building Prerequisites
 
-  - **MSYS2/MinGW64** (Windows) with the following packages:
+  - **MSYS2/MinGW64** (Windows). Install MSYS2 from https://www.msys2.org/, then from an **MSYS2 MinGW x64** shell install the toolchain:
     ```
-    pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
+    pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
     ```
-  - **PsyCross** — Clone as a sibling directory:
+  - **PsyCross** — pulled in as a git **submodule** (the SH-specific fork). From the repo root:
     ```
-    git clone https://github.com/OpenDriver2/PsyCross.git
+    git submodule update --init --recursive
     ```
-  - Your directory layout should look like:
+    This populates `pc_port/PsyCross`. Do **not** clone PsyCross separately — the build uses the submodule.
+  - **Game disc image** — A BIN dump of *Silent Hill* (USA) (SLUS-00707). Place it at:
     ```
-    parent/
-      silent-hill-decomp/
-      PsyCross/
+    pc_port/build/gamedata/Silent Hill (USA).bin
     ```
-  - **Game disc image** — A BIN/CUE dump of *Silent Hill* (USA) (SLUS-00707).
 
   ### Building
 
-  From an **MSYS2 MinGW64** shell (first time):
+  **Easiest (Windows): one command.**
+  ```
+  pc_port\build.bat
+  ```
+  Double-click `build.bat` for a menu (incremental / clean rebuild / build+run / nuke), or pass a mode:
+  `build.bat` (incremental), `build.bat rebuild`, `build.bat configure`, `build.bat run`, `build.bat nuke`.
+  It auto-configures (Ninja + map DLLs) on the first run and rebuilds incrementally afterward.
+  If MSYS2 isn't at `C:\msys64`, set `MSYS2_ROOT` first (e.g. `set MSYS2_ROOT=D:\msys64 && pc_port\build.bat`).
 
+  **Manual** — from an **MSYS2 MinGW64** shell (first time):
   ```bash
   cd silent-hill-decomp/pc_port
-  mkdir build && cd build
-  cmake .. -G Ninja -DSH_BUILD_MAP_DLLS=ON
-  cmake --build .
+  cmake -S . -B build -G Ninja -DSH_BUILD_MAP_DLLS=ON
+  cmake --build build
   ```
+  Subsequent incremental builds: `cmake --build build`.
 
-  Subsequent builds (incremental):
-  ```bash
-  cmake --build .
-  ```
-
-  From PowerShell (adjust path as needed):
+  From PowerShell (adjust the path):
   ```powershell
-  & "C:\msys64\usr\bin\bash.exe" -lc "export PATH=/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH && cd /c/path/to/silent-hill-decomp/pc_port/build && cmake --build ."
+  & "C:\msys64\usr\bin\bash.exe" -lc "export PATH=/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH && cmake --build /c/path/to/silent-hill-decomp/pc_port/build"
   ```
 
-  `-DSH_BUILD_MAP_DLLS=ON` builds 31 maps as DLLs loaded at runtime. Without it only the starting area is available.
+  `-DSH_BUILD_MAP_DLLS=ON` builds the maps as DLLs loaded at runtime. Without it only the starting area is available.
+
+  > **Note:** close the game before rebuilding — the linker cannot overwrite a running `SilentHillPC.exe` (the error is `cannot open output file SilentHillPC.exe: Permission denied`). `build.bat` detects this and tells you.
 
   ### Setting Up Game Data
 
