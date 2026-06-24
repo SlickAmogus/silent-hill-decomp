@@ -23,6 +23,8 @@
 #define BLOOD_ADD_MAX 0x80
 #include <string.h>
 #include "sh_log.h"
+/* Fades the additive blood layers toward black with world fog (bodyprog_80055028.c). */
+extern int Pc_BloodFogKeep(s32 z);
 #endif
 
 s_800C42E8     D_800C42E8[24];
@@ -1407,11 +1409,17 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * have a dim tint already below the cap, so red-over-dark is untouched. */
             {
                 int _c;
+                int _keep = Pc_BloodFogKeep(ptr->field_140);
                 POLY_FT4* _add[2]; _add[0] = *poly; _add[1] = *poly + 3;
                 for (_c = 0; _c < 2; _c++) {
                     if (_add[_c]->r0 > BLOOD_ADD_MAX) _add[_c]->r0 = BLOOD_ADD_MAX;
                     if (_add[_c]->g0 > BLOOD_ADD_MAX) _add[_c]->g0 = BLOOD_ADD_MAX;
                     if (_add[_c]->b0 > BLOOD_ADD_MAX) _add[_c]->b0 = BLOOD_ADD_MAX;
+                    /* fade the additive layer with world fog so distant blood stops
+                     * over-adding red and disappears into the fog like the world. */
+                    _add[_c]->r0 = (_add[_c]->r0 * _keep) >> 8;
+                    _add[_c]->g0 = (_add[_c]->g0 * _keep) >> 8;
+                    _add[_c]->b0 = (_add[_c]->b0 * _keep) >> 8;
                 }
             }
             {
@@ -2210,6 +2218,15 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 if ((*poly)->r0 > BLOOD_ADD_MAX) (*poly)->r0 = BLOOD_ADD_MAX;
                 if ((*poly)->g0 > BLOOD_ADD_MAX) (*poly)->g0 = BLOOD_ADD_MAX;
                 if ((*poly)->b0 > BLOOD_ADD_MAX) (*poly)->b0 = BLOOD_ADD_MAX;
+
+                /* fade the additive layer with world fog (see Pc_BloodFogKeep) so distant
+                 * cloud blood disappears into the fog instead of staying vivid. */
+                {
+                    int _keep = Pc_BloodFogKeep(ptr->field_20C);
+                    (*poly)->r0 = ((*poly)->r0 * _keep) >> 8;
+                    (*poly)->g0 = ((*poly)->g0 * _keep) >> 8;
+                    (*poly)->b0 = ((*poly)->b0 * _keep) >> 8;
+                }
 
                 {
                     s32 _bucketC = (ptr->field_20C + var_s7) >> 3;
