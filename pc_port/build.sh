@@ -1,55 +1,77 @@
-#!/bin/bash
-# Silent Hill PC Port - Linux/macOS Build Script
+#!/usr/bin/env bash
+# ===========================================================================
+#  Silent Hill PC Port - build script (Ninja + map DLLs)
 #
-# Prerequisites:
-#   - CMake 3.16+
-#   - GCC or Clang
-#   - SDL2 development libraries (libsdl2-dev)
-#   - OpenAL-soft development libraries (libopenal-dev)
-#   - OpenGL development headers (libgl-dev)
+#  Canonical toolchain: MSYS2 MinGW-w64 on Windows. Run this from an
+#  "MSYS2 MinGW x64" shell. (On Linux it also works with gcc/clang + ninja +
+#  system SDL2/OpenAL.)
 #
-# PsyCross must be cloned alongside the decomp repo:
-#   silenthill/
-#     silent-hill-decomp/
-#     PsyCross/
+#  Prerequisites (MSYS2):
+#    pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
+#        mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
+#  And initialise the PsyCross submodule once (from the repo root):
+#    git submodule update --init --recursive
+#
+#  Usage (run from anywhere):
+#    ./build.sh            incremental build (configure first if needed)
+#    ./build.sh rebuild    clean rebuild (cmake --build --clean-first)
+#    ./build.sh configure  force a fresh cmake configure, then build
+#    ./build.sh run        build, then launch the game
+# ===========================================================================
+set -euo pipefail
 
-echo "=== Silent Hill PC Port Build ==="
-echo
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/build"
+EXE="$BUILD_DIR/SilentHillPC.exe"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PSYCROSS_DIR="$SCRIPT_DIR/../../PsyCross"
+MODE="${1:-build}"
 
-# Create build directory
-mkdir -p "$SCRIPT_DIR/build"
-cd "$SCRIPT_DIR/build"
-
-# Configure with CMake
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DPSYCROSS_DIR="$PSYCROSS_DIR" \
-    -DSH_VERSION=USA \
-    -DSH_DEBUG=ON
-
-if [ $? -ne 0 ]; then
-    echo
-    echo "CMake configuration failed!"
-    echo "Make sure SDL2 and OpenAL are installed:"
-    echo "  Ubuntu/Debian: sudo apt install libsdl2-dev libopenal-dev"
-    echo "  macOS: brew install sdl2 openal-soft"
+# --- Tool + submodule checks ----------------------------------------------
+for tool in cmake ninja; do
+    command -v "$tool" >/dev/null 2>&1 || {
+        echo "ERROR: '$tool' not found on PATH." >&2
+        echo "On MSYS2 run from the 'MSYS2 MinGW x64' shell and install:" >&2
+        echo "  pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal" >&2
+        exit 1
+    }
+done
+if [ ! -e "$SCRIPT_DIR/PsyCross/CMakeLists.txt" ]; then
+    echo "ERROR: PsyCross submodule missing at $SCRIPT_DIR/PsyCross" >&2
+    echo "From the repo root run:  git submodule update --init --recursive" >&2
     exit 1
 fi
 
-echo
-echo "CMake configured. Building..."
-echo
+# --- The linker can't overwrite a running exe (Windows) -------------------
+if command -v tasklist >/dev/null 2>&1; then
+    if tasklist //FI "IMAGENAME eq SilentHillPC.exe" 2>/dev/null | grep -qi 'SilentHillPC.exe'; then
+        echo "ERROR: SilentHillPC.exe is running - close the game before building." >&2
+        exit 1
+    fi
+fi
 
-cmake --build . -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# --- Configure when asked, or when there's no cache yet -------------------
+need_configure=0
+[ "$MODE" = "configure" ] && need_configure=1
+[ -f "$BUILD_DIR/CMakeCache.txt" ] || need_configure=1
+if [ "$MODE" = "configure" ]; then rm -f "$BUILD_DIR/CMakeCache.txt"; fi
 
-if [ $? -eq 0 ]; then
-    echo
-    echo "Build successful! Binary at: build/SilentHillPC"
+if [ "$need_configure" = 1 ]; then
+    echo "=== Configuring (Ninja, map DLLs ON) ==="
+    cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" -G Ninja -DSH_BUILD_MAP_DLLS=ON
+fi
+
+# --- Build ----------------------------------------------------------------
+echo "=== Building ==="
+if [ "$MODE" = "rebuild" ]; then
+    cmake --build "$BUILD_DIR" --clean-first
 else
-    echo
-    echo "Build failed."
-    exit 1
+    cmake --build "$BUILD_DIR"
+fi
+
+[ -f "$EXE" ] || { echo "ERROR: SilentHillPC.exe was not produced." >&2; exit 1; }
+echo "Build OK: $EXE"
+
+if [ "$MODE" = "run" ]; then
+    echo "Launching..."
+    ( cd "$BUILD_DIR" && ./SilentHillPC.exe )
 fi
