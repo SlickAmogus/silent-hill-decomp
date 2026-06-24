@@ -243,7 +243,23 @@ void Screen_CutsceneCameraStateUpdate(void) // 0x80032904
             return;
     }
 
+#ifdef SH_PC_PORT
+    /* Fixed-camera cinematic border (NOT a full subtitled cutscene): draw the
+     * letterbox bars in OT2 (the 2D-UI pass) instead of OT0. OT2 renders at FULL
+     * vertical ortho (vscale 1.0), so the bars' ±112 lands on the true 224-line
+     * screen edges. In OT0 they rode the 3D-world vertical crop (g_PsxWorldVScale
+     * 0.872), which pulled them inward and left the scene visible in the gap at the
+     * very top = the ghost half-bar. PsyCross already documents the bars as part of
+     * the OT2 pass (the move that was never completed). Full cutscenes keep OT0 so
+     * the bars stay behind their subtitles. */
+    extern GsOT g_OrderingTable2[2];
+    if (!(g_SysWork.sysFlags & SysFlag_CutsceneActive))
+        ot = &g_OrderingTable2[g_ActiveBufferIdx];
+    else
+        ot = &g_OtTags0[g_ActiveBufferIdx][4];
+#else
     ot = &g_OtTags0[g_ActiveBufferIdx][4];
+#endif
     AddPrim(ot, poly);
     AddPrim(ot, &poly[2]);
     AddPrim(ot, drMode);
