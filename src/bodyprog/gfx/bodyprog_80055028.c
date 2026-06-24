@@ -603,6 +603,25 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
     return g_WorldEnvWork.fogRamp[(temp << 7) >> g_WorldEnvWork.fog.depthShift];
 }
 
+#ifdef SH_PC_PORT
+/* World-fog "keep" factor in [0..256] for a blood prim at screen-depth z: 256 near
+ * (no fog), 0 far (full fog). The layered ADDITIVE blood layers (GL_ONE,GL_ONE) keep
+ * adding red into the distance regardless of depth, visually overpowering the color fog
+ * func_80055A90 already applies — so distant blood stays vivid while the world around it
+ * grays out. Multiplying the additive layer color by this (>>8) fades it toward black at
+ * the SAME rate as world geometry (same fogRamp), so it disappears into the fog. */
+int Pc_BloodFogKeep(s32 z)
+{
+    s32 idx;
+    if (!g_WorldEnvWork.isFogEnabled) return 256;
+    if (z < 0) z = 0;
+    if (z >= (1 << g_WorldEnvWork.fog.depthShift)) return 0;
+    idx = (z << 7) >> g_WorldEnvWork.fog.depthShift;
+    if (idx > 127) idx = 127;
+    return 256 - g_WorldEnvWork.fogRamp[idx];
+}
+#endif
+
 void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A90
 {
     s32 var_v1;
