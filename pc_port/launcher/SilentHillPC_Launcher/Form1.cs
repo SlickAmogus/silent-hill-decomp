@@ -663,6 +663,7 @@ public partial class Form1 : Form
                 $"A newer build is available: {plan.RemoteVersion}\n" +
                 $"Built: {plan.BuildDate}\n" +
                 $"Source: {plan.RepoLabel}\n\n" +
+                (plan.IsBeta ? "This build is on the BETA branch (newer than the latest alpha/stable build).\n\n" : "") +
                 (settings.IsLatestBuild ? "" : $"You currently have build '{settings.Build}' selected.\n") +
                 "Update to the latest build and switch to it now?",
                 plan.ChangelogUrl);
