@@ -204,7 +204,7 @@ public class ControlsForm : Form
         chkAltCamControls = new CheckBox
         {
             Text = "Alt. Cam Controls",
-            Left = ClientSize.Width - 160,
+            Left = ClientSize.Width - 135,
             Top = headerY,
             Width = 150,
             ForeColor = TextColor,
@@ -216,7 +216,7 @@ public class ControlsForm : Form
         Button btnAltCamHelp = new Button
         {
             Text = "?",
-            Left = ClientSize.Width - 100,
+            Left = ClientSize.Width - 45,
             Top = headerY + 24,
             Width = 26,
             Height = 22,
@@ -226,7 +226,7 @@ public class ControlsForm : Form
         };
         btnAltCamHelp.Click += (s, e) => MessageBox.Show(this,
             "Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
-            "Each control style also has alternates, so that you can use more than one button for the same action.",
+            "Each control style also has alternates so that you can use more than one button for the same action.",
             "Alternate Camera Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
         Controls.Add(btnAltCamHelp);
 
