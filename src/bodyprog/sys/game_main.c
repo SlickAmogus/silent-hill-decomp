@@ -1775,29 +1775,37 @@ void MainLoop(void) // 0x80032EE0
         extern int g_PsxDitherSuppressed;
         g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
 
+        /* Set by the game (game_sys_states.c) while a state freezes the world and presents
+         * the captured FOGGY gameplay frame behind a message: the literal PAUSED screen
+         * and the map-screen messages ("I don't have a map" / "too dark for map"). Those
+         * want the foggy frozen scene behind the text, NOT a black 2D-menu clear. */
+        extern int g_PsxPresentLastFrame;
+
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_PcMapScreenActive) {
+        if (g_PcMapScreenActive && !g_PsxPresentLastFrame) {
             /* Paper-map / map-pickup screens (Screen_BackgroundImgDraw) run under
              * GameState_MapEvent (12) for the pickup, so the gameState==11 forcing below
              * is skipped and the pillarbox bars kept the stale gameplay fog color (read
              * as garbage/old scenery). Force black so the map sits on black bars like the
-             * inventory does. */
+             * inventory. (A map-screen MESSAGE state freezes + presents the foggy frame
+             * instead — excluded via !g_PsxPresentLastFrame so it keeps the foggy sky.) */
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
         else if (g_GameWork.gameState == 11 &&
-            (g_SysWork.sysFlags & SysFlag_MenuActive)) {
-            /* A 2D menu (inventory/status/options) is open or opening within InGame.
-             * These transition through gameState==InGame for a few frames before the
-             * menu draws, so the fog-color background clear below would flash gray (the
-             * void fog color) on open. Force black for the 2D background instead; fog
-             * params are left untouched so 3D gameplay fog is unaffected once the menu
-             * closes. (GAME OVER is intentionally NOT forced black here — it falls through
-             * to the fog clear below so the death scene keeps the foggy sky, not black.) */
+            (((g_SysWork.sysFlags & SysFlag_MenuActive) && !g_PsxPresentLastFrame) ||
+             g_SysWork.sysState == SysState_GameOver)) {
+            /* 2D menus (inventory/status/options/paper map) and the GAME OVER screen clear
+             * to black. EXCEPTION: map-screen message states ("I don't have a map", "too
+             * dark for map") set MenuActive (they run in SysState_MapScreen) but freeze the
+             * world and present the captured foggy frame (g_PsxPresentLastFrame) — those
+             * want the foggy frozen sky behind the text, like the literal PAUSED screen, so
+             * exclude them and let them fall through to the fog clear. GAME OVER stays black
+             * (it renders its own death scene; the sky is meant to be black there). */
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
