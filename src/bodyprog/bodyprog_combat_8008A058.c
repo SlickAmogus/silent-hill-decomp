@@ -1558,6 +1558,16 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* [MELEEDMG] diagnostic: player melee hit on an enemy. base = table damage
+     * (D_800AD4C8[weaponAttack].field_4); dmg = after the one-hit-per-swing guard.
+     * base>0 with dmg==0 and alreadyHit=1 means the per-swing bitmask zeroed it. */
+    if (target != &g_SysWork.playerWork.player && (u8)weaponAttack < 30u)
+        SH_DBG("[MELEEDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d chara=%d\n",
+               weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,
+               (int)((sp14 & sp10) != 0), target->model.charaId);
+#endif
+
     if (damageAmount != Q12(0.0f))
     {
         target->damage.amount += damageAmount;
