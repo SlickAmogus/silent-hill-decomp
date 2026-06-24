@@ -96,7 +96,7 @@ public class ControlsForm : Form
     private static readonly Dictionary<string, string> AltDefaults =
         new Dictionary<string, string>
     {
-        { "key_up", "W" }, { "key_down", "S" }, { "key_left", "NONE" }, { "key_right", "NONE" },
+        { "key_up", "W" }, { "key_down", "S" }, { "key_left", "Left" }, { "key_right", "Right" },
         { "key_cross", "Mouse1" }, { "key_circle", "F" }, { "key_triangle", "Tab" }, { "key_square", "Left Shift" },
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "NONE" }, { "key_r2", "Mouse2" },
         { "key_start", "Return" }, { "key_select", "Space" },

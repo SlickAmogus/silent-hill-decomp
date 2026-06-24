@@ -50,7 +50,7 @@ s_PcConfig g_PcConfig = {
      * A/D strafe, mouse aim(RMB)/fire(LMB); controller LT aim / RT fire, A = use.
      * Unbound actions are "NONE" so they don't fall back to a classic default. === */
     .altcam = {
-        .keyUp = "W", .keyDown = "S", .keyLeft = "NONE", .keyRight = "NONE",
+        .keyUp = "W", .keyDown = "S", .keyLeft = "Left", .keyRight = "Right",
         .keyCross = "Mouse1", .keyCircle = "F", .keyTriangle = "Tab", .keySquare = "Left Shift",
         .keyL1 = "A", .keyR1 = "D", .keyL2 = "NONE", .keyR2 = "Mouse2",
         .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
