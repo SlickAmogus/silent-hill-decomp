@@ -73,6 +73,7 @@ namespace SilentHillPC_Launcher
             public string LauncherVersion;  // incoming launcher version (if any)
             public bool   LauncherIsNewer;  // incoming launcher strictly newer than ours
             public string MigrateToBranch;  // non-null => switch the user's branch to this on apply (alpha->beta)
+            public bool   IsBeta;          // newest build is a beta-branch release (surfaced in the update dialog)
             public List<FileEntry> Changed = new List<FileEntry>();
             public bool HasUpdate => Changed.Count > 0;
 
@@ -152,6 +153,7 @@ namespace SilentHillPC_Launcher
                 ChangelogUrl    = DeriveChangelogUrl(src.Url),
                 LauncherVersion = manifest.LauncherVersion,
                 MigrateToBranch = src.MigrateBranch,
+                IsBeta          = src.IsBeta,
             };
 
             if (manifest.Files != null)
@@ -228,14 +230,14 @@ namespace SilentHillPC_Launcher
             var rels = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
             IEnumerable<GhRelease> cand;
             if (string.IsNullOrWhiteSpace(branch))
-                cand = rels.Where(r => !r.Prerelease); // alpha = the non-prerelease (loose) stream
+                cand = rels.Where(r => !IsBetaRelease(r)); // alpha = the v* (non-beta) stream
             else
                 cand = rels.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
 
             return cand.Select(r => new BuildInfo
             {
                 Tag   = r.TagName,
-                Label = $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(r.Prerelease ? "  [beta]" : "")}"
+                Label = $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
             }).ToList();
         }
 
@@ -258,36 +260,46 @@ namespace SilentHillPC_Launcher
 
         // -- Internals: manifest resolution -----------------------------------
 
-        private class ManifestSource { public string Url; public string Label; public string Tag; public string MigrateBranch; }
+        private class ManifestSource { public string Url; public string Label; public string Tag; public string MigrateBranch; public bool IsBeta; }
 
         private static async Task<ManifestSource> ResolveManifestSourceAsync(
             string owner, string repo, LauncherSettings s, CancellationToken ct)
         {
-            // Common path: alpha (default branch) + latest -> GitHub's
-            // "releases/latest" redirect. It excludes prereleases, so it always
-            // yields the clean latest alpha (the migration base + fallback);
-            // old launchers that track alpha never accidentally grab a beta. New
-            // launchers then explicitly check the beta branch below to migrate.
+            // Default ("latest") on the official repo: track the newest release
+            // across ALL branches (alpha v* and beta beta-*), chosen by PARSED
+            // VERSION. GitHub's releases/latest is NOT trustworthy here: every
+            // release in the nightly repo shares one created_at (bulk upload), so
+            // GitHub's date-ordered "latest" is unreliable and won't surface a
+            // newer beta even when betas are regular (non-prerelease) releases
+            // (verified: releases/latest returns the alpha while a newer beta
+            // exists). The winning branch is recorded so the dialog can flag a
+            // cross-branch (beta) update.
             if (s.IsDefaultBranch && s.IsLatestBuild)
             {
-                string alphaUrl = $"https://github.com/{owner}/{repo}/releases/latest/download/version.json";
-
-                // Auto-migrate alpha -> beta: once the project moves to the beta
-                // stream, an alpha+latest user on the official repo should follow
-                // the newest beta release without changing Build Settings by hand.
-                // Betas are prereleases (kept out of releases/latest), so query the
-                // beta branch explicitly and prefer it when it's newer than alpha.
                 if (s.IsDefaultRepo)
                 {
-                    var betaSrc = await TryResolveBetaMigrationAsync(owner, repo, alphaUrl, ct).ConfigureAwait(false);
-                    if (betaSrc != null)
-                        return betaSrc;
+                    var all    = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
+                    var newest = all.OrderByDescending(r => VersionFromTag(r.TagName)).FirstOrDefault();
+                    if (newest != null)
+                    {
+                        bool   isBeta = IsBetaRelease(newest);
+                        string vUrl   = AssetUrl(newest, "version.json")
+                                        ?? $"https://github.com/{owner}/{repo}/releases/download/{newest.TagName}/version.json";
+                        return new ManifestSource
+                        {
+                            Url    = vUrl,
+                            Label  = $"{owner}/{repo} ({(isBeta ? "beta" : "alpha")}, latest: {newest.TagName})",
+                            Tag    = newest.TagName,
+                            IsBeta = isBeta,
+                        };
+                    }
                 }
 
+                // Third-party repo (or no releases found): GitHub releases/latest.
                 return new ManifestSource
                 {
-                    Url   = alphaUrl,
-                    Label = $"{owner}/{repo} (alpha, latest)",
+                    Url   = $"https://github.com/{owner}/{repo}/releases/latest/download/version.json",
+                    Label = $"{owner}/{repo} (latest)",
                     Tag   = null
                 };
             }
@@ -382,7 +394,7 @@ namespace SilentHillPC_Launcher
                 if (rels.Count < 100) break; // last page reached
             }
             return all.Where(r => r != null && !r.Draft)
-                      .OrderByDescending(r => ParseDate(r.CreatedAt)).ToList();
+                      .OrderByDescending(r => VersionFromTag(r.TagName)).ToList();
         }
 
         // -- Internals: apply (loose / zip) -----------------------------------
@@ -671,6 +683,18 @@ namespace SilentHillPC_Launcher
             if (r == null || r.Assets == null) return null;
             var a = r.Assets.FirstOrDefault(x => x != null && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
             return a?.BrowserDownloadUrl;
+        }
+
+        // Parse the YYYY.MM.DD.N version embedded in a release tag (v2026.06.24.1
+        // or beta-2026.06.24.2) so releases can be ordered by VERSION rather than
+        // the nightly repo's useless (all-identical) created_at timestamps.
+        private static Version VersionFromTag(string tag)
+        {
+            string t = (tag ?? "").Trim();
+            if (t.StartsWith("beta-", StringComparison.OrdinalIgnoreCase)) t = t.Substring(5);
+            else if (t.StartsWith("v", StringComparison.OrdinalIgnoreCase)) t = t.Substring(1);
+            Version v;
+            return Version.TryParse(t, out v) ? v : new Version(0, 0, 0, 0);
         }
 
         private static DateTime ParseDate(string s)

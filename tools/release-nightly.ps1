@@ -371,16 +371,15 @@ if ($isZip) {
 
         Write-Host "Creating release $newTag on branch '$BetaBranch'..." -ForegroundColor Cyan
         # CHANGELOG.md goes up as its OWN asset (next to version.json) so the
-        # launcher can preview it without downloading the whole zip. Mark the
-        # release --prerelease so GitHub's releases/latest (the alpha stream)
-        # never returns a beta zip, and the launcher's alpha filter (!prerelease)
-        # excludes it.
+        # launcher can preview it without downloading the whole zip. Betas are
+        # REGULAR releases (not prereleases) so they appear on the repo's Releases
+        # page; the launcher distinguishes alpha from beta by tag (v* vs beta-*)
+        # and picks the newest build across both streams by parsed version.
         $betaAssets = @($zipPath, $manifestPath)
         if (Test-Path $changelogPath) { $betaAssets += $changelogPath }
         gh release create $newTag `
             --repo $Repo `
             --target $BetaBranch `
-            --prerelease `
             --title "Beta $newVersion" `
             --notes-file $notesFile `
             @betaAssets
