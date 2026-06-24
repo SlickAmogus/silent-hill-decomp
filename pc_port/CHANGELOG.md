@@ -1,5 +1,46 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.24.1 -- 2026-06-24
+- Controls: Revamped control system so that the default camera and control style have their own, separated control scheme from the alternate control styles. Now in the launcher, under controls, you can check a checkbox to switch the control scheme you are customizing the controls for. By default, they control similarly to modern action games.
+- Pulled in more fixes from sergiomanzur to syncronize cutscene voices, fix cutscene stretching, improve fog, make intro screens skippable, misc cleanup, and combat improvements (apply enemy melee damage once per swing, before you could take more damage at high fps)
+- Fog level slightly increased to match real SH, but can be tuned with fogstr console command
+- Fixed console ghosting and black sky when game paused in most cases
+- Fixed air screamer first appearance so it actually flaps its wings
+- Fixed Hyper Blaster so it can be used from cheats
+- Miscellaneous qol fixes detailed below
+Coming soon: Fixing the black bar on top of certain fixed camera shots, issues with puzzle overlays in some cases, leftover random crashes, issue with katana damage + continuing to work on other known issues. Please report any crashes to me and it is certainly possible I forget things so feel free to remind me (especially if it's game breaking). Want to try fully implementing PAL + other language support soon as that has been requested a lot.
+
+Claude commits: 
+- Port in PR#17 self-contained fixes: combat / msg-timer / voice-sync / cleanup
+- Widescreen: flag the OT2 (2D-UI) draw for full vertical ortho; drop msg-shift band-aid
+- Fog: add `fogstr` console command (world fog density), default neutral
+- QOL: optional skip the boot logos (Disclaimer / Konami / KCET)
+- hfov: add `hfov` console command (3D-world horizontal scale), default neutral
+- Air Screamer flyby: actually flap the wings (advance the anim, don't just set it)
+- Console: don't zero dt while a map-message is displayed (e.g. "I don't have a map")
+- Air Screamer flyby wings: flap in the AS update, not the event (AI was clobbering it)
+- 2D-background clear: black bars for map-pickup; keep fog sky on the death screen
+- 2D-bg clear: GAME OVER stays black; "no map"/"too dark" messages keep the foggy sky
+- Fix console ghosting on pause + warning fading back in
+- Revert warning g_PcMenuPillarbox=0 — warning should be pillarboxed, not fullscreen
+- Warning screen: stop the SECOND flash — skip the boot-state warning re-draw on PC
+- Blood: fade additive layers with world fog so distant blood isn't vivid
+- Map DLLs: apply the exe's -Wno-* warning suppressions (GCC 14 build fix, PR#19)
+- docs: graphics effects feasibility study (32-bit color, AA, lighting, filters, RT)
+- Controls: per-camera control schemes (classic vs alternate-camera) + controller alternates
+- Launcher: controller alternate column + per-camera control schemes
+- Launcher: controls-window layout polish + lock main window size
+- Launcher: refresh icon/branding assets + fix CHANGELOG em-dash encoding
+- Launcher: nudge Alt. Cam Controls checkbox/help right + trim help wording
+- release-nightly: first release of a stream now generates a real changelog
+- release-nightly: sort releases by parsed version, not createdAt
+- Controls: make the dev-console toggle key rebindable (key_console)
+- Letterbox: draw fixed-cam cinematic bars in OT2 (full vertical ortho) — fixes ghost bar
+- Revert cutscene-border OT2 move — wrong target for the fixed-cam top-bar report
+- Controls: bind turn-left/right to arrow keys in altcam scheme (fix TPS/OTS menu nav)
+- Console give: unlock HyperBlaster fire gate; add [MELEEDMG] probe for katana
+
+
 ## v2026.06.23.1 -- 2026-06-23
 - BIG UPDATE! Sorry for the delay on this one, but wanted to get this new launcher out so that I wouldn't be so hesitant to push updates in the future. I will make a video going over this update as well, but I will list the big change below, and all the Claude commit summaries are below that.
 - PGXP: Seams/Missing faces FIXED, warping almost fixed and is barely noticeable now. PGXP is near perfect!
