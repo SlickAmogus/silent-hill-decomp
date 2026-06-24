@@ -486,6 +486,19 @@ bool Collision_CharaCollisionSetup(s_CollisionResult* collResult, const VECTOR3*
 
     if (Ipd_CollisionDataGet(chara->position.vx, chara->position.vz) == NULL)
     {
+#ifdef SH_PC_PORT
+        /* PC streams IPD collision chunks on a camera-centred window, so a fast
+         * NPC crossing a chunk boundary can hit a frame with no chunk loaded
+         * under it. The PSX default floor Q12(8.0) then yanks it down until the
+         * chunk reloads — the "sewer creeper falls through the floor and
+         * reappears" symptom. Hold the NPC at its current height through the gap.
+         * Harry keeps the original default (off-map / death-pit behaviour). */
+        if (chara->model.charaId != Chara_Harry)
+        {
+            Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), chara->position.vy);
+            return true;
+        }
+#endif
         Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(8.0f));
         return true;
     }
