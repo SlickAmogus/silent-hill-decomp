@@ -465,6 +465,14 @@ int main(int argc, char* argv[])
             extern void DbgOverlay_PushLine(const char* line);
             g_ShOverlayPushLine = DbgOverlay_PushLine;
         }
+        /* Draw the dev console AFTER the freeze-frame is captured (inside PsyX_EndScene),
+         * so it's never baked into a frozen pause / "no map" image — fixes the console
+         * ghosting/doubling when it was already open before pausing. */
+        {
+            extern void DbgOverlay_Render(void);
+            extern void (*g_PsyX_PostCaptureHook)(void);
+            g_PsyX_PostCaptureHook = DbgOverlay_Render;
+        }
     }
     int windowWidth = g_PcConfig.windowWidth;
     int windowHeight = g_PcConfig.windowHeight;
