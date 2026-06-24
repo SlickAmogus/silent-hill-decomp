@@ -137,17 +137,36 @@ $curCommitShort = (git rev-parse --short HEAD).Trim()
 # the exact source commit it was built from (the manifest also carries git_commit).
 $sourceFooter = "`r`n`r`n---`r`nBuilt from source commit $curCommitShort`r`nSource: $SourceRepoUrl/commit/$curCommitFull"
 
+# Changelog baseline: the same-stream previous release if any, else the globally
+# newest release of the OTHER stream -- so the FIRST release of a stream still
+# lists commits since the last release of any kind instead of "(no commits)".
+$baseManifest = $prevManifest
+if (-not $baseManifest) {
+    $otherTag = Get-LatestStreamReleaseTag -Zip (-not $isZip)
+    if ($otherTag) {
+        try {
+            $tmpBase = New-TemporaryFile
+            gh release download $otherTag --repo $Repo --pattern "version.json" --output $tmpBase --clobber 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $baseManifest = Get-Content $tmpBase -Raw | ConvertFrom-Json
+                Write-Host "First $Mode release: changelog baseline = $otherTag (latest release of the other stream)." -ForegroundColor Cyan
+            }
+            Remove-Item $tmpBase -Force -ErrorAction SilentlyContinue
+        } catch {}
+    }
+}
+
 $commitLog = @()
-if ($prevManifest -and $prevManifest.PSObject.Properties.Name -contains "git_commit" -and $prevManifest.git_commit) {
+if ($baseManifest -and $baseManifest.PSObject.Properties.Name -contains "git_commit" -and $baseManifest.git_commit) {
     $prevOutEnc = $null
     try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
     try {
-        $commitLog = (git log "$($prevManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+        $commitLog = (git log "$($baseManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
     } finally {
         if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: couldn't compute commit log since $($prevManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
+        Write-Host "Warning: couldn't compute commit log since $($baseManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
         $commitLog = @()
     } elseif (-not $commitLog) {
         $commitLog = @()
