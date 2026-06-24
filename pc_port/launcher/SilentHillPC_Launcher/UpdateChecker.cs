@@ -279,7 +279,13 @@ namespace SilentHillPC_Launcher
                 if (s.IsDefaultRepo)
                 {
                     var all    = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
-                    var newest = all.OrderByDescending(r => VersionFromTag(r.TagName)).FirstOrDefault();
+                    // Newest by version; on a tie (a same-day alpha + beta share a
+                    // version) prefer the beta — it's the leading-edge stream, and
+                    // this is the case where an alpha launcher-delivery release ties
+                    // the beta we want users to migrate onto.
+                    var newest = all.OrderByDescending(r => VersionFromTag(r.TagName))
+                                    .ThenByDescending(r => IsBetaRelease(r))
+                                    .FirstOrDefault();
                     if (newest != null)
                     {
                         bool   isBeta = IsBetaRelease(newest);
