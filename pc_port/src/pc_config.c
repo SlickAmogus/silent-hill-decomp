@@ -33,25 +33,38 @@ s_PcConfig g_PcConfig = {
     .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
 
-    /* Keyboard defaults (SDL scancode names) */
-    .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
-    .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
-    .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
-    .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
+    /* === CLASSIC scheme: tank controls + fixed PSX camera (the default). The
+     * keyboard + controller alternates are intentionally unset (== unbound). === */
+    .classic = {
+        .keyUp = "Up", .keyDown = "Down", .keyLeft = "Left", .keyRight = "Right",
+        .keyCross = "C", .keyCircle = "V", .keyTriangle = "Z", .keySquare = "X",
+        .keyL1 = "A", .keyR1 = "D", .keyL2 = "Right Shift", .keyR2 = "Left Shift",
+        .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
+        .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
+        .padL1 = "leftshoulder", .padR1 = "rightshoulder",
+        .padL2 = "lefttrigger", .padR2 = "righttrigger",
+        .padL3 = "leftstick", .padR3 = "rightstick",
+        .padStart = "start", .padSelect = "back",
+    },
+    /* === ALTCAM scheme: any alternate/modern camera (TPS/OTS). WASD move,
+     * A/D strafe, mouse aim(RMB)/fire(LMB); controller LT aim / RT fire, A = use.
+     * Unbound actions are "NONE" so they don't fall back to a classic default. === */
+    .altcam = {
+        .keyUp = "W", .keyDown = "S", .keyLeft = "NONE", .keyRight = "NONE",
+        .keyCross = "Mouse1", .keyCircle = "F", .keyTriangle = "Tab", .keySquare = "Left Shift",
+        .keyL1 = "A", .keyR1 = "D", .keyL2 = "NONE", .keyR2 = "Mouse2",
+        .keyL3 = "[", .keyR3 = "]", .keyStart = "Return", .keySelect = "Space",
+        .keyCross2 = "E",
+        .padCross = "righttrigger", .padCircle = "b", .padTriangle = "y", .padSquare = "leftshoulder",
+        .padL1 = "NONE", .padR1 = "NONE",
+        .padL2 = "NONE", .padR2 = "lefttrigger",
+        .padL3 = "leftstick", .padR3 = "rightstick",
+        .padStart = "start", .padSelect = "back",
+        .padCross2 = "a",
+    },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyChangeCam = "F9", .padChangeCam = "rightstick",
     .keySwapShoulder = "Mouse3",
-    /* Alternate binds (always active): Action=Mouse1, Aim=Mouse2, Flashlight=F,
-     * Map=Tab, Up/Down=W/S. Sidestep L/R already default to A/D as primaries, so
-     * no alternates there. The rest default empty ("" == unset). */
-    .keyCross2 = "Mouse1", .keyR22 = "Mouse2",
-    .keyCircle2 = "F", .keyTriangle2 = "Tab", .keyUp2 = "W", .keyDown2 = "S",
-    /* Controller defaults (SDL game-controller names) */
-    .padCross = "a", .padCircle = "b", .padTriangle = "y", .padSquare = "x",
-    .padL1 = "leftshoulder", .padR1 = "rightshoulder",
-    .padL2 = "lefttrigger", .padR2 = "righttrigger",
-    .padL3 = "leftstick", .padR3 = "rightstick",
-    .padStart = "start", .padSelect = "back",
 
     .mapName        = "map0_s00"
 };
@@ -63,58 +76,75 @@ s_PcConfig g_PcConfig = {
  * load, so map corruption can't change the player's blood color. Default 0/red. */
 unsigned char g_PcTrustedBloodColor = 0;
 
-/* Control-binding config keys -> string field in g_PcConfig. Table-driven so
- * the parser stays compact (28 binds). */
-static const struct { const char* key; size_t off; } s_ControlBinds[] = {
-    { "key_up",       offsetof(s_PcConfig, keyUp)       },
-    { "key_down",     offsetof(s_PcConfig, keyDown)     },
-    { "key_left",     offsetof(s_PcConfig, keyLeft)     },
-    { "key_right",    offsetof(s_PcConfig, keyRight)    },
-    { "key_cross",    offsetof(s_PcConfig, keyCross)    },
-    { "key_circle",   offsetof(s_PcConfig, keyCircle)   },
-    { "key_triangle", offsetof(s_PcConfig, keyTriangle) },
-    { "key_square",   offsetof(s_PcConfig, keySquare)   },
-    { "key_l1",       offsetof(s_PcConfig, keyL1)       },
-    { "key_r1",       offsetof(s_PcConfig, keyR1)       },
-    { "key_l2",       offsetof(s_PcConfig, keyL2)       },
-    { "key_r2",       offsetof(s_PcConfig, keyR2)       },
-    { "key_l3",       offsetof(s_PcConfig, keyL3)       },
-    { "key_r3",       offsetof(s_PcConfig, keyR3)       },
-    { "key_start",    offsetof(s_PcConfig, keyStart)    },
-    { "key_select",   offsetof(s_PcConfig, keySelect)   },
-    { "key_quicksave", offsetof(s_PcConfig, keyQuickSave) },
-    { "key_quickload", offsetof(s_PcConfig, keyQuickLoad) },
-    { "key_change_cam", offsetof(s_PcConfig, keyChangeCam) },
-    { "pad_change_cam", offsetof(s_PcConfig, padChangeCam) },
+/* Per-scheme control-binding config keys -> offset within ControlScheme. The
+ * same base key with an "_altcam" suffix targets the altcam scheme; without it,
+ * the classic scheme (resolved in the parser below). */
+static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
+    { "key_up",       offsetof(ControlScheme, keyUp)       },
+    { "key_down",     offsetof(ControlScheme, keyDown)     },
+    { "key_left",     offsetof(ControlScheme, keyLeft)     },
+    { "key_right",    offsetof(ControlScheme, keyRight)    },
+    { "key_cross",    offsetof(ControlScheme, keyCross)    },
+    { "key_circle",   offsetof(ControlScheme, keyCircle)   },
+    { "key_triangle", offsetof(ControlScheme, keyTriangle) },
+    { "key_square",   offsetof(ControlScheme, keySquare)   },
+    { "key_l1",       offsetof(ControlScheme, keyL1)       },
+    { "key_r1",       offsetof(ControlScheme, keyR1)       },
+    { "key_l2",       offsetof(ControlScheme, keyL2)       },
+    { "key_r2",       offsetof(ControlScheme, keyR2)       },
+    { "key_l3",       offsetof(ControlScheme, keyL3)       },
+    { "key_r3",       offsetof(ControlScheme, keyR3)       },
+    { "key_start",    offsetof(ControlScheme, keyStart)    },
+    { "key_select",   offsetof(ControlScheme, keySelect)   },
+    { "key_up_2",       offsetof(ControlScheme, keyUp2)       },
+    { "key_down_2",     offsetof(ControlScheme, keyDown2)     },
+    { "key_left_2",     offsetof(ControlScheme, keyLeft2)     },
+    { "key_right_2",    offsetof(ControlScheme, keyRight2)    },
+    { "key_cross_2",    offsetof(ControlScheme, keyCross2)    },
+    { "key_circle_2",   offsetof(ControlScheme, keyCircle2)   },
+    { "key_triangle_2", offsetof(ControlScheme, keyTriangle2) },
+    { "key_square_2",   offsetof(ControlScheme, keySquare2)   },
+    { "key_l1_2",       offsetof(ControlScheme, keyL12)       },
+    { "key_r1_2",       offsetof(ControlScheme, keyR12)       },
+    { "key_l2_2",       offsetof(ControlScheme, keyL22)       },
+    { "key_r2_2",       offsetof(ControlScheme, keyR22)       },
+    { "key_l3_2",       offsetof(ControlScheme, keyL32)       },
+    { "key_r3_2",       offsetof(ControlScheme, keyR32)       },
+    { "key_start_2",    offsetof(ControlScheme, keyStart2)    },
+    { "key_select_2",   offsetof(ControlScheme, keySelect2)   },
+    { "pad_cross",    offsetof(ControlScheme, padCross)    },
+    { "pad_circle",   offsetof(ControlScheme, padCircle)   },
+    { "pad_triangle", offsetof(ControlScheme, padTriangle) },
+    { "pad_square",   offsetof(ControlScheme, padSquare)   },
+    { "pad_l1",       offsetof(ControlScheme, padL1)       },
+    { "pad_r1",       offsetof(ControlScheme, padR1)       },
+    { "pad_l2",       offsetof(ControlScheme, padL2)       },
+    { "pad_r2",       offsetof(ControlScheme, padR2)       },
+    { "pad_l3",       offsetof(ControlScheme, padL3)       },
+    { "pad_r3",       offsetof(ControlScheme, padR3)       },
+    { "pad_start",    offsetof(ControlScheme, padStart)    },
+    { "pad_select",   offsetof(ControlScheme, padSelect)   },
+    { "pad_cross_2",    offsetof(ControlScheme, padCross2)    },
+    { "pad_circle_2",   offsetof(ControlScheme, padCircle2)   },
+    { "pad_triangle_2", offsetof(ControlScheme, padTriangle2) },
+    { "pad_square_2",   offsetof(ControlScheme, padSquare2)   },
+    { "pad_l1_2",       offsetof(ControlScheme, padL12)       },
+    { "pad_r1_2",       offsetof(ControlScheme, padR12)       },
+    { "pad_l2_2",       offsetof(ControlScheme, padL22)       },
+    { "pad_r2_2",       offsetof(ControlScheme, padR22)       },
+    { "pad_l3_2",       offsetof(ControlScheme, padL32)       },
+    { "pad_r3_2",       offsetof(ControlScheme, padR32)       },
+    { "pad_start_2",    offsetof(ControlScheme, padStart2)    },
+    { "pad_select_2",   offsetof(ControlScheme, padSelect2)   },
+};
+
+/* Global (scheme-independent) binds -> offset within s_PcConfig. */
+static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
+    { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
+    { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
+    { "key_change_cam",    offsetof(s_PcConfig, keyChangeCam)    },
+    { "pad_change_cam",    offsetof(s_PcConfig, padChangeCam)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
-    { "key_up_2",       offsetof(s_PcConfig, keyUp2)       },
-    { "key_down_2",     offsetof(s_PcConfig, keyDown2)     },
-    { "key_left_2",     offsetof(s_PcConfig, keyLeft2)     },
-    { "key_right_2",    offsetof(s_PcConfig, keyRight2)    },
-    { "key_cross_2",    offsetof(s_PcConfig, keyCross2)    },
-    { "key_circle_2",   offsetof(s_PcConfig, keyCircle2)   },
-    { "key_triangle_2", offsetof(s_PcConfig, keyTriangle2) },
-    { "key_square_2",   offsetof(s_PcConfig, keySquare2)   },
-    { "key_l1_2",       offsetof(s_PcConfig, keyL12)       },
-    { "key_r1_2",       offsetof(s_PcConfig, keyR12)       },
-    { "key_l2_2",       offsetof(s_PcConfig, keyL22)       },
-    { "key_r2_2",       offsetof(s_PcConfig, keyR22)       },
-    { "key_l3_2",       offsetof(s_PcConfig, keyL32)       },
-    { "key_r3_2",       offsetof(s_PcConfig, keyR32)       },
-    { "key_start_2",    offsetof(s_PcConfig, keyStart2)    },
-    { "key_select_2",   offsetof(s_PcConfig, keySelect2)   },
-    { "pad_cross",    offsetof(s_PcConfig, padCross)    },
-    { "pad_circle",   offsetof(s_PcConfig, padCircle)   },
-    { "pad_triangle", offsetof(s_PcConfig, padTriangle) },
-    { "pad_square",   offsetof(s_PcConfig, padSquare)   },
-    { "pad_l1",       offsetof(s_PcConfig, padL1)       },
-    { "pad_r1",       offsetof(s_PcConfig, padR1)       },
-    { "pad_l2",       offsetof(s_PcConfig, padL2)       },
-    { "pad_r2",       offsetof(s_PcConfig, padR2)       },
-    { "pad_l3",       offsetof(s_PcConfig, padL3)       },
-    { "pad_r3",       offsetof(s_PcConfig, padR3)       },
-    { "pad_start",    offsetof(s_PcConfig, padStart)    },
-    { "pad_select",   offsetof(s_PcConfig, padSelect)   },
 };
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
@@ -320,19 +350,44 @@ void PcConfig_Load(const char* path)
         }
         else
         {
-            /* Control bindings (key_ and pad_ keys): table-driven copy into
-             * the matching g_PcConfig string field. */
+            /* Control bindings. Per-scheme keys (key_*, pad_*, +_2) optionally
+             * carry an "_altcam" suffix selecting the alternate-camera scheme;
+             * without it they target classic. Global meta-binds (quicksave /
+             * change_cam / swap_shoulder) have no scheme. Table-driven copy. */
+            char base[64];
+            ControlScheme* scheme = &g_PcConfig.classic;
+            size_t klen = strlen(key);
             size_t bi;
             int matched = 0;
-            for (bi = 0; bi < sizeof(s_ControlBinds) / sizeof(s_ControlBinds[0]); bi++)
+            const size_t suflen = 7; /* strlen("_altcam") */
+
+            strncpy(base, key, sizeof(base) - 1);
+            base[sizeof(base) - 1] = '\0';
+            if (klen > suflen && strcmp(key + klen - suflen, "_altcam") == 0)
             {
-                if (strcmp(key, s_ControlBinds[bi].key) == 0)
+                scheme = &g_PcConfig.altcam;
+                base[klen - suflen] = '\0';
+            }
+
+            for (bi = 0; bi < sizeof(s_SchemeBinds) / sizeof(s_SchemeBinds[0]); bi++)
+            {
+                if (strcmp(base, s_SchemeBinds[bi].key) == 0)
                 {
-                    char* field = (char*)&g_PcConfig + s_ControlBinds[bi].off;
+                    char* field = (char*)scheme + s_SchemeBinds[bi].off;
                     strncpy(field, value, 23);
                     field[23] = '\0';
                     matched = 1;
                     break;
+                }
+            }
+            for (bi = 0; !matched && bi < sizeof(s_GlobalBinds) / sizeof(s_GlobalBinds[0]); bi++)
+            {
+                if (strcmp(key, s_GlobalBinds[bi].key) == 0)
+                {
+                    char* field = (char*)&g_PcConfig + s_GlobalBinds[bi].off;
+                    strncpy(field, value, 23);
+                    field[23] = '\0';
+                    matched = 1;
                 }
             }
             if (!matched)

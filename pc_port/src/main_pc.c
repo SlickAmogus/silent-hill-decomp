@@ -71,90 +71,111 @@ static int Pc_ParseMouseName(const char* v)
     return 0;
 }
 
-/* Build the secondary keyboard mapping + the mouse-button -> PSX-bit table from
- * the key_*_2 config binds. A secondary value is "MouseN", a key name, or
- * "NONE". Re-applied whenever the active control style changes the gate. */
-static void Pc_ApplySecondaryBinds(void)
+/* Apply a "key or mouse" bind value to a PSX-button slot: an SDL key name goes
+ * into *kc (scancode); a "MouseN" value adds the PSX bit to the mouse mask and
+ * leaves *kc unbound; "NONE"/empty = unbound. Used for BOTH the primary and the
+ * secondary keyboard binds so the mouse can be a PRIMARY bind (e.g. modern
+ * Fire = Left Mouse). The caller clears the mouse mask once before applying. */
+static void Pc_ApplyKeyOrMouse(const char* v, unsigned short bit, int* kc)
 {
-    struct { const char* val; unsigned short bit; int* kc; } sec[16] = {
-        { g_PcConfig.keyUp2,       0x10,   &g_cfg_keyboardMapping2.kc_dpad_up    },
-        { g_PcConfig.keyDown2,     0x40,   &g_cfg_keyboardMapping2.kc_dpad_down  },
-        { g_PcConfig.keyLeft2,     0x80,   &g_cfg_keyboardMapping2.kc_dpad_left  },
-        { g_PcConfig.keyRight2,    0x20,   &g_cfg_keyboardMapping2.kc_dpad_right },
-        { g_PcConfig.keyCross2,    0x4000, &g_cfg_keyboardMapping2.kc_cross      },
-        { g_PcConfig.keyCircle2,   0x2000, &g_cfg_keyboardMapping2.kc_circle     },
-        { g_PcConfig.keyTriangle2, 0x1000, &g_cfg_keyboardMapping2.kc_triangle   },
-        { g_PcConfig.keySquare2,   0x8000, &g_cfg_keyboardMapping2.kc_square     },
-        { g_PcConfig.keyL12,       0x400,  &g_cfg_keyboardMapping2.kc_l1         },
-        { g_PcConfig.keyR12,       0x800,  &g_cfg_keyboardMapping2.kc_r1         },
-        { g_PcConfig.keyL22,       0x100,  &g_cfg_keyboardMapping2.kc_l2         },
-        { g_PcConfig.keyR22,       0x200,  &g_cfg_keyboardMapping2.kc_r2         },
-        { g_PcConfig.keyL32,       0x2,    &g_cfg_keyboardMapping2.kc_l3         },
-        { g_PcConfig.keyR32,       0x4,    &g_cfg_keyboardMapping2.kc_r3         },
-        { g_PcConfig.keyStart2,    0x8,    &g_cfg_keyboardMapping2.kc_start      },
-        { g_PcConfig.keySelect2,   0x1,    &g_cfg_keyboardMapping2.kc_select     },
-    };
-    int i;
-
-    memset(&g_cfg_keyboardMapping2, 0, sizeof(g_cfg_keyboardMapping2));
-    for (i = 0; i < 8; i++) g_cfg_mouseButtonMask[i] = 0;
-
-    for (i = 0; i < 16; i++)
-    {
-        const char* v = sec[i].val;
-        int         mb;
-        if (!v || !v[0] || strcmp(v, "NONE") == 0) { *sec[i].kc = SDL_SCANCODE_UNKNOWN; continue; }
-        mb = Pc_ParseMouseName(v);
-        if (mb > 0) { g_cfg_mouseButtonMask[mb] |= sec[i].bit; *sec[i].kc = SDL_SCANCODE_UNKNOWN; }
-        else        { *sec[i].kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
-    }
-
-    /* Mouse + alternate binds are always active now. */
-    g_cfg_allowMouseSecondary = 1;
+    int mb;
+    if (!v || !v[0] || strcmp(v, "NONE") == 0) { *kc = SDL_SCANCODE_UNKNOWN; return; }
+    mb = Pc_ParseMouseName(v);
+    if (mb > 0) { g_cfg_mouseButtonMask[mb] |= bit; *kc = SDL_SCANCODE_UNKNOWN; }
+    else        { *kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
 }
 
-/* Apply control bindings + movement/debug options from g_PcConfig onto the
- * PsyCross input mapping. Call AFTER PsyX_Initialise (which sets the built-in
- * defaults) so config overrides them; the lookups fall back to the current
- * default when a name is empty/invalid. */
-static void Pc_ApplyControlConfig(void)
+/* Apply ONE control scheme (classic or altcam) onto the PsyCross input mapping.
+ * Rebuilds all four mappings from scratch each call (primary keyboard, secondary
+ * keyboard, primary controller, secondary controller) + the mouse mask, so a
+ * runtime scheme swap is just "re-run with the other scheme". Unbound = "NONE"
+ * -> SDL_SCANCODE_UNKNOWN / BUTTON_INVALID; nothing falls back to a built-in
+ * default, so the config is fully respected. Call via Pc_ApplyActiveControlScheme. */
+static void Pc_ApplyControlConfig(const ControlScheme* s)
 {
     extern int g_cfg_controllerMovement;
+    int i;
 
-    g_cfg_keyboardMapping.kc_dpad_up    = PsyX_LookupKeyboardMapping(g_PcConfig.keyUp,       g_cfg_keyboardMapping.kc_dpad_up);
-    g_cfg_keyboardMapping.kc_dpad_down  = PsyX_LookupKeyboardMapping(g_PcConfig.keyDown,     g_cfg_keyboardMapping.kc_dpad_down);
-    g_cfg_keyboardMapping.kc_dpad_left  = PsyX_LookupKeyboardMapping(g_PcConfig.keyLeft,     g_cfg_keyboardMapping.kc_dpad_left);
-    g_cfg_keyboardMapping.kc_dpad_right = PsyX_LookupKeyboardMapping(g_PcConfig.keyRight,    g_cfg_keyboardMapping.kc_dpad_right);
-    g_cfg_keyboardMapping.kc_cross      = PsyX_LookupKeyboardMapping(g_PcConfig.keyCross,    g_cfg_keyboardMapping.kc_cross);
-    g_cfg_keyboardMapping.kc_circle     = PsyX_LookupKeyboardMapping(g_PcConfig.keyCircle,   g_cfg_keyboardMapping.kc_circle);
-    g_cfg_keyboardMapping.kc_triangle   = PsyX_LookupKeyboardMapping(g_PcConfig.keyTriangle, g_cfg_keyboardMapping.kc_triangle);
-    g_cfg_keyboardMapping.kc_square     = PsyX_LookupKeyboardMapping(g_PcConfig.keySquare,   g_cfg_keyboardMapping.kc_square);
-    g_cfg_keyboardMapping.kc_l1         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL1,       g_cfg_keyboardMapping.kc_l1);
-    g_cfg_keyboardMapping.kc_r1         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR1,       g_cfg_keyboardMapping.kc_r1);
-    g_cfg_keyboardMapping.kc_l2         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL2,       g_cfg_keyboardMapping.kc_l2);
-    g_cfg_keyboardMapping.kc_r2         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR2,       g_cfg_keyboardMapping.kc_r2);
-    g_cfg_keyboardMapping.kc_l3         = PsyX_LookupKeyboardMapping(g_PcConfig.keyL3,       g_cfg_keyboardMapping.kc_l3);
-    g_cfg_keyboardMapping.kc_r3         = PsyX_LookupKeyboardMapping(g_PcConfig.keyR3,       g_cfg_keyboardMapping.kc_r3);
-    g_cfg_keyboardMapping.kc_start      = PsyX_LookupKeyboardMapping(g_PcConfig.keyStart,    g_cfg_keyboardMapping.kc_start);
-    g_cfg_keyboardMapping.kc_select     = PsyX_LookupKeyboardMapping(g_PcConfig.keySelect,   g_cfg_keyboardMapping.kc_select);
+    /* Reset the keyboard layers' mouse contribution; rebuilt from primary + secondary. */
+    for (i = 0; i < 8; i++) g_cfg_mouseButtonMask[i] = 0;
 
-    g_cfg_controllerMapping.gc_cross    = PsyX_LookupGameControllerMapping(g_PcConfig.padCross,    g_cfg_controllerMapping.gc_cross);
-    g_cfg_controllerMapping.gc_circle   = PsyX_LookupGameControllerMapping(g_PcConfig.padCircle,   g_cfg_controllerMapping.gc_circle);
-    g_cfg_controllerMapping.gc_triangle = PsyX_LookupGameControllerMapping(g_PcConfig.padTriangle, g_cfg_controllerMapping.gc_triangle);
-    g_cfg_controllerMapping.gc_square   = PsyX_LookupGameControllerMapping(g_PcConfig.padSquare,   g_cfg_controllerMapping.gc_square);
-    g_cfg_controllerMapping.gc_l1       = PsyX_LookupGameControllerMapping(g_PcConfig.padL1,       g_cfg_controllerMapping.gc_l1);
-    g_cfg_controllerMapping.gc_r1       = PsyX_LookupGameControllerMapping(g_PcConfig.padR1,       g_cfg_controllerMapping.gc_r1);
-    g_cfg_controllerMapping.gc_l2       = PsyX_LookupGameControllerMapping(g_PcConfig.padL2,       g_cfg_controllerMapping.gc_l2);
-    g_cfg_controllerMapping.gc_r2       = PsyX_LookupGameControllerMapping(g_PcConfig.padR2,       g_cfg_controllerMapping.gc_r2);
-    g_cfg_controllerMapping.gc_l3       = PsyX_LookupGameControllerMapping(g_PcConfig.padL3,       g_cfg_controllerMapping.gc_l3);
-    g_cfg_controllerMapping.gc_r3       = PsyX_LookupGameControllerMapping(g_PcConfig.padR3,       g_cfg_controllerMapping.gc_r3);
-    g_cfg_controllerMapping.gc_start    = PsyX_LookupGameControllerMapping(g_PcConfig.padStart,    g_cfg_controllerMapping.gc_start);
-    g_cfg_controllerMapping.gc_select   = PsyX_LookupGameControllerMapping(g_PcConfig.padSelect,   g_cfg_controllerMapping.gc_select);
+    /* Primary keyboard (key OR mouse button). */
+    Pc_ApplyKeyOrMouse(s->keyUp,       0x10,   &g_cfg_keyboardMapping.kc_dpad_up);
+    Pc_ApplyKeyOrMouse(s->keyDown,     0x40,   &g_cfg_keyboardMapping.kc_dpad_down);
+    Pc_ApplyKeyOrMouse(s->keyLeft,     0x80,   &g_cfg_keyboardMapping.kc_dpad_left);
+    Pc_ApplyKeyOrMouse(s->keyRight,    0x20,   &g_cfg_keyboardMapping.kc_dpad_right);
+    Pc_ApplyKeyOrMouse(s->keyCross,    0x4000, &g_cfg_keyboardMapping.kc_cross);
+    Pc_ApplyKeyOrMouse(s->keyCircle,   0x2000, &g_cfg_keyboardMapping.kc_circle);
+    Pc_ApplyKeyOrMouse(s->keyTriangle, 0x1000, &g_cfg_keyboardMapping.kc_triangle);
+    Pc_ApplyKeyOrMouse(s->keySquare,   0x8000, &g_cfg_keyboardMapping.kc_square);
+    Pc_ApplyKeyOrMouse(s->keyL1,       0x400,  &g_cfg_keyboardMapping.kc_l1);
+    Pc_ApplyKeyOrMouse(s->keyR1,       0x800,  &g_cfg_keyboardMapping.kc_r1);
+    Pc_ApplyKeyOrMouse(s->keyL2,       0x100,  &g_cfg_keyboardMapping.kc_l2);
+    Pc_ApplyKeyOrMouse(s->keyR2,       0x200,  &g_cfg_keyboardMapping.kc_r2);
+    Pc_ApplyKeyOrMouse(s->keyL3,       0x2,    &g_cfg_keyboardMapping.kc_l3);
+    Pc_ApplyKeyOrMouse(s->keyR3,       0x4,    &g_cfg_keyboardMapping.kc_r3);
+    Pc_ApplyKeyOrMouse(s->keyStart,    0x8,    &g_cfg_keyboardMapping.kc_start);
+    Pc_ApplyKeyOrMouse(s->keySelect,   0x1,    &g_cfg_keyboardMapping.kc_select);
 
-    g_PcAllowDebugControls  = g_PcConfig.allowDebugControls;
+    /* Secondary keyboard (second key/mouse per action; AND-combined per frame). */
+    Pc_ApplyKeyOrMouse(s->keyUp2,       0x10,   &g_cfg_keyboardMapping2.kc_dpad_up);
+    Pc_ApplyKeyOrMouse(s->keyDown2,     0x40,   &g_cfg_keyboardMapping2.kc_dpad_down);
+    Pc_ApplyKeyOrMouse(s->keyLeft2,     0x80,   &g_cfg_keyboardMapping2.kc_dpad_left);
+    Pc_ApplyKeyOrMouse(s->keyRight2,    0x20,   &g_cfg_keyboardMapping2.kc_dpad_right);
+    Pc_ApplyKeyOrMouse(s->keyCross2,    0x4000, &g_cfg_keyboardMapping2.kc_cross);
+    Pc_ApplyKeyOrMouse(s->keyCircle2,   0x2000, &g_cfg_keyboardMapping2.kc_circle);
+    Pc_ApplyKeyOrMouse(s->keyTriangle2, 0x1000, &g_cfg_keyboardMapping2.kc_triangle);
+    Pc_ApplyKeyOrMouse(s->keySquare2,   0x8000, &g_cfg_keyboardMapping2.kc_square);
+    Pc_ApplyKeyOrMouse(s->keyL12,       0x400,  &g_cfg_keyboardMapping2.kc_l1);
+    Pc_ApplyKeyOrMouse(s->keyR12,       0x800,  &g_cfg_keyboardMapping2.kc_r1);
+    Pc_ApplyKeyOrMouse(s->keyL22,       0x100,  &g_cfg_keyboardMapping2.kc_l2);
+    Pc_ApplyKeyOrMouse(s->keyR22,       0x200,  &g_cfg_keyboardMapping2.kc_r2);
+    Pc_ApplyKeyOrMouse(s->keyL32,       0x2,    &g_cfg_keyboardMapping2.kc_l3);
+    Pc_ApplyKeyOrMouse(s->keyR32,       0x4,    &g_cfg_keyboardMapping2.kc_r3);
+    Pc_ApplyKeyOrMouse(s->keyStart2,    0x8,    &g_cfg_keyboardMapping2.kc_start);
+    Pc_ApplyKeyOrMouse(s->keySelect2,   0x1,    &g_cfg_keyboardMapping2.kc_select);
+
+    /* Primary controller. */
+    g_cfg_controllerMapping.gc_cross    = PsyX_LookupGameControllerMapping(s->padCross,    SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_circle   = PsyX_LookupGameControllerMapping(s->padCircle,   SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_triangle = PsyX_LookupGameControllerMapping(s->padTriangle, SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_square   = PsyX_LookupGameControllerMapping(s->padSquare,   SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_l1       = PsyX_LookupGameControllerMapping(s->padL1,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_r1       = PsyX_LookupGameControllerMapping(s->padR1,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_l2       = PsyX_LookupGameControllerMapping(s->padL2,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_r2       = PsyX_LookupGameControllerMapping(s->padR2,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_l3       = PsyX_LookupGameControllerMapping(s->padL3,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_r3       = PsyX_LookupGameControllerMapping(s->padR3,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_start    = PsyX_LookupGameControllerMapping(s->padStart,    SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping.gc_select   = PsyX_LookupGameControllerMapping(s->padSelect,   SDL_CONTROLLER_BUTTON_INVALID);
+
+    /* Secondary controller (second button per action; AND-combined per frame).
+     * dpad/axes of mapping2 stay BUTTON_INVALID (set once in PsyX init). */
+    g_cfg_controllerMapping2.gc_cross    = PsyX_LookupGameControllerMapping(s->padCross2,    SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_circle   = PsyX_LookupGameControllerMapping(s->padCircle2,   SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_triangle = PsyX_LookupGameControllerMapping(s->padTriangle2, SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_square   = PsyX_LookupGameControllerMapping(s->padSquare2,   SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_l1       = PsyX_LookupGameControllerMapping(s->padL12,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_r1       = PsyX_LookupGameControllerMapping(s->padR12,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_l2       = PsyX_LookupGameControllerMapping(s->padL22,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_r2       = PsyX_LookupGameControllerMapping(s->padR22,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_l3       = PsyX_LookupGameControllerMapping(s->padL32,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_r3       = PsyX_LookupGameControllerMapping(s->padR32,       SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_start    = PsyX_LookupGameControllerMapping(s->padStart2,    SDL_CONTROLLER_BUTTON_INVALID);
+    g_cfg_controllerMapping2.gc_select   = PsyX_LookupGameControllerMapping(s->padSelect2,   SDL_CONTROLLER_BUTTON_INVALID);
+
+    g_PcAllowDebugControls   = g_PcConfig.allowDebugControls;
     g_cfg_controllerMovement = g_PcConfig.controllerMovement;
+    g_cfg_allowMouseSecondary = 1; /* mouse + secondary binds always active */
+}
 
-    Pc_ApplySecondaryBinds();
+/* Select + apply the control scheme matching the active camera mode: altcam for
+ * any alternate/modern camera (g_DebugThirdPersonCam != 0), classic otherwise.
+ * Called at boot and whenever the control style (camera) changes. */
+void Pc_ApplyActiveControlScheme(void)
+{
+    extern int g_DebugThirdPersonCam;
+    Pc_ApplyControlConfig(g_DebugThirdPersonCam ? &g_PcConfig.altcam : &g_PcConfig.classic);
 }
 
 /* Demo play file buffer pointer - default PSX address needs runtime init */
@@ -612,8 +633,10 @@ int main(int argc, char* argv[])
     }
 
     /* Apply keyboard/controller bindings + movement/debug options from config
-     * (overrides the PsyCross defaults set inside PsyX_Initialise). */
-    Pc_ApplyControlConfig();
+     * (overrides the PsyCross defaults set inside PsyX_Initialise). Applies the
+     * classic scheme here; Pc_ControlStyleInit re-applies the matching scheme
+     * once the saved camera style is known. */
+    Pc_ApplyActiveControlScheme();
 
     /* Apply the saved control style + publish the style registry to config.cfg
      * so the launcher's Control Style dropdown reflects this build. */

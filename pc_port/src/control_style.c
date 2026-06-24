@@ -62,6 +62,13 @@ void Pc_ControlStyleSet(int style)
     g_ControlStyle        = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
 
+    /* Swap the active control scheme (classic vs alternate-camera binds) to match
+     * the new camera mode; the input layer picks up the new mappings next frame. */
+    {
+        extern void Pc_ApplyActiveControlScheme(void);
+        Pc_ApplyActiveControlScheme();
+    }
+
     /* Entering TPS/OTS from classic: reseed the orbit camera (yaw/pitch/zoom/
      * shoulder) so it starts behind Harry rather than snapping to a stale pose.
      * Not flagged on tps<->ots so cycling between them doesn't jerk the view. */
@@ -103,6 +110,13 @@ void Pc_ControlStyleInit(void)
 
     g_ControlStyle        = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
+
+    /* Apply the control scheme (classic vs alternate-camera) matching the saved
+     * camera style now that g_DebugThirdPersonCam is known. */
+    {
+        extern void Pc_ApplyActiveControlScheme(void);
+        Pc_ApplyActiveControlScheme();
+    }
 
     Pc_ControlStylePublish();
 
