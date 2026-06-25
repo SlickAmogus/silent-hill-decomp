@@ -363,3 +363,14 @@ VECTOR3 g_Cutscene_CameraLookAtTarget = { 0, 0, 0 };
 // 0x800E617C  size 0x4 (4 bytes)
 s32 g_Cutscene_Timer = 0;
 
+
+// 0x800E1F7C  size 0xC (12 bytes) -- safe-sweep ROM extraction (read-before-write .data)
+u16 D_800E1F7C[6] = {
+    0x0000, 0x1000, 0x4000, 0x5800, 0xA000, 0xC000
+};
+
+// 0x800E1F88  size 0x3C (60 bytes) -- safe-sweep ROM extraction (read-before-write .data)
+VECTOR3 D_800E1F88[5] = { { -53002, -4300, -58245 }, { -49807, -9871, -65372 }, { -53002, -4300, -58245 }, { -46039, -7290, -68444 }, { -68362, -20684, -65986 } };
+
+// 0x800E1FC4  size 0x3C (60 bytes) -- safe-sweep ROM extraction (read-before-write .data)
+VECTOR3 D_800E1FC4[5] = { { -37355, -81, -55787 }, { -39198, 204, -72744 }, { -37355, -81, -55787 }, { -36413, 4915, -73605 }, { -65781, -5406, -71393 } };
