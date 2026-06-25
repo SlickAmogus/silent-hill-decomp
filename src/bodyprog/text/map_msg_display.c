@@ -15,6 +15,7 @@
 
 #ifdef SH_PC_PORT
 #include <SDL_timer.h>
+#include "sh_log.h"
 #endif
 
 // ========================================
@@ -200,6 +201,22 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             {
                 D_800BCD74 = 0;
             }
+
+#ifdef SH_PC_PORT
+            /* [MSGSYNC] diagnostic: log when each subtitle page first becomes
+             * visible (we only reach here with D_800BCD74==0, i.e. text rendering)
+             * so its wall-clock ms can be compared against [XATIME] voice fires. */
+            {
+                static s32 s_msgsyncLastIdx = -999;
+                if (g_MapMsg_CurrentIdx != s_msgsyncLastIdx)
+                {
+                    s_msgsyncLastIdx = g_MapMsg_CurrentIdx;
+                    SH_DBG("[MSGSYNC] subtitle visible curIdx=%d msgIdx=%d len=%d ms=%u",
+                           (int)g_MapMsg_CurrentIdx, (int)msgIdx, (int)msgDisplayLength,
+                           (unsigned)SDL_GetTicks());
+                }
+            }
+#endif
 
             Gfx_StringSetColor(StringColorId_White);
 #if VERSION_REGION_IS(NTSC)

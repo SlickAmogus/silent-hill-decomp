@@ -8,6 +8,14 @@
 #include <AL/alc.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <SDL_timer.h>
+
+/* [XATIME] diagnostic: measure actual wall-clock voice playback duration vs
+ * expected, and the gap between consecutive voice fires, to determine whether
+ * cutscene dialogue races because voices drain prematurely (bug) or because
+ * there is no inter-line pacing (lost PSX CD-load latency). */
+static Uint32 s_xaPlayStartMs = 0;
+static Uint32 s_xaPrevFireMs  = 0;
 
 /* Resolved from main_pc.c (where -data sets it). */
 extern const char* PcPort_GetGameDataPath(void);
@@ -429,6 +437,14 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.filterChannel = filterChannel;
     g_XaPlayer.isPlaying = 1;
     g_XaPlayer.needsInitialFill = 1;
+    {
+        Uint32 nowMs = SDL_GetTicks();
+        uint32_t expMs = (uint32_t)(((uint64_t)numSectors * (XA_SAMPLES_PER_SECTOR / 2u) * 1000u) / (unsigned)sampleRate);
+        SH_DBG("[XATIME] Play xaIdx=%u sectors=%u expMs=%u gapSinceLastFireMs=%u",
+               xaIdx, numSectors, expMs, s_xaPrevFireMs ? (nowMs - s_xaPrevFireMs) : 0);
+        s_xaPrevFireMs  = nowMs;
+        s_xaPlayStartMs = nowMs;
+    }
     SH_DBG("[XA] Play xaIdx=%u file=%u sector=%u sectors=%u %s %dHz filter=(%u,%u)",
            xaIdx, fileIdx, (uint32_t)item->sector_4_bits, numSectors,
            isStereo ? "stereo" : "mono", sampleRate, filterFile, filterChannel);
@@ -613,7 +629,8 @@ void XaPlayer_Update(void) {
      * AL_INITIAL counts too — if the initial fill found zero matching
      * sectors the source never started and would never reach AL_STOPPED. */
     if (g_XaPlayer.remainingSectors == 0 && sourceState != AL_PLAYING) {
-        SH_DBG("[XA] finished xaIdx=%u (drained)", (unsigned)g_XaPlayer.xaIdx);
+        SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
+               (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
         g_XaPlayer.isPlaying = 0;
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
