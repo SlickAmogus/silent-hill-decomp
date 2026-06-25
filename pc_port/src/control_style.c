@@ -203,6 +203,25 @@ void Pc_ControlStyleUpdate(void)
     prevKey = curKey;
     prevPad = curPad;
 
+    /* Menus always use the classic control scheme. An alternate camera's binds
+     * (mouse-look, remapped confirm/cancel) would otherwise apply to menu /
+     * pause / inventory navigation. Swap to classic when leaving gameplay and
+     * restore the camera-matched scheme on return. No-op in classic mode. */
+    {
+        static int s_forcedClassic = 0;
+        int wantForceClassic = (!inGameplay && g_DebugThirdPersonCam) ? 1 : 0;
+        if (wantForceClassic != s_forcedClassic)
+        {
+            extern void Pc_ApplyClassicControlScheme(void);
+            extern void Pc_ApplyActiveControlScheme(void);
+            if (wantForceClassic)
+                Pc_ApplyClassicControlScheme();
+            else
+                Pc_ApplyActiveControlScheme();
+            s_forcedClassic = wantForceClassic;
+        }
+    }
+
     /* Swap the OTS shoulder side (default middle mouse) — gameplay + OTS only. */
     {
         static SDL_Scancode scSwap   = SDL_SCANCODE_UNKNOWN;

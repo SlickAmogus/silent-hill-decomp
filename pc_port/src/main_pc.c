@@ -178,6 +178,16 @@ void Pc_ApplyActiveControlScheme(void)
     Pc_ApplyControlConfig(g_DebugThirdPersonCam ? &g_PcConfig.altcam : &g_PcConfig.classic);
 }
 
+/* Force the classic (default) control scheme regardless of the active camera.
+ * Menus always navigate with the default binds, so an alternate camera's binds
+ * (mouse-look / remapped buttons) don't leak into menu navigation. Restored to
+ * the camera-matched scheme via Pc_ApplyActiveControlScheme on return to
+ * gameplay (driven by Pc_ControlStyleUpdate). */
+void Pc_ApplyClassicControlScheme(void)
+{
+    Pc_ApplyControlConfig(&g_PcConfig.classic);
+}
+
 /* Demo play file buffer pointer - default PSX address needs runtime init */
 typedef struct s_DemoFrameData s_DemoFrameData;
 extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
