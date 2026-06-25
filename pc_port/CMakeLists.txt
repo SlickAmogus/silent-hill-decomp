@@ -4,6 +4,12 @@ project(SilentHillPC C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# Build everything position-independent. On Linux the map overlays are .so
+# shared objects that link the static psycross_static archive; linking a
+# static (non-PIC) archive into a shared object fails, so force PIC globally.
+# Harmless on Windows/MinGW (PE code is already position-independent).
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # =============================================================================
 # Options
 # =============================================================================
@@ -311,6 +317,28 @@ else()
         -Wno-discarded-qualifiers
         -Wno-builtin-declaration-mismatch
     )
+    # GCC 14 promoted several long-standing C warnings to hard errors by
+    # default (implicit function/int declarations, int<->pointer conversions,
+    # missing parameter types). The WIP decomp deliberately relies on these
+    # being warnings (as they are on the MinGW GCC 13 the Windows build uses),
+    # so demote them back to warnings. C-only to avoid cc1plus noise on .cpp.
+    #
+    # Gated to GCC >= 14: -Wdeclaration-missing-parameter-type and
+    # -Wreturn-mismatch were introduced in GCC 14, and GCC errors out hard on
+    # -Wno-error=<unknown-warning> (unlike a plain -Wno-<unknown>, which it
+    # silently defers). On the MinGW GCC 13 the Windows build uses these two
+    # names don't exist, so an unconditional block fails every C TU. On GCC 13
+    # the warnings here are not errors anyway, so the block is a no-op there.
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        target_compile_options(SilentHillPC PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-function-declaration>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-int>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=int-conversion>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=declaration-missing-parameter-type>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=return-mismatch>
+        )
+    endif()
 endif()
 
 # =============================================================================

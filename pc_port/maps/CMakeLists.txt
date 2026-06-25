@@ -96,46 +96,81 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         )
     endif()
 
-    # Link against the main executable's import library.
-    # Map DLL functions call back into game code (g_SysWork, etc.),
-    # so they need the exe's exported symbols to resolve at load time.
-    target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
+    # GCC 14 promoted these C warnings to default errors; the Linux map-DLL
+    # build (GCC 14) needs them demoted like the exe (pc_port/CMakeLists.txt).
+    # GCC 13 (Windows/MinGW) errors on -Wno-error=<unknown-flag>, and two of
+    # these are GCC-14-only, so gate the block on GCC >= 14 (no-op on the
+    # Windows toolchain — the -Wno- forms above already silence them there).
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        target_compile_options(${MAP_NAME} PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-function-declaration>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-int>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=int-conversion>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=declaration-missing-parameter-type>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=return-mismatch>
+        )
+    endif()
 
-    # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
-    # archive AND the exe's import lib (which re-exports PsyCross via the
-    # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
-    # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
-    # in extra libgpu/libapi symbols by reference) which triggered hard
-    # multiple-definition errors. Allow the linker to pick whichever copy
-    # comes first — both are byte-identical since they came from the same
-    # static archive originally. Long-term cleanup: drop psycross_static
-    # from this link and rely solely on the exe's import lib. */
-    target_link_options(${MAP_NAME} PRIVATE
-        "LINKER:--allow-multiple-definition"
-        # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
-        # generated .def listing every global, but on this CMake/MinGW
-        # combo it silently does nothing for the map DLLs — the resulting
-        # build.ninja link rule has neither `--export-all-symbols` nor a
-        # generated def file, and DllLoader_GetSymbol fails with
-        # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
-        # at runtime. Falling back to the global ld flag bypasses CMake's
-        # auto-export machinery and exports every TU-global in the DLL.
-        # Same flag the main exe uses; identical behavior to the old
-        # working state. */
-        "LINKER:--export-all-symbols"
-    )
+    if(WIN32)
+        # Link against the main executable's import library.
+        # Map DLL functions call back into game code (g_SysWork, etc.),
+        # so they need the exe's exported symbols to resolve at load time.
+        target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
 
-    # Export the g_MapOverlayHeader_<name> symbol from the DLL.
-    # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
-    # MinGW/MSVC in theory; in practice we use --export-all-symbols
-    # above (see comment) since the auto-def path silently no-ops here.
+        # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
+        # archive AND the exe's import lib (which re-exports PsyCross via the
+        # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
+        # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
+        # in extra libgpu/libapi symbols by reference) which triggered hard
+        # multiple-definition errors. Allow the linker to pick whichever copy
+        # comes first — both are byte-identical since they came from the same
+        # static archive originally. Long-term cleanup: drop psycross_static
+        # from this link and rely solely on the exe's import lib. */
+        target_link_options(${MAP_NAME} PRIVATE
+            "LINKER:--allow-multiple-definition"
+            # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
+            # generated .def listing every global, but on this CMake/MinGW
+            # combo it silently does nothing for the map DLLs — the resulting
+            # build.ninja link rule has neither `--export-all-symbols` nor a
+            # generated def file, and DllLoader_GetSymbol fails with
+            # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
+            # at runtime. Falling back to the global ld flag bypasses CMake's
+            # auto-export machinery and exports every TU-global in the DLL.
+            # Same flag the main exe uses; identical behavior to the old
+            # working state. */
+            "LINKER:--export-all-symbols"
+        )
+    else()
+        # Linux/macOS: a shared object cannot link against an executable, so
+        # we do NOT link SilentHillPC here. Game-code symbols (g_SysWork, the
+        # decompiled functions, etc.) are left undefined in the .so and
+        # resolved at dlopen() time from the main executable, which is built
+        # with ENABLE_EXPORTS (adds -rdynamic so its symbols populate the
+        # global dynamic symbol table). PsyCross is linked in statically
+        # (built PIC — see CMAKE_POSITION_INDEPENDENT_CODE in ../CMakeLists.txt).
+        # ELF shared objects export all global symbols by default, so
+        # g_MapOverlayHeader_<name> is visible to dlsym without extra flags.
+        target_link_libraries(${MAP_NAME} PRIVATE psycross_static)
+        # Build ordering only (the exe must exist to dlopen the map); there is
+        # no link-time dependency on the executable.
+        add_dependencies(${MAP_NAME} SilentHillPC)
+    endif()
+
     set_target_properties(${MAP_NAME} PROPERTIES
         PREFIX ""                        # No "lib" prefix
-        OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll
+        OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll | maps/map0_s01.so
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
+    if(WIN32)
+        # Export the g_MapOverlayHeader_<name> symbol from the DLL.
+        # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
+        # MinGW/MSVC in theory; in practice we use --export-all-symbols
+        # above (see comment) since the auto-def path silently no-ops here.
+        # (No-op on ELF, where shared objects export globals by default.)
+        set_target_properties(${MAP_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 
     message(STATUS "Map ${MAP_NAME}: DLL target created")
 endfunction()
