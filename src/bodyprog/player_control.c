@@ -5950,7 +5950,13 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     if ((aimState == 0 && playerProps.moveSpeed == Q12(0.0f))||
                         player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) ||
-                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6))
+                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6) ||
+                        /* PC: aim-at-nothing reaches its aim-ready pose on the [5]
+                         * keyframe, not [0]; without this the idle-aim -> aim-walk
+                         * transition never fired when not locked onto an enemy, so
+                         * you could not start walking after aiming from a standstill.
+                         * Mirrors the locked-on (Combat) branch which already checks [5]. */
+                        SH_AIM_KF_REACHED_P(D_800C44F0[5].field_6))
                     {
                         if (g_Player_IsMovingForward)
                         {
