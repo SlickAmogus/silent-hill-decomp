@@ -60,9 +60,32 @@ need_configure=0
 [ -f "$BUILD_DIR/CMakeCache.txt" ] || need_configure=1
 if [ "$MODE" = "configure" ]; then rm -f "$BUILD_DIR/CMakeCache.txt"; fi
 
+# Array is always non-empty (the -S/-B/-G/-D flags below), so "${...[@]}"
+# expansion is safe under `set -u` even on macOS' stock bash 3.2.
+CONFIGURE_ARGS=(-S "$SCRIPT_DIR" -B "$BUILD_DIR" -G Ninja -DSH_BUILD_MAP_DLLS=ON)
+
+# --- macOS: AppleClang rejects the PSX decomp C (nested funcs, implicit
+# decls), so use Homebrew GCC for C; point CMake at Homebrew openal-soft
+# instead of the system OpenAL framework. (No effect on Windows/Linux.) ------
+if [ "$(uname -s)" = "Darwin" ]; then
+    GCC_C="$(ls /opt/homebrew/bin/gcc-[0-9]* /usr/local/bin/gcc-[0-9]* 2>/dev/null | sort -V | tail -1)"
+    if [ -z "$GCC_C" ]; then
+        echo "ERROR: Homebrew GCC not found. Install it:  brew install gcc" >&2
+        exit 1
+    fi
+    CONFIGURE_ARGS+=(-DCMAKE_C_COMPILER="$GCC_C")
+    OPENAL_PREFIX="$(brew --prefix openal-soft 2>/dev/null || true)"
+    if [ -n "$OPENAL_PREFIX" ]; then
+        CONFIGURE_ARGS+=(
+            -DOPENAL_LIBRARY="$OPENAL_PREFIX/lib/libopenal.dylib"
+            -DOPENAL_INCLUDE_DIR="$OPENAL_PREFIX/include"
+        )
+    fi
+fi
+
 if [ "$need_configure" = 1 ]; then
     echo "=== Configuring (Ninja, map DLLs ON) ==="
-    cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" -G Ninja -DSH_BUILD_MAP_DLLS=ON
+    cmake "${CONFIGURE_ARGS[@]}"
 fi
 
 # --- Build ----------------------------------------------------------------

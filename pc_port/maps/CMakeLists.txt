@@ -155,6 +155,12 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         # Build ordering only (the exe must exist to dlopen the map); there is
         # no link-time dependency on the executable.
         add_dependencies(${MAP_NAME} SilentHillPC)
+        if(APPLE)
+            # ld64 (unlike GNU ld) errors on undefined symbols at link time.
+            # Game-code symbols are resolved from the main exe at dlopen, so
+            # allow them to stay undefined in the dylib.
+            target_link_options(${MAP_NAME} PRIVATE "-Wl,-undefined,dynamic_lookup")
+        endif()
     endif()
 
     set_target_properties(${MAP_NAME} PROPERTIES

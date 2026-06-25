@@ -256,6 +256,11 @@ target_include_directories(SilentHillPC PRIVATE
     "${PSYCROSS_DIR}/include/psx"
     "${PSYCROSS_DIR}/include"
 )
+# OpenAL headers (xa_player.c uses AL directly). Set by build.sh on macOS to
+# point at Homebrew openal-soft; unset on the Windows/MSYS2 build (no-op).
+if(OPENAL_INCLUDE_DIR)
+    target_include_directories(SilentHillPC PRIVATE "${OPENAL_INCLUDE_DIR}")
+endif()
 
 # =============================================================================
 # libjpeg (for FMV playback - MJPG decoding)
@@ -317,6 +322,16 @@ else()
         -Wno-discarded-qualifiers
         -Wno-builtin-declaration-mismatch
     )
+    if(APPLE)
+        # AppleClang is stricter than GCC on the WIP decomp's implicit decls and
+        # qualifier/conversion mismatches; demote these to warnings on macOS.
+        target_compile_options(SilentHillPC PRIVATE
+            -Wno-implicit-function-declaration
+            -Wno-ignored-qualifiers
+            -Wno-int-conversion
+            -Wno-return-mismatch
+        )
+    endif()
     # GCC 14 promoted several long-standing C warnings to hard errors by
     # default (implicit function/int declarations, int<->pointer conversions,
     # missing parameter types). The WIP decomp deliberately relies on these
