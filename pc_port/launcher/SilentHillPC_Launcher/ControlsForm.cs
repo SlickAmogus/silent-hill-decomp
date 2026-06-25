@@ -136,6 +136,8 @@ public class ControlsForm : Form
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
     private CheckBox chkAltCamControls;
+    private ComboBox cmbControllerMovement;
+    private CheckBox chkMovementOriginal;
     private ToolTip  tips;
 
     // Two control schemes (0 = classic / default camera, 1 = altcam / any
@@ -325,6 +327,32 @@ public class ControlsForm : Form
         Controls.Add(chkTpsAimZoom);
         Controls.Add(chkCrosshair);
 
+        // Controller movement source + movement engine — two gameplay-feel
+        // options grouped just under the TPS/aim checkboxes.
+        AddLabel("Controller Movement:", colPadX, styleY + 140, 150);
+        cmbControllerMovement = new ComboBox
+        {
+            Left = colPadX + 155,
+            Top = styleY + 137,
+            Width = 110,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            FlatStyle = FlatStyle.Flat,
+        };
+        cmbControllerMovement.Items.AddRange(new object[] { "Analog Stick", "D-Pad", "Both" });
+        Controls.Add(cmbControllerMovement);
+
+        chkMovementOriginal = new CheckBox
+        {
+            Text = "Original PSX Movement",
+            Left = colPadX,
+            Top = styleY + 170,
+            Width = 220,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkMovementOriginal);
+
         tips.SetToolTip(cmbControlStyle,
             "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
             "Over the Shoulder = the same, offset to one side (middle mouse swaps sides).");
@@ -333,6 +361,13 @@ public class ControlsForm : Form
             "Harry so your shot lines up better. Off = the camera keeps its normal distance while aiming.");
         tips.SetToolTip(chkCrosshair,
             "Draws a small crosshair at the center of the screen while you're aiming in Thirdperson / Over-the-Shoulder mode.");
+        tips.SetToolTip(cmbControllerMovement,
+            "Which controller input drives Harry's movement. Analog = left stick, D-Pad = the D-pad, " +
+            "Both = either one (the default). Keyboard is unaffected.");
+        tips.SetToolTip(chkMovementOriginal,
+            "On (default): the original PSX lower-body movement state machine — acceleration/deceleration, " +
+            "wall smack, authored sidesteps/stumbles. Off: the legacy PC movement shim (kept for the " +
+            "debug TPS camera and as a fallback).");
 
         // Allow debug controls — on the bottom button row, to the right of Reset
         // to Defaults (clear of the keyboard column AND the Reset button).
@@ -671,6 +706,15 @@ public class ControlsForm : Form
         chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
 
+        // Controller movement source: analog(0) / dpad(1) / both(2).
+        switch (config.Get("controller_movement", "both"))
+        {
+            case "analog": cmbControllerMovement.SelectedIndex = 0; break;
+            case "dpad":   cmbControllerMovement.SelectedIndex = 1; break;
+            default:       cmbControllerMovement.SelectedIndex = 2; break;
+        }
+        chkMovementOriginal.Checked = config.Get("movement_original", "1") == "1";
+
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
         debugNo.Checked = !dbg;
@@ -700,6 +744,9 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = false;
         chkTpsAimZoom.Checked = true;
         chkCrosshair.Checked = false;
+
+        cmbControllerMovement.SelectedIndex = 2;   // Both
+        chkMovementOriginal.Checked = true;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -735,6 +782,15 @@ public class ControlsForm : Form
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
         config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
+
+        // Controller movement source: index 0/1/2 -> analog/dpad/both.
+        switch (cmbControllerMovement.SelectedIndex)
+        {
+            case 0:  config.Set("controller_movement", "analog"); break;
+            case 1:  config.Set("controller_movement", "dpad");   break;
+            default: config.Set("controller_movement", "both");   break;
+        }
+        config.Set("movement_original", chkMovementOriginal.Checked ? "1" : "0");
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

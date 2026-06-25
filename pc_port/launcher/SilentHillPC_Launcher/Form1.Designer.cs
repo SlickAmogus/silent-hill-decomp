@@ -130,6 +130,11 @@ partial class Form1
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
+            this.refreshRateLabel = new System.Windows.Forms.Label();
+            this.rendererLabel = new System.Windows.Forms.Label();
+            this.widescreenLabel = new System.Windows.Forms.Label();
+            this.comboRenderer = new System.Windows.Forms.ComboBox();
+            this.comboWidescreen = new System.Windows.Forms.ComboBox();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -152,6 +157,7 @@ partial class Form1
             this.comboFullscreen.Name = "comboFullscreen";
             this.comboFullscreen.Size = new System.Drawing.Size(120, 21);
             this.comboFullscreen.TabIndex = 16;
+            this.comboFullscreen.SelectedIndexChanged += new System.EventHandler(this.comboFullscreen_SelectedIndexChanged);
             // 
             // vsyncPanel
             // 
@@ -286,7 +292,7 @@ partial class Form1
             // comboMap
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(9, 344);
+            this.comboMap.Location = new System.Drawing.Point(9, 413);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(191, 21);
             this.comboMap.TabIndex = 11;
@@ -294,7 +300,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(314, 370);
+            this.btnPlay.Location = new System.Drawing.Point(314, 441);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
@@ -303,7 +309,7 @@ partial class Form1
             // 
             // btnUpdate
             // 
-            this.btnUpdate.Location = new System.Drawing.Point(206, 313);
+            this.btnUpdate.Location = new System.Drawing.Point(206, 384);
             this.btnUpdate.Name = "btnUpdate";
             this.btnUpdate.Size = new System.Drawing.Size(104, 23);
             this.btnUpdate.TabIndex = 13;
@@ -313,7 +319,7 @@ partial class Form1
             // 
             // btnChangelog
             // 
-            this.btnChangelog.Location = new System.Drawing.Point(206, 342);
+            this.btnChangelog.Location = new System.Drawing.Point(206, 413);
             this.btnChangelog.Name = "btnChangelog";
             this.btnChangelog.Size = new System.Drawing.Size(104, 23);
             this.btnChangelog.TabIndex = 16;
@@ -323,14 +329,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(16, 418);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(16, 489);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(19, 399);
+            this.progUpdate.Location = new System.Drawing.Point(19, 470);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(356, 16);
             this.progUpdate.TabIndex = 15;
@@ -347,14 +353,24 @@ partial class Form1
             this.comboResolution.SelectedIndexChanged += new System.EventHandler(this.comboResolution_SelectedIndexChanged);
             // 
             // comboRefresh
-            // 
+            //
             this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboRefresh.Location = new System.Drawing.Point(80, 211);
+            this.comboRefresh.Items.AddRange(new object[] {
+            "0 (Default)",
+            "30",
+            "60",
+            "75",
+            "100",
+            "120",
+            "144",
+            "165",
+            "180",
+            "200",
+            "240"});
+            this.comboRefresh.Location = new System.Drawing.Point(80, 326);
             this.comboRefresh.Name = "comboRefresh";
             this.comboRefresh.Size = new System.Drawing.Size(120, 21);
-            this.comboRefresh.TabIndex = 1;
-            this.comboRefresh.Visible = false;
-            this.comboRefresh.SelectedIndexChanged += new System.EventHandler(this.comboRefresh_SelectedIndexChanged);
+            this.comboRefresh.TabIndex = 53;
             // 
             // banner
             // 
@@ -418,7 +434,7 @@ partial class Form1
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(8, 327);
+            this.levelLabel.Location = new System.Drawing.Point(8, 396);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(36, 13);
             this.levelLabel.TabIndex = 15;
@@ -614,7 +630,7 @@ partial class Form1
             // 
             // btnControls
             // 
-            this.btnControls.Location = new System.Drawing.Point(315, 313);
+            this.btnControls.Location = new System.Drawing.Point(315, 384);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
             this.btnControls.TabIndex = 50;
@@ -624,7 +640,7 @@ partial class Form1
             // 
             // btnBuildSettings
             // 
-            this.btnBuildSettings.Location = new System.Drawing.Point(314, 342);
+            this.btnBuildSettings.Location = new System.Drawing.Point(314, 413);
             this.btnBuildSettings.Name = "btnBuildSettings";
             this.btnBuildSettings.Size = new System.Drawing.Size(98, 23);
             this.btnBuildSettings.TabIndex = 51;
@@ -634,22 +650,77 @@ partial class Form1
             // 
             // downloadBuild
             // 
-            this.downloadBuild.Location = new System.Drawing.Point(205, 370);
+            this.downloadBuild.Location = new System.Drawing.Point(205, 441);
             this.downloadBuild.Name = "downloadBuild";
             this.downloadBuild.Size = new System.Drawing.Size(104, 23);
             this.downloadBuild.TabIndex = 52;
             this.downloadBuild.Text = "Download Build";
             this.downloadBuild.UseVisualStyleBackColor = true;
             this.downloadBuild.Click += new System.EventHandler(this.downloadBuild_Click);
+            //
+            // refreshRateLabel
+            //
+            this.refreshRateLabel.AutoSize = true;
+            this.refreshRateLabel.Location = new System.Drawing.Point(8, 330);
+            this.refreshRateLabel.Name = "refreshRateLabel";
+            this.refreshRateLabel.Size = new System.Drawing.Size(74, 13);
+            this.refreshRateLabel.TabIndex = 54;
+            this.refreshRateLabel.Text = "Refresh Rate:";
+            //
+            // rendererLabel
+            //
+            this.rendererLabel.AutoSize = true;
+            this.rendererLabel.Location = new System.Drawing.Point(8, 360);
+            this.rendererLabel.Name = "rendererLabel";
+            this.rendererLabel.Size = new System.Drawing.Size(54, 13);
+            this.rendererLabel.TabIndex = 56;
+            this.rendererLabel.Text = "Renderer:";
+            //
+            // comboRenderer
+            //
+            this.comboRenderer.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRenderer.Items.AddRange(new object[] {
+            "OpenGL"});
+            this.comboRenderer.Location = new System.Drawing.Point(80, 356);
+            this.comboRenderer.Name = "comboRenderer";
+            this.comboRenderer.Size = new System.Drawing.Size(120, 21);
+            this.comboRenderer.TabIndex = 57;
+            //
+            // widescreenLabel
+            //
+            this.widescreenLabel.AutoSize = true;
+            this.widescreenLabel.Location = new System.Drawing.Point(214, 317);
+            this.widescreenLabel.Name = "widescreenLabel";
+            this.widescreenLabel.Size = new System.Drawing.Size(72, 13);
+            this.widescreenLabel.TabIndex = 58;
+            this.widescreenLabel.Text = "Widescreen:";
+            //
+            // comboWidescreen
+            //
+            this.comboWidescreen.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboWidescreen.Items.AddRange(new object[] {
+            "Pillarbox (4:3)",
+            "Hor+ (Wider FOV)",
+            "Stretch"});
+            this.comboWidescreen.Location = new System.Drawing.Point(299, 313);
+            this.comboWidescreen.Name = "comboWidescreen";
+            this.comboWidescreen.Size = new System.Drawing.Size(120, 21);
+            this.comboWidescreen.TabIndex = 59;
             // 
             // Form1
             //
-            this.ClientSize = new System.Drawing.Size(420, 437);
+            this.ClientSize = new System.Drawing.Size(420, 510);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
+            this.Controls.Add(this.refreshRateLabel);
+            this.Controls.Add(this.comboRefresh);
+            this.Controls.Add(this.rendererLabel);
+            this.Controls.Add(this.comboRenderer);
+            this.Controls.Add(this.widescreenLabel);
+            this.Controls.Add(this.comboWidescreen);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -706,4 +777,14 @@ partial class Form1
     private Button btnControls;
     private Button btnBuildSettings;
     private Button downloadBuild;
+
+    // Refresh rate (fullscreen-only) + graphics-API placeholder (engine is
+    // OpenGL-only via PsyCross; kept as a single-option dropdown for when a
+    // second backend ever lands). Widescreen presentation lives on the right
+    // column with the other presentation options.
+    private Label refreshRateLabel;
+    private Label rendererLabel;
+    private Label widescreenLabel;
+    private ComboBox comboRenderer;
+    private ComboBox comboWidescreen;
 }

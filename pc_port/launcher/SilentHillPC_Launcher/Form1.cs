@@ -266,6 +266,28 @@ public partial class Form1 : Form
         Set(levelLabel,  levelTip);
         Set(comboMap,    levelTip);
 
+        const string refreshRateTip =
+            "Target screen refresh rate in fullscreen mode (0 = display default).\n" +
+            "Pair with VSync on to lock to this rate. Has no effect in windowed\n" +
+            "or borderless mode (the desktop rate is used there).";
+        Set(refreshRateLabel, refreshRateTip);
+        Set(comboRefresh,     refreshRateTip);
+
+        const string rendererTip =
+            "Graphics API. The port currently renders through OpenGL (PsyCross).\n" +
+            "No other backend is selectable at this time.";
+        Set(rendererLabel, rendererTip);
+        Set(comboRenderer, rendererTip);
+
+        const string widescreenTip =
+            "How 4:3 PSX content fills a widescreen (16:9+) display.\n" +
+            "Pillarbox = 4:3 centered with side bars (PSX-faithful framing).\n" +
+            "Hor+ = widen the FOV to show more at the sides (recommended, no\n" +
+            "       stretching; per-camera tuning keeps key shots framed).\n" +
+            "Stretch = anamorphic stretch to fill (characters look wider).";
+        Set(widescreenLabel, widescreenTip);
+        Set(comboWidescreen, widescreenTip);
+
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
         Set(btnChangelog, "Shows the LOCAL copy of CHANGELOG.md that's currently installed. (Build Settings and the update prompt preview other builds' changelogs.)");
         Set(btnControls, "Customize keyboard and controller bindings, and toggle debug/cheat keys.");
@@ -491,9 +513,25 @@ public partial class Form1 : Form
         string h = config.Get("height", "480");
         comboResolution.SelectedItem = $"{w}x{h}";
 
-        // refresh rate is config-only now (auto-detected by default); keep the
-        // hidden combo populated harmlessly so its references stay valid.
-        comboRefresh.SelectedItem = config.Get("refresh_rate", "0");
+        // refresh rate (fullscreen-only). Dropdown items carry a suffix
+        // ("0 (Default)", "60", ...), so select by matching the leading
+        // number rather than a plain string compare.
+        SelectRefreshRate(config.Get("refresh_rate", "0"));
+
+        // Fullscreen-only: refresh rate has no effect in windowed/borderless,
+        // so disable the dropdown unless the display mode is exclusive
+        // fullscreen. Updated again in comboFullscreen_SelectedIndexChanged.
+        UpdateRefreshRateEnabled();
+
+        // Renderer: engine is OpenGL-only via PsyCross. The dropdown is a
+        // single-item placeholder for if a second backend is ever added.
+        comboRenderer.SelectedIndex = 0;
+
+        // Widescreen presentation: 0=Pillarbox, 1=Hor+, 2=Stretch.
+        int wsIdx;
+        if (!int.TryParse(config.Get("widescreen_mode", "1"), out wsIdx)) wsIdx = 1;
+        if (wsIdx < 0 || wsIdx > 2) wsIdx = 1;
+        comboWidescreen.SelectedIndex = wsIdx;
 
         // pillarboxing (menu_pillarbox) — replaces the refresh-rate UI slot
         radioPillarboxYes.Checked = config.Get("menu_pillarbox", "1") == "1";
@@ -531,10 +569,17 @@ public partial class Form1 : Form
             config.Set("height", parts[1]);
         }
 
-        // refresh rate is config-only now (auto-detected by default) — do NOT
-        // write it from the launcher so a hand-set value is preserved.
+        // refresh rate (fullscreen-only). Write the leading number of the
+        // selected item; "0 (Default)" → 0.
+        if (comboRefresh.SelectedItem != null)
+            config.Set("refresh_rate", comboRefresh.SelectedItem.ToString().Split(' ')[0]);
 
-        // pillarboxing
+        // widescreen presentation: dropdown index maps 1:1 to the config int
+        // (0=Pillarbox, 1=Hor+, 2=Stretch).
+        if (comboWidescreen.SelectedIndex >= 0)
+            config.Set("widescreen_mode", comboWidescreen.SelectedIndex.ToString());
+
+        // pillarboxing (2D screens)
         config.Set("menu_pillarbox", radioPillarboxYes.Checked ? "1" : "0");
 
         // disable_culling
@@ -975,6 +1020,48 @@ public partial class Form1 : Form
     private void comboResolution_SelectedIndexChanged(object sender, EventArgs e)
     {
 
+    }
+
+    /// <summary>
+    /// Match a raw refresh_rate config value ("0", "60", "144", ...) to a
+    /// comboRefresh item. Items carry a human suffix ("0 (Default)", "60"),
+    /// so we compare against the leading number of each item.
+    /// </summary>
+    private void SelectRefreshRate(string value)
+    {
+        if (string.IsNullOrEmpty(value)) value = "0";
+        for (int i = 0; i < comboRefresh.Items.Count; i++)
+        {
+            string item = comboRefresh.Items[i].ToString();
+            if (item.Split(' ')[0] == value)
+            {
+                comboRefresh.SelectedIndex = i;
+                return;
+            }
+        }
+        // Unknown value (e.g. a 165 Hz monitor value not in our preset list):
+        // fall back to "Default" rather than leaving nothing selected.
+        if (comboRefresh.Items.Count > 0)
+            comboRefresh.SelectedIndex = 0;
+    }
+
+    /// <summary>
+    /// Refresh rate only applies to exclusive fullscreen — in windowed or
+    /// borderless mode the desktop refresh rate is used. Disable the control
+    /// (and visually hint it) unless fullscreen is selected.
+    /// </summary>
+    private void UpdateRefreshRateEnabled()
+    {
+        bool fullscreen = comboFullscreen.SelectedIndex == 0; // "Fullscreen"
+        comboRefresh.Enabled = fullscreen;
+        refreshRateLabel.ForeColor = fullscreen
+            ? SystemColors.ControlText
+            : SystemColors.GrayText;
+    }
+
+    private void comboFullscreen_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        UpdateRefreshRateEnabled();
     }
 
     private void comboMap_SelectedIndexChanged(object sender, EventArgs e)
