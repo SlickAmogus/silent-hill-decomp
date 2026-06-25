@@ -16,9 +16,11 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <windows.h>
 
 extern FILE* g_ShDebugLog;
+
+#ifdef _WIN32
+#include <windows.h>
 
 static void Sh_LogFrame(int idx, DWORD64 pc)
 {
@@ -111,3 +113,15 @@ void Sh_InstallCrashFilter(void)
 {
     SetUnhandledExceptionFilter(Sh_CrashFilter);
 }
+
+#else /* !_WIN32 */
+
+/* POSIX no-op for now. The Windows path relies on SEH + RtlVirtualUnwind,
+ * which have no direct equivalent. A signal-based backtrace
+ * (sigaction + backtrace()/backtrace_symbols) can be added later; until
+ * then crashes fall through to the OS default (core dump / debugger). */
+void Sh_InstallCrashFilter(void)
+{
+}
+
+#endif /* _WIN32 */
