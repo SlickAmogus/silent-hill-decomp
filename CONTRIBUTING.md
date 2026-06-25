@@ -4,9 +4,9 @@ Thanks for your interest in the **Silent Hill AI-Assisted PC Port**.
 
 ## Ownership & Governance
 
-This project is owned solely by **Chris Hardin (AKA KushAstronaut)**. Chris is the
+This project (specifically, this AI Assisted Silent Hill port, not the decompilation or Silent Hill itself) is owned solely by **Chris Hardin (AKA KushAstronaut)**. Chris is the
 sole owner and maintainer, and **final decisions about the project's direction,
-scope, features, and releases rest with him.**
+scope, features, and releases rest with him.**  He does not have any rights to Silent Hill as a property, and this project does not contain any game assets.
 
 ## Official Communication
 
