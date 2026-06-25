@@ -507,7 +507,9 @@ u8 D_800ED5F0[256] = {0};
 u8 D_800ED73C[256] = {0};
 u8 D_800ED840[256] = {0};
 u8 D_800ED841[256] = {0};
-u8 D_800ED848[256] = {0};
+/* D_800ED848 moved to src/maps/map6_s04/map6_s04_2.c as a real `s_800ED848[16]`
+ * — the u8[256] stub was ~2KB too small for the 64-bit struct, so the effect
+ * pool overran it and truncated a callback pointer (EXECUTING 0x7ffa crash). */
 u8 D_800ED8AC[256] = {0};
 u8 D_800ED8E8[256] = {0};
 u8 D_800ED938[256] = {0};
