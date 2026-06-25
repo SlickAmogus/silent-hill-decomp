@@ -1,5 +1,19 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.25.3 -- 2026-06-25
+- Fixed issue of gameplay frames being scene in the sky after opening map. (Reverted to brief black sky when opening map which will be fixed soon.(
+- Massive cutscene fixes that should hopefully correct a lot of issues (still testing, see details below)
+
+Commit summaries:
+- Fix map6_s04 Alessa/Dahlia cutscene crash (D_800ED848 undersized stub)
+- map6_s04 cutscene: ADSR scope for portal SFX loop + crash guard/tracer
+- Fix fps-dependent subtitle drift in cutscenes (typewriter speed)
+- Fix cutscene visuals running slow vs real-time audio (g_DeltaTime cap)
+- Fix g_CommonWorldObjects 256-byte stub overrun (64-bit struct growth)
+- Fix map1_s02 silent monologue + map3_s02 degenerate cutscene clip (zero-stubs)
+- Fix 7 more undersized u8[256] stub overruns (64-bit struct growth)
+- Revert map-open frame-hold (ghost regression); keep brief black flash
+
 ## beta-2026.06.25.2 -- 2026-06-25
 - Fix permanent pillarbox after examining 2D screens
 
