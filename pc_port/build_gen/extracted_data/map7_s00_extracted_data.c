@@ -104,9 +104,19 @@ u8 sharedData_800D2F84_7_s00[8] = {
 };
 
 // 0x800D3194  size 0x30 (48 bytes)
-u16 g_Cutscene_MapMsgAudioCmds[24] = {
+/* PC overrun guard (+24 trailing 0x0000). The Lisa cutscene shows msgs 30/35/37
+ * twice (cases 7&9, 12&14, 17&19) sharing g_Cutscene_MapMsgAudioIdx. On PC each
+ * page finishes faster than PSX (no CD load latency), so the re-displays fully
+ * re-fire and push the audio index PAST the real 24 entries. On PSX that index
+ * stayed in-bounds; here the OOB reads land in the adjacent D_800D31C4 elevator
+ * voice table (immediately after this), playing Harry's "...take the elevator
+ * down..." lines at the cutscene's end. The pad makes the overrun read no-fire
+ * 0x0000 instead. Real data = first 24 entries; a re-extraction drops the pad. */
+u16 g_Cutscene_MapMsgAudioCmds[48] = {
     0x1226, 0x122F, 0x11E7, 0x1223, 0x11F5, 0x1204, 0x121C, 0x1201, 0x11F8, 0x11F0, 0x11F7, 0x11E8,
-    0x11FD, 0x11DB, 0x1225, 0x11FC, 0x11F1, 0x1210, 0x11FB, 0x11F3, 0x122E, 0x1214, 0x11F9, 0x0000
+    0x11FD, 0x11DB, 0x1225, 0x11FC, 0x11F1, 0x1210, 0x11FB, 0x11F3, 0x122E, 0x1214, 0x11F9, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 };
 
 // 0x800D31C4  size 0xC (12 bytes)
