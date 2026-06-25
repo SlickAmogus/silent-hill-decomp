@@ -741,6 +741,23 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
             if (temp_s1 == 1)
             {
                 sp58 = 0;
+#ifdef SH_PC_PORT
+                /* Blade-weapon damage scaler. sp5C ramps from its peak (0.25) at
+                 * the swing-window start (var_s0_2) down to 0 at the end (sp28),
+                 * and `i` advances ~g_DeltaTime per frame. The PC once-per-swing
+                 * guard (func_8008B714) applies exactly one frame's worth, so the
+                 * sampled value is ∝ dt — near-zero at high fps, which left player
+                 * blades (knife/katana/axe/chainsaw/rock drill) doing almost no
+                 * damage. PSX summed the ramp across every overlap frame; applying
+                 * the fps-independent peak (window-start) value once is the
+                 * equivalent single-hit damage. Player only — enemy attack balance
+                 * is left as-is. */
+                if (chara == &g_SysWork.playerWork.player)
+                {
+                    sp5C = (var_s0_2 < sp28) ? (sp28 - var_s0_2) / (var_a0 * 4) : 0;
+                }
+                else
+#endif
                 if (i < sp28)
                 {
                     sp5C = (sp28 - i) / (var_a0 * 4);
@@ -866,18 +883,6 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 #endif
                 if (func_8008BF84(chara, temp_s0_14->vx, sp1C, sp5C) != 0)
                 {
-#ifdef SH_PC_PORT
-                    /* [BLADESWEEP] confirm the blade damage scaler at the hit.
-                     * sp5C (=offsetZ/arg3) scales blade-weapon damage; field_10==1
-                     * weapons use sp5C=(sp28-i)/(var_a0*4) (max 0.25), blunt use
-                     * 0x1000 (full). i is the swing-window position; a tiny sp5C
-                     * means the hit latched near the window end. dt correlates with
-                     * fps. winStart=Q12(field_E), sp28=Q12(field_E+field_F). */
-                    if (chara == &g_SysWork.playerWork.player)
-                        SH_DBG("[BLADESWEEP] wa=%d i=%d sp28=%d var_a0=%d sp5C=%d (%d/256) dt=%d\n",
-                               (int)sp14, (int)i, (int)sp28, (int)var_a0, (int)sp5C,
-                               (int)((sp5C * 256) / 4096), (int)g_DeltaTime);
-#endif
                     var_s2 = sp58;
                     sp18  |= var_s2;
                 }
