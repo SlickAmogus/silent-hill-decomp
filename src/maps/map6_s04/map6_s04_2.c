@@ -31,6 +31,20 @@
 #define D_800A9938 g_CharaModelAnimsData[0].allocSize
 #endif
 
+#ifdef SH_PC_PORT
+/* 16-slot effect-particle pool (func_800DE95C iterates all 16 slots and calls
+ * each slot's field_24 callback). s_800ED848 grew to ~0x90 bytes on 64-bit (six
+ * pointer/callback fields + a MATRIX), so the array needs ~2.3KB — but the PC
+ * stub backed it with only `u8[256]`, room for under 2 slots. Slots 2..15 read
+ * clobbered field_24 pointers (truncated to the DLL-base high word) and
+ * func_800DE95C called one → C0000005 EXECUTING 0x7ffa. Define it with its real
+ * type so the size is correct (mirror of the s_func_800E030C / MAP6S04_FXBUF
+ * fix). Replaces the u8 D_800ED848[256] stub in pc_port/src/stubs/data_stubs.c.
+ * The nearby D_800ED8AC/D_800ED8E8 stubs are SEPARATE map7_s03 s32 globals (a
+ * different overlay reusing the same PSX RAM) — independent on PC, left alone. */
+s_800ED848 D_800ED848[16];
+#endif
+
 #include "../src/maps/chara_util.c" // 0x800DD5B8
 
 // TODO: Move to separate Flauros split.
