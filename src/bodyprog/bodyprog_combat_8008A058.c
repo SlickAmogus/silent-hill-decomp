@@ -866,6 +866,18 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 #endif
                 if (func_8008BF84(chara, temp_s0_14->vx, sp1C, sp5C) != 0)
                 {
+#ifdef SH_PC_PORT
+                    /* [BLADESWEEP] confirm the blade damage scaler at the hit.
+                     * sp5C (=offsetZ/arg3) scales blade-weapon damage; field_10==1
+                     * weapons use sp5C=(sp28-i)/(var_a0*4) (max 0.25), blunt use
+                     * 0x1000 (full). i is the swing-window position; a tiny sp5C
+                     * means the hit latched near the window end. dt correlates with
+                     * fps. winStart=Q12(field_E), sp28=Q12(field_E+field_F). */
+                    if (chara == &g_SysWork.playerWork.player)
+                        SH_DBG("[BLADESWEEP] wa=%d i=%d sp28=%d var_a0=%d sp5C=%d (%d/256) dt=%d\n",
+                               (int)sp14, (int)i, (int)sp28, (int)var_a0, (int)sp5C,
+                               (int)((sp5C * 256) / 4096), (int)g_DeltaTime);
+#endif
                     var_s2 = sp58;
                     sp18  |= var_s2;
                 }
