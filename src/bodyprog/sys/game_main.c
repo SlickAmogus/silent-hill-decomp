@@ -1837,17 +1837,6 @@ void MainLoop(void) // 0x80032EE0
          * want the foggy frozen scene behind the text, NOT a black 2D-menu clear. */
         extern int g_PsxPresentLastFrame;
 
-        /* Map-open load gap: the foggy gameplay frame is held (g_PsxPresentLastFrame
-         * set when the map screen opened) so it shows instead of a black flash while
-         * the map TIM streams + fades in. Release it the instant the paper-map image
-         * is actually drawn this frame so the map presents on its own black bars. */
-        {
-            extern s32 g_Pc2dBackgroundActive;
-            if (g_PcMapScreenActive && g_Pc2dBackgroundActive > 0) {
-                g_PsxPresentLastFrame = 0;
-            }
-        }
-
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
