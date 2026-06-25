@@ -76,8 +76,11 @@ u8 D_800CD774[256] = {0};
 u8 D_800CF280[256] = {0};
 u8 D_800D177C[256] = {0};
 u8 D_800D1FBC[256] = {0};
-u8 D_800D1FC0[256] = {0};
-u8 D_800D1FD0[256] = {0};
+/* D_800D1FC0 (RECT[2]) / D_800D1FD0 (RECT) moved to map3_s02_extracted_data.c
+ * with real ROM values — as zero stubs they were a degenerate (0,0) cutscene
+ * draw-clip (SetDrawArea) => nothing renders in that OT scope (mirror of the
+ * map4_s04 rainbow-corruption fix). D_800D1FE0 (DVECTOR, SetDrawOffset) stays a
+ * stub: PC SetDrawOffset is a render-neutral no-op, so its value is unused. */
 u8 D_800D1FE0[256] = {0};
 u8 D_800D1FEC[256] = {0};
 u8 D_800D2530[256] = {0};
@@ -367,7 +370,9 @@ u8 D_800E1670[256] = {0};
 u8 D_800E1671[256] = {0};
 u8 D_800E1678[256] = {0};
 u8 D_800E16A8[256] = {0};
-u8 D_800E1EDC[256] = {0};
+/* D_800E1EDC moved to map1_s02_extracted_data.c with real ROM values — as a
+ * zero stub Harry's three opening-monologue voice lines played silent (SD_Call(0)
+ * no-op). Same class as the 32 voice tables fixed 2026-06-11. */
 u8 D_800E1EE2[256] = {0};
 u8 D_800E1EE4[256] = {0};
 u8 D_800E1EE8[256] = {0};

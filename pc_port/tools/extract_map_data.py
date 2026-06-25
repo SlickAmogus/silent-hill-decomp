@@ -168,6 +168,7 @@ TARGETS = {
     "D_800ED7B4":                       ("u16", 2),  # map7_s03 voices
     "D_800ED88C":                       ("u16", 2),  # map7_s03 voices
     "D_800ED898":                       ("u16", 2),  # map7_s03 voices
+    "D_800E1EDC":                       ("u16", 2),  # map1_s02 opening monologue voices (VA via EXTRA_SYMBOLS)
     "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
     "D_800F0038":                       ("u16", 2),  # map6_s00 voices
     # INCLUDE_RODATA symbols that are no-op on PC -> zero-stubs (same class as
@@ -303,6 +304,7 @@ MAP_ROOM_IDXS_SIZE = {
 EXTRA_SYMBOLS = {
     "map1_s00": [("D_800DCC4C", 0x800DCC4C, 8), ("D_800DCC54", 0x800DCC54, 84)],
     "map1_s01": [("D_800DC9FC", 0x800DC9FC, 8), ("D_800DCA04", 0x800DCA04, 84)],
+    "map1_s02": [("D_800E1EDC", 0x800E1EDC, 6)],  # opening monologue voices (3x u16); zero stub -> Harry's first 3 lines play silent (type set in TARGETS)
     "map1_s04": [("D_800CCF54", 0x800CCF54, 8)],
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
     "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
@@ -326,6 +328,8 @@ EXTRA_SYMBOLS = {
     # sym-file symbol). Over-extraction copies inert ROM bytes — the scenes
     # index only as many entries as they have dialogue pages.
     "map3_s00": [("D_800D24F0", 0x800D24F0, 76)],
+    "map3_s02": [("D_800D1FC0", 0x800D1FC0, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip (mirror of map4_s04 rainbow corruption)
+                 ("D_800D1FD0", 0x800D1FD0, 8)],   # RECT cutscene SetDrawArea (end-of-OT restore)
     "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
                  ("D_800D6B50", 0x800D6B50, 4),
                  ("D_800D6B54", 0x800D6B54, 4)],
