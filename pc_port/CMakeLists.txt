@@ -334,6 +334,83 @@ if(SH_BUILD_MAP_DLLS)
 endif()
 
 # =============================================================================
+# Launcher (C# / .NET Framework) — build with MSBuild and drop the exe next to
+# SilentHillPC.exe so the two always ship together. Windows-only; on any other
+# platform there is no launcher and this whole block is skipped.
+# =============================================================================
+if(WIN32)
+    set(SH_LAUNCHER_DIR  "${CMAKE_SOURCE_DIR}/launcher/SilentHillPC_Launcher")
+    set(SH_LAUNCHER_PROJ "${SH_LAUNCHER_DIR}/SilentHillPC_Launcher.csproj")
+
+    # The build normally runs from the msys2 login shell, which exports none
+    # of the Windows ProgramData / ProgramFiles* vars (only SystemDrive
+    # survives). vswhere reads VS instance records from %ProgramData%, and
+    # MSBuild needs it too, so restore it from SystemDrive when missing.
+    if("$ENV{ProgramData}" STREQUAL "")
+        set(ENV{ProgramData} "$ENV{SystemDrive}/ProgramData")
+    endif()
+
+    # Locate MSBuild: prefer vswhere (covers full VS and standalone Build
+    # Tools), fall back to anything named msbuild on PATH.
+    set(SH_MSBUILD "")
+    # vswhere lives in a fixed spot under Program Files (x86). We can't use
+    # $ENV{ProgramFiles(x86)} (stripped, as above) — derive from SystemDrive,
+    # and fall back to PATH for unusual setups.
+    set(_vswhere "$ENV{SystemDrive}/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe")
+    if(NOT EXISTS "${_vswhere}")
+        find_program(_vswhere_path NAMES vswhere vswhere.exe)
+        set(_vswhere "${_vswhere_path}")
+    endif()
+    if(_vswhere AND EXISTS "${_vswhere}")
+        execute_process(
+            COMMAND "${_vswhere}" -latest -prerelease -products *
+                    -find "MSBuild/**/Bin/MSBuild.exe"
+            OUTPUT_VARIABLE _msbuild_out
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        if(_msbuild_out)
+            # vswhere can list several; take the first line.
+            string(REGEX REPLACE "[\r\n].*" "" _msbuild_first "${_msbuild_out}")
+            if(EXISTS "${_msbuild_first}")
+                set(SH_MSBUILD "${_msbuild_first}")
+            endif()
+        endif()
+    endif()
+    if(NOT SH_MSBUILD)
+        find_program(SH_MSBUILD_PATH NAMES MSBuild msbuild MSBuild.exe)
+        if(SH_MSBUILD_PATH)
+            set(SH_MSBUILD "${SH_MSBUILD_PATH}")
+        endif()
+    endif()
+
+    if(SH_MSBUILD)
+        message(STATUS "Launcher: building with MSBuild at ${SH_MSBUILD}")
+        # Always-on target. MSBuild is internally incremental (a no-op when no
+        # launcher source changed) and the wrapper copies with
+        # copy_if_different. The wrapper makes the whole step non-fatal so a
+        # missing toolchain or launcher error never blocks the game build.
+        add_custom_target(launcher ALL
+            COMMAND "${CMAKE_COMMAND}"
+                    "-DMSBUILD=${SH_MSBUILD}"
+                    "-DPROJ=${SH_LAUNCHER_PROJ}"
+                    "-DLDIR=${SH_LAUNCHER_DIR}"
+                    "-DBDIR=${CMAKE_BINARY_DIR}"
+                    -P "${CMAKE_SOURCE_DIR}/cmake/build_launcher.cmake"
+            COMMENT "Building C# launcher (Release) and copying next to SilentHillPC.exe"
+            VERBATIM)
+    else()
+        message(WARNING
+            "Launcher: MSBuild not found (no Visual Studio / Build Tools on PATH). "
+            "Skipping the launcher build — SilentHillPC.exe still builds normally. "
+            "Install VS Build Tools or put MSBuild on PATH to enable it.")
+        add_custom_target(launcher ALL
+            COMMAND "${CMAKE_COMMAND}" -E echo
+                    "[launcher] MSBuild not found - skipping launcher build."
+            VERBATIM)
+    endif()
+endif()
+
+# =============================================================================
 # Install
 # =============================================================================
 install(TARGETS SilentHillPC RUNTIME DESTINATION bin)

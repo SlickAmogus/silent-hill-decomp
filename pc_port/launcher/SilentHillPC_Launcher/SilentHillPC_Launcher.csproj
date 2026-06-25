@@ -12,6 +12,11 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <!-- Use NuGet PackageReference restore so the v4.7.2 reference assemblies
+         can come from a NuGet package (below) instead of a machine-wide
+         Developer/Targeting Pack install. Lets MSBuild build the launcher on
+         a box that only has the .NET Framework runtime. -->
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -50,6 +55,15 @@
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Provides the .NET Framework 4.7.2 reference assemblies via NuGet so a
+         machine-wide Targeting/Developer Pack is not required to build. Build
+         output only (PrivateAssets=all); nothing ships from this package. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies">
+      <Version>1.0.3</Version>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DisplayModes.cs" />
