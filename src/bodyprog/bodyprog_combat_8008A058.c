@@ -742,19 +742,22 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
             {
                 sp58 = 0;
 #ifdef SH_PC_PORT
-                /* Blade-weapon damage scaler. sp5C ramps from its peak (0.25) at
-                 * the swing-window start (var_s0_2) down to 0 at the end (sp28),
-                 * and `i` advances ~g_DeltaTime per frame. The PC once-per-swing
-                 * guard (func_8008B714) applies exactly one frame's worth, so the
-                 * sampled value is ∝ dt — near-zero at high fps, which left player
-                 * blades (knife/katana/axe/chainsaw/rock drill) doing almost no
-                 * damage. PSX summed the ramp across every overlap frame; applying
-                 * the fps-independent peak (window-start) value once is the
-                 * equivalent single-hit damage. Player only — enemy attack balance
-                 * is left as-is. */
+                /* Blade-weapon damage scaler. PSX added (sp28 - i)/(var_a0*4)
+                 * EVERY overlap frame, where sp28 is the current anim time and
+                 * `i` the previous frame's swept position, so each term is the
+                 * per-frame sweep (∝ g_DeltaTime). The PC once-per-swing guard
+                 * (func_8008B714) applies just ONE frame, so the dt-sized term
+                 * left player blades doing almost no damage at high fps. The PSX
+                 * sum telescopes to the FULL window length: Σ(sp28-i) = sp2C -
+                 * var_s0_2, so the fps-independent single-hit value is
+                 * (sp2C - var_s0_2)/(var_a0*4) == Q12(0.25), INDEPENDENT of where
+                 * in the swing the hit lands. (Using the partial sp28-var_s0_2
+                 * here made a hit that landed at window-open — e.g. the 1st of the
+                 * knife's two slashes — deal ~0 while the 2nd, landing later, hit.)
+                 * Player only — enemy attack balance is left as-is. */
                 if (chara == &g_SysWork.playerWork.player)
                 {
-                    sp5C = (var_s0_2 < sp28) ? (sp28 - var_s0_2) / (var_a0 * 4) : 0;
+                    sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
                 }
                 else
 #endif
