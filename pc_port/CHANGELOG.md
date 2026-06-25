@@ -1,9 +1,24 @@
 # Silent Hill PC Port — Changelog
 
-## beta-2026.06.24.2 -- 2026-06-24
-- Reconciled launcher on alpha branch to support auto update to beta branch, so users don't have to manually change to beta. If you're seeing this update, you're all set to keep receiving updates without any issues.
+## beta-2026.06.24.3 -- 2026-06-24
+- Update pushed so that latest update does not downgrade users to past beta version. If you see this, you are on the correct version.
 
-- Launcher: bump AssemblyFileVersion 2026.6.22.1 -> 2026.6.24.1 (ship the beta auto-migration)
+## v2026.06.24.2 -- 2026-06-24
+- Launcher is fixed to detect releases from new branches automatically now. 
+- Enemies audited and a lot of issues are fixed. Enemies falling through floor should be fixed.
+- Final boss improvements
+- Air screamer improvements
+Relatively small update for now. Still working on a lot of bug fixes and improvements.
+
+Commit summaries:
+- Launcher: detect newest build across branches by parsed version; betas as real releases
+- Launcher: on a version tie, prefer the beta release (leading-edge stream)
+- Fix repo build scripts + README to match the real MSYS2/Ninja build
+- air_screamer: deal damage on all 3 cone attacks; shrink PC shove radius
+- incubus/unknown23: extract real boss ROM tables; fix data_stubs type mismatches
+- collision: hold NPCs at current height when no IPD chunk is loaded (PC)
+- air_screamer: restore real PSX cone attack + hull hitbox; remove combat band-aids
+- player: allow aim-then-walk when aiming at nothing (open space)
 
 
 ## v2026.06.24.1 -- 2026-06-24
@@ -19,7 +34,7 @@
 - Miscellaneous qol fixes detailed below
 Coming soon: Fixing the black bar on top of certain fixed camera shots, issues with puzzle overlays in some cases, leftover random crashes, issue with katana damage + continuing to work on other known issues. Please report any crashes to me and it is certainly possible I forget things so feel free to remind me (especially if it's game breaking). Want to try fully implementing PAL + other language support soon as that has been requested a lot.
 
-Claude commits: 
+Commit summaries: 
 - Port in PR#17 self-contained fixes: combat / msg-timer / voice-sync / cleanup
 - Widescreen: flag the OT2 (2D-UI) draw for full vertical ortho; drop msg-shift band-aid
 - Fog: add `fogstr` console command (world fog density), default neutral
@@ -67,7 +82,7 @@ Claude commits:
 Coming soon: Inventory item backface visibility issue fix. Other visual bug and crash fixes.
 
 
-Claude commits:
+Commit summaries:
 - PsyCross: Mesa VRAM color fix (Steam Deck / Proton) — cherry-pick of #14
 - fix: ending/Nowhere crashes — map7_s03 endings + map6_s04 Cybil boss
 - data: extract ending/park zero-stub tables (force-field, Dahlia lightning, sand, disc, sprites)
