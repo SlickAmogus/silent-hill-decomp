@@ -182,7 +182,19 @@ int GsGetVcount(void)
 
 void GsClearVcount(void)
 {
-    gs_vcount_start = SDL_GetPerformanceCounter();
+    /* Advance the start point by exactly the WHOLE h-blanks GsGetVcount just
+     * reported (its int cast truncates the fractional h-blank), preserving the
+     * sub-h-blank remainder instead of resetting to "now". Resetting to now
+     * discarded ~0.5 h-blank of real time every frame; at high fps that
+     * per-frame loss accumulates into a measurable slow-down of the game clock
+     * vs real-time audio (cutscene voice/visual desync). Carrying the remainder
+     * keeps GsGetVcount's running sum equal to true elapsed time. */
+    Uint64 now     = SDL_GetPerformanceCounter();
+    Uint64 freq    = SDL_GetPerformanceFrequency();
+    Uint64 elapsed = now - gs_vcount_start;
+    Uint64 hblanks = (elapsed * H_BLANKS_PER_SECOND) / freq;
+
+    gs_vcount_start += (hblanks * freq) / H_BLANKS_PER_SECOND;
 }
 
 void GsDrawOt_ResetFrameCount(void);
