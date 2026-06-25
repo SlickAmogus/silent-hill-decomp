@@ -1750,14 +1750,31 @@ void MainLoop(void) // 0x80032EE0
          * Only drop to 4:3 after the narrow condition holds for several
          * consecutive frames; returning to Hor+ stays instant. */
         {
+            extern s32 g_Pc2dBackgroundActive;
             static int s_narrowFrames = 0;
+            /* Fullscreen 2D background screens that run inside GameState_InGame
+             * (keypad/dial/plate puzzles, the eclipse door, item-inspection and
+             * death-tip images) draw via Screen_BackgroundImgDraw* and must use
+             * 4:3 ortho like the menus — Hor+ widening stretches them off-screen.
+             * Unlike g_PcMapScreenActive (set when the screen opens), this flag
+             * is set during the image draw, so honour it immediately rather than
+             * after the 6-frame hysteresis (these are stable screens, not a fade
+             * transient to ride out — the countdown would flash a stretched
+             * frame before snapping). */
+            int want2dScreen = (g_Pc2dBackgroundActive > 0) ? 1 : 0;
             int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
                                !g_PsxSkipFramebufferStore &&
-                               !g_PcMapScreenActive) ? 1 : 0;
+                               !g_PcMapScreenActive &&
+                               !want2dScreen) ? 1 : 0;
             if (wantHorPlus)
             {
                 s_narrowFrames     = 0;
                 g_PcHorPlusEnabled = 1;
+            }
+            else if (want2dScreen)
+            {
+                s_narrowFrames     = 6;
+                g_PcHorPlusEnabled = 0;
             }
             else if (++s_narrowFrames >= 6)
             {
@@ -1788,6 +1805,17 @@ void MainLoop(void) // 0x80032EE0
          * and the map-screen messages ("I don't have a map" / "too dark for map"). Those
          * want the foggy frozen scene behind the text, NOT a black 2D-menu clear. */
         extern int g_PsxPresentLastFrame;
+
+        /* Map-open load gap: the foggy gameplay frame is held (g_PsxPresentLastFrame
+         * set when the map screen opened) so it shows instead of a black flash while
+         * the map TIM streams + fades in. Release it the instant the paper-map image
+         * is actually drawn this frame so the map presents on its own black bars. */
+        {
+            extern s32 g_Pc2dBackgroundActive;
+            if (g_PcMapScreenActive && g_Pc2dBackgroundActive > 0) {
+                g_PsxPresentLastFrame = 0;
+            }
+        }
 
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's

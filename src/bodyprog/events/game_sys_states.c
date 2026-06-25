@@ -396,6 +396,18 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     }
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
     {
+#ifdef SH_PC_PORT
+        /* Hold the captured last gameplay frame across the map-open load gap
+         * (TIM streaming + fade) so the foggy scene stays on screen instead of
+         * flashing black before the map image appears — same approach as PAUSED
+         * and the "I don't have a map" message (this is the same entry tick, so
+         * PsyCross captures the last gameplay render). Released in MainLoop the
+         * moment the paper-map image is actually drawn (g_Pc2dBackgroundActive). */
+        {
+            extern int g_PsxPresentLastFrame;
+            g_PsxPresentLastFrame = 1;
+        }
+#endif
         SysWork_StateSetNext(SysState_MapScreen);
         g_SysWork.isMgsStringSet = false;
     }
