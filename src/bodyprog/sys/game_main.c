@@ -1633,8 +1633,25 @@ void MainLoop(void) // 0x80032EE0
              * never exceed what PSX itself swept. Frames faster than 30fps are
              * unaffected; a real hitch just slows time slightly instead of
              * teleporting Harry forward. g_DeltaTimeRaw (vCountCopy) is left raw
-             * for the wall-clock accumulators / cutscene timers. */
-            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
+             * for the wall-clock accumulators / cutscene timers.
+             *
+             * EXCEPTION — cutscenes: Harry is DMS/script-driven during a cutscene
+             * (no moveSpeed*g_DeltaTime collision sweep), so the wall-fix is moot,
+             * BUT this cap also throttled the cutscene VISUAL clock: character
+             * animation (Anim_TimestepGet) and the DMS timeline (Event_Cutscene-
+             * TimerAdvance) both advance on g_DeltaTime, while the XA voice + the
+             * subtitle/event timers advance on the uncapped g_DeltaTimeRaw. On any
+             * cutscene frame slower than 30fps (heavy late-game scenes) the visuals
+             * advanced up to ~33% slower than real time while the voice ran at real
+             * time, so the on-screen scene drifted progressively behind the spoken
+             * dialog (~10s by the end of a long scene). Skip the cap during
+             * cutscenes so the visual timeline tracks real time (= the audio). The
+             * 15fps floor (H_BLANKS_PER_FRAME_MIN, above) still bounds the step. */
+            if (!((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                  g_SysWork.cutsceneBorderState != CutsceneBorderState_None))
+            {
+                vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
+            }
 #endif
         }
 
