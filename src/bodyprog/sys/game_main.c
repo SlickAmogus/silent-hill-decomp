@@ -1749,29 +1749,43 @@ void MainLoop(void) // 0x80032EE0
          * which flashed the 4:3 pillarbox mid-fade ("4:3 swap" reports).
          * Only drop to 4:3 after the narrow condition holds for several
          * consecutive frames; returning to Hor+ stays instant. */
+        /* "Fullscreen 2D background screen drawn within the last 300ms" signal,
+         * maintained UNCONDITIONALLY every frame so it always decays. The
+         * per-frame decrement must NOT live behind the fog/menu branches below:
+         * in non-foggy rooms that branch never ran, so g_Pc2dBackgroundActive
+         * stuck >0 and Hor+ stayed permanently pillarboxed after examining an
+         * object. Screen_BackgroundImgDraw* re-sets the counter to 2 each frame
+         * it draws; the 300ms hold bridges the few-frame TIM-swap gaps during
+         * puzzle interactions (and avoids a stretched-frame flash on return). */
+        int bg2dHeld;
         {
             extern s32 g_Pc2dBackgroundActive;
+            static Uint32 s_bg2dHoldUntilMs;
+            if (g_Pc2dBackgroundActive > 0) {
+                g_Pc2dBackgroundActive--;
+                s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
+            }
+            bg2dHeld = (SDL_GetTicks() < s_bg2dHoldUntilMs) ? 1 : 0;
+        }
+        {
             static int s_narrowFrames = 0;
             /* Fullscreen 2D background screens that run inside GameState_InGame
              * (keypad/dial/plate puzzles, the eclipse door, item-inspection and
              * death-tip images) draw via Screen_BackgroundImgDraw* and must use
              * 4:3 ortho like the menus — Hor+ widening stretches them off-screen.
-             * Unlike g_PcMapScreenActive (set when the screen opens), this flag
-             * is set during the image draw, so honour it immediately rather than
-             * after the 6-frame hysteresis (these are stable screens, not a fade
+             * Honour bg2dHeld immediately (these are stable screens, not a fade
              * transient to ride out — the countdown would flash a stretched
              * frame before snapping). */
-            int want2dScreen = (g_Pc2dBackgroundActive > 0) ? 1 : 0;
             int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
                                !g_PsxSkipFramebufferStore &&
                                !g_PcMapScreenActive &&
-                               !want2dScreen) ? 1 : 0;
+                               !bg2dHeld) ? 1 : 0;
             if (wantHorPlus)
             {
                 s_narrowFrames     = 0;
                 g_PcHorPlusEnabled = 1;
             }
-            else if (want2dScreen)
+            else if (bg2dHeld)
             {
                 s_narrowFrames     = 6;
                 g_PcHorPlusEnabled = 0;
@@ -1848,22 +1862,12 @@ void MainLoop(void) // 0x80032EE0
         }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
-             * inspection) must clear to the game's own color (black) — on
-             * PSX the fog void isn't the clear color, so these screens were
-             * never fog-tinted. Counter set by Screen_BackgroundImgDraw*.
-             * Time-based bridge: puzzle interactions (key insertion) swap
-             * TIMs across a few frames where the background draw doesn't
-             * run, so the 2-frame counter lapsed and the fog color flashed
-             * through. Hold black for 300ms past the last 2D-background
-             * frame instead of counting frames (frame counts are fps-
-             * dependent anyway). */
-            extern s32 g_Pc2dBackgroundActive;
-            static Uint32 s_bg2dHoldUntilMs;
-            if (g_Pc2dBackgroundActive > 0) {
-                g_Pc2dBackgroundActive--;
-                s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
-            }
-            if (SDL_GetTicks() < s_bg2dHoldUntilMs) {
+             * inspection) must clear to the game's own color (black) — on PSX
+             * the fog void isn't the clear color, so these screens were never
+             * fog-tinted. bg2dHeld (maintained unconditionally above) is the
+             * time-based "2D background drawn within the last 300ms" signal that
+             * bridges the few-frame TIM-swap gaps during puzzle interactions. */
+            if (bg2dHeld) {
                 g_GameWork.background2dColor.r = 0;
                 g_GameWork.background2dColor.g = 0;
                 g_GameWork.background2dColor.b = 0;
