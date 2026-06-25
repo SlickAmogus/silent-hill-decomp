@@ -1,5 +1,21 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.25.2 -- 2026-06-25
+- Fix permanent pillarbox after examining 2D screens
+
+## beta-2026.06.25.1 -- 2026-06-25
+- Puzzle/examine screens no longer stretched by widescreen ortho — render 4:3.
+- Map-open black flash gone — holds the frozen foggy frame across the load gap like pause does.
+- Menus always use classic controls — TPS/OTS binds no longer leak into menu navigation.
+- Blade weapons deal proper, FPS-independent damage.
+
+Commit summaries:
+- Fix widescreen 2D-screen stretch + map-open black flash
+- Force classic control scheme in menus
+- Add [BLADESWEEP] diagnostic for blade-weapon melee damage
+- Add Doorway Randomizer mode design/effort doc (scoping only)
+- Fix blade-weapon melee damage at high fps (fps-independent peak scaler)
+
 ## beta-2026.06.24.3 -- 2026-06-24
 - Update pushed so that latest update does not downgrade users to past beta version. If you see this, you are on the correct version.
 
