@@ -17,6 +17,9 @@
 #include "maps/characters/monster_cybil.h"
 #include "bodyprog/game_boot/fs_chara_anim.h"
 #include "bodyprog/game_boot/chara_init.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 
 #ifdef SH_PC_PORT
 /* Lost-poke alias: PSX D_800A9938 (0x800A9938) is g_CharaModelAnimsData
@@ -1267,6 +1270,26 @@ void func_800E068C(void) // 0x800E068C
     {
         if (ptr->isSlotInUse_24)
         {
+#ifdef SH_PC_PORT
+            /* Defensive guard + tracer. funcPtr_30 is only ever written as
+             * &func_800E0358 (a valid map6_s04.dll address), yet it has been
+             * observed clobbered to a tiny value (0x7ffa = a valid callback
+             * >> 32) → C0000005 EXECUTING 0x7ffa near the cutscene end. The
+             * clobber source is an external write into g_Map6S04Effect we
+             * haven't pinned statically; log the corrupted slot's full
+             * contents and retire it so the cutscene survives and [FXBUF-BAD]
+             * reveals the corruption pattern. */
+            if (ptr->funcPtr_30 != NULL && (uintptr_t)ptr->funcPtr_30 < 0x10000u)
+            {
+                SH_DBG("[FXBUF-BAD] slot=%d fp=%p inUse=%d f0=%ld f28=%ld f2C=%ld f34=%ld vec4=(%ld,%ld,%ld) vec14=(%ld,%ld,%ld)",
+                       i, (void*)ptr->funcPtr_30, (int)ptr->isSlotInUse_24,
+                       (long)ptr->field_0, (long)ptr->field_28, (long)ptr->field_2C, (long)ptr->field_34,
+                       (long)ptr->vec_4.vx, (long)ptr->vec_4.vy, (long)ptr->vec_4.vz,
+                       (long)ptr->vec_14.vx, (long)ptr->vec_14.vy, (long)ptr->vec_14.vz);
+                ptr->isSlotInUse_24 = false;
+                continue;
+            }
+#endif
             if (ptr->funcPtr_30 != NULL)
             {
                 ptr->funcPtr_30(ptr);
@@ -2720,6 +2743,34 @@ void func_800E3244(void) // 0x800E3244
     #undef playerChara
 }
 
+#ifdef SH_PC_PORT
+/* Scope the SPU ADSR envelope ON for just this Alessa/Dahlia cutscene. The
+ * portal/swirl voice (Sfx_Unk1636) is a looping VAG that PsyCross can't silence
+ * on Sd_SfxStop without the envelope (ADSR ships OFF by default), so it rings
+ * forever — user confirmed `adsr 1` stops it. Mirror of map7_s03's
+ * Ending_AdsrScope*; restored on cutscene exit. The keyed-off-enveloped-voice
+ * "busy" freeze is already fixed in PsyCross, so enabling it here is safe. */
+extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+extern int  PsyX_SPUAL_GetAdsrEnabled(void);
+static int  s_map6s04AdsrSaved = -1;
+static void Map6S04_AdsrScopeBegin(void)
+{
+    if (s_map6s04AdsrSaved < 0)
+    {
+        s_map6s04AdsrSaved = PsyX_SPUAL_GetAdsrEnabled();
+        PsyX_SPUAL_SetAdsrEnabled(1);
+    }
+}
+static void Map6S04_AdsrScopeEnd(void)
+{
+    if (s_map6s04AdsrSaved >= 0)
+    {
+        PsyX_SPUAL_SetAdsrEnabled(s_map6s04AdsrSaved);
+        s_map6s04AdsrSaved = -1;
+    }
+}
+#endif
+
 void func_800E3EF4(void) // 0x800E3EF4
 {
     typedef struct
@@ -2754,6 +2805,9 @@ void func_800E3EF4(void) // 0x800E3EF4
     {
         case 0:
             Player_ControlFreeze();
+#ifdef SH_PC_PORT
+            Map6S04_AdsrScopeBegin();
+#endif
             D_800ED5AD = 1;
             D_800ED5AC = 0;
 
@@ -3151,6 +3205,9 @@ void func_800E3EF4(void) // 0x800E3EF4
             SysWork_StateStepIncrement(0);
 
         default:
+#ifdef SH_PC_PORT
+            Map6S04_AdsrScopeEnd();
+#endif
             Player_ControlUnfreeze(false);
             SysWork_StateSetNext(SysState_Gameplay);
             ScreenFade_ResetTimestep();
