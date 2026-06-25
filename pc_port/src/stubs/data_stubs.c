@@ -1395,8 +1395,8 @@ u8 sharedData_800E0CBA_0_s00[256] = {0};
 /* sharedData_800E1194_1_s02 now provided with real data by creeper_rodata.inc */
 /* sharedData_800E11A8_1_s02 now provided with real data by creeper_rodata.inc */
 /* sharedData_800E11BC_1_s02 now provided with real data by creeper_rodata.inc */
-u8 sharedData_800E1208_1_s02[256] = {0};
-u8 sharedData_800E1210_1_s02[256] = {0};
+/* sharedData_800E1208_1_s02: real data lives in the map DLL's extracted_data; the exe zero-stub was shadowing it (--export-all-symbols import binding) -> wrong school BGM mix */
+/* sharedData_800E1210_1_s02: real data lives in the map DLL's extracted_data; the exe zero-stub was shadowing it (--export-all-symbols import binding) -> wrong school BGM mix */
 u8 sharedData_800E1570_7_s01[256] = {0};
 u8 sharedData_800E1574_7_s01[256] = {0};
 u8 sharedData_800E1578_7_s01[256] = {0};
