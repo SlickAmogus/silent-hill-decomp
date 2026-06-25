@@ -1,5 +1,29 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.25.5 -- 2026-06-25
+- Air screamer fixes
+- Harry extra voice lines in Lisa cutscene fixed.
+- Fixed over 70 zero-stubs that could've all been causing misc bugs, not sure what has all been fixed yet.
+
+Commit summaries:
+- Fix map7_s00 Lisa-cutscene playing elevator voices early (audioCmds overrun)
+- Fix map1_s02 BGM (shadowed stub) + 5 cutscene audioCmds overruns (audit findings)
+- Unshadow 77 map-DLL data tables: remove exe zero-stubs that shadowed real data
+- Air screamer: extract the 2 missing scale VECTORs (were zero stubs -> model collapsed)
+
+## beta-2026.06.25.4 -- 2026-06-25
+- Reverted fix that caused issued with other cutscenes, still working on the late game Alessa cutscene at the theme park.
+- Fixed knife double swing not hitting both times.
+- Added contributing.md to the project to clarify project ownership and ways to contribute.
+- Fixed stubs for maps which could've caused miscellaneous bugs, mainly in the school.
+
+Commit summaries:
+- Fix cutscene audio/visual desync: carry per-frame delta-time truncation at high fps
+- Fix knife double-swing: first slash dealt 0 damage (blade scaler used partial window)
+- Add CONTRIBUTING.md (ownership, official channels, contribution policy)
+- Revert dt-carry global timing change (edfe66887) — disturbed other cutscenes
+- Stub sweep: extract 5 confirmed read-before-write ROM tables (audit HIGH/MED-HIGH)
+
 ## beta-2026.06.25.3 -- 2026-06-25
 - Fixed issue of gameplay frames being scene in the sky after opening map. (Reverted to brief black sky when opening map which will be fixed soon.(
 - Massive cutscene fixes that should hopefully correct a lot of issues (still testing, see details below)
