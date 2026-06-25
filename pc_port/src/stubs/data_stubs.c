@@ -145,7 +145,7 @@ u8 D_800D5354[256] = {0};
 u8 D_800D5364[256] = {0};
 u8 D_800D5370[256] = {0};
 u8 D_800D5374[256] = {0};
-u8 D_800D53A4[256] = {0};
+u8 D_800D53A4[512] = {0};  /* s_WorldObjectPose[7] = 7*72 = 504 on 64-bit > 256 (cutscene audit) */
 u8 D_800D587C[256] = {0};
 u8 D_800D5A20[256] = {0};
 u8 D_800D5A30[256] = {0};
@@ -342,7 +342,7 @@ u8 D_800DFEF0[256] = {0};
 u8 D_800DFEF2[256] = {0};
 u8 D_800DFEF4[256] = {0};
 u8 D_800DFEF5[256] = {0};
-u8 D_800E0300[256] = {0};
+u8 D_800E0300[640] = {0};  /* s_800E0300[16] > 256 on 64-bit (cutscene audit) */
 u8 D_800E0440[256] = {0};
 u8 D_800E04A0[256] = {0};
 u8 D_800E05A8[256] = {0};
@@ -857,7 +857,7 @@ u8 g_Screen_FadeStatus[256] = {0};
 u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
 u8 g_WorldGfxWork[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
 u8 g_WorldObject0[256] = {0};
-u8 g_WorldObject1[256] = {0};
+u8 g_WorldObject1[512] = {0};  /* s_WorldObjectPlacement[6] = 6*64 = 384 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject2[256] = {0};
 u8 g_WorldObject3[256] = {0};
 u8 g_WorldObject4[256] = {0};
@@ -890,7 +890,7 @@ u8 g_WorldObject_Ana[256] = {0};
 u8 g_WorldObject_Ank[256] = {0};
 u8 g_WorldObject_BDoor1[256] = {0};
 u8 g_WorldObject_Baby[256] = {0};
-u8 g_WorldObject_Beans[256] = {0};
+u8 g_WorldObject_Beans[2048] = {0};  /* s_WorldObjectPose[16] = 16*72 = 1152 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_Bed3[256] = {0};
 u8 g_WorldObject_Bin[256] = {0};
 u8 g_WorldObject_Blood0[256] = {0};
@@ -906,8 +906,8 @@ u8 g_WorldObject_Daly[256] = {0};
 u8 g_WorldObject_Diary[256] = {0};
 u8 g_WorldObject_Door[256] = {0};
 u8 g_WorldObject_Door9[256] = {0};
-u8 g_WorldObject_Dor[256] = {0};
-u8 g_WorldObject_Dr[256] = {0};
+u8 g_WorldObject_Dor[512] = {0};  /* s_WorldObjectPose[4] = 4*72 = 288 on 64-bit > 256 (cutscene audit) */
+u8 g_WorldObject_Dr[512] = {0};  /* s_WorldObjectPlacement[6] = 6*64 = 384 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_DrClose[256] = {0};
 u8 g_WorldObject_DrOpen1[256] = {0};
 u8 g_WorldObject_DrOpen2[256] = {0};
@@ -919,7 +919,7 @@ u8 g_WorldObject_FirstAidKit[256] = {0};
 u8 g_WorldObject_Futa[256] = {0};
 u8 g_WorldObject_Gas[256] = {0};
 u8 g_WorldObject_Gofu[256] = {0};
-u8 g_WorldObject_GofuA[256] = {0};
+u8 g_WorldObject_GofuA[512] = {0};  /* s_WorldObjectPose[5] = 5*72 = 360 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_Gofu_B[256] = {0};
 u8 g_WorldObject_HealthDrink[256] = {0};
 u8 g_WorldObject_Item[256] = {0};
