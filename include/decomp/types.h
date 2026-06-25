@@ -43,9 +43,9 @@ typedef unsigned long long q52_12; // Q52.12 fixed-point.
 /** @brief Smaller `VECTOR` with padding removed. Used for fixed-point positions. */
 typedef struct _VECTOR3
 {
-    /* 0x0 */ long vx;
-    /* 0x4 */ long vy;
-    /* 0x8 */ long vz;
+    /* 0x0 */ s32 vx;
+    /* 0x4 */ s32 vy;
+    /* 0x8 */ s32 vz;
 } VECTOR3;
 
 /** @brief Smaller `SVECTOR` with padding removed. Used for fixed-point rotations. */

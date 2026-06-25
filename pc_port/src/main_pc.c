@@ -37,6 +37,13 @@
 #include <PsyX/PsyX_public.h>
 #include <PsyX/common/glad.h>
 
+/* Null device differs by platform: NUL on Windows, /dev/null on POSIX. */
+#ifdef _WIN32
+#define SH_NULL_DEVICE "NUL"
+#else
+#define SH_NULL_DEVICE "/dev/null"
+#endif
+
 /* Forward declarations from game code */
 extern void MainLoop(void);
 extern void Fs_QueueInitialize(void);
@@ -466,26 +473,30 @@ int main(int argc, char* argv[])
     {
         int show = g_PcConfig.showConsole;
         if (show == 1 || show == 3) {
+#ifdef _WIN32
             /* GUI-subsystem app: no console exists at launch, so create one for
              * external mode and point stdout/stderr at it. */
             extern __declspec(dllimport) int __stdcall AllocConsole(void);
             AllocConsole();
             freopen("CONOUT$", "w", stdout);
             freopen("CONOUT$", "w", stderr);
+#endif
+            /* On Linux/macOS the process is launched from a terminal, so
+             * stdout/stderr already point at a console — just echo to them. */
             g_ShDebugEchoStdout = 1;
             setvbuf(stdout, NULL, _IONBF, 0);
             setvbuf(stderr, NULL, _IONBF, 0);
         } else {
-            /* No console in a GUI-subsystem app — just route stdout/stderr to
-             * the log file (or NUL) so stray printf doesn't hit an invalid handle. */
+            /* No console — route stdout/stderr to the log file (or the null
+             * device) so stray printf doesn't hit an invalid handle. */
             if (g_PcConfig.enableDebugLog) {
                 freopen(SH_LogPath(), "a", stdout);
                 freopen(SH_LogPath(), "a", stderr);
                 setvbuf(stdout, NULL, _IONBF, 0);
                 setvbuf(stderr, NULL, _IONBF, 0);
             } else {
-                freopen("NUL", "w", stdout);
-                freopen("NUL", "w", stderr);
+                freopen(SH_NULL_DEVICE, "w", stdout);
+                freopen(SH_NULL_DEVICE, "w", stderr);
             }
         }
         /* Always capture log lines into the overlay ring buffer so the in-game

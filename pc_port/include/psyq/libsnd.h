@@ -59,11 +59,18 @@
 #endif
 
 /* VAB structures */
+/* NOTE: these structs are overlaid directly on the raw VAB data read from
+ * disc, so their layout MUST match the PSX's. PSX `long` is 32-bit; using the
+ * C `long` here is correct on Windows (LLP64, long==4) but WRONG on Linux/
+ * macOS (LP64, long==8), where it shifts every following field and inflates
+ * sizeof — fsize/ps were read at the wrong offset, yielding a garbage VAB
+ * size and an SPU-malloc failure that crashed VAB transfer. Use fixed-width
+ * 32-bit ints so the layout is correct on every target. */
 typedef struct VabHdr {
-    long           form;
-    long           ver;
-    long           id;
-    unsigned long  fsize;
+    int            form;
+    int            ver;
+    int            id;
+    unsigned int   fsize;
     unsigned short reserved0;
     unsigned short ps;
     unsigned short ts;
@@ -72,7 +79,7 @@ typedef struct VabHdr {
     unsigned char  pan;
     unsigned char  attr1;
     unsigned char  attr2;
-    unsigned long  reserved1;
+    unsigned int   reserved1;
 } VabHdr;
 
 typedef struct ProgAtr {
@@ -83,8 +90,8 @@ typedef struct ProgAtr {
     unsigned char mpan;
     char          reserved0;
     short         attr;
-    unsigned long reserved1;
-    unsigned long reserved2;
+    unsigned int  reserved1;
+    unsigned int  reserved2;
 } ProgAtr;
 
 typedef struct VagAtr {
