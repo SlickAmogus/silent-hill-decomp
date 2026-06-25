@@ -16,6 +16,8 @@
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/game_boot/game_boot.h"
+#include "bodyprog/events/player_pos_update.h"
 #include "bodyprog/items.h"
 #include "bodyprog/savegame.h"
 #include "bodyprog/item_screens.h" /* GameEndingFlag_Ufo (HyperBlaster give-unlock) */
