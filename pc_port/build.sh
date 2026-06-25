@@ -22,7 +22,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/build"
-EXE="$BUILD_DIR/SilentHillPC.exe"
+# Executable name is platform-specific: SilentHillPC.exe on Windows/MSYS2,
+# plain SilentHillPC on Linux/macOS.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) EXE="$BUILD_DIR/SilentHillPC.exe" ;;
+    *)                    EXE="$BUILD_DIR/SilentHillPC" ;;
+esac
 
 MODE="${1:-build}"
 
@@ -68,10 +73,10 @@ else
     cmake --build "$BUILD_DIR"
 fi
 
-[ -f "$EXE" ] || { echo "ERROR: SilentHillPC.exe was not produced." >&2; exit 1; }
+[ -f "$EXE" ] || { echo "ERROR: $(basename "$EXE") was not produced." >&2; exit 1; }
 echo "Build OK: $EXE"
 
 if [ "$MODE" = "run" ]; then
     echo "Launching..."
-    ( cd "$BUILD_DIR" && ./SilentHillPC.exe )
+    ( cd "$BUILD_DIR" && "$EXE" )
 fi
