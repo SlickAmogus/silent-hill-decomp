@@ -206,7 +206,28 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             Gfx_StringSetPosition(40, 160);
 #endif
 
+#ifdef SH_PC_PORT
+            /* The typewriter advanced msgDisplayInc glyphs PER FRAME, so at
+             * uncapped fps the text completed far faster than the 30fps original.
+             * Each page then reached MapMsgState_Finish early and queued the next
+             * voice line (Event_DisplayMapMsgWithAudio) before the current one
+             * ended, backing up the XA voice pool and pushing subtitles
+             * progressively later in long cutscenes (they ended up appearing only
+             * after their spoken line had finished — worse the longer the scene).
+             * Advance at the fps-independent original rate: msgDisplayInc glyphs
+             * per 30fps frame = msgDisplayInc*30 glyphs/sec, with a fractional
+             * carry. g_DeltaTimeRaw is Q12 seconds-per-frame. */
+            {
+                static q19_12 s_glyphAccum = 0;
+                s32 stepGlyphs;
+                s_glyphAccum    += Q12_MULT(Q12(msgDisplayInc * 30), g_DeltaTimeRaw);
+                stepGlyphs       = s_glyphAccum >> 12;
+                s_glyphAccum    -= stepGlyphs << 12;
+                msgDisplayLength += stepGlyphs;
+            }
+#else
             msgDisplayLength += msgDisplayInc;
+#endif
             msgDisplayLength  = CLAMP(msgDisplayLength, 0, MAP_MESSAGE_DISPLAY_ALL_LENGTH);
 
             if (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer > 0)
