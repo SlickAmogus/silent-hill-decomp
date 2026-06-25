@@ -708,7 +708,14 @@ u8 g_Cutscene_CameraPositionTarget[256] = {0};
  * locally in build_gen/extracted_data/<map>_extracted_data.c with correct
  * binary-extracted values. A zero stub here would be exported by the EXE
  * and silently override every DLL's own initialized copy via refptr. */
-u8 g_CommonWorldObjects[256] = {0};
+/* g_CommonWorldObjects: runtime working storage written by Map_WorldObjectsInit
+ * (g_CommonWorldObjects[0..5], 6 entries, on every map0_s01/s02/map2_s01/s04
+ * load). s_WorldObjectModel grew from 28 bytes (PSX) to ~48 on 64-bit (two
+ * 8-byte pointers in s_ModelInfo); 6*48 = 288 > the old u8[256] stub, so
+ * WorldObject_ModelNameSet on element [5] wrote ~25 bytes past the stub, stomping
+ * the adjacent global. Size for the max declared array (8) at the 64-bit element
+ * size, with headroom. No code uses ARRAY_SIZE(g_CommonWorldObjects). */
+u8 g_CommonWorldObjects[512] = {0};
 u8 g_CutsceneCameraLookAtTarget[256] = {0};
 u8 g_CutsceneCameraPositionTarget[256] = {0};
 u8 g_CutscenePosition[256] = {0};
