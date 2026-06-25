@@ -1657,8 +1657,36 @@ void MainLoop(void) // 0x80032EE0
 
         ML_TRACE("deltaTime");
         // Update delta time.
+#ifdef SH_PC_PORT
+        /* High-fps fractional-carry. Q12_MULT is `(a*b) >> 12`, which truncates
+         * ~0.5 Q12-units of real time EVERY frame (and GsGetVcount's int cast
+         * truncates the h-blank count on top of that). At the PSX 30fps this is
+         * one tiny rounding per frame and invisible, but on PC at high fps the
+         * per-frame loss * thousands of frames makes the whole game clock run
+         * measurably slow vs real time: e.g. at 240fps g_DeltaTime = (65*1063)
+         * >>12 = 16 vs a true 17 (~6% slow). Since g_DeltaTime AND g_DeltaTimeRaw
+         * drive the cutscene visual clock (character animation, the DMS timeline,
+         * subtitles, every event timer) while the XA voices play at true
+         * wall-clock (OpenAL), the on-screen scene drifts progressively behind
+         * the spoken dialog — ~10s over a long late-game cutscene, worse the
+         * higher the fps. Carry the truncated Q12 remainder into the next frame
+         * so the clock tracks real time at any framerate (the GsClearVcount
+         * companion carries the h-blank remainder). */
+        {
+            static q19_12 s_dtCarry    = 0;
+            static q19_12 s_dtRawCarry = 0;
+            s32 dtFull  = (vCount     * H_BLANKS_Q12_TO_SEC_SCALE) + s_dtCarry;
+            s32 rawFull = (vCountCopy * H_BLANKS_Q12_TO_SEC_SCALE) + s_dtRawCarry;
+
+            g_DeltaTime    = dtFull  >> Q12_SHIFT;
+            g_DeltaTimeRaw = rawFull >> Q12_SHIFT;
+            s_dtCarry      = dtFull  - (g_DeltaTime    << Q12_SHIFT);
+            s_dtRawCarry   = rawFull - (g_DeltaTimeRaw << Q12_SHIFT);
+        }
+#else
         g_DeltaTime    = Q12_MULT(vCount, H_BLANKS_Q12_TO_SEC_SCALE);
         g_DeltaTimeRaw = Q12_MULT(vCountCopy, H_BLANKS_Q12_TO_SEC_SCALE);
+#endif
         g_GravitySpeed = Q12_MULT(vCount, H_BLANKS_GRAVITY_SCALE);
         GsClearVcount();
 
