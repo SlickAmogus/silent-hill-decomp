@@ -32,8 +32,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build \
-            libsdl2-dev libopenal-dev \
+            build-essential cmake ninja-build pkg-config \
+            libsdl2-dev libopenal-dev libjpeg-dev \
             libgl1-mesa-dev libglu1-mesa-dev
 
       - name: Build (build.sh -> Ninja + map .so overlays)

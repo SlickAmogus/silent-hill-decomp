@@ -81,6 +81,15 @@ if [ "$(uname -s)" = "Darwin" ]; then
             -DOPENAL_INCLUDE_DIR="$OPENAL_PREFIX/include"
         )
     fi
+    # jpeg-turbo (FMV MJPG decode) is keg-only, so CMake's find_library/
+    # find_path won't see it without an explicit prefix.
+    JPEG_PREFIX="$(brew --prefix jpeg-turbo 2>/dev/null || true)"
+    if [ -n "$JPEG_PREFIX" ]; then
+        CONFIGURE_ARGS+=(
+            -DJPEG_LIBRARY="$JPEG_PREFIX/lib/libjpeg.dylib"
+            -DJPEG_INCLUDE_DIR="$JPEG_PREFIX/include"
+        )
+    fi
 fi
 
 if [ "$need_configure" = 1 ]; then
