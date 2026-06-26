@@ -5253,22 +5253,21 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     {
                         /* Instant aim-in (free-aim): skip the AimStart raise windup AND
                          * the auto-target lock. Snap straight to the steady Unk34(true)
-                         * ready pose parked at the fire-window start (D_800C44F0[6].field_4)
-                         * so the very next trigger fires instantly (gunFireGated already
-                         * satisfied). stateStep=1 stops the Aim case re-issuing the slow
-                         * Unk34(false) raise. The aim DIRECTION is taken from the camera
-                         * ray in Player_CombatUpdate (free-aim) and the auto-face turn
-                         * (D_800C454C) is suppressed, so there is no target lock. */
+                         * gun-forward hold at keyframe 588 — the SAME pose the post-reload
+                         * path (~line 5141) uses, which is the known-good ready stance.
+                         * (The earlier D_800C44F0[6].field_4 parked Harry on a wrong/raise
+                         * keyframe -> arm thrown up over the head.) keyframe 588 is inside
+                         * the Unk34 fire window [field_4..field_6] so the next trigger still
+                         * fires instantly. stateStep=1 stops the Aim case re-issuing the
+                         * slow Unk34(false) raise. Aim DIRECTION comes from the camera ray
+                         * in Player_CombatUpdate; auto-face (D_800C454C) is suppressed. */
                         g_SysWork.targetNpcIdx = NO_VALUE;
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                         extra->model.stateStep    = 1;
                         extra->model.controlState = 0;
                         extra->model.anim.status  = ANIM_STATUS(HarryAnim_Unk34, true);
-                        if (D_800C44F0[6].field_4 > 0)
-                        {
-                            extra->model.anim.keyframeIdx = D_800C44F0[6].field_4;
-                            extra->model.anim.time        = Q12((s32)D_800C44F0[6].field_4);
-                        }
+                        extra->model.anim.keyframeIdx = 588;
+                        extra->model.anim.time        = Q12(588);
                         playerProps.field_122 = Q12_ANGLE(90.0f);
                     }
                     else
