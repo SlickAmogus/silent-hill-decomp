@@ -158,8 +158,27 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         if(APPLE)
             # ld64 (unlike GNU ld) errors on undefined symbols at link time.
             # Game-code symbols are resolved from the main exe at dlopen, so
-            # allow them to stay undefined in the dylib.
+            # allow them to stay undefined in the dylib. (macOS two-level
+            # namespaces already bind each dylib's OWN defined symbols locally,
+            # so the ELF interposition problem handled below does not arise.)
             target_link_options(${MAP_NAME} PRIVATE "-Wl,-undefined,dynamic_lookup")
+        else()
+            # Linux/ELF: bind THIS .so's own global definitions to its local
+            # copies instead of letting them be interposed by the main exe.
+            # map0_s00 is compiled INTO the exe, and -rdynamic publishes its
+            # globals (MAP_EVENTS, MAP_POINTS, the per-map func_800D* code,
+            # extracted-data tables) into the global dynamic scope. Every other
+            # map defines those SAME names; under ELF's default global-scope
+            # binding, map0_s01.so's `MAP_EVENTS` (and its overlay header's
+            # .mapEvents pointer) resolve to map0_s00's copy at dlopen — so the
+            # cafe (map0_s01) iterated the ALLEY's event table and re-fired its
+            # TriggerType_None "load cafe overlay" event every frame, reloading
+            # forever. Windows PE binds per-module, so this only bites ELF.
+            # -Bsymbolic restores per-module binding for symbols the .so
+            # defines; undefined game-state symbols (g_SysWork, g_SavegamePtr,
+            # the decompiled exe functions) are unaffected and still import from
+            # the exe. dlsym of g_MapOverlayHeader_<name> still works.
+            target_link_options(${MAP_NAME} PRIVATE "-Wl,-Bsymbolic")
         endif()
     endif()
 
