@@ -9234,10 +9234,11 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             {
                 extern VECTOR3 g_TpsCamPos;
                 extern VECTOR3 g_TpsCamFwd;
+                extern s32     g_TpsCamPitch;
                 s_RayTrace _tr;
                 VECTOR3    _off, _P;
                 VECTOR3*   _hand = &playerCombat.attackPosition;
-                s32        _dxq8, _dzq8, _dxz, _pitch;
+                s32        _pitch;
                 #define SH_AIM_RANGE Q12(60.0f)
                 _off.vx = (s32)(((s64)g_TpsCamFwd.vx * SH_AIM_RANGE) >> 12);
                 _off.vy = (s32)(((s64)g_TpsCamFwd.vy * SH_AIM_RANGE) >> 12);
@@ -9256,12 +9257,13 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 /* Yaw: heading from the hand to the aim point (matches the engine's
                  * ratan2(dx,dz) heading convention used just above). */
                 unkRot.vx = ratan2(_P.vx - _hand->vx, _P.vz - _hand->vz);
-                /* Pitch: ratan2(horizDist, dy) — 90deg = level, >90 = up, <90 = down,
-                 * matching field_122's clamp window. */
-                _dxq8 = Q12_TO_Q8(_P.vx - _hand->vx);
-                _dzq8 = Q12_TO_Q8(_P.vz - _hand->vz);
-                _dxz  = SquareRoot0(SQUARE(_dxq8) + SQUARE(_dzq8));
-                _pitch = ratan2(_dxz, Q12_TO_Q8(_P.vy - _hand->vy));
+                /* Pitch: take it straight from the camera look pitch, NOT hand->P.
+                 * In OTS the camera sits above/behind the hand, so a hand->P pitch
+                 * reads steeply UP even for a level camera (the "arms thrown over
+                 * the head" bug). field_122: 90 = level, >90 = up; g_TpsCamPitch is
+                 * the camera look pitch (>0 = up; fwdY = -sin(pitch)). This drives
+                 * BOTH the bullet pitch and the body tilt (both read field_122). */
+                _pitch = Q12_ANGLE(90.0f) + g_TpsCamPitch;
                 if (_pitch < Q12_ANGLE(33.75f))  _pitch = Q12_ANGLE(33.75f);
                 if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
                 unkRot.vy             = _pitch;
