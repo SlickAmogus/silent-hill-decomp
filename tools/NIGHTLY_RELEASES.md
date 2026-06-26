@@ -40,6 +40,32 @@ The script:
   previous release's URL, changed files at the new release's URL
 - Uploads `version.json` as the release manifest
 
+## Cross-platform (Linux + macOS) builds
+
+The Windows binary is built locally; the Linux and macOS binaries are built by
+GitHub Actions (`.github/workflows/build-linux.yml`, `build-macos.yml`) because
+they can't be produced on Windows. CI only **builds** them — you remain the only
+publisher. Each push to `pc-port` uploads a 90-day artifact (`SHPC-linux-x64`,
+`SHPC-macos-arm64`).
+
+To bundle them into a nightly, add `-AttachCrossPlatform`:
+
+```powershell
+.\tools\release-nightly.ps1 -AttachCrossPlatform
+```
+
+This downloads the newest successful CI artifacts and attaches them to the same
+release as standalone zips. They are deliberately **left out of `version.json`** —
+the Windows launcher only knows how to hash/replace Windows files, so Linux/macOS
+users grab those zips by hand (they don't use the launcher). The Windows release
+flow is otherwise unchanged whether or not the switch is passed.
+
+Notes:
+- Linux/macOS binaries dynamically link system SDL2/OpenAL (not bundled); each
+  artifact ships a `README-{linux,macos}.txt` listing the runtime deps.
+- The macOS arm64 binary is unsigned — Gatekeeper warns; users clear quarantine
+  with `xattr -dr com.apple.quarantine SilentHillPC`.
+
 ## How the launcher consumes it
 
 `UpdateChecker.cs` hits the stable GitHub URL:

@@ -1,0 +1,73 @@
+name: Build PC Port (Linux)
+
+# Produces the Linux x64 binary of the PC port. CI only BUILDS it (the maintainer
+# is still the sole publisher) — release-nightly.ps1 -AttachCrossPlatform pulls the
+# artifact this run uploads and attaches it to the nightly release alongside the
+# Windows build. The Windows launcher never consumes these files.
+
+on:
+  push:
+    branches:
+      - pc-port
+    paths-ignore:
+      - '**.md'
+      - 'pc_port/launcher/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Only on our fork — never on Vatuu upstream (which has no PC port branch).
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    # 22.04 links against an older glibc than ubuntu-latest (24.04), so the binary
+    # runs on a wider range of distros.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout (with PsyCross submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build \
+            libsdl2-dev libopenal-dev \
+            libgl1-mesa-dev libglu1-mesa-dev
+
+      - name: Build (build.sh -> Ninja + map .so overlays)
+        run: |
+          cd pc_port
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/SHPC-linux-x64"
+          mkdir -p "$STAGE/maps"
+          cp pc_port/build/SilentHillPC "$STAGE/"
+          cp pc_port/build/maps/*.so    "$STAGE/maps/"
+          # Clean config template so a fresh install starts on defaults.
+          cp pc_port/config.cfg "$STAGE/config.cfg"
+          # Empty save dir so the game has somewhere to write.
+          mkdir -p "$STAGE/gamedata/save"
+          # Runtime note for users (SDL2/OpenAL are system libs, not bundled).
+          cat > "$STAGE/README-linux.txt" <<'EOF'
+          Silent Hill PC Port — Linux x64
+          Requires the original disc image in gamedata/ (not included).
+          Runtime dependencies (install via your package manager):
+            SDL2, OpenAL (libopenal1), OpenGL drivers
+            Debian/Ubuntu:  sudo apt install libsdl2-2.0-0 libopenal1
+          Run:  ./SilentHillPC
+          EOF
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/SHPC-linux-x64.tar.gz" SHPC-linux-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHPC-linux-x64
+          path: ${{ runner.temp }}/SHPC-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 90

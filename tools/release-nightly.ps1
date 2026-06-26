@@ -25,6 +25,12 @@
 # Usage:
 #   .\tools\release-nightly.ps1 [-Mode zip|loose] [-DryRun] [-BuildDir path]
 #                               [-Notes string] [-NoPause] [-BetaBranch beta]
+#                               [-AttachCrossPlatform]
+#
+# -AttachCrossPlatform pulls the newest successful Linux + macOS CI build
+# artifacts (build-linux.yml / build-macos.yml on the source repo) and attaches
+# them to the release as standalone zips. They are deliberately kept OUT of
+# version.json so the Windows launcher ignores them.
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -41,7 +47,13 @@ param(
     [string]$SourceRepoUrl = "https://github.com/SlickAmogus/silent-hill-decomp",
     [string]$Notes         = "",
     [switch]$DryRun,
-    [switch]$NoPause
+    [switch]$NoPause,
+    # Pull the latest CI-built Linux + macOS artifacts from the source repo and
+    # attach them to the release as standalone assets. They are NOT added to
+    # version.json's files[] — the Windows launcher can't run them and would try
+    # to "update" them. Linux/macOS users download these zips by hand.
+    [switch]$AttachCrossPlatform,
+    [string]$CrossPlatformBranch = "pc-port"
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,6 +79,63 @@ $changelogPath = Join-Path $PSScriptRoot "..\pc_port\CHANGELOG.md"
 
 function Get-Sha256([string]$path) {
     (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
+}
+
+# Download the newest successful CI build artifacts (Linux + macOS) from the
+# source repo and attach them to the just-created release on the nightly repo.
+# These are extra downloads for non-Windows users; they never enter version.json.
+function Add-CrossPlatformAssets {
+    param([string]$Tag)
+    if (-not $AttachCrossPlatform) { return }
+
+    $sourceSlug = $SourceRepoUrl -replace '^https?://github\.com/', '' -replace '/$', ''
+    Write-Host ""
+    Write-Host "Attaching cross-platform CI artifacts from $sourceSlug (branch $CrossPlatformBranch)..." -ForegroundColor Cyan
+
+    $dlRoot = Join-Path ([IO.Path]::GetTempPath()) "shpc-xplat-$Tag"
+    if (Test-Path $dlRoot) { Remove-Item -Recurse -Force $dlRoot }
+    New-Item -ItemType Directory -Force -Path $dlRoot | Out-Null
+
+    $targets = @(
+        @{ Workflow = "build-linux.yml"; Artifact = "SHPC-linux-x64" },
+        @{ Workflow = "build-macos.yml"; Artifact = "SHPC-macos-arm64" }
+    )
+
+    $assets = @()
+    foreach ($t in $targets) {
+        $runId = (gh run list --repo $sourceSlug --workflow $t.Workflow `
+                    --branch $CrossPlatformBranch --status success `
+                    --limit 1 --json databaseId --jq ".[0].databaseId" 2>$null)
+        if ($LASTEXITCODE -ne 0 -or -not $runId) {
+            Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' — skipping $($t.Artifact)." -ForegroundColor Yellow
+            continue
+        }
+        $runId = $runId.Trim()
+        $outDir = Join-Path $dlRoot $t.Artifact
+        gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  WARN: failed to download $($t.Artifact) (run $runId) — skipping." -ForegroundColor Yellow
+            continue
+        }
+        Get-ChildItem -Recurse -File $outDir | ForEach-Object {
+            $assets += $_.FullName
+            Write-Host "  + $($_.Name) (run $runId)" -ForegroundColor Gray
+        }
+    }
+
+    if ($assets.Count -eq 0) {
+        Write-Host "  No cross-platform artifacts attached." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $dlRoot -ErrorAction SilentlyContinue
+        return
+    }
+
+    gh release upload $Tag --repo $Repo @assets --clobber
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  WARN: gh release upload of cross-platform assets failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Attached $($assets.Count) cross-platform asset(s) to $Tag." -ForegroundColor Green
+    }
+    Remove-Item -Recurse -Force $dlRoot -ErrorAction SilentlyContinue
 }
 
 # Launcher FileVersion (AssemblyFileVersion, date-based yyyy.M.d.rev). Carried in
@@ -385,6 +454,8 @@ if ($isZip) {
             @betaAssets
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published." }
 
+        Add-CrossPlatformAssets -Tag $newTag
+
         Remove-Item $zipPath, $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
         Write-Host ""
         Write-Host "Done. Beta zip release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
@@ -573,6 +644,8 @@ if ($LASTEXITCODE -ne 0) {
     Remove-Item -Recurse -Force $stagingDir
     throw "gh release upload version.json failed (exit $LASTEXITCODE)."
 }
+
+Add-CrossPlatformAssets -Tag $newTag
 
 Remove-Item -Recurse -Force $stagingDir
 
