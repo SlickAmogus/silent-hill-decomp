@@ -1593,10 +1593,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * real-time — mirrors how PSX original ties movement
                      * to anim keyframes. */
                     bool isLeft = (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap);
-                    s32 wantActive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  true)
-                                            : ANIM_STATUS(HarryAnim_SidestepRight, true);
-                    s32 wantInactive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  false)
-                                              : ANIM_STATUS(HarryAnim_SidestepRight, false);
+#ifdef SH_PC_PORT
+                    /* OTS/TPS: holding sprint (PC) or a full stick push (controller)
+                     * while strafing plays the dedicated side-RUN cycle
+                     * (HarryAnim_RunLeft kf 121-133 / RunRight 136-148) at run speed
+                     * instead of the slow sidestep shuffle. Walk strafe and classic
+                     * camera keep the sidestep. Hold-only (Tap is a quick step). */
+                    bool runStrafe = (g_DebugThirdPersonCam && g_Player_IsRunning &&
+                                      (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold));
+                    u8 leftStrafeAnim  = runStrafe ? HarryAnim_RunLeft  : HarryAnim_SidestepLeft;
+                    u8 rightStrafeAnim = runStrafe ? HarryAnim_RunRight : HarryAnim_SidestepRight;
+#else
+                    bool runStrafe = false;
+                    u8 leftStrafeAnim  = HarryAnim_SidestepLeft;
+                    u8 rightStrafeAnim = HarryAnim_SidestepRight;
+#endif
+                    s32 wantActive = isLeft ? ANIM_STATUS(leftStrafeAnim,  true)
+                                            : ANIM_STATUS(rightStrafeAnim, true);
+                    s32 wantInactive = isLeft ? ANIM_STATUS(leftStrafeAnim,  false)
+                                              : ANIM_STATUS(rightStrafeAnim, false);
                     static q19_12 s_prevSidestepTime = -1;
 
                     if (player->model.anim.status != wantActive &&
@@ -1624,7 +1639,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         s_prevSidestepTime = curTime;
 
                         if (dTime > 0) {
-                            q19_12 step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
+                            /* Run strafe covers ground ~2x the sidestep shuffle. */
+                            q19_12 perStep = runStrafe ? Q12(0.05f) : Q12(0.024f);
+                            q19_12 step = Q12_MULT_PRECISE(perStep, dTime);
                             if (isLeft) {
                                 player->position.vx -= Q12_MULT(step, Math_Cos(player->rotation.vy));
                                 player->position.vz += Q12_MULT(step, Math_Sin(player->rotation.vy));
