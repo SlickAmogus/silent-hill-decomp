@@ -18,6 +18,7 @@ extern int g_DebugNoFloorCollision;
 extern int g_DebugThirdPersonCam;
 extern int g_DebugAnimKfView;
 extern int g_DebugAnimKf;
+extern int g_DebugAnimKfMax;
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
 #include <SDL_scancode.h>
@@ -758,6 +759,7 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
          * poses, and clamp to the header's keyframe count (Anim_BoneUpdate skips
          * its own clamp for Harry's 18-bone table). Write the clamped value back
          * so the on-screen readout shows the real max. */
+        g_DebugAnimKfMax = (int)anmHdr->keyframeCount; /* publish for the inspector panel readout */
         if (g_DebugAnimKfView)
         {
             s32 _kf = g_DebugAnimKf;

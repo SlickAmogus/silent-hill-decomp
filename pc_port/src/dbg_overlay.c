@@ -20,6 +20,14 @@ extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern void Collision_SurfaceGet(s_CollisionSurface* coll, q19_12 posX, q19_12 posZ);
 
+/* Keyframe inspector state (game_main.c). The K key toggles g_DebugAnimKfView and
+ * , / . step g_DebugAnimKf; player_control.c poses Harry on that frame and publishes
+ * the active anim header's keyframe count as g_DebugAnimKfMax. The anim info panel
+ * below mirrors the collision panel, shown while the inspector is on. */
+extern int g_DebugAnimKfView;
+extern int g_DebugAnimKf;
+extern int g_DebugAnimKfMax;
+
 #define MAX_CONSOLE 20
 #define LINE_LEN    64
 #define GLYPH_W     8
@@ -109,6 +117,18 @@ static GLuint s_coll_tex   = 0;
 /* Read by collision.c (func_8006B318) to capture the wall segments the player's
  * collision evaluates while the visualizer is on. Set by the ' toggle. */
 int g_CollVisEnabled = 0;
+
+/* ---- Animation inspector panel (shown while the K keyframe inspector is on) ----
+ * Mirrors the collision panel: a live text panel surfacing the player's current
+ * anim state (the forced keyframe + its max, the active anim index/flags, control
+ * state) so the keyframe being scrubbed is readable next to Harry's pose. */
+#define ANIM_COLS  28
+#define ANIM_LINES 8
+#define ANIM_TEX_W (ANIM_COLS * GLYPH_W)
+#define ANIM_TEX_H (ANIM_LINES * GLYPH_H)
+static char   s_anim_lines[ANIM_LINES][ANIM_COLS];
+static int    s_anim_count = 0;
+static GLuint s_anim_tex   = 0;
 
 /* ---- Collision wireframe: world-space segments captured during the frame's
  * collision pass, projected and drawn as GL lines (no depth test → visible
@@ -400,6 +420,15 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, COLL_TEX_W, COLL_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    glGenTextures(1, &s_anim_tex);
+    glBindTexture(GL_TEXTURE_2D, s_anim_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, ANIM_TEX_W, ANIM_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
@@ -608,6 +637,59 @@ static void coll_build_texture(void)
 
     glBindTexture(GL_TEXTURE_2D, s_coll_tex);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, COLL_TEX_W, COLL_TEX_H,
+                    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
+/* Fill the anim inspector panel from the player's live model anim state and the
+ * K-inspector's forced keyframe. Read-only; the values are the engine's raw
+ * fields (status is the packed anim index/active flag, see s_ModelAnim). */
+static void anim_gather(void)
+{
+    s_Model* m  = &g_SysWork.playerWork.extra.model;
+    u8       st = m->anim.status;
+    int      n  = 0;
+#define AL(...) do { if (n < ANIM_LINES) snprintf(s_anim_lines[n++], ANIM_COLS, __VA_ARGS__); } while (0)
+    AL("== ANIM (K)  , . step ==");
+    AL("KF %d / %d", g_DebugAnimKf, g_DebugAnimKfMax > 0 ? g_DebugAnimKfMax - 1 : 0);
+    AL("anim %d  active %d",
+       (int)ANIM_STATUS_IDX_GET(st), (int)(ANIM_STATUS_IS_ACTIVE(st) ? 1 : 0));
+    AL("status 0x%02X flg 0x%X", (unsigned)st, (unsigned)m->anim.flags);
+    AL("ctrl %d  step %d", (int)m->controlState, (int)m->stateStep);
+    AL("upperBody %d", (int)g_SysWork.playerWork.extra.upperBodyState);
+    s_anim_count = n;
+#undef AL
+}
+
+/* Build the anim panel texture from s_anim_lines (line 0 at top). Tinted amber
+ * to distinguish it from the green collision panel + the white console. */
+static void anim_build_texture(void)
+{
+    static unsigned char pixels[ANIM_TEX_H][ANIM_TEX_W][4];
+    int line, cx, x, y;
+
+    memset(pixels, 0, sizeof(pixels));
+
+    for (line = 0; line < s_anim_count; line++) {
+        const char* str = s_anim_lines[line];
+        for (cx = 0; *str && cx < ANIM_COLS; cx++, str++) {
+            unsigned int ch = (unsigned char)*str;
+            if (ch >= 128) continue;
+            for (y = 0; y < GLYPH_H; y++) {
+                unsigned char row = s_font[ch][y];
+                for (x = 0; x < GLYPH_W; x++) {
+                    if (row & (1u << x)) {
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][0] = 255;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][1] = 210;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][2] = 110;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][3] = 255;
+                    }
+                }
+            }
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, s_anim_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ANIM_TEX_W, ANIM_TEX_H,
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
@@ -1006,6 +1088,12 @@ void DbgOverlay_Update(void)
             coll_gather();
     }
 
+    /* Anim inspector panel: gather live data while the K keyframe inspector is on
+     * (the K / , / . keys themselves are handled in game_main.c's DebugCamera_Update
+     * next to the other debug toggles). */
+    if (g_DebugAnimKfView)
+        anim_gather();
+
     /* F1 toggles PGXP (perspective-correct rendering) on the fly. PGXP is a
      * user-facing graphics option, not a debug feature, so it is NOT gated on
      * g_PcAllowDebugControls — F1 always works. */
@@ -1080,14 +1168,16 @@ void DbgOverlay_Render(void)
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
     GLint   prev_blend_eq_rgb, prev_blend_eq_a;
     GLboolean prev_depth, prev_blend;
-    int     drawConsole, drawColl;
+    int     drawConsole, drawColl, drawAnim;
 
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
-     * toggled on (`'`), independent of the console. */
+     * toggled on (`'`), independent of the console. The anim panel draws while the
+     * K keyframe inspector is on. */
     drawConsole = (s_console_slide > 0.0f && (s_console_count > 0 || g_PcConsoleInputActive));
     drawColl    = (s_coll_on && s_coll_count > 0);
-    if (!drawConsole && !drawColl && !s_coll_on) return;
+    drawAnim    = (g_DebugAnimKfView && s_anim_count > 0);
+    if (!drawConsole && !drawColl && !s_coll_on && !drawAnim) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] == 0 || vp[3] == 0) return;
@@ -1155,6 +1245,21 @@ void DbgOverlay_Render(void)
 
         coll_build_texture();
         draw_panel(s_coll_tex, x0, y0, x1, y1);
+    }
+
+    if (drawAnim) {
+        /* Bottom-right; stacked directly above the collision panel when that's
+         * also on, otherwise in the bottom-right corner itself. */
+        float aw    = 2.0f * (float)(ANIM_TEX_W * SCALE) / (float)vp[2];
+        float ah    = 2.0f * (float)(ANIM_TEX_H * SCALE) / (float)vp[3];
+        float collH = drawColl ? (2.0f * (float)(COLL_TEX_H * SCALE) / (float)vp[3]) : 0.0f;
+        float x1 =  1.0f;
+        float x0 =  x1 - aw;
+        float y1 = -1.0f + collH;
+        float y0 =  y1 + ah;
+
+        anim_build_texture();
+        draw_panel(s_anim_tex, x0, y0, x1, y1);
     }
 
     /* Collision wireframe lines (separate program). Consume + clear the
