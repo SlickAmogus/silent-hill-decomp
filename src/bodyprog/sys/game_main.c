@@ -123,6 +123,8 @@ int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle re
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max each frame */
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
+int g_DebugAnimKfView = 0;       /* 1 = freeze Harry's whole skeleton on g_DebugAnimKf for keyframe inspection */
+int g_DebugAnimKf = 588;         /* absolute keyframe index posed while g_DebugAnimKfView is on (588 = gun-forward) */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 /* Camera eye + forward (unit Q12) published each frame by Pc_TpsCamera_Apply for
@@ -568,6 +570,37 @@ void DebugCamera_Update(void)
             SH_DBG_ECHO("[DEBUG] Key =: Added%s Shotgun Shells x30", hasShotgun ? "" : " Shotgun +");
         }
         prevKey = cur;
+    }
+
+    /* Keyframe inspector: K toggles freezing Harry's whole skeleton on one
+     * absolute keyframe; , / . step the keyframe down / up. Used to find the
+     * exact authored pose index for the aim shim (e.g. the gun-forward frame).
+     * The actual pose override + clamp to the anim header's keyframe count live
+     * in Player_Update (player_control.c); here we just drive the index. */
+    {
+        static int prevK = 0, prevComma = 0, prevPeriod = 0;
+        int curK      = g_sdlKeyboardState[SDL_SCANCODE_K];
+        int curComma  = g_sdlKeyboardState[SDL_SCANCODE_COMMA];
+        int curPeriod = g_sdlKeyboardState[SDL_SCANCODE_PERIOD];
+        if (curK && !prevK) {
+            g_DebugAnimKfView = !g_DebugAnimKfView;
+            Sd_PlaySfx(g_DebugAnimKfView ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG_ECHO("[DEBUG] K: Keyframe view: %s (KF %d)",
+                        g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf);
+        }
+        if (g_DebugAnimKfView) {
+            if (curComma && !prevComma) {
+                if (g_DebugAnimKf > 0) g_DebugAnimKf--;
+                SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
+            }
+            if (curPeriod && !prevPeriod) {
+                g_DebugAnimKf++;
+                SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
+            }
+        }
+        prevK      = curK;
+        prevComma  = curComma;
+        prevPeriod = curPeriod;
     }
 
     /* Per-frame cheat enforcement: invincibility + no-target */
