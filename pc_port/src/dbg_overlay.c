@@ -649,8 +649,22 @@ static void anim_gather(void)
     u8       st = m->anim.status;
     int      n  = 0;
 #define AL(...) do { if (n < ANIM_LINES) snprintf(s_anim_lines[n++], ANIM_COLS, __VA_ARGS__); } while (0)
-    AL("== ANIM (K)  , . step ==");
+    AL("== ANIM (K) ,. / step ==");
     AL("KF %d / %d", g_DebugAnimKf, g_DebugAnimKfMax > 0 ? g_DebugAnimKfMax - 1 : 0);
+    /* Which authored anim's keyframe range contains the inspected frame ( / jumps
+     * to the next anim's start). HARRY_BASE_ANIM_INFOS playback entries carry the
+     * [start,end] range; -1 starts are blend entries (skipped). */
+    {
+        int i, animIdx = -1, s0 = 0, e0 = 0;
+        for (i = 0; i < 256; i++) {
+            int sk = HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx;
+            int ek = HARRY_BASE_ANIM_INFOS[i].endKeyframeIdx;
+            if (sk < 0 || ek < sk) continue;
+            if (g_DebugAnimKf >= sk && g_DebugAnimKf <= ek) { animIdx = i; s0 = sk; e0 = ek; break; }
+        }
+        if (animIdx >= 0) AL("in anim %d [%d-%d]", animIdx, s0, e0);
+        else              AL("in anim --  (/ next)");
+    }
     AL("anim %d  active %d",
        (int)ANIM_STATUS_IDX_GET(st), (int)(ANIM_STATUS_IS_ACTIVE(st) ? 1 : 0));
     AL("status 0x%02X flg 0x%X", (unsigned)st, (unsigned)m->anim.flags);

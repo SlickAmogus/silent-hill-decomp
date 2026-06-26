@@ -637,6 +637,35 @@ void DebugCamera_Update(void)
         prevPeriod = curPeriod;
     }
 
+    /* `/` while the inspector is on: jump g_DebugAnimKf to the NEXT anim's start
+     * keyframe (scanning HARRY_BASE_ANIM_INFOS in ascending start-keyframe order,
+     * wrapping). Harry is a single skeleton/anim header (FS_BUFFER_0) — there is
+     * no separate upper-body submesh; the weapon/shooting anims are just keyframe
+     * ranges (indices ~56-76, loaded when a weapon is equipped). This lets the
+     * user hop anim-by-anim to find them instead of blind-scrubbing , / . */
+    {
+        static int prevSlash = 0;
+        int curSlash = g_sdlKeyboardState[SDL_SCANCODE_SLASH];
+        if (curSlash && !prevSlash && g_DebugAnimKfView) {
+            int i;
+            int cap     = (g_DebugAnimKfMax > 0) ? g_DebugAnimKfMax : 4096;
+            int best    = -1;   /* smallest start keyframe strictly above current */
+            int wrapMin = -1;   /* smallest start keyframe overall (for wrap)      */
+            for (i = 0; i < 256; i++) {
+                int sk = HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx;
+                if (sk < 0 || sk >= cap) continue; /* NO_VALUE blend entries / out of range */
+                if (wrapMin < 0 || sk < wrapMin) wrapMin = sk;
+                if (sk > g_DebugAnimKf && (best < 0 || sk < best)) best = sk;
+            }
+            if (best < 0) best = wrapMin;
+            if (best >= 0) {
+                g_DebugAnimKf = best;
+                SH_DBG_ECHO("[DEBUG] / next anim start: KF %d", g_DebugAnimKf);
+            }
+        }
+        prevSlash = curSlash;
+    }
+
     /* Per-frame cheat enforcement: invincibility + no-target */
     if (g_GameWork.gameState == GameState_InGame) {
         if (g_DebugInvincible)
