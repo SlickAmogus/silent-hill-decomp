@@ -738,6 +738,29 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerBoneCoords[HarryBone_RightForearm].flg  = 0;
             g_SysWork.playerBoneCoords[HarryBone_RightHand].flg     = 0;
         }
+
+        /* Free-aim body tilt: func_8007D090 (skipped on PC, above) applied the
+         * aim-pitch flex to the torso + upper arms so Harry leans toward where he
+         * aims. The PC shim never re-applied it, so the upper body stayed level
+         * regardless of the free-aim pitch. Re-apply just that flex here from
+         * field_122 (set to the camera-ray pitch by the free-aim injection in
+         * Player_CombatUpdate), using the exact bones/shifts/clamp the original
+         * uses. Yaw-flex is 0 (the body already faces the camera yaw). Ranged +
+         * aiming only, so melee, non-aim, reload, and classic are untouched. */
+        if (g_DebugThirdPersonCam &&
+            g_SysWork.playerCombat.isAiming &&
+            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+            g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
+        {
+            s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
+            _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
+            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
+            Math_RotMatrixZ(_aimPitch >> 1, &coords[HarryBone_LeftUpperArm].coord);
+            Math_RotMatrixZ(_aimPitch >> 1, &coords[HarryBone_RightUpperArm].coord);
+            coords[HarryBone_Torso].flg         = 0;
+            coords[HarryBone_LeftUpperArm].flg  = 0;
+            coords[HarryBone_RightUpperArm].flg = 0;
+        }
 #endif
     }
 
