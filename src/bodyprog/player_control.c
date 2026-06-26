@@ -788,20 +788,36 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
          * single absolute keyframe across Harry's whole skeleton so the exact
          * authored frame index for a pose can be found (drive K / , / . in
          * DebugCamera_Update). Clear the upper/lower split mask so the FULL body
-         * poses, and clamp to the header's keyframe count (Anim_BoneUpdate skips
-         * its own clamp for Harry's 18-bone table). Write the clamped value back
-         * so the on-screen readout shows the real max. */
-        g_DebugAnimKfMax = (int)anmHdr->keyframeCount; /* publish for the inspector panel readout */
-        if (g_DebugAnimKfView)
+         * poses. Write the clamped value back so the readout shows the real max.
+         *
+         * anmHdr->keyframeCount (~568) only counts Harry's BASE anims; the
+         * equipped weapon's anims (aim/fire/recoil) live at HIGHER keyframes
+         * (handgun ~568-658) loaded into the same buffer, which Anim_BoneUpdate
+         * still samples (it skips its clamp for Harry's 18-bone table). Clamping
+         * to keyframeCount made those weapon/aim frames unreachable (stuck at 567).
+         * Extend the max to the highest endKeyframeIdx in the loaded anim-info
+         * table (HARRY_BASE_ANIM_INFOS[0..75] = base + the equipped weapon's
+         * entries 56..75) so the gun/aim anims can be scrubbed/cycled to. */
         {
-            s32 _kf = g_DebugAnimKf;
-            if (anmHdr->keyframeCount > 0 && _kf >= (s32)anmHdr->keyframeCount)
-                _kf = (s32)anmHdr->keyframeCount - 1;
-            if (_kf < 0)
-                _kf = 0;
-            g_DebugAnimKf = _kf;
-            g_SysWork.playerWork.extra.disabledAnimBones = 0;
-            Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
+            s32 _maxKf = (anmHdr->keyframeCount > 0) ? (s32)anmHdr->keyframeCount - 1 : 0;
+            s32 _i;
+            for (_i = 0; _i < 76; _i++)
+            {
+                s32 _e = HARRY_BASE_ANIM_INFOS[_i].endKeyframeIdx;
+                if (_e > _maxKf && _e < 1024) /* 1024 sanity-bounds any stale entry */
+                    _maxKf = _e;
+            }
+            g_DebugAnimKfMax = _maxKf + 1; /* publish as a count for the panel readout */
+
+            if (g_DebugAnimKfView)
+            {
+                s32 _kf = g_DebugAnimKf;
+                if (_kf > _maxKf) _kf = _maxKf;
+                if (_kf < 0)      _kf = 0;
+                g_DebugAnimKf = _kf;
+                g_SysWork.playerWork.extra.disabledAnimBones = 0;
+                Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
+            }
         }
 #endif
     }
