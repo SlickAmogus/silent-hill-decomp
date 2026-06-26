@@ -2114,6 +2114,17 @@ s_800F3D48_0* func_800D95D4(s_800F3D48* arg0) // 0x800D95D4
     {
         arg0->field_4.field_4 = 0;
         arg0->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* Loop-end sentinel: func_800D88E8 returns ptr_0->next_4, a SCRIPT-NODE
+         * pointer, not a sprite-def. PSX read its 4-byte next_4 (offset 4), so
+         * the sprite drawer's tpage/clut at offsets 8/10 hit the node's small
+         * field_8 enum -> degenerate/invisible. On 64-bit next_4 is 8 bytes at
+         * offset 8, so tpage/clut read the low 32 bits of the relocated pointer
+         * -> garbage VRAM page -> ghost textures in the falling fire. The entry
+         * is being deactivated this frame anyway; skip the bogus final draw
+         * (func_800D917C gates field_48 on a non-NULL resolver result). */
+        return NULL;
+#endif
     }
 
     arg0->field_4.field_28.vx = Q12_MULT_FLOAT_PRECISE(arg0->field_4.field_28.vx, 0.8f);
@@ -2137,6 +2148,12 @@ s_800F3D48_0* func_800D9740(s_800F3D48* arg0) // 0x800D9740
     {
         arg0->field_4.field_4 = 0;
         arg0->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* See func_800D95D4: on the loop-end sentinel func_800D88E8 returns a
+         * script-node pointer whose 64-bit next_4 (offset 8) is misread as the
+         * sprite tpage/clut (offsets 8/10) -> ghost textures. Skip the draw. */
+        return NULL;
+#endif
     }
 
     return ptr;
