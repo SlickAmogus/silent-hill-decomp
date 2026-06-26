@@ -192,6 +192,13 @@ static int           g_DebugRawCamMode    = 0;
  * player_control.c's TPS branch. */
 static void Pc_TpsCamera_Apply(void)
 {
+    /* Force the game's default/cinematic camera during cutscenes: the TPS follow
+     * cam otherwise overrides and fights the scripted cutscene cameras. Covers
+     * both the cutscene flag and the letterbox-border states. */
+    if ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+        g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+        return;
+
     #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
     #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
     #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
