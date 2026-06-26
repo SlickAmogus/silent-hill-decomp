@@ -1025,6 +1025,16 @@ void func_800E3390(void) // 0x800E3390
             D_800F4819 = 0;
             D_800F481A = 0;
             D_800F481B = 0;
+#ifdef SH_PC_PORT
+            /* The Good+ ending must never inherit boss-fight FX state. If a
+             * confrontation left the boss-FX gates set (D_800F4820 = lightning
+             * grid / fire pool; D_800F4B40.field_0 = force-field mesh / arcs),
+             * the .func_44 hook keeps drawing them through the ending at stale
+             * positions. Clear them here as a backstop in addition to the
+             * per-confrontation exit clears. */
+            D_800F4820         = 0;
+            D_800F4B40.field_0 = NO_VALUE;
+#endif
 
             Anim_CharaTypeAnimInfoClear();
             WorldGfx_CharaLmBufferAssign(CHARA_FORCE_FREE_ALL);
@@ -2748,6 +2758,14 @@ void func_800E62CC(void) // 0x800E62CC
             g_Cutscene_UpdateKau = false;
 
             Sd_SfxStop(Sfx_Unk1688);
+
+            /* Clear the boss-FX visibility gate on confrontation exit, mirroring
+             * the sibling confrontations (func_800E787C:default, func_800E86BC,
+             * func_800E8D20 all do this). This one omitted it, so the lightning
+             * grid + fire pool (drawn every frame by .func_44 while D_800F4820 !=
+             * 0) kept rendering through the following Good+ ending at stale
+             * positions -- the "flame/lightning under and around the map". */
+            D_800F4820 = 0;
 
             D_800F4805++;
             break;
