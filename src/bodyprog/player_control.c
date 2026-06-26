@@ -691,19 +691,6 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
         }
         else
         {
-#ifdef SH_PC_PORT
-            /* Harry's cutscene/control state — log on change only, not per-frame. */
-            {
-                static s32 s_pupdState = -1, s_pupdCtrl = -1;
-                s32 _st = (s32)g_SysWork.playerWork.extra.state;
-                s32 _ct = (s32)player->model.controlState;
-                if (_st != s_pupdState || _ct != s_pupdCtrl) {
-                    SH_DBG("[PUPD] state=%d ctrl=%d kf=%d", _st, _ct,
-                           (s32)player->model.anim.keyframeIdx);
-                    s_pupdState = _st; s_pupdCtrl = _ct;
-                }
-            }
-#endif
             g_MapOverlayHdr.func_BC(player, extra, coords);
         }
 
@@ -3874,25 +3861,9 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     }
 
                     player->properties.player.field_10C = 0xC8;
-#ifdef SH_PC_PORT
-                    SH_DBG("[AMMO] fire: clip=%d reserve=%d weap=%d",
-                           (int)g_SysWork.playerCombat.currentWeaponAmmo,
-                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                           (int)g_SysWork.playerCombat.weaponAttack);
-#endif
                 }
                 else
                 {
-#ifdef SH_PC_PORT
-                    /* Dry fire. The auto-reload decision happens on the NEXT
-                     * trigger pull in the Aim dispatch (~line 5500); log the
-                     * inputs it will see so a failed condition is visible. */
-                    SH_DBG("[AMMO] DRY-FIRE: clip=0 reserve=%d equipped=%d group=%d upper=%d",
-                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                           (int)g_SavegamePtr->equippedWeapon,
-                           (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
-                           (int)g_SysWork.playerWork.extra.upperBodyState);
-#endif
                     func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
 
                     player->properties.player.field_10C = 32;
@@ -5678,20 +5649,6 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
-#ifdef SH_PC_PORT
-                    /* Log the auto-reload decision whenever the clip is empty,
-                     * including the failing condition when it does NOT enter. */
-                    if (g_SysWork.playerCombat.currentWeaponAmmo == 0)
-                    {
-                        SH_DBG("[AMMO] auto-reload check: reserve=%d equipped=%d group=%d (gun-group=%d) -> %s",
-                               (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                               (int)g_SavegamePtr->equippedWeapon,
-                               (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
-                               (int)InvItemGroup_GunWeapons,
-                               (INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
-                                g_SysWork.playerCombat.totalWeaponAmmo != 0) ? "RELOAD" : "no-reload");
-                    }
-#endif
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
                         g_SysWork.playerCombat.totalWeaponAmmo != 0)
@@ -5717,7 +5674,6 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                                 extra->model.anim.keyframeIdx = reloadStartKf;
                                 extra->model.anim.time        = Q12((s32)reloadStartKf);
                             }
-                            SH_DBG("[AMMO] auto-reload ENTER: seeded kf=%d", (int)reloadStartKf);
                         }
 #endif
 
