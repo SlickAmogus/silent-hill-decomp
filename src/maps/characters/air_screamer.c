@@ -8994,7 +8994,9 @@ bool sharedFunc_800DC30C_2_s00(s_SubCharacter* airScreamer)
 
 bool sharedFunc_800DC3BC_2_s00(s_SubCharacter* airScreamer)
 {
-#ifndef SH_PC_PORT
+    /* Floor-type gate restored on PC: func_800808AC runs fine here (the sibling
+     * sharedFunc_800DC30C_2_s00 above calls it unguarded). It was bypassed by an
+     * early-port #ifndef that silently changed the Air Screamer's dive decision. */
     switch (func_800808AC(airScreamer->position.vx, airScreamer->position.vz))
     {
         case 0:
@@ -9002,7 +9004,6 @@ bool sharedFunc_800DC3BC_2_s00(s_SubCharacter* airScreamer)
         case 12:
             return false;
     }
-#endif
 
     return Collision_GroundHeightGet(airScreamer->position.vx, airScreamer->position.vz) <= Q12(3.0f);
 }

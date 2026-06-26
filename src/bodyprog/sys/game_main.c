@@ -1126,106 +1126,14 @@ void GameState_Boot_Update(void) // 0x80032D1C
 }
 
 #ifdef SH_PC_PORT
-/* Sentinel scan helper — walks an OT chain looking for the corrupt-addr
- * fingerprint that's been plaguing the muzzle flash codepath: a prim's
- * `addr` field points OUTSIDE both the packet buffer and the OT bucket
- * array (and isn't the natural &prim_terminator). The bug class is a
- * 32→64-bit pointer truncation hidden somewhere in the spawn/update
- * dispatch we haven't been able to spot via grep.
- *
- * Strategy: call this at multiple checkpoints across the frame. The
- * FIRST checkpoint that detects corruption brackets the writer to the
- * subsystem that ran since the previous clean checkpoint.
- *
- * Logs at most once per (phase × ot) per session so the log doesn't
- * flood; switch phases by adding a new label string, no de-dup overhead.
- *
- * Safe to call on any frame — the existing OT0/OT2 sanitizer at
- * post-GsSortClear will still terminate the chain so we never crash. */
-extern OT_TAG prim_terminator;
 /* Provided by libgs_stub.c — gives the bounds of any subroot OT registered
  * via GsSortOt(subroot, root). The pickup-screen pipeline registers
  * g_OrderingTable1 as a subroot of g_OrderingTable0; its bucket nodes
  * live in storage outside our packet-buffer + OT0-array windows and
- * MUST be accepted as valid chain pointers, otherwise the sanitizer
- * truncates the chain mid-walk and the picked-up item disappears. */
+ * MUST be accepted as valid chain pointers by the OT0 sanitizer below,
+ * otherwise the chain is truncated mid-walk and the picked-up item
+ * disappears. */
 extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
-
-void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
-{
-    if (!ot || !ot->tag) return;
-
-    uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
-    uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
-    uintptr_t otLo   = (uintptr_t)ot->org;
-    int       otLen  = (ot->length > 0 && ot->length <= 16) ? (int)ot->length : 0;
-    size_t    otCnt  = (size_t)1 << otLen;
-    uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
-    uintptr_t termA  = (uintptr_t)&prim_terminator;
-    uintptr_t subLo  = 0, subHi = 0;
-    GsSortOt_GetSubrootBounds(&subLo, &subHi);
-
-    OT_TAG* prev = NULL;
-    OT_TAG* cur  = (OT_TAG*)ot->tag;
-    int hops = 0;
-
-    while (cur && hops < 16384)
-    {
-        uintptr_t curA = (uintptr_t)cur;
-        int valid = (curA == termA) ||
-                    (curA >= pktLo && curA < pktHi) ||
-                    (curA >= otLo  && curA < otHi) ||
-                    (subLo && curA >= subLo && curA < subHi);
-        if (!valid)
-        {
-            /* Found the corruption boundary. prev is the LAST valid prim;
-             * its `addr` field was clobbered to point at `cur` (wild).
-             * Log once per phase × OT name pair. */
-            static const void* s_seenPhase[16] = {0};
-            static const void* s_seenOt[16]    = {0};
-            static int         s_seenCount     = 0;
-            int seen = 0;
-            for (int i = 0; i < s_seenCount; i++)
-                if (s_seenPhase[i] == phase && s_seenOt[i] == otName) { seen = 1; break; }
-            if (!seen && s_seenCount < 16)
-            {
-                s_seenPhase[s_seenCount] = phase;
-                s_seenOt[s_seenCount]    = otName;
-                s_seenCount++;
-                SH_DBG("[OT-SCAN] %s/%s: CORRUPT addr field — prev=%p next=%p hops=%d (pkt=[%p..%p) ot=[%p..%p))",
-                       phase, otName, (void*)prev, (void*)cur, hops,
-                       (void*)pktLo, (void*)pktHi, (void*)otLo, (void*)otHi);
-                if (prev != NULL)
-                {
-                    u32* w = (u32*)prev;
-                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
-                           w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
-                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
-                           w[8], w[9], w[10], w[11], w[12], w[13], w[14], w[15]);
-                }
-            }
-            return;
-        }
-        if (curA == termA) return; /* clean end of chain */
-        prev = cur;
-        cur  = (OT_TAG*)nextPrim(cur);
-        hops++;
-    }
-}
-
-/* Pure-diagnostic OT corruption walker — fixes nothing, just logs. Off by
- * default so release builds don't pay the per-frame OT-chain walk (×2 OTs ×
- * several phases) or spam the log. Flip g_PcOtScanEnabled=1 to re-arm when
- * chasing OT corruption. */
-int g_PcOtScanEnabled = 0;
-#define PC_OT_SCAN(phase) do { \
-    if (g_PcOtScanEnabled && g_GameWork.gameState == GameState_InGame) { \
-        Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], phase, "OT0"); \
-        Pc_OtSentinelScan(&g_OrderingTable2[g_ActiveBufferIdx], phase, "OT2"); \
-    } \
-} while (0)
-#else
-#define PC_OT_SCAN(phase) ((void)0)
 #endif
 
 void MainLoop(void) // 0x80032EE0
@@ -1410,10 +1318,8 @@ void MainLoop(void) // 0x80032EE0
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
-        PC_OT_SCAN("pre-GameStateUpdate");
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
-        PC_OT_SCAN("post-GameStateUpdate");
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
@@ -1441,7 +1347,6 @@ void MainLoop(void) // 0x80032EE0
 #endif
 
         Demo_Update();
-        PC_OT_SCAN("post-Demo_Update");
         Demo_GameRandSeedSet();
 
         if (MainLoop_ShouldWarmReset() == 2)
@@ -1451,10 +1356,8 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #define ML_TRACE(tag) ((void)0)
-        PC_OT_SCAN("pre-Screen_FadeUpdate");
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
-        PC_OT_SCAN("post-Screen_FadeUpdate");
         ML_TRACE("MemCard_Update");
         MemCard_Update();
         ML_TRACE("Sd_TaskPoolExecute");
@@ -1490,13 +1393,10 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
-        PC_OT_SCAN("post-Fs_QueueUpdate");
         ML_TRACE("func_80089128");
         func_80089128();
-        PC_OT_SCAN("post-func_80089128");
         ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
-        PC_OT_SCAN("post-func_8008D78C");
         ML_TRACE("DrawSync");
         DrawSync(SyncMode_Wait);
         ML_TRACE("VSync-begin");

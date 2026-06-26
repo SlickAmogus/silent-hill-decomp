@@ -1486,8 +1486,8 @@ void GsSortOt(GsOT *src, GsOT *dst)
      * (health drink, keys, etc.) rendered invisible: the TMD got sorted
      * into OT1 but OT1 was orphaned.
      *
-     * Bounds export for the OT0 sanitizer (game_main.c Pc_OtSentinelScan
-     * and the inline OT0 walker pre-GsDrawOt): src->org and src->tag
+     * Bounds export for the OT0 sanitizer (the inline OT0 walker in
+     * game_main.c pre-GsDrawOt): src->org and src->tag
      * point into OT1's backing storage (FS_BUFFER_1 / PSX_ADDR space),
      * which is outside the packet-buffer + OT0-array windows the
      * sanitizer recognises. Export the OT1 range so the sanitizer can

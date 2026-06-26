@@ -81,10 +81,10 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
         }
     }
 
-#ifndef SH_PC_PORT
-    /* Water reflection flares. TODO(PC): unported — verify func_8008E5B4/
-     * func_8008E794/func_8008EA68 for packet/GTE hazards before enabling.
-     * The chest glare above works without this. */
+    /* Water reflection + illumination, restored on PC. func_8008E5B4/E794/EA68
+     * are ordinary POLY_FT4/G4/G3 emitters via GsOUT_PACKET_P (not the framebuffer-
+     * readback class that func_8008D5A0 above needs), so they run on PC. This is
+     * the water "lighting"/reflection the PSX showed that was missing. */
     if (D_800C4818.field_1 == 0)
     {
         waterZone = Map_WaterZoneGet(Q12_TO_Q4(pos->vx), Q12_TO_Q4(pos->vz), waterZones);
@@ -100,7 +100,6 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
             }
         }
     }
-#endif
 }
 
 void func_8008D5A0(VECTOR3* arg0, s16 arg1) // 0x8008D5A0
