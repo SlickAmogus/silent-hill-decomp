@@ -24,6 +24,12 @@ extern const unsigned char* g_sdlKeyboardState;
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
 
+/* OTS/TPS free-aim: the user-verified gun-forward "ready" pose, an absolute
+ * keyframe in Harry's shared pool that holds correctly for EVERY ranged weapon.
+ * The aim is held here (Unk34 would otherwise play backward and drift to ~580);
+ * the shot plays the recoil (Unk30, 594-604 forward) from here. */
+#define PC_AIM_HOLD_KF 591
+
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
         s_PlayerCrashGuardActive = 0;
@@ -703,11 +709,14 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
          * The upper-body state machine (Player_UpperBodyUpdate, run just above in
          * Player_LogicUpdate) leaves the upper body in a stale sidestep/idle pose,
          * so strafing and turn-running only moved Harry's legs. When the lower body
-         * is in a movement anim and Harry isn't aiming / holding a gun (upper body
-         * owned by the aim pose then) / in a gun attack, mirror the lower-body anim
-         * onto the upper body so the whole body plays the directional run/walk. SFX
-         * (heavy-breath etc.) already fired in Player_UpperBodyUpdate, so only the
-         * pose is overridden. */
+         * is in a movement anim and the upper body isn't doing something
+         * independent (actively AIMING, or mid gun-shot / reload), mirror the
+         * lower-body anim onto the upper body so the whole body plays the
+         * directional run/walk. Gating on isAiming (not "gun equipped") so it
+         * works while a gun is holstered/lowered — the previous gun-equipped gate
+         * skipped the sync whenever a weapon was out, leaving armed strafe
+         * legs-only. SFX (heavy-breath etc.) already fired in
+         * Player_UpperBodyUpdate, so only the pose is overridden. */
         if (g_DebugThirdPersonCam)
         {
             s32  _lowIdx = ANIM_STATUS_IDX_GET(player->model.anim.status);
@@ -716,11 +725,11 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
                 _lowIdx == HarryAnim_WalkBackward || _lowIdx == HarryAnim_RunLeft       ||
                 _lowIdx == HarryAnim_RunRight     || _lowIdx == HarryAnim_SidestepLeft  ||
                 _lowIdx == HarryAnim_SidestepRight;
-            bool _aiming    = g_Player_IsAiming &&
-                              (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
-            bool _gunAttack = g_SysWork.playerCombat.weaponAttack >=
-                              WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
-            if (_moveAnim && !_aiming && !_gunAttack)
+            bool _upperBusy =
+                g_SysWork.playerCombat.isAiming ||
+                extra->upperBodyState == PlayerUpperBodyState_Attack ||
+                extra->upperBodyState == PlayerUpperBodyState_Reload;
+            if (_moveAnim && !_upperBusy)
             {
                 extra->model.anim.status      = player->model.anim.status;
                 extra->model.anim.keyframeIdx = player->model.anim.keyframeIdx;
@@ -774,6 +783,20 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
             g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
         {
+            /* Steady-aim HOLD: re-pose the upper body at the verified gun-forward
+             * keyframe so it doesn't drift (Unk34 plays backward toward ~580).
+             * ONLY while the upper body is in an aim anim (Unk34 / HandgunAim) —
+             * during a shot the status is the recoil (Unk30 etc.), so leave that
+             * alone and let the forward shooting animation play. Lower body keeps
+             * its movement anim (LOWER mask disabled = upper bones only). The pitch
+             * tilt below then applies on top. */
+            s32 _upIdx = ANIM_STATUS_IDX_GET(extra->model.anim.status);
+            if (_upIdx == HarryAnim_Unk34 || _upIdx == HarryAnim_HandgunAim)
+            {
+                g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
+                Anim_BoneUpdate(anmHdr, coords, PC_AIM_HOLD_KF, PC_AIM_HOLD_KF, Q12(0.0f));
+            }
+
             s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
             _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
             func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
@@ -1610,19 +1633,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
                 if (!jumpBackActive) if (g_Player_IsMovingForward) {
-                    u8 targetWalk;
-#ifdef SH_PC_PORT
-                    /* OTS/TPS: running forward WHILE turning leans into the turn with
-                     * the directional run cycle (RunLeft 121-134 / RunRight 135-149)
-                     * instead of straight RunForward, so a turn-while-running adapts
-                     * into the matching run anim. Walk + classic camera stay straight. */
-                    if (g_DebugThirdPersonCam && g_Player_IsRunning && g_Player_IsTurningLeft)
-                        targetWalk = HarryAnim_RunLeft;
-                    else if (g_DebugThirdPersonCam && g_Player_IsRunning && g_Player_IsTurningRight)
-                        targetWalk = HarryAnim_RunRight;
-                    else
-#endif
-                        targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
+                    /* Movement-direction anim (OTS/TPS, Oblivion-style): forward and
+                     * diagonal use RunForward (IsMovingForward wins here); PURE left/
+                     * right are handled by the sidestep/strafe branch below (RunLeft/
+                     * RunRight). Not tied to camera/look direction. */
+                    u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
                         player->model.anim.status = ANIM_STATUS(targetWalk, false);
@@ -5238,8 +5253,8 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                  * 588→580 over ~14 PC frames, giving a smooth "gun comes back
                  * to ready" tail to the reload instead of a snap. */
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_Unk34, true);
-                extra->model.anim.keyframeIdx                         = 588;
-                extra->model.anim.time                                = Q12(588);
+                extra->model.anim.keyframeIdx                         = PC_AIM_HOLD_KF;
+                extra->model.anim.time                                = Q12(PC_AIM_HOLD_KF);
 #else
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_HandgunAim, true);
                 extra->model.anim.keyframeIdx                         = 588;
@@ -5353,21 +5368,20 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     {
                         /* Instant aim-in (free-aim): skip the AimStart raise windup AND
                          * the auto-target lock. Snap straight to the steady Unk34(true)
-                         * gun-forward hold at keyframe 588 — the SAME pose the post-reload
-                         * path (~line 5141) uses, which is the known-good ready stance.
-                         * (The earlier D_800C44F0[6].field_4 parked Harry on a wrong/raise
-                         * keyframe -> arm thrown up over the head.) keyframe 588 is inside
-                         * the Unk34 fire window [field_4..field_6] so the next trigger still
-                         * fires instantly. stateStep=1 stops the Aim case re-issuing the
-                         * slow Unk34(false) raise. Aim DIRECTION comes from the camera ray
-                         * in Player_CombatUpdate; auto-face (D_800C454C) is suppressed. */
+                         * gun-forward hold at keyframe 591 (user-verified ready pose,
+                         * the same for every ranged weapon — the shared keyframe pool).
+                         * The steady-aim HOLD at 591 (Unk34 plays backward and would
+                         * otherwise drift to ~580) is enforced after Player_AnimUpdate.
+                         * stateStep=1 stops the Aim case re-issuing the slow Unk34(false)
+                         * raise. Aim DIRECTION comes from the camera ray in
+                         * Player_CombatUpdate; auto-face (D_800C454C) is suppressed. */
                         g_SysWork.targetNpcIdx = NO_VALUE;
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                         extra->model.stateStep    = 1;
                         extra->model.controlState = 0;
                         extra->model.anim.status  = ANIM_STATUS(HarryAnim_Unk34, true);
-                        extra->model.anim.keyframeIdx = 588;
-                        extra->model.anim.time        = Q12(588);
+                        extra->model.anim.keyframeIdx = PC_AIM_HOLD_KF;
+                        extra->model.anim.time        = Q12(PC_AIM_HOLD_KF);
                         playerProps.field_122 = Q12_ANGLE(90.0f);
                     }
                     else
