@@ -215,29 +215,34 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * same proportions they had on the original 4:3 display.
          * The 2D background is unaffected — it goes through a separate path.
          *
-         * Skip entirely when the inventory screen is pillarboxed: PsyCross
-         * then renders the 4:3 ortho into a centered 4:3 viewport, so there
-         * is NO horizontal stretch to undo — applying it here would squish
-         * the item preview. The inventory is a 2D screen (g_PcHorPlusEnabled
-         * forced to 0 by game_main.c), so pillarbox is active whenever
-         * g_PcMenuPillarbox is set. */
+         * Apply ONLY when the item is genuinely stretched — i.e. a 4:3 ortho
+         * is mapped to a wider viewport with NO compensation (PsyX_render.cpp
+         * GR_SetOffscreenState):
+         *   - anamorphic stretch mode (g_PcWidescreenMode == 2), or
+         *   - a 2D/UI screen (g_PcHorPlusEnabled == 0) with menu pillarbox OFF.
+         * In Hor+ mode (HorPlusEnabled + mode 1 — the world item-pickup "take"
+         * screen, which stays 16:9) PsyCross WIDENS the ortho instead, so square
+         * pixels already give correct proportions; correcting here over-narrowed
+         * the model and read as a vertically-stretched item. When pillarboxed the
+         * viewport is a centered 4:3, so there is likewise no stretch to undo.
+         * (The inventory carousel runs with g_PcHorPlusEnabled=0 + pillarbox, so
+         * its behaviour is unchanged.) */
         extern int g_PcHorPlusEnabled;
         extern int g_PcMenuPillarbox;
-        int _pillarboxed = (!g_PcHorPlusEnabled && g_PcMenuPillarbox);
+        extern int g_PcWidescreenMode;
+        int _stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
+                         (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
         int _sw, _sh;
         PsyX_GetScreenSize(&_sw, &_sh);
         float _dispAspect = (float)_sw / (float)_sh;
         float _psxAspect = 320.0f / 240.0f;
-        float _corrApplied = 1.0f;
-        if (!_pillarboxed && _dispAspect > _psxAspect) {
+        if (_stretched && _dispAspect > _psxAspect) {
             float _corr = _psxAspect / _dispAspect;
             int _j;
             for (_j = 0; _j < 3; _j++)
                 localToScreenMat.m[0][_j] = (s16)((float)localToScreenMat.m[0][_j] * _corr);
             localToScreenMat.t[0] = (s32)((float)localToScreenMat.t[0] * _corr);
-            _corrApplied = _corr;
         }
-        (void)_corrApplied;
 
         /* Square mode (toggle `invaspect 1`): item models project symmetrically
          * into the gsScreenW x gsScreenH framebuffer, which is then shown at 4:3,
