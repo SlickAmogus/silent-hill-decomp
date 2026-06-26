@@ -25,12 +25,15 @@
 # Usage:
 #   .\tools\release-nightly.ps1 [-Mode zip|loose] [-DryRun] [-BuildDir path]
 #                               [-Notes string] [-NoPause] [-BetaBranch beta]
-#                               [-AttachCrossPlatform]
+#                               [-SkipCrossPlatform]
 #
-# -AttachCrossPlatform pulls the newest successful Linux + macOS CI build
-# artifacts (build-linux.yml / build-macos.yml on the source repo) and attaches
-# them to the release as standalone zips. They are deliberately kept OUT of
-# version.json so the Windows launcher ignores them.
+# Linux + macOS builds are included BY DEFAULT: the newest successful Linux +
+# macOS CI artifacts (build-linux.yml / build-macos.yml on the source repo) are
+# attached to the release as standalone zips. They are deliberately kept OUT of
+# version.json so the Windows launcher ignores them (cannot affect the launcher).
+# Pass -SkipCrossPlatform for a Windows-only release. If the CI build for the
+# release's commit isn't ready yet, the newest available build is attached with
+# a warning.
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -48,11 +51,13 @@ param(
     [string]$Notes         = "",
     [switch]$DryRun,
     [switch]$NoPause,
-    # Pull the latest CI-built Linux + macOS artifacts from the source repo and
-    # attach them to the release as standalone assets. They are NOT added to
-    # version.json's files[] — the Windows launcher can't run them and would try
-    # to "update" them. Linux/macOS users download these zips by hand.
-    [switch]$AttachCrossPlatform,
+    # Cross-platform builds are attached by DEFAULT: the newest CI-built Linux +
+    # macOS artifacts from the source repo are pulled and attached to the release
+    # as standalone assets. They are NOT added to version.json's files[] -- the
+    # Windows launcher can't run them and would try to "update" them, so they
+    # cannot affect the launcher. Linux/macOS users download these zips by hand.
+    # Pass -SkipCrossPlatform to publish a Windows-only release.
+    [switch]$SkipCrossPlatform,
     [string]$CrossPlatformBranch = "pc-port"
 )
 
@@ -85,8 +90,8 @@ function Get-Sha256([string]$path) {
 # source repo and attach them to the just-created release on the nightly repo.
 # These are extra downloads for non-Windows users; they never enter version.json.
 function Add-CrossPlatformAssets {
-    param([string]$Tag)
-    if (-not $AttachCrossPlatform) { return }
+    param([string]$Tag, [string]$SourceCommit)
+    if ($SkipCrossPlatform) { return }
 
     $sourceSlug = $SourceRepoUrl -replace '^https?://github\.com/', '' -replace '/$', ''
     Write-Host ""
@@ -103,18 +108,24 @@ function Add-CrossPlatformAssets {
 
     $assets = @()
     foreach ($t in $targets) {
-        $runId = (gh run list --repo $sourceSlug --workflow $t.Workflow `
+        $run = @((gh run list --repo $sourceSlug --workflow $t.Workflow `
                     --branch $CrossPlatformBranch --status success `
-                    --limit 1 --json databaseId --jq ".[0].databaseId" 2>$null)
-        if ($LASTEXITCODE -ne 0 -or -not $runId) {
-            Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' — skipping $($t.Artifact)." -ForegroundColor Yellow
+                    --limit 1 --json databaseId,headSha 2>$null) | ConvertFrom-Json)
+        if ($LASTEXITCODE -ne 0 -or -not $run -or $run.Count -eq 0) {
+            Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
             continue
         }
-        $runId = $runId.Trim()
+        $runId  = "$($run[0].databaseId)".Trim()
+        $runSha = "$($run[0].headSha)".Trim()
+        # Flag (but don't block) a build from a different commit than this
+        # release -- usually means CI hasn't finished building the latest push.
+        if ($SourceCommit -and $runSha -and $runSha -ne $SourceCommit) {
+            Write-Host "  WARN: newest $($t.Workflow) build is commit $($runSha.Substring(0,9)), but this release is $($SourceCommit.Substring(0,9)) -- CI may still be building the latest push. Attaching it anyway; re-run the release once CI finishes for a matching build." -ForegroundColor Yellow
+        }
         $outDir = Join-Path $dlRoot $t.Artifact
         gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  WARN: failed to download $($t.Artifact) (run $runId) — skipping." -ForegroundColor Yellow
+            Write-Host "  WARN: failed to download $($t.Artifact) (run $runId) -- skipping." -ForegroundColor Yellow
             continue
         }
         Get-ChildItem -Recurse -File $outDir | ForEach-Object {
@@ -454,7 +465,7 @@ if ($isZip) {
             @betaAssets
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published." }
 
-        Add-CrossPlatformAssets -Tag $newTag
+        Add-CrossPlatformAssets -Tag $newTag -SourceCommit $curCommitFull
 
         Remove-Item $zipPath, $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
         Write-Host ""
@@ -645,7 +656,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "gh release upload version.json failed (exit $LASTEXITCODE)."
 }
 
-Add-CrossPlatformAssets -Tag $newTag
+Add-CrossPlatformAssets -Tag $newTag -SourceCommit $curCommitFull
 
 Remove-Item -Recurse -Force $stagingDir
 
