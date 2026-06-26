@@ -1665,11 +1665,32 @@ void func_800E4714(void) // 0x800E4714
             Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(92.0f), Q12(112.0f), true, false);
 
             temp_v0 = Player_AnimPlaybackStateGet();
+#ifdef SH_PC_PORT
+            /* Bottle-smash freeze fix. The bottle-raise (player state 153) is a
+             * one-shot anim; this step waits for its End (==1) before firing the
+             * smash (state 131). At high fps the player driver links Harry to the
+             * looping cutscene idle (animIdx 46) the SAME frame the raise ends, so
+             * the one-shot's End edge is missed and the poll returns -1 (loop)
+             * forever — the smash then only fires when the (C) anim-stuck bypass
+             * force-returns 1 at its 10s threshold ("Alessa's face, bottle about
+             * to smash" hangs ~10s). -1 (PlaybackLoop/Invalid) reliably means the
+             * raise has finished and reverted to the idle loop, so treat it as
+             * done too. Firing 131 touches no sysStateSteps (step0 3->4 is driven
+             * solely by msg 24 completing), so this cannot desync later steps, and
+             * -1 can only occur AFTER the raise's one-shot ends, so it cannot fire
+             * the smash early. */
+            if ((temp_v0 == 1 || temp_v0 == -1) && D_800EDA08 == 0)
+            {
+                Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 131, false);
+                D_800EDA08 = 1;
+            }
+#else
             if (temp_v0 == 1 && D_800EDA08 == 0)
             {
                 Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 131, false);
                 D_800EDA08 = temp_v0;
             }
+#endif
             break;
 
         case 4:
