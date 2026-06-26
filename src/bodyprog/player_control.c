@@ -30,6 +30,11 @@ extern const unsigned char* g_sdlKeyboardState;
  * the shot plays the recoil (Unk30, 594-604 forward) from here. */
 #define PC_AIM_HOLD_KF 591
 
+/* OTS/TPS forward + strafe RUN speed target (q19_12 world units/30fps-frame),
+ * faster than the classic Q12(3.0). Used for both the forward run (D_800C4550)
+ * and the run-strafe so left/right run at the SAME speed as forward. */
+#define PC_OTS_RUN_SPEED Q12(4.5f)
+
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
         s_PlayerCrashGuardActive = 0;
@@ -784,27 +789,27 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
         {
             /* Steady-aim HOLD: re-pose the upper body at the verified gun-forward
-             * keyframe so it doesn't drift (Unk34 plays backward toward ~580).
-             * ONLY while the upper body is in an aim anim (Unk34 / HandgunAim) —
-             * during a shot the status is the recoil (Unk30 etc.), so leave that
-             * alone and let the forward shooting animation play. Lower body keeps
-             * its movement anim (LOWER mask disabled = upper bones only). The pitch
-             * tilt below then applies on top. */
+             * keyframe (591) so it doesn't drift (Unk34 plays backward toward ~580).
+             * Skip ONLY during the actual shot (recoil anims) so the forward
+             * shooting animation plays. Lower body keeps its movement anim (LOWER
+             * mask disabled = upper bones only). */
             s32 _upIdx = ANIM_STATUS_IDX_GET(extra->model.anim.status);
-            if (_upIdx == HarryAnim_Unk34 || _upIdx == HarryAnim_HandgunAim)
+            if (_upIdx != HarryAnim_Unk29 && _upIdx != HarryAnim_Unk30 &&
+                _upIdx != HarryAnim_HandgunRecoil)
             {
                 g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
                 Anim_BoneUpdate(anmHdr, coords, PC_AIM_HOLD_KF, PC_AIM_HOLD_KF, Q12(0.0f));
             }
 
+            /* Aim pitch: lean the TORSO toward the aim angle. The upper arms + gun
+             * are its hierarchy children, so they follow the lean while KEEPING the
+             * 591 gun-forward pose. Do NOT rotate the upper arms directly:
+             * Math_RotMatrixZ OVERWRITES the bone matrix (discards the gun-forward
+             * pose) and threw the arms up behind Harry's head — the aim bug. */
             s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
             _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
             func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
-            Math_RotMatrixZ(_aimPitch >> 1, &coords[HarryBone_LeftUpperArm].coord);
-            Math_RotMatrixZ(_aimPitch >> 1, &coords[HarryBone_RightUpperArm].coord);
-            coords[HarryBone_Torso].flg         = 0;
-            coords[HarryBone_LeftUpperArm].flg  = 0;
-            coords[HarryBone_RightUpperArm].flg = 0;
+            coords[HarryBone_Torso].flg = 0;
         }
 
         /* Keyframe inspector (debug): when on, override the sampled pose with a
@@ -1593,7 +1598,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         if (g_Player_IsRunning &&
                             !(g_DebugThirdPersonCam && g_Player_IsAiming &&
                               g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
-                            D_800C4550 = Q12(3.0f);
+                            D_800C4550 = g_DebugThirdPersonCam ? PC_OTS_RUN_SPEED : Q12(3.0f);
                         else
                             D_800C4550 = Q12(1.5f);
 #else
@@ -1713,10 +1718,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                         s_prevSidestepTime = curTime;
 
-                        if (dTime > 0) {
-                            /* Run strafe covers ground ~2x the sidestep shuffle. */
-                            q19_12 perStep = runStrafe ? Q12(0.05f) : Q12(0.024f);
-                            q19_12 step = Q12_MULT_PRECISE(perStep, dTime);
+                        /* Run-strafe moves dt-based at the SAME run speed as forward
+                         * (PC_OTS_RUN_SPEED * g_DeltaTime, matching func_8007C0D8's
+                         * forward integration) so left/right run as fast as forward.
+                         * Walk-sidestep keeps the slow anim-driven discrete shuffle. */
+                        q19_12 step = 0;
+                        if (runStrafe) {
+                            step = Q12_MULT_PRECISE(PC_OTS_RUN_SPEED, g_DeltaTime);
+                        } else if (dTime > 0) {
+                            step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
+                        }
+                        if (step != 0) {
                             if (isLeft) {
                                 player->position.vx -= Q12_MULT(step, Math_Cos(player->rotation.vy));
                                 player->position.vz += Q12_MULT(step, Math_Sin(player->rotation.vy));
