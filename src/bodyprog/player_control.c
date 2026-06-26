@@ -697,6 +697,38 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_MapOverlayHdr.func_BC(player, extra, coords);
         }
 
+#ifdef SH_PC_PORT
+        /* OTS/TPS full-body movement: Player_AnimUpdate poses the lower body from
+         * player->model.anim and the upper body from extra->model.anim separately.
+         * The upper-body state machine (Player_UpperBodyUpdate, run just above in
+         * Player_LogicUpdate) leaves the upper body in a stale sidestep/idle pose,
+         * so strafing and turn-running only moved Harry's legs. When the lower body
+         * is in a movement anim and Harry isn't aiming / holding a gun (upper body
+         * owned by the aim pose then) / in a gun attack, mirror the lower-body anim
+         * onto the upper body so the whole body plays the directional run/walk. SFX
+         * (heavy-breath etc.) already fired in Player_UpperBodyUpdate, so only the
+         * pose is overridden. */
+        if (g_DebugThirdPersonCam)
+        {
+            s32  _lowIdx = ANIM_STATUS_IDX_GET(player->model.anim.status);
+            bool _moveAnim =
+                _lowIdx == HarryAnim_RunForward   || _lowIdx == HarryAnim_WalkForward  ||
+                _lowIdx == HarryAnim_WalkBackward || _lowIdx == HarryAnim_RunLeft       ||
+                _lowIdx == HarryAnim_RunRight     || _lowIdx == HarryAnim_SidestepLeft  ||
+                _lowIdx == HarryAnim_SidestepRight;
+            bool _aiming    = g_Player_IsAiming &&
+                              (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
+            bool _gunAttack = g_SysWork.playerCombat.weaponAttack >=
+                              WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+            if (_moveAnim && !_aiming && !_gunAttack)
+            {
+                extra->model.anim.status      = player->model.anim.status;
+                extra->model.anim.keyframeIdx = player->model.anim.keyframeIdx;
+                extra->model.anim.time        = player->model.anim.time;
+            }
+        }
+#endif
+
         Player_AnimUpdate(player, extra, anmHdr, coords);
 #ifndef SH_PC_PORT
         func_8007D090(player, extra, coords);
@@ -1562,7 +1594,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
                 if (!jumpBackActive) if (g_Player_IsMovingForward) {
-                    u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
+                    u8 targetWalk;
+#ifdef SH_PC_PORT
+                    /* OTS/TPS: running forward WHILE turning leans into the turn with
+                     * the directional run cycle (RunLeft 121-134 / RunRight 135-149)
+                     * instead of straight RunForward, so a turn-while-running adapts
+                     * into the matching run anim. Walk + classic camera stay straight. */
+                    if (g_DebugThirdPersonCam && g_Player_IsRunning && g_Player_IsTurningLeft)
+                        targetWalk = HarryAnim_RunLeft;
+                    else if (g_DebugThirdPersonCam && g_Player_IsRunning && g_Player_IsTurningRight)
+                        targetWalk = HarryAnim_RunRight;
+                    else
+#endif
+                        targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
                         player->model.anim.status = ANIM_STATUS(targetWalk, false);
