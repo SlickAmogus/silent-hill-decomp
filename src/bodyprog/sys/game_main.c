@@ -324,11 +324,33 @@ static void Pc_TpsCamera_Apply(void)
 #ifdef SH_PC_PORT
         /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
          * offset so the eye matches the rendered view). The aim ray in
-         * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd. */
-        g_TpsCamPos    = tpCamPos;
-        g_TpsCamFwd.vx = fwdX;
-        g_TpsCamFwd.vy = fwdY;
-        g_TpsCamFwd.vz = fwdZ;
+         * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd.
+         *
+         * Forward must be the ACTUAL view direction (eye -> lookAt), NOT the raw
+         * orbit forward (fwdX/Y/Z): tpLookAt.vy is anchored to Harry's chest, so the
+         * screen-center ray has a different PITCH than the orbit forward. Publishing
+         * the orbit forward made the aim ray (and the bullet) miss screen-center
+         * vertically. unit(lookAt - eye) passes through the reticle at every depth. */
+        g_TpsCamPos = tpCamPos;
+        {
+            s32 dx  = tpLookAt.vx - tpCamPos.vx;
+            s32 dy  = tpLookAt.vy - tpCamPos.vy;
+            s32 dz  = tpLookAt.vz - tpCamPos.vz;
+            s32 ax  = dx >> 6, ay = dy >> 6, az = dz >> 6; /* avoid SQUARE overflow */
+            s32 mag = SquareRoot0(SQUARE(ax) + SQUARE(ay) + SQUARE(az));
+            if (mag > 0)
+            {
+                g_TpsCamFwd.vx = (s32)(((s64)ax << 12) / mag);
+                g_TpsCamFwd.vy = (s32)(((s64)ay << 12) / mag);
+                g_TpsCamFwd.vz = (s32)(((s64)az << 12) / mag);
+            }
+            else
+            {
+                g_TpsCamFwd.vx = fwdX;
+                g_TpsCamFwd.vy = fwdY;
+                g_TpsCamFwd.vz = fwdZ;
+            }
+        }
 #endif
         Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
         vwSetViewInfo();
