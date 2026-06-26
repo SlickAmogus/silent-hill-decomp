@@ -679,6 +679,15 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
         else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
         cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "ADD") == 0) {
+        /* Debug-isolate the additive (BM_ADD) render layer to diagnose the map7_s03
+         * pre/during/post-fight fire-and-lightning. 0 = drop all additive splits
+         * (does the fire/lightning vanish? -> it's additive geometry), 1 = normal,
+         * 2 = additive drawn depth-tested (does the under-floor lightning get
+         * occluded by the floor? -> the bug is the disabled depth test). */
+        extern int g_PsxDbgAddMode;
+        if (arg[0]) g_PsxDbgAddMode = atoi(arg);
+        cprintf("additive layer: mode %d (0=skip, 1=normal, 2=depth-tested)", g_PsxDbgAddMode);
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
