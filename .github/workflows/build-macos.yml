@@ -1,0 +1,70 @@
+name: Build PC Port (macOS arm64)
+
+# Produces the macOS arm64 binary of the PC port. CI only BUILDS it (the maintainer
+# is still the sole publisher) — release-nightly.ps1 -AttachCrossPlatform pulls the
+# artifact this run uploads and attaches it to the nightly release alongside the
+# Windows build. The Windows launcher never consumes these files.
+#
+# macos-14 runners are Apple Silicon (arm64). The binary is UNSIGNED — Gatekeeper
+# will warn; users right-click->Open once or run:
+#   xattr -dr com.apple.quarantine SilentHillPC
+
+on:
+  push:
+    branches:
+      - pc-port
+    paths-ignore:
+      - '**.md'
+      - 'pc_port/launcher/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout (with PsyCross submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          # AppleClang can't compile the PSX decomp C; build.sh auto-selects
+          # Homebrew GCC and points CMake at openal-soft.
+          brew install gcc cmake ninja sdl2 openal-soft
+
+      - name: Build (build.sh -> Ninja + map .dylib overlays)
+        run: |
+          cd pc_port
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/SHPC-macos-arm64"
+          mkdir -p "$STAGE/maps"
+          cp pc_port/build/SilentHillPC "$STAGE/"
+          cp pc_port/build/maps/*.dylib "$STAGE/maps/"
+          cp pc_port/config.cfg "$STAGE/config.cfg"
+          mkdir -p "$STAGE/gamedata/save"
+          cat > "$STAGE/README-macos.txt" <<'EOF'
+          Silent Hill PC Port — macOS arm64 (Apple Silicon)
+          Requires the original disc image in gamedata/ (not included).
+          Runtime dependencies (Homebrew):
+            brew install sdl2 openal-soft
+          The binary is unsigned. First run:
+            xattr -dr com.apple.quarantine SilentHillPC
+          Then:  ./SilentHillPC
+          EOF
+          ( cd "$RUNNER_TEMP" && zip -r "$RUNNER_TEMP/SHPC-macos-arm64.zip" SHPC-macos-arm64 )
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHPC-macos-arm64
+          path: ${{ runner.temp }}/SHPC-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
