@@ -278,9 +278,30 @@ target_link_libraries(SilentHillPC PRIVATE
 
 if(SDL2_FOUND)
     target_link_libraries(SilentHillPC PRIVATE SDL2::SDL2)
+    # The code includes <SDL2/SDL.h>, which needs the dir CONTAINING SDL2/ on
+    # the search path. On Linux/Windows the SDL2 include dir is .../include
+    # (so SDL2/ resolves). Homebrew's SDL2Config points it at .../include/SDL2
+    # (the subdir itself), so only <SDL.h> would resolve — add the parent so
+    # the SDL2/ prefix works there too. Harmless on Linux/Windows.
+    get_target_property(_sdl2_incs SDL2::SDL2 INTERFACE_INCLUDE_DIRECTORIES)
+    if(_sdl2_incs)
+        foreach(_d IN LISTS _sdl2_incs)
+            if(_d MATCHES "/SDL2$")
+                get_filename_component(_parent "${_d}" DIRECTORY)
+                target_include_directories(SilentHillPC PRIVATE "${_parent}")
+            endif()
+        endforeach()
+    endif()
 elseif(SDL2_LIBRARIES)
     target_link_libraries(SilentHillPC PRIVATE ${SDL2_LIBRARIES})
     target_include_directories(SilentHillPC PRIVATE ${SDL2_INCLUDE_DIRS})
+    # Same <SDL2/SDL.h> prefix fix for the pkg-config path.
+    foreach(_d IN LISTS SDL2_INCLUDE_DIRS)
+        if(_d MATCHES "/SDL2$")
+            get_filename_component(_parent "${_d}" DIRECTORY)
+            target_include_directories(SilentHillPC PRIVATE "${_parent}")
+        endif()
+    endforeach()
 endif()
 
 if(JPEG_LIBRARY)
