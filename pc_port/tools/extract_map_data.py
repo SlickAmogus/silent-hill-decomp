@@ -495,7 +495,9 @@ EXTRA_SYMBOLS = {
                  ("D_800E9D8E", 0x800E9D8E, 2),
                  ("D_800E9DE8", 0x800E9DE8, 52),
                  ("D_800E9E1C", 0x800E9E1C, 5)],  # u8[5] keypad puzzle solution (vs D_800EA4AC input -> EventFlag_488)
-    "map7_s03": [("D_800EC770", 0x800EC770, 40),  # s_800EC770[5] boss hit-SFX descriptors (sfxId/vol/interval); field_4=0 -> /0 crash + grunt SFX spam
+    "map7_s03": [("D_800ED244", 0x800ED244, 12),  # boss force-field grid anchor (VECTOR3); zero-stub -> flame anchored at world origin (under/around the map)
+                 ("D_800ED250", 0x800ED250, 12),  # boss lightning-burst position (VECTOR3); zero-stub -> lightning at world origin
+                 ("D_800EC770", 0x800EC770, 40),  # s_800EC770[5] boss hit-SFX descriptors (sfxId/vol/interval); field_4=0 -> /0 crash + grunt SFX spam
                  # incubus/unknown23 boss tables (tile exactly INCUBUS_ANIM_INFOS
                  # end 0x800EC8C8 -> UNKKOWN_23_ANIM_INFOS 0x800ECE50):
                  ("D_800EC8C8", 0x800EC8C8, 52),    # s_SfxVolume[13] incubus SFX volumes

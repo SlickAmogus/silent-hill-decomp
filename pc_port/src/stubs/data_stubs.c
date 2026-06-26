@@ -487,8 +487,10 @@ u8 D_800ED228[8] = { 0x00, 30, 0x00, 0x00, 0xC0, 0x02, 0xF0, 0x01 }; /* tPage[0,
  * characters. Real values are runtime FS buffer pointers; set in main_pc.c
  * (Map7S03_CutsceneDmsPtrsInit) since PSX_ADDR is g_PsxRam-relative. */
 void* D_800ED230[2] = { 0, 0 };
-u8 D_800ED244[256] = {0};
-u8 D_800ED250[256] = {0};
+/* D_800ED244 / D_800ED250 (boss force-field grid anchor + lightning-burst
+ * position, extern VECTOR3) were zero-stubs here -> effects anchored at world
+ * origin (flame/lightning "under and around the map"). Now real ROM data in
+ * build_gen/extracted_data/map7_s03_extracted_data.c (+ EXTRA_SYMBOLS). */
 u8 D_800ED543[256] = {0};
 u8 D_800ED560[256] = {0};
 u8 D_800ED570[256] = {0};
