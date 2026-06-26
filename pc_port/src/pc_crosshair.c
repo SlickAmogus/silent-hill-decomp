@@ -48,11 +48,18 @@ void Pc_CrosshairDraw(void)
             setPolyG4(&s_poly[i]);
             setSemiTrans(&s_poly[i], 1);
         }
+        /* Center on screen. The bars were authored around (0,0) (top-left corner);
+         * the crosshair shares OT2's UI-ortho coordinate space (same as subtitles),
+         * so offset by half the logical screen. */
+        #define CH_CX (SCREEN_WIDTH  / 2)
+        #define CH_CY (SCREEN_HEIGHT / 2)
         for (i = 0; i < 2; i++)
         {
-            setXY4(&s_poly[i],     -CH_LEN, -CH_THICK,  CH_LEN, -CH_THICK,  -CH_LEN, CH_THICK,  CH_LEN, CH_THICK);
-            setXY4(&s_poly[i + 2], -CH_THICK, -CH_LEN,  CH_THICK, -CH_LEN,  -CH_THICK, CH_LEN,  CH_THICK, CH_LEN);
+            setXY4(&s_poly[i],     CH_CX - CH_LEN,   CH_CY - CH_THICK,  CH_CX + CH_LEN,   CH_CY - CH_THICK,  CH_CX - CH_LEN,   CH_CY + CH_THICK,  CH_CX + CH_LEN,   CH_CY + CH_THICK);
+            setXY4(&s_poly[i + 2], CH_CX - CH_THICK, CH_CY - CH_LEN,    CH_CX + CH_THICK, CH_CY - CH_LEN,    CH_CX - CH_THICK, CH_CY + CH_LEN,    CH_CX + CH_THICK, CH_CY + CH_LEN);
         }
+        #undef CH_CX
+        #undef CH_CY
     }
 
     for (i = 0; i < 4; i++)

@@ -125,6 +125,11 @@ int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max 
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
+/* Camera eye + forward (unit Q12) published each frame by Pc_TpsCamera_Apply for
+ * free-aim: the aim ray is cast from g_TpsCamPos along g_TpsCamFwd (screen-center
+ * reticle == camera forward). Read by Player_CombatUpdate. */
+VECTOR3 g_TpsCamPos = { 0, 0, 0 };
+VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
 int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
 int g_SH_AlwaysMlTrace = 0;      /* 1 = unconditional ML_TRACE every frame; flip to 0 once silent crashes are diagnosed */
 int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
@@ -306,6 +311,15 @@ static void Pc_TpsCamera_Apply(void)
             #undef OTS_OFFSET_AIM
         }
 
+#ifdef SH_PC_PORT
+        /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
+         * offset so the eye matches the rendered view). The aim ray in
+         * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd. */
+        g_TpsCamPos    = tpCamPos;
+        g_TpsCamFwd.vx = fwdX;
+        g_TpsCamFwd.vy = fwdY;
+        g_TpsCamFwd.vz = fwdZ;
+#endif
         Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
         vwSetViewInfo();
     }
