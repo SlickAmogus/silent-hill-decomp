@@ -338,6 +338,33 @@ static void Pc_TpsCamera_Apply(void)
     #undef TP_STICK_PITCH
 }
 
+/* Auto-repeat with acceleration for the keyframe-inspector , / . keys: steps
+ * once on the press edge, then after a short delay repeats at an accelerating
+ * rate, ramping from ~4/s up to a 10/s top speed the longer the key is held.
+ * pressMs/lastMs are per-key static timers. Returns 1 on the frames it fires. */
+static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
+{
+    Uint32 now = SDL_GetTicks();
+
+    if (cur && !prev) { /* fresh press: fire immediately */
+        *pressMs = now;
+        *lastMs  = now;
+        return 1;
+    }
+    if (cur && prev) { /* held */
+        Uint32 held = now - *pressMs;
+        if (held >= 350) { /* initial delay before auto-repeat kicks in */
+            int interval = 250 - (int)((held - 350) / 10); /* 250ms -> 100ms over ~1.5s */
+            if (interval < 100) interval = 100;            /* 100ms = 10/s top speed */
+            if ((now - *lastMs) >= (Uint32)interval) {
+                *lastMs = now;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
@@ -579,7 +606,8 @@ void DebugCamera_Update(void)
      * The actual pose override + clamp to the anim header's keyframe count live
      * in Player_Update (player_control.c); here we just drive the index. */
     {
-        static int prevK = 0, prevComma = 0, prevPeriod = 0;
+        static int    prevK = 0, prevComma = 0, prevPeriod = 0;
+        static Uint32 commaPress = 0, commaLast = 0, periodPress = 0, periodLast = 0;
         int curK      = g_sdlKeyboardState[SDL_SCANCODE_K];
         int curComma  = g_sdlKeyboardState[SDL_SCANCODE_COMMA];
         int curPeriod = g_sdlKeyboardState[SDL_SCANCODE_PERIOD];
@@ -590,12 +618,17 @@ void DebugCamera_Update(void)
                         g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf);
         }
         if (g_DebugAnimKfView) {
-            if (curComma && !prevComma) {
+            /* Hold , / . to scroll, accelerating up to 10/s the longer it's held. */
+            if (Kf_HoldRepeat(curComma, prevComma, &commaPress, &commaLast)) {
                 if (g_DebugAnimKf > 0) g_DebugAnimKf--;
-                SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
             }
-            if (curPeriod && !prevPeriod) {
+            if (Kf_HoldRepeat(curPeriod, prevPeriod, &periodPress, &periodLast)) {
                 g_DebugAnimKf++;
+            }
+            /* Echo on a fresh tap or on release (the landed frame) only — the amber
+             * panel is the live readout, so a held fast-scroll doesn't spam the log. */
+            if ((curComma && !prevComma) || (curPeriod && !prevPeriod) ||
+                (!curComma && prevComma) || (!curPeriod && prevPeriod)) {
                 SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
             }
         }

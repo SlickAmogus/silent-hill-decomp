@@ -355,6 +355,7 @@ static const char* const HELP_LINES[] = {
     " invdim <pct>   off-center carousel dim strength",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
+    " kf [n]         keyframe inspector: set/show frame (K key)",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -402,6 +403,7 @@ static const char* const DEBUG_PAGE1[] = {
     " -       give Hunting Rifle + 30 shells",
     " =       give Shotgun + 30 shells",
     " '       collision visualizer panel",
+    " K       keyframe inspector; , . scrub (hold = faster)",
     " [ / ]   drop A/B position markers into the log",
     " ~       tap: console open/close, hold: command input",
     "type DEBUG 2 for the camera keys",
@@ -731,6 +733,21 @@ void Pc_ConsoleExec(const char* line)
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
         PsyX_SPUAL_SetAdsrEnabled(on);
         cprintf("ADSR envelope %s (looping-SFX ring-out, WIP)", on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "KF") == 0 || strcmp(cmd, "KEYFRAME") == 0) {
+        extern int g_DebugAnimKfView;
+        extern int g_DebugAnimKf;
+        extern int g_DebugAnimKfMax;
+        int maxKf = g_DebugAnimKfMax > 0 ? g_DebugAnimKfMax - 1 : 0;
+        if (arg[0] != '\0') {
+            int v = atoi(arg);
+            if (v < 0) v = 0;
+            g_DebugAnimKf     = v;
+            g_DebugAnimKfView = 1; /* setting a frame implies viewing it */
+            cprintf("keyframe %d (max %d) - K toggles, , . step", g_DebugAnimKf, maxKf);
+        } else {
+            cprintf("keyframe %d / %d (view %s)", g_DebugAnimKf, maxKf,
+                    g_DebugAnimKfView ? "ON" : "OFF");
+        }
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
