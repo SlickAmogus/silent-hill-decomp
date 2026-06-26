@@ -68,7 +68,16 @@ CONFIGURE_ARGS=(-S "$SCRIPT_DIR" -B "$BUILD_DIR" -G Ninja -DSH_BUILD_MAP_DLLS=ON
 # decls), so use Homebrew GCC for C; point CMake at Homebrew openal-soft
 # instead of the system OpenAL framework. (No effect on Windows/Linux.) ------
 if [ "$(uname -s)" = "Darwin" ]; then
-    GCC_C="$(ls /opt/homebrew/bin/gcc-[0-9]* /usr/local/bin/gcc-[0-9]* 2>/dev/null | sort -V | tail -1)"
+    # Pick the highest-versioned Homebrew gcc-N. Use shell globbing (not `ls`,
+    # whose non-zero exit on a non-matching path — e.g. /usr/local on arm64 —
+    # would trip `set -euo pipefail` and abort silently before the check below).
+    GCC_C=""
+    for _c in /opt/homebrew/bin/gcc-[0-9]* /usr/local/bin/gcc-[0-9]*; do
+        [ -x "$_c" ] || continue
+        if [ -z "$GCC_C" ] || [ "$(printf '%s\n%s\n' "$GCC_C" "$_c" | sort -V | tail -1)" = "$_c" ]; then
+            GCC_C="$_c"
+        fi
+    done
     if [ -z "$GCC_C" ]; then
         echo "ERROR: Homebrew GCC not found. Install it:  brew install gcc" >&2
         exit 1
