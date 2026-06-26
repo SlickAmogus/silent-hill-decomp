@@ -1028,11 +1028,12 @@ void func_800E3390(void) // 0x800E3390
 #ifdef SH_PC_PORT
             /* The Good+ ending must never inherit boss-fight FX state. If a
              * confrontation left the boss-FX gates set (D_800F4820 = lightning
-             * grid / fire pool; D_800F4B40.field_0 = force-field mesh / arcs),
-             * the .func_44 hook keeps drawing them through the ending at stale
-             * positions. Clear them here as a backstop in addition to the
-             * per-confrontation exit clears. */
+             * grid / fire pool; D_800F4830 = force-field mesh; D_800F4B40.field_0
+             * = lightning-spline state), the .func_44 hook keeps drawing them
+             * through the ending at stale positions. Clear them here as a backstop
+             * in addition to the per-confrontation exit clears. */
             D_800F4820         = 0;
+            D_800F4830         = 0;
             D_800F4B40.field_0 = NO_VALUE;
 #endif
 
@@ -2766,6 +2767,12 @@ void func_800E62CC(void) // 0x800E62CC
              * 0) kept rendering through the following Good+ ending at stale
              * positions -- the "flame/lightning under and around the map". */
             D_800F4820 = 0;
+            /* Also clear the force-field mesh gate: its reset (:2820) lives INSIDE
+             * `if (D_800F4820 != 0)` below, which this exit now skips by zeroing
+             * D_800F4820 first, so D_800F4830 would otherwise freeze on and keep
+             * func_800D8858 drawing the mesh. Sibling func_800E86BC clears it
+             * unconditionally. */
+            D_800F4830 = 0;
 
             D_800F4805++;
             break;
