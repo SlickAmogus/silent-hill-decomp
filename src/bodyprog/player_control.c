@@ -1311,9 +1311,28 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             u16 runBtn   = g_GameWorkPtr->config.controllerConfig.run;
                             int cfgRun   = g_GameWork.config.extraWalkRunCtrl
                                              ? !(held & runBtn) : (held & runBtn) != 0;
-                            int stickRun = (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown |
-                                                    ControllerFlag_LStickLeft | ControllerFlag_LStickRight)) != 0;
-                            g_Player_IsRunning = cfgRun || stickRun;
+#ifdef SH_PC_PORT
+                            if (g_DebugThirdPersonCam)
+                            {
+                                /* TPS/OTS: walk by default; SPRINT (== classic run, 3.0)
+                                 * only on the bound run key (keyboard, default Shift) OR a
+                                 * near-full left-stick push (controller). Partial stick =
+                                 * walk. The old "any left-stick bit = run" heuristic forced
+                                 * run whenever moving, which is why TPS "always ran".
+                                 * leftX/leftY are u8 centered at 128; 96/128 ~= 75%.
+                                 * (Aiming a gun still forces walk at the move-speed site.) */
+                                s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+                                s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+                                int stickSprint = (lx * lx + ly * ly) >= (96 * 96);
+                                g_Player_IsRunning = cfgRun || stickSprint;
+                            }
+                            else
+#endif
+                            {
+                                int stickRun = (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown |
+                                                        ControllerFlag_LStickLeft | ControllerFlag_LStickRight)) != 0;
+                                g_Player_IsRunning = cfgRun || stickRun;
+                            }
                         }
                         g_Player_IsTurningLeft       = 0;
                         g_Player_IsTurningRight      = 0;
@@ -5172,6 +5191,23 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
     s32 currentAmmoVar;
     s32 totalAmmoVar;
     s32 i;
+
+#ifdef SH_PC_PORT
+    /* Free-aim run-then-aim fix: pressing aim while ALREADY running leaves the
+     * upper body in a Run* state, which the aim-entry switch below doesn't list
+     * (classic makes you stop to aim) — so aim never engaged and you just slowed
+     * down. In TPS/OTS with a gun, treat a Run* upper body as Walk so it falls
+     * into the aim-entry case and snaps to the ready pose, identical whether you
+     * started walking or running. Classic (g_DebugThirdPersonCam==0) untouched. */
+    if (g_DebugThirdPersonCam && g_Player_IsAiming &&
+        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+        (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunForward ||
+         g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunRight ||
+         g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunLeft))
+    {
+        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_WalkForward;
+    }
+#endif
 
     // Lock player view onto enemy.
     switch (g_SysWork.playerWork.extra.upperBodyState)
