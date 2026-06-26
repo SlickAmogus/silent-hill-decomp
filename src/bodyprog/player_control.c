@@ -1461,7 +1461,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                         D_800C4550 = Q12(0.0f);
                     } else if (g_Player_IsMovingForward) {
+#ifdef SH_PC_PORT
+                        /* Free-aim (OTS/TPS): no sprint while a ranged weapon is up
+                         * (Dead Space feel). Force walk speed when aiming a gun so the
+                         * Run leg anim is never selected — this is how move+aim+shoot
+                         * avoids the sprint-in-place bug instead of cancelling aim.
+                         * Classic camera (g_DebugThirdPersonCam==0) is unchanged. */
+                        if (g_Player_IsRunning &&
+                            !(g_DebugThirdPersonCam && g_Player_IsAiming &&
+                              g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
+                            D_800C4550 = Q12(3.0f);
+                        else
+                            D_800C4550 = Q12(1.5f);
+#else
                         D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
+#endif
                     } else if (g_Player_IsMovingBackward) {
                         D_800C4550 = Q12(-1.5f);
                     } else {
@@ -1625,64 +1639,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
                     fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
 
-                    /* Sprint overrides weapon ready: running and aiming at
-                     * the same time produces the sprint-in-place bug (D_800C4550
-                     * zeroed by aim path, run anim still plays).  Cancel aim
-                     * when the run button is held. */
-                    static bool s_sprintCancelledAim = false;
-                    /* TPS/OTS-only: this sprint-cancel-aim latch + the attack-bit
-                     * edge-flush further down are camera-shim behavior. Gate them
-                     * on the mode (the else-branch below resets the latch off-TPS)
-                     * so they never touch the classic upper-body state machine —
-                     * running them in classic on a mode switch wedged the attack
-                     * state and killed shooting until restart. */
-                    if (g_DebugThirdPersonCam && g_Player_IsRunning) {
+                    /* Free-aim (OTS/TPS): a ranged weapon stays aimed while running
+                     * (move+aim+shoot). Walk speed is forced at the move-speed site
+                     * above so the Run leg anim is never selected — no sprint-in-place
+                     * — which is why the old sprint-cancels-aim latch + AimStop/AimStart
+                     * recovery are no longer needed for guns. Melee has no Aim pose, so
+                     * still drop its "aim" while running to avoid the arm-swinging-in-
+                     * place bug. */
+                    if (g_DebugThirdPersonCam && g_Player_IsRunning &&
+                        g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
                         aimHeld = false;
                         g_Player_IsAiming = false;
-                        if (hasWeapon) s_sprintCancelledAim = true;
-                    }
-                    /* When sprint ends while the weapon-ready button is still
-                     * physically held, skip the AimStop→AimStart animation delay
-                     * and snap straight back to Aim.  Without this, Harry plays
-                     * the full lower-weapon then raise-weapon sequence (~30 frames)
-                     * before attacks are allowed again. */
-                    else if (g_DebugThirdPersonCam && s_sprintCancelledAim && !g_Player_IsRunning &&
-                             (g_Controller0->heldBtnFlags & aimBtn) && hasWeapon)
-                    {
-                        s_sprintCancelledAim = false;
-                        aimHeld = true;
-                        g_Player_IsAiming = true;
-                        g_SysWork.playerCombat.isAiming = true;
-                        /* Only snap upper body state for ranged weapons — melee
-                         * weapons (knife, pipe) have no Aim state and snapping
-                         * to it causes the arm-swinging-in-place bug. */
-                        bool isRanged = (g_SavegamePtr->equippedWeapon >= InvItemId_Handgun);
-                        if (isRanged) {
-                            e_PlayerUpperBodyState ubs = g_SysWork.playerWork.extra.upperBodyState;
-                            if (ubs != PlayerUpperBodyState_Aim &&
-                                ubs != PlayerUpperBodyState_Attack &&
-                                ubs != PlayerUpperBodyState_AimTargetLock)
-                            {
-                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
-                                extra->model.stateStep    = 0;
-                                extra->model.controlState = 0;
-                            }
-                        } else {
-                            /* Melee: no Aim state, but RunForward upper-body must be
-                             * cleared so the idle pose takes over instead of leaving
-                             * Harry swinging his arms in place. */
-                            e_PlayerUpperBodyState ubsMelee = g_SysWork.playerWork.extra.upperBodyState;
-                            if (ubsMelee == PlayerUpperBodyState_RunForward) {
-                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_None;
-                                extra->model.stateStep    = 0;
-                                extra->model.controlState = 0;
-                            } else {
-                            }
-                        }
-                    }
-                    else
-                    {
-                        s_sprintCancelledAim = false;
                     }
 
                     /* Edge-log key state changes so we can see in the log
@@ -1729,8 +1696,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
 
                     if (g_DebugThirdPersonCam && g_Player_IsAiming && hasWeapon) {
-                        if (g_Player_IsRunning)
-                            D_800C4550 = Q12(0.0f);
+                        /* (Removed the run+aim D_800C4550=0 freeze: aiming a gun now
+                         * forces walk speed at the move-speed site, so move+aim+shoot
+                         * works without zeroing movement.) */
                         g_SysWork.playerCombat.isAiming = true;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
                     }
@@ -3030,6 +2998,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Free-aim (OTS/TPS): the body already faces the camera (rotation.vy is set
+     * to g_TpsCamYaw by the camera shim). Zero the turn/auto-face delta D_800C454C
+     * so it isn't added on top here — the body stays locked to the camera yaw, no
+     * auto-face toward an enemy (the aim direction is the camera ray instead). */
+    if (g_DebugThirdPersonCam) {
+        D_800C454C = 0;
+    }
+#endif
     player->rotation.vy      = Q12_ANGLE_NORM_U(player->rotation.vy + (D_800C454C >> 4) + Q12_ANGLE(360.0f));
     player->headingAngle     = Q12_ANGLE_NORM_U((player->rotation.vy + g_Player_HeadingAngle) + Q12_ANGLE(360.0f));
     player->moveSpeed        = D_800C4550;
@@ -3517,6 +3494,20 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             D_800C44D0 = HARRY_BASE_ANIM_INFOS[g_Player_AttackAnimIdx].startKeyframeIdx + D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_E;
             D_800C44D4 = HARRY_BASE_ANIM_INFOS[g_Player_AttackAnimIdx].startKeyframeIdx + D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_E +
                          D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_F;
+#ifdef SH_PC_PORT
+            /* Instant fire (free-aim): jump the recoil anim straight to the damage
+             * window start so the bullet dispatches THIS frame (the keyframe check
+             * at ~3752/3790 passes immediately), then the recoil plays out from the
+             * shot. This is in the controlState==0 Attack-entry block, so it runs
+             * once on the press — NOT every frame (which would stall recoil at the
+             * damage frame). Ranged + OTS/TPS only; melee untouched. */
+            if (g_DebugThirdPersonCam && D_800C44D0 > 0 &&
+                g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+            {
+                extra->model.anim.keyframeIdx = D_800C44D0;
+                extra->model.anim.time        = Q12((s32)D_800C44D0);
+            }
+#endif
         }
 
         // Used for make continuos/hold shooting smoother?
@@ -5226,6 +5217,33 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                         }
                     }
 
+#ifdef SH_PC_PORT
+                    if (g_DebugThirdPersonCam &&
+                        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+                    {
+                        /* Instant aim-in (free-aim): skip the AimStart raise windup AND
+                         * the auto-target lock. Snap straight to the steady Unk34(true)
+                         * ready pose parked at the fire-window start (D_800C44F0[6].field_4)
+                         * so the very next trigger fires instantly (gunFireGated already
+                         * satisfied). stateStep=1 stops the Aim case re-issuing the slow
+                         * Unk34(false) raise. The aim DIRECTION is taken from the camera
+                         * ray in Player_CombatUpdate (free-aim) and the auto-face turn
+                         * (D_800C454C) is suppressed, so there is no target lock. */
+                        g_SysWork.targetNpcIdx = NO_VALUE;
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                        extra->model.stateStep    = 1;
+                        extra->model.controlState = 0;
+                        extra->model.anim.status  = ANIM_STATUS(HarryAnim_Unk34, true);
+                        if (D_800C44F0[6].field_4 > 0)
+                        {
+                            extra->model.anim.keyframeIdx = D_800C44F0[6].field_4;
+                            extra->model.anim.time        = Q12((s32)D_800C44F0[6].field_4);
+                        }
+                        playerProps.field_122 = Q12_ANGLE(90.0f);
+                    }
+                    else
+#endif
+                    {
                     g_SysWork.targetNpcIdx = g_Player_TargetNpcIdx;
                     if (g_SysWork.targetNpcIdx == NO_VALUE)
                     {
@@ -5236,6 +5254,7 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     {
                         g_SysWork.playerWork.extra.state          = PlayerState_Combat;
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_AimStartTargetLock;
+                    }
                     }
 
                     if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_None)
@@ -9141,6 +9160,58 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             {
                 unkAngle = Q12_ANGLE(33.75f);
             }
+
+#ifdef SH_PC_PORT
+            /* Free-aim (OTS/TPS): override the auto-target/facing aim with the
+             * CAMERA RAY so the bullet + muzzle particle go where the reticle
+             * (screen center = camera forward) points. Raycast from the camera eye
+             * along its forward; the hit point (or a far point if nothing is hit)
+             * is the aim target, and we aim Harry's hand AT it (converges past the
+             * OTS shoulder offset). Forcing D_800C4554/D_800C4556=NO_VALUE makes the
+             * damage dispatch (~9337) use these unkRot angles instead of a lock;
+             * field_122 keeps the upper-body aim pose pitch in sync. Ranged only
+             * (the enclosing branch already gates weaponAttack>=Handgun). */
+            if (g_DebugThirdPersonCam)
+            {
+                extern VECTOR3 g_TpsCamPos;
+                extern VECTOR3 g_TpsCamFwd;
+                s_RayTrace _tr;
+                VECTOR3    _off, _P;
+                VECTOR3*   _hand = &playerCombat.attackPosition;
+                s32        _dxq8, _dzq8, _dxz, _pitch;
+                #define SH_AIM_RANGE Q12(60.0f)
+                _off.vx = (s32)(((s64)g_TpsCamFwd.vx * SH_AIM_RANGE) >> 12);
+                _off.vy = (s32)(((s64)g_TpsCamFwd.vy * SH_AIM_RANGE) >> 12);
+                _off.vz = (s32)(((s64)g_TpsCamFwd.vz * SH_AIM_RANGE) >> 12);
+                #undef SH_AIM_RANGE
+                if (Ray_CharaTraceQuery(&_tr, &g_TpsCamPos, &_off, player))
+                {
+                    _P = _tr.target;
+                }
+                else
+                {
+                    _P.vx = g_TpsCamPos.vx + _off.vx;
+                    _P.vy = g_TpsCamPos.vy + _off.vy;
+                    _P.vz = g_TpsCamPos.vz + _off.vz;
+                }
+                /* Yaw: heading from the hand to the aim point (matches the engine's
+                 * ratan2(dx,dz) heading convention used just above). */
+                unkRot.vx = ratan2(_P.vx - _hand->vx, _P.vz - _hand->vz);
+                /* Pitch: ratan2(horizDist, dy) — 90deg = level, >90 = up, <90 = down,
+                 * matching field_122's clamp window. */
+                _dxq8 = Q12_TO_Q8(_P.vx - _hand->vx);
+                _dzq8 = Q12_TO_Q8(_P.vz - _hand->vz);
+                _dxz  = SquareRoot0(SQUARE(_dxq8) + SQUARE(_dzq8));
+                _pitch = ratan2(_dxz, Q12_TO_Q8(_P.vy - _hand->vy));
+                if (_pitch < Q12_ANGLE(33.75f))  _pitch = Q12_ANGLE(33.75f);
+                if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
+                unkRot.vy             = _pitch;
+                unkAngle              = _pitch;
+                playerProps.field_122 = _pitch;
+                D_800C4554 = NO_VALUE;
+                D_800C4556 = NO_VALUE;
+            }
+#endif
 
             if (player->field_44.field_0 > 0)
             {
