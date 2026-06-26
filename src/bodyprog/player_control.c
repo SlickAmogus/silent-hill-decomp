@@ -4896,7 +4896,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
                     bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
                     s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
-                    if (doneKf > 0 && extra->model.anim.keyframeIdx == doneKf)
+                    /* "reached or passed", NOT ==: at uncapped FPS the aim-start anim
+                     * steps OVER doneKf in a single frame, so == never matched and
+                     * Harry got stuck in AimStart — the aim pose is held but the
+                     * aim-RELEASE check only runs in the Aim state, so isAiming never
+                     * cleared ("stuck aiming even when not aiming"). Forward playback
+                     * ends at/above endKf; backward ends at/below startKf. */
+                    bool reached = isBackward ? (extra->model.anim.keyframeIdx <= doneKf)
+                                              : (extra->model.anim.keyframeIdx >= doneKf);
+                    if (doneKf > 0 && reached)
                     {
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                     }
