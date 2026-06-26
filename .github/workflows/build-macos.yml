@@ -32,8 +32,9 @@ jobs:
       - name: Install build dependencies
         run: |
           # AppleClang can't compile the PSX decomp C; build.sh auto-selects
-          # Homebrew GCC and points CMake at openal-soft.
-          brew install gcc cmake ninja sdl2 openal-soft
+          # Homebrew GCC and points CMake at openal-soft + jpeg-turbo (both
+          # keg-only, so build.sh passes their prefixes explicitly).
+          brew install gcc cmake ninja sdl2 openal-soft jpeg-turbo
 
       - name: Build (build.sh -> Ninja + map .dylib overlays)
         run: |
