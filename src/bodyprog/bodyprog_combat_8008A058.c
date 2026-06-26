@@ -1570,7 +1570,22 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap)       ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Hold)      ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Multitap);
-        if ((sp14 & sp10) && !_continuous)
+        /* Ranged guns fire their ENTIRE pellet spread in a single frame: in
+         * func_8008A3E0 the outer sweep cap sp38 == 1, so after the first call
+         * field_4 (sp40) exhausts and no further pellets emit. The shotgun's
+         * inner loop fires charaId (>1) pellets that frame, each a SEPARATE
+         * func_8008B714 hit on the same target — they must all count, unlike a
+         * melee hitbox re-applying across frames. The one-hit-per-swing guard
+         * wrongly zeroed pellets 2..N, cutting shotgun damage to ~1/pelletCount
+         * (Split Head needed 20-30 shots to open its mouth instead of ~5). It's
+         * fps-independent (one-frame burst), so exempting the guns is faithful;
+         * single-pellet guns (handgun/rifle, charaId==1) are unaffected. */
+        int _rangedGun =
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Handgun,      AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Shotgun,      AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap);
+        if ((sp14 & sp10) && !_continuous && !_rangedGun)
         {
             damageAmount = Q12(0.0f);
             var_s7       = 0;
