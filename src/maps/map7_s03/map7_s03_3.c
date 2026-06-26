@@ -342,6 +342,30 @@ void func_800E1854(void) // 0x800E1854
     VECTOR3 sp20;
     q19_12  var_v0;
 
+#ifdef SH_PC_PORT
+    /* [BOSSFX2] pre-spawn fire/lightning diagnostic. Load the arena, let the
+     * wrong fire/lightning show, exit. Tells us: the FX mode (f0; -1/NO_VALUE =
+     * idle), the lightning-spline draw gate (spl0/spl1 pos/f12/f14 — func_800E24A0
+     * only draws when ALL three are nonzero), and the fire/mesh/world-object gates
+     * (D_800F4820 fire pool, D_800F4830 mesh, D_800F4811/18/19/1A WorldGfx). If f0
+     * != -1 the FX state is in/stomped into an active mode; if a spline's three
+     * fields are nonzero it's drawing; a set gate means that effect is drawing.
+     * TEMP — strip once diagnosed. */
+    {
+        static int _bfx2 = 0;
+        if ((_bfx2++ % 30) == 0) {
+            s_800F4B40_1C* _s0 = &D_800F4B40.field_1C[0];
+            s_800F4B40_1C* _s1 = &D_800F4B40.field_1C[1];
+            SH_DBG("[BOSSFX2] f0=%d f4=%d | spl0 pos=%d f12=%d f14=%d | spl1 pos=%d f12=%d f14=%d | fire4820=%d mesh4830=%d wo4811=%d 4818=%d 4819=%d 481A=%d",
+                   (int)D_800F4B40.field_0, (int)D_800F4B40.field_4,
+                   (int)_s0->pos_10, (int)_s0->field_12, (int)_s0->field_14,
+                   (int)_s1->pos_10, (int)_s1->field_12, (int)_s1->field_14,
+                   (int)D_800F4820, (int)D_800F4830, (int)D_800F4811,
+                   (int)D_800F4818, (int)D_800F4819, (int)D_800F481A);
+        }
+    }
+#endif
+
     switch (D_800F4B40.field_0)
     {
         case NO_VALUE:
