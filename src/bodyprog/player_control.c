@@ -9338,18 +9338,28 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 /* Yaw: heading from the hand to the aim point (matches the engine's
                  * ratan2(dx,dz) heading convention used just above). */
                 unkRot.vx = ratan2(_P.vx - _hand->vx, _P.vz - _hand->vz);
-                /* Pitch: take it straight from the camera look pitch, NOT hand->P.
-                 * In OTS the camera sits above/behind the hand, so a hand->P pitch
-                 * reads steeply UP even for a level camera (the "arms thrown over
-                 * the head" bug). field_122: 90 = level, >90 = up; g_TpsCamPitch is
-                 * the camera look pitch (>0 = up; fwdY = -sin(pitch)). This drives
-                 * BOTH the bullet pitch and the body tilt (both read field_122). */
-                _pitch = Q12_ANGLE(90.0f) + g_TpsCamPitch;
+                /* Pitch: aim from the HAND to the camera-ray hit point P so the
+                 * bullet (and muzzle particle) actually go THROUGH the reticle. The
+                 * camera sits above/behind the hand, so using the camera's own pitch
+                 * makes shots under/overshoot the target (bullets missed an enemy
+                 * the reticle was dead-on). The old reason for using camera pitch
+                 * (arms thrown over the head) is gone — the aim pose no longer
+                 * rotates the arms, only the torso leans. Convention: 90 = level,
+                 * <90 = down, >90 = up; horiz>0 keeps ratan2 in the 0..180 range. */
+                {
+                    s32 _dx6   = (_P.vx - _hand->vx) >> 6;
+                    s32 _dz6   = (_P.vz - _hand->vz) >> 6;
+                    s32 _dy6   = (_P.vy - _hand->vy) >> 6;
+                    s32 _horiz = SquareRoot0((u32)(SQUARE(_dx6) + SQUARE(_dz6)));
+                    _pitch = (_horiz != 0 || _dy6 != 0) ? ratan2(_horiz, _dy6)
+                                                        : Q12_ANGLE(90.0f);
+                }
                 if (_pitch < Q12_ANGLE(33.75f))  _pitch = Q12_ANGLE(33.75f);
                 if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
                 unkRot.vy             = _pitch;
                 unkAngle              = _pitch;
                 playerProps.field_122 = _pitch;
+                (void)g_TpsCamPitch;
                 D_800C4554 = NO_VALUE;
                 D_800C4556 = NO_VALUE;
             }
