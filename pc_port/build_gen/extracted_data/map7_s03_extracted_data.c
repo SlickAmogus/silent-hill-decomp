@@ -537,3 +537,13 @@ u8 g_WorldObject_UnkPos[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+// Boss force-field grid anchor + lightning-burst position (extern VECTOR3).
+// Were u8[256]={0} zero-stubs in data_stubs.c -> the Incubus force-field grid
+// and lightning anchored at world origin (0,0,0) instead of the arena, so the
+// flame/lightning rendered "under and around the map". Real values from
+// MAP7_S03.BIN (cluster at 0x800ED238): D_800ED244=(139.7,0,-99.2),
+// D_800ED250=(139.6,0,-99.8). EXTRA_SYMBOLS entries added so a full regen
+// reproduces these; appended here surgically per the regen-drops-symbols rule.
+u8 D_800ED244[12] = { 0x33, 0xBB, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xCD, 0xCC, 0xF9, 0xFF };
+u8 D_800ED250[12] = { 0x99, 0xB9, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0xC3, 0xF9, 0xFF };
+
