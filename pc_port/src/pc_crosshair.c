@@ -48,13 +48,13 @@ void Pc_CrosshairDraw(void)
             setPolyG4(&s_poly[i]);
             setSemiTrans(&s_poly[i], 1);
         }
-        /* Center on screen. The bars were authored around (0,0) (top-left corner);
-         * the crosshair shares OT2's UI-ortho coordinate space. X uses the 320
-         * logical width, but Y must use the actual UI-ortho HEIGHT: the UI pass
-         * draws OT2 with ortho (0, disp.w, disp.h, 0) and disp.h is 224, NOT the
-         * 240 logical SCREEN_HEIGHT — using 240/2=120 put the reticle ~8px low. */
-        #define CH_CX (SCREEN_WIDTH / 2)   /* 160 */
-        #define CH_CY 112                  /* 224 / 2 (UI-ortho display height) */
+        /* The OT g_OtTags0[][4] is CENTER-ORIGIN: the cutscene-border bars that
+         * share it are authored around (0,0) = screen center (x in [-halfW,+halfW],
+         * y in [-o,+o]; see cutscene_border.c). So the crosshair center is (0,0).
+         * The old (160,112) assumed (0,0) was the top-left corner and landed the
+         * reticle in the BOTTOM-RIGHT corner (x~right edge, y~bottom edge). */
+        #define CH_CX 0
+        #define CH_CY 0
         for (i = 0; i < 2; i++)
         {
             setXY4(&s_poly[i],     CH_CX - CH_LEN,   CH_CY - CH_THICK,  CH_CX + CH_LEN,   CH_CY - CH_THICK,  CH_CX - CH_LEN,   CH_CY + CH_THICK,  CH_CX + CH_LEN,   CH_CY + CH_THICK);
