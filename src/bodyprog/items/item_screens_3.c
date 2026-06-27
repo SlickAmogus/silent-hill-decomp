@@ -49,11 +49,23 @@ GsDOBJ2 g_Items_ItemsModelData[9]; // 0x800C3D78
 
 GsDOBJ2 D_800C3E08;
 
+#ifdef SH_PC_PORT
+// PSX BSS aliasing: on retail D_800C3E18[7] overlaps g_Inventory_EquippedItemIdx
+// (0x800C3E34) and [8]/[9] overlap __pad_bss_800C3E38, and the code relies on
+// that overlap (e.g. Gfx_Items_Draw writes [7] then reads the named symbol).
+// Back all three with one array so the intentional out-of-bounds indices stay
+// in-bounds under ASan, and alias the named symbol to the same slot to keep the
+// overlap. The in-bounds [0..6] accesses are unchanged.
+s32 D_800C3E18[10]; // 0x800C3E18
+#define g_Inventory_EquippedItemIdx D_800C3E18[7]
+s32 __pad_bss_800C3E38[2];
+#else
 s32 D_800C3E18[7]; // 0x800C3E18
 
 s32 g_Inventory_EquippedItemIdx; // 0x800C3E34
 
 s32 __pad_bss_800C3E38[2];
+#endif
 
 u8 D_800C3E40;
 
@@ -4011,9 +4023,27 @@ void func_8005487C(s32 arg0) // 0x8005487C
 
 void func_800548D8(s32 idx) // 0x800548D8
 {
+#ifdef SH_PC_PORT
+    /* g_Items_Lights is only [7][2]; on PSX idx 7-9 write the [idx][0] light,
+     * which aliases D_800C3A88[0]/D_800C3A88[2]/D_800C3AC8[0] in BSS. Redirect
+     * so the write stays in-bounds (matches the aliasing handled in the sibling
+     * lighting funcs). */
+    GsF_LIGHT* light;
+    switch (idx)
+    {
+        case 7:  light = &D_800C3A88[0]; break;
+        case 8:  light = &D_800C3A88[2]; break;
+        case 9:  light = &D_800C3AC8[0]; break;
+        default: light = &g_Items_Lights[idx][0]; break;
+    }
+    light->vx = g_Items_Coords[idx].coord.t[0];
+    light->vy = g_Items_Coords[idx].coord.t[1];
+    light->vz = g_Items_Coords[idx].coord.t[2] + 20000;
+#else
     g_Items_Lights[idx][0].vx = g_Items_Coords[idx].coord.t[0];
     g_Items_Lights[idx][0].vy = g_Items_Coords[idx].coord.t[1];
     g_Items_Lights[idx][0].vz = g_Items_Coords[idx].coord.t[2] + 20000;
+#endif
 }
 
 void Gfx_Items_SetAmbientLighting(void) // 0x80054928
