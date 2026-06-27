@@ -3398,9 +3398,155 @@ void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState up
     }
 }
 
+#ifdef SH_PC_PORT
+/* ── Clean PC free-aim (TPS/OTS) gun upper-body FSM ──
+ * Replaces the patched PSX gun-combat path (Player_CombatAnimUpdate + its
+ * blend / keyframe-reset hacks) which wedged the 2nd shot and looped the
+ * shotgun reload at high FPS. Three explicit states drive ONLY the upper body;
+ * the lower body keeps its movement anim, and the steady-aim re-pose block
+ * (Player_Update) holds the AIM pose. Damage / ammo / SFX reuse the existing
+ * (working) dispatch verbatim. Completion is range-based (>=) plus a safety cap
+ * so frame pacing can never strand a state. */
+typedef enum { PcGun_Aim = 0, PcGun_Fire, PcGun_Reload } e_PcGunState;
+
+static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra, bool freshAim)
+{
+    static e_PcGunState s_state    = PcGun_Aim;
+    static s32          s_stuckTmr = 0;
+
+    u8  recoilSt  = (u8)(g_Player_EquippedWeaponInfo.animAttackHold | 1); /* Unk30 active */
+    s16 recoilBeg = HARRY_BASE_ANIM_INFOS[recoilSt].startKeyframeIdx;
+    s16 recoilEnd = HARRY_BASE_ANIM_INFOS[recoilSt].endKeyframeIdx;
+    u8  reloadSt  = (u8)ANIM_STATUS(HarryAnim_HandgunRecoil, true);
+    s16 reloadBeg = HARRY_BASE_ANIM_INFOS[reloadSt].startKeyframeIdx;
+    s16 reloadEnd = HARRY_BASE_ANIM_INFOS[reloadSt].endKeyframeIdx;
+
+    bool fireHeld  = g_Player_IsShooting != 0;
+    bool reloadReq = PC_PlayerManualReloadRequested();
+    s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
+    s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
+
+    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; }
+
+    switch (s_state)
+    {
+        default:
+        case PcGun_Aim:
+        {
+            /* Hold the ready pose. Pin the hold anim at the per-weapon keyframe
+             * (the re-pose block draws it) and keep the status non-recoil so the
+             * re-pose applies. */
+            s32 holdKf = Pc_AimHoldKf();
+            extra->upperBodyState         = PlayerUpperBodyState_Aim;
+            extra->model.anim.status      = ANIM_STATUS(HarryAnim_Unk34, true);
+            extra->model.anim.keyframeIdx = holdKf;
+            extra->model.anim.time        = Q12(holdKf);
+            playerProps.flags &= ~PlayerFlag_Shooting;
+
+            if (reserve > 0 && reloadBeg > 0 && (reloadReq || (fireHeld && ammo == 0)))
+            {
+                /* Begin reload: play only the reload anim, firing locked out. */
+                extra->upperBodyState         = PlayerUpperBodyState_Reload;
+                extra->model.anim.status      = reloadSt;
+                extra->model.anim.keyframeIdx = reloadBeg;
+                extra->model.anim.time        = Q12((s32)reloadBeg);
+                func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx, &player->position, Q8(0.5f), 0);
+                player->properties.player.field_10C = 0x20;
+                s_state    = PcGun_Reload;
+                s_stuckTmr = 0;
+                break;
+            }
+
+            if (fireHeld && ammo > 0)
+            {
+                /* Fire: the existing (working) damage trigger + ammo + SFX. */
+                player->field_44.field_0 = 1;
+                if (g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap))
+                {
+                    g_SysWork.playerCombat.currentWeaponAmmo--;
+                    g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1--;
+                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8(0.5f), 0);
+                }
+                else
+                {
+                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8_CLAMPED(0.19f), 0);
+                }
+                player->properties.player.field_10C = 0xC8;
+                playerProps.flags |= PlayerFlag_Shooting;
+
+                extra->upperBodyState = PlayerUpperBodyState_Attack;
+                if (recoilBeg > 0)
+                {
+                    extra->model.anim.status      = recoilSt;
+                    extra->model.anim.keyframeIdx = recoilBeg;
+                    extra->model.anim.time        = Q12((s32)recoilBeg);
+                }
+                s_state    = PcGun_Fire;
+                s_stuckTmr = 0;
+            }
+            break;
+        }
+
+        case PcGun_Fire:
+            /* One recoil per shot; back to ready when it ends (fire again next
+             * frame if still held). */
+            extra->upperBodyState = PlayerUpperBodyState_Attack;
+            if (recoilEnd <= 0 || extra->model.anim.keyframeIdx >= recoilEnd || ++s_stuckTmr > 180)
+            {
+                s_state    = PcGun_Aim;
+                s_stuckTmr = 0;
+            }
+            break;
+
+        case PcGun_Reload:
+            extra->upperBodyState = PlayerUpperBodyState_Reload;
+            if (reloadEnd <= 0 || extra->model.anim.keyframeIdx >= reloadEnd || ++s_stuckTmr > 600)
+            {
+                if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
+                {
+                    s32 cur = g_SysWork.playerCombat.currentWeaponAmmo;
+                    s32 tot = g_SysWork.playerCombat.totalWeaponAmmo;
+                    s32 i;
+                    Items_AmmoReloadCalculation(&cur, &tot, g_SysWork.playerCombat.weaponAttack);
+                    g_SysWork.playerCombat.currentWeaponAmmo = cur;
+                    g_SysWork.playerCombat.totalWeaponAmmo   = tot;
+                    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+                    {
+                        if (g_SavegamePtr->items[i].id_0 == (g_SysWork.playerCombat.weaponAttack + InvItemId_KitchenKnife))
+                            g_SavegamePtr->items[i].count_1 = g_SysWork.playerCombat.currentWeaponAmmo;
+                        if (g_SavegamePtr->items[i].id_0 == (g_SysWork.playerCombat.weaponAttack + InvItemId_Handgun))
+                            g_SavegamePtr->items[i].count_1 = g_SysWork.playerCombat.totalWeaponAmmo;
+                    }
+                }
+                s_state    = PcGun_Aim;
+                s_stuckTmr = 0;
+            }
+            break;
+    }
+}
+#endif
+
 void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80074254
 {
     s32 stumbleSfxId;
+
+#ifdef SH_PC_PORT
+    /* Free-aim (TPS/OTS) guns run the dedicated clean upper-body FSM instead of
+     * the patched PSX gun-combat path. Gate on actively aiming a ranged weapon;
+     * melee, holstered, and classic camera keep the original logic. */
+    {
+        static u8 s_pcGunWasAiming = 0;
+        if (g_DebugThirdPersonCam && g_SysWork.playerCombat.isAiming &&
+            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+        {
+            bool fresh = !s_pcGunWasAiming;
+            s_pcGunWasAiming = 1;
+            Pc_FreeAimGunUpperBody(player, extra, fresh);
+            return;
+        }
+        s_pcGunWasAiming = 0;
+    }
+#endif
 
     if (Player_UpperBodyMainUpdate(player, extra))
     {
