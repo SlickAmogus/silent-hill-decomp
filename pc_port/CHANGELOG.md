@@ -1,5 +1,63 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.26.1 -- 2026-06-26
+- Fixed major issue with ranged weapons causing bosses like split head and some regular enemies to take way too many shots to kill
+- Fixed stretch item pickups
+- Added Linux and MacOS build support and they should be in nightly builds now, haven't tested yet since this is the first one
+- More air screamer fixes
+- More ending cutscene fixes, still need to work on fire texture issues and lightning/fire under and around map
+- Lighting on water partially fixed
+- Fixed TPS/OTS camera being active during cutscenes
+- Big updates to OTS/TPS modes, added proper animations for strafing, increased speed, made walking/running controller sensitive, changed aiming animation to a more fitting one, near instant shooting. It's still buggy, still working on updating it.
+- Added keyframe viewer debug tool. In debug mode, press K to activate it. It will freeze Harry (you can still move) and you can cycle through his keyframes with , and . and change animation types with / - switching to other loaded NPCs and cycling their animations is planned
+- Other misc fixes, below will have more details, but some of the things mentioned are not actually fixed. However it will at least give a good idea of what is being worked on.
+Coming soon: Fixing remaining graphical/audio issues, further tweak alt. camera modes, clean up launcher and add more GFX options, fix extra weapons and see thru inventory
+
+Commit summaries:
+- Revert dt-carry global timing change (edfe66887) — disturbed other cutscenes
+- Stub sweep: extract 5 confirmed read-before-write ROM tables (audit HIGH/MED-HIGH)
+- Linux build support (integrate SlickAmogus SH PR#22 + PsyCross PR#3), Windows-safe
+- Cutscene timing probes: [XATIME] (xa_player) + [MSGSYNC] (map_msg_display)
+- Point PsyCross submodule at master tip (2e36ecd) after merging Linux support
+- macOS (arm64) build support (integrate SlickAmogus SH PR#20 + PsyCross PR#1)
+- ci: add Linux + macOS build workflows + release-nightly -AttachCrossPlatform
+- linux: -Wl,-Bsymbolic on map .so — fix cafe (map0_s01) reload loop
+- ci: add missing libjpeg (FMV MJPG decode) to Linux + macOS builds
+- build.sh: fix macOS gcc detection aborting under set -e
+- cmake: make <SDL2/SDL.h> resolve with Homebrew SDL2 (macOS)
+- map7_s03: fix Good+ ending falling-fire ghost textures (64-bit ptr truncation)
+- map7_s03: fix Good+ ending bottle-smash ~10s freeze (high-fps one-shot miss)
+- map7_s03: fix boss flame/lightning rendering under/around the arena (zero-stubs)
+- map7_s03: bottle breaks on impact (was hovering intact through the scream)
+- release-nightly: include Linux+macOS builds by default (was opt-in)
+- map7_s03: stop boss flame/lightning rendering after the Incubus fight (stale gate)
+- OTS/TPS free-aim: move+aim+shoot, instant aim/fire, camera-ray reticle (first cut)
+- OTS/TPS free-aim tuning: walk/sprint model, run-then-aim, crosshair center
+- OTS/TPS free-aim: tilt Harry's torso + arms toward the aim pitch
+- OTS/TPS free-aim: pitch from camera look, not hand->point (fix arms-over-head)
+- PC-disable audit: re-enable 4 band-aid'd effects + strip dead probes
+- OTS/TPS free-aim: park instant-aim at keyframe 588 (gun-forward), not field_4
+- Add in-game keyframe inspector (K / , / .) for finding Harry poses
+- Add anim-info panel to the keyframe inspector (amber box, K)
+- Keyframe inspector: kf console command + accelerating , . hold
+- Fix stretched pickup/take-item: skip H-correction in Hor+ mode
+- map7_s03: clear force-field mesh gate (D_800F4830) on Incubus exit + ending
+- Revert D_800F4830 gate change (58226d6be) — not the cause
+- OTS/TPS: side-run strafe anims (HarryAnim_RunLeft/RunRight) when sprinting
+- Keyframe inspector: `/` jumps to next anim start + show anim range
+- Combat: shotgun deals full pellet damage (fix Split Head tankiness)
+- Keyframe inspector: `/` cycles the equipped weapon's upper-body anims
+- OTS/TPS: full-body strafe + turn-run adapts to directional run anim
+- Keyframe inspector: reach weapon anims past base keyframeCount (567->658)
+- OTS/TPS aim hold at kf591 + full-body movement (gun-equipped) + dir anims
+- OTS/TPS aim: stop arm-overwrite (hands-behind-head); faster run + match strafe
+- OTS/TPS: force the default cinematic camera during cutscenes
+- OTS/TPS free-aim: bullet pitch from hand->target so shots hit the reticle
+- map7_s03: [BOSSFX2] diagnostic for pre-spawn fire/lightning
+- map7_s03 diag: `add` console command to isolate the additive fire/lightning layer
+- OTS/TPS: bullets hit screen center + crosshair centered
+- OTS/TPS: fix Harry stuck in the aim pose when not aiming
+
 ## beta-2026.06.25.5 -- 2026-06-25
 - Air screamer fixes
 - Harry extra voice lines in Lisa cutscene fixed.
