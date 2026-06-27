@@ -1878,6 +1878,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         g_SysWork.playerCombat.isAiming = true;
                         extra->lowerBodyState = PlayerLowerBodyState_Aim;
                     }
+                    else if (g_DebugThirdPersonCam &&
+                             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
+                        /* Free-aim gun: aim released (or weapon lost). Clear isAiming
+                         * so the custom upper-body FSM (Pc_FreeAimGunUpperBody) exits
+                         * and the normal movement path resumes. We bypass
+                         * Player_UpperBodyMainUpdate, which is where the PSX path used
+                         * to clear this — without it Harry is stuck aiming forever. */
+                        g_SysWork.playerCombat.isAiming = false;
+                    }
 
                     /* Flush PSX shift-register attack bits ONCE when weapon-ready
                      * is released (edge: was held → now not held).  Flushing every
@@ -3417,9 +3426,6 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
     u8  recoilSt  = (u8)(g_Player_EquippedWeaponInfo.animAttackHold | 1); /* Unk30 active */
     s16 recoilBeg = HARRY_BASE_ANIM_INFOS[recoilSt].startKeyframeIdx;
     s16 recoilEnd = HARRY_BASE_ANIM_INFOS[recoilSt].endKeyframeIdx;
-    u8  reloadSt  = (u8)ANIM_STATUS(HarryAnim_HandgunRecoil, true);
-    s16 reloadBeg = HARRY_BASE_ANIM_INFOS[reloadSt].startKeyframeIdx;
-    s16 reloadEnd = HARRY_BASE_ANIM_INFOS[reloadSt].endKeyframeIdx;
 
     bool fireHeld  = g_Player_IsShooting != 0;
     bool reloadReq = PC_PlayerManualReloadRequested();
@@ -3443,13 +3449,14 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             extra->model.anim.time        = Q12(holdKf);
             playerProps.flags &= ~PlayerFlag_Shooting;
 
-            if (reserve > 0 && reloadBeg > 0 && (reloadReq || (fireHeld && ammo == 0)))
+            if (reserve > 0 && (reloadReq || (fireHeld && ammo == 0)))
             {
-                /* Begin reload: play only the reload anim, firing locked out. */
+                /* Begin reload: play the reload anim (blend->active track) from the
+                 * proven per-weapon keyframes, firing locked out. */
                 extra->upperBodyState         = PlayerUpperBodyState_Reload;
-                extra->model.anim.status      = reloadSt;
-                extra->model.anim.keyframeIdx = reloadBeg;
-                extra->model.anim.time        = Q12((s32)reloadBeg);
+                extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                extra->model.anim.keyframeIdx = D_800AF624;
+                extra->model.anim.time        = Q12((s32)D_800AF624);
                 func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx, &player->position, Q8(0.5f), 0);
                 player->properties.player.field_10C = 0x20;
                 s_state    = PcGun_Reload;
@@ -3489,9 +3496,11 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
 
         case PcGun_Fire:
             /* One recoil per shot; back to ready when it ends (fire again next
-             * frame if still held). */
+             * frame if still held). Done = recoil reached its end keyframe OR the
+             * playback linked the status away (direction-agnostic) OR safety cap. */
             extra->upperBodyState = PlayerUpperBodyState_Attack;
-            if (recoilEnd <= 0 || extra->model.anim.keyframeIdx >= recoilEnd || ++s_stuckTmr > 180)
+            if (recoilEnd <= 0 || extra->model.anim.keyframeIdx >= recoilEnd ||
+                extra->model.anim.status != recoilSt || ++s_stuckTmr > 180)
             {
                 s_state    = PcGun_Aim;
                 s_stuckTmr = 0;
@@ -3500,7 +3509,15 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
 
         case PcGun_Reload:
             extra->upperBodyState = PlayerUpperBodyState_Reload;
-            if (reloadEnd <= 0 || extra->model.anim.keyframeIdx >= reloadEnd || ++s_stuckTmr > 600)
+            /* PSX plays the keyframe track continuously through the blend (false)
+             * into the active reload (true); advance the status at the blend end. */
+            if (extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false))
+            {
+                s16 blendEnd = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx;
+                if (blendEnd > 0 && extra->model.anim.keyframeIdx >= blendEnd)
+                    extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, true);
+            }
+            if ((D_800AF626 > 0 && extra->model.anim.keyframeIdx >= D_800AF626) || ++s_stuckTmr > 600)
             {
                 if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
                 {
