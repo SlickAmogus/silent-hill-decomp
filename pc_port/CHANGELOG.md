@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.26.2 -- 2026-06-26
+- Reworked TPS/OTS upper body animation and aiming system and it is much better than before. Not perfect, but will be tuned in future updates.
+- Backspace now toggles free aiming crosshair while ingame
+
+Commit summaries:
+- TPS/OTS aim: per-weapon ready keyframe + Backspace crosshair toggle
+- Custom clean upper-body fire/reload FSM for free-aim guns
+- Fix free-aim FSM: aim-release stuck + reload reliability
+
 ## beta-2026.06.26.1 -- 2026-06-26
 - Fixed major issue with ranged weapons causing bosses like split head and some regular enemies to take way too many shots to kill
 - Fixed stretch item pickups
