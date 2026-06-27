@@ -3434,6 +3434,15 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
 
     if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; }
 
+    /* Keep Harry in the combat player-state so the free-aim camera-ray bullet
+     * override (Player_CombatUpdate) runs every frame. That override is gated on
+     * extra->state being None/Combat; the PSX fire path used to set Combat, but
+     * we bypass it, so without this the shot falls back to Harry's body facing
+     * (player->angleToTarget) and only hits enemies directly ahead. Clearing the
+     * auto-target keeps the bullet on the camera ray, not a stale lock. */
+    g_SysWork.playerWork.extra.state = PlayerState_Combat;
+    g_Player_TargetNpcIdx            = NO_VALUE;
+
     switch (s_state)
     {
         default:
