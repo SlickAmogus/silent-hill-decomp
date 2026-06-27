@@ -2054,7 +2054,16 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
 
 void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
 {
+#ifdef SH_PC_PORT
+    /* gte_ldv0 loads two 32-bit words (vx|vy and vz|pad), so it reads bytes
+     * 4-7. SVECTOR3 is only 6 bytes -> the second word overreads 2 bytes past
+     * the local. Harmless on PSX/Win (lands on adjacent stack), but on Linux a
+     * tightly-packed stack makes it a real out-of-bounds read (ASan abort).
+     * Use the 8-byte SVECTOR (with pad) like every other gte_ldv0 var here. */
+    SVECTOR   posQ8;
+#else
     SVECTOR3  posQ8;
+#endif
     POLY_FT4* poly;
     s32       depth;
     s32       depthDiv16;
@@ -2423,7 +2432,14 @@ void Particle_SnowDraw(s_Particle* part)
     VECTOR3     partCorners[2];
 #endif
 
+#ifdef SH_PC_PORT
+    /* See func_800CE02C: gte_ldv0 reads 8 bytes (vz|pad word), so this GTE
+     * input vector must be the 8-byte SVECTOR, not the 6-byte SVECTOR3, or it
+     * overreads the stack (Linux/ASan abort in Particle_SnowDraw). */
+    SVECTOR     particlePosQ8;
+#else
     SVECTOR3    particlePosQ8;
+#endif
     s32         zScreenStart;
 
     u8          primColorG;
