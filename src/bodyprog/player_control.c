@@ -58,6 +58,25 @@ static void Player_CrashHandler(int sig) {
 #include "pc_combat.h"
 #include "pc_timing.h"
 #include "pc_config.h"
+
+/* Per-weapon steady gun-forward "ready" keyframe for OTS/TPS free-aim. The
+ * rifle reads cleaner a few frames before the shared default; the handgun and
+ * shotgun settle one frame earlier (587/588 chosen by eye in-game). Anything
+ * else (e.g. HyperBlaster) keeps PC_AIM_HOLD_KF. weaponAttack holds the Tap
+ * form for an equipped gun (32/33/34), so compare against those directly. */
+static s32 Pc_AimHoldKf(void)
+{
+    switch (g_SysWork.playerCombat.weaponAttack)
+    {
+        case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
+            return 587;
+        case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
+        case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
+            return 588;
+        default:
+            return PC_AIM_HOLD_KF;
+    }
+}
 #endif
 
 s_800C44F0 D_800C44F0[10];
@@ -789,7 +808,7 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
         {
             /* Steady-aim HOLD: re-pose the upper body at the verified gun-forward
-             * keyframe (591) so it doesn't drift (Unk34 plays backward toward ~580).
+             * keyframe (Pc_AimHoldKf, per weapon) so it doesn't drift (Unk34 plays backward toward ~580).
              * Skip ONLY during the actual shot (recoil anims) so the forward
              * shooting animation plays. Lower body keeps its movement anim (LOWER
              * mask disabled = upper bones only). */
@@ -797,8 +816,9 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             if (_upIdx != HarryAnim_Unk29 && _upIdx != HarryAnim_Unk30 &&
                 _upIdx != HarryAnim_HandgunRecoil)
             {
+                s32 _holdKf = Pc_AimHoldKf();
                 g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
-                Anim_BoneUpdate(anmHdr, coords, PC_AIM_HOLD_KF, PC_AIM_HOLD_KF, Q12(0.0f));
+                Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
             }
 
             /* Aim pitch: lean the TORSO toward the aim angle. The upper arms + gun
@@ -3795,7 +3815,19 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
-                if (playerProps.flags & PlayerFlag_Unk11)
+                if ((playerProps.flags & PlayerFlag_Unk11)
+#ifdef SH_PC_PORT
+                    /* TPS/OTS instant fire: Harry already holds the gun extended at
+                     * the aim-hold (kf591), so route EVERY shot — including the first
+                     * — through the short Unk30 recoil instead of the full Unk36
+                     * (gun raise + extend + recoil). The bullet then dispatches as the
+                     * recoil starts (kf ~593->594 damage window) instead of after the
+                     * 12-frame raise windup — that windup is the "animation finishes
+                     * before he fires" delay. The recoil anim itself still plays
+                     * (unchanged); between-shots cadence is still its length. */
+                    || g_DebugThirdPersonCam
+#endif
+                   )
                 {
                     if (extra->model.stateStep == 0)
                     {
@@ -5273,8 +5305,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                  * 588→580 over ~14 PC frames, giving a smooth "gun comes back
                  * to ready" tail to the reload instead of a snap. */
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_Unk34, true);
-                extra->model.anim.keyframeIdx                         = PC_AIM_HOLD_KF;
-                extra->model.anim.time                                = Q12(PC_AIM_HOLD_KF);
+                {
+                    s32 _holdKf = Pc_AimHoldKf();
+                    extra->model.anim.keyframeIdx                     = _holdKf;
+                    extra->model.anim.time                            = Q12(_holdKf);
+                }
 #else
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_HandgunAim, true);
                 extra->model.anim.keyframeIdx                         = 588;
@@ -5388,9 +5423,8 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     {
                         /* Instant aim-in (free-aim): skip the AimStart raise windup AND
                          * the auto-target lock. Snap straight to the steady Unk34(true)
-                         * gun-forward hold at keyframe 591 (user-verified ready pose,
-                         * the same for every ranged weapon — the shared keyframe pool).
-                         * The steady-aim HOLD at 591 (Unk34 plays backward and would
+                         * gun-forward hold at the per-weapon ready keyframe (Pc_AimHoldKf).
+                         * The steady-aim HOLD (Unk34 plays backward and would
                          * otherwise drift to ~580) is enforced after Player_AnimUpdate.
                          * stateStep=1 stops the Aim case re-issuing the slow Unk34(false)
                          * raise. Aim DIRECTION comes from the camera ray in
@@ -5400,8 +5434,11 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                         extra->model.stateStep    = 1;
                         extra->model.controlState = 0;
                         extra->model.anim.status  = ANIM_STATUS(HarryAnim_Unk34, true);
-                        extra->model.anim.keyframeIdx = PC_AIM_HOLD_KF;
-                        extra->model.anim.time        = Q12(PC_AIM_HOLD_KF);
+                        {
+                            s32 _holdKf = Pc_AimHoldKf();
+                            extra->model.anim.keyframeIdx = _holdKf;
+                            extra->model.anim.time        = Q12(_holdKf);
+                        }
                         playerProps.field_122 = Q12_ANGLE(90.0f);
                     }
                     else

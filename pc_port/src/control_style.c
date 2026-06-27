@@ -250,6 +250,19 @@ void Pc_ControlStyleUpdate(void)
         prevSwap = curSwap;
     }
 
+    /* Backspace: toggle the alternate-camera (TPS/OTS) aim crosshair — gameplay
+     * only. Drives g_PcConfig.crosshair, the same gate the draw checks. */
+    {
+        static int prevCh = 0;
+        int        curCh  = (keys) ? keys[SDL_SCANCODE_BACKSPACE] : 0;
+        if (inGameplay && curCh && !prevCh)
+        {
+            g_PcConfig.crosshair = !g_PcConfig.crosshair;
+            SH_DBG_ECHO("[CTRLSTYLE] Crosshair: %s", g_PcConfig.crosshair ? "ON" : "OFF");
+        }
+        prevCh = curCh;
+    }
+
     /* Capture the mouse only while actually playing in TPS/OTS — free cursor in
      * menus / pause / console. */
     wantCapture = (g_DebugThirdPersonCam && inGameplay);
