@@ -115,6 +115,23 @@ s_FsImageDesc D_800A908C                   = { { 0,   13  }, 0,    0,   224, 0  
 s_FsImageDesc D_800A9094                   = { { 0,   13  }, 0,    128, 224, 8   }; // }
 s_FsImageDesc g_Font24AtlasImg             = { { 0,   31  }, 0,    0,   960, 496 };
 /* Not sure if these are really `s_FsImageDesc`. Seems plausible but not sure about negative values here. */
+#ifdef SH_PC_PORT
+// Contiguous backing for the two descriptor lists aliased in bodyprog.h.
+// Layout/order match the ROM; comments mark each original symbol's offset.
+s_FsImageDesc D_800A90A4_block[]           = {
+    /* A4 */ { { 0,   0   }, 35,   0,   35,  3   },
+    /* AC */ { { 0,   0   }, 0,    0,   0,  -1   }, // @unused?
+    /* B4 */ { { 0,   0   }, 15,   0,  -53,  10  },
+    /* BC */ { { 0,   0   }, 76,   0,   140, 2   }, // } @unused?
+    /* C4 */ { { 168, 0   }, 246,  255, 7,   13  }, // }
+    /* CC */ { { 153, 0   }, 94,   0,   35,  13  }, // }
+    /* D4 */ { { 205, 255 }, 122,  0,   56,  12  }, // }
+    /* DC */ { { 168, 0   }, 246,  255,-7,   15  }, // }
+    /* E4 */ { { 153, 0   }, 94,   0,  -38,  15  }, // }
+    /* EC */ { { 51,  0   }, 125,  0,  -56,  14  }, // }
+    /* F4 */ { { 0,   0   }, 0,    0,   0,   -1  }, // }
+};
+#else
 s_FsImageDesc D_800A90A4                   = { { 0,   0   }, 35,   0,   35,  3   };
 s_FsImageDesc D_800A90AC                   = { { 0,   0   }, 0,    0,   0,  -1   }; // @unused?
 s_FsImageDesc D_800A90B4                   = { { 0,   0   }, 15,   0,  -53,  10  };
@@ -126,3 +143,4 @@ s_FsImageDesc D_800A90DC                   = { { 168, 0   }, 246,  255,-7,   15 
 s_FsImageDesc D_800A90E4                   = { { 153, 0   }, 94,   0,  -38,  15  }; // }
 s_FsImageDesc D_800A90EC                   = { { 51,  0   }, 125,  0,  -56,  14  }; // }
 s_FsImageDesc D_800A90F4                   = { { 0,   0   }, 0,    0,   0,   -1  }; // }
+#endif

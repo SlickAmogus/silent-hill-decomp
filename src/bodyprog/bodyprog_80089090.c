@@ -172,6 +172,27 @@ s32 func_80089128(void) // 0x80089128
 }
 
 // Forward declare pointers used below.
+#ifdef SH_PC_PORT
+// These are one contiguous waveform blob in the ROM. func_80089DF0 walks bytes
+// across element boundaries (temp_t5[var_t0 >> 3]) relying on that contiguity,
+// so splitting them into separate globals trips ASan's inter-global redzones.
+// Back them with a single array and alias each symbol to its element so the
+// over-read stays in-bounds (and in the original ROM order).
+extern const u32 D_8002AF04_block[];
+#define D_8002AF04 D_8002AF04_block[0]
+#define D_8002AF08 D_8002AF04_block[1]
+#define D_8002AF20 D_8002AF04_block[7]
+#define D_8002AF24 D_8002AF04_block[8]
+#define D_8002AF28 D_8002AF04_block[9]
+#define D_8002AF2C D_8002AF04_block[10]
+#define D_8002AF34 D_8002AF04_block[12]
+#define D_8002AF3C D_8002AF04_block[14]
+#define D_8002AF48 D_8002AF04_block[17]
+#define D_8002AF54 D_8002AF04_block[20]
+#define D_8002AF5C D_8002AF04_block[22]
+#define D_8002AF64 D_8002AF04_block[24]
+#define D_8002AF70 D_8002AF04_block[27]
+#else
 extern const u32 D_8002AF04[];
 extern const u32 D_8002AF08[];
 extern const u32 D_8002AF20[];
@@ -185,6 +206,7 @@ extern const u32 D_8002AF54[];
 extern const u32 D_8002AF5C[];
 extern const u32 D_8002AF64[];
 extern const u32 D_8002AF70[];
+#endif
 
 const s_8002AC04 D_8002AC04[] = {
     // 2nd field is used as index into `D_800AFD08` funcptr array.
@@ -250,6 +272,25 @@ const s_8002AC04 D_8002AC04[] = {
 
 // TODO: Figure out what kind of data this is. The array above has some entries pointing to it, all of them using funcptr #2 (`func_80089DF0`).
 // Not sure why they'd all be different sizes though.
+#ifdef SH_PC_PORT
+// Single contiguous backing for the waveform symbols aliased above. Layout and
+// order match the ROM exactly; comments mark each original symbol's offset.
+const u32 D_8002AF04_block[] = {
+    /* AF04 */ 0,
+    /* AF08 */ 0x8000184, 0x61000003, 0x81000000, 1, 0x181, 0x10000,
+    /* AF20 */ 0x184,
+    /* AF24 */ 0x308,
+    /* AF28 */ 0x610,
+    /* AF2C */ 0xC010, 0,
+    /* AF34 */ 0x80008080, 0x80,
+    /* AF3C */ 0xFFFFFF, 0xFFFFFF00, 0,
+    /* AF48 */ 0x468CA0A0, 0x1E28323C, 0xA14,
+    /* AF54 */ 0xAFC8C8C8, 0x4B96,
+    /* AF5C */ 0x309060C0, 0xC048A8,
+    /* AF64 */ 0x143C2850, 0xA321E46, 0x50,
+    /* AF70 */ 0xC4E0E0A8, 0x54A8, 0,
+};
+#else
 const u32 D_8002AF04[] = { 0 };
 const u32 D_8002AF08[] = { 0x8000184, 0x61000003, 0x81000000, 1, 0x181, 0x10000 };
 const u32 D_8002AF20[] = { 0x184 };
@@ -263,6 +304,7 @@ const u32 D_8002AF54[] = { 0xAFC8C8C8, 0x4B96};
 const u32 D_8002AF5C[] = { 0x309060C0, 0xC048A8 };
 const u32 D_8002AF64[] = { 0x143C2850, 0xA321E46, 0x50};
 const u32 D_8002AF70[] = { 0xC4E0E0A8, 0x54A8, 0};
+#endif
 
 void func_800892A4(s32 idx) // 0x800892A4
 {
