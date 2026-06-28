@@ -1072,20 +1072,75 @@ public partial class Form1 : Form
     }
 
     // Help button (btnHelp): contact info + a quick tip about debug controls.
+    // Uses a custom dialog with a LinkLabel so "@KushAstronaut" and the Discord
+    // invite are clickable (a plain MessageBox can't host links).
     private void button1_Click(object sender, EventArgs e)
     {
-        const string helpText =
-            "If you need help, please reach out to me on Discord @KushAstronaut, " +
+        const string discordProfile = "https://discord.com/users/363942283348934656";
+        const string discordInvite  = "https://discord.gg/TxXJBURF";
+        const string profileToken   = "@KushAstronaut";
+
+        string text =
+            "If you need help, please reach out to me on Discord " + profileToken + ", " +
             "or by email at kushastronaut@icloud.com or kushastronaut@gmail.com. " +
             "I have created a Discord server for this port that you can join as well, " +
-            "here is the link: https://discord.gg/TxXJBURF - It will have helpful info, " +
-            "update news, and sometimes early releases.\n\n" +
+            "here is the link: " + discordInvite + " - It will have helpful info, " +
+            "update news, and sometimes early releases.\r\n\r\n" +
             "Tip: There are a lot of cheats and debug commands available, and to enable " +
             "them you have to turn on the debug controls setting in the controls menu of " +
             "the launcher. When they're on, you can hold ~ to toggle the console, and " +
             "press ~ again with it open to input a command. Type help or debug to get a " +
             "list of different controls and commands!";
-        MessageBox.Show(this, helpText, "Help", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+        using (var dlg = new Form())
+        {
+            dlg.Text = "Help";
+            dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.MaximizeBox = false;
+            dlg.MinimizeBox = false;
+            dlg.ShowInTaskbar = false;
+            dlg.ClientSize = new System.Drawing.Size(430, 235);
+
+            var link = new LinkLabel
+            {
+                Text = text,
+                AutoSize = false,
+                Location = new System.Drawing.Point(0, 0),
+                Size = new System.Drawing.Size(430, 198),
+                Padding = new Padding(12),
+                LinkBehavior = LinkBehavior.HoverUnderline,
+            };
+
+            void AddLink(string token, string url)
+            {
+                int idx = text.IndexOf(token, StringComparison.Ordinal);
+                if (idx >= 0)
+                    link.Links.Add(idx, token.Length, url);
+            }
+            AddLink(profileToken, discordProfile);
+            AddLink(discordInvite, discordInvite);
+
+            link.LinkClicked += (s2, e2) =>
+            {
+                var url = e2.Link.LinkData as string;
+                if (string.IsNullOrEmpty(url)) return;
+                try { Process.Start(url); } catch { /* no browser / blocked */ }
+            };
+
+            var ok = new Button
+            {
+                Text = "OK",
+                DialogResult = DialogResult.OK,
+                Size = new System.Drawing.Size(75, 23),
+                Location = new System.Drawing.Point(343, 203),
+            };
+
+            dlg.Controls.Add(link);
+            dlg.Controls.Add(ok);
+            dlg.AcceptButton = ok;
+            dlg.ShowDialog(this);
+        }
     }
 
     // Report Bug button (btnBug): open the GitHub issues page in the browser.
