@@ -21,6 +21,8 @@ s_PcConfig g_PcConfig = {
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
+    .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -282,6 +284,23 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "use_pgxp") == 0)
         {
             g_PcConfig.usePgxp = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "msaa") == 0)
+        {
+            /* Antialiasing sample count: 0 (off), 2, 4, 8. Anything else snaps
+             * to the nearest sane value so a bad config can't wedge the driver. */
+            int v = atoi(value);
+            if      (v >= 8) v = 8;
+            else if (v >= 4) v = 4;
+            else if (v >= 2) v = 2;
+            else             v = 0;
+            g_PcConfig.msaaSamples = v;
+        }
+        else if (strcmp(key, "post_process") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            g_PcConfig.postProcess = v;
         }
         else if (strcmp(key, "enable_debug_log") == 0)
         {

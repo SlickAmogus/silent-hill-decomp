@@ -228,13 +228,6 @@ public partial class Form1 : Form
         Set(radioPillarboxYes,   pillarboxTip);
         Set(radioPillarboxNo,    pillarboxTip);
 
-        const string introTip =
-            "Skip the boot logos and the intro FMV — jump straight to the\n" +
-            "main menu. Convenient during testing.";
-        Set(introLabel,  introTip);
-        Set(introYes,    introTip);
-        Set(introNo,     introTip);
-
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
             "Required for diagnosing crashes/regressions; small disk-write\n" +
@@ -244,20 +237,28 @@ public partial class Form1 : Form
         Set(loggingNo,     loggingTip);
 
         const string consoleTip =
-            "Off: no console output.\n" +
-            "External: secondary console window mirrors SH_DBG_ECHO lines live.\n" +
-            "Ingame: [ and ] key markers appear as an in-game overlay.\n" +
-            "Ingame + External: overlay gets SH_DBG_ECHO too, plus external window.";
-        Set(consoleLabel,   consoleTip);
-        Set(comboConsole,   consoleTip);
+            "Yes = open a separate external console window that mirrors\n" +
+            "SH_DBG_ECHO output live. The in-game console can be toggled by\n" +
+            "holding ~ at any time if debug controls are enabled, so this is\n" +
+            "optional.";
+        Set(consoleLabel,  consoleTip);
+        Set(consoleYes,    consoleTip);
+        Set(consoleNo,     consoleTip);
 
-        const string looseTip =
-            "Allow the game to load replacement assets from\n" +
-            "gamedata/load/{folder}/{name}.{ext} instead of the packed\n" +
-            "originals. Enables texture mods. No = packed assets only.";
-        Set(looseLabel,  looseTip);
-        Set(looseYes,    looseTip);
-        Set(looseNo,     looseTip);
+        const string aaTip =
+            "Antialiasing (MSAA) smooths jagged polygon edges in the 3D world.\n" +
+            "Higher = smoother but more GPU cost; textures, dither and 2D UI\n" +
+            "stay sharp. Falls back to Off automatically if the GPU can't\n" +
+            "provide it.";
+        Set(aaLabel,   aaTip);
+        Set(comboAA,   aaTip);
+
+        const string postTip =
+            "Full-screen post-process look applied to the final image\n" +
+            "(CRT, scanlines, vignette, color grade, film grain, sharpen,\n" +
+            "PSX downsample, cinematic). Press F2 in-game to cycle it live.";
+        Set(postLabel, postTip);
+        Set(comboPost, postTip);
 
         const string levelTip =
             "Which map to load when you start a New Game. Default map0_s00\n" +
@@ -416,23 +417,18 @@ public partial class Form1 : Form
         radioVsyncYes.Checked = config.Get("vsync", "0") == "1";
         radioVsyncNo.Checked = config.Get("vsync", "0") == "0";
 
-        // skip intro
-        introYes.Checked = config.Get("skip_intros", "0") == "1";
-        introNo.Checked = !introYes.Checked;
-
         // enable debug logging (writes SH_DBG output to SilentHill.log)
         loggingYes.Checked = config.Get("enable_debug_log", "0") == "1";
         loggingNo.Checked = !loggingYes.Checked;
 
-        // debug console mode: 0=off, 1=external, 2=ingame, 3=ingame+external
+        // External console: Yes = external window (show_console=1). The in-game
+        // overlay is toggleable with ~, so the legacy ingame/both modes (2/3)
+        // also count as "external on" here; SaveConfig collapses to 1/0.
         int consoleMode;
         if (!int.TryParse(config.Get("show_console", "0"), out consoleMode) || consoleMode < 0 || consoleMode > 3)
             consoleMode = 0;
-        comboConsole.SelectedIndex = consoleMode;
-
-        // allow loose files (texture mod support: gamedata/load/{folder}/{name}.{ext})
-        looseYes.Checked = config.Get("allow_loose_files", "0") == "1";
-        looseNo.Checked = !looseYes.Checked;
+        consoleYes.Checked = (consoleMode == 1 || consoleMode == 3);
+        consoleNo.Checked = !consoleYes.Checked;
 
         // PGXP — sub-pixel-precision GTE coords + perspective-correct textures.
         // WORK IN PROGRESS — defaults off until prim emit sites are migrated.
@@ -453,6 +449,22 @@ public partial class Form1 : Form
             filterIdx = 1; // default to dithering
         if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
+
+        // Antialiasing (MSAA): config msaa value 0/2/4/8 <-> dropdown index 0..3
+        switch (config.Get("msaa", "0"))
+        {
+            case "2": comboAA.SelectedIndex = 1; break;
+            case "4": comboAA.SelectedIndex = 2; break;
+            case "8": comboAA.SelectedIndex = 3; break;
+            default:  comboAA.SelectedIndex = 0; break;
+        }
+
+        // Post-process look: config post_process int 0..N <-> dropdown index
+        int postIdx;
+        if (!int.TryParse(config.Get("post_process", "0"), out postIdx) ||
+            postIdx < 0 || postIdx >= comboPost.Items.Count)
+            postIdx = 0;
+        comboPost.SelectedIndex = postIdx;
 
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
@@ -543,17 +555,12 @@ public partial class Form1 : Form
         // preload_chunks
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
 
-        // skip intros
-        config.Set("skip_intros", introYes.Checked ? "1" : "0");
-
         // enable debug logging
         config.Set("enable_debug_log", loggingYes.Checked ? "1" : "0");
 
-        // debug console mode (0=off, 1=external, 2=ingame, 3=ingame+external)
-        config.Set("show_console", comboConsole.SelectedIndex.ToString());
-
-        // allow loose files (texture mod support)
-        config.Set("allow_loose_files", looseYes.Checked ? "1" : "0");
+        // External console: Yes = external window (1), No = off (0). The in-game
+        // console stays togglable with ~ regardless of this setting.
+        config.Set("show_console", consoleYes.Checked ? "1" : "0");
 
         // PGXP toggle (work-in-progress)
         config.Set("use_pgxp", pgxpYes.Checked ? "1" : "0");
@@ -564,6 +571,19 @@ public partial class Form1 : Form
         // Filtering: dropdown index (0=Off, 1=Dithering, 2=Bilinear) -> int
         if (comboFiltering.SelectedIndex >= 0)
             config.Set("psx_dither", comboFiltering.SelectedIndex.ToString());
+
+        // Antialiasing (MSAA): dropdown index 0..3 -> msaa 0/2/4/8
+        switch (comboAA.SelectedIndex)
+        {
+            case 1:  config.Set("msaa", "2"); break;
+            case 2:  config.Set("msaa", "4"); break;
+            case 3:  config.Set("msaa", "8"); break;
+            default: config.Set("msaa", "0"); break;
+        }
+
+        // Post-process look: dropdown index -> post_process int
+        if (comboPost.SelectedIndex >= 0)
+            config.Set("post_process", comboPost.SelectedIndex.ToString());
 
         config.Save();
     }
@@ -999,17 +1019,7 @@ public partial class Form1 : Form
         LoadConfig();
     }
 
-    private void introYes_CheckedChanged(object sender, EventArgs e)
-    {
-
-    }
-
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
-    {
-
-    }
-
-    private void introPanel_Paint(object sender, PaintEventArgs e)
     {
 
     }
@@ -1056,5 +1066,76 @@ public partial class Form1 : Form
 
     }
 
+    private void pillarboxPanel_Paint(object sender, PaintEventArgs e)
+    {
 
+    }
+
+    // Help button (btnHelp): contact info + a quick tip about debug controls.
+    private void button1_Click(object sender, EventArgs e)
+    {
+        const string helpText =
+            "If you need help, please reach out to me on Discord @KushAstronaut, " +
+            "or by email at kushastronaut@icloud.com or kushastronaut@gmail.com. " +
+            "I have created a Discord server for this port that you can join as well, " +
+            "here is the link: https://discord.gg/TxXJBURF - It will have helpful info, " +
+            "update news, and sometimes early releases.\n\n" +
+            "Tip: There are a lot of cheats and debug commands available, and to enable " +
+            "them you have to turn on the debug controls setting in the controls menu of " +
+            "the launcher. When they're on, you can hold ~ to toggle the console, and " +
+            "press ~ again with it open to input a command. Type help or debug to get a " +
+            "list of different controls and commands!";
+        MessageBox.Show(this, helpText, "Help", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    // Report Bug button (btnBug): open the GitHub issues page in the browser.
+    private void button2_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            Process.Start("https://github.com/SlickAmogus/silent-hill-decomp/issues");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Couldn't open the browser:\n" + ex.Message,
+                "Report Bug", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    // Reset button (btnReset): confirm, then overwrite config.cfg with the
+    // built-in default (the embedded copy of pc_port/config.cfg) and reload.
+    private void button1_Click_1(object sender, EventArgs e)
+    {
+        var result = MessageBox.Show(this,
+            "Are you sure you would like to reset all settings to the default?",
+            "Reset Settings", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (result != DialogResult.Yes)
+            return;
+
+        string cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.cfg");
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            using (var s = asm.GetManifestResourceStream("SilentHillPC_Launcher.DefaultConfig.cfg"))
+            {
+                if (s == null)
+                {
+                    MessageBox.Show(this, "Built-in default config is missing; nothing was changed.",
+                        "Reset Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                using (var f = File.Create(cfgPath))
+                    s.CopyTo(f);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Couldn't write config.cfg:\n" + ex.Message,
+                "Reset Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // Reload the freshly written defaults into the UI.
+        LoadConfig();
+    }
 }

@@ -24,8 +24,6 @@ partial class Form1
     private RadioButton radioPreloadNo;
     private RadioButton radioPillarboxYes;
     private RadioButton radioPillarboxNo;
-    private RadioButton introYes;
-    private RadioButton introNo;
 
     private Label cullLabel;
     private Label fullscreenLabel;
@@ -33,13 +31,11 @@ partial class Form1
     private Label resolutionLabel;
     private Label refreshLabel;
     private Label levelLabel;
-    private Label introLabel;
 
     private Panel vsyncPanel;
     private Panel cullingPanel;
     private Panel preloadPanel;
     private Panel pillarboxPanel;
-    private Panel introPanel;
 
     private Label fpsLabel;
     private ComboBox comboFps;
@@ -58,12 +54,13 @@ partial class Form1
     private RadioButton loggingNo;
 
     private Label consoleLabel;
-    private ComboBox comboConsole;
-
-    private Label looseLabel;
-    private Panel loosePanel;
-    private RadioButton looseYes;
-    private RadioButton looseNo;
+    private Panel consolePanel;
+    private RadioButton consoleYes;
+    private RadioButton consoleNo;
+    private Label aaLabel;
+    private ComboBox comboAA;
+    private Label postLabel;
+    private ComboBox comboPost;
 
 
 
@@ -89,9 +86,6 @@ partial class Form1
             this.pillarboxPanel = new System.Windows.Forms.Panel();
             this.radioPillarboxYes = new System.Windows.Forms.RadioButton();
             this.radioPillarboxNo = new System.Windows.Forms.RadioButton();
-            this.introYes = new System.Windows.Forms.RadioButton();
-            this.introNo = new System.Windows.Forms.RadioButton();
-            this.introPanel = new System.Windows.Forms.Panel();
             this.comboMap = new System.Windows.Forms.ComboBox();
             this.btnPlay = new System.Windows.Forms.Button();
             this.btnUpdate = new System.Windows.Forms.Button();
@@ -107,7 +101,6 @@ partial class Form1
             this.resolutionLabel = new System.Windows.Forms.Label();
             this.refreshLabel = new System.Windows.Forms.Label();
             this.levelLabel = new System.Windows.Forms.Label();
-            this.introLabel = new System.Windows.Forms.Label();
             this.fpsLabel = new System.Windows.Forms.Label();
             this.chunksLabel = new System.Windows.Forms.Label();
             this.comboFps = new System.Windows.Forms.ComboBox();
@@ -122,23 +115,27 @@ partial class Form1
             this.loggingYes = new System.Windows.Forms.RadioButton();
             this.loggingNo = new System.Windows.Forms.RadioButton();
             this.consoleLabel = new System.Windows.Forms.Label();
-            this.comboConsole = new System.Windows.Forms.ComboBox();
-            this.looseLabel = new System.Windows.Forms.Label();
-            this.loosePanel = new System.Windows.Forms.Panel();
-            this.looseYes = new System.Windows.Forms.RadioButton();
-            this.looseNo = new System.Windows.Forms.RadioButton();
+            this.consolePanel = new System.Windows.Forms.Panel();
+            this.consoleYes = new System.Windows.Forms.RadioButton();
+            this.consoleNo = new System.Windows.Forms.RadioButton();
+            this.aaLabel = new System.Windows.Forms.Label();
+            this.comboAA = new System.Windows.Forms.ComboBox();
+            this.postLabel = new System.Windows.Forms.Label();
+            this.comboPost = new System.Windows.Forms.ComboBox();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
+            this.btnHelp = new System.Windows.Forms.Button();
+            this.btnBug = new System.Windows.Forms.Button();
+            this.btnReset = new System.Windows.Forms.Button();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
             this.pillarboxPanel.SuspendLayout();
-            this.introPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
             this.pgxpPanel.SuspendLayout();
             this.loggingPanel.SuspendLayout();
-            this.loosePanel.SuspendLayout();
+            this.consolePanel.SuspendLayout();
             this.SuspendLayout();
             // 
             // comboFullscreen
@@ -239,6 +236,7 @@ partial class Form1
             this.pillarboxPanel.Name = "pillarboxPanel";
             this.pillarboxPanel.Size = new System.Drawing.Size(120, 30);
             this.pillarboxPanel.TabIndex = 21;
+            this.pillarboxPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.pillarboxPanel_Paint);
             // 
             // radioPillarboxYes
             // 
@@ -256,37 +254,10 @@ partial class Form1
             this.radioPillarboxNo.TabIndex = 5;
             this.radioPillarboxNo.Text = "No";
             // 
-            // introYes
-            // 
-            this.introYes.Location = new System.Drawing.Point(5, 4);
-            this.introYes.Name = "introYes";
-            this.introYes.Size = new System.Drawing.Size(49, 24);
-            this.introYes.TabIndex = 6;
-            this.introYes.Text = "Yes";
-            this.introYes.CheckedChanged += new System.EventHandler(this.introYes_CheckedChanged);
-            // 
-            // introNo
-            // 
-            this.introNo.Location = new System.Drawing.Point(59, 5);
-            this.introNo.Name = "introNo";
-            this.introNo.Size = new System.Drawing.Size(45, 24);
-            this.introNo.TabIndex = 7;
-            this.introNo.Text = "No";
-            // 
-            // introPanel
-            // 
-            this.introPanel.Controls.Add(this.introYes);
-            this.introPanel.Controls.Add(this.introNo);
-            this.introPanel.Location = new System.Drawing.Point(299, 180);
-            this.introPanel.Name = "introPanel";
-            this.introPanel.Size = new System.Drawing.Size(138, 30);
-            this.introPanel.TabIndex = 20;
-            this.introPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.introPanel_Paint);
-            // 
             // comboMap
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(9, 344);
+            this.comboMap.Location = new System.Drawing.Point(217, 294);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(191, 21);
             this.comboMap.TabIndex = 11;
@@ -294,7 +265,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(314, 370);
+            this.btnPlay.Location = new System.Drawing.Point(314, 388);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
@@ -303,7 +274,7 @@ partial class Form1
             // 
             // btnUpdate
             // 
-            this.btnUpdate.Location = new System.Drawing.Point(206, 313);
+            this.btnUpdate.Location = new System.Drawing.Point(206, 331);
             this.btnUpdate.Name = "btnUpdate";
             this.btnUpdate.Size = new System.Drawing.Size(104, 23);
             this.btnUpdate.TabIndex = 13;
@@ -313,7 +284,7 @@ partial class Form1
             // 
             // btnChangelog
             // 
-            this.btnChangelog.Location = new System.Drawing.Point(206, 342);
+            this.btnChangelog.Location = new System.Drawing.Point(206, 360);
             this.btnChangelog.Name = "btnChangelog";
             this.btnChangelog.Size = new System.Drawing.Size(104, 23);
             this.btnChangelog.TabIndex = 16;
@@ -323,16 +294,16 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(16, 418);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(12, 444);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(19, 399);
+            this.progUpdate.Location = new System.Drawing.Point(206, 425);
             this.progUpdate.Name = "progUpdate";
-            this.progUpdate.Size = new System.Drawing.Size(356, 16);
+            this.progUpdate.Size = new System.Drawing.Size(205, 16);
             this.progUpdate.TabIndex = 15;
             this.progUpdate.Visible = false;
             this.progUpdate.Click += new System.EventHandler(this.progUpdate_Click);
@@ -418,25 +389,16 @@ partial class Form1
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(8, 327);
+            this.levelLabel.Location = new System.Drawing.Point(216, 277);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(36, 13);
             this.levelLabel.TabIndex = 15;
             this.levelLabel.Text = "Level:";
             // 
-            // introLabel
-            // 
-            this.introLabel.AutoSize = true;
-            this.introLabel.Location = new System.Drawing.Point(214, 189);
-            this.introLabel.Name = "introLabel";
-            this.introLabel.Size = new System.Drawing.Size(60, 13);
-            this.introLabel.TabIndex = 16;
-            this.introLabel.Text = "Skip Intros:";
-            // 
             // fpsLabel
             // 
             this.fpsLabel.AutoSize = true;
-            this.fpsLabel.Location = new System.Drawing.Point(8, 245);
+            this.fpsLabel.Location = new System.Drawing.Point(216, 247);
             this.fpsLabel.Name = "fpsLabel";
             this.fpsLabel.Size = new System.Drawing.Size(54, 13);
             this.fpsLabel.TabIndex = 30;
@@ -460,7 +422,7 @@ partial class Form1
             "60",
             "120",
             "240"});
-            this.comboFps.Location = new System.Drawing.Point(80, 241);
+            this.comboFps.Location = new System.Drawing.Point(288, 243);
             this.comboFps.Name = "comboFps";
             this.comboFps.Size = new System.Drawing.Size(120, 21);
             this.comboFps.TabIndex = 31;
@@ -468,7 +430,7 @@ partial class Form1
             // filteringLabel
             // 
             this.filteringLabel.AutoSize = true;
-            this.filteringLabel.Location = new System.Drawing.Point(8, 275);
+            this.filteringLabel.Location = new System.Drawing.Point(8, 246);
             this.filteringLabel.Name = "filteringLabel";
             this.filteringLabel.Size = new System.Drawing.Size(46, 13);
             this.filteringLabel.TabIndex = 40;
@@ -481,7 +443,7 @@ partial class Form1
             "Off",
             "Dithering",
             "Bilinear"});
-            this.comboFiltering.Location = new System.Drawing.Point(80, 271);
+            this.comboFiltering.Location = new System.Drawing.Point(80, 242);
             this.comboFiltering.Name = "comboFiltering";
             this.comboFiltering.Size = new System.Drawing.Size(120, 21);
             this.comboFiltering.TabIndex = 41;
@@ -489,7 +451,7 @@ partial class Form1
             // pgxpLabel
             // 
             this.pgxpLabel.AutoSize = true;
-            this.pgxpLabel.Location = new System.Drawing.Point(8, 304);
+            this.pgxpLabel.Location = new System.Drawing.Point(8, 275);
             this.pgxpLabel.Name = "pgxpLabel";
             this.pgxpLabel.Size = new System.Drawing.Size(61, 13);
             this.pgxpLabel.TabIndex = 46;
@@ -499,7 +461,7 @@ partial class Form1
             // 
             this.pgxpPanel.Controls.Add(this.pgxpYes);
             this.pgxpPanel.Controls.Add(this.pgxpNo);
-            this.pgxpPanel.Location = new System.Drawing.Point(80, 295);
+            this.pgxpPanel.Location = new System.Drawing.Point(80, 266);
             this.pgxpPanel.Name = "pgxpPanel";
             this.pgxpPanel.Size = new System.Drawing.Size(120, 30);
             this.pgxpPanel.TabIndex = 49;
@@ -524,7 +486,7 @@ partial class Form1
             // loggingLabel
             // 
             this.loggingLabel.AutoSize = true;
-            this.loggingLabel.Location = new System.Drawing.Point(214, 221);
+            this.loggingLabel.Location = new System.Drawing.Point(214, 187);
             this.loggingLabel.Name = "loggingLabel";
             this.loggingLabel.Size = new System.Drawing.Size(84, 13);
             this.loggingLabel.TabIndex = 32;
@@ -534,7 +496,7 @@ partial class Form1
             // 
             this.loggingPanel.Controls.Add(this.loggingYes);
             this.loggingPanel.Controls.Add(this.loggingNo);
-            this.loggingPanel.Location = new System.Drawing.Point(299, 212);
+            this.loggingPanel.Location = new System.Drawing.Point(299, 178);
             this.loggingPanel.Name = "loggingPanel";
             this.loggingPanel.Size = new System.Drawing.Size(138, 30);
             this.loggingPanel.TabIndex = 35;
@@ -558,63 +520,90 @@ partial class Form1
             // consoleLabel
             // 
             this.consoleLabel.AutoSize = true;
-            this.consoleLabel.Location = new System.Drawing.Point(214, 253);
+            this.consoleLabel.Location = new System.Drawing.Point(214, 217);
             this.consoleLabel.Name = "consoleLabel";
-            this.consoleLabel.Size = new System.Drawing.Size(48, 13);
+            this.consoleLabel.Size = new System.Drawing.Size(89, 13);
             this.consoleLabel.TabIndex = 36;
-            this.consoleLabel.Text = "Console:";
+            this.consoleLabel.Text = "External Console:";
             this.consoleLabel.Click += new System.EventHandler(this.consoleLabel_Click);
-            // 
-            // comboConsole
-            // 
-            this.comboConsole.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboConsole.Items.AddRange(new object[] {
+            //
+            // consolePanel
+            //
+            this.consolePanel.Controls.Add(this.consoleYes);
+            this.consolePanel.Controls.Add(this.consoleNo);
+            this.consolePanel.Location = new System.Drawing.Point(300, 208);
+            this.consolePanel.Name = "consolePanel";
+            this.consolePanel.Size = new System.Drawing.Size(120, 30);
+            this.consolePanel.TabIndex = 56;
+            //
+            // consoleYes
+            //
+            this.consoleYes.Location = new System.Drawing.Point(5, 5);
+            this.consoleYes.Name = "consoleYes";
+            this.consoleYes.Size = new System.Drawing.Size(49, 24);
+            this.consoleYes.TabIndex = 0;
+            this.consoleYes.Text = "Yes";
+            //
+            // consoleNo
+            //
+            this.consoleNo.Location = new System.Drawing.Point(59, 5);
+            this.consoleNo.Name = "consoleNo";
+            this.consoleNo.Size = new System.Drawing.Size(45, 24);
+            this.consoleNo.TabIndex = 1;
+            this.consoleNo.Text = "No";
+            //
+            // aaLabel
+            //
+            this.aaLabel.AutoSize = true;
+            this.aaLabel.Location = new System.Drawing.Point(8, 307);
+            this.aaLabel.Name = "aaLabel";
+            this.aaLabel.Size = new System.Drawing.Size(67, 13);
+            this.aaLabel.TabIndex = 57;
+            this.aaLabel.Text = "Antialiasing:";
+            //
+            // comboAA
+            //
+            this.comboAA.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboAA.Items.AddRange(new object[] {
             "Off",
-            "External",
-            "Ingame",
-            "Ingame + External"});
-            this.comboConsole.Location = new System.Drawing.Point(262, 249);
-            this.comboConsole.Name = "comboConsole";
-            this.comboConsole.Size = new System.Drawing.Size(138, 21);
-            this.comboConsole.TabIndex = 37;
-            // 
-            // looseLabel
-            // 
-            this.looseLabel.AutoSize = true;
-            this.looseLabel.Location = new System.Drawing.Point(214, 285);
-            this.looseLabel.Name = "looseLabel";
-            this.looseLabel.Size = new System.Drawing.Size(90, 13);
-            this.looseLabel.TabIndex = 42;
-            this.looseLabel.Text = "Load Loose Files:";
-            // 
-            // loosePanel
-            // 
-            this.loosePanel.Controls.Add(this.looseYes);
-            this.loosePanel.Controls.Add(this.looseNo);
-            this.loosePanel.Location = new System.Drawing.Point(299, 276);
-            this.loosePanel.Name = "loosePanel";
-            this.loosePanel.Size = new System.Drawing.Size(138, 30);
-            this.loosePanel.TabIndex = 45;
-            // 
-            // looseYes
-            // 
-            this.looseYes.Location = new System.Drawing.Point(5, 5);
-            this.looseYes.Name = "looseYes";
-            this.looseYes.Size = new System.Drawing.Size(49, 24);
-            this.looseYes.TabIndex = 43;
-            this.looseYes.Text = "Yes";
-            // 
-            // looseNo
-            // 
-            this.looseNo.Location = new System.Drawing.Point(59, 5);
-            this.looseNo.Name = "looseNo";
-            this.looseNo.Size = new System.Drawing.Size(45, 24);
-            this.looseNo.TabIndex = 44;
-            this.looseNo.Text = "No";
-            // 
+            "2x",
+            "4x",
+            "8x"});
+            this.comboAA.Location = new System.Drawing.Point(80, 303);
+            this.comboAA.Name = "comboAA";
+            this.comboAA.Size = new System.Drawing.Size(120, 21);
+            this.comboAA.TabIndex = 58;
+            //
+            // postLabel
+            //
+            this.postLabel.AutoSize = true;
+            this.postLabel.Location = new System.Drawing.Point(8, 337);
+            this.postLabel.Name = "postLabel";
+            this.postLabel.Size = new System.Drawing.Size(63, 13);
+            this.postLabel.TabIndex = 59;
+            this.postLabel.Text = "Post Effect:";
+            //
+            // comboPost
+            //
+            this.comboPost.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboPost.Items.AddRange(new object[] {
+            "Off",
+            "CRT",
+            "Scanlines",
+            "Vignette",
+            "Color Grade",
+            "Film Grain",
+            "Sharpen",
+            "PSX Retro",
+            "Cinematic"});
+            this.comboPost.Location = new System.Drawing.Point(80, 333);
+            this.comboPost.Name = "comboPost";
+            this.comboPost.Size = new System.Drawing.Size(120, 21);
+            this.comboPost.TabIndex = 59;
+            //
             // btnControls
-            // 
-            this.btnControls.Location = new System.Drawing.Point(315, 313);
+            //
+            this.btnControls.Location = new System.Drawing.Point(315, 331);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
             this.btnControls.TabIndex = 50;
@@ -624,7 +613,7 @@ partial class Form1
             // 
             // btnBuildSettings
             // 
-            this.btnBuildSettings.Location = new System.Drawing.Point(314, 342);
+            this.btnBuildSettings.Location = new System.Drawing.Point(314, 360);
             this.btnBuildSettings.Name = "btnBuildSettings";
             this.btnBuildSettings.Size = new System.Drawing.Size(98, 23);
             this.btnBuildSettings.TabIndex = 51;
@@ -634,7 +623,7 @@ partial class Form1
             // 
             // downloadBuild
             // 
-            this.downloadBuild.Location = new System.Drawing.Point(205, 370);
+            this.downloadBuild.Location = new System.Drawing.Point(205, 388);
             this.downloadBuild.Name = "downloadBuild";
             this.downloadBuild.Size = new System.Drawing.Size(104, 23);
             this.downloadBuild.TabIndex = 52;
@@ -642,11 +631,42 @@ partial class Form1
             this.downloadBuild.UseVisualStyleBackColor = true;
             this.downloadBuild.Click += new System.EventHandler(this.downloadBuild_Click);
             // 
+            // btnHelp
+            // 
+            this.btnHelp.Location = new System.Drawing.Point(6, 418);
+            this.btnHelp.Name = "btnHelp";
+            this.btnHelp.Size = new System.Drawing.Size(39, 23);
+            this.btnHelp.TabIndex = 53;
+            this.btnHelp.Text = "Help";
+            this.btnHelp.UseVisualStyleBackColor = true;
+            this.btnHelp.Click += new System.EventHandler(this.button1_Click);
+            // 
+            // btnBug
+            // 
+            this.btnBug.Location = new System.Drawing.Point(108, 418);
+            this.btnBug.Name = "btnBug";
+            this.btnBug.Size = new System.Drawing.Size(84, 23);
+            this.btnBug.TabIndex = 54;
+            this.btnBug.Text = "Report Bug";
+            this.btnBug.UseVisualStyleBackColor = true;
+            this.btnBug.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // btnReset
+            // 
+            this.btnReset.Location = new System.Drawing.Point(50, 418);
+            this.btnReset.Name = "btnReset";
+            this.btnReset.Size = new System.Drawing.Size(53, 23);
+            this.btnReset.TabIndex = 55;
+            this.btnReset.Text = "Reset";
+            this.btnReset.UseVisualStyleBackColor = true;
+            this.btnReset.Click += new System.EventHandler(this.button1_Click_1);
+            // 
             // Form1
-            //
-            this.ClientSize = new System.Drawing.Size(420, 437);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
-            this.MaximizeBox = false;
+            // 
+            this.ClientSize = new System.Drawing.Size(420, 468);
+            this.Controls.Add(this.btnReset);
+            this.Controls.Add(this.btnBug);
+            this.Controls.Add(this.btnHelp);
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
@@ -655,7 +675,6 @@ partial class Form1
             this.Controls.Add(this.fullscreenLabel);
             this.Controls.Add(this.vsyncLabel);
             this.Controls.Add(this.levelLabel);
-            this.Controls.Add(this.introLabel);
             this.Controls.Add(this.comboResolution);
             this.Controls.Add(this.comboRefresh);
             this.Controls.Add(this.pillarboxPanel);
@@ -672,7 +691,6 @@ partial class Form1
             this.Controls.Add(this.vsyncPanel);
             this.Controls.Add(this.cullingPanel);
             this.Controls.Add(this.preloadPanel);
-            this.Controls.Add(this.introPanel);
             this.Controls.Add(this.fpsLabel);
             this.Controls.Add(this.comboFps);
             this.Controls.Add(this.filteringLabel);
@@ -680,11 +698,15 @@ partial class Form1
             this.Controls.Add(this.loggingLabel);
             this.Controls.Add(this.loggingPanel);
             this.Controls.Add(this.consoleLabel);
-            this.Controls.Add(this.comboConsole);
-            this.Controls.Add(this.looseLabel);
-            this.Controls.Add(this.loosePanel);
+            this.Controls.Add(this.consolePanel);
+            this.Controls.Add(this.aaLabel);
+            this.Controls.Add(this.comboAA);
+            this.Controls.Add(this.postLabel);
+            this.Controls.Add(this.comboPost);
             this.Controls.Add(this.pgxpLabel);
             this.Controls.Add(this.pgxpPanel);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
             this.Name = "Form1";
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
@@ -692,11 +714,10 @@ partial class Form1
             this.cullingPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
             this.pillarboxPanel.ResumeLayout(false);
-            this.introPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();
             this.pgxpPanel.ResumeLayout(false);
             this.loggingPanel.ResumeLayout(false);
-            this.loosePanel.ResumeLayout(false);
+            this.consolePanel.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -706,4 +727,7 @@ partial class Form1
     private Button btnControls;
     private Button btnBuildSettings;
     private Button downloadBuild;
+    private Button btnHelp;
+    private Button btnBug;
+    private Button btnReset;
 }

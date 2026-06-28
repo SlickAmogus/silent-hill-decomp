@@ -1122,6 +1122,26 @@ void DbgOverlay_Update(void)
         s_prev_f1 = cur_f1;
     }
 
+    /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this
+     * is a user-facing graphics option, not a debug feature, so it is NOT gated
+     * on g_PcAllowDebugControls. Order must match the post fragment shader. */
+    {
+        static int s_prev_f2 = 0;
+        int cur_f2 = ks[SDL_SCANCODE_F2];
+        if (cur_f2 && !s_prev_f2) {
+            extern int g_cfg_postProcess;
+            static const char* const s_postNames[] = {
+                "Off", "CRT", "Scanlines", "Vignette", "Color Grade",
+                "Film Grain", "Sharpen", "PSX Retro", "Cinematic"
+            };
+            const int count = (int)(sizeof(s_postNames) / sizeof(s_postNames[0]));
+            g_cfg_postProcess = (g_cfg_postProcess + 1) % count;
+            if (g_cfg_postProcess < 0) g_cfg_postProcess = 0;
+            SH_DBG_ECHO("[DEBUG] F2 Post-process: %s", s_postNames[g_cfg_postProcess]);
+        }
+        s_prev_f2 = cur_f2;
+    }
+
     /* Esc is NOT a debug control — always handled, in every state. At the title /
      * main menu it quits the game; otherwise (gameplay or cutscene) it warm-reboots
      * to the title (consumed by MainLoop_ShouldWarmReset, which ignores it on the
