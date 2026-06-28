@@ -1077,12 +1077,16 @@ public partial class Form1 : Form
     private void button1_Click(object sender, EventArgs e)
     {
         const string discordProfile = "https://discord.com/users/363942283348934656";
-        const string discordInvite  = "https://discord.gg/TxXJBURF";
+        const string discordInvite = "https://discord.gg/TxXJBURF";
+        const string emailiCloudURL = "mailto:kushastronaut@icloud.com";
+        const string emailgmailURL = "mailto:kushastronaut@gmail.com";
+        const string emailiCloud = "kushastronaut@icloud.com";
+        const string emailgmail = "kushastronaut@gmail.com";
         const string profileToken   = "@KushAstronaut";
 
         string text =
             "If you need help, please reach out to me on Discord " + profileToken + ", " +
-            "or by email at kushastronaut@icloud.com or kushastronaut@gmail.com. " +
+            "or by email at " + emailiCloud + " or " + emailgmail + ". " +
             "I have created a Discord server for this port that you can join as well, " +
             "here is the link: " + discordInvite + " - It will have helpful info, " +
             "update news, and sometimes early releases.\r\n\r\n" +
@@ -1119,6 +1123,8 @@ public partial class Form1 : Form
                     link.Links.Add(idx, token.Length, url);
             }
             AddLink(profileToken, discordProfile);
+            AddLink(emailgmail, emailgmailURL);
+            AddLink(emailiCloud, emailiCloudURL);
             AddLink(discordInvite, discordInvite);
 
             link.LinkClicked += (s2, e2) =>
