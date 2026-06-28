@@ -9586,6 +9586,19 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                     _P.vy = g_TpsCamPos.vy + _off.vy;
                     _P.vz = g_TpsCamPos.vz + _off.vz;
                 }
+                /* Aim assist: if the reticle is over (mouse) or near (controller
+                 * auto-aim) an enemy's body, redirect the aim point onto the
+                 * enemy's axis so the bullet hits anywhere on the body, not just
+                 * the narrow collision strip the raw screen-center ray needs. */
+                if (g_PcConfig.aimAssist)
+                {
+                    extern s32 Pc_AimAssistFind(const VECTOR3*, const VECTOR3*, s32, VECTOR3*);
+                    VECTOR3 _aim;
+                    if (Pc_AimAssistFind(&g_TpsCamPos, &g_TpsCamFwd, Q12(60.0f), &_aim) != NO_VALUE)
+                    {
+                        _P = _aim;
+                    }
+                }
                 /* Yaw: heading from the hand to the aim point (matches the engine's
                  * ratan2(dx,dz) heading convention used just above). */
                 unkRot.vx = ratan2(_P.vx - _hand->vx, _P.vz - _hand->vz);
