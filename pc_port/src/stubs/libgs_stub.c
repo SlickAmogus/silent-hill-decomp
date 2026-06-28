@@ -713,7 +713,43 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
     SVECTOR   *vtx  = (SVECTOR*)vp;
     int i;
     (void)pk; (void)scratch;
- 
+
+    /* SH item TMDs store their (rare) untextured triangles as TMD_P_G3 —
+     * one base colour followed by three interleaved (normal_idx, vertex_idx)
+     * pairs (ilen=4, 20 bytes), the same (n,v)-pair convention the textured
+     * path uses (TMD_P_NTG3_SH) — NOT the standard 3-colour NG3 layout
+     * (ilen=5, 24 bytes). GsSortObject4J routes mode 0x30 here as "no-light
+     * gouraud tri"; the only model with such prims is the gasoline-tank
+     * inventory model (object 27 of every IT_00x.TMD pack — its 6 grey
+     * detail faces). Read as standard NG3 the vertex indices land 6 bytes
+     * too late, yielding wild indices (up to ~1545 vs vern 111) → flung
+     * "spike" triangles and an AV in RotTransPers3 while the carousel draws.
+     * Detect the SH layout by ilen and read the indices from the right place. */
+    if (((u8*)op)[1] == 4) {
+        TMD_P_G3 *gp = (TMD_P_G3*)op;
+        for (i = 0; i < n; i++, gp++) {
+            long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+            POLY_F3 *poly;
+
+            RotTransPers3(&vtx[gp->v0], &vtx[gp->v1], &vtx[gp->v2],
+                          &sxy0, &sxy1, &sxy2, &p, &flg);
+            nclip = NormalClip(sxy0, sxy1, sxy2);
+            if (nclip <= 0) continue;
+
+            otz = p >> shift;
+            if (otz <= 0) continue;
+            if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
+
+            poly = (POLY_F3*)GsOUT_PACKET_P;
+            setPolyF3(poly);
+            setRGB0(poly, ITEMDIM(gp->r0), ITEMDIM(gp->g0), ITEMDIM(gp->b0));
+            *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
+            addPrim(&ot->org[otz], poly);
+            GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
+        }
+        return;
+    }
+
     for (i = 0; i < n; i++, prim++) {
         long sxy0, sxy1, sxy2, p, flg, otz, nclip;
         POLY_G3 *poly;
