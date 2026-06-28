@@ -5085,6 +5085,40 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         player->field_44.field_0 = 1;
                     }
                 }
+#ifdef SH_PC_PORT
+                /* Same high-FPS keyframe-skip guard as the non-gas else path below:
+                 * at uncapped FPS the gas-weapon aim-start anim (HandgunAim fueling,
+                 * or Unk33 when already fuelled) steps OVER D_800C44F0[..].field_6 in
+                 * one frame, so the == checks never matched and the chainsaw / rock
+                 * drill got stuck in AimStart — the pose was held but Aim was never
+                 * reached, so they never fired. Detect "reached or passed" the active
+                 * anim's end keyframe. func_8004C564(,1) only on the HandgunAim
+                 * (fuelling) completion, matching the == D_800C44F0[0] case above. */
+                else if (extra->model.anim.status < 76)
+                {
+                    const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
+                    bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
+                    s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
+                    bool reached = isBackward ? (extra->model.anim.keyframeIdx <= doneKf)
+                                              : (extra->model.anim.keyframeIdx >= doneKf);
+                    if (doneKf > 0 && reached)
+                    {
+                        if (ANIM_STATUS_IDX_GET(extra->model.anim.status) == HarryAnim_HandgunAim)
+                        {
+                            func_8004C564(g_SysWork.playerCombat.weaponAttack, 1);
+                        }
+
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                        extra->model.controlState = extra->model.stateStep = 0;
+                        playerProps.flags &= ~PlayerFlag_Unk2;
+
+                        if (playerProps.gasWeaponPowerTimer != Q12(0.0f))
+                        {
+                            player->field_44.field_0 = 1;
+                        }
+                    }
+                }
+#endif
             }
             else
             {
