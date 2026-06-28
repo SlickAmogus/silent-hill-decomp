@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.28.1 -- 2026-06-28
+- Graphics options (MSAA + post-process) wired to config + launcher
+- Removed outdated launcher options, added help/feedback options
+- Fix Chainsaw / Rock Drill stuck-in-AimStart at uncapped FPS
+
 ## beta-2026.06.27.1 -- 2026-06-27
 - Fixed the gasoline tank inventory model throwing stretched "spike" triangles and crashing the game when viewed in the inventory
 

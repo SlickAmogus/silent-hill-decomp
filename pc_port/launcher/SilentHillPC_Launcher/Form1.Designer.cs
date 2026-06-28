@@ -526,43 +526,43 @@ partial class Form1
             this.consoleLabel.TabIndex = 36;
             this.consoleLabel.Text = "External Console:";
             this.consoleLabel.Click += new System.EventHandler(this.consoleLabel_Click);
-            //
+            // 
             // consolePanel
-            //
+            // 
             this.consolePanel.Controls.Add(this.consoleYes);
             this.consolePanel.Controls.Add(this.consoleNo);
             this.consolePanel.Location = new System.Drawing.Point(300, 208);
             this.consolePanel.Name = "consolePanel";
             this.consolePanel.Size = new System.Drawing.Size(120, 30);
             this.consolePanel.TabIndex = 56;
-            //
+            // 
             // consoleYes
-            //
-            this.consoleYes.Location = new System.Drawing.Point(5, 5);
+            // 
+            this.consoleYes.Location = new System.Drawing.Point(4, 5);
             this.consoleYes.Name = "consoleYes";
             this.consoleYes.Size = new System.Drawing.Size(49, 24);
             this.consoleYes.TabIndex = 0;
             this.consoleYes.Text = "Yes";
-            //
+            // 
             // consoleNo
-            //
-            this.consoleNo.Location = new System.Drawing.Point(59, 5);
+            // 
+            this.consoleNo.Location = new System.Drawing.Point(58, 5);
             this.consoleNo.Name = "consoleNo";
             this.consoleNo.Size = new System.Drawing.Size(45, 24);
             this.consoleNo.TabIndex = 1;
             this.consoleNo.Text = "No";
-            //
+            // 
             // aaLabel
-            //
+            // 
             this.aaLabel.AutoSize = true;
             this.aaLabel.Location = new System.Drawing.Point(8, 307);
             this.aaLabel.Name = "aaLabel";
-            this.aaLabel.Size = new System.Drawing.Size(67, 13);
+            this.aaLabel.Size = new System.Drawing.Size(63, 13);
             this.aaLabel.TabIndex = 57;
             this.aaLabel.Text = "Antialiasing:";
-            //
+            // 
             // comboAA
-            //
+            // 
             this.comboAA.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboAA.Items.AddRange(new object[] {
             "Off",
@@ -573,18 +573,18 @@ partial class Form1
             this.comboAA.Name = "comboAA";
             this.comboAA.Size = new System.Drawing.Size(120, 21);
             this.comboAA.TabIndex = 58;
-            //
+            // 
             // postLabel
-            //
+            // 
             this.postLabel.AutoSize = true;
             this.postLabel.Location = new System.Drawing.Point(8, 337);
             this.postLabel.Name = "postLabel";
-            this.postLabel.Size = new System.Drawing.Size(63, 13);
+            this.postLabel.Size = new System.Drawing.Size(62, 13);
             this.postLabel.TabIndex = 59;
             this.postLabel.Text = "Post Effect:";
-            //
+            // 
             // comboPost
-            //
+            // 
             this.comboPost.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboPost.Items.AddRange(new object[] {
             "Off",
@@ -600,9 +600,9 @@ partial class Form1
             this.comboPost.Name = "comboPost";
             this.comboPost.Size = new System.Drawing.Size(120, 21);
             this.comboPost.TabIndex = 59;
-            //
+            // 
             // btnControls
-            //
+            // 
             this.btnControls.Location = new System.Drawing.Point(315, 331);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
