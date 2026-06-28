@@ -34,6 +34,7 @@ s_PcConfig g_PcConfig = {
     .invertControllerY   = 0,
     .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
+    .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
 
     /* === CLASSIC scheme: tank controls + fixed PSX camera (the default). The
      * keyboard + controller alternates are intentionally unset (== unbound). === */
@@ -348,6 +349,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "crosshair") == 0)
         {
             g_PcConfig.crosshair = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "aim_assist") == 0)
+        {
+            g_PcConfig.aimAssist = (atoi(value) != 0);
         }
         else if (strcmp(key, "control_styles") == 0)
         {

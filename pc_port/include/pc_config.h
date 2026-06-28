@@ -53,6 +53,7 @@ typedef struct {
     int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
     int tpsAimZoom;         /* 1 = zoom the TPS/OTS camera in while aiming/attacking (config key: tps_aim_zoom) */
     int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
+    int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
 
     /* Two control schemes, selected per-frame at runtime by camera mode and
      * applied via Pc_ApplyActiveControlScheme (main_pc.c). classic = default
