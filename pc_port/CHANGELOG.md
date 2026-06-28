@@ -1,5 +1,11 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.27.1 -- 2026-06-27
+- Fixed the gasoline tank inventory model throwing stretched "spike" triangles and crashing the game when viewed in the inventory
+
+## beta-2026.06.26.3 -- 2026-06-26
+- Small fix for bullets only hitting right in front of the player in OTS/TPS modes
+
 ## beta-2026.06.26.2 -- 2026-06-26
 - Reworked TPS/OTS upper body animation and aiming system and it is much better than before. Not perfect, but will be tuned in future updates.
 - Backspace now toggles free aiming crosshair while ingame
