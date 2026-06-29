@@ -80,7 +80,7 @@ public class ControlsForm : Form
         { "key_up", "Up" }, { "key_down", "Down" }, { "key_left", "Left" }, { "key_right", "Right" },
         { "key_cross", "C" }, { "key_circle", "V" }, { "key_triangle", "Z" }, { "key_square", "X" },
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
-        { "key_l3", "[" }, { "key_r3", "]" }, { "key_start", "Return" }, { "key_select", "Space" },
+        { "key_l3", "NONE" }, { "key_r3", "NONE" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
