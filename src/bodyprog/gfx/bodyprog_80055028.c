@@ -225,7 +225,15 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
      * the crash was the DR_MOVE occlusion seeding in func_8008D5A0
      * (hardcoded PSX packet offsets); that part is now PC-skipped inside
      * func_8008D470 and the occlusion readback short-circuits to visible. */
+#ifdef SH_PC_PORT
+    /* Suppress the PSX lens flare (Harry's chest glare) while the per-pixel cone is
+     * the flashlight: it's a separate 2D glow pinned to Harry's chest that visibly
+     * desyncs from the cone (which lights world geometry) as he moves. */
+    extern int g_PsyX_FlashlightActive;
+    if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0 && !g_PsyX_FlashlightActive)
+#else
     if (g_WorldEnvWork.field_0 == 1 && g_WorldEnvWork.field_50 != 0)
+#endif
     {
         func_8008D470(g_WorldEnvWork.field_50, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60, g_WorldEnvWork.waterZones);
     }
@@ -396,18 +404,10 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
         }
     }
 
-    /* When the per-pixel flashlight cone provides the flashlight, neutralize the
-     * per-vertex directional flashlight (field_2C is the light-color matrix loaded
-     * via SetColorMatrix) so the cone REPLACES it instead of stacking on top — that
-     * double-light was the blown-out wash. Flat ambient (field_24..26 / worldTint)
-     * stays, so the room keeps its base darkness and the cone reads as the beam. */
-    {
-        extern int g_PsyX_UsePerPixelFlashlight;
-        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15)
-        {
-            memset(&g_WorldEnvWork.field_2C, 0, sizeof(g_WorldEnvWork.field_2C));
-        }
-    }
+    /* NOTE: do NOT zero field_2C here for the per-pixel cone. The shader already
+     * dims the whole per-vertex-lit result to a dark base, so zeroing the directional
+     * light is redundant AND harmful: the character draw forces field_0=1 (point-light
+     * path) and reads field_2C, so a zeroed matrix renders Harry solid black. */
 #endif
 }
 
