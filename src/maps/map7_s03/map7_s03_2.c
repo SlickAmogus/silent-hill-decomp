@@ -4326,8 +4326,21 @@ void func_800DD6CC(void) // 0x800DD6CC
     ot              = g_OrderingTable0[activeBufferIdx].org;
 
     Vw_WorldScreenMatrixAtPositionGet(&D_800F48A8.mat_8, posX, Q12(0.0f), posZ);
-    func_800DC544(ot);
-    func_800D917C();
+#ifdef SH_PC_PORT
+    /* Boss fire + lightning FX pools (D_800F3DAC via func_800DC544, D_800F3D48
+     * via func_800D917C). This is the boss-CHARACTER draw path
+     * (incubus/unknown23 -> func_800DF074), which — unlike the main hook
+     * func_800E9874 — was UNGATED. Pre-fight the pools hold stale/uninitialized
+     * entries that render at default positions, so the boss's fire/lightning
+     * textures appeared under and around the map before the fight. Gate on
+     * D_800F4820 (the same fight-FX gate the main hook uses) so they only draw
+     * once the confrontation arms them; in-fight behavior is unchanged. */
+    if (D_800F4820 != 0)
+#endif
+    {
+        func_800DC544(ot);
+        func_800D917C();
+    }
 }
 
 void func_800DD738(const VECTOR3* pos0, const VECTOR3* pos1, q19_12 rotZ, q19_12 timer) // 0x800DD738
