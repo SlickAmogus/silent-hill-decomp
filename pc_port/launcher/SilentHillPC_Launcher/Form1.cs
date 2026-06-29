@@ -260,6 +260,18 @@ public partial class Form1 : Form
         Set(postLabel, postTip);
         Set(comboPost, postTip);
 
+        const string toneTip =
+            "Tone mapping operator on the final image (Reinhard, ACES, Filmic).\n" +
+            "Softens highlights for a more filmic look. Press F3 in-game to cycle.";
+        Set(toneLabel, toneTip);
+        Set(comboTone, toneTip);
+
+        const string flashTip =
+            "Per-pixel (fragment-shader) flashlight cone instead of the PSX\n" +
+            "per-vertex lighting (smoother light falloff). Press F4 in-game to toggle.";
+        Set(flashLabel, flashTip);
+        Set(comboFlash, flashTip);
+
         const string levelTip =
             "Which map to load when you start a New Game. Default map0_s00\n" +
             "is the intro alley. Useful for jumping straight to a specific\n" +
@@ -466,6 +478,16 @@ public partial class Form1 : Form
             postIdx = 0;
         comboPost.SelectedIndex = postIdx;
 
+        // Tone mapping: config tonemap int 0..3 <-> dropdown index
+        int toneIdx;
+        if (!int.TryParse(config.Get("tonemap", "0"), out toneIdx) ||
+            toneIdx < 0 || toneIdx >= comboTone.Items.Count)
+            toneIdx = 0;
+        comboTone.SelectedIndex = toneIdx;
+
+        // Per-pixel flashlight: config per_pixel_flashlight 0/1 <-> dropdown index
+        comboFlash.SelectedIndex = config.Get("per_pixel_flashlight", "0") == "1" ? 1 : 0;
+
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
             "map0_s00","map0_s01","map0_s02",
@@ -584,6 +606,13 @@ public partial class Form1 : Form
         // Post-process look: dropdown index -> post_process int
         if (comboPost.SelectedIndex >= 0)
             config.Set("post_process", comboPost.SelectedIndex.ToString());
+
+        // Tone mapping: dropdown index -> tonemap int
+        if (comboTone.SelectedIndex >= 0)
+            config.Set("tonemap", comboTone.SelectedIndex.ToString());
+
+        // Per-pixel flashlight: dropdown index -> per_pixel_flashlight 0/1
+        config.Set("per_pixel_flashlight", comboFlash.SelectedIndex == 1 ? "1" : "0");
 
         config.Save();
     }

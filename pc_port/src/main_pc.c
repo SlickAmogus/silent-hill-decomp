@@ -739,6 +739,21 @@ int main(int argc, char* argv[])
     g_cfg_postProcess = g_PcConfig.postProcess;
     SH_LOG("Post-process: mode %d", g_cfg_postProcess);
 
+    /* Tone-map operator on the final image (0=off,1=Reinhard,2=ACES,3=Filmic).
+     * Runtime-settable; F3 cycles it in-game (dbg_overlay.c). */
+    {
+        extern int g_cfg_tonemap;
+        g_cfg_tonemap = g_PcConfig.tonemap;
+        SH_LOG("Tone mapping: mode %d", g_cfg_tonemap);
+    }
+
+    /* Per-pixel flashlight cone (vs PSX per-vertex lighting). F4 toggles it. */
+    {
+        extern int g_PsyX_UsePerPixelFlashlight;
+        g_PsyX_UsePerPixelFlashlight = g_PcConfig.perPixelFlashlight ? 1 : 0;
+        SH_LOG("Per-pixel flashlight: %s", g_PsyX_UsePerPixelFlashlight ? "ON" : "off");
+    }
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();

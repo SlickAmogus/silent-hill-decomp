@@ -23,6 +23,8 @@ s_PcConfig g_PcConfig = {
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
+    .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
+    .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -302,6 +304,17 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             if (v < 0) v = 0;
             g_PcConfig.postProcess = v;
+        }
+        else if (strcmp(key, "tonemap") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 3) v = 3;
+            g_PcConfig.tonemap = v;
+        }
+        else if (strcmp(key, "per_pixel_flashlight") == 0)
+        {
+            g_PcConfig.perPixelFlashlight = (atoi(value) != 0);
         }
         else if (strcmp(key, "enable_debug_log") == 0)
         {
