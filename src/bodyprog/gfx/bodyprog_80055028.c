@@ -157,6 +157,49 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
 
+#ifdef SH_PC_PORT
+    /* Per-pixel flashlight (PC port): once per frame, push the world point light
+     * into VIEW space for the fragment-shader cone. GsWSMATRIX is the world->view
+     * matrix (Q8 t, Q12 rotation); transforming the Q8 world light position
+     * through it yields the same Q8 camera-space units the GTE RTPS captures into
+     * GrVertex.vsx/vsy/vsz (the fog code transforms world positions identically,
+     * see bodyprog_bone_80044F14.c). Off path: g_PsyX_FlashlightActive stays 0
+     * (or the master flag is 0), so the shader cone is fully inert. */
+    {
+        extern int   g_PsyX_UsePerPixelFlashlight;
+        extern int   g_PsyX_FlashlightActive;
+        extern float g_PsyX_FlashlightPos[3];
+        extern float g_PsyX_FlashlightDir[3];
+
+        if (g_PsyX_UsePerPixelFlashlight && g_WorldEnvWork.field_0 == 1)
+        {
+            s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
+            s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
+            s32 lz = Q12_TO_Q8(g_WorldEnvWork.field_60.vz);
+
+            s32 vx = (s32)(((s64)GsWSMATRIX.m[0][0] * lx + (s64)GsWSMATRIX.m[0][1] * ly + (s64)GsWSMATRIX.m[0][2] * lz) >> 12) + GsWSMATRIX.t[0];
+            s32 vy = (s32)(((s64)GsWSMATRIX.m[1][0] * lx + (s64)GsWSMATRIX.m[1][1] * ly + (s64)GsWSMATRIX.m[1][2] * lz) >> 12) + GsWSMATRIX.t[1];
+            s32 vz = (s32)(((s64)GsWSMATRIX.m[2][0] * lx + (s64)GsWSMATRIX.m[2][1] * ly + (s64)GsWSMATRIX.m[2][2] * lz) >> 12) + GsWSMATRIX.t[2];
+
+            g_PsyX_FlashlightPos[0] = (float)vx;
+            g_PsyX_FlashlightPos[1] = (float)vy;
+            g_PsyX_FlashlightPos[2] = (float)vz;
+
+            /* Beam axis = camera forward (+Z) in view space; the cone follows the
+             * camera like a held flashlight. (N.L / field_58 direction deferred.) */
+            g_PsyX_FlashlightDir[0] = 0.0f;
+            g_PsyX_FlashlightDir[1] = 0.0f;
+            g_PsyX_FlashlightDir[2] = 1.0f;
+
+            g_PsyX_FlashlightActive = 1;
+        }
+        else
+        {
+            g_PsyX_FlashlightActive = 0;
+        }
+    }
+#endif
+
     if (g_WorldEnvWork.field_2 != 0)
     {
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);

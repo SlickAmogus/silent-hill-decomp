@@ -26,6 +26,7 @@
 extern "C" {
 #endif
 extern int  g_PsxUsePgxp;
+extern int  g_PsyX_UsePerPixelFlashlight;
 extern void PGXP_StoreAddr(void* addr, int slot);
 #ifdef __cplusplus
 }
@@ -134,7 +135,7 @@ static inline unsigned int gte_stIR1_func(void) { return MFC2(9); }
     _xy[1] = MFC2(13); \
     _z[2] = (unsigned short)MFC2(19); \
     _xy[2] = MFC2(14); \
-    if (g_PsxUsePgxp) { PGXP_StoreAddr(&_xy[0], 0); PGXP_StoreAddr(&_xy[1], 1); PGXP_StoreAddr(&_xy[2], 2); } \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { PGXP_StoreAddr(&_xy[0], 0); PGXP_StoreAddr(&_xy[1], 1); PGXP_StoreAddr(&_xy[2], 2); } \
 } while(0)
 
 /* gte_SetRotMatrix_custom - TRANSPOSED rotation matrix load (rotates
