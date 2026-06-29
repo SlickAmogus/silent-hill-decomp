@@ -171,12 +171,14 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         extern float g_PsyX_FlashlightPos[3];
         extern float g_PsyX_FlashlightDir[3];
 
-        /* field_2 (not field_0) is the flashlight-casting flag: it gates the PSX
-         * glow-polygon fan below (func_80041074) and is raised by func_800553E0
-         * when Harry's flashlight is on. field_0==1 only means the room uses
-         * dynamic lighting (true even with the flashlight off), which left the
-         * cone stuck on. Mirror the PSX glow's gate exactly. */
-        if (g_PsyX_UsePerPixelFlashlight && g_WorldEnvWork.field_2 != 0)
+        /* Gate on Harry's actual flashlight state (== what Game_FlashlightIsOn
+         * returns). field_0==1 is only the room's dynamic-light mode (on even
+         * with the flashlight stowed, so the cone got stuck on) and field_2 is
+         * only the per-room glow-halo enable (0 in rooms like map3_s05 even with
+         * the flashlight on, so the cone never showed) — neither tracks the
+         * flashlight itself. field_60 (light pos) is refreshed every frame by
+         * Gfx_FlashlightUpdate regardless, so it's valid whenever this is true. */
+        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
@@ -208,10 +210,12 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     if (g_WorldEnvWork.field_2 != 0)
     {
 #ifdef SH_PC_PORT
-        /* The per-pixel cone (pushed above) replaces this PSX glow-polygon fan;
-         * drawing both double-lights the scene into blown-out highlights. */
-        extern int g_PsyX_UsePerPixelFlashlight;
-        if (!g_PsyX_UsePerPixelFlashlight)
+        /* Skip this PSX glow-polygon fan only when the per-pixel cone is actually
+         * lighting (flashlight on + feature on == g_PsyX_FlashlightActive); the
+         * cone replaces it and drawing both double-lights into blown-out
+         * highlights. With the cone inactive, draw the halo as the game intends. */
+        extern int g_PsyX_FlashlightActive;
+        if (!g_PsyX_FlashlightActive)
 #endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
