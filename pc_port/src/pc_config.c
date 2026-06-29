@@ -25,7 +25,7 @@ s_PcConfig g_PcConfig = {
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
-    .flashlightIntensity  = 1.0f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightIntensity  = 1.90f, /* per-pixel flashlight cone brightness scale, 0..3 */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
