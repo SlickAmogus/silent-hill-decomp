@@ -870,6 +870,24 @@ void DbgOverlay_PushLine(const char* line)
     s_console_dirty = 1;
 }
 
+/* Auto-repeat with acceleration for held keys (mirrors game_main.c's keyframe
+ * scrubber Kf_HoldRepeat): fires on the press edge, then after a short delay
+ * repeats at an accelerating rate. pressMs/lastMs are per-key timers. */
+static int Dbg_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
+{
+    Uint32 now = SDL_GetTicks();
+    if (cur && !prev) { *pressMs = now; *lastMs = now; return 1; }
+    if (cur && prev) {
+        Uint32 held = now - *pressMs;
+        if (held >= 350) {
+            int interval = 250 - (int)((held - 350) / 10);
+            if (interval < 100) interval = 100;
+            if ((now - *lastMs) >= (Uint32)interval) { *lastMs = now; return 1; }
+        }
+    }
+    return 0;
+}
+
 void DbgOverlay_Update(void)
 {
     static int s_mark_a = 0;
@@ -1190,39 +1208,65 @@ void DbgOverlay_Update(void)
         s_prev_esc = cur_esc;
     }
 
-    if (g_PcConfig.showConsole < 2) return;
+    /* ---- Live effect-intensity control (works during gameplay) -------------
+     * [ lowers / ] raises the selected effect's intensity (auto-repeat
+     * accelerates while held, like the keyframe inspector); \ cycles which
+     * ENABLED effect is being adjusted. The value is echoed to the console and
+     * saved to config on key release (avoids file I/O during a held repeat). */
+    {
+        extern int   g_PsyX_UsePerPixelFlashlight, g_cfg_postProcess, g_cfg_tonemap;
+        extern float g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity;
+        extern void  PcConfig_SaveKeyValue(const char* key, const char* val);
 
-    cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
-    cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
+        static int    s_fxSel   = 0; /* 0=flashlight 1=post 2=tonemap */
+        static int    s_prev_bs = 0;
+        static Uint32 s_lbP = 0, s_lbL = 0, s_rbP = 0, s_rbL = 0;
 
-    if (cur_a && !s_prev_a) {
-        player = &g_SysWork.playerWork.player;
-        hpos   = player->position;
-        vcGetNowCamPos(&cpos);
-        s_mark_a++;
-        log_mark('A', s_mark_a, &hpos, &cpos);
-        snprintf(line, LINE_LEN, "A%d %.1f,%.1f,%.1f",
-                 s_mark_a,
-                 hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f);
-        push_console(line);
-        s_console_dirty = 1;
+        int    en[3];
+        float* vp[3];
+        float  vmax[3];
+        const char* vkey[3];
+        const char* vlbl[3];
+        int    curBS, anyEn, changed, n;
+
+        en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = &g_PsyX_FlashlightIntensity; vmax[0] = 3.0f; vkey[0] = "flashlight_intensity";   vlbl[0] = "flashlight";
+        en[1] = (g_cfg_postProcess != 0);            vp[1] = &g_cfg_postProcessIntensity; vmax[1] = 1.0f; vkey[1] = "post_process_intensity"; vlbl[1] = "post-process";
+        en[2] = (g_cfg_tonemap != 0);                vp[2] = &g_cfg_tonemapIntensity;     vmax[2] = 1.0f; vkey[2] = "tonemap_intensity";      vlbl[2] = "tonemap";
+
+        cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
+        cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
+        curBS = ks[SDL_SCANCODE_BACKSLASH];
+        anyEn = en[0] || en[1] || en[2];
+
+        /* keep the selection on an enabled effect */
+        if (anyEn && !en[s_fxSel]) { n = 0; do { s_fxSel = (s_fxSel + 1) % 3; } while (!en[s_fxSel] && ++n < 3); }
+
+        /* \ : switch to the next enabled effect */
+        if (curBS && !s_prev_bs && anyEn) {
+            n = 0; do { s_fxSel = (s_fxSel + 1) % 3; } while (!en[s_fxSel] && ++n < 3);
+            SH_DBG_ECHO("[FX] adjusting %s (%.2f)  ([ lower / ] raise)", vlbl[s_fxSel], *vp[s_fxSel]);
+        }
+        s_prev_bs = curBS;
+
+        changed = 0;
+        if (anyEn && en[s_fxSel]) {
+            if (Dbg_HoldRepeat(cur_a, s_prev_a, &s_lbP, &s_lbL)) {
+                *vp[s_fxSel] -= 0.05f; if (*vp[s_fxSel] < 0.0f) *vp[s_fxSel] = 0.0f; changed = 1;
+            }
+            if (Dbg_HoldRepeat(cur_b, s_prev_b, &s_rbP, &s_rbL)) {
+                *vp[s_fxSel] += 0.05f; if (*vp[s_fxSel] > vmax[s_fxSel]) *vp[s_fxSel] = vmax[s_fxSel]; changed = 1;
+            }
+            if (changed)
+                SH_DBG_ECHO("[FX] %s intensity %.2f", vlbl[s_fxSel], *vp[s_fxSel]);
+            if ((!cur_a && s_prev_a) || (!cur_b && s_prev_b)) { /* persist the landed value */
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%.2f", *vp[s_fxSel]);
+                PcConfig_SaveKeyValue(vkey[s_fxSel], buf);
+            }
+        }
+        s_prev_a = cur_a;
+        s_prev_b = cur_b;
     }
-
-    if (cur_b && !s_prev_b) {
-        player = &g_SysWork.playerWork.player;
-        hpos   = player->position;
-        vcGetNowCamPos(&cpos);
-        s_mark_b++;
-        log_mark('B', s_mark_b, &hpos, &cpos);
-        snprintf(line, LINE_LEN, "B%d %.1f,%.1f,%.1f",
-                 s_mark_b,
-                 hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f);
-        push_console(line);
-        s_console_dirty = 1;
-    }
-
-    s_prev_a = cur_a;
-    s_prev_b = cur_b;
 }
 
 void DbgOverlay_Render(void)

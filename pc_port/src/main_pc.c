@@ -754,6 +754,17 @@ int main(int argc, char* argv[])
         SH_LOG("Per-pixel flashlight: %s", g_PsyX_UsePerPixelFlashlight ? "ON" : "off");
     }
 
+    /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled
+     * effect; console flintensity / postintensity / tmintensity). */
+    {
+        extern float g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity;
+        g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
+        g_cfg_postProcessIntensity = g_PcConfig.postProcessIntensity;
+        g_cfg_tonemapIntensity     = g_PcConfig.tonemapIntensity;
+        SH_LOG("Effect intensity: flashlight %.2f, post %.2f, tonemap %.2f",
+               g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity);
+    }
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();
