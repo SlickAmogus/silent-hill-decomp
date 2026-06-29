@@ -713,6 +713,7 @@ void func_8006EE0C(s_RayState_6C* arg0, bool useCylinder, const s_SubCharacter* 
     q19_12 offsetZ;
     q19_12 offsetX;
     q19_12 topHeight;
+    q19_12 groundY;
 
     if (useCylinder == true)
     {
@@ -729,10 +730,35 @@ void func_8006EE0C(s_RayState_6C* arg0, bool useCylinder, const s_SubCharacter* 
         topHeight     = chara->position.vy + chara->collision.box.height;
     }
 
+    groundY = chara->position.vy + chara->collision.box.top;
+
+#ifdef SH_PC_PORT
+    /* Player gun bullet "fat hitbox": the box-path collision cylinder is a
+     * narrow neck/upper-torso band, so manual free-aim only hit high shots and
+     * leg/torso hits whiffed. While the player's bullet is traced
+     * (g_PcBulletHitActive, set around the trace in func_8008A3E0), inflate the
+     * cylinder to cover the full visible body — vertically each side and a bit
+     * wider — so the whole body is hittable and the impact (blood) lands where
+     * aimed. Box path only (bullets); enemy/LOS traces are untouched. */
+    {
+        extern s32    g_PcBulletHitActive;
+        extern q19_12 g_PcBulletVertMul;
+        extern q19_12 g_PcBulletRadMul;
+        if (g_PcBulletHitActive && useCylinder != true)
+        {
+            q19_12 r  = chara->collision.cylinder.field_2;
+            q19_12 ev = Q12_MULT(r, g_PcBulletVertMul);
+            topHeight += ev;     /* [groundY, topHeight] is the valid Y band; */
+            groundY   -= ev;     /* widen both bounds outward (sign-agnostic).  */
+            arg0->field_C += Q12_TO_Q8(Q12_MULT(r, g_PcBulletRadMul));
+        }
+    }
+#endif
+
     arg0->topHeight    = Q12_TO_Q8(topHeight);
     arg0->positionX    = Q12_TO_Q8(chara->position.vx + offsetX);
     arg0->positionZ    = Q12_TO_Q8(chara->position.vz + offsetZ);
-    arg0->groundHeight = Q12_TO_Q8(chara->position.vy + chara->collision.box.top);
+    arg0->groundHeight = Q12_TO_Q8(groundY);
 }
 
 void func_8006EEB8(s_RayState* state, s_SubCharacter* chara) // 0x8006EEB8
