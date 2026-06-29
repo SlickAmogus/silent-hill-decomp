@@ -216,13 +216,15 @@ static void Pc_TpsCamera_Apply(void)
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
     int             isAiming;
 
-    {
-        extern u16 g_Player_IsAttacking;
-        isAiming = (g_SysWork.playerCombat.isAiming || g_Player_IsAttacking);
-    }
+    /* Zoom + OTS offset follow the AIM state only — NOT firing/attacking. Gating
+     * on g_Player_IsAttacking too made the camera jarringly zoom in whenever the
+     * player fired a shot, swung a melee weapon, or activated/examined something
+     * (Cross) without aiming. The zoom is lerped below, so dropping it doesn't
+     * snap during an aimed shot (isAiming stays held). */
+    isAiming = g_SysWork.playerCombat.isAiming;
 
-    /* Aim zoom: ease the orbit distance in while aiming a gun or attacking, so
-     * the shot lines up better. tps_aim_zoom config gates it (on by default). */
+    /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
+     * up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
     static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
     {
