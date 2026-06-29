@@ -1712,6 +1712,12 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
          * out-of-cell chunks. (A NULL texture is the pool-exhausted
          * signal; a non-NULL texture with a still-pending TIM read is
          * fine and must not trigger a steal.) */
+#ifdef SH_PC_PORT
+        /* Untexture NULL-texture materials during this sync so a chunk that lost
+         * a pool page (stolen for a nearer chunk) renders flat instead of
+         * sampling the stale VRAM page another chunk now owns (the "rainbow"). */
+        { extern int g_PcInteriorMatSync; g_PcInteriorMatSync = 1; }
+#endif
         for (ins = 0; ins < keepCount; ins++)
         {
             s32 stealFrom;
@@ -1743,6 +1749,9 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
             Lm_MaterialFlagsApply(keep[ins]->ipdHdr->lmHdr);
         }
+#ifdef SH_PC_PORT
+        { extern int g_PcInteriorMatSync; g_PcInteriorMatSync = 0; }
+#endif
 
         return;
     }
