@@ -192,11 +192,16 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
             g_PsyX_FlashlightPos[1] = (float)vy;
             g_PsyX_FlashlightPos[2] = (float)vz;
 
-            /* Beam axis = camera forward (+Z) in view space; the cone follows the
-             * camera like a held flashlight. (N.L / field_58 direction deferred.) */
-            g_PsyX_FlashlightDir[0] = 0.0f;
-            g_PsyX_FlashlightDir[1] = 0.0f;
-            g_PsyX_FlashlightDir[2] = 1.0f;
+            /* Beam direction = the flashlight's world direction (field_58 — the same
+             * vector the per-vertex "ambient" flashlight uses, so it turns with Harry's
+             * facing) rotated into view space. Camera +Z only tracked his position, so
+             * the cone never turned when he did. Rotation only (it's a direction). */
+            s32 fdx = g_WorldEnvWork.field_58.vx;
+            s32 fdy = g_WorldEnvWork.field_58.vy;
+            s32 fdz = g_WorldEnvWork.field_58.vz;
+            g_PsyX_FlashlightDir[0] = (float)(s32)(((s64)GsWSMATRIX.m[0][0] * fdx + (s64)GsWSMATRIX.m[0][1] * fdy + (s64)GsWSMATRIX.m[0][2] * fdz) >> 12);
+            g_PsyX_FlashlightDir[1] = (float)(s32)(((s64)GsWSMATRIX.m[1][0] * fdx + (s64)GsWSMATRIX.m[1][1] * fdy + (s64)GsWSMATRIX.m[1][2] * fdz) >> 12);
+            g_PsyX_FlashlightDir[2] = (float)(s32)(((s64)GsWSMATRIX.m[2][0] * fdx + (s64)GsWSMATRIX.m[2][1] * fdy + (s64)GsWSMATRIX.m[2][2] * fdz) >> 12);
 
             g_PsyX_FlashlightActive = 1;
         }
