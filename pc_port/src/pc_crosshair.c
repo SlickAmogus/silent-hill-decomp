@@ -22,8 +22,6 @@ void Pc_CrosshairDraw(void)
     static DR_MODE s_drMode[2];
     static int     s_inited = 0;
 
-    extern u16 g_Player_IsAttacking;
-
     GsOT*    ot;
     POLY_G4* poly;
     DR_MODE* drMode;
@@ -32,7 +30,7 @@ void Pc_CrosshairDraw(void)
     if (!g_PcConfig.crosshair) return;
     if (g_ControlStyle != ControlStyle_Tps && g_ControlStyle != ControlStyle_Ots) return;
     if (g_GameWork.gameState != GameState_InGame) return;
-    if (!(g_SysWork.playerCombat.isAiming || g_Player_IsAttacking)) return;
+    if (!g_SysWork.playerCombat.isAiming) return; /* aim only — not firing/activating */
 
     if (!s_inited)
     {
