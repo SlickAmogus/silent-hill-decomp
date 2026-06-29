@@ -395,6 +395,19 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
             g_WorldEnvWork.field_26 = (s16)((s32)g_WorldEnvWork.field_26 * g_PcWorldLightColorB / 255);
         }
     }
+
+    /* When the per-pixel flashlight cone provides the flashlight, neutralize the
+     * per-vertex directional flashlight (field_2C is the light-color matrix loaded
+     * via SetColorMatrix) so the cone REPLACES it instead of stacking on top — that
+     * double-light was the blown-out wash. Flat ambient (field_24..26 / worldTint)
+     * stays, so the room keeps its base darkness and the cone reads as the beam. */
+    {
+        extern int g_PsyX_UsePerPixelFlashlight;
+        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15)
+        {
+            memset(&g_WorldEnvWork.field_2C, 0, sizeof(g_WorldEnvWork.field_2C));
+        }
+    }
 #endif
 }
 
