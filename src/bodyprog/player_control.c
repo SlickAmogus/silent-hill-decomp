@@ -4290,15 +4290,16 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 if (
 #ifdef SH_PC_PORT
-                    /* Skip the early field_6 transition during multi-tap so the
-                     * full swing-down anim plays. For knife: kf advances 596→611
-                     * but D_800C44F0[2].field_6=598 — without this gate the
-                     * transition fires only 2 kf into the multi-tap anim, leaving
-                     * Harry with the knife raised at the windup position and
-                     * never showing the actual strike. pcAttackDone (at kf>=611)
-                     * still triggers the transition at the natural anim end. */
-                    (g_Player_MeleeAttackType != 2 && extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
-                    || pcAttackDone
+                    /* Rely SOLELY on pcAttackDone (derived from the verified-good
+                     * HARRY_BASE_ANIM_INFOS endKeyframeIdx). The old
+                     * `keyframeIdx == D_800C44F0[..].field_6` term read the corrupt
+                     * PC-reconstructed D_800294F4 table: e.g. for the SteelPipe it
+                     * yields 597, which lands INSIDE the 584->613 swing and cut the
+                     * swing at waist height. The outer guard only admits the active
+                     * swing statuses (Unk29/Unk30/HandgunRecoil = 59/61/63), all
+                     * covered by pcAttackDone, which fires at each swing's true end
+                     * keyframe — full arc to the ground, FPS-independent. */
+                    pcAttackDone
 #else
                     extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6
 #endif
