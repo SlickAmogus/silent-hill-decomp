@@ -685,7 +685,18 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         func_800892A4(5);
                     }
 
+#ifdef SH_PC_PORT
+                    /* Player gun bullets only: inflate the enemy collision
+                     * cylinder (func_8006EE0C) to the full visible body so any
+                     * body shot lands + blood spawns where aimed. Scoped tightly
+                     * to this one trace so enemy attacks / LOS keep the original
+                     * tight hitbox. */
+                    { extern s32 g_PcBulletHitActive; g_PcBulletHitActive = (chara == &g_SysWork.playerWork.player); }
+#endif
                     temp = Ray_CharaTraceQuery(&D_800C4728, &chara->field_44.field_18, &chara->field_44.field_48[0], chara);
+#ifdef SH_PC_PORT
+                    { extern s32 g_PcBulletHitActive; g_PcBulletHitActive = 0; }
+#endif
                     ptr  = D_800C4728.character;
 #ifdef SH_PC_PORT
                     if (chara == &g_SysWork.playerWork.player) {

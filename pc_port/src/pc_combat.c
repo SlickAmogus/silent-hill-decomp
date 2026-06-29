@@ -11,6 +11,20 @@
 extern const unsigned char* g_sdlKeyboardState;
 extern int                  g_PcAimDevice; /* 0 = mouse, 1 = controller (game_main.c) */
 
+/* Player bullet "fat hitbox" — single source of truth shared with ray.c
+ * (func_8006EE0C) and bodyprog_combat_8008A058.c (func_8008A3E0). The enemy
+ * bullet-collision cylinder ([box.top..box.height] radius cylinder.field_2) is
+ * only a narrow neck/upper-torso band, so only high shots registered. While the
+ * PLAYER's gun bullet is traced (g_PcBulletHitActive, set around the trace in
+ * func_8008A3E0), func_8006EE0C inflates that cylinder by these radius-relative
+ * amounts so the whole VISIBLE body is hittable — for BOTH free-aim and the
+ * classic auto-aim. The damage ray hits at the aimed height, so blood/impact
+ * lands where shot. Aim-assist clamps its aim point to the SAME expanded span.
+ * Both default-tunable; expand-Y is each side of the band. */
+s32    g_PcBulletHitActive = 0;
+q19_12 g_PcBulletVertMul   = Q12(2.0f); /* vertical reach added each side = 2x collision radius */
+q19_12 g_PcBulletRadMul    = Q12(1.0f); /* horizontal radius added = 1x collision radius */
+
 /* Returns true on the frame `sdlScancode` transitions 0→1.
  *
  * Frame-stable: prev-state is sampled at most once per VBlank, so multiple
@@ -189,8 +203,15 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
         if (kmult < bestK || (kmult == bestK && perpH < bestPerp))
         {
             VECTOR3 aim;
+            /* Clamp the aim point into the EXPANDED bullet cylinder span (the
+             * same inflation func_8006EE0C applies during the player's bullet
+             * trace) — not the narrow collision band — so a leg/torso shot aims
+             * at that height and the impact (blood) lands where you aimed. */
+            s32 ev  = (s32)(((s64)radius * g_PcBulletVertMul) >> 12);
+            s32 eLo = yLo - ev;
+            s32 eHi = yHi + ev;
             aim.vx = cx;
-            aim.vy = (rayY < yLo) ? yLo : (rayY > yHi) ? yHi : rayY;
+            aim.vy = (rayY < eLo) ? eLo : (rayY > eHi) ? eHi : rayY;
             aim.vz = cz;
 
             /* Don't aim through walls: reject if level geometry blocks the eye
