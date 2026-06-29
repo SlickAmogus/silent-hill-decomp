@@ -124,24 +124,13 @@ void Pc_ControlStyleInit(void)
            Pc_ControlStyleId(style), Pc_ControlStyleCount());
 }
 
-/* SDL game-controller name -> PSX held-button flag, via the default pad map.
- * Covers the rebindable defaults; a fully generic raw-SDL-button read is part
- * of the input-layer pass. */
-static int ChangeCam_PadFlag(const char* name)
-{
-    if (!name)                          return 0;
-    if (!strcmp(name, "rightstick"))    return ControllerFlag_R3;
-    if (!strcmp(name, "leftstick"))     return ControllerFlag_L3;
-    if (!strcmp(name, "leftshoulder"))  return ControllerFlag_L1;
-    if (!strcmp(name, "rightshoulder")) return ControllerFlag_R1;
-    if (!strcmp(name, "back"))          return ControllerFlag_Select;
-    if (!strcmp(name, "start"))         return ControllerFlag_Start;
-    if (!strcmp(name, "a"))             return ControllerFlag_Cross;
-    if (!strcmp(name, "b"))             return ControllerFlag_Circle;
-    if (!strcmp(name, "x"))             return ControllerFlag_Square;
-    if (!strcmp(name, "y"))             return ControllerFlag_Triangle;
-    return 0;
-}
+/* PC port: the Change-Camera PAD bind is read from the PHYSICAL controller via
+ * SDL (PsyX_RawControllerButtonHeld below + SDL_GameControllerGetButtonFromString),
+ * NOT the keyboard-merged PSX pad word. The keyboard's bind is the separate
+ * key_change_cam read from the keyboard. This keeps the two input sources
+ * independent: a keyboard key mapped to the same PSX button (e.g. [ / ] = L3/R3)
+ * no longer triggers a controller-only action like the camera switch. */
+extern int PsyX_RawControllerButtonHeld(int sdlGameControllerButton);
 
 /* "Mouse1".."Mouse5" -> SDL mouse button number (else 0 = it's a key). */
 static int SwapShoulder_MouseButton(const char* name)
@@ -166,7 +155,7 @@ static int SwapShoulder_MouseButton(const char* name)
 void Pc_ControlStyleUpdate(void)
 {
     static SDL_Scancode scCam    = SDL_SCANCODE_UNKNOWN;
-    static int          padFlag  = 0;
+    static int          scPad    = -1; /* SDL_GameControllerButton, -1 = unbound */
     static int          resolved = 0;
     static int          prevKey  = 0;
     static int          prevPad  = 0;
@@ -181,7 +170,9 @@ void Pc_ControlStyleUpdate(void)
     if (!resolved)
     {
         scCam    = SDL_GetScancodeFromName(g_PcConfig.keyChangeCam);
-        padFlag  = ChangeCam_PadFlag(g_PcConfig.padChangeCam);
+        scPad    = (g_PcConfig.padChangeCam && g_PcConfig.padChangeCam[0])
+                       ? (int)SDL_GameControllerGetButtonFromString(g_PcConfig.padChangeCam)
+                       : SDL_CONTROLLER_BUTTON_INVALID;
         resolved = 1;
     }
 
@@ -191,7 +182,7 @@ void Pc_ControlStyleUpdate(void)
 
     keys   = SDL_GetKeyboardState(NULL);
     curKey = (keys && scCam != SDL_SCANCODE_UNKNOWN) ? keys[scCam] : 0;
-    curPad = (padFlag && g_Controller0) ? ((g_Controller0->heldBtnFlags & padFlag) != 0) : 0;
+    curPad = PsyX_RawControllerButtonHeld(scPad); /* physical controller only, not the kb-merged pad */
 
     /* Edge-toggle the active style — gameplay only. */
     if (inGameplay && ((curKey && !prevKey) || (curPad && !prevPad)))
