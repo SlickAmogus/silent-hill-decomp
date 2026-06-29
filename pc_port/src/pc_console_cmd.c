@@ -757,6 +757,42 @@ void Pc_ConsoleExec(const char* line)
             cprintf("keyframe %d / %d (view %s)", g_DebugAnimKf, maxKf,
                     g_DebugAnimKfView ? "ON" : "OFF");
         }
+    } else if (strcmp(cmd, "FLINTENSITY") == 0 || strcmp(cmd, "FLINT") == 0) {
+        extern float g_PsyX_FlashlightIntensity;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 3.0f) v = 3.0f;
+            g_PsyX_FlashlightIntensity = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("flashlight_intensity", buf);
+        }
+        cprintf("flashlight intensity: %.2f (0..3)", g_PsyX_FlashlightIntensity);
+    } else if (strcmp(cmd, "POSTINTENSITY") == 0 || strcmp(cmd, "POSTINT") == 0) {
+        extern float g_cfg_postProcessIntensity;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_cfg_postProcessIntensity = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("post_process_intensity", buf);
+        }
+        cprintf("post-process intensity: %.2f (0..1)", g_cfg_postProcessIntensity);
+    } else if (strcmp(cmd, "TMINTENSITY") == 0 || strcmp(cmd, "TMINT") == 0) {
+        extern float g_cfg_tonemapIntensity;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_cfg_tonemapIntensity = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("tonemap_intensity", buf);
+        }
+        cprintf("tonemap intensity: %.2f (0..1)", g_cfg_tonemapIntensity);
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
