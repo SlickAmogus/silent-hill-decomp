@@ -853,7 +853,7 @@ u8 g_Screen_FadeStatus[256] = {0};
  * (from binary). Was zero-stub which broke alley camera warps. */
 u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
 u8 g_WorldGfxWork[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
-u8 g_WorldObject0[256] = {0};
+u8 g_WorldObject0[512] = {0};  /* map7_s00 uses s_WorldObjectModel[6] = 6*48 = 288 on 64-bit > 256 (rotated Nowhere elevator door) */
 u8 g_WorldObject1[512] = {0};  /* s_WorldObjectPlacement[6] = 6*64 = 384 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject2[256] = {0};
 u8 g_WorldObject3[256] = {0};
