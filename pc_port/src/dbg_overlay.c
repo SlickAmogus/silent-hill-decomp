@@ -1142,6 +1142,36 @@ void DbgOverlay_Update(void)
         s_prev_f2 = cur_f2;
     }
 
+    /* F3 cycles the tone-map operator (0=Off..3). User-facing graphics option,
+     * not gated on g_PcAllowDebugControls. (PsyCross's old F3 bilinear toggle was
+     * removed to free this key — filtering is set via the launcher.) */
+    {
+        static int s_prev_f3 = 0;
+        int cur_f3 = ks[SDL_SCANCODE_F3];
+        if (cur_f3 && !s_prev_f3) {
+            extern int g_cfg_tonemap;
+            static const char* const s_toneNames[] = { "Off", "Reinhard", "ACES", "Filmic" };
+            const int count = (int)(sizeof(s_toneNames) / sizeof(s_toneNames[0]));
+            g_cfg_tonemap = (g_cfg_tonemap + 1) % count;
+            if (g_cfg_tonemap < 0) g_cfg_tonemap = 0;
+            SH_DBG_ECHO("[DEBUG] F3 Tone mapping: %s", s_toneNames[g_cfg_tonemap]);
+        }
+        s_prev_f3 = cur_f3;
+    }
+
+    /* F4 toggles the per-pixel (fragment-shader) flashlight cone. */
+    {
+        static int s_prev_f4 = 0;
+        int cur_f4 = ks[SDL_SCANCODE_F4];
+        if (cur_f4 && !s_prev_f4) {
+            extern int g_PsyX_UsePerPixelFlashlight;
+            g_PsyX_UsePerPixelFlashlight = !g_PsyX_UsePerPixelFlashlight;
+            SH_DBG_ECHO("[DEBUG] F4 Per-pixel flashlight: %s",
+                        g_PsyX_UsePerPixelFlashlight ? "ON" : "OFF");
+        }
+        s_prev_f4 = cur_f4;
+    }
+
     /* Esc is NOT a debug control — always handled, in every state. At the title /
      * main menu it quits the game; otherwise (gameplay or cutscene) it warm-reboots
      * to the title (consumed by MainLoop_ShouldWarmReset, which ignores it on the

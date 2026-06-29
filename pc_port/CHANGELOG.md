@@ -1,5 +1,10 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.28.2 -- 2026-06-28
+- OTS/TPS free-aim: Fix for free aim so that it's not as hard to hit enemies and controllers have auto aim again (both may need a little more tweaking)
+- Also removed hop backwards animation from OTS/TPS for smoother controls
+Coming soon: There are bunch of half-fixed updates that will be fully fixed and pushed soon, including more optional graphical enhancements, cutscene fixes, etc.
+
 ## beta-2026.06.28.1 -- 2026-06-28
 - Graphics options (MSAA + post-process) wired to config + launcher
 - Removed outdated launcher options, added help/feedback options

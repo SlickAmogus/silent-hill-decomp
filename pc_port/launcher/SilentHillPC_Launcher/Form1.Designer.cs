@@ -61,6 +61,10 @@ partial class Form1
     private ComboBox comboAA;
     private Label postLabel;
     private ComboBox comboPost;
+    private Label toneLabel;
+    private ComboBox comboTone;
+    private Label flashLabel;
+    private ComboBox comboFlash;
 
 
 
@@ -122,6 +126,10 @@ partial class Form1
             this.comboAA = new System.Windows.Forms.ComboBox();
             this.postLabel = new System.Windows.Forms.Label();
             this.comboPost = new System.Windows.Forms.ComboBox();
+            this.toneLabel = new System.Windows.Forms.Label();
+            this.comboTone = new System.Windows.Forms.ComboBox();
+            this.flashLabel = new System.Windows.Forms.Label();
+            this.comboFlash = new System.Windows.Forms.ComboBox();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
@@ -600,7 +608,49 @@ partial class Form1
             this.comboPost.Name = "comboPost";
             this.comboPost.Size = new System.Drawing.Size(120, 21);
             this.comboPost.TabIndex = 59;
-            // 
+            //
+            // toneLabel
+            //
+            this.toneLabel.AutoSize = true;
+            this.toneLabel.Location = new System.Drawing.Point(8, 367);
+            this.toneLabel.Name = "toneLabel";
+            this.toneLabel.Size = new System.Drawing.Size(62, 13);
+            this.toneLabel.TabIndex = 60;
+            this.toneLabel.Text = "Tone Map:";
+            //
+            // comboTone
+            //
+            this.comboTone.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboTone.Items.AddRange(new object[] {
+            "Off",
+            "Reinhard",
+            "ACES",
+            "Filmic"});
+            this.comboTone.Location = new System.Drawing.Point(80, 363);
+            this.comboTone.Name = "comboTone";
+            this.comboTone.Size = new System.Drawing.Size(120, 21);
+            this.comboTone.TabIndex = 60;
+            //
+            // flashLabel
+            //
+            this.flashLabel.AutoSize = true;
+            this.flashLabel.Location = new System.Drawing.Point(8, 397);
+            this.flashLabel.Name = "flashLabel";
+            this.flashLabel.Size = new System.Drawing.Size(62, 13);
+            this.flashLabel.TabIndex = 61;
+            this.flashLabel.Text = "Flashlight:";
+            //
+            // comboFlash
+            //
+            this.comboFlash.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboFlash.Items.AddRange(new object[] {
+            "Per-vertex (PSX)",
+            "Per-pixel"});
+            this.comboFlash.Location = new System.Drawing.Point(80, 393);
+            this.comboFlash.Name = "comboFlash";
+            this.comboFlash.Size = new System.Drawing.Size(120, 21);
+            this.comboFlash.TabIndex = 61;
+            //
             // btnControls
             // 
             this.btnControls.Location = new System.Drawing.Point(315, 331);
@@ -703,6 +753,10 @@ partial class Form1
             this.Controls.Add(this.comboAA);
             this.Controls.Add(this.postLabel);
             this.Controls.Add(this.comboPost);
+            this.Controls.Add(this.toneLabel);
+            this.Controls.Add(this.comboTone);
+            this.Controls.Add(this.flashLabel);
+            this.Controls.Add(this.comboFlash);
             this.Controls.Add(this.pgxpLabel);
             this.Controls.Add(this.pgxpPanel);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
