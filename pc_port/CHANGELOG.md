@@ -1,5 +1,24 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.29.1 -- 2026-06-29
+- Fixed awkward TPS/OTS aiming, should be much better!
+- Rainbow corruption should be fixed                                   
+- Fixed pipe melee swing ending too soon
+- New tonemapping and per pixel lighting options, also added to launcher   
+ 
+
+Commit summaries:                                                                                         
+- Aim hitbox: full-body coverage + blood at the shot spot
+- Graphics: tone mapping (F3) + per-pixel flashlight toggle (F4) + launcher
+- Melee: play the full swing (fix pipe stopping at waist)
+- Fix rotated Nowhere elevator door (g_WorldObject0 stub overrun)
+- Fix interior "rainbow" texture corruption (stale stolen VRAM page)
+- Per-pixel flashlight: view-space shadow propagation + per-frame light push
+- map7_s03: hide boss fire/lightning FX before the fight
+- Per-pixel flashlight: gate on flashlight flag, replace PSX glow
+- Flashlight cone: gate on Harry's flashlight flag, not field_2
+- Flashlight cone: suppress per-vertex directional light when cone is active
+
 ## beta-2026.06.28.2 -- 2026-06-28
 - OTS/TPS free-aim: Fix for free aim so that it's not as hard to hit enemies and controllers have auto aim again (both may need a little more tweaking)
 - Also removed hop backwards animation from OTS/TPS for smoother controls
