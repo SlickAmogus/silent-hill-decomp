@@ -93,9 +93,10 @@ bool PC_PlayerManualReloadRequested(void)
  * the chosen NPC index in g_SysWork.npcs[] (or NO_VALUE), writing the world-space
  * aim point to *outAimPoint on success. Nearest qualifying enemy wins.
  */
-#define AA_MOUSE_RADIUS_MUL  Q12(1.8f)  /* mouse: hittable radius = 1.8x collision radius (covers visible body) */
-#define AA_CTRL_RADIUS_MUL   Q12(3.0f)  /* controller: close-range floor radius */
-#define AA_CTRL_CONE_TAN     Q12(0.16f) /* controller: ~9deg magnetic auto-aim cone, scaled by distance */
+#define AA_MOUSE_RADIUS_MUL  Q12(2.5f)  /* mouse: hittable radius = 1.8x collision radius (covers visible body) */
+#define AA_CTRL_RADIUS_MUL   Q12(5.0f)  /* controller: close-range floor radius */
+#define AA_CTRL_CONE_TAN     Q12(0.20f) /* controller: ~9deg magnetic auto-aim cone, scaled by distance */
+#define AA_VERT_REACH_MUL    Q12(8.0f)  /* vertical window reach = 4x radius (the box collision span is a narrow neck/torso band, far shorter than the visible body) */
 
 s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange, VECTOR3* outAimPoint)
 {
@@ -150,13 +151,22 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
         qz = camPos->vz + (s32)(((s64)camFwd->vz * kmult) >> 12);
         perpH = Math_Vector2MagCalc(cx - qx, cz - qz);
 
-        /* Vertical body span (sign-convention agnostic). */
+        /* Vertical body span (sign-convention agnostic) — this is the actual
+         * bullet collision cylinder, but it's only a narrow neck/upper-torso
+         * band (so the engine's auto-aim, which always aimed at it, registered
+         * hits while manual free-aim only hit near the neck). */
         yA = npc->position.vy + npc->collision.box.top;
         yB = npc->position.vy + npc->collision.box.height;
         yLo = (yA < yB) ? yA : yB;
         yHi = (yA < yB) ? yB : yA;
         bodyH  = yHi - yLo;
-        vSlack = isPad ? (bodyH >> 1) : (bodyH >> 2);
+        /* ACTIVATION window: cover the full VISIBLE body (radius-based, since the
+         * collision span underestimates it), so aiming at head/chest/legs all
+         * trigger the assist. The aim point is then clamped back into the real
+         * cylinder span [yLo,yHi] below, so the damage ray still threads it. */
+        vSlack = (s32)(((s64)radius * AA_VERT_REACH_MUL) >> 12);
+        if (bodyH > vSlack)
+            vSlack = bodyH;
 
         rayY = camPos->vy + (s32)(((s64)camFwd->vy * kmult) >> 12);
         if (rayY < yLo - vSlack || rayY > yHi + vSlack)

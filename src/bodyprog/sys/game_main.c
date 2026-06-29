@@ -1698,23 +1698,15 @@ void MainLoop(void) // 0x80032EE0
              * teleporting Harry forward. g_DeltaTimeRaw (vCountCopy) is left raw
              * for the wall-clock accumulators / cutscene timers.
              *
-             * EXCEPTION — cutscenes: Harry is DMS/script-driven during a cutscene
-             * (no moveSpeed*g_DeltaTime collision sweep), so the wall-fix is moot,
-             * BUT this cap also throttled the cutscene VISUAL clock: character
-             * animation (Anim_TimestepGet) and the DMS timeline (Event_Cutscene-
-             * TimerAdvance) both advance on g_DeltaTime, while the XA voice + the
-             * subtitle/event timers advance on the uncapped g_DeltaTimeRaw. On any
-             * cutscene frame slower than 30fps (heavy late-game scenes) the visuals
-             * advanced up to ~33% slower than real time while the voice ran at real
-             * time, so the on-screen scene drifted progressively behind the spoken
-             * dialog (~10s by the end of a long scene). Skip the cap during
-             * cutscenes so the visual timeline tracks real time (= the audio). The
-             * 15fps floor (H_BLANKS_PER_FRAME_MIN, above) still bounds the step. */
-            if (!((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
-                  g_SysWork.cutsceneBorderState != CutsceneBorderState_None))
-            {
-                vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
-            }
+             * NOTE: a previous cutscene-desync fix skipped this cap during
+             * cutscenes (so the visual clock tracked the uncapped audio). That
+             * left cutscene timing frame-rate dependent — DMS/animation steps
+             * advanced on a per-frame dt that could grow to the 15fps floor on
+             * heavy scenes, skipping keyframes/steps, so cutscenes only played
+             * correctly near a single frame rate (~50fps). Reverted per user
+             * request: cap the cutscene step like normal gameplay so cutscenes
+             * behave the same across frame rates as they did before. */
+            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
 #endif
         }
 

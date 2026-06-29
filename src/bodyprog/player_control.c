@@ -1536,7 +1536,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool backEdge = pureBack && !s_prevBack;
                     s_prevBack = pureBack;
 
-                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive) {
+                    /* No quick hop-back in TPS/OTS: a controller's backward stick
+                     * deflection reads as running, which triggered the hop on every
+                     * back-step. Free-aim/modern cameras just walk backward (handled
+                     * by the g_Player_IsMovingBackward branch below). Classic keeps it. */
+                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive && !g_DebugThirdPersonCam) {
                         s_jumpBackActive = 1;
                         s_jumpBackFrames = 0;
                         s_prevJumpBackTime = -1;
@@ -3418,21 +3422,37 @@ void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState up
  * so frame pacing can never strand a state. */
 typedef enum { PcGun_Aim = 0, PcGun_Fire, PcGun_Reload } e_PcGunState;
 
+/* Frames a new shot is locked out after firing — debounces analog-trigger
+ * threshold jitter (a single controller pull crossing the digital threshold
+ * 2-3 times read as 2-3 shots). The release-required edge below is the primary
+ * guard; this just absorbs noise. Frame-based, kept small so semi-auto mashing
+ * is unaffected. */
+#define PC_GUN_REFIRE_CD 4
+
 static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra, bool freshAim)
 {
-    static e_PcGunState s_state    = PcGun_Aim;
-    static s32          s_stuckTmr = 0;
+    static e_PcGunState s_state        = PcGun_Aim;
+    static s32          s_stuckTmr     = 0;
+    static bool         s_prevFireHeld = false;
+    static s32          s_refireCd     = 0;
 
     u8  recoilSt  = (u8)(g_Player_EquippedWeaponInfo.animAttackHold | 1); /* Unk30 active */
     s16 recoilBeg = HARRY_BASE_ANIM_INFOS[recoilSt].startKeyframeIdx;
     s16 recoilEnd = HARRY_BASE_ANIM_INFOS[recoilSt].endKeyframeIdx;
 
     bool fireHeld  = g_Player_IsShooting != 0;
+    /* Semi-auto: fire only on the trigger's rising edge (must release between
+     * shots). Holding the trigger used to auto-refire once per recoil cycle —
+     * at high FPS the recoil cycles fast, so a single controller trigger pull
+     * (held a touch longer than a keyboard tap) loosed 2-3 rounds. */
+    bool fireEdge  = fireHeld && !s_prevFireHeld && s_refireCd == 0;
     bool reloadReq = PC_PlayerManualReloadRequested();
     s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
     s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
 
-    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; }
+    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; s_prevFireHeld = fireHeld; s_refireCd = 0; }
+    if (s_refireCd > 0) s_refireCd--;
+    s_prevFireHeld = fireHeld;
 
     /* Keep Harry in the combat player-state so the free-aim camera-ray bullet
      * override (Player_CombatUpdate) runs every frame. That override is gated on
@@ -3458,7 +3478,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             extra->model.anim.time        = Q12(holdKf);
             playerProps.flags &= ~PlayerFlag_Shooting;
 
-            if (reserve > 0 && (reloadReq || (fireHeld && ammo == 0)))
+            if (reserve > 0 && (reloadReq || (fireEdge && ammo == 0)))
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
@@ -3473,9 +3493,10 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 break;
             }
 
-            if (fireHeld && ammo > 0)
+            if (fireEdge && ammo > 0)
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
+                s_refireCd = PC_GUN_REFIRE_CD;
                 player->field_44.field_0 = 1;
                 if (g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap))
                 {
