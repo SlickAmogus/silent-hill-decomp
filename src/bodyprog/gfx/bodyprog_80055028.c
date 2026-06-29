@@ -171,7 +171,12 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         extern float g_PsyX_FlashlightPos[3];
         extern float g_PsyX_FlashlightDir[3];
 
-        if (g_PsyX_UsePerPixelFlashlight && g_WorldEnvWork.field_0 == 1)
+        /* field_2 (not field_0) is the flashlight-casting flag: it gates the PSX
+         * glow-polygon fan below (func_80041074) and is raised by func_800553E0
+         * when Harry's flashlight is on. field_0==1 only means the room uses
+         * dynamic lighting (true even with the flashlight off), which left the
+         * cone stuck on. Mirror the PSX glow's gate exactly. */
+        if (g_PsyX_UsePerPixelFlashlight && g_WorldEnvWork.field_2 != 0)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
@@ -202,6 +207,12 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     if (g_WorldEnvWork.field_2 != 0)
     {
+#ifdef SH_PC_PORT
+        /* The per-pixel cone (pushed above) replaces this PSX glow-polygon fan;
+         * drawing both double-lights the scene into blown-out highlights. */
+        extern int g_PsyX_UsePerPixelFlashlight;
+        if (!g_PsyX_UsePerPixelFlashlight)
+#endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 
