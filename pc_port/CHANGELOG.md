@@ -1,5 +1,8 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.06.29.2 -- 2026-06-29
+- This update is just a message- I forgot to mention PER PIXEL flashlight is still being worked on! It should be fixed next update!
+
 ## beta-2026.06.29.1 -- 2026-06-29
 - Fixed awkward TPS/OTS aiming, should be much better!
 - Rainbow corruption should be fixed                                   
