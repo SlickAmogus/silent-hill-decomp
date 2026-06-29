@@ -1205,6 +1205,36 @@ bool Lm_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
     return true;
 }
 
+#ifdef SH_PC_PORT
+/* Set while the interior chunk-texture pool is being (re)synced
+ * (Ipd_ChunkMaterialsApply steal loop). Scopes the NULL-texture untexture below
+ * to that path only, so other maps/draws are unaffected. */
+int g_PcInteriorMatSync = 0;
+
+/* Force every prim bound to material `matIdx` to the untextured sentinel (32,
+ * same value the no-material case uses). A material whose VRAM page was stolen
+ * for a nearer chunk has texture==NULL but its field_E still points at that
+ * page, which now holds another chunk's 4bpp texture+CLUT — drawing it sampled
+ * the wrong page (the interior "rainbow"). Rendering it flat instead matches
+ * vanilla's out-of-pool chunks (which simply go untextured/black). */
+static void Model_MaterialUntexture(s_ModelHeader* modelHdr, s32 matIdx)
+{
+    s_MeshHeader* curMeshHdr;
+    s_Primitive*  curPrim;
+
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
+    {
+        for (curPrim = curMeshHdr->primitives; curPrim < &curMeshHdr->primitives[curMeshHdr->primitiveCount]; curPrim++)
+        {
+            if (curPrim->field_6.bits.materialIdx == matIdx)
+            {
+                curPrim->field_6.bits.field_6_0 = 32;
+            }
+        }
+    }
+}
+#endif
+
 void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
 {
     s32         i;
@@ -1214,6 +1244,19 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
 
     for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
+#ifdef SH_PC_PORT
+        if (g_PcInteriorMatSync && curMat->texture == NULL)
+        {
+            for (j = 0; j < lmHdr->modelCount; j++)
+            {
+                if (lmHdr->magic == LM_HEADER_MAGIC)
+                {
+                    Model_MaterialUntexture(&lmHdr->modelHdrs[j], i);
+                }
+            }
+            continue;
+        }
+#endif
         matFlags = (curMat->field_E != curMat->field_F) ? MaterialFlag_0 : MaterialFlag_None;
 
         if (curMat->field_10 != curMat->field_12)
