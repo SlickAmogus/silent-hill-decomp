@@ -1909,12 +1909,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 /* Set lowerBodyState for footstep sound triggers
                  * (aim state already set above if aiming) */
                 if (!g_Player_IsAiming) {
+                    /* Strafe footsteps (PC): the sidestep / strafe-run anim is driven
+                     * by the stepping globals, not IsMovingForward/Backward, so without
+                     * these branches every strafe fell through to None and the dispatcher
+                     * played no footstep. Mirror the anim selection at 1699-1718 exactly
+                     * (Hold + run + TPS = side-RUN cycle, otherwise the sidestep shuffle). */
+                    bool stepLeft  = g_Player_IsSteppingLeftHold  || g_Player_IsSteppingLeftTap;
+                    bool stepRight = g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap;
+                    bool runStrafe = g_DebugThirdPersonCam && g_Player_IsRunning &&
+                                     (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold);
                     if (g_Player_IsMovingForward && g_Player_IsRunning)
                         extra->lowerBodyState = PlayerLowerBodyState_RunForward;
                     else if (g_Player_IsMovingForward)
                         extra->lowerBodyState = PlayerLowerBodyState_WalkForward;
                     else if (g_Player_IsMovingBackward)
                         extra->lowerBodyState = PlayerLowerBodyState_WalkBackward;
+                    else if (stepLeft)
+                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
+                    else if (stepRight)
+                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
                     else
                         extra->lowerBodyState = PlayerLowerBodyState_None;
                 }
