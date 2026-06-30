@@ -130,6 +130,8 @@ int g_DebugAnimPlaying = 0;      /* 1 = loop the selected keyframe range (P) ins
 int g_DebugAnimKfStart = 0;      /* selected loop range start (absolute keyframe) */
 int g_DebugAnimKfEnd   = 0;      /* selected loop range end (absolute keyframe) */
 s32 g_DebugAnimRate    = Q12(15.0f); /* loop playback rate (q19_12 kf/sec @30fps); copied from the source anim when constant */
+int g_DebugViewNpcSlot = -1;     /* keyframe viewer target: -1 = Harry, else g_SysWork.npcs[] slot */
+int g_DebugAnimPlayGen = 0;      /* bumped on each play (re)start so the loop cursor re-seeds */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 /* Camera eye + forward (unit Q12) published each frame by Pc_TpsCamera_Apply for
@@ -730,25 +732,57 @@ void DebugCamera_Update(void)
         prevSlash = curSlash;
     }
 
+    /* N while the inspector is on: cycle the viewed character among Harry (-1)
+     * and the loaded NPCs (g_SysWork.npcs slots with a real charaId). Resets the
+     * keyframe + stops playback so scrubbing restarts in the new target's space. */
+    {
+        static int prevN = 0;
+        int curN = g_sdlKeyboardState[SDL_SCANCODE_N];
+        if (curN && !prevN && g_DebugAnimKfView) {
+            int i, next = -1;
+            for (i = g_DebugViewNpcSlot + 1; i < NPC_COUNT_MAX; i++) {
+                if (g_SysWork.npcs[i].model.charaId != Chara_None &&
+                    g_SysWork.npcs[i].model.charaId != Chara_Padlock) { next = i; break; }
+            }
+            g_DebugViewNpcSlot = next;
+            g_DebugAnimPlaying = 0;
+            if (next < 0) {
+                g_DebugAnimKf = 588;
+                SH_DBG_ECHO("[DEBUG] N: view Harry (KF %d)", g_DebugAnimKf);
+            } else {
+                g_DebugAnimKf = 0;
+                SH_DBG_ECHO("[DEBUG] N: view NPC slot %d (chara %d)", next,
+                            (int)g_SysWork.npcs[next].model.charaId);
+            }
+        }
+        prevN = curN;
+    }
+
     /* P while the inspector is on: PLAY — loop the anim that contains the current
-     * keyframe (its [startKeyframeIdx, endKeyframeIdx] from HARRY_BASE_ANIM_INFOS)
-     * at the anim's authored speed. Press again to stop; , / . or / resume manual
-     * scrubbing. The looping pose is driven in Player_Update (player_control.c). */
+     * keyframe, from the active target's table: Harry's HARRY_BASE_ANIM_INFOS, or
+     * a viewed NPC's own baseAnimInfos. Press again to stop; , / . or / resume
+     * manual scrubbing. The looping pose is driven in Player_Update / Game_NpcUpdate. */
     {
         static int prevP = 0;
         int curP = g_sdlKeyboardState[SDL_SCANCODE_P];
         if (curP && !prevP && g_DebugAnimKfView) {
             if (!g_DebugAnimPlaying) {
-                int i, lo = -1, hi = -1;
+                s_AnimInfo* tbl = HARRY_BASE_ANIM_INFOS;
+                int count = 76, i, lo = -1, hi = -1;
                 s32 rate = Q12(15.0f);
-                for (i = 0; i < 76; i++) {
-                    s32 sk = HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx;
-                    s32 ek = HARRY_BASE_ANIM_INFOS[i].endKeyframeIdx;
-                    if (sk < 0 || ek <= sk) continue;
+                if (g_DebugViewNpcSlot >= 0 && g_DebugViewNpcSlot < NPC_COUNT_MAX) {
+                    s_SubCharacter* npc = &g_SysWork.npcs[g_DebugViewNpcSlot];
+                    tbl   = (npc->model.charaId != Chara_None) ? npc->model.anim.baseAnimInfos : NULL;
+                    count = 64; /* NPC tables carry no runtime length: cap + validate */
+                }
+                for (i = 0; tbl != NULL && i < count; i++) {
+                    s32 sk = tbl[i].startKeyframeIdx;
+                    s32 ek = tbl[i].endKeyframeIdx;
+                    if (tbl[i].playbackFunc == NULL) continue;
+                    if (sk < 0 || ek <= sk || ek >= 2048) continue;
                     if (g_DebugAnimKf >= sk && g_DebugAnimKf <= ek) {
                         lo = sk; hi = ek;
-                        if (!HARRY_BASE_ANIM_INFOS[i].hasVariableDuration)
-                            rate = HARRY_BASE_ANIM_INFOS[i].duration.constant;
+                        rate = tbl[i].hasVariableDuration ? Q12(15.0f) : tbl[i].duration.constant;
                         break;
                     }
                 }
@@ -756,6 +790,7 @@ void DebugCamera_Update(void)
                     g_DebugAnimKfStart = lo;
                     g_DebugAnimKfEnd   = hi;
                     g_DebugAnimRate    = rate;
+                    g_DebugAnimPlayGen++;
                     g_DebugAnimPlaying = 1;
                     SH_DBG_ECHO("[DEBUG] P: play loop [%d..%d] rate=%d", lo, hi, (int)rate);
                 } else {
