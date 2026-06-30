@@ -19,6 +19,7 @@
 
 int g_ControlStyle = ControlStyle_Classic;
 int g_OtsSide      = 1; /* +1 = right shoulder, -1 = left */
+int g_PcFpsCam     = 0; /* 1 = First Person camera active (a subset of g_DebugThirdPersonCam) */
 
 /* Set when entering TPS/OTS from classic so the orbit camera reseeds behind Harry
  * (read + cleared in Pc_TpsCamera_Apply) instead of popping from a stale pose. */
@@ -33,6 +34,7 @@ static const struct { const char* id; const char* label; } g_ControlStyles[] = {
     { "classic", "Classic (Default)" },
     { "tps",     "Thirdperson Shooter" },
     { "ots",     "Over the Shoulder" },
+    { "fps",     "First Person" },
 };
 
 int Pc_ControlStyleCount(void)
@@ -60,7 +62,9 @@ void Pc_ControlStyleSet(int style)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
-    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
+    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots ||
+                             style == ControlStyle_Fps);
+    g_PcFpsCam            = (style == ControlStyle_Fps);
 
     /* Swap the active control scheme (classic vs alternate-camera binds) to match
      * the new camera mode; the input layer picks up the new mappings next frame. */
@@ -109,7 +113,9 @@ void Pc_ControlStyleInit(void)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
-    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots);
+    g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots ||
+                             style == ControlStyle_Fps);
+    g_PcFpsCam            = (style == ControlStyle_Fps);
 
     /* Apply the control scheme (classic vs alternate-camera) matching the saved
      * camera style now that g_DebugThirdPersonCam is known. */

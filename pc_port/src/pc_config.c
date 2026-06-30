@@ -373,6 +373,7 @@ void PcConfig_Load(const char* path)
              * -> Classic. control_style.c re-validates against its registry. */
             if (strcmp(value, "tps") == 0)      g_PcConfig.controlStyle = 1;
             else if (strcmp(value, "ots") == 0) g_PcConfig.controlStyle = 2;
+            else if (strcmp(value, "fps") == 0) g_PcConfig.controlStyle = 3;
             else                                g_PcConfig.controlStyle = 0;
         }
         else if (strcmp(key, "allow_mouse_secondary") == 0)
