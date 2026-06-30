@@ -767,6 +767,14 @@ int main(int argc, char* argv[])
                g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity, g_PsyX_FlashlightSize);
     }
 
+    /* FMV/voice (XA) master volume (options-menu slider + `xavolume` console).
+     * Set the global the XA player multiplies into the OpenAL source gain. */
+    {
+        extern float g_PcXaVolume;
+        g_PcXaVolume = g_PcConfig.xaVolume;
+        SH_LOG("XA (FMV/voice) volume: %.2f", g_PcXaVolume);
+    }
+
     /* Initialize PSY-Q subsystems via PsyCross */
     SH_LOG("Initializing PSY-Q subsystems...");
     ResetCallback();

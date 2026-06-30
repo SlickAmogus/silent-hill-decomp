@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stddef.h>
+#include "xa_player.h"
 
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
@@ -29,6 +30,7 @@ s_PcConfig g_PcConfig = {
     .flashlightSize       = 1.50f, /* per-pixel flashlight cone coverage multiplier (1.5x default) */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
+    .xaVolume             = 1.0f, /* FMV/voice (XA) volume, 0..1; 1.0 = unchanged */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -334,6 +336,13 @@ void PcConfig_Load(const char* path)
             if (v > 3.0f) v = 3.0f;
             g_PcConfig.flashlightSize = v;
         }
+        else if (strcmp(key, "xa_volume") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.xaVolume = v;
+        }
         else if (strcmp(key, "post_process_intensity") == 0)
         {
             float v = (float)atof(value);
@@ -526,6 +535,17 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
     if (!found)
         fprintf(f, "%s = %s\n", cfgKey, cfgValue);
     fclose(f);
+}
+
+void PcConfig_ApplyXaVolume(float norm)
+{
+    char buf[16];
+    if (norm < 0.0f) norm = 0.0f;
+    if (norm > 1.0f) norm = 1.0f;
+    g_PcConfig.xaVolume = norm;
+    XaPlayer_SetMasterVolume(norm); /* sets g_PcXaVolume + live source gain */
+    snprintf(buf, sizeof(buf), "%.3f", norm);
+    PcConfig_SaveKeyValue("xa_volume", buf);
 }
 
 /* Rewrite the `map = ...` line. Used by the in-game map-cycle debug keys so the

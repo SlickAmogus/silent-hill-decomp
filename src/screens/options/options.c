@@ -489,6 +489,9 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);
     Options_MainOptionsMenu_BgmVolumeBarDraw();
     Options_MainOptionsMenu_SfxVolumeBarDraw();
+#ifdef SH_PC_PORT
+    Options_MainOptionsMenu_FmvVolumeBarDraw();
+#endif
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_MainOptions)
     {
@@ -700,6 +703,50 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             g_GameWork.config.volumeSe = vol;
             break;
 
+#ifdef SH_PC_PORT
+        case MainOptionsMenuEntry_FmvVolume:
+        {
+            /* PC-only: FMV/voice (XA) stream volume. Mirrors the BGM/SE slider
+             * feel (16 notches, step 8 over 0..128) but drives g_PcXaVolume in
+             * [0,1] and persists `xa_volume`. */
+            extern float g_PcXaVolume;
+            extern void  PcConfig_ApplyXaVolume(float norm);
+
+            s32 fvol = (s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f);
+            s32 oldFvol;
+
+            fvol    = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+            oldFvol = fvol;
+
+            if ((fvol < OPT_SOUND_VOLUME_MAX && (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)) ||
+                (fvol > 0                    && (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)))
+            {
+                SD_Call(Sfx_MenuMove);
+            }
+            if ((fvol == OPT_SOUND_VOLUME_MAX && (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight)) ||
+                (fvol == 0                    && (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)))
+            {
+                SD_Call(Sfx_MenuError);
+            }
+
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
+            {
+                fvol += SOUND_VOL_STEP;
+            }
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
+            {
+                fvol -= SOUND_VOL_STEP;
+            }
+            fvol = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+
+            if (fvol != oldFvol)
+            {
+                PcConfig_ApplyXaVolume((float)fvol / (float)OPT_SOUND_VOLUME_MAX);
+            }
+            break;
+        }
+#endif
+
         default:
             break;
     }
@@ -739,15 +786,25 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
 void Options_MainOptionsMenu_BgmVolumeBarDraw(void) // 0x801E3F68
 {
-    Options_MainOptionsMenu_VolumeBarDraw(false, g_GameWork.config.volumeBgm);
+    Options_MainOptionsMenu_VolumeBarDraw(0, g_GameWork.config.volumeBgm);
 }
 
 void Options_MainOptionsMenu_SfxVolumeBarDraw(void) // 0x801E3F90
 {
-    Options_MainOptionsMenu_VolumeBarDraw(true, g_GameWork.config.volumeSe);
+    Options_MainOptionsMenu_VolumeBarDraw(1, g_GameWork.config.volumeSe);
 }
 
-void Options_MainOptionsMenu_VolumeBarDraw(bool isSfx, u8 vol) // 0x801E3FB8
+#ifdef SH_PC_PORT
+void Options_MainOptionsMenu_FmvVolumeBarDraw(void)
+{
+    extern float g_PcXaVolume;
+    s32 fvol = (s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f);
+    fvol = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+    Options_MainOptionsMenu_VolumeBarDraw(2, (u8)fvol);
+}
+#endif
+
+void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol) // 0x801E3FB8
 {
     #define STR_OFFSET_Y 16
     #define NOTCH_SIZE_X 5
@@ -805,10 +862,10 @@ void Options_MainOptionsMenu_VolumeBarDraw(bool isSfx, u8 vol) // 0x801E3FB8
             x0       = (x0Offset + (i * 6)) & 0xFFFF;
             yOffset  = j + 56;
 
-            setXY0Fast(poly, x0,                           (isSfx * STR_OFFSET_Y) + yOffset);
-            setXY1Fast(poly, x0,                           (isSfx * STR_OFFSET_Y) - (j + offset));
-            setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (isSfx * STR_OFFSET_Y) + yOffset);
-            setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (isSfx * STR_OFFSET_Y) - (j + offset));
+            setXY0Fast(poly, x0,                           (row * STR_OFFSET_Y) + yOffset);
+            setXY1Fast(poly, x0,                           (row * STR_OFFSET_Y) - (j + offset));
+            setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) + yOffset);
+            setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) - (j + offset));
             addPrim((u8*)ot->org + LAYER_24, poly);
             GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
         }
@@ -903,6 +960,10 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Sound",
         "BGM_Volume",
         "SE_Volume"
+#ifdef SH_PC_PORT
+        ,
+        "FMV_Voice"
+#endif
     };
 
     // @unused Likely an older implementation for active highlight selection position reference setup found in `Options_MainOptionsMenu_SelectionHighlightDraw`.
@@ -1051,6 +1112,9 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
 
     const u8 SELECTION_HIGHLIGHT_WIDTHS[] = {
         59, 169, 174, 156, 104, 112, 75, 129, 112
+#ifdef SH_PC_PORT
+        , 112 /* FMV Voice */
+#endif
     };
 
     // 12x12 quad.
@@ -1350,6 +1414,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         { { 131, 62 }, { 123, 54 }, { 123, 70 } },
         { { 12,  78 }, { 20,  70 }, { 20,  86 } },
         { { 131, 78 }, { 123, 70 }, { 123, 86 } }
+#ifdef SH_PC_PORT
+        ,
+        { { 12,  94 }, { 20,  86 }, { 20,  102 } }, /* PC: FMV/voice left  */
+        { { 131, 94 }, { 123, 86 }, { 123, 102 } }  /* PC: FMV/voice right */
+#endif
     };
 
     const s_Triangle2d BACK_ARROWS[] = {
@@ -1363,6 +1432,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         { { 132, 62 }, { 122, 52 }, { 122, 72 } },
         { { 11,  78 }, { 21,  68 }, { 21,  88 } },
         { { 132, 78 }, { 122, 68 }, { 122, 88 } }
+#ifdef SH_PC_PORT
+        ,
+        { { 11,  94 }, { 21,  84 }, { 21,  104 } }, /* PC: FMV/voice left  */
+        { { 132, 94 }, { 122, 84 }, { 122, 104 } }  /* PC: FMV/voice right */
+#endif
     };
 
     const char* CONFIG_STRS[] =
@@ -1380,7 +1454,7 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
     Gfx_StringSetColor(StringColorId_White);
 
     // Draw left/right arrows for subset of options.
-    if (g_MainOptionsMenu_SelectedEntry >= 4 && g_MainOptionsMenu_SelectedEntry < 9)
+    if (g_MainOptionsMenu_SelectedEntry >= 4 && g_MainOptionsMenu_SelectedEntry < MainOptionsMenuEntry_Count)
     {
         // Draw flashing left/right arrows.
         for (i = 0; i < 2; i++)
