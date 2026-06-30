@@ -27,7 +27,12 @@ typedef enum _OptionsMenuState
     OptionsMenuState_LeaveController   = 12, /** Leaving controller config menu. */
     OptionsMenuState_EnterExtraOptions = 13, /** Entering extra options menu. */
     OptionsMenuState_ExtraOptions      = 14, /** In extra options menu. */
-    OptionsMenuState_LeaveExtraOptions = 15  /** Leaving extra options menu. */
+    OptionsMenuState_LeaveExtraOptions = 15, /** Leaving extra options menu. */
+#ifdef SH_PC_PORT
+    OptionsMenuState_EnterPcOptions    = 16, /** PC: entering PC options menu. */
+    OptionsMenuState_PcOptions         = 17, /** PC: in PC options menu. */
+    OptionsMenuState_LeavePcOptions    = 18  /** PC: leaving PC options menu. */
+#endif
 } e_OptionsMenuState;
 
 /** @brief Main options menu entries. */
@@ -173,6 +178,11 @@ void Options_ExtraOptionsMenu_Control(void);
 
 /** @brief Controller for the main options menu. Handles menu states, user input, and graphics draw calls. */
 void Options_MainOptionsMenu_Control(void);
+
+#ifdef SH_PC_PORT
+/** @brief PC: controller for the two-page PC Options menu (repurposed Screen Position entry). */
+void Options_PcOptionsMenu_Control(void);
+#endif
 
 /** @brief Draws a BGM volume bar in the main options menu. */
 void Options_MainOptionsMenu_BgmVolumeBarDraw(void);

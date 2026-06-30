@@ -18,6 +18,9 @@
 
 #define LINE_CURSOR_TIMER_MAX 8
 #ifdef SH_PC_PORT
+#include <stdio.h>
+#include "sh_log.h"
+#include "pc_config.h"
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -49,6 +52,372 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 // ========================================
 // MAIN AND EXTRA OPTION SCREEN
 // ========================================
+
+#ifdef SH_PC_PORT
+/* ============================================================================
+ *  PC OPTIONS MENU  (repurposes the "Screen Position" main-menu entry)
+ *
+ *  Two pages mirroring the launcher. Each setting row cycles its config value
+ *  with Left/Right, writes the config key and echoes to the console; realtime
+ *  rows also push their live render global so the change is immediate, while
+ *  restart-only rows print a "takes effect next launch" notice. Action rows
+ *  (Next/Prev page, Back) activate with Confirm; Cancel always backs out to the
+ *  main options menu (like every other submenu). Modeled on Extra Options. */
+
+/* Live render globals mirrored for realtime settings (defined in PsyCross /
+ * main_pc.c — the same ones main_pc.c seeds from g_PcConfig at boot). */
+extern int g_cfg_psxDither;
+extern int g_cfg_bilinearFiltering;
+extern int g_PsxUsePgxp;
+extern int g_cfg_postProcess;
+extern int g_cfg_tonemap;
+extern int g_PsyX_UsePerPixelFlashlight;
+
+s32 g_PcOptionsMenu_SelectedEntry     = 0;
+s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
+
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_NEXT, PCK_PREV, PCK_BACK };
+
+typedef struct {
+    const char*        name;     /* row label (underscores render as spaces) */
+    int*               field;    /* &g_PcConfig.X (NULL for resolution + actions) */
+    const char*        key;      /* config.cfg key (NULL for actions) */
+    const int*         vals;     /* allowed values, in cycle order */
+    int                nVals;
+    const char* const* labels;   /* value labels parallel to vals (NULL = numeric) */
+    int*               live;     /* single live global to mirror (NULL = none) */
+    int                realtime; /* 1 = applies now, 0 = needs restart */
+    int                kind;     /* PCK_* */
+} s_PcOpt;
+
+static const int VAL_WIN[]   = { 0, 1, 2 };
+static const int VAL_VSYNC[] = { 0, 1, -1 };
+static const int VAL_FILT[]  = { 0, 1, 2 };
+static const int VAL_ONOFF[] = { 0, 1 };
+static const int VAL_AA[]    = { 0, 2, 4, 8 };
+static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+static const int VAL_TONE[]  = { 0, 1, 2, 3 };
+static const int VAL_CON[]   = { 0, 1, 2, 3 };
+static const int VAL_FPS[]   = { 0, 30, 60 };
+
+static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
+static const char* const LBL_VSYNC[] = { "Off", "On", "Adaptive" };
+static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
+static const char* const LBL_ONOFF[] = { "Off", "On" };
+static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
+static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
+static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
+static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
+static const char* const LBL_FPS[]   = { "Off", "30", "60" };
+
+static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
+static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
+#define PC_RES_COUNT ((int)(sizeof(RES_W) / sizeof(RES_W[0])))
+
+static const s_PcOpt PCOPT_G[] = {
+    { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
+    { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          0, PCK_INT    },
+    { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 3, LBL_VSYNC, NULL,                          0, PCK_INT    },
+    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
+    { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
+    { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
+    { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    { "Flashlight",     &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT    },
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+    { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
+};
+
+static const s_PcOpt PCOPT_S[] = {
+    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
+    { "Enable_Logging",   &g_PcConfig.enableDebugLog, "enable_debug_log", VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
+    { "External_Console", &g_PcConfig.showConsole,    "show_console",     VAL_CON,   4, LBL_CON,   NULL, 0, PCK_INT  },
+    { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   3, LBL_FPS,   NULL, 1, PCK_INT  },
+    { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+static void Options_PcOptionsMenu_EntryStringsDraw(void);
+static void Options_PcOptionsMenu_ConfigDraw(void);
+static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
+
+static const s_PcOpt* PcOpt_Page(int* count)
+{
+    if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
+    *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0]));
+    return PCOPT_S;
+}
+
+static int PcOpt_ValIndex(const s_PcOpt* e)
+{
+    int i, v = *e->field;
+    for (i = 0; i < e->nVals; i++)
+        if (e->vals[i] == v) return i;
+    return 0;
+}
+
+static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
+{
+    if (e->kind == PCK_RES) {
+        snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        return buf;
+    }
+    if (e->field == NULL)
+        return "";
+    {
+        int idx = PcOpt_ValIndex(e);
+        if (e->labels) return e->labels[idx];
+        snprintf(buf, bufsz, "%d", e->vals[idx]);
+        return buf;
+    }
+}
+
+static void PcOpt_Adjust(const s_PcOpt* e, int dir)
+{
+    char buf[24];
+    char vbuf[24];
+
+    if (e->kind == PCK_RES) {
+        int i, idx = 0;
+        for (i = 0; i < PC_RES_COUNT; i++)
+            if (RES_W[i] == g_PcConfig.windowWidth && RES_H[i] == g_PcConfig.windowHeight) { idx = i; break; }
+        idx = (idx + dir + PC_RES_COUNT) % PC_RES_COUNT;
+        g_PcConfig.windowWidth  = RES_W[idx];
+        g_PcConfig.windowHeight = RES_H[idx];
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
+        SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        SH_DBG_ECHO("This setting will take effect the next time the game is started.");
+        return;
+    }
+    if (e->field == NULL)
+        return;
+
+    {
+        int idx = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
+        *e->field = e->vals[idx];
+        snprintf(buf, sizeof(buf), "%d", *e->field);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
+
+        if (e->kind == PCK_FILTER) {
+            switch (*e->field) {
+            case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
+            case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
+            default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+            }
+        } else if (e->live) {
+            *e->live = *e->field;
+        }
+
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        if (!e->realtime)
+            SH_DBG_ECHO("This setting will take effect the next time the game is started.");
+    }
+}
+
+void Options_PcOptionsMenu_Control(void)
+{
+    int            count;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+
+    Options_PcOptionsMenu_EntryStringsDraw();
+    Options_PcOptionsMenu_ConfigDraw();
+    Options_PcOptionsMenu_SelectionHighlightDraw();
+    Options_Menu_VignetteDraw();
+    Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+
+    if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
+        return;
+
+    if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
+        g_Options_SelectionHighlightTimer = LINE_CURSOR_TIMER_MAX;
+    else
+        g_Options_SelectionHighlightTimer++;
+
+    if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
+    {
+        const s_PcOpt* sel;
+
+        if (g_PcOptionsMenu_SelectedEntry >= count)
+            g_PcOptionsMenu_SelectedEntry = 0;
+        g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+
+        if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) {
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            g_PcOptionsMenu_SelectedEntry = ((g_PcOptionsMenu_SelectedEntry - 1) + count) % count;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+        if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown) {
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            g_PcOptionsMenu_SelectedEntry = (g_PcOptionsMenu_SelectedEntry + 1) % count;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+
+        sel = &tbl[g_PcOptionsMenu_SelectedEntry];
+
+        if (sel->kind == PCK_INT || sel->kind == PCK_RES || sel->kind == PCK_FILTER) {
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, +1);
+            }
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, -1);
+            }
+        }
+
+        if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
+            if (sel->kind == PCK_NEXT) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                g_PcOptionsMenu_Page = 1;
+                g_PcOptionsMenu_SelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+            } else if (sel->kind == PCK_PREV) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                g_PcOptionsMenu_Page = 0;
+                g_PcOptionsMenu_SelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+            } else if (sel->kind == PCK_BACK) {
+                Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                ScreenFade_Start(true, false, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
+            }
+        }
+    }
+
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel) &&
+        g_GameWork.gameStateSteps[0] != OptionsMenuState_LeavePcOptions)
+    {
+        Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+        ScreenFade_Start(true, false, false);
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+        g_SysWork.counters_1C[1]     = 0;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+    }
+}
+
+static void Options_PcOptionsMenu_EntryStringsDraw(void)
+{
+    #define LINE_BASE_X   64
+    #define LINE_BASE_Y   56
+    #define LINE_OFFSET_Y 16
+
+    int            count, i;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    DVECTOR        strPos  = { 100, 20 };
+    const char*    HEADING = "PC_Options";
+
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(strPos.vx, strPos.vy);
+    Gfx_Strings2dLayerIdxSet(8);
+    Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
+
+    for (i = 0; i < count; i++) {
+        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+        Gfx_Strings2dLayerIdxSet(8);
+        Gfx_StringDraw(tbl[i].name, DEFAULT_MAP_MESSAGE_LENGTH);
+    }
+    Gfx_StringsReset2dLayerIdx();
+
+    #undef LINE_BASE_X
+    #undef LINE_BASE_Y
+    #undef LINE_OFFSET_Y
+}
+
+static void Options_PcOptionsMenu_ConfigDraw(void)
+{
+    #define VAL_BASE_X    196
+    #define LINE_BASE_Y   56
+    #define LINE_OFFSET_Y 16
+
+    int            count, i;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    char           buf[24];
+
+    Gfx_StringSetColor(StringColorId_White);
+    for (i = 0; i < count; i++) {
+        const char* v = PcOpt_ValueLabel(&tbl[i], buf, sizeof(buf));
+        if (v && v[0]) {
+            Gfx_StringSetPosition(VAL_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+            Gfx_Strings2dLayerIdxSet(8);
+            Gfx_StringDraw(v, DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+    }
+    Gfx_StringsReset2dLayerIdx();
+
+    #undef VAL_BASE_X
+    #undef LINE_BASE_Y
+    #undef LINE_OFFSET_Y
+}
+
+static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
+{
+    #define LINE_OFFSET_Y      16
+    #define HIGHLIGHT_OFFSET_X -121
+    #define HIGHLIGHT_OFFSET_Y 58
+    #define HILITE_WIDTH       196
+
+    int            count, i, j;
+    s16            interpAlpha;
+    s_Line2d       highlightLine;
+    s_Quad2d       bulletQuads[2];
+    DVECTOR*       quadVerts;
+    static DVECTOR selectionHighlightFrom;
+    static DVECTOR selectionHighlightTo;
+
+    const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -55 }, { -120, -43 }, { -108, -55 }, { -108, -43 } };
+    const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -56 }, { -121, -42 }, { -107, -56 }, { -107, -42 } };
+
+    PcOpt_Page(&count);
+
+    if (g_Options_SelectionHighlightTimer == 0) {
+        selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightFrom.vy = ((u16)g_PcOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightTo.vy   = ((u16)g_PcOptionsMenu_SelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+    }
+
+    interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
+
+    highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+    highlightLine.vertex1.vx = selectionHighlightFrom.vx +
+                               FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
+    highlightLine.vertex1.vy = selectionHighlightFrom.vy +
+                               FP_FROM((selectionHighlightTo.vy - selectionHighlightFrom.vy) * interpAlpha, Q12_SHIFT) +
+                               LINE_OFFSET_Y;
+    highlightLine.vertex0.vy = highlightLine.vertex1.vy;
+    Options_Selection_HighlightDraw(&highlightLine, true, false);
+
+    for (i = 0; i < count; i++) {
+        quadVerts = (DVECTOR*)&bulletQuads;
+        for (j = 0; j < RECT_VERT_COUNT; j++) {
+            quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
+            quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (i * LINE_OFFSET_Y);
+            quadVerts[j + sizeof(DVECTOR)].vx = BULLET_QUAD_VERTS_BACK[j].vx;
+            quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (i * LINE_OFFSET_Y);
+        }
+        if (i == g_PcOptionsMenu_SelectedEntry) {
+            Options_Selection_BulletPointDraw(&bulletQuads[0], false, false);
+            Options_Selection_BulletPointDraw(&bulletQuads[1], true,  false);
+        } else {
+            Options_Selection_BulletPointDraw(&bulletQuads[0], false, true);
+            Options_Selection_BulletPointDraw(&bulletQuads[1], true,  true);
+        }
+    }
+
+    #undef LINE_OFFSET_Y
+    #undef HIGHLIGHT_OFFSET_X
+    #undef HIGHLIGHT_OFFSET_Y
+    #undef HILITE_WIDTH
+}
+#endif /* SH_PC_PORT */
 
 void GameState_Options_Update(void) // 0x801E2D44
 {
@@ -241,6 +610,34 @@ void GameState_Options_Update(void) // 0x801E2D44
                 ScreenFade_Start(false, true, false);
             }
             break;
+
+#ifdef SH_PC_PORT
+        case OptionsMenuState_EnterPcOptions:
+            if (ScreenFade_IsFinished())
+            {
+                g_PcOptionsMenu_Page              = 0;
+                g_PcOptionsMenu_SelectedEntry     = 0;
+                g_PcOptionsMenu_PrevSelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_PcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
+
+        case OptionsMenuState_LeavePcOptions:
+            if (ScreenFade_IsFinished())
+            {
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterMainOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                ScreenFade_Start(false, true, false);
+            }
+            break;
+#endif
     }
 
     // Handle menu state.
@@ -253,6 +650,9 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_EnterBrightness:
         case OptionsMenuState_EnterController:
         case OptionsMenuState_EnterExtraOptions:
+#ifdef SH_PC_PORT
+        case OptionsMenuState_EnterPcOptions:
+#endif
             Options_MainOptionsMenu_Control();
             break;
 
@@ -260,6 +660,13 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_LeaveExtraOptions:
             Options_ExtraOptionsMenu_Control();
             break;
+
+#ifdef SH_PC_PORT
+        case OptionsMenuState_PcOptions:
+        case OptionsMenuState_LeavePcOptions:
+            Options_PcOptionsMenu_Control();
+            break;
+#endif
     }
 }
 
@@ -584,7 +991,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
 
                 ScreenFade_Start(true, false, false);
+#ifdef SH_PC_PORT
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterPcOptions;
+#else
                 g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterScreenPos;
+#endif
                 g_SysWork.counters_1C[1]              = 0;
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
@@ -954,7 +1365,11 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Exit",
         "Brightness_Level",
         "Controller_Config",
+#ifdef SH_PC_PORT
+        "PC_Options",
+#else
         "Screen_Position",
+#endif
         "Vibration",
         "Auto_Load",
         "Sound",
