@@ -139,6 +139,11 @@ s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
  * reticle == camera forward). Read by Player_CombatUpdate. */
 VECTOR3 g_TpsCamPos = { 0, 0, 0 };
 VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
+/* First-person camera eye offset in Harry's local frame (vx=right, vy=up [Y-up
+ * is negative], vz=forward), rotated by the look yaw each frame to place the eye
+ * between his arms. Placeholder until captured via the L cam-pos log key. */
+extern int g_PcFpsCam;
+VECTOR3 g_PcFpsOffset = { 0, Q12(-1.5f), Q12(0.3f) };
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
@@ -293,8 +298,16 @@ static void Pc_TpsCamera_Apply(void)
         g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
         /* Tighter clamp on the look-down side so the camera doesn't rise far
          * over Harry's head. */
-        if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
-        if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
+        if (g_PcFpsCam) {
+            /* First-person: allow looking down at the legs / up toward the sky,
+             * but stay short of straight up/down so the forward vector + the
+             * ratan2 in Vw_SetLookAtMatrix don't degenerate. */
+            if (g_TpsCamPitch < -Q12_ANGLE(82.0f)) g_TpsCamPitch = -Q12_ANGLE(82.0f);
+            if (g_TpsCamPitch >  Q12_ANGLE(82.0f)) g_TpsCamPitch =  Q12_ANGLE(82.0f);
+        } else {
+            if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+            if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
+        }
     }
 
     /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12.
@@ -313,17 +326,36 @@ static void Pc_TpsCamera_Apply(void)
         s32     anchorY;
         #define TP_LOOKAT_DIST Q12(25.0f)
 
-        /* Camera D units BACK along forward, lifted by TP_HEIGHT */
-        tpCamPos.vx = tp_hr->position.vx - (s32)((s64)s_tpDist * fwdX >> 12);
-        tpCamPos.vy = tp_hr->position.vy - (s32)((s64)s_tpDist * fwdY >> 12) + TP_HEIGHT;
-        tpCamPos.vz = tp_hr->position.vz - (s32)((s64)s_tpDist * fwdZ >> 12);
+        if (g_PcFpsCam)
+        {
+            /* First-person: eye = Harry's root + the local between-the-arms offset
+             * rotated by the look yaw (body follows yaw, so this tracks turning).
+             * lookAt = eye + forward (no chest anchor — the view IS the eye). */
+            s32 sYaw = Math_Sin(g_TpsCamYaw);
+            s32 cYaw = Math_Cos(g_TpsCamYaw);
+            tpCamPos.vx = tp_hr->position.vx + (s32)((s64)g_PcFpsOffset.vz * sYaw >> 12)
+                                             + (s32)((s64)g_PcFpsOffset.vx * cYaw >> 12);
+            tpCamPos.vz = tp_hr->position.vz + (s32)((s64)g_PcFpsOffset.vz * cYaw >> 12)
+                                             - (s32)((s64)g_PcFpsOffset.vx * sYaw >> 12);
+            tpCamPos.vy = tp_hr->position.vy + g_PcFpsOffset.vy;
+            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+            tpLookAt.vy = tpCamPos.vy + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+        }
+        else
+        {
+            /* Camera D units BACK along forward, lifted by TP_HEIGHT */
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)s_tpDist * fwdX >> 12);
+            tpCamPos.vy = tp_hr->position.vy - (s32)((s64)s_tpDist * fwdY >> 12) + TP_HEIGHT;
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)s_tpDist * fwdZ >> 12);
 
-        /* lookAt projects FAR ahead (anti-jitter), Y-anchored to Harry's chest
-         * so the screen-center crosshair lands on him, biased by pitch. */
-        anchorY     = tp_hr->position.vy + TP_LOOKAT_OFS;
-        tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
-        tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
-        tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+            /* lookAt projects FAR ahead (anti-jitter), Y-anchored to Harry's chest
+             * so the screen-center crosshair lands on him, biased by pitch. */
+            anchorY     = tp_hr->position.vy + TP_LOOKAT_OFS;
+            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+            tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+        }
         #undef TP_LOOKAT_DIST
 
         /* Over-the-Shoulder: shift the camera + look target laterally so Harry
@@ -802,6 +834,30 @@ void DebugCamera_Update(void)
             }
         }
         prevP = curP;
+    }
+
+    /* L: log the current camera eye relative to Harry, in his LOCAL frame, for
+     * dialing in the first-person (FPS) camera offset. Pose Harry in the aim
+     * frame (K viewer -> KF 588), free-fly the debug cam (KP_0) to the spot
+     * between his arms, then press L and copy the LOCAL OFFSET into g_PcFpsOffset. */
+    {
+        static int prevL = 0;
+        int curL = g_sdlKeyboardState[SDL_SCANCODE_L];
+        if (curL && !prevL) {
+            s_SubCharacter* hr = &g_SysWork.playerWork.player;
+            VECTOR3 cam = g_DebugCamEnabled ? g_DebugCamPos : g_PcCamAppliedPos;
+            s32 dx = cam.vx - hr->position.vx;
+            s32 dy = cam.vy - hr->position.vy;
+            s32 dz = cam.vz - hr->position.vz;
+            s32 sy = Math_Sin(hr->rotation.vy);
+            s32 cy = Math_Cos(hr->rotation.vy);
+            s32 localX = (s32)(((s64)dx * cy - (s64)dz * sy) >> 12);
+            s32 localZ = (s32)(((s64)dx * sy + (s64)dz * cy) >> 12);
+            SH_DBG_ECHO("[FPSCAM] cam=(%d,%d,%d) harry=(%d,%d,%d) bodyYaw=%d  -> LOCAL OFFSET vx=%d vy=%d vz=%d",
+                        cam.vx, cam.vy, cam.vz, hr->position.vx, hr->position.vy, hr->position.vz,
+                        (int)hr->rotation.vy, localX, dy, localZ);
+        }
+        prevL = curL;
     }
 
     /* Per-frame cheat enforcement: invincibility + no-target */

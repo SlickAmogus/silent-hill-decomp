@@ -18,6 +18,7 @@ typedef enum {
     ControlStyle_Classic = 0,
     ControlStyle_Tps     = 1,
     ControlStyle_Ots     = 2,  /* Over the Shoulder — TPS offset to one side */
+    ControlStyle_Fps     = 3,  /* First Person — eye between Harry's arms, forced aim pose */
 } e_ControlStyle;
 
 extern int g_ControlStyle; /* active e_ControlStyle */
