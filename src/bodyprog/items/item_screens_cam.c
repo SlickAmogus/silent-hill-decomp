@@ -281,7 +281,12 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
      * renderers in libgs_stub.c; reset after the draw so nothing else dims. */
     {
         extern int g_PcItemDimNum;
+        extern int g_PcItemPreciseDepth;
         g_PcItemDimNum = 256;
+        /* Fine per-prim depth for the item ONLY while the inventory menu is open
+         * (OT0 = item alone, world not drawn) — fixes the see-through without
+         * touching world/pickup rendering. See libgs_stub.c g_PcItemPreciseDepth. */
+        g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen);
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
              * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and
@@ -307,7 +312,7 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     }
 
 #ifdef SH_PC_PORT
-    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; }
+    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; extern int g_PcItemPreciseDepth; g_PcItemPreciseDepth = 0; }
 #endif
 }
 
