@@ -73,11 +73,16 @@ extern int g_cfg_postProcess;
 extern int g_cfg_tonemap;
 extern int g_PsyX_UsePerPixelFlashlight;
 
+/* PsyCross live-apply helpers for the window-level settings (resolution, window
+ * mode, vsync) so they take effect immediately instead of next launch. */
+extern void PsyX_ApplyWindowState(int width, int height, int fullscreen);
+extern void PsyX_ApplyVsync(int vsync);
+
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 typedef struct {
     const char*        name;     /* row label (underscores render as spaces) */
@@ -92,7 +97,7 @@ typedef struct {
 } s_PcOpt;
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
-static const int VAL_VSYNC[] = { 0, 1, -1 };
+static const int VAL_VSYNC[] = { 0, 1 };
 static const int VAL_FILT[]  = { 0, 1, 2 };
 static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
@@ -102,7 +107,7 @@ static const int VAL_CON[]   = { 0, 1, 2, 3 };
 static const int VAL_FPS[]   = { 0, 30, 60 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
-static const char* const LBL_VSYNC[] = { "Off", "On", "Adaptive" };
+static const char* const LBL_VSYNC[] = { "Off", "On" };
 static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
@@ -117,19 +122,19 @@ static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
 
 static const s_PcOpt PCOPT_G[] = {
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
-    { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          0, PCK_INT    },
-    { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 3, LBL_VSYNC, NULL,                          0, PCK_INT    },
+    { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
+    { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
-    { "Flashlight",     &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
 
 static const s_PcOpt PCOPT_S[] = {
+    { "PP_Flashlight",    &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT  },
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "Enable_Logging",   &g_PcConfig.enableDebugLog, "enable_debug_log", VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
@@ -188,8 +193,8 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         g_PcConfig.windowHeight = RES_H[idx];
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
+        PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
-        SH_DBG_ECHO("This setting will take effect the next time the game is started.");
         return;
     }
     if (e->field == NULL)
@@ -207,6 +212,10 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
             default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
             }
+        } else if (e->kind == PCK_WINMODE) {
+            PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
+        } else if (e->kind == PCK_VSYNC) {
+            PsyX_ApplyVsync(g_PcConfig.vsync);
         } else if (e->live) {
             *e->live = *e->field;
         }
@@ -333,26 +342,28 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
 
 static void Options_PcOptionsMenu_ConfigDraw(void)
 {
-    #define VAL_BASE_X    196
     #define LINE_BASE_Y   56
     #define LINE_OFFSET_Y 16
 
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
+    /* Page 2's labels run long ("Disable Culling", "External Console"), so push
+     * its value column further right to clear them; page 1's short labels keep
+     * the tighter column. */
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : 232;
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
         const char* v = PcOpt_ValueLabel(&tbl[i], buf, sizeof(buf));
         if (v && v[0]) {
-            Gfx_StringSetPosition(VAL_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+            Gfx_StringSetPosition(valX, LINE_BASE_Y + (i * LINE_OFFSET_Y));
             Gfx_Strings2dLayerIdxSet(8);
             Gfx_StringDraw(v, DEFAULT_MAP_MESSAGE_LENGTH);
         }
     }
     Gfx_StringsReset2dLayerIdx();
 
-    #undef VAL_BASE_X
     #undef LINE_BASE_Y
     #undef LINE_OFFSET_Y
 }
