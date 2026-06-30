@@ -21,6 +21,11 @@ void XaPlayer_Stop(void);
 void XaPlayer_Update(void);
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight);
 
+/* Master XA (FMV/voice) volume multiplier in [0,1], applied on top of the
+ * game-driven per-track gain. Set from config / console / options menu. */
+extern float g_PcXaVolume;
+void XaPlayer_SetMasterVolume(float v);
+
 #ifdef __cplusplus
 }
 #endif

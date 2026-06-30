@@ -140,6 +140,13 @@ typedef struct {
 
 static XaPlayerState g_XaPlayer = {0};
 
+/* Master XA (FMV/voice) volume multiplier in [0,1], from config/console/options
+ * menu. Applied on top of the game-driven per-track gain. s_XaGameGain caches
+ * the last game-driven gain so a live master-volume change can be re-applied to
+ * an already-playing source without waiting for the next Sd_SetVolXa. */
+float g_PcXaVolume = 1.0f;
+static float s_XaGameGain = 1.0f;
+
 // Clamp s32 to s16
 static int16_t ClampS16(int32_t val) {
     if (val > 32767) return 32767;
@@ -469,7 +476,8 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * 0.0 for the rest of the session. Without this reset, every voice
      * line after the first ~20 plays silently (cafe cutscene voices
      * still work because they precede the mute event). */
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, 1.0f);
+    s_XaGameGain = 1.0f;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
 
 }
 
@@ -652,6 +660,18 @@ void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
     if (vol < 0) vol = 0;
     float gain = (float)vol / 127.0f;
     if (gain > 1.0f) gain = 1.0f;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, gain);
+    s_XaGameGain = gain;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, gain * g_PcXaVolume);
 
+}
+
+/* Set the master XA volume [0,1] and re-apply it to the live source so an
+ * in-game options-menu / console change is audible immediately. */
+void XaPlayer_SetMasterVolume(float v) {
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    g_PcXaVolume = v;
+    if (g_XaPlayer.alSource) {
+        alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
+    }
 }

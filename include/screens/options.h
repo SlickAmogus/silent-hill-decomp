@@ -42,8 +42,14 @@ typedef enum _MainOptionsMenuEntry
     MainOptionsMenuEntry_Sound          = 6,
     MainOptionsMenuEntry_BgmVolume      = 7,
     MainOptionsMenuEntry_SfxVolume      = 8,
+#ifdef SH_PC_PORT
+    MainOptionsMenuEntry_FmvVolume      = 9, /** PC: XA (FMV/voice) stream volume. */
+
+    MainOptionsMenuEntry_Count          = 10
+#else
 
     MainOptionsMenuEntry_Count          = 9
+#endif
 } e_MainOptionsMenuEntry;
 
 /** @brief Extra options menu entries. */
@@ -174,11 +180,18 @@ void Options_MainOptionsMenu_BgmVolumeBarDraw(void);
 /** @brief Draws an SFX volume bar in the main options menu. */
 void Options_MainOptionsMenu_SfxVolumeBarDraw(void);
 
+#ifdef SH_PC_PORT
+/** @brief PC: draws the FMV/voice (XA) volume bar in the main options menu. */
+void Options_MainOptionsMenu_FmvVolumeBarDraw(void);
+#endif
+
 /** @brief Draws a volume bar.
  *
  * Called by `Options_MainOptionsMenu_BgmVolumeBarDraw` and `Options_MainOptionsMenu_SfxVolumeBarDraw`.
+ *
+ * @param row Row slot beneath the BGM bar (0 = BGM, 1 = SE; 2 = FMV/voice on PC).
  */
-void Options_MainOptionsMenu_VolumeBarDraw(bool isSfx, u8 vol);
+void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol);
 
 /** @brief Draws the heading and all listed entry strings in the extra options menu. */
 void Options_ExtraOptionsMenu_EntryStringsDraw(void);

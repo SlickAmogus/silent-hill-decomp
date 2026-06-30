@@ -793,6 +793,15 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_SaveKeyValue("tonemap_intensity", buf);
         }
         cprintf("tonemap intensity: %.2f (0..1)", g_cfg_tonemapIntensity);
+    } else if (strcmp(cmd, "XAVOLUME") == 0 || strcmp(cmd, "XAVOL") == 0) {
+        extern float g_PcXaVolume;
+        if (arg[0] != '\0') {
+            float pct = (float)atof(arg);
+            if (pct < 0.0f)   pct = 0.0f;
+            if (pct > 100.0f) pct = 100.0f;
+            PcConfig_ApplyXaVolume(pct / 100.0f);
+        }
+        cprintf("xa (fmv/voice) volume: %.0f%% (0..100)", g_PcXaVolume * 100.0f);
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
