@@ -374,3 +374,11 @@ VECTOR3 D_800E1F88[5] = { { -53002, -4300, -58245 }, { -49807, -9871, -65372 }, 
 
 // 0x800E1FC4  size 0x3C (60 bytes) -- safe-sweep ROM extraction (read-before-write .data)
 VECTOR3 D_800E1FC4[5] = { { -37355, -81, -55787 }, { -39198, 204, -72744 }, { -37355, -81, -55787 }, { -36413, 4915, -73605 }, { -65781, -5406, -71393 } };
+
+/* Channeling Stone UFO light: ENBAN.TIM VRAM descriptor + light position bytes, maintained here directly. NOT regenerated -- extract_map_data.py bulk regen drops valid hand-added shared sharedData_* symbols. */
+u8 D_800E2004[8] = {
+    0x00, 0x0C, 0x20, 0x00, 0x00, 0x03, 0x80, 0x00
+};
+u8 D_800E200C[12] = {
+    0x00, 0x20, 0xFF, 0xFF, 0x00, 0x48, 0xFF, 0xFF, 0x00, 0x80, 0x01, 0x00
+};
