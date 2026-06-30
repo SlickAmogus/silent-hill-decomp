@@ -758,11 +758,13 @@ int main(int argc, char* argv[])
      * effect; console flintensity / postintensity / tmintensity). */
     {
         extern float g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity;
+        extern float g_PsyX_FlashlightSize;
         g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
         g_cfg_postProcessIntensity = g_PcConfig.postProcessIntensity;
         g_cfg_tonemapIntensity     = g_PcConfig.tonemapIntensity;
-        SH_LOG("Effect intensity: flashlight %.2f, post %.2f, tonemap %.2f",
-               g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity);
+        g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
+        SH_LOG("Effect intensity: flashlight %.2f, post %.2f, tonemap %.2f; flashlight size %.2f",
+               g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity, g_PsyX_FlashlightSize);
     }
 
     /* Initialize PSY-Q subsystems via PsyCross */

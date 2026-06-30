@@ -26,6 +26,7 @@ s_PcConfig g_PcConfig = {
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
     .flashlightIntensity  = 1.90f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightSize       = 1.50f, /* per-pixel flashlight cone coverage multiplier (1.5x default) */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
@@ -325,6 +326,13 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 3.0f) v = 3.0f;
             g_PcConfig.flashlightIntensity = v;
+        }
+        else if (strcmp(key, "flashlight_size") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 3.0f) v = 3.0f;
+            g_PcConfig.flashlightSize = v;
         }
         else if (strcmp(key, "post_process_intensity") == 0)
         {

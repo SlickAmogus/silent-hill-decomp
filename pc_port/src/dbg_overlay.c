@@ -1216,34 +1216,36 @@ void DbgOverlay_Update(void)
     {
         extern int   g_PsyX_UsePerPixelFlashlight, g_cfg_postProcess, g_cfg_tonemap;
         extern float g_PsyX_FlashlightIntensity, g_cfg_postProcessIntensity, g_cfg_tonemapIntensity;
+        extern float g_PsyX_FlashlightSize;
         extern void  PcConfig_SaveKeyValue(const char* key, const char* val);
 
-        static int    s_fxSel   = 0; /* 0=flashlight 1=post 2=tonemap */
+        static int    s_fxSel   = 0; /* 0=flashlight 1=post 2=tonemap 3=flashlight size */
         static int    s_prev_bs = 0;
         static Uint32 s_lbP = 0, s_lbL = 0, s_rbP = 0, s_rbL = 0;
 
-        int    en[3];
-        float* vp[3];
-        float  vmax[3];
-        const char* vkey[3];
-        const char* vlbl[3];
+        int    en[4];
+        float* vp[4];
+        float  vmax[4];
+        const char* vkey[4];
+        const char* vlbl[4];
         int    curBS, anyEn, changed, n;
 
         en[0] = (g_PsyX_UsePerPixelFlashlight != 0); vp[0] = &g_PsyX_FlashlightIntensity; vmax[0] = 3.0f; vkey[0] = "flashlight_intensity";   vlbl[0] = "flashlight";
         en[1] = (g_cfg_postProcess != 0);            vp[1] = &g_cfg_postProcessIntensity; vmax[1] = 1.0f; vkey[1] = "post_process_intensity"; vlbl[1] = "post-process";
         en[2] = (g_cfg_tonemap != 0);                vp[2] = &g_cfg_tonemapIntensity;     vmax[2] = 1.0f; vkey[2] = "tonemap_intensity";      vlbl[2] = "tonemap";
+        en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = &g_PsyX_FlashlightSize;      vmax[3] = 3.0f; vkey[3] = "flashlight_size";       vlbl[3] = "flashlight size";
 
         cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
         cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
         curBS = ks[SDL_SCANCODE_BACKSLASH];
-        anyEn = en[0] || en[1] || en[2];
+        anyEn = en[0] || en[1] || en[2] || en[3];
 
         /* keep the selection on an enabled effect */
-        if (anyEn && !en[s_fxSel]) { n = 0; do { s_fxSel = (s_fxSel + 1) % 3; } while (!en[s_fxSel] && ++n < 3); }
+        if (anyEn && !en[s_fxSel]) { n = 0; do { s_fxSel = (s_fxSel + 1) % 4; } while (!en[s_fxSel] && ++n < 4); }
 
         /* \ : switch to the next enabled effect */
         if (curBS && !s_prev_bs && anyEn) {
-            n = 0; do { s_fxSel = (s_fxSel + 1) % 3; } while (!en[s_fxSel] && ++n < 3);
+            n = 0; do { s_fxSel = (s_fxSel + 1) % 4; } while (!en[s_fxSel] && ++n < 4);
             SH_DBG_ECHO("[FX] adjusting %s (%.2f)  ([ lower / ] raise)", vlbl[s_fxSel], *vp[s_fxSel]);
         }
         s_prev_bs = curBS;
@@ -1257,7 +1259,7 @@ void DbgOverlay_Update(void)
                 *vp[s_fxSel] += 0.05f; if (*vp[s_fxSel] > vmax[s_fxSel]) *vp[s_fxSel] = vmax[s_fxSel]; changed = 1;
             }
             if (changed)
-                SH_DBG_ECHO("[FX] %s intensity %.2f", vlbl[s_fxSel], *vp[s_fxSel]);
+                SH_DBG_ECHO("[FX] %s %.2f", vlbl[s_fxSel], *vp[s_fxSel]);
             if ((!cur_a && s_prev_a) || (!cur_b && s_prev_b)) { /* persist the landed value */
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%.2f", *vp[s_fxSel]);
