@@ -126,6 +126,10 @@ int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore 
 int g_DebugAnimKfView = 0;       /* 1 = freeze Harry's whole skeleton on g_DebugAnimKf for keyframe inspection */
 int g_DebugAnimKf = 588;         /* absolute keyframe index posed while g_DebugAnimKfView is on (588 = gun-forward) */
 int g_DebugAnimKfMax = 0;        /* keyframeCount of Harry's active anim header, published by Player_Update for the inspector panel */
+int g_DebugAnimPlaying = 0;      /* 1 = loop the selected keyframe range (P) instead of freezing on one frame */
+int g_DebugAnimKfStart = 0;      /* selected loop range start (absolute keyframe) */
+int g_DebugAnimKfEnd   = 0;      /* selected loop range end (absolute keyframe) */
+s32 g_DebugAnimRate    = Q12(15.0f); /* loop playback rate (q19_12 kf/sec @30fps); copied from the source anim when constant */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
 /* Camera eye + forward (unit Q12) published each frame by Pc_TpsCamera_Apply for
@@ -661,17 +665,21 @@ void DebugCamera_Update(void)
         int curPeriod = g_sdlKeyboardState[SDL_SCANCODE_PERIOD];
         if (curK && !prevK) {
             g_DebugAnimKfView = !g_DebugAnimKfView;
+            if (!g_DebugAnimKfView) g_DebugAnimPlaying = 0;
             Sd_PlaySfx(g_DebugAnimKfView ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
             SH_DBG_ECHO("[DEBUG] K: Keyframe view: %s (KF %d)",
                         g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf);
         }
         if (g_DebugAnimKfView) {
-            /* Hold , / . to scroll, accelerating up to 10/s the longer it's held. */
+            /* Hold , / . to scroll, accelerating up to 10/s the longer it's held.
+             * Any manual scrub also stops loop playback. */
             if (Kf_HoldRepeat(curComma, prevComma, &commaPress, &commaLast)) {
                 if (g_DebugAnimKf > 0) g_DebugAnimKf--;
+                g_DebugAnimPlaying = 0;
             }
             if (Kf_HoldRepeat(curPeriod, prevPeriod, &periodPress, &periodLast)) {
                 g_DebugAnimKf++;
+                g_DebugAnimPlaying = 0;
             }
             /* Echo on a fresh tap or on release (the landed frame) only — the amber
              * panel is the live readout, so a held fast-scroll doesn't spam the log. */
@@ -714,11 +722,51 @@ void DebugCamera_Update(void)
             if (best < 0) best = wrapMin;
             if (best >= 0) {
                 g_DebugAnimKf = best;
+                g_DebugAnimPlaying = 0;
                 SH_DBG_ECHO("[DEBUG] / %s anim start: KF %d",
                             haveWeaponAnims ? "weapon" : "base", g_DebugAnimKf);
             }
         }
         prevSlash = curSlash;
+    }
+
+    /* P while the inspector is on: PLAY — loop the anim that contains the current
+     * keyframe (its [startKeyframeIdx, endKeyframeIdx] from HARRY_BASE_ANIM_INFOS)
+     * at the anim's authored speed. Press again to stop; , / . or / resume manual
+     * scrubbing. The looping pose is driven in Player_Update (player_control.c). */
+    {
+        static int prevP = 0;
+        int curP = g_sdlKeyboardState[SDL_SCANCODE_P];
+        if (curP && !prevP && g_DebugAnimKfView) {
+            if (!g_DebugAnimPlaying) {
+                int i, lo = -1, hi = -1;
+                s32 rate = Q12(15.0f);
+                for (i = 0; i < 76; i++) {
+                    s32 sk = HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx;
+                    s32 ek = HARRY_BASE_ANIM_INFOS[i].endKeyframeIdx;
+                    if (sk < 0 || ek <= sk) continue;
+                    if (g_DebugAnimKf >= sk && g_DebugAnimKf <= ek) {
+                        lo = sk; hi = ek;
+                        if (!HARRY_BASE_ANIM_INFOS[i].hasVariableDuration)
+                            rate = HARRY_BASE_ANIM_INFOS[i].duration.constant;
+                        break;
+                    }
+                }
+                if (lo >= 0) {
+                    g_DebugAnimKfStart = lo;
+                    g_DebugAnimKfEnd   = hi;
+                    g_DebugAnimRate    = rate;
+                    g_DebugAnimPlaying = 1;
+                    SH_DBG_ECHO("[DEBUG] P: play loop [%d..%d] rate=%d", lo, hi, (int)rate);
+                } else {
+                    SH_DBG_ECHO("[DEBUG] P: no loopable anim contains KF %d", g_DebugAnimKf);
+                }
+            } else {
+                g_DebugAnimPlaying = 0;
+                SH_DBG_ECHO("[DEBUG] P: play stopped (KF %d)", g_DebugAnimKf);
+            }
+        }
+        prevP = curP;
     }
 
     /* Per-frame cheat enforcement: invincibility + no-target */
