@@ -22,6 +22,9 @@
 
 #ifdef SH_PC_PORT
 static s32 Camera_Distance2dGet(const VECTOR3* pos);
+extern int g_DebugAnimKfView;
+extern int g_DebugViewNpcSlot;
+void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 #endif
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
@@ -699,11 +702,24 @@ void Game_NpcUpdate(void) // 0x80038354
                 continue;
             }
 #endif
-            g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+#ifdef SH_PC_PORT
+            if (g_DebugAnimKfView && g_DebugViewNpcSlot == k)
+            {
+                /* Keyframe viewer is inspecting this NPC: pose it from the
+                 * inspector (freeze/loop) instead of running its AI + per-frame
+                 * housekeeping, so it holds still for inspection. The draw below
+                 * still renders the posed skeleton. */
+                Pc_KeyframeViewerPoseNpc(g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+            }
+            else
+#endif
+            {
+                g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
 
-            Collision_FlagsUpdate();
-            func_80037E78(npc);
-            func_8008A3AC(npc);
+                Collision_FlagsUpdate();
+                func_80037E78(npc);
+                func_8008A3AC(npc);
+            }
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {

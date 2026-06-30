@@ -23,6 +23,8 @@ extern int g_DebugAnimPlaying;   /* 1 = loop the selected keyframe range instead
 extern int g_DebugAnimKfStart;   /* selected loop range start (absolute keyframe) */
 extern int g_DebugAnimKfEnd;     /* selected loop range end (absolute keyframe) */
 extern s32 g_DebugAnimRate;      /* loop playback rate (q19_12 keyframes/sec @30fps) */
+extern int g_DebugViewNpcSlot;   /* keyframe viewer target: -1 = Harry, else g_SysWork.npcs[] slot */
+extern int g_DebugAnimPlayGen;   /* bumped on each play (re)start so the loop cursor re-seeds */
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
 #include <SDL_scancode.h>
@@ -88,6 +90,49 @@ static s32 Pc_AimHoldKf(void)
  * independence, without disturbing Harry's real anim state. */
 static s_Model    s_DebugAnimLoopModel;
 static s_AnimInfo s_DebugAnimLoopInfo;
+
+/* Shared loop advance for the keyframe viewer: (re)seeds the private cursor to
+ * the selected range whenever a new play starts (tracked by g_DebugAnimPlayGen),
+ * then advances it with the real loop driver. Used for Harry and viewed NPCs. */
+static void Pc_KfLoopAdvance(s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+{
+    static int seededGen = -1;
+    if (seededGen != g_DebugAnimPlayGen)
+    {
+        s_DebugAnimLoopInfo.hasVariableDuration = 0;
+        s_DebugAnimLoopInfo.duration.constant   = g_DebugAnimRate;
+        s_DebugAnimLoopInfo.startKeyframeIdx    = (s16)g_DebugAnimKfStart;
+        s_DebugAnimLoopInfo.endKeyframeIdx      = (s16)g_DebugAnimKfEnd;
+        s_DebugAnimLoopModel.anim.flags         = AnimFlag_Unlocked | AnimFlag_Visible;
+        s_DebugAnimLoopModel.anim.time          = Q12(g_DebugAnimKfStart);
+        s_DebugAnimLoopModel.anim.keyframeIdx   = (s16)g_DebugAnimKfStart;
+        s_DebugAnimLoopModel.anim.alpha         = 0;
+        seededGen = g_DebugAnimPlayGen;
+    }
+    Anim_PlaybackLoop(&s_DebugAnimLoopModel, anmHdr, coords, &s_DebugAnimLoopInfo);
+    g_DebugAnimKf = s_DebugAnimLoopModel.anim.keyframeIdx;
+}
+
+/* Keyframe viewer: pose a viewed NPC (freeze on g_DebugAnimKf, or loop the
+ * selected range) instead of running its AI. Called from Game_NpcUpdate. */
+void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
+{
+    if (anmHdr == NULL) { return; }
+
+    if (g_DebugAnimPlaying)
+    {
+        Pc_KfLoopAdvance(anmHdr, boneCoords);
+    }
+    else
+    {
+        s32 kf    = g_DebugAnimKf;
+        s32 maxKf = (anmHdr->keyframeCount > 0) ? (s32)anmHdr->keyframeCount - 1 : 0;
+        if (kf > maxKf) { kf = maxKf; }
+        if (kf < 0)     { kf = 0; }
+        g_DebugAnimKf = kf;
+        Anim_BoneUpdate(anmHdr, boneCoords, kf, kf, Q12(0.0f));
+    }
+}
 #endif
 
 s_800C44F0 D_800C44F0[10];
@@ -868,27 +913,12 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             }
             g_DebugAnimKfMax = _maxKf + 1; /* publish as a count for the panel readout */
 
-            if (g_DebugAnimKfView)
+            if (g_DebugAnimKfView && g_DebugViewNpcSlot < 0)
             {
-                static int s_prevPlaying = 0;
                 g_SysWork.playerWork.extra.disabledAnimBones = 0;
                 if (g_DebugAnimPlaying)
                 {
-                    /* Seed the private cursor to the range start on the rising
-                     * edge, then advance it with the real loop driver each frame. */
-                    if (!s_prevPlaying)
-                    {
-                        s_DebugAnimLoopInfo.hasVariableDuration = 0;
-                        s_DebugAnimLoopInfo.duration.constant   = g_DebugAnimRate;
-                        s_DebugAnimLoopInfo.startKeyframeIdx    = (s16)g_DebugAnimKfStart;
-                        s_DebugAnimLoopInfo.endKeyframeIdx      = (s16)g_DebugAnimKfEnd;
-                        s_DebugAnimLoopModel.anim.flags         = AnimFlag_Unlocked | AnimFlag_Visible;
-                        s_DebugAnimLoopModel.anim.time          = Q12(g_DebugAnimKfStart);
-                        s_DebugAnimLoopModel.anim.keyframeIdx   = (s16)g_DebugAnimKfStart;
-                        s_DebugAnimLoopModel.anim.alpha         = 0;
-                    }
-                    Anim_PlaybackLoop(&s_DebugAnimLoopModel, anmHdr, coords, &s_DebugAnimLoopInfo);
-                    g_DebugAnimKf = s_DebugAnimLoopModel.anim.keyframeIdx;
+                    Pc_KfLoopAdvance(anmHdr, coords);
                 }
                 else
                 {
@@ -898,7 +928,6 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
                     g_DebugAnimKf = _kf;
                     Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
                 }
-                s_prevPlaying = g_DebugAnimPlaying;
             }
         }
 #endif
