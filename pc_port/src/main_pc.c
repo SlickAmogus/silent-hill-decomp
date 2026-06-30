@@ -705,11 +705,12 @@ int main(int argc, char* argv[])
                 SH_LOG("Failed to set %d hz display mode: %s", g_PcConfig.refreshRate, SDL_GetError());
         }
     }
-    if (g_PcConfig.vsync != 0)
-    {
-        SDL_GL_SetSwapInterval(g_PcConfig.vsync);
-        SH_LOG("VSync set to %d", g_PcConfig.vsync);
-    }
+    /* A direct SDL_GL_SetSwapInterval here is overwritten every frame by
+     * PsyX_BeginScene (which derives the interval from g_cfg_swapInterval), so
+     * apply vsync through that gate instead — same path the in-game PC Options
+     * menu uses, so boot and runtime stay consistent. */
+    PsyX_ApplyVsync(g_PcConfig.vsync);
+    SH_LOG("VSync: %s", g_PcConfig.vsync != 0 ? "on" : "off");
 
     /* Apply texture-filtering mode from config: 0 = neither, 1 = PSX
      * dither, 2 = bilinear. Mutually exclusive — bilinear softens

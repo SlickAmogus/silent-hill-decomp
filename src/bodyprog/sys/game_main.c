@@ -453,9 +453,9 @@ static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
 
 void DebugCamera_Update(void)
 {
-    #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
-    #define DBG_CAM_TURN_SPEED 16
-    #define DBG_CAM_VERT_SPEED 256
+    #define DBG_CAM_MOVE_SPEED 128   /* Q12(0.03125) — slow enough to dial in the FPS-cam spot */
+    #define DBG_CAM_TURN_SPEED 6
+    #define DBG_CAM_VERT_SPEED 64
 
     if (!g_sdlKeyboardState) return;
 #ifdef SH_PC_PORT
@@ -1208,6 +1208,15 @@ void DebugCamera_Update(void)
     s32 dbgMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_MOVE_SPEED);
     s32 dbgTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_TURN_SPEED);
     s32 dbgVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_VERT_SPEED);
+
+    /* Hold Left-Ctrl for ultra-fine placement (quarter speed) when nudging the
+     * debug cam onto the exact between-the-arms FPS spot before pressing L. */
+    if (g_sdlKeyboardState[SDL_SCANCODE_LCTRL]) {
+        dbgMoveSpeed >>= 2;
+        dbgVertSpeed >>= 2;
+        dbgTurnSpeed >>= 2;
+        if (dbgTurnSpeed < 1) dbgTurnSpeed = 1;
+    }
 
     /* Numpad 8: forward */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
