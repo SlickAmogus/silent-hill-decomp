@@ -19,6 +19,10 @@ extern int g_DebugThirdPersonCam;
 extern int g_DebugAnimKfView;
 extern int g_DebugAnimKf;
 extern int g_DebugAnimKfMax;
+extern int g_DebugAnimPlaying;   /* 1 = loop the selected keyframe range instead of freezing on one frame */
+extern int g_DebugAnimKfStart;   /* selected loop range start (absolute keyframe) */
+extern int g_DebugAnimKfEnd;     /* selected loop range end (absolute keyframe) */
+extern s32 g_DebugAnimRate;      /* loop playback rate (q19_12 keyframes/sec @30fps) */
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
 #include <SDL_scancode.h>
@@ -77,6 +81,13 @@ static s32 Pc_AimHoldKf(void)
             return PC_AIM_HOLD_KF;
     }
 }
+
+/* Keyframe-viewer loop playback (driven by P in DebugCamera_Update): a private
+ * model cursor + a synthetic constant-duration loop info let Anim_PlaybackLoop
+ * loop the selected keyframe range with correct interpolation + frame-rate
+ * independence, without disturbing Harry's real anim state. */
+static s_Model    s_DebugAnimLoopModel;
+static s_AnimInfo s_DebugAnimLoopInfo;
 #endif
 
 s_800C44F0 D_800C44F0[10];
@@ -859,12 +870,35 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
 
             if (g_DebugAnimKfView)
             {
-                s32 _kf = g_DebugAnimKf;
-                if (_kf > _maxKf) _kf = _maxKf;
-                if (_kf < 0)      _kf = 0;
-                g_DebugAnimKf = _kf;
+                static int s_prevPlaying = 0;
                 g_SysWork.playerWork.extra.disabledAnimBones = 0;
-                Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
+                if (g_DebugAnimPlaying)
+                {
+                    /* Seed the private cursor to the range start on the rising
+                     * edge, then advance it with the real loop driver each frame. */
+                    if (!s_prevPlaying)
+                    {
+                        s_DebugAnimLoopInfo.hasVariableDuration = 0;
+                        s_DebugAnimLoopInfo.duration.constant   = g_DebugAnimRate;
+                        s_DebugAnimLoopInfo.startKeyframeIdx    = (s16)g_DebugAnimKfStart;
+                        s_DebugAnimLoopInfo.endKeyframeIdx      = (s16)g_DebugAnimKfEnd;
+                        s_DebugAnimLoopModel.anim.flags         = AnimFlag_Unlocked | AnimFlag_Visible;
+                        s_DebugAnimLoopModel.anim.time          = Q12(g_DebugAnimKfStart);
+                        s_DebugAnimLoopModel.anim.keyframeIdx   = (s16)g_DebugAnimKfStart;
+                        s_DebugAnimLoopModel.anim.alpha         = 0;
+                    }
+                    Anim_PlaybackLoop(&s_DebugAnimLoopModel, anmHdr, coords, &s_DebugAnimLoopInfo);
+                    g_DebugAnimKf = s_DebugAnimLoopModel.anim.keyframeIdx;
+                }
+                else
+                {
+                    s32 _kf = g_DebugAnimKf;
+                    if (_kf > _maxKf) _kf = _maxKf;
+                    if (_kf < 0)      _kf = 0;
+                    g_DebugAnimKf = _kf;
+                    Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
+                }
+                s_prevPlaying = g_DebugAnimPlaying;
             }
         }
 #endif
