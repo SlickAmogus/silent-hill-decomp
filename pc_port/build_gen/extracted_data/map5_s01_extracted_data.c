@@ -647,3 +647,11 @@ VECTOR3 g_Cutscene_CameraLookAtTarget = { 0, 0, 0 };
 // 0x800F3E0C  size 0x4 (4 bytes)
 s32 g_Cutscene_Timer = 0;
 
+
+/* Channeling Stone UFO light: ENBAN.TIM VRAM descriptor + light position bytes, maintained here directly. NOT regenerated -- extract_map_data.py bulk regen drops valid hand-added shared sharedData_* symbols. */
+u8 D_800F0178[8] = {
+    0x00, 0x0C, 0x20, 0x00, 0x00, 0x03, 0x80, 0x00
+};
+u8 D_800F0180[12] = {
+    0x00, 0x9C, 0xF3, 0xFF, 0x00, 0x1C, 0xFF, 0xFF, 0x00, 0x68, 0xFF, 0xFF
+};
