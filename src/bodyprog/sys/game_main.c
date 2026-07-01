@@ -38,6 +38,7 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/sys/joy.h"
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
+#include "bodyprog/collision/ray.h"
 #include "bodyprog/memcard.h"
 #include "bodyprog/sound/sound_system.h"
 #include "screens/b_konami/b_konami.h"
@@ -360,6 +361,43 @@ static void Pc_TpsCamera_Apply(void)
         }
 
 #ifdef SH_PC_PORT
+        /* Third-person camera-wall collision: keep the eye from clipping through
+         * level geometry. Cast from Harry's chest (the orbit anchor) out to the
+         * computed eye; on a wall hit, pull the eye in along that line to just
+         * short of the wall. TPS/OTS only — the FPS eye sits at Harry's head.
+         * lookAt is left anchored to Harry so he stays framed as the eye zooms. */
+        if (!g_PcFpsCam)
+        {
+            #define CAM_COLL_MARGIN Q12(0.25f)
+            #define CAM_COLL_MIN    Q12(0.35f)
+            s_RayTrace camTrace;
+            VECTOR3    pivot;
+            pivot.vx = tp_hr->position.vx;
+            pivot.vy = anchorY;
+            pivot.vz = tp_hr->position.vz;
+
+            if (Ray_TraceQuery(&camTrace, &pivot, &tpCamPos) && camTrace.hasHit)
+            {
+                s32 dx  = tpCamPos.vx - pivot.vx;
+                s32 dy  = tpCamPos.vy - pivot.vy;
+                s32 dz  = tpCamPos.vz - pivot.vz;
+                s32 ax  = dx >> 6, ay = dy >> 6, az = dz >> 6;
+                s32 full = SquareRoot0(SQUARE(ax) + SQUARE(ay) + SQUARE(az)) << 6;
+                if (full > 0 && camTrace.hitDistance < full)
+                {
+                    s32 safe = camTrace.hitDistance - CAM_COLL_MARGIN;
+                    s32 frac;
+                    if (safe < CAM_COLL_MIN) { safe = CAM_COLL_MIN; }
+                    frac = (s32)(((s64)safe << 12) / full);
+                    tpCamPos.vx = pivot.vx + (s32)(((s64)dx * frac) >> 12);
+                    tpCamPos.vy = pivot.vy + (s32)(((s64)dy * frac) >> 12);
+                    tpCamPos.vz = pivot.vz + (s32)(((s64)dz * frac) >> 12);
+                }
+            }
+            #undef CAM_COLL_MARGIN
+            #undef CAM_COLL_MIN
+        }
+
         /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
          * offset so the eye matches the rendered view). The aim ray in
          * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd.
@@ -935,58 +973,55 @@ void DebugCamera_Update(void)
      * are unnecessary here. Re-add when an in-progress later-map test
      * needs an item that isn't in the world yet. */
 
-    /* ==== First-person camera yaw tuning (numpad) ====
-     * Repurposed from the old normal-cam nudge tool. Active only in FPS mode
-     * (not debug-cam). The FPS eye offset was captured in Harry's BODY-yaw
-     * frame but is applied using the CAMERA yaw, so when they disagree the view
-     * lands rotated wrong ("his body faces the wrong way vs the logged frame").
-     * Dial it here, then press L to re-log:
-     *   KP_8  toggle eye-yaw source: camera yaw <-> Harry body yaw
-     *   KP_4/6  fine-turn the eye yaw  (held)
-     *   KP_7/9  snap the eye yaw -/+ 90 deg
-     *   KP_5  reset to baseline (camera yaw, no adjust) */
+    /* ==== First-person eye tuning (numpad) ====
+     * Active only in FPS mode (not debug-cam). The eye is placed at Harry's root
+     * + g_PcFpsOffset (a LOCAL between-the-arms vector rotated by the look yaw).
+     * Rotating that vector only orbits the eye, so translate it directly here to
+     * plant the eye exactly, then press KP_5 to print the values to bake in:
+     *   KP_8/KP_2  move eye forward / back   (offset vz, held)
+     *   KP_4/KP_6  move eye left / right      (offset vx, held)
+     *   KP_9/KP_7  move eye up / down          (offset vy, held)
+     *   KP_1/KP_3  yaw fine-turn -/+           (g_PcFpsYawAdj, held)
+     *   KP_0       toggle eye-yaw source (camera yaw <-> Harry body yaw)
+     *   KP_5       log g_PcFpsOffset + yaw state (paste to bake) */
     if (g_PcFpsCam && !g_DebugCamEnabled &&
         g_GameWork.gameState == GameState_InGame)
     {
+        #define FPS_MOVE_STEP 64
         #define FPS_YAW_FINE  Q12_ANGLE(1.0f)
-        #define FPS_YAW_SNAP  Q12_ANGLE(90.0f)
+
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) g_PcFpsOffset.vz += FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_2]) g_PcFpsOffset.vz -= FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) g_PcFpsOffset.vx += FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) g_PcFpsOffset.vx -= FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) g_PcFpsOffset.vy -= FPS_MOVE_STEP; /* PSX +Y is down */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) g_PcFpsOffset.vy += FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_1]) g_PcFpsYawAdj  -= FPS_YAW_FINE;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_3]) g_PcFpsYawAdj  += FPS_YAW_FINE;
 
         {
-            static int prev8 = 0;
-            int cur8 = g_sdlKeyboardState[SDL_SCANCODE_KP_8];
-            if (cur8 && !prev8) {
+            static int prev0 = 0;
+            int cur0 = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
+            if (cur0 && !prev0) {
                 g_PcFpsYawSrc = !g_PcFpsYawSrc;
                 SH_DBG_ECHO("[FPSCAM-TUNE] eye-yaw source = %s", g_PcFpsYawSrc ? "BODY (rotation.vy)" : "CAMERA (g_TpsCamYaw)");
             }
-            prev8 = cur8;
-        }
-
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) g_PcFpsYawAdj -= FPS_YAW_FINE;
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) g_PcFpsYawAdj += FPS_YAW_FINE;
-
-        {
-            static int prev7 = 0, prev9 = 0;
-            int cur7 = g_sdlKeyboardState[SDL_SCANCODE_KP_7];
-            int cur9 = g_sdlKeyboardState[SDL_SCANCODE_KP_9];
-            if (cur7 && !prev7) g_PcFpsYawAdj -= FPS_YAW_SNAP;
-            if (cur9 && !prev9) g_PcFpsYawAdj += FPS_YAW_SNAP;
-            prev7 = cur7;
-            prev9 = cur9;
+            prev0 = cur0;
         }
 
         {
             static int prev5 = 0;
             int cur5 = g_sdlKeyboardState[SDL_SCANCODE_KP_5];
             if (cur5 && !prev5) {
-                g_PcFpsYawAdj = 0;
-                g_PcFpsYawSrc = 0;
-                SH_DBG_ECHO("[FPSCAM-TUNE] reset to baseline (camera yaw, adj 0)");
+                SH_DBG_ECHO("[FPSCAM-TUNE] g_PcFpsOffset = { %d, %d, %d }  yawAdj=%d src=%s",
+                            (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz,
+                            (int)g_PcFpsYawAdj, g_PcFpsYawSrc ? "BODY" : "CAMERA");
             }
             prev5 = cur5;
         }
 
+        #undef FPS_MOVE_STEP
         #undef FPS_YAW_FINE
-        #undef FPS_YAW_SNAP
     }
 
 
