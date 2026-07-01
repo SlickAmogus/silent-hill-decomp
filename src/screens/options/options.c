@@ -289,7 +289,9 @@ void Options_PcOptionsMenu_Control(void)
 
         sel = &tbl[g_PcOptionsMenu_SelectedEntry];
 
-        if (sel->kind == PCK_INT || sel->kind == PCK_RES || sel->kind == PCK_FILTER) {
+        /* Every value row (INT/RES/FILTER/WINMODE/VSYNC/SLIDER) adjusts on
+         * left/right; only the action rows (NEXT/PREV/BACK) are excluded. */
+        if (sel->kind < PCK_NEXT) {
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight) {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 PcOpt_Adjust(sel, +1);
