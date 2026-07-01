@@ -1301,6 +1301,81 @@ static void Model_MaterialUntexture(s_ModelHeader* modelHdr, s32 matIdx)
         }
     }
 }
+
+/* Interior VRAM-collision guard (extends the NULL-texture untexture above for
+ * the texture!=NULL case). On PSX only ONE variant set of a cell's textures is
+ * streamed in at a time, so a prim's baked CLUT column is always resident at
+ * full height. PC keeps many cells resident sharing one page pool; two
+ * differently-named textures baked to the SAME CLUT column (mutually-exclusive
+ * on PSX) physically overwrite each other — tPage/clut are baked into the model
+ * data so the pool cannot relocate them — and the prim referencing the taller
+ * palette samples past the shorter resident CLUT = rainbow. Untexture (flat)
+ * every prim caught in such a collision so the contested slot is never sampled
+ * textured, matching vanilla's out-of-pool chunks. Runs each frame over the
+ * interior keep set (Ipd_ChunkMaterialsApply). */
+void Lm_UntextureVramCollisions(s_LmHeader** lmHdrs, s32 count)
+{
+    s32 a, b, ia, ib, j;
+
+    for (a = 0; a < count; a++)
+    {
+        s_LmHeader* la = lmHdrs[a];
+        if (la == NULL || la->magic != LM_HEADER_MAGIC)
+        {
+            continue;
+        }
+
+        for (ia = 0; ia < la->materialCount; ia++)
+        {
+            s_Material*    ma = &la->materials[ia];
+            s_FsImageDesc* da;
+            if (ma->texture == NULL)
+            {
+                continue;
+            }
+            da = &ma->texture->imageDesc;
+
+            for (b = a + 1; b < count; b++)
+            {
+                s_LmHeader* lb = lmHdrs[b];
+                if (lb == NULL || lb->magic != LM_HEADER_MAGIC)
+                {
+                    continue;
+                }
+
+                for (ib = 0; ib < lb->materialCount; ib++)
+                {
+                    s_Material*    mb = &lb->materials[ib];
+                    s_FsImageDesc* db;
+                    if (mb->texture == NULL || mb->texture == ma->texture)
+                    {
+                        continue;
+                    }
+                    db = &mb->texture->imageDesc;
+
+                    /* Same CLUT column with different textures = the rainbow
+                     * trigger. Also catch an identical pixel slot (same page +
+                     * intra-page uv) so a straight wrong-texture collision goes
+                     * flat too. Half-page neighbors (same page, different clut)
+                     * differ in uv and clut, so they are not falsely flagged. */
+                    if ((da->clutX == db->clutX && da->clutY == db->clutY) ||
+                        (da->tPage[0] == db->tPage[0] && da->tPage[1] == db->tPage[1] &&
+                         da->u == db->u && da->v == db->v))
+                    {
+                        for (j = 0; j < la->modelCount; j++)
+                        {
+                            Model_MaterialUntexture(&la->modelHdrs[j], ia);
+                        }
+                        for (j = 0; j < lb->modelCount; j++)
+                        {
+                            Model_MaterialUntexture(&lb->modelHdrs[j], ib);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 #endif
 
 void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
