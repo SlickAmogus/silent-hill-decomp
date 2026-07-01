@@ -489,6 +489,34 @@ static int FmvDecodeXaSector(const uint8_t* sector, int16_t* pcmOut)
     return written;
 }
 
+/* FMV/voice volume (0..1), shared with the XA cutscene-voice player and driven
+ * by the "FMV/voice" options slider (PcConfig_ApplyXaVolume -> g_PcXaVolume).
+ * FMV movie audio streams as raw PCM via SDL_QueueAudio — a different path from
+ * the OpenAL XA player — so it must be scaled here or the slider has no effect
+ * on movie audio (the reported bug). */
+extern "C" float g_PcXaVolume;
+
+static void FmvApplyVolume(void* buf, int bytes, SDL_AudioFormat fmt)
+{
+    float g = g_PcXaVolume;
+    if (g >= 0.999f) return; /* full volume: leave the samples byte-identical */
+    if (g < 0.0f) g = 0.0f;
+
+    if (fmt == AUDIO_S16LSB || fmt == AUDIO_S16MSB)
+    {
+        int16_t* s = (int16_t*)buf;
+        int      n = bytes / (int)sizeof(int16_t);
+        for (int i = 0; i < n; i++)
+            s[i] = (int16_t)((float)s[i] * g);
+    }
+    else if (fmt == AUDIO_U8) /* unsigned 8-bit: silence is 128 */
+    {
+        uint8_t* s = (uint8_t*)buf;
+        for (int i = 0; i < bytes; i++)
+            s[i] = (uint8_t)(128 + (int)(((float)s[i] - 128.0f) * g));
+    }
+}
+
 /* str_demux audio sector callback. Lazily opens an SDL audio device on
  * the first sector (using its subheader to learn rate/channels), then
  * decodes and queues PCM. Must be C-linkage so it can be assigned to
@@ -536,6 +564,7 @@ static void FmvAudio_OnSector(const uint8_t* sector, void* user)
     int16_t pcm[FMV_XA_SAMPLES_PER_SECTOR];
     int     n = FmvDecodeXaSector(sector, pcm);
     if (n > 0) {
+        FmvApplyVolume(pcm, n * (int)sizeof(int16_t), AUDIO_S16LSB);
         SDL_QueueAudio(st->dev, pcm, (Uint32)(n * (int)sizeof(int16_t)));
         st->sectorsDecoded++;
     }
@@ -889,6 +918,7 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         if (frame_entry.type == ReadAVI::ctype_audio_data) {
             /* Queue audio data to SDL */
             if (audioDev && frame_size > 0) {
+                FmvApplyVolume(frame_entry.buf, frame_size, audioObtained.format);
                 SDL_QueueAudio(audioDev, frame_entry.buf, frame_size);
             }
             /* Don't apply video timing for audio frames - immediately read next */
