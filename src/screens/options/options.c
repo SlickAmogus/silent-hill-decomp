@@ -78,11 +78,15 @@ extern int g_PsyX_UsePerPixelFlashlight;
 extern void PsyX_ApplyWindowState(int width, int height, int fullscreen);
 extern void PsyX_ApplyVsync(int vsync);
 
+/* Per-pixel flashlight beam live floats (PsyCross); mirrored by the sliders. */
+extern float g_PsyX_FlashlightIntensity;
+extern float g_PsyX_FlashlightSize;
+
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 typedef struct {
     const char*        name;     /* row label (underscores render as spaces) */
@@ -94,6 +98,11 @@ typedef struct {
     int*               live;     /* single live global to mirror (NULL = none) */
     int                realtime; /* 1 = applies now, 0 = needs restart */
     int                kind;     /* PCK_* */
+    float*             ffield;   /* PCK_SLIDER: config float this row adjusts */
+    float*             flive;    /* PCK_SLIDER: live global to mirror (NULL = none) */
+    float              fmin;     /* PCK_SLIDER value range + step */
+    float              fmax;
+    float              fstep;
 } s_PcOpt;
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
@@ -135,10 +144,10 @@ static const s_PcOpt PCOPT_G[] = {
 
 static const s_PcOpt PCOPT_S[] = {
     { "PP_Flashlight",    &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT  },
+    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
+    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
-    { "Enable_Logging",   &g_PcConfig.enableDebugLog, "enable_debug_log", VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
-    { "External_Console", &g_PcConfig.showConsole,    "show_console",     VAL_CON,   4, LBL_CON,   NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   3, LBL_FPS,   NULL, 1, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -169,6 +178,10 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
         return buf;
     }
+    if (e->kind == PCK_SLIDER) {
+        snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
+        return buf;
+    }
     if (e->field == NULL)
         return "";
     {
@@ -195,6 +208,16 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
         PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        return;
+    }
+    if (e->kind == PCK_SLIDER) {
+        float v = (e->ffield ? *e->ffield : 0.0f) + (float)dir * e->fstep;
+        if (v < e->fmin) v = e->fmin;
+        if (v > e->fmax) v = e->fmax;
+        if (e->ffield) *e->ffield = v;
+        if (e->flive)  *e->flive  = v;
+        if (e->key) { char fb[16]; snprintf(fb, sizeof(fb), "%.3f", v); PcConfig_SaveKeyValue(e->key, fb); }
+        SH_DBG_ECHO("%s: %.2f", e->name, v);
         return;
     }
     if (e->field == NULL)

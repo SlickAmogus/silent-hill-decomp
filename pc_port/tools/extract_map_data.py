@@ -115,6 +115,7 @@ TARGETS = {
     "D_800DA570":                       ("u8",  1),  # map5_s00 limits
     "D_800DA578":                       ("u16", 2),  # map5_s00 room flags
     "D_800EFC74":                       ("u8",  1),  # map5_s01 limits
+    "D_800EFC80":                       ("u16", 2),  # map5_s01 per-room BGM layer flags
     "D_800DBCDC":                       ("u8",  1),  # map6_s03 limits
     # Per-map fallback room-index grid read by Map_RoomIdxGet (shared header).
     # Maps room positions to room indices for BGM room flags, ambience, etc.
@@ -319,6 +320,7 @@ EXTRA_SYMBOLS = {
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44),
                  ("D_800CB0CC", 0x800CB0CC, 12)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
+                 ("D_800EFC80", 0x800EFC80, 24),  # per-room BGM layer flags (12 rooms); was a silent zero-stub
                  ("D_800F0158", 0x800F0158, 24),
                  ("D_800F0170", 0x800F0170, 4),
                  ("D_800F0174", 0x800F0174, 24)],
