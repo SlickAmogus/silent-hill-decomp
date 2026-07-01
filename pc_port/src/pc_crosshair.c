@@ -28,9 +28,10 @@ void Pc_CrosshairDraw(void)
     int      i;
 
     if (!g_PcConfig.crosshair) return;
-    if (g_ControlStyle != ControlStyle_Tps && g_ControlStyle != ControlStyle_Ots) return;
+    if (g_ControlStyle != ControlStyle_Tps && g_ControlStyle != ControlStyle_Ots && g_ControlStyle != ControlStyle_Fps) return;
     if (g_GameWork.gameState != GameState_InGame) return;
-    if (!g_SysWork.playerCombat.isAiming) return; /* aim only — not firing/activating */
+    /* Aim-only in TPS/OTS; always shown in first-person (the view IS the aim). */
+    if (g_ControlStyle != ControlStyle_Fps && !g_SysWork.playerCombat.isAiming) return;
 
     if (!s_inited)
     {

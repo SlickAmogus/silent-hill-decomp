@@ -522,7 +522,8 @@ u8 D_800EDA04[256] = {0};
 u8 D_800EDA08[256] = {0};
 u8 D_800EDA0C[256] = {0};
 u8 D_800EFC7C[256] = {0};
-u8 D_800EFC80[256] = {0};
+/* D_800EFC80 (map5_s01 per-room BGM layer flags) now defined with real disc data
+ * in build_gen/extracted_data/map5_s01_extracted_data.c — stub removed. */
 u8 D_800F0040[256] = {0};
 u8 D_800F0044[256] = {0};
 u8 D_800F0178[256] = {0};
