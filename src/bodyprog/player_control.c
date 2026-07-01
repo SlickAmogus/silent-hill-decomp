@@ -65,20 +65,24 @@ static void Player_CrashHandler(int sig) {
 #include "pc_timing.h"
 #include "pc_config.h"
 
+extern int g_PcFpsCam;
+
 /* Per-weapon steady gun-forward "ready" keyframe for OTS/TPS free-aim. The
  * rifle reads cleaner a few frames before the shared default; the handgun and
  * shotgun settle one frame earlier (587/588 chosen by eye in-game). Anything
  * else (e.g. HyperBlaster) keeps PC_AIM_HOLD_KF. weaponAttack holds the Tap
- * form for an equipped gun (32/33/34), so compare against those directly. */
+ * form for an equipped gun (32/33/34), so compare against those directly.
+ * First-person needs the arms held higher/further along the swing so the gun
+ * frames under the crosshair: 592 for handgun/shotgun, 597 for the rifle. */
 static s32 Pc_AimHoldKf(void)
 {
     switch (g_SysWork.playerCombat.weaponAttack)
     {
         case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
-            return 587;
+            return g_PcFpsCam ? 597 : 587;
         case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
         case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
-            return 588;
+            return g_PcFpsCam ? 592 : 588;
         default:
             return PC_AIM_HOLD_KF;
     }
