@@ -489,16 +489,15 @@ static int FmvDecodeXaSector(const uint8_t* sector, int16_t* pcmOut)
     return written;
 }
 
-/* FMV/voice volume (0..1), shared with the XA cutscene-voice player and driven
- * by the "FMV/voice" options slider (PcConfig_ApplyXaVolume -> g_PcXaVolume).
- * FMV movie audio streams as raw PCM via SDL_QueueAudio — a different path from
- * the OpenAL XA player — so it must be scaled here or the slider has no effect
- * on movie audio (the reported bug). */
-extern "C" float g_PcXaVolume;
+/* FMV *movie* volume (0..1), independent of the XA cutscene-voice volume
+ * (g_PcXaVolume). FMV movie audio streams as raw PCM via SDL_QueueAudio — a
+ * different path from the OpenAL XA player — so it must be scaled here, and the
+ * two are split into separate options sliders (Voice vs FMV Movie). */
+extern "C" { float g_PcFmvVolume = 1.0f; }
 
 static void FmvApplyVolume(void* buf, int bytes, SDL_AudioFormat fmt)
 {
-    float g = g_PcXaVolume;
+    float g = g_PcFmvVolume;
     if (g >= 0.999f) return; /* full volume: leave the samples byte-identical */
     if (g < 0.0f) g = 0.0f;
 

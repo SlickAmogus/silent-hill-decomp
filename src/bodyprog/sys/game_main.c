@@ -143,7 +143,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by the look yaw each frame to place the eye
  * between his arms. Placeholder until captured via the L cam-pos log key. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { -824, -6141, 312 }; /* between-the-arms eye, captured via the L-key log */
+VECTOR3 g_PcFpsOffset = { -653, -6266, 1309 }; /* between-the-arms eye, captured via the L-key log */
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
