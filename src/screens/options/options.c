@@ -82,6 +82,10 @@ extern void PsyX_ApplyVsync(int vsync);
 extern float g_PsyX_FlashlightIntensity;
 extern float g_PsyX_FlashlightSize;
 
+/* FMV movie (SDL PCM) live volume, 0..1; mirrored by the FMV Movie slider.
+ * The Sound menu's Voice slider drives g_PcXaVolume separately. */
+extern float g_PcFmvVolume;
+
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
@@ -149,6 +153,7 @@ static const s_PcOpt PCOPT_S[] = {
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   3, LBL_FPS,   NULL, 1, PCK_INT  },
+    { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
@@ -1153,9 +1158,10 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 #ifdef SH_PC_PORT
         case MainOptionsMenuEntry_FmvVolume:
         {
-            /* PC-only: FMV/voice (XA) stream volume. Mirrors the BGM/SE slider
-             * feel (16 notches, step 8 over 0..128) but drives g_PcXaVolume in
-             * [0,1] and persists `xa_volume`. */
+            /* PC-only: XA cutscene-voice stream volume ("Voice"). Mirrors the
+             * BGM/SE slider feel (16 notches, step 8 over 0..128) but drives
+             * g_PcXaVolume in [0,1] and persists `xa_volume`. FMV movie audio is
+             * a separate slider (FMV Movie Vol on the PC Options page). */
             extern float g_PcXaVolume;
             extern void  PcConfig_ApplyXaVolume(float norm);
 
@@ -1413,7 +1419,7 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "SE_Volume"
 #ifdef SH_PC_PORT
         ,
-        "FMV_Voice"
+        "Voice"
 #endif
     };
 
@@ -1564,7 +1570,7 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
     const u8 SELECTION_HIGHLIGHT_WIDTHS[] = {
         59, 169, 174, 156, 104, 112, 75, 129, 112
 #ifdef SH_PC_PORT
-        , 112 /* FMV Voice */
+        , 75 /* Voice */
 #endif
     };
 

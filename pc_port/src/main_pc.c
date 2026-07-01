@@ -772,8 +772,10 @@ int main(int argc, char* argv[])
      * Set the global the XA player multiplies into the OpenAL source gain. */
     {
         extern float g_PcXaVolume;
+        extern float g_PcFmvVolume;
         g_PcXaVolume = g_PcConfig.xaVolume;
-        SH_LOG("XA (FMV/voice) volume: %.2f", g_PcXaVolume);
+        g_PcFmvVolume = g_PcConfig.fmvVolume;
+        SH_LOG("XA voice volume: %.2f, FMV movie volume: %.2f", g_PcXaVolume, g_PcFmvVolume);
     }
 
     /* Initialize PSY-Q subsystems via PsyCross */

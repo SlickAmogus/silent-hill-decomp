@@ -30,7 +30,8 @@ s_PcConfig g_PcConfig = {
     .flashlightSize       = 1.50f, /* per-pixel flashlight cone coverage multiplier (1.5x default) */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
-    .xaVolume             = 1.0f, /* FMV/voice (XA) volume, 0..1; 1.0 = unchanged */
+    .xaVolume             = 1.0f, /* XA cutscene-voice volume, 0..1; 1.0 = unchanged */
+    .fmvVolume            = 1.0f, /* FMV movie (SDL PCM) volume, 0..1; 1.0 = unchanged */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -342,6 +343,13 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.xaVolume = v;
+        }
+        else if (strcmp(key, "fmv_volume") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.fmvVolume = v;
         }
         else if (strcmp(key, "post_process_intensity") == 0)
         {
