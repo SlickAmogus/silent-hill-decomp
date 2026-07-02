@@ -703,15 +703,24 @@ static void cmd_spawn(const char* arg)
     g_SysWork.npcs[npcIdx].position.vy        = surf.groundHeight;
     g_SysWork.npcs[npcIdx].rotation.vy        = (s16)((yaw + 0x800) & 0xFFF); /* face Harry (180deg) */
     g_SysWork.npcs[npcIdx].model.anim.flags  |= AnimFlag_Visible;
-    g_SysWork.npcFlags |= (1u << npcIdx);
+    SET_FLAG(&g_SysWork.npcFlags, npcIdx);
+    /* Match Game_NpcRoomInitSpawn: mark the spawn slot in field_228C too, so the
+     * despawn/dedup bookkeeping (CLEAR_FLAG on npc->field_40) stays consistent. */
+    SET_FLAG(g_SysWork.field_228C, npcIdx);
 
     if (g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL)
         cprintf("spawned %s (state %d)", nm, (int)state);
     else
         cprintf("spawned %s (state %d, no AI in this map)", nm, (int)state);
-    SH_DBG("[CONSOLE] spawn %s charaId=%d npc[%d] state=%u pos=(%d,%d)",
+    /* Full diagnostic so an "invisible spawn" report is decisive: player vs spawn
+     * world pos (incl. collision groundHeight), and the three visibility gates
+     * (model streamed, anim slot, per-map AI update fn). */
+    SH_DBG("[SPAWN] %s id=%d npc[%d] st=%u player=(%d,%d,%d) spawn=(%d,%d,%d) model=%d animIdx=%d updFn=%d",
            nm, (int)pick->charaId, (int)npcIdx, state,
-           FP_FROM(posX, Q12_SHIFT), FP_FROM(posZ, Q12_SHIFT));
+           FP_FROM(hr->position.vx, Q12_SHIFT), FP_FROM(hr->position.vy, Q12_SHIFT), FP_FROM(hr->position.vz, Q12_SHIFT),
+           FP_FROM(posX, Q12_SHIFT), FP_FROM(surf.groundHeight, Q12_SHIFT), FP_FROM(posZ, Q12_SHIFT),
+           spawn_chara_model_ready(pick->charaId), (int)g_CharaAnimDataIdxs[pick->charaId],
+           g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL);
 }
 
 void Pc_ConsoleExec(const char* line)
