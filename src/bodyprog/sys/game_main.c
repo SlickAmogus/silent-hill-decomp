@@ -144,7 +144,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by the look yaw each frame to place the eye
  * between his arms. Placeholder until captured via the L cam-pos log key. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { -653, -6266, 1309 }; /* between-the-arms eye, captured via the L-key log */
+VECTOR3 g_PcFpsOffset = { -461, -5818, 1949 }; /* melee-weapon FPS eye, logged via KP_5 (paired with g_PcFpsYawAdj below) */
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
@@ -169,7 +169,7 @@ static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
  * rotated wrong ("his body isn't facing the way I logged it"). The numpad
  * dials the eye-frame yaw live until the view matches; press L to re-log.
  * g_PcFpsYawSrc selects which yaw drives the eye offset. */
-s32 g_PcFpsYawAdj = 0;   /* Q12 angle added to the FPS eye-offset yaw (debug) */
+s32 g_PcFpsYawAdj = -3850;   /* Q12 eye-offset-yaw offset; -3850 baked with g_PcFpsOffset = the logged melee FPS spot. KP_1/KP_3 tune live */
 int g_PcFpsYawSrc = 0;   /* 0 = camera yaw (g_TpsCamYaw), 1 = Harry body yaw (rotation.vy) */
 
 /* FPS eye position actually applied this frame; read by the L-key re-log so its
@@ -990,14 +990,17 @@ void DebugCamera_Update(void)
         g_GameWork.gameState == GameState_InGame)
     {
         #define FPS_MOVE_STEP 64
+        #define FPS_VFINE     12   /* fine vertical step for KP_- / KP_+ */
         #define FPS_YAW_FINE  Q12_ANGLE(1.0f)
 
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) g_PcFpsOffset.vz += FPS_MOVE_STEP;
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_2]) g_PcFpsOffset.vz -= FPS_MOVE_STEP;
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) g_PcFpsOffset.vx += FPS_MOVE_STEP;
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) g_PcFpsOffset.vx -= FPS_MOVE_STEP;
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) g_PcFpsOffset.vy -= FPS_MOVE_STEP; /* PSX +Y is down */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) g_PcFpsOffset.vy -= FPS_MOVE_STEP; /* PSX +Y is down (up) */
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) g_PcFpsOffset.vy += FPS_MOVE_STEP;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS])  g_PcFpsOffset.vy -= FPS_VFINE; /* fine up */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) g_PcFpsOffset.vy += FPS_VFINE; /* fine down */
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_1]) g_PcFpsYawAdj  -= FPS_YAW_FINE;
         if (g_sdlKeyboardState[SDL_SCANCODE_KP_3]) g_PcFpsYawAdj  += FPS_YAW_FINE;
 
@@ -1023,6 +1026,7 @@ void DebugCamera_Update(void)
         }
 
         #undef FPS_MOVE_STEP
+        #undef FPS_VFINE
         #undef FPS_YAW_FINE
     }
 
