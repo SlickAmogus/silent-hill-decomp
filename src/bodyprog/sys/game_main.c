@@ -144,9 +144,14 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { 35, -6100, 1239 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
+VECTOR3 g_PcFpsOffset = { -29, -6896, 471 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
+/* Published each FPS frame for the KP_5 tuner log: the running head-sway reference
+ * (== idle-mean head-local once settled) and the instantaneous head-local. Logging
+ * the settled ref at idle gives the constant needed to bake a FIXED sway reference. */
+VECTOR3 g_PcFpsHeadRefDbg   = { 0, 0, 0 };
+VECTOR3 g_PcFpsHeadLocalDbg = { 0, 0, 0 };
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
@@ -363,6 +368,12 @@ static void Pc_TpsCamera_Apply(void)
                     eyeLocal.vx += headLocal.vx - s_fpsHeadRef.vx;
                     eyeLocal.vy += headLocal.vy - s_fpsHeadRef.vy;
                     eyeLocal.vz += headLocal.vz - s_fpsHeadRef.vz;
+                }
+
+                {
+                    extern VECTOR3 g_PcFpsHeadRefDbg, g_PcFpsHeadLocalDbg;
+                    g_PcFpsHeadRefDbg   = s_fpsHeadRef;
+                    g_PcFpsHeadLocalDbg = headLocal;
                 }
             }
 
@@ -1067,8 +1078,12 @@ void DebugCamera_Update(void)
             static int prev5 = 0;
             int cur5 = g_sdlKeyboardState[SDL_SCANCODE_KP_5];
             if (cur5 && !prev5) {
+                extern VECTOR3 g_PcFpsHeadRefDbg, g_PcFpsHeadLocalDbg;
                 SH_DBG_ECHO("[FPSCAM-TUNE] g_PcFpsOffset = { %d, %d, %d }",
                             (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz);
+                SH_DBG_ECHO("[FPSCAM-HEADREF] s_fpsHeadRef = { %d, %d, %d }  headLocal = { %d, %d, %d }",
+                            (int)g_PcFpsHeadRefDbg.vx, (int)g_PcFpsHeadRefDbg.vy, (int)g_PcFpsHeadRefDbg.vz,
+                            (int)g_PcFpsHeadLocalDbg.vx, (int)g_PcFpsHeadLocalDbg.vy, (int)g_PcFpsHeadLocalDbg.vz);
             }
             prev5 = cur5;
         }
