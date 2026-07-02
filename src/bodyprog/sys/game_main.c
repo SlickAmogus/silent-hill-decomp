@@ -333,18 +333,29 @@ static void Pc_TpsCamera_Apply(void)
                 headLocal.vz = (s32)(((s64)hdx * sYaw + (s64)hdz * cYaw) >> 12);
                 headLocal.vy = hdy;
 
-                /* Capture the sway reference only once Harry is in settled, in-control
-                 * gameplay — NOT during the load/spawn/fade the FPS camera can be
-                 * active for on a fresh boot, where the head bone sits in a non-idle
-                 * pose. A reference captured there biases the resting eye for the whole
-                 * session (the fresh-install "camera is off" report). Until it's
-                 * captured, ride the pure baseline (no sway) — already the right spot. */
-                if (!s_fpsHeadRefValid &&
-                    g_GameWork.gameState == GameState_InGame &&
-                    g_SysWork.sysState   == SysState_Gameplay)
+                /* Seed the sway reference from settled gameplay (not the load/spawn
+                 * pose), THEN low-pass it toward the head's running mean every frame.
+                 * A FROZEN reference stays biased by whatever single pose it captured
+                 * (never the idle mean), so the resting eye is off by a constant that
+                 * differs per install — the recurring "FPS camera is off on a fresh
+                 * install" bug. A TRACKING reference always re-centres, so the eye's
+                 * resting position converges to the tuned baseline deterministically
+                 * on every install; fast head motion (walk/turn/idle sway) still shows
+                 * through, only the slow DC drift is removed. */
+                if (!s_fpsHeadRefValid)
                 {
-                    s_fpsHeadRef      = headLocal;
-                    s_fpsHeadRefValid = 1;
+                    if (g_GameWork.gameState == GameState_InGame &&
+                        g_SysWork.sysState   == SysState_Gameplay)
+                    {
+                        s_fpsHeadRef      = headLocal;
+                        s_fpsHeadRefValid = 1;
+                    }
+                }
+                else
+                {
+                    s_fpsHeadRef.vx += (headLocal.vx - s_fpsHeadRef.vx) >> 6;
+                    s_fpsHeadRef.vy += (headLocal.vy - s_fpsHeadRef.vy) >> 6;
+                    s_fpsHeadRef.vz += (headLocal.vz - s_fpsHeadRef.vz) >> 6;
                 }
 
                 if (s_fpsHeadRefValid)
