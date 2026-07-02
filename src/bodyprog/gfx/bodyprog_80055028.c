@@ -488,6 +488,26 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         pos1->vz = Q8_TO_Q12(vec.vz + mat.t[2]);
     }
 
+#ifdef SH_PC_PORT
+    /* FPS: aim the flashlight where the player looks, from the eye. Override the
+     * Harry-facing light dir (field_58) + pos (field_60) with the FPS view forward
+     * + eye so BOTH the per-pixel cone (pushed from field_58/60) and the PSX
+     * per-vertex lighting follow the view. Done here, before field_6C and the
+     * per-region setup below consume field_58, so they inherit the FPS direction. */
+    {
+        extern int     g_PcFpsCam;
+        extern VECTOR3 g_PcFpsViewFwd;
+        extern VECTOR3 g_PcFpsEyePos;
+        if (g_PcFpsCam && g_SysWork.field_2388.isFlashlightOn_15)
+        {
+            g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
+            g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
+            g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
+            g_WorldEnvWork.field_60    = g_PcFpsEyePos;
+        }
+    }
+#endif
+
     vwVectorToAngle(&g_WorldEnvWork.field_6C, &g_WorldEnvWork.field_58);
     g_WorldEnvWork.field_4C = arg0 >> 8;
     func_80055648(arg0, &g_WorldEnvWork.field_58);

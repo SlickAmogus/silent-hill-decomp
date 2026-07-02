@@ -144,7 +144,9 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { -56, -6650, 309 }; /* FPS eye in Harry's BODY frame (L-key capture, all weapons); vx=right, vy=up(neg), vz=forward */
+VECTOR3 g_PcFpsOffset = { 317, -6874, 190 }; /* FPS eye in Harry's BODY frame (L-key capture, all weapons); vx=right, vy=up(neg), vz=forward */
+VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
+VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
@@ -349,6 +351,12 @@ static void Pc_TpsCamera_Apply(void)
             tpCamPos.vy = tp_hr->position.vy + eyeLocal.vy;
             g_PcCamAppliedPos   = tpCamPos;
             g_PcCamAppliedValid = 1;
+            /* Publish the view-forward (world Q12) + eye pos so the flashlight can
+             * aim where the player looks, from the eye, in FPS — see func_800554C4. */
+            g_PcFpsViewFwd.vx = fwdX;
+            g_PcFpsViewFwd.vy = fwdY;
+            g_PcFpsViewFwd.vz = fwdZ;
+            g_PcFpsEyePos     = tpCamPos;
             tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
             tpLookAt.vy = tpCamPos.vy + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
             tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
