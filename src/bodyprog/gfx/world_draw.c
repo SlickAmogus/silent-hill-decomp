@@ -1431,13 +1431,13 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
-    { extern int g_PcFpsCam, g_PcHideHarryHead;
-      g_PcHideHarryHead = (g_PcFpsCam && charaId == Chara_Harry); }
+    { extern int g_PcFpsCam, g_PcHideHarryFpsBody;
+      g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry); }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
-    { extern int g_PcHideHarryHead; g_PcHideHarryHead = 0; }
+    { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
 #endif
 
     if (timer != Q12(0.0f))

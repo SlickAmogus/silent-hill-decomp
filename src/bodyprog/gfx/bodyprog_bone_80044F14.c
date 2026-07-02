@@ -258,9 +258,10 @@ extern s_WorldEnvWork const g_WorldEnvWork;
 #ifdef SH_PC_PORT
 static int g_BoneLogFrames = 0;
 /* Set by func_8003DA9C only while drawing Harry with the first-person camera on,
- * so the per-bone loop below skips his head model (HarryBone_Head = 2). Scoped
- * to that one draw — NPC skeletons (different head bone indices) are untouched. */
-int g_PcHideHarryHead = 0;
+ * so the per-bone loop below skips his upper-body models (torso/head/shoulders/
+ * upper-arms) that would clip into the eye. Scoped to that one draw — NPC
+ * skeletons (different bone indices) are untouched. */
+int g_PcHideHarryFpsBody = 0;
 #endif
 
 void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoords, q3_12 arg4, u16 arg5, s_FsImageDesc* images) // 0x80045534
@@ -377,11 +378,20 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             }
 
 #ifdef SH_PC_PORT
-            /* First-person: skip drawing Harry's head model (bone idx 2) so it
-             * doesn't clip into the eye. Fog bbox below still runs for the bone. */
-            if (!(g_PcHideHarryHead && (u8)curBone->bone.idx == 2))
-#endif
+            /* First-person: skip Harry's upper-body models that clip into the eye
+             * — Torso(1), Head(2), L/R Shoulder(3,7), L/R UpperArm(4,8). Forearms/
+             * hands stay so the held weapon shows. Fog bbox below still runs. */
+            {
+                int _hb = (u8)curBone->bone.idx;
+                if (!(g_PcHideHarryFpsBody &&
+                      (_hb == 1 || _hb == 2 || _hb == 3 || _hb == 4 || _hb == 7 || _hb == 8)))
+                {
+                    func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
+                }
+            }
+#else
             func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
+#endif
 
             if (g_WorldEnvWork.isFogEnabled)
             {
