@@ -496,8 +496,10 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
      * per-region setup below consume field_58, so they inherit the FPS direction. */
     {
         extern int     g_PcFpsCam;
+        extern int     g_PsyX_FlashlightFpsMode;
         extern VECTOR3 g_PcFpsViewFwd;
         extern VECTOR3 g_PcFpsEyePos;
+        g_PsyX_FlashlightFpsMode = g_PcFpsCam; /* select the FPS cone size/brightness in the shader */
         if (g_PcFpsCam && g_SysWork.field_2388.isFlashlightOn_15)
         {
             g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
