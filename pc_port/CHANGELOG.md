@@ -1,5 +1,64 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.02.1 -- 2026-07-02
+- New FPS camera mode, use F9/R3 to cycle to this mode by default. If you're using the per-pixel flashlight, it has a different (but configurable) default size. Also, the flashlight follows the camera in this mode. May have unexpected glitches. Camera can be adjusted with the numberpad.
+- New ingame options menu (repurposed screen position) for most of the graphics related config options, as well as two new audio options for voices and FMVs (in case of issues with XA audio on certain hardware)
+- UFO ending related fixes, should be able to see effects and maybe trigger the ending (untested)
+- Restored missing sewer effects and music 
+- Adjusted TPS/OTS camera modes so that camera collides with the environment
+
+Next: Working on additional cutscene and BGM fixes as well as other bugs that have been reported to me.
+
+Commit summaries:
+- keyframe viewer: P loops the selected anim range
+- keyframe viewer: cycle loaded NPCs (N) + play their anims
+- UFO Channeling Stone: extract ENBAN.TIM descriptors so the light beam renders
+- sewer: restore room-17 dripping-water source position (map6_s03)
+- flashlight: 1.5x default cone size + live [/]/\ size control; bump PsyCross
+- FPS camera: register ControlStyle_Fps + offset-log key (scaffolding)
+- Add FMV/Voice (XA) volume control: options slider + console + config
+- Fix inventory see-through (radio antenna through body), scoped to the menu (not working yet)
+- Add in-game PC Options menu (repurpose Screen Position) — two pages
+- PC Options: instant-apply window settings + page/layout polish
+- Sewer BGM + first-person + PC Options polish
+- Fix PC Options: Window Mode / VSync / sliders wouldn't adjust
+- FMV/voice slider now scales FMV movie audio
+- Split FMV movie volume from XA voice volume into two sliders; apply new FPS eye offset
+- FPS cam: repurpose numpad as live eye-yaw tuner to fix body-facing desync
+- Fix interior rainbow when two resident chunks share a baked VRAM slot
+- FPS camera: aim keyframes, positional numpad tuning, hide head + TPS wall collision
+- FPS eye tuner: stop KP_3 from also firing the fall-recovery teleport
+- FPS cam: bake melee eye spot, hide upper body, fine vertical on numpad -/+
+- FPS cam: apply eye offset in Harry's body frame (kills the numpad orbit)
+- FPS cam: hide only Harry's head, not the upper body
+- FPS cam: bake all-weapon eye spot + follow Harry's head-bone idle sway
+- FPS cam: head-mounted flashlight (follows view) + rebake eye spot
+- FPS cam: fix baking non-convergence (L logged swaying eye, not baseline)
+- FPS cam: rebake eye baseline to { 35, -5746, 1239 } (down/forward)
+- FPS cam: show Harry's head in cutscenes + load screens
+- Controls: keep alt-cam scheme while examining objects (not classic)
+
+## beta-2026.06.29.3 -- 2026-06-29
+- Fixed per-pixel flashlight and it is now fully implemented, toggle it with F4 while ingame!
+- Added adjustable intensity to Post-processing, Tonemapping, and Per-Pixel Flashlight (press [ or ] to lower/raise, \ to switch effect)
+- Also added console commands FLINT / POSTINT / TMINT to tweak the above as well (flashlight, post-processing, tonemapping)
+- Fixed TPS/OTS so Fire/Activate does not zoom in the camera
+- Updated launcher so that pillarbox mode is now a dropdown bet Yes, No, or Menus Only.
+
+Commit summaries:
+- Bump PsyCross: per-fragment N.L flashlight cone (derivative normals)
+- Bump PsyCross: per-pixel flashlight dims per-vertex base (replaces, not stacks)
+- Bump PsyCross: flashlight modulates texture albedo (lit surfaces keep texture)
+- Strafe footsteps + bump PsyCross (controller anti-chatter)
+- Per-pixel flashlight: fix Harry solid-black + suppress desyncing lens flare
+- Restore flashlight chest glare + bump PsyCross (cone beam tracks Harry)
+- Flashlight cone turns with Harry's facing (field_58 beam direction)
+- Live effect-intensity controls ([ ] adjust, \ switch, + console + config)
+- Unbind L3/R3 from [ / ] so the brackets are free for effect intensity
+- Camera switch: read the pad bind from the physical controller, not the merged pad
+- Flashlight intensity default 1.90 (config + struct default); bump PsyCross
+- TPS/OTS: aim-zoom + crosshair only while aiming, not on fire/activate
+
 ## beta-2026.06.29.2 -- 2026-06-29
 - This update is just a message- I forgot to mention PER PIXEL flashlight is still being worked on! It should be fixed next update!
 
