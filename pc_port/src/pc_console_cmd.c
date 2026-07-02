@@ -548,8 +548,8 @@ static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
     { "GROANER",         Chara_Groaner,          5 },
     { "WORMHEAD",        Chara_Wormhead,         5 },
     { "LARVALSTALKER",   Chara_LarvalStalker,    5 },
-    { "STALKER",         Chara_Stalker,          5 },
-    { "GREYCHILD",       Chara_GreyChild,        5 },
+    { "STALKER",         Chara_Stalker,          3 }, /* Stalker_Update: st=3->Control_4 (active); st=5->Control_1 = unposed/invisible */
+    { "GREYCHILD",       Chara_GreyChild,        3 }, /* also Stalker_Update (see STALKER) */
     { "MUMBLER",         Chara_Mumbler,         17 },
     { "HANGEDSCRATCHER", Chara_HangedScratcher,  7 },
     { "CREEPER",         Chara_Creeper,          5 },

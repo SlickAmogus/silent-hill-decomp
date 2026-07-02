@@ -346,7 +346,11 @@ static void Pc_TpsCamera_Apply(void)
                  * install" bug. A TRACKING reference always re-centres, so the eye's
                  * resting position converges to the tuned baseline deterministically
                  * on every install; fast head motion (walk/turn/idle sway) still shows
-                 * through, only the slow DC drift is removed. */
+                 * through, only the slow DC drift is removed. The time constant must
+                 * stay WELL above the ~0.5-0.7s melee aim/swing lean, or the reference
+                 * tracks the lean and cancels it — the eye must ride the head fully
+                 * through an aim/swing. >>8 (tau ~4s @60fps) passes the lean and idle
+                 * breathing while still nulling multi-second drift. */
                 if (!s_fpsHeadRefValid)
                 {
                     if (g_GameWork.gameState == GameState_InGame &&
@@ -358,9 +362,9 @@ static void Pc_TpsCamera_Apply(void)
                 }
                 else
                 {
-                    s_fpsHeadRef.vx += (headLocal.vx - s_fpsHeadRef.vx) >> 6;
-                    s_fpsHeadRef.vy += (headLocal.vy - s_fpsHeadRef.vy) >> 6;
-                    s_fpsHeadRef.vz += (headLocal.vz - s_fpsHeadRef.vz) >> 6;
+                    s_fpsHeadRef.vx += (headLocal.vx - s_fpsHeadRef.vx) >> 8;
+                    s_fpsHeadRef.vy += (headLocal.vy - s_fpsHeadRef.vy) >> 8;
+                    s_fpsHeadRef.vz += (headLocal.vz - s_fpsHeadRef.vz) >> 8;
                 }
 
                 if (s_fpsHeadRefValid)
