@@ -1432,7 +1432,14 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
         return;
     }
     { extern int g_PcFpsCam, g_PcHideHarryFpsBody;
-      g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry); }
+      /* Hide Harry's head only during interactive FPS gameplay. Cutscenes (a
+       * GameState_InGame substate, flagged by sysFlags/border) and load screens
+       * (separate GameStates) use scripted cameras that frame him normally, so
+       * keep his head there — a headless Harry in those looks wrong. */
+      g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry
+          && g_GameWork.gameState == GameState_InGame
+          && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
+          && g_SysWork.cutsceneBorderState == CutsceneBorderState_None); }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
