@@ -927,7 +927,9 @@ void DebugCamera_Update(void)
              * the same broken floor spot and immediately fall again — log
              * showed exactly that, vy 32768 → -608 → 32768 → -608 looping. */
             int curKp3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
-            if (curKp3 && !prevKp3 && _haveSafeY) {
+            /* FPS-cam eye tuner owns KP_3 (yaw fine-turn); don't also fire the
+             * fall-recovery teleport there. */
+            if (curKp3 && !prevKp3 && _haveSafeY && !g_PcFpsCam) {
                 s32 oldY = p->vy;
                 s32 oldX = p->vx;
                 s32 oldZ = p->vz;
