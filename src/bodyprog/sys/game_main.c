@@ -144,7 +144,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { -119, -5818, 1142 }; /* melee-weapon FPS eye in Harry's BODY frame (L-key capture); vx=right, vy=up(neg), vz=forward */
+VECTOR3 g_PcFpsOffset = { -56, -6650, 309 }; /* FPS eye in Harry's BODY frame (L-key capture, all weapons); vx=right, vy=up(neg), vz=forward */
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
  * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
  * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
@@ -194,6 +194,10 @@ static void Pc_TpsCamera_Apply(void)
 
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
     int             isAiming;
+    /* FPS head-follow: body-local head-bone offset captured on FPS entry, used to
+     * isolate the idle-animation SWAY so the eye rides Harry's head, not his root. */
+    static VECTOR3  s_fpsHeadRef;
+    static int      s_fpsHeadRefValid = 0;
 
     /* Zoom + OTS offset follow the AIM state only — NOT firing/attacking. Gating
      * on g_Player_IsAttacking too made the camera jarringly zoom in whenever the
@@ -294,6 +298,11 @@ static void Pc_TpsCamera_Apply(void)
         s32     anchorY;
         #define TP_LOOKAT_DIST Q12(25.0f)
 
+        if (!g_PcFpsCam)
+        {
+            s_fpsHeadRefValid = 0; /* re-capture the head-sway baseline on next FPS entry */
+        }
+
         if (g_PcFpsCam)
         {
             /* First-person: eye = Harry's root + the local between-the-arms offset,
@@ -302,14 +311,42 @@ static void Pc_TpsCamera_Apply(void)
              * and each numpad axis is a fixed straight-line nudge (no orbit).
              * lookAt = eye + forward (forward still uses camYaw/pitch below — the
              * view direction is the mouse, the eye POSITION rides the body). */
-            s32 eyeYaw = tp_hr->rotation.vy;
-            s32 sYaw = Math_Sin(eyeYaw);
-            s32 cYaw = Math_Cos(eyeYaw);
-            tpCamPos.vx = tp_hr->position.vx + (s32)((s64)g_PcFpsOffset.vz * sYaw >> 12)
-                                             + (s32)((s64)g_PcFpsOffset.vx * cYaw >> 12);
-            tpCamPos.vz = tp_hr->position.vz + (s32)((s64)g_PcFpsOffset.vz * cYaw >> 12)
-                                             - (s32)((s64)g_PcFpsOffset.vx * sYaw >> 12);
-            tpCamPos.vy = tp_hr->position.vy + g_PcFpsOffset.vy;
+            s32     eyeYaw = tp_hr->rotation.vy;
+            s32     sYaw   = Math_Sin(eyeYaw);
+            s32     cYaw   = Math_Cos(eyeYaw);
+            VECTOR3 eyeLocal = g_PcFpsOffset;
+
+            /* Head-follow: ride Harry's animated head bone so the view breathes and
+             * sways with his idle animation instead of his body sliding out from
+             * under a root-anchored eye. Take the head bone's body-local offset (its
+             * world pos, Q8->Q12, inverse-rotated by body yaw), subtract the value
+             * captured on FPS entry to isolate just the SWAY, and add it to the
+             * tuned eye offset — so the baseline stays exactly the tuned spot. */
+            {
+                s32     hdx = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[0]) - tp_hr->position.vx;
+                s32     hdy = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[1]) - tp_hr->position.vy;
+                s32     hdz = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[2]) - tp_hr->position.vz;
+                VECTOR3 headLocal;
+                headLocal.vx = (s32)(((s64)hdx * cYaw - (s64)hdz * sYaw) >> 12);
+                headLocal.vz = (s32)(((s64)hdx * sYaw + (s64)hdz * cYaw) >> 12);
+                headLocal.vy = hdy;
+
+                if (!s_fpsHeadRefValid)
+                {
+                    s_fpsHeadRef      = headLocal;
+                    s_fpsHeadRefValid = 1;
+                }
+
+                eyeLocal.vx += headLocal.vx - s_fpsHeadRef.vx;
+                eyeLocal.vy += headLocal.vy - s_fpsHeadRef.vy;
+                eyeLocal.vz += headLocal.vz - s_fpsHeadRef.vz;
+            }
+
+            tpCamPos.vx = tp_hr->position.vx + (s32)((s64)eyeLocal.vz * sYaw >> 12)
+                                             + (s32)((s64)eyeLocal.vx * cYaw >> 12);
+            tpCamPos.vz = tp_hr->position.vz + (s32)((s64)eyeLocal.vz * cYaw >> 12)
+                                             - (s32)((s64)eyeLocal.vx * sYaw >> 12);
+            tpCamPos.vy = tp_hr->position.vy + eyeLocal.vy;
             g_PcCamAppliedPos   = tpCamPos;
             g_PcCamAppliedValid = 1;
             tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
