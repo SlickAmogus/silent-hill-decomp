@@ -144,7 +144,7 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
-VECTOR3 g_PcFpsOffset = { 317, -6874, 190 }; /* FPS eye in Harry's BODY frame (L-key capture, all weapons); vx=right, vy=up(neg), vz=forward */
+VECTOR3 g_PcFpsOffset = { 35, -6142, 983 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
 /* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
@@ -892,28 +892,33 @@ void DebugCamera_Update(void)
         prevP = curP;
     }
 
-    /* L: log the current camera eye relative to Harry, in his LOCAL frame, for
-     * dialing in the first-person (FPS) camera offset. Pose Harry in the aim
-     * frame (K viewer -> KF 588), free-fly the debug cam (KP_0) to the spot
-     * between his arms, then press L and copy the LOCAL OFFSET into g_PcFpsOffset. */
+    /* L: log the FPS eye offset to bake into g_PcFpsOffset.
+     * In FPS mode the eye = g_PcFpsOffset (baseline) + live head-sway, so logging
+     * the swaying EYE would bake the sway in and it re-adds every session (the
+     * "always off by the same amount" bug). Log the stable BASELINE the numpad
+     * edits instead — pasting it converges. With the debug cam, there is no
+     * baseline, so fall back to the flown-to eye position in Harry's body frame. */
     {
         static int prevL = 0;
         int curL = g_sdlKeyboardState[SDL_SCANCODE_L];
         if (curL && !prevL) {
-            s_SubCharacter* hr = &g_SysWork.playerWork.player;
-            VECTOR3 cam = g_DebugCamEnabled ? g_DebugCamPos : g_PcCamAppliedPos;
-            s32 dx = cam.vx - hr->position.vx;
-            s32 dy = cam.vy - hr->position.vy;
-            s32 dz = cam.vz - hr->position.vz;
-            s32 sy = Math_Sin(hr->rotation.vy);
-            s32 cy = Math_Cos(hr->rotation.vy);
-            s32 localX = (s32)(((s64)dx * cy - (s64)dz * sy) >> 12);
-            s32 localZ = (s32)(((s64)dx * sy + (s64)dz * cy) >> 12);
-            /* LOCAL OFFSET is already in Harry's BODY frame — the same frame the
-             * eye is applied in — so paste it straight into g_PcFpsOffset. */
-            SH_DBG_ECHO("[FPSCAM] cam=(%d,%d,%d) harry=(%d,%d,%d) bodyYaw=%d  -> LOCAL OFFSET { %d, %d, %d }",
-                        cam.vx, cam.vy, cam.vz, hr->position.vx, hr->position.vy, hr->position.vz,
-                        (int)hr->rotation.vy, localX, dy, localZ);
+            if (g_PcFpsCam && !g_DebugCamEnabled) {
+                SH_DBG_ECHO("[FPSCAM] g_PcFpsOffset = { %d, %d, %d }  (baseline; paste to bake)",
+                            (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz);
+            } else {
+                s_SubCharacter* hr = &g_SysWork.playerWork.player;
+                VECTOR3 cam = g_DebugCamEnabled ? g_DebugCamPos : g_PcCamAppliedPos;
+                s32 dx = cam.vx - hr->position.vx;
+                s32 dy = cam.vy - hr->position.vy;
+                s32 dz = cam.vz - hr->position.vz;
+                s32 sy = Math_Sin(hr->rotation.vy);
+                s32 cy = Math_Cos(hr->rotation.vy);
+                s32 localX = (s32)(((s64)dx * cy - (s64)dz * sy) >> 12);
+                s32 localZ = (s32)(((s64)dx * sy + (s64)dz * cy) >> 12);
+                SH_DBG_ECHO("[FPSCAM] cam=(%d,%d,%d) harry=(%d,%d,%d) bodyYaw=%d  -> LOCAL OFFSET { %d, %d, %d }",
+                            cam.vx, cam.vy, cam.vz, hr->position.vx, hr->position.vy, hr->position.vz,
+                            (int)hr->rotation.vy, localX, dy, localZ);
+            }
         }
         prevL = curL;
     }
