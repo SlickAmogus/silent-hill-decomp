@@ -203,10 +203,14 @@ void Pc_ControlStyleUpdate(void)
     /* Menus always use the classic control scheme. An alternate camera's binds
      * (mouse-look, remapped confirm/cancel) would otherwise apply to menu /
      * pause / inventory navigation. Swap to classic when leaving gameplay and
-     * restore the camera-matched scheme on return. No-op in classic mode. */
+     * restore the camera-matched scheme on return. No-op in classic mode.
+     * EXCEPTION: examining a world object (SysState_ReadMessage) freezes the
+     * world but isn't a menu — keep the alternate-camera scheme so the player's
+     * configured confirm/cancel binds still dismiss the description. */
     {
         static int s_forcedClassic = 0;
-        int wantForceClassic = (!inGameplay && g_DebugThirdPersonCam) ? 1 : 0;
+        int examining = (g_SysWork.sysState == SysState_ReadMessage);
+        int wantForceClassic = (!inGameplay && !examining && g_DebugThirdPersonCam) ? 1 : 0;
         if (wantForceClassic != s_forcedClassic)
         {
             extern void Pc_ApplyClassicControlScheme(void);
