@@ -333,15 +333,26 @@ static void Pc_TpsCamera_Apply(void)
                 headLocal.vz = (s32)(((s64)hdx * sYaw + (s64)hdz * cYaw) >> 12);
                 headLocal.vy = hdy;
 
-                if (!s_fpsHeadRefValid)
+                /* Capture the sway reference only once Harry is in settled, in-control
+                 * gameplay — NOT during the load/spawn/fade the FPS camera can be
+                 * active for on a fresh boot, where the head bone sits in a non-idle
+                 * pose. A reference captured there biases the resting eye for the whole
+                 * session (the fresh-install "camera is off" report). Until it's
+                 * captured, ride the pure baseline (no sway) — already the right spot. */
+                if (!s_fpsHeadRefValid &&
+                    g_GameWork.gameState == GameState_InGame &&
+                    g_SysWork.sysState   == SysState_Gameplay)
                 {
                     s_fpsHeadRef      = headLocal;
                     s_fpsHeadRefValid = 1;
                 }
 
-                eyeLocal.vx += headLocal.vx - s_fpsHeadRef.vx;
-                eyeLocal.vy += headLocal.vy - s_fpsHeadRef.vy;
-                eyeLocal.vz += headLocal.vz - s_fpsHeadRef.vz;
+                if (s_fpsHeadRefValid)
+                {
+                    eyeLocal.vx += headLocal.vx - s_fpsHeadRef.vx;
+                    eyeLocal.vy += headLocal.vy - s_fpsHeadRef.vy;
+                    eyeLocal.vz += headLocal.vz - s_fpsHeadRef.vz;
+                }
             }
 
             tpCamPos.vx = tp_hr->position.vx + (s32)((s64)eyeLocal.vz * sYaw >> 12)
