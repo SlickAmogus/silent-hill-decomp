@@ -378,13 +378,13 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             }
 
 #ifdef SH_PC_PORT
-            /* First-person: skip Harry's upper-body models that clip into the eye
-             * — Torso(1), Head(2), L/R Shoulder(3,7), L/R UpperArm(4,8). Forearms/
-             * hands stay so the held weapon shows. Fog bbox below still runs. */
+            /* First-person: skip only Harry's Head(2), which clips into the eye.
+             * Hiding the shoulders/upper-arms too leaves the forearms disconnected,
+             * and from the close eye the bare forearm foreshortens into a stretched
+             * bar — so keep the whole arm chain intact. Fog bbox below still runs. */
             {
                 int _hb = (u8)curBone->bone.idx;
-                if (!(g_PcHideHarryFpsBody &&
-                      (_hb == 1 || _hb == 2 || _hb == 3 || _hb == 4 || _hb == 7 || _hb == 8)))
+                if (!(g_PcHideHarryFpsBody && _hb == 2))
                 {
                     func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
                 }
