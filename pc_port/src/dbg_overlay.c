@@ -1172,6 +1172,8 @@ void DbgOverlay_Update(void)
             const int count = (int)(sizeof(s_toneNames) / sizeof(s_toneNames[0]));
             g_cfg_tonemap = (g_cfg_tonemap + 1) % count;
             if (g_cfg_tonemap < 0) g_cfg_tonemap = 0;
+            g_PcConfig.tonemap = g_cfg_tonemap;
+            { char b[8]; snprintf(b, sizeof(b), "%d", g_cfg_tonemap); PcConfig_SaveKeyValue("tonemap", b); }
             SH_DBG_ECHO("[DEBUG] F3 Tone mapping: %s", s_toneNames[g_cfg_tonemap]);
         }
         s_prev_f3 = cur_f3;
@@ -1184,6 +1186,8 @@ void DbgOverlay_Update(void)
         if (cur_f4 && !s_prev_f4) {
             extern int g_PsyX_UsePerPixelFlashlight;
             g_PsyX_UsePerPixelFlashlight = !g_PsyX_UsePerPixelFlashlight;
+            g_PcConfig.perPixelFlashlight = g_PsyX_UsePerPixelFlashlight ? 1 : 0;
+            PcConfig_SaveKeyValue("per_pixel_flashlight", g_PsyX_UsePerPixelFlashlight ? "1" : "0");
             SH_DBG_ECHO("[DEBUG] F4 Per-pixel flashlight: %s",
                         g_PsyX_UsePerPixelFlashlight ? "ON" : "OFF");
         }
