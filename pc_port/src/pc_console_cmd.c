@@ -18,6 +18,9 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/events/player_pos_update.h"
+#include "bodyprog/chara/chara.h"
+#include "bodyprog/collision/collision.h"
+#include "bodyprog/math/math.h"
 #include "bodyprog/items.h"
 #include "bodyprog/savegame.h"
 #include "bodyprog/item_screens.h" /* GameEndingFlag_Ufo (HyperBlaster give-unlock) */
@@ -347,6 +350,8 @@ static const char* const HELP_LINES[] = {
     " setflag <n> 0|1  set any event flag",
     " kill           kill Harry (death animation)",
     " killall        kill all nearby enemies",
+    " spawn list     list monsters loaded in this map",
+    " spawn <name>   spawn a monster in front of Harry",
     " noclip         walk through walls (floor stays on)",
     " invaspect 0|1  inventory item proportions: PSX | square",
     " invscale <pct> inventory item vertical scale (def 125)",
@@ -526,6 +531,189 @@ static void cmd_fmv(const char* arg)
 }
 
 /* line is the uppercase console input ('_' typed via the - key). */
+/* Debug monster spawner. A map only keeps 3 enemy types resident at once (its
+ * charaGroupIds); Chara_Spawn assumes the model+anim+update-func are already
+ * loaded and does NOT load them, so spawning an off-map type gives an entity
+ * the radio pings but the draw path skips (registeredCharaModels[id]==NULL) —
+ * the classic "radio plays, monster invisible" bug. So SPAWN only offers types
+ * actually loaded for the current map (SPAWN LIST), guaranteeing visibility.
+ *
+ * `state` is the initial model.stateStep (== s_SpawnInfo.flags the room spawner
+ * uses): the enemy's spawn/active AI entry state. Defaults per category below;
+ * overridable via `SPAWN <name> <state>` when a monster wakes in a weird pose. */
+typedef struct { const char* name; u8 charaId; u8 state; } s_SpawnCharaEntry;
+static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
+    { "AIRSCREAMER",     Chara_AirScreamer,     12 },
+    { "NIGHTFLUTTER",    Chara_NightFlutter,    12 },
+    { "GROANER",         Chara_Groaner,          5 },
+    { "WORMHEAD",        Chara_Wormhead,         5 },
+    { "LARVALSTALKER",   Chara_LarvalStalker,    5 },
+    { "STALKER",         Chara_Stalker,          5 },
+    { "GREYCHILD",       Chara_GreyChild,        5 },
+    { "MUMBLER",         Chara_Mumbler,         17 },
+    { "HANGEDSCRATCHER", Chara_HangedScratcher,  7 },
+    { "CREEPER",         Chara_Creeper,          5 },
+    { "ROMPER",          Chara_Romper,           5 },
+    { "CHICKEN",         Chara_Chicken,          5 },
+    { "SPLITHEAD",       Chara_SplitHead,        5 },
+    { "FLOATSTINGER",    Chara_Floatstinger,    12 },
+    { "PUPPETNURSE",     Chara_PuppetNurse,     17 },
+    { "DUMMYNURSE",      Chara_DummyNurse,      17 },
+    { "PUPPETDOCTOR",    Chara_PuppetDoctor,    17 },
+    { "DUMMYDOCTOR",     Chara_DummyDoctor,     17 },
+    { "TWINFEELER",      Chara_Twinfeeler,       3 },
+    { "BLOODSUCKER",     Chara_Bloodsucker,     17 },
+    { "INCUBUS",         Chara_Incubus,          3 },
+    { "UNKNOWN23",       Chara_Unknown23,        3 },
+    { "MONSTERCYBIL",    Chara_MonsterCybil,     3 },
+    { "LOCKERDEADBODY",  Chara_LockerDeadBody,   3 },
+    { "CYBIL",           Chara_Cybil,            3 },
+    { "ENDINGCYBIL",     Chara_EndingCybil,      3 },
+    { "CHERYL",          Chara_Cheryl,           1 },
+    { "CAT",             Chara_Cat,              3 },
+    { "DAHLIA",          Chara_Dahlia,           3 },
+    { "ENDINGDAHLIA",    Chara_EndingDahlia,     3 },
+    { "LISA",            Chara_Lisa,             3 },
+    { "BLOODYLISA",      Chara_BloodyLisa,       3 },
+    { "ALESSA",          Chara_Alessa,           3 },
+    { "GHOSTCHILDALESSA",Chara_GhostChildAlessa, 3 },
+    { "INCUBATOR",       Chara_Incubator,        3 },
+    { "BLOODYINCUBATOR", Chara_BloodyIncubator,  3 },
+    { "KAUFMANN",        Chara_Kaufmann,         3 },
+    { "ENDINGKAUFMANN",  Chara_EndingKaufmann,   3 },
+    { "FLAUROS",         Chara_Flauros,          3 },
+    { "LITTLEINCUBUS",   Chara_LittleIncubus,    3 },
+    { "GHOSTDOCTOR",     Chara_GhostDoctor,      3 },
+    { "PARASITE",        Chara_Parasite,         3 },
+};
+
+static const char* spawn_chara_name(s32 charaId)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+        if (SPAWN_CHARAS[i].charaId == charaId)
+            return SPAWN_CHARAS[i].name;
+    }
+    return NULL;
+}
+
+/* A model is drawable only once its file finished streaming; bones need the
+ * anim slot. Both gate visibility, so require both before offering a spawn. */
+static int spawn_chara_model_ready(s32 charaId)
+{
+    s_CharaModel* m = g_WorldGfxWork.registeredCharaModels[charaId];
+    return m != NULL && m->isLoaded;
+}
+static int spawn_chara_anim_ready(s32 charaId)
+{
+    return g_CharaAnimDataIdxs[charaId] != (s8)NO_VALUE;
+}
+
+static void cmd_spawn(const char* arg)
+{
+    char nm[32];
+    int  k;
+    const char* rest;
+    int  stateOverride;
+    int  i;
+    const s_SpawnCharaEntry* pick;
+    s_SubCharacter* hr;
+    s32  yaw, sn, cs, npcIdx;
+    q19_12 dist, posX, posZ;
+    s_CollisionSurface surf;
+    u32  state;
+
+    if (arg[0] == '\0' || strcmp(arg, "LIST") == 0) {
+        int any = 0;
+        cprintf("loaded in this map:");
+        for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+            s32 id = SPAWN_CHARAS[i].charaId;
+            if (!spawn_chara_model_ready(id))
+                continue;
+            {
+                int anim = spawn_chara_anim_ready(id);
+                int ai   = g_MapOverlayHdr.charaUpdateFuncs[id] != NULL;
+                cprintf(" %s%s%s", SPAWN_CHARAS[i].name,
+                        anim ? "" : " [no-anim]", ai ? "" : " [no-ai]");
+                any = 1;
+            }
+        }
+        if (!any)
+            cprintf(" (none)");
+        return;
+    }
+
+    /* Split "<NAME> [state]". */
+    for (k = 0; arg[k] && arg[k] != ' ' && k < (int)sizeof(nm) - 1; k++)
+        nm[k] = arg[k];
+    nm[k] = '\0';
+    rest = arg[k] ? arg + k + 1 : arg + k;
+    while (*rest == ' ') rest++;
+    stateOverride = (*rest) ? atoi(rest) : -1;
+
+    pick = NULL;
+    for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+        if (strcmp(nm, SPAWN_CHARAS[i].name) == 0) {
+            pick = &SPAWN_CHARAS[i];
+            break;
+        }
+    }
+    if (pick == NULL) {
+        cprintf("unknown: %s (try 'spawn list')", nm);
+        return;
+    }
+    if (!spawn_chara_model_ready(pick->charaId) || !spawn_chara_anim_ready(pick->charaId)) {
+        cprintf("%s not loaded in this map", nm);
+        cprintf("use 'spawn list' to see loaded types");
+        return;
+    }
+
+    /* Find a free NPC slot (mirrors Chara_Spawn's slot fill, minus the
+     * concurrent cap / dedup so a debug spawn always fires when a slot exists). */
+    npcIdx = -1;
+    for (i = 0; i < NPC_COUNT_MAX; i++) {
+        if (g_SysWork.npcs[i].model.charaId == Chara_None) {
+            npcIdx = i;
+            break;
+        }
+    }
+    if (npcIdx < 0) {
+        cprintf("no free NPC slot (max %d) - killall first", NPC_COUNT_MAX);
+        return;
+    }
+
+    hr   = &g_SysWork.playerWork.player;
+    yaw  = hr->rotation.vy;
+    sn   = Math_Sin(yaw);
+    cs   = Math_Cos(yaw);
+    dist = Q12(4.0f); /* a few units in front of Harry (clear of his own radius) */
+    posX = hr->position.vx + (s32)(((s64)dist * sn) >> 12);
+    posZ = hr->position.vz + (s32)(((s64)dist * cs) >> 12);
+
+    state = (stateOverride >= 0) ? (u32)stateOverride : pick->state;
+
+    memset(&g_SysWork.npcs[npcIdx], 0, sizeof(s_SubCharacter));
+    g_SysWork.npcs[npcIdx].model.charaId      = pick->charaId;
+    g_SysWork.npcs[npcIdx].model.controlState = 0;
+    g_SysWork.npcs[npcIdx].model.stateStep    = (u8)state;
+    g_SysWork.npcs[npcIdx].field_40           = (s8)npcIdx;
+    g_SysWork.npcs[npcIdx].position.vx        = posX;
+    g_SysWork.npcs[npcIdx].position.vz        = posZ;
+    Collision_SurfaceGet(&surf, posX, posZ);
+    g_SysWork.npcs[npcIdx].position.vy        = surf.groundHeight;
+    g_SysWork.npcs[npcIdx].rotation.vy        = (s16)((yaw + 0x800) & 0xFFF); /* face Harry (180deg) */
+    g_SysWork.npcs[npcIdx].model.anim.flags  |= AnimFlag_Visible;
+    g_SysWork.npcFlags |= (1u << npcIdx);
+
+    if (g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL)
+        cprintf("spawned %s (state %d)", nm, (int)state);
+    else
+        cprintf("spawned %s (state %d, no AI in this map)", nm, (int)state);
+    SH_DBG("[CONSOLE] spawn %s charaId=%d npc[%d] state=%u pos=(%d,%d)",
+           nm, (int)pick->charaId, (int)npcIdx, state,
+           FP_FROM(posX, Q12_SHIFT), FP_FROM(posZ, Q12_SHIFT));
+}
+
 void Pc_ConsoleExec(const char* line)
 {
     char cmd[48];
@@ -591,6 +779,8 @@ void Pc_ConsoleExec(const char* line)
             killed++;
         }
         cprintf("killed %d nearby enemies", killed);
+    } else if (strcmp(cmd, "SPAWN") == 0) {
+        cmd_spawn(arg);
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
