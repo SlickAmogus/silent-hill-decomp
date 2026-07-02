@@ -44,6 +44,8 @@ typedef struct {
     int perPixelFlashlight; /* 1 = per-pixel (fragment-shader) flashlight cone (config key: per_pixel_flashlight) */
     float flashlightIntensity;  /* per-pixel flashlight cone brightness scale, 0..3 (config key: flashlight_intensity) */
     float flashlightSize;       /* per-pixel flashlight cone coverage multiplier, 0..3 (config key: flashlight_size) */
+    float flashlightIntensityFps; /* per-pixel flashlight brightness in FPS mode, 0..3 (config key: flashlight_intensity_fps) */
+    float flashlightSizeFps;      /* per-pixel flashlight coverage in FPS mode, 0..3 (config key: flashlight_size_fps) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
     float xaVolume;             /* XA cutscene-voice stream volume, 0..1; default 1.0 (config key: xa_volume) */

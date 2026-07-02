@@ -26,8 +26,10 @@ s_PcConfig g_PcConfig = {
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
-    .flashlightIntensity  = 1.90f, /* per-pixel flashlight cone brightness scale, 0..3 */
-    .flashlightSize       = 1.50f, /* per-pixel flashlight cone coverage multiplier (1.5x default) */
+    .flashlightIntensity  = 2.10f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightSize       = 2.40f, /* per-pixel flashlight cone coverage multiplier */
+    .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
+    .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
     .xaVolume             = 1.0f, /* XA cutscene-voice volume, 0..1; 1.0 = unchanged */
@@ -336,6 +338,20 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 3.0f) v = 3.0f;
             g_PcConfig.flashlightSize = v;
+        }
+        else if (strcmp(key, "flashlight_intensity_fps") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 3.0f) v = 3.0f;
+            g_PcConfig.flashlightIntensityFps = v;
+        }
+        else if (strcmp(key, "flashlight_size_fps") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 3.0f) v = 3.0f;
+            g_PcConfig.flashlightSizeFps = v;
         }
         else if (strcmp(key, "xa_volume") == 0)
         {

@@ -758,17 +758,21 @@ void Pc_ConsoleExec(const char* line)
                     g_DebugAnimKfView ? "ON" : "OFF");
         }
     } else if (strcmp(cmd, "FLINTENSITY") == 0 || strcmp(cmd, "FLINT") == 0) {
-        extern float g_PsyX_FlashlightIntensity;
+        extern float g_PsyX_FlashlightIntensity, g_PsyX_FlashlightIntensityFps;
+        extern int   g_PcFpsCam;
+        /* Tune the active set: FPS mode has its own flashlight brightness. */
+        float* pv = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity;
+        const char* pkey = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity";
         if (arg[0] != '\0') {
             char buf[16];
             float v = (float)atof(arg);
             if (v < 0.0f) v = 0.0f;
             if (v > 3.0f) v = 3.0f;
-            g_PsyX_FlashlightIntensity = v;
+            *pv = v;
             snprintf(buf, sizeof(buf), "%.2f", v);
-            PcConfig_SaveKeyValue("flashlight_intensity", buf);
+            PcConfig_SaveKeyValue(pkey, buf);
         }
-        cprintf("flashlight intensity: %.2f (0..3)", g_PsyX_FlashlightIntensity);
+        cprintf("flashlight intensity%s: %.2f (0..3)", g_PcFpsCam ? " (fps)" : "", *pv);
     } else if (strcmp(cmd, "POSTINTENSITY") == 0 || strcmp(cmd, "POSTINT") == 0) {
         extern float g_cfg_postProcessIntensity;
         if (arg[0] != '\0') {
