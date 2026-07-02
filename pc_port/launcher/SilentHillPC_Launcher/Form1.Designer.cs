@@ -17,13 +17,11 @@ partial class Form1
     private ProgressBar progUpdate;
 
     private ComboBox comboResolution;
-    private ComboBox comboRefresh;
     private RadioButton radioCullingYes;
     private RadioButton radioCullingNo;
     private RadioButton radioPreloadYes;
     private RadioButton radioPreloadNo;
-    private RadioButton radioPillarboxYes;
-    private RadioButton radioPillarboxNo;
+    private ComboBox comboPillarbox;
 
     private Label cullLabel;
     private Label fullscreenLabel;
@@ -88,8 +86,7 @@ partial class Form1
             this.radioPreloadYes = new System.Windows.Forms.RadioButton();
             this.radioPreloadNo = new System.Windows.Forms.RadioButton();
             this.pillarboxPanel = new System.Windows.Forms.Panel();
-            this.radioPillarboxYes = new System.Windows.Forms.RadioButton();
-            this.radioPillarboxNo = new System.Windows.Forms.RadioButton();
+            this.comboPillarbox = new System.Windows.Forms.ComboBox();
             this.comboMap = new System.Windows.Forms.ComboBox();
             this.btnPlay = new System.Windows.Forms.Button();
             this.btnUpdate = new System.Windows.Forms.Button();
@@ -97,7 +94,6 @@ partial class Form1
             this.lblUpdateStatus = new System.Windows.Forms.Label();
             this.progUpdate = new System.Windows.Forms.ProgressBar();
             this.comboResolution = new System.Windows.Forms.ComboBox();
-            this.comboRefresh = new System.Windows.Forms.ComboBox();
             this.banner = new System.Windows.Forms.PictureBox();
             this.cullLabel = new System.Windows.Forms.Label();
             this.fullscreenLabel = new System.Windows.Forms.Label();
@@ -136,6 +132,7 @@ partial class Form1
             this.btnHelp = new System.Windows.Forms.Button();
             this.btnBug = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
+            this.comboRefresh = new System.Windows.Forms.ComboBox();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -238,29 +235,24 @@ partial class Form1
             // 
             // pillarboxPanel
             // 
-            this.pillarboxPanel.Controls.Add(this.radioPillarboxYes);
-            this.pillarboxPanel.Controls.Add(this.radioPillarboxNo);
+            this.pillarboxPanel.Controls.Add(this.comboPillarbox);
             this.pillarboxPanel.Location = new System.Drawing.Point(80, 207);
             this.pillarboxPanel.Name = "pillarboxPanel";
             this.pillarboxPanel.Size = new System.Drawing.Size(120, 30);
             this.pillarboxPanel.TabIndex = 21;
             this.pillarboxPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.pillarboxPanel_Paint);
             // 
-            // radioPillarboxYes
+            // comboPillarbox
             // 
-            this.radioPillarboxYes.Location = new System.Drawing.Point(4, 3);
-            this.radioPillarboxYes.Name = "radioPillarboxYes";
-            this.radioPillarboxYes.Size = new System.Drawing.Size(45, 24);
-            this.radioPillarboxYes.TabIndex = 4;
-            this.radioPillarboxYes.Text = "Yes";
-            // 
-            // radioPillarboxNo
-            // 
-            this.radioPillarboxNo.Location = new System.Drawing.Point(59, 3);
-            this.radioPillarboxNo.Name = "radioPillarboxNo";
-            this.radioPillarboxNo.Size = new System.Drawing.Size(53, 24);
-            this.radioPillarboxNo.TabIndex = 5;
-            this.radioPillarboxNo.Text = "No";
+            this.comboPillarbox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboPillarbox.Items.AddRange(new object[] {
+            "Yes",
+            "No",
+            "Menus Only"});
+            this.comboPillarbox.Location = new System.Drawing.Point(0, 4);
+            this.comboPillarbox.Name = "comboPillarbox";
+            this.comboPillarbox.Size = new System.Drawing.Size(120, 21);
+            this.comboPillarbox.TabIndex = 4;
             // 
             // comboMap
             // 
@@ -302,14 +294,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(12, 444);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 448);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
-            this.lblUpdateStatus.Size = new System.Drawing.Size(372, 15);
+            this.lblUpdateStatus.Size = new System.Drawing.Size(206, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(206, 425);
+            this.progUpdate.Location = new System.Drawing.Point(206, 424);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(205, 16);
             this.progUpdate.TabIndex = 15;
@@ -324,16 +316,6 @@ partial class Form1
             this.comboResolution.Size = new System.Drawing.Size(120, 21);
             this.comboResolution.TabIndex = 0;
             this.comboResolution.SelectedIndexChanged += new System.EventHandler(this.comboResolution_SelectedIndexChanged);
-            // 
-            // comboRefresh
-            // 
-            this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboRefresh.Location = new System.Drawing.Point(80, 211);
-            this.comboRefresh.Name = "comboRefresh";
-            this.comboRefresh.Size = new System.Drawing.Size(120, 21);
-            this.comboRefresh.TabIndex = 1;
-            this.comboRefresh.Visible = false;
-            this.comboRefresh.SelectedIndexChanged += new System.EventHandler(this.comboRefresh_SelectedIndexChanged);
             // 
             // banner
             // 
@@ -608,18 +590,18 @@ partial class Form1
             this.comboPost.Name = "comboPost";
             this.comboPost.Size = new System.Drawing.Size(120, 21);
             this.comboPost.TabIndex = 59;
-            //
+            // 
             // toneLabel
-            //
+            // 
             this.toneLabel.AutoSize = true;
             this.toneLabel.Location = new System.Drawing.Point(8, 367);
             this.toneLabel.Name = "toneLabel";
-            this.toneLabel.Size = new System.Drawing.Size(62, 13);
+            this.toneLabel.Size = new System.Drawing.Size(59, 13);
             this.toneLabel.TabIndex = 60;
             this.toneLabel.Text = "Tone Map:";
-            //
+            // 
             // comboTone
-            //
+            // 
             this.comboTone.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboTone.Items.AddRange(new object[] {
             "Off",
@@ -630,18 +612,18 @@ partial class Form1
             this.comboTone.Name = "comboTone";
             this.comboTone.Size = new System.Drawing.Size(120, 21);
             this.comboTone.TabIndex = 60;
-            //
+            // 
             // flashLabel
-            //
+            // 
             this.flashLabel.AutoSize = true;
             this.flashLabel.Location = new System.Drawing.Point(8, 397);
             this.flashLabel.Name = "flashLabel";
-            this.flashLabel.Size = new System.Drawing.Size(62, 13);
+            this.flashLabel.Size = new System.Drawing.Size(54, 13);
             this.flashLabel.TabIndex = 61;
             this.flashLabel.Text = "Flashlight:";
-            //
+            // 
             // comboFlash
-            //
+            // 
             this.comboFlash.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboFlash.Items.AddRange(new object[] {
             "Per-vertex (PSX)",
@@ -650,7 +632,7 @@ partial class Form1
             this.comboFlash.Name = "comboFlash";
             this.comboFlash.Size = new System.Drawing.Size(120, 21);
             this.comboFlash.TabIndex = 61;
-            //
+            // 
             // btnControls
             // 
             this.btnControls.Location = new System.Drawing.Point(315, 331);
@@ -683,7 +665,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(6, 418);
+            this.btnHelp.Location = new System.Drawing.Point(11, 431);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -693,7 +675,7 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(108, 418);
+            this.btnBug.Location = new System.Drawing.Point(113, 431);
             this.btnBug.Name = "btnBug";
             this.btnBug.Size = new System.Drawing.Size(84, 23);
             this.btnBug.TabIndex = 54;
@@ -703,13 +685,23 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(50, 418);
+            this.btnReset.Location = new System.Drawing.Point(55, 431);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
             this.btnReset.Text = "Reset";
             this.btnReset.UseVisualStyleBackColor = true;
             this.btnReset.Click += new System.EventHandler(this.button1_Click_1);
+            // 
+            // comboRefresh
+            // 
+            this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRefresh.Location = new System.Drawing.Point(258, 269);
+            this.comboRefresh.Name = "comboRefresh";
+            this.comboRefresh.Size = new System.Drawing.Size(120, 21);
+            this.comboRefresh.TabIndex = 1;
+            this.comboRefresh.Visible = false;
+            this.comboRefresh.SelectedIndexChanged += new System.EventHandler(this.comboRefresh_SelectedIndexChanged);
             // 
             // Form1
             // 
@@ -784,4 +776,5 @@ partial class Form1
     private Button btnHelp;
     private Button btnBug;
     private Button btnReset;
+    private ComboBox comboRefresh;
 }

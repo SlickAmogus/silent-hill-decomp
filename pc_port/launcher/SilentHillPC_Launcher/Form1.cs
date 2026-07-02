@@ -219,14 +219,14 @@ public partial class Form1 : Form
         Set(radioPreloadNo,   preloadTip);
 
         const string pillarboxTip =
-            "Pillarbox 2D screens (menus, save/load, the Harry-running load\n" +
-            "screen) with 4:3 black bars instead of stretching them to fill a\n" +
-            "widescreen window. Only applies on widescreen (16:9 / wider)\n" +
-            "displays — on a 4:3 window there are no bars either way.\n" +
-            "Only affects 2D UI; 3D gameplay is unchanged.";
+            "How 4:3 black bars (pillarboxes) are applied on a widescreen\n" +
+            "(16:9 / wider) display. No effect on a 4:3 window.\n" +
+            "  Menus Only (default): 2D menus / save-load / load screen are\n" +
+            "  pillarboxed; 3D gameplay fills the screen (widescreen Hor+).\n" +
+            "  Yes: pillarbox everything - 2D menus AND 3D gameplay get bars.\n" +
+            "  No: no bars anywhere - 3D gameplay is Hor+ and menus stretch.";
         Set(refreshLabel,        pillarboxTip);
-        Set(radioPillarboxYes,   pillarboxTip);
-        Set(radioPillarboxNo,    pillarboxTip);
+        Set(comboPillarbox,      pillarboxTip);
 
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
@@ -529,9 +529,12 @@ public partial class Form1 : Form
         // hidden combo populated harmlessly so its references stay valid.
         comboRefresh.SelectedItem = config.Get("refresh_rate", "0");
 
-        // pillarboxing (menu_pillarbox) — replaces the refresh-rate UI slot
-        radioPillarboxYes.Checked = config.Get("menu_pillarbox", "1") == "1";
-        radioPillarboxNo.Checked = !radioPillarboxYes.Checked;
+        // pillarboxing: combine menu_pillarbox + widescreen_mode into one 3-way choice.
+        bool _menuPb = config.Get("menu_pillarbox", "1") == "1";
+        bool _wide3d = config.Get("widescreen_mode", "1") != "0"; // 0 = pillarbox 3D
+        if (!_menuPb)      comboPillarbox.SelectedIndex = 1; // No
+        else if (!_wide3d) comboPillarbox.SelectedIndex = 0; // Yes (3D pillarboxed)
+        else               comboPillarbox.SelectedIndex = 2; // Menus Only (default)
 
         // disable_culling (recommended: Yes — matches engine default)
         radioCullingYes.Checked = config.Get("disable_culling", "1") == "1";
@@ -568,8 +571,13 @@ public partial class Form1 : Form
         // refresh rate is config-only now (auto-detected by default) — do NOT
         // write it from the launcher so a hand-set value is preserved.
 
-        // pillarboxing
-        config.Set("menu_pillarbox", radioPillarboxYes.Checked ? "1" : "0");
+        // pillarboxing: 3-way dropdown -> menu_pillarbox + widescreen_mode
+        switch (comboPillarbox.SelectedIndex)
+        {
+            case 0: config.Set("menu_pillarbox", "1"); config.Set("widescreen_mode", "0"); break; // Yes
+            case 1: config.Set("menu_pillarbox", "0"); config.Set("widescreen_mode", "1"); break; // No
+            default: config.Set("menu_pillarbox", "1"); config.Set("widescreen_mode", "1"); break; // Menus Only
+        }
 
         // disable_culling
         config.Set("disable_culling", radioCullingYes.Checked ? "1" : "0");
