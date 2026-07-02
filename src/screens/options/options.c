@@ -19,8 +19,10 @@
 #define LINE_CURSOR_TIMER_MAX 8
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <string.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#include "map_registry.h"
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -90,7 +92,7 @@ s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 typedef struct {
     const char*        name;     /* row label (underscores render as spaces) */
@@ -154,6 +156,7 @@ static const s_PcOpt PCOPT_S[] = {
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   3, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
+    { "Map",              NULL,                       "map",              NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
@@ -186,6 +189,9 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_SLIDER) {
         snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
         return buf;
+    }
+    if (e->kind == PCK_MAP) {
+        return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
     }
     if (e->field == NULL)
         return "";
@@ -223,6 +229,22 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         if (e->flive)  *e->flive  = v;
         if (e->key) { char fb[16]; snprintf(fb, sizeof(fb), "%.3f", v); PcConfig_SaveKeyValue(e->key, fb); }
         SH_DBG_ECHO("%s: %.2f", e->name, v);
+        return;
+    }
+    if (e->kind == PCK_MAP) {
+        /* Cycle the New-Game start map (same effect as the console MAP command
+         * and the 4/5 debug keys): set g_PcConfig.mapName; the map loads on the
+         * next New Game. MAP_NAMES is dense 0..Count-1 in story order. */
+        int cnt = MapRegistry_Count();
+        int idx = MapRegistry_FindByName(g_PcConfig.mapName);
+        const char* nm;
+        if (idx < 0) idx = 0;
+        idx = (idx + dir + cnt) % cnt;
+        nm  = MapRegistry_GetName((e_MapIdx)idx);
+        strncpy(g_PcConfig.mapName, nm, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        PcConfig_SaveMapName(nm);
+        SH_DBG_ECHO("Map: %s (loads on New Game)", nm);
         return;
     }
     if (e->field == NULL)
