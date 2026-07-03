@@ -6,10 +6,22 @@
 #include "bodyprog/math/math.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+/* PC: raised from the PSX 6 to allow many more concurrent enemies (the debug
+ * SPAWN command + optional unlimited-enemies mode). 32 is the hard ceiling of
+ * the s32 npcFlags/field_228C bitmasks (one bit per npcs[] slot); going higher
+ * would need those widened to 64-bit. Per-instance state lives in npcs[]; bone
+ * coords are posed just-in-time into the shared scratch buffer, so the count
+ * scales without a per-instance bone buffer. g_SysWork is a standalone C global
+ * (not emulated PSX RAM) and STATIC_ASSERT_SIZEOF is a no-op on PC, so growing
+ * the struct is safe. */
+#define NPC_COUNT_MAX        32
+#else
 #define NPC_COUNT_MAX        6
+#endif
 #define NPC_BONE_COUNT_MAX   10 * NPC_COUNT_MAX
-#define CHARA_GROUP_COUNT    4 /** While up to 6 NPCs and a player can exist in the game world, only 4 different character
-                                * types (including the player) can be loaded at a time.
+#define CHARA_GROUP_COUNT    4 /** While up to `NPC_COUNT_MAX` NPCs and a player can exist in the game world, only 4
+                                * different character types (including the player) can be loaded at a time.
                                 */
 #define CHARA_FORCE_FREE_ALL 0xFF /** `Chara_Load` can force free already loaded models to make room for new ones. */
 
