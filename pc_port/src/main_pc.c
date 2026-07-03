@@ -765,6 +765,14 @@ int main(int argc, char* argv[])
         SH_LOG("Per-pixel flashlight: %s", g_PsyX_UsePerPixelFlashlight ? "ON" : "off");
     }
 
+    /* Real flashlight shadow mapping (depth pre-pass from the light POV). Needs the
+     * per-pixel flashlight on; `shadows` console toggles it live. */
+    {
+        extern int g_PsyX_UseFlashlightShadows;
+        g_PsyX_UseFlashlightShadows = g_PcConfig.flashlightShadows ? 1 : 0;
+        SH_LOG("Flashlight shadows: %s", g_PsyX_UseFlashlightShadows ? "ON" : "off");
+    }
+
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled
      * effect; console flintensity / postintensity / tmintensity). */
     {
