@@ -84,6 +84,7 @@ public class ControlsForm : Form
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
+        { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -135,6 +136,7 @@ public class ControlsForm : Form
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
+    private CheckBox chkImmersiveFps;
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
 
@@ -180,7 +182,7 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(860, 640);
+        ClientSize = new Size(860, 730);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -255,6 +257,18 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_console"],
             "Developer console toggle (needs Allow debug controls = Yes). Hold to show/hide it; tap while open to type a command.");
 
+        // Graphics-effect tuning keys (keyboard-only). Cycle picks which enabled
+        // effect (flashlight / post-process / tonemap) is tuned; Prev/Next lower
+        // and raise its intensity live. Defaults \ / [ / ].
+        int gfxCycleY = consoleY + rowH + 8;
+        AddKeyRow("Gfx: Cycle Effect", "key_gfx_cycle", colKbX, gfxCycleY, labelW, inputW, false);
+        AddKeyRow("Gfx: Adjust Down",  "key_gfx_prev",  colKbX, gfxCycleY + rowH,     labelW, inputW, false);
+        AddKeyRow("Gfx: Adjust Up",    "key_gfx_next",  colKbX, gfxCycleY + rowH * 2, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_gfx_cycle"],
+            "Cycles which enabled graphics effect (per-pixel flashlight, post-process, tone mapping) the Adjust keys tune.");
+        tips.SetToolTip(inputs["key_gfx_prev"], "Lowers the selected graphics effect's intensity (hold to repeat).");
+        tips.SetToolTip(inputs["key_gfx_next"], "Raises the selected graphics effect's intensity (hold to repeat).");
+
         // Controller binds — primary + an alternate (second button) per action.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
@@ -320,10 +334,22 @@ public class ControlsForm : Form
             Width = 220,
             ForeColor = TextColor,
         };
+        chkImmersiveFps = new CheckBox
+        {
+            Text = "Immersive FPS head tracking",
+            Left = colPadX,
+            Top = styleY + 134,
+            Width = 240,
+            ForeColor = TextColor,
+        };
         Controls.Add(chkInvertMouseY);
         Controls.Add(chkInvertControllerY);
         Controls.Add(chkTpsAimZoom);
         Controls.Add(chkCrosshair);
+        Controls.Add(chkImmersiveFps);
+        tips.SetToolTip(chkImmersiveFps,
+            "First-person only: the view follows Harry's animated head (idle sway / lean) with your mouse look layered " +
+            "on top, easing in after you stand still for a moment. Off = the view is driven purely by the mouse.");
 
         tips.SetToolTip(cmbControlStyle,
             "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
@@ -418,6 +444,7 @@ public class ControlsForm : Form
         tb.PreviewKeyDown += KeyBox_PreviewKeyDown; // make arrows/Tab reach KeyDown
         tb.KeyDown += KeyBox_KeyDown;
         tb.MouseDown += KeyBox_MouseDown;           // bind mouse buttons (when enabled)
+        tb.MouseWheel += KeyBox_MouseWheel;         // bind mouse scroll up/down
         inputs[cfgKey] = tb;
         Controls.Add(tb);
         return tb;
@@ -511,6 +538,20 @@ public class ControlsForm : Form
         if (name == null)
             return;
 
+        tb.Text = name;
+        tb.Tag = name;
+        ActiveControl = null;       // commit + stop listening
+    }
+
+    // Bind the mouse wheel: scroll up/down while a box is listening captures
+    // "MouseWheelUp"/"MouseWheelDown" (the game maps these to a tap).
+    private void KeyBox_MouseWheel(object sender, MouseEventArgs e)
+    {
+        TextBox tb = (TextBox)sender;
+        if (tb.Text != ListenPrompt || e.Delta == 0)
+            return;
+
+        string name = e.Delta > 0 ? "MouseWheelUp" : "MouseWheelDown";
         tb.Text = name;
         tb.Tag = name;
         ActiveControl = null;       // commit + stop listening
@@ -670,6 +711,7 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
         chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
+        chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -700,6 +742,7 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = false;
         chkTpsAimZoom.Checked = true;
         chkCrosshair.Checked = false;
+        chkImmersiveFps.Checked = false;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -735,6 +778,7 @@ public class ControlsForm : Form
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
         config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
+        config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();
