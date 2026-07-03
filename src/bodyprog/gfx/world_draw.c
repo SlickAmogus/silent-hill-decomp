@@ -1449,11 +1449,17 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
           && g_SysWork.sysState == SysState_Gameplay
           && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
           && g_SysWork.cutsceneBorderState == CutsceneBorderState_None); }
+    /* Harry doesn't cast a flashlight shadow — his own body between the light and
+     * the scene looked odd. Flag his skeleton verts as non-casters for the depth
+     * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
+     * per-vertex; cleared right after. */
+    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
+    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
 
     if (timer != Q12(0.0f))
