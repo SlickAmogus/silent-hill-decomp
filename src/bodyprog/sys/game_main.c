@@ -289,6 +289,19 @@ static void Pc_TpsCamera_Apply(void)
              * ratan2 in Vw_SetLookAtMatrix don't degenerate. */
             if (g_TpsCamPitch < -Q12_ANGLE(82.0f)) g_TpsCamPitch = -Q12_ANGLE(82.0f);
             if (g_TpsCamPitch >  Q12_ANGLE(82.0f)) g_TpsCamPitch =  Q12_ANGLE(82.0f);
+
+            /* Yaw limit: you can mouse-look from straight-left to straight-right
+             * (±90°) of Harry's BODY yaw, but not past his shoulders. When
+             * moving or aiming the body snaps to the camera (player_control), so
+             * the ±90° window rides along and turning is free; it only bites
+             * while standing still — then the body catches up when you move. */
+            {
+                s32 yd = Math_AngleNormalizeSigned(g_TpsCamYaw - tp_hr->rotation.vy);
+                if (yd >  Q12_ANGLE(90.0f))
+                    g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy + Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
+                else if (yd < -Q12_ANGLE(90.0f))
+                    g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy - Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
+            }
         } else {
             if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
             if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
@@ -311,7 +324,7 @@ static void Pc_TpsCamera_Apply(void)
          * equally, and the constant axis offset is removed by the reference). */
         s32 viewYaw   = g_TpsCamYaw;
         s32 viewPitch = g_TpsCamPitch;
-        if (g_PcFpsCam)
+        if (g_PcFpsCam && g_PcConfig.immersiveFpsHeadTracking)
         {
             const MATRIX* hm  = &g_SysWork.playerBoneCoords[HarryBone_Head].workm;
             s32   fX   = hm->m[0][2]; /* head-local +Z rotated to world, Q12 */
@@ -334,17 +347,59 @@ static void Pc_TpsCamera_Apply(void)
             }
             else
             {
+                s32 dYaw, dPitch, gain;
+
+                /* Settle delay: Harry's idle head sway begins the instant he stops,
+                 * so locking the view onto it immediately feels aggressive. Ease
+                 * the follow in over a few seconds of standing still — the body
+                 * animates normally, only the CAMERA's response is delayed. Any
+                 * movement resets the timer; the reference keeps low-passing so the
+                 * delta stays small when the gain finally rises (no pop). */
+                #define FPS_LOOK_DELAY_MS 1500u  /* fully off for this long after stopping */
+                #define FPS_LOOK_RAMP_MS  3500u  /* fully on by here (ramp over the gap) */
+                {
+                    static Uint32 s_lastMoveMs = 0;
+                    Uint32 now   = SDL_GetTicks();
+                    s32    held2 = g_Controller0->heldBtnFlags;
+                    int    moving = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) ||
+                                    (held2 & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown  |
+                                              ControllerFlag_LStickLeft | ControllerFlag_LStickRight |
+                                              ControllerFlag_DpadUp     | ControllerFlag_DpadDown    |
+                                              ControllerFlag_DpadLeft   | ControllerFlag_DpadRight));
+                    Uint32 still;
+                    if (moving) s_lastMoveMs = now;
+                    still = now - s_lastMoveMs;
+                    if (still <= FPS_LOOK_DELAY_MS)      gain = 0;
+                    else if (still >= FPS_LOOK_RAMP_MS)  gain = Q12(1.0f);
+                    else gain = (s32)(((s64)(still - FPS_LOOK_DELAY_MS) << 12) /
+                                      (FPS_LOOK_RAMP_MS - FPS_LOOK_DELAY_MS));
+                }
+                #undef FPS_LOOK_DELAY_MS
+                #undef FPS_LOOK_RAMP_MS
+
                 s_fpsHeadYawRef   += Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef)   >> 8;
                 s_fpsHeadPitchRef += Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef) >> 8;
 
-                viewYaw   += Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef);
-                viewPitch += Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef);
+                dYaw   = Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef);
+                dPitch = Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef);
+                viewYaw   += (s32)(((s64)dYaw   * gain) >> 12);
+                viewPitch += (s32)(((s64)dPitch * gain) >> 12);
 
                 /* Safety: keep the composed pitch short of straight up/down so the
                  * ratan2 in Vw_SetLookAtMatrix doesn't degenerate. */
                 if (viewPitch >  Q12_ANGLE(87.0f)) viewPitch =  Q12_ANGLE(87.0f);
                 if (viewPitch < -Q12_ANGLE(87.0f)) viewPitch = -Q12_ANGLE(87.0f);
             }
+        }
+        else
+        {
+            /* Immersive head-tracking off (or non-FPS): re-seed the sway
+             * reference next time it's enabled so the view doesn't jerk from a
+             * stale frozen reference. */
+            s_fpsHeadRotValid = 0;
         }
 
         s32 sy = Math_Sin(viewYaw);
