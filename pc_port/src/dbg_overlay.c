@@ -1242,9 +1242,17 @@ void DbgOverlay_Update(void)
         en[2] = (g_cfg_tonemap != 0);                vp[2] = &g_cfg_tonemapIntensity;     vmax[2] = 1.0f; vkey[2] = "tonemap_intensity";      vlbl[2] = "tonemap";
         en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 3.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
 
-        cur_a = ks[SDL_SCANCODE_LEFTBRACKET];
-        cur_b = ks[SDL_SCANCODE_RIGHTBRACKET];
-        curBS = ks[SDL_SCANCODE_BACKSLASH];
+        /* Keys are user-bindable (launcher: Keyboard Controls). Defaults [ / ] /
+         * \ ; resolved from config each frame so a rebind takes effect live. An
+         * unbound ("NONE"/blank) key resolves to UNKNOWN and simply never fires. */
+        {
+            SDL_Scancode scPrev  = SDL_GetScancodeFromName(g_PcConfig.keyGfxPrev);
+            SDL_Scancode scNext  = SDL_GetScancodeFromName(g_PcConfig.keyGfxNext);
+            SDL_Scancode scCycle = SDL_GetScancodeFromName(g_PcConfig.keyGfxCycle);
+            cur_a = (scPrev  != SDL_SCANCODE_UNKNOWN) ? ks[scPrev]  : 0;
+            cur_b = (scNext  != SDL_SCANCODE_UNKNOWN) ? ks[scNext]  : 0;
+            curBS = (scCycle != SDL_SCANCODE_UNKNOWN) ? ks[scCycle] : 0;
+        }
         anyEn = en[0] || en[1] || en[2] || en[3];
 
         /* keep the selection on an enabled effect */
