@@ -79,6 +79,12 @@ typedef struct {
     char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (cycle control style) */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
+    /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches
+     * which enabled effect (flashlight / post-process / tonemap) is being tuned;
+     * keyGfxPrev/keyGfxNext lower/raise its intensity. Defaults \ / [ / ]. */
+    char keyGfxCycle[24];
+    char keyGfxPrev[24];
+    char keyGfxNext[24];
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

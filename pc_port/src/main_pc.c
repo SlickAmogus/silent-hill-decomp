@@ -58,10 +58,14 @@ extern void* g_OvlBodyprog;
 int g_PcAllowDebugControls = 0;
 
 /* "Mouse1".."Mouse5" -> SDL mouse button number (Mouse1=left, Mouse2=right,
- * Mouse3=middle, Mouse4=X1, Mouse5=X2). Returns 0 if not a mouse name. */
+ * Mouse3=middle, Mouse4=X1, Mouse5=X2). "MouseWheelUp"/"MouseWheelDown" -> the
+ * two pseudo-slots 6/7 consumed by PsyX_Pad_BuildMouseWord (the wheel is
+ * event-based, latched there). Returns 0 if not a mouse name. */
 static int Pc_ParseMouseName(const char* v)
 {
     if (!v) return 0;
+    if (SDL_strcasecmp(v, "MouseWheelUp")   == 0) return 6;
+    if (SDL_strcasecmp(v, "MouseWheelDown") == 0) return 7;
     if ((v[0] == 'M' || v[0] == 'm') && (v[1] == 'o' || v[1] == 'O') &&
         (v[2] == 'u' || v[2] == 'U') && (v[3] == 's' || v[3] == 'S') &&
         (v[4] == 'e' || v[4] == 'E'))
