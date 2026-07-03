@@ -1471,14 +1471,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * Mouse rotates the camera, body follows automatically. */
                 if (g_DebugThirdPersonCam) {
 #ifdef SH_PC_PORT
-                    /* FPS owl-neck: while standing still and not aiming in
-                     * first-person, let the view (mouse) turn freely up to a neck
-                     * limit before the body follows — you can look over your
-                     * shoulder and Harry's visible legs stay put, then auto-turn
-                     * to catch up once you look too far past the limit. Any move
-                     * input or aiming resumes the immediate body=camera snap so
-                     * movement/aim stay camera-relative and unchanged. TPS/OTS
-                     * (non-FPS) always snap. */
+                    /* FPS look-around: while standing still and not aiming in
+                     * first-person, DON'T snap the body to the camera — leave
+                     * Harry's body/legs put so you can mouse-look around him. The
+                     * camera clamps that look to ±90° of the body yaw (straight
+                     * left..straight right), so the body "catches up" the moment
+                     * you move (the snap below resumes on any move input or while
+                     * aiming). TPS/OTS (non-FPS) always snap. */
                     int fpsIdleLook = 0;
                     if (g_PcFpsCam && !g_SysWork.playerCombat.isAiming)
                     {
@@ -1495,14 +1494,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
                     if (fpsIdleLook)
                     {
-                        #define FPS_NECK_LIMIT Q12_ANGLE(75.0f)
-                        s32 diff = Math_AngleNormalizeSigned(g_TpsCamYaw - player->rotation.vy);
-                        if (diff >  FPS_NECK_LIMIT)
-                            player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw - FPS_NECK_LIMIT + Q12_ANGLE(360.0f));
-                        else if (diff < -FPS_NECK_LIMIT)
-                            player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + FPS_NECK_LIMIT + Q12_ANGLE(360.0f));
-                        /* else: within neck range — leave body/legs put (owl-neck) */
-                        #undef FPS_NECK_LIMIT
+                        /* Body stays put — the ±90° look clamp lives in the camera
+                         * (Pc_TpsCamera_Apply). Nothing to do here. */
                     }
                     else
 #endif
