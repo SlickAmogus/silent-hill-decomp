@@ -78,8 +78,18 @@ def main():
                " * PSX->PC pointer-relocated. Replaces the zero-stubs that crashed both boss\n"
                " * variants the instant they attacked (incubator.log / incubus.log). */\n")
     out.append("typedef struct { int a, b, c, d; } sh_vel16;          /* 16B flat velocity (s_800F3D48_0_0) */\n")
-    out.append("typedef struct { int field_0; void* next_4; int field_8; } sh_scr; /* s_800F3D48_0 (24B PC) */\n")
-    out.append("_Static_assert(sizeof(sh_scr) == 24, \"sh_scr must be 24B for the pool offset aliases\");\n")
+    out.append("typedef struct { int field_0; void* next_4; int field_8; } sh_scr; /* s_800F3D48_0 (12B PSX, 24B LP64 PC, 12B ILP32 PC) */\n")
+    # The pool offset aliases below index by ELEMENT, so the asm byte stride must
+    # track sizeof(sh_scr), which depends on pointer width (24B on LP64, 12B on
+    # ILP32). Pick the stride at preprocess time and stringize it into the asm.
+    out.append("#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4\n")
+    out.append("#define SH_SCR_SZ 12\n")
+    out.append("#else\n")
+    out.append("#define SH_SCR_SZ 24\n")
+    out.append("#endif\n")
+    out.append("#define SH_STR2(x) #x\n")
+    out.append("#define SH_STR(x) SH_STR2(x)\n")
+    out.append("_Static_assert(sizeof(sh_scr) == SH_SCR_SZ, \"sh_scr size must match SH_SCR_SZ for the pool offset aliases\");\n")
     out.append("_Static_assert(sizeof(sh_vel16) == 16, \"sh_vel16 must be 16B\");\n\n")
 
     # ---- flat velocity D_800EC018[26] ----
@@ -128,13 +138,13 @@ def main():
     # gap by 8 bytes, breaking that; so emit one array + exact offset aliases.
     out.append("\n")
     emit_script("D_800EC53C", POOL, 45)
-    out.append("\n/* Offset aliases into the single pool array (exact, no padding). */\n")
+    out.append("\n/* Offset aliases into the single pool array (exact, no padding). The byte\n"
+               " * stride is SH_SCR_SZ (sizeof sh_scr) so this is correct on LP64 and ILP32. */\n")
     for nm, a in POOL_SYMS:
         if a == POOL:
             continue
         entry = (a - POOL) // 12          # PSX entry index
-        off_pc = entry * 24               # PC stride (sh_scr is 24 bytes)
-        out.append('__asm__(".global %s\\n.set %s, D_800EC53C+%d\\n");\n' % (nm, nm, off_pc))
+        out.append('__asm__(".global %s\\n.set %s, D_800EC53C+" SH_STR(%d*SH_SCR_SZ) "\\n");\n' % (nm, nm, entry))
     out.append("\n")
 
     OUT.write_text("".join(out), encoding="utf-8")

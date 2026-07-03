@@ -147,11 +147,9 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         # decompiled functions, etc.) are left undefined in the .so and
         # resolved at dlopen() time from the main executable, which is built
         # with ENABLE_EXPORTS (adds -rdynamic so its symbols populate the
-        # global dynamic symbol table). PsyCross is linked in statically
-        # (built PIC — see CMAKE_POSITION_INDEPENDENT_CODE in ../CMakeLists.txt).
-        # ELF shared objects export all global symbols by default, so
-        # g_MapOverlayHeader_<name> is visible to dlsym without extra flags.
-        target_link_libraries(${MAP_NAME} PRIVATE psycross_static)
+        # global dynamic symbol table). ELF shared objects export all global
+        # symbols by default, so g_MapOverlayHeader_<name> is visible to dlsym
+        # without extra flags.
         # Build ordering only (the exe must exist to dlopen the map); there is
         # no link-time dependency on the executable.
         add_dependencies(${MAP_NAME} SilentHillPC)
@@ -161,9 +159,32 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
             # allow them to stay undefined in the dylib. (macOS two-level
             # namespaces already bind each dylib's OWN defined symbols locally,
             # so the ELF interposition problem handled below does not arise.)
+            # PsyCross is linked statically here (built PIC) because macOS is
+            # untested for the shared-instance arrangement used on Linux below.
+            target_link_libraries(${MAP_NAME} PRIVATE psycross_static)
             target_link_options(${MAP_NAME} PRIVATE "-Wl,-undefined,dynamic_lookup")
         else()
-            # Linux/ELF: bind THIS .so's own global definitions to its local
+            # Linux/ELF: do NOT statically link psycross_static into the map .so.
+            #
+            # PsyCross holds singleton runtime state — the glad GL function
+            # pointer table, the GTE register bank (gteRegs), the split/vertex
+            # buffers (g_splitIndex, g_vertexIndex), activeDrawEnv/DispEnv and
+            # drawsync_callback. That state is initialized ONCE, in the copy of
+            # PsyCross linked into the main exe (which loads GL, populates glad,
+            # etc.). If each map .so links its OWN psycross_static copy, the .so
+            # gets a SECOND, uninitialized instance of all that state; combined
+            # with -Bsymbolic (below) the map's PsyCross calls bind to that dead
+            # local copy. Map code that drives rendering itself then operates on
+            # a NULL glad table and a desynced GTE/vertex bank — e.g.
+            # MapEvent_MapItemTake -> DrawSync -> GL via NULL pointer (segfault
+            # when picking up cafe items), and map-emitted geometry transformed
+            # through the wrong gteRegs (the persistent additive screen-garbage).
+            # Leaving PsyCross undefined here makes every PsyCross symbol resolve
+            # at dlopen to the exe's single, initialized instance. (The exe links
+            # psycross_static with --whole-archive so -rdynamic exports the full
+            # public PsyCross API — see ../CMakeLists.txt.)
+            #
+            # -Bsymbolic: bind THIS .so's own global definitions to its local
             # copies instead of letting them be interposed by the main exe.
             # map0_s00 is compiled INTO the exe, and -rdynamic publishes its
             # globals (MAP_EVENTS, MAP_POINTS, the per-map func_800D* code,
@@ -175,9 +196,9 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
             # TriggerType_None "load cafe overlay" event every frame, reloading
             # forever. Windows PE binds per-module, so this only bites ELF.
             # -Bsymbolic restores per-module binding for symbols the .so
-            # defines; undefined game-state symbols (g_SysWork, g_SavegamePtr,
-            # the decompiled exe functions) are unaffected and still import from
-            # the exe. dlsym of g_MapOverlayHeader_<name> still works.
+            # defines; undefined symbols (game state AND PsyCross) are
+            # unaffected and still import from the exe. dlsym of
+            # g_MapOverlayHeader_<name> still works.
             target_link_options(${MAP_NAME} PRIVATE "-Wl,-Bsymbolic")
         endif()
     endif()

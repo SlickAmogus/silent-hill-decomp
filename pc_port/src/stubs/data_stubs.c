@@ -297,7 +297,10 @@ u8 D_800DF564[256] = {0};
 u8 D_800DF568[256] = {0};
 u8 D_800DF56C[256] = {0};
 u8 D_800DF570[256] = {0};
-u8 D_800DF580[256] = {0};
+/* Twinfeeler/larva working buffer: walked as s_800DF580[16] (~216 B/elem on
+ * 32-bit, larger on 64-bit). A 256-byte stub over-reads past the 2nd element
+ * and ASan-aborts on the boss. 16*256 covers 16 elements on any arch. */
+u8 D_800DF580[16 * 256] = {0};
 u8 D_800DFAB8[256] = {0};
 u8 D_800DFAC2[256] = {0};
 /* D_800DFAC4 (alley camera warp flag), D_800DFAC8 (voice cmd table) now
@@ -1406,7 +1409,15 @@ u8 sharedData_800E0CBA_0_s00[256] = {0};
 /* sharedData_800E1574_7_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* sharedData_800E1578_7_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800E1694_7_s01[256] = {0};
-u8 sharedData_800E21D0_0_s01[256] = {0};
+/* sharedData_800E21D0_0_s01: AirScreamer per-instance control struct
+ * (s_sharedData_800E21D0_0_s01), a runtime BSS working buffer imported by the
+ * map0_s01 overlay. PSX size is 0x160 (352 B); the 64-bit struct is 0x170
+ * (368 B) because anmHdr_4/coords_8 expand 4->8 B. The old [256] stub was too
+ * small and AirScreamer_Update wrote past it (ASan abort in the alley). Kept as
+ * a sized stub here (not a separate typed file) so it stays defined without a
+ * CMake reconfigure -- a new source file isn't seen until the GLOB re-runs,
+ * which left the overlay's import unresolved in non-reconfigured builds. */
+u8 sharedData_800E21D0_0_s01[512] = {0};
 u8 sharedData_800E2330_0_s01[256] = {0};
 u8 sharedData_800E2350_0_s01[256] = {0};
 u8 sharedData_800E2370_0_s01[256] = {0};

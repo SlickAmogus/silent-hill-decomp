@@ -276,6 +276,22 @@ target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
 
+# On Linux/ELF the map overlay .so files no longer link their own copy of
+# PsyCross (see maps/CMakeLists.txt) — they import the entire PsyCross runtime
+# from this executable at dlopen so there is a single, initialized instance of
+# its singleton state (glad GL table, GTE registers, vertex/split buffers).
+# A static archive only contributes the object files the exe itself references,
+# so a PsyCross function a map calls but the exe never does would be missing
+# from the dynamic symbol table. Force the WHOLE archive in so -rdynamic
+# (ENABLE_EXPORTS) exports the complete public PsyCross API to dlopen'd maps.
+if(UNIX AND NOT APPLE)
+    target_link_options(SilentHillPC PRIVATE
+        "LINKER:--whole-archive"
+        "$<TARGET_FILE:psycross_static>"
+        "LINKER:--no-whole-archive"
+    )
+endif()
+
 if(SDL2_FOUND)
     target_link_libraries(SilentHillPC PRIVATE SDL2::SDL2)
     # The code includes <SDL2/SDL.h>, which needs the dir CONTAINING SDL2/ on
