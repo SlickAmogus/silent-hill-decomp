@@ -1470,6 +1470,42 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * W = forward, S = back, A/D = strafe in Harry's frame.
                  * Mouse rotates the camera, body follows automatically. */
                 if (g_DebugThirdPersonCam) {
+#ifdef SH_PC_PORT
+                    /* FPS owl-neck: while standing still and not aiming in
+                     * first-person, let the view (mouse) turn freely up to a neck
+                     * limit before the body follows — you can look over your
+                     * shoulder and Harry's visible legs stay put, then auto-turn
+                     * to catch up once you look too far past the limit. Any move
+                     * input or aiming resumes the immediate body=camera snap so
+                     * movement/aim stay camera-relative and unchanged. TPS/OTS
+                     * (non-FPS) always snap. */
+                    int fpsIdleLook = 0;
+                    if (g_PcFpsCam && !g_SysWork.playerCombat.isAiming)
+                    {
+                        s32 held   = g_Controller0->heldBtnFlags;
+                        int moveIn = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) ||
+                                     (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown  |
+                                              ControllerFlag_LStickLeft | ControllerFlag_LStickRight |
+                                              ControllerFlag_DpadUp     | ControllerFlag_DpadDown    |
+                                              ControllerFlag_DpadLeft   | ControllerFlag_DpadRight));
+                        fpsIdleLook = !moveIn;
+                    }
+                    if (fpsIdleLook)
+                    {
+                        #define FPS_NECK_LIMIT Q12_ANGLE(75.0f)
+                        s32 diff = Math_AngleNormalizeSigned(g_TpsCamYaw - player->rotation.vy);
+                        if (diff >  FPS_NECK_LIMIT)
+                            player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw - FPS_NECK_LIMIT + Q12_ANGLE(360.0f));
+                        else if (diff < -FPS_NECK_LIMIT)
+                            player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + FPS_NECK_LIMIT + Q12_ANGLE(360.0f));
+                        /* else: within neck range — leave body/legs put (owl-neck) */
+                        #undef FPS_NECK_LIMIT
+                    }
+                    else
+#endif
                     /* Snap body yaw to camera yaw every frame — no lerp,
                      * camera IS the steering. (Future: rotate head bone
                      * separately so only the head tracks the cam while
