@@ -906,8 +906,8 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] == '1') g_PsyX_UseFlashlightShadows = 1;
         else if (arg[0] == '0') g_PsyX_UseFlashlightShadows = 0;
         else g_PsyX_UseFlashlightShadows = !g_PsyX_UseFlashlightShadows; /* bare "shadows" toggles */
-        g_PcConfig.flashlightShadows = g_PsyX_UseFlashlightShadows ? 1 : 0;
-        PcConfig_SaveKeyValue("flashlight_shadows", g_PsyX_UseFlashlightShadows ? "1" : "0");
+        /* Live debug override only — shadows follow per-pixel flashlight at boot
+         * and have no persistent config key of their own. */
         cprintf("Flashlight shadows %s%s", g_PsyX_UseFlashlightShadows ? "ON" : "OFF",
                 (g_PsyX_UseFlashlightShadows && !g_PsyX_UsePerPixelFlashlight) ? " (turn per-pixel flashlight ON to see them)" : "");
     } else if (strcmp(cmd, "SHADOWBIAS") == 0) {
