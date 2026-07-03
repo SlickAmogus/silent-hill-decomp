@@ -52,6 +52,7 @@ typedef struct {
     float fmvVolume;            /* FMV movie (SDL PCM) volume, 0..1; default 1.0 (config key: fmv_volume) */
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */
     int allowDebugControls; /* 1 = enable dev/cheat keys (numpad, top-row digits, ~, kill-Harry, etc.); 0 = off (default) */
+    int unlimitedEnemies;   /* 1 = raise the per-room concurrent-NPC cap to NPC_COUNT_MAX (config key: unlimited_enemies) */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
     int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)

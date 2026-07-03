@@ -57,6 +57,11 @@ extern void* g_OvlBodyprog;
  * Read by DebugCamera_Update + the few stragglers. Off by default. */
 int g_PcAllowDebugControls = 0;
 
+/* PC port: unlimited-enemies mode (config: unlimited_enemies, console: unlimited).
+ * When on, the per-room concurrent-NPC cap is raised to NPC_COUNT_MAX so natural
+ * spawns can fill every slot. Read in npc_main.c. Off by default. */
+int g_PcUnlimitedEnemies = 0;
+
 /* "Mouse1".."Mouse5" -> SDL mouse button number (Mouse1=left, Mouse2=right,
  * Mouse3=middle, Mouse4=X1, Mouse5=X2). "MouseWheelUp"/"MouseWheelDown" -> the
  * two pseudo-slots 6/7 consumed by PsyX_Pad_BuildMouseWord (the wheel is
@@ -176,6 +181,7 @@ static void Pc_ApplyControlConfig(const ControlScheme* s)
     g_cfg_controllerMapping2.gc_select   = PsyX_LookupGameControllerMapping(s->padSelect2,   SDL_CONTROLLER_BUTTON_INVALID);
 
     g_PcAllowDebugControls   = g_PcConfig.allowDebugControls;
+    g_PcUnlimitedEnemies     = g_PcConfig.unlimitedEnemies;
     g_cfg_controllerMovement = g_PcConfig.controllerMovement;
     g_cfg_allowMouseSecondary = 1; /* mouse + secondary binds always active */
 }

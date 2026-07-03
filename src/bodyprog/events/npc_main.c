@@ -126,11 +126,28 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     s32 _closestZ     = 0;
     s8  _closestFlags = 0;
     int _shouldTickLog = (++_spawnTickCounter % 300 == 0); /* ~5s @60fps */
+
+    /* Unlimited-enemies mode: override the map's per-room concurrent cap so
+     * natural spawns can fill every npcs[] slot (the console SPAWN command
+     * already bypasses the cap). Applied every frame AFTER the map's room-init
+     * sets/increments npcFlagsId. Off = the map's original balance stands. */
+    {
+        extern int g_PcUnlimitedEnemies;
+        if (g_PcUnlimitedEnemies)
+            g_SysWork.npcFlagsId = NPC_COUNT_MAX;
+    }
 #endif
 
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
+#ifdef SH_PC_PORT
+        /* npcFlagsId can now reach 32 (NPC_COUNT_MAX); (1 << 32) is UB, so
+         * saturate the "all slots occupied" mask to full when it does. */
+        if ((u32)g_SysWork.npcFlags ==
+            (g_SysWork.npcFlagsId >= 32 ? 0xFFFFFFFFu : ((1u << g_SysWork.npcFlagsId) - 1u)))
+#else
         if (g_SysWork.npcFlags == ((1 << g_SysWork.npcFlagsId) - 1)) // TODO: Macro for this check?
+#endif
         {
 #ifdef SH_PC_PORT
             /* Hit the concurrent-NPC cap. Throttled log so we know if

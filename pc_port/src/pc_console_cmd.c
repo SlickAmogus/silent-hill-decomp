@@ -790,6 +790,12 @@ void Pc_ConsoleExec(const char* line)
         cprintf("killed %d nearby enemies", killed);
     } else if (strcmp(cmd, "SPAWN") == 0) {
         cmd_spawn(arg);
+    } else if (strcmp(cmd, "UNLIMITED") == 0) {
+        extern int g_PcUnlimitedEnemies;
+        if (arg[0] == '1') g_PcUnlimitedEnemies = 1;
+        else if (arg[0] == '0') g_PcUnlimitedEnemies = 0;
+        else g_PcUnlimitedEnemies = !g_PcUnlimitedEnemies;
+        cprintf("unlimited enemies %s (cap now %d)", g_PcUnlimitedEnemies ? "ON" : "OFF", NPC_COUNT_MAX);
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
