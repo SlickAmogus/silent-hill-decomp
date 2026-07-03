@@ -177,8 +177,18 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * only the per-room glow-halo enable (0 in rooms like map3_s05 even with
          * the flashlight on, so the cone never showed) — neither tracks the
          * flashlight itself. field_60 (light pos) is refreshed every frame by
-         * Gfx_FlashlightUpdate regardless, so it's valid whenever this is true. */
-        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15)
+         * Gfx_FlashlightUpdate regardless, so it's valid whenever this is true.
+         *
+         * Cutscene gate: the active cone dims the whole scene to a dark base
+         * (fragment shader *= 0.15) so the beam reads as the only light. That's
+         * right for dark gameplay rooms but WRONG during cutscenes, which have
+         * their own scripted lighting/framing — the first map0_s00 cutscene came
+         * out looking like a pitch-dark flashlight area. Fall back to the game's
+         * normal PSX flashlight rendering (glow halo below) during cutscenes,
+         * same as the FPS camera + head-hide do. */
+        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
+            && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
+            && g_SysWork.cutsceneBorderState == CutsceneBorderState_None)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
