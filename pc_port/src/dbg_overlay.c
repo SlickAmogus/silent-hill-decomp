@@ -888,6 +888,21 @@ static int Dbg_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
     return 0;
 }
 
+/* Resolve a graphics-tuning key bind (key_gfx_*) to "active this frame". Handles
+ * both a keyboard scancode name AND a mouse-wheel bind ("MouseWheelUp/Down"),
+ * so the wheel can drive the effect cycle/adjust — SDL_GetScancodeFromName alone
+ * returns UNKNOWN for wheel names, which is why a wheel bind did nothing. */
+static int Dbg_GfxBindActive(const unsigned char* ks, const char* name)
+{
+    extern int g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
+    SDL_Scancode sc;
+    if (!name || !name[0]) return 0;
+    if (SDL_strcasecmp(name, "MouseWheelUp")   == 0) return g_PsyX_WheelUpFrames   != 0;
+    if (SDL_strcasecmp(name, "MouseWheelDown") == 0) return g_PsyX_WheelDownFrames != 0;
+    sc = SDL_GetScancodeFromName(name);
+    return (sc != SDL_SCANCODE_UNKNOWN) ? ks[sc] : 0;
+}
+
 void DbgOverlay_Update(void)
 {
     static int s_mark_a = 0;
@@ -1243,16 +1258,13 @@ void DbgOverlay_Update(void)
         en[3] = (g_PsyX_UsePerPixelFlashlight != 0); vp[3] = g_PcFpsCam ? &g_PsyX_FlashlightSizeFps : &g_PsyX_FlashlightSize; vmax[3] = 3.0f; vkey[3] = g_PcFpsCam ? "flashlight_size_fps" : "flashlight_size"; vlbl[3] = g_PcFpsCam ? "flashlight size (fps)" : "flashlight size";
 
         /* Keys are user-bindable (launcher: Keyboard Controls). Defaults [ / ] /
-         * \ ; resolved from config each frame so a rebind takes effect live. An
-         * unbound ("NONE"/blank) key resolves to UNKNOWN and simply never fires. */
-        {
-            SDL_Scancode scPrev  = SDL_GetScancodeFromName(g_PcConfig.keyGfxPrev);
-            SDL_Scancode scNext  = SDL_GetScancodeFromName(g_PcConfig.keyGfxNext);
-            SDL_Scancode scCycle = SDL_GetScancodeFromName(g_PcConfig.keyGfxCycle);
-            cur_a = (scPrev  != SDL_SCANCODE_UNKNOWN) ? ks[scPrev]  : 0;
-            cur_b = (scNext  != SDL_SCANCODE_UNKNOWN) ? ks[scNext]  : 0;
-            curBS = (scCycle != SDL_SCANCODE_UNKNOWN) ? ks[scCycle] : 0;
-        }
+         * \ ; resolved from config each frame so a rebind takes effect live. A
+         * keyboard key OR a mouse-wheel bind works; unbound ("NONE"/blank) never
+         * fires. Each wheel notch = one adjust step (the latch is ~2 frames, so
+         * the edge/hold-repeat consumers below fire once per notch). */
+        cur_a = Dbg_GfxBindActive(ks, g_PcConfig.keyGfxPrev);
+        cur_b = Dbg_GfxBindActive(ks, g_PcConfig.keyGfxNext);
+        curBS = Dbg_GfxBindActive(ks, g_PcConfig.keyGfxCycle);
         anyEn = en[0] || en[1] || en[2] || en[3];
 
         /* keep the selection on an enabled effect */
