@@ -2290,7 +2290,26 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 #endif
+#ifdef SH_PC_PORT
+        /* Inventory item see-through fix: force real per-pixel depth (test+write,
+         * with a fresh depth clear) around the item OT0 draw. Scoped to
+         * GameState_InventoryScreen only, where OT0 holds the rotating item ALONE
+         * (the world is not sorted), so the model's own front faces occlude its
+         * back faces (radio antenna through the body) without touching gameplay or
+         * in-world pickups. Pairs with g_PcItemPreciseDepth feeding true per-prim
+         * SZ during the sort (item_screens_cam.c). */
+        if (g_GameWork.gameState == GameState_InventoryScreen) {
+            extern void PsyX_ForceItemDepthBegin(void);
+            PsyX_ForceItemDepthBegin();
+        }
+#endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        if (g_GameWork.gameState == GameState_InventoryScreen) {
+            extern void PsyX_ForceItemDepthEnd(void);
+            PsyX_ForceItemDepthEnd();
+        }
+#endif
         ML_TRACE("OT0-done");
 #ifdef SH_PC_PORT
         /* Sanitize InGame OT2 — extended whitelist for 2D overlays.
