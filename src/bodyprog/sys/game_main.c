@@ -205,6 +205,12 @@ static void Pc_TpsCamera_Apply(void)
      * isolate the idle-animation SWAY so the eye rides Harry's head, not his root. */
     static VECTOR3  s_fpsHeadRef;
     static int      s_fpsHeadRefValid = 0;
+    /* FPS head-LOOK follow: the head bone's animated ROTATION (relative to the
+     * body), low-passed to null its rest orientation so only the sway/lean turns
+     * the view. Layered on top of the mouse look below. */
+    static q3_12    s_fpsHeadYawRef   = 0;
+    static q3_12    s_fpsHeadPitchRef = 0;
+    static int      s_fpsHeadRotValid = 0;
 
     /* Zoom + OTS offset follow the AIM state only — NOT firing/attacking. Gating
      * on g_Player_IsAttacking too made the camera jarringly zoom in whenever the
@@ -292,10 +298,59 @@ static void Pc_TpsCamera_Apply(void)
     /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12.
      * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
     {
-        s32 sy = Math_Sin(g_TpsCamYaw);
-        s32 cy = Math_Cos(g_TpsCamYaw);
-        s32 sp = Math_Sin(g_TpsCamPitch);
-        s32 cp = Math_Cos(g_TpsCamPitch);
+        /* First-person head-LOOK: fold Harry's animated head-bone rotation into
+         * the view direction so the camera turns with his idle sway / melee lean
+         * even when the mouse is still — the mouse look is layered on top. The
+         * head bone's world orientation already contains the body yaw (it's a
+         * child of the body), so express its forward relative to the body yaw to
+         * get the head's local turn, then low-pass a reference to null the DC
+         * rest orientation (same >>8 / tau ~4s as the position-sway ref below) so
+         * the view rests neutral and only the sway/lean delta turns it. The
+         * head-local +Z column is used as face-forward: for YAW this is exact
+         * under any rest axis (a Y-rotation shifts every horizontal vector's yaw
+         * equally, and the constant axis offset is removed by the reference). */
+        s32 viewYaw   = g_TpsCamYaw;
+        s32 viewPitch = g_TpsCamPitch;
+        if (g_PcFpsCam)
+        {
+            const MATRIX* hm  = &g_SysWork.playerBoneCoords[HarryBone_Head].workm;
+            s32   fX   = hm->m[0][2]; /* head-local +Z rotated to world, Q12 */
+            s32   fY   = hm->m[1][2];
+            s32   fZ   = hm->m[2][2];
+            s32   hmag = SquareRoot0(SQUARE(fX) + SQUARE(fZ));
+            q3_12 headYawW   = ratan2(fX, fZ);
+            q3_12 headPitchW = ratan2(-fY, hmag);
+            q3_12 headYawL   = Math_AngleNormalizeSigned(headYawW - tp_hr->rotation.vy);
+
+            if (!s_fpsHeadRotValid)
+            {
+                if (g_GameWork.gameState == GameState_InGame &&
+                    g_SysWork.sysState   == SysState_Gameplay)
+                {
+                    s_fpsHeadYawRef   = headYawL;
+                    s_fpsHeadPitchRef = headPitchW;
+                    s_fpsHeadRotValid = 1;
+                }
+            }
+            else
+            {
+                s_fpsHeadYawRef   += Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef)   >> 8;
+                s_fpsHeadPitchRef += Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef) >> 8;
+
+                viewYaw   += Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef);
+                viewPitch += Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef);
+
+                /* Safety: keep the composed pitch short of straight up/down so the
+                 * ratan2 in Vw_SetLookAtMatrix doesn't degenerate. */
+                if (viewPitch >  Q12_ANGLE(87.0f)) viewPitch =  Q12_ANGLE(87.0f);
+                if (viewPitch < -Q12_ANGLE(87.0f)) viewPitch = -Q12_ANGLE(87.0f);
+            }
+        }
+
+        s32 sy = Math_Sin(viewYaw);
+        s32 cy = Math_Cos(viewYaw);
+        s32 sp = Math_Sin(viewPitch);
+        s32 cp = Math_Cos(viewPitch);
 
         s32 fwdX = (s32)((s64)sy * cp >> 12);
         s32 fwdY = -sp;
@@ -308,6 +363,7 @@ static void Pc_TpsCamera_Apply(void)
         if (!g_PcFpsCam)
         {
             s_fpsHeadRefValid = 0; /* re-capture the head-sway baseline on next FPS entry */
+            s_fpsHeadRotValid = 0; /* re-seed the head-LOOK baseline on next FPS entry */
         }
 
         if (g_PcFpsCam)
