@@ -25,8 +25,7 @@ s_PcConfig g_PcConfig = {
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
-    .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
-    .flashlightShadows  = 0, /* 0=no shadows, 1=real flashlight shadow mapping */
+    .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone (shadows ride along) */
     .flashlightIntensity  = 2.10f, /* per-pixel flashlight cone brightness scale, 0..3 */
     .flashlightSize       = 2.40f, /* per-pixel flashlight cone coverage multiplier */
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
@@ -332,10 +331,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "per_pixel_flashlight") == 0)
         {
             g_PcConfig.perPixelFlashlight = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "flashlight_shadows") == 0)
-        {
-            g_PcConfig.flashlightShadows = (atoi(value) != 0);
         }
         else if (strcmp(key, "flashlight_intensity") == 0)
         {
