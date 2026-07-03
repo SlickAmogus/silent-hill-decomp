@@ -901,6 +901,19 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "SHADOWS") == 0) {
+        extern int g_PsyX_UseFlashlightShadows, g_PsyX_UsePerPixelFlashlight;
+        if (arg[0] == '1') g_PsyX_UseFlashlightShadows = 1;
+        else if (arg[0] == '0') g_PsyX_UseFlashlightShadows = 0;
+        else g_PsyX_UseFlashlightShadows = !g_PsyX_UseFlashlightShadows; /* bare "shadows" toggles */
+        g_PcConfig.flashlightShadows = g_PsyX_UseFlashlightShadows ? 1 : 0;
+        PcConfig_SaveKeyValue("flashlight_shadows", g_PsyX_UseFlashlightShadows ? "1" : "0");
+        cprintf("Flashlight shadows %s%s", g_PsyX_UseFlashlightShadows ? "ON" : "OFF",
+                (g_PsyX_UseFlashlightShadows && !g_PsyX_UsePerPixelFlashlight) ? " (turn per-pixel flashlight ON to see them)" : "");
+    } else if (strcmp(cmd, "SHADOWBIAS") == 0) {
+        extern float g_PsyX_FlashlightShadowBias;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);
+        cprintf("shadow bias = %.5f", g_PsyX_FlashlightShadowBias);
     } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0 ||
                strcmp(cmd, "WORLDLIGHT") == 0 || strcmp(cmd, "WL") == 0) {
         extern int g_PcFlashlightColorActive, g_PcWorldLightColorActive;
