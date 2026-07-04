@@ -547,7 +547,11 @@ void PcConfig_Load(const char* path)
  * preserving every other line and comment. */
 void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
 {
-    static char lines[400][256];
+    /* Big enough to hold the whole config with headroom: the file grows as new
+     * settings are toggled (each unknown key appends a line), and any line past
+     * this cap would be dropped on the next save — silently resetting those keys
+     * to their defaults. The full keybind config is ~380 lines already. */
+    static char lines[1024][256];
     int   n = 0;
     int   i;
     int   found = 0;
