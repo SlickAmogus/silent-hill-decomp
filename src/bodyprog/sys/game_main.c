@@ -245,8 +245,14 @@ static void Pc_TpsCamera_Apply(void)
         int mdx = 0, mdy = 0;
         s32 dPitch;
         s32 rx, ry;
+        /* Console open: hold the camera perfectly still so the frozen frame shows
+         * the exact view you were looking at. Still drain the relative-mouse
+         * accumulator (below) so the view doesn't jump when the console closes. */
+        extern int g_PcConsoleInputActive;
+        int frozen = g_PcConsoleInputActive;
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
+        if (frozen) { mdx = 0; mdy = 0; }
         /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
          * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
         {
@@ -261,6 +267,7 @@ static void Pc_TpsCamera_Apply(void)
          * look down by default; invert_controller_y flips it. */
         rx = (s32)g_Controller0->analogController.rightX - 128;
         ry = (s32)g_Controller0->analogController.rightY - 128;
+        if (frozen) { rx = 0; ry = 0; }
         if (rx > -TP_STICK_DEADZONE && rx < TP_STICK_DEADZONE) rx = 0;
         if (ry > -TP_STICK_DEADZONE && ry < TP_STICK_DEADZONE) ry = 0;
         if (rx != 0 || ry != 0) {
@@ -686,7 +693,16 @@ void DebugCamera_Update(void)
      * cover these direct SDL reads — block them all while typing. */
     {
         extern int g_PcConsoleInputActive;
-        if (g_PcConsoleInputActive) return;
+        if (g_PcConsoleInputActive) {
+            /* Keep the alternate (TPS/OTS/FPS) camera applied while the console
+             * is open, so the frozen frame shows the exact view you were looking
+             * at instead of snapping back to the default game camera. The look
+             * input is held still inside Pc_TpsCamera_Apply (frozen), so the
+             * angle doesn't drift while you type. */
+            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+                Pc_TpsCamera_Apply();
+            return;
+        }
     }
 #endif
     if (g_GameWork.gameState != GameState_InGame) return;
