@@ -1411,7 +1411,16 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     // Something to do with items held by player.
     if (charaId == Chara_Harry)
     {
+#ifdef SH_PC_PORT
+        /* Harry's held item/weapon is a separate model from his skeleton (drawn
+         * further below), so it needs its own no-cast flag — otherwise his gun/
+         * pipe/flashlight throws a flashlight shadow even though his body doesn't. */
+        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 1; }
+#endif
         WorldGfx_HeldItemDraw();
+#ifdef SH_PC_PORT
+        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
+#endif
     }
 
     ret = func_8003DD74(charaId, arg4);
