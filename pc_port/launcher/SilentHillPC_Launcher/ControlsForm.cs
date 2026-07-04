@@ -137,6 +137,9 @@ public class ControlsForm : Form
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
     private CheckBox chkImmersiveFps;
+    private CheckBox chk2dControls;
+    private NumericUpDown numMouseSens;
+    private NumericUpDown numControllerSens;
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
 
@@ -350,6 +353,54 @@ public class ControlsForm : Form
         tips.SetToolTip(chkImmersiveFps,
             "First-person only: the view follows Harry's animated head (idle sway / lean) with your mouse look layered " +
             "on top, easing in after you stand still for a moment. Off = the view is driven purely by the mouse.");
+
+        chk2dControls = new CheckBox
+        {
+            Text = "2D Controls (screen-relative)",
+            Left = colPadX,
+            Top = styleY + 160,
+            Width = 240,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chk2dControls);
+        tips.SetToolTip(chk2dControls,
+            "Screen-relative movement for every camera except First Person (Classic fixed cameras + Thirdperson / " +
+            "Over-the-Shoulder): the stick / movement keys push Harry relative to the screen and he turns to face the " +
+            "direction you press, instead of tank controls. Off = the original per-camera controls.");
+
+        AddLabel("Mouse Sensitivity", colPadX, styleY + 190, 130);
+        numMouseSens = new NumericUpDown
+        {
+            Left = colPadX + 135,
+            Top = styleY + 187,
+            Width = 70,
+            DecimalPlaces = 1,
+            Increment = 0.1m,
+            Minimum = 0.1m,
+            Maximum = 4.0m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numMouseSens);
+
+        AddLabel("Controller Sensitivity", colPadX, styleY + 218, 130);
+        numControllerSens = new NumericUpDown
+        {
+            Left = colPadX + 135,
+            Top = styleY + 215,
+            Width = 70,
+            DecimalPlaces = 1,
+            Increment = 0.1m,
+            Minimum = 0.1m,
+            Maximum = 4.0m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numControllerSens);
+        tips.SetToolTip(numMouseSens,
+            "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
+        tips.SetToolTip(numControllerSens,
+            "Right-stick look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
 
         tips.SetToolTip(cmbControlStyle,
             "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
@@ -712,6 +763,9 @@ public class ControlsForm : Form
         chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
         chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
+        chk2dControls.Checked = config.Get("control_2d", "0") == "1";
+        numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
+        numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -743,9 +797,26 @@ public class ControlsForm : Form
         chkTpsAimZoom.Checked = true;
         chkCrosshair.Checked = false;
         chkImmersiveFps.Checked = false;
+        chk2dControls.Checked = false;
+        numMouseSens.Value = 1.0m;
+        numControllerSens.Value = 1.0m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
+    }
+
+    // Parse a sensitivity string from config, clamp to the launcher's [0.1, 4.0]
+    // range, and return it as a NumericUpDown-safe decimal (invariant culture so a
+    // "1.5" written by the game is read the same on comma-decimal locales).
+    private static decimal ClampSens(string s)
+    {
+        double v;
+        if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out v))
+            v = 1.0;
+        if (v < 0.1) v = 0.1;
+        if (v > 4.0) v = 4.0;
+        return (decimal)v;
     }
 
     private void SaveValues()
@@ -779,6 +850,11 @@ public class ControlsForm : Form
         config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
         config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
+        config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
+        config.Set("mouse_sensitivity",
+            ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("controller_sensitivity",
+            ((double)numControllerSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

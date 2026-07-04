@@ -90,7 +90,7 @@ extern float g_PcFmvVolume;
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
-static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System */
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls */
 
 enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_NEXT, PCK_PREV, PCK_BACK };
 
@@ -156,9 +156,25 @@ static const s_PcOpt PCOPT_S[] = {
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
-    { "Map",              NULL,                       "map",              NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 3 (Controls): the 2D screen-relative control toggle + look sensitivities,
+ * plus the aim/look toggles and the New-Game start Map row (moved off page 2 to
+ * make room for this page's Prev/Next/Back action trio). */
+static const s_PcOpt PCOPT_C[] = {
+    { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+    { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Aim_Assist",        &g_PcConfig.aimAssist,         "aim_assist",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Crosshair",         &g_PcConfig.crosshair,         "crosshair",              VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP  },
+    { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
@@ -168,8 +184,9 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
 static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0]));
-    return PCOPT_S;
+    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
+    *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0]));
+    return PCOPT_C;
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
@@ -332,12 +349,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page = 1;
+                g_PcOptionsMenu_Page++; /* 0->1 (Graphics->System) or 1->2 (System->Controls) */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page = 0;
+                g_PcOptionsMenu_Page--; /* 2->1 (Controls->System) or 1->0 (System->Graphics) */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
@@ -400,10 +417,10 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
-    /* Page 2's labels run long ("Disable Culling", "External Console"), so push
-     * its value column further right to clear them; page 1's short labels keep
-     * the tighter column. */
-    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : 232;
+    /* Pages 2/3's labels run long ("Disable Culling", "Mouse Sensitivity"), so
+     * push their value column further right to clear them; page 1's short labels
+     * keep the tighter column. */
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 232 : 240;
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
