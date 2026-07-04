@@ -916,6 +916,18 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsyX_FlashlightShadowBias;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);
         cprintf("shadow bias = %.5f", g_PsyX_FlashlightShadowBias);
+    } else if (strcmp(cmd, "SHADOWSTRENGTH") == 0) {
+        extern float g_PsyX_FlashlightShadowStrength;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowStrength = (float)atof(arg);
+        cprintf("shadow strength = %.3f (1=full/default, lower=softer)", g_PsyX_FlashlightShadowStrength);
+    } else if (strcmp(cmd, "SHADOWFADE") == 0) {
+        extern float g_PsyX_FlashlightShadowFadeDist;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowFadeDist = (float)atof(arg);
+        cprintf("shadow contact-fade = %.1f (0=off; >0 = view units behind occluder)", g_PsyX_FlashlightShadowFadeDist);
+    } else if (strcmp(cmd, "SHADOWNORMAL") == 0) {
+        extern float g_PsyX_FlashlightShadowNormalOffset;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowNormalOffset = (float)atof(arg);
+        cprintf("shadow normal-offset = %.5f (0=off)", g_PsyX_FlashlightShadowNormalOffset);
     } else if (strcmp(cmd, "SHADOWFPSDROP") == 0) {
         extern float g_PsyX_FlashlightShadowFpsDrop;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowFpsDrop = (float)atof(arg);

@@ -1419,7 +1419,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
 #endif
         WorldGfx_HeldItemDraw();
 #ifdef SH_PC_PORT
-        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 1; }
+        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
     }
 
@@ -1468,8 +1468,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
-    /* Back to the "don't cast" default (only monsters cast — see g_PsyX_NoShadowCast). */
-    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 1; }
+    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
 
     if (timer != Q12(0.0f))

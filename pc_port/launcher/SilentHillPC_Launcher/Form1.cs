@@ -268,7 +268,9 @@ public partial class Form1 : Form
 
         const string flashTip =
             "Per-pixel (fragment-shader) flashlight cone instead of the PSX\n" +
-            "per-vertex lighting (smoother light falloff). Press F4 in-game to toggle.";
+            "per-vertex lighting (smoother light falloff). Press F4 in-game to toggle.\n" +
+            "\"Per-pixel + Shadows\" also turns on real-time flashlight shadows\n" +
+            "(monsters/props cast dynamic shadows in the beam).";
         Set(flashLabel, flashTip);
         Set(comboFlash, flashTip);
 
@@ -485,8 +487,12 @@ public partial class Form1 : Form
             toneIdx = 0;
         comboTone.SelectedIndex = toneIdx;
 
-        // Per-pixel flashlight: config per_pixel_flashlight 0/1 <-> dropdown index
-        comboFlash.SelectedIndex = config.Get("per_pixel_flashlight", "0") == "1" ? 1 : 0;
+        // Flashlight: 0 = Per-vertex (PSX), 1 = Per-pixel, 2 = Per-pixel + Shadows.
+        // Maps per_pixel_flashlight + flashlight_shadows (default on) to the index.
+        if (config.Get("per_pixel_flashlight", "0") != "1")
+            comboFlash.SelectedIndex = 0;
+        else
+            comboFlash.SelectedIndex = config.Get("flashlight_shadows", "1") == "1" ? 2 : 1;
 
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
@@ -619,8 +625,10 @@ public partial class Form1 : Form
         if (comboTone.SelectedIndex >= 0)
             config.Set("tonemap", comboTone.SelectedIndex.ToString());
 
-        // Per-pixel flashlight: dropdown index -> per_pixel_flashlight 0/1
-        config.Set("per_pixel_flashlight", comboFlash.SelectedIndex == 1 ? "1" : "0");
+        // Flashlight dropdown -> per_pixel_flashlight + flashlight_shadows.
+        // 0 = Per-vertex (both off), 1 = Per-pixel (shadows off), 2 = Per-pixel + Shadows.
+        config.Set("per_pixel_flashlight", comboFlash.SelectedIndex >= 1 ? "1" : "0");
+        config.Set("flashlight_shadows", comboFlash.SelectedIndex == 2 ? "1" : "0");
 
         config.Save();
     }
