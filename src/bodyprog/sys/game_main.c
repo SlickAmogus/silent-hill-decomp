@@ -249,8 +249,11 @@ static void Pc_TpsCamera_Apply(void)
         SDL_GetRelativeMouseState(&mdx, &mdy);
         /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
          * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
-        g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
-        dPitch         = (s32)(mdy * TP_PITCH_SENS);
+        {
+            float ms = g_PcConfig.mouseSensitivity; /* 0.1..4.0, default 1.0 */
+            g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS * ms);
+            dPitch         = (s32)(mdy * TP_PITCH_SENS * ms);
+        }
         g_TpsCamPitch += g_PcConfig.invertMouseY ? dPitch : -dPitch;
 
         /* Right stick (controller look parity). 0..255 centered at 128;
@@ -261,8 +264,9 @@ static void Pc_TpsCamera_Apply(void)
         if (rx > -TP_STICK_DEADZONE && rx < TP_STICK_DEADZONE) rx = 0;
         if (ry > -TP_STICK_DEADZONE && ry < TP_STICK_DEADZONE) ry = 0;
         if (rx != 0 || ry != 0) {
-            s32 sYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (rx * TP_STICK_YAW)   >> 7);
-            s32 sPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (ry * TP_STICK_PITCH) >> 7);
+            float cs   = g_PcConfig.controllerSensitivity; /* 0.1..4.0, default 1.0 */
+            s32 sYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((rx * TP_STICK_YAW)   >> 7) * cs));
+            s32 sPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((ry * TP_STICK_PITCH) >> 7) * cs));
             g_TpsCamYaw   += sYaw;
             g_TpsCamPitch += g_PcConfig.invertControllerY ? sPitch : -sPitch;
         }

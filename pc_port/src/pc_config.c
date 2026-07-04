@@ -47,6 +47,9 @@ s_PcConfig g_PcConfig = {
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
+    .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
+    .mouseSensitivity        = 1.0f,
+    .controllerSensitivity   = 1.0f,
 
     /* === CLASSIC scheme: tank controls + fixed PSX camera (the default). The
      * keyboard + controller alternates are intentionally unset (== unbound). === */
@@ -443,6 +446,24 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "immersive_fps_head_tracking") == 0)
         {
             g_PcConfig.immersiveFpsHeadTracking = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "control_2d") == 0)
+        {
+            g_PcConfig.control2d = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "mouse_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 4.0f) v = 4.0f;
+            g_PcConfig.mouseSensitivity = v;
+        }
+        else if (strcmp(key, "controller_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 4.0f) v = 4.0f;
+            g_PcConfig.controllerSensitivity = v;
         }
         else if (strcmp(key, "unlimited_enemies") == 0)
         {

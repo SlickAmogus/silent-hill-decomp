@@ -27,6 +27,9 @@ extern int g_DebugViewNpcSlot;   /* keyframe viewer target: -1 = Harry, else g_S
 extern int g_DebugAnimPlayGen;   /* bumped on each play (re)start so the loop cursor re-seeds */
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
+/* Fixed (classic) camera world position — used by the 2D screen-relative control
+ * path to derive "into the screen" (camera -> Harry) when no orbit cam is active. */
+extern void vwGetViewPosition(VECTOR3* pos);
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
 
@@ -1440,8 +1443,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * Runtime-verified 2026-06-10 (walk/run/sidestep/jump-back/wall smack
              * /exhaustion). The TPS debug cam still needs the shim below
              * (it owns input mapping + body yaw). */
-            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam)
+            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam &&
+                !(g_PcConfig.control2d && !g_PcFpsCam && !g_SysWork.playerCombat.isAiming))
             {
+                /* 2D screen-relative control (classic camera, not aiming) takes the
+                 * shim path below so it can drive Harry from the camera basis. While
+                 * aiming, or with 2D off, the native lower-body machine runs (vanilla
+                 * tank movement + aim). */
                 Player_LowerBodyUpdate(player, extra);
 
                 if (playerExtra.state < (u32)PlayerState_Idle)
@@ -1465,11 +1473,109 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * feel half as responsive as 60fps. */
                 q3_12 turnSpeed = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(4.0f));
 
+                /* 2D screen-relative control: input maps to camera-relative
+                 * directions and Harry turns to face the move direction. Active
+                 * for any non-FPS camera style when enabled, EXCEPT while aiming
+                 * (aiming keeps the classic/TPS behaviour). */
+                int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
+                                 !g_SysWork.playerCombat.isAiming;
+
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
                  * W = forward, S = back, A/D = strafe in Harry's frame.
                  * Mouse rotates the camera, body follows automatically. */
-                if (g_DebugThirdPersonCam) {
+                if (pc2dActive) {
+                    /* === 2D screen-relative movement ===
+                     * Map the 8-way digital input to camera-relative directions,
+                     * turn Harry to face the resulting world direction, and run him
+                     * forward along his facing (so he always plays the forward
+                     * walk/run cycle rather than moon-walking). Works under the
+                     * fixed classic camera (the authentic SH "2D control type") and
+                     * under the TPS/OTS orbit camera (twin-stick style). */
+                    s32  held  = g_Controller0->heldBtnFlags;
+                    int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
+                    int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
+                    int  left  = (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) || (held & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft));
+                    int  right = (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) || (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight));
+                    int  inX   = (right ? 1 : 0) - (left ? 1 : 0);
+                    int  inZ   = (fwd   ? 1 : 0) - (back ? 1 : 0);
+                    int  anyInput = (inX != 0) || (inZ != 0);
+
+                    /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
+                     * g_TpsCamYaw directly; fixed classic cam = the yaw from the
+                     * camera toward Harry (its horizontal look direction). */
+                    q3_12 camYaw = g_TpsCamYaw;
+                    int   camValid = 1;
+                    if (!g_DebugThirdPersonCam) {
+                        VECTOR3 camPos;
+                        s32     dx, dz;
+                        vwGetViewPosition(&camPos);
+                        dx = player->position.vx - camPos.vx;
+                        dz = player->position.vz - camPos.vz;
+                        if (ABS(dx) < Q12(0.1f) && ABS(dz) < Q12(0.1f))
+                            camValid = 0; /* camera ~overhead: horizontal dir undefined */
+                        else
+                            camYaw = ratan2(dx, dz);
+                    }
+
+                    /* Camera-cut handling (option b): follow gradual pans, but hold
+                     * the basis across a hard cut while a direction is pressed, so a
+                     * room change never flips Harry mid-run. Re-samples on release. */
+                    {
+                        static q3_12 s_2dBasisYaw = 0;
+                        static int   s_2dValid    = 0;
+
+                        if (camValid) {
+                            /* Track the live camera EXCEPT when a fixed-camera cut
+                             * jumps the yaw (>45 deg in one frame) while a direction
+                             * is held — then hold the old basis until release. The
+                             * orbit cam never cuts, so it always tracks. */
+                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
+                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
+                                          (ABS(d) < Q12_ANGLE(45.0f));
+                            if (track) {
+                                s_2dBasisYaw = camYaw;
+                                s_2dValid    = 1;
+                            }
+                        }
+
+                        if (anyInput && s_2dValid) {
+                            /* world move dir = inZ*forward + inX*right,
+                             * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
+                            s32   sfwd = Math_Sin(s_2dBasisYaw);
+                            s32   cfwd = Math_Cos(s_2dBasisYaw);
+                            s32   moveX = inZ * sfwd + inX * cfwd;
+                            s32   moveZ = inZ * cfwd - inX * sfwd;
+                            q3_12 targetYaw = ratan2(moveX, moveZ);
+                            q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                            q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
+                            if (diff >  turn2d) diff =  turn2d;
+                            if (diff < -turn2d) diff = -turn2d;
+                            player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                        }
+                    }
+
+                    /* Reuse the shim's forward walk/run anim + speed by flagging a
+                     * forward move; Harry travels straight along his (turning) facing. */
+                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
+                    g_Player_IsMovingBackward    = 0;
+                    g_Player_IsSteppingLeftHold  = 0;
+                    g_Player_IsSteppingRightHold = 0;
+                    g_Player_IsTurningLeft       = 0;
+                    g_Player_IsTurningRight      = 0;
+                    g_Player_HasMoveInput        = anyInput;
+                    {
+                        u16 runBtn = g_GameWorkPtr->config.controllerConfig.run;
+                        int cfgRun = g_GameWork.config.extraWalkRunCtrl
+                                         ? !(held & runBtn) : (held & runBtn) != 0;
+                        s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+                        s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+                        int stickSprint = (lx * lx + ly * ly) >= (96 * 96);
+                        g_Player_IsRunning = cfgRun || stickSprint;
+                    }
+                    g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                } else if (g_DebugThirdPersonCam) {
 #ifdef SH_PC_PORT
                     /* FPS look-around: while standing still and not aiming in
                      * first-person, DON'T snap the body to the camera — leave
