@@ -74,6 +74,7 @@ extern int g_PsxUsePgxp;
 extern int g_cfg_postProcess;
 extern int g_cfg_tonemap;
 extern int g_PsyX_UsePerPixelFlashlight;
+extern int g_PsyX_UseFlashlightShadows;
 
 /* PsyCross live-apply helpers for the window-level settings (resolution, window
  * mode, vsync) so they take effect immediately instead of next launch. */
@@ -150,6 +151,7 @@ static const s_PcOpt PCOPT_G[] = {
 
 static const s_PcOpt PCOPT_S[] = {
     { "PP_Flashlight",    &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT  },
+    { "PP_Shadows",       &g_PcConfig.flashlightShadows,  "flashlight_shadows",   VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UseFlashlightShadows,  1, PCK_INT  },
     { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
     { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },

@@ -759,15 +759,19 @@ int main(int argc, char* argv[])
     }
 
     /* Per-pixel flashlight cone (vs PSX per-vertex lighting). F4 toggles it.
-     * Real flashlight shadow mapping (depth pre-pass from the light POV) rides
-     * along with it — it needs the per-pixel cone to be visible at all, so it
-     * has no separate setting; `shadows` console toggles it live for debugging. */
+     * Real flashlight shadow mapping (depth pre-pass from the light POV) needs
+     * the per-pixel cone to be visible at all, so it only shows while the cone
+     * is on — but it has its own on/off (config key flashlight_shadows, PC
+     * Options "PP_Shadows", console `shadows`), default on, so toggling the cone
+     * no longer silently drops shadows. */
     {
         extern int g_PsyX_UsePerPixelFlashlight;
         extern int g_PsyX_UseFlashlightShadows;
         g_PsyX_UsePerPixelFlashlight = g_PcConfig.perPixelFlashlight ? 1 : 0;
-        g_PsyX_UseFlashlightShadows  = g_PsyX_UsePerPixelFlashlight;
-        SH_LOG("Per-pixel flashlight: %s (shadows follow)", g_PsyX_UsePerPixelFlashlight ? "ON" : "off");
+        g_PsyX_UseFlashlightShadows  = g_PcConfig.flashlightShadows ? 1 : 0;
+        SH_LOG("Per-pixel flashlight: %s, shadows: %s",
+               g_PsyX_UsePerPixelFlashlight ? "ON" : "off",
+               g_PsyX_UseFlashlightShadows ? "ON" : "off");
     }
 
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled

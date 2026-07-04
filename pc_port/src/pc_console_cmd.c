@@ -908,14 +908,18 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] == '1') g_PsyX_UseFlashlightShadows = 1;
         else if (arg[0] == '0') g_PsyX_UseFlashlightShadows = 0;
         else g_PsyX_UseFlashlightShadows = !g_PsyX_UseFlashlightShadows; /* bare "shadows" toggles */
-        /* Live debug override only — shadows follow per-pixel flashlight at boot
-         * and have no persistent config key of their own. */
+        g_PcConfig.flashlightShadows = g_PsyX_UseFlashlightShadows;
+        PcConfig_SaveKeyValue("flashlight_shadows", g_PsyX_UseFlashlightShadows ? "1" : "0");
         cprintf("Flashlight shadows %s%s", g_PsyX_UseFlashlightShadows ? "ON" : "OFF",
                 (g_PsyX_UseFlashlightShadows && !g_PsyX_UsePerPixelFlashlight) ? " (turn per-pixel flashlight ON to see them)" : "");
     } else if (strcmp(cmd, "SHADOWBIAS") == 0) {
         extern float g_PsyX_FlashlightShadowBias;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);
         cprintf("shadow bias = %.5f", g_PsyX_FlashlightShadowBias);
+    } else if (strcmp(cmd, "SHADOWNORMAL") == 0) {
+        extern float g_PsyX_FlashlightShadowNormalOffset;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowNormalOffset = (float)atof(arg);
+        cprintf("shadow normal-offset = %.5f", g_PsyX_FlashlightShadowNormalOffset);
     } else if (strcmp(cmd, "SHADOWFPSDROP") == 0) {
         extern float g_PsyX_FlashlightShadowFpsDrop;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowFpsDrop = (float)atof(arg);
