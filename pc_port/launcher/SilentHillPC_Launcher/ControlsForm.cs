@@ -137,6 +137,7 @@ public class ControlsForm : Form
     private CheckBox chkTpsAimZoom;
     private CheckBox chkCrosshair;
     private CheckBox chkImmersiveFps;
+    private CheckBox chkAimAssist;
     private CheckBox chk2dControls;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
@@ -401,6 +402,21 @@ public class ControlsForm : Form
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
         tips.SetToolTip(numControllerSens,
             "Right-stick look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
+
+        chkAimAssist = new CheckBox
+        {
+            Text = "Aim Assist (TPS/OTS)",
+            Left = colPadX,
+            Top = styleY + 244,
+            Width = 200,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkAimAssist);
+        tips.SetToolTip(chkAimAssist,
+            "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
+            "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +
+            "grazing the narrow hitbox. Mouse = light 'hit anywhere on the body'; controller = stronger auto-aim. " +
+            "Off = the bullet goes exactly where the reticle points.");
 
         tips.SetToolTip(cmbControlStyle,
             "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
@@ -764,6 +780,7 @@ public class ControlsForm : Form
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
         chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
+        chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
 
@@ -798,6 +815,7 @@ public class ControlsForm : Form
         chkCrosshair.Checked = false;
         chkImmersiveFps.Checked = false;
         chk2dControls.Checked = false;
+        chkAimAssist.Checked = true;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
 
@@ -851,6 +869,7 @@ public class ControlsForm : Form
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
         config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
+        config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
         config.Set("mouse_sensitivity",
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",

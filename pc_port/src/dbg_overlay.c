@@ -1150,6 +1150,8 @@ void DbgOverlay_Update(void)
         if (cur_f1 && !s_prev_f1) {
             extern int g_PsxUsePgxp;
             g_PsxUsePgxp = !g_PsxUsePgxp;
+            g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
+            PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
             SH_DBG_ECHO("[DEBUG] F1 PGXP: %s", g_PsxUsePgxp ? "ON" : "OFF");
         }
         s_prev_f1 = cur_f1;
@@ -1170,6 +1172,8 @@ void DbgOverlay_Update(void)
             const int count = (int)(sizeof(s_postNames) / sizeof(s_postNames[0]));
             g_cfg_postProcess = (g_cfg_postProcess + 1) % count;
             if (g_cfg_postProcess < 0) g_cfg_postProcess = 0;
+            g_PcConfig.postProcess = g_cfg_postProcess;
+            { char b[8]; snprintf(b, sizeof(b), "%d", g_cfg_postProcess); PcConfig_SaveKeyValue("post_process", b); }
             SH_DBG_ECHO("[DEBUG] F2 Post-process: %s", s_postNames[g_cfg_postProcess]);
         }
         s_prev_f2 = cur_f2;

@@ -191,7 +191,10 @@ static const s_PcOpt* PcOpt_Page(int* count)
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
 {
-    int i, v = *e->field;
+    /* Prefer the live render global when the row mirrors one: it's the ground
+     * truth, so the menu reflects toggles made via hotkeys/console (F1 PGXP,
+     * F2 post-process, etc.) rather than a stale g_PcConfig copy. */
+    int i, v = (e->live) ? *e->live : *e->field;
     for (i = 0; i < e->nVals; i++)
         if (e->vals[i] == v) return i;
     return 0;
