@@ -900,6 +900,8 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] == '1') g_PsxUsePgxp = 1;
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
+        g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
+        PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
     } else if (strcmp(cmd, "SHADOWS") == 0) {
         extern int g_PsyX_UseFlashlightShadows, g_PsyX_UsePerPixelFlashlight;

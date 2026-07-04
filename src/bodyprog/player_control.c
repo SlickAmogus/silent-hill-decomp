@@ -9827,7 +9827,9 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                  * auto-aim) an enemy's body, redirect the aim point onto the
                  * enemy's axis so the bullet hits anywhere on the body, not just
                  * the narrow collision strip the raw screen-center ray needs. */
-                if (g_PcConfig.aimAssist)
+                /* Not in first person: FPS is meant to be raw manual aim down the
+                 * view ray, so the body-snap/auto-aim would fight the player. */
+                if (g_PcConfig.aimAssist && !g_PcFpsCam)
                 {
                     extern s32 Pc_AimAssistFind(const VECTOR3*, const VECTOR3*, s32, VECTOR3*);
                     VECTOR3 _aim;
