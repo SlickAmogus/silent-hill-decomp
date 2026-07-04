@@ -627,7 +627,8 @@ partial class Form1
             this.comboFlash.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboFlash.Items.AddRange(new object[] {
             "Per-vertex (PSX)",
-            "Per-pixel"});
+            "Per-pixel",
+            "Per-pixel + Shadows"});
             this.comboFlash.Location = new System.Drawing.Point(80, 393);
             this.comboFlash.Name = "comboFlash";
             this.comboFlash.Size = new System.Drawing.Size(120, 21);
