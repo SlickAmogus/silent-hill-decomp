@@ -914,6 +914,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsyX_FlashlightShadowBias;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);
         cprintf("shadow bias = %.5f", g_PsyX_FlashlightShadowBias);
+    } else if (strcmp(cmd, "SHADOWFPSDROP") == 0) {
+        extern float g_PsyX_FlashlightShadowFpsDrop;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowFpsDrop = (float)atof(arg);
+        cprintf("FPS shadow-light drop = %.1f", g_PsyX_FlashlightShadowFpsDrop);
     } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0 ||
                strcmp(cmd, "WORLDLIGHT") == 0 || strcmp(cmd, "WL") == 0) {
         extern int g_PcFlashlightColorActive, g_PcWorldLightColorActive;
