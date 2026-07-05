@@ -365,10 +365,18 @@ int g_PcItemDimNum = 256;
  * (every non-inventory GsSortObject4J caller) = byte-identical. */
 int g_PcItemPreciseDepth = 0;
 extern void PsyX_SetNextPrimSzExact(unsigned short, unsigned short, unsigned short, unsigned short);
+/* Raw per-vertex view-space SZ captured by RotTransPers3/4 (libgte.c) right after
+ * the transform, BEFORE these drawers' NormalClip/NormalColorCol clobber the GTE SZ
+ * FIFO. Mirrors C2_SZ0..3, so ApplyGtePerVertexDepth's per-poly indexing lines up. */
+extern unsigned short g_PsyX_RtpSz[4];
+/* Feed the item face's TRUE unquantized per-vertex depth into the depth system so the
+ * GL depth test can separate overlapping faces (radio antenna vs body) that share one
+ * coarse OT bucket. The `pz` arg — the drawer's gte_stdp depth cue — is perspective-
+ * divided + clamped and too coarse to separate them, so it's intentionally ignored. */
 #define ITEM_PRECISE_SZ(pz) do { \
+    (void)(pz); \
     if (g_PcItemPreciseDepth) { \
-        unsigned short _isz = (unsigned short)((pz) < 1 ? 1 : ((pz) > 65535 ? 65535 : (pz))); \
-        PsyX_SetNextPrimSzExact(_isz, _isz, _isz, _isz); \
+        PsyX_SetNextPrimSzExact(g_PsyX_RtpSz[0], g_PsyX_RtpSz[1], g_PsyX_RtpSz[2], g_PsyX_RtpSz[3]); \
     } } while (0)
  
 /* Flat-shaded triangle — lit + fog */
