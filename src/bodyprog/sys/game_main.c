@@ -1686,6 +1686,23 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
+#ifdef SH_PC_PORT
+        /* Flashlight shadow master gate: the light-POV depth pre-pass is a
+         * live-gameplay-only effect. Running it on menu / room-load-fade /
+         * transition frames corrupts unrelated rendering (white flash between
+         * rooms, on inventory/map open-close, and on first load; Harry's face
+         * dropping out on the options screen). Arm it only in settled gameplay:
+         * the in-game state, the plain gameplay sub-state (not paused/menu/map),
+         * and no screen fade in progress. Recomputed every frame here, before the
+         * OT is drawn; reset paths (menus, fades) simply leave it 0. */
+        {
+            extern int g_PsyX_ShadowsAllowed;
+            g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
+                                     g_SysWork.sysState == SysState_Gameplay &&
+                                     ScreenFade_IsNone()) ? 1 : 0;
+        }
+#endif
+
         Demo_Update();
         Demo_GameRandSeedSet();
 
