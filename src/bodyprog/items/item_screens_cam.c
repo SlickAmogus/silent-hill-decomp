@@ -283,10 +283,13 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         extern int g_PcItemDimNum;
         extern int g_PcItemPreciseDepth;
         g_PcItemDimNum = 256;
-        /* Fine per-prim depth for the item ONLY while the inventory menu is open
-         * (OT0 = item alone, world not drawn) — fixes the see-through without
-         * touching world/pickup rendering. See libgs_stub.c g_PcItemPreciseDepth. */
-        g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen);
+        /* Fine per-prim depth for the item. Safe whenever OT0 holds the item
+         * ALONE: the inventory menu (world not drawn) and the world pickup
+         * take-screen (arg2==2), which now pauses the world render so only the
+         * model draws (Gfx_PickupItemAnimate sets BgmStatusFlag_Pause). Pairs
+         * with the force-item-depth bracket in game_main.c. See libgs_stub.c
+         * g_PcItemPreciseDepth. */
+        g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
              * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and
