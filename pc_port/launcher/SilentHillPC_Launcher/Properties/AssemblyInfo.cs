@@ -5,12 +5,16 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SilentHillPC_Launcher")]
-[assembly: AssemblyDescription("")]
+// Publisher metadata is intentionally filled in (not blank): empty
+// Company/Description/Trademark fields are a known antivirus ML-heuristic signal,
+// and a stable, consistent identity across nightly builds lets reputation accrue
+// instead of resetting. See pc_port/docs/Launcher_Antivirus_Notes.md.
+[assembly: AssemblyTitle("Silent Hill PC Launcher")]
+[assembly: AssemblyDescription("Launcher and updater for the Silent Hill PC port (fan decompilation project).")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SilentHillPC_Launcher")]
-[assembly: AssemblyCopyright("Copyright ©  2026")]
+[assembly: AssemblyCompany("Silent Hill PC Port Project")]
+[assembly: AssemblyProduct("Silent Hill PC")]
+[assembly: AssemblyCopyright("Copyright © Silent Hill PC Port Project 2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -36,4 +40,4 @@ using System.Runtime.InteropServices;
 // version.json), otherwise downgrades/no-ops can't be told apart. AssemblyVersion
 // stays 1.0.0.0 so it isn't a binding identity churn.
 [assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("2026.7.02.1")]
+[assembly: AssemblyFileVersion("2026.7.04.1")]
