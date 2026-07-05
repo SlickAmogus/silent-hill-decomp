@@ -1032,6 +1032,13 @@ void func_800DF044(s_SubCharacter* incubus, GsCOORDINATE2* boneCoords) // 0x800D
     }
 }
 
+#ifdef SH_PC_PORT
+/* Set only around the armed Incubus's boss-FX draw so func_800DD6CC renders the
+ * Good+ fight's fire/lightning even though D_800F4820 stays 0 during that
+ * gameplay fight. See the gate in map7_s03_2.c func_800DD6CC. */
+int g_PcBossFxArmedDraw = 0;
+#endif
+
 void func_800DF074(s_SubCharacter* incubus) // 0x800DF074
 {
     u8 controlState;
@@ -1044,7 +1051,13 @@ void func_800DF074(s_SubCharacter* incubus) // 0x800DF074
         controlState != IncubusControl_5 &&
         (incubus->properties.incubus.field_EC & (1 << 2)))
     {
+#ifdef SH_PC_PORT
+        g_PcBossFxArmedDraw = 1;
         func_800DD6CC();
+        g_PcBossFxArmedDraw = 0;
+#else
+        func_800DD6CC();
+#endif
     }
 }
 

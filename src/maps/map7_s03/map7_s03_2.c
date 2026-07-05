@@ -4328,14 +4328,22 @@ void func_800DD6CC(void) // 0x800DD6CC
     Vw_WorldScreenMatrixAtPositionGet(&D_800F48A8.mat_8, posX, Q12(0.0f), posZ);
 #ifdef SH_PC_PORT
     /* Boss fire + lightning FX pools (D_800F3DAC via func_800DC544, D_800F3D48
-     * via func_800D917C). This is the boss-CHARACTER draw path
-     * (incubus/unknown23 -> func_800DF074), which — unlike the main hook
-     * func_800E9874 — was UNGATED. Pre-fight the pools hold stale/uninitialized
-     * entries that render at default positions, so the boss's fire/lightning
-     * textures appeared under and around the map before the fight. Gate on
-     * D_800F4820 (the same fight-FX gate the main hook uses) so they only draw
-     * once the confrontation arms them; in-fight behavior is unchanged. */
-    if (D_800F4820 != 0)
+     * via func_800D917C). This is the boss-CHARACTER draw path, reached from two
+     * callers: incubus.c func_800DF074 (Good+ Incubus fight, already gated on the
+     * boss being ARMED — field_EC bit 2 — and not in a pose state) and
+     * unknown23.c func_800E0914 (UNGATED). Pre-fight the pools hold
+     * stale/uninitialized entries that render at default positions, so the
+     * fire/lightning textures appeared under and around the map before the fight.
+     *
+     * The original gate here was D_800F4820 alone, but that flag is only set
+     * inside the cutscene/ending step-machines and is 0 throughout the Good+
+     * gameplay fight, so it wrongly suppressed the armed Incubus's own attack FX
+     * (boss looked inert — spawns projectiles into the pools, nothing drew them).
+     * The armed Incubus caller now sets g_PcBossFxArmedDraw so its legitimate
+     * in-fight FX draw regardless of D_800F4820, while the ungated unknown23 path
+     * (and any pre-spawn stale entries) stays gated on D_800F4820. */
+    extern int g_PcBossFxArmedDraw;
+    if (D_800F4820 != 0 || g_PcBossFxArmedDraw)
 #endif
     {
         func_800DC544(ot);
