@@ -570,6 +570,14 @@ s16 D_800AE1A8 = 0;
 s32    g_Items_PickupAnimState = 0;
 q19_12 g_Items_PickupScale     = Q12(0.0f);
 
+#ifdef SH_PC_PORT
+/* Set to 1 every frame the world item-pickup model is on screen (see
+ * Gfx_PickupItemAnimate). game_main.c reads it to bracket the item's OT0 draw
+ * with force-item-depth (the inventory see-through fix) and to release the
+ * freeze-frame when the pickup ends. */
+int g_PcPickupItemActive = 0;
+#endif
+
 VECTOR3 D_800AE1B4[1] = { 0x00000000, 0x000000CC, 0xFFFFFEC9 };
 
 // Referenced only by `func_80055648` (https://decomp.me/scratch/joGmE)
@@ -4206,6 +4214,24 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
     s16            rotZ;
     GsDOBJ2*       obj;
     GsCOORD2PARAM* transform;
+
+#ifdef SH_PC_PORT
+    /* Isolate the pickup model so its own front faces occlude its back faces
+     * (the inventory see-through fix needs OT0 to hold the item ALONE). Pause
+     * the world render — BgmStatusFlag_Pause gates the whole world/player/NPC
+     * draw block in SysState_Gameplay_Update — and present the frozen room
+     * behind the item, exactly like the pause menu. g_PcPickupItemActive tells
+     * game_main to bracket the OT0 draw with force-item-depth + precise SZ.
+     * Re-set every frame (MainLoop clears bgmStatusFlags each tick). The pickup
+     * event runs via Event_Update, ahead of the paused world block, so the item
+     * still draws. */
+    {
+        extern int g_PsxPresentLastFrame;
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+        g_PsxPresentLastFrame     = 1;
+        g_PcPickupItemActive      = 1;
+    }
+#endif
 
     g_Items_Coords[9].coord.t[1] = Q8(0.25f);
     g_Items_Coords[9].coord.t[0] = Q8(0.0f);

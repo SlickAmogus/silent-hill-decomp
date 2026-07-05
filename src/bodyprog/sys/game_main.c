@@ -1658,6 +1658,13 @@ void MainLoop(void) // 0x80032EE0
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
+#ifdef SH_PC_PORT
+        /* Cleared each frame; Gfx_PickupItemAnimate re-arms it while a world
+         * item-pickup model is on screen. See the OT0 force-item-depth bracket
+         * and the freeze-frame release below. */
+        { extern int g_PcPickupItemActive; g_PcPickupItemActive = 0; }
+#endif
+
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
@@ -1700,6 +1707,19 @@ void MainLoop(void) // 0x80032EE0
             g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
                                      g_SysWork.sysState == SysState_Gameplay &&
                                      ScreenFade_IsNone()) ? 1 : 0;
+        }
+
+        /* Release the freeze-frame the instant the world item-pickup ends
+         * (Gfx_PickupItemAnimate stops re-arming g_PcPickupItemActive), so live
+         * gameplay rendering resumes. The item pass held g_PsxPresentLastFrame
+         * to show the frozen room behind the isolated model. */
+        {
+            extern int g_PcPickupItemActive;
+            extern int g_PsxPresentLastFrame;
+            static int s_pcPickupWas = 0;
+            if (s_pcPickupWas && !g_PcPickupItemActive)
+                g_PsxPresentLastFrame = 0;
+            s_pcPickupWas = g_PcPickupItemActive;
         }
 #endif
 
@@ -2335,16 +2355,25 @@ void MainLoop(void) // 0x80032EE0
          * back faces (radio antenna through the body) without touching gameplay or
          * in-world pickups. Pairs with g_PcItemPreciseDepth feeding true per-prim
          * SZ during the sort (item_screens_cam.c). */
-        if (g_GameWork.gameState == GameState_InventoryScreen) {
-            extern void PsyX_ForceItemDepthBegin(void);
-            PsyX_ForceItemDepthBegin();
+        /* Also the world item-pickup: Gfx_PickupItemAnimate pauses the world so
+         * OT0 again holds only the item model (g_PcPickupItemActive), so the same
+         * per-pixel depth pass fixes its see-through without touching the world. */
+        {
+            extern int g_PcPickupItemActive;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+                extern void PsyX_ForceItemDepthBegin(void);
+                PsyX_ForceItemDepthBegin();
+            }
         }
 #endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        if (g_GameWork.gameState == GameState_InventoryScreen) {
-            extern void PsyX_ForceItemDepthEnd(void);
-            PsyX_ForceItemDepthEnd();
+        {
+            extern int g_PcPickupItemActive;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+                extern void PsyX_ForceItemDepthEnd(void);
+                PsyX_ForceItemDepthEnd();
+            }
         }
 #endif
         ML_TRACE("OT0-done");
