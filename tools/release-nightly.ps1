@@ -31,9 +31,16 @@
 # macOS CI artifacts (build-linux.yml / build-macos.yml on the source repo) are
 # attached to the release as standalone zips. They are deliberately kept OUT of
 # version.json so the Windows launcher ignores them (cannot affect the launcher).
-# Pass -SkipCrossPlatform for a Windows-only release. If the CI build for the
-# release's commit isn't ready yet, the newest available build is attached with
-# a warning.
+# Pass -SkipCrossPlatform for a Windows-only release.
+#
+# If the CI run for the release's exact commit is still queued/in progress, you
+# are prompted per-platform to:
+#   [W] Wait  - poll the run (gh run watch) until it finishes, then attach it
+#   [V] View  - print its current status/URL and re-check (no waiting)
+#   [S] Skip  - attach the newest already-successful build instead (may be from
+#               an earlier commit -- re-run the release once CI catches up)
+# Pass -NoPause (or -DryRun) to skip the prompt entirely and always fall back to
+# the newest successful build non-interactively (unattended/CI use).
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -86,6 +93,61 @@ function Get-Sha256([string]$path) {
     (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
 }
 
+# Find the newest run of $Workflow on $Branch that was triggered by the exact
+# commit this release is being built from (any status -- queued/in_progress/
+# completed), so a pending run can be waited on instead of silently skipped.
+function Get-CrossPlatformRunForCommit {
+    param([string]$SourceSlug, [string]$Workflow, [string]$Branch, [string]$Commit)
+    $runs = @((gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch `
+                --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null) | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0 -or -not $runs) { return $null }
+    return ($runs | Where-Object { $_.headSha -eq $Commit } |
+                     Sort-Object -Property createdAt -Descending | Select-Object -First 1)
+}
+
+# A CI run for this release's commit exists but hasn't finished. Offer to wait
+# for it, view its status without waiting, or give up and use the newest
+# already-successful build instead. Loops on [V] until the user picks W or S.
+function Resolve-PendingCrossPlatformRun {
+    param([string]$SourceSlug, [string]$Workflow, $Run)
+    $runId = "$($Run.databaseId)".Trim()
+    while ($true) {
+        Write-Host ""
+        Write-Host "  $Workflow for this release's commit is still running (status: $($Run.status))." -ForegroundColor Yellow
+        Write-Host "    Run: $($Run.url)" -ForegroundColor Gray
+        Write-Host "    [W] Wait for it to finish" -ForegroundColor Gray
+        Write-Host "    [V] View status (re-check without waiting)" -ForegroundColor Gray
+        Write-Host "    [S] Skip -- attach the newest already-successful build instead" -ForegroundColor Gray
+        $choice = (Read-Host "    Choose W/V/S").Trim().ToUpper()
+        if ($choice -eq 'W') {
+            Write-Host "  Watching run $runId (Ctrl+C to abort the whole release)..." -ForegroundColor Cyan
+            gh run watch $runId --repo $SourceSlug --interval 15 --exit-status | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  $Workflow run finished successfully." -ForegroundColor Green
+                return $Run
+            }
+            Write-Host "  $Workflow run finished without success (exit $LASTEXITCODE) -- falling back." -ForegroundColor Yellow
+            return $null
+        }
+        elseif ($choice -eq 'V') {
+            $refreshed = @((gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null) | ConvertFrom-Json)
+            if ($refreshed) { $Run.status = $refreshed.status; $Run.conclusion = $refreshed.conclusion }
+            if ($Run.status -eq 'completed' -and $Run.conclusion -eq 'success') { return $Run }
+            if ($Run.status -eq 'completed') {
+                Write-Host "  Run completed with conclusion '$($Run.conclusion)' -- not usable." -ForegroundColor Yellow
+                return $null
+            }
+            # still pending -- loop back and show the (possibly updated) status
+        }
+        elseif ($choice -eq 'S') {
+            return $null
+        }
+        else {
+            Write-Host "  Please enter W, V, or S." -ForegroundColor Yellow
+        }
+    }
+}
+
 # Download the newest successful CI build artifacts (Linux + macOS) from the
 # source repo and attach them to the just-created release on the nightly repo.
 # These are extra downloads for non-Windows users; they never enter version.json.
@@ -108,20 +170,43 @@ function Add-CrossPlatformAssets {
 
     $assets = @()
     foreach ($t in $targets) {
-        $run = @((gh run list --repo $sourceSlug --workflow $t.Workflow `
-                    --branch $CrossPlatformBranch --status success `
-                    --limit 1 --json databaseId,headSha 2>$null) | ConvertFrom-Json)
-        if ($LASTEXITCODE -ne 0 -or -not $run -or $run.Count -eq 0) {
-            Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
-            continue
+        $useRun = $null
+        $matchRun = if ($SourceCommit) {
+            Get-CrossPlatformRunForCommit -SourceSlug $sourceSlug -Workflow $t.Workflow -Branch $CrossPlatformBranch -Commit $SourceCommit
+        } else { $null }
+
+        if ($matchRun -and $matchRun.status -eq 'completed' -and $matchRun.conclusion -eq 'success') {
+            $useRun = $matchRun
         }
-        $runId  = "$($run[0].databaseId)".Trim()
-        $runSha = "$($run[0].headSha)".Trim()
-        # Flag (but don't block) a build from a different commit than this
-        # release -- usually means CI hasn't finished building the latest push.
-        if ($SourceCommit -and $runSha -and $runSha -ne $SourceCommit) {
-            Write-Host "  WARN: newest $($t.Workflow) build is commit $($runSha.Substring(0,9)), but this release is $($SourceCommit.Substring(0,9)) -- CI may still be building the latest push. Attaching it anyway; re-run the release once CI finishes for a matching build." -ForegroundColor Yellow
+        elseif ($matchRun -and @('in_progress', 'queued', 'requested', 'waiting') -contains $matchRun.status) {
+            if ($NoPause -or $DryRun) {
+                Write-Host "  WARN: $($t.Workflow) for commit $($SourceCommit.Substring(0,9)) is still running (status: $($matchRun.status)) -- attaching newest successful build instead (non-interactive mode)." -ForegroundColor Yellow
+            } else {
+                $useRun = Resolve-PendingCrossPlatformRun -SourceSlug $sourceSlug -Workflow $t.Workflow -Run $matchRun
+            }
         }
+        elseif ($matchRun -and $matchRun.status -eq 'completed') {
+            Write-Host "  WARN: $($t.Workflow) run for this commit finished with conclusion '$($matchRun.conclusion)' -- attaching the newest already-successful build from an earlier commit instead." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "  WARN: no $($t.Workflow) run found yet for commit $($SourceCommit.Substring(0,9)) -- it may not have been triggered yet." -ForegroundColor Yellow
+        }
+
+        if (-not $useRun) {
+            $fallback = @((gh run list --repo $sourceSlug --workflow $t.Workflow `
+                        --branch $CrossPlatformBranch --status success `
+                        --limit 1 --json databaseId,headSha 2>$null) | ConvertFrom-Json)
+            if ($LASTEXITCODE -ne 0 -or -not $fallback -or $fallback.Count -eq 0) {
+                Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
+                continue
+            }
+            $useRun = $fallback[0]
+            if ($SourceCommit -and "$($useRun.headSha)".Trim() -ne $SourceCommit) {
+                Write-Host "  WARN: attaching $($t.Artifact) from commit $($useRun.headSha.Substring(0,9)), but this release is $($SourceCommit.Substring(0,9)) -- CI may still be building the latest push. Re-run the release once CI finishes for a matching build." -ForegroundColor Yellow
+            }
+        }
+
+        $runId  = "$($useRun.databaseId)".Trim()
         $outDir = Join-Path $dlRoot $t.Artifact
         gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {

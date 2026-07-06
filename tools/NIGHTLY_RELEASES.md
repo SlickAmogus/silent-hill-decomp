@@ -48,17 +48,30 @@ they can't be produced on Windows. CI only **builds** them — you remain the on
 publisher. Each push to `pc-port` uploads a 90-day artifact (`SHPC-linux-x64`,
 `SHPC-macos-arm64`).
 
-To bundle them into a nightly, add `-AttachCrossPlatform`:
+They're attached **by default** — no flag needed:
 
 ```powershell
-.\tools\release-nightly.ps1 -AttachCrossPlatform
+.\tools\release-nightly.ps1
+.\tools\release-nightly.ps1 -SkipCrossPlatform   # Windows-only release
 ```
 
 This downloads the newest successful CI artifacts and attaches them to the same
-release as standalone zips. They are deliberately **left out of `version.json`** —
-the Windows launcher only knows how to hash/replace Windows files, so Linux/macOS
-users grab those zips by hand (they don't use the launcher). The Windows release
-flow is otherwise unchanged whether or not the switch is passed.
+release as standalone archives (`SHPC-linux-x64.tar.gz`, `SHPC-macos-arm64.zip`).
+They are deliberately **left out of `version.json`** — the Windows launcher only
+knows how to hash/replace Windows files, so Linux/macOS users grab those archives
+by hand, or via the launcher's Build Settings "Download archives for" checkboxes
+(they don't auto-update through the normal Windows update flow).
+
+**If CI for this exact commit hasn't finished yet:** instead of silently
+attaching a stale build from an older commit, the script detects the
+in-progress/queued run and asks, per platform:
+- **[W] Wait** — polls the run (`gh run watch`) until it finishes, then attaches it
+- **[V] View** — prints the run's current status/URL and lets you re-check
+- **[S] Skip** — attaches the newest already-successful build anyway (from an
+  earlier commit); re-run the release once CI catches up for a matching build
+
+Running with `-NoPause` or `-DryRun` skips the prompt and always falls back to
+the newest successful build non-interactively (unattended use).
 
 Notes:
 - Linux/macOS binaries dynamically link system SDL2/OpenAL (not bundled); each
