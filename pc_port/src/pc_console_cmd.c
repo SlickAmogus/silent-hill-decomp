@@ -996,7 +996,18 @@ void Pc_ConsoleExec(const char* line)
         extern int  PsyX_SPUAL_GetAdsrEnabled(void);
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
         PsyX_SPUAL_SetAdsrEnabled(on);
-        cprintf("ADSR envelope %s (looping-SFX ring-out, WIP)", on ? "ON" : "OFF");
+        cprintf("ADSR envelope %s (default on; config key adsr)", on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "REVSCALE") == 0) {
+        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
+        extern float PsyX_SPUAL_GetReverbDepthScale(void);
+        if (arg[0] != '\0') {
+            float s = (float)atof(arg);
+            if (s < 0.0f) s = 0.0f;
+            if (s > 8.0f) s = 8.0f;
+            PsyX_SPUAL_SetReverbDepthScale(s);
+        }
+        cprintf("reverb depth->wet scale %.2f (persist via config reverb_scale)",
+                PsyX_SPUAL_GetReverbDepthScale());
     } else if (strcmp(cmd, "KF") == 0 || strcmp(cmd, "KEYFRAME") == 0) {
         extern int g_DebugAnimKfView;
         extern int g_DebugAnimKf;

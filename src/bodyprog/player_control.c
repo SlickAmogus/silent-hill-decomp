@@ -1570,11 +1570,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                          ? !(held & runBtn) : (held & runBtn) != 0;
                         s32 lx = (s32)g_Controller0->analogController.leftX - 128;
                         s32 ly = (s32)g_Controller0->analogController.leftY - 128;
-                        /* altcam_button_sprint: in alt cameras only the bound run
-                         * control sprints (classic-scheme feel); stick magnitude
-                         * stops mattering. 2D control under a CLASSIC camera keeps
-                         * the stick-sprint heuristic either way. */
-                        int stickSprint = !(g_PcConfig.altButtonSprint && g_DebugThirdPersonCam) &&
+                        /* altcam_button_sprint ("Always use button based
+                         * sprinting"): only the bound run control sprints; stick
+                         * magnitude stops mattering. Applies to 2D control under
+                         * ANY camera, classic included. */
+                        int stickSprint = !g_PcConfig.altButtonSprint &&
                                           (lx * lx + ly * ly) >= (96 * 96);
                         g_Player_IsRunning = cfgRun || stickSprint;
                     }

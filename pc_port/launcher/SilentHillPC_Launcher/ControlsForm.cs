@@ -438,7 +438,7 @@ public class ControlsForm : Form
 
         chkButtonSprint = new CheckBox
         {
-            Text = "Button based sprinting in Alt. modes",
+            Text = "Always use button based sprinting",
             Left = colPadX,
             Top = styleY + 212,
             Width = 260,
@@ -446,9 +446,9 @@ public class ControlsForm : Form
         };
         Controls.Add(chkButtonSprint);
         tips.SetToolTip(chkButtonSprint,
-            "Alternate cameras (Thirdperson / Over-the-Shoulder / First-person) walk by default and only sprint " +
-            "while the bound Run control is held — like the classic control style. Off = pushing the stick most " +
-            "of the way also sprints.");
+            "Walk by default and only sprint while the bound Run control is held — like the classic control " +
+            "style. Applies to the alternate cameras (Thirdperson / Over-the-Shoulder / First-person) and to " +
+            "2D Controls under any camera. Off = pushing the stick most of the way also sprints.");
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
             "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +

@@ -774,6 +774,19 @@ int main(int argc, char* argv[])
                g_PsyX_UseFlashlightShadows ? "ON" : "off");
     }
 
+    /* SPU ADSR envelopes (attack/release instrument fades in the sequenced BGM)
+     * + reverb depth->wet scale. adsr default on; `adsr 0/1` console overrides
+     * live, `revscale` tunes the reverb mapping. */
+    {
+        extern void  PsyX_SPUAL_SetAdsrEnabled(int on);
+        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
+        PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsr ? 1 : 0);
+        if (g_PcConfig.reverbScale > 0.0f)
+            PsyX_SPUAL_SetReverbDepthScale(g_PcConfig.reverbScale);
+        SH_LOG("SPU ADSR envelopes: %s, reverb scale %.2f",
+               g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale);
+    }
+
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled
      * effect; console flintensity / postintensity / tmintensity). */
     {

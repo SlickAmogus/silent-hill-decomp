@@ -50,6 +50,8 @@ s_PcConfig g_PcConfig = {
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
+    .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -454,6 +456,14 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "altcam_button_sprint") == 0)
         {
             g_PcConfig.altButtonSprint = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "adsr") == 0)
+        {
+            g_PcConfig.adsr = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "reverb_scale") == 0)
+        {
+            g_PcConfig.reverbScale = (float)atof(value);
         }
         else if (strcmp(key, "immersive_fps_head_tracking") == 0)
         {
