@@ -120,6 +120,7 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
+int g_PcGodMode = 0;             /* 1 = Harry takes no combat damage (`god` console cmd) */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max each frame */

@@ -10,6 +10,7 @@
  *   MAP <name>           - new-game warp to a map (mirrors title.c auto-start)
  *   GIVE <thing>         - HANDGUN / RIFLE / SHOTGUN / AMMO / HEALTH
  *   NOCLIP               - toggle walking through walls (player only)
+ *   GOD [0|1]            - toggle/set Harry damage immunity
  *   FMV                  - list all FMV names (numbered)
  *   FMV <name|number>    - play an FMV (fades out, plays, fades back in)
  *   FMV INTROn / ENDn    - alias for the nth intro (C*) / ending (Z*) movie
@@ -353,6 +354,7 @@ static const char* const HELP_LINES[] = {
     " spawn list     list monsters loaded in this map",
     " spawn <name>   spawn a monster in front of Harry",
     " noclip         walk through walls (floor stays on)",
+    " god [0|1]      toggle/set damage immunity for Harry",
     " invaspect 0|1  inventory item proportions: PSX | square",
     " invscale <pct> inventory item vertical scale (def 125)",
     " invcary <n>    carousel item Y offset (+down)",
@@ -799,6 +801,12 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
+    } else if (strcmp(cmd, "GOD") == 0) {
+        extern int g_PcGodMode;
+        if (arg[0] == '1') g_PcGodMode = 1;
+        else if (arg[0] == '0') g_PcGodMode = 0;
+        else g_PcGodMode = !g_PcGodMode;
+        cprintf("god mode %s (Harry takes no damage)", g_PcGodMode ? "ON" : "OFF");
     } else if (strcmp(cmd, "INVASPECT") == 0) {
         extern int g_PcInvAspectSquare;
         if (arg[0] == '1') g_PcInvAspectSquare = 1;

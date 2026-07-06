@@ -9291,6 +9291,16 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
 
     if (player->damage.amount != Q12(0.0f))
     {
+#ifdef SH_PC_PORT
+        /* god mode (`god` console cmd): absorb the hit before it reaches HP. The
+         * flinch/SFX below still fire so a landed hit still reads, but health is
+         * never reduced. */
+        {
+            extern int g_PcGodMode;
+            if (g_PcGodMode)
+                player->damage.amount = Q12(0.0f);
+        }
+#endif
         playerProps.flags &= ~PlayerFlag_Unk2;
         if (!(playerProps.flags & PlayerFlag_DamageReceived))
         {
