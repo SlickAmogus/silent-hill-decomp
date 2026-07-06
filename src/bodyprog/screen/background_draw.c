@@ -194,6 +194,14 @@ void Screen_BackgroundImgTransition(s_FsImageDesc* image0, s_FsImageDesc* image1
     s_FsImageDesc* image;
     POLY_FT4*      poly;
 
+#ifdef SH_PC_PORT
+    /* This cross-fade runs alone for ~1s (eclipse-door key inserts, 32 steps of
+     * 1/32) — without the ping the 300ms bg2dHeld hold expires mid-fade, the
+     * clear flips to the fog color and Hor+ re-engages: grey dithered flash in
+     * the black borders + a stretched frame until the fade ends. */
+    g_Pc2dBackgroundActive = 2;
+#endif
+
     poly = (POLY_FT4*)GsOUT_PACKET_P;
 
     for (i = 0; i < 3; i++)
