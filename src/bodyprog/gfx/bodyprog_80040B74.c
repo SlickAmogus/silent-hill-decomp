@@ -1751,20 +1751,6 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
         }
 #ifdef SH_PC_PORT
         { extern int g_PcInteriorMatSync; g_PcInteriorMatSync = 0; }
-
-        /* All keep textures are resolved now; flatten any prim caught in a
-         * baked-tPage/CLUT collision between two resident keep chunks (the
-         * texture!=NULL rainbow the NULL-texture guard above can't see). */
-        {
-            extern void  Lm_UntextureVramCollisions(s_LmHeader** lmHdrs, s32 count);
-            s_LmHeader*  keepLms[PC_INTERIOR_TEXTURED_CHUNKS];
-            s32          kc;
-            for (kc = 0; kc < keepCount; kc++)
-            {
-                keepLms[kc] = keep[kc]->ipdHdr->lmHdr;
-            }
-            Lm_UntextureVramCollisions(keepLms, keepCount);
-        }
 #endif
 
         return;
