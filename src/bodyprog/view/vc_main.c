@@ -334,18 +334,13 @@ s32 vcExecCamera(void) // 0x80080FBC
     cur_cam_mv_type  = vcRetCurCamMvType(&vcWork);
 
 #ifdef SH_PC_PORT
-    /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a medkit
-     * off the top of frame); PsyCross shifts the world ortho up by g_PsxWorldVShift only
-     * while this is set. Chase/settle/door/self-view cameras are unaffected.
-     *
-     * Skip when a PC camera override (FPS/TPS/OTS, g_DebugThirdPersonCam) is rendering:
-     * the game's fixed-angle framing isn't on screen, and the shift instead reveals the
-     * strip above the framebuffer that overlay prims never cover — the faded band that
-     * faded in/out as the player walked through FIX_ANG camera zones. */
+    /* Pure signal: the view camera is a fixed-angle shot this frame. Consumed by
+     * MainLoop (game_main.c), which corrects the FIX_ANG top-clip vs PSX by shifting
+     * the GTE projection center down by g_PsxWorldVShift — all gating (camera style,
+     * cutscene, sys state) lives there. Chase/settle/door/self-view cameras unset it. */
     {
         extern int g_PsxFixedCamActive;
-        extern int g_DebugThirdPersonCam;
-        g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG) && !g_DebugThirdPersonCam;
+        g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG);
     }
 #endif
 

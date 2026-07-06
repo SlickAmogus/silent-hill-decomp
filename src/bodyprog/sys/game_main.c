@@ -2145,6 +2145,36 @@ void MainLoop(void) // 0x80032EE0
                                    g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
         }
 
+        /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a
+         * medkit off the top of frame). Correct it by shifting the GTE projection
+         * center down (world content moves down INSIDE the normal 224-line frame)
+         * rather than shifting the PsyCross ortho window up: the ortho shift revealed
+         * rows above the frame that screen-space overlay prims (darkness/light quads,
+         * authored 0..224) never cover — the "faded letterbox" band at the top that
+         * toggled with FIX_ANG camera zones, in every camera style. Screen-space prims
+         * don't go through the GTE, so full-frame overlay coverage is preserved; the
+         * visible world window is identical to the old ortho shift (same cull margins).
+         * Asserted every frame in every state so item screens / menus (GTE consumers
+         * outside gameplay) always run at the clean baseline offset (0,0). Gameplay
+         * classic camera only: alt cameras (FPS/TPS/OTS) replace the game camera, and
+         * cutscenes frame via letterbox bars. g_PsxWorldVShift (PsyCross, console
+         * `vshift`) stays the live-tunable amount in PSX units. */
+        {
+            extern int   g_PsxFixedCamActive;
+            extern int   g_PsxCutsceneActive;
+            extern float g_PsxWorldVShift;
+            s32 ofy = 0;
+
+            if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam &&
+                g_GameWork.gameState == GameState_InGame &&
+                g_SysWork.sysState == SysState_Gameplay)
+            {
+                ofy = (s32)g_PsxWorldVShift;
+            }
+
+            SetGeomOffset(0, ofy);
+        }
+
         /* Suppress dither on 2D-only states (logos, menus, map screen,
          * inventory, options, save/load). Dither makes flat-shaded UI
          * art look chewed-up at high resolution. Keep it for 3D gameplay
