@@ -370,3 +370,10 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   same visible world window, full overlay coverage, no band. Asserted
   every frame in every state so item screens/menus keep the clean (0,0)
   baseline. `vshift` console command still live-tunes the amount.
+- **Eclipse-door key-insert grey flash** (`e05613a3f`):
+  `Screen_BackgroundImgTransition` (the ~1s dissolve between DOOR_*.TIM
+  lock states) was the only fullscreen-2D-background draw path not
+  pinging `g_Pc2dBackgroundActive`; mid-fade the 300ms `bg2dHeld` hold
+  expired → fog-grey clear (dithered = black specks) leaked through the
+  semi-trans fade quads and Hor+ re-engaged. Rule: EVERY fullscreen 2D
+  background draw path must ping the counter.
