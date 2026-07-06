@@ -1122,7 +1122,7 @@ public partial class Form1 : Form
     private void button1_Click(object sender, EventArgs e)
     {
         const string discordProfile = "https://discord.com/users/363942283348934656";
-        const string discordInvite = "https://discord.gg/TxXJBURF";
+        const string discordInvite = "https://discord.com/invite/JWuNzVsQbr";
         const string emailiCloudURL = "mailto:kushastronaut@icloud.com";
         const string emailgmailURL = "mailto:kushastronaut@gmail.com";
         const string emailiCloud = "kushastronaut@icloud.com";
