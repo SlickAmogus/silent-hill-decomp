@@ -98,20 +98,23 @@ function Get-Sha256([string]$path) {
 # completed), so a pending run can be waited on instead of silently skipped.
 function Get-CrossPlatformRunForCommit {
     param([string]$SourceSlug, [string]$Workflow, [string]$Branch, [string]$Commit)
-    # Materialize `gh run list | ConvertFrom-Json` into a plain variable BEFORE
-    # wrapping in @(...) -- verified 2026-07-06. ConvertFrom-Json emits a
-    # parsed JSON array as a single non-enumerated pipeline object; @(livePipe)
-    # then treats that ONE object as ONE array element, silently nesting the
-    # real N-item array inside a 1-item wrapper (.Count lies as 1). Piping
-    # that wrapper through Where-Object "self-heals" via PowerShell's
-    # collection dot-property broadcasting, but the filter condition becomes
-    # "does ANY run in the whole batch match" instead of "does THIS run
-    # match", so it silently returns every run un-filtered (this produced the
-    # 20-run-id-joined-by-spaces malformed URL / 404 seen in the wild).
-    # @(alreadyMaterializedVariable) does not have this problem.
+    # ConvertFrom-Json emits a parsed JSON array as a single non-enumerated
+    # pipeline object. @(X | ConvertFrom-Json) -- wrapping the LIVE PIPE, even
+    # with the native command already split out -- treats that one emitted
+    # object as ONE array element, silently nesting the real N-item array
+    # inside a 1-item wrapper (.Count lies as 1). Piping that wrapper through
+    # Where-Object then "self-heals" via PowerShell's collection dot-property
+    # broadcasting, but the filter condition becomes "does ANY run in the
+    # whole batch match" instead of "does THIS run match", so it silently
+    # returns every run un-filtered (this produced the 20-run-id-joined-by-
+    # spaces malformed URL / 404 seen in the wild -- TWICE, because the first
+    # fix attempt still wrapped a live pipe here). ConvertFrom-Json's result
+    # MUST be assigned to a plain variable in its OWN statement first; only
+    # THEN is @(thatVariable) safe. Verified 2026-07-06 against the live repo.
     $rawJson = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $rawJson) { return $null }
-    $runs = @($rawJson | ConvertFrom-Json)
+    $parsedRuns = $rawJson | ConvertFrom-Json
+    $runs = @($parsedRuns)
     return ($runs | Where-Object { $_.headSha -eq $Commit } |
                      Sort-Object -Property createdAt -Descending | Select-Object -First 1)
 }
@@ -206,7 +209,8 @@ function Add-CrossPlatformAssets {
 
         if (-not $useRun) {
             $fallbackRaw = gh run list --repo $sourceSlug --workflow $t.Workflow --branch $CrossPlatformBranch --status success --limit 1 --json databaseId,headSha 2>$null
-            $fallback = @($fallbackRaw | ConvertFrom-Json)
+            $fallbackParsed = $fallbackRaw | ConvertFrom-Json
+            $fallback = @($fallbackParsed)
             if ($LASTEXITCODE -ne 0 -or -not $fallback -or $fallback.Count -eq 0) {
                 Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
                 continue
