@@ -286,7 +286,33 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         static int s_hires = 0;
         static int s_warns = 0;
 
-        lf = fopen(loosePath, "rb");
+        /* Hi-res PNG override: "<discname>.png" (e.g. ITEM_M.TIM.png) under
+         * gamedata/load/ always registers as a hi-res override — with PNG's
+         * true 8-bit alpha — never as a byte-replace. The disc file still
+         * loads so the engine picks the native VRAM rect; PostLoadTim then
+         * registers the PNG against it. Takes precedence over a same-name
+         * loose file. */
+        int pngOverride = 0;
+        {
+            char pngPath[168];
+            FILE* pf;
+            snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
+            pf = fopen(pngPath, "rb");
+            if (pf != NULL)
+            {
+                fclose(pf);
+                HiresPending_Stash(entry, pngPath);
+                pngOverride = 1;
+                s_hires++;
+                if (s_hires <= 64)
+                {
+                    fprintf(stderr, "[LOOSE/HIRES] %s: PNG override; deferring to PostLoadTim\n",
+                            pngPath);
+                }
+            }
+        }
+
+        lf = pngOverride ? NULL : fopen(loosePath, "rb");
         if (lf != NULL)
         {
             size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
@@ -357,7 +383,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 }
             }
         }
-        else
+        else if (!pngOverride)
         {
             s_misses++;
             const char* verb = getenv("SH_LOOSE_VERBOSE");

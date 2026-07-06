@@ -6,6 +6,15 @@
 
 #include <PsyX/common/glad.h>
 
+/* PNG overrides carry a true 8-bit alpha channel (TIM transparency is
+ * 1-bit: raw value 0 = transparent). stb_image is vendored, PNG-only,
+ * memory-only; its default allocator is malloc so the shared free() below
+ * is valid for both decode paths. */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_NO_STDIO
+#include "stb_image.h"
+
 #define MAX_HIRES_OVERRIDES 256
 
 typedef struct {
@@ -209,7 +218,27 @@ int HiresOverride_RegisterFromTim(const char* timPath,
 
     unsigned char* rgba = NULL;
     int hiW = 0, hiH = 0, srcBpp = 0;
-    if (parse_tim_to_rgba(timData, timSize, &rgba, &hiW, &hiH, &srcBpp) != 0)
+    if (timSize >= 8 && timData[0] == 0x89 && timData[1] == 'P' &&
+        timData[2] == 'N' && timData[3] == 'G')
+    {
+        int comp = 0;
+        rgba = stbi_load_from_memory(timData, (int)timSize, &hiW, &hiH, &comp, 4);
+        if (rgba == NULL)
+        {
+            fprintf(stderr, "[HIRES] failed to decode PNG %s (size=%u): %s\n",
+                    timPath, timSize, stbi_failure_reason());
+            return -1;
+        }
+        if (hiW <= 0 || hiH <= 0 || hiW > 8192 || hiH > 8192)
+        {
+            fprintf(stderr, "[HIRES] PNG %s has unusable dimensions %dx%d\n",
+                    timPath, hiW, hiH);
+            free(rgba);
+            return -1;
+        }
+        srcBpp = 32; /* RGBA8: real 8-bit alpha, not TIM's 1-bit cutout */
+    }
+    else if (parse_tim_to_rgba(timData, timSize, &rgba, &hiW, &hiH, &srcBpp) != 0)
     {
         fprintf(stderr, "[HIRES] failed to parse TIM %s (size=%u)\n",
                 timPath, timSize);
