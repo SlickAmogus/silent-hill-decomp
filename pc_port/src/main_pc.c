@@ -456,6 +456,17 @@ int main(int argc, char* argv[])
         }
     }
 
+    /* SPU ADSR envelopes: with these off, looping SFX play at static gain
+     * forever (wheelchair across load screens, the Nowhere clock crescendo,
+     * ending SFX pile-ups) because nothing ever ends them. The deadlock that
+     * originally forced the feature off was the render-thread tick placement,
+     * fixed since (envelope advances on the audio-timing thread). Just a
+     * global int — safe to set before PsyX init. */
+    {
+        extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+        PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsrEnabled);
+    }
+
     /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224
      * framebuffer the PSX displays as a 4:3 picture, so its pixels are NOT square
      * (PAR = (4/3)/(320/224) = 14/15). PsyCross's Hor+ ortho and the matching game-side

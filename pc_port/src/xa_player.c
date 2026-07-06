@@ -365,13 +365,17 @@ static int ReadXaSectorFromBin(uint32_t baseSector, uint32_t sectorIndex,
 }
 
 // Calculate number of sectors to read based on VSync frames
-static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
-    // At 60 FPS: 1 frame = 37800/60 = 630 samples (per channel)
-    // 37.8kHz stereo: 2016 samples per channel per sector
-    // 630 * vyncFrames samples / 2016 samples/sector
-    uint32_t totalSamples = (630 * vyncFrames);
-    uint32_t sectors = (totalSamples + 2015) / 2016;  // round up
-    return sectors;
+static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames, int sampleRate, int isStereo) {
+    // audioLength is in 60Hz VSync frames -> samples per channel at the
+    // track's REAL rate. A 4-bit XA sector carries 2016 samples/channel in
+    // stereo, 4032 in mono; the old fixed 37.8kHz-stereo math under- or
+    // over-counted every 18.9kHz/mono track (credits music ended before the
+    // credits finished scrolling).
+    uint32_t samplesPerSector = isStereo ? 2016 : 4032;
+    uint64_t totalSamples = ((uint64_t)vyncFrames * (uint32_t)sampleRate) / 60;
+    uint32_t sectors = (uint32_t)((totalSamples + samplesPerSector - 1) / samplesPerSector);
+    // One-sector pad: 59.94Hz-vs-60 drift and rounding must never clip the tail.
+    return sectors + 1;
 }
 
 // Initialize playback for a specific XA index
@@ -428,8 +432,9 @@ void XaPlayer_Play(uint16_t xaIdx) {
 
 
     // Calculate number of sectors to read
-    // audioLength_8 is in VSync frames; convert to sectors
-    uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
+    // audioLength_8 is in VSync frames; convert to sectors using the track's
+    // actual format (parsed from the first sector's subheader above).
+    uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits, sampleRate, isStereo);
 
     g_XaPlayer.file = s_BinFile;   /* shared — never fclose'd per track */
     g_XaPlayer.baseSector = baseSector;

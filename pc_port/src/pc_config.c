@@ -21,6 +21,7 @@ s_PcConfig g_PcConfig = {
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
+    .adsrEnabled     = 1, /* 1=SPU ADSR envelopes (loops ring out + free their voice), 0=legacy static-gain loops */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
@@ -305,6 +306,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "allow_loose_files") == 0)
         {
             g_PcConfig.allowLooseFiles = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "adsr_enabled") == 0)
+        {
+            g_PcConfig.adsrEnabled = (atoi(value) != 0);
         }
         else if (strcmp(key, "use_pgxp") == 0)
         {
