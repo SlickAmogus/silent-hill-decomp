@@ -90,6 +90,10 @@ typedef struct {
     char keyGfxCycle[24];
     char keyGfxPrev[24];
     char keyGfxNext[24];
+    /* PC-only: exit-game bind (title/menu = quit, in-game = warm-reboot to
+     * title). Default Escape; rebindable/unbindable like any other global bind
+     * (config key: key_exit_game). */
+    char keyExitGame[24];
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

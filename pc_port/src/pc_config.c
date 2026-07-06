@@ -88,6 +88,7 @@ s_PcConfig g_PcConfig = {
     .keyGfxCycle = "\\",
     .keyGfxPrev  = "[",
     .keyGfxNext  = "]",
+    .keyExitGame = "Escape",
 
     .mapName        = "map0_s00"
 };
@@ -172,6 +173,7 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_gfx_cycle",     offsetof(s_PcConfig, keyGfxCycle)     },
     { "key_gfx_prev",      offsetof(s_PcConfig, keyGfxPrev)      },
     { "key_gfx_next",      offsetof(s_PcConfig, keyGfxNext)      },
+    { "key_exit_game",     offsetof(s_PcConfig, keyExitGame)     },
 };
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
