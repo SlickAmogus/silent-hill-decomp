@@ -10,6 +10,9 @@
 #include <psyq/strings.h>
 
 #include "bodyprog/bodyprog.h"
+#ifdef SH_PC_PORT
+#include "bodyprog/player.h" /* PlayerUpperBodyState for the FPS melee-swing hide */
+#endif
 #include "bodyprog/gfx/map_effects.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/memcard.h"
@@ -1458,6 +1461,17 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
           && g_SysWork.sysState == SysState_Gameplay
           && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
           && g_SysWork.cutsceneBorderState == CutsceneBorderState_None); }
+    { extern int g_PcHideHarryFpsNeck;
+      /* Melee swings lean the head (and the eye riding it) through Harry's own
+       * torso/shoulder models, so their collar/shoulder polys flash across the
+       * FPS view mid-swing. Hide them only for the swing window (upper body in
+       * Attack with a melee weaponAttack; guns are >= WEAPON_ATTACK(Handgun,
+       * Tap) and don't lean) so looking down otherwise still shows the body. */
+      extern int g_PcHideHarryFpsBody;
+      g_PcHideHarryFpsNeck = (g_PcHideHarryFpsBody
+          && g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack
+          && g_SysWork.playerCombat.weaponAttack != NO_VALUE
+          && g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)); }
     /* Harry doesn't cast a flashlight shadow — his own body between the light and
      * the scene looked odd. Flag his skeleton verts as non-casters for the depth
      * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
@@ -1467,7 +1481,9 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
-    { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
+    { extern int g_PcHideHarryFpsBody, g_PcHideHarryFpsNeck;
+      g_PcHideHarryFpsBody = 0;
+      g_PcHideHarryFpsNeck = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
 

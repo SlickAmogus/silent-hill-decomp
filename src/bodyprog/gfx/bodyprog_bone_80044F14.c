@@ -262,6 +262,11 @@ static int g_BoneLogFrames = 0;
  * upper-arms) that would clip into the eye. Scoped to that one draw — NPC
  * skeletons (different bone indices) are untouched. */
 int g_PcHideHarryFpsBody = 0;
+/* Also set by func_8003DA9C, only while a melee swing is playing: the swing
+ * lean pushes the eye through the torso/shoulder models, flashing their
+ * collar/shoulder polys across the view. Outside the swing they stay drawn
+ * so looking down still shows the body. */
+int g_PcHideHarryFpsNeck = 0;
 #endif
 
 void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoords, q3_12 arg4, u16 arg5, s_FsImageDesc* images) // 0x80045534
@@ -381,10 +386,16 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             /* First-person: skip only Harry's Head(2), which clips into the eye.
              * Hiding the shoulders/upper-arms too leaves the forearms disconnected,
              * and from the close eye the bare forearm foreshortens into a stretched
-             * bar — so keep the whole arm chain intact. Fog bbox below still runs. */
+             * bar — so keep the whole arm chain intact. Fog bbox below still runs.
+             * Exception: during a melee swing (g_PcHideHarryFpsNeck) also skip
+             * Torso(1) + Shoulders(3,7) — the swing lean drives the eye through
+             * them; upper arms down stay so the swinging arm remains visible. */
             {
-                int _hb = (u8)curBone->bone.idx;
-                if (!(g_PcHideHarryFpsBody && _hb == 2))
+                int _hb   = (u8)curBone->bone.idx;
+                int _skip = g_PcHideHarryFpsBody &&
+                            (_hb == 2 ||
+                             (g_PcHideHarryFpsNeck && (_hb == 1 || _hb == 3 || _hb == 7)));
+                if (!_skip)
                 {
                     func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
                 }
