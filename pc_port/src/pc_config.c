@@ -51,6 +51,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .fpsFov              = 90.0f, /* first-person FOV (degrees, horizontal on the 4:3 frame) */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
@@ -460,6 +461,13 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "adsr") == 0)
         {
             g_PcConfig.adsr = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "fps_fov") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.fpsFov = v;
         }
         else if (strcmp(key, "reverb_scale") == 0)
         {

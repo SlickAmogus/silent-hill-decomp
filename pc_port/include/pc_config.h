@@ -70,6 +70,7 @@ typedef struct {
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
+    float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110, default 90; applied ONLY during FPS gameplay (config key: fps_fov) */
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */

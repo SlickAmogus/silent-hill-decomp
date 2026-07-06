@@ -143,8 +143,10 @@ public class ControlsForm : Form
     private CheckBox chkButtonSprint;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
+    private NumericUpDown numFpsFov;
     private TrackBar trkMouseSens;
     private TrackBar trkControllerSens;
+    private TrackBar trkFpsFov;
     private bool syncingSens;   /* guards the numeric <-> slider mirroring */
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
@@ -420,6 +422,28 @@ public class ControlsForm : Form
         Controls.Add(numControllerSens);
         trkControllerSens = MakeSensSlider(sensX, styleY + 118, sensW);
         WireSensPair(numControllerSens, trkControllerSens);
+
+        AddLabel("First-person FOV", sensX, styleY + 162, 125);
+        numFpsFov = new NumericUpDown
+        {
+            Left = sensX + sensW - 60,
+            Top = styleY + 159,
+            Width = 60,
+            DecimalPlaces = 0,
+            Increment = 1m,
+            Minimum = 55m,
+            Maximum = 110m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numFpsFov);
+        trkFpsFov = MakeSensSlider(sensX, styleY + 184, sensW);
+        trkFpsFov.Minimum = 55;
+        trkFpsFov.Maximum = 110;
+        WirePair(numFpsFov, trkFpsFov, 1m);
+        tips.SetToolTip(numFpsFov,
+            "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in First-person mode — menus, " +
+            "cutscenes, and the other cameras keep the game's original projection (~67). 90 = standard FPS feel.");
 
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
@@ -832,6 +856,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
+        numFpsFov.Value = ClampFov(config.Get("fps_fov", "90"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -868,6 +893,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = false;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
+        numFpsFov.Value = 90m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -894,14 +920,15 @@ public class ControlsForm : Form
         return trk;
     }
 
-    // Mirror a sensitivity NumericUpDown and its slider both ways.
-    private void WireSensPair(NumericUpDown num, TrackBar trk)
+    // Mirror a NumericUpDown and its slider both ways. tickValue = the numeric
+    // value of one slider tick (0.1 for the sensitivities, 1 for FOV).
+    private void WirePair(NumericUpDown num, TrackBar trk, decimal tickValue)
     {
         num.ValueChanged += (s, e) =>
         {
             if (syncingSens) return;
             syncingSens = true;
-            int v = (int)Math.Round(num.Value * 10m);
+            int v = (int)Math.Round(num.Value / tickValue);
             trk.Value = Math.Max(trk.Minimum, Math.Min(trk.Maximum, v));
             syncingSens = false;
         };
@@ -909,11 +936,28 @@ public class ControlsForm : Form
         {
             if (syncingSens) return;
             syncingSens = true;
-            num.Value = trk.Value / 10m;
+            num.Value = trk.Value * tickValue;
             syncingSens = false;
         };
         // Seed the slider from the box's initial value.
-        trk.Value = Math.Max(trk.Minimum, Math.Min(trk.Maximum, (int)Math.Round(num.Value * 10m)));
+        trk.Value = Math.Max(trk.Minimum, Math.Min(trk.Maximum, (int)Math.Round(num.Value / tickValue)));
+    }
+
+    private void WireSensPair(NumericUpDown num, TrackBar trk)
+    {
+        WirePair(num, trk, 0.1m);
+    }
+
+    // Parse the first-person FOV from config, clamped to [55, 110] degrees.
+    private static decimal ClampFov(string s)
+    {
+        double v;
+        if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out v))
+            v = 90.0;
+        if (v < 55.0) v = 55.0;
+        if (v > 110.0) v = 110.0;
+        return (decimal)(int)Math.Round(v);
     }
 
     // Parse a sensitivity string from config, clamp to the launcher's [0.1, 4.0]
@@ -968,6 +1012,8 @@ public class ControlsForm : Form
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",
             ((double)numControllerSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("fps_fov",
+            ((int)numFpsFov.Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

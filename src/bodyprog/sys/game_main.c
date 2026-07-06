@@ -633,6 +633,37 @@ static void Pc_TpsCamera_Apply(void)
         vwSetViewInfo();
     }
 
+    /* First-person FOV (config fps_fov, degrees of horizontal FOV on the 4:3
+     * frame): override the GTE projection distance ONLY during interactive FPS
+     * gameplay — menus, cutscenes, and the room-entry camera keep the game's
+     * own projection (gsScreenHeight = 240 ≈ 67°). H = 160 / tan(fov/2), via
+     * Q12 trig (cos/sin) so no libm dependency. Restore once on leaving the
+     * FPS-gameplay state; the classic camera path (vcMain) re-asserts its own
+     * projection every frame anyway. */
+    {
+        static int s_fpsFovApplied = 0;
+        int fovActive = g_PcFpsCam
+            && g_GameWork.gameState == GameState_InGame
+            && g_SysWork.sysState == SysState_Gameplay
+            && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
+            && g_SysWork.cutsceneBorderState == CutsceneBorderState_None;
+        if (fovActive)
+        {
+            s32 halfAng = (s32)(g_PcConfig.fpsFov * (4096.0f / 360.0f) * 0.5f);
+            s32 sinH    = Math_Sin(halfAng);
+            s32 h       = (sinH > 0) ? (160 * Math_Cos(halfAng)) / sinH : 240;
+            if (h < 16)  h = 16;
+            if (h > 512) h = 512;
+            SetGeomScreen(h);
+            s_fpsFovApplied = 1;
+        }
+        else if (s_fpsFovApplied)
+        {
+            SetGeomScreen(g_GameWork.gsScreenHeight);
+            s_fpsFovApplied = 0;
+        }
+    }
+
     #undef TP_DIST
     #undef TP_DIST_AIM
     #undef TP_HEIGHT
