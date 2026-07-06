@@ -1,5 +1,20 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.06.2 -- 2026-07-06
+- Fixed close up warping with PGXP on (mostly), FPS mode and any mode when the camera gets close to something look noticeably better now
+- Added button based sprinting option in the controls menu that makes alternate camera modes use a button to sprint on controllers instead of pressure sensitivity
+- Added 'god' console command for Harry damage immunity
+- Fix double fire, zoom exit, and per pixel shadow glitch with TPS/OTS shooting
+- Increase accuracy of free aim (shots now mostly go where you aim with auto aim off)
+
+Commit summaries:
+- console: add 'god' command for Harry damage immunity
+- audio audit: fix 7 positional-SFX/pose zero-stubs; add sound-data census tool
+- Controls batch: alt-mode button sprint, double-fire/zoom-exit fix, free-aim accuracy, launcher sliders
+- docs: index the controls/free-aim batch
+- PGXP near-plane clipping: console toggles + PsyCross bump + design doc status
+- Bump PsyCross: drop unused extern in PsyX_GTE.cpp
+
 ## beta-2026.07.06.1 -- 2026-07-06
 - Added binding for warm reset\exiting the game in launcher control settings. You can unbind things by pressing DEL.
 - Fixed Windows release zips from using backslashes so that the zips are now parsed correctly in non-Windows operating systems.
