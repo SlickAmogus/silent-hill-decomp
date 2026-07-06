@@ -352,13 +352,15 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
 
 ## FPS-camera polish + FIX_ANG framing rework (2026-07-06, commits `696fdde61`, `1cb6b4bdb` + PsyCross `8c34600`)
 
-- **Melee-swing mesh flash in first person** (`696fdde61`): swings lean
-  Harry's head (and the eye riding it) through his own torso/shoulder
-  models — their unlit collar/shoulder polys flashed across the view as
-  black shapes. `g_PcHideHarryFpsNeck` (world_draw.c sets, bone loop in
-  `bodyprog_bone_80044F14.c` skips) extends the head-only FPS hide to
-  Torso(1)+Shoulders(3,7) during `upperBodyState == Attack` with a melee
-  `weaponAttack` only. Guns and normal look-down keep the full body.
+- **Melee-swing mesh flash in first person** (`02280a0cc`; hide attempt
+  `696fdde61` REVERTED `79b685a51`): swings lean Harry's head (and the
+  eye riding it) through his own torso/shoulder/arm models. Final fix is
+  the arm-clearance camera dolly in `Pc_TpsCamera_Apply`: while a melee
+  `weaponAttack` is active, the eye dollies back along the view axis by
+  how much the nearest forearm/hand bone crowds it (proximity-driven, so
+  it self-times per weapon anim; wall-clamped by ray trace). The interim
+  torso/shoulder hide was reverted once the dolly landed — the body
+  stays visible through swings; only the head-only FPS hide remains.
 - **Faded letterbox band at top of screen** (`1cb6b4bdb` + PsyCross
   `8c34600`): the FIX_ANG `g_PsxWorldVShift` framing band-aid (843b3a58c)
   shifted the ortho window up, revealing rows above the 224-line frame
