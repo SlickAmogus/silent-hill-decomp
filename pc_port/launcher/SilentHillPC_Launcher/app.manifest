@@ -31,7 +31,12 @@
 
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
-      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+      <!-- MUST stay false: the forms are fixed-pixel layouts designed at 96
+           DPI. dpiAware=true (added 09c353a72 for AV heuristics) stopped
+           Windows' bitmap-stretch virtualization on scaled displays — fonts
+           grew but the layout didn't, clipping every control. false restores
+           the pre-manifest behavior (whole window scaled by Windows). -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">false</dpiAware>
     </windowsSettings>
   </application>
 </assembly>

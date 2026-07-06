@@ -32,8 +32,12 @@ positives**, not a real malware signature.
 - **Filled in publisher metadata** (`Properties/AssemblyInfo.cs`): Company,
   Description, Product, Copyright — blank fields are a known ML signal.
 - **Added `app.manifest`** wired via `<ApplicationManifest>`: stable app
-  identity, `asInvoker` (never elevate), supported-OS list, dpiAware. Unsigned
+  identity, `asInvoker` (never elevate), supported-OS list. Unsigned
   .NET exes with no manifest score higher.
+  **Caution:** the manifest originally declared `dpiAware=true`, which broke
+  the fixed-pixel WinForms layout on scaled displays (fonts grew, layout
+  didn't — clipped controls). It is now explicitly `false` and must stay
+  that way; the dpiAware flag has negligible AV-heuristic weight anyway.
 
 These lower the heuristic weight but do **not** fix the two root causes.
 
