@@ -5,6 +5,7 @@
 #include "pc_config.h"
 #include "xa_player.h"
 #include <SDL_timer.h>
+#include <math.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -649,9 +650,11 @@ static void Pc_TpsCamera_Apply(void)
             && g_SysWork.cutsceneBorderState == CutsceneBorderState_None;
         if (fovActive)
         {
-            s32 halfAng = (s32)(g_PcConfig.fpsFov * (4096.0f / 360.0f) * 0.5f);
-            s32 sinH    = Math_Sin(halfAng);
-            s32 h       = (sinH > 0) ? (160 * Math_Cos(halfAng)) / sinH : 240;
+            /* Float tan + round-to-nearest so the default (67.4 deg, the game's
+             * native FOV: 2*atan(160/240)) maps back to EXACTLY H=240 — the
+             * out-of-the-box projection is byte-identical to pre-FOV builds. */
+            float t = tanf(g_PcConfig.fpsFov * (3.14159265f / 360.0f));
+            s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : 240;
             if (h < 16)  h = 16;
             if (h > 512) h = 512;
             SetGeomScreen(h);

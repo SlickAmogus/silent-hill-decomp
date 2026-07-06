@@ -997,6 +997,27 @@ void Pc_ConsoleExec(const char* line)
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
         PsyX_SPUAL_SetAdsrEnabled(on);
         cprintf("ADSR envelope %s (default on; config key adsr)", on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "FOV") == 0) {
+        /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
+         * as the launcher slider / PC options row; persists to config.cfg.
+         * `fov default` restores the game's native projection (67.4 = H 240). */
+        if (arg[0] != '\0') {
+            float v;
+            if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "default") == 0)
+                v = 67.4f;
+            else
+                v = (float)atof(arg);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.fpsFov = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("fps_fov", buf);
+            }
+        }
+        cprintf("first-person FOV %.1f deg (67.4 = original; applies in FPS gameplay only)",
+                g_PcConfig.fpsFov);
     } else if (strcmp(cmd, "REVSCALE") == 0) {
         extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
         extern float PsyX_SPUAL_GetReverbDepthScale(void);

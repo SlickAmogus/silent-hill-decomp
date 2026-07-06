@@ -429,7 +429,7 @@ public class ControlsForm : Form
             Left = sensX + sensW - 60,
             Top = styleY + 159,
             Width = 60,
-            DecimalPlaces = 0,
+            DecimalPlaces = 1,
             Increment = 1m,
             Minimum = 55m,
             Maximum = 110m,
@@ -443,7 +443,8 @@ public class ControlsForm : Form
         WirePair(numFpsFov, trkFpsFov, 1m);
         tips.SetToolTip(numFpsFov,
             "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in First-person mode — menus, " +
-            "cutscenes, and the other cameras keep the game's original projection (~67). 90 = standard FPS feel.");
+            "cutscenes, and the other cameras keep the game's original projection. Default 67.4 = the game's " +
+            "original FOV; 90 = standard FPS feel.");
 
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
@@ -856,7 +857,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
-        numFpsFov.Value = ClampFov(config.Get("fps_fov", "90"));
+        numFpsFov.Value = ClampFov(config.Get("fps_fov", "67.4"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -893,7 +894,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = false;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
-        numFpsFov.Value = 90m;
+        numFpsFov.Value = 67.4m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -948,16 +949,17 @@ public class ControlsForm : Form
         WirePair(num, trk, 0.1m);
     }
 
-    // Parse the first-person FOV from config, clamped to [55, 110] degrees.
+    // Parse the first-person FOV from config, clamped to [55, 110] degrees
+    // (one decimal kept so the 67.4 native default round-trips).
     private static decimal ClampFov(string s)
     {
         double v;
         if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out v))
-            v = 90.0;
+            v = 67.4;
         if (v < 55.0) v = 55.0;
         if (v > 110.0) v = 110.0;
-        return (decimal)(int)Math.Round(v);
+        return (decimal)(Math.Round(v * 10.0) / 10.0);
     }
 
     // Parse a sensitivity string from config, clamp to the launcher's [0.1, 4.0]
@@ -1013,7 +1015,7 @@ public class ControlsForm : Form
         config.Set("controller_sensitivity",
             ((double)numControllerSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("fps_fov",
-            ((int)numFpsFov.Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            ((double)numFpsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

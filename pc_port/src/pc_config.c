@@ -51,7 +51,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
-    .fpsFov              = 90.0f, /* first-person FOV (degrees, horizontal on the 4:3 frame) */
+    .fpsFov              = 67.4f, /* first-person FOV; 67.4 = the game's native projection (H=240), identical to pre-FOV builds */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
