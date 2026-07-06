@@ -334,3 +334,18 @@ missing, and diffs against the disc overlay bytes).
   quads (muzzle flash) no longer inherit stale arm/gun view-space verts.
 - **PGXP near-camera warp**: root-caused; fix = GL near-plane clipping, design
   in `PGXP_NearClip_Design.md` (not yet implemented).
+
+## BGM reverb + ADSR batch (2026-07-06, commit `4a37582ca` + PsyCross `12a5ab5`)
+
+User side-by-side vs PSX: layer fade-ins/outs abrupt, echo/reverb character
+missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
+
+- **`SpuSetReverbModeParam` was unimplemented** — but SH1 drives reverb
+  through it constantly: per-track wet depth on every BGM bank load
+  (`g_Sd_ReverbDepths[35]`, sd_call.c VabLoad), and a per-tick 0→target depth
+  RAMP on sequence (re)start (`replay_reverb_set`, the "fades in with an
+  echo"). Depth now maps to the OpenAL aux-slot gain (live). `revscale`
+  console + `reverb_scale` config calibrate the mapping (default 2.0).
+- **ADSR envelopes default ON** (`adsr` config key, default 1; console
+  toggle). The deadlock + key-status hangs that justified default-off are
+  fixed; envelopes are required for the music's instrument fades.
