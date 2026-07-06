@@ -471,11 +471,48 @@ if ($isZip) {
         }
         Write-Host "Staged $($files.Count) files for the zip." -ForegroundColor Cyan
 
-        # Build the zip (CreateFromDirectory keeps the empty gamedata/save dir).
+        # Build the zip entry-by-entry -- NOT ZipFile.CreateFromDirectory.
+        # Verified 2026-07-05: on Windows PowerShell / .NET Framework,
+        # CreateFromDirectory writes entry names using '\' (the platform
+        # separator) for nested files, e.g. a raw byte dump of the local file
+        # header showed "maps\SilentHillPC.dll" (0x5C), not "maps/..." (0x2F).
+        # The ZIP spec calls for '/'; Unix unzip/zipfile then reads that '\'
+        # as a literal backslash IN the filename instead of a directory
+        # separator, so Mac/Linux users complained the archive had files with
+        # backslashes baked into their names. Building entries by hand lets
+        # every name be forward-slash-normalized (same fix as the manifest's
+        # $rel above), and also lets the empty gamedata/save dir still get an
+        # explicit directory entry, which CreateFromDirectory provided for
+        # free but a plain file-only loop would otherwise drop.
         $zipName = "SHPC_$newTag.zip"
         $zipPath = Join-Path ([IO.Path]::GetTempPath()) $zipName
         if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath)
+        Add-Type -AssemblyName System.IO.Compression
+
+        $zipFs = New-Object System.IO.FileStream($zipPath, [System.IO.FileMode]::Create)
+        try {
+            $zipArchive = New-Object System.IO.Compression.ZipArchive($zipFs, [System.IO.Compression.ZipArchiveMode]::Create)
+            try {
+                Get-ChildItem -Recurse -File $stage | ForEach-Object {
+                    $entryName = $_.FullName.Substring($stageFull.Length).TrimStart('\','/').Replace('\','/')
+                    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zipArchive, $_.FullName, $entryName) | Out-Null
+                }
+                # Directories with no files anywhere under them (gamedata/save)
+                # are never visited by the file loop above -- give them an
+                # explicit zero-byte directory entry (name ending in '/') so
+                # the folder still exists after extraction.
+                Get-ChildItem -Recurse -Directory $stage | ForEach-Object {
+                    if (-not (Get-ChildItem -Recurse -File $_.FullName -ErrorAction SilentlyContinue)) {
+                        $entryName = $_.FullName.Substring($stageFull.Length).TrimStart('\','/').Replace('\','/') + '/'
+                        $zipArchive.CreateEntry($entryName) | Out-Null
+                    }
+                }
+            } finally {
+                $zipArchive.Dispose()
+            }
+        } finally {
+            $zipFs.Dispose()
+        }
         $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
         Write-Host "Built $zipName ($zipSize MB)." -ForegroundColor Cyan
 
