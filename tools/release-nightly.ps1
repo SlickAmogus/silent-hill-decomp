@@ -98,9 +98,20 @@ function Get-Sha256([string]$path) {
 # completed), so a pending run can be waited on instead of silently skipped.
 function Get-CrossPlatformRunForCommit {
     param([string]$SourceSlug, [string]$Workflow, [string]$Branch, [string]$Commit)
-    $runs = @((gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch `
-                --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null) | ConvertFrom-Json)
-    if ($LASTEXITCODE -ne 0 -or -not $runs) { return $null }
+    # Materialize `gh run list | ConvertFrom-Json` into a plain variable BEFORE
+    # wrapping in @(...) -- verified 2026-07-06. ConvertFrom-Json emits a
+    # parsed JSON array as a single non-enumerated pipeline object; @(livePipe)
+    # then treats that ONE object as ONE array element, silently nesting the
+    # real N-item array inside a 1-item wrapper (.Count lies as 1). Piping
+    # that wrapper through Where-Object "self-heals" via PowerShell's
+    # collection dot-property broadcasting, but the filter condition becomes
+    # "does ANY run in the whole batch match" instead of "does THIS run
+    # match", so it silently returns every run un-filtered (this produced the
+    # 20-run-id-joined-by-spaces malformed URL / 404 seen in the wild).
+    # @(alreadyMaterializedVariable) does not have this problem.
+    $rawJson = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $rawJson) { return $null }
+    $runs = @($rawJson | ConvertFrom-Json)
     return ($runs | Where-Object { $_.headSha -eq $Commit } |
                      Sort-Object -Property createdAt -Descending | Select-Object -First 1)
 }
@@ -130,7 +141,8 @@ function Resolve-PendingCrossPlatformRun {
             return $null
         }
         elseif ($choice -eq 'V') {
-            $refreshed = @((gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null) | ConvertFrom-Json)
+            $refreshedRaw = gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null
+            $refreshed = if ($refreshedRaw) { $refreshedRaw | ConvertFrom-Json } else { $null }
             if ($refreshed) { $Run.status = $refreshed.status; $Run.conclusion = $refreshed.conclusion }
             if ($Run.status -eq 'completed' -and $Run.conclusion -eq 'success') { return $Run }
             if ($Run.status -eq 'completed') {
@@ -193,9 +205,8 @@ function Add-CrossPlatformAssets {
         }
 
         if (-not $useRun) {
-            $fallback = @((gh run list --repo $sourceSlug --workflow $t.Workflow `
-                        --branch $CrossPlatformBranch --status success `
-                        --limit 1 --json databaseId,headSha 2>$null) | ConvertFrom-Json)
+            $fallbackRaw = gh run list --repo $sourceSlug --workflow $t.Workflow --branch $CrossPlatformBranch --status success --limit 1 --json databaseId,headSha 2>$null
+            $fallback = @($fallbackRaw | ConvertFrom-Json)
             if ($LASTEXITCODE -ne 0 -or -not $fallback -or $fallback.Count -eq 0) {
                 Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
                 continue
