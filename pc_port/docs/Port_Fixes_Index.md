@@ -379,3 +379,16 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   expired → fog-grey clear (dithered = black specks) leaked through the
   semi-trans fade quads and Hor+ re-engaged. Rule: EVERY fullscreen 2D
   background draw path must ping the counter.
+
+## Interior flat-texture regression (2026-07-06, revert `cec9ef496`)
+
+- **"Texture corruption" in interiors (school most often)** — most wall/
+  door materials rendering FLAT with a few textured survivors — was the
+  Jul 1 `Lm_UntextureVramCollisions` flattener (`0fa6cbb10`) over-firing:
+  it untextured BOTH materials of any keep-set pair sharing a CLUT
+  column, every frame (the school's SC2FT1 legitimately sits at clut
+  column (0,0)). It had been shipped for the map3_s02 Alessa rainbow,
+  later proven to be a cutscene P_TAG overlay bug (fix still pending).
+  Reverted; the Jun 29 stolen-page untexture (`g_PcInteriorMatSync`,
+  the real rainbow guard) is kept. Reported MSAA-8x correlation was a
+  red herring.
