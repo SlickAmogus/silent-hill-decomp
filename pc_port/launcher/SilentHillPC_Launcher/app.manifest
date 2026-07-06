@@ -31,7 +31,15 @@
 
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
-      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+      <!-- false (DPI virtualization): the WinForms layout uses fixed pixel
+           positions and a FixedSingle window with no AutoScaleMode set, so
+           declaring dpiAware=true breaks it at >100% display scaling (text
+           scales, layout doesn't — clipped window at 4K/200%, issue report
+           2026-07-05). With false, Windows bitmap-scales the whole window:
+           slightly soft at high DPI but laid out correctly, matching the
+           pre-manifest launchers. The AV-heuristic value of this manifest
+           (identity + asInvoker + supportedOS) is unaffected. -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">false</dpiAware>
     </windowsSettings>
   </application>
 </assembly>
