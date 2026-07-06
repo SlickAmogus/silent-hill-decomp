@@ -892,6 +892,17 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
         else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
         cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPNEARCLIP") == 0) {
+        extern int g_PsxPgxpNearClip;
+        if (arg[0] == '1') g_PsxPgxpNearClip = 1;
+        else if (arg[0] == '0') g_PsxPgxpNearClip = 0;
+        else g_PsxPgxpNearClip = !g_PsxPgxpNearClip;
+        cprintf("PGXP near-plane clipping (close-camera warp fix): %s", g_PsxPgxpNearClip ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPNEARZ") == 0) {
+        /* Clipper divides by this and uses it as the clip verts' W — keep >= 1. */
+        extern float g_PgxpNearZ;
+        if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
+        cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
     } else if (strcmp(cmd, "ADD") == 0) {
         /* Debug-isolate the additive (BM_ADD) render layer to diagnose the map7_s03
          * pre/during/post-fight fire-and-lightning. 0 = drop all additive splits

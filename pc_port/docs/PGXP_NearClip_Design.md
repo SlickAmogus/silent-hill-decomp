@@ -87,5 +87,36 @@ using data we already capture per vertex:
 
 ## Status
 
-Design only — not implemented. The VsEntry value-validation prerequisite landed
-with the firing-shadow fix in this batch (PsyX_GPU.cpp).
+IMPLEMENTED 2026-07-06 (PsyCross: PsyX_GTE.cpp + PsyX_GPU.cpp; console cmds in
+pc_console_cmd.c). Deltas from the design above, decided at implementation:
+
+- View-space validity marker rides `GrVertex.ny` (unread by every shader): a
+  behind-the-eye vertex legitimately has `vsz <= 0`, so "has a vs entry" can't
+  be inferred from the position itself.
+- Eligibility requires only the view-space entries (not the PGXP shadow): kept
+  in-front vertices reuse their GTE-precise projection when present (`ppw > 0`,
+  bit-identical to the unclipped case so shared edges with neighbouring
+  unclipped polys can't crack) and are re-projected from view space otherwise.
+- The whole-poly affine drop in MakeVertexTriangle/Quad now spares clip-eligible
+  polys (it would destroy the in-front vertices' precise data before the
+  clipper runs); vs fill was moved above the PGXP block to enable the test.
+- Clipping runs per emitted triangle (post-TriangulateQuad) via
+  `PgxpNearClipEmit` at all 8 3D-poly sites; a quad grows to at most 12 verts,
+  guarded against vertex-buffer overflow. Quad diagonals can't crack: both
+  triangles hold bit-identical copies of the shared verts, so the lerp yields
+  identical clip vertices.
+- Re-projected verts skip the `g_PgxpEdgeMax` clamp: with a true W the GPU
+  clips far-off-screen positions exactly in homogeneous space; clamping would
+  drag the vertex and distort the visible part.
+- NEAR default 16.0 GTE units (flat, not `C2_H/16`): an invisible cut right at
+  the eye. Tunable via console `pgxpnearz`; toggle `pgxpnearclip` (default ON
+  with PGXP). OFF path byte-identical.
+- Fully-behind polys (all `vsz < NEAR`) are left untouched, not dropped — the
+  GTE/game culls them anyway, and matching today's behavior keeps the change
+  minimal.
+- `[PGXP] cov` log line gained `clip=N` (polys clipped in the 60-frame window)
+  for in-game verification.
+
+Test plan (unchanged): FPS mode, school hallway corner + locker close-ups;
+classic-mode close-camera cutscenes (Kaufmann office) for no-regression;
+`pgxpnearclip 0` A/B.
