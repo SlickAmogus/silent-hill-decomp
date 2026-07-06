@@ -85,6 +85,7 @@ public class ControlsForm : Form
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
+        { "key_exit_game", "Escape" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -273,6 +274,13 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_gfx_prev"], "Lowers the selected graphics effect's intensity (hold to repeat).");
         tips.SetToolTip(inputs["key_gfx_next"], "Raises the selected graphics effect's intensity (hold to repeat).");
 
+        // Exit Game — quits at the title/main menu, warm-reboots to the title
+        // otherwise. Default Esc; unbind with Del/Backspace/Esc like any other bind.
+        int exitGameY = gfxCycleY + rowH * 3;
+        AddKeyRow("Exit Game", "key_exit_game", colKbX, exitGameY, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_exit_game"],
+            "Quits to desktop at the title/main menu; warm-reboots to the title during gameplay or a cutscene. Unbind to disable.");
+
         // Controller binds — primary + an alternate (second button) per action.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
@@ -437,6 +445,17 @@ public class ControlsForm : Form
         Controls.Add(debugYes);
         Controls.Add(debugNo);
 
+        // Small hint, past the radio buttons: bind boxes also clear on Del (not
+        // just Esc/Backspace) — easy to miss since it's not shown on the boxes.
+        Controls.Add(new Label
+        {
+            Text = "Press Del to unbind",
+            Left = debugX + 260,
+            Top = debugY,
+            AutoSize = true,
+            ForeColor = Color.Gray,
+        });
+
         Button btnReset = new Button { Text = "Reset to Defaults", Width = 130, Height = 30, BackColor = PanelBack, ForeColor = TextColor, FlatStyle = FlatStyle.Flat };
         btnReset.Left = 20;
         btnReset.Top = ClientSize.Height - 42;
@@ -563,8 +582,8 @@ public class ControlsForm : Form
 
         TextBox tb = (TextBox)sender;
 
-        // Esc / Backspace clears the binding rather than binding that key.
-        if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Back)
+        // Esc / Backspace / Del clears the binding rather than binding that key.
+        if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
         {
             tb.Text = "NONE";
             tb.Tag = "NONE";

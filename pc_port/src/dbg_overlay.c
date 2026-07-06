@@ -1213,22 +1213,24 @@ void DbgOverlay_Update(void)
         s_prev_f4 = cur_f4;
     }
 
-    /* Esc is NOT a debug control — always handled, in every state. At the title /
-     * main menu it quits the game; otherwise (gameplay or cutscene) it warm-reboots
-     * to the title (consumed by MainLoop_ShouldWarmReset, which ignores it on the
-     * menu / during boot). Suppressed only while typing in the console. */
+    /* Exit Game bind (default Escape) is NOT a debug control — always handled,
+     * in every state. At the title / main menu it quits the game; otherwise
+     * (gameplay or cutscene) it warm-reboots to the title (consumed by
+     * MainLoop_ShouldWarmReset, which ignores it on the menu / during boot).
+     * Suppressed only while typing in the console. User-bindable (launcher:
+     * Keyboard Controls); "NONE"/unbound disables it entirely. */
     {
-        static int s_prev_esc = 0;
-        int cur_esc = ks[SDL_SCANCODE_ESCAPE];
-        if (cur_esc && !s_prev_esc && !g_PcConsoleInputActive) {
+        static int s_prev_exit = 0;
+        int cur_exit = Dbg_GfxBindActive(ks, g_PcConfig.keyExitGame);
+        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive) {
             if (g_GameWork.gameState == GameState_MainMenu) {
                 exit(0);
             } else {
                 g_SysWork.sysFlags |= SysFlag_DoWarmReset;
-                SH_DBG_ECHO("[DEBUG] Esc: warm reboot to title");
+                SH_DBG_ECHO("[DEBUG] Exit Game bind: warm reboot to title");
             }
         }
-        s_prev_esc = cur_esc;
+        s_prev_exit = cur_exit;
     }
 
     /* ---- Live effect-intensity control (works during gameplay) -------------
