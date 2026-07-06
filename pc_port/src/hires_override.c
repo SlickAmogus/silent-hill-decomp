@@ -282,7 +282,9 @@ int HiresOverride_RegisterFromTim(const char* timPath,
 
 unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outNativePixelW,
-                                              int* outNativePixelH)
+                                              int* outNativePixelH,
+                                              int* outOffsetX,
+                                              int* outOffsetY)
 {
     if (g_numEntries == 0) return 0;
 
@@ -304,16 +306,21 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
         {
             if (cx != e->clutX || cy != e->clutY) continue;
         }
-        if (outNativePixelW || outNativePixelH)
         {
-            int pixelW;
+            /* vramX/W are in 16-bit VRAM cells; texels per cell depends on
+             * the bit depth. The offset is where this prim's tpage origin
+             * sits INSIDE the replaced TIM, in native texels — prim UVs
+             * restart at each tpage, so chunks past the first need it. */
+            int pixelsPerCell;
             switch (bd) {
-                case 4:  pixelW = e->vramW * 4; break;
-                case 8:  pixelW = e->vramW * 2; break;
-                default: pixelW = e->vramW;     break;
+                case 4:  pixelsPerCell = 4; break;
+                case 8:  pixelsPerCell = 2; break;
+                default: pixelsPerCell = 1; break;
             }
-            if (outNativePixelW) *outNativePixelW = pixelW;
+            if (outNativePixelW) *outNativePixelW = e->vramW * pixelsPerCell;
             if (outNativePixelH) *outNativePixelH = e->vramH;
+            if (outOffsetX)      *outOffsetX      = (tpx - e->vramX) * pixelsPerCell;
+            if (outOffsetY)      *outOffsetY      = tpy - e->vramY;
         }
         return (unsigned int)e->glTexture;
     }

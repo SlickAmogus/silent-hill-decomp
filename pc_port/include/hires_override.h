@@ -65,10 +65,16 @@ int HiresOverride_RegisterFromTim(const char* timPath,
  * On match, *outNativePixelW / *outNativePixelH are filled with the
  * original disc TIM's pixel dimensions — used as texelSize denominator
  * by the 32-bit RGBA sample shader so that the poly's PSX UVs map to
- * the matching subregion of the hi-res GL texture. */
+ * the matching subregion of the hi-res GL texture — and *outOffsetX /
+ * *outOffsetY with the tpage origin's position INSIDE that TIM, in native
+ * texels. Prim UVs restart at each tpage, so a TIM wider than one tpage
+ * (e.g. a 320px background) needs the per-chunk offset added to the UVs
+ * or every chunk samples the override from x=0. */
 unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outNativePixelW,
-                                              int* outNativePixelH);
+                                              int* outNativePixelH,
+                                              int* outOffsetX,
+                                              int* outOffsetY);
 
 void HiresOverride_LogStats(void);
 
