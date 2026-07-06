@@ -33,6 +33,12 @@ namespace SilentHillPC_Launcher
     {
         public const string LauncherFileName = "SilentHillPC_Launcher.exe";
 
+        // Cross-platform release assets (release-nightly.ps1's Add-CrossPlatformAssets
+        // attaches these under fixed names to every release, when available). They
+        // never appear in version.json — Windows never auto-updates them.
+        public const string LinuxArchiveName = "SHPC-linux-x64.tar.gz";
+        public const string MacArchiveName   = "SHPC-macos-arm64.zip";
+
         // The beta stream lives on this branch in the official repo. alpha+latest
         // users are auto-migrated to it once a newer beta release appears, so the
         // move to beta zip builds needs no manual Build Settings change.
@@ -239,6 +245,65 @@ namespace SilentHillPC_Launcher
                 Tag   = r.TagName,
                 Label = $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
             }).ToList();
+        }
+
+        // -- Public: cross-platform archives (Build Settings) -----------------
+
+        /// <summary>Resolve the download URL for a cross-platform archive asset
+        /// (LinuxArchiveName / MacArchiveName) on the given branch/build, or null
+        /// if that release doesn't have one (older release, predates the
+        /// cross-platform attach, or that platform's CI never succeeded).</summary>
+        public static async Task<string> GetCrossPlatformAssetUrlAsync(LauncherSettings settings, string branch,
+            string build, string assetName, CancellationToken ct = default(CancellationToken))
+        {
+            string owner, repo;
+            if (!settings.TryGetOwnerRepo(out owner, out repo))
+                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+
+            var releases = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
+
+            GhRelease target;
+            if (!string.IsNullOrEmpty(build) && !build.Equals("latest", StringComparison.OrdinalIgnoreCase))
+            {
+                target = releases.FirstOrDefault(r => string.Equals(r.TagName, build, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                IEnumerable<GhRelease> cand = releases;
+                cand = string.IsNullOrWhiteSpace(branch)
+                    ? cand.Where(r => !IsBetaRelease(r))
+                    : cand.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
+                target = cand.FirstOrDefault();
+            }
+            return target != null ? AssetUrl(target, assetName) : null;
+        }
+
+        /// <summary>Downloads a URL straight to destPath (via a .part sidecar so a
+        /// cancelled/failed download never leaves a corrupt file at destPath).</summary>
+        public static async Task DownloadFileAsync(string url, string destPath, Action<double, string> progress,
+            CancellationToken ct = default(CancellationToken))
+        {
+            string tmp = destPath + ".part";
+            using (var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
+            {
+                resp.EnsureSuccessStatusCode();
+                long? total = resp.Content.Headers.ContentLength;
+                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                {
+                    var buf = new byte[81920];
+                    long read = 0; int n;
+                    while ((n = await stream.ReadAsync(buf, 0, buf.Length, ct).ConfigureAwait(false)) > 0)
+                    {
+                        await fs.WriteAsync(buf, 0, n, ct).ConfigureAwait(false);
+                        read += n;
+                        if (total.HasValue && total.Value > 0)
+                            progress?.Invoke((double)read / total.Value, $"{read / (1024 * 1024)}/{total.Value / (1024 * 1024)} MB");
+                    }
+                }
+            }
+            if (File.Exists(destPath)) File.Delete(destPath);
+            File.Move(tmp, destPath);
         }
 
         // -- Startup housekeeping ---------------------------------------------
