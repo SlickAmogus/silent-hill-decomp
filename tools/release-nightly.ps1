@@ -111,7 +111,14 @@ function Get-CrossPlatformRunForCommit {
     # fix attempt still wrapped a live pipe here). ConvertFrom-Json's result
     # MUST be assigned to a plain variable in its OWN statement first; only
     # THEN is @(thatVariable) safe. Verified 2026-07-06 against the live repo.
-    $rawJson = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null
+    # A redirected stderr stream (2>$null) still routes through PowerShell's
+    # error pipeline before being discarded -- under $ErrorActionPreference =
+    # 'Stop' (set at the top of this script) a failing native command THROWS a
+    # terminating RemoteException instead of just setting $LASTEXITCODE, even
+    # though the redirect looks like it should suppress it. try/catch is
+    # required for any gh call whose failure is meant to be handled gracefully.
+    try { $rawJson = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --limit 20 --json databaseId,headSha,status,conclusion,createdAt,url 2>$null }
+    catch { $rawJson = $null }
     if ($LASTEXITCODE -ne 0 -or -not $rawJson) { return $null }
     $parsedRuns = $rawJson | ConvertFrom-Json
     $runs = @($parsedRuns)
@@ -144,7 +151,8 @@ function Resolve-PendingCrossPlatformRun {
             return $null
         }
         elseif ($choice -eq 'V') {
-            $refreshedRaw = gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null
+            try { $refreshedRaw = gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null }
+            catch { $refreshedRaw = $null }
             $refreshed = if ($refreshedRaw) { $refreshedRaw | ConvertFrom-Json } else { $null }
             if ($refreshed) { $Run.status = $refreshed.status; $Run.conclusion = $refreshed.conclusion }
             if ($Run.status -eq 'completed' -and $Run.conclusion -eq 'success') { return $Run }
@@ -208,10 +216,10 @@ function Add-CrossPlatformAssets {
         }
 
         if (-not $useRun) {
-            $fallbackRaw = gh run list --repo $sourceSlug --workflow $t.Workflow --branch $CrossPlatformBranch --status success --limit 1 --json databaseId,headSha 2>$null
-            $fallbackParsed = $fallbackRaw | ConvertFrom-Json
-            $fallback = @($fallbackParsed)
-            if ($LASTEXITCODE -ne 0 -or -not $fallback -or $fallback.Count -eq 0) {
+            try { $fallbackRaw = gh run list --repo $sourceSlug --workflow $t.Workflow --branch $CrossPlatformBranch --status success --limit 1 --json databaseId,headSha 2>$null }
+            catch { $fallbackRaw = $null }
+            $fallback = if ($LASTEXITCODE -eq 0 -and $fallbackRaw) { @($fallbackRaw | ConvertFrom-Json) } else { @() }
+            if (-not $fallback -or $fallback.Count -eq 0) {
                 Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
                 continue
             }
@@ -223,7 +231,8 @@ function Add-CrossPlatformAssets {
 
         $runId  = "$($useRun.databaseId)".Trim()
         $outDir = Join-Path $dlRoot $t.Artifact
-        gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null
+        try { gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null }
+        catch { }
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  WARN: failed to download $($t.Artifact) (run $runId) -- skipping." -ForegroundColor Yellow
             continue
@@ -279,7 +288,8 @@ Write-Host "Mode: $Mode" -ForegroundColor Magenta
 
 function Get-LatestStreamReleaseTag {
     param([bool]$Zip)
-    $json = gh release list --repo $Repo --limit 100 --json tagName,createdAt 2>$null
+    try { $json = gh release list --repo $Repo --limit 100 --json tagName,createdAt 2>$null }
+    catch { $json = $null }
     if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
     $rels = $json | ConvertFrom-Json
     if (-not $rels) { return $null }
@@ -575,7 +585,8 @@ if ($isZip) {
         # Ensure the beta branch exists (releases target it). Create it from the
         # repo's default branch head on first use.
         $branchOk = $true
-        gh api "repos/$Repo/branches/$BetaBranch" 2>$null | Out-Null
+        try { gh api "repos/$Repo/branches/$BetaBranch" 2>$null | Out-Null }
+        catch { }
         if ($LASTEXITCODE -ne 0) { $branchOk = $false }
         if (-not $branchOk) {
             Write-Host "Creating '$BetaBranch' branch on $Repo..." -ForegroundColor Cyan
