@@ -149,6 +149,12 @@ extern int g_PcFpsCam;
 VECTOR3 g_PcFpsOffset = { -29, -6896, 471 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
+/* FPS melee arm-clearance dolly (Pc_TpsCamera_Apply): smoothed pull distance, and
+ * the "head visible" publish read by world_draw.c — once the dolly is genuinely
+ * behind Harry's head, the head draws again so the pulled-back swing reads as a
+ * brief third-person beat instead of a headless body. */
+static s32 s_FpsSwingPull   = 0; /* Q12 */
+int g_PcFpsSwingHeadShow = 0;
 /* Published each FPS frame for the KP_5 tuner log: the running head-sway reference
  * (== idle-mean head-local once settled) and the instantaneous head-local. Logging
  * the settled ref at idle gives the constant needed to bake a FIXED sway reference. */
@@ -436,6 +442,8 @@ static void Pc_TpsCamera_Apply(void)
         {
             s_fpsHeadRefValid = 0; /* re-capture the head-sway baseline on next FPS entry */
             s_fpsHeadRotValid = 0; /* re-seed the head-LOOK baseline on next FPS entry */
+            s_FpsSwingPull       = 0; /* a stale pulled state would flash the head interior on FPS re-entry */
+            g_PcFpsSwingHeadShow = 0;
         }
 
         if (g_PcFpsCam)
@@ -527,7 +535,6 @@ static void Pc_TpsCamera_Apply(void)
                 #define SWING_PULL_NEAR Q12(0.55f) /* arm distance where the dolly starts */
                 #define SWING_PULL_MAX  Q12(0.50f) /* dolly cap */
                 #define SWING_PULL_WALL Q12(0.15f) /* keep-out margin from level geometry */
-                static s32 s_swingPull = 0;        /* smoothed dolly distance, Q12 */
                 s32 target = 0;
 
                 if (g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
@@ -560,16 +567,24 @@ static void Pc_TpsCamera_Apply(void)
                 /* Ease: quick to extend (beat the raise), gentler to come home.
                  * Snap the tail so the timestep-scaled integer step can't stall. */
                 {
-                    s32 d = target - s_swingPull;
-                    s_swingPull += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (d > 0) ? (d >> 1) : (d >> 2));
-                    d = target - s_swingPull;
+                    s32 d = target - s_FpsSwingPull;
+                    s_FpsSwingPull += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (d > 0) ? (d >> 1) : (d >> 2));
+                    d = target - s_FpsSwingPull;
                     if (d < 0) d = -d;
-                    if (d < 24) s_swingPull = target;
+                    if (d < 24) s_FpsSwingPull = target;
                 }
 
-                if (s_swingPull > 0)
+                /* Head visibility follows the ACTUAL dolly distance, not the swing
+                 * state: below the threshold the camera is still inside the head.
+                 * Hysteresis so it can't flicker around the edge. */
+                if (s_FpsSwingPull > Q12(0.32f))
+                    g_PcFpsSwingHeadShow = 1;
+                else if (s_FpsSwingPull < Q12(0.22f))
+                    g_PcFpsSwingHeadShow = 0;
+
+                if (s_FpsSwingPull > 0)
                 {
-                    s32 pull = s_swingPull;
+                    s32 pull = s_FpsSwingPull;
                     s_RayTrace pullTrace;
                     VECTOR3    back;
                     back.vx = tpCamPos.vx - (s32)((s64)(pull + SWING_PULL_WALL) * fwdX >> 12);

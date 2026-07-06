@@ -1440,7 +1440,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
-    { extern int g_PcFpsCam, g_PcHideHarryFpsBody;
+    { extern int g_PcFpsCam, g_PcHideHarryFpsBody, g_PcFpsSwingHeadShow;
       /* Hide Harry's head only during interactive FPS gameplay. Cutscenes (a
        * GameState_InGame substate, flagged by sysFlags/border) and load screens
        * (separate GameStates) use scripted cameras that frame him normally, so
@@ -1452,8 +1452,13 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
        * The FPS eye override (Pc_TpsCamera_Apply) only runs in the Gameplay
        * state, so only there is the view actually through Harry's eyes. Gating
        * on Gameplay keeps his head until the player is in full control at the
-       * FPS spot — no more headless Harry during the room-entry camera zoom. */
+       * FPS spot — no more headless Harry during the room-entry camera zoom.
+       *
+       * g_PcFpsSwingHeadShow: while the melee arm-clearance dolly has pulled
+       * the camera back behind the head, draw the head — the pulled swing
+       * reads as a brief third-person beat instead of a headless body. */
       g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry
+          && !g_PcFpsSwingHeadShow
           && g_GameWork.gameState == GameState_InGame
           && g_SysWork.sysState == SysState_Gameplay
           && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
