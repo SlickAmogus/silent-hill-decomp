@@ -349,3 +349,19 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
 - **ADSR envelopes default ON** (`adsr` config key, default 1; console
   toggle). The deadlock + key-status hangs that justified default-off are
   fixed; envelopes are required for the music's instrument fades.
+
+## FPS-camera polish (2026-07-06, commits `696fdde61`, `a42e02d0a`)
+
+- **Melee-swing mesh flash in first person** (`696fdde61`): swings lean
+  Harry's head (and the eye riding it) through his own torso/shoulder
+  models — their unlit collar/shoulder polys flashed across the view as
+  black shapes. `g_PcHideHarryFpsNeck` (world_draw.c sets, bone loop in
+  `bodyprog_bone_80044F14.c` skips) extends the head-only FPS hide to
+  Torso(1)+Shoulders(3,7) during `upperBodyState == Attack` with a melee
+  `weaponAttack` only. Guns and normal look-down keep the full body.
+- **Faded letterbox band at top in alt cameras** (`a42e02d0a`): the
+  FIX_ANG `g_PsxWorldVShift` framing band-aid (843b3a58c) applied while
+  FPS/TPS/OTS had replaced the game camera, revealing the never-covered
+  strip above the 224-line frame as a faded band that toggled with
+  FIX_ANG camera zones. `vc_main.c` now sets `g_PsxFixedCamActive` only
+  when `!g_DebugThirdPersonCam` (classic camera).
