@@ -1,5 +1,87 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.06.1 -- 2026-07-06
+- Added binding for warm reset\exiting the game in launcher control settings. You can unbind things by pressing DEL.
+- Fixed Windows release zips from using backslashes so that the zips are now parsed correctly in non-Windows operating systems.
+- Made launcher build settings dropdowns clearer + added buttons to download Mac and Linux build archives.
+- Fixed Discord link in launcher.
+
+Commit summaries:
+- nightly: prompt to wait/view CI status for pending cross-platform builds
+- launcher: update Discord invite link
+- controls: make Exit Game (was hardcoded Esc) a rebindable key
+- launcher: cross-platform archive download buttons + clearer branch dropdown
+- nightly: fix backslash path separators in the zip-mode release archive
+- nightly: fix ConvertFrom-Json array-flattening bug that broke cross-platform CI matching
+- nightly: actually fix the ConvertFrom-Json double-wrap this time
+- nightly: wrap redirected gh calls in try/catch, fix the actual crash
+
+## beta-2026.07.05.1 -- 2026-07-05
+- Added per pixel flashlight shadows, optional and added to dropdown. (Note: Due to the nature of the effect and how it works with the camera, it doesn't look too good in firstperson, I'd recommend only using it for thirdperson modes)
+- Added 2D control options, however may still need tweaking, please let me know your feedback in the discord or github
+- Implemented more Linux fixes courtesy of PR from Serentty
+- Fixed transparency issues with items in inventory and when picking up items! This was a massive PITA and usage killer, glad it is finally fixed! :)
+- Added more options to ingame config menu including sensitivity and aim assist, added the same to launcher
+- Added standard identifying information to launcher and submitted executable to microsoft to hopefully stop false-positive AV warnings
+- Fixed console input so that it freezes the frame on the correct camera
+- Fixed regression where final boss was not attacking
+
+Commit summaries:
+- Flashlight shadow mapping: config + console toggle, wire PsyCross
+- Flashlight shadows: mark Harry's skeleton as a non-caster
+- Integrate Linux/ASan memory-safety fixes (SlickAmogus#25 by Serentty)
+- Inventory see-through: bracket item OT0 draw with forced depth
+- Bump PsyCross: dither-off now disables all dither
+- Flashlight shadows ride on per-pixel flashlight; drop separate toggle
+- Harry's held weapon is a shadow non-caster + FPS shadow fix (PsyCross bump)
+- controls: add optional 2D (screen-relative) movement + look sensitivity
+- enemies: fix groaner/stalker/larval attacking from across the map
+- options/aim: reflect live gfx toggles in menu, persist F1/F2, FPS aim-assist off
+- config: raise SaveKeyValue line cap 400->1024 so late keys aren't dropped
+- Flashlight shadows: own on/off toggle (default on) + normal-offset knob
+- Flashlight shadows: shadowstrength console cmd + config doc; bump PsyCross
+- Flashlight shadows: shadowfade console cmd + bump PsyCross (contact fade)
+- Flashlight shadows: drop shadownormal/strength/fade console cmds; bump PsyCross
+- Flashlight shadows: only monsters cast; keep default no-cast after char draws
+- Flashlight shadows: everything casts; re-add tweak cmds; launcher combo option
+- docs: add Console & Debug Reference (all console commands + debug/graphics keys)
+- Console freeze: keep the alternate camera applied so the frozen view is correct
+- Bump PsyCross: inventory item see-through fix (preserve precise SZ)
+- launcher: reduce AV false-positives (publisher metadata + app.manifest)
+- Bump PsyCross: flashlight shadows skip frozen/menu/transition frames
+- Inventory see-through: feed true view-space depth to the item pass
+- Arm flashlight shadows only in settled gameplay (white-flash fix)
+- map7_s03: restore Good+ Incubus fight fire/lightning (inert boss fix)
+- items: fix world-pickup see-through by isolating the model like the inventory
+
+## beta-2026.07.03.1 -- 2026-07-03
+- Added spawn and spawn list console commands to spawn available monsters/npcs in an area
+- Also have unlimited 1 console command that will allow up to 32 npcs to spawn in each area (untested)
+- Added bindable flashlight/effect adjustment keys to launcher PC options and allow mouse wheel/buttons as default bind
+- FPS cam corrections and "immersive" mode checkbox where camera follows Harry's idle animations
+- Restricted FPS cam so player can't turn 360 degrees in one spot
+
+Coming soon: 2D Controls and monster shadows for per-pixel lighting
+
+Commit summaries:
+- FPS cam: capture head-sway reference from settled gameplay, not load
+- FPS cam: low-pass the head-sway reference so the resting eye converges
+- FPS cam: bake correct resting baseline + log settled head-mean
+- console: add SPAWN command (list + spawn monster in front of Harry)
+- options: add Map row to PC Options page 2 (cycle New-Game start map)
+- fps/config: NTSC vblank via submodule, 120/240 in menu, F3/F4 persist
+- spawn: match room-spawn bookkeeping + diagnostics; halve console apply window
+- spawn: greychild/stalker st=3 (5 was unposed); FPS head-follow slower low-pass
+- docs: 2D (screen-relative) control-mode task writeup
+- FPS cam: view follows Harry's head rotation + keep head until in control
+- FPS cam: owl-neck — legs auto-turn only when looking too far
+- FPS cam: immersive head-tracking toggle, ±90° look clamp, settle delay
+- Per-pixel flashlight: revert to PSX rendering during cutscenes
+- input: bindable graphics-tuning keys + mouse-wheel binds
+- launcher: immersive FPS head-tracking, bindable gfx keys + mouse wheel
+- enemies: raise NPC cap 6->32 + unlimited-enemies mode
+- input: graphics keys accept mouse-wheel binds
+
 ## beta-2026.07.02.1 -- 2026-07-02
 - New FPS camera mode, use F9/R3 to cycle to this mode by default. If you're using the per-pixel flashlight, it has a different (but configurable) default size. Also, the flashlight follows the camera in this mode. May have unexpected glitches. Camera can be adjusted with the numberpad.
 - New ingame options menu (repurposed screen position) for most of the graphics related config options, as well as two new audio options for voices and FMVs (in case of issues with XA audio on certain hardware)
