@@ -514,6 +514,82 @@ static void Pc_TpsCamera_Apply(void)
             tpCamPos.vz = tp_hr->position.vz + (s32)((s64)eyeLocal.vz * cYaw >> 12)
                                              - (s32)((s64)eyeLocal.vx * sYaw >> 12);
             tpCamPos.vy = tp_hr->position.vy + eyeLocal.vy;
+
+            /* Melee arm clearance: with the eye in the head, raise/swing poses put
+             * Harry's forearms right across the camera. Dolly the eye straight back
+             * along the view axis by how much the nearest forearm/hand bone crowds
+             * it — the camera backs off as the arms come up and eases home as the
+             * swing carries them away, self-timed for every weapon's animation.
+             * Gated to melee/unarmed attack input (guns don't raise into the face);
+             * proximity keeps it inert while the arms are down. A ray toward the
+             * pulled position keeps the dolly out of level geometry behind the eye. */
+            {
+                #define SWING_PULL_NEAR Q12(0.55f) /* arm distance where the dolly starts */
+                #define SWING_PULL_MAX  Q12(0.50f) /* dolly cap */
+                #define SWING_PULL_WALL Q12(0.15f) /* keep-out margin from level geometry */
+                static s32 s_swingPull = 0;        /* smoothed dolly distance, Q12 */
+                s32 target = 0;
+
+                if (g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
+                    g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+                {
+                    static const u8 ARM_BONES[4] = { HarryBone_LeftForearm, HarryBone_LeftHand,
+                                                     HarryBone_RightForearm, HarryBone_RightHand };
+                    s32 minDist = 0x7FFFFFFF;
+                    s32 i;
+
+                    for (i = 0; i < 4; i++)
+                    {
+                        const MATRIX* bm = &g_SysWork.playerBoneCoords[ARM_BONES[i]].workm;
+                        s32 dx = Q8_TO_Q12(bm->t[0]) - tpCamPos.vx;
+                        s32 dy = Q8_TO_Q12(bm->t[1]) - tpCamPos.vy;
+                        s32 dz = Q8_TO_Q12(bm->t[2]) - tpCamPos.vz;
+                        s32 d  = SquareRoot0(SQUARE(dx) + SQUARE(dy) + SQUARE(dz));
+                        if (d < minDist) minDist = d;
+                    }
+
+                    if (minDist < SWING_PULL_NEAR)
+                    {
+                        /* 1.5x gain: bone origins (elbow/wrist) sit past the mesh
+                         * surface that actually fills the view. */
+                        target = (SWING_PULL_NEAR - minDist) + ((SWING_PULL_NEAR - minDist) >> 1);
+                        if (target > SWING_PULL_MAX) target = SWING_PULL_MAX;
+                    }
+                }
+
+                /* Ease: quick to extend (beat the raise), gentler to come home.
+                 * Snap the tail so the timestep-scaled integer step can't stall. */
+                {
+                    s32 d = target - s_swingPull;
+                    s_swingPull += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (d > 0) ? (d >> 1) : (d >> 2));
+                    d = target - s_swingPull;
+                    if (d < 0) d = -d;
+                    if (d < 24) s_swingPull = target;
+                }
+
+                if (s_swingPull > 0)
+                {
+                    s32 pull = s_swingPull;
+                    s_RayTrace pullTrace;
+                    VECTOR3    back;
+                    back.vx = tpCamPos.vx - (s32)((s64)(pull + SWING_PULL_WALL) * fwdX >> 12);
+                    back.vy = tpCamPos.vy - (s32)((s64)(pull + SWING_PULL_WALL) * fwdY >> 12);
+                    back.vz = tpCamPos.vz - (s32)((s64)(pull + SWING_PULL_WALL) * fwdZ >> 12);
+                    if (Ray_TraceQuery(&pullTrace, &tpCamPos, &back) && pullTrace.hasHit)
+                    {
+                        s32 safe = pullTrace.hitDistance - SWING_PULL_WALL;
+                        if (safe < 0)    safe = 0;
+                        if (safe < pull) pull = safe;
+                    }
+                    tpCamPos.vx -= (s32)((s64)pull * fwdX >> 12);
+                    tpCamPos.vy -= (s32)((s64)pull * fwdY >> 12);
+                    tpCamPos.vz -= (s32)((s64)pull * fwdZ >> 12);
+                }
+                #undef SWING_PULL_NEAR
+                #undef SWING_PULL_MAX
+                #undef SWING_PULL_WALL
+            }
+
             g_PcCamAppliedPos   = tpCamPos;
             g_PcCamAppliedValid = 1;
             /* Publish the view-forward (world Q12) + eye pos so the flashlight can
