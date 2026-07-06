@@ -314,3 +314,23 @@ tracked `*_extracted_data.c`):
 Found by the new census tool `pc_port/tools/audit_map_sound_data.py` (scans all
 maps for sound-adjacent `D_8*` symbols, classifies extracted / zero-stub /
 missing, and diffs against the disc overlay bytes).
+
+## Controls / free-aim batch (2026-07-06, commit `003cd4cec` + PsyCross `90f0d9e`)
+
+- **altcam_button_sprint** (new config, default 0): alt cameras walk by
+  default, sprint only on the bound Run control (`player_control.c`, both the
+  TPS/OTS/FPS path and 2D-control-under-alt-cam path). Launcher checkbox +
+  sensitivity sliders second-column rework (`ControlsForm.cs`).
+- **Double-fire / zoom-exit on trigger mash** (alt modes):
+  `Pc_FreeAimGunUpperBody` refire cooldown wall-time 0.2s + 50ms release
+  debounce (was 4 rendered frames); FSM gate + TPS zoom now also hold on the
+  raw aim input so 1-frame `isAiming` blips can't drop to the PSX gun path
+  (extra ungated shot) or pop the zoom.
+- **Free-aim accuracy**: PSX random shot deviation capped for player shots in
+  alt cameras (`bodyprog_combat_8008A058.c`; handgun/rifle ~exact, shotgun
+  fixed 4° cone). Classic camera keeps the original accuracy model.
+- **Firing-pose shadow glitch** (per-pixel shadows): PsyCross flashlight
+  shadow FIFO entries value-validated like PGXP (`PsyX_GPU.cpp`) — CPU-built
+  quads (muzzle flash) no longer inherit stale arm/gun view-space verts.
+- **PGXP near-camera warp**: root-caused; fix = GL near-plane clipping, design
+  in `PGXP_NearClip_Design.md` (not yet implemented).
