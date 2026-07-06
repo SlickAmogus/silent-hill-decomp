@@ -295,3 +295,22 @@ Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
 > Already covered above and also cutscene-relevant: `CAT_ANIM_INFOS` zero-stub
 > (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1) — both of which
 > turned out to be masking the duplicated-array bug above.
+
+## Positional-SFX / world-object zero-stub batch (2026-07-06 audio audit)
+
+Seven map-overlay symbols with real disc data were still `u8[256]={0}` exe
+stubs (which shadow map-DLL data under `--export-all-symbols`). All are now
+real extracted data (`extract_map_data.py` EXTRA_SYMBOLS + hand-appended to the
+tracked `*_extracted_data.c`):
+
+- `D_800ED938` (map2_s02) street SFX position — played from world origin
+- `D_800D2530` (map3_s00) / `D_800D26F8` (map3_s06) door SFX positions
+- `D_800D4CE4` (map3_s01) hospital generator hum position — origin was outside
+  the Q12(16) falloff, so the generator loop was **silent**
+- `D_800CB364` (map3_s04) stinger SFX position
+- `D_800DAAD0` / `D_800DAAE4` (map5_s00) sewer pickup `s_Pose`s — pickup
+  objects rendered at the world origin
+
+Found by the new census tool `pc_port/tools/audit_map_sound_data.py` (scans all
+maps for sound-adjacent `D_8*` symbols, classifies extracted / zero-stub /
+missing, and diffs against the disc overlay bytes).

@@ -317,8 +317,13 @@ EXTRA_SYMBOLS = {
     # where the progression should spawn dogs). (D_800F1CA8 idx->state map is
     # already auto-extracted.)
     "map2_s00": [("D_800F1CAC", 0x800F1CAC, 1152)],
+    "map2_s02": [("D_800ED938", 0x800ED938, 12)],  # street SFX pos (VECTOR3); zero stub = played from world origin
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44),
-                 ("D_800CB0CC", 0x800CB0CC, 12)],
+                 ("D_800CB0CC", 0x800CB0CC, 12),
+                 # sewer pickup poses (s_Pose); zero stubs = shotgun-shells /
+                 # companion pickup objects rendered at the world origin
+                 ("D_800DAAD0", 0x800DAAD0, 20),
+                 ("D_800DAAE4", 0x800DAAE4, 20)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
                  ("D_800EFC80", 0x800EFC80, 24),  # per-room BGM layer flags (12 rooms); was a silent zero-stub
                  ("D_800F0158", 0x800F0158, 24),
@@ -329,16 +334,20 @@ EXTRA_SYMBOLS = {
     # known symbol (same-cluster D_* table where adjacent, else the next
     # sym-file symbol). Over-extraction copies inert ROM bytes — the scenes
     # index only as many entries as they have dialogue pages.
-    "map3_s00": [("D_800D24F0", 0x800D24F0, 76)],
+    "map3_s00": [("D_800D24F0", 0x800D24F0, 76),
+                 ("D_800D2530", 0x800D2530, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
+    "map3_s01": [("D_800D4CE4", 0x800D4CE4, 12)],  # generator hum pos (VECTOR3); zero stub = hum at origin, outside falloff = silent
     "map3_s02": [("D_800D1FC0", 0x800D1FC0, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip (mirror of map4_s04 rainbow corruption)
                  ("D_800D1FD0", 0x800D1FD0, 8)],   # RECT cutscene SetDrawArea (end-of-OT restore)
     "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
                  ("D_800D6B50", 0x800D6B50, 4),
                  ("D_800D6B54", 0x800D6B54, 4)],
     "map3_s04": [("D_800D599C", 0x800D599C, 64),
-                 ("D_800CB370", 0x800CB370, 12)],
+                 ("D_800CB370", 0x800CB370, 12),
+                 ("D_800CB364", 0x800CB364, 12)],  # stinger SFX pos (VECTOR3); zero stub = played from world origin
     "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
-    "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
+    "map3_s06": [("D_800D26D0", 0x800D26D0, 52),
+                 ("D_800D26F8", 0x800D26F8, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
     # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
     "map4_s03": [("D_800CA788", 0x800CA788, 8),

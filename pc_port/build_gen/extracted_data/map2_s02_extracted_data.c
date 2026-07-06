@@ -640,3 +640,10 @@ u8 sharedData_800E2370_0_s01[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+
+/* Positional one-shot SFX source (Sfx_Unk1492, map2_s02.c:226). Zero-stubbed ->
+   played from the world origin instead of Q12 (-100.0, -1.2, -108.0).
+   Hand-extracted from MAP2_S02.BIN; kept in extract_map_data.py EXTRA_SYMBOLS. */
+u8 D_800ED938[12] = {
+    0x00, 0xC0, 0xF9, 0xFF, 0xCD, 0xEC, 0xFF, 0xFF, 0x00, 0x40, 0xF9, 0xFF
+};

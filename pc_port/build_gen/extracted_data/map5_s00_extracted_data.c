@@ -298,3 +298,16 @@ s32 D_800DA154[256] = {
     982289575, 982355368, 982355369, 982421162, 982486955, 982552748, 982552749, 982618543,
     982684336, 982750129, 982815922, 982815923, 982881716, 982947509, 983013302, 983079096
 };
+
+/* Sewer pickup world-object poses (s_Pose: VECTOR3 position + SVECTOR3 rotation).
+   Zero-stubbed -> the shotgun-shells object (g_CommonWorldObjects[5],
+   map5_s00.c:1095) and the companion pickup (g_CommonWorldObjects[1], :1103)
+   rendered at the world origin instead of Q12 (58.4, 0, 13.1) / (56.5, 0, 13.55). */
+u8 D_800DAAD0[20] = {
+    0xEB, 0xA5, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0xD2, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+u8 D_800DAAE4[20] = {
+    0x00, 0x88, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0xCC, 0xD8, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};

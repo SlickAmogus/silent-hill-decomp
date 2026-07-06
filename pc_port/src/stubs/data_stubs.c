@@ -47,7 +47,7 @@ u8 D_800CB2A0[256] = {0};
 u8 D_800CB2B4[256] = {0};
 u8 D_800CB2DC[256] = {0};
 u8 D_800CB304[256] = {0};
-u8 D_800CB364[256] = {0};
+/* D_800CB364 (map3_s04 stinger SFX position) now real data in map3_s04_extracted_data.c */
 u8 D_800CB3A4[256] = {0};
 /* D_800CB69C: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* D_800CB6AC: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
@@ -82,12 +82,12 @@ u8 D_800D1FBC[256] = {0};
  * stub: PC SetDrawOffset is a render-neutral no-op, so its value is unused. */
 u8 D_800D1FE0[256] = {0};
 u8 D_800D1FEC[256] = {0};
-u8 D_800D2530[256] = {0};
+/* D_800D2530 (map3_s00 door SFX position) now real data in map3_s00_extracted_data.c */
 u8 D_800D253C[256] = {0};
 u8 D_800D2550[256] = {0};
 u8 D_800D2560[256] = {0};
 u8 D_800D256C[256] = {0};
-u8 D_800D26F8[256] = {0};
+/* D_800D26F8 (map3_s06 door SFX position) now real data in map3_s06_extracted_data.c */
 u8 D_800D2718[256] = {0};
 u8 D_800D2728[256] = {0};
 u8 D_800D2734[256] = {0};
@@ -127,7 +127,7 @@ u8 D_800D4174[256] = {0};
 u8 D_800D41B0[256] = {0};
 u8 D_800D41B4[256] = {0};
 u8 D_800D4362[256] = {0};
-u8 D_800D4CE4[256] = {0};
+/* D_800D4CE4 (map3_s01 generator hum position) now real data in map3_s01_extracted_data.c */
 u8 D_800D4E08[256] = {0};
 u8 D_800D4E09[256] = {0};
 u8 D_800D4E0C[256] = {0};
@@ -215,8 +215,8 @@ u8 D_800DA6EC[256] = {0};
 /* D_800DAA58 (twinfeeler dust/dirt color ramp, s32[256]) now defined with real
  * binary-extracted values in map4_s03_extracted_data.c. The exe zero-stub here
  * would shadow the DLL copy under --export-all-symbols (= black dust grid). */
-u8 D_800DAAD0[256] = {0};
-u8 D_800DAAE4[256] = {0};
+/* D_800DAAD0 / D_800DAAE4 (map5_s00 sewer pickup poses) now real data in
+ * map5_s00_extracted_data.c */
 u8 D_800DAAF8[256] = {0};
 u8 D_800DAB0C[256] = {0};
 u8 D_800DAB20[256] = {0};
@@ -517,7 +517,7 @@ u8 D_800ED841[256] = {0};
  * pool overran it and truncated a callback pointer (EXECUTING 0x7ffa crash). */
 u8 D_800ED8AC[256] = {0};
 u8 D_800ED8E8[256] = {0};
-u8 D_800ED938[256] = {0};
+/* D_800ED938 (map2_s02 street SFX position) now real data in map2_s02_extracted_data.c */
 u8 D_800ED980[256] = {0};
 u8 D_800ED9B8[256] = {0};
 s32 D_800EDA00 = 0; /* little_incubus.h scalar accumulator; was u8[256] */
