@@ -350,7 +350,7 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   toggle). The deadlock + key-status hangs that justified default-off are
   fixed; envelopes are required for the music's instrument fades.
 
-## FPS-camera polish (2026-07-06, commits `696fdde61`, `a42e02d0a`)
+## FPS-camera polish + FIX_ANG framing rework (2026-07-06, commits `696fdde61`, `1cb6b4bdb` + PsyCross `8c34600`)
 
 - **Melee-swing mesh flash in first person** (`696fdde61`): swings lean
   Harry's head (and the eye riding it) through his own torso/shoulder
@@ -359,9 +359,14 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   `bodyprog_bone_80044F14.c` skips) extends the head-only FPS hide to
   Torso(1)+Shoulders(3,7) during `upperBodyState == Attack` with a melee
   `weaponAttack` only. Guns and normal look-down keep the full body.
-- **Faded letterbox band at top in alt cameras** (`a42e02d0a`): the
-  FIX_ANG `g_PsxWorldVShift` framing band-aid (843b3a58c) applied while
-  FPS/TPS/OTS had replaced the game camera, revealing the never-covered
-  strip above the 224-line frame as a faded band that toggled with
-  FIX_ANG camera zones. `vc_main.c` now sets `g_PsxFixedCamActive` only
-  when `!g_DebugThirdPersonCam` (classic camera).
+- **Faded letterbox band at top of screen** (`1cb6b4bdb` + PsyCross
+  `8c34600`): the FIX_ANG `g_PsxWorldVShift` framing band-aid (843b3a58c)
+  shifted the ortho window up, revealing rows above the 224-line frame
+  that screen-space overlay prims never cover — a faded band toggling
+  with FIX_ANG camera zones, in every camera style (an interim alt-cam
+  gate `a42e02d0a` only masked it for FPS/TPS/OTS). Rework: MainLoop
+  (game_main.c) applies the shift at the GTE projection center
+  (`SetGeomOffset(0, vshift)`) during classic-camera gameplay only —
+  same visible world window, full overlay coverage, no band. Asserted
+  every frame in every state so item screens/menus keep the clean (0,0)
+  baseline. `vshift` console command still live-tunes the amount.
