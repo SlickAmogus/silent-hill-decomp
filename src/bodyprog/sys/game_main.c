@@ -217,8 +217,12 @@ static void Pc_TpsCamera_Apply(void)
      * on g_Player_IsAttacking too made the camera jarringly zoom in whenever the
      * player fired a shot, swung a melee weapon, or activated/examined something
      * (Cross) without aiming. The zoom is lerped below, so dropping it doesn't
-     * snap during an aimed shot (isAiming stays held). */
-    isAiming = g_SysWork.playerCombat.isAiming;
+     * snap during an aimed shot (isAiming stays held).
+     * Also OR the raw aim-input flag: combat-state churn during rapid fire can
+     * blip isAiming false for a frame, which visibly popped the zoom out even
+     * though the player never released the aim button. */
+    { extern u16 g_Player_IsAiming;
+      isAiming = g_SysWork.playerCombat.isAiming || g_Player_IsAiming; }
 
     /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
      * up better. tps_aim_zoom config gates it (on by default). */

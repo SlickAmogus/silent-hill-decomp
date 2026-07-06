@@ -140,8 +140,12 @@ public class ControlsForm : Form
     private CheckBox chkImmersiveFps;
     private CheckBox chkAimAssist;
     private CheckBox chk2dControls;
+    private CheckBox chkButtonSprint;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
+    private TrackBar trkMouseSens;
+    private TrackBar trkControllerSens;
+    private bool syncingSens;   /* guards the numeric <-> slider mirroring */
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
 
@@ -377,12 +381,18 @@ public class ControlsForm : Form
             "Over-the-Shoulder): the stick / movement keys push Harry relative to the screen and he turns to face the " +
             "direction you press, instead of tank controls. Off = the original per-camera controls.");
 
-        AddLabel("Mouse Sensitivity", colPadX, styleY + 190, 130);
+        // --- Sensitivity column (second column, right of the checkbox stack):
+        // label + value box on one row, a slider line underneath (mirrors the
+        // numeric box both ways).
+        int sensX = colPadX + 235;
+        int sensW = 190;
+
+        AddLabel("Mouse Sensitivity", sensX, styleY + 30, 125);
         numMouseSens = new NumericUpDown
         {
-            Left = colPadX + 135,
-            Top = styleY + 187,
-            Width = 70,
+            Left = sensX + sensW - 60,
+            Top = styleY + 27,
+            Width = 60,
             DecimalPlaces = 1,
             Increment = 0.1m,
             Minimum = 0.1m,
@@ -391,13 +401,15 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numMouseSens);
+        trkMouseSens = MakeSensSlider(sensX, styleY + 52, sensW);
+        WireSensPair(numMouseSens, trkMouseSens);
 
-        AddLabel("Controller Sensitivity", colPadX, styleY + 218, 130);
+        AddLabel("Controller Sensitivity", sensX, styleY + 96, 125);
         numControllerSens = new NumericUpDown
         {
-            Left = colPadX + 135,
-            Top = styleY + 215,
-            Width = 70,
+            Left = sensX + sensW - 60,
+            Top = styleY + 93,
+            Width = 60,
             DecimalPlaces = 1,
             Increment = 0.1m,
             Minimum = 0.1m,
@@ -406,6 +418,9 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numControllerSens);
+        trkControllerSens = MakeSensSlider(sensX, styleY + 118, sensW);
+        WireSensPair(numControllerSens, trkControllerSens);
+
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
         tips.SetToolTip(numControllerSens,
@@ -415,11 +430,25 @@ public class ControlsForm : Form
         {
             Text = "Aim Assist (TPS/OTS)",
             Left = colPadX,
-            Top = styleY + 244,
+            Top = styleY + 186,
             Width = 200,
             ForeColor = TextColor,
         };
         Controls.Add(chkAimAssist);
+
+        chkButtonSprint = new CheckBox
+        {
+            Text = "Button based sprinting in Alt. modes",
+            Left = colPadX,
+            Top = styleY + 212,
+            Width = 260,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkButtonSprint);
+        tips.SetToolTip(chkButtonSprint,
+            "Alternate cameras (Thirdperson / Over-the-Shoulder / First-person) walk by default and only sprint " +
+            "while the bound Run control is held — like the classic control style. Off = pushing the stick most " +
+            "of the way also sprints.");
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
             "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +
@@ -800,6 +829,7 @@ public class ControlsForm : Form
         chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
         chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
+        chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
 
@@ -835,11 +865,55 @@ public class ControlsForm : Form
         chkImmersiveFps.Checked = false;
         chk2dControls.Checked = false;
         chkAimAssist.Checked = true;
+        chkButtonSprint.Checked = false;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
+    }
+
+    // A slider line for a sensitivity value: 0.1..4.0 mapped to 1..40 ticks.
+    private TrackBar MakeSensSlider(int x, int y, int width)
+    {
+        var trk = new TrackBar
+        {
+            Left = x,
+            Top = y,
+            Width = width,
+            Height = 30,
+            AutoSize = false,
+            Minimum = 1,
+            Maximum = 40,
+            TickStyle = TickStyle.None,
+            SmallChange = 1,
+            LargeChange = 5,
+            BackColor = Back,
+        };
+        Controls.Add(trk);
+        return trk;
+    }
+
+    // Mirror a sensitivity NumericUpDown and its slider both ways.
+    private void WireSensPair(NumericUpDown num, TrackBar trk)
+    {
+        num.ValueChanged += (s, e) =>
+        {
+            if (syncingSens) return;
+            syncingSens = true;
+            int v = (int)Math.Round(num.Value * 10m);
+            trk.Value = Math.Max(trk.Minimum, Math.Min(trk.Maximum, v));
+            syncingSens = false;
+        };
+        trk.ValueChanged += (s, e) =>
+        {
+            if (syncingSens) return;
+            syncingSens = true;
+            num.Value = trk.Value / 10m;
+            syncingSens = false;
+        };
+        // Seed the slider from the box's initial value.
+        trk.Value = Math.Max(trk.Minimum, Math.Min(trk.Maximum, (int)Math.Round(num.Value * 10m)));
     }
 
     // Parse a sensitivity string from config, clamp to the launcher's [0.1, 4.0]
@@ -889,6 +963,7 @@ public class ControlsForm : Form
         config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
         config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
+        config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
         config.Set("mouse_sensitivity",
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",

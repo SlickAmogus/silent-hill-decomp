@@ -47,6 +47,7 @@ s_PcConfig g_PcConfig = {
     .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
+    .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .mouseSensitivity        = 1.0f,
@@ -449,6 +450,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "aim_assist") == 0)
         {
             g_PcConfig.aimAssist = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "altcam_button_sprint") == 0)
+        {
+            g_PcConfig.altButtonSprint = (atoi(value) != 0);
         }
         else if (strcmp(key, "immersive_fps_head_tracking") == 0)
         {

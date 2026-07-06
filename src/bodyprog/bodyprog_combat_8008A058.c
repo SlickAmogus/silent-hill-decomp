@@ -651,6 +651,30 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 
             j_584:
                 sp48 = Q12_MULT_PRECISE(var_s2, Rng_RandQ12());
+
+#ifdef SH_PC_PORT
+                /* Free-aim (alt cameras): the PSX accuracy model scatters every
+                 * shot a random angle off the aim direction (distance/state
+                 * driven). Under auto-aim that read as game feel; under a
+                 * crosshair it reads as "bullets don't go where I aim" — worst
+                 * in first person, which has no aim assist. Cap the deviation
+                 * for the PLAYER's shots in alt cameras only: handgun/rifle
+                 * near-exact, shotgun keeps a fixed modest pellet cone.
+                 * Classic camera is untouched. */
+                {
+                    extern int g_DebugThirdPersonCam;
+                    if (g_DebugThirdPersonCam && chara == &g_SysWork.playerWork.player)
+                    {
+                        s32 cap = (WEAPON_ATTACK_ID_GET(sp14) == EquippedWeaponId_Shotgun)
+                                      ? Q12_ANGLE(4.0f)
+                                      : Q12_ANGLE(0.5f);
+                        if (sp48 > cap)
+                        {
+                            sp48 = cap;
+                        }
+                    }
+                }
+#endif
             }
 
             var_s6 = Q12_MULT(sp4C, sp10 - 2);

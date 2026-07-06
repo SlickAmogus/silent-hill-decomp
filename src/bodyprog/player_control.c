@@ -1570,7 +1570,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                          ? !(held & runBtn) : (held & runBtn) != 0;
                         s32 lx = (s32)g_Controller0->analogController.leftX - 128;
                         s32 ly = (s32)g_Controller0->analogController.leftY - 128;
-                        int stickSprint = (lx * lx + ly * ly) >= (96 * 96);
+                        /* altcam_button_sprint: in alt cameras only the bound run
+                         * control sprints (classic-scheme feel); stick magnitude
+                         * stops mattering. 2D control under a CLASSIC camera keeps
+                         * the stick-sprint heuristic either way. */
+                        int stickSprint = !(g_PcConfig.altButtonSprint && g_DebugThirdPersonCam) &&
+                                          (lx * lx + ly * ly) >= (96 * 96);
                         g_Player_IsRunning = cfgRun || stickSprint;
                     }
                     g_Player_HeadingAngle = Q12_ANGLE(0.0f);
@@ -1654,7 +1659,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                  * (Aiming a gun still forces walk at the move-speed site.) */
                                 s32 lx = (s32)g_Controller0->analogController.leftX - 128;
                                 s32 ly = (s32)g_Controller0->analogController.leftY - 128;
-                                int stickSprint = (lx * lx + ly * ly) >= (96 * 96);
+                                /* altcam_button_sprint: only the bound run control
+                                 * sprints; a full stick push stays a walk. */
+                                int stickSprint = !g_PcConfig.altButtonSprint &&
+                                                  (lx * lx + ly * ly) >= (96 * 96);
                                 g_Player_IsRunning = cfgRun || stickSprint;
                             }
                             else
@@ -3642,14 +3650,16 @@ typedef enum { PcGun_Aim = 0, PcGun_Fire, PcGun_Reload } e_PcGunState;
  * 2-3 times read as 2-3 shots). The release-required edge below is the primary
  * guard; this just absorbs noise. Frame-based, kept small so semi-auto mashing
  * is unaffected. */
-#define PC_GUN_REFIRE_CD 4
+#define PC_GUN_REFIRE_SEC  Q12(0.2f)   /* min wall-time between shots */
+#define PC_GUN_MIN_RELEASE Q12(0.05f)  /* trigger must be released this long to re-arm */
 
 static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra, bool freshAim)
 {
     static e_PcGunState s_state        = PcGun_Aim;
     static s32          s_stuckTmr     = 0;
     static bool         s_prevFireHeld = false;
-    static s32          s_refireCd     = 0;
+    static q19_12       s_refireT      = 0;          /* wall-time until the next shot may fire */
+    static q19_12       s_releasedT    = Q12(1.0f);  /* how long fire has been released */
 
     u8  recoilSt  = (u8)(g_Player_EquippedWeaponInfo.animAttackHold | 1); /* Unk30 active */
     s16 recoilBeg = HARRY_BASE_ANIM_INFOS[recoilSt].startKeyframeIdx;
@@ -3659,14 +3669,23 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
     /* Semi-auto: fire only on the trigger's rising edge (must release between
      * shots). Holding the trigger used to auto-refire once per recoil cycle —
      * at high FPS the recoil cycles fast, so a single controller trigger pull
-     * (held a touch longer than a keyboard tap) loosed 2-3 rounds. */
-    bool fireEdge  = fireHeld && !s_prevFireHeld && s_refireCd == 0;
+     * (held a touch longer than a keyboard tap) loosed 2-3 rounds.
+     * Both anti-double-fire timers are WALL-TIME (g_DeltaTime seconds), not
+     * frame counts — the old 4-frame cooldown was ~16ms at 240 fps and stopped
+     * nothing. The edge additionally requires the trigger to have been released
+     * for a minimum time, absorbing analog chatter and 1-frame IsShooting
+     * dropouts. Neither timer resets on freshAim, so a state-gate blip can't
+     * re-arm an instant second shot. */
+    bool fireEdge;
     bool reloadReq = PC_PlayerManualReloadRequested();
     s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
     s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
 
-    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; s_prevFireHeld = fireHeld; s_refireCd = 0; }
-    if (s_refireCd > 0) s_refireCd--;
+    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; s_prevFireHeld = fireHeld; }
+    if (s_refireT > 0) s_refireT -= g_DeltaTime;
+    if (!fireHeld) s_releasedT += g_DeltaTime;
+    fireEdge = fireHeld && !s_prevFireHeld && s_refireT <= 0 && s_releasedT >= PC_GUN_MIN_RELEASE;
+    if (fireHeld) s_releasedT = 0;
     s_prevFireHeld = fireHeld;
 
     /* Keep Harry in the combat player-state so the free-aim camera-ray bullet
@@ -3711,7 +3730,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             if (fireEdge && ammo > 0)
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
-                s_refireCd = PC_GUN_REFIRE_CD;
+                s_refireT = PC_GUN_REFIRE_SEC;
                 player->field_44.field_0 = 1;
                 if (g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap))
                 {
@@ -3798,7 +3817,13 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
      * melee, holstered, and classic camera keep the original logic. */
     {
         static u8 s_pcGunWasAiming = 0;
-        if (g_DebugThirdPersonCam && g_SysWork.playerCombat.isAiming &&
+        /* Gate on the combat state OR the raw aim input: if isAiming blips false
+         * for a frame while the aim button is still held (state-machine churn
+         * during rapid fire), falling through to the PSX gun path for that frame
+         * fired an ungated extra shot and cleared isAiming (the "kicked out of
+         * zoom while mashing fire" report). The input flag keeps the FSM in
+         * control across such blips; releasing aim still exits normally. */
+        if (g_DebugThirdPersonCam && (g_SysWork.playerCombat.isAiming || g_Player_IsAiming) &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
         {
             bool fresh = !s_pcGunWasAiming;

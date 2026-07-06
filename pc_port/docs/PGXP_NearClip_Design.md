@@ -1,0 +1,91 @@
+# PGXP Near-Plane Clipping — Design (2026-07-06)
+
+## Symptom
+
+With PGXP on, geometry very close to the camera warps/smears like affine mapping
+(user screenshots: hallway corner and locker close-ups in first person). Normal
+viewing distance is perspective-correct; the warp appears only as the camera
+approaches within ~a character radius of the surface.
+
+## Root cause (traced 2026-07-06)
+
+`GTE_RotTransPers` (pc_port/PsyCross/src/gte/PsyX_GTE.cpp ~316):
+
+- In-front vertices (`SZ3 > 0`) get a full-precision float projection and a
+  positive W → perspective path. This already covers the "close but in front"
+  case (the old Lm_E saturation bug was fixed earlier).
+- Vertices **at/behind the near plane** (`SZ3 == 0`) have *no valid projection*
+  — the code stores `W = 0`, and `GetPreciseVertex` (PsyX_GPU.cpp ~190) sends
+  them down the affine path.
+
+A polygon that *straddles* the camera plane (wall/floor plane continuing past
+the eye — guaranteed when the FPS camera leans into a corner) therefore renders
+with MIXED per-vertex modes: some perspective (ppw>0), some affine (ppw=0). The
+interpolation across the poly is inconsistent → the affine-looking smear.
+
+This is not a regression: PSX hardware has the same failure (no near clipping;
+SH1 works around it by dynamically subdividing map geometry near the camera,
+tuned for cameras that never got this close). PGXP just makes the rest of the
+frame clean enough that the near-warp stands out, and FPS mode creates camera
+positions the original game never produced.
+
+## Why per-vertex tricks cannot fix it
+
+A vertex behind the eye has no meaningful screen position or 1/W; any value
+assigned to it produces some wrong interpolation. The only correct treatment is
+to CLIP the primitive against a near plane and generate new vertices at the
+intersection — i.e. what every real 3D pipeline does before the divide.
+
+## Design
+
+Clip at prim-assembly time in the GL backend (PsyX_GPU.cpp), in view space,
+using data we already capture per vertex:
+
+1. **View-space source**: the flashlight FIFO (`VsEntry`: GTE RTPS MAC1/2/3 =
+   view-space x,y,z, address-keyed + value-validated as of this batch) has
+   exactly the needed positions. Change its gate from
+   `g_PsyX_UsePerPixelFlashlight` to `(g_PsyX_UsePerPixelFlashlight ||
+   g_PsxUsePgxp)` in PsyX_GTE.cpp `PGXP_StoreAddr` + `GTE_RotTransPers` (and
+   `Shadow_Copy`). Memory cost: none (table exists); CPU cost: negligible.
+
+2. **Eligibility**: only 3D prims where ALL vertices resolve BOTH a PGXP shadow
+   entry (value-validated) AND a view-space entry, and at least one vertex has
+   `ppw == 0` (i.e. SZ3 clamped to 0) while at least one has `vsz > NEAR`.
+   Everything else keeps the current behavior (fully-in-front polys are already
+   correct; fully-behind polys are culled by the GTE/game anyway).
+
+3. **Clip**: Sutherland–Hodgman against `z = NEAR` in view space (NEAR = a few
+   GTE units, e.g. `C2_H / 16`, tunable). Interpolate per-vertex UV, RGB, and
+   view pos along each crossing edge. A clipped quad yields up to 5 vertices →
+   fan-triangulate.
+
+4. **Re-project** new vertices with the same formula the PGXP path uses:
+   `sx = OFX + vsx * (H / vsz)`, `sy = OFY + vsy * (H / vsz)`, `W = vsz`
+   (matching `pgxpW`'s unquantized scale). OFX/OFY/H must be the values active
+   at GTE time — capture them alongside the vs FIFO (they are GTE registers;
+   store per-frame, they don't change mid-frame in SH1).
+
+5. **Feed** the resulting triangles through the normal vertex-emission path of
+   the same prim (same OT bucket, same texture/blend state) so painter's-order
+   and semi-transparency are unaffected.
+
+6. **Toggle**: console `pgxpnearclip 0/1` (default 1 when PGXP on) for A/B and
+   regression triage; OFF path byte-identical to today.
+
+## Risks / notes
+
+- The guard-band position clamp (`g_PgxpEdgeMax`) still applies to the
+  re-projected verts; clipped verts project inside the frustum by construction
+  so they never hit it.
+- Gouraud interpolation of RGB along the clipped edge differs slightly from
+  PSX (which never drew these polys correctly at all) — acceptable.
+- The prim's integer vertices stay untouched; only the GL vertex stream is
+  clipped, so PGXP-off rendering is unaffected.
+- Test plan: FPS mode, school hallway corner + locker from the report; also
+  classic mode close-camera cutscenes (Kaufmann office) for no-regression, and
+  `pgxpnearclip 0` A/B.
+
+## Status
+
+Design only — not implemented. The VsEntry value-validation prerequisite landed
+with the firing-shadow fix in this batch (PsyX_GPU.cpp).
