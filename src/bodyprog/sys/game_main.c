@@ -235,6 +235,12 @@ static void Pc_TpsCamera_Apply(void)
      * up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
     static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
+
+    /* Room-entry front-seed window (TPS/OTS): nonzero = hold the orbit in
+     * front of Harry's current facing until this SDL tick, or until the
+     * player touches the camera / moves. Set by the warp detector below. */
+    #define PC_FRONT_SEED_MS 1200u
+    static Uint32 s_pcFrontSeedUntil = 0;
     {
         extern int g_TpsCamNeedsReset;
         if (g_TpsCamNeedsReset)
@@ -256,10 +262,15 @@ static void Pc_TpsCamera_Apply(void)
      * the orbit yaw persists from the previous room — it usually points at the
      * wall right behind him, and the camera-wall collision then jams the eye
      * into his back (fullscreen Harry). Detect the root warp (> 2 world units
-     * in one frame; normal movement peaks ~0.2) and reseed: TPS/OTS place the
-     * camera IN FRONT of Harry looking back at him — he faces into the open
-     * room, so that framing starts clear. FPS just aligns the look with his
-     * new facing (the ±90° body clamp would otherwise leave it cranked). */
+     * in one frame; normal movement peaks ~0.2) and open a short front-seed
+     * WINDOW: while it's live, the orbit is held in front of Harry's CURRENT
+     * facing looking back at him. His rotation settles during the door-entry
+     * animation (he ends up facing the door he came through), so a one-shot
+     * seed at the warp frame lands behind his final pose — the window tracks
+     * him through the turn so he faces the camera when control lands. The
+     * window ends on any camera/move input (applied in the input block below)
+     * or after PC_FRONT_SEED_MS. FPS just aligns the look with his facing at
+     * the warp (the ±90° body clamp would otherwise stay cranked sideways). */
     {
         static VECTOR3 s_prevRootPos;
         static int     s_prevRootValid = 0;
@@ -272,10 +283,15 @@ static void Pc_TpsCamera_Apply(void)
                 jdz > Q12(2.0f) || jdz < -Q12(2.0f))
             {
                 extern int g_PcFpsCam;
-                s32 seedYaw = g_PcFpsCam ? tp_hr->rotation.vy
-                                         : tp_hr->rotation.vy + Q12_ANGLE(180.0f);
-                g_TpsCamYaw   = Q12_ANGLE_NORM_U(seedYaw + Q12_ANGLE(360.0f));
-                g_TpsCamPitch = 0;
+                if (g_PcFpsCam)
+                {
+                    g_TpsCamYaw   = Q12_ANGLE_NORM_U(tp_hr->rotation.vy + Q12_ANGLE(360.0f));
+                    g_TpsCamPitch = 0;
+                }
+                else
+                {
+                    s_pcFrontSeedUntil = SDL_GetTicks() + PC_FRONT_SEED_MS;
+                }
             }
         }
 
@@ -332,6 +348,39 @@ static void Pc_TpsCamera_Apply(void)
                      lx > TP_STICK_DEADZONE || lx < -TP_STICK_DEADZONE ||
                      ly > TP_STICK_DEADZONE || ly < -TP_STICK_DEADZONE)
                 g_PcAimDevice = 1;
+        }
+
+        /* Room-entry front-seed window: hold the orbit in front of Harry's
+         * CURRENT facing (tracking his door-entry turn) so he faces the camera
+         * when control lands. Any camera or movement input hands the orbit
+         * straight back to the player; otherwise it expires on its own. */
+        if (s_pcFrontSeedUntil != 0 && !g_PcFpsCam)
+        {
+            s32 lx2 = (s32)g_Controller0->analogController.leftX - 128;
+            s32 ly2 = (s32)g_Controller0->analogController.leftY - 128;
+            int moveHeld =
+                (g_sdlKeyboardState != NULL &&
+                 (g_sdlKeyboardState[SDL_SCANCODE_W] || g_sdlKeyboardState[SDL_SCANCODE_A] ||
+                  g_sdlKeyboardState[SDL_SCANCODE_S] || g_sdlKeyboardState[SDL_SCANCODE_D])) ||
+                lx2 > TP_STICK_DEADZONE || lx2 < -TP_STICK_DEADZONE ||
+                ly2 > TP_STICK_DEADZONE || ly2 < -TP_STICK_DEADZONE ||
+                (g_Controller0->heldBtnFlags & (ControllerFlag_DpadUp   | ControllerFlag_DpadDown |
+                                                ControllerFlag_DpadLeft | ControllerFlag_DpadRight));
+
+            if (mdx != 0 || mdy != 0 || rx != 0 || ry != 0 || moveHeld ||
+                SDL_GetTicks() >= s_pcFrontSeedUntil)
+            {
+                s_pcFrontSeedUntil = 0;
+            }
+            else
+            {
+                g_TpsCamYaw   = Q12_ANGLE_NORM_U(tp_hr->rotation.vy + Q12_ANGLE(180.0f) + Q12_ANGLE(360.0f));
+                g_TpsCamPitch = 0;
+            }
+        }
+        else if (g_PcFpsCam)
+        {
+            s_pcFrontSeedUntil = 0;
         }
 
         g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
