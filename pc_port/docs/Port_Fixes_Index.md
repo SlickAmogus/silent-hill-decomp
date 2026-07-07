@@ -392,3 +392,18 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   Reverted; the Jun 29 stolen-page untexture (`g_PcInteriorMatSync`,
   the real rainbow guard) is kept. Reported MSAA-8x correlation was a
   red herring.
+
+## Alt-camera melee parity (2026-07-06, commit `86578da27`)
+
+- **Multi-tap combos impossible in TPS/OTS/FPS**: the combo click queue
+  counted only pad action-mask edges; alt cameras read fire via SDL
+  (mouse), so it stayed empty. `g_PcAltFireHeld` publish feeds it now.
+- **Every click dispatched the wide swipe** (combo window only opens
+  from tap-class swings): the shim now mirrors the PSX shift-register
+  semantics on a wall clock — hold >= 130ms = swipe (`IsAttacking`),
+  completed shorter click = tap pulse (`IsShooting`, dispatch on
+  release, like classic).
+- **Katana lunge missing in alt cameras**: the aim shim forced
+  `lowerBodyState = Aim` every frame, stomping the swing's `Attack`
+  lower-body state that carries the attack root motion; no longer
+  overwritten mid-swing (also stops movement fighting active swings).
