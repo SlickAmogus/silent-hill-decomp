@@ -142,6 +142,17 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     }
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
+    /* MapRegistry_Load swaps g_MapOverlayHdr synchronously here, unlike PSX where
+     * the overlay BIN is read asynchronously (Fs_QueueStartRead below) and the
+     * header only changes once the load completes. That synchronous swap opens a
+     * one-frame window where the NEW map's bgmEvent — ticked by Bgm_TrackUpdate at
+     * the tail of GameState_InGame_Update this same frame — runs Bgm_ChannelSet
+     * while g_GameWork.bgmIdx (the currently-loaded track) still holds the previous
+     * area's index (e.g. map0_s01 combat idx 30), replaying it as a brief BGM blip
+     * before Bgm_Init reloads this map's track. Clearing the loaded-track index to
+     * None makes Bgm_ChannelSet early-return until Bgm_TrackSet loads the correct
+     * one; Bgm_ActiveBgmTrackCheck (None != target) still drives the proper reload. */
+    g_GameWork.bgmIdx = BgmTrackIdx_None;
     fflush(g_ShDebugLog);
     /* Still read the overlay file â€” on PC this is a no-op but keeps the
      * filesystem queue state consistent. */
