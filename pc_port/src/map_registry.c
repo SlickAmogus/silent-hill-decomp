@@ -243,7 +243,10 @@ void MapRegistry_Load(e_MapIdx id)
         g_pMapOverlayHeader = &g_StubHeaders[id];
     }
 
-    SH_DBG_ECHO("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
+    /* SH_LOG (not SH_DBG_ECHO): a per-map-load diagnostic belongs in the debug
+     * log/console, not the top-left system-message toast that shows while the
+     * console is hidden. */
+    SH_LOG("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
         MapRegistry_GetName(id), id,
         (int)(g_pMapOverlayHeader->mapInfo - MAP_INFOS));
 }
