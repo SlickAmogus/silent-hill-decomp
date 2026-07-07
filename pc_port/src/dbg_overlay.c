@@ -130,6 +130,24 @@ static char   s_anim_lines[ANIM_LINES][ANIM_COLS];
 static int    s_anim_count = 0;
 static GLuint s_anim_tex   = 0;
 
+/* ---- System-message toast (top-left) ----
+ * When the ingame console overlay is hidden, the newest line(s) pushed to it
+ * (cheat toggles, graphics-setting changes) still flash briefly in the top-left,
+ * fading out, so the user gets feedback without opening the console. Armed only
+ * once MainLoop is running (first DbgOverlay_Update) so the boot-time SH_LOG init
+ * spam — pushed before MainLoop — never shows. */
+#define TOAST_MAX        4
+#define TOAST_TEX_W      (LINE_LEN * GLYPH_W)   /* 512 */
+#define TOAST_TEX_H      (TOAST_MAX * GLYPH_H)
+#define TOAST_FADE_IN_MS 120u
+#define TOAST_HOLD_MS    1800u
+#define TOAST_FADE_MS    600u
+static char   s_toast[TOAST_MAX][LINE_LEN];
+static int    s_toast_count   = 0;
+static Uint32 s_toast_last_ms = 0;
+static int    s_toast_armed   = 0;
+static GLuint s_toast_tex     = 0;
+
 /* ---- Collision wireframe: world-space segments captured during the frame's
  * collision pass, projected and drawn as GL lines (no depth test → visible
  * through walls, RE4-style). Cleared after each render. ---- */
@@ -429,6 +447,15 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, ANIM_TEX_W, ANIM_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    glGenTextures(1, &s_toast_tex);
+    glBindTexture(GL_TEXTURE_2D, s_toast_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TOAST_TEX_W, TOAST_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
@@ -707,6 +734,40 @@ static void anim_build_texture(void)
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
+/* Build the toast texture from s_toast (line 0 at top), white glyphs, with the
+ * current fade baked into pixel alpha so the existing SRC_ALPHA blend fades it. */
+static void toast_build_texture(int alpha)
+{
+    static unsigned char pixels[TOAST_TEX_H][TOAST_TEX_W][4];
+    int line, cx, x, y;
+    unsigned char a = (unsigned char)(alpha < 0 ? 0 : (alpha > 255 ? 255 : alpha));
+
+    memset(pixels, 0, sizeof(pixels));
+
+    for (line = 0; line < s_toast_count && line < TOAST_MAX; line++) {
+        const char* str = s_toast[line];
+        for (cx = 0; *str && cx < LINE_LEN; cx++, str++) {
+            unsigned int ch = (unsigned char)*str;
+            if (ch >= 128) continue;
+            for (y = 0; y < GLYPH_H; y++) {
+                unsigned char row = s_font[ch][y];
+                for (x = 0; x < GLYPH_W; x++) {
+                    if (row & (1u << x)) {
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][0] = 255;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][1] = 255;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][2] = 255;
+                        pixels[line * GLYPH_H + y][cx * GLYPH_W + x][3] = a;
+                    }
+                }
+            }
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, s_toast_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TOAST_TEX_W, TOAST_TEX_H,
+                    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
 /* Upload an NDC quad (top y0, bottom y1) for the bound program/VBO and draw it. */
 static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
 {
@@ -870,6 +931,34 @@ void DbgOverlay_PushLine(const char* line)
     s_console_dirty = 1;
 }
 
+/* Like DbgOverlay_PushLine, but the line is also eligible for the top-left toast
+ * when the console overlay is hidden. Only SH_DBG_ECHO routes here (user-facing
+ * feedback: setting changes, debug keys) — SH_LOG/SH_WARN and console-command
+ * output use DbgOverlay_PushLine so system logging never shows as a toast. */
+void DbgOverlay_ToastLine(const char* line)
+{
+    push_console(line);
+    s_console_dirty = 1;
+
+    /* Skipped while the console is shown (it already displays the line) and until
+     * MainLoop arms the toast (drops the boot-time init logging). */
+    if (s_toast_armed && !(g_PcConfig.showConsole & 2)) {
+        Uint32 now = SDL_GetTicks();
+        if (s_toast_count == 0 || (now - s_toast_last_ms) > TOAST_HOLD_MS) {
+            s_toast_count = 0; /* previous cluster has settled -> start fresh */
+        } else if (s_toast_count >= TOAST_MAX) {
+            int i;
+            for (i = 0; i < TOAST_MAX - 1; i++)
+                memcpy(s_toast[i], s_toast[i + 1], LINE_LEN);
+            s_toast_count = TOAST_MAX - 1;
+        }
+        strncpy(s_toast[s_toast_count], line, LINE_LEN - 1);
+        s_toast[s_toast_count][LINE_LEN - 1] = '\0';
+        s_toast_count++;
+        s_toast_last_ms = now;
+    }
+}
+
 /* Auto-repeat with acceleration for held keys (mirrors game_main.c's keyframe
  * scrubber Kf_HoldRepeat): fires on the press edge, then after a short delay
  * repeats at an accelerating rate. pressMs/lastMs are per-key timers. */
@@ -917,6 +1006,10 @@ void DbgOverlay_Update(void)
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
     if (!ks) return;
+
+    /* First Update runs inside MainLoop — arm the top-left message toast now so
+     * the boot-time init logging (pushed before MainLoop) is never toasted. */
+    s_toast_armed = 1;
 
     /* `~` console control (debug builds only) — tap/hold flipped per request:
      *   - HOLD (≥350 ms)            -> toggle the top-left "ingame" console view
@@ -1311,7 +1404,8 @@ void DbgOverlay_Render(void)
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;
     GLint   prev_blend_eq_rgb, prev_blend_eq_a;
     GLboolean prev_depth, prev_blend;
-    int     drawConsole, drawColl, drawAnim;
+    int     drawConsole, drawColl, drawAnim, drawToast;
+    int     toastAlpha = 0;
 
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
@@ -1320,7 +1414,22 @@ void DbgOverlay_Render(void)
     drawConsole = (s_console_slide > 0.0f && (s_console_count > 0 || g_PcConsoleInputActive));
     drawColl    = (s_coll_on && s_coll_count > 0);
     drawAnim    = (g_DebugAnimKfView && s_anim_count > 0);
-    if (!drawConsole && !drawColl && !s_coll_on && !drawAnim) return;
+
+    /* Toast: newest hidden-console line(s) (SH_DBG_ECHO only), fading out.
+     * Suppressed while the console panel itself is drawing / enabled. */
+    drawToast = 0;
+    if (s_toast_count > 0 && !drawConsole && !(g_PcConfig.showConsole & 2)) {
+        Uint32 age = SDL_GetTicks() - s_toast_last_ms;
+        if (age < TOAST_FADE_IN_MS)
+            toastAlpha = (int)(255u * age / TOAST_FADE_IN_MS);
+        else if (age < TOAST_HOLD_MS)
+            toastAlpha = 255;
+        else if (age < TOAST_HOLD_MS + TOAST_FADE_MS)
+            toastAlpha = 255 - (int)(255u * (age - TOAST_HOLD_MS) / TOAST_FADE_MS);
+        drawToast = (toastAlpha > 0);
+    }
+
+    if (!drawConsole && !drawColl && !s_coll_on && !drawAnim && !drawToast) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] == 0 || vp[3] == 0) return;
@@ -1403,6 +1512,18 @@ void DbgOverlay_Render(void)
 
         anim_build_texture();
         draw_panel(s_anim_tex, x0, y0, x1, y1);
+    }
+
+    if (drawToast) {
+        /* Top-left, where the console sits at rest — but only ever drawn while the
+         * console is hidden, so they never overlap. */
+        float x0 = -1.0f;
+        float y0 =  1.0f;
+        float x1 = x0 + 2.0f * (float)(TOAST_TEX_W * SCALE) / (float)vp[2];
+        float y1 = y0 - 2.0f * (float)(TOAST_TEX_H * SCALE) / (float)vp[3];
+
+        toast_build_texture(toastAlpha);
+        draw_panel(s_toast_tex, x0, y0, x1, y1);
     }
 
     /* Collision wireframe lines (separate program). Consume + clear the

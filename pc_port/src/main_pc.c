@@ -217,6 +217,7 @@ extern s_DemoFrameData* g_Demo_PlayFileBufferPtr;
 FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
 void (*g_ShOverlayPushLine)(const char* line) = NULL;
+void (*g_ShOverlayToastLine)(const char* line) = NULL;
 /* Per-run timestamped log path so a new run never overwrites the previous log.
  * Computed once on the first call and cached, so the main log handle and the
  * stdout/stderr freopen all target the same file for this run. */
@@ -515,7 +516,9 @@ int main(int argc, char* argv[])
          * DbgOverlay_Render by (showConsole & 2). */
         {
             extern void DbgOverlay_PushLine(const char* line);
-            g_ShOverlayPushLine = DbgOverlay_PushLine;
+            extern void DbgOverlay_ToastLine(const char* line);
+            g_ShOverlayPushLine  = DbgOverlay_PushLine;
+            g_ShOverlayToastLine = DbgOverlay_ToastLine;
         }
         /* Draw the dev console AFTER the freeze-frame is captured (inside PsyX_EndScene),
          * so it's never baked into a frozen pause / "no map" image — fixes the console
