@@ -835,29 +835,16 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
 #ifndef SH_PC_PORT
         func_8007D090(player, extra, coords);
 #else
-        /* Classic/default camera keeps the ORIGINAL PSX aim animations, so the
-         * original head/aim-pitch flex (func_8007D090) applies cleanly there —
-         * restore it so Harry leans the upper body toward the locked target,
-         * including tilting UP at aerial enemies like the Air Screamer (classic
-         * mode never did this before). func_8007D090 was skipped wholesale on PC
-         * only because the free-aim (OTS/TPS/FPS) shim pins a custom hold pose that
-         * its Math_RotMatrixZ arm rotation fought (arms thrown behind the head).
-         * func_8007D090 also applies the match-anim held-arm pose + head look-flex,
-         * so the PC re-implementations of those below are gated to the free-aim
-         * (g_DebugThirdPersonCam) path to avoid double-applying them in classic. */
-        if (!g_DebugThirdPersonCam)
-        {
-            func_8007D090(player, extra, coords);
-        }
-
-        /* Free-aim (OTS/TPS/FPS) skips func_8007D090 (classic runs it above), so
-         * re-apply its lighter/flashlight HELD-ARM pose here when
-         * enablePlayerMatchAnim is set (the alley3 "lighting a match" hold),
-         * overriding the base anim's right arm so Harry holds the light up across
-         * idle/walk/look-around. Without it the arm follows the base anim and the
-         * lighter detaches. Gate matches the original (state < Unk58 so it runs
-         * during gameplay but not the lighting cutscene at state 84). */
-        if (g_DebugThirdPersonCam && g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
+        /* func_8007D090 (head/aim flex + held-light arm pose) is skipped on PC
+         * because its aim-flex path is handled by the PC aim shim. But it also
+         * applies the lighter/flashlight HELD-ARM pose when enablePlayerMatchAnim
+         * is set (the alley3 "lighting a match" hold), overriding the base anim's
+         * right arm so Harry holds the light up across idle/walk/look-around.
+         * Without it the arm follows the base anim and the lighter detaches
+         * (matchAnim flag is set, but nothing consumed it on PC). Apply just
+         * that arm-pose block; gate matches the original (state < Unk58 so it
+         * runs during gameplay but not the lighting cutscene at state 84). */
+        if (g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
         {
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightUpperArm], Q12_ANGLE(0.0f),   Q12_ANGLE(63.3f), Q12_ANGLE(-8.8f));
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightForearm],  Q12_ANGLE(-14.1f), Q12_ANGLE(22.5f), Q12_ANGLE(-30.8f));
@@ -876,38 +863,39 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerBoneCoords[HarryBone_RightHand].flg     = 0;
         }
 
-        /* Free-aim body tilt: func_8007D090 (skipped on PC, above) applied the
-         * aim-pitch flex to the torso + upper arms so Harry leans toward where he
-         * aims. The PC shim never re-applied it, so the upper body stayed level
-         * regardless of the free-aim pitch. Re-apply just that flex here from
-         * field_122 (set to the camera-ray pitch by the free-aim injection in
-         * Player_CombatUpdate), using the exact bones/shifts/clamp the original
-         * uses. Yaw-flex is 0 (the body already faces the camera yaw). Ranged +
-         * aiming only, so melee, non-aim, reload, and classic are untouched. */
-        if (g_DebugThirdPersonCam &&
-            g_SysWork.playerCombat.isAiming &&
+        /* Aim-pitch body tilt (ALL camera modes): func_8007D090 (skipped on PC,
+         * above) leaned the torso + upper arms toward the aim pitch so Harry angles
+         * UP at aerial enemies (Air Screamer) and down at low ones. The PC shim
+         * never re-applied it, so the upper body stayed level. Re-apply just the
+         * TORSO lean from field_122 — the target-elevation pitch, set by the classic
+         * auto-aim (func_8005CD38) or the free-aim camera-ray injection. Do NOT
+         * rotate the upper arms directly: func_8007D090 used Math_RotMatrixZ, which
+         * OVERWRITES the bone matrix (discarding the aim anim's gun-forward pose)
+         * and throws the arms straight out into a T-pose on our PC anim data. The
+         * arms are torso hierarchy children, so the torso lean carries them while
+         * they keep their gun-forward pose. Ranged + aiming only. */
+        if (g_SysWork.playerCombat.isAiming &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
             g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
         {
-            /* Steady-aim HOLD: re-pose the upper body at the verified gun-forward
-             * keyframe (Pc_AimHoldKf, per weapon) so it doesn't drift (Unk34 plays backward toward ~580).
-             * Skip ONLY during the actual shot (recoil anims) so the forward
-             * shooting animation plays. Lower body keeps its movement anim (LOWER
-             * mask disabled = upper bones only). */
-            s32 _upIdx = ANIM_STATUS_IDX_GET(extra->model.anim.status);
-            if (_upIdx != HarryAnim_Unk29 && _upIdx != HarryAnim_Unk30 &&
-                _upIdx != HarryAnim_HandgunRecoil)
+            /* Free-aim only: re-pose the upper body at the verified gun-forward
+             * keyframe (Pc_AimHoldKf, per weapon) so it doesn't drift (Unk34 plays
+             * backward toward ~580). Classic keeps its ORIGINAL aim animation. Skip
+             * ONLY during the actual shot (recoil anims) so the forward shooting
+             * animation plays. Lower body keeps its movement anim (LOWER mask
+             * disabled = upper bones only). */
+            if (g_DebugThirdPersonCam)
             {
-                s32 _holdKf = Pc_AimHoldKf();
-                g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
-                Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
+                s32 _upIdx = ANIM_STATUS_IDX_GET(extra->model.anim.status);
+                if (_upIdx != HarryAnim_Unk29 && _upIdx != HarryAnim_Unk30 &&
+                    _upIdx != HarryAnim_HandgunRecoil)
+                {
+                    s32 _holdKf = Pc_AimHoldKf();
+                    g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
+                    Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
+                }
             }
 
-            /* Aim pitch: lean the TORSO toward the aim angle. The upper arms + gun
-             * are its hierarchy children, so they follow the lean while KEEPING the
-             * 591 gun-forward pose. Do NOT rotate the upper arms directly:
-             * Math_RotMatrixZ OVERWRITES the bone matrix (discards the gun-forward
-             * pose) and threw the arms up behind Harry's head — the aim bug. */
             s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
             _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
             func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
