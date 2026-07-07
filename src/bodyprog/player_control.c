@@ -835,16 +835,29 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
 #ifndef SH_PC_PORT
         func_8007D090(player, extra, coords);
 #else
-        /* func_8007D090 (head/aim flex + held-light arm pose) is skipped on PC
-         * because its aim-flex path is handled by the PC aim shim. But it also
-         * applies the lighter/flashlight HELD-ARM pose when enablePlayerMatchAnim
-         * is set (the alley3 "lighting a match" hold), overriding the base anim's
-         * right arm so Harry holds the light up across idle/walk/look-around.
-         * Without it the arm follows the base anim and the lighter detaches
-         * (matchAnim flag is set, but nothing consumed it on PC). Apply just
-         * that arm-pose block; gate matches the original (state < Unk58 so it
-         * runs during gameplay but not the lighting cutscene at state 84). */
-        if (g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
+        /* Classic/default camera keeps the ORIGINAL PSX aim animations, so the
+         * original head/aim-pitch flex (func_8007D090) applies cleanly there —
+         * restore it so Harry leans the upper body toward the locked target,
+         * including tilting UP at aerial enemies like the Air Screamer (classic
+         * mode never did this before). func_8007D090 was skipped wholesale on PC
+         * only because the free-aim (OTS/TPS/FPS) shim pins a custom hold pose that
+         * its Math_RotMatrixZ arm rotation fought (arms thrown behind the head).
+         * func_8007D090 also applies the match-anim held-arm pose + head look-flex,
+         * so the PC re-implementations of those below are gated to the free-aim
+         * (g_DebugThirdPersonCam) path to avoid double-applying them in classic. */
+        if (!g_DebugThirdPersonCam)
+        {
+            func_8007D090(player, extra, coords);
+        }
+
+        /* Free-aim (OTS/TPS/FPS) skips func_8007D090 (classic runs it above), so
+         * re-apply its lighter/flashlight HELD-ARM pose here when
+         * enablePlayerMatchAnim is set (the alley3 "lighting a match" hold),
+         * overriding the base anim's right arm so Harry holds the light up across
+         * idle/walk/look-around. Without it the arm follows the base anim and the
+         * lighter detaches. Gate matches the original (state < Unk58 so it runs
+         * during gameplay but not the lighting cutscene at state 84). */
+        if (g_DebugThirdPersonCam && g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
         {
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightUpperArm], Q12_ANGLE(0.0f),   Q12_ANGLE(63.3f), Q12_ANGLE(-8.8f));
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightForearm],  Q12_ANGLE(-14.1f), Q12_ANGLE(22.5f), Q12_ANGLE(-30.8f));
