@@ -252,6 +252,37 @@ static void Pc_TpsCamera_Apply(void)
         s_tpDist += (target - s_tpDist) >> 3;
     }
 
+    /* Room entry: doors/warps/save-loads teleport Harry to a spawn point while
+     * the orbit yaw persists from the previous room — it usually points at the
+     * wall right behind him, and the camera-wall collision then jams the eye
+     * into his back (fullscreen Harry). Detect the root warp (> 2 world units
+     * in one frame; normal movement peaks ~0.2) and reseed: TPS/OTS place the
+     * camera IN FRONT of Harry looking back at him — he faces into the open
+     * room, so that framing starts clear. FPS just aligns the look with his
+     * new facing (the ±90° body clamp would otherwise leave it cranked). */
+    {
+        static VECTOR3 s_prevRootPos;
+        static int     s_prevRootValid = 0;
+
+        if (s_prevRootValid)
+        {
+            s32 jdx = tp_hr->position.vx - s_prevRootPos.vx;
+            s32 jdz = tp_hr->position.vz - s_prevRootPos.vz;
+            if (jdx > Q12(2.0f) || jdx < -Q12(2.0f) ||
+                jdz > Q12(2.0f) || jdz < -Q12(2.0f))
+            {
+                extern int g_PcFpsCam;
+                s32 seedYaw = g_PcFpsCam ? tp_hr->rotation.vy
+                                         : tp_hr->rotation.vy + Q12_ANGLE(180.0f);
+                g_TpsCamYaw   = Q12_ANGLE_NORM_U(seedYaw + Q12_ANGLE(360.0f));
+                g_TpsCamPitch = 0;
+            }
+        }
+
+        s_prevRootPos   = tp_hr->position;
+        s_prevRootValid = 1;
+    }
+
     /* Mouse + right stick: orbit the camera, decoupled from Harry's body. */
     {
         int mdx = 0, mdy = 0;
