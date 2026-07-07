@@ -32,6 +32,7 @@ extern const unsigned char* g_sdlKeyboardState;
 extern void vwGetViewPosition(VECTOR3* pos);
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
+#include <SDL_timer.h>
 
 /* OTS/TPS free-aim: the user-verified gun-forward "ready" pose, an absolute
  * keyframe in Harry's shared pool that holds correctly for EVERY ranged weapon.
@@ -69,6 +70,11 @@ static void Player_CrashHandler(int sig) {
 #include "pc_config.h"
 
 extern int g_PcFpsCam;
+
+/* Alt-camera fire button state (SDL mouse/bind), published by the TPS input
+ * shim each frame. The multi-tap click queue reads it because those presses
+ * never reach the pad's action mask. 0 whenever the classic camera is active. */
+int g_PcAltFireHeld = 0;
 
 /* Per-weapon steady gun-forward "ready" keyframe for OTS/TPS free-aim. The
  * rifle reads cleaner a few frames before the shared default; the handgun and
@@ -2014,6 +2020,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     static u8 s_fireFrames = 0;
                     static u8 s_prevAimHeld = 0;
                     static u8 s_prevFireHeld = 0;
+                    /* Melee tap/hold timing for the alt-camera attack shim below
+                     * (declared here so the aim-release flush can cancel a
+                     * pending tap pulse). */
+                    static Uint32 s_pcFireDownMs    = 0;
+                    static Uint32 s_pcTapPulseUntil = 0;
                     u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim;
                     u16 fireBtn = g_GameWorkPtr->config.controllerConfig.action;
                     bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
@@ -2071,6 +2082,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * reads PsyCross keyboard mappings. Override the input
                      * flags Player_Controller set if we're in TPS so the
                      * upper-body state machine sees the mouse state. */
+                    /* Published for the multi-tap click queue in
+                     * Player_UpperBodyMainUpdate: alt cameras read the fire
+                     * button straight from SDL, so the pad's action mask never
+                     * sees those presses. */
+                    g_PcAltFireHeld = (g_DebugThirdPersonCam && fireHeld) ? 1 : 0;
+
                     if (g_DebugThirdPersonCam) {
                         g_Player_IsAiming = aimHeld && hasWeapon;
                         if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
@@ -2078,10 +2095,30 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             g_Player_IsShooting  = fireHeld;
                             g_Player_IsAttacking = fireHeld;
                         } else if (hasWeapon && extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
-                            // Melee in TPS: left-mouse = attack. Bypass the PSX 4-frame
-                            // shift register so the attack fires on press, not after hold.
+                            /* Melee in alt cameras: left-mouse = attack, mirroring the
+                             * PSX shift-register semantics (Player_Controller ~10884)
+                             * with wall-clock timing instead of 30Hz ticks:
+                             *   - held >= 130ms (PSX: 4 ticks) -> IsAttacking = the
+                             *     wide SWIPE at dispatch;
+                             *   - a completed shorter click (PSX: tap pattern with
+                             *     current bit clear) -> a ~100ms IsShooting pulse =
+                             *     the TAP event, dispatching the stab the multi-tap
+                             *     combo chains from (combo window requires
+                             *     MeleeAttackType == 0).
+                             * The old raw-level IsAttacking made every click a swipe,
+                             * so alternate swings could never trigger here. Dispatch
+                             * gate is (IsAttacking || IsShooting), so taps dispatch on
+                             * release exactly like classic/PSX. */
+                            Uint32 pcNowMs = SDL_GetTicks();
+                            if (fireHeld && !s_prevFireHeld) {
+                                s_pcFireDownMs = pcNowMs;
+                            }
+                            if (!fireHeld && s_prevFireHeld && (pcNowMs - s_pcFireDownMs) < 130u) {
+                                s_pcTapPulseUntil = pcNowMs + 100u;
+                            }
                             g_Player_IsHoldAttack = fireHeld ? 0x1F : 0;
-                            g_Player_IsAttacking  = fireHeld ? 1    : 0;
+                            g_Player_IsAttacking  = (fireHeld && (pcNowMs - s_pcFireDownMs) >= 130u) ? 1 : 0;
+                            g_Player_IsShooting   = (pcNowMs < s_pcTapPulseUntil) ? 1 : 0;
                         }
                     }
 
@@ -2090,7 +2127,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                          * forces walk speed at the move-speed site, so move+aim+shoot
                          * works without zeroing movement.) */
                         g_SysWork.playerCombat.isAiming = true;
-                        extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                        /* Don't stomp an active swing's lower-body Attack state:
+                         * it carries the swing's root motion (katana forward
+                         * lunge) and the swing-synced lower anim. Forcing Aim
+                         * every frame here killed the lunge in alt cameras and
+                         * let movement fight the swing mid-attack. */
+                        if (extra->lowerBodyState != PlayerLowerBodyState_Attack) {
+                            extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                        }
                     }
                     else if (g_DebugThirdPersonCam &&
                              g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
@@ -2111,6 +2155,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     if (g_DebugThirdPersonCam && s_prevAimHeld && !aimHeld) {
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
+                        /* Also kill a pending melee tap pulse — a click released
+                         * just before aim dropped must not dispatch a phantom
+                         * swing when aim resumes. */
+                        g_Player_IsShooting   = 0;
+                        s_pcTapPulseUntil     = 0;
                     }
                     s_prevAimHeld  = aimHeld;
                     s_prevFireHeld = fireHeld;
@@ -3943,9 +3992,25 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                           (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
         u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
 
+        /* Alt cameras fire with the SDL-read mouse/bind (g_PcAltFireHeld),
+         * which never reaches the pad's action mask — the queue stayed empty
+         * there and multi-tap combos could not trigger. Same edge/held
+         * semantics from whichever source is live. */
+        extern int g_PcAltFireHeld;
+        static int s_pcPrevAltFire = 0;
+        int fireHeldNow, fireClickedNow;
+        if (g_DebugThirdPersonCam) {
+            fireHeldNow    = g_PcAltFireHeld;
+            fireClickedNow = g_PcAltFireHeld && !s_pcPrevAltFire;
+        } else {
+            fireHeldNow    = (g_Controller0->heldBtnFlags & actionMask) != 0;
+            fireClickedNow = (g_Controller0->clickedBtnFlags & actionMask) != 0;
+        }
+        s_pcPrevAltFire = g_PcAltFireHeld;
+
         /* Fresh rising edge re-arms melee dispatch (clears the post-swing
          * "needs release" latch). See latch comment near declaration. */
-        if (g_Controller0->clickedBtnFlags & actionMask) {
+        if (fireClickedNow) {
             s_pcMeleeNeedsRelease = false;
         }
 
@@ -3961,9 +4026,9 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
          * "phantom" swings for a second or two (the PSX original required the
          * attack to be live at the multi-tap window, so it stopped on release).
          * Hold-to-repeat is unaffected — that runs through the dispatch gate. */
-        if (!meleeReady || g_Player_IsRunning || !(g_Controller0->heldBtnFlags & actionMask)) {
+        if (!meleeReady || g_Player_IsRunning || !fireHeldNow) {
             s_pcMtClickQueue = 0;
-        } else if (g_Controller0->clickedBtnFlags & actionMask) {
+        } else if (fireClickedNow) {
             if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
         }
     }
