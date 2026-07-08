@@ -1391,6 +1391,20 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
         {
             matFlags |= MaterialFlag_2;
         }
+#ifdef SH_PC_PORT
+        /* Reaching here during an interior sync means this material IS resident
+         * (the texture==NULL case untextured its prims and continued above). Its
+         * VRAM page may have been stolen and then returned to the SAME slot, so
+         * field_E == field_F and the change-detection wouldn't re-apply the page —
+         * leaving the prims we set to the untextured sentinel (field_6_0=32) stuck
+         * flat forever (the "some interiors render untextured" report). Force the
+         * page re-apply while syncing so a returned page re-textures its prims;
+         * a no-op for prims already at field_E. */
+        if (g_PcInteriorMatSync)
+        {
+            matFlags |= MaterialFlag_0;
+        }
+#endif
 
         if (matFlags != 0)
         {
