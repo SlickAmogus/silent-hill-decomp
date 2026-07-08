@@ -6,6 +6,12 @@
 #include <math.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <direct.h>
+
+#ifndef TEXPACK_NO_RAR
+#include <windows.h>
+#include "unrar/dll.hpp"
+#endif
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
@@ -44,6 +50,7 @@ static int    g_zipCount   = 0;
 static int    g_zipCap     = 0;
 
 static int g_scanned = 0;
+static int g_texpageSkipped = 0; /* DuckStation "texpage-" (page-mode) entries — unsupported */
 
 static int Mode_Bpp(unsigned char mode)
 {
@@ -93,6 +100,11 @@ static int ParseName(const char* title, PackEntry* e)
     size_t modeLen;
     int m;
 
+    if (strncmp(title, "texpage-", 8) == 0)
+    {
+        g_texpageSkipped++;
+        return 0;
+    }
     if (strncmp(title, "texupload-", 10) != 0) return 0;
     p = title + 10;
 
@@ -239,7 +251,74 @@ static void Scan_Zip(const char* path)
     SH_DBG("[TEXPACK] %s: %d entries", path, added);
 }
 
-static void Scan_Dir(const char* dirPath, int depth)
+#ifndef TEXPACK_NO_RAR
+/* Extract a pack .rar next to itself, once ("<name>.rar.extracted/", with a
+ * .done marker). Solid and RAR5 archives make in-place random access
+ * impractical, so RARs are materialized in one linear pass and then indexed
+ * like any loose folder; only *.png entries (and config.yaml, for reference)
+ * are written. */
+static void Rar_ExtractOnce(const char* rarPath)
+{
+    char         destDir[512];
+    char         marker[560];
+    struct stat  st;
+    HANDLE       arc;
+    int          extracted = 0, skipped = 0;
+
+    struct RAROpenArchiveDataEx open;
+    struct RARHeaderDataEx      hdr;
+
+    snprintf(destDir, sizeof(destDir), "%s.extracted", rarPath);
+    snprintf(marker, sizeof(marker), "%s/.done", destDir);
+    if (stat(marker, &st) == 0) return;
+
+    _mkdir(destDir);
+
+    memset(&open, 0, sizeof(open));
+    open.ArcName  = (char*)rarPath;
+    open.OpenMode = RAR_OM_EXTRACT;
+    arc = RAROpenArchiveEx(&open);
+    if (arc == NULL || open.OpenResult != ERAR_SUCCESS)
+    {
+        SH_DBG("[TEXPACK] %s: not a readable rar (err=%u)", rarPath, open.OpenResult);
+        if (arc != NULL) RARCloseArchive(arc);
+        return;
+    }
+
+    SH_DBG("[TEXPACK] extracting %s (first run)...", rarPath);
+
+    memset(&hdr, 0, sizeof(hdr));
+    while (RARReadHeaderEx(arc, &hdr) == ERAR_SUCCESS)
+    {
+        const char* name = hdr.FileName;
+        size_t      len  = strlen(name);
+        int         want = (len > 4 && _stricmp(name + len - 4, ".png") == 0) ||
+                           (len >= 11 && _stricmp(name + len - 11, "config.yaml") == 0);
+        int         rc;
+
+        rc = RARProcessFile(arc, want ? RAR_EXTRACT : RAR_SKIP,
+                            want ? destDir : NULL, NULL);
+        if (rc != ERAR_SUCCESS)
+        {
+            SH_DBG("[TEXPACK] %s: extract error %d at %s", rarPath, rc, name);
+            break;
+        }
+        if (want) extracted++; else skipped++;
+    }
+    RARCloseArchive(arc);
+
+    {
+        FILE* mf = fopen(marker, "wb");
+        if (mf != NULL) fclose(mf);
+    }
+    SH_DBG("[TEXPACK] %s: extracted %d files (%d skipped) -> %s",
+           rarPath, extracted, skipped, destDir);
+}
+#endif
+
+/* Phase 0 materializes .rar packs on disk; phase 1 indexes loose PNGs and
+ * .zip packs (including the folders phase 0 just produced). */
+static void Scan_Dir(const char* dirPath, int depth, int phase)
 {
     DIR*           dir;
     struct dirent* de;
@@ -261,7 +340,16 @@ static void Scan_Dir(const char* dirPath, int depth)
 
         if (st.st_mode & S_IFDIR)
         {
-            Scan_Dir(path, depth + 1);
+            Scan_Dir(path, depth + 1, phase);
+        }
+        else if (phase == 0)
+        {
+#ifndef TEXPACK_NO_RAR
+            if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".rar") == 0)
+            {
+                Rar_ExtractOnce(path);
+            }
+#endif
         }
         else if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".zip") == 0)
         {
@@ -291,13 +379,19 @@ static void Scan_Once(void)
 
     if (!g_PcConfig.texturePacks) return;
 
-    Scan_Dir(TEXPACK_DIR, 0);
+    Scan_Dir(TEXPACK_DIR, 0, 0);
+    Scan_Dir(TEXPACK_DIR, 0, 1);
 
     if (g_entryCount > 0)
     {
         qsort(g_entries, (size_t)g_entryCount, sizeof(PackEntry), Entry_CompareSrcHash);
         SH_DBG("[TEXPACK] indexed %d replacement entries (%d zip packs)",
                g_entryCount, g_zipCount);
+    }
+    if (g_texpageSkipped > 0)
+    {
+        SH_DBG("[TEXPACK] skipped %d texpage-* entries (page-mode replacements unsupported; texupload-* only)",
+               g_texpageSkipped);
     }
 }
 

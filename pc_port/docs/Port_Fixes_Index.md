@@ -484,3 +484,11 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   cover indexing and per-upload composition. Validated against a real 12k-
   file pack (index parity with ground truth; end-to-end compose test with
   loose + zip + partial-palette entries).
+- `.rar` packs supported too (official unrar library vendored in
+  `pc_port/third_party/unrar`, RAR4+RAR5+solid): extracted ONCE to
+  `<name>.rar.extracted/` beside the archive (only *.png + config.yaml;
+  `.done` marker skips re-extraction), then indexed like a loose folder.
+  The standard DuckStation layout — `<GAMEID>/replacements/...` with a
+  `config.yaml` — works as-is, extracted or archived at any nesting depth
+  (scan is recursive; names are matched by basename). `texpage-*` entries
+  (page-mode dumps) are unsupported and counted in the log.

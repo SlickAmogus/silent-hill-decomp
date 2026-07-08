@@ -247,6 +247,8 @@ target_include_directories(SilentHillPC PRIVATE
     # PC port compatibility headers (searched FIRST to override psyq/)
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/include/psyq_compat"
+    # third_party/unrar/dll.hpp (tex_pack.c RAR extraction)
+    "${CMAKE_SOURCE_DIR}/third_party"
     # PC port source (for fmv/ includes)
     "${CMAKE_SOURCE_DIR}/src"
     # Original decomp headers
@@ -270,10 +272,43 @@ find_library(JPEG_LIBRARY NAMES jpeg turbojpeg)
 find_path(JPEG_INCLUDE_DIR jpeglib.h)
 
 # =============================================================================
+# unrar (RAR texture packs — tex_pack.c extracts .rar archives once)
+# Official unrar library source (freeware license permits embedding for RAR
+# handling); source list mirrors its makefile's OBJECTS + LIB_OBJ.
+# =============================================================================
+set(UNRAR_DIR "${CMAKE_SOURCE_DIR}/third_party/unrar")
+add_library(unrar STATIC
+    ${UNRAR_DIR}/rar.cpp ${UNRAR_DIR}/strlist.cpp ${UNRAR_DIR}/strfn.cpp
+    ${UNRAR_DIR}/pathfn.cpp ${UNRAR_DIR}/smallfn.cpp ${UNRAR_DIR}/global.cpp
+    ${UNRAR_DIR}/file.cpp ${UNRAR_DIR}/filefn.cpp ${UNRAR_DIR}/filcreat.cpp
+    ${UNRAR_DIR}/archive.cpp ${UNRAR_DIR}/arcread.cpp ${UNRAR_DIR}/unicode.cpp
+    ${UNRAR_DIR}/system.cpp ${UNRAR_DIR}/crypt.cpp ${UNRAR_DIR}/crc.cpp
+    ${UNRAR_DIR}/rawread.cpp ${UNRAR_DIR}/encname.cpp ${UNRAR_DIR}/resource.cpp
+    ${UNRAR_DIR}/match.cpp ${UNRAR_DIR}/timefn.cpp ${UNRAR_DIR}/rdwrfn.cpp
+    ${UNRAR_DIR}/consio.cpp ${UNRAR_DIR}/options.cpp ${UNRAR_DIR}/errhnd.cpp
+    ${UNRAR_DIR}/rarvm.cpp ${UNRAR_DIR}/secpassword.cpp ${UNRAR_DIR}/rijndael.cpp
+    ${UNRAR_DIR}/getbits.cpp ${UNRAR_DIR}/sha1.cpp ${UNRAR_DIR}/sha256.cpp
+    ${UNRAR_DIR}/blake2s.cpp ${UNRAR_DIR}/hash.cpp ${UNRAR_DIR}/extinfo.cpp
+    ${UNRAR_DIR}/extract.cpp ${UNRAR_DIR}/volume.cpp ${UNRAR_DIR}/list.cpp
+    ${UNRAR_DIR}/find.cpp ${UNRAR_DIR}/unpack.cpp ${UNRAR_DIR}/headers.cpp
+    ${UNRAR_DIR}/threadpool.cpp ${UNRAR_DIR}/rs16.cpp ${UNRAR_DIR}/cmddata.cpp
+    ${UNRAR_DIR}/ui.cpp ${UNRAR_DIR}/largepage.cpp
+    ${UNRAR_DIR}/filestr.cpp ${UNRAR_DIR}/scantree.cpp ${UNRAR_DIR}/dll.cpp
+    ${UNRAR_DIR}/qopen.cpp
+    # Windows-only pieces (in unrar's vcxproj but not its unix makefile)
+    ${UNRAR_DIR}/isnt.cpp ${UNRAR_DIR}/motw.cpp
+    ${UNRAR_DIR}/mingw_comsupp_shim.cpp
+)
+target_compile_definitions(unrar PRIVATE RARDLL RAR_SMP _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
+target_compile_options(unrar PRIVATE -O2 -Wno-switch -Wno-dangling-else -Wno-parentheses -Wno-misleading-indentation)
+target_link_libraries(unrar PRIVATE powrprof wbemuuid oleaut32 ole32)
+
+# =============================================================================
 # Linking
 # =============================================================================
 target_link_libraries(SilentHillPC PRIVATE
     psycross_static
+    unrar
 )
 
 # On Linux/ELF the map overlay .so files no longer link their own copy of
