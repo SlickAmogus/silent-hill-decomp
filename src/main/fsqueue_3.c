@@ -184,7 +184,7 @@ static void HiresPending_Stash(s_FsQueueEntry* entry, const char* path)
     }
     if (free < 0)
     {
-        fprintf(stderr, "[HIRES] pending table full, dropping %s\n", path);
+        SH_DBG("[HIRES] pending table full, dropping %s", path);
         return;
     }
     s_hiresPending[free].entry = entry;
@@ -250,8 +250,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         {
             s_looseInitLogged = 1;
             const char* verb = getenv("SH_LOOSE_VERBOSE");
-            fprintf(stderr,
-                "[LOOSE/INIT] allow_loose_files=%d  base=gamedata/load/  verbose=%s\n",
+            SH_DBG("[LOOSE/INIT] allow_loose_files=%d  base=gamedata/load/  verbose=%s",
                 g_PcConfig.allowLooseFiles,
                 (verb && verb[0] && verb[0] != '0') ? "yes" : "no");
         }
@@ -286,7 +285,33 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         static int s_hires = 0;
         static int s_warns = 0;
 
-        lf = fopen(loosePath, "rb");
+        /* Hi-res PNG override: "<discname>.png" (e.g. ITEM_M.TIM.png) under
+         * gamedata/load/ always registers as a hi-res override — with PNG's
+         * true 8-bit alpha — never as a byte-replace. The disc file still
+         * loads so the engine picks the native VRAM rect; PostLoadTim then
+         * registers the PNG against it. Takes precedence over a same-name
+         * loose file. */
+        int pngOverride = 0;
+        {
+            char pngPath[168];
+            FILE* pf;
+            snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
+            pf = fopen(pngPath, "rb");
+            if (pf != NULL)
+            {
+                fclose(pf);
+                HiresPending_Stash(entry, pngPath);
+                pngOverride = 1;
+                s_hires++;
+                if (s_hires <= 64)
+                {
+                    SH_DBG("[LOOSE/HIRES] %s: PNG override; deferring to PostLoadTim",
+                           pngPath);
+                }
+            }
+        }
+
+        lf = pngOverride ? NULL : fopen(loosePath, "rb");
         if (lf != NULL)
         {
             size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
@@ -307,8 +332,8 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             if (seekFailed)
             {
                 s_warns++;
-                fprintf(stderr, "[LOOSE/WARN] %s: fseek/ftell failed (errno=%d %s)\n",
-                        loosePath, errno, strerror(errno));
+                SH_DBG("[LOOSE/WARN] %s: fseek/ftell failed (errno=%d %s)",
+                       loosePath, errno, strerror(errno));
             }
 
             if (fileSize > 0 && (size_t)fileSize > bufSize)
@@ -318,8 +343,8 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 s_hires++;
                 if (s_hires <= 64)
                 {
-                    fprintf(stderr, "[LOOSE/HIRES] %s (%ld bytes) > buf %u; deferring to PostLoadTim for hi-res override\n",
-                            loosePath, fileSize, (unsigned)bufSize);
+                    SH_DBG("[LOOSE/HIRES] %s (%ld bytes) > buf %u; deferring to PostLoadTim for hi-res override",
+                           loosePath, fileSize, (unsigned)bufSize);
                 }
                 /* Fall through to CdRead so the disc TIM populates entry->data
                  * for native VRAM upload (hi-res override is registered later
@@ -332,14 +357,14 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 s_hits++;
                 if (s_hits <= 64)
                 {
-                    fprintf(stderr, "[LOOSE] hit: %s -> %u/%u bytes (file=%ld)\n",
-                            loosePath, (unsigned)got, (unsigned)bufSize, fileSize);
+                    SH_DBG("[LOOSE] hit: %s -> %u/%u bytes (file=%ld)",
+                           loosePath, (unsigned)got, (unsigned)bufSize, fileSize);
                 }
                 if (got == 0)
                 {
                     s_warns++;
-                    fprintf(stderr, "[LOOSE/WARN] %s: fread returned 0 (errno=%d %s) — falling back to disc\n",
-                            loosePath, errno, strerror(errno));
+                    SH_DBG("[LOOSE/WARN] %s: fread returned 0 (errno=%d %s) — falling back to disc",
+                           loosePath, errno, strerror(errno));
                     /* zero-byte read means the loose file is empty/unreadable;
                      * don't return — fall through to CdRead so we don't render
                      * uninitialized buffer contents. */
@@ -349,23 +374,23 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                     if (got < bufSize && fileSize > 0 && (long)got < fileSize)
                     {
                         s_warns++;
-                        fprintf(stderr, "[LOOSE/WARN] %s: short read %u of %ld bytes (errno=%d %s)\n",
-                                loosePath, (unsigned)got, fileSize, errno, strerror(errno));
+                        SH_DBG("[LOOSE/WARN] %s: short read %u of %ld bytes (errno=%d %s)",
+                               loosePath, (unsigned)got, fileSize, errno, strerror(errno));
                     }
                     (void)got;
                     return true;
                 }
             }
         }
-        else
+        else if (!pngOverride)
         {
             s_misses++;
             const char* verb = getenv("SH_LOOSE_VERBOSE");
             int verbose = (verb && verb[0] && verb[0] != '0');
             if (verbose && s_misses <= 256)
             {
-                fprintf(stderr, "[LOOSE/MISS] %s (errno=%d %s)\n",
-                        loosePath, errno, strerror(errno));
+                SH_DBG("[LOOSE/MISS] %s (errno=%d %s)",
+                       loosePath, errno, strerror(errno));
             }
         }
 
@@ -375,8 +400,8 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             int total = s_hits + s_misses + s_hires + s_warns;
             if (total > 0 && (total % 64) == 0)
             {
-                fprintf(stderr, "[LOOSE/SUMMARY] %d hits, %d misses, %d hi-res, %d warnings (cumulative)\n",
-                        s_hits, s_misses, s_hires, s_warns);
+                SH_DBG("[LOOSE/SUMMARY] %d hits, %d misses, %d hi-res, %d warnings (cumulative)",
+                       s_hits, s_misses, s_hires, s_warns);
             }
         }
     }
@@ -603,16 +628,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         {
             if (discBitDepth <= 0)
             {
-                fprintf(stderr, "[LOOSE/HIRES/SKIP] %s: disc TIM bit-depth unknown (mode=%u); cannot register override\n",
-                        hiresPath, (unsigned)tim.mode);
+                SH_DBG("[LOOSE/HIRES/SKIP] %s: disc TIM bit-depth unknown (mode=%u); cannot register override",
+                       hiresPath, (unsigned)tim.mode);
             }
             else
             {
                 FILE* hf = fopen(hiresPath, "rb");
                 if (!hf)
                 {
-                    fprintf(stderr, "[LOOSE/HIRES/ERR] %s: fopen failed at PostLoad (errno=%d %s)\n",
-                            hiresPath, errno, strerror(errno));
+                    SH_DBG("[LOOSE/HIRES/ERR] %s: fopen failed at PostLoad (errno=%d %s)",
+                           hiresPath, errno, strerror(errno));
                 }
                 else
                 {
@@ -621,35 +646,34 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     if (seekOk) fseek(hf, 0, SEEK_SET);
                     if (sz <= 0)
                     {
-                        fprintf(stderr, "[LOOSE/HIRES/ERR] %s: invalid size %ld\n", hiresPath, sz);
+                        SH_DBG("[LOOSE/HIRES/ERR] %s: invalid size %ld", hiresPath, sz);
                     }
                     else if (sz >= 64 * 1024 * 1024)
                     {
-                        fprintf(stderr, "[LOOSE/HIRES/ERR] %s: too large (%ld bytes, cap 64MB)\n",
-                                hiresPath, sz);
+                        SH_DBG("[LOOSE/HIRES/ERR] %s: too large (%ld bytes, cap 64MB)",
+                               hiresPath, sz);
                     }
                     else
                     {
                         unsigned char* buf = (unsigned char*)malloc((size_t)sz);
                         if (!buf)
                         {
-                            fprintf(stderr, "[LOOSE/HIRES/ERR] %s: malloc(%ld) failed\n",
-                                    hiresPath, sz);
+                            SH_DBG("[LOOSE/HIRES/ERR] %s: malloc(%ld) failed",
+                                   hiresPath, sz);
                         }
                         else
                         {
                             size_t got = fread(buf, 1, (size_t)sz, hf);
                             if (got != (size_t)sz)
                             {
-                                fprintf(stderr, "[LOOSE/HIRES/ERR] %s: short read %u of %ld bytes\n",
-                                        hiresPath, (unsigned)got, sz);
+                                SH_DBG("[LOOSE/HIRES/ERR] %s: short read %u of %ld bytes",
+                                       hiresPath, (unsigned)got, sz);
                             }
                             else
                             {
                                 int cx = haveClut ? (int)clutRect.x : -1;
                                 int cy = haveClut ? (int)clutRect.y : -1;
-                                fprintf(stderr,
-                                    "[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d\n",
+                                SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
                                     hiresPath,
                                     (int)pixelRect.x, (int)pixelRect.y,
                                     (int)pixelRect.w, (int)pixelRect.h,

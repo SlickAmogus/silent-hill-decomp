@@ -407,3 +407,32 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   `lowerBodyState = Aim` every frame, stomping the swing's `Attack`
   lower-body state that carries the attack root motion; no longer
   overwritten mid-swing (also stops movement fighting active swings).
+
+## Custom textures: hi-res PNG/TIM overrides render for real (2026-07-08)
+
+- The hi-res override registry (`hires_override.c`) existed but nothing
+  consulted it at draw time, so registered overrides never rendered.
+  PsyCross (`7ffe8b9`, port of PsyCross PR #5) now routes every textured
+  prim through `HiresOverride_LookupByTpageClut` and binds the override
+  via the existing `TF_32_BIT_RGBA` path, with a `u_texOffset` uniform so
+  surfaces wider than one tpage sample the right region per prim.
+- PNG input: `HiresOverride_RegisterFromTim` sniffs the PNG magic and
+  decodes via vendored `stb_image.h` (v2.30, byte-identical to upstream,
+  PNG-only/memory-only). PNG carries true 8-bit alpha: 0 = hole (shader
+  discards < 0.5), ~128 = STP-style blend on semi-trans prims, 255 =
+  opaque. TIMs keep 1-bit colour-0 transparency.
+- Discovery (`fsqueue_3.c`): with `allow_loose_files = 1`, a loose
+  `gamedata/load/<FOLDER>/<NAME>.png` (e.g. `1ST/KONAMI2.TIM.png`)
+  always registers as an override (never a byte-replace) regardless of
+  size; the disc file still loads so the engine picks the native VRAM
+  rect, then `PostLoadTim` registers the PNG against it. Any resolution
+  works — native UVs map 0..1 over the original, so uniform upscales
+  (2x/4x/8x) just work.
+- Salvaged by hand from unmergeable PR #38 (its branch diffs the whole
+  tree as added; merging would clobber current work — reference only).
+  v1 limitation: tpage/clut-keyed overrides fit single-tpage assets
+  (items, HUD, sprites, character textures); packed world/interior
+  atlases need the per-material residency rework.
+- Loose/hires diagnostics moved from stderr to SH_DBG so they land in
+  SilentHill.log. Byte-identical with `allow_loose_files = 0` (weak
+  stub, zero registrations, override state stays 0).
