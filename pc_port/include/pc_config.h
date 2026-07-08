@@ -41,6 +41,9 @@ typedef struct {
                            * virtual slots backed by persistent per-slot GL textures (whole map stays textured,
                            * no page stealing — the flat/rainbow class). 0 = vanilla 8+2 pool + PC keep-4/steal.
                            * (config key: resident_textures) */
+    int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
+                           * (texupload-*.png, loose folders or .zip archives) and apply them by content
+                           * hash at TIM upload (config key: texture_packs) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */

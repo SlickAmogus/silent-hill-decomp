@@ -363,6 +363,118 @@ int HiresOverride_PoolSlotRegister(int slotId,
     return 0;
 }
 
+/* Upload straight RGBA into a slot/entry texture, creating it on demand.
+ * Returns 0 on success. */
+static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest)
+{
+    if (rgba == NULL || w <= 0 || h <= 0) return -1;
+    if (*tex == 0)
+    {
+        glGenTextures(1, tex);
+        if (*tex == 0) return -1;
+    }
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return 0;
+}
+
+int HiresOverride_PoolSlotRegisterRGBA(int slotId,
+                                       const unsigned char* rgba, int w, int h,
+                                       int nativePixelW, int nativePixelH)
+{
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX)
+    {
+        SH_DBG("[POOLTEX] slot %d out of range (RGBA)", slotId);
+        return -1;
+    }
+
+    PoolSlotEntry* s = &g_poolSlots[slotId];
+    if (upload_rgba(&s->glTexture, rgba, w, h,
+                    (w == nativePixelW && h == nativePixelH)) != 0)
+    {
+        return -1;
+    }
+    s->nativeW = nativePixelW;
+    s->nativeH = nativePixelH;
+    return 0;
+}
+
+int HiresOverride_RegisterRGBA(const char* label,
+                               const unsigned char* rgba, int w, int h,
+                               int targetVramX, int targetVramY,
+                               int targetVramW, int targetVramH,
+                               int targetClutX, int targetClutY,
+                               int originalBitDepth)
+{
+    HiresEntry* e = NULL;
+    int i;
+
+    if (!g_initialized) HiresOverride_Init();
+
+    /* Replace-in-place on an identical key: the same VRAM rect gets
+     * re-uploaded whenever the game reloads that TIM (room transitions),
+     * and content-hashed pack composites can change with it. */
+    for (i = 0; i < g_numEntries; i++)
+    {
+        HiresEntry* c = &g_entries[i];
+        if (c->vramX == targetVramX && c->vramY == targetVramY &&
+            c->vramW == targetVramW && c->vramH == targetVramH &&
+            c->clutX == targetClutX && c->clutY == targetClutY &&
+            c->originalBitDepth == originalBitDepth)
+        {
+            e = c;
+            break;
+        }
+    }
+    if (e == NULL)
+    {
+        if (g_numEntries >= MAX_HIRES_OVERRIDES)
+        {
+            SH_DBG("[HIRES] table full, ignoring %s", label);
+            return -1;
+        }
+        e = &g_entries[g_numEntries];
+        e->glTexture = 0;
+    }
+
+    if (upload_rgba(&e->glTexture, rgba, w, h, 0) != 0)
+    {
+        return -1;
+    }
+    if (e == &g_entries[g_numEntries])
+    {
+        g_numEntries++;
+    }
+
+    e->vramX = targetVramX;
+    e->vramY = targetVramY;
+    e->vramW = targetVramW;
+    e->vramH = targetVramH;
+    e->clutX = targetClutX;
+    e->clutY = targetClutY;
+    e->originalBitDepth = originalBitDepth;
+    e->hiresW = w;
+    e->hiresH = h;
+    e->sourceBitDepth = 32;
+
+    static int s_rgbaLog = 0;
+    if (s_rgbaLog < 32)
+    {
+        SH_DBG("[HIRES] registered %s (RGBA %dx%d): vram=(%d,%d %dx%d cells, %dbpp) clut=(%d,%d) tex=%u",
+               label, w, h, targetVramX, targetVramY, targetVramW, targetVramH,
+               originalBitDepth, targetClutX, targetClutY, (unsigned)e->glTexture);
+        s_rgbaLog++;
+    }
+    return 0;
+}
+
 void HiresOverride_PoolSlotsReset(void)
 {
     int i, live = 0;

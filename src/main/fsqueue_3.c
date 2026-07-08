@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "pc_config.h"
 #include "hires_override.h"
+#include "tex_pack.h"
 #include "sh_log.h"
 
 /* Forensics for the FS-queue stomp family (SaveLoad.log / SewerCrash*.log):
@@ -726,6 +727,23 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 }
             }
 
+            /* DuckStation texture pack, matched by content hash of the
+             * upload. Loose gamedata/load replacements above take priority. */
+            if (!registered && TexPack_HasEntries())
+            {
+                int cw = 0, ch = 0;
+                int clutCount = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+                unsigned char* canvas = TexPack_Compose(
+                    (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
+                    (const unsigned short*)tim.caddr, clutCount, discBitDepth, &cw, &ch);
+                if (canvas != NULL)
+                {
+                    registered = HiresOverride_PoolSlotRegisterRGBA(
+                        slotId, canvas, cw, ch, nativeW, nativeH) == 0;
+                    free(canvas);
+                }
+            }
+
             if (!registered)
             {
                 unsigned int discSize = (unsigned int)ALIGN(
@@ -742,6 +760,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
      * derive from these same coords. */
     {
         const char* hiresPath = HiresPending_PopPath(entry);
+        int         looseHires = 0;
         if (hiresPath && hiresPath[0])
         {
             if (discBitDepth <= 0)
@@ -762,13 +781,35 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                         (int)pixelRect.x, (int)pixelRect.y,
                         (int)pixelRect.w, (int)pixelRect.h,
                         cx, cy, discBitDepth);
-                    HiresOverride_RegisterFromTim(
+                    looseHires = HiresOverride_RegisterFromTim(
                         hiresPath, buf, (unsigned int)sz,
                         (int)pixelRect.x, (int)pixelRect.y,
                         (int)pixelRect.w, (int)pixelRect.h,
-                        cx, cy, discBitDepth);
+                        cx, cy, discBitDepth) == 0;
                     free(buf);
                 }
+            }
+        }
+
+        /* DuckStation texture pack for VRAM-resident TIMs (items, HUD,
+         * charas, 2D backgrounds), matched by content hash of the upload.
+         * A loose hi-res replacement above takes priority. */
+        if (!looseHires && discBitDepth > 0 && TexPack_HasEntries())
+        {
+            int cw = 0, ch = 0;
+            int clutCount = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+            unsigned char* canvas = TexPack_Compose(
+                (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
+                (const unsigned short*)tim.caddr, clutCount, discBitDepth, &cw, &ch);
+            if (canvas != NULL)
+            {
+                HiresOverride_RegisterRGBA("texpack", canvas, cw, ch,
+                                           (int)pixelRect.x, (int)pixelRect.y,
+                                           (int)pixelRect.w, (int)pixelRect.h,
+                                           haveClut ? (int)clutRect.x : -1,
+                                           haveClut ? (int)clutRect.y : -1,
+                                           discBitDepth);
+                free(canvas);
             }
         }
     }

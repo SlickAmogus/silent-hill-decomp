@@ -462,3 +462,25 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   the override table claims (bit-15 keys); lookup fast path requires the low
   6 clut bits clear so garbage cluts still reject 63/64.
 - Full design + survey findings: docs/Texture_Residency_And_Custom_Textures_Task.md §10.
+
+## DuckStation texture-pack support (2026-07-08)
+
+- Drop existing DuckStation texture packs into `gamedata/texturemods/` —
+  loose folders (e.g. a `replacements/` dir) or whole `.zip` archives — and
+  with `texture_packs = 1` (default) they apply automatically. Matching is by
+  content hash exactly like DuckStation: `texupload-P4-<srcHash>-<palHash>-
+  <WxH>-<ox>-<oy>-<wxh>-P<min>-<max>.png` where srcHash = XXH3-64 of the VRAM
+  upload payload (our TIM pixel block) and palHash = XXH3-64 of the CLUT
+  (including DuckStation's partial-range quirk: the FIRST max-min+1 entries).
+  P4/P8/STP4/STP8/C16/STC16 names supported.
+- At `PostLoadTim`, every TIM upload is hashed; matching sub-rect PNGs are
+  composited over a nearest-upscaled base at the pack's scale (mirroring
+  DuckStation's compositor), then registered as a per-slot GL texture
+  (virtual pool slots = world/interior textures) or a rect-keyed override
+  (VRAM TIMs: items, HUD, charas, 2D backgrounds). Loose `gamedata/load/`
+  replacements keep working unchanged and take priority over packs.
+- `pc_port/src/tex_pack.c`; vendored `xxhash.h` (v0.8.3, BSD) +
+  `miniz` (3.0.2, MIT) for hashing and zip reading. `[TEXPACK]` log lines
+  cover indexing and per-upload composition. Validated against a real 12k-
+  file pack (index parity with ground truth; end-to-end compose test with
+  loose + zip + partial-palette entries).

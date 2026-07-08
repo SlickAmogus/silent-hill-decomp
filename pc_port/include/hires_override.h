@@ -101,6 +101,18 @@ int  HiresOverride_PoolSlotRegister(int slotId,
                                     int nativePixelW, int nativePixelH);
 void HiresOverride_PoolSlotsReset(void);
 
+/* Pre-decoded RGBA variants (DuckStation texture-pack composites). The rect
+ * form replaces in place when an identical key is re-registered. */
+int  HiresOverride_PoolSlotRegisterRGBA(int slotId,
+                                        const unsigned char* rgba, int w, int h,
+                                        int nativePixelW, int nativePixelH);
+int  HiresOverride_RegisterRGBA(const char* label,
+                                const unsigned char* rgba, int w, int h,
+                                int targetVramX, int targetVramY,
+                                int targetVramW, int targetVramH,
+                                int targetClutX, int targetClutY,
+                                int originalBitDepth);
+
 #ifdef __cplusplus
 }
 #endif
