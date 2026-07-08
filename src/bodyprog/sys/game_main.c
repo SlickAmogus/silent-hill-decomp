@@ -149,6 +149,7 @@ extern int g_PcFpsCam;
 VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
+VECTOR3 g_PcFlashlightShadowWorld = { 0, 0, 0 }; /* physical flashlight WORLD pos (Q19.12), captured before the FPS eye-override; drives the shadow-map light so FPS shadows match third person */
 /* FPS melee arm-clearance dolly (Pc_TpsCamera_Apply): smoothed pull distance, and
  * the "head visible" publish read by world_draw.c — once the dolly is genuinely
  * behind Harry's head, the head draws again so the pulled-back swing reads as a

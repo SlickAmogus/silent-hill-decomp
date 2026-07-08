@@ -166,10 +166,12 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
      * see bodyprog_bone_80044F14.c). Off path: g_PsyX_FlashlightActive stays 0
      * (or the master flag is 0), so the shader cone is fully inert. */
     {
-        extern int   g_PsyX_UsePerPixelFlashlight;
-        extern int   g_PsyX_FlashlightActive;
-        extern float g_PsyX_FlashlightPos[3];
-        extern float g_PsyX_FlashlightDir[3];
+        extern int     g_PsyX_UsePerPixelFlashlight;
+        extern int     g_PsyX_FlashlightActive;
+        extern float   g_PsyX_FlashlightPos[3];
+        extern float   g_PsyX_FlashlightShadowPos[3];
+        extern float   g_PsyX_FlashlightDir[3];
+        extern VECTOR3 g_PcFlashlightShadowWorld;
 
         /* Gate on Harry's actual flashlight state (== what Game_FlashlightIsOn
          * returns). field_0==1 is only the room's dynamic-light mode (on even
@@ -201,6 +203,23 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
             g_PsyX_FlashlightPos[0] = (float)vx;
             g_PsyX_FlashlightPos[1] = (float)vy;
             g_PsyX_FlashlightPos[2] = (float)vz;
+
+            /* Shadow-map light origin: the PHYSICAL flashlight (chest/hand),
+             * snapshotted before the FPS eye-override, pushed to view space the
+             * same way. In TPS this equals FlashlightPos; in FPS it stays at the
+             * real light so the shadow lands where third person shows it (a shadow
+             * depends on light+occluder, not the camera). */
+            {
+                s32 slx = Q12_TO_Q8(g_PcFlashlightShadowWorld.vx);
+                s32 sly = Q12_TO_Q8(g_PcFlashlightShadowWorld.vy);
+                s32 slz = Q12_TO_Q8(g_PcFlashlightShadowWorld.vz);
+                s32 svx = (s32)(((s64)GsWSMATRIX.m[0][0] * slx + (s64)GsWSMATRIX.m[0][1] * sly + (s64)GsWSMATRIX.m[0][2] * slz) >> 12) + GsWSMATRIX.t[0];
+                s32 svy = (s32)(((s64)GsWSMATRIX.m[1][0] * slx + (s64)GsWSMATRIX.m[1][1] * sly + (s64)GsWSMATRIX.m[1][2] * slz) >> 12) + GsWSMATRIX.t[1];
+                s32 svz = (s32)(((s64)GsWSMATRIX.m[2][0] * slx + (s64)GsWSMATRIX.m[2][1] * sly + (s64)GsWSMATRIX.m[2][2] * slz) >> 12) + GsWSMATRIX.t[2];
+                g_PsyX_FlashlightShadowPos[0] = (float)svx;
+                g_PsyX_FlashlightShadowPos[1] = (float)svy;
+                g_PsyX_FlashlightShadowPos[2] = (float)svz;
+            }
 
             /* Beam direction = the flashlight's world direction (field_58 — the same
              * vector the per-vertex "ambient" flashlight uses, so it turns with Harry's
@@ -509,7 +528,12 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         extern int     g_PsyX_FlashlightFpsMode;
         extern VECTOR3 g_PcFpsViewFwd;
         extern VECTOR3 g_PcFpsEyePos;
+        extern VECTOR3 g_PcFlashlightShadowWorld;
         g_PsyX_FlashlightFpsMode = g_PcFpsCam; /* select the FPS cone size/brightness in the shader */
+        /* Snapshot the REAL light position before the FPS block overrides field_60
+         * with the eye. The shadow map uses this (not the eye) so FPS shadows land
+         * where third person shows them; in TPS it just mirrors field_60. */
+        g_PcFlashlightShadowWorld = g_WorldEnvWork.field_60;
         if (g_PcFpsCam && g_SysWork.field_2388.isFlashlightOn_15)
         {
             g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
