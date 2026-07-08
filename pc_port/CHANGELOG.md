@@ -1,5 +1,65 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.08.1 -- 2026-07-08
+- This should fix the flat interior texture issue that has been happening in recent builds.
+
+Commit summaries:
+- Bump PsyCross: FPS shadow direction + firing muzzle-flash shadow fixes
+- FPS shadows: feed the real chest/hand light position to the shadow map (in progress)
+- gfx: restore stuck-flat interior materials when a stolen VRAM page returns
+
+## beta-2026.07.07.1 -- 2026-07-07
+- More BGM Improvements
+- Restore aim look in direction of enemy in classic camera
+- Air screamer body freezing fixes
+- Fix for wrong BGM playing between rooms
+- Show user-generated changes like settings changes and cheats in top left without console enabled
+
+Commit summaries:
+- Bump PsyCross: full-voice ADSR + sustain-loop-through-release (90df050)
+- pc_port: show user console messages as brief top-left toast when console hidden
+- player: restore aim-pitch flex in classic camera (aim up at aerial enemies)
+- player: use torso-only aim flex in classic (fix T-pose from func_8007D090)
+- player: run original func_8007D090 in classic camera; compose arm flex on PC
+- pc_port: map-load line uses SH_LOG (no toast)
+- bgm: clear loaded-track index on PC synchronous overlay swap (fix combat-BGM blip)
+- air_screamer: fix high-FPS death freeze (downed screamer settles at any frame rate)
+- Bump PsyCross: 4-state SpuGetKeyStatus (release tails no longer cut)
+
+## beta-2026.07.06.3 -- 2026-07-06
+- BGM Improvements, ADSR on by default (still working on more fixes)
+- FPS Mode: Added FOV setting, change via console, launcher, or options menu
+- FPS Mode: Improved First person view by having camera in better position
+- FPS Mode: Changed heavy melee swings to temporarily show a third person close up to prevent clipping from the tight animation
+- Fixed melee combat in alternate camera modes so that rapidly pressing attack uses alternate swing 
+- Fixed rendering regression causing flat unloaded texture corruption in some cases
+- Fixed launcher issue causing it to render large text
+- Fixed issue with flashing gray background during Eclipse door puzzle
+
+Commit summaries:
+- BGM: reverb depth automation + ADSR default on; button-sprint applies to 2D-under-classic
+- docs: index the BGM reverb/ADSR batch
+- First-person FOV: config + launcher slider + PC options row (FPS gameplay only)
+- FOV: console cmd + default = the game's native projection (67.4)
+- FPS: hide torso+shoulders during melee swings (head-lunge mesh flash)
+- vc: no fixed-cam vshift while an alt camera (FPS/TPS/OTS) renders
+- docs: index the FPS melee-swing hide + alt-cam vshift fixes
+- FIX_ANG framing: GTE-center shift replaces ortho vshift (faded band root fix)
+- docs: update fixes index for the FIX_ANG GTE-center rework
+- FPS: dolly the eye back when melee raise/swing puts the arms in the camera
+- Eclipse door: grey flash during key-insert cross-fade
+- docs: index the eclipse-door transition fix
+- Revert "FPS: hide torso+shoulders during melee swings (head-lunge mesh flash)"
+- docs: swing-hide reverted in favor of the arm-clearance dolly
+- FPS: show Harry's head while the melee dolly is pulled back
+- FPS: nudge the resting eye forward (vz 471 -> 599)
+- Revert "Fix interior rainbow when two resident chunks share a baked VRAM slot"
+- docs: index the interior flat-texture regression revert
+- launcher: dpiAware false — restore default Windows scaling (broken layout fix)
+- FPS: bake user-tuned eye baseline { -29, -6836, 919 }
+- Alt-camera melee: multi-tap combos, tap/hold swing types, katana lunge
+- docs: index the alt-camera melee parity fixes
+
 ## beta-2026.07.06.2 -- 2026-07-06
 - Fixed close up warping with PGXP on (mostly), FPS mode and any mode when the camera gets close to something look noticeably better now
 - Added button based sprinting option in the controls menu that makes alternate camera modes use a button to sprint on controllers instead of pressure sensitivity
