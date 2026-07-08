@@ -2615,6 +2615,16 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
          * rendering, not a crash). `addPrimFast` only sets `len`; we
          * never set `code`. Explicitly install POLY_FT4 (0x2C). */
         setPolyFT4(*poly);
+        /* setPolyFT4 writes the OPAQUE code 0x2C, clobbering the 0x2E
+         * (POLY_FT4 | ABE) the r0 writes above installed for this
+         * semi-transparent muzzle particle. Restore the ABE bit: PSX draws it
+         * blended, and — more importantly here — an opaque prim right at the
+         * muzzle next to the close flashlight is a CASTER in the shadow depth
+         * pass (opaque-only), throwing its quad silhouette on the wall for the
+         * frame it lives = the "shadow flash when firing" (func_80064334's
+         * type-20 flash is already semi-trans/excluded; this type-15 one was
+         * the straggler). */
+        setSemiTrans(*poly, true);
         /* Defensive bucket clamp — same defense applied at all other
          * particle emit sites in this file. Without it, an OOB bucket
          * index from a corrupted field_1BC writes prim data INTO the
