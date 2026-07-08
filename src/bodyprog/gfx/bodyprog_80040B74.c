@@ -5,6 +5,7 @@
 #include <SDL_timer.h>
 #include "pc_config.h"
 #include "sh_log.h"
+#include "hires_override.h"
 /* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
  * PSX uses 1-4 slots with streaming. PC can hold all chunks in memory. */
 #define PC_MAX_IPD_CHUNKS 256
@@ -556,6 +557,39 @@ void Ipd_TexturesInit(void) // 0x80041D48
 
     Textures_ActiveTex_CountReset(&g_Map.chunkTextures.halfPage);
     Textures_ActiveTex_PutTextures(&g_Map.chunkTextures.halfPage, g_Map.chunkTextures.halfPageTextures, 2);
+
+#ifdef SH_PC_PORT
+    /* Expanded pool (resident_textures; key encoding in hires_override.h):
+     * append VIRTUAL slots after the 10 vanilla page slots. Claim order in
+     * Texture_Get is list order, so the physical slots fill first and
+     * assignment stays vanilla-identical until vanilla capacity would have
+     * been exceeded. Virtual slots never upload to VRAM (PostLoadTim skips
+     * on the synthetic clutY and registers a per-slot GL texture instead);
+     * the tpage byte only feeds the prim's page bits, which the GL override
+     * path ignores — if a slot's registration ever fails, its prims render
+     * broken (FT4 dropped / GT wrong palette), the same class of breakage as
+     * vanilla's missing-TIM stale pages, and [POOLTEX] names the slot. */
+    if (g_PcConfig.residentTextures)
+    {
+        s32 k;
+
+        for (k = 0; k < PC_TEXPOOL_FULL_EXTRA; k++)
+        {
+            Texture_Init(&g_Map.chunkTextures.fullPageTextures[8 + k], 0,
+                         0, 8, 0, 0, 0, (s16)(HIRES_POOL_CLUT_ROW_BASE + k));
+            g_Map.chunkTextures.fullPage.textures[g_Map.chunkTextures.fullPage.count++] =
+                &g_Map.chunkTextures.fullPageTextures[8 + k];
+        }
+        for (k = 0; k < PC_TEXPOOL_HALF_EXTRA; k++)
+        {
+            Texture_Init(&g_Map.chunkTextures.halfPageTextures[2 + k], 0,
+                         0, 26, 0, 0, 0, (s16)(HIRES_POOL_CLUT_ROW_BASE + PC_TEXPOOL_FULL_EXTRA + k));
+            g_Map.chunkTextures.halfPage.textures[g_Map.chunkTextures.halfPage.count++] =
+                &g_Map.chunkTextures.halfPageTextures[2 + k];
+        }
+    }
+    HiresOverride_PoolSlotsReset();
+#endif
 }
 
 void Map_CollisionDataInit(void) // 0x80041E98
@@ -600,9 +634,17 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
 {
     s_Texture* curTex;
 
+#ifdef SH_PC_PORT
+    s32 fullBound = 8 + (g_PcConfig.residentTextures ? PC_TEXPOOL_FULL_EXTRA : 0);
+    s32 halfBound = 2 + (g_PcConfig.residentTextures ? PC_TEXPOOL_HALF_EXTRA : 0);
+#else
+    #define fullBound 8
+    #define halfBound 2
+#endif
+
     // TODO: Will these match as for loops?
     curTex = &g_Map.chunkTextures.fullPageTextures[0];
-    while (curTex < (&g_Map.chunkTextures.fullPageTextures[8]))
+    while (curTex < (&g_Map.chunkTextures.fullPageTextures[fullBound]))
     {
         if (curTex->refCount == 0)
         {
@@ -613,7 +655,7 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
     }
 
     curTex = &g_Map.chunkTextures.halfPageTextures[0];
-    while (curTex < (&g_Map.chunkTextures.halfPageTextures[2]))
+    while (curTex < (&g_Map.chunkTextures.halfPageTextures[halfBound]))
     {
         if (curTex->refCount == 0)
         {
@@ -622,6 +664,10 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
 
         curTex++;
     }
+#ifndef SH_PC_PORT
+    #undef fullBound
+    #undef halfBound
+#endif
 }
 
 void Map_WorldClearReset(void) // 0x800420C0
@@ -1631,6 +1677,29 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * but release their textures like vanilla's out-of-cell chunks. */
     if (!g_Map.isExterior)
     {
+        /* Expanded pool: every loaded resident chunk keeps its materials
+         * textured — the pool no longer starves, so the keep-4 window, the
+         * steal loop, and the g_PcInteriorMatSync flat/untexture shims below
+         * are unnecessary (they remain as the resident_textures=0 fallback).
+         * Releases still happen on chunk unload (Map_PlaceIpdAtCell /
+         * Ipd_ActiveChunksClear), exactly like vanilla. */
+        if (g_PcConfig.residentTextures)
+        {
+            for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
+            {
+                if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
+                    curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
+                {
+                    continue;
+                }
+
+                Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+                Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+            }
+
+            return;
+        }
+
         enum { PC_INTERIOR_TEXTURED_CHUNKS = 4 };
         s_Chunk* keep[PC_INTERIOR_TEXTURED_CHUNKS];
         s32      keepCount = 0;

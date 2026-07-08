@@ -203,6 +203,44 @@ static int parse_tim_to_rgba(const unsigned char* data, unsigned int size,
     return 0;
 }
 
+/* Decode a texture blob — PNG (real 8-bit alpha) or TIM (1-bit colour-0) —
+ * to a malloc'd RGBA8 buffer. `tag` is for log messages only. On success
+ * caller owns *outRGBA (stb's allocator is malloc, so free() fits both
+ * paths). *outBpp: source depth, 32 for PNG. Returns 0 on success. */
+static int decode_to_rgba(const char* tag,
+                          const unsigned char* data, unsigned int size,
+                          unsigned char** outRGBA, int* outW, int* outH,
+                          int* outBpp)
+{
+    if (size >= 8 && data[0] == 0x89 && data[1] == 'P' &&
+        data[2] == 'N' && data[3] == 'G')
+    {
+        int comp = 0;
+        *outRGBA = stbi_load_from_memory(data, (int)size, outW, outH, &comp, 4);
+        if (*outRGBA == NULL)
+        {
+            SH_DBG("[HIRES] %s: PNG decode failed (size=%u): %s",
+                   tag, size, stbi_failure_reason());
+            return -1;
+        }
+        *outBpp = 32;
+    }
+    else if (parse_tim_to_rgba(data, size, outRGBA, outW, outH, outBpp) != 0)
+    {
+        SH_DBG("[HIRES] %s: TIM parse failed (size=%u)", tag, size);
+        return -1;
+    }
+
+    if (*outW <= 0 || *outH <= 0 || *outW > 8192 || *outH > 8192)
+    {
+        SH_DBG("[HIRES] %s: unusable dimensions %dx%d", tag, *outW, *outH);
+        free(*outRGBA);
+        *outRGBA = NULL;
+        return -1;
+    }
+    return 0;
+}
+
 int HiresOverride_RegisterFromTim(const char* timPath,
                                    const unsigned char* timData,
                                    unsigned int timSize,
@@ -220,30 +258,8 @@ int HiresOverride_RegisterFromTim(const char* timPath,
 
     unsigned char* rgba = NULL;
     int hiW = 0, hiH = 0, srcBpp = 0;
-    if (timSize >= 8 && timData[0] == 0x89 && timData[1] == 'P' &&
-        timData[2] == 'N' && timData[3] == 'G')
+    if (decode_to_rgba(timPath, timData, timSize, &rgba, &hiW, &hiH, &srcBpp) != 0)
     {
-        int comp = 0;
-        rgba = stbi_load_from_memory(timData, (int)timSize, &hiW, &hiH, &comp, 4);
-        if (rgba == NULL)
-        {
-            SH_DBG("[HIRES] failed to decode PNG %s (size=%u): %s",
-                   timPath, timSize, stbi_failure_reason());
-            return -1;
-        }
-        if (hiW <= 0 || hiH <= 0 || hiW > 8192 || hiH > 8192)
-        {
-            SH_DBG("[HIRES] PNG %s has unusable dimensions %dx%d",
-                   timPath, hiW, hiH);
-            free(rgba);
-            return -1;
-        }
-        srcBpp = 32; /* RGBA8: real 8-bit alpha, not TIM's 1-bit cutout */
-    }
-    else if (parse_tim_to_rgba(timData, timSize, &rgba, &hiW, &hiH, &srcBpp) != 0)
-    {
-        SH_DBG("[HIRES] failed to parse TIM %s (size=%u)",
-               timPath, timSize);
         return -1;
     }
 
@@ -281,12 +297,117 @@ int HiresOverride_RegisterFromTim(const char* timPath,
     return 0;
 }
 
+/* ---- Chunk-pool virtual slots (resident_textures) -------------------------
+ * See hires_override.h for the canonical key encoding. Slot texture content
+ * is REPLACED in place when the engine reuses a slot for another TIM. */
+typedef struct {
+    GLuint glTexture;      /* 0 = slot empty */
+    int    nativeW, nativeH; /* disc TIM pixel dims — texelSize denominator so
+                              * prim UVs map 0..1 over any replacement size */
+} PoolSlotEntry;
+
+static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
+
+int HiresOverride_PoolSlotRegister(int slotId,
+                                   const unsigned char* data, unsigned int size,
+                                   int nativePixelW, int nativePixelH)
+{
+    char tag[24];
+
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX)
+    {
+        SH_DBG("[POOLTEX] slot %d out of range", slotId);
+        return -1;
+    }
+
+    snprintf(tag, sizeof(tag), "pool slot %d", slotId);
+
+    unsigned char* rgba = NULL;
+    int hiW = 0, hiH = 0, srcBpp = 0;
+    if (decode_to_rgba(tag, data, size, &rgba, &hiW, &hiH, &srcBpp) != 0)
+    {
+        return -1;
+    }
+
+    PoolSlotEntry* s = &g_poolSlots[slotId];
+    if (s->glTexture == 0)
+    {
+        glGenTextures(1, &s->glTexture);
+        if (s->glTexture == 0) { free(rgba); return -1; }
+    }
+    glBindTexture(GL_TEXTURE_2D, s->glTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, hiW, hiH, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    /* Native-res decodes sample NEAREST (PSX-exact texel look); an upscaled
+     * loose replacement (dims != native) gets LINEAR like hi-res overrides. */
+    int nearest = (hiW == nativePixelW && hiH == nativePixelH);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    free(rgba);
+
+    s->nativeW = nativePixelW;
+    s->nativeH = nativePixelH;
+
+    static int s_regLog = 0;
+    if (s_regLog < 64)
+    {
+        SH_DBG("[POOLTEX] slot %d <- %dx%d (src %dbpp, native %dx%d) tex=%u",
+               slotId, hiW, hiH, srcBpp, nativePixelW, nativePixelH,
+               (unsigned)s->glTexture);
+        s_regLog++;
+    }
+    return 0;
+}
+
+void HiresOverride_PoolSlotsReset(void)
+{
+    int i, live = 0;
+    for (i = 0; i < HIRES_POOL_SLOT_MAX; i++)
+    {
+        if (g_poolSlots[i].glTexture != 0)
+        {
+            glDeleteTextures(1, &g_poolSlots[i].glTexture);
+            live++;
+        }
+        g_poolSlots[i].glTexture = 0;
+        g_poolSlots[i].nativeW = 0;
+        g_poolSlots[i].nativeH = 0;
+    }
+    if (live > 0)
+    {
+        SH_DBG("[POOLTEX] reset (%d slots freed)", live);
+    }
+}
+
 unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outNativePixelW,
                                               int* outNativePixelH,
                                               int* outOffsetX,
                                               int* outOffsetY)
 {
+    /* Virtual pool slot: clut bit 15 set, slotId in the clutY bits (see
+     * hires_override.h). Requiring the low 6 bits clear (virtual keys have
+     * clutX = 0) rejects most garbage cluts that happen to carry bit 15. */
+    if (clut & 0x8000)
+    {
+        int slotId = ((clut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
+        if ((clut & 0x3F) == 0 &&
+            slotId >= 0 && slotId < HIRES_POOL_SLOT_MAX &&
+            g_poolSlots[slotId].glTexture != 0)
+        {
+            if (outNativePixelW) *outNativePixelW = g_poolSlots[slotId].nativeW;
+            if (outNativePixelH) *outNativePixelH = g_poolSlots[slotId].nativeH;
+            if (outOffsetX)      *outOffsetX      = 0;
+            if (outOffsetY)      *outOffsetY      = 0;
+            return (unsigned int)g_poolSlots[slotId].glTexture;
+        }
+        return 0;
+    }
+
     if (g_numEntries == 0) return 0;
 
     int tpx = (tpage & 0xF) * 64;

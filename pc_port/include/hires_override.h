@@ -78,6 +78,29 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
 
 void HiresOverride_LogStats(void);
 
+/* ---- Chunk-pool virtual slots (resident_textures) ----
+ * CANONICAL ENCODING (every other site refers here): a virtual pool slot's
+ * imageDesc carries clutX = 0, clutY = HIRES_POOL_CLUT_ROW_BASE + slotId.
+ * Material_FsImageApply packs that into the prim clut halfword as
+ * (clutY << 6), i.e. bit 15 set and slotId in bits 6..14 — no valid PSX prim
+ * carries bit 15, so the key cannot collide with real geometry. The lookup
+ * above takes an O(1) fast path on that bit (and requires the low 6 clut
+ * bits to be 0, matching clutX = 0, so garbage cluts with bit 15 set are
+ * still rejected 63/64 of the time).
+ *
+ * PoolSlotRegister decodes `data` (disc TIM or loose PNG/TIM replacement) to
+ * RGBA8 and creates/REPLACES the slot's texture in place (engine slot reuse).
+ * nativePixelW/H are the DISC TIM's pixel dims — the UV denominator — so a
+ * replacement of any resolution maps 0..1 over the original.
+ * PoolSlotsReset frees every slot texture; called on map (re)init. */
+#define HIRES_POOL_CLUT_ROW_BASE 512
+#define HIRES_POOL_SLOT_MAX      256
+
+int  HiresOverride_PoolSlotRegister(int slotId,
+                                    const unsigned char* data, unsigned int size,
+                                    int nativePixelW, int nativePixelH);
+void HiresOverride_PoolSlotsReset(void);
+
 #ifdef __cplusplus
 }
 #endif

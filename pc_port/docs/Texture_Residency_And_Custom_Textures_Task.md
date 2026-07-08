@@ -1,6 +1,14 @@
 # Texture Residency + Custom Textures (PNG) — Task Spec
 
-Status: **OPEN — dedicated session.** Prepared 2026-07-08.
+Status: **IMPLEMENTED 2026-07-08 — awaiting in-game verification.**
+- Phase 0 landed: game `b08927245` + PsyCross `7ffe8b9` (PNG/TIM overrides render; stb_image
+  vendored; PNG discovery; draw-time wiring with u_texOffset + alpha discard).
+- Phase 1 landed as the **expanded-pool variant of Route B** (see §10 addendum at the bottom):
+  virtual pool slots with synthetic bit-15 CLUT keys backed by persistent per-slot GL textures;
+  interior keep-4/steal machinery bypassed; config `resident_textures` (default 1, 0 = exact
+  old behavior). Covers BOTH map classes (exterior APU rainbow class included).
+
+Prepared 2026-07-08.
 Supersedes/absorbs the scope of `project_vram_pool_removal_task` (memory) and folds in
 custom-texture (PNG) loading. Read alongside memory `[[project_color_banding_clut]]`,
 `[[project_vram_pool_removal_task]]`, `[[project_graphics_options]]`.
@@ -257,3 +265,58 @@ External refs:
 5. How custom **world** textures are keyed once materials own textures (material id vs tpage/clut).
 6. Optional follow-up the PR floated: a dump/upscale toolchain for authoring packs. Out of scope
    for the core task; note it.
+
+---
+
+## 10. Addendum — what was actually built (2026-07-08)
+
+Phase 1 shipped as an **expanded-pool variant of Route B**, informed by a 9-agent code survey
+(key findings below). Design:
+
+- `terrain.h`: pool grows by `PC_TEXPOOL_FULL_EXTRA` (128) + `PC_TEXPOOL_HALF_EXTRA` (48)
+  VIRTUAL slots appended after the 10 physical ones. Claim order = list order, so physical
+  slots fill first: assignment is vanilla-identical until vanilla capacity is exceeded.
+- Virtual slot identity: real pool tpage byte (harmless VRAM fallback) + synthetic CLUT
+  `clutY = 512 + slotId` → prim clut halfword bit 15 set — no valid PSX prim carries that, so
+  the (tpage, clut) override key cannot collide. O(1) lookup fast path in
+  `HiresOverride_LookupByTpageClut` (`slotId = ((clut>>6) & 0x3FF) - 512`).
+- `Fs_QueuePostLoadTim`: `clutY >= 512` ⇒ skip both VRAM `LoadImage`s (the rect aliases a
+  physical page) and decode the TIM — or a loose PNG/TIM replacement, which takes precedence —
+  into the slot's persistent GL texture (`HiresOverride_PoolSlotRegister`, replace-in-place on
+  slot reuse). Native-res decodes sample NEAREST; resolution-changed replacements LINEAR.
+  **This removes the multi-tpage/custom-world-texture limitation: interior + exterior terrain
+  textures are moddable per material TIM.**
+- `Ipd_ChunkMaterialsApply`: interiors texture EVERY loaded chunk (whole map resident);
+  keep-4 + steal + `g_PcInteriorMatSync` shims remain only as the `resident_textures=0` path.
+  Exteriors keep the vanilla distance loop; expanded capacity alone fixes the APU
+  cross-area collision class.
+- PsyCross: FT4 clutY>511 drop guard exempts prims the override table claims (map code that
+  bakes pool tpage/clut into its own prims, e.g. map4_s03 Texture_InfoGet consumers).
+
+Survey facts that shaped it (full reports in the session workflow journal):
+- Prim tpage/clut have exactly ONE game-side writer (`Model_MaterialFlagsApply`) and are baked
+  into persistent chunk prim buffers, re-applied only on change — so keys must be stable, and
+  the per-prim override lookup (Phase 0) is the correct bind point.
+- At `PostLoadTim` the whole TIM (pixels + CLUT + depth + target rects) is in one live CPU
+  buffer (`FS_BUFFER_9`), reused by the next read — decode-once is possible exactly there,
+  never later. Steal-and-return always re-streams from disc; no CPU copy exists.
+- Interior/exterior is a STREAMING class (`MapFlag_Interior`), not geography; both share one
+  pool/allocator/draw gate. Global LM pins physical slots 0-3 (count=4 clamp). 2D events and
+  map FX deliberately upload into pool pages (tpage 21 etc.) — physical slots must keep
+  uploading to VRAM; virtual slots make terrain immune to those stomps.
+- Interior material CLUTs are static per TIM; the lit-path clut offset (`field_14C`) is
+  provably 0 for terrain (all `Ipd_ChunkDraw` call sites pass arg5=0). Palette dynamics exist
+  only on the character path — correctly out of scope.
+- Pool CLUT columns live at VRAM row 0 x=0..160; tpage 27 is Harry's texture (spec's "21-27"
+  was off by one; both half slots share tpage 26).
+
+Known limits / follow-ups:
+- Pool exhaustion (>136 full / >50 half distinct TIMs in one map) logs `[POOLTEX] pool
+  exhausted`; affected chunks stay undrawn like vanilla out-of-pool chunks. Bump the
+  constants if any map ever trips it.
+- Materials on the 10 physical slots still sample VRAM (vanilla): the first ~8 full-page TIM
+  names per map are not GL-resident and keep vanilla stomp/steal exposure (exterior distance
+  churn only; interiors no longer steal). A follow-up could claim virtual slots first — needs
+  a decision on global-LM/`Texture_InfoGet` interactions.
+- Hi-res rect-table entries registered against a physical pool page go stale if the engine
+  reuses that slot for a different TIM (pre-existing Phase 0 limitation; exteriors only).

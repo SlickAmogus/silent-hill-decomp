@@ -209,6 +209,57 @@ static const char* HiresPending_PopPath(s_FsQueueEntry* entry)
     }
     return NULL;
 }
+
+/* Read a whole loose file. Returns malloc'd bytes (caller frees) or NULL
+ * with the failing step logged. 64MB cap. */
+static unsigned char* PcFile_Slurp(const char* path, long* outSize)
+{
+    unsigned char* buf = NULL;
+    long           sz  = -1;
+    FILE*          f   = fopen(path, "rb");
+
+    if (f == NULL)
+    {
+        SH_DBG("[LOOSE/WARN] %s: fopen failed (errno=%d %s)", path, errno, strerror(errno));
+        return NULL;
+    }
+    if (fseek(f, 0, SEEK_END) == 0)
+    {
+        sz = ftell(f);
+        if (fseek(f, 0, SEEK_SET) != 0)
+        {
+            sz = -1;
+        }
+    }
+    if (sz <= 0)
+    {
+        SH_DBG("[LOOSE/WARN] %s: invalid size %ld", path, sz);
+    }
+    else if (sz >= 64 * 1024 * 1024)
+    {
+        SH_DBG("[LOOSE/WARN] %s: too large (%ld bytes, cap 64MB)", path, sz);
+    }
+    else
+    {
+        buf = (unsigned char*)malloc((size_t)sz);
+        if (buf == NULL)
+        {
+            SH_DBG("[LOOSE/WARN] %s: malloc(%ld) failed", path, sz);
+        }
+        else if (fread(buf, 1, (size_t)sz, f) != (size_t)sz)
+        {
+            SH_DBG("[LOOSE/WARN] %s: short read of %ld bytes", path, sz);
+            free(buf);
+            buf = NULL;
+        }
+    }
+    fclose(f);
+    if (buf != NULL && outSize != NULL)
+    {
+        *outSize = sz;
+    }
+    return buf;
+}
 #endif
 
 bool Fs_QueueTickRead(s_FsQueueEntry* entry)
@@ -548,6 +599,13 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     RECT      clutRect = {0};
     bool      haveClut = false;
     int       discBitDepth = 0;
+    /* Virtual chunk-pool slot (resident_textures; encoding in
+     * hires_override.h): clutY names a VRAM row that doesn't exist. Skip
+     * both VRAM uploads — the pixel rect aliases a real pool page and would
+     * stomp it — and instead decode the TIM straight into the slot's
+     * persistent GL texture. */
+    bool      pcVirtualSlot = entry->extra.image.u != UCHAR_MAX &&
+                              entry->extra.image.clutY >= HIRES_POOL_CLUT_ROW_BASE;
 #endif
 
 #ifdef SH_PC_PORT
@@ -585,7 +643,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
 #endif
 
-    LoadImage(&tempRect, tim.paddr);
+#ifdef SH_PC_PORT
+    if (!pcVirtualSlot)
+#endif
+    {
+        LoadImage(&tempRect, tim.paddr);
+    }
 #ifdef SH_PC_PORT
     pixelRect = tempRect;
     /* tim.mode bits 0-2: 0=4bpp, 1=8bpp, 2=16bpp, 3=24bpp. */
@@ -609,7 +672,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
 #endif
 
-        LoadImage(&tempRect, tim.caddr);
+#ifdef SH_PC_PORT
+        if (!pcVirtualSlot)
+#endif
+        {
+            LoadImage(&tempRect, tim.caddr);
+        }
 #ifdef SH_PC_PORT
         clutRect = tempRect;
         haveClut = true;
@@ -618,6 +686,56 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
 
+    /* Virtual pool slot: decode the TIM (or a loose PNG/TIM replacement)
+     * into the slot's persistent GL texture. slotId comes from the synthetic
+     * clutY the slot was initialized with; native pixel dims come from the
+     * disc TIM so replacement UVs map 0..1 over the original. */
+    if (pcVirtualSlot)
+    {
+        s32 slotId = (s32)entry->extra.image.clutY - HIRES_POOL_CLUT_ROW_BASE;
+        int nativeW = (discBitDepth == 4)  ? (int)pixelRect.w * 4 :
+                      (discBitDepth == 8)  ? (int)pixelRect.w * 2 :
+                      (discBitDepth == 24) ? ((int)pixelRect.w * 2) / 3 :
+                                             (int)pixelRect.w;
+        int nativeH = (int)pixelRect.h;
+        const char* loosePath = HiresPending_PopPath(entry);
+        int registered = 0;
+
+        if (discBitDepth <= 0 || !FSQ_INFO_VALID(entry->info))
+        {
+            SH_DBG("[POOLTEX] slot %d: bad TIM (mode=%u) or invalid info — not registered",
+                   slotId, (unsigned)tim.mode);
+        }
+        else
+        {
+            if (loosePath != NULL && loosePath[0] != '\0')
+            {
+                long           lsz  = 0;
+                unsigned char* lbuf = PcFile_Slurp(loosePath, &lsz);
+                if (lbuf != NULL)
+                {
+                    SH_DBG("[POOLTEX] slot %d: loose replacement %s", slotId, loosePath);
+                    registered = HiresOverride_PoolSlotRegister(
+                        slotId, lbuf, (unsigned int)lsz, nativeW, nativeH) == 0;
+                    free(lbuf);
+                }
+                if (!registered)
+                {
+                    SH_DBG("[POOLTEX] slot %d: loose %s unusable — falling back to disc TIM",
+                           slotId, loosePath);
+                }
+            }
+
+            if (!registered)
+            {
+                unsigned int discSize = (unsigned int)ALIGN(
+                    entry->info->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
+                HiresOverride_PoolSlotRegister(slotId, (const unsigned char*)entry->externalData,
+                                               discSize, nativeW, nativeH);
+            }
+        }
+    }
+    else
     /* Hi-res override: if Fs_QueueTickRead detected a loose TIM bigger than
      * the disc buffer, register it now with the rects we just used for the
      * native upload. Sample-time lookup will key by (tpage, clut), which
@@ -633,61 +751,23 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             }
             else
             {
-                FILE* hf = fopen(hiresPath, "rb");
-                if (!hf)
+                long           sz  = 0;
+                unsigned char* buf = PcFile_Slurp(hiresPath, &sz);
+                if (buf != NULL)
                 {
-                    SH_DBG("[LOOSE/HIRES/ERR] %s: fopen failed at PostLoad (errno=%d %s)",
-                           hiresPath, errno, strerror(errno));
-                }
-                else
-                {
-                    int seekOk = (fseek(hf, 0, SEEK_END) == 0);
-                    long sz = seekOk ? ftell(hf) : -1;
-                    if (seekOk) fseek(hf, 0, SEEK_SET);
-                    if (sz <= 0)
-                    {
-                        SH_DBG("[LOOSE/HIRES/ERR] %s: invalid size %ld", hiresPath, sz);
-                    }
-                    else if (sz >= 64 * 1024 * 1024)
-                    {
-                        SH_DBG("[LOOSE/HIRES/ERR] %s: too large (%ld bytes, cap 64MB)",
-                               hiresPath, sz);
-                    }
-                    else
-                    {
-                        unsigned char* buf = (unsigned char*)malloc((size_t)sz);
-                        if (!buf)
-                        {
-                            SH_DBG("[LOOSE/HIRES/ERR] %s: malloc(%ld) failed",
-                                   hiresPath, sz);
-                        }
-                        else
-                        {
-                            size_t got = fread(buf, 1, (size_t)sz, hf);
-                            if (got != (size_t)sz)
-                            {
-                                SH_DBG("[LOOSE/HIRES/ERR] %s: short read %u of %ld bytes",
-                                       hiresPath, (unsigned)got, sz);
-                            }
-                            else
-                            {
-                                int cx = haveClut ? (int)clutRect.x : -1;
-                                int cy = haveClut ? (int)clutRect.y : -1;
-                                SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
-                                    hiresPath,
-                                    (int)pixelRect.x, (int)pixelRect.y,
-                                    (int)pixelRect.w, (int)pixelRect.h,
-                                    cx, cy, discBitDepth);
-                                HiresOverride_RegisterFromTim(
-                                    hiresPath, buf, (unsigned int)sz,
-                                    (int)pixelRect.x, (int)pixelRect.y,
-                                    (int)pixelRect.w, (int)pixelRect.h,
-                                    cx, cy, discBitDepth);
-                            }
-                            free(buf);
-                        }
-                    }
-                    fclose(hf);
+                    int cx = haveClut ? (int)clutRect.x : -1;
+                    int cy = haveClut ? (int)clutRect.y : -1;
+                    SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
+                        hiresPath,
+                        (int)pixelRect.x, (int)pixelRect.y,
+                        (int)pixelRect.w, (int)pixelRect.h,
+                        cx, cy, discBitDepth);
+                    HiresOverride_RegisterFromTim(
+                        hiresPath, buf, (unsigned int)sz,
+                        (int)pixelRect.x, (int)pixelRect.y,
+                        (int)pixelRect.w, (int)pixelRect.h,
+                        cx, cy, discBitDepth);
+                    free(buf);
                 }
             }
         }

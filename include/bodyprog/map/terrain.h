@@ -37,10 +37,25 @@ typedef struct _MapChunkColumn
 } s_ChunkColumn;
 STATIC_ASSERT_SIZEOF(s_ChunkColumn, 32);
 
+#ifdef SH_PC_PORT
+/* Expanded chunk-texture pool (resident_textures config, default on): past
+ * the 10 vanilla VRAM page slots, materials claim VIRTUAL slots backed by
+ * persistent per-slot GL textures instead of VRAM pages (key encoding and
+ * rationale: pc_port/include/hires_override.h). Physical slots keep
+ * byte-exact vanilla behavior and are claimed first. */
+#define PC_TEXPOOL_FULL_EXTRA 128
+#define PC_TEXPOOL_HALF_EXTRA 48
+#define PC_TEXPOOL_LIST_MAX   (8 + PC_TEXPOOL_FULL_EXTRA)
+#else
+#define PC_TEXPOOL_FULL_EXTRA 0
+#define PC_TEXPOOL_HALF_EXTRA 0
+#define PC_TEXPOOL_LIST_MAX   10
+#endif
+
 typedef struct _ActiveChunkTextures
 {
     /* 0x0 */ s32        count;
-    /* 0x4 */ s_Texture* textures[10];
+    /* 0x4 */ s_Texture* textures[PC_TEXPOOL_LIST_MAX];
 } s_ActiveChunkTextures;
 
 /** @brief Texture data associated with map terrain chunks. */
@@ -48,8 +63,8 @@ typedef struct _ChunkTextures
 {
     /* 0x0   */ s_ActiveChunkTextures fullPage;
     /* 0x2C  */ s_ActiveChunkTextures halfPage;
-    /* 0x58  */ s_Texture             fullPageTextures[8];
-    /* 0x118 */ s_Texture             halfPageTextures[2];
+    /* 0x58  */ s_Texture             fullPageTextures[8 + PC_TEXPOOL_FULL_EXTRA];
+    /* 0x118 */ s_Texture             halfPageTextures[2 + PC_TEXPOOL_HALF_EXTRA];
 } s_ChunkTextures;
 STATIC_ASSERT_SIZEOF(s_ChunkTextures, 328);
 

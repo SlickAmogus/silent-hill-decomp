@@ -436,3 +436,29 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
 - Loose/hires diagnostics moved from stderr to SH_DBG so they land in
   SilentHill.log. Byte-identical with `allow_loose_files = 0` (weak
   stub, zero registrations, override state stays 0).
+
+## VRAM residency: expanded chunk-texture pool (2026-07-08)
+
+- The 10-slot VRAM chunk-texture pool is the root of the recurring interior
+  flat/rainbow class and the open exterior APU cross-area rainbow. With
+  `resident_textures = 1` (default) the pool grows by 128 full + 48 half
+  VIRTUAL slots (`terrain.h PC_TEXPOOL_*`): each is backed by a persistent
+  per-slot GL texture instead of a VRAM page, keyed by a synthetic prim CLUT
+  with bit 15 set (encoding in `hires_override.h`), delivered per prim
+  through the Phase-0 override path. `PostLoadTim` skips the VRAM upload for
+  virtual slots and decodes the TIM (or a loose PNG/TIM replacement — custom
+  WORLD textures now work) into the slot texture.
+- Interiors texture EVERY loaded chunk (whole map resident); the PC
+  keep-4-nearest + page-steal loop and both `g_PcInteriorMatSync` shims are
+  bypassed (kept only for `resident_textures = 0`). Exteriors keep the
+  vanilla distance loop; the expanded capacity alone removes slot collisions.
+- `SPUM602F` (map4_s03 Twinfeeler) is pinned to physical slots: map code
+  StoreImages its CLUT row and derives palette-animation rows from its
+  imageDesc, which requires a real VRAM CLUT (`Pc_MaterialNeedsVramSlot`).
+- Missing-TIM materials swap back to a physical slot so the PSX degraded
+  look (stale page) is preserved; `[POOLTEX]` log lines cover registration,
+  loose replacement, and pool-exhaustion sizing.
+- PsyCross 2nd commit: the FT4 clutY>511 garbage-prim guard exempts prims
+  the override table claims (bit-15 keys); lookup fast path requires the low
+  6 clut bits clear so garbage cluts still reject 63/64.
+- Full design + survey findings: docs/Texture_Residency_And_Custom_Textures_Task.md §10.

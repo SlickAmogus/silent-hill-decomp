@@ -24,6 +24,7 @@ extern float g_PsxPixelAspect;
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#include "hires_override.h"
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
@@ -4069,6 +4070,19 @@ void Texture_Init(s_Texture* tex, char* texName, u8 tPage0, u8 tPage1, s32 u, s3
     tex->queueIdx = NO_VALUE;
 }
 
+#ifdef SH_PC_PORT
+/* TIMs whose VRAM CLUT map code manipulates directly — StoreImage of the
+ * palette row, derived palette rows (getClut(x, y+1/+13/+14/+15)), blend-
+ * variant tpages — must keep a REAL pool page: a virtual GL slot has no VRAM
+ * CLUT to read and its synthetic clutY makes every derived row a bogus slot
+ * key. Only known case: map4_s03's Twinfeeler palette animation
+ * (func_800D078C via Texture_InfoGet). */
+static bool Pc_MaterialNeedsVramSlot(const s_Material* mat)
+{
+    return !COMPARE_FILENAMES(&mat->name, "SPUM602F");
+}
+#endif
+
 s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void* fsBuffer9, e_FsFile fileIdx, s32 arg4)
 {
     s8         filename[12];
@@ -4079,6 +4093,9 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
     u32        queueIdx;
     s_Texture* curTex;
     s_Texture* foundTex;
+#ifdef SH_PC_PORT
+    bool       needsVram = Pc_MaterialNeedsVramSlot(mat);
+#endif
 
     smallestQueueIdx = INT_MAX;
     mat->texture = NULL;
@@ -4095,6 +4112,13 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
             return curTex;
         }
 
+#ifdef SH_PC_PORT
+        if (needsVram && curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+        {
+            continue;
+        }
+#endif
+
         queueIdx = curTex->queueIdx;
         if ((s32)queueIdx < smallestQueueIdx && curTex->refCount == 0)
         {
@@ -4105,6 +4129,21 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
 
     if (foundTex == NULL)
     {
+#ifdef SH_PC_PORT
+        /* Every slot pinned (refCount > 0). Under resident_textures this
+         * means the expanded pool is undersized for this map's distinct TIM
+         * count — the material stays untextured and its chunk is never drawn.
+         * Loud so sizing problems name themselves. */
+        if (g_PcConfig.residentTextures)
+        {
+            static int s_poolExhaustLog = 0;
+            if (s_poolExhaustLog < 8)
+            {
+                SH_DBG("[POOLTEX] pool exhausted: no free slot for '%.8s'", mat->name.str);
+                s_poolExhaustLog++;
+            }
+        }
+#endif
         return NULL;
     }
 
@@ -4131,6 +4170,35 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
          * the bogus read; the slot keeps its previous VRAM content exactly
          * like PSX's garbage read effectively did. */
         SH_DBG("[FSQ] chunk TIM '%.11s' not in file table — skipping read (Texture_Get)", filename);
+
+        /* "Previous VRAM content" only exists on a PHYSICAL slot; a virtual
+         * slot with no read never registers a GL texture and its bit-15 clut
+         * has nothing to fall back on. Swap to a free physical slot when one
+         * exists so the missing-TIM material keeps the PSX degraded look. */
+        if (foundTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+        {
+            s32        bestQ = INT_MAX;
+            s_Texture* phys  = NULL;
+
+            for (i = 0; i < activeTexs->count; i++)
+            {
+                curTex = activeTexs->textures[i];
+                if (curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+                {
+                    continue;
+                }
+                if (curTex->refCount == 0 && (s32)curTex->queueIdx < bestQ)
+                {
+                    bestQ = (s32)curTex->queueIdx;
+                    phys  = curTex;
+                }
+            }
+            if (phys != NULL)
+            {
+                foundTex = phys;
+            }
+        }
+
         foundTex->queueIdx = 0;
         foundTex->refCount++;
         foundTex->name     = mat->name;

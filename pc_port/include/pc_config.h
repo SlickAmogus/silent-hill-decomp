@@ -37,6 +37,10 @@ typedef struct {
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
+    int residentTextures; /* 1 = expanded chunk-texture pool: past the 10 vanilla VRAM pages, materials get
+                           * virtual slots backed by persistent per-slot GL textures (whole map stays textured,
+                           * no page stealing — the flat/rainbow class). 0 = vanilla 8+2 pool + PC keep-4/steal.
+                           * (config key: resident_textures) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
