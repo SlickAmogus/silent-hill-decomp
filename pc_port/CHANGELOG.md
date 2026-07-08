@@ -1,5 +1,12 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.08.2 -- 2026-07-08
+- Very small update to fix flickering shadow on wall when firing the pistol with per-pixel lights and shadows on.
+
+Commit summaries:
+- repo: untrack 322MB of FMV rips + debug logs from pc_port/tools
+- gfx: stop the type-15 muzzle particle casting a firing shadow flash
+
 ## beta-2026.07.08.1 -- 2026-07-08
 - This should fix the flat interior texture issue that has been happening in recent builds.
 
