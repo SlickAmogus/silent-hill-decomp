@@ -148,6 +148,17 @@ region-identical — no timing change.
   — shared COLORS.TIM path is correct for all languages. Closed.
 - Attract demos: PAL DAT inputs may have been re-recorded for 50Hz —
   possible desync at forced 60Hz (cosmetic, attract only). Unverified.
+- **Menu translations** (`36fab265e`, port-written — the PAL disc has NO
+  localized menu strings; retail menus were English in every language): a
+  ~115-entry table in `pc_port/src/lang_menu.c` translates the title menu,
+  difficulty, options (main/extra/PC Options + value labels), pause,
+  save/load dialogs + memory-card messages, save-location names, inventory
+  commands/labels and paper-map prompts for DE/FR/ES/IT. One exact-match
+  lookup at the Gfx_StringDraw entry — no per-site edits; misses and US
+  discs pass through untouched. Title/difficulty entries recentre from the
+  translated width. GAME OVER + technical nouns stay English. To add or fix
+  a translation: edit the table (watch the hex-escape split rule and the
+  uppercase-accent limits documented at the top of the file).
 - ~~Options "Language" row~~ DONE (`316f70b11`): on EUR discs the Auto Load
   row becomes Language, but ONLY in title-screen options (in-game options
   keep Auto Load — nothing loaded can go stale; next New Game/Load applies
