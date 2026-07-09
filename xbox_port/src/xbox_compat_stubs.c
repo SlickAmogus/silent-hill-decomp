@@ -60,7 +60,7 @@ void PsyX_SPUAL_SetAdsrEnabled(int on) { (void)on; }
 /* --- PC-only HAL (excluded source files); no-op on Xbox --------------------*/
 void DbgOverlay_Update(void)            { }
 void DbgOverlay_Render(void)            { }
-int  FMV_Play(void)                     { return 0; }
+/* FMV_Play: real STR/MDEC + XA player in fmv_xbox.c. */
 void HiresOverride_RegisterFromTim(void){ }
 void PcConfig_SaveMapName(void)         { }
 void Pc_ConsoleApplyPendingFlags(void)  { }

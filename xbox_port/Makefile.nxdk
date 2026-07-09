@@ -201,6 +201,7 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/pad_xbox.c \
 	$(XBOX_PORT)/src/cd_xbox.c \
 	$(XBOX_PORT)/src/xa_xbox.c \
+	$(XBOX_PORT)/src/fmv_xbox.c \
 	$(XBOX_PORT)/src/psx_vram.c \
 	$(XBOX_PORT)/src/gte_diag.c \
 	$(XBOX_PORT)/src/audio_xbox.c \
@@ -208,8 +209,17 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/dsound_bridge.c \
 	$(XBOX_PORT)/src/msvc_compat.c
 
+# PC port's STR demuxer + software MDEC decoder (pure C, integer bitstream work
+# + x87-safe float YUV; no SDL/GL/x64 assumptions). Compiled IN PLACE, unmodified
+# — fmv_xbox.c provides the Xbox player around them. Their MDEC_TRACE=2 error
+# logging writes to g_ShDebugLog (sh_log_xbox.c), so it lands in silenthill.log.
+FMV_SRCS = \
+	$(PCPORT)/src/fmv/mdec.c \
+	$(PCPORT)/src/fmv/str_demux.c
+
 SRCS = \
 	$(XBOX_SRCS) \
+	$(FMV_SRCS) \
 	$(MAIN_SRCS) \
 	$(BODYPROG_SRCS) \
 	$(SCREEN_SRCS) \

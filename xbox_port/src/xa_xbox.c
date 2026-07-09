@@ -305,6 +305,82 @@ void Xa_XboxPump(void)
     }
 }
 
+/* --- FMV audio stream mode (fmv_xbox.c) --------------------------------------
+ * STR movies interleave XA audio sectors among the MDEC video sectors; the FMV
+ * demuxer forwards each one here as a 2336-byte logical sector (subheader at
+ * +0). Reuses the same ADPCM decoder + resampler + ring, but BYPASSES the
+ * XaPlayer/Sd_* bookkeeping entirely (no Xa_SignalPlaybackFinished) — the PC
+ * player's FMV audio goes straight to SDL the same way. Main-thread only, and
+ * mutually exclusive with XaPlayer playback: the game is blocked inside
+ * FMV_Play for the whole stream, and StreamBegin stops any live voice line
+ * (on PSX the movie owns the CD drive, killing XA playback anyway). */
+static int          s_fmvStream       = 0;
+static int          s_fmvStreamStereo = 1;
+static int          s_fmvStreamOpened = 0;   /* first-sector format latch */
+static unsigned int s_fmvSectorsFed   = 0;
+
+void Xa_XboxStreamBegin(void)
+{
+    if (s_xa.isPlaying)
+        XaPlayer_Stop();
+
+    memset(&s_xa.lastSamples, 0, sizeof(s_xa.lastSamples));
+    s_xa.rsPhase = 0;
+    s_xa.rsPrevL = 0;
+    s_xa.rsPrevR = 0;
+    s_xa.rsStep  = (37800u * 65536u) / OUT_HZ;  /* re-latched from the first sector */
+    s_xa.volQ7L  = 128;                          /* FMV audio at unity (PC parity) */
+    s_xa.volQ7R  = 128;
+
+    s_ringRead        = 0;
+    s_ringWrite       = 0;
+    s_fmvStream       = 1;
+    s_fmvStreamOpened = 0;
+    s_fmvStreamStereo = 1;
+    s_fmvSectorsFed   = 0;
+}
+
+/* Decode one 2336-byte XA sector into the ring. If the ring is too full the
+ * resampler's in-loop guard drops the overflow — the FMV pacing caps
+ * consecutive video-frame drops precisely so this never triggers. */
+void Xa_XboxStreamFeedSector(const unsigned char* xs)
+{
+    int n;
+
+    if (!s_fmvStream || xs == 0)
+        return;
+
+    if (!s_fmvStreamOpened) {
+        uint8_t coding = xs[3];
+        int     srCode = (coding >> 2) & 3;
+        int     rate   = (srCode == 0) ? 37800 : 18900;
+
+        s_fmvStreamStereo = coding & 1;
+        s_xa.rsStep       = ((uint32_t)rate * 65536u) / OUT_HZ;
+        s_fmvStreamOpened = 1;
+        SH_DBG("[XA] fmv stream open: %dHz %s coding=0x%02x",
+               rate, s_fmvStreamStereo ? "stereo" : "mono", (unsigned)coding);
+    }
+
+    n = DecodeXaSector(xs, s_sectorPcm);
+    if (n > 0)
+        PushResampled(s_sectorPcm, n, s_fmvStreamStereo);
+    s_fmvSectorsFed++;
+}
+
+void Xa_XboxStreamEnd(void)
+{
+    if (s_fmvStream)
+        SH_DBG("[XA] fmv stream end: %u sectors fed, %u ring frames discarded",
+               s_fmvSectorsFed, s_ringWrite - s_ringRead);
+    s_fmvStream = 0;
+    s_ringRead  = 0;
+    s_ringWrite = 0;
+}
+
+unsigned int Xa_XboxStreamRingLevel(void)  { return s_fmvStream ? (s_ringWrite - s_ringRead) : 0; }
+unsigned int Xa_XboxStreamSectorsFed(void) { return s_fmvSectorsFed; }
+
 /* --- mixer hook (audio_xbox.c Audio_RenderInto) -----------------------------*/
 
 /* Add one 48 kHz frame of XA into the L/R accumulators, XA volume applied.
@@ -315,11 +391,14 @@ void Xa_XboxMixInto(int* accL, int* accR)
 {
     uint32_t idx;
 
-    if (!s_xa.isPlaying)
+    if (!s_xa.isPlaying && !s_fmvStream)
         return;
 
     if (s_ringRead == s_ringWrite) {
-        if (s_xa.remainingSectors > 0) {
+        /* Underrun bookkeeping is XaPlayer-only; an empty ring in FMV stream
+         * mode just means the demuxer hasn't reached the next audio sector
+         * yet (or the movie's audio ended) — emit silence, no stats. */
+        if (s_xa.isPlaying && s_xa.remainingSectors > 0) {
             if (!s_inUnderrun) {
                 s_inUnderrun = 1;
                 s_underrunEpisodes++;

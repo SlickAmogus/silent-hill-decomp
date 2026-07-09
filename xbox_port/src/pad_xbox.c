@@ -135,6 +135,15 @@ void Pad_Poll(void)
     }
 }
 
+/* Raw PSX digitalButtons (active-low, bit layout above) for pollers that run
+ * outside the game loop (FMV skip check). Reflects the last Pad_Poll. */
+unsigned short Pad_XboxButtons(void)
+{
+    if (!s_padBuf)
+        return 0xFFFF;
+    return (unsigned short)(s_padBuf[2] | ((unsigned short)s_padBuf[3] << 8));
+}
+
 int PadGetState(int port)  { (void)port; return s_xid ? 6 : 6; }  /* 6 = stable */
 int PadInfoMode(void)      { return 0; }
 int PadSetMainMode(void)   { return 0; }

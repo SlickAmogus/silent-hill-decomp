@@ -157,3 +157,14 @@ int Cd_XboxReadRaw(unsigned int lbn, unsigned char* buf, int sectors)
         return 0;
     return fread(buf, BIN_SECTOR_SIZE, (size_t)sectors, s_bin) == (size_t)sectors;
 }
+
+/* FMV streaming (fmv_xbox.c): str_demux pulls raw sectors through stdio, so it
+ * gets the open BIN handle instead of a second fopen. Sharing is safe: every
+ * reader here re-seeks absolutely per call, and the game drains the FS queue
+ * (Fs_QueueWaitForEmpty in open_main) before FMV playback, so nothing
+ * interleaves mid-movie. All main-thread. */
+FILE* Cd_XboxGetBinFile(void)
+{
+    Cd_XboxInit();
+    return s_bin;
+}
