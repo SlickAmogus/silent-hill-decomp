@@ -33,6 +33,8 @@ static HiresEntry g_entries[MAX_HIRES_OVERRIDES];
 static int        g_numEntries = 0;
 static int        g_initialized = 0;
 
+static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest);
+
 void HiresOverride_Init(void)
 {
     if (g_initialized) return;
@@ -264,16 +266,11 @@ int HiresOverride_RegisterFromTim(const char* timPath,
     }
 
     GLuint tex = 0;
-    glGenTextures(1, &tex);
-    if (tex == 0) { free(rgba); return -1; }
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, hiW, hiH, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    if (upload_rgba(&tex, rgba, hiW, hiH, 0) != 0)
+    {
+        free(rgba);
+        return -1;
+    }
     free(rgba);
 
     HiresEntry* e = &g_entries[g_numEntries++];
@@ -330,23 +327,16 @@ int HiresOverride_PoolSlotRegister(int slotId,
         return -1;
     }
 
-    PoolSlotEntry* s = &g_poolSlots[slotId];
-    if (s->glTexture == 0)
-    {
-        glGenTextures(1, &s->glTexture);
-        if (s->glTexture == 0) { free(rgba); return -1; }
-    }
-    glBindTexture(GL_TEXTURE_2D, s->glTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, hiW, hiH, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     /* Native-res decodes sample NEAREST (PSX-exact texel look); an upscaled
-     * loose replacement (dims != native) gets LINEAR like hi-res overrides. */
-    int nearest = (hiW == nativePixelW && hiH == nativePixelH);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
+     * loose replacement (dims != native) gets LINEAR+mips like hi-res
+     * overrides. */
+    PoolSlotEntry* s = &g_poolSlots[slotId];
+    if (upload_rgba(&s->glTexture, rgba,
+                    hiW, hiH, (hiW == nativePixelW && hiH == nativePixelH)) != 0)
+    {
+        free(rgba);
+        return -1;
+    }
     free(rgba);
 
     s->nativeW = nativePixelW;
@@ -364,7 +354,9 @@ int HiresOverride_PoolSlotRegister(int slotId,
 }
 
 /* Upload straight RGBA into a slot/entry texture, creating it on demand.
- * Returns 0 on success. */
+ * Upscaled replacements (non-nearest) get mipmaps so they don't shimmer at
+ * distance the way a raw LINEAR-sampled 4x texture does; native-res decodes
+ * stay NEAREST with no mips (PSX-exact). Returns 0 on success. */
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest)
 {
     if (rgba == NULL || w <= 0 || h <= 0) return -1;
@@ -376,7 +368,15 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    if (!nearest && glGenerateMipmap != NULL)
+    {
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    }
+    else
+    {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);

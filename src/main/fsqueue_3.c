@@ -804,23 +804,43 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 
         /* DuckStation texture pack for VRAM-resident TIMs (items, HUD,
          * charas, 2D backgrounds), matched by content hash of the upload.
-         * A loose hi-res replacement above takes priority. */
+         * A loose hi-res replacement above takes priority.
+         *
+         * Character/item TIMs carry multiple CLUT ROWS — palette variants
+         * a draw selects with a clut-row offset. Each row hashes to a
+         * different pack palette, so match and compose per row and register
+         * each under its own clut coordinate; rows without pack entries
+         * simply fall back to the native art. */
         if (!looseHires && discBitDepth > 0 && TexPack_HasEntries())
         {
-            int cw = 0, ch = 0;
-            int clutCount = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
-            unsigned char* canvas = TexPack_Compose(
-                (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
-                (const unsigned short*)tim.caddr, clutCount, discBitDepth, &cw, &ch);
-            if (canvas != NULL)
+            int clutW = (haveClut && tim.crect != NULL) ? (int)tim.crect->w : 0;
+            int rows  = haveClut ? (int)clutRect.h : 1;
+            int r;
+
+            if (rows < 1) rows = 1;
+            if (rows > 16) rows = 16;
+
+            for (r = 0; r < rows; r++)
             {
-                HiresOverride_RegisterRGBA("texpack", canvas, cw, ch,
-                                           (int)pixelRect.x, (int)pixelRect.y,
-                                           (int)pixelRect.w, (int)pixelRect.h,
-                                           haveClut ? (int)clutRect.x : -1,
-                                           haveClut ? (int)clutRect.y : -1,
-                                           discBitDepth);
-                free(canvas);
+                int cw = 0, ch = 0;
+                const unsigned short* clutRow = (tim.caddr != NULL)
+                    ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
+                    : NULL;
+                unsigned char* canvas = TexPack_Compose(
+                    (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
+                    clutRow, clutW, discBitDepth, &cw, &ch);
+                if (canvas != NULL)
+                {
+                    char packLabel[24];
+                    snprintf(packLabel, sizeof(packLabel), "texpack row %d", r);
+                    HiresOverride_RegisterRGBA(packLabel, canvas, cw, ch,
+                                               (int)pixelRect.x, (int)pixelRect.y,
+                                               (int)pixelRect.w, (int)pixelRect.h,
+                                               haveClut ? (int)clutRect.x : -1,
+                                               haveClut ? ((int)clutRect.y + r) : -1,
+                                               discBitDepth);
+                    free(canvas);
+                }
             }
         }
     }
