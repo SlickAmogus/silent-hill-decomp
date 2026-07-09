@@ -23,6 +23,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "map_registry.h"
+#include "lang_text.h" /* PAL Language row (title-screen options) */
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -1118,6 +1119,24 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             break;
 
         case MainOptionsMenuEntry_AutoLoad:
+#ifdef SH_PC_PORT
+            /* PAL: this row is Language when the menu was entered from the
+             * title screen (retail SLES had a front-end Language option). */
+            if (Pc_LangMenuRowActive())
+            {
+                if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight)
+                {
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                    Pc_LangSetLanguage((g_PcConfig.language + 1) % 5);
+                }
+                else if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)
+                {
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                    Pc_LangSetLanguage((g_PcConfig.language + 4) % 5);
+                }
+                break;
+            }
+#endif
             if (g_Controller0->clickedBtnFlags & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
             {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -1467,6 +1486,13 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Voice"
 #endif
     };
+
+#ifdef SH_PC_PORT
+    if (Pc_LangMenuRowActive())
+    {
+        ENTRY_STRS[MainOptionsMenuEntry_AutoLoad] = "Language";
+    }
+#endif
 
     // @unused Likely an older implementation for active highlight selection position reference setup found in `Options_MainOptionsMenu_SelectionHighlightDraw`.
     if (g_Options_SelectionHighlightTimer == 0)
@@ -1988,6 +2014,19 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 break;
 
             case 1:
+#ifdef SH_PC_PORT
+                if (Pc_LangMenuRowActive())
+                {
+                    /* Names in the retail PAL option-menu order (= config
+                     * language index). X nudged per word length like On/Off. */
+                    static const char* const LANG_STRS[5]  = { "English", "German", "French", "Spanish", "Italian" };
+                    static const u8          LANG_STR_X[5] = { 198, 204, 204, 198, 198 };
+
+                    Gfx_StringSetPosition(LANG_STR_X[g_PcConfig.language], 136);
+                    Gfx_StringDraw(LANG_STRS[g_PcConfig.language], 10);
+                    break;
+                }
+#endif
                 strPosX = !g_GameWork.config.autoLoad ? 214 : 216;
                 Gfx_StringSetPosition(strPosX, 136);
 

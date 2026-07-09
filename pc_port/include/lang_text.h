@@ -13,6 +13,14 @@
 /* Non-zero when an EUR disc is active and config language is not English. */
 int Pc_LangActive(void);
 
+/* Non-zero when the options menu should show the Language row (EUR disc +
+ * menu entered from the title screen). */
+int Pc_LangMenuRowActive(void);
+
+/* Live language switch (0=en 1=de 2=fr 3=es 4=it): persists the config key,
+ * rebinds the file table, reloads item text. Title-screen options only. */
+void Pc_LangSetLanguage(int lang);
+
 /* Load + parse ITEM_<lang>.BIN once (call after Fs_InitFileTableForRegion). */
 void Pc_LangInit(void);
 

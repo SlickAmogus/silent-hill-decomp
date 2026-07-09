@@ -116,6 +116,12 @@ void Pc_LangInit(void)
     char*          out;
     int            i;
 
+    /* Re-entrant: the title-screen options menu re-runs this on a language
+     * switch. Dropping the pool makes Pc_LangItemName/Desc fall back to the
+     * compiled US strings until (unless) a new table loads below. */
+    free(s_ItemPool);
+    s_ItemPool = NULL;
+
     if (!Pc_LangActive())
         return;
 
@@ -160,6 +166,32 @@ void Pc_LangInit(void)
 
     free(bin);
     SH_LOG("[LANG] item text loaded: %s", s_ItemBinNames[g_PcConfig.language]);
+}
+
+/* Live language switch — title-screen options menu only (no map loaded, so
+ * nothing already-extracted goes stale; the next New Game/Load/demo picks
+ * everything up through the normal per-map path). Persists the config key,
+ * rebinds the file table and reloads item text. */
+void Pc_LangSetLanguage(int lang)
+{
+    static const char* const ids[5] = { "en", "de", "fr", "es", "it" };
+
+    if (lang < 0 || lang > 4)
+        lang = 0;
+
+    g_PcConfig.language = lang;
+    PcConfig_SaveKeyValue("language", ids[lang]);
+    Fs_ApplyLanguageRedirects();
+    Pc_LangInit();
+    SH_LOG("[LANG] language switched to '%s'", ids[lang]);
+}
+
+/* The options menu shows the Language row only on EUR discs and only when
+ * entered from the title screen (mirrors how retail applied language at the
+ * front end; in-game the row stays Auto Load). */
+int Pc_LangMenuRowActive(void)
+{
+    return g_GameRegion == Region_EUR && g_GameWork.gameStatePrev == GameState_MainMenu;
 }
 
 const char* Pc_LangItemName(int itemIdx)

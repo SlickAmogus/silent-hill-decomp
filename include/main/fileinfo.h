@@ -128,6 +128,11 @@ void Fs_InitFileTableForRegion(e_GameRegion region);
 /** @brief Locate an EUR-only file (no US-canonical slot, e.g. VIN/ITEM_GER.BIN)
  * in the compiled EUR table. `name8` = bare name, no extension. Returns 1 on hit. */
 int Fs_EurFileLookup(const char* name8, s32 pathIdx, s32 type, u32* outSector, u32* outBlocks);
+
+/** @brief (Re)bind the VIN map-overlay + TIPS entries to the configured
+ * language's EUR files. Idempotent — the title-screen options menu re-runs
+ * it when the language changes. No-op outside Region_EUR. */
+void Fs_ApplyLanguageRedirects(void);
 #endif
 
 /** @brief Decrypts an encrypted overlay.
