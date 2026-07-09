@@ -770,6 +770,26 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
             s_last = cur;
         }
     }
+    /* Draw-clip scissor (mirrors PsyCross GR_SetupClipMode's scissorOn): only
+     * when the clip is genuinely SMALLER than the display do sub-region draws
+     * (map/item screens, refraction regions) get clipped; the common full-
+     * display clip resets to the whole surface so normal rendering is
+     * untouched. Screen rect goes through the same disp-relative transform as
+     * vertices. */
+    {
+        int dispW = g_activeDispEnv.disp.w > 0 ? g_activeDispEnv.disp.w : 320;
+        int dispH = g_activeDispEnv.disp.h > 0 ? g_activeDispEnv.disp.h : 240;
+        if (env->clip.w > 0 && env->clip.h > 0 &&
+            (env->clip.w < dispW || env->clip.h < dispH)) {
+            int sx = (int)(((float)env->clip.x - (float)g_activeDispEnv.disp.x) * s_scaleX);
+            int sy = (int)(((float)env->clip.y - (float)g_activeDispEnv.disp.y) * s_scaleY);
+            int sw = (int)((float)env->clip.w * s_scaleX + 0.5f);
+            int sh = (int)((float)env->clip.h * s_scaleY + 0.5f);
+            GpuNv2a_SetScissor(sx, sy, sw, sh);
+        } else {
+            GpuNv2a_SetScissor(0, 0, 640, 480);
+        }
+    }
     return env;
 }
 
