@@ -277,6 +277,13 @@ const char* PcPort_GetGameDataPath(void)
     return g_GameDataPath;
 }
 
+/* Region-remapped file-table sector for C++ callers (fmv_player.cpp) —
+ * fileinfo.h has no extern "C" guards, so g_FileTable isn't reachable there. */
+unsigned int PcPort_FileTableStartSector(int fileIdx)
+{
+    return g_FileTable[fileIdx].startSector;
+}
+
 /* Resolved disc image path (cached) and its region. The PC port is a single
  * executable that supports multiple disc regions; the active file table / XA
  * offsets are chosen here from whichever disc is present. */

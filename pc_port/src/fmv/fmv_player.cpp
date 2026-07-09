@@ -34,6 +34,8 @@
 #include <stdarg.h>
 
 extern "C" const char* PcPort_GetGameDataPath(void);
+extern "C" const char* PcPort_GetGameDiscPath(void);
+extern "C" unsigned int PcPort_FileTableStartSector(int fileIdx);
 
 /* FMV diagnostics need to survive the brief tick=23 MovieIntro state — if
  * the game exits before the next stdout flush, plain printf output never
@@ -55,7 +57,8 @@ extern SDL_Window* g_window;
 /* File ID to filename + disc-sector mapping.
  *
  * `name`         — base filename (used to locate optional AVI override).
- * `base_sector`  — disc-absolute sector where this file's data begins.
+ * `base_sector`  — US-disc reference sector (documentation only; playback
+ *                  reads the live region-remapped g_FileTable instead).
  * `n_sectors`    — total sectors the file spans on disc (== the suffix in `name`).
  *
  * Sector offsets are pulled from filetable.c.inc (entries 2044..2073, the
@@ -610,15 +613,16 @@ static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, 
     return dev;
 }
 
-/* Open <gamedata>/Silent Hill (USA).bin. Caller owns the FILE*. */
+/* Open the resolved disc image (any region — PcPort_GetGameDiscPath also
+ * region-initializes g_FileTable on first use, exactly like xa_player).
+ * Caller owns the FILE*. */
 static FILE* OpenDiscImage(void)
 {
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/Silent Hill (USA).bin",
-             PcPort_GetGameDataPath());
-    FILE* f = fopen(path, "rb");
+    const char* path = PcPort_GetGameDiscPath();
+    FILE* f = (path && path[0]) ? fopen(path, "rb") : NULL;
     if (!f) {
-        printf("[FMV] Failed to open disc image: %s\n", path);
+        printf("[FMV] Failed to open disc image: %s\n",
+               (path && path[0]) ? path : "(no disc found)");
     }
     return f;
 }
@@ -654,8 +658,13 @@ static int PlayFromBin(int table_idx, int max_frames)
     FILE* bin = OpenDiscImage();
     if (!bin) return -1;
 
+    /* Base sector from the live (region-remapped) file table, not the
+     * US-baked s_fmvFiles value — PAL places the same byte-identical movies
+     * +0x1E88 sectors later. OpenDiscImage() above guarantees the table is
+     * region-initialized. n_sectors/name stay table-local (identical across
+     * regions; name only feeds the AVI-override lookup). */
     str_stream_t stream;
-    if (!str_open(&stream, bin, e.base_sector, e.n_sectors)) {
+    if (!str_open(&stream, bin, PcPort_FileTableStartSector(FIRST_XA_FILE_IDX + table_idx), e.n_sectors)) {
         printf("[FMV] str_open failed for %s\n", e.name);
         fclose(bin);
         return -1;
