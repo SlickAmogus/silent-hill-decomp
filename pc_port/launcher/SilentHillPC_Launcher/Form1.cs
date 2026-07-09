@@ -15,12 +15,35 @@ public partial class Form1 : Form
 {
     private ConfigManager config;
 
-    // Language ids written to config.cfg (key: language). Index order matches
-    // the Designer's comboLanguage items AND the PAL disc's own option-menu
-    // order (English, German, French, Spanish, Italian) which the game's
-    // language wiring relies on. USA discs are English-only; the game ignores
-    // the key for them.
-    private static readonly string[] LanguageIds = { "en", "de", "fr", "es", "it" };
+    // Detected discs (filled by CheckDiscImage) and the region id behind each
+    // comboRegion entry. Region ids are the config `region` values the game
+    // parses (usa/pal; jap is recognized but not playable yet). PAL text
+    // language stays a config-only key (`language = en/de/fr/es/it`).
+    private List<DiscProbe.Disc> _discs = new List<DiscProbe.Disc>();
+    private readonly List<string> _regionIds = new List<string>();
+    private bool _regionUiUpdating;
+
+    private static string RegionDisplayName(string region)
+    {
+        switch (region)
+        {
+            case "USA": return "NTSC-U (USA)";
+            case "PAL": return "PAL (Europe)";
+            case "JAP": return "NTSC-J (Japan)";
+            default:    return region;
+        }
+    }
+
+    private static string RegionConfigId(string region)
+    {
+        switch (region)
+        {
+            case "USA": return "usa";
+            case "PAL": return "pal";
+            case "JAP": return "jap";
+            default:    return "auto";
+        }
+    }
 
     public Form1()
     {
@@ -76,57 +99,109 @@ public partial class Form1 : Form
         try { if (!Directory.Exists(gamedata)) Directory.CreateDirectory(gamedata); }
         catch { return; }
 
-        var discs  = DiscProbe.Scan(gamedata);
-        var usable = discs.Where(d => d.Supported).ToList();
-        if (usable.Count == 0)
+        _discs = DiscProbe.Scan(gamedata);
+
+        // One dropdown entry per DETECTED region, in NTSC-U / PAL / NTSC-J
+        // order. Selection writes the `region` config key the game honors
+        // when several discs are present.
+        _regionUiUpdating = true;
+        comboRegion.Items.Clear();
+        _regionIds.Clear();
+        foreach (var region in new[] { "USA", "PAL", "JAP" })
         {
-            if (discs.Count > 0)
+            if (_discs.Any(d => d.Region == region))
             {
-                // Recognized but unsupported (NTSC-J): tell the truth instead
-                // of presenting it as a working disc — the game rejects it.
-                lblDisc.Text = $"Disc: {discs[0].Serial} — {discs[0].RegionLabel}";
-                MessageBox.Show(this,
-                    $"Found {discs[0].Serial} ({discs[0].RegionLabel}), but this version\n" +
-                    "isn't supported yet. Please put a Silent Hill .bin\n" +
-                    "(USA or PAL/European release) in the gamedata folder!",
-                    "Silent Hill PC",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _regionIds.Add(RegionConfigId(region));
+                comboRegion.Items.Add(RegionDisplayName(region));
             }
-            else
-            {
-                lblDisc.Text = "No disc image found in gamedata\\";
-                MessageBox.Show(this,
-                    "No Silent Hill disc image found.\n\n" +
-                    "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
-                    "in the gamedata folder!",
-                    "Silent Hill PC",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+        }
+        comboRegion.Enabled = _regionIds.Count > 0;
+
+        if (_regionIds.Count == 0)
+        {
+            _regionUiUpdating = false;
+            lblDisc.Text = "No disc image found in gamedata\\";
+            MessageBox.Show(this,
+                "No Silent Hill disc image found.\n\n" +
+                "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
+                "in the gamedata folder!",
+                "Silent Hill PC",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        // Mirror the game's pick (main_pc.c PcPort_GetGameDiscPath): the known
-        // filenames win in this order, then autodetect prefers USA over PAL.
-        // The game also probes known-named files by serial, so the region we
-        // display always matches the region the game will select.
+        // Restore the saved choice when that region is present; otherwise
+        // default to the game's auto pick (USA wins, then PAL, then JAP).
+        int idx = _regionIds.IndexOf(config.Get("region", "auto"));
+        comboRegion.SelectedIndex = idx >= 0 ? idx : 0;
+        _regionUiUpdating = false;
+
+        UpdateDiscUi();
+    }
+
+    /// <summary>
+    /// Representative disc for a region id: mirror the game's pick order —
+    /// known filenames first, then the first probed disc of that region.
+    /// </summary>
+    private DiscProbe.Disc DiscForRegion(string regionId)
+    {
+        string region = regionId == "usa" ? "USA" : regionId == "pal" ? "PAL" : "JAP";
         string[] knownNames = {
             "Silent Hill (USA).bin",
             "Silent Hill (PAL).bin",
             "Silent Hill (Europe) (En,Fr,De,Es,It).bin",
         };
-        DiscProbe.Disc active = null;
         foreach (var kn in knownNames)
         {
-            active = usable.FirstOrDefault(d => d.FileName.Equals(kn, StringComparison.OrdinalIgnoreCase));
-            if (active != null) break;
+            var d = _discs.FirstOrDefault(x => x.Region == region &&
+                        x.FileName.Equals(kn, StringComparison.OrdinalIgnoreCase));
+            if (d != null) return d;
         }
-        if (active == null)
-            active = usable.FirstOrDefault(d => d.Region == "USA") ?? usable[0];
+        return _discs.FirstOrDefault(x => x.Region == region);
+    }
 
-        string text = $"Disc: {active.Serial} — {active.RegionLabel}";
-        if (discs.Count > 1)
-            text += $"  (+{discs.Count - 1} more; this one is used)";
-        lblDisc.Text = text;
+    /// <summary>
+    /// Reflect the Region selection: disc label shows the selected version
+    /// plus any other detected ones; NTSC-J disables Play with a highlight.
+    /// </summary>
+    private void UpdateDiscUi()
+    {
+        if (comboRegion.SelectedIndex < 0 || comboRegion.SelectedIndex >= _regionIds.Count)
+            return;
+
+        string regionId = _regionIds[comboRegion.SelectedIndex];
+        var    disc     = DiscForRegion(regionId);
+        if (disc == null)
+            return;
+
+        var others = _regionIds
+            .Where(id => id != regionId)
+            .Select(id => { var d = DiscForRegion(id); return d != null ? RegionDisplayName(d.Region) : null; })
+            .Where(s => s != null)
+            .ToList();
+
+        string text = $"Disc: {disc.Serial} — {RegionDisplayName(disc.Region)}";
+        if (others.Count > 0)
+            text += $"\nAlso available: {string.Join(", ", others)}";
+
+        if (!disc.Supported)
+        {
+            lblDisc.ForeColor = Color.Firebrick;
+            lblDisc.Text      = $"Disc: {disc.Serial} — NTSC-J is not supported yet";
+            btnPlay.Enabled   = false;
+        }
+        else
+        {
+            lblDisc.ForeColor = SystemColors.ControlText;
+            lblDisc.Text      = text;
+            btnPlay.Enabled   = true;
+        }
+    }
+
+    private void comboRegion_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (_regionUiUpdating) return;
+        UpdateDiscUi();
     }
 
     /// <summary>
@@ -282,12 +357,13 @@ public partial class Form1 : Form
         Set(refreshLabel,        pillarboxTip);
         Set(comboPillarbox,      pillarboxTip);
 
-        const string languageTip =
-            "Text language. Requires a PAL/European disc image, which carries\n" +
-            "English, German, French, Spanish and Italian text. With a USA\n" +
-            "disc the game is English-only and this setting is ignored.";
-        Set(langLabel,      languageTip);
-        Set(comboLanguage,  languageTip);
+        const string regionTip =
+            "Which detected disc version the game uses (discs are identified\n" +
+            "by their ISO boot serial, filenames don't matter). PAL carries\n" +
+            "EN/DE/FR/ES/IT text — set `language = de` etc. in config.cfg to\n" +
+            "pick one. NTSC-J is detected but not playable yet.";
+        Set(regionLabel,  regionTip);
+        Set(comboRegion,  regionTip);
 
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
@@ -603,9 +679,8 @@ public partial class Form1 : Form
         else if (!_wide3d) comboPillarbox.SelectedIndex = 0; // Yes (3D pillarboxed)
         else               comboPillarbox.SelectedIndex = 2; // Menus Only (default)
 
-        // Language: config id string <-> dropdown index (unknown -> English)
-        int langIdx = Array.IndexOf(LanguageIds, config.Get("language", "en"));
-        comboLanguage.SelectedIndex = langIdx >= 0 ? langIdx : 0;
+        // Region dropdown is populated from the detected discs in
+        // CheckDiscImage (runs on Shown), not from config.
 
         // disable_culling (recommended: Yes — matches engine default)
         radioCullingYes.Checked = config.Get("disable_culling", "1") == "1";
@@ -695,9 +770,10 @@ public partial class Form1 : Form
         config.Set("per_pixel_flashlight", comboFlash.SelectedIndex >= 1 ? "1" : "0");
         config.Set("flashlight_shadows", comboFlash.SelectedIndex == 2 ? "1" : "0");
 
-        // Language: dropdown index -> id string
-        if (comboLanguage.SelectedIndex >= 0)
-            config.Set("language", LanguageIds[comboLanguage.SelectedIndex]);
+        // Region: selected detected-region id (usa/pal/jap); untouched when
+        // nothing was detected so a hand-set value survives.
+        if (comboRegion.SelectedIndex >= 0 && comboRegion.SelectedIndex < _regionIds.Count)
+            config.Set("region", _regionIds[comboRegion.SelectedIndex]);
 
         config.Save();
     }

@@ -111,6 +111,12 @@ typedef struct {
      * order and its VIN/VIN2..VIN5 localized-file dirs. USA discs ignore it. */
     int language;
 
+    /* Preferred disc region when several discs are in gamedata/: 0=auto
+     * (USA wins, the old behavior), 1=usa, 2=pal (config key: region; the
+     * launcher's Region dropdown writes it). Missing preferred region falls
+     * back to auto; "jap" parses as auto (not supported yet). */
+    int region;
+
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

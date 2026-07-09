@@ -63,8 +63,8 @@ partial class Form1
     private ComboBox comboTone;
     private Label flashLabel;
     private ComboBox comboFlash;
-    private Label langLabel;
-    private ComboBox comboLanguage;
+    private Label regionLabel;
+    private ComboBox comboRegion;
     private Label lblDisc;
 
 
@@ -129,8 +129,8 @@ partial class Form1
             this.comboTone = new System.Windows.Forms.ComboBox();
             this.flashLabel = new System.Windows.Forms.Label();
             this.comboFlash = new System.Windows.Forms.ComboBox();
-            this.langLabel = new System.Windows.Forms.Label();
-            this.comboLanguage = new System.Windows.Forms.ComboBox();
+            this.regionLabel = new System.Windows.Forms.Label();
+            this.comboRegion = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
@@ -640,28 +640,23 @@ partial class Form1
             this.comboFlash.Size = new System.Drawing.Size(120, 21);
             this.comboFlash.TabIndex = 61;
             //
-            // langLabel
+            // regionLabel
             //
-            this.langLabel.AutoSize = true;
-            this.langLabel.Location = new System.Drawing.Point(8, 427);
-            this.langLabel.Name = "langLabel";
-            this.langLabel.Size = new System.Drawing.Size(58, 13);
-            this.langLabel.TabIndex = 62;
-            this.langLabel.Text = "Language:";
+            this.regionLabel.AutoSize = true;
+            this.regionLabel.Location = new System.Drawing.Point(8, 427);
+            this.regionLabel.Name = "regionLabel";
+            this.regionLabel.Size = new System.Drawing.Size(44, 13);
+            this.regionLabel.TabIndex = 62;
+            this.regionLabel.Text = "Region:";
             //
-            // comboLanguage
+            // comboRegion
             //
-            this.comboLanguage.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboLanguage.Items.AddRange(new object[] {
-            "English",
-            "German",
-            "French",
-            "Spanish",
-            "Italian"});
-            this.comboLanguage.Location = new System.Drawing.Point(80, 423);
-            this.comboLanguage.Name = "comboLanguage";
-            this.comboLanguage.Size = new System.Drawing.Size(120, 21);
-            this.comboLanguage.TabIndex = 63;
+            this.comboRegion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRegion.Location = new System.Drawing.Point(80, 423);
+            this.comboRegion.Name = "comboRegion";
+            this.comboRegion.Size = new System.Drawing.Size(120, 21);
+            this.comboRegion.TabIndex = 63;
+            this.comboRegion.SelectedIndexChanged += new System.EventHandler(this.comboRegion_SelectedIndexChanged);
             //
             // lblDisc
             //
@@ -743,8 +738,8 @@ partial class Form1
             // Form1
             // 
             this.ClientSize = new System.Drawing.Size(420, 500);
-            this.Controls.Add(this.langLabel);
-            this.Controls.Add(this.comboLanguage);
+            this.Controls.Add(this.regionLabel);
+            this.Controls.Add(this.comboRegion);
             this.Controls.Add(this.lblDisc);
             this.Controls.Add(this.btnReset);
             this.Controls.Add(this.btnBug);
