@@ -4,7 +4,9 @@ Status: **IMPLEMENTED 2026-07-08 — awaiting in-game PAL testing.**
 Read alongside memory `[[project_pal_eur_support]]`.
 Implemented across commits: `52582ca4b` (launcher/config), `33b74e812`
 (decrypt tool), `270574235` (FMV), `f5dff3a48` (fonts), `f97055547`
-(languages). Everything below reflects probe-VERIFIED facts (two multi-agent
+(languages), `ff9b575c2` (adversarial-review fixes: tree-billboard UV
+reslice, ~J tab terminator, serial-probe for known filenames, NTSC-J
+launcher handling, auto-load font reload, retail +31 hi-res extent, 0xFD). Everything below reflects probe-VERIFIED facts (two multi-agent
 disc/exe probe passes over the PAL bin + decrypted SLES-01514 BODYPROG); the
 original spec's errors are corrected here.
 
@@ -52,7 +54,9 @@ original spec's errors are corrected here.
   (u+128,v-128)) → IMAGE_ETC material desc becomes u=32,v=64 (world_draw.c);
   FLAME → tpage 13 (832,0) clut (832,64) incl. its draw site
   (map_effects.c); particle.c dust/ember frames (v240..255) remap via
-  `Pc_BgEtcSpriteBandUvFix`, rain streaks clamp v=128→127 off the font row.
+  `Pc_BgEtcSpriteBandUvFix`, rain streaks clamp v=128→127 off the font row;
+  exterior tree billboards (Gfx_BillboardDraw via the D_800AE4DC UV table,
+  texels 0..63/128..191) remapped in Font_ApplyRegionPatches.
   All other page-12 samplers verified SAFE (u<128, v<128 — census in session
   notes). KONAMI logo TIM is byte-identical US/PAL at the same dest — no
   desc change; instead FONT16 is REQUEUED at `GameFs_TitleGfxLoad` (all boot
