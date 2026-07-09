@@ -107,8 +107,11 @@ original spec's errors are corrected here.
   load at the US base 0x800C9578 — player_control.c's map-anim header patch
   now rebases by 0x1DF8 on EUR (was a LIVE bug for the 7 per-map anim-table
   maps on any PAL disc, language aside).
-- **English on PAL** = compiled US strings (PAL-EN is a slightly different
-  retranslation; policy: keep US text for en).
+- **English on PAL** = the PAL-EN retranslation (`75de7477b`, user policy
+  decision): Pc_LangActive is region-only, so en extracts VIN (EN) overlays
+  + ITEM_ENG.BIN through the same pipeline as DE/FR/ES/IT. Compiled US
+  strings only appear on US discs (or as fallback for entries PAL leaves
+  NULL/empty).
 
 ## 3. Launcher — DONE
 
