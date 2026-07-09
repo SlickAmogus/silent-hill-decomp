@@ -135,8 +135,12 @@ region-identical — no timing change.
   water splashes (page-12 effects), warm reboot, skip_intros.
 - FR/IT piano-poem + IT finale clipped lines (see §2) — polish via text
   overrides if it bothers anyone.
-- PAL title background differs cosmetically (black + fog near bottom; we
-  render the US look). Parked.
+- ~~PAL title background~~ FIXED (`73d30993a`): PAL TITLE_E is only a 4bpp
+  320x96 logo block (US: 8bpp 320x480 full picture) — the THIRD and last
+  reshaped TIM on the disc (corrected full sweep: FONT16, BG_ETC, TITLE_E,
+  nothing else). EUR now composes black + logo strips + fog exactly like
+  retail (strip layout from the decrypted EUR draw at 0x8003B0D0); EUR
+  g_TitleImg desc = {0,14},0,0,(224,15) -> logo at (896,0).
 - COLORS1/COLORS2: the plates-puzzle images carry NO text (render-verified)
   — shared COLORS.TIM path is correct for all languages. Closed.
 - Attract demos: PAL DAT inputs may have been re-recorded for 50Hz —
