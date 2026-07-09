@@ -96,6 +96,7 @@ s_PcConfig g_PcConfig = {
     .keyGfxNext  = "]",
     .keyExitGame = "Escape",
 
+    .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA discs ignore it */
     .mapName        = "map0_s00"
 };
 
@@ -429,6 +430,16 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "movement_original") == 0)
         {
             g_PcConfig.movementOriginal = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "language") == 0)
+        {
+            /* Language id string (launcher dropdown). Index order matches the
+             * PAL disc's option-menu / VIN2-5 dir order. Unknown -> English. */
+            if (strcmp(value, "de") == 0)      g_PcConfig.language = 1;
+            else if (strcmp(value, "fr") == 0) g_PcConfig.language = 2;
+            else if (strcmp(value, "es") == 0) g_PcConfig.language = 3;
+            else if (strcmp(value, "it") == 0) g_PcConfig.language = 4;
+            else                               g_PcConfig.language = 0;
         }
         else if (strcmp(key, "control_style") == 0)
         {

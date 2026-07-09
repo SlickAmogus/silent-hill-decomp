@@ -15,6 +15,13 @@ public partial class Form1 : Form
 {
     private ConfigManager config;
 
+    // Language ids written to config.cfg (key: language). Index order matches
+    // the Designer's comboLanguage items AND the PAL disc's own option-menu
+    // order (English, German, French, Spanish, Italian) which the game's
+    // language wiring relies on. USA discs are English-only; the game ignores
+    // the key for them.
+    private static readonly string[] LanguageIds = { "en", "de", "fr", "es", "it" };
+
     public Form1()
     {
         InitializeComponent();
@@ -53,9 +60,12 @@ public partial class Form1 : Form
     }
 
     /// <summary>
-    /// Warn at startup when the disc image is missing (creating gamedata/ if
-    /// needed). Gated on SilentHillPC.exe being present so dev runs from
-    /// bin\Release don't nag or scaffold stray folders.
+    /// Detect the disc image(s) at startup (creating gamedata/ if needed) and
+    /// show the identified serial/region in lblDisc; warn only when no
+    /// recognizable .bin exists at all. Any filename is accepted — discs are
+    /// identified by their ISO boot serial exactly like the game does. Gated
+    /// on SilentHillPC.exe being present so dev runs from bin\Release don't
+    /// nag or scaffold stray folders.
     /// </summary>
     private void CheckDiscImage()
     {
@@ -66,13 +76,39 @@ public partial class Form1 : Form
         try { if (!Directory.Exists(gamedata)) Directory.CreateDirectory(gamedata); }
         catch { return; }
 
-        if (!File.Exists(Path.Combine(gamedata, "Silent Hill (USA).bin")))
+        var discs = DiscProbe.Scan(gamedata);
+        if (discs.Count == 0)
         {
+            lblDisc.Text = "No disc image found in gamedata\\";
             MessageBox.Show(this,
-                "Please put Silent Hill (USA).bin in the gamedata folder!",
+                "No Silent Hill disc image found.\n\n" +
+                "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
+                "in the gamedata folder!",
                 "Silent Hill PC",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
+
+        // Mirror the game's pick (main_pc.c PcPort_GetGameDiscPath): the known
+        // filenames win in this order, then autodetect prefers USA over PAL.
+        string[] knownNames = {
+            "Silent Hill (USA).bin",
+            "Silent Hill (PAL).bin",
+            "Silent Hill (Europe) (En,Fr,De,Es,It).bin",
+        };
+        DiscProbe.Disc active = null;
+        foreach (var kn in knownNames)
+        {
+            active = discs.FirstOrDefault(d => d.FileName.Equals(kn, StringComparison.OrdinalIgnoreCase));
+            if (active != null) break;
+        }
+        if (active == null)
+            active = discs.FirstOrDefault(d => d.Region == "USA") ?? discs[0];
+
+        string text = $"Disc: {active.Serial} — {active.RegionLabel}";
+        if (discs.Count > 1)
+            text += $"  (+{discs.Count - 1} more; this one is used)";
+        lblDisc.Text = text;
     }
 
     /// <summary>
@@ -227,6 +263,13 @@ public partial class Form1 : Form
             "  No: no bars anywhere - 3D gameplay is Hor+ and menus stretch.";
         Set(refreshLabel,        pillarboxTip);
         Set(comboPillarbox,      pillarboxTip);
+
+        const string languageTip =
+            "Text language. Requires a PAL/European disc image, which carries\n" +
+            "English, German, French, Spanish and Italian text. With a USA\n" +
+            "disc the game is English-only and this setting is ignored.";
+        Set(langLabel,      languageTip);
+        Set(comboLanguage,  languageTip);
 
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
@@ -542,6 +585,10 @@ public partial class Form1 : Form
         else if (!_wide3d) comboPillarbox.SelectedIndex = 0; // Yes (3D pillarboxed)
         else               comboPillarbox.SelectedIndex = 2; // Menus Only (default)
 
+        // Language: config id string <-> dropdown index (unknown -> English)
+        int langIdx = Array.IndexOf(LanguageIds, config.Get("language", "en"));
+        comboLanguage.SelectedIndex = langIdx >= 0 ? langIdx : 0;
+
         // disable_culling (recommended: Yes — matches engine default)
         radioCullingYes.Checked = config.Get("disable_culling", "1") == "1";
         radioCullingNo.Checked = !radioCullingYes.Checked;
@@ -629,6 +676,10 @@ public partial class Form1 : Form
         // 0 = Per-vertex (both off), 1 = Per-pixel (shadows off), 2 = Per-pixel + Shadows.
         config.Set("per_pixel_flashlight", comboFlash.SelectedIndex >= 1 ? "1" : "0");
         config.Set("flashlight_shadows", comboFlash.SelectedIndex == 2 ? "1" : "0");
+
+        // Language: dropdown index -> id string
+        if (comboLanguage.SelectedIndex >= 0)
+            config.Set("language", LanguageIds[comboLanguage.SelectedIndex]);
 
         config.Save();
     }

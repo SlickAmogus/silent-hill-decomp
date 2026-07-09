@@ -106,6 +106,11 @@ typedef struct {
      * (config key: key_exit_game). */
     char keyExitGame[24];
 
+    /* Text language for PAL/European discs: 0=en 1=de 2=fr 3=es 4=it (config
+     * key: language, string ids). Order matches the PAL disc's own option-menu
+     * order and its VIN/VIN2..VIN5 localized-file dirs. USA discs ignore it. */
+    int language;
+
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

@@ -63,6 +63,9 @@ partial class Form1
     private ComboBox comboTone;
     private Label flashLabel;
     private ComboBox comboFlash;
+    private Label langLabel;
+    private ComboBox comboLanguage;
+    private Label lblDisc;
 
 
 
@@ -126,6 +129,9 @@ partial class Form1
             this.comboTone = new System.Windows.Forms.ComboBox();
             this.flashLabel = new System.Windows.Forms.Label();
             this.comboFlash = new System.Windows.Forms.ComboBox();
+            this.langLabel = new System.Windows.Forms.Label();
+            this.comboLanguage = new System.Windows.Forms.ComboBox();
+            this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
@@ -294,14 +300,14 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 448);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 480);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(206, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(206, 424);
+            this.progUpdate.Location = new System.Drawing.Point(206, 456);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(205, 16);
             this.progUpdate.TabIndex = 15;
@@ -633,9 +639,39 @@ partial class Form1
             this.comboFlash.Name = "comboFlash";
             this.comboFlash.Size = new System.Drawing.Size(120, 21);
             this.comboFlash.TabIndex = 61;
-            // 
+            //
+            // langLabel
+            //
+            this.langLabel.AutoSize = true;
+            this.langLabel.Location = new System.Drawing.Point(8, 427);
+            this.langLabel.Name = "langLabel";
+            this.langLabel.Size = new System.Drawing.Size(58, 13);
+            this.langLabel.TabIndex = 62;
+            this.langLabel.Text = "Language:";
+            //
+            // comboLanguage
+            //
+            this.comboLanguage.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboLanguage.Items.AddRange(new object[] {
+            "English",
+            "German",
+            "French",
+            "Spanish",
+            "Italian"});
+            this.comboLanguage.Location = new System.Drawing.Point(80, 423);
+            this.comboLanguage.Name = "comboLanguage";
+            this.comboLanguage.Size = new System.Drawing.Size(120, 21);
+            this.comboLanguage.TabIndex = 63;
+            //
+            // lblDisc
+            //
+            this.lblDisc.Location = new System.Drawing.Point(214, 427);
+            this.lblDisc.Name = "lblDisc";
+            this.lblDisc.Size = new System.Drawing.Size(198, 15);
+            this.lblDisc.TabIndex = 64;
+            //
             // btnControls
-            // 
+            //
             this.btnControls.Location = new System.Drawing.Point(315, 331);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
@@ -666,7 +702,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(11, 431);
+            this.btnHelp.Location = new System.Drawing.Point(11, 463);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -676,7 +712,7 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(113, 431);
+            this.btnBug.Location = new System.Drawing.Point(113, 463);
             this.btnBug.Name = "btnBug";
             this.btnBug.Size = new System.Drawing.Size(84, 23);
             this.btnBug.TabIndex = 54;
@@ -686,7 +722,7 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(55, 431);
+            this.btnReset.Location = new System.Drawing.Point(55, 463);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
@@ -706,7 +742,10 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(420, 468);
+            this.ClientSize = new System.Drawing.Size(420, 500);
+            this.Controls.Add(this.langLabel);
+            this.Controls.Add(this.comboLanguage);
+            this.Controls.Add(this.lblDisc);
             this.Controls.Add(this.btnReset);
             this.Controls.Add(this.btnBug);
             this.Controls.Add(this.btnHelp);
