@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include <string.h> /* memcpy */
 #include "bodyprog/sound/sound_system.h" /* s_AudioItemData g_AudioData */
+#include "pc_config.h"                   /* g_PcConfig.language */
 #define AUDIO_DATA_COUNT 127
 #endif
 
@@ -86,6 +87,62 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
         }
     }
 
+    /* Language redirect (config `language`, EUR discs only): PAL carries the
+     * DE/FR/ES/IT map overlays in VIN2..VIN5 (EUR pathIdx 10..13) with the
+     * language digit baked into name char 6 (MAP0_S00 -> MAP0_S10 DE / S20 FR
+     * / S30 ES / S40 IT), and per-language death-hint TIMs with the language
+     * letter at name char 5 (TIPS_E01 -> TIPS_G01 DE / R FR / S ES / T IT).
+     * Rebind the US-canonical entries' sector/size to the chosen language's
+     * EUR entry. Names and pathIdx in the ACTIVE table stay US-canonical —
+     * g_FilePaths has 11 entries, EUR path indices must never land in it. */
+    if (g_PcConfig.language >= 1 && g_PcConfig.language <= 4)
+    {
+        s32 lang       = g_PcConfig.language;                             /* 1=de 2=fr 3=es 4=it */
+        u32 mapPrefix  = FNP('M', 'A', 'P', ' ') & 0x3FFFF;               /* chars 0-2 */
+        u32 mapSuffix  = FNP('_', 'S', ' ', ' ') & 0xFFF;                 /* chars 4-5 */
+        u32 tipsName   = FNP('T', 'I', 'P', 'S');
+        u32 tipsSuffix = FNP('_', 'E', ' ', ' ') & 0xFFF;                 /* chars 4-5 */
+        static const u8 tipsLetter[5] = { 0, 'G' - 0x20, 'R' - 0x20, 'S' - 0x20, 'T' - 0x20 };
+
+        for (i = 0; i < FS_FILE_COUNT; i++)
+        {
+            const s_FileInfo* u = &s_FileTable_USA[i];
+            u32 wantName4567;
+            u8  wantPath;
+
+            if (u->pathIdx == 9 &&
+                (u->name0123 & 0x3FFFF) == mapPrefix && (u->name4567 & 0xFFF) == mapSuffix)
+            {
+                /* VIN/MAPx_Syz -> VINn/MAPx_S<lang>z: language digit at char 6. */
+                wantName4567 = ((u32)u->name4567 & ~(0x3Fu << 12)) | ((u32)(0x10 + lang) << 12);
+                wantPath     = (u8)(9 + lang);
+            }
+            else if (u->pathIdx == 8 &&
+                     u->name0123 == tipsName && (u->name4567 & 0xFFF) == tipsSuffix)
+            {
+                /* TIM/TIPS_Exy -> TIM/TIPS_<letter>xy: language letter at char 5. */
+                wantName4567 = ((u32)u->name4567 & ~(0x3Fu << 6)) | ((u32)tipsLetter[lang] << 6);
+                wantPath     = 8;
+            }
+            else
+            {
+                continue;
+            }
+
+            for (j = 0; j < FS_FILE_COUNT_EUR; j++)
+            {
+                const s_FileInfo* e = &s_FileTable_EUR[j];
+                if (e->name0123 == u->name0123 && e->name4567 == wantName4567 &&
+                    e->type == u->type && e->pathIdx == wantPath)
+                {
+                    g_FileTable[i].startSector = e->startSector;
+                    g_FileTable[i].blockCount  = e->blockCount;
+                    break;
+                }
+            }
+        }
+    }
+
     /* The sound system seeks VAB/KDT (BGM/SFX) by absolute disc sector from its
      * own table g_AudioData[].fileOffset_8 — a US-baked parallel to g_FileTable.
      * Re-point each entry from its US sector to the active (EUR) sector of the
@@ -108,6 +165,30 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
             }
         }
     }
+}
+/* Locate an EUR-only file (one with no US-canonical g_FileTable slot, e.g.
+ * VIN/ITEM_GER.BIN) in the compiled EUR table. `name8` is the bare 8-char
+ * name, no extension. Returns 1 and fills sector/blockCount on a hit. */
+int Fs_EurFileLookup(const char* name8, s32 pathIdx, s32 type, u32* outSector, u32* outBlocks)
+{
+    s32 name0123;
+    s32 name4567;
+    s32 j;
+
+    Fs_EncodeFileName(&name0123, &name4567, name8);
+
+    for (j = 0; j < FS_FILE_COUNT_EUR; j++)
+    {
+        const s_FileInfo* e = &s_FileTable_EUR[j];
+        if (e->name0123 == (u32)name0123 && e->name4567 == (u32)name4567 &&
+            e->type == type && e->pathIdx == pathIdx)
+        {
+            *outSector = e->startSector;
+            *outBlocks = e->blockCount;
+            return 1;
+        }
+    }
+    return 0;
 }
 #else
 s_FileInfo g_FileTable[FS_FILE_COUNT] = {

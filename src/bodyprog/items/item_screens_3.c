@@ -531,14 +531,22 @@ const char* g_ItemDescriptions[] = {
 };
 
 #ifdef SH_PC_PORT
+#include "lang_text.h" /* PAL localized item text (NULL = use the US string) */
+
 static const char* s_ItemName(u8 id) {
     int idx = (int)id - 32;
     int n   = (int)(sizeof(INVENTORY_ITEM_NAMES) / sizeof(INVENTORY_ITEM_NAMES[0]));
+    const char* lang = Pc_LangItemName(idx);
+    if (lang != NULL)
+        return lang;
     return (idx >= 0 && idx < n && INVENTORY_ITEM_NAMES[idx]) ? INVENTORY_ITEM_NAMES[idx] : "";
 }
 static const char* s_ItemDesc(u8 id) {
     int idx = (int)id - 32;
     int n   = (int)(sizeof(g_ItemDescriptions) / sizeof(g_ItemDescriptions[0]));
+    const char* lang = Pc_LangItemDesc(idx);
+    if (lang != NULL)
+        return lang;
     return (idx >= 0 && idx < n && g_ItemDescriptions[idx]) ? g_ItemDescriptions[idx] : "";
 }
 #endif

@@ -1,0 +1,29 @@
+#ifndef LANG_TEXT_H
+#define LANG_TEXT_H
+
+/* PAL language text (config `language`, EUR discs): item names/descriptions
+ * come from the disc's VIN/ITEM_<lang>.BIN, in-map messages from the
+ * VIN2..VIN5 localized overlays (file table already redirected by
+ * Fs_InitFileTableForRegion). PAL text uses a different markup dialect than
+ * the compiled US strings ({X} brace codes, real spaces, literal newlines,
+ * Latin-1 accents) — everything is translated to the US dialect at load so
+ * the stock renderer draws it; accent bytes pass through raw and resolve in
+ * text_draw via the region font layout (font_region.c). */
+
+/* Non-zero when an EUR disc is active and config language is not English. */
+int Pc_LangActive(void);
+
+/* Load + parse ITEM_<lang>.BIN once (call after Fs_InitFileTableForRegion). */
+void Pc_LangInit(void);
+
+/* Localized item text for inventory index 0..194, or NULL to use the US
+ * string (PAL leaves some entries untranslated/NULL — English fallback). */
+const char* Pc_LangItemName(int itemIdx);
+const char* Pc_LangItemDesc(int itemIdx);
+
+/* After the map overlay BIN finished loading into `ovl` (g_OvlDynamic):
+ * extract the localized message table and repoint the active map header at
+ * translated strings. No-op unless Pc_LangActive(). */
+void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
+
+#endif

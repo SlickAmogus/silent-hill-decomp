@@ -16,6 +16,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion, g_FileTable — PAL font/language hooks */
+#endif
 
 void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 {
@@ -160,6 +163,30 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
 #ifdef SH_PC_PORT
     fflush(g_ShDebugLog);
+    /* PAL language text: the file table redirected this overlay read to the
+     * localized VIN2-5 copy; once it lands, extract + translate its message
+     * table and repoint the compiled map header (compiled maps bake English).
+     * Also re-queue FONT16 on EUR: its atlas home (768,128) shares tpage 12
+     * with boot images, and the auto-load-save boot path never passes the
+     * title-screen reload — a per-map reload is cheap insurance. */
+    {
+        extern void Fs_QueueWaitForEmpty(void);
+        extern int  Pc_LangActive(void);
+        extern void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
+        extern e_GameRegion g_GameRegion;
+
+        if (g_GameRegion == Region_EUR)
+        {
+            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+        }
+        if (Pc_LangActive())
+        {
+            Fs_QueueWaitForEmpty();
+            Pc_LangPatchMapMessages(
+                mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+    }
 #endif
     Map_EffectTexturesLoad(mapIdx);
 #ifdef SH_PC_PORT

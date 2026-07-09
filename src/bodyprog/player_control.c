@@ -68,6 +68,7 @@ static void Player_CrashHandler(int sig) {
 #include "pc_combat.h"
 #include "pc_timing.h"
 #include "pc_config.h"
+#include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
 extern int g_PcFpsCam;
 
@@ -10460,6 +10461,12 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
                  * the overlay's link base (USA 0x800C9578), so PSX_ADDR converts
                  * the stored pointer directly. */
                 u32 psxField38 = *(u32*)((u8*)g_OvlDynamic + 0x3C);
+                /* EUR overlays are linked for base 0x800CB370 but load at the
+                 * US base 0x800C9578 — rebase overlay-internal pointers by the
+                 * 0x1DF8 delta or they resolve past the real table. */
+                if (g_GameRegion == Region_EUR && psxField38 >= 0x800CB370u) {
+                    psxField38 -= 0x800CB370u - 0x800C9578u;
+                }
                 if (psxField38 >= 0x80000000u && psxField38 < 0x80200000u) {
                     s_patchedMapHeader            = *g_pMapOverlayHeader;
                     s_patchedMapHeader.field_38   = (s_UnkStruct3_Mo*)PSX_ADDR(psxField38);

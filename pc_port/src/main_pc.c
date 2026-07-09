@@ -843,8 +843,10 @@ int main(int argc, char* argv[])
     }
 
     /* Region-specific data tweaks now that g_GameRegion is known (e.g. PAL's
-     * Grey-Child -> Mumbler model swap). */
+     * Grey-Child -> Mumbler model swap, PAL font layout/VRAM home). */
     { extern void CharaData_ApplyRegionPatches(void); CharaData_ApplyRegionPatches(); }
+    { extern void Font_ApplyRegionPatches(void); Font_ApplyRegionPatches(); }
+    { extern void Pc_LangInit(void); Pc_LangInit(); }
 
     CdInit();
 
