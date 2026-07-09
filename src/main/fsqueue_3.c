@@ -693,7 +693,11 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
      * disc TIM so replacement UVs map 0..1 over the original. */
     if (pcVirtualSlot)
     {
-        s32 slotId = (s32)entry->extra.image.clutY - HIRES_POOL_CLUT_ROW_BASE;
+        /* Inverse of the slot-id encoding in hires_override.h: the id is
+         * split across 16-row-spaced clutY groups and the clutX cell bits. */
+        s32 slotId = (((s32)entry->extra.image.clutY - HIRES_POOL_CLUT_ROW_BASE)
+                      / HIRES_POOL_MAX_ROWS) * 64
+                   + ((s32)entry->extra.image.clutX / 16);
         int nativeW = (discBitDepth == 4)  ? (int)pixelRect.w * 4 :
                       (discBitDepth == 8)  ? (int)pixelRect.w * 2 :
                       (discBitDepth == 24) ? ((int)pixelRect.w * 2) / 3 :
