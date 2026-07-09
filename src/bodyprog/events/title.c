@@ -554,6 +554,62 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     }
 }
 
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h"                    /* g_GameRegion */
+#include "bodyprog/screen/background_draw.h"  /* g_Screen_BackgroundImgGamma */
+
+/* PAL title compose, mirroring the retail SLES draw (decrypted EUR bodyprog
+ * 0x8003B0D0): the PAL TITLE_E.TIM is only a 4bpp 320x96 logo+copyright
+ * block, drawn as SPRT strips over the black clear with the shared fog on
+ * top — there is no full-screen title picture on the PAL disc. Strip layout
+ * is retail-exact (logo rows 0..79 at y=-120 in two 256+64 strips, split at
+ * the tpage boundary); the copyright band (rows 80..95) sits 32 lines above
+ * the bottom edge like retail (their 512-line space put it at y=224, our
+ * 448-line display puts it at y=192). Loaded at (896,0) via the EUR
+ * g_TitleImg desc patch in font_region.c. */
+static void Pc_TitleLogoDrawEur(void)
+{
+    extern s32 g_Pc2dBackgroundActive;
+
+    static const struct { s16 x, y; u8 u, v, tpageCol; s16 w, h; } STRIPS[4] = {
+        { -160, -120, 0, 0,  14, 256, 80 }, /* logo left */
+        {   96, -120, 0, 0,  15,  64, 80 }, /* logo right */
+        { -160,  192, 0, 80, 14, 256, 16 }, /* copyright left */
+        {   96,  192, 0, 80, 15,  64, 16 }, /* copyright right */
+    };
+
+    GsOT*     ot     = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
+    PACKET*   packet = GsOUT_PACKET_P;
+    s32       i;
+
+    g_Pc2dBackgroundActive = 2; /* keep the black clear (no fog-color override) */
+
+    for (i = 0; i < 4; i++)
+    {
+        SPRT*     sprt = (SPRT*)packet;
+        DR_TPAGE* tPage;
+
+        addPrimFast(ot, sprt, 4);
+        setRGBC0(sprt, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma,
+                 g_Screen_BackgroundImgGamma, PRIM_RECT | RECT_TEXTURE);
+        setWH(sprt, STRIPS[i].w, STRIPS[i].h);
+        setXY0Fast(sprt, STRIPS[i].x, STRIPS[i].y);
+        *((u32*)&sprt->u0) = STRIPS[i].u + (STRIPS[i].v << 8) +
+                             (getClut(g_TitleImg.clutX, g_TitleImg.clutY) << 16);
+
+        packet += sizeof(SPRT);
+        tPage   = (DR_TPAGE*)packet;
+        setDrawTPage(tPage, 0, 1, getTPage(0, 0, STRIPS[i].tpageCol << 6, 0));
+        AddPrim(ot, tPage);
+        packet += sizeof(DR_TPAGE);
+    }
+
+    GsOUT_PACKET_P              = packet;
+    g_SysWork.bgmStatusFlags   |= BgmStatusFlag_Pause;
+    g_Screen_BackgroundImgGamma = Q8(0.5f);
+}
+#endif
+
 static void MainMenu_BackgroundDraw(void) // 0x8003B758
 {
     if (g_SysWork.sysState == SysState_Gameplay)
@@ -562,6 +618,13 @@ static void MainMenu_BackgroundDraw(void) // 0x8003B758
         func_8003BCF4();
     }
 
+#ifdef SH_PC_PORT
+    if (g_GameRegion == Region_EUR)
+    {
+        Pc_TitleLogoDrawEur();
+    }
+    else
+#endif
     Screen_BackgroundImgDraw(&g_TitleImg);
     MainMenu_FogUpdate();
 }
