@@ -368,6 +368,38 @@ void Xa_XboxStreamFeedSector(const unsigned char* xs)
     s_fmvSectorsFed++;
 }
 
+/* --- FMV AVI-override PCM feed (fmv_xbox.c) -----------------------------------
+ * Same stream mode / ring / resampler as the XA sector feed above, but fed
+ * with raw 16-bit PCM from the AVI '##wb' chunks — the format is declared by
+ * the AVI header instead of latched from a sector subheader. Ends via the
+ * shared Xa_XboxStreamEnd. */
+void Xa_XboxStreamBeginPcm(int sampleRate, int stereo)
+{
+    Xa_XboxStreamBegin();
+    s_fmvStreamStereo = stereo ? 1 : 0;
+    if (sampleRate < 4000)
+        sampleRate = 4000;   /* floor keeps rsStep sane on a garbage header */
+    s_xa.rsStep       = ((uint32_t)sampleRate * 65536u) / OUT_HZ;
+    s_fmvStreamOpened = 1;   /* no sector-subheader latch in PCM mode */
+    SH_DBG("[XA] fmv pcm stream open: %dHz %s", sampleRate, stereo ? "stereo" : "mono");
+}
+
+/* sampleCount = int16 sample count (stereo: interleaved L/R counted as 2 —
+ * same convention as DecodeXaSector). Overflow beyond the ring is dropped by
+ * PushResampled's guard; the FMV player checks Xa_XboxStreamRingFree first. */
+void Xa_XboxStreamFeedPcm(const short* pcm, int sampleCount)
+{
+    if (!s_fmvStream || pcm == 0 || sampleCount <= 0)
+        return;
+    PushResampled((const int16_t*)pcm, sampleCount, s_fmvStreamStereo);
+    s_fmvSectorsFed++;   /* chunk-granular here; same progress counter */
+}
+
+unsigned int Xa_XboxStreamRingFree(void)
+{
+    return s_fmvStream ? (XA_RING_FRAMES - (s_ringWrite - s_ringRead)) : 0;
+}
+
 void Xa_XboxStreamEnd(void)
 {
     if (s_fmvStream)

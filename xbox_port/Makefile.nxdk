@@ -202,6 +202,7 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/cd_xbox.c \
 	$(XBOX_PORT)/src/xa_xbox.c \
 	$(XBOX_PORT)/src/fmv_xbox.c \
+	$(XBOX_PORT)/src/avi_read.c \
 	$(XBOX_PORT)/src/psx_vram.c \
 	$(XBOX_PORT)/src/gte_diag.c \
 	$(XBOX_PORT)/src/audio_xbox.c \
