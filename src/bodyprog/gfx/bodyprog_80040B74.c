@@ -2032,7 +2032,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
      * streaming fully healthy (the missing world was fog, not chunks). */
     {
         static int s_chnkTick = 0;
-        if ((++s_chnkTick % 150) == 0 && g_Map.activeChunkCount > 0) {
+        if ((++s_chnkTick % 600) == 0 && g_Map.activeChunkCount > 0) {
             s_Chunk* c = &g_Map.activeChunks[0];
             int      n = g_Map.activeChunkCount;
             SH_DBG("[CHNK] n=%d s0=%d,%d,st%d s1=%d,%d,st%d s2=%d,%d,st%d s3=%d,%d,st%d",
@@ -2653,11 +2653,13 @@ s_IpdCollisionData* Ipd_CollisionDataGet(q19_12 posX, q19_12 posZ) // 0x800426E4
          * the failing gate is named. Rate-limited; the probes hit this many
          * times per frame while pushing against the block. */
         {
-            static s32 s_lastMissLog = -1000;
-            if (g_TickCount - s_lastMissLog > 120)
+            /* Call-count limiter, NOT g_TickCount: the tick counter freezes in
+             * some states (the intro-death loop), which disabled the old
+             * limiter entirely and flooded 48k lines in one session. */
+            static s32 s_missCalls = 0;
+            if ((s_missCalls++ % 500) == 0)
             {
                 s_Chunk* c;
-                s_lastMissLog = g_TickCount;
                 /* Integer Q12 units: nxdk printf drops %f AND the un-consumed
                  * 8-byte double misaligns every following vararg (the old line
                  * printed a garbage activeCount because of this). */

@@ -569,7 +569,7 @@ void DrawOTag(u_long* p)
      * %180 [BB] sampler aliased onto the same call slot every frame (2 calls
      * per frame, 180%2==0) and never measured the world OT. */
     if (g_Nv2aFrameCount != s_cnFrame) {
-        if (s_cnFrame >= 0 && (s_cnFrame % 150) == 0 && s_cnPrims > 0) {
+        if (s_cnFrame >= 0 && (s_cnFrame % 600) == 0 && s_cnPrims > 0) {
             SH_DBG("[OTS] f=%d calls=%d n0=%d n1=%d prims=%d bb=%d,%d,%d,%d",
                    s_cnFrame, s_cnCallsMax, s_cnNodes[0], s_cnNodes[1], s_cnPrims,
                    s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY);
@@ -760,16 +760,9 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
 {
     g_activeDrawEnv = *env;
     RecomputeTransform();
-    /* Probe: the isbg background colour chain (GsSortClear sets it to the fog
-     * colour in-game; FrameBegin clears with it). Log only on change. */
-    {
-        static int s_last = -1;
-        int cur = (env->isbg << 24) | (env->r0 << 16) | (env->g0 << 8) | env->b0;
-        if (cur != s_last) {
-            SH_DBG("[CLR] isbg=%d rgb=(%d,%d,%d)", env->isbg, env->r0, env->g0, env->b0);
-            s_last = cur;
-        }
-    }
+    /* ([CLR] probe removed: the double-buffered draw envs ping-pong the tuple
+     * every PutDrawEnv, which made "log on change" fire 2.3M times in one run.
+     * [FOGST-GPU] in FrameBegin covers the clear-colour chain sufficiently.) */
     /* Draw-clip scissor (mirrors PsyCross GR_SetupClipMode's scissorOn): only
      * when the clip is genuinely SMALLER than the display do sub-region draws
      * (map/item screens, refraction regions) get clipped; the common full-

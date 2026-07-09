@@ -1763,7 +1763,7 @@ void MainLoop(void) // 0x80032EE0
          * Integer-only formats — nxdk printf drops %f. */
         {
             static int s_fogstTick = 0;
-            if ((++s_fogstTick % 150) == 0) {
+            if ((++s_fogstTick % 600) == 0) {
                 SH_DBG("[FOGST] en=%d far=%d fogRGB=%d,%d,%d bg2d=%d,%d,%d state=%d",
                        (int)PC_WorldEnvWork.isFogEnabled,
                        (int)PC_WorldEnvWork.fog.farDistance,
