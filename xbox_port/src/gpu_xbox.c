@@ -656,9 +656,223 @@ void SetDispMask(int mask)
     g_gpuDisabled = (mask == 0);
 }
 
+/* --- framebuffer -> PSX-VRAM readback (screen-grab effects) -----------------
+ *
+ * On PSX the GPU renders INTO VRAM, so StoreImage grabs and framebuffer-feedback
+ * textures (Screen_BackgroundMotionBlur's getTPage(2, ...) SPRTs: pause/save
+ * backgrounds, crossfades, the air-screamer window-crash distortion) naturally
+ * see rendered output. Our s_vram only ever held UPLOADED data — those effects
+ * sampled stale garbage. PsyCross fixes this by copying the rendered frame back
+ * into vram[] on DrawSync (GR_ReadFramebufferDataToVRAM), gated per-frame by
+ * g_PsxSkipFramebufferStore (the game re-sets it =1 each tick of a TIM-protect
+ * screen — paper-map pickups — because the store would clobber the map CLUT).
+ *
+ * On the 733MHz Xbox a per-frame readback is unaffordable (the surface is
+ * write-combined: uncached CPU reads, ~10ms+, plus a full GPU drain), so it is
+ * DEMAND-driven, still honouring the game's gate:
+ *   - psx_vram.c triggers it when a 16-bit texture page overlapping the
+ *     framebuffer rows is decoded (the feedback effects; reads the last
+ *     COMPLETED frame — mid-OT-walk the back buffer is only partial);
+ *   - StoreImage triggers it when the grabbed rect overlaps the framebuffer
+ *     (reads the CURRENT back buffer: between the end-of-tick GsDrawOt and the
+ *     next VSync that is the fully-composed pre-present frame — exactly what
+ *     PSX DrawSync(0) semantics promise);
+ *   - DrawSync re-runs it while a consumer has been active in the last frames
+ *     (PsyCross parity; the once-per-frame guard dedups the above).
+ * Steady-state screens (pause) cost nothing: the readback rewrites identical
+ * bytes, PsxVram_Load's row memcmp skips the cache invalidation, the decoded
+ * page stays cached, no new decode -> no new readback.
+ *
+ * DESTINATION: the PSX framebuffer page layout, NOT our collapsed display env.
+ * libgs_stub maps both double-buffer pages to disp=(0,0,w,h), but the shared
+ * game code samples tpage coords in PSX-absolute VRAM space, where
+ * GsDefDispBuff2(0,32,0,256) puts the pages:
+ *   progressive: (0,32,w,224) and (0,256,w,224)  — both get the frame (the PSX
+ *                had consecutive frames there; duplicating the newest one is the
+ *                single-back-buffer approximation),
+ *   interlaced:  (0,32,w,448)                    — one 448-row frame (the y=256
+ *                tpage split in Screen_BackgroundMotionBlur is only because a
+ *                tpage addresses 256 rows, not a second buffer).
+ * Boot/FMV paths (main.c, stream.c) put REAL PSX coords in the display env
+ * (disp.y=16/32/256): for those the PsyCross-faithful dest = the disp rect.
+ *
+ * MAPPING (inverse of PutVert): vertex = (raw + s_ofs) * s_scale, and a prim's
+ * raw coord lands at PSX page-local (raw + pageH/2) for the centered libgs envs
+ * (draw offset = disp center). So page-local (i,k) samples the 640x480 surface
+ * at ((i + s_ofsX - pageW/2) * s_scaleX, (k + s_ofsY - pageH/2) * s_scaleY).
+ * In-game progressive (ofs 160,120, scale 2,2): x=2i, y=(k+8)*2 — the +8 rows
+ * are the (240-224)/2 border the game's ±112 draw offset leaves. Interlaced
+ * (ofs 160,224, scale 2,480/448): x=2i, y=k*480/448 — identity with the
+ * motion-blur SPRT reassembly, so a pause freeze is pixel-exact. Disp-anchored
+ * envs (disp.y!=0, draws top-left based): bias 0, plain (i*sx, k*sy).
+ *
+ * The [STORE]-observed grabs rect=(320,256 160x240) (map pickup, FMV) do NOT
+ * land here, and must not: x>=320 is OUTSIDE every framebuffer page. That rect
+ * is the staging strip of the 640x480 4-bit paper-map TIM (640px at 4bpp = 160
+ * VRAM words wide; its two 240-row halves upload at (320,16) and (320,256)) —
+ * the game saves the room-texture strip the TIM/FMV will clobber and restores
+ * it after. Those grabs need UPLOADED VRAM, which s_vram round-trips
+ * byte-perfect; the readback never writes x>=pageW or rows <32, so it cannot
+ * disturb them (nor CLUTs like the paper map's at (224,15)). */
+extern int  g_PsxSkipFramebufferStore;     /* game's TIM-protect gate (compat globals) */
+extern void PsxVram_Load(int x, int y, int w, int h, const unsigned short* src);
+extern const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pitchBytes);
+extern int  GpuNv2a_Ms(void);
+
+static int s_fbGateLatch;                  /* gate as of the last present: the walk runs
+                                            * AFTER VSync resets the live flag, so protected
+                                            * ticks stay protected through their OT walk */
+static int s_fbReadbackFrame = -1;         /* frame id of the last readback (dedup) */
+static int s_fbConsumerFrame = -1000;      /* frame id a framebuffer consumer was last seen */
+static unsigned short s_fbReadbackBuf[640 * 448]; /* one page image (max 640-wide credits) */
+
+/* PSX framebuffer page rects for the CURRENT display env (see block comment).
+ * Returns the page count (1 or 2); pages share w/h. */
+static int FbPageRects(int pr[2][4])
+{
+    int dw = g_activeDispEnv.disp.w > 0 ? g_activeDispEnv.disp.w : 320;
+    int dh = g_activeDispEnv.disp.h > 0 ? g_activeDispEnv.disp.h : 240;
+    if (dw > 640) dw = 640;
+
+    if (g_activeDispEnv.disp.y != 0) {         /* boot/FMV: real PSX coords in the env */
+        pr[0][0] = g_activeDispEnv.disp.x; pr[0][1] = g_activeDispEnv.disp.y;
+        pr[0][2] = dw;                     pr[0][3] = dh > 448 ? 448 : dh;
+        return 1;
+    }
+    if (dh > 256) {                            /* interlaced: one 448-row frame at y=32 */
+        pr[0][0] = 0; pr[0][1] = 32; pr[0][2] = dw; pr[0][3] = dh > 448 ? 448 : dh;
+        return 1;
+    }
+    pr[0][0] = 0; pr[0][1] = 32;  pr[0][2] = dw; pr[0][3] = 224;   /* progressive pages */
+    pr[1][0] = 0; pr[1][1] = 256; pr[1][2] = dw; pr[1][3] = 224;
+    return 2;
+}
+
+/* Does [x0,x1)x[y0,y1) (absolute VRAM) touch any framebuffer page? Used by
+ * StoreImage and the texture decoder to decide whether rendered output is
+ * being consumed. */
+int GpuXbox_FbRegionOverlap(int x0, int y0, int x1, int y1)
+{
+    int pr[2][4];
+    int n = FbPageRects(pr), i;
+    for (i = 0; i < n; i++) {
+        if (x0 < pr[i][0] + pr[i][2] && pr[i][0] < x1 &&
+            y0 < pr[i][1] + pr[i][3] && pr[i][1] < y1)
+            return 1;
+    }
+    return 0;
+}
+
+/* minSpacing = minimum frames between readbacks. StoreImage grabs use 1 (exact,
+ * once per frame); the texture-feedback + DrawSync paths use 3 — sustained
+ * effects (window-crash distortion; the pause background's 127/128 gamma pulse,
+ * which never converges bit-exactly) then refresh the sampled scene at 10Hz
+ * instead of stealing ~10ms EVERY frame, while one-shot grabs stay instant. */
+static void FbReadback(int fromLastQueued, int minSpacing)
+{
+    const unsigned char* fb;
+    int fbW, fbH, pitchB;
+    int pr[2][4];
+    int pages, pageW, pageH, centered;
+    float biasX, biasY;
+    int k, i, n, t0;
+    static int bxTab[640];
+
+    if (g_PsxSkipFramebufferStore || s_fbGateLatch)
+        return;                                   /* TIM-protect tick (paper map) */
+    if (s_fbReadbackFrame >= 0 && g_Nv2aFrameCount - s_fbReadbackFrame < minSpacing)
+        return;                                   /* rate limit (>=1 => max one per frame) */
+    fb = (const unsigned char*)GpuNv2a_ReadbackSurface(fromLastQueued, &fbW, &fbH, &pitchB);
+    if (!fb)
+        return;
+    s_fbReadbackFrame = g_Nv2aFrameCount;
+    t0 = GpuNv2a_Ms();
+
+    pages    = FbPageRects(pr);
+    pageW    = pr[0][2];
+    pageH    = pr[0][3];
+    centered = (g_activeDispEnv.disp.y == 0);     /* libgs envs: draw offset = disp center */
+    biasX    = centered ? (s_ofsX - (float)pageW * 0.5f) : 0.0f;
+    biasY    = centered ? (s_ofsY - (float)pageH * 0.5f) : 0.0f;
+
+    for (i = 0; i < pageW; i++) {                 /* x map is row-invariant */
+        int bx = (int)(((float)i + biasX) * s_scaleX);
+        if (bx < 0) bx = 0;
+        if (bx >= fbW) bx = fbW - 1;
+        bxTab[i] = bx;
+    }
+    for (k = 0; k < pageH; k++) {
+        const unsigned int* srow;
+        unsigned short*     drow = &s_fbReadbackBuf[k * pageW];
+        int by = (int)(((float)k + biasY) * s_scaleY);
+        if (by < 0) by = 0;
+        if (by >= fbH) by = fbH - 1;
+        srow = (const unsigned int*)(fb + by * pitchB);
+        for (i = 0; i < pageW; i++) {
+            unsigned int c = srow[bxTab[i]];      /* A8R8G8B8 -> BGR555, STP=0 */
+            drow[i] = (unsigned short)(((c >> 19) & 0x1F)
+                                       | (((c >> 11) & 0x1F) << 5)
+                                       | (((c >> 3) & 0x1F) << 10));
+        }
+    }
+    /* PsxVram_Load memcmps per row and only dirties the texture cache when the
+     * content actually changed — that is what makes static screens (pause)
+     * settle: identical readback -> no invalidation -> cache hit -> no new
+     * decode -> no new readback. */
+    for (n = 0; n < pages; n++)
+        PsxVram_Load(pr[n][0], pr[n][1], pageW, pageH, s_fbReadbackBuf);
+
+    {
+        static int s_rbCount = 0;
+        int took = GpuNv2a_Ms() - t0;
+        s_rbCount++;
+        if (s_rbCount <= 8 || (s_rbCount & 31) == 0)
+            SH_DBG("[STORE] readback env=(%d,%d %dx%d) pages=%d took=%d src=%d n=%d f=%d",
+                   pr[0][0], pr[0][1], pageW, pageH, pages, took, fromLastQueued,
+                   s_rbCount, g_Nv2aFrameCount);
+    }
+}
+
+/* psx_vram.c, on decoding a 16-bit page that overlaps the framebuffer: the
+ * feedback effects. Mid-OT-walk the back buffer holds a PARTIAL frame, so read
+ * the last completed one — exactly what the PSX effect would sample (what the
+ * previous frame left in VRAM). */
+void GpuXbox_FbReadbackForTexture(void)
+{
+    s_fbConsumerFrame = g_Nv2aFrameCount;
+    FbReadback(1, 3);
+}
+
+/* psx_libgpu_xbox.c StoreImage, on a grab overlapping the framebuffer: the
+ * game's DrawSync(0); StoreImage(); pattern — the current back buffer is the
+ * fully-composed pre-present frame at that point. */
+void GpuXbox_FbReadbackForStore(void)
+{
+    s_fbConsumerFrame = g_Nv2aFrameCount;
+    FbReadback(0, 1);
+}
+
+/* Called from VSync() right after the present. Mirrors PsyX_EndScene: the
+ * TIM-protect gate is a per-frame opt-out the game must re-set each tick.
+ * The latch keeps the protection alive through THIS tick's OT walk, which runs
+ * after VSync (texture decodes there must not readback over a protected TIM). */
+void GpuXbox_FbStoreFrameTick(void)
+{
+    s_fbGateLatch             = g_PsxSkipFramebufferStore;
+    g_PsxSkipFramebufferStore = 0;
+}
+
 int DrawSync(int mode)
 {
     (void)mode; /* drawing is flushed at frame end (GpuNv2a_FrameEnd) */
+    /* PsyCross parity (GR_ReadFramebufferDataToVRAM on DrawSync): refresh the
+     * emulated VRAM from the rendered frame — but only while a framebuffer
+     * consumer is actually live (grab effects are rare; the game's MainLoop
+     * calls DrawSync every tick and a per-frame readback would be ruinous on
+     * this CPU). The once-per-frame guard inside FbReadback dedups against the
+     * demand-driven triggers above. */
+    if (g_Nv2aFrameCount - s_fbConsumerFrame <= 2)
+        FbReadback(0, 3);
     return 0;
 }
 

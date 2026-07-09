@@ -286,10 +286,22 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             return 0;
         i = best;
     }
+    TexEntry_SetBBox(&s_cache[i], tpage, clut);   /* record VRAM footprint for selective invalidation */
+    /* Framebuffer feedback: a 16-bit direct page overlapping the framebuffer
+     * rows is the pause/save background, crossfade or window-crash distortion
+     * sampling the rendered frame (getTPage(2, ...) in the shared game code).
+     * Pull the last completed frame into s_vram FIRST so this decode sees
+     * rendered output, not stale uploads. 16-bit only: the framebuffer is
+     * 16bpp, and regular 4/8-bit world textures near the pages must not
+     * trigger the (expensive) readback. Self-limits: the readback rewrites
+     * these rows via PsxVram_Load, whose memcmp only invalidates on change —
+     * a static screen settles into cache hits with zero further readbacks. */
+    if (((tpage >> 7) & 3) >= 2 &&
+        GpuXbox_FbRegionOverlap(s_cache[i].px0, s_cache[i].py0, s_cache[i].px1, s_cache[i].py1))
+        GpuXbox_FbReadbackForTexture();
     DecodePage(tpage, clut, s_cache[i].argb);
     s_cache[i].key     = key;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
-    TexEntry_SetBBox(&s_cache[i], tpage, clut);   /* record VRAM footprint for selective invalidation */
     /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
      * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
     if ((++s_decodeTotal & 511) == 0)

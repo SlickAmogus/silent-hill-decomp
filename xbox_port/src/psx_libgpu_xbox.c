@@ -93,6 +93,11 @@ extern void PsxVram_Store(int x, int y, int w, int h, unsigned short* dst);
 extern void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy);
 extern void PsxVram_Fill(int x, int y, int w, int h, unsigned short c);
 extern void GpuXbox_ClearRectOnScreen(int x, int y, int w, int h, int r, int g, int b);
+/* Framebuffer readback (gpu_xbox.c): StoreImage grabs of the framebuffer pages
+ * must see rendered output, not just uploaded VRAM. */
+extern int  GpuXbox_FbRegionOverlap(int x0, int y0, int x1, int y1);
+extern void GpuXbox_FbReadbackForStore(void);
+extern void GpuXbox_FbStoreFrameTick(void);
 
 int LoadImage(RECT* rect, u_long* p)
 {
@@ -101,15 +106,27 @@ int LoadImage(RECT* rect, u_long* p)
 }
 int StoreImage(RECT* rect, u_long* p)
 {
-    /* Probe: witness display-area grabs (pause/save/crossfade backgrounds).
-     * A display-sized rect at the intro-end fade proves the framebuffer
-     * readback gap fires there (StoreImage still returns UPLOADED VRAM, not
-     * rendered output — the readback is a charted, separately-landed fix). */
+    /* Probe: witness display-area grabs (pause/save/crossfade backgrounds). */
     static int s_storeLogged = 0;
     if (rect && s_storeLogged < 16) {
         s_storeLogged++;
         SH_DBG("[STORE] rect=(%d,%d %dx%d)", rect->x, rect->y, rect->w, rect->h);
     }
+    /* Grabs of the framebuffer pages must return RENDERED output: pull the
+     * just-composed back buffer into s_vram first (gpu_xbox.c; gated by the
+     * game's g_PsxSkipFramebufferStore + once per frame). NOTE the grabs the
+     * [STORE] probe caught on hardware — rect=(320,256 160x240) around the
+     * paper-map pickup / FMV (game_sys_states.c, map0_s01_events.c) — are NOT
+     * framebuffer grabs and correctly do not trigger this: x>=320 lies right
+     * of every framebuffer page (progressive pages (0,32)/(0,256) 320x224,
+     * interlaced (0,32) 320x448). That rect is the staging strip where the
+     * 640x480 4-bit paper-map TIM lands (640px at 4bpp = 160 VRAM words wide,
+     * halves at (320,16)/(320,256)): the game saves the room-texture strip the
+     * TIM/FMV clobbers and restores it after — it wants UPLOADED data, which
+     * s_vram round-trips byte-perfect. */
+    if (rect && GpuXbox_FbRegionOverlap(rect->x, rect->y,
+                                        rect->x + rect->w, rect->y + rect->h))
+        GpuXbox_FbReadbackForStore();
     if (rect) PsxVram_Store(rect->x, rect->y, rect->w, rect->h, (unsigned short*)p);
     return 0;
 }
@@ -167,6 +184,8 @@ int VSync(int mode)
     Pad_Poll();
     Audio_XboxPump();               /* keep the DirectSound ring fed (once per frame) */
     GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
+    GpuXbox_FbStoreFrameTick();      /* latch+reset the per-frame TIM-protect gate
+                                      * (g_PsxSkipFramebufferStore) — PsyX_EndScene parity */
 
     n = (mode == 0) ? 1 : mode;
     for (i = 0; i < n; i++) {

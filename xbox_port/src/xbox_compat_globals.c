@@ -10,7 +10,13 @@
 /* PsyCross runtime globals (normally set by main_pc.c / PsyX). */
 float g_PsxPixelAspect       = 1.0f;   /* square pixels = PSX CRT */
 float g_PsyX_FogColor[3]     = { 0.0f, 0.0f, 0.0f };
-int   g_PsxSkipFramebufferStore = 1;   /* SH never reads back VRAM (see CMake) */
+int   g_PsxSkipFramebufferStore = 0;   /* PC semantics: per-frame opt-out of the
+                                        * framebuffer->VRAM readback. The game re-sets
+                                        * it =1 each tick of a TIM-protect screen (paper
+                                        * map: bodyprog_80085D78.c) and VSync auto-clears
+                                        * it (GpuXbox_FbStoreFrameTick) — PsyX_EndScene
+                                        * parity. The readback itself is demand-driven
+                                        * (gpu_xbox.c FbReadback), never per-frame. */
 int   g_PsxDitherSuppressed  = 0;
 int   g_PsxPresentLastFrame  = 0;
 int   g_rcnt2_timer_active   = 0;

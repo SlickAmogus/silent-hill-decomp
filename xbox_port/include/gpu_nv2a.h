@@ -43,4 +43,18 @@ void  GpuNv2a_SetScissor(int x, int y, int w, int h);
  * isbg background (fog colour in-game) via GpuXbox_GetClearColor(). */
 unsigned int GpuXbox_GetClearColor(void);
 
+/* Framebuffer -> PSX-VRAM readback (screen-grab effects: pause/save backgrounds,
+ * air-screamer window-crash distortion, StoreImage grabs of the display pages).
+ * ReadbackSurface returns a CPU-visible A8R8G8B8 surface (drains the GPU first):
+ * fromLastQueued=0 -> the current back buffer (fully composed, pre-present),
+ * fromLastQueued=1 -> the last completed/presented frame (safe mid-OT-walk).
+ * The GpuXbox_* entry points live in gpu_xbox.c (they own the draw/display envs
+ * and the screen transform, i.e. the inverse vertex mapping). */
+const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pitchBytes);
+int   GpuNv2a_Ms(void);
+int   GpuXbox_FbRegionOverlap(int x0, int y0, int x1, int y1);
+void  GpuXbox_FbReadbackForTexture(void); /* psx_vram.c: 16-bit page decode over the fb */
+void  GpuXbox_FbReadbackForStore(void);   /* psx_libgpu_xbox.c StoreImage: fb-rect grab */
+void  GpuXbox_FbStoreFrameTick(void);     /* psx_libgpu_xbox.c VSync: per-frame gate reset */
+
 #endif /* SH_GPU_NV2A_H */

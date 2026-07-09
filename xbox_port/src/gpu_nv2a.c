@@ -39,6 +39,12 @@ static int       s_batchUsed; /* running offset: each draw gets its own slice so
                                * still DMA-reading from an earlier draw */
 static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
 
+/* Most recently COMPLETED frame's surface (captured in FrameEnd just before the
+ * present queues it and pbkit advances its back index). The pbkit ring is 3 deep,
+ * so this buffer stays intact for two more frames — long enough for the gated
+ * framebuffer->PSX-VRAM readback (gpu_xbox.c) to read it mid-walk. */
+static const void* s_lastQueuedFb;
+
 static int s_frameW, s_frameH;
 
 /* Frame counter for gpu_xbox.c's render census (frame-boundary detection). */
@@ -263,12 +269,48 @@ void GpuNv2a_FrameBegin(void)
 
 void GpuNv2a_FrameEnd(void)
 {
+    /* Remember this frame's surface for the framebuffer readback BEFORE
+     * pb_finished() advances pb_back_index (pb_back_buffer() then points at the
+     * NEXT frame's target). */
+    s_lastQueuedFb = (const void*)pb_back_buffer();
+
     /* No pb_busy() drain: that forced strict CPU-then-GPU serialization every frame
      * (frame time = CPU_build + GPU_render + vblank). pb_finished() queues the swap
      * at vblank and only blocks when we're >2 frames ahead (the triple-buffer table
      * is full) — correct backpressure that lets the CPU build frame N+1 while the
      * GPU rasterizes frame N. */
     while (pb_finished()) { }
+}
+
+/* CPU-visible A8R8G8B8 surface for the gated framebuffer->PSX-VRAM readback
+ * (gpu_xbox.c). fromLastQueued=0 returns the CURRENT back buffer — between the
+ * end-of-tick GsDrawOt and the next VSync present that is the fully-composed,
+ * pre-present frame (PSX DrawSync semantics). fromLastQueued=1 returns the last
+ * COMPLETED (queued/presented) frame — the right source when called mid-OT-walk,
+ * when the current back buffer only holds a partial frame. Drains the GPU first
+ * so every submitted draw has landed; the caller is rare-frame gated, so the
+ * stall (and the slow uncached read of write-combined memory) is acceptable. */
+const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pitchBytes)
+{
+    const void* fb;
+
+    if (s_frameW <= 0 || s_frameH <= 0)
+        return 0;               /* no frame targeted yet (early boot) */
+    fb = fromLastQueued ? s_lastQueuedFb : (const void*)pb_back_buffer();
+    if (!fb)
+        return 0;
+    while (pb_busy()) { }       /* GPU idle => the frame is fully rasterized */
+    *w = s_frameW;
+    *h = s_frameH;
+    *pitchBytes = (int)pb_back_buffer_pitch();
+    return fb;
+}
+
+/* Millisecond clock for the readback's took= probe (KeTickCount is the kernel's
+ * 1ms tick counter; integer only — nxdk printf drops %f). */
+int GpuNv2a_Ms(void)
+{
+    return (int)KeTickCount;
 }
 
 void GpuNv2a_WaitVbl(void)
