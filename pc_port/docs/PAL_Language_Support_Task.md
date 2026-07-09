@@ -14,10 +14,12 @@ original spec's errors are corrected here.
 
 ## 0. How to test PAL
 
-- Put ONLY the PAL bin in `gamedata/` (any filename — the game and launcher
-  both identify discs by ISO boot serial now; if a USA bin is also present it
-  wins).
-- `language = en|de|fr|es|it` in config.cfg (launcher has a dropdown).
+- Both bins can stay in `gamedata/` (any filenames — discs are identified by
+  ISO boot serial): pick **Region: PAL** in the launcher, which writes
+  `region = pal` and the game prefers the PAL disc (`auto` = USA wins, the
+  old rule). NTSC-J discs are detected but grey out Play (not supported yet).
+- `language = en|de|fr|es|it` in config.cfg (config-only; the launcher
+  dropdown was repurposed into the Region selector).
 - Expected: readable menus (PAL font at VRAM 768,128), FMVs play, item
   names/descriptions + in-map messages + death-hint TIPS images in the chosen
   language. Menus/save/load/title stay ENGLISH — retail PAL does the same
@@ -111,10 +113,13 @@ original spec's errors are corrected here.
 ## 3. Launcher — DONE
 
 Any `gamedata/*.bin` accepted; discs identified by ISO boot serial
-(`DiscProbe.cs`, table-driven prefixes incl. SLPS/SLPM/SIPS for future
-NTSC-J); detected serial/region shown in the UI; Language dropdown
-round-trips the `language` key. AssemblyFileVersion 2026.7.08.1. Launcher is
-built by the user, never by Claude.
+(`DiscProbe.cs`, table-driven prefixes incl. SLPS/SLPM/SIPS). A **Region**
+dropdown lists the detected versions (NTSC-U/PAL/NTSC-J) and writes the
+`region` config key the game honors when resolving the disc (two-pass
+preferred-then-auto in PcPort_GetGameDiscPath); NTSC-J greys out Play with a
+notice. The Disc label shows the selected version + other available ones.
+Text language is config-only (`language =`). AssemblyFileVersion 2026.7.09.2.
+Launcher is built by the user, never by Claude.
 
 ## 4. FMV — DONE
 
