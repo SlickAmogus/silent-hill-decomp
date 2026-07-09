@@ -36,4 +36,13 @@ const char* Pc_LangItemDesc(int itemIdx);
  * translated strings. No-op unless Pc_LangActive(). */
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
 
+/* Port-written menu translations (lang_menu.c — retail PAL kept every menu
+ * English, the disc has no menu strings to reuse). Called from the
+ * Gfx_StringDraw chokepoint: returns the translated string when one exists
+ * for the active language, else `str` unchanged (US discs: always
+ * unchanged). Pc_LangMenuTextWidth measures a (first line of a) menu string
+ * in pixels for the centered title/difficulty entries. */
+const char* Pc_LangMenuText(const char* str);
+int         Pc_LangMenuTextWidth(const char* str);
+
 #endif

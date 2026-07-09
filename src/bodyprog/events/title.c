@@ -5,6 +5,7 @@
 #include "psx_memory.h"
 #include "pc_config.h"
 #include "map_registry.h"
+#include "lang_text.h" /* menu translations + width for recentred entries */
 #endif
 
 #include <psyq/libetc.h>
@@ -489,7 +490,19 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
             continue;
         }
 
+#ifdef SH_PC_PORT
+        /* Translated entries have different widths — recentre from the
+         * actual string ('[' is 6px wide); untranslated keeps the constant. */
+        {
+            const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[i]);
+            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i])
+                                   ? STR_OFFSETS_X[i]
+                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+            Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
+        }
+#else
         Gfx_StringSetPosition(COLUMN_POS_X - STR_OFFSETS_X[i], COLUMN_POS_Y + (i * STR_OFFSET_Y));
+#endif
         Gfx_StringSetColor(StringColorId_White);
 
         if (i == g_MainMenu_SelectedEntry)
@@ -531,7 +544,17 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     // Draw selection strings.
     for (i = 0; i < DIFFICULTY_MENU_SELECTION_COUNT; i++)
     {
+#ifdef SH_PC_PORT
+        {
+            const char* tr   = Pc_LangMenuText(DIFFICULTY_MENU_ENTRY_STRINGS[i]);
+            s32         offX = (tr == DIFFICULTY_MENU_ENTRY_STRINGS[i])
+                                   ? STR_OFFSETS_X[i]
+                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+            Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
+        }
+#else
         Gfx_StringSetPosition(COLUMN_POS_X - STR_OFFSETS_X[i], COLUMN_POS_Y + (i * STR_OFFSET_Y));
+#endif
         Gfx_StringSetColor(StringColorId_White);
 
         if (i == idx)

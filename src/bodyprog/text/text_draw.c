@@ -8,6 +8,7 @@
 
 #ifdef SH_PC_PORT
 #include "font_region.h" /* Region font layout: US strip vs PAL 21x6 grid. */
+#include "lang_text.h"   /* Pc_LangMenuText — port-written menu translations. */
 #endif
 
 #ifndef PAD_HACK_IGNORE
@@ -149,7 +150,14 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
     SPRT*     glyphSprt;
 
     // Create local argument copies.
+#ifdef SH_PC_PORT
+    /* Menu-translation chokepoint: every menu/UI string funnels through this
+     * function, so a single exact-match lookup localizes them all (misses —
+     * item text, digits, US discs — return the input untouched). */
+    strCpy  = (u8*)Pc_LangMenuText(str);
+#else
     strCpy  = str;
+#endif
     sizeCpy = strLength;
 
     packet = NULL;
