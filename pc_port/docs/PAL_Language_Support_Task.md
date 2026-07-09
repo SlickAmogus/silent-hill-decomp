@@ -145,9 +145,13 @@ region-identical — no timing change.
   — shared COLORS.TIM path is correct for all languages. Closed.
 - Attract demos: PAL DAT inputs may have been re-recorded for 50Hz —
   possible desync at forced 60Hz (cosmetic, attract only). Unverified.
-- In-game Options "Language" row (retail PAL had one): config-only for now;
-  `s_OptionsConfig.palLanguageId` (offset 0x34) exists as the natural
-  persistence slot if ever wanted.
+- ~~Options "Language" row~~ DONE (`316f70b11`): on EUR discs the Auto Load
+  row becomes Language, but ONLY in title-screen options (in-game options
+  keep Auto Load — nothing loaded can go stale; next New Game/Load applies
+  it). Left/right cycles EN/DE/FR/ES/IT and applies live via
+  Pc_LangSetLanguage (config persist + Fs_ApplyLanguageRedirects rebind +
+  item-text reload). The redirect is now idempotent — it actively rebinds
+  EN values too, so switching back works at runtime.
 - `func_8004B76C`-family (dead GsSPRITE glyph funcs, cx=304/v=240): no
   callers on US or EUR; left untouched.
 
