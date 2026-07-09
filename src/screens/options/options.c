@@ -1984,6 +1984,41 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
     // Draw left/right arrows for subset of options.
     if (g_MainOptionsMenu_SelectedEntry >= 4 && g_MainOptionsMenu_SelectedEntry < MainOptionsMenuEntry_Count)
     {
+#ifdef SH_PC_PORT
+        /* The Language row's value names are far wider than the On/Off the
+         * arrow tables were sized for — pull its arrows outward so they
+         * flank every language name instead of overlapping it. */
+        s32 langDx = (g_MainOptionsMenu_SelectedEntry == MainOptionsMenuEntry_AutoLoad &&
+                      Pc_LangMenuRowActive()) ? 26 : 0;
+
+        #define ARROW_DRAW_DX(tris, idx, dx, flashing)              \
+        {                                                           \
+            s_Triangle2d shifted = (tris)[idx];                     \
+            shifted.vertex0.vx  += (dx);                            \
+            shifted.vertex1.vx  += (dx);                            \
+            shifted.vertex2.vx  += (dx);                            \
+            Options_Selection_ArrowDraw(&shifted, flashing, false); \
+        }
+
+        // Draw flashing left/right arrows.
+        for (i = 0; i < 2; i++)
+        {
+            ARROW_DRAW_DX(FRONT_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) * 2) + i,
+                          (i == 0) ? -langDx : langDx, true);
+        }
+
+        // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
+        {
+            ARROW_DRAW_DX(BACK_ARROWS, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx, false);
+        }
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
+        {
+            ARROW_DRAW_DX(BACK_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx, false);
+        }
+
+        #undef ARROW_DRAW_DX
+#else
         // Draw flashing left/right arrows.
         for (i = 0; i < 2; i++)
         {
@@ -1999,6 +2034,7 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         {
             Options_Selection_ArrowDraw(&BACK_ARROWS[((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1], false, false);
         }
+#endif
     }
 
     for (i = 0; i < 3; i++)
