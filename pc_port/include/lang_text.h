@@ -3,14 +3,16 @@
 
 /* PAL language text (config `language`, EUR discs): item names/descriptions
  * come from the disc's VIN/ITEM_<lang>.BIN, in-map messages from the
- * VIN2..VIN5 localized overlays (file table already redirected by
- * Fs_InitFileTableForRegion). PAL text uses a different markup dialect than
- * the compiled US strings ({X} brace codes, real spaces, literal newlines,
- * Latin-1 accents) — everything is translated to the US dialect at load so
- * the stock renderer draws it; accent bytes pass through raw and resolve in
- * text_draw via the region font layout (font_region.c). */
+ * VIN/VIN2..VIN5 localized overlays (file table already redirected by
+ * Fs_InitFileTableForRegion). This includes ENGLISH: PAL-EN is a distinct
+ * retranslation of the US script, so a PAL disc always shows its own text.
+ * PAL text uses a different markup dialect than the compiled US strings
+ * ({X} brace codes, real spaces, literal newlines, Latin-1 accents) —
+ * everything is translated to the US dialect at load so the stock renderer
+ * draws it; accent bytes pass through raw and resolve in text_draw via the
+ * region font layout (font_region.c). */
 
-/* Non-zero when an EUR disc is active and config language is not English. */
+/* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);
 
 /* Non-zero when the options menu should show the Language row (EUR disc +

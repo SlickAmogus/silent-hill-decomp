@@ -27,7 +27,7 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define SECTOR_DATA_OFF 24
 #define SECTOR_DATA_LEN 2048
 
-static const char* s_ItemBinNames[5] = { NULL, "ITEM_GER", "ITEM_FRN", "ITEM_SPN", "ITEM_ITL" };
+static const char* s_ItemBinNames[5] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN", "ITEM_SPN", "ITEM_ITL" };
 
 static char*       s_ItemPool;
 static const char* s_ItemNames[ITEM_TEXT_COUNT];
@@ -61,7 +61,10 @@ static const s_LangMsgSplit s_MsgSplits[] = {
 
 int Pc_LangActive(void)
 {
-    return g_GameRegion == Region_EUR && g_PcConfig.language >= 1 && g_PcConfig.language <= 4;
+    /* Any language INCLUDING English: PAL-EN is its own retranslation
+     * ("Take them?" vs the US "Take_it?"), so a PAL disc always shows its
+     * own text rather than the compiled US strings. */
+    return g_GameRegion == Region_EUR;
 }
 
 /* Read a whole file out of the raw-sector disc image. Caller frees. */

@@ -164,8 +164,10 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
 #ifdef SH_PC_PORT
     fflush(g_ShDebugLog);
     /* PAL language text: the file table redirected this overlay read to the
-     * localized VIN2-5 copy; once it lands, extract + translate its message
-     * table and repoint the compiled map header (compiled maps bake English).
+     * chosen language's copy (VIN = PAL-English — its own retranslation —
+     * or VIN2-5 for DE/FR/ES/IT); once it lands, extract + translate its
+     * message table and repoint the compiled map header (compiled maps bake
+     * the US script).
      * Also re-queue FONT16 on EUR: its atlas home (768,128) shares tpage 12
      * with boot images, and the auto-load-save boot path never passes the
      * title-screen reload — a per-map reload is cheap insurance. */
