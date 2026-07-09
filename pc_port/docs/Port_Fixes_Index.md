@@ -492,3 +492,36 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   `config.yaml` — works as-is, extracted or archived at any nesting depth
   (scan is recursive; names are matched by basename). `texpage-*` entries
   (page-mode dumps) are unsupported and counted in the log.
+
+## PAL (SLES-01514) fonts + languages + FMV batch (2026-07-08, commits `52582ca4b`..`f97055547`)
+
+- **Region-aware FONT16** (`f5dff3a48`): PAL's 21x6 glyph grid lives at VRAM
+  (768,128) tpage 12, CLUT (816,255) — all values from the decrypted EUR
+  BODYPROG (`pc_port/tools/decrypt_eur_overlay.py`, `33b74e812`; the disc
+  "scrambling" is the game's own `Fs_DecryptOverlay` LCG). New
+  `pc_port/src/font_region.c` layout table + `Font_MapChar()` accent scheme
+  (retail-exact: Latin-1 at byte-0x8B, combining marks 114/119 for
+  uppercase); text_draw.c's three draw sites compute UV/tpage/clut from
+  `g_FontLayout` — USA output bit-identical (originals under `#else`).
+  Co-tenant patches: BG_ETC reslice (IMAGE_ETC desc u=32,v=64 on EUR),
+  FLAME → tpage 13 (832,0), particle dust/ember UV remap + rain v-clamp.
+  FONT16 requeued at `GameFs_TitleGfxLoad` + per map load (Konami logo/
+  BG_ETC stomp the font home during boot; retail SLES reloads it too).
+- **Languages de/fr/es/it** (`f97055547`): config `language` redirects the 45
+  VIN map overlays (name char 6 digit → VIN2-5) and 15 TIPS_E TIMs (letter
+  char 5 → G/R/S/T) inside `Fs_InitFileTableForRegion`;
+  `pc_port/src/lang_text.c` parses `ITEM_<lang>.BIN` (195 pairs, base
+  0x800C8B68) through the s_ItemName/s_ItemDesc chokepoints and extracts +
+  translates each map's message table from the loaded overlay (PAL `{X}`
+  dialect → US `~X`, EUR link base 0x800CB370, universal index-3 join + 7
+  probe-verified page-split joins). Also fixes a live PAL bug: the map-anim
+  header patch in player_control.c now rebases EUR-linked overlay pointers
+  (-0x1DF8).
+- **FMV on PAL** (`270574235`): fmv_player opens the resolved disc
+  (`PcPort_GetGameDiscPath`) and takes base sectors from the region-remapped
+  `g_FileTable` (new `PcPort_FileTableStartSector`); all 30 movies verified
+  byte-identical across discs (+0x1E88 sector shift only).
+- **Launcher** (`52582ca4b`): any `gamedata/*.bin`, ISO-serial region probe
+  (`DiscProbe.cs`), disc label in UI, Language dropdown; game-side
+  `g_PcConfig.language`. Full status/reference:
+  `pc_port/docs/PAL_Language_Support_Task.md`.
