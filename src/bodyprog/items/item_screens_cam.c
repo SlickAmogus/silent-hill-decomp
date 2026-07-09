@@ -163,21 +163,38 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 #ifdef SH_PC_PORT
     /* Silently skip degenerate cases that would crash on x86-64.
      * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
-     * that used to kill the process with SIGFPE. */
-    if (arg1->coord2 == NULL) return;
-    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
-    if (arg1->tmd == NULL) return;
-    /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can still
-     * resolve to a garbage TMD object when the inventory holds an item not in
-     * this map's item TMD (hit on the gas tank with give-all-weapons). Absurd
-     * vert/prim counts or NULL data pointers make GsSortObject4J over-read ->
-     * wild GTE vertex read -> AV crash. Skip the draw instead of crashing. */
+     * that used to kill the process with SIGFPE. [ITEMPICK] names the skip
+     * reason — every one of these renders as "item model invisible". */
     {
-        struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
-        int _bad = (_t->vertop == NULL || _t->primtop == NULL ||
-                    _t->vern == 0 || _t->vern > 0x2000 ||
-                    _t->primn == 0 || _t->primn > 0x2000);
-        if (_bad) {
+        static int s_itemSkipLog = 0;
+        const char* skip = NULL;
+        if (arg1->coord2 == NULL) skip = "coord2 NULL";
+        else if (g_Items_Transforms[displayItemIdx].scale.vx == 0) skip = "scale 0";
+        else if (arg1->tmd == NULL) skip = "tmd NULL";
+        else
+        {
+            /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can
+             * still resolve to a garbage TMD object when the inventory holds an
+             * item not in this map's item TMD (hit on the gas tank with
+             * give-all-weapons). Absurd vert/prim counts or NULL data pointers
+             * make GsSortObject4J over-read -> wild GTE vertex read -> AV
+             * crash. Skip the draw instead of crashing. */
+            struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
+            if (_t->vertop == NULL || _t->primtop == NULL ||
+                _t->vern == 0 || _t->vern > 0x2000 ||
+                _t->primn == 0 || _t->primn > 0x2000)
+            {
+                skip = "tmd malformed";
+            }
+        }
+        if (skip != NULL)
+        {
+            if (s_itemSkipLog < 32)
+            {
+                SH_DBG("[ITEMPICK] draw SKIPPED: slot=%d reason=%s (arg2=%d)",
+                       (int)displayItemIdx, skip, (int)arg2);
+                s_itemSkipLog++;
+            }
             return;
         }
     }

@@ -3966,6 +3966,16 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
         struct TMD_STRUCT* obj;
         GsMapModelingData(tmd_hdr);
         obj = GsGetTMDObject(tmd_hdr, loadableItemIdx);
+        {
+            static int s_linkLog = 0;
+            if (s_linkLog < 32)
+            {
+                SH_DBG("[ITEMPICK] map-pack link: slot=%d loadableIdx=%d nobj=%u obj=%s",
+                       (int)displayItemIdx, (int)loadableItemIdx,
+                       (unsigned)tmd->modelCount, obj != NULL ? "ok" : "NULL");
+                s_linkLog++;
+            }
+        }
         if (obj != NULL) {
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
         } else {
@@ -4180,6 +4190,16 @@ void func_80054A04(u8 itemId) // 0x80054A04
             struct TMD_STRUCT* _obj;
             GsMapModelingData(_hdr);
             _obj = GsGetTMDObject(_hdr, 0);
+            {
+                static int s_unqLog = 0;
+                if (s_unqLog < 32)
+                {
+                    SH_DBG("[ITEMPICK] unique-item link: id=0x%x nobj=%u obj=%s",
+                           (unsigned)_tmd->id, (unsigned)_tmd->modelCount,
+                           _obj != NULL ? "ok" : "NULL");
+                    s_unqLog++;
+                }
+            }
             if (_obj != NULL) {
                 GsLinkObject4_PC(_obj, &D_800C3E08);
             } else {
