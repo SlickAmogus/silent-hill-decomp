@@ -79,22 +79,33 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
 void HiresOverride_LogStats(void);
 
 /* ---- Chunk-pool virtual slots (resident_textures) ----
- * CANONICAL ENCODING (every other site refers here): a virtual pool slot's
- * imageDesc carries clutX = 0, clutY = HIRES_POOL_CLUT_ROW_BASE + slotId.
- * Material_FsImageApply packs that into the prim clut halfword as
- * (clutY << 6), i.e. bit 15 set and slotId in bits 6..14 — no valid PSX prim
- * carries bit 15, so the key cannot collide with real geometry. The lookup
- * above takes an O(1) fast path on that bit (and requires the low 6 clut
- * bits to be 0, matching clutX = 0, so garbage cluts with bit 15 set are
- * still rejected 63/64 of the time).
+ * CANONICAL ENCODING (every other site refers here). Chunk TIMs carry
+ * MULTI-ROW CLUTs (palette variants; school TIMs ship 6-12 rows) and each
+ * prim selects its row with a baked clut delta of +64*row that
+ * Model_MaterialFlagsApply preserves across rebasing. The virtual key must
+ * therefore survive "+64*row" without colliding with another slot:
  *
- * PoolSlotRegister decodes `data` (disc TIM or loose PNG/TIM replacement) to
- * RGBA8 and creates/REPLACES the slot's texture in place (engine slot reuse).
- * nativePixelW/H are the DISC TIM's pixel dims — the UV denominator — so a
- * replacement of any resolution maps 0..1 over the original.
- * PoolSlotsReset frees every slot texture; called on map (re)init. */
+ *   imageDesc.clutX = (slotId % 64) * 16          -> clut word bits 0..5
+ *   imageDesc.clutY = 512 + (slotId / 64) * 16    -> clut word bits 6..15
+ *
+ * Material_FsImageApply packs (clutY << 6) | (clutX >> 4): bit 15 set (no
+ * valid PSX prim carries it — clutY 512+ doesn't exist), slot id split
+ * across the X bits (row deltas never touch them) and 16-row-spaced Y
+ * groups. Decode from a prim clut word:
+ *
+ *   q      = ((clut >> 6) & 0x3FF) - 512;         q < 0 -> not virtual
+ *   slotId = (q / 16) * 64 + (clut & 0x3F);
+ *   row    = q % 16;                              (HIRES_POOL_MAX_ROWS)
+ *
+ * PoolSlotRegister decodes `data` (disc TIM or loose PNG/TIM replacement)
+ * to RGBA8 — one texture PER CLUT ROW for TIMs (PNG has one palette: row 0)
+ * — replacing in place on engine slot reuse. A row without a texture falls
+ * back to row 0. nativePixelW/H are the DISC TIM's pixel dims — the UV
+ * denominator — so a replacement of any resolution maps 0..1 over the
+ * original. PoolSlotsReset frees everything; called on map (re)init. */
 #define HIRES_POOL_CLUT_ROW_BASE 512
 #define HIRES_POOL_SLOT_MAX      256
+#define HIRES_POOL_MAX_ROWS      16
 
 int  HiresOverride_PoolSlotRegister(int slotId,
                                     const unsigned char* data, unsigned int size,
@@ -103,7 +114,7 @@ void HiresOverride_PoolSlotsReset(void);
 
 /* Pre-decoded RGBA variants (DuckStation texture-pack composites). The rect
  * form replaces in place when an identical key is re-registered. */
-int  HiresOverride_PoolSlotRegisterRGBA(int slotId,
+int  HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
                                         const unsigned char* rgba, int w, int h,
                                         int nativePixelW, int nativePixelH);
 int  HiresOverride_RegisterRGBA(const char* label,

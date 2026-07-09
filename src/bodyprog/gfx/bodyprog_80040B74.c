@@ -573,17 +573,26 @@ void Ipd_TexturesInit(void) // 0x80041D48
     {
         s32 k;
 
+        /* Virtual slot id -> synthetic clut coords (hires_override.h): the
+         * id is split across the clut X bits (per-prim +64*row palette
+         * deltas never touch them) and 16-row-spaced Y groups, so multi-row
+         * chunk TIMs (school ships 6-12 palette rows) stay disambiguable. */
         for (k = 0; k < PC_TEXPOOL_FULL_EXTRA; k++)
         {
             Texture_Init(&g_Map.chunkTextures.fullPageTextures[8 + k], 0,
-                         0, 8, 0, 0, 0, (s16)(HIRES_POOL_CLUT_ROW_BASE + k));
+                         0, 8, 0, 0,
+                         (s16)((k % 64) * 16),
+                         (s16)(HIRES_POOL_CLUT_ROW_BASE + (k / 64) * HIRES_POOL_MAX_ROWS));
             g_Map.chunkTextures.fullPage.textures[g_Map.chunkTextures.fullPage.count++] =
                 &g_Map.chunkTextures.fullPageTextures[8 + k];
         }
         for (k = 0; k < PC_TEXPOOL_HALF_EXTRA; k++)
         {
+            s32 id = PC_TEXPOOL_FULL_EXTRA + k;
             Texture_Init(&g_Map.chunkTextures.halfPageTextures[2 + k], 0,
-                         0, 26, 0, 0, 0, (s16)(HIRES_POOL_CLUT_ROW_BASE + PC_TEXPOOL_FULL_EXTRA + k));
+                         0, 26, 0, 0,
+                         (s16)((id % 64) * 16),
+                         (s16)(HIRES_POOL_CLUT_ROW_BASE + (id / 64) * HIRES_POOL_MAX_ROWS));
             g_Map.chunkTextures.halfPage.textures[g_Map.chunkTextures.halfPage.count++] =
                 &g_Map.chunkTextures.halfPageTextures[2 + k];
         }

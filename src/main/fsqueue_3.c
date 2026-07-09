@@ -727,29 +727,44 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 }
             }
 
-            /* DuckStation texture pack, matched by content hash of the
-             * upload. Loose gamedata/load replacements above take priority. */
-            if (!registered && TexPack_HasEntries())
-            {
-                int cw = 0, ch = 0;
-                int clutCount = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
-                unsigned char* canvas = TexPack_Compose(
-                    (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
-                    (const unsigned short*)tim.caddr, clutCount, discBitDepth, &cw, &ch);
-                if (canvas != NULL)
-                {
-                    registered = HiresOverride_PoolSlotRegisterRGBA(
-                        slotId, canvas, cw, ch, nativeW, nativeH) == 0;
-                    free(canvas);
-                }
-            }
-
+            /* Base content first — the disc TIM, one texture per CLUT row
+             * (prims select palette rows with baked clut deltas). A loose
+             * replacement above fully covers the slot instead. */
             if (!registered)
             {
                 unsigned int discSize = (unsigned int)ALIGN(
                     entry->info->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
                 HiresOverride_PoolSlotRegister(slotId, (const unsigned char*)entry->externalData,
                                                discSize, nativeW, nativeH);
+
+                /* DuckStation texture pack: per-row palette match, composed
+                 * rows overwrite that row's texture. */
+                if (TexPack_HasEntries())
+                {
+                    int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+                    int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
+                    int r;
+
+                    if (rows < 1) rows = 1;
+                    if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
+
+                    for (r = 0; r < rows; r++)
+                    {
+                        int cw = 0, ch = 0;
+                        const unsigned short* clutRow = (tim.caddr != NULL)
+                            ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
+                            : NULL;
+                        unsigned char* canvas = TexPack_Compose(
+                            (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
+                            clutRow, clutW, discBitDepth, &cw, &ch);
+                        if (canvas != NULL)
+                        {
+                            HiresOverride_PoolSlotRegisterRGBA(
+                                slotId, r, canvas, cw, ch, nativeW, nativeH);
+                            free(canvas);
+                        }
+                    }
+                }
             }
         }
     }
