@@ -18,13 +18,18 @@
 #define VRAM_W   1024
 #define VRAM_H   512
 #define TEX_DIM  256                 /* a PSX texture page is 256x256 texels */
-#define CACHE_N  48                  /* 48 * 256KB = 12 MB of decoded textures */
+/* 96 * 256KB = 24 MB of decoded textures. 48 fit map0_s00, but the cafe
+ * cutscene's working set (interior + Cybil + Harry closeups + air-screamer
+ * effects, each (tpage,clut) pair its own slot) exceeded it and the round-robin
+ * eviction thrashed: 38k decodes in one session = <1 fps. 64MB RAM has room. */
+#define CACHE_N  96
 
 static uint16_t s_vram[VRAM_W * VRAM_H];
 
 typedef struct {
     int       key;
     uint32_t* argb;
+    unsigned  lastUse;        /* frame of last GetTexture hit (LRU eviction) */
     /* Source-VRAM footprint of this decoded page, in 16-bit words, [x0,x1) x
      * [y0,y1). Page rect and CLUT rect are tracked separately so a CLUT-only
      * write still invalidates an indexed page that samples it. */
@@ -32,9 +37,10 @@ typedef struct {
     int cx0, cy0, cx1, cy1;   /* CLUT rect (empty for 16-bit direct) */
 } TexEntry;
 static TexEntry s_cache[CACHE_N];
-static int      s_cacheNext;
 static int      s_cacheReady;
 static int      s_decodeTotal;
+
+extern int g_Nv2aFrameCount;  /* LRU clock (gpu_nv2a.c, ticks per frame) */
 
 /* Record the VRAM footprint for (tpage,clut) using the SAME derivation as
  * DecodePage, so the overlap test below matches exactly what was sampled. */
@@ -84,7 +90,7 @@ static void InvalidateRegion(int wx0, int wy0, int wx1, int wy1)
 /* LoadImage: copy w*h 16-bit source pixels into VRAM at (x,y), row by row. */
 void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
 {
-    int row, yend;
+    int row, yend, changed = 0;
 
     if (!src || w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
@@ -92,12 +98,21 @@ void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
     if (x + w > VRAM_W) w = VRAM_W - x;
     yend = y;
     for (row = 0; row < h; row++) {
-        int vy = y + row;
+        int       vy = y + row;
+        uint16_t* d;
         if (vy >= VRAM_H) break;
-        memcpy(&s_vram[vy * VRAM_W + x], &src[row * w], (size_t)w * 2);
+        d = &s_vram[vy * VRAM_W + x];
+        /* Only rows that actually CHANGE dirty the cache. The game re-uploads
+         * identical CLUTs constantly (per-frame character transparency toggles,
+         * repeated palette sets in cutscenes); invalidating on those forced
+         * full page re-decodes every frame — a major thrash source. */
+        if (!changed && memcmp(d, &src[row * w], (size_t)w * 2) != 0)
+            changed = 1;
+        memcpy(d, &src[row * w], (size_t)w * 2);
         yend = vy + 1;
     }
-    InvalidateRegion(x, y, x + w, yend);   /* selective, not nuke-all */
+    if (changed)
+        InvalidateRegion(x, y, x + w, yend);   /* selective, not nuke-all */
 }
 
 /* MoveImage / DR_MOVE: VRAM->VRAM rectangle copy (water refraction, copy-based
@@ -132,10 +147,11 @@ void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy)
     InvalidateRegion(dx, dy, dx + w, dy + h);
 }
 
-/* ClearImage: fill a VRAM rect with a BGR555 colour (colour wipes/flashes). */
+/* ClearImage: fill a VRAM rect with a BGR555 colour (colour wipes/flashes).
+ * Repeated identical fills (per-frame interlaced clears) don't dirty the cache. */
 void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
 {
-    int row, col;
+    int row, col, changed = 0;
 
     if (w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
@@ -145,10 +161,12 @@ void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
         uint16_t* d;
         if (vy >= VRAM_H) break;
         d = &s_vram[vy * VRAM_W + x];
-        for (col = 0; col < w; col++)
-            d[col] = c;
+        for (col = 0; col < w; col++) {
+            if (d[col] != c) { d[col] = c; changed = 1; }
+        }
     }
-    InvalidateRegion(x, y, x + w, y + h);
+    if (changed)
+        InvalidateRegion(x, y, x + w, y + h);
 }
 
 /* StoreImage: read VRAM back out (rarely used; provided for completeness). */
@@ -248,15 +266,29 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     }
 
     for (i = 0; i < CACHE_N; i++)
-        if (s_cache[i].key == key && s_cache[i].argb)
+        if (s_cache[i].key == key && s_cache[i].argb) {
+            s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
             return s_cache[i].argb;
+        }
 
-    i = s_cacheNext;
-    s_cacheNext = (s_cacheNext + 1) % CACHE_N;
-    if (!s_cache[i].argb)
-        return 0;
+    /* Miss: fill a free slot, else evict the least-recently-used. (The old
+     * round-robin evicted HOT entries under pressure — with a working set just
+     * over capacity that meant re-decoding almost every page every frame.) */
+    {
+        int      best = -1;
+        unsigned bestUse = 0xFFFFFFFFu;
+        for (i = 0; i < CACHE_N; i++) {
+            if (!s_cache[i].argb) continue;
+            if (s_cache[i].key == -1) { best = i; break; }
+            if (s_cache[i].lastUse < bestUse) { bestUse = s_cache[i].lastUse; best = i; }
+        }
+        if (best < 0)
+            return 0;
+        i = best;
+    }
     DecodePage(tpage, clut, s_cache[i].argb);
-    s_cache[i].key = key;
+    s_cache[i].key     = key;
+    s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     TexEntry_SetBBox(&s_cache[i], tpage, clut);   /* record VRAM footprint for selective invalidation */
     /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
      * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
