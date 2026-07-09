@@ -44,6 +44,10 @@ typedef struct {
     int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
                            * (texupload-*.png, loose folders or .zip archives) and apply them by content
                            * hash at TIM upload (config key: texture_packs) */
+    int wholeMapExteriors; /* EXPERIMENTAL, default 0: texture + draw every loaded exterior chunk (whole
+                            * town resident — combine with fogstr to see it). Costs draw time and shows
+                            * geometry vanilla never rendered at once. Requires preload_chunks and
+                            * resident_textures. (config key: whole_map_exteriors) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */

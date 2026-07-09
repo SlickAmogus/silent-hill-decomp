@@ -1728,7 +1728,14 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * geometry visible) and mass-claims hundreds of slots simultaneously —
      * broke the Lenin St house (exterior-class map2_s00 hosts interior
      * cells). Whole-map exterior draw distance is its own future task. */
-    if (!g_Map.isExterior && g_PcConfig.residentTextures)
+    /* whole_map_exteriors (EXPERIMENTAL): opt back into exterior texture-all
+     * now that virtual slots decode palette rows correctly (the mass-claim
+     * garbling that broke the Lenin St house). Exteriors draw their whole
+     * textured set by design, so this makes the entire town render — heavy,
+     * and gated on preloadChunks (streaming mode needs the release churn). */
+    if ((!g_Map.isExterior ||
+         (g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks)) &&
+        g_PcConfig.residentTextures)
     {
         /* Visibility stays the vanilla-equivalent 4-nearest rule even though
          * every chunk keeps its textures: the draw gate's implicit
@@ -1755,6 +1762,13 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
             Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
             Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+
+            /* Exteriors draw their whole textured set; the draw-set gate is
+             * interior-only. */
+            if (g_Map.isExterior)
+            {
+                continue;
+            }
 
             d = MIN(curChunk->paddedDistanceToEdge0, curChunk->paddedDistanceToEdge1);
             for (ins = 0; ins < drawCount; ins++)
