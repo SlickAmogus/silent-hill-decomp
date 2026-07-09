@@ -1730,8 +1730,23 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * cells). Whole-map exterior draw distance is its own future task. */
     if (!g_Map.isExterior && g_PcConfig.residentTextures)
     {
+        /* Visibility stays the vanilla-equivalent 4-nearest rule even though
+         * every chunk keeps its textures: the draw gate's implicit
+         * "untextured = invisible" no longer hides neighbor rooms inside the
+         * ±2/±1 cell window once everything is textured, so out-of-room
+         * geometry ghosted into open areas (school-courtyard corridor).
+         * pcInDrawSet feeds Ipd_CellPositionMatchCheck. */
+        enum { PC_INTERIOR_DRAWN_CHUNKS = 4 };
+        s_Chunk* draw[PC_INTERIOR_DRAWN_CHUNKS];
+        s32      drawCount = 0;
+        s32      ins;
+        s32      j;
+        q19_12   d;
+
         for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
         {
+            curChunk->pcInDrawSet = 0;
+
             if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
                 curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
             {
@@ -1740,6 +1755,32 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
             Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
             Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+
+            d = MIN(curChunk->paddedDistanceToEdge0, curChunk->paddedDistanceToEdge1);
+            for (ins = 0; ins < drawCount; ins++)
+            {
+                if (d < MIN(draw[ins]->paddedDistanceToEdge0, draw[ins]->paddedDistanceToEdge1))
+                {
+                    break;
+                }
+            }
+            if (ins < PC_INTERIOR_DRAWN_CHUNKS)
+            {
+                for (j = (drawCount < PC_INTERIOR_DRAWN_CHUNKS - 1) ? drawCount : (PC_INTERIOR_DRAWN_CHUNKS - 1); j > ins; j--)
+                {
+                    draw[j] = draw[j - 1];
+                }
+                draw[ins] = curChunk;
+                if (drawCount < PC_INTERIOR_DRAWN_CHUNKS)
+                {
+                    drawCount++;
+                }
+            }
+        }
+
+        for (ins = 0; ins < drawCount; ins++)
+        {
+            draw[ins]->pcInDrawSet = 1;
         }
 
         return;
@@ -2244,6 +2285,15 @@ bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
         if (!map->isExterior && MapRegistry_IsExactCellArena())
         {
             return dx == 0 && dz == 0;
+        }
+        /* With resident textures, every loaded interior chunk is textured,
+         * so the window alone would draw neighbor ROOMS into open areas
+         * (school-courtyard ghost). Require membership in the 4-nearest
+         * draw set (Ipd_ChunkMaterialsApply) — the same visibility the
+         * distance-limited texturing used to enforce. */
+        if (!map->isExterior && g_PcConfig.residentTextures && !chunk->pcInDrawSet)
+        {
+            return false;
         }
         if (dx >= -2 && dx <= 2 && dz >= -1 && dz <= 1) return true;
     }
