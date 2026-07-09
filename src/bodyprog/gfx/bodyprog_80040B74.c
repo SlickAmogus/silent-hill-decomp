@@ -1732,9 +1732,17 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * now that virtual slots decode palette rows correctly (the mass-claim
      * garbling that broke the Lenin St house). Exteriors draw their whole
      * textured set by design, so this makes the entire town render — heavy,
-     * and gated on preloadChunks (streaming mode needs the release churn). */
+     * and gated on preloadChunks (streaming mode needs the release churn).
+     *
+     * Street room ONLY (mapRoomIdx 0): street geometry is AUTHORED straight
+     * through enterable-house volumes (ground/trees continue under the
+     * floor) — vanilla's near-chunk texturing was the only thing keeping
+     * the two apart. Inside any house room, fall back to the vanilla
+     * distance loop so the overlapping street releases its textures and
+     * disappears, exactly like retail. */
     if ((!g_Map.isExterior ||
-         (g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks)) &&
+         (g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
+          g_SavegamePtr->mapRoomIdx == 0)) &&
         g_PcConfig.residentTextures)
     {
         /* Visibility stays the vanilla-equivalent 4-nearest rule even though
