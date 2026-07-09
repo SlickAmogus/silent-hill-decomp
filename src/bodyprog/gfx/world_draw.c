@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
+#endif
 #endif
 
 #include <psyq/libetc.h>
@@ -70,6 +73,14 @@ void func_8003BED0(void) // 0x8003BED0
     {
         return;
     }
+
+#ifdef SH_PC_PORT
+    /* PAL reslices BG_ETC.TIM (US 128x256 -> 256x128, bottom half placed to
+     * the right): the material band at US atlas v=192 lives at cells (32,64)
+     * on PAL (SLES desc 0x800A9ABC). CLUT home (192,0) is unchanged. */
+    IMAGE_ETC.u = (g_GameRegion == Region_EUR) ? 32 : 0;
+    IMAGE_ETC.v = (g_GameRegion == Region_EUR) ? 64 : 192;
+#endif
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "TIM00", &IMAGE_TIM, 1);

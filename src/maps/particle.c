@@ -27,6 +27,32 @@
 #include "maps/map5/map5_s01.h"
 #endif
 
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion */
+
+/* PAL reslices BG_ETC.TIM (US 128x256 -> 256x128, bottom half placed to the
+ * right): US texels with v >= 128 — the dust/ember sprite band these
+ * particles sample at v=240..255 — moved to (u+128, v-128). Fix a page-12
+ * FT4's UVs in place after they are set (u saturates: the u=128 right edge
+ * becomes 255, losing under one texel). */
+static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
+{
+    if (g_GameRegion != Region_EUR || poly->v0 < 128)
+    {
+        return;
+    }
+
+    poly->u0 = (poly->u0 > 127) ? 255 : (poly->u0 + 128);
+    poly->u1 = (poly->u1 > 127) ? 255 : (poly->u1 + 128);
+    poly->u2 = (poly->u2 > 127) ? 255 : (poly->u2 + 128);
+    poly->u3 = (poly->u3 > 127) ? 255 : (poly->u3 + 128);
+    poly->v0 -= 128;
+    poly->v1 -= 128;
+    poly->v2 -= 128;
+    poly->v3 -= 128;
+}
+#endif
+
 // Particle-related functions.
 //
 // TODO:
@@ -1941,6 +1967,10 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
         }
     }
 
+#ifdef SH_PC_PORT
+    Pc_BgEtcSpriteBandUvFix(poly);
+#endif
+
     if (Game_FlashlightIsOn())
     {
         temp_v0 = func_80055D78(g_SysWork.playerWork.player.position.vx + arg2->field_0.vx,
@@ -2190,6 +2220,10 @@ void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
                 }
         }
     }
+
+#ifdef SH_PC_PORT
+    Pc_BgEtcSpriteBandUvFix(poly);
+#endif
 
     poly->b0 = poly->g0 = poly->r0 = 0x80;
 
@@ -2873,6 +2907,13 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 #endif
 
                 setUV4(poly, 10, 112, 10, 128, 13, 112, 13, 128);
+#ifdef SH_PC_PORT
+                /* See the twin site below: keep rain off the PAL font row. */
+                if (g_GameRegion == Region_EUR)
+                {
+                    poly->v1 = poly->v3 = 127;
+                }
+#endif
 
                 if (!(depth > 63 && depth < 256))
                 {
@@ -3115,6 +3156,14 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
         setPolyFT4(poly);
         setSemiTrans(poly, 1);
         setUV4(poly, 10, 112, 10, 128, 13, 112, 13, 128);
+#ifdef SH_PC_PORT
+        /* v=128 is the PAL FONT16 top row — clamp the bottom edge so rain
+         * streaks can't rasterize a glyph sliver (texels 112..127 unmoved). */
+        if (g_GameRegion == Region_EUR)
+        {
+            poly->v1 = poly->v3 = 127;
+        }
+#endif
         setRGB0(poly, colorComp, colorComp, colorComp + 0x18);
 
         poly->tpage = 44;

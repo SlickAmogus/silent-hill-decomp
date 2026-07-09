@@ -6,6 +6,10 @@
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+#include "font_region.h" /* Region font layout: US strip vs PAL 21x6 grid. */
+#endif
+
 #ifndef PAD_HACK_IGNORE
     const s32 pad_rodata_80025D68 = 0;
     s8 __pad_bss_800C38B2[2];
@@ -26,8 +30,15 @@ static const u8 FONT_12X16_GLYPH_WIDTHS[FONT_12X16_GLYPH_COUNT] = {
     7,  11, 11, 6,  6,  10, 6,  13, 11, 10, 11, 10, 8,  8,  7,  10, 10, 12, 10, 10, 9
 };
 
+#ifdef SH_PC_PORT
+    /* Mutable on PC: retail EUR dims LightGrey — patched at region init. */
+    #define STRING_COLORS_CONST
+#else
+    #define STRING_COLORS_CONST const
+#endif
+
 /** @brief See `e_StringColorId`. */
-static const u32 STRING_COLORS[StringColorId_Count] = {
+static STRING_COLORS_CONST u32 STRING_COLORS[StringColorId_Count] = {
     COLOR_RGBC(160, 128, 64,  PRIM_RECT | RECT_TEXTURE),
     COLOR_RGBC(32,  32,  32,  PRIM_RECT | RECT_TEXTURE),
     COLOR_RGBC(24,  128, 40,  PRIM_RECT | RECT_TEXTURE),
@@ -62,6 +73,15 @@ s32        g_MapMsg_Widths[12];
 GsSPRITE   g_MapMsg_GlyphSprite;
 s16        D_800C391C;
 s32        D_800C3920;
+
+#ifdef SH_PC_PORT
+/* Region hook (font_region.c): retail EUR ships STRING_COLORS[LightGrey] as
+ * (64,64,64) instead of the US (100,100,100). */
+void Gfx_StringLightGreyColorPatch(unsigned char r, unsigned char g, unsigned char b)
+{
+    STRING_COLORS[StringColorId_LightGrey] = COLOR_RGBC(r, g, b, PRIM_RECT | RECT_TEXTURE);
+}
+#endif
 
 void Gfx_StringSetPosition(s32 x, s32 y) // 0x8004A87C
 {
@@ -180,6 +200,82 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
             posX--;
         }
         // Regular character.
+#ifdef SH_PC_PORT
+        /* Region font layout: same math as the original, with the layout
+         * constants (v base, tpage, CLUT, widths) coming from g_FontLayout.
+         * With the USA layout the emitted prim words are bit-identical to the
+         * hardcoded originals kept in the #else. Bytes >= 0x80 are the PAL
+         * accents (up to 2 emissions: combining mark + base letter). */
+        else if ((charCode >= GLYPH_TABLE_ASCII_OFFSET && charCode <= 'z') || charCode >= 0x80)
+        {
+            s_GlyphEmit emits[2];
+            s32         emitCount;
+            s32         emitIdx;
+
+            sizeCpy--;
+            emitCount = Font_MapChar(charCode, emits);
+
+            for (emitIdx = 0; emitIdx < emitCount; emitIdx++)
+            {
+                s32 row;
+                s32 vTop;
+                u32 page;
+                s32 drawY;
+
+                glyphIdx   = emits[emitIdx].cell;
+                glyphWidth = emits[emitIdx].advance;
+                drawY      = posY + emits[emitIdx].dy;
+                row        = glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT;
+                vTop       = g_FontLayout->vBase + ((row % g_FontLayout->rowsPerPage) * FONT_12X16_GLYPH_SIZE_Y);
+                page       = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
+                u0         = (glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
+
+                // Draw glyph sprite.
+                if (g_SysWork.enableHighResGlyphs)
+                {
+                    glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
+
+                    setPolyFT4(glyphPoly);
+                    setRGB0(glyphPoly, glyphColor, glyphColor >> 8, glyphColor >> 16);
+                    setXY4(glyphPoly,
+                           posX,                           drawY * 2,
+                           posX,                           (drawY * 2) + 30,
+                           posX + FONT_12X16_GLYPH_SIZE_X, drawY * 2,
+                           posX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + 30);
+
+                    *((u32*)&glyphPoly->u0) = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
+                    *((u32*)&glyphPoly->u1) = u0 + (page << 16) + ((vTop + 15) << 8);              // `u1`, `v1`, `page`.
+                    *((u16*)&glyphPoly->u2) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + (vTop << 8));   // `u2`, `v2`.
+                    *((u16*)&glyphPoly->u3) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
+
+                    addPrim(ot, glyphPoly);
+                    GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
+                }
+                else
+                {
+                    posXCpy = (u16)posX;
+
+                    glyphSprt              = (SPRT*)packet;
+                    *((u32*)&glyphSprt->w) = 0x10000C;
+
+                    addPrimFast(ot, glyphSprt, 4);
+                    *((u32*)&glyphSprt->r0)   = glyphColor;
+                    *((u32*)(&glyphSprt->x0)) = posXCpy + (drawY << 16);
+                    *((u32*)&glyphSprt->u0)   = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
+
+                    packet += sizeof(SPRT);
+
+                    tPage = (DR_TPAGE*)packet;
+                    setDrawTPage(tPage, 0, 1, page);
+                    addPrim(ot, tPage);
+
+                    packet += sizeof(DR_TPAGE);
+                }
+
+                posX += glyphWidth;
+            }
+        }
+#else
         else if (charCode >= GLYPH_TABLE_ASCII_OFFSET && charCode <= 'z')
         {
             sizeCpy--;
@@ -238,6 +334,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                 packet += sizeof(DR_TPAGE);
             }
         }
+#endif
         // Newline.
         else if (charCode == '\n')
         {
@@ -370,7 +467,24 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
                     charCode = '^';
                 }
 
+#ifdef SH_PC_PORT
+                /* Region font layout: identical widths for US bytes; PAL
+                 * accent bytes sum their emissions (mark advance is 0). */
+                {
+                    s_GlyphEmit emits[2];
+                    s32         emitCount;
+                    s32         emitIdx;
+
+                    emitCount = Font_MapChar((u8)charCode, emits);
+
+                    for (emitIdx = 0; emitIdx < emitCount; emitIdx++)
+                    {
+                        g_MapMsg_Widths[g_MapMsg_WidthIdx - 1] += emits[emitIdx].advance;
+                    }
+                }
+#else
                 g_MapMsg_Widths[g_MapMsg_WidthIdx - 1] += FONT_12X16_GLYPH_WIDTHS[charCode - GLYPH_TABLE_ASCII_OFFSET];
+#endif
                 mapMsg++;
                 break;
         }
@@ -477,7 +591,13 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     for (lineIdx = 0; lineIdx < FONT_12X16_LINE_COUNT_MAX;)
     {
         // Convert literal `!` and `&` into `char`s mappable to representative atlas glyphs.
+#ifdef SH_PC_PORT
+        /* Read unsigned: PAL accent bytes (0x80+) must not sign-extend into
+         * negative glyph indices (mapMsg is char*, signed on this target). */
+        charCode = *(u8*)mapMsg;
+#else
         charCode = *mapMsg;
+#endif
         if (charCode == '!')
         {
             charCode = '\\';
@@ -633,6 +753,77 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
         default:
             strLength--;
 
+#ifdef SH_PC_PORT
+            /* Region font layout (see Gfx_StringDraw): USA output is
+             * bit-identical to the original constants kept in the #else;
+             * PAL accent bytes emit up to 2 glyphs (combining mark + base). */
+            {
+                s_GlyphEmit emits[2];
+                s32         emitCount;
+                s32         emitIdx;
+
+                emitCount = Font_MapChar(charCode, emits);
+
+                for (emitIdx = 0; emitIdx < emitCount; emitIdx++)
+                {
+                    s32 row;
+                    s32 vTop;
+                    u32 page;
+                    s32 drawY;
+
+                    idx       = emits[emitIdx].cell;
+                    charWidth = emits[emitIdx].advance;
+                    drawY     = glyphPosY + emits[emitIdx].dy;
+                    row       = idx / FONT_12X16_ATLAS_COLUMN_COUNT;
+                    vTop      = g_FontLayout->vBase + ((row % g_FontLayout->rowsPerPage) * FONT_12X16_GLYPH_SIZE_Y);
+                    page      = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
+                    temp_a0   = (idx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
+
+                    if (g_SysWork.enableHighResGlyphs)
+                    {
+                        glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
+
+                        setPolyFT4(glyphPoly);
+                        setRGB0(glyphPoly, (s8)color, (s8)(color >> 8), (s8)(color >> 16));
+                        setXY4(glyphPoly,
+                               glyphPosX,                           drawY * 2,
+                               glyphPosX,                           (drawY * 2) + 30,
+                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, drawY * 2,
+                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + 30);
+
+                        *((u32*)&glyphPoly->u0) = temp_a0 + (vTop << 8) + (g_FontLayout->packedClut << 16);      // `u0`, `v0`, `clut`.
+                        *((u32*)&glyphPoly->u1) = temp_a0 + (page << 16) + ((vTop + 15) << 8);                   // `u1`, `v1`, `page`.
+                        *((u16*)&glyphPoly->u2) = (u16)(temp_a0 + FONT_12X16_GLYPH_SIZE_X + (vTop << 8));        // `u2`, `v2`.
+                        *((u16*)&glyphPoly->u3) = (u16)(temp_a0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
+
+                        addPrim(ot, glyphPoly);
+                        GsOUT_PACKET_P = (PACKET*)glyphPoly + sizeof(POLY_FT4);
+                    }
+                    else
+                    {
+                        temp_a0_2 = (u16)glyphPosX;
+
+                        glyphSprt              = (SPRT*)packet;
+                        *((u32*)&glyphSprt->w) = 0x10000C;
+
+                        addPrimFast(ot, glyphSprt, 4);
+                        *((u32*)&glyphSprt->r0)   = color;
+                        *((u32*)(&glyphSprt->x0)) = temp_a0_2 + (drawY << 16);
+                        *((u32*)&glyphSprt->u0)   = temp_a0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
+
+                        packet += sizeof(SPRT);
+
+                        tPage = (DR_TPAGE*)packet;
+                        setDrawTPage(tPage, 0, 1, page);
+                        addPrim(ot, tPage);
+
+                        packet += sizeof(DR_TPAGE);
+                    }
+
+                    glyphPosX += charWidth;
+                }
+            }
+#else
             if (g_SysWork.enableHighResGlyphs)
             {
                 glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
@@ -683,6 +874,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                 packet += sizeof(DR_TPAGE);
             }
+#endif
 
             mapMsg++;
 

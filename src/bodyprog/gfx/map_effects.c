@@ -17,6 +17,9 @@
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion — PAL FLAME relocation */
+#endif
 #include "screens/stream/stream.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
@@ -61,6 +64,25 @@ void GameFs_FlameGfxLoad(void) // 0x8003E710
         .clutX = 800,
         .clutY = 64
     };
+
+#ifdef SH_PC_PORT
+    /* The PAL-shaped BG_ETC (256x128 at (768,0)) covers the US FLAME home
+     * (800,0) and its CLUT row; retail SLES moved FLAME to tpage 13:
+     * dest (832,0), CLUT (832,64). The draw site in func_8003E740 switches
+     * its tpage/clut/UVs to match. */
+    if (g_GameRegion == Region_EUR)
+    {
+        IMG_FLAME.tPage[1] = 13;
+        IMG_FLAME.u        = 0;
+        IMG_FLAME.clutX    = 832;
+    }
+    else
+    {
+        IMG_FLAME.tPage[1] = 12;
+        IMG_FLAME.u        = 32;
+        IMG_FLAME.clutX    = 800;
+    }
+#endif
 
     Fs_QueueStartReadTim(FILE_TIM_FLAME_TIM, FS_BUFFER_1, &IMG_FLAME);
 }
@@ -133,8 +155,15 @@ void func_8003E740(void) // 0x8003E740
         }
 
         setRGB0(poly, D_800A9FB0 + 48, D_800A9FB0 + 48, D_800A9FB0 + 48);
+#ifdef SH_PC_PORT
+        /* FLAME lives in tpage 13 (832,0) clut (832,64) on PAL — see
+         * GameFs_FlameGfxLoad. */
+        poly->tpage = (g_GameRegion == Region_EUR) ? 45 : 44;
+        poly->clut  = (g_GameRegion == Region_EUR) ? 4148 : 4146;
+#else
         poly->tpage = 44;
         poly->clut  = 4146;
+#endif
 
         var_a0 = &D_800BCDE8[idx++];
 
@@ -176,10 +205,18 @@ void func_8003E740(void) // 0x8003E740
         poly->x3 = sp10.vx + sp58.vx;
         poly->y3 = sp10.vy + sp58.vy;
 
+#ifdef SH_PC_PORT
+        /* PAL FLAME sits at u=0 of its own tpage instead of u=128 of BG_ETC's. */
+        poly->u0 = (g_GameRegion == Region_EUR) ? 0 : 128;
+        poly->u1 = poly->u0 + 63;
+        poly->u2 = poly->u0;
+        poly->u3 = poly->u0 + 63;
+#else
         poly->u0 = 128;
         poly->u1 = 191;
         poly->u2 = 128;
         poly->u3 = 191;
+#endif
 
         poly->v0 = 0;
         poly->v1 = 0;
