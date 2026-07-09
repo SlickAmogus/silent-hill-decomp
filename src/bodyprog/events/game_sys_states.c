@@ -840,6 +840,27 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     fflush(g_ShDebugLog);
 #endif
 
+#ifdef SH_XBOX_PORT
+    /* Backstop for the Event_Update guards: if ANY path (map event callback,
+     * script, save load) reaches the overlay-load state for a map that is not
+     * static-linked, refuse the transition BEFORE it commits processFlags /
+     * g_SavegamePtr->mapIdx / GameBoot_MapLoad — loading with the stale
+     * map0_s00 header produces the infinite GameState 10<->11 loop and
+     * downstream memory corruption. */
+    {
+        extern int  MapXbox_OverlayIsLinked(int mapIdx);
+        extern void MapXbox_LogUnlinkedOverlay(int mapIdx, const char* where);
+
+        if (g_SysWork.sysState == SysState_LoadOverlay &&
+            !MapXbox_OverlayIsLinked(g_MapEventData->mapIdx))
+        {
+            MapXbox_LogUnlinkedOverlay(g_MapEventData->mapIdx, "SysState_LoadArea_Update");
+            SysWork_StateSetNext(SysState_Gameplay);
+            return;
+        }
+    }
+#endif
+
     g_SysWork.unused_229C            = 0;
     g_SysWork.loadingScreenIdx = D_800BCDB0.loadingScreenId;
     g_SysWork.sfxPairIdx_2283       = g_MapEventData->sfxPairIdx_8_19;

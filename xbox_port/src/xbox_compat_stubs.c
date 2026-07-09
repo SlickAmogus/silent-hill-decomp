@@ -73,11 +73,8 @@ void CollVis_CaptureHit(void)           { }
 void CollVis_CaptureSeg(void)           { }
 void CollVis_ClearCell(void)            { }
 
-/* --- map overlay registry (PC map_registry.c excluded) ---------------------
- * The game only static-links map0_s00; these return its fixed identity. */
-int         MapRegistry_Count(void)           { return 1; }
-int         MapRegistry_FindByName(void)       { return 0; }   /* MapIdx_MAP0_S00 */
-const char* MapRegistry_GetName(void)          { return "map0_s00"; }
-const char* MapRegistry_GetDescription(void)   { return "Otherworld Alley"; }
-int         MapRegistry_IsExactCellArena(void) { return 0; }
-void        MapRegistry_Load(void)             { }
+/* --- map overlay registry: real implementation moved to map_xbox.c ---------
+ * The old blind stubs here (FindByName()=0, Load()=no-op) made every overlay
+ * request "succeed" while keeping map0_s00's header active — the root cause of
+ * the end-of-intro infinite transition loop. map_xbox.c now answers truthfully
+ * and logs every request. */

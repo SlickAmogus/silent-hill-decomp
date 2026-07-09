@@ -20,6 +20,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"   /* PSX_ADDR, PsxMemory_Init (includes only <stdint.h>) */
 
+extern void Crash_InstallSehFrame(void* stackFrame); /* crash_xbox.c */
 extern void XboxFs_MountHomeDrive(void);
 extern void Gte_SelfTest(void);
 extern void Pad_XboxInit(void);   /* USB controller init (pad_xbox.c) */
@@ -125,10 +126,17 @@ static void Sh_InitGameData(void)
 
 int main(void)
 {
+    /* Unhandled-exception logger frame. MUST be a main() local: the kernel's
+     * SEH dispatcher validates registration records against the thread's
+     * stack bounds, and main()'s frame lives for the program's life (MainLoop
+     * never returns). {prev, handler} — filled in by Crash_InstallSehFrame. */
+    struct { void* prev; void* handler; } sehFrame = { 0, 0 };
+
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
     XboxFs_MountHomeDrive();
     SH_DebugLogInit();
+    Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
     debugPrint("Silent Hill (Xbox) booting...\n");
     SH_DBG("[SH-XBOX] boot: video 640x480x32");
 

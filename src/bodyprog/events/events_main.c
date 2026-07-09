@@ -11,6 +11,17 @@
 #include "bodyprog/math/math.h"
 #include "sh_log.h"
 
+#ifdef SH_XBOX_PORT
+#include "bodyprog/screen/screen_fade.h" /* recovery fade-in when a transition is refused */
+/* map_xbox.c. Only map0_s00 is static-linked into the xbe; a SysState_LoadOverlay
+ * event for any other map must be refused HERE, before it dispatches. On PSX the
+ * overlay swap replaces the events table, which is what stops TriggerType_None
+ * overlay events from re-firing; with the fixed map0_s00 header they would fire
+ * every frame forever (the end-of-intro GameState 10<->11 loop). */
+extern int  MapXbox_OverlayIsLinked(int mapIdx);
+extern void MapXbox_LogUnlinkedOverlay(int mapIdx, const char* where);
+#endif
+
 // 0x80037388 — un-nested from Event_Update: clang/nxdk does not support GCC's
 // nested-function extension. A file-scope static is behavior-identical (no parent
 // locals were captured) and still compiles fine under the PC port's gcc.
@@ -62,6 +73,20 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         g_MapEventLastUsedItem = g_SysWork.playerWork.extra.lastUsedItem;
         g_MapEventSysState     = g_MapEventData->sysState;
         g_MapEventParam        = g_MapEventData->eventParam;
+
+#ifdef SH_XBOX_PORT
+        /* Item-activated inter-map door (key on a map-boundary door) whose
+         * target overlay is not linked: swallow the event instead of
+         * dispatching a transition that cannot complete. */
+        if (g_MapEventData->sysState == SysState_LoadOverlay &&
+            !MapXbox_OverlayIsLinked(g_MapEventData->mapIdx))
+        {
+            MapXbox_LogUnlinkedOverlay(g_MapEventData->mapIdx, "Event_Update(item)");
+            g_MapEventData     = NULL;
+            g_MapEventSysState = SysState_Invalid;
+            g_MapEventParam    = 0;
+        }
+#endif
 
         g_SysWork.playerWork.extra.lastUsedItem = InvItemId_Unequipped;
         Event_ItemTriggersClear();
@@ -130,6 +155,35 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         // Returns before processing other events until flag checks above disable it.
         if (mapEvent->triggerType == TriggerType_None)
         {
+#ifdef SH_XBOX_PORT
+            /* THE end-of-intro case: map0_s00's SysState_LoadOverlay event for
+             * MAP0_S01 (requiredEventFlag=EventFlag_26, no disable flag) fires
+             * every frame once the death cutscene sets the flag. On PSX the
+             * overlay swap removes it; here the target map is not linked, so
+             * skip it (and keep scanning other events) instead of looping the
+             * transition forever. One-shot: the cutscene that armed this event
+             * usually ends faded out, expecting the map switch to fade back
+             * in — do that ourselves or the game looks hung on a black screen. */
+            if (mapEvent->sysState == SysState_LoadOverlay &&
+                !MapXbox_OverlayIsLinked(mapEvent->mapIdx))
+            {
+                static s_EventData* s_lastRefusedEvent = NULL;
+
+                MapXbox_LogUnlinkedOverlay(mapEvent->mapIdx, "Event_Update(TriggerType_None)");
+
+                if (s_lastRefusedEvent != mapEvent)
+                {
+                    s_lastRefusedEvent = mapEvent;
+                    if (!ScreenFade_IsNone())
+                    {
+                        ScreenFade_Start(true, true, IS_SCREEN_FADE_WHITE(g_Screen_FadeStatus));
+                        SH_DBG("[MAP-GUARD] kicked recovery fade-in (fadeStatus was 0x%x)",
+                               (unsigned)g_Screen_FadeStatus);
+                    }
+                }
+                continue;
+            }
+#endif
             g_MapEventData     = mapEvent;
             g_MapEventSysState = mapEvent->sysState;
             g_MapEventParam    = mapEvent->eventParam;
@@ -236,6 +290,17 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
         }
 
         // Set `g_MapEventSysState` to the SysState needed for the event to be ran on next tick (`SysState_ReadMessage`/`SaveMenu`/`EventCallFunc`/etc.).
+#ifdef SH_XBOX_PORT
+        /* Touched/button-activated inter-map door whose target overlay is not
+         * linked (e.g. walking back up the street to a map0_s02 boundary):
+         * refuse the transition, keep the player in the current map. */
+        if (mapEvent->sysState == SysState_LoadOverlay &&
+            !MapXbox_OverlayIsLinked(mapEvent->mapIdx))
+        {
+            MapXbox_LogUnlinkedOverlay(mapEvent->mapIdx, "Event_Update(trigger)");
+            continue;
+        }
+#endif
         g_MapEventData     = mapEvent;
         g_MapEventSysState = mapEvent->sysState;
         g_MapEventParam    = mapEvent->eventParam;

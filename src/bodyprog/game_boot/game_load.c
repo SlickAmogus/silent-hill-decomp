@@ -120,10 +120,23 @@ void GameBoot_GameStartup(void) // 0x80034964
         case 1:
             if (g_SysWork.counters_1C[1] > 1200 && Fs_QueueGetLength() == 0 && !Sd_AudioStreamingCheck())
             {
+#ifdef SH_XBOX_PORT
+                extern int  MapXbox_OverlayIsLinked(int mapIdx);
+                extern void MapXbox_LogUnlinkedOverlay(int mapIdx, const char* where);
+#endif
                 Demo_DemoFileSavegameUpdate();
                 GameBoot_PlayerInit();
 
+#ifdef SH_XBOX_PORT
+                /* Attract demos play in maps that are not static-linked; booting
+                 * one would run with the stale map0_s00 header (same failure as
+                 * the end-of-intro loop). Route it into the existing failed-
+                 * setup retry path instead. */
+                if (Demo_PlayFileBufferSetup() != 0 &&
+                    MapXbox_OverlayIsLinked(g_SavegamePtr->mapIdx))
+#else
                 if (Demo_PlayFileBufferSetup() != 0)
+#endif
                 {
                     GameBoot_MapLoad(g_SavegamePtr->mapIdx);
 
@@ -134,6 +147,12 @@ void GameBoot_GameStartup(void) // 0x80034964
                     break;
                 }
 
+#ifdef SH_XBOX_PORT
+                if (!MapXbox_OverlayIsLinked(g_SavegamePtr->mapIdx))
+                {
+                    MapXbox_LogUnlinkedOverlay(g_SavegamePtr->mapIdx, "GameBoot_GameStartup(demo)");
+                }
+#endif
                 Demo_SequenceAdvance(1);
                 Demo_DemoDataRead();
 

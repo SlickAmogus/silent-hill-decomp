@@ -178,6 +178,7 @@ $(XBOX_PORT)/src/dsound_xbox.obj: CFLAGS += -I$(XBOX_PORT)/src/dsound/rxdk_inclu
 # Xbox platform shell + NV2A/PSX-libgpu HAL.
 XBOX_SRCS = \
 	$(XBOX_PORT)/src/main_xbox.c \
+	$(XBOX_PORT)/src/crash_xbox.c \
 	$(XBOX_PORT)/src/sh_log_xbox.c \
 	$(XBOX_PORT)/src/fs_xbox.c \
 	$(XBOX_PORT)/src/pgxp_stub.c \
@@ -245,6 +246,11 @@ DSOUND_OBJS = \
 	$(DSOUND_OBJS_DIR)/wavfileio.obj
 NXDK_LDFLAGS += $(DSOUND_OBJS)
 NXDK_LDFLAGS += /safeseh:no
+# Linker map for crash telemetry: nxdk links at -fixed -base:0x00010000 and CXBE
+# keeps the base, so a [FATAL] eip=%08x from crash_xbox.c resolves directly
+# against this file (no rebasing needed). NOTE: "-map:" (dash) — a "/map:" slash
+# flag gets POSIX-path-mangled by MSYS2 make into "C:\msys64\map;...".
+NXDK_LDFLAGS += -map:$(XBOX_PORT)/bin/default.map
 
 include $(NXDK_DIR)/Makefile
 

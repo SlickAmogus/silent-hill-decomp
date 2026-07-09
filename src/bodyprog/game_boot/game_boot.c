@@ -146,6 +146,21 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
                mapIdx);
         fflush(g_ShDebugLog);
     }
+#ifdef SH_XBOX_PORT
+    /* PROBE: every overlay request, with the disc file it will read. With the
+     * Event_Update / SysState_LoadArea_Update guards in place, mapIdx should
+     * ALWAYS be 0 here — a non-zero mapIdx in this line means some path
+     * bypassed both guards and must be traced. */
+    {
+        extern int MapXbox_OverlayIsLinked(int mapIdx);
+        SH_DBG("[MAP-LOAD] GameBoot_MapLoad mapIdx=%d (%s) fileIdx=%d linked=%d procFlags=0x%X",
+               (int)mapIdx, MapRegistry_GetName(mapIdx),
+               (int)(FILE_VIN_MAP0_S00_BIN + mapIdx),
+               MapXbox_OverlayIsLinked(mapIdx),
+               (unsigned)g_SysWork.processFlags);
+        fflush(g_ShDebugLog);
+    }
+#endif
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
     fflush(g_ShDebugLog);
