@@ -50,9 +50,31 @@ static int         s_curBlend = -1;   /* current blend-enable state (dedup) */
  * Reset per DrawOTag to the draw-env default. */
 static int         s_curTpage = 0;
 
-/* Diagnostic: post-transform screen-space bounds of drawn prims, logged per ~180
- * DrawOTag calls — tells us if in-game geometry fills the screen or a strip. */
+/* World fog colour, fed per-frame from fog.color by game_main.c (InGame). The
+ * SH_PC_PORT build strips PSX vertex-colour fog and instead writes per-vertex
+ * fog factors (0..127) into the GT-prim pad bytes for the renderer to consume
+ * — PsyCross does it in its fragment shader; here ApplyFog() folds (1-f) into
+ * the diffuse and puts fogColor*f into the specular attribute, which the final
+ * combiner ADDS (out = tex*col*(1-f) + fogC*f — exactly PsyCross's mix()). */
+extern float g_PsyX_FogColor[3];
+
+/* --- render census (probe [OTS]/[FOGPAD]/[ABR]/[PRIM?]) --------------------
+ * Accumulated over a 150-frame window, dumped as 3 integer-only lines. Replaces
+ * the old %180 [BB] sampler, which aliased onto the same DrawOTag call slot
+ * every frame (2 calls/frame, 180%2==0) and never measured the world OT. */
+extern int g_Nv2aFrameCount;              /* incremented each GpuNv2a_FrameBegin */
+static int s_cnFrame = -1;                /* frame id of the current DrawOTag */
+static int s_cnCallIdx = 0;               /* DrawOTag call # within the frame */
+static int s_cnNodes[2];                  /* nodes walked, call slot 0/1 (last frame) */
+static int s_cnCallsMax = 0;              /* max DrawOTag calls seen in one frame */
+static int s_cnPrims = 0;                 /* prims parsed in the window */
+static int s_cnGt = 0, s_cnFogged = 0;    /* GT prims / with nonzero fog pads */
+static int s_cnPadMin = 999, s_cnPadMax = -1;
+static int s_cnAbr[4];                    /* semi-trans prims per ABR mode */
+static int s_cnLines = 0, s_cnUnk = 0;    /* line prims / unknown-code skips */
 static int s_bbMinX = 99999, s_bbMaxX = -99999, s_bbMinY = 99999, s_bbMaxY = -99999;
+static int s_unkLogged = 0;               /* [PRIM?] one-shot budget per boot */
+
 static void TrackBB(const ShVertex* v)
 {
     int sx = (int)v->pos[0], sy = (int)v->pos[1];
@@ -73,6 +95,7 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
     v->col[3] = 1.0f;
     v->tex[0] = 0.0f;
     v->tex[1] = 0.0f;
+    v->spec[0] = 0.0f; v->spec[1] = 0.0f; v->spec[2] = 0.0f; v->spec[3] = 0.0f;
     TrackBB(v);
 }
 
@@ -95,7 +118,27 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
     v->col[3] = 1.0f;
     v->tex[0] = (float)u;
     v->tex[1] = (float)tv;
+    v->spec[0] = 0.0f; v->spec[1] = 0.0f; v->spec[2] = 0.0f; v->spec[3] = 0.0f;
     TrackBB(v);
+}
+
+/* Per-vertex distance fog: fold (1-f) into the diffuse, put fogColor*f into the
+ * specular (final combiner adds it). pad is the game's 0..127 fog factor. */
+static void ApplyFog(ShVertex* v, int pad)
+{
+    float f;
+    if (pad <= 0) return;
+    if (pad > 127) pad = 127;
+    f = (float)pad * (1.0f / 127.0f);
+    v->col[0] *= 1.0f - f;
+    v->col[1] *= 1.0f - f;
+    v->col[2] *= 1.0f - f;
+    v->spec[0] = g_PsyX_FogColor[0] * f;
+    v->spec[1] = g_PsyX_FogColor[1] * f;
+    v->spec[2] = g_PsyX_FogColor[2] * f;
+    s_cnFogged++;
+    if (pad < s_cnPadMin) s_cnPadMin = pad;
+    if (pad > s_cnPadMax) s_cnPadMax = pad;
 }
 
 /* PSX quad verts are in a Z/strip order (0,1,2,3) -> two triangles. Culling is
@@ -120,6 +163,31 @@ static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
 #define POLY_QUAD    0x08
 #define POLY_TEXTURE 0x04
 
+/* Prim length in longs (excl. tag) for polygon codes — needed by the early-out
+ * paths (null-FT3 / size rejection) before the emit path returns it. */
+static int PolyLen(int gouraud, int textured, int quad)
+{
+    if (textured) return gouraud ? (quad ? 12 : 9) : (quad ? 9 : 7);
+    if (gouraud)  return quad ? 8 : 6;
+    return quad ? 5 : 4;
+}
+
+/* Real PSX GPU rejects prims spanning >=1024px in x or >=512 in y (pre-offset).
+ * GTE-clamped verts (SXY saturates at +-1024) can produce such spans; the PSX
+ * silently drops them instead of smearing a degenerate tri across the screen. */
+static int PolyOversized(const VERTTYPE* xy, int stridePairs, int n)
+{
+    int i, minX = 32767, maxX = -32768, minY = 32767, maxY = -32768;
+    for (i = 0; i < n; i++) {
+        int x = xy[i * stridePairs], y = xy[i * stridePairs + 1];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+    return (maxX - minX) >= 1024 || (maxY - minY) >= 512;
+}
+
 static int ProcessPoly(P_TAG* tag)
 {
     const int code     = tag->code;
@@ -127,19 +195,35 @@ static int ProcessPoly(P_TAG* tag)
     const int quad     = code & POLY_QUAD;
     const int textured = code & POLY_TEXTURE;
     const int abe      = code & 0x02;   /* semi-transparency (ABE) */
+    const int primLen  = PolyLen(gouraud, textured, quad);
     ShVertex  v[4];
     const void* texAddr = 0;   /* decoded PSX texture for this prim, else white */
+    int       blendTpage = s_curTpage;  /* ABR bits source (prim's own if textured) */
     int       i;
 
     if (!gouraud && !textured) {
         /* POLY_F3 / POLY_F4 */
         POLY_F4* p = (POLY_F4*)tag;
         const VERTTYPE* xy = &p->x0;
+        if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
         for (i = 0; i < (quad ? 4 : 3); i++)
             PutVert(&v[i], xy[i * 2], xy[i * 2 + 1], p->r0, p->g0, p->b0);
     } else if (!gouraud && textured) {
         /* POLY_FT3 / POLY_FT4 (flat textured) */
         POLY_FT4* p = (POLY_FT4*)tag;
+        /* Official SCE "null polygon" hack (PsyCross honors it): an FT3 with all
+         * six coords -1 is a DR_TPAGE carrier, not geometry — take its tpage for
+         * subsequent SPRTs and draw nothing. */
+        if (!quad && p->x0 == -1 && p->y0 == -1 && p->x1 == -1 && p->y1 == -1 &&
+            p->x2 == -1 && p->y2 == -1) {
+            s_curTpage = p->tpage;
+            return primLen;
+        }
+        s_curTpage = blendTpage = p->tpage;   /* SPRTs inherit the latest tpage */
+        {
+            const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
+        }
         texAddr = PsxVram_GetTexture(p->tpage, p->clut);
         PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
@@ -148,18 +232,52 @@ static int ProcessPoly(P_TAG* tag)
     } else if (gouraud && !textured) {
         /* POLY_G3 / POLY_G4 */
         POLY_G4* p = (POLY_G4*)tag;
+        {
+            const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
+        }
         PutVert(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0);
         PutVert(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1);
         PutVert(&v[2], p->x2, p->y2, p->r2, p->g2, p->b2);
         if (quad) PutVert(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3);
     } else {
-        /* POLY_GT3 / POLY_GT4 (gouraud textured) */
-        POLY_GT4* p = (POLY_GT4*)tag;
-        texAddr = PsxVram_GetTexture(p->tpage, p->clut);
-        PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
-        PutVertUV(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1, p->u1, p->v1);
-        PutVertUV(&v[2], p->x2, p->y2, p->r2, p->g2, p->b2, p->u2, p->v2);
-        if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r3, p->g3, p->b3, p->u3, p->v3);
+        /* POLY_GT3 / POLY_GT4 (gouraud textured) — the world/character prims.
+         * Their pad bytes carry the SH_PC_PORT per-vertex fog factors. */
+        POLY_GT4* p4 = (POLY_GT4*)tag;
+        POLY_GT3* p3 = (POLY_GT3*)tag;
+        s_cnGt++;
+        if (quad) {
+            s_curTpage = blendTpage = p4->tpage;
+            {
+                const VERTTYPE xy[8] = { p4->x0, p4->y0, p4->x1, p4->y1, p4->x2, p4->y2, p4->x3, p4->y3 };
+                if (PolyOversized(xy, 2, 4)) return primLen;
+            }
+            texAddr = PsxVram_GetTexture(p4->tpage, p4->clut);
+            PutVertUV(&v[0], p4->x0, p4->y0, p4->r0, p4->g0, p4->b0, p4->u0, p4->v0);
+            PutVertUV(&v[1], p4->x1, p4->y1, p4->r1, p4->g1, p4->b1, p4->u1, p4->v1);
+            PutVertUV(&v[2], p4->x2, p4->y2, p4->r2, p4->g2, p4->b2, p4->u2, p4->v2);
+            PutVertUV(&v[3], p4->x3, p4->y3, p4->r3, p4->g3, p4->b3, p4->u3, p4->v3);
+            /* GT4 fog pads: v0 in pad2's low byte (v0's own slot is `code`),
+             * v1..v3 in p1/p2/p3 (bodyprog_80055028.c PC_FACE_FOG_VERTS). */
+            ApplyFog(&v[0], (int)(p4->pad2 & 0xFF));
+            ApplyFog(&v[1], p4->p1);
+            ApplyFog(&v[2], p4->p2);
+            ApplyFog(&v[3], p4->p3);
+        } else {
+            s_curTpage = blendTpage = p3->tpage;
+            {
+                const VERTTYPE xy[6] = { p3->x0, p3->y0, p3->x1, p3->y1, p3->x2, p3->y2 };
+                if (PolyOversized(xy, 2, 3)) return primLen;
+            }
+            texAddr = PsxVram_GetTexture(p3->tpage, p3->clut);
+            PutVertUV(&v[0], p3->x0, p3->y0, p3->r0, p3->g0, p3->b0, p3->u0, p3->v0);
+            PutVertUV(&v[1], p3->x1, p3->y1, p3->r1, p3->g1, p3->b1, p3->u1, p3->v1);
+            PutVertUV(&v[2], p3->x2, p3->y2, p3->r2, p3->g2, p3->b2, p3->u2, p3->v2);
+            /* GT3 fog pads: v0 borrows v1's (p1); v2 = p2 (PsyCross parity). */
+            ApplyFog(&v[0], p3->p1);
+            ApplyFog(&v[1], p3->p1);
+            ApplyFog(&v[2], p3->p2);
+        }
     }
 
 #ifdef SH_GPU_PRIM_TRACE
@@ -177,13 +295,21 @@ static int ProcessPoly(P_TAG* tag)
     }
 #endif
 
-    /* Semi-transparent (ABE) prims blend 0.5*back + 0.5*front (constant factor set
-     * in SetRenderState); opaque prims render with blend off. Dedup'd per DrawOTag.
-     * This is what un-blacks the menu overlay / pause / fog. */
+    /* Semi-transparent (ABE) prims use the tpage's ABR mode (bits 5-6): 0 =
+     * 0.5B+0.5F average, 1 = B+F additive (fire/flashlight glow), 2 = B-F
+     * subtractive (shadow darkening), 3 = B+0.25F. Textured prims carry the STP
+     * bit per texel (alpha 0x80/0xFF from the decode); untextured ABR0 prims get
+     * vertex alpha 0.5 so SRC_ALPHA blending averages them. Dedup'd per walk. */
     {
-        const int wantBlend = abe ? 1 : 0;
+        const int wantBlend = abe ? 1 + ((blendTpage >> 5) & 3) : 0;
+        if (abe) s_cnAbr[(blendTpage >> 5) & 3]++;
+        if (abe && !textured && ((blendTpage >> 5) & 3) == 0) {
+            const int n = quad ? 4 : 3;
+            for (i = 0; i < n; i++)
+                v[i].col[3] = 0.5f;
+        }
         if (wantBlend != s_curBlend) {
-            GpuNv2a_SetBlend(wantBlend);
+            GpuNv2a_SetBlendMode(wantBlend);
             s_curBlend = wantBlend;
         }
     }
@@ -204,10 +330,7 @@ static int ProcessPoly(P_TAG* tag)
     else
         EmitTri(&v[0], &v[1], &v[2]);
 
-    /* prim length in longs (excl. tag), matching the libgpu.h static_asserts */
-    if (textured) return gouraud ? (quad ? 12 : 9) : (quad ? 9 : 7);
-    if (gouraud)  return quad ? 8 : 6;
-    return quad ? 5 : 4;
+    return primLen;
 }
 
 /* DR_MODE / DR_TPAGE (code 0xE0/0xE1) — the GPU draw-mode packets. We only need
@@ -278,9 +401,15 @@ static int ProcessSprtTile(P_TAG* tag)
     }
 
     {
-        const int wantBlend = abe ? 1 : 0;
+        /* SPRT/TILE carry no tpage: ABR comes from the inherited s_curTpage. */
+        const int abr = (s_curTpage >> 5) & 3;
+        const int wantBlend = abe ? 1 + abr : 0;
+        if (abe) s_cnAbr[abr]++;
+        if (abe && !textured && abr == 0) {
+            v[0].col[3] = v[1].col[3] = v[2].col[3] = v[3].col[3] = 0.5f;
+        }
         if (wantBlend != s_curBlend) {
-            GpuNv2a_SetBlend(wantBlend);
+            GpuNv2a_SetBlendMode(wantBlend);
             s_curBlend = wantBlend;
         }
     }
@@ -296,23 +425,129 @@ static int ProcessSprtTile(P_TAG* tag)
     return getlen(tag);
 }
 
+/* Line primitives 0x40-0x5F, expanded to 1px-wide quads exactly as PsyCross's
+ * MakeLineArray: horizontal-major lines thicken downward (+1 y, x1+1),
+ * otherwise rightward (+1 x, y1+1). Options brightness bars, inventory borders
+ * and map-screen routes are these — they were invisible while skipped.
+ * Handled: LINE_F2 (len 3), F3 (5), F4 (6) as 1/2/3 segments; G2 (len 4).
+ * G3 (7) / G4 (9) skip by length (PsyCross parity: it stubs them too). */
+static void EmitLineSeg(int x0, int y0, int r0, int g0, int b0,
+                        int x1, int y1, int r1, int g1, int b1)
+{
+    ShVertex v[4];
+    const int dx = x1 - x0, dy = y1 - y0;
+    if (dx > (dy < 0 ? -dy : dy)) {         /* horizontal-major */
+        PutVert(&v[0], x0,     y0,     r0, g0, b0);
+        PutVert(&v[1], x1 + 1, y1,     r1, g1, b1);
+        PutVert(&v[2], x0,     y0 + 1, r0, g0, b0);
+        PutVert(&v[3], x1 + 1, y1 + 1, r1, g1, b1);
+    } else {                                 /* vertical-major */
+        PutVert(&v[0], x0,     y0,     r0, g0, b0);
+        PutVert(&v[1], x0 + 1, y0,     r0, g0, b0);
+        PutVert(&v[2], x1,     y1 + 1, r1, g1, b1);
+        PutVert(&v[3], x1 + 1, y1 + 1, r1, g1, b1);
+    }
+    EmitQuad(&v[0], &v[1], &v[2], &v[3]);
+}
+
+static int ProcessLine(P_TAG* tag)
+{
+    const int code    = tag->code;
+    const int gouraud = code & 0x10;
+    const int abe     = code & 0x02;
+    const int len     = getlen(tag);
+
+    s_cnLines++;
+
+    /* Blend + white texture state (lines are untextured). */
+    {
+        const int abr = (s_curTpage >> 5) & 3;
+        const int wantBlend = abe ? 1 + abr : 0;
+        if (wantBlend != s_curBlend) {
+            GpuNv2a_SetBlendMode(wantBlend);
+            s_curBlend = wantBlend;
+        }
+    }
+    if (s_curTex != 0) {
+        GpuNv2a_BindWhite();
+        s_curTex = 0;
+    }
+
+    if (!gouraud) {
+        LINE_F2* p = (LINE_F2*)tag;
+        const VERTTYPE* xy = &p->x0;
+        int segs = (len == 3) ? 1 : (len == 5) ? 2 : (len == 6) ? 3 : 0;
+        int s;
+        for (s = 0; s < segs; s++)
+            EmitLineSeg(xy[s * 2], xy[s * 2 + 1], p->r0, p->g0, p->b0,
+                        xy[s * 2 + 2], xy[s * 2 + 3], p->r0, p->g0, p->b0);
+    } else if (len == 4) {
+        LINE_G2* p = (LINE_G2*)tag;
+        EmitLineSeg(p->x0, p->y0, p->r0, p->g0, p->b0,
+                    p->x1, p->y1, p->r1, p->g1, p->b1);
+    }
+    /* G3/G4 (len 7/9): skip by length. */
+    return len;
+}
+
+/* VRAM ops the OT can carry (psx_vram.c / psx_libgpu_xbox.c). */
+extern void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy);
+extern int  LoadImage(RECT* rect, u_long* p);
+
 /* Returns the parsed primitive's length in longs (excl. tag), or the tag's
  * declared length for unhandled prims so the packet walk stays in sync. */
 static int ParsePrim(P_TAG* tag)
 {
     const int primType = tag->code & 0xF0;
 
+    s_cnPrims++;
+
     switch (primType) {
+    case 0x00: {
+        /* sub-code 0x01 = DR_MOVE (VRAM->VRAM copy, water refraction etc.);
+         * sub-code 0x00 = 3-long cache-flush packet (skip). Word layout per
+         * PsyCross SetDrawMove/ParsePrimitivesLinkedList. */
+        if ((tag->code & 0x0F) == 0x01) {
+            const u_long* w = ((const u_long*)tag) + P_LEN;
+            const short*  sxy = (const short*)&w[2];   /* src x,y  */
+            const short*  swh = (const short*)&w[4];   /* w,h      */
+            const int     dx  = (int)(w[3] & 0xFFFF);
+            const int     dy  = (int)((w[3] >> 16) & 0xFFFF);
+            PsxVram_Move(sxy[0], sxy[1], swh[0], swh[1], dx, dy);
+            return 5;
+        }
+        return getlen(tag) ? getlen(tag) : 3;
+    }
     case 0x20: /* flat polygons   */
     case 0x30: /* gouraud polygons*/
         return ProcessPoly(tag);
+    case 0x40: /* flat lines    */
+    case 0x50: /* gouraud lines */
+        return ProcessLine(tag);
     case 0x60: /* SPRT / TILE (variable + 1x1) */
     case 0x70: /* SPRT / TILE (8x8 / 16x16)    */
         return ProcessSprtTile(tag);
-    case 0xE0: /* DR_MODE / DR_TPAGE — track the texture page for SPRTs */
+    case 0xA0: {
+        /* DR_LOAD: in-OT VRAM upload (image data follows the rect words). */
+        DR_LOAD* dl = (DR_LOAD*)tag;
+        RECT     r;
+        const u_long* w = ((const u_long*)tag) + P_LEN;
+        const short*  rxy = (const short*)&w[1];
+        r.x = rxy[0]; r.y = rxy[1]; r.w = rxy[2]; r.h = rxy[3];
+        LoadImage(&r, (u_long*)dl->p);
+        return getlen(tag);
+    }
+    case 0xE0: /* DR_MODE / DR_TPAGE / DR_ENV — track the texture page for SPRTs */
         return ProcessDrawMode(tag);
     default:
-        /* lines (0x40/0x50), DR_LOAD (0xA0): not handled yet — skip by length. */
+        /* Unknown/garbage tag: skip by declared length, log the first few once
+         * per boot — after the draw-env packet builders were fixed, any hit
+         * here means something still addPrims junk into the OT. */
+        s_cnUnk++;
+        if (s_unkLogged < 24) {
+            s_unkLogged++;
+            SH_DBG("[PRIM?] code=0x%02x len=%d", tag->code, getlen(tag));
+        }
         return getlen(tag);
     }
 }
@@ -328,6 +563,29 @@ void DrawOTag(u_long* p)
 
     if (g_gpuDisabled)
         return;
+
+    /* Render census: detect the frame boundary via the NV2A frame counter and
+     * dump the accumulated window once per 150 frames (~5s at 30fps). The old
+     * %180 [BB] sampler aliased onto the same call slot every frame (2 calls
+     * per frame, 180%2==0) and never measured the world OT. */
+    if (g_Nv2aFrameCount != s_cnFrame) {
+        if (s_cnFrame >= 0 && (s_cnFrame % 150) == 0 && s_cnPrims > 0) {
+            SH_DBG("[OTS] f=%d calls=%d n0=%d n1=%d prims=%d bb=%d,%d,%d,%d",
+                   s_cnFrame, s_cnCallsMax, s_cnNodes[0], s_cnNodes[1], s_cnPrims,
+                   s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY);
+            SH_DBG("[FOGPAD] gt=%d fogged=%d padMin=%d padMax=%d",
+                   s_cnGt, s_cnFogged, s_cnPadMin > 128 ? -1 : s_cnPadMin, s_cnPadMax);
+            SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d",
+                   s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk);
+            s_cnPrims = 0; s_cnGt = 0; s_cnFogged = 0;
+            s_cnPadMin = 999; s_cnPadMax = -1;
+            s_cnAbr[0] = s_cnAbr[1] = s_cnAbr[2] = s_cnAbr[3] = 0;
+            s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0;
+            s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
+        }
+        s_cnFrame = g_Nv2aFrameCount;
+        s_cnCallIdx = 0;
+    }
 
     s_curTex   = (const void*)-1; /* force a texture bind on the first prim */
     s_curBlend = -1;              /* force a blend-state set on the first prim */
@@ -360,22 +618,11 @@ void DrawOTag(u_long* p)
 
     if (s_otLog) { SH_DBG("[OT] walk done after %d nodes (cap hit=%d)", safety, safety >= 16384); s_otLog = 0; }
 
-    {   /* Periodic screen-space bounds: y filling [0..480] = full screen; a narrow
-         * band = the in-game "sliver". Pair it with the GTE geom offset/screen so
-         * we can see if the projection is double-centred. */
-        extern void Gte_LogGeom(const char* tag);
-        static int s_bbFrames = 0;
-        if ((++s_bbFrames % 180) == 0 && s_bbMaxY >= s_bbMinY) {
-            SH_DBG("[BB] scr x[%d..%d] y[%d..%d] drawofs=(%d,%d) clip=(%d,%d %dx%d) disp=(%d,%d %dx%d) nodes=%d",
-                   s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY, (int)s_ofsX, (int)s_ofsY,
-                   (int)g_activeDrawEnv.clip.x, (int)g_activeDrawEnv.clip.y,
-                   (int)g_activeDrawEnv.clip.w, (int)g_activeDrawEnv.clip.h,
-                   (int)g_activeDispEnv.disp.x, (int)g_activeDispEnv.disp.y,
-                   (int)g_activeDispEnv.disp.w, (int)g_activeDispEnv.disp.h, safety);
-            Gte_LogGeom("ot");
-            s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
-        }
-    }
+    /* Census: record this walk's node count in its call slot (0 = first
+     * DrawOTag of the frame = OT0/world in-game, 1 = the 2D/UI OT). */
+    if (s_cnCallIdx < 2) s_cnNodes[s_cnCallIdx] = safety;
+    s_cnCallIdx++;
+    if (s_cnCallIdx > s_cnCallsMax) s_cnCallsMax = s_cnCallIdx;
 }
 
 void DrawOTagEnv(u_long* p, DRAWENV* env)
@@ -513,5 +760,56 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
 {
     g_activeDrawEnv = *env;
     RecomputeTransform();
+    /* Probe: the isbg background colour chain (GsSortClear sets it to the fog
+     * colour in-game; FrameBegin clears with it). Log only on change. */
+    {
+        static int s_last = -1;
+        int cur = (env->isbg << 24) | (env->r0 << 16) | (env->g0 << 8) | env->b0;
+        if (cur != s_last) {
+            SH_DBG("[CLR] isbg=%d rgb=(%d,%d,%d)", env->isbg, env->r0, env->g0, env->b0);
+            s_last = cur;
+        }
+    }
     return env;
+}
+
+/* Frame clear colour for GpuNv2a_FrameBegin: the PSX draw-env isbg background
+ * (GsSortClear routes background2dColor = fog.color through PutDrawEnv), else
+ * opaque black. This is what turns the beyond-fog void into a fog wall. */
+unsigned int GpuXbox_GetClearColor(void)
+{
+    if (g_activeDrawEnv.isbg)
+        return 0xFF000000u | ((unsigned)g_activeDrawEnv.r0 << 16)
+                           | ((unsigned)g_activeDrawEnv.g0 << 8)
+                           |  (unsigned)g_activeDrawEnv.b0;
+    return 0xFF000000u;
+}
+
+/* ClearImage support (psx_libgpu_xbox.c): draw an immediate flat quad through
+ * the current screen transform when the rect intersects the display area, so
+ * colour wipes/flashes land in the visible frame (the VRAM-side fill is done
+ * by the caller). Blend off; restores no state (per-walk dedup re-establishes). */
+void GpuXbox_ClearRectOnScreen(int x, int y, int w, int h, int r, int g, int b)
+{
+    ShVertex v[4];
+    /* Only rects overlapping the DISPLAY area reach the visible frame; clears
+     * of off-screen VRAM (texture staging) must not flash on screen. */
+    {
+        int dx = g_activeDispEnv.disp.x, dy = g_activeDispEnv.disp.y;
+        int dw = g_activeDispEnv.disp.w ? g_activeDispEnv.disp.w : 320;
+        int dh = g_activeDispEnv.disp.h ? g_activeDispEnv.disp.h : 240;
+        if (x >= dx + dw || y >= dy + dh || x + w <= dx || y + h <= dy)
+            return;
+    }
+    GpuNv2a_SetBlendMode(0);
+    GpuNv2a_BindWhite();
+    s_curBlend = 0;
+    s_curTex   = 0;
+    /* ClearImage rects are absolute VRAM coords; the screen transform expects
+     * draw-offset-relative ones, so strip the active offset first. */
+    PutVert(&v[0], x - (int)s_ofsX,     y - (int)s_ofsY,     r, g, b);
+    PutVert(&v[1], x + w - (int)s_ofsX, y - (int)s_ofsY,     r, g, b);
+    PutVert(&v[2], x - (int)s_ofsX,     y + h - (int)s_ofsY, r, g, b);
+    PutVert(&v[3], x + w - (int)s_ofsX, y + h - (int)s_ofsY, r, g, b);
+    EmitQuad(&v[0], &v[1], &v[2], &v[3]);
 }

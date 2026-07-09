@@ -364,8 +364,10 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
         if (_dist < Q12(8.0f) && ++s_wakeLogTick >= 60)
         {
             s_wakeLogTick = 0;
-            SH_DBG("[GROANER] lying dist=%.2f noise=%d hear=%d losq=%d flags=0x%X anim=%d ctl=%d",
-                   (double)_dist / 4096.0,
+            /* dist in Q12 milli-units (dist*1000>>12): nxdk printf drops %f and
+             * misaligns the following varargs — integers only on Xbox. */
+            SH_DBG("[GROANER] lying dist=%d noise=%d hear=%d losq=%d flags=0x%X anim=%d ctl=%d",
+                   (int)(((long long)_dist * 1000) >> 12),
                    (int)g_SysWork.playerWork.player.properties.player.field_10C,
                    (int)func_80070360(groaner, _dist, UNK_VAL),
                    (int)func_8006FD90(groaner, 1, sharedData_800EEE3C_2_s00[getIndex()].field_0, sharedData_800EEE3C_2_s00[getIndex()].field_4),

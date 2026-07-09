@@ -28,22 +28,71 @@ void TermPrim(void* p)          { termPrim(p); }
 void SetDrawTPage(DR_TPAGE* p, int dfe, int dtd, int tpage)        { setDrawTPage(p, dfe, dtd, tpage); }
 void SetDrawMode(DR_MODE* p, int dfe, int dtd, int tpage, RECT* tw){ setDrawMode(p, dfe, dtd, tpage, tw); }
 
-/* DR_AREA/DR_OFFSET/DR_MOVE packet builders: PsyCross's libgpu.h has no
- * setDrawArea/Offset/Move macro, and the NV2A DrawOTag doesn't consume draw-env
- * packets yet (0xE0 dispatch is a TODO), so these are no-ops for now — clip /
- * offset / VRAM-move land with real draw-env support. */
-void SetDrawArea(DR_AREA* p, RECT* r)                  { (void)p; (void)r; }
-void SetDrawOffset(DR_OFFSET* p, u_short* ofs)         { (void)p; (void)ofs; }
-void SetDrawMove(DR_MOVE* p, RECT* rect, int x, int y) { (void)p; (void)rect; (void)x; (void)y; }
+/* Draw-env packet builders, ported from PsyCross libgpu.c. These packets are
+ * built in the shared per-frame packet arena and addPrim'd into the OT
+ * (bodyprog_8005E0DC.c, water.c, several maps) — the old no-ops left the
+ * P_TAG len/code as STALE BYTES from previous frames: the exact garbage-length
+ * OT-corruption/crash class PsyCross documents fixing twice on PC. Every
+ * builder must at minimum stamp a well-formed tag. */
+void SetDrawArea(DR_AREA* p, RECT* r)
+{
+    p->code[0] = ((r->x & 0x3FF) | ((r->y & 0x3FF) << 10)) | 0xE3000000;
+    p->code[1] = (((r->x + r->w) & 0x3FF) | (((r->y + r->h) & 0x3FF) << 10)) | 0xE4000000;
+    setlen(p, 2);
+}
 
-/* SetDrawEnv/GetDrawEnv: the active env is driven through gpu_xbox.c's
- * PutDrawEnv; these OT-queued/query forms are no-ops/pass-throughs for now. */
-void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env) { (void)dr_env; (void)env; }
+/* Render-neutral (PsyCross parity): the PSX draw-offset positions rendering
+ * into the double-buffer halves; our transform derives position from the
+ * draw/display envs, so applying the raw offset would shift everything. Emit a
+ * well-formed 2-long no-op so the OT walk consumes it correctly. */
+void SetDrawOffset(DR_OFFSET* p, u_short* ofs)
+{
+    (void)ofs;
+    p->code[0] = 0;
+    p->code[1] = 0;
+    setlen(p, 2);
+}
+
+void SetDrawMove(DR_MOVE* p, RECT* rect, int x, int y)
+{
+    int len = 5;
+    if (rect->w == 0 || rect->h == 0)
+        len = 0;
+    p->code[0] = 0x01000000;
+    p->code[1] = 0x80000000;
+    p->code[2] = *(u_int*)&rect->x;
+    p->code[3] = ((u_int)y << 16) | ((u_int)x & 0xFFFFu);
+    p->code[4] = *(u_int*)&rect->w;
+    setlen(p, len);
+}
+
+void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env)
+{
+    dr_env->code[0] = (((env->clip.y & 0x3FF) << 10) | (env->clip.x & 0x3FF)) | 0xE3000000;
+    dr_env->code[1] = ((((env->clip.y + env->clip.h - 1) & 0x3FF) << 10)
+                       | ((env->clip.x + env->clip.w - 1) & 0x3FF)) | 0xE4000000;
+    dr_env->code[2] = (((env->ofs[1] & 0x3FF) << 11) | (env->ofs[0] & 0x7FF)) | 0xE5000000;
+    dr_env->code[3] = (32 * (((256 - env->tw.h) >> 3) & 0x1F)) | (((256 - env->tw.w) >> 3) & 0x1F)
+                      | (((env->tw.y >> 3) & 0x1F) << 15) | (((env->tw.x >> 3) & 0x1F) << 10) | 0xE2000000;
+    dr_env->code[4] = ((env->dtd != 0) << 9) | ((env->dfe != 0) << 10) | (env->tpage & 0x1FF) | 0xE1000000;
+    setlen(dr_env, 5);
+}
+
+/* Must stamp the tag (len 2, code 0xE6): a no-op left an uninitialised tag —
+ * garbage length — and the OT walker crashed on PC (map4_s03 cult-TV cutscene). */
+void SetDrawStp(DR_STP* p, int pbw)
+{
+    setDrawStp(p, pbw);
+}
+
 DRAWENV* GetDrawEnv(DRAWENV* env)             { return env; }
 
 /* --- VRAM image transfers -> PSX VRAM emulation (psx_vram.c) ----------------*/
 extern void PsxVram_Load(int x, int y, int w, int h, const unsigned short* src);
 extern void PsxVram_Store(int x, int y, int w, int h, unsigned short* dst);
+extern void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy);
+extern void PsxVram_Fill(int x, int y, int w, int h, unsigned short c);
+extern void GpuXbox_ClearRectOnScreen(int x, int y, int w, int h, int r, int g, int b);
 
 int LoadImage(RECT* rect, u_long* p)
 {
@@ -52,11 +101,39 @@ int LoadImage(RECT* rect, u_long* p)
 }
 int StoreImage(RECT* rect, u_long* p)
 {
+    /* Probe: witness display-area grabs (pause/save/crossfade backgrounds).
+     * A display-sized rect at the intro-end fade proves the framebuffer
+     * readback gap fires there (StoreImage still returns UPLOADED VRAM, not
+     * rendered output — the readback is a charted, separately-landed fix). */
+    static int s_storeLogged = 0;
+    if (rect && s_storeLogged < 16) {
+        s_storeLogged++;
+        SH_DBG("[STORE] rect=(%d,%d %dx%d)", rect->x, rect->y, rect->w, rect->h);
+    }
     if (rect) PsxVram_Store(rect->x, rect->y, rect->w, rect->h, (unsigned short*)p);
     return 0;
 }
-int ClearImage(RECT* rect, u_char r, u_char g, u_char b)  { (void)rect; (void)r; (void)g; (void)b; return 0; }
-int ClearImage2(RECT* rect, u_char r, u_char g, u_char b) { (void)rect; (void)r; (void)g; (void)b; return 0; }
+
+/* ClearImage: fill the VRAM rect (keeps StoreImage consumers consistent) and,
+ * when it overlaps the display area, draw the flat quad into the live frame so
+ * colour wipes/flashes are visible (title transitions, interlaced clears). */
+static int ClearImageImpl(RECT* rect, u_char r, u_char g, u_char b)
+{
+    unsigned short c;
+    if (!rect) return 0;
+    c = (unsigned short)(((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3));
+    PsxVram_Fill(rect->x, rect->y, rect->w, rect->h, c);
+    GpuXbox_ClearRectOnScreen(rect->x, rect->y, rect->w, rect->h, r, g, b);
+    return 0;
+}
+int ClearImage(RECT* rect, u_char r, u_char g, u_char b)  { return ClearImageImpl(rect, r, g, b); }
+int ClearImage2(RECT* rect, u_char r, u_char g, u_char b) { return ClearImageImpl(rect, r, g, b); }
+
+int MoveImage(RECT* rect, int x, int y)
+{
+    if (rect) PsxVram_Move(rect->x, rect->y, rect->w, rect->h, x, y);
+    return 0;
+}
 
 /* --- libetc timing + frame present -----------------------------------------*/
 /* Forward-declared (not via gpu_nv2a.h) to keep this TU free of the pbkit/

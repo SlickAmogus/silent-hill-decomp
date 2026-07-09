@@ -100,6 +100,57 @@ void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
     InvalidateRegion(x, y, x + w, yend);   /* selective, not nuke-all */
 }
 
+/* MoveImage / DR_MOVE: VRAM->VRAM rectangle copy (water refraction, copy-based
+ * effects). memmove row-wise handles overlap; the destination region's cached
+ * textures are invalidated like a LoadImage. */
+void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy)
+{
+    int row;
+
+    if (w <= 0 || h <= 0)
+        return;
+    if (sx < 0 || sy < 0 || dx < 0 || dy < 0)
+        return;
+    if (sx + w > VRAM_W) w = VRAM_W - sx;
+    if (dx + w > VRAM_W) w = VRAM_W - dx;
+    if (w <= 0)
+        return;
+
+    if (dy <= sy) {
+        for (row = 0; row < h; row++) {
+            int syy = sy + row, dyy = dy + row;
+            if (syy >= VRAM_H || dyy >= VRAM_H) break;
+            memmove(&s_vram[dyy * VRAM_W + dx], &s_vram[syy * VRAM_W + sx], (size_t)w * 2);
+        }
+    } else {
+        for (row = h - 1; row >= 0; row--) {
+            int syy = sy + row, dyy = dy + row;
+            if (syy >= VRAM_H || dyy >= VRAM_H) continue;
+            memmove(&s_vram[dyy * VRAM_W + dx], &s_vram[syy * VRAM_W + sx], (size_t)w * 2);
+        }
+    }
+    InvalidateRegion(dx, dy, dx + w, dy + h);
+}
+
+/* ClearImage: fill a VRAM rect with a BGR555 colour (colour wipes/flashes). */
+void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
+{
+    int row, col;
+
+    if (w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
+        return;
+    if (x + w > VRAM_W) w = VRAM_W - x;
+    for (row = 0; row < h; row++) {
+        int vy = y + row;
+        uint16_t* d;
+        if (vy >= VRAM_H) break;
+        d = &s_vram[vy * VRAM_W + x];
+        for (col = 0; col < w; col++)
+            d[col] = c;
+    }
+    InvalidateRegion(x, y, x + w, y + h);
+}
+
 /* StoreImage: read VRAM back out (rarely used; provided for completeness). */
 void PsxVram_Store(int x, int y, int w, int h, uint16_t* dst)
 {
@@ -119,12 +170,18 @@ void PsxVram_Store(int x, int y, int w, int h, uint16_t* dst)
 static uint32_t Psx16ToArgb(uint16_t c)
 {
     int r, g, b;
+    uint32_t a;
     if (c == 0)
         return 0;                    /* PSX: 0x0000 = fully transparent */
+    /* STP bit (bit 15): in a semi-transparent prim, STP=1 texels blend and
+     * STP=0 texels stay OPAQUE. Encode as alpha 0x80 vs 0xFF — with ABR0's
+     * SRC_ALPHA blending that is PSX-exact per texel; opaque prims ignore
+     * alpha (blend off) and the alpha test only kills true 0x0000 texels. */
+    a = (c & 0x8000) ? 0x80000000u : 0xFF000000u;
     r = (c & 0x1F) << 3;
     g = ((c >> 5) & 0x1F) << 3;
     b = ((c >> 10) & 0x1F) << 3;
-    return 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+    return a | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
 static void DecodePage(int tpage, int clut, uint32_t* out)
@@ -136,6 +193,7 @@ static void DecodePage(int tpage, int clut, uint32_t* out)
     const int cy = (clut >> 6) & 0x1FF;          /* CLUT VRAM y */
     const uint16_t* clutRow = &s_vram[(cy & (VRAM_H - 1)) * VRAM_W + cx];
     int u, v;
+    int zeroCount = 0, stp1Count = 0;
 
     for (v = 0; v < TEX_DIM; v++) {
         const uint16_t* row = &s_vram[((ty + v) & (VRAM_H - 1)) * VRAM_W];
@@ -151,10 +209,24 @@ static void DecodePage(int tpage, int clut, uint32_t* out)
             } else {                              /* 16-bit direct */
                 texel = row[(tx + u) & (VRAM_W - 1)];
             }
+            if (texel == 0)          zeroCount++;
+            else if (texel & 0x8000) stp1Count++;
             o[u] = Psx16ToArgb(texel);
         }
     }
     __asm__ __volatile__("sfence" ::: "memory");  /* flush write-combined texels */
+
+    /* Probe: transparent-texel + STP census — proves the alpha-test fix is
+     * load-bearing (zero>0 = pages that painted black cut-out boxes) and that
+     * per-texel semi-transparency is in use (stp1>0). First 12 pages decoded
+     * past the boot/menu churn only. */
+    {
+        static int s_stpLogged = 0;
+        if (s_decodeTotal > 60 && s_stpLogged < 12) {
+            s_stpLogged++;
+            SH_DBG("[STP] tpage=0x%x clut=0x%x zero=%d stp1=%d", tpage, clut, zeroCount, stp1Count);
+        }
+    }
 }
 
 /* Decode (or fetch cached) the texture page for (tpage,clut). Returns a 256x256

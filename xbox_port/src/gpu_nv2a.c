@@ -41,6 +41,9 @@ static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
 
 static int s_frameW, s_frameH;
 
+/* Frame counter for gpu_xbox.c's render census (frame-boundary detection). */
+int g_Nv2aFrameCount = 0;
+
 static void GpuNv2a_SetRenderState(void);
 static void SetAttribPointer(unsigned index, unsigned size, const void* data);
 
@@ -98,7 +101,8 @@ void GpuNv2a_Init(void)
 }
 
 /* Render state for flat 2D screen-space prims: no depth/cull, specular-enable
- * on (required for combiner output), no alpha-test/blend, z-clamp. */
+ * on (required for combiner output), alpha test on (kills fully-transparent
+ * texels), blend off by default, z-clamp. */
 static void GpuNv2a_SetRenderState(void)
 {
     uint32_t* p = pb_begin();
@@ -108,26 +112,87 @@ static void GpuNv2a_SetRenderState(void)
     p = pb_push1(p, NV097_SET_DEPTH_TEST_ENABLE, 0);
     p = pb_push1(p, NV097_SET_DEPTH_MASK, 0);
     p = pb_push1(p, NV097_SET_CULL_FACE_ENABLE, 0);
-    p = pb_push1(p, NV097_SET_ALPHA_TEST_ENABLE, 0);
+    /* Alpha test GEQUAL 1: PSX texel 0x0000 decodes to alpha 0 (fully
+     * transparent) and previously painted BLACK cut-out boxes around fences /
+     * foliage / decals; the combiner already outputs alpha = tex.a * col.a
+     * (final combiner G = primary alpha), so only true transparent texels die. */
+    p = pb_push1(p, NV097_SET_ALPHA_TEST_ENABLE, 1);
+    p = pb_push1(p, NV097_SET_ALPHA_FUNC, NV097_SET_ALPHA_FUNC_V_GEQUAL);
+    p = pb_push1(p, NV097_SET_ALPHA_REF, 1);
     p = pb_push1(p, NV097_SET_BLEND_ENABLE, 0);
-    /* Per-prim blend (ABE) uses a CONSTANT 0.5 factor: 0.5*back + 0.5*front (PSX
-     * semi-transparency mode 0). Constant factors don't depend on any per-pixel or
-     * combiner alpha (not wired), so opaque prims (blend off) are unaffected and
-     * enabling blend only averages — it cannot make geometry vanish. */
-    p = pb_push1(p, NV097_SET_BLEND_FUNC_SFACTOR, NV097_SET_BLEND_FUNC_SFACTOR_V_CONSTANT_ALPHA);
-    p = pb_push1(p, NV097_SET_BLEND_FUNC_DFACTOR, NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_CONSTANT_ALPHA);
+    p = pb_push1(p, NV097_SET_BLEND_FUNC_SFACTOR, NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
+    p = pb_push1(p, NV097_SET_BLEND_FUNC_DFACTOR, NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
     p = pb_push1(p, NV097_SET_BLEND_EQUATION, NV097_SET_BLEND_EQUATION_V_FUNC_ADD);
-    p = pb_push1(p, NV097_SET_BLEND_COLOR, 0x80000000);   /* constant alpha = 0.5 */
+    p = pb_push1(p, NV097_SET_BLEND_COLOR, 0x40000000);   /* constant alpha = 0.25 (ABR3) */
     p = pb_push1(p, NV097_SET_ZMIN_MAX_CONTROL, NV097_SET_ZMIN_MAX_CONTROL_ZCLAMP_CLAMP);
+    /* Final-combiner override (after ps.inl set it at init): out = C + D with
+     * C = SECONDARY (the per-vertex fog term fogColor*f from ShVertex.spec) and
+     * D = PRIMARY (stage0's tex*diffuse). A=B=ZERO so A*B+(1-A)*C+D = C+D.
+     * Alpha (CW1 G) stays primary.a — fog does not affect alpha. */
+    p = pb_push1(p, NV097_SET_COMBINER_SPECULAR_FOG_CW0,
+                 MASK(NV097_SET_COMBINER_SPECULAR_FOG_CW0_C_SOURCE, 0x5)   /* secondary */
+                 | MASK(NV097_SET_COMBINER_SPECULAR_FOG_CW0_D_SOURCE, 0x4)); /* primary */
     pb_end(p);
 }
 
-/* Toggle alpha blending per-prim (PSX ABE). Func/equation set once in SetRenderState.
- * Currently unused (per-prim blend reverted pending a correct combiner alpha). */
-void GpuNv2a_SetBlend(int enable)
+/* Blend state, encoded: 0 = off; 1..4 = ABE on with PSX ABR mode 0..3.
+ *   ABR0 (1): 0.5B+0.5F  -> SRC_ALPHA / ONE_MINUS_SRC_ALPHA (per-texel STP:
+ *             STP=1 texels decode alpha 0x80 = 50/50, STP=0 alpha 0xFF = opaque
+ *             even inside a semi-trans prim — PSX-exact; untextured semi-trans
+ *             prims carry vertex alpha 0.5 from gpu_xbox.c).
+ *   ABR1 (2): B+F   additive          -> ONE / ONE, ADD.
+ *   ABR2 (3): B-F   subtractive       -> ONE / ONE, REVERSE_SUBTRACT.
+ *   ABR3 (4): B+F/4 quarter-additive  -> CONSTANT_ALPHA(0.25) / ONE, ADD. */
+void GpuNv2a_SetBlendMode(int mode)
 {
     uint32_t* p = pb_begin();
-    p = pb_push1(p, NV097_SET_BLEND_ENABLE, enable ? 1 : 0);
+    if (mode <= 0) {
+        p = pb_push1(p, NV097_SET_BLEND_ENABLE, 0);
+    } else {
+        static const uint32_t sf[4] = {
+            NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA,
+            NV097_SET_BLEND_FUNC_SFACTOR_V_ONE,
+            NV097_SET_BLEND_FUNC_SFACTOR_V_ONE,
+            NV097_SET_BLEND_FUNC_SFACTOR_V_CONSTANT_ALPHA,
+        };
+        static const uint32_t df[4] = {
+            NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA,
+            NV097_SET_BLEND_FUNC_DFACTOR_V_ONE,
+            NV097_SET_BLEND_FUNC_DFACTOR_V_ONE,
+            NV097_SET_BLEND_FUNC_DFACTOR_V_ONE,
+        };
+        static const uint32_t eq[4] = {
+            NV097_SET_BLEND_EQUATION_V_FUNC_ADD,
+            NV097_SET_BLEND_EQUATION_V_FUNC_ADD,
+            NV097_SET_BLEND_EQUATION_V_FUNC_REVERSE_SUBTRACT,
+            NV097_SET_BLEND_EQUATION_V_FUNC_ADD,
+        };
+        const int abr = mode - 1;
+        p = pb_push1(p, NV097_SET_BLEND_ENABLE, 1);
+        p = pb_push1(p, NV097_SET_BLEND_FUNC_SFACTOR, sf[abr]);
+        p = pb_push1(p, NV097_SET_BLEND_FUNC_DFACTOR, df[abr]);
+        p = pb_push1(p, NV097_SET_BLEND_EQUATION, eq[abr]);
+    }
+    pb_end(p);
+}
+
+/* Draw-clip scissor (NV2A window clip, inclusive coords). w/h <= 0 resets to
+ * the full surface. */
+void GpuNv2a_SetScissor(int x, int y, int w, int h)
+{
+    uint32_t* p;
+    int x1, y1;
+    if (w <= 0 || h <= 0) { x = 0; y = 0; w = 640; h = 480; }
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    x1 = x + w - 1; if (x1 > 639) x1 = 639;
+    y1 = y + h - 1; if (y1 > 479) y1 = 479;
+    if (x1 < x) x1 = x;
+    if (y1 < y) y1 = y;
+    p = pb_begin();
+    p = pb_push1(p, NV097_SET_WINDOW_CLIP_TYPE, 0);              /* include */
+    p = pb_push1(p, NV097_SET_WINDOW_CLIP_HORIZONTAL, ((uint32_t)x1 << 16) | (uint32_t)x);
+    p = pb_push1(p, NV097_SET_WINDOW_CLIP_VERTICAL,   ((uint32_t)y1 << 16) | (uint32_t)y);
     pb_end(p);
 }
 
@@ -138,11 +203,24 @@ void GpuNv2a_FrameBegin(void)
     pb_reset();
     pb_target_back_buffer();
 
+    g_Nv2aFrameCount++;
+
     s_frameW = pb_back_buffer_width();
     s_frameH = pb_back_buffer_height();
 
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
-    pb_fill(0, 0, s_frameW, s_frameH, 0xff000000);
+    /* Clear to the PSX draw-env isbg background — in-game GsSortClear sets it
+     * to the FOG colour (game_main.c background2dColor = fog.color), so the
+     * area beyond the far cull reads as a fog wall instead of a black abyss. */
+    {
+        uint32_t clear = GpuXbox_GetClearColor();
+        static uint32_t s_lastClear = 0xFFFFFFFF;
+        if (clear != s_lastClear) {
+            SH_DBG("[FOGST-GPU] clear=0x%08x", (unsigned)clear);
+            s_lastClear = clear;
+        }
+        pb_fill(0, 0, s_frameW, s_frameH, clear);
+    }
     pb_erase_text_screen();
 
     s_batchUsed = 0; /* recycle the vertex pool each frame */
@@ -178,6 +256,7 @@ void GpuNv2a_FrameBegin(void)
 
         SetAttribPointer(0, 3, &s_batch[0].pos);
         SetAttribPointer(3, 4, &s_batch[0].col);
+        SetAttribPointer(4, 4, &s_batch[0].spec);  /* per-vertex fog term */
         SetAttribPointer(9, 2, &s_batch[0].tex);
     }
 }

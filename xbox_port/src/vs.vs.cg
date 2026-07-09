@@ -7,17 +7,22 @@
  * (The nxdk `mesh` sample bakes the viewport matrix into m_proj for the same
  * reason.) Input position is already in screen pixels — the form PSX libgpu
  * primitives take after the software GTE projects them — so this is a true
- * passthrough. Diffuse colour is passed to the pixel shader for modulation.
+ * passthrough. Diffuse colour is passed to the pixel shader for modulation;
+ * specular carries the per-vertex FOG term (fogColor * fogFactor) which the
+ * final register combiner ADDS to tex*diffuse (out = tex*col*(1-f) + fogC*f
+ * with the (1-f) pre-folded into col by gpu_xbox.c).
  */
 struct vIn {
-	float4 pos : POSITION;
-	float4 col : DIFFUSE;
-	float4 tex : TEXCOORD0;
+	float4 pos  : POSITION;
+	float4 col  : DIFFUSE;
+	float4 spec : SPECULAR;
+	float4 tex  : TEXCOORD0;
 };
 
 struct vOut {
 	float4 pos  : POSITION;
-	float4 col  : COLOR;
+	float4 col  : COLOR0;
+	float4 spec : COLOR1;
 	float4 tex0 : TEXCOORD0;
 };
 
@@ -29,6 +34,7 @@ vOut main(vIn I)
 	o.pos.z = I.pos.z;
 	o.pos.w = 1.0;
 	o.col   = I.col;
+	o.spec  = I.spec;
 	o.tex0  = I.tex;
 	return o;
 }

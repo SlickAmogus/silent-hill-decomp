@@ -2025,6 +2025,28 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     }
 
     curChunk = &g_Map.activeChunks[0];
+#ifdef SH_XBOX_PORT
+    /* Probe [CHNK]: per-slot residency INCLUDING texture state — LoadStateGet
+     * only reports Loaded(3) with textures resident, the one gate the old
+     * COLL-MISS dump never showed. 4 slots at st=3 around the player = chunk
+     * streaming fully healthy (the missing world was fog, not chunks). */
+    {
+        static int s_chnkTick = 0;
+        if ((++s_chnkTick % 150) == 0 && g_Map.activeChunkCount > 0) {
+            s_Chunk* c = &g_Map.activeChunks[0];
+            int      n = g_Map.activeChunkCount;
+            SH_DBG("[CHNK] n=%d s0=%d,%d,st%d s1=%d,%d,st%d s2=%d,%d,st%d s3=%d,%d,st%d",
+                   n,
+                   (int)c[0].cellX, (int)c[0].cellZ, (int)IpdHeader_LoadStateGet(&c[0]),
+                   n > 1 ? (int)c[1].cellX : -1, n > 1 ? (int)c[1].cellZ : -1,
+                   n > 1 ? (int)IpdHeader_LoadStateGet(&c[1]) : -1,
+                   n > 2 ? (int)c[2].cellX : -1, n > 2 ? (int)c[2].cellZ : -1,
+                   n > 2 ? (int)IpdHeader_LoadStateGet(&c[2]) : -1,
+                   n > 3 ? (int)c[3].cellX : -1, n > 3 ? (int)c[3].cellZ : -1,
+                   n > 3 ? (int)IpdHeader_LoadStateGet(&c[3]) : -1);
+        }
+    }
+#endif
 #ifdef SH_PC_PORT
     {
         int drawCount = 0;
@@ -2632,12 +2654,15 @@ s_IpdCollisionData* Ipd_CollisionDataGet(q19_12 posX, q19_12 posZ) // 0x800426E4
          * times per frame while pushing against the block. */
         {
             static s32 s_lastMissLog = -1000;
-            if (g_TickCount - s_lastMissLog > 30)
+            if (g_TickCount - s_lastMissLog > 120)
             {
                 s_Chunk* c;
                 s_lastMissLog = g_TickCount;
-                SH_DBG("[COLL-MISS] cell(%d,%d) pos(%.1f,%.1f) activeCount=%d",
-                       cellX, cellZ, (double)posX / 4096.0, (double)posZ / 4096.0,
+                /* Integer Q12 units: nxdk printf drops %f AND the un-consumed
+                 * 8-byte double misaligns every following vararg (the old line
+                 * printed a garbage activeCount because of this). */
+                SH_DBG("[COLL-MISS] cell(%d,%d) pos(%d,%d) activeCount=%d",
+                       cellX, cellZ, (int)(posX >> 12), (int)(posZ >> 12),
                        (int)g_Map.activeChunkCount);
                 for (c = g_Map.activeChunks; c < &g_Map.activeChunks[g_Map.activeChunkCount]; c++)
                 {

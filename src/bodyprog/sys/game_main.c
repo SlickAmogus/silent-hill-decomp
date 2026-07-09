@@ -1756,6 +1756,25 @@ void MainLoop(void) // 0x80032EE0
 #endif
         GsSortClear(g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b, &g_OrderingTable0[g_ActiveBufferIdx]);
         ML_TRACE("post-GsSortClear");
+#if defined(SH_XBOX_PORT)
+        /* Probe [FOGST]: the fog/background truth chain, once per ~150 ticks.
+         * Proves on hardware that fog is enabled with a non-black colour and
+         * that background2dColor carries it into GsSortClear (the NV2A clear).
+         * Integer-only formats — nxdk printf drops %f. */
+        {
+            static int s_fogstTick = 0;
+            if ((++s_fogstTick % 150) == 0) {
+                SH_DBG("[FOGST] en=%d far=%d fogRGB=%d,%d,%d bg2d=%d,%d,%d state=%d",
+                       (int)PC_WorldEnvWork.isFogEnabled,
+                       (int)PC_WorldEnvWork.fog.farDistance,
+                       (int)PC_WorldEnvWork.fog.color.r, (int)PC_WorldEnvWork.fog.color.g,
+                       (int)PC_WorldEnvWork.fog.color.b,
+                       (int)g_GameWork.background2dColor.r, (int)g_GameWork.background2dColor.g,
+                       (int)g_GameWork.background2dColor.b,
+                       (int)g_GameWork.gameState);
+            }
+        }
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == 11) {
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
