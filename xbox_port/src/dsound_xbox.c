@@ -30,7 +30,8 @@ extern void Audio_RenderInto(short* out, int frames);
 
 #define DS_OUT_HZ       48000
 #define DS_BLOCK_ALIGN  4                  /* 16-bit stereo */
-#define DS_BUFFER_SIZE  32768              /* ~170 ms ring (matches the Duke3D driver) */
+#define DS_BUFFER_SIZE  65536              /* ~340 ms ring — margin for BIN-load stutters
+                                            * (pump is frame-tied; long CD reads can hitch) */
 
 static IDirectSound*       s_ds    = NULL;
 static IDirectSoundBuffer* s_buf   = NULL;

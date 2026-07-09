@@ -51,6 +51,13 @@ static unsigned char* s_xferPtr = s_spuRam;     /* SpuSetTransferStartAddr curso
 static int            s_allocTop = SPU_ALLOC_BASE;
 static int            s_inited   = 0;
 
+/* Master volume (SdSetMVol -> SpuSetCommonAttr), Q14. Applied to the final mix. */
+static int            s_masterL  = 0x3FFF;
+static int            s_masterR  = 0x3FFF;
+
+/* PSX SPU ADSR envelope phase. */
+typedef enum { ENV_OFF = 0, ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE } EnvPhase;
+
 /* One software voice. pos/step are in decoded-PCM samples (fractional for
  * resampling). pcm[] holds the voice's sample, pre-decoded on key-on. */
 typedef struct {
@@ -66,6 +73,17 @@ typedef struct {
     int            looping;
     volatile int   active;
     short*         pcm;         /* VOICE_PCM_CAP decoded samples */
+
+    /* ADSR envelope (ported from PsyCross PsyX_SPUAL.cpp / nocash psx-spx). The
+     * game programs adsr1/adsr2 on every key-on (smf_io.c key_on mask 0x6019F),
+     * so hasEnv is set for all sequenced/SFX voices; without it notes clicked
+     * on/off with no attack ramp or release tail. */
+    int            hasEnv;      /* this voice programmed a real ADSR envelope */
+    EnvPhase       envPhase;
+    int            envLevel;    /* 0..0x7FFF */
+    int            envCounter;  /* cycles accumulator */
+    double         envTickAcc;  /* fractional 44100Hz-tick accumulator */
+    unsigned short adsr1, adsr2;
 } Voice;
 
 static Voice s_v[SPU_VOICES];
@@ -148,6 +166,75 @@ static int decodeVag(unsigned int byteAddr, short* out, int cap,
 
 /* --- mixer ---------------------------------------------------------------- */
 
+/* --- PSX SPU ADSR envelope (ported from PsyCross PsyX_SPUAL.cpp) ----------- */
+
+#define ADSR_MAX 0x7FFF
+
+static int adsr_sustain_level(unsigned short adsr1)
+{
+    int lvl = ((adsr1 & 0x0F) + 1) << 11;          /* (N+1)*0x800 */
+    return lvl > ADSR_MAX ? ADSR_MAX : lvl;
+}
+
+/* Decompose a 0..0x7F rate into (cycles, step) at the current level. */
+static void adsr_step_params(int rate, int increase, int exponential, int level,
+                             int* outCycles, int* outStep)
+{
+    int shift  = (rate >> 2) & 0x1F;
+    int sel    = rate & 3;
+    int step   = increase ? (7 - sel) : (-8 + sel);
+    int cycles = 1 << (shift > 11 ? shift - 11 : 0);
+
+    if (shift < 11)
+        step <<= (11 - shift);
+
+    if (exponential) {
+        if (increase && level > 0x6000) cycles <<= 2;      /* attack slows near top */
+        if (!increase)                  step = (step * level) >> 15;
+    }
+    if (cycles < 1) cycles = 1;
+    *outCycles = cycles;
+    *outStep   = step;
+}
+
+/* Advance a voice's envelope by `ticks` 44100Hz samples; returns 0..0x7FFF. */
+static int EnvelopeAdvance(Voice* v, int ticks)
+{
+    const int sustainLevel = adsr_sustain_level(v->adsr1);
+    int guard;
+
+    v->envCounter += ticks;
+
+    for (guard = 0; guard < 4096 && v->envPhase != ENV_OFF; guard++) {
+        int rate, increase, exponential, cycles, step;
+
+        switch (v->envPhase) {
+        case ENV_ATTACK:  rate = (v->adsr1 >> 8) & 0x7F; increase = 1; exponential = (v->adsr1 >> 15) & 1; break;
+        case ENV_DECAY:   rate = ((v->adsr1 >> 4) & 0x0F) << 2; increase = 0; exponential = 1; break;
+        case ENV_SUSTAIN: rate = (v->adsr2 >> 6) & 0x7F; increase = !((v->adsr2 >> 14) & 1); exponential = (v->adsr2 >> 15) & 1; break;
+        case ENV_RELEASE:
+        default:          rate = (v->adsr2 & 0x1F) << 2; increase = 0; exponential = (v->adsr2 >> 5) & 1; break;
+        }
+
+        adsr_step_params(rate, increase, exponential, v->envLevel, &cycles, &step);
+        if (v->envCounter < cycles)
+            break;
+        v->envCounter -= cycles;
+        v->envLevel   += step;
+        if (v->envLevel > ADSR_MAX) v->envLevel = ADSR_MAX;
+        if (v->envLevel < 0)        v->envLevel = 0;
+
+        switch (v->envPhase) {
+        case ENV_ATTACK:  if (v->envLevel >= ADSR_MAX)     v->envPhase = ENV_DECAY;   break;
+        case ENV_DECAY:   if (v->envLevel <= sustainLevel) { v->envLevel = sustainLevel; v->envPhase = ENV_SUSTAIN; } break;
+        case ENV_SUSTAIN: break;
+        case ENV_RELEASE: if (v->envLevel <= 0)            v->envPhase = ENV_OFF;     break;
+        default: break;
+        }
+    }
+    return v->envLevel;
+}
+
 /* Fill out[] with `frames` stereo (L,R) 16-bit samples, summing active voices.
  * Called by the DirectSound pump on the main thread. */
 void Audio_RenderInto(short* out, int frames)
@@ -159,13 +246,15 @@ void Audio_RenderInto(short* out, int frames)
         return;
     }
 
+    const double envRate = (double)SRC_HZ / (double)OUT_HZ;
+
     for (f = 0; f < frames; f++) {
         int L = 0, R = 0;
 
         for (i = 0; i < SPU_VOICES; i++) {
             Voice* v = &s_v[i];
-            int    idx;
-            short  s;
+            int    idx, s0, s1, s;
+            double frac;
 
             if (!v->active)
                 continue;
@@ -173,7 +262,26 @@ void Audio_RenderInto(short* out, int frames)
             idx = (int)v->pos;
             if (idx < 0 || idx >= v->pcmLen) { v->active = 0; continue; }
 
-            s = v->pcm[idx];
+            /* Linear interpolation between the two nearest samples (was
+             * nearest-neighbour -> aliasing on every non-unity pitch). */
+            s0 = v->pcm[idx];
+            if (v->looping && idx + 1 >= v->loopEnd) s1 = v->pcm[v->loopStart];
+            else if (idx + 1 < v->pcmLen)            s1 = v->pcm[idx + 1];
+            else                                     s1 = s0;
+            frac = v->pos - (double)idx;
+            s = s0 + (int)((s1 - s0) * frac);
+
+            /* ADSR: scale by the envelope level (Q15), advanced at 44100Hz. */
+            if (v->hasEnv) {
+                int ticks;
+                v->envTickAcc += envRate;
+                ticks = (int)v->envTickAcc;
+                v->envTickAcc -= ticks;
+                if (ticks) EnvelopeAdvance(v, ticks);
+                if (v->envPhase == ENV_OFF) { v->active = 0; continue; }
+                s = (s * v->envLevel) >> 15;
+            }
+
             L += (s * v->volL) >> 14;
             R += (s * v->volR) >> 14;
 
@@ -185,6 +293,11 @@ void Audio_RenderInto(short* out, int frames)
                 v->active = 0;
             }
         }
+
+        /* Master volume (Q14); 64-bit intermediate — the summed mix can exceed
+         * int16 before scaling. */
+        L = (int)(((long long)L * s_masterL) >> 14);
+        R = (int)(((long long)R * s_masterR) >> 14);
 
         if (L > 32767)  L = 32767;
         if (L < -32768) L = -32768;
@@ -200,6 +313,11 @@ void Audio_RenderInto(short* out, int frames)
 void SpuInit(void)
 {
     int i;
+    /* Idempotent: the game calls SpuInit twice (main_xbox before MainLoop, then
+     * SdInit inside it) — don't wipe live voices/RAM on the second call. */
+    if (s_inited)
+        return;
+
     memset(s_spuRam, 0, sizeof(s_spuRam));
     memset(s_v, 0, sizeof(s_v));
     for (i = 0; i < SPU_VOICES; i++) {
@@ -210,11 +328,14 @@ void SpuInit(void)
         s_v[i].volR      = 0x3FFF;
         s_v[i].pitch     = 4096;
         s_v[i].step      = (double)SRC_HZ / (double)OUT_HZ;
+        s_v[i].envPhase  = ENV_OFF;
     }
+    s_masterL = 0x3FFF;
+    s_masterR = 0x3FFF;
     s_xferPtr = s_spuRam;
     s_allocTop = SPU_ALLOC_BASE;
     s_inited = 1;
-    SH_DBG("[SH_AUDIO] SPU mixer init (%d voices, out=%dHz)", SPU_VOICES, OUT_HZ);
+    SH_DBG("[SH_AUDIO] SPU mixer init (%d voices, out=%dHz, ADSR+interp)", SPU_VOICES, OUT_HZ);
 }
 
 void SpuQuit(void) { s_inited = 0; }
@@ -261,6 +382,12 @@ void SpuSetVoiceAttr(SpuVoiceAttr* a)
             v->pitch = a->pitch;
             v->step  = ((double)SRC_HZ / (double)OUT_HZ) * ((double)a->pitch / 4096.0);
         }
+        /* Capture the ADSR registers the sequencer programs (key_on mask 0x6019F,
+         * adsr_set, rr_off). A voice with a programmed envelope runs the ADSR. */
+        if (a->mask & SPU_VOICE_ADSR_ADSR1) v->adsr1 = a->adsr1;
+        if (a->mask & SPU_VOICE_ADSR_ADSR2) v->adsr2 = a->adsr2;
+        if (a->mask & (SPU_VOICE_ADSR_ADSR1 | SPU_VOICE_ADSR_ADSR2))
+            v->hasEnv = (v->adsr1 || v->adsr2);
     }
 }
 
@@ -301,9 +428,19 @@ void SpuSetKey(int on_off, unsigned int voice_bit)
             v->looping   = (le > 0 && ls >= 0 && le <= v->pcmLen);
             v->pos       = 0.0;
             v->active    = (v->pcmLen > 0);
+            if (v->hasEnv) {                 /* start the ADSR from silence (attack) */
+                v->envPhase   = ENV_ATTACK;
+                v->envLevel   = 0;
+                v->envCounter = 0;
+                v->envTickAcc = 0.0;
+            }
+        } else if (v->hasEnv && v->envPhase != ENV_OFF) {
+            /* Key-off with an envelope: enter RELEASE and keep rendering (and
+             * looping) so the tail rings out; the mixer deactivates at ENV_OFF. */
+            v->envPhase = ENV_RELEASE;
         } else {
-            /* Key-off: stop sustaining. One-shots already self-terminate; clear
-             * looping so a Repeat sample plays out its tail once and stops. */
+            /* No envelope: hard stop. Clear looping so a Repeat sample doesn't
+             * ring forever. */
             v->looping = 0;
             v->active  = 0;
         }
@@ -320,15 +457,32 @@ void SpuSetKeyOnWithAttr(SpuVoiceAttr* a)
 int SpuGetKeyStatus(unsigned int voice_bit)
 {
     int i;
-    for (i = 0; i < SPU_VOICES; i++)
-        if (voice_bit & SPU_VOICECH(i))
-            return s_v[i].active ? SPU_ON : SPU_OFF;
+    for (i = 0; i < SPU_VOICES; i++) {
+        Voice* v;
+        if ((voice_bit & SPU_VOICECH(i)) == 0)
+            continue;
+        v = &s_v[i];
+        if (!v->active)
+            return SPU_OFF;
+        if (v->hasEnv) {
+            if (v->envPhase == ENV_RELEASE) return SPU_OFF_ENV_ON;  /* keyed off, ringing out */
+            if (v->envLevel == 0)           return SPU_ON_ENV_OFF;  /* on, envelope at zero */
+        }
+        return SPU_ON;
+    }
     return SPU_OFF;
 }
 
-/* --- reverb / common: no-ops for now (per-voice volume already carries the
- * sequencer's master/expression mix; SPU reverb is deferred) --------------- */
-void         SpuSetCommonAttr(SpuCommonAttr* a)             { (void)a; }
+/* Master volume (SdSetMVol): the final global gain stage — menu volume, scene
+ * fade-to-silence, pause ducking. Applied to the summed mix in Audio_RenderInto. */
+void SpuSetCommonAttr(SpuCommonAttr* a)
+{
+    if (!a) return;
+    if (a->mask & SPU_COMMON_MVOLL) { int m = a->mvol.left;  if (m < 0) m = -m; s_masterL = m & 0x3FFF; }
+    if (a->mask & SPU_COMMON_MVOLR) { int m = a->mvol.right; if (m < 0) m = -m; s_masterR = m & 0x3FFF; }
+}
+
+/* --- reverb: no-op for now (software reverb is the next build) ------------- */
 int          SpuSetReverb(int on_off)                       { (void)on_off; return 0; }
 int          SpuSetReverbModeParam(SpuReverbAttr* a)        { (void)a; return 0; }
 unsigned int SpuSetReverbVoice(int on_off, unsigned int v) { (void)on_off; (void)v; return 0; }
