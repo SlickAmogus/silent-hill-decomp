@@ -140,3 +140,20 @@ int CdRead(int sectors, unsigned long* buf, int mode)
 int CdReadSync(int mode, unsigned char* result) { (void)mode; (void)result; return 0; }            /* 0 = done */
 int CdSync(int mode, unsigned char* result)     { (void)mode; (void)result; return CDL_COMPLETE; }
 void* CdSearchFile(void) { return 0; }   /* game uses the static file table, not search */
+
+/* --- raw sector access (XA streaming, xa_xbox.c) ----------------------------
+ * XA audio lives in Mode-2/Form-2 sectors: 2324-byte payloads with the 8-byte
+ * subheader (file/channel/submode/codinginfo) at raw offset 16 — the cooked
+ * 2048-byte path above cannot carry them. Reads `sectors` full 2352-byte raw
+ * sectors starting at LBA `lbn` into buf; returns 1 on success, 0 on no-BIN /
+ * short read. Independent of the cooked path: s_curSector is untouched and
+ * CdRead re-seeks absolutely on every call, so interleaving is safe (both run
+ * on the main thread). */
+int Cd_XboxReadRaw(unsigned int lbn, unsigned char* buf, int sectors)
+{
+    if (!s_bin || !buf || sectors <= 0)
+        return 0;
+    if (fseek(s_bin, (long)lbn * BIN_SECTOR_SIZE, SEEK_SET) != 0)
+        return 0;
+    return fread(buf, BIN_SECTOR_SIZE, (size_t)sectors, s_bin) == (size_t)sectors;
+}

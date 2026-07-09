@@ -8,6 +8,15 @@
 #include "maps/shared.h"
 #include "maps/characters/cybil.h"
 
+#ifdef SH_PC_PORT
+/* The SH_PC_PORT call-order blocks below call these before their definitions;
+ * clang (Xbox port) hard-errors on the later conflicting definition. */
+void Ai_Cybil_Init(s_SubCharacter* chara);
+void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
+void Ai_Cybil_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
+void Ai_Cybil_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* animHdr, GsCOORDINATE2* coords);
+#endif
+
 /** AI code for `Chara_Cybil`
  *
  * Included in:

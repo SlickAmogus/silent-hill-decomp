@@ -4,6 +4,13 @@
 #include "bodyprog/sound/sound_system.h"
 #include "maps/map5/map5_s01.h"
 
+#ifdef SH_PC_PORT
+/* func_800CD1B4 calls this one line before its definition (implicit decl on
+ * the original compiler); clang (Xbox port) hard-errors on the later
+ * conflicting definition. */
+void func_800CDA8C(void);
+#endif
+
 s16 func_800CD20C(void) // 0x800CD20C
 {
     s32      i;

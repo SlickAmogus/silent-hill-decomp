@@ -28,6 +28,10 @@
 /* The software SPU mixer (audio_xbox.c) fills `frames` stereo 16-bit samples. */
 extern void Audio_RenderInto(short* out, int frames);
 
+/* XA stream decoder (xa_xbox.c): tops up the decoded-PCM ring (~400 ms ahead)
+ * before the mixer pulls from it. Main-thread, cheap no-op when idle. */
+extern void Xa_XboxPump(void);
+
 #define DS_OUT_HZ       48000
 #define DS_BLOCK_ALIGN  4                  /* 16-bit stereo */
 #define DS_BUFFER_SIZE  65536              /* ~340 ms ring — margin for BIN-load stutters
@@ -145,6 +149,9 @@ void Audio_XboxPump(void)
 
     if (!s_up || !s_buf)
         return;
+
+    Xa_XboxPump();   /* decode XA ahead of the render below (also pumped from
+                      * XaPlayer_Update in MainLoop; both are main-thread) */
 
     if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(s_buf, &play, &write))) {
         avail = (s_write <= play) ? (play - s_write)

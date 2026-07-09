@@ -51,6 +51,11 @@ void PsyX_SetNextPrimSz(void)    { }
 void PsyX_SetNextPrimPgxp(void)  { }
 void PsyX_CaptureGteDepths(void) { }   /* called by the addPrim() macro */
 void GR_DirectUploadVRAMRegion(void) { }
+/* map7_s03's ending cutscene toggles PsyCross's OpenAL ADSR emulation around
+ * the credits BGM. The Xbox audio HAL (dsound) has no such switch — report
+ * "enabled" and ignore the set. */
+int  PsyX_SPUAL_GetAdsrEnabled(void) { return 1; }
+void PsyX_SPUAL_SetAdsrEnabled(int on) { (void)on; }
 
 /* --- PC-only HAL (excluded source files); no-op on Xbox --------------------*/
 void DbgOverlay_Update(void)            { }
@@ -64,10 +69,7 @@ void Pc_PlayWarningScreen(void)         { }
 void Pc_QuickSaveLoadUpdate(void)       { }
 int  PC_PlayerManualReloadRequested(void){ return 0; }
 int  PC_Tick30HzReady(void)             { return 0; }
-void XaPlayer_Play(void)                { }
-void XaPlayer_Stop(void)                { }
-void XaPlayer_Update(void)              { }
-void XaPlayer_SetVolume(void)           { }
+/* XaPlayer_* (XA voice/cutscene streaming): real implementation in xa_xbox.c. */
 void CollVis_CaptureCylinder(void)      { }
 void CollVis_CaptureHit(void)           { }
 void CollVis_CaptureSeg(void)           { }

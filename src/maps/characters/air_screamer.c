@@ -9,6 +9,13 @@
 #include "maps/shared.h"
 #include "maps/characters/air_screamer.h"
 bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer);bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer);
+#ifdef SH_PC_PORT
+/* The SH_PC_PORT call-order block in Ai_AirScreamer_Init calls these before
+ * their definitions; clang (Xbox port) hard-errors on the later conflicting
+ * definition. */
+void Ai_AirScreamer_Control_0(s_SubCharacter* airScreamer);
+void Ai_AirScreamer_GroundWarp(s_SubCharacter* airScreamer);
+#endif
 
 // NOTES:
 // - M0S01 includes some extra functions missing from other maps, but also removes the body of most `Ai_AirScreamer_Control_X` functions.

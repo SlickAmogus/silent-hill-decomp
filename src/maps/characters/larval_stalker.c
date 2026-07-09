@@ -9,6 +9,15 @@
 
 #define larvalStalkerProps larvalStalker->properties.larvalStalker
 
+#ifdef SH_PC_PORT
+/* LarvalStalker_Update calls these before their definitions (implicit decls on
+ * the original compiler); clang (Xbox port) hard-errors on the later
+ * conflicting definition. */
+void Ai_LarvalStalker_Init(s_SubCharacter* larvalStalker);
+void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker);
+void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker);
+#endif
+
 void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
     s8* mapOverlayPtr;

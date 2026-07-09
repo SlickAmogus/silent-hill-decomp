@@ -235,6 +235,13 @@ static int EnvelopeAdvance(Voice* v, int ticks)
     return v->envLevel;
 }
 
+/* CD-XA streaming (xa_xbox.c): adds one 48 kHz frame of decoded XA (voice
+ * acting / streamed cutscene audio) into the L/R accumulators with the XA
+ * volume already applied. Added BEFORE the master-volume stage so XA obeys
+ * the game's master volume exactly like the SPU voices. Cheap no-op when no
+ * XA is playing — the SPU-only mix is unchanged. */
+extern void Xa_XboxMixInto(int* accL, int* accR);
+
 /* Fill out[] with `frames` stereo (L,R) 16-bit samples, summing active voices.
  * Called by the DirectSound pump on the main thread. */
 void Audio_RenderInto(short* out, int frames)
@@ -293,6 +300,9 @@ void Audio_RenderInto(short* out, int frames)
                 v->active = 0;
             }
         }
+
+        /* XA stream (voices / streamed cutscene audio) joins the voice sum. */
+        Xa_XboxMixInto(&L, &R);
 
         /* Master volume (Q14); 64-bit intermediate — the summed mix can exceed
          * int16 before scaling. */

@@ -112,10 +112,11 @@ MAIN_SRCS     := $(filter-out %/main.c %/memcpy.c,$(wildcard $(DECOMP)/src/main/
 BODYPROG_SRCS := $(filter-out %/bodyprog_80032D1C.c %/text_draw_jp.c,$(call rwildcard,$(DECOMP)/src/bodyprog,*.c))
 SCREEN_SRCS   := $(filter-out %/hp_safe1.c %/s__safe2.c,$(call rwildcard,$(DECOMP)/src/screens,*.c))
 
-# Map overlay: static-link only the starting map (map0_s00). Statically linking
-# all maps = 500+ symbol collisions (shared AI/particle/player code #included
-# into each). Explicit list + the binary-extracted cutscene data, all built with
-# the map's compile define so its g_MapOverlayHeader_map0_s00 symbol is emitted.
+# Map overlays: map0_s00 (the boot map) is linked UNPREFIXED, exactly as before.
+# All other maps are statically linked too, but symbol-PREFIXED — see the
+# "Additional statically-linked map overlays" block after the nxdk include.
+# (Naive linking of all maps = 500+ symbol collisions: shared AI/particle/player
+# code is #included into each map, so every map defines the same externs.)
 MAP_DIR  := $(DECOMP)/src/maps/map0_s00
 MAP_SRCS := \
 	$(MAP_DIR)/player.c \
@@ -137,12 +138,17 @@ MAP_SRCS := \
 #   warning_screen, hires_override -> PC-only screens (skip intros / GL hires)
 #   fs_pc              -> Xbox uses fs_xbox.c + (later) xa_player sector reads
 #   dll_loader, map_overlay_loader, map_registry -> PC overlay DLLs; Xbox static-links map0_s00
-#   xa_player          -> DEFERRED (OpenAL playback); not needed to boot MainLoop
+#   xa_player          -> xa_xbox.c (same XaPlayer_* surface; ring into the SPU mixer)
 # (fmv/ and stubs/ are subdirs, excluded by the non-recursive glob; stubs added below.)
+# (map7_s03_boss_motion: the pc_port copy is generated for x64 — its sh_scr
+#  static assert (24B) and .set pool-offset aliases (24B stride, no '_' cdecl
+#  prefix) are wrong for i386. xbox_port/src/map7_s03_boss_motion.c is the
+#  i386 equivalent; map7_s03's boss code resolves the data from the exe side,
+#  exactly like the PC DLL does.)
 PCPORT_HAL_EXCLUDE := main_pc pc_config pc_combat pc_console_cmd pc_crash pc_quicksave \
 	pc_timing dbg_overlay warning_screen hires_override fs_pc dll_loader \
 	map_overlay_loader map_registry xa_player \
-	map7_s03_boss_motion   # map7 boss data; not needed to boot map0_s00
+	map7_s03_boss_motion
 PCPORT_REUSE := $(filter-out $(foreach f,$(PCPORT_HAL_EXCLUDE),$(PCPORT)/src/$(f).c),\
 	$(wildcard $(PCPORT)/src/*.c))
 
@@ -190,9 +196,11 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/xbox_compat_stubs.c \
 	$(XBOX_PORT)/src/xbox_compat_globals.c \
 	$(XBOX_PORT)/src/map_xbox.c \
+	$(XBOX_PORT)/src/map7_s03_boss_motion.c \
 	$(XBOX_PORT)/src/libc_compat_xbox.c \
 	$(XBOX_PORT)/src/pad_xbox.c \
 	$(XBOX_PORT)/src/cd_xbox.c \
+	$(XBOX_PORT)/src/xa_xbox.c \
 	$(XBOX_PORT)/src/psx_vram.c \
 	$(XBOX_PORT)/src/gte_diag.c \
 	$(XBOX_PORT)/src/audio_xbox.c \
@@ -252,6 +260,10 @@ NXDK_LDFLAGS += /safeseh:no
 # flag gets POSIX-path-mangled by MSYS2 make into "C:\msys64\map;...".
 NXDK_LDFLAGS += -map:$(XBOX_PORT)/bin/default.map
 
+# nxdk's `clean: $(CLEANRULES)` rule expands CLEANRULES at include time, so this
+# hook (defined below, after the include) must be registered here.
+CLEANRULES += clean-maps
+
 include $(NXDK_DIR)/Makefile
 
 # Link the prebuilt USB host lib (pad_xbox.c) — extra prerequisite merged into the
@@ -259,3 +271,102 @@ include $(NXDK_DIR)/Makefile
 # placed before it, this rule became make's first target (default goal), so `make`
 # built only main.exe and skipped the CXBE step -> a stale default.xbe.
 main.exe: $(NXDK_DIR)/lib/nxdk_usb.lib
+
+# ============================================================================
+# Additional statically-linked map overlays (symbol-prefixed)
+# ============================================================================
+# Every map beyond map0_s00 is compiled exactly like the PC port's map DLLs
+# (all of src/maps/<name>/*.c + the map's extracted_data TU, with -DMAP<N>_S<M>
+# -DSH_MAP_NAME=<name>), then every DEFINED extern symbol of that map is renamed
+# with llvm-objcopy --redefine-syms to <name>_<sym>. Applying the same rename
+# list to all of the map's objs renames definitions AND intra-map references
+# consistently; references to SHARED game symbols (undefined in the map objs)
+# are untouched and resolve against bodyprog/pc_port code — the same binding a
+# PC map DLL gets from the exe's import lib. This kills the 500+ cross-map
+# duplicate-symbol collisions (each map #includes the shared player/particle/
+# chara sources). map0_s00 stays UNPREFIXED (current behavior).
+#
+# The map's header symbol g_MapOverlayHeader_<name> gets prefixed too — it
+# becomes <name>_g_MapOverlayHeader_<name>; map_xbox.c externs the prefixed
+# name for its registry table.
+#
+# Incremental safety: raw .obj files (next to their sources, built by nxdk's
+# %.obj: %.c rule) are never modified in place; objcopy writes prefixed copies
+# to build/maps/<name>/, so re-running the build never double-prefixes. The
+# <name>.syms rename list is regenerated whenever any raw obj of the map
+# changes, and all prefixed objs depend on it.
+#
+# Each map's prefixed objs are archived into build/maps/<name>.lib, linked with
+# -wholearchive: (forces ALL members in — some map objs are reached only via
+# .CRT$XCU constructors, e.g. the anim_info variable-duration patches, and lazy
+# archive semantics would drop them). One lib per map also keeps the linker
+# command line short (42 lib paths instead of ~350 obj paths, which would blow
+# the Win32 32K command-line limit).
+#
+# NOTE: symbol prefixing = PSX overlay semantics: each overlay carries its own
+# copy of the shared AI/particle/player code+data, exactly like on PSX where
+# each map overlay is a self-contained binary at 0x800C9xxx.
+
+EXTRA_MAPS := \
+	map0_s01 map0_s02 \
+	map1_s00 map1_s01 map1_s02 map1_s03 map1_s04 map1_s05 map1_s06 \
+	map2_s00 map2_s01 map2_s02 map2_s03 map2_s04 \
+	map3_s00 map3_s01 map3_s02 map3_s03 map3_s04 map3_s05 map3_s06 \
+	map4_s00 map4_s01 map4_s02 map4_s03 map4_s04 map4_s05 map4_s06 \
+	map5_s00 map5_s01 map5_s02 map5_s03 \
+	map6_s00 map6_s01 map6_s02 map6_s03 map6_s04 map6_s05 \
+	map7_s00 map7_s01 map7_s02 map7_s03
+
+MAPBUILD := $(XBOX_PORT)/build/maps
+
+# map4_s02 -> MAP4_S02 (map names are all lowercase mapN_sMM, so two substs do)
+mapdef = $(subst map,MAP,$(subst _s,_S,$(1)))
+
+define MAP_OVERLAY_template
+MAP_RAW_SRCS_$(1) := $$(wildcard $$(DECOMP)/src/maps/$(1)/*.c) \
+                     $$(wildcard $$(PCPORT)/build_gen/extracted_data/$(1)_extracted_data.c)
+MAP_RAW_OBJS_$(1) := $$(addsuffix .obj,$$(basename $$(MAP_RAW_SRCS_$(1))))
+MAP_PFX_OBJS_$(1) := $$(addprefix $$(MAPBUILD)/$(1)/,$$(notdir $$(MAP_RAW_OBJS_$(1))))
+
+$$(MAP_RAW_OBJS_$(1)): CFLAGS += -D$$(call mapdef,$(1)) -DSH_MAP_NAME=$(1)
+
+$$(MAPBUILD)/$(1)/$(1).syms: $$(MAP_RAW_OBJS_$(1))
+	@echo "[ MAPSYMS  ] $$@"
+	$$(VE)mkdir -p $$(MAPBUILD)/$(1) && \
+		$$(XBOX_PORT)/tools/gen_map_syms.sh $(1) '$$@' $$^
+
+$$(MAPBUILD)/$(1)/%.obj: $$(DECOMP)/src/maps/$(1)/%.obj $$(MAPBUILD)/$(1)/$(1).syms
+	$$(VE)llvm-objcopy --redefine-syms='$$(MAPBUILD)/$(1)/$(1).syms' '$$<' '$$@'
+
+$$(MAPBUILD)/$(1)/%.obj: $$(PCPORT)/build_gen/extracted_data/%.obj $$(MAPBUILD)/$(1)/$(1).syms
+	$$(VE)llvm-objcopy --redefine-syms='$$(MAPBUILD)/$(1)/$(1).syms' '$$<' '$$@'
+
+$$(MAPBUILD)/$(1).lib: $$(MAP_PFX_OBJS_$(1))
+	@echo "[ MAPLIB   ] $$@"
+	$$(VE)rm -f '$$@' && llvm-ar rcs '$$@' $$^
+
+MAP_LIBS     += $$(MAPBUILD)/$(1).lib
+NXDK_LDFLAGS += -wholearchive:$$(MAPBUILD)/$(1).lib
+endef
+
+$(foreach m,$(EXTRA_MAPS),$(eval $(call MAP_OVERLAY_template,$(m))))
+
+# Normal (not order-only) prerequisites: a changed map source must propagate
+# lib -> main.exe -> default.xbe. The libs also land on the link line via $^,
+# but that second (bare) mention is lazy and pulls nothing — every member is
+# already loaded by the -wholearchive: flag above.
+main.exe: $(MAP_LIBS)
+
+# Header-dependency files for the raw map objs (they are not in SRCS, so nxdk's
+# own DEPS -include doesn't cover them).
+EXTRA_MAP_DEPS := $(foreach m,$(EXTRA_MAPS),$(patsubst %.obj,%.c.d,$(MAP_RAW_OBJS_$(m))))
+-include $(EXTRA_MAP_DEPS)
+
+.PHONY: clean-maps
+clean-maps:
+	rm -rf $(MAPBUILD)
+	for d in $(EXTRA_MAPS); do \
+		rm -f $(DECOMP)/src/maps/$$d/*.obj $(DECOMP)/src/maps/$$d/*.c.d \
+		      $(PCPORT)/build_gen/extracted_data/$${d}_extracted_data.obj \
+		      $(PCPORT)/build_gen/extracted_data/$${d}_extracted_data.c.d; \
+	done
