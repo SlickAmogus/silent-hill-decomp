@@ -761,6 +761,17 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     {
         const char* hiresPath = HiresPending_PopPath(entry);
         int         looseHires = 0;
+
+        /* This upload just rewrote VRAM: any rect-keyed override covering
+         * those cells now shows the wrong image. */
+        HiresOverride_InvalidateVramRect((int)pixelRect.x, (int)pixelRect.y,
+                                         (int)pixelRect.w, (int)pixelRect.h);
+        if (haveClut)
+        {
+            HiresOverride_InvalidateVramRect((int)clutRect.x, (int)clutRect.y,
+                                             (int)clutRect.w, (int)clutRect.h);
+        }
+
         if (hiresPath && hiresPath[0])
         {
             if (discBitDepth <= 0)

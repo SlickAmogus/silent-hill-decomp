@@ -113,6 +113,13 @@ int  HiresOverride_RegisterRGBA(const char* label,
                                 int targetClutX, int targetClutY,
                                 int originalBitDepth);
 
+/* Drop every rect-keyed entry whose pixel rect or CLUT cells intersect a
+ * VRAM region that was just rewritten — pool slots and map atlas VRAM
+ * recycle the same rect+clut for different TIMs, and a surviving entry
+ * would bind the OLD image to the new material's prims. Call for every
+ * VRAM upload (pixels and CLUT rects). */
+void HiresOverride_InvalidateVramRect(int x, int y, int w, int h);
+
 #ifdef __cplusplus
 }
 #endif

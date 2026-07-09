@@ -43,8 +43,8 @@ STATIC_ASSERT_SIZEOF(s_ChunkColumn, 32);
  * persistent per-slot GL textures instead of VRAM pages (key encoding and
  * rationale: pc_port/include/hires_override.h). Physical slots keep
  * byte-exact vanilla behavior and are claimed first. */
-#define PC_TEXPOOL_FULL_EXTRA 128
-#define PC_TEXPOOL_HALF_EXTRA 48
+#define PC_TEXPOOL_FULL_EXTRA 192
+#define PC_TEXPOOL_HALF_EXTRA 64
 #define PC_TEXPOOL_LIST_MAX   (8 + PC_TEXPOOL_FULL_EXTRA)
 #else
 #define PC_TEXPOOL_FULL_EXTRA 0

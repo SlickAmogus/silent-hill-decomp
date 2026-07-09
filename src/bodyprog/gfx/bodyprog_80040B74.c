@@ -1675,31 +1675,35 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * nearest neighbors (the Hor+ screen-edge reveal, cafe side walls)
      * take what remains, and farther residents keep geometry+collision
      * but release their textures like vanilla's out-of-cell chunks. */
-    if (!g_Map.isExterior)
+    /* Expanded pool: every loaded resident chunk keeps its materials
+     * textured — the pool no longer starves, so the interior keep-4 window,
+     * the steal loop, and the g_PcInteriorMatSync flat/untexture shims below
+     * are unnecessary (they remain as the resident_textures=0 fallback).
+     * Exteriors too: the vanilla release-far/reload-near churn left far
+     * chunks untextured, and an untextured chunk is skipped by the draw
+     * gate — the pop-in squares. Exteriors need preloadChunks (default on):
+     * with chunk STREAMING, slot recycling relies on the per-frame release
+     * pass this branch replaces. Releases still happen on chunk unload
+     * (Map_PlaceIpdAtCell / Ipd_ActiveChunksClear), exactly like vanilla. */
+    if (g_PcConfig.residentTextures && (!g_Map.isExterior || g_PcConfig.preloadChunks))
     {
-        /* Expanded pool: every loaded resident chunk keeps its materials
-         * textured — the pool no longer starves, so the keep-4 window, the
-         * steal loop, and the g_PcInteriorMatSync flat/untexture shims below
-         * are unnecessary (they remain as the resident_textures=0 fallback).
-         * Releases still happen on chunk unload (Map_PlaceIpdAtCell /
-         * Ipd_ActiveChunksClear), exactly like vanilla. */
-        if (g_PcConfig.residentTextures)
+        for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
         {
-            for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
+            if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
+                curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
             {
-                if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
-                    curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
-                {
-                    continue;
-                }
-
-                Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
-                Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+                continue;
             }
 
-            return;
+            Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
         }
 
+        return;
+    }
+
+    if (!g_Map.isExterior)
+    {
         enum { PC_INTERIOR_TEXTURED_CHUNKS = 4 };
         s_Chunk* keep[PC_INTERIOR_TEXTURED_CHUNKS];
         s32      keepCount = 0;

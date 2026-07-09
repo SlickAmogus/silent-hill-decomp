@@ -353,7 +353,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
     s->nativeH = nativePixelH;
 
     static int s_regLog = 0;
-    if (s_regLog < 64)
+    if (s_regLog < 256)
     {
         SH_DBG("[POOLTEX] slot %d <- %dx%d (src %dbpp, native %dx%d) tex=%u",
                slotId, hiW, hiH, srcBpp, nativePixelW, nativePixelH,
@@ -465,7 +465,7 @@ int HiresOverride_RegisterRGBA(const char* label,
     e->sourceBitDepth = 32;
 
     static int s_rgbaLog = 0;
-    if (s_rgbaLog < 32)
+    if (s_rgbaLog < 256)
     {
         SH_DBG("[HIRES] registered %s (RGBA %dx%d): vram=(%d,%d %dx%d cells, %dbpp) clut=(%d,%d) tex=%u",
                label, w, h, targetVramX, targetVramY, targetVramW, targetVramH,
@@ -492,6 +492,41 @@ void HiresOverride_PoolSlotsReset(void)
     if (live > 0)
     {
         SH_DBG("[POOLTEX] reset (%d slots freed)", live);
+    }
+}
+
+void HiresOverride_InvalidateVramRect(int x, int y, int w, int h)
+{
+    int i = 0;
+    while (i < g_numEntries)
+    {
+        HiresEntry* e = &g_entries[i];
+        /* Pixel-rect overlap, or the upload stomping the entry's CLUT
+         * cells (16 entries at 4bpp, 256 at 8bpp). Either way the entry no
+         * longer reflects what a prim keyed to it samples. */
+        int clutW = (e->originalBitDepth == 8) ? 256 : 16;
+        int hitPixels = e->vramX < x + w && e->vramX + e->vramW > x &&
+                        e->vramY < y + h && e->vramY + e->vramH > y;
+        int hitClut = e->clutX >= 0 &&
+                      e->clutX < x + w && e->clutX + clutW > x &&
+                      e->clutY < y + h && e->clutY + 1 > y;
+        if (hitPixels || hitClut)
+        {
+            static int s_invalLog = 0;
+            if (s_invalLog < 64)
+            {
+                SH_DBG("[HIRES] invalidated stale entry vram=(%d,%d %dx%d) clut=(%d,%d) — VRAM rewritten at (%d,%d %dx%d)",
+                       e->vramX, e->vramY, e->vramW, e->vramH, e->clutX, e->clutY, x, y, w, h);
+                s_invalLog++;
+            }
+            if (e->glTexture != 0)
+            {
+                glDeleteTextures(1, &e->glTexture);
+            }
+            g_entries[i] = g_entries[--g_numEntries];
+            continue;
+        }
+        i++;
     }
 }
 
@@ -529,13 +564,21 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
     int cx = (clut & 0x3F) * 16;
     int cy = (clut >> 6) & 0x1FF;
 
+    /* A tpage samples pageCellW cells right / 256 rows down from its origin;
+     * an entry matches when that window INTERSECTS its rect (origin-inside
+     * is not enough: the second half-page pool slot starts 32 cells past its
+     * page origin, and non-page-aligned TIMs hang left of the page a prim
+     * addresses them through). The clut requirement disambiguates entries
+     * sharing a page; offsets may come out negative — prim UVs inside the
+     * TIM keep the final coordinate non-negative. */
+    int pageCellW = (bd == 4) ? 64 : (bd == 8) ? 128 : 256;
+
     for (int i = 0; i < g_numEntries; i++)
     {
         HiresEntry* e = &g_entries[i];
         if (e->originalBitDepth != bd) continue;
-        /* Tpage origin must lie inside the override's vram region. */
-        if (tpx < e->vramX || tpx >= e->vramX + e->vramW) continue;
-        if (tpy < e->vramY || tpy >= e->vramY + e->vramH) continue;
+        if (tpx >= e->vramX + e->vramW || tpx + pageCellW <= e->vramX) continue;
+        if (tpy >= e->vramY + e->vramH || tpy + 256 <= e->vramY) continue;
         if (e->clutX >= 0)
         {
             if (cx != e->clutX || cy != e->clutY) continue;
@@ -543,7 +586,7 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
         {
             /* vramX/W are in 16-bit VRAM cells; texels per cell depends on
              * the bit depth. The offset is where this prim's tpage origin
-             * sits INSIDE the replaced TIM, in native texels — prim UVs
+             * sits relative to the replaced TIM, in native texels — prim UVs
              * restart at each tpage, so chunks past the first need it. */
             int pixelsPerCell;
             switch (bd) {

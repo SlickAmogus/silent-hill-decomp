@@ -657,7 +657,7 @@ unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
 
     {
         static int s_composeLog = 0;
-        if (s_composeLog < 32)
+        if (s_composeLog < 256)
         {
             SH_DBG("[TEXPACK] composed %dx%d for upload %016llX (%d sub-image%s, %dbpp)",
                    canvasW, canvasH, srcHash, matchCount, matchCount == 1 ? "" : "s", bpp);
