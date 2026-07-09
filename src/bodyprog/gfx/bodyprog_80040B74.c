@@ -630,6 +630,36 @@ void Ipd_ActiveMapChunksClear(void) // 0x80041FF0
     Ipd_ActiveChunksClear(&g_Map, g_Map.activeChunkCount);
 }
 
+#ifdef SH_PC_PORT
+/* Diagnostic: name every TIM upload that lands on a PINNED physical pool
+ * slot. 2D event backgrounds / boss FX write straight into pool pages; with
+ * resident texturing the stomped slot was never reloaded — the garbled
+ * interior floors/walls class. Called from Fs_QueuePostLoadTim. */
+void Pc_PoolStompProbe(int x, int y, int w, int h)
+{
+    static int s_stompLog = 0;
+    s32 i;
+
+    if (s_stompLog >= 64) return;
+
+    for (i = 0; i < 10; i++)
+    {
+        s_Texture* t = (i < 8) ? &g_Map.chunkTextures.fullPageTextures[i]
+                               : &g_Map.chunkTextures.halfPageTextures[i - 8];
+        int sx = t->imageDesc.u + ((t->imageDesc.tPage[1] & 0xF) << 6);
+        int sy = t->imageDesc.v + ((t->imageDesc.tPage[1] << 4) & 0x100);
+        int sw = (i < 8) ? 64 : 32;
+
+        if (t->refCount <= 0) continue;
+        if (x >= sx + sw || x + w <= sx || y >= sy + 256 || y + h <= sy) continue;
+
+        SH_DBG("[POOLSTOMP] upload (%d,%d %dx%d) hits PINNED pool slot %d '%.8s' (%d,%d)",
+               x, y, w, h, (int)i, t->name.str, sx, sy);
+        s_stompLog++;
+    }
+}
+#endif
+
 void Ipd_TexturesRefClear(void) // 0x8004201C
 {
     s_Texture* curTex;

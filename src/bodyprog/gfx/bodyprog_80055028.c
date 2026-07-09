@@ -4101,6 +4101,59 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
     mat->texture = NULL;
     foundTex = NULL;
 
+#ifdef SH_PC_PORT
+    /* Claim a VIRTUAL slot when one is free: GL-backed slots are immune to
+     * the 2D-event/map-screen/boss-FX uploads that write straight into the
+     * pool's VRAM pages. Vanilla healed those stomps by constantly
+     * releasing + reloading chunk textures; resident texturing PINS
+     * materials for the whole map, so a stomped physical page stayed
+     * garbled forever (school floors/walls after any 2D screen). Physical
+     * pages remain for VRAM-dependent TIMs (needsVram), the global LM
+     * (its count=4 clamp only ever exposes the first 4 physical entries),
+     * and overflow. With resident_textures=0 no virtual slots are listed
+     * and this reduces to the vanilla single-candidate scan. */
+    {
+        s_Texture* bestVirt  = NULL;
+        s_Texture* bestPhys  = NULL;
+        s32        bestVirtQ = INT_MAX;
+        s32        bestPhysQ = INT_MAX;
+
+        for (i = 0; i < activeTexs->count; i++)
+        {
+            curTex = activeTexs->textures[i];
+
+            if (!COMPARE_FILENAMES(&mat->name, &curTex->name))
+            {
+                mat->texture = curTex;
+                curTex->refCount++;
+                return curTex;
+            }
+
+            if (curTex->refCount != 0)
+            {
+                continue;
+            }
+
+            if (curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+            {
+                if ((s32)curTex->queueIdx < bestVirtQ)
+                {
+                    bestVirtQ = (s32)curTex->queueIdx;
+                    bestVirt  = curTex;
+                }
+            }
+            else if ((s32)curTex->queueIdx < bestPhysQ)
+            {
+                bestPhysQ = (s32)curTex->queueIdx;
+                bestPhys  = curTex;
+            }
+        }
+
+        foundTex = needsVram ? bestPhys : (bestVirt != NULL ? bestVirt : bestPhys);
+    }
+    (void)smallestQueueIdx;
+    (void)queueIdx;
+#else
     for (i = 0; i < activeTexs->count; i++)
     {
         curTex = activeTexs->textures[i];
@@ -4112,13 +4165,6 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
             return curTex;
         }
 
-#ifdef SH_PC_PORT
-        if (needsVram && curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
-        {
-            continue;
-        }
-#endif
-
         queueIdx = curTex->queueIdx;
         if ((s32)queueIdx < smallestQueueIdx && curTex->refCount == 0)
         {
@@ -4126,6 +4172,7 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
             foundTex       = curTex;
         }
     }
+#endif
 
     if (foundTex == NULL)
     {

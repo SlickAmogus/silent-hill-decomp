@@ -764,6 +764,11 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 
         /* This upload just rewrote VRAM: any rect-keyed override covering
          * those cells now shows the wrong image. */
+        {
+            extern void Pc_PoolStompProbe(int x, int y, int w, int h);
+            Pc_PoolStompProbe((int)pixelRect.x, (int)pixelRect.y,
+                              (int)pixelRect.w, (int)pixelRect.h);
+        }
         HiresOverride_InvalidateVramRect((int)pixelRect.x, (int)pixelRect.y,
                                          (int)pixelRect.w, (int)pixelRect.h);
         if (haveClut)
