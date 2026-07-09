@@ -21,6 +21,7 @@ typedef struct {
     int                  rowsPerPage; /* grid rows per tpage (1 US: row index selects the tpage; 6 EUR: single page) */
     unsigned int         tpageBase;   /* 0x10 US (tpages 16-19), 0x0C EUR */
     unsigned int         packedClut;  /* getClut(): 0x7FD3 US (304,511), 0x3FF3 EUR (816,255) */
+    int                  hiResGlyphBottom; /* hi-res FT4 quad bottom offset: (posY*2)+30 US, +31 retail EUR */
     const unsigned char* glyphWidths; /* kerning table, glyphCount entries */
 } s_FontLayout;
 

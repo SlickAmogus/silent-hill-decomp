@@ -21,16 +21,19 @@ namespace SilentHillPC_Launcher
             public string Serial;      // e.g. "SLES-01514"
             public string Region;      // "USA" / "PAL" / "JAP" (game region key)
             public string RegionLabel; // shown to the user
+            public bool   Supported;   // false = recognized but the game can't load it yet
         }
 
         // Serial prefix -> region. Table-driven so a future region (NTSC-J)
         // is one row here plus the matching row in the game-side probe.
-        private static readonly string[,] RegionMap = {
-            { "SLUS", "USA", "USA / NTSC-U" },
-            { "SLES", "PAL", "PAL / Europe (En,Fr,De,Es,It)" },
-            { "SLPS", "JAP", "Japan / NTSC-J" },
-            { "SLPM", "JAP", "Japan / NTSC-J" },
-            { "SIPS", "JAP", "Japan / NTSC-J" },
+        // NTSC-J is recognized for a helpful message but NOT supported: the
+        // game-side probe (Pc_DetectRegionFromBin) rejects those serials.
+        private static readonly object[,] RegionMap = {
+            { "SLUS", "USA", "USA / NTSC-U",                 true  },
+            { "SLES", "PAL", "PAL / Europe (En,Fr,De,Es,It)", true  },
+            { "SLPS", "JAP", "Japan / NTSC-J (not supported yet)", false },
+            { "SLPM", "JAP", "Japan / NTSC-J (not supported yet)", false },
+            { "SIPS", "JAP", "Japan / NTSC-J (not supported yet)", false },
         };
 
         /// <summary>
@@ -64,15 +67,16 @@ namespace SilentHillPC_Launcher
                             string name = Encoding.ASCII.GetString(sec, o + 33, nameLen);
                             for (int r = 0; r < RegionMap.GetLength(0); r++)
                             {
-                                if (name.StartsWith(RegionMap[r, 0], StringComparison.Ordinal))
+                                if (name.StartsWith((string)RegionMap[r, 0], StringComparison.Ordinal))
                                 {
                                     return new Disc
                                     {
                                         Path        = path,
                                         FileName    = System.IO.Path.GetFileName(path),
                                         Serial      = FormatSerial(name),
-                                        Region      = RegionMap[r, 1],
-                                        RegionLabel = RegionMap[r, 2],
+                                        Region      = (string)RegionMap[r, 1],
+                                        RegionLabel = (string)RegionMap[r, 2],
+                                        Supported   = (bool)RegionMap[r, 3],
                                     };
                                 }
                             }

@@ -239,9 +239,9 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                     setRGB0(glyphPoly, glyphColor, glyphColor >> 8, glyphColor >> 16);
                     setXY4(glyphPoly,
                            posX,                           drawY * 2,
-                           posX,                           (drawY * 2) + 30,
+                           posX,                           (drawY * 2) + g_FontLayout->hiResGlyphBottom,
                            posX + FONT_12X16_GLYPH_SIZE_X, drawY * 2,
-                           posX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + 30);
+                           posX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + g_FontLayout->hiResGlyphBottom);
 
                     *((u32*)&glyphPoly->u0) = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
                     *((u32*)&glyphPoly->u1) = u0 + (page << 16) + ((vTop + 15) << 8);              // `u1`, `v1`, `page`.
@@ -787,9 +787,9 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                         setRGB0(glyphPoly, (s8)color, (s8)(color >> 8), (s8)(color >> 16));
                         setXY4(glyphPoly,
                                glyphPosX,                           drawY * 2,
-                               glyphPosX,                           (drawY * 2) + 30,
+                               glyphPosX,                           (drawY * 2) + g_FontLayout->hiResGlyphBottom,
                                glyphPosX + FONT_12X16_GLYPH_SIZE_X, drawY * 2,
-                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + 30);
+                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + g_FontLayout->hiResGlyphBottom);
 
                         *((u32*)&glyphPoly->u0) = temp_a0 + (vTop << 8) + (g_FontLayout->packedClut << 16);      // `u0`, `v0`, `clut`.
                         *((u32*)&glyphPoly->u1) = temp_a0 + (page << 16) + ((vTop + 15) << 8);                   // `u1`, `v1`, `page`.

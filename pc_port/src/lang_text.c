@@ -197,11 +197,14 @@ static char* TranslateMapMsg(char* dst, const unsigned char* src, int isFinalPar
 
         if (c == '{')
         {
-            int codeLen = 0;
+            int  codeLen   = 0;
+            char codeFirst = 0;
 
             *dst++ = '~';
             for (src++; *src != '\0' && *src != '}'; src++)
             {
+                if (codeLen == 0)
+                    codeFirst = (char)*src;
                 *dst++ = (char)*src;
                 codeLen++;
             }
@@ -209,6 +212,13 @@ static char* TranslateMapMsg(char* dst, const unsigned char* src, int isFinalPar
                 break;
             if (codeLen == 1)
                 *dst++ = ' ';
+            /* The US ~J parsers scan FORWARD for a space/tab after the
+             * closing ')' (both the width pre-pass and the already-timed
+             * draw path) — without one they run off the string. US data
+             * always has a tab there; emit one (tabs are skipped everywhere
+             * else). */
+            if (codeFirst == 'J')
+                *dst++ = '\t';
         }
         else if (c == '\n')
         {

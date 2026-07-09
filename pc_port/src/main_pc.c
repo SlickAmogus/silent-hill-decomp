@@ -353,11 +353,19 @@ const char* PcPort_GetGameDiscPath(void)
         f = fopen(path, "rb");
         if (f)
         {
+            /* Trust the boot serial over the filename — a renamed disc must
+             * select the region its data actually has (and the launcher's
+             * serial-based display then always agrees with us). The name's
+             * region is only the fallback for unreadable/odd rips. */
+            int probed = Pc_DetectRegionFromBin(path);
+
             fclose(f);
             snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
-            Fs_InitFileTableForRegion((e_GameRegion)s_known[i].region);
+            if (probed < 0)
+                probed = s_known[i].region;
+            Fs_InitFileTableForRegion((e_GameRegion)probed);
             SH_LOG("Disc: %s (region %s)", s_known[i].name,
-                   s_known[i].region == Region_EUR ? "EUR/PAL" : "USA");
+                   probed == Region_EUR ? "EUR/PAL" : "USA");
             return g_GameDiscPath;
         }
     }

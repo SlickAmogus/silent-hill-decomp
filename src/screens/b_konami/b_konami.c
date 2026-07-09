@@ -43,6 +43,9 @@ static int BootSkip_Pressed(void)
 #include "bodyprog/sys/joy.h"
 #include "main/fsqueue.h"
 #include "screens/b_konami/b_konami.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion — PAL FONT16 reload on the auto-load path */
+#endif
 #include "screens/b_konami/lzss.h"
 #include "screens/stream/stream.h"
 
@@ -418,6 +421,19 @@ void GameState_KcetLogo_Update(void) // 0x800C99A4
                     {
                         case GameState_AutoLoadSavegame:
                             Fs_QueueStartReadTim(FILE_TIM_SAVELOAD_TIM, FS_BUFFER_7, &g_ItemInspectionImg);
+#ifdef SH_PC_PORT
+                            /* This path skips the title screen (and its PAL
+                             * FONT16 reload in GameFs_TitleGfxLoad), but the
+                             * save-select screen it boots into draws FONT16
+                             * text — reload past the Konami-logo stomp here. */
+                            {
+                                extern e_GameRegion g_GameRegion;
+                                if (g_GameRegion == Region_EUR)
+                                {
+                                    Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+                                }
+                            }
+#endif
                             break;
 
                         case GameState_MovieIntroFadeIn:

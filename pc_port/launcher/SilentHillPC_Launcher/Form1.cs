@@ -76,21 +76,39 @@ public partial class Form1 : Form
         try { if (!Directory.Exists(gamedata)) Directory.CreateDirectory(gamedata); }
         catch { return; }
 
-        var discs = DiscProbe.Scan(gamedata);
-        if (discs.Count == 0)
+        var discs  = DiscProbe.Scan(gamedata);
+        var usable = discs.Where(d => d.Supported).ToList();
+        if (usable.Count == 0)
         {
-            lblDisc.Text = "No disc image found in gamedata\\";
-            MessageBox.Show(this,
-                "No Silent Hill disc image found.\n\n" +
-                "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
-                "in the gamedata folder!",
-                "Silent Hill PC",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (discs.Count > 0)
+            {
+                // Recognized but unsupported (NTSC-J): tell the truth instead
+                // of presenting it as a working disc — the game rejects it.
+                lblDisc.Text = $"Disc: {discs[0].Serial} — {discs[0].RegionLabel}";
+                MessageBox.Show(this,
+                    $"Found {discs[0].Serial} ({discs[0].RegionLabel}), but this version\n" +
+                    "isn't supported yet. Please put a Silent Hill .bin\n" +
+                    "(USA or PAL/European release) in the gamedata folder!",
+                    "Silent Hill PC",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else
+            {
+                lblDisc.Text = "No disc image found in gamedata\\";
+                MessageBox.Show(this,
+                    "No Silent Hill disc image found.\n\n" +
+                    "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
+                    "in the gamedata folder!",
+                    "Silent Hill PC",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             return;
         }
 
         // Mirror the game's pick (main_pc.c PcPort_GetGameDiscPath): the known
         // filenames win in this order, then autodetect prefers USA over PAL.
+        // The game also probes known-named files by serial, so the region we
+        // display always matches the region the game will select.
         string[] knownNames = {
             "Silent Hill (USA).bin",
             "Silent Hill (PAL).bin",
@@ -99,11 +117,11 @@ public partial class Form1 : Form
         DiscProbe.Disc active = null;
         foreach (var kn in knownNames)
         {
-            active = discs.FirstOrDefault(d => d.FileName.Equals(kn, StringComparison.OrdinalIgnoreCase));
+            active = usable.FirstOrDefault(d => d.FileName.Equals(kn, StringComparison.OrdinalIgnoreCase));
             if (active != null) break;
         }
         if (active == null)
-            active = discs.FirstOrDefault(d => d.Region == "USA") ?? discs[0];
+            active = usable.FirstOrDefault(d => d.Region == "USA") ?? usable[0];
 
         string text = $"Disc: {active.Serial} — {active.RegionLabel}";
         if (discs.Count > 1)

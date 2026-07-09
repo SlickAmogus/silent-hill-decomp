@@ -665,9 +665,9 @@ partial class Form1
             //
             // lblDisc
             //
-            this.lblDisc.Location = new System.Drawing.Point(214, 427);
+            this.lblDisc.Location = new System.Drawing.Point(214, 420);
             this.lblDisc.Name = "lblDisc";
-            this.lblDisc.Size = new System.Drawing.Size(198, 15);
+            this.lblDisc.Size = new System.Drawing.Size(198, 30);
             this.lblDisc.TabIndex = 64;
             //
             // btnControls

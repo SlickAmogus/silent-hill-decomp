@@ -27,8 +27,8 @@ static const unsigned char s_GlyphWidths_EUR[120] = {
     10, 10, 10, 10, 11, 0,  10, 10, 10, 10, 0,  8,  7,  12, 12, 0
 };
 
-static const s_FontLayout s_FontLayout_USA = { 84,  240, 1, 0x10, 0x7FD3, s_GlyphWidths_USA };
-static const s_FontLayout s_FontLayout_EUR = { 120, 128, 6, 0x0C, 0x3FF3, s_GlyphWidths_EUR };
+static const s_FontLayout s_FontLayout_USA = { 84,  240, 1, 0x10, 0x7FD3, 30, s_GlyphWidths_USA };
+static const s_FontLayout s_FontLayout_EUR = { 120, 128, 6, 0x0C, 0x3FF3, 31, s_GlyphWidths_EUR };
 
 const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
 
@@ -59,12 +59,15 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
             case 0xC7: cell = 117; break;                           /* C cedilla */
 
             default:
-                if (charCode >= 0xDF)
+                if (charCode >= 0xDF && charCode != 0xFD)
                 {
                     cell = (int)charCode - 0x8B;
                 }
                 else if (charCode >= 0xC0)
                 {
+                    /* 0xFD (y-acute) rides this path too — retail quirk:
+                     * it degrades to diaeresis mark + '*' like the
+                     * unsupported uppercase accents. */
                     /* Uppercase accent: zero-advance mark above, then the base
                      * letter (only A-acute/E-acute/A-O-U-diaeresis have real
                      * bases; the rest degrade to '*' exactly like retail). */
@@ -126,6 +129,21 @@ void Font_ApplyRegionPatches(void)
     g_Font16AtlasImg.clutY    = 255;
 
     Gfx_StringLightGreyColorPatch(64, 64, 64);
+
+    /* Exterior tree/branch billboards (Gfx_BillboardDraw) sample BG_ETC
+     * texels (0..63,128..191) — on PAL that band is resliced to
+     * (128..191,0..63) and its old home is the FONT16 atlas. Move the UV
+     * table (same reslice transform as the particle sprite band). */
+    {
+        int i;
+        for (i = 0; i < 3; i++)
+        {
+            D_800AE4DC[i].field_8 += 128; /* u  0   -> 128 */
+            D_800AE4DC[i].field_A += 128; /* u  63  -> 191 */
+            D_800AE4DC[i].field_9 -= 128; /* v  128 -> 0   */
+            D_800AE4DC[i].field_B -= 128; /* v  191 -> 63  */
+        }
+    }
 
     SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255)");
 }
