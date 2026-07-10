@@ -3991,17 +3991,28 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
                 extern int  g_PcHorPlusEnabled;
                 extern int  g_PcMenuPillarbox;
                 extern int  g_PcWidescreenMode;
-                unsigned short clut01[8], clut00[8], pix01[8];
+                /* v2: probe INTERIOR rows of every page the item TMDs sample
+                 * (TIM00 (960,0), TIM01 (896,0), TIM07 (864,0)) plus non-zero
+                 * CLUT rows — v1 read 4 corner texels that are legitimately
+                 * white on both regions (Konami logo home), proving nothing.
+                 * Compare against the on-disc TIM bytes offline. */
+                static const struct { const char* tag; int x, y; } P[] = {
+                    { "pix(960,100)",  960, 100 }, { "pix(992,200)", 992, 200 },
+                    { "pix(896,100)",  896, 100 }, { "pix(920,200)", 920, 200 },
+                    { "pix(864,100)",  864, 100 },
+                    { "clut(176,1)",   176,   1 }, { "clut(176,8)",  176,   8 },
+                    { "clut(160,2)",   160,   2 }, { "clut(240,4)",  240,   4 },
+                };
+                unsigned short v[8];
+                int            pi;
 
-                GR_ReadVRAM(clut01, 160, 0, 8, 1);
-                GR_ReadVRAM(clut00, 176, 0, 8, 1);
-                GR_ReadVRAM(pix01,  896, 0, 8, 1);
-                SH_DBG("[ITEMVRAM] clut(160,0)=%04x %04x %04x %04x %04x %04x %04x %04x",
-                       clut01[0], clut01[1], clut01[2], clut01[3], clut01[4], clut01[5], clut01[6], clut01[7]);
-                SH_DBG("[ITEMVRAM] clut(176,0)=%04x %04x %04x %04x %04x %04x %04x %04x",
-                       clut00[0], clut00[1], clut00[2], clut00[3], clut00[4], clut00[5], clut00[6], clut00[7]);
-                SH_DBG("[ITEMVRAM] pix(896,0)=%04x %04x %04x %04x  horPlus=%d pillarbox=%d wsMode=%d",
-                       pix01[0], pix01[1], pix01[2], pix01[3],
+                for (pi = 0; pi < (int)(sizeof(P) / sizeof(P[0])); pi++)
+                {
+                    GR_ReadVRAM(v, P[pi].x, P[pi].y, 8, 1);
+                    SH_DBG("[ITEMVRAM2] %s=%04x %04x %04x %04x %04x %04x %04x %04x",
+                           P[pi].tag, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+                }
+                SH_DBG("[ITEMVRAM2] horPlus=%d pillarbox=%d wsMode=%d",
                        g_PcHorPlusEnabled, g_PcMenuPillarbox, g_PcWidescreenMode);
                 s_vramProbe = 1;
             }

@@ -364,6 +364,22 @@ int g_PcItemDimNum = 256;
  * so addPrim's auto-captured depth would otherwise be lighting garbage. Off
  * (every non-inventory GsSortObject4J caller) = byte-identical. */
 int g_PcItemPreciseDepth = 0;
+
+/* [PRIMWORD] probe (PAL black item previews): budget of prims to dump per
+ * GsSortObject4J call while the item-screen bracket is active. Captures the
+ * words the byte-count TMDEMIT probe could not see: emitted tpage/clut and
+ * post-ITEMDIM RGB. Remove with the other item probes once the bug closes. */
+static int s_primWordBudget   = 0;
+static int s_primWordLogTotal = 0;
+#define PRIMWORD_LOG(tag, poly) do { \
+    if (s_primWordBudget > 0) { \
+        s_primWordBudget--; s_primWordLogTotal++; \
+        SH_DBG("[PRIMWORD] " tag " tpage=%04x clut=%04x rgb=%02x,%02x,%02x dim=%d", \
+               (unsigned)(poly)->tpage, (unsigned)(poly)->clut, \
+               (unsigned)(poly)->r0, (unsigned)(poly)->g0, (unsigned)(poly)->b0, \
+               g_PcItemDimNum); \
+    } } while (0)
+
 extern void PsyX_SetNextPrimSzExact(unsigned short, unsigned short, unsigned short, unsigned short);
 /* Raw per-vertex view-space SZ captured by RotTransPers3/4 (libgte.c) right after
  * the transform, BEFORE these drawers' NormalClip/NormalColorCol clobber the GTE SZ
@@ -565,6 +581,7 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("FT3", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
@@ -606,6 +623,7 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("GT3", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
@@ -647,6 +665,7 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("FT4", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
@@ -692,6 +711,7 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("GT4", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
@@ -895,6 +915,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("FT3", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
@@ -986,6 +1007,7 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("GT3", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
@@ -1022,6 +1044,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("FT4", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
@@ -1063,6 +1086,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
+        PRIMWORD_LOG("GT4", poly);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
         ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
@@ -1426,6 +1450,13 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         return;
     }
     if (lmode < 0 || lmode > 2) lmode = 0;
+
+    /* Arm the [PRIMWORD] probe for item-screen objects only (the precise-depth
+     * bracket is set exactly for inventory + pickup previews): first 2 prims
+     * per object, 64 lines per session. */
+    if (g_PcItemPreciseDepth && s_primWordLogTotal < 64) {
+        s_primWordBudget = 2;
+    }
 
     while (primn > 0) {
         u8 olen = pp[0];
