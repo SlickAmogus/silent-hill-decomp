@@ -51,6 +51,16 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
     poly->v2 -= 128;
     poly->v3 -= 128;
 }
+
+/* On PSX `sharedData_800DD58C_0_s00` IS `g_ParticlesAddedCount[1]` — one object,
+ * two names (0x800DD588 + 4 == 0x800DD58C in map0_s00's address space; every
+ * rain overlay's sym table shows the same 4-byte overlap, e.g. map1_s03
+ * 0x800DF398/0x800DF39C). The PC build split them into two separate objects, so
+ * the rain-particle count written by the weather machine never reached the
+ * rain-sound ramp target and `SD_Call(Sfx_Unk1360)` in `Particle_SoundUpdate`
+ * was unreachable: rain visuals played with no rain sound on map0_s00/map1_s02/
+ * map1_s03/map4_s02. Restore the alias. */
+#define sharedData_800DD58C_0_s00 (g_ParticlesAddedCount[1])
 #endif
 
 // Particle-related functions.
