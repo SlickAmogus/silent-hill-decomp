@@ -525,3 +525,38 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   (`DiscProbe.cs`), disc label in UI, Language dropdown; game-side
   `g_PcConfig.language`. Full status/reference:
   `pc_port/docs/PAL_Language_Support_Task.md`.
+
+## Ambient SFX batch — severed-alias class + silent positions (2026-07-09)
+
+23-map multi-agent audit of missing rain/water ambience (spec + full findings:
+`pc_port/docs/Ambient_SFX_Task.md`). Discovered a NEW bug class beyond
+zero-stubs: **severed PSX aliases** — two symbol names that shared one address
+on PSX (sym tables show them 2–4 bytes apart, one inside the other's extent)
+became separate PC objects, so writes through one name never reach reads
+through the other. Invisible to zero-stub audits because both halves hold
+"real" data.
+
+- **Rain sound restored** (`bbcae1642`): `sharedData_800DD58C_0_s00` IS
+  `g_ParticlesAddedCount[1]` on PSX; split on PC, so the rain-particle count
+  never reached `Particle_SoundUpdate`'s ramp and `SD_Call(Sfx_Unk1360)` was
+  unreachable — rain visuals, no rain sound, on map0_s00 / map1_s02 (otherworld
+  school courtyard) / map1_s03 (roof) / map4_s02. Fixed with an SH_PC_PORT
+  macro alias in `particle.c`. Same commit: map5_s03 defined
+  `g_ParticlesAddedCount` as a scalar while `particle.c` zeroes `[1]` — real
+  4-byte OOB write, now `s32[2]`.
+- **map6_s04/s05 water fade** (`eb9d3f484`): `sharedData_800EB74A_6_s04` is
+  byte `[2]` of the `sharedData_800EB748_6_s04` limits table on PSX; split on
+  PC, so the fountain-room water layer played at constant full volume (frozen
+  0x80 cap). SH_PC_PORT write-through into the table.
+- **Elevator chime + pickup poses** (`b2e4adecf`): hospital elevator arrival
+  ding (`sharedData_800CB094_3_s01`) silent on map3_s01/s03/s04/s05 — the exe
+  stub hardcodes map7_s01's position ~170+ units away (attenuates to exactly
+  0); per-overlay VECTOR3s appended. Plus map3_s01 elevator-stop clunk pos,
+  map1_s03 valve-grip SVECTOR, and six map5_s00 sewer pickup poses (items at
+  world origin).
+- **Negative results that matter**: map5_s00 (main sewers) water data verified
+  byte-exact — remaining silence reports need runtime `[SH_BGM]` probes, not
+  data. map2_s01 is the CHURCH, not "Old SH sewers" (spec corrected); its
+  pre-Dahlia silence is authentic. Shared Sd_* chain verified healthy
+  end-to-end. Still open: map3_s05 vine-fire loop constant volume
+  (`D_800DD190` = `sharedData_800D8568_1_s05+0x10`, another severed alias).

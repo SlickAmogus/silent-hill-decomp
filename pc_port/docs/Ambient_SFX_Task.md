@@ -1,6 +1,8 @@
 # Missing Ambient SFX (Rain / Water) — Task Spec
 
-Status: **OPEN — dedicated session.** Prepared 2026-07-09.
+Status: **AUDIT COMPLETE 2026-07-09 — fixes landed, awaiting in-game test.**
+23-map multi-agent sweep + byte-level verification done; see "Findings" below.
+Prepared 2026-07-09.
 Read alongside memories `[[project_water_ambient_sfx]]` (the two mechanisms, corrected
 school map IDs), `[[project_audio_audit_jul06]]` (audit tooling + exonerations),
 `[[project_bgm_audit]]` (volume-parameter semantics).
@@ -45,8 +47,59 @@ wet/rainy areas. Ongoing complaints from multiple users.
 - map1_s04 = unused; map1_s05 = boss; map1_s06 = 1F + basement after boss
   (has the WORKING Sd_AmbientSfx rain — use as the reference implementation)
 - map6_s03 = sewer connecting to Lakeside Amusement Park (drip FIXED, 414172e09)
-- **map5_s00 = the MAIN sewers**; map2_s01 = Old Silent Hill sewers ← "sewers" reports
-  likely mean these two, NOT the fixed map6_s03.
+- **map5_s00 = the MAIN sewers** ← "sewers" reports mean this one, NOT the fixed
+  map6_s03.
+- ~~map2_s01 = Old Silent Hill sewers~~ **CORRECTION (2026-07-09 audit): map2_s01
+  is the Balkan CHURCH interior** (MAP_INFOS[9], MapType_ER — Flauros/Dahlia
+  events, one exit to MAP2_S00). It has no water mechanism at all; church silence
+  before the Dahlia cutscene is original PSX behavior. There is no separate "Old
+  Silent Hill sewers" map — sewer complaints resolve to map5_s00.
+
+## Findings (2026-07-09 sweep — 23 maps audited, every claim byte-verified)
+
+1. **Otherworld-school rain ROOT CAUSE (map1_s02 courtyard + map1_s03 roof,
+   also map0_s00/map4_s02 — the Particle_SoundUpdate MAP0_S01 case is @unused,
+   that map compiles no rain code): severed PSX symbol alias.** On PSX
+   `sharedData_800DD58C_0_s00` IS `g_ParticlesAddedCount[1]` (one object, two
+   names — every rain overlay's sym table shows the 4-byte overlap inside the
+   s32[2]). On PC they were split into separate objects, so the weather
+   machine's rain-particle count never reached `Particle_SoundUpdate`'s ramp
+   target and `SD_Call(Sfx_Unk1360)` was structurally unreachable: rain visuals
+   with no rain sound. FIXED with an SH_PC_PORT alias in src/maps/particle.c.
+   This is a new bug CLASS (object identity, not zeroed content) invisible to
+   zero-stub audits — see also finding 3.
+2. **map5_s00 (main sewers): all water-ambience data is REAL and byte-exact**
+   (layer caps D_800DA570, room flags D_800DA578, source D_800CB0CC, engine
+   tables — verified against MAP5_S00.BIN). The water bed is BGM-28 layers
+   gated per room by func_800D6790. If testers still hear no water on a
+   post-2026-06-10 build, the fault is downstream (KDT track-28 layer playback)
+   — next step is runtime `[SH_BGM]` probes during a sewer walk, per §2.3.
+3. **map6_s04/map6_s05 water-fade alias (same class as finding 1):**
+   `sharedData_800EB74A_6_s04` is byte [2] of the limits table
+   `sharedData_800EB748_6_s04` on PSX; split on PC, so the room-3 water layer
+   played at CONSTANT FULL volume (no distance fade, hard cut at the room
+   edge). FIXED in Map_RoomBgmInit_6_s04_CondFalse.h (SH_PC_PORT write-through).
+4. **Hospital elevator arrival chime (map3_s01/s03/s04/s05):** the exe
+   cross-map stub for `sharedData_800CB094_3_s01` hardcodes map7_s01's position
+   ~169 units away -> attenuated to exactly 0. FIXED: per-overlay VECTOR3
+   extracted into each map's extracted_data (+ map3_s01's elevator-stop clunk
+   `sharedData_800CB0A0_3_s01`, which was a plain zero-stub).
+5. **map1_s06 rain + map6_s03 drip references verified intact**; shared Sd_*
+   layer verified healthy end-to-end (SD_Call -> Sd_PlaySfx -> Konami libsd ->
+   PsyCross SPUAL, no stubs). Volume semantics confirmed: Sd_PlaySfx /
+   Sd_SfxAttributesUpdate vol = ATTENUATION (0=full, 255=silent; sd_call.c:425,
+   565); BGM layer path = plain LEVEL with limits cap 0x80=unity (bgm.c:256).
+6. Maps with NO water/rain mechanism in original PSX code (silence there is
+   authentic): map2_s01, map2_s02, map3_s00/s02/s06, map4_s03 (pre-event),
+   map5_s02, map6_s01, map7_s00/s01/s02. map5_s01/map6_s00/map6_s02 water
+   ambience verified data-complete and working.
+7. Side fixes landed with this sweep: six map5_s00 pickup poses
+   (D_800DAAF8..D_800DAB5C, items rendered at world origin), map5_s03
+   `g_ParticlesAddedCount` scalar-vs-s32[2] OOB write.
+8. Still open (small, documented): map3_s05 vine-fire loop plays at constant
+   volume (D_800DD190 is `sharedData_800D8568_1_s05+0x10` on PSX — another
+   severed alias, engine-written); worth folding into any future alias sweep of
+   Bgm_Update users (map7_s00..s03 limit tables are candidates to check).
 
 ## 2. Work plan
 
