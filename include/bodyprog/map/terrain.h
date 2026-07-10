@@ -27,14 +27,6 @@ typedef struct _MapChunk
     /* 0x14 */ u8           materialCount;
     /* 0x15 */ s8           __pad_15[3];
     /* 0x18 */ s32          outsideCount;
-#ifdef SH_PC_PORT
-    /* Interior draw gate under resident_textures: set for the 4 nearest
-     * loaded chunks each scan (the visibility rule vanilla enforced through
-     * distance-limited TEXTURING — with every chunk textured, drawing needs
-     * its own gate or neighbor rooms ghost into open areas like the school
-     * courtyard). */
-    u8 pcInDrawSet;
-#endif
 } s_Chunk;
 STATIC_ASSERT_SIZEOF(s_Chunk, 28);
 

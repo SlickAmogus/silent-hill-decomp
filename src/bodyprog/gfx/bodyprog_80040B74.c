@@ -1695,6 +1695,20 @@ void Ipd_DistanceToEdgeCalc(s_Chunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 p
     chunk->paddedDistanceToEdge1 = Ipd_PaddedDistanceToEdgeGet(posX1, posZ1, chunk->cellX, chunk->cellZ, isExterior);
 }
 
+#ifdef SH_PC_PORT
+/* Single gate for the experimental whole-town render mode: texture-all
+ * (Ipd_ChunkMaterialsApply), draw-all model buffers (Ipd_ChunkDraw), and the
+ * lifted per-poly far caps in bodyprog_80055028.c all key off this. Street
+ * room only — interiors hosted by exterior maps fall back to vanilla so the
+ * street authored through house volumes releases and disappears. */
+int Pc_WholeMapDrawActive(void)
+{
+    return g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
+           g_PcConfig.residentTextures && g_Map.isExterior &&
+           g_SavegamePtr->mapRoomIdx == 0;
+}
+#endif
+
 void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 {
     s_Chunk* curChunk;
@@ -1740,28 +1754,14 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * the two apart. Inside any house room, fall back to the vanilla
      * distance loop so the overlapping street releases its textures and
      * disappears, exactly like retail. */
-    if ((!g_Map.isExterior ||
-         (g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
-          g_SavegamePtr->mapRoomIdx == 0)) &&
-        g_PcConfig.residentTextures)
+    if ((!g_Map.isExterior && g_PcConfig.residentTextures) || Pc_WholeMapDrawActive())
     {
-        /* Visibility stays the vanilla-equivalent 4-nearest rule even though
-         * every chunk keeps its textures: the draw gate's implicit
-         * "untextured = invisible" no longer hides neighbor rooms inside the
-         * ±2/±1 cell window once everything is textured, so out-of-room
-         * geometry ghosted into open areas (school-courtyard corridor).
-         * pcInDrawSet feeds Ipd_CellPositionMatchCheck. */
-        enum { PC_INTERIOR_DRAWN_CHUNKS = 4 };
-        s_Chunk* draw[PC_INTERIOR_DRAWN_CHUNKS];
-        s32      drawCount = 0;
-        s32      ins;
-        s32      j;
-        q19_12   d;
-
+        /* Visibility is NOT decided here: interiors draw exactly the
+         * player's cell (Ipd_CellPositionMatchCheck), matching retail —
+         * texturing everything must not widen what renders, or neighbor
+         * room islands ghost into open areas (school-courtyard corridor). */
         for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
         {
-            curChunk->pcInDrawSet = 0;
-
             if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
                 curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
             {
@@ -1770,39 +1770,6 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
             Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
             Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
-
-            /* Exteriors draw their whole textured set; the draw-set gate is
-             * interior-only. */
-            if (g_Map.isExterior)
-            {
-                continue;
-            }
-
-            d = MIN(curChunk->paddedDistanceToEdge0, curChunk->paddedDistanceToEdge1);
-            for (ins = 0; ins < drawCount; ins++)
-            {
-                if (d < MIN(draw[ins]->paddedDistanceToEdge0, draw[ins]->paddedDistanceToEdge1))
-                {
-                    break;
-                }
-            }
-            if (ins < PC_INTERIOR_DRAWN_CHUNKS)
-            {
-                for (j = (drawCount < PC_INTERIOR_DRAWN_CHUNKS - 1) ? drawCount : (PC_INTERIOR_DRAWN_CHUNKS - 1); j > ins; j--)
-                {
-                    draw[j] = draw[j - 1];
-                }
-                draw[ins] = curChunk;
-                if (drawCount < PC_INTERIOR_DRAWN_CHUNKS)
-                {
-                    drawCount++;
-                }
-            }
-        }
-
-        for (ins = 0; ins < drawCount; ins++)
-        {
-            draw[ins]->pcInDrawSet = 1;
         }
 
         return;
@@ -2286,39 +2253,23 @@ bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
 {
 #ifdef SH_PC_PORT
     if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
-    /* Expand match in X and Z so adjacent geometry isn't clipped at the
-     * screen edges. On PSX exact-cell match was fine because the 4:3
-     * viewport stayed inside one cell width. On PC:
-     *   * 16:9 + Hor+ extends X view ~1.33x
-     *   * + pixel-aspect compensation extends X view another ~9.4%
-     *     (commit 9275146d8 in PsyCross, fixes Harry-too-thick).
-     * Combined, ~1.46x more horizontal extent than PSX. ±2 X cells
-     * covers the worst case (e.g. cafe interior where the side walls
-     * are ~1.5 cells away from Harry's cell). Z stays ±1 since the
-     * vertical FOV is unchanged. */
+    /* Interiors draw ONLY the player's cell, exactly like retail. Interior
+     * maps are a packing of self-contained room islands — one room per 40u
+     * cell, 16-28u of dead space between islands, zero cross-cell geometry
+     * on the US disc (the lone cross-boundary vista, HP0002/HP0003, ships
+     * duplicated geometry inside the viewing cell). So widescreen needs no
+     * wider window: everything visible from a room lives in that room's
+     * chunk. Any window beyond the exact cell draws OTHER rooms floating
+     * unoccluded across the dead gaps (the school-courtyard corridor ghost;
+     * previously band-aided per-arena via MapRegistry_IsExactCellArena and
+     * a 4-nearest pcInDrawSet, both now subsumed). The old ±2/±1 window
+     * masked mid-load voids from the 4-slot era, not a real retail gap —
+     * interiors keep 16 resident slots and loads are synchronous now. */
+    if (!map->isExterior)
     {
-        s32 dx = (s32)chunk->cellX - map->cellX;
-        s32 dz = (s32)chunk->cellZ - map->cellZ;
-        /* Single-cell boss arenas (map1_s05 school, map7_s03 final): the open
-         * arena is the player's cell; neighbor cells are different rooms that
-         * the wide window would draw far across the room. Draw exact-cell like
-         * PSX — the frustum cull still handles this cell's edge triangles. */
-        extern int MapRegistry_IsExactCellArena(void);
-        if (!map->isExterior && MapRegistry_IsExactCellArena())
-        {
-            return dx == 0 && dz == 0;
-        }
-        /* With resident textures, every loaded interior chunk is textured,
-         * so the window alone would draw neighbor ROOMS into open areas
-         * (school-courtyard ghost). Require membership in the 4-nearest
-         * draw set (Ipd_ChunkMaterialsApply) — the same visibility the
-         * distance-limited texturing used to enforce. */
-        if (!map->isExterior && g_PcConfig.residentTextures && !chunk->pcInDrawSet)
-        {
-            return false;
-        }
-        if (dx >= -2 && dx <= 2 && dz >= -1 && dz <= 1) return true;
+        return chunk->cellX == map->cellX && chunk->cellZ == map->cellZ;
     }
+    return true;
 #else
     if (map->cellX == chunk->cellX &&
         map->cellZ == chunk->cellZ)
@@ -2616,8 +2567,11 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
     modelCoord.super       = NULL;
 
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled || g_PcConfig.disableCulling) {
-        /* Render ALL model buffers, skip subcell/spatial culling */
+    if (g_DebugCamEnabled || g_PcConfig.disableCulling || Pc_WholeMapDrawActive()) {
+        /* Render ALL model buffers, skip subcell/spatial culling. Whole-map
+         * mode needs this too: the baked subcell PVS rectangles only cover
+         * viewer offsets within ±3.2 cells of the chunk (s16 q7_8), so far
+         * chunks would submit zero buffers no matter what is textured. */
         s32 startI = 0, endI = ipdHdr->modelBufferCount;
         temp_fp = NULL;
         for (i = startI; i < endI; i++)

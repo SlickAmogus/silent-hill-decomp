@@ -126,6 +126,11 @@ typedef struct {
 
 extern s_PcConfig g_PcConfig;
 
+/* True while the experimental whole-town render mode applies: exterior map,
+ * street room, whole_map_exteriors + preload_chunks + resident_textures all
+ * on. Implemented in bodyprog_80040B74.c (needs g_Map/g_SavegamePtr). */
+int Pc_WholeMapDrawActive(void);
+
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
 
