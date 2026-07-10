@@ -1420,6 +1420,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
     pp  = (u8*)tmd->primtop;
     primn = (int)tmd->primn;
     pk  = GsOUT_PACKET_P;
+    PACKET* pkStart = pk; /* [TMDEMIT] baseline for the emission probe at the tail */
 
     if (!vp || !pp) {
         return;
@@ -1502,6 +1503,26 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         pk = GsOUT_PACKET_P;
         pp = next;
         primn -= batch;
+    }
+
+    /* [TMDEMIT] PAL invisible-item-preview discriminator: bytes the drawers
+     * appended to the packet stream for this object. 0 = every prim was
+     * dropped at the GTE stage (nclip/otz — the transform-side failure class
+     * this path has had twice before); a healthy inventory item emits
+     * thousands of bytes. Logs the first calls as a baseline and every
+     * zero-emission case. Remove once the PAL item bug is closed. */
+    {
+        static int s_emitLog     = 0;
+        static int s_emitZeroLog = 0;
+        long emitted = (long)((u8*)GsOUT_PACKET_P - (u8*)pkStart);
+
+        if ((emitted == 0 && s_emitZeroLog < 48) || s_emitLog < 12)
+        {
+            SH_DBG("[TMDEMIT] vern=%d primn=%d emittedBytes=%ld dqa/dqb-reasserted",
+                   (int)tmd->vern, (int)tmd->primn, emitted);
+            if (emitted == 0) s_emitZeroLog++;
+            s_emitLog++;
+        }
     }
 }
 

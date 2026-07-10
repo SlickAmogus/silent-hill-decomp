@@ -3976,6 +3976,36 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
                 s_linkLog++;
             }
         }
+        {
+            /* [ITEMVRAM] one-shot H2 probe (PAL invisible previews): dump the
+             * live CLUT row + first texels of the item textures straight from
+             * the CPU-side VRAM the renderer samples. All-zero CLUT entries
+             * would render items fully transparent; entry pattern mismatch vs
+             * the TIM on disc means something replaced the palette. Also logs
+             * the display state the item aspect path keys on. Remove with the
+             * TMDEMIT probe once the PAL item bug is closed. */
+            static int s_vramProbe = 0;
+            if (s_vramProbe == 0)
+            {
+                extern void GR_ReadVRAM(unsigned short* dst, int x, int y, int dst_w, int dst_h);
+                extern int  g_PcHorPlusEnabled;
+                extern int  g_PcMenuPillarbox;
+                extern int  g_PcWidescreenMode;
+                unsigned short clut01[8], clut00[8], pix01[8];
+
+                GR_ReadVRAM(clut01, 160, 0, 8, 1);
+                GR_ReadVRAM(clut00, 176, 0, 8, 1);
+                GR_ReadVRAM(pix01,  896, 0, 8, 1);
+                SH_DBG("[ITEMVRAM] clut(160,0)=%04x %04x %04x %04x %04x %04x %04x %04x",
+                       clut01[0], clut01[1], clut01[2], clut01[3], clut01[4], clut01[5], clut01[6], clut01[7]);
+                SH_DBG("[ITEMVRAM] clut(176,0)=%04x %04x %04x %04x %04x %04x %04x %04x",
+                       clut00[0], clut00[1], clut00[2], clut00[3], clut00[4], clut00[5], clut00[6], clut00[7]);
+                SH_DBG("[ITEMVRAM] pix(896,0)=%04x %04x %04x %04x  horPlus=%d pillarbox=%d wsMode=%d",
+                       pix01[0], pix01[1], pix01[2], pix01[3],
+                       g_PcHorPlusEnabled, g_PcMenuPillarbox, g_PcWidescreenMode);
+                s_vramProbe = 1;
+            }
+        }
         if (obj != NULL) {
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
         } else {
