@@ -25,6 +25,7 @@ extern void XboxFs_MountHomeDrive(void);
 extern void Gte_SelfTest(void);
 extern void Pad_XboxInit(void);   /* USB controller init (pad_xbox.c) */
 extern void Cd_XboxInit(void);    /* open the BIN disc image on D: (cd_xbox.c) */
+extern void Mcard_XboxInit(void); /* PSX events + E:\UDATA memory card (mcard_xbox.c) */
 extern void Fs_InitFileTableForRegion(int region);  /* fill g_FileTable (USA=0) */
 
 /* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
@@ -160,6 +161,11 @@ int main(void)
 
     /* Open the BIN disc image on D: for real asset loading (libcd reads). */
     Cd_XboxInit();
+
+    /* PSX kernel events + memory card: mounts E:, resolves the save dir
+     * (E:\UDATA\SH010000\0.MCD or D:\SilentHill\save fallback) and formats a
+     * fresh card image if none exists. Logs "[MCRD] card path = ...". */
+    Mcard_XboxInit();
 
     /* Populate g_FileTable with the USA disc layout. Under SH_PC_PORT this table
      * ships empty and must be filled at runtime (main_pc.c does the same). Without

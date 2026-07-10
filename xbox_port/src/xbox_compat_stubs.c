@@ -21,27 +21,14 @@ typedef unsigned int   u32;
 
 /* --- PSX libpad (controller): moved to pad_xbox.c (fills the PSX pad buffer) - */
 
-/* --- PSX kernel: events / root counters / stack / memcard / BIOS files -----*/
-u32  OpenEvent(void)   { return 0; }
-int  CloseEvent(void)  { return 1; }
-int  EnableEvent(void) { return 1; }
-int  DisableEvent(void){ return 1; }
-int  TestEvent(void)   { return 0; }   /* 0 = not fired */
+/* --- PSX kernel: root counters / stack only. The event system (OpenEvent/
+ * TestEvent/DeliverEvent/...) and the whole memory card (InitCARD, _card_*,
+ * and the "buXX:" open/read/write/firstfile/erase/format file API) are now
+ * implemented for real in mcard_xbox.c (E:\UDATA-backed 0.MCD card image). --*/
 int  SetRCnt(void)     { return 1; }
 int  StartRCnt(void)   { return 1; }
 int  StopRCnt(void)    { return 1; }
 void SetSp(void)       { }
-int  InitCARD(void)    { return 1; }
-int  StartCARD(void)   { return 1; }
-int  _card_clear(void) { return 1; }
-int  _card_info(void)  { return 1; }
-int  _card_load(void)  { return 1; }
-int  _card_write(void) { return 1; }
-int  _new_card(void)   { return 0; }
-int  erase(void)       { return 0; }
-int  firstfile(void)   { return 0; }
-int  format(void)      { return 0; }
-int  nextfile(void)    { return 0; }
 
 /* --- PsyCross renderer internals (no GL renderer on Xbox) ------------------*/
 void PsyX_EndScene(void)         { }

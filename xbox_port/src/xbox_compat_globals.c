@@ -45,12 +45,11 @@ s_PcConfig g_PcConfig = {
     .vsync           = 1,
     .refreshRate     = 60,
     .fpsCap          = 30,  /* PSX-accurate */
-    /* Skip the Konami/Kcet logos + intro movie and jump Boot->MainMenu. This is a
-     * supported PC-port path (Settings_RestoreDefaults runs in its place). We use
-     * it for now because the logos' "checking memory card" step spins forever on
-     * the stubbed memcard HAL (func_80033548 never reports ready). Revisit once a
-     * real memcard HAL (HDD-backed) + FMV are implemented. */
-    .skipIntros      = 1,
+    /* Full authentic boot: Konami logo -> KCET logo (memory card check) ->
+     * intro movie -> title. The two blockers that forced skipIntros=1 are gone:
+     * the memcard HAL is real (mcard_xbox.c — the KcetLogo check's
+     * func_80033548 loop resolves via the PSX kernel events) and FMV works. */
+    .skipIntros      = 0,
     .widescreenMode  = 0,   /* pillarbox / PSX-faithful */
     .menuPillarbox   = 0,
     .allowLooseFiles = 0,
