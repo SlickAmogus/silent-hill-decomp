@@ -192,6 +192,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         extern float   g_PsyX_FlashlightPos[3];
         extern float   g_PsyX_FlashlightShadowPos[3];
         extern float   g_PsyX_FlashlightDir[3];
+        extern float   g_PsyX_FlashlightColor[3];
         extern VECTOR3 g_PcFlashlightShadowWorld;
 
         /* Gate on Harry's actual flashlight state (== what Game_FlashlightIsOn
@@ -253,6 +254,11 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
             g_PsyX_FlashlightDir[1] = (float)(s32)(((s64)GsWSMATRIX.m[1][0] * fdx + (s64)GsWSMATRIX.m[1][1] * fdy + (s64)GsWSMATRIX.m[1][2] * fdz) >> 12);
             g_PsyX_FlashlightDir[2] = (float)(s32)(((s64)GsWSMATRIX.m[2][0] * fdx + (s64)GsWSMATRIX.m[2][1] * fdy + (s64)GsWSMATRIX.m[2][2] * fdz) >> 12);
 
+            /* Match the room-specific RGB matrix used by the original flashlight. */
+            g_PsyX_FlashlightColor[0] = (float)g_WorldEnvWork.field_2C.m[0][0] / 4096.0f;
+            g_PsyX_FlashlightColor[1] = (float)g_WorldEnvWork.field_2C.m[1][0] / 4096.0f;
+            g_PsyX_FlashlightColor[2] = (float)g_WorldEnvWork.field_2C.m[2][0] / 4096.0f;
+
             g_PsyX_FlashlightActive = 1;
         }
         else
@@ -264,14 +270,8 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     if (g_WorldEnvWork.field_2 != 0)
     {
-#ifdef SH_PC_PORT
-        /* Skip this PSX glow-polygon fan only when the per-pixel cone is actually
-         * lighting (flashlight on + feature on == g_PsyX_FlashlightActive); the
-         * cone replaces it and drawing both double-lights into blown-out
-         * highlights. With the cone inactive, draw the halo as the game intends. */
-        extern int g_PsyX_FlashlightActive;
-        if (!g_PsyX_FlashlightActive)
-#endif
+        /* The per-pixel path still needs the original subtractive outer mask;
+         * func_800414E0 suppresses only its additive center while the cone is active. */
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 

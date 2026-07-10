@@ -61,7 +61,7 @@ built-in quick lists.
 | `shadows [0\|1]` | Real-time flashlight shadows on/off (toggles if no arg). **(saved)** Only visible with the per-pixel flashlight on. |
 | `shadowstrength <f>` | How dark shadows get: `1.0` = full/default, lower = softer. |
 | `shadowfade <f>` | Contact-fade distance in view units. `0` = off (default, plain hard shadow); `>0` fades a shadow out that many units behind its object (contact-shadow look). |
-| `shadownormal <f>` | Self-shadow-acne normal offset. `0` = off (default). |
+| `shadownormal <f>` | Self-shadow-acne receiver offset (moves the sample toward the light along the light ray). `0` = off (default; receiver-plane depth correction handles most acne). |
 | `shadowbias <f>` | Depth-compare bias (default `0.0018`). |
 | `shadowfpsdrop <f>` | First-person shadow-light drop so FPS shadows aren't self-cancelled. |
 | `flashlight <color>` / `fl <color>` | Tint Harry's flashlight (red/green/blue/yellow/cyan/purple/orange/pink/white; `default`/`off` to clear). |
