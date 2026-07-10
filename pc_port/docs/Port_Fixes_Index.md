@@ -548,6 +548,15 @@ through the other. Invisible to zero-stub audits because both halves hold
   byte `[2]` of the `sharedData_800EB748_6_s04` limits table on PSX; split on
   PC, so the fountain-room water layer played at constant full volume (frozen
   0x80 cap). SH_PC_PORT write-through into the table.
+- **Rain-path div-by-zero crash** (`800ac4ab1`, follow-up 2026-07-09): the
+  restored rain path crashed 0xC0000094 one frame after `Sd_PlaySfx(1360)` —
+  `Sfx_WithFalloffAndPitchPlay`'s `AttenuationCalc` divides by `falloff`, and
+  the rain call in `particle.c` is the game's only `falloff=Q12(0.0f)` site.
+  MIPS div-by-zero doesn't trap (quotient -1, which retail relied on); the
+  guard returns -1 so rain volume matches PSX. Confirmed via objdump:
+  exe+0xECA5A = the `idivl` in `AttenuationCalc`. Lesson: newly-reachable
+  retail code was never covered by the Jun-11 div-zero sweep — re-audit
+  divisions whenever a dead path is resurrected.
 - **Elevator chime + pickup poses** (`b2e4adecf`): hospital elevator arrival
   ding (`sharedData_800CB094_3_s01`) silent on map3_s01/s03/s04/s05 — the exe
   stub hardcodes map7_s01's position ~170+ units away (attenuates to exactly
