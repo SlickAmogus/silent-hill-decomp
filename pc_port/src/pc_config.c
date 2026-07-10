@@ -27,7 +27,7 @@ s_PcConfig g_PcConfig = {
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
-    .flashlightIntensity  = 0.89f, /* per-pixel flashlight cone brightness scale, 0..3 */
+    .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..3 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
     .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
