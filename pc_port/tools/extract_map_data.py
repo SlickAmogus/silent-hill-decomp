@@ -306,6 +306,7 @@ EXTRA_SYMBOLS = {
     "map1_s00": [("D_800DCC4C", 0x800DCC4C, 8), ("D_800DCC54", 0x800DCC54, 84)],
     "map1_s01": [("D_800DC9FC", 0x800DC9FC, 8), ("D_800DCA04", 0x800DCA04, 84)],
     "map1_s02": [("D_800E1EDC", 0x800E1EDC, 6)],  # opening monologue voices (3x u16); zero stub -> Harry's first 3 lines play silent (type set in TARGETS)
+    "map1_s03": [("D_800E1F74", 0x800E1F74, 8)],  # roof drainage-valve hand-grip SVECTOR{9,4,28}; exe zero-stub skewed the crank-angle tracker gating the Sfx_Unk1465 pour loop
     "map1_s04": [("D_800CCF54", 0x800CCF54, 8)],
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
     "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
@@ -323,7 +324,12 @@ EXTRA_SYMBOLS = {
                  # sewer pickup poses (s_Pose); zero stubs = shotgun-shells /
                  # companion pickup objects rendered at the world origin
                  ("D_800DAAD0", 0x800DAAD0, 20),
-                 ("D_800DAAE4", 0x800DAAE4, 20)],
+                 ("D_800DAAE4", 0x800DAAE4, 20),
+                 # six more pickup poses, same class (handgun bullets / rifle
+                 # shells / first-aid / health drinks at the world origin)
+                 ("D_800DAAF8", 0x800DAAF8, 20), ("D_800DAB0C", 0x800DAB0C, 20),
+                 ("D_800DAB20", 0x800DAB20, 20), ("D_800DAB34", 0x800DAB34, 20),
+                 ("D_800DAB48", 0x800DAB48, 20), ("D_800DAB5C", 0x800DAB5C, 20)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
                  ("D_800EFC80", 0x800EFC80, 24),  # per-room BGM layer flags (12 rooms); was a silent zero-stub
                  ("D_800F0158", 0x800F0158, 24),
@@ -336,16 +342,24 @@ EXTRA_SYMBOLS = {
     # index only as many entries as they have dialogue pages.
     "map3_s00": [("D_800D24F0", 0x800D24F0, 76),
                  ("D_800D2530", 0x800D2530, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
-    "map3_s01": [("D_800D4CE4", 0x800D4CE4, 12)],  # generator hum pos (VECTOR3); zero stub = hum at origin, outside falloff = silent
+    # sharedData_800CB094_3_s01 = elevator arrival thud/ding (Sfx_Unk1501) emit
+    # pos (VECTOR3, per-overlay VA/value); the exe cross-map stub hardcodes
+    # map7_s01's position ~169 units away -> attenuated to 0 = silent arrival.
+    "map3_s01": [("D_800D4CE4", 0x800D4CE4, 12),  # generator hum pos (VECTOR3); zero stub = hum at origin, outside falloff = silent
+                 ("sharedData_800CB0A0_3_s01", 0x800CB0A0, 12),  # elevator-stop clunk pos (VECTOR3); exe zero-stub = played from origin = silent
+                 ("sharedData_800CB094_3_s01", 0x800CB094, 12)],
     "map3_s02": [("D_800D1FC0", 0x800D1FC0, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip (mirror of map4_s04 rainbow corruption)
                  ("D_800D1FD0", 0x800D1FD0, 8)],   # RECT cutscene SetDrawArea (end-of-OT restore)
     "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
                  ("D_800D6B50", 0x800D6B50, 4),
-                 ("D_800D6B54", 0x800D6B54, 4)],
+                 ("D_800D6B54", 0x800D6B54, 4),
+                 ("sharedData_800CB094_3_s01", 0x800CB310, 12)],  # elevator arrival pos (see map3_s01 note)
     "map3_s04": [("D_800D599C", 0x800D599C, 64),
                  ("D_800CB370", 0x800CB370, 12),
-                 ("D_800CB364", 0x800CB364, 12)],  # stinger SFX pos (VECTOR3); zero stub = played from world origin
-    "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
+                 ("D_800CB364", 0x800CB364, 12),  # stinger SFX pos (VECTOR3); zero stub = played from world origin
+                 ("sharedData_800CB094_3_s01", 0x800CB2B4, 12)],  # elevator arrival pos (see map3_s01 note)
+    "map3_s05": [("D_800DAC70", 0x800DAC70, 8),
+                 ("sharedData_800CB094_3_s01", 0x800CB4FC, 12)],  # elevator arrival pos (see map3_s01 note)
     "map3_s06": [("D_800D26D0", 0x800D26D0, 52),
                  ("D_800D26F8", 0x800D26F8, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
