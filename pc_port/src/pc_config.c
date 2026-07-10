@@ -650,3 +650,4 @@ void PcConfig_SaveMapName(const char* mapName)
         return;
     PcConfig_SaveKeyValue("map", mapName);
 }
+

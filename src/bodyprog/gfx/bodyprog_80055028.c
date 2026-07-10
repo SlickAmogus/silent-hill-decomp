@@ -249,10 +249,8 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     if (g_WorldEnvWork.field_2 != 0)
     {
-#ifdef SH_PC_PORT
         /* The per-pixel path still needs the original subtractive outer mask;
          * func_800414E0 suppresses only its additive center while the cone is active. */
-#endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 
