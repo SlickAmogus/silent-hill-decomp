@@ -46,8 +46,28 @@ extern float g_PsxPixelAspect;
         if ((((depth) >> (shift)) >> 2) >= ORDERING_TABLE_SIZE)                 \
             (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
     } while (0)
+
+/* Whole-town mode (Pc_WholeMapDrawActive): the visible-square radius is set
+ * by the per-poly far drop (min(fog.farDistance, 0x79C<<(shift+2) ≈ 61u)),
+ * NOT by shader fog — lift it so distant blocks submit. Polys past 128u wrap
+ * the s16 view-Z scratch negative and would hit the `<= 0` drop; rescue them
+ * into the last OT bucket. Per-pixel GL depth reads the same slots as u16
+ * (PsyX_SetNextPrimSz), so ordering stays correct — only the PSX OT bucket
+ * is approximated. Both are no-ops when the mode is off. */
+#define SH_WHOLEMAP_FARCAP(cap)                                                 \
+    do {                                                                        \
+        if (Pc_WholeMapDrawActive())                                            \
+            (cap) = 0x7FFFFFFF;                                                 \
+    } while (0)
+#define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift)                                  \
+    do {                                                                        \
+        if ((depth) <= 0 && Pc_WholeMapDrawActive())                            \
+            (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
+    } while (0)
 #else
 #define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
+#define SH_WHOLEMAP_FARCAP(cap) ((void)0)
+#define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift) ((void)0)
 #endif
 
 #ifdef SH_PC_PORT
@@ -2261,6 +2281,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             scratchData->field_380.s_0.field_1C = temp_v1;
         }
     }
+    SH_WHOLEMAP_FARCAP(scratchData->field_380.s_0.field_1C);
 
 #ifdef SH_PC_PORT
     /* Hor+ widescreen: per-polygon visibility bound. PSX uses raw
@@ -2356,6 +2377,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
                     }
 
+                    SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
                     if (scratchData->field_380.s_0.field_18 <= 0)
                     {
                         continue;
@@ -2575,6 +2597,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
                 }
 
+                SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
                 if (scratchData->field_380.s_0.field_18 <= 0)
                 {
                     continue;
@@ -2715,6 +2738,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
             }
 
+            SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
             if (scratchData->field_380.s_0.field_18 <= 0)
             {
                 continue;
@@ -2943,6 +2967,7 @@ __block1530:
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
         }
 
+        SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
         if (scratchData->field_380.s_0.field_18 <= 0)
         {
 #ifdef SH_PC_PORT
@@ -3135,6 +3160,7 @@ __block19CC:
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
         }
 
+        SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
         if (scratchData->field_380.s_0.field_18 <= 0)
         {
 #ifdef SH_PC_PORT
@@ -3147,6 +3173,8 @@ __block19CC:
         {
             scratchData->field_380.s_0.field_18 = 0x20;
         }
+
+        SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
         if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
         {
@@ -3296,6 +3324,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
 
     temp_v1 = 0x79C << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    SH_WHOLEMAP_FARCAP(var_t9);
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
 #ifdef SH_PC_PORT
@@ -3327,6 +3356,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_12], var_t2);
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_13], var_t2);
 
+        SH_WHOLEMAP_DEPTH_RESCUE(var_t2, arg3);
         if (var_t2 <= 0)
         {
             continue;
@@ -3341,6 +3371,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         {
             continue;
         }
+        SH_CLAMP_OT_DEPTH(var_t2, arg3);
 
         gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
@@ -3803,6 +3834,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
     temp_a0 = 0x79C << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
+    SH_WHOLEMAP_FARCAP(var_t9);
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
@@ -3848,6 +3880,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             temp_t4 = (scratchData->screenZ_168[scratchData->u.s_1.field_0] + scratchData->screenZ_168[scratchData->u.s_1.field_1] +
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_2]) >> 2;
 
+            SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
 #ifdef SH_PC_PORT
@@ -3925,6 +3958,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt3, 9);
 
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
             poly.gt3++;
 #ifdef SH_PC_PORT
@@ -3936,6 +3970,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             temp_t4 = (scratchData->screenZ_168[scratchData->u.s_1.field_0] + scratchData->screenZ_168[scratchData->u.s_1.field_1] +
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_3]) >> 2;
 
+            SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
 #ifdef SH_PC_PORT
@@ -4026,6 +4061,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt4, 12);
 
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt4);
             poly.gt4++;
 #ifdef SH_PC_PORT
@@ -4414,6 +4450,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 
     temp_v1 = 0x79C << (arg5 + 2);
     sp494   = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    SH_WHOLEMAP_FARCAP(sp494);
     Vw_WorldScreenMatrixAtPositionGet(&matrix_sp18[0], posX, posY, posZ);
 
     // @hack Pointer needed for match, is there a way to remove this?
@@ -4614,7 +4651,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                  * corners go affine, warping the quad ("tree-foliage spikes").
                  * Billboards are camera-facing flat quads, so affine is correct. */
                 PsyX_SetNextPrimAffine();
-                addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
+                addPrim(&ot_arg4->org[MIN(temp_v0_2 >> arg5, ORDERING_TABLE_SIZE - 1)], poly_gt4);
                 poly_gt4++;
             }
 #else
