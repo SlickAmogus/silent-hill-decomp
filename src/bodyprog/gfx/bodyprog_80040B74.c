@@ -323,6 +323,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     POLY_G3* poly_g3;
     POLY_G4* poly_g4;
     POLY_F4* poly_f4;
+#ifdef SH_PC_PORT
+    extern int g_PsyX_FlashlightActive;
+#endif
 
     if (arg1->vz < Q12(0.25f))
     {
@@ -384,7 +387,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         *(s32*)&poly_g3->x1 = var_t0[j];
         *(s32*)&poly_g3->x2 = var_t0[j + 1];
 
-        addPrim(arg0->org, poly_g3);
+#ifdef SH_PC_PORT
+        if (!g_PsyX_FlashlightActive)
+#endif
+            addPrim(arg0->org, poly_g3);
 
         *(s32*)&poly_f4->x0 = var_t0[j + 51];
         *(s32*)&poly_f4->x1 = var_t0[j + 52];
@@ -410,7 +416,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         }
     }
 
-    AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
+#ifdef SH_PC_PORT
+    if (!g_PsyX_FlashlightActive)
+#endif
+        AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
     AddPrim(&arg0->org[1], &D_800BFBF0[g_ActiveBufferIdx]);
 }
 

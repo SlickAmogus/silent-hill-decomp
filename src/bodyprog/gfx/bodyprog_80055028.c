@@ -250,12 +250,8 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     if (g_WorldEnvWork.field_2 != 0)
     {
 #ifdef SH_PC_PORT
-        /* Skip this PSX glow-polygon fan only when the per-pixel cone is actually
-         * lighting (flashlight on + feature on == g_PsyX_FlashlightActive); the
-         * cone replaces it and drawing both double-lights into blown-out
-         * highlights. With the cone inactive, draw the halo as the game intends. */
-        extern int g_PsyX_FlashlightActive;
-        if (!g_PsyX_FlashlightActive)
+        /* The per-pixel path still needs the original subtractive outer mask;
+         * func_800414E0 suppresses only its additive center while the cone is active. */
 #endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
