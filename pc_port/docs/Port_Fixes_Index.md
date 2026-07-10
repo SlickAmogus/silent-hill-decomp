@@ -548,6 +548,21 @@ through the other. Invisible to zero-stub audits because both halves hold
   byte `[2]` of the `sharedData_800EB748_6_s04` limits table on PSX; split on
   PC, so the fountain-room water layer played at constant full volume (frozen
   0x80 cap). SH_PC_PORT write-through into the table.
+- **Courtyard ghost rooms / interior exact-cell draw** (`3b96cdc03`,
+  2026-07-10): retail interior maps are isolated room islands (one per 40u
+  cell, 16-28u dead gaps, zero cross-cell geometry; verified against US-disc
+  IPDs) and retail drew ONLY the player's exact cell. The PC ±2/±1 interior
+  window + 4-nearest pcInDrawSet drew neighbor islands floating over open
+  areas (otherworld courtyard SUFFFE showed SU00FE/SUFFFF mesh-ceiling
+  corridors). Interiors now draw exact-cell; removes pcInDrawSet and
+  MapRegistry_IsExactCellArena. Widescreen needs no window: everything
+  visible from a room lives in that room's chunk.
+- **whole_map_exteriors draw path** (`286157766`, 2026-07-10): the flag only
+  textured chunks; the visible square was set by per-poly far culls
+  (min(fog.farDistance, ~61u OT cap)), baked subcell PVS (viewer ≤ ±3.2
+  cells), and s16 view-Z wrap at 128u — fogstr never affected geometry. In
+  whole-map mode the caps lift, wrapped depths bucket into the last OT slot,
+  and previously fog-bounded OT inserts gain SH_CLAMP_OT_DEPTH.
 - **Rain-path div-by-zero crash** (`800ac4ab1`, follow-up 2026-07-09): the
   restored rain path crashed 0xC0000094 one frame after `Sd_PlaySfx(1360)` —
   `Sfx_WithFalloffAndPitchPlay`'s `AttenuationCalc` divides by `falloff`, and
