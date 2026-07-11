@@ -193,7 +193,11 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
             /* Fresh kanji atlas per map: drops stale cells and re-uploads the
              * margin-strip CLUT in case anything scribbled those rows. */
             extern void Pc_KanjiAtlasReset(void);
+            extern void CharaData_ApplyJpnMapPatches(s32 mapIdx);
             Pc_KanjiAtlasReset();
+            /* Before any NPC of the new map spawns — chara model/texture
+             * files resolve through CHARA_FILE_INFOS at spawn time. */
+            CharaData_ApplyJpnMapPatches(mapIdx);
         }
     }
 #endif

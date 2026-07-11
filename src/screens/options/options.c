@@ -133,7 +133,8 @@ static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", 
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
 static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
-static const char* const LBL_FLMODE[] = { "Classic", "Classic_Shadows", "Modern", "Modern_Shadows" };
+/* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
+static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M_+_Shadows" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -433,9 +434,10 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
     /* Pages 2/3's labels run long ("Disable Culling", "Mouse Sensitivity"), so
-     * push their value column further right to clear them; page 1's short labels
-     * keep the tighter column. */
-    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 232 : 240;
+     * push their value column right to clear them — but no further: page 2's
+     * widest value ("C_+_Shadows", 109px) must still end before the 320px
+     * clip (its labels end by ~196, so 204 clears both ways). */
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
