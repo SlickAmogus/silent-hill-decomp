@@ -94,7 +94,7 @@ s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls */
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 typedef struct {
     const char*        name;     /* row label (underscores render as spaces) */
@@ -122,6 +122,7 @@ static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 static const int VAL_TONE[]  = { 0, 1, 2, 3 };
 static const int VAL_CON[]   = { 0, 1, 2, 3 };
 static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
+static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -132,6 +133,7 @@ static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", 
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
 static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
+static const char* const LBL_FLMODE[] = { "Classic", "Classic_Shadows", "Modern", "Modern_Shadows" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -151,8 +153,12 @@ static const s_PcOpt PCOPT_G[] = {
 };
 
 static const s_PcOpt PCOPT_S[] = {
-    { "PP_Flashlight",    &g_PcConfig.perPixelFlashlight, "per_pixel_flashlight", VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UsePerPixelFlashlight, 1, PCK_INT  },
-    { "PP_Shadows",       &g_PcConfig.flashlightShadows,  "flashlight_shadows",   VAL_ONOFF, 2, LBL_ONOFF, &g_PsyX_UseFlashlightShadows,  1, PCK_INT  },
+    /* One row for the whole flashlight look: Classic (PSX per-vertex),
+     * Classic_Shadows (per-pixel, PSX-calibrated + shadows), Modern (stylized
+     * per-pixel spotlight), Modern_Shadows. PCK_FLMODE routes the change
+     * through Pc_FlashlightModeApply, which derives the per-pixel/style/shadow
+     * globals and the per-style beam defaults. */
+    { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
     { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
     { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
@@ -290,6 +296,8 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         } else if (e->kind == PCK_VSYNC) {
             PsyX_ApplyVsync(g_PcConfig.vsync);
+        } else if (e->kind == PCK_FLMODE) {
+            Pc_FlashlightModeApply(*e->field, 1);
         } else if (e->live) {
             *e->live = *e->field;
         }

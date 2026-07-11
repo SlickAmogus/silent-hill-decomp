@@ -405,10 +405,19 @@ public partial class Form1 : Form
         Set(comboTone, toneTip);
 
         const string flashTip =
-            "Per-pixel (fragment-shader) flashlight cone instead of the PSX\n" +
-            "per-vertex lighting (smoother light falloff). Press F4 in-game to toggle.\n" +
-            "\"Per-pixel + Shadows\" also turns on real-time flashlight shadows\n" +
-            "(monsters/props cast dynamic shadows in the beam).";
+            "Flashlight rendering.\n" +
+            "Classic: the original PSX flashlight (per-vertex lighting - each\n" +
+            "  polygon corner is lit and the light is blended across the surface).\n" +
+            "Classic + Shadows: a per-pixel (fragment-shader) cone calibrated to\n" +
+            "  match the original's beam shape, brightness, room color and falloff\n" +
+            "  exactly - the classic look plus real-time shadows (monsters/props\n" +
+            "  cast dynamic shadows in the beam).\n" +
+            "Modern: a stylized per-pixel spotlight - hard dark surround, per-\n" +
+            "  surface shading and its own warm beam, like a modern horror game.\n" +
+            "Modern + Shadows: the Modern spotlight with real-time shadows.\n" +
+            "Per-pixel modes compute the light at every pixel instead of per\n" +
+            "  polygon corner. Cycle in-game with F4; beam brightness/size are\n" +
+            "  tunable with [ and ] or the flint/flsize console commands.";
         Set(flashLabel, flashTip);
         Set(comboFlash, flashTip);
 
@@ -625,12 +634,22 @@ public partial class Form1 : Form
             toneIdx = 0;
         comboTone.SelectedIndex = toneIdx;
 
-        // Flashlight: 0 = Per-vertex (PSX), 1 = Per-pixel, 2 = Per-pixel + Shadows.
-        // Maps per_pixel_flashlight + flashlight_shadows (default on) to the index.
-        if (config.Get("per_pixel_flashlight", "0") != "1")
-            comboFlash.SelectedIndex = 0;
-        else
-            comboFlash.SelectedIndex = config.Get("flashlight_shadows", "1") == "1" ? 2 : 1;
+        // Flashlight: 0 = Classic, 1 = Classic + Shadows, 2 = Modern,
+        // 3 = Modern + Shadows. flashlight_mode is authoritative; configs from
+        // older builds only carry the legacy pp/shadows keys (pp+shadows was
+        // the pre-calibration per-pixel look, so it maps to Modern + Shadows).
+        {
+            string fm = config.Get("flashlight_mode", "");
+            int fmIdx;
+            if (!int.TryParse(fm, out fmIdx) || fmIdx < 0 || fmIdx > 3)
+            {
+                if (config.Get("per_pixel_flashlight", "0") != "1")
+                    fmIdx = 0;
+                else
+                    fmIdx = config.Get("flashlight_shadows", "1") == "1" ? 3 : 2;
+            }
+            comboFlash.SelectedIndex = fmIdx;
+        }
 
         // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
         string[] mapIds = {
@@ -766,10 +785,15 @@ public partial class Form1 : Form
         if (comboTone.SelectedIndex >= 0)
             config.Set("tonemap", comboTone.SelectedIndex.ToString());
 
-        // Flashlight dropdown -> per_pixel_flashlight + flashlight_shadows.
-        // 0 = Per-vertex (both off), 1 = Per-pixel (shadows off), 2 = Per-pixel + Shadows.
-        config.Set("per_pixel_flashlight", comboFlash.SelectedIndex >= 1 ? "1" : "0");
-        config.Set("flashlight_shadows", comboFlash.SelectedIndex == 2 ? "1" : "0");
+        // Flashlight dropdown -> flashlight_mode (authoritative) + the legacy
+        // keys for older builds. 0 = Classic, 1 = Classic + Shadows, 2 = Modern,
+        // 3 = Modern + Shadows.
+        {
+            int fmIdx = comboFlash.SelectedIndex >= 0 ? comboFlash.SelectedIndex : 0;
+            config.Set("flashlight_mode", fmIdx.ToString());
+            config.Set("per_pixel_flashlight", fmIdx >= 1 ? "1" : "0");
+            config.Set("flashlight_shadows", (fmIdx == 1 || fmIdx == 3) ? "1" : "0");
+        }
 
         // Region: selected detected-region id (usa/pal/jap); untouched when
         // nothing was detected so a hand-set value survives.

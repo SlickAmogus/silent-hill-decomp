@@ -52,8 +52,15 @@ typedef struct {
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */
-    int perPixelFlashlight; /* 1 = per-pixel (fragment-shader) flashlight cone (config key: per_pixel_flashlight). */
-    int flashlightShadows;  /* 1 = per-pixel flashlight casts real-time shadows (config key: flashlight_shadows). Gated on perPixelFlashlight; default on. */
+    int flashlightMode;     /* THE flashlight setting (config key: flashlight_mode):
+                             * 0 = Classic (PSX per-vertex), 1 = Classic + Shadows
+                             * (per-pixel, PSX-calibrated style), 2 = Modern (per-pixel
+                             * stylized spotlight, no shadows), 3 = Modern + Shadows.
+                             * perPixelFlashlight/flashlightShadows are DERIVED from it
+                             * by Pc_FlashlightModeApply; legacy configs without the key
+                             * derive it the other way (pp+shadows = Modern + Shadows). */
+    int perPixelFlashlight; /* DERIVED from flashlightMode (legacy key: per_pixel_flashlight). */
+    int flashlightShadows;  /* DERIVED from flashlightMode (legacy key: flashlight_shadows). */
     float flashlightIntensity;  /* per-pixel flashlight cone brightness scale, 0..3 (config key: flashlight_intensity) */
     float flashlightSize;       /* per-pixel flashlight cone coverage multiplier, 0..3 (config key: flashlight_size) */
     float flashlightIntensityFps; /* per-pixel flashlight brightness in FPS mode, 0..3 (config key: flashlight_intensity_fps) */
@@ -130,6 +137,16 @@ extern s_PcConfig g_PcConfig;
  * street room, whole_map_exteriors + preload_chunks + resident_textures all
  * on. Implemented in bodyprog_80040B74.c (needs g_Map/g_SavegamePtr). */
 int Pc_WholeMapDrawActive(void);
+
+/* Apply a flashlight mode (0..3, see flashlightMode) to the config + all PsyX
+ * globals. Swaps flashlight_intensity/size between the two per-pixel styles'
+ * calibrated defaults when the current value IS the other style's default
+ * (Modern 2.10/2.40, Classic+Shadows 1.20/3.00); customized values are kept.
+ * persist=1 also writes the config keys. Used by boot, F4, options, console. */
+void Pc_FlashlightModeApply(int mode, int persist);
+
+/* "Classic" / "Classic + Shadows" / "Modern" / "Modern + Shadows" */
+const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);

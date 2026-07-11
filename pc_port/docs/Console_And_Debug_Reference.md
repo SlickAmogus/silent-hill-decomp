@@ -58,7 +58,8 @@ built-in quick lists.
 
 | Command | Description |
 |---|---|
-| `shadows [0\|1]` | Real-time flashlight shadows on/off (toggles if no arg). **(saved)** Only visible with the per-pixel flashlight on. |
+| `flmode <0-3\|classic\|classicshadows\|modern\|modernshadows>` | Flashlight mode: Classic (PSX per-vertex), Classic + Shadows (per-pixel PSX-calibrated + shadows), Modern (stylized per-pixel spotlight), Modern + Shadows. Switching styles swaps the beam intensity/size between the styles' calibrated defaults unless customized. **(saved)** |
+| `shadows [0\|1]` | Real-time flashlight shadows on/off within the current mode (Classic + Shadows without shadows is just Classic, so this moves between modes 1<->0 / 3<->2; toggles if no arg). **(saved)** |
 | `shadowstrength <f>` | How dark shadows get: `1.0` = full/default, lower = softer. |
 | `shadowfade <f>` | Contact-fade distance in view units. `0` = off (default, plain hard shadow); `>0` fades a shadow out that many units behind its object (contact-shadow look). |
 | `shadownormal <f>` | Self-shadow-acne receiver offset (moves the sample toward the light along the light ray). `0` = off (default; receiver-plane depth correction handles most acne). |
@@ -66,7 +67,7 @@ built-in quick lists.
 | `shadowfpsdrop <f>` | First-person shadow-light drop so FPS shadows aren't self-cancelled. |
 | `flashlight <color>` / `fl <color>` | Tint Harry's flashlight (red/green/blue/yellow/cyan/purple/orange/pink/white; `default`/`off` to clear). |
 | `worldlight <color>` / `wl <color>` | Same, for the world/ambient light. |
-| `flintensity <0..3>` / `flint` | Flashlight cone brightness (FPS mode has its own value). **(saved)** |
+| `flintensity <0..3>` / `flint` | Flashlight cone brightness (FPS mode has its own value; per-style defaults: Modern 2.10, Classic + Shadows 1.20). **(saved)** |
 
 ## Rendering / graphics tuning
 
@@ -165,7 +166,7 @@ With the debug cam **off**, the same numpad keys nudge the normal game camera
 | `F1` | Toggle PGXP. **(saved)** |
 | `F2` | Cycle post-process look (Off / CRT / Scanlines / Vignette / Color Grade / Film Grain / Sharpen / PSX Retro / Cinematic). **(saved)** |
 | `F3` | Cycle tone mapping (Off / Reinhard / ACES / Filmic). **(saved)** |
-| `F4` | Toggle per-pixel flashlight. **(saved)** |
+| `F4` | Cycle flashlight mode: Classic -> Classic + Shadows -> Modern -> Modern + Shadows. **(saved)** |
 | `[` / `]` | Lower / raise the selected effect's intensity (rebindable `key_gfx_prev` / `key_gfx_next`). |
 | `\` | Cycle which enabled effect `[` `]` adjusts (rebindable `key_gfx_cycle`). |
 

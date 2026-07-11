@@ -1291,17 +1291,15 @@ void DbgOverlay_Update(void)
         s_prev_f3 = cur_f3;
     }
 
-    /* F4 toggles the per-pixel (fragment-shader) flashlight cone. */
+    /* F4 cycles the flashlight mode: Classic -> Classic + Shadows -> Modern ->
+     * Modern + Shadows. */
     {
         static int s_prev_f4 = 0;
         int cur_f4 = ks[SDL_SCANCODE_F4];
         if (cur_f4 && !s_prev_f4) {
-            extern int g_PsyX_UsePerPixelFlashlight;
-            g_PsyX_UsePerPixelFlashlight = !g_PsyX_UsePerPixelFlashlight;
-            g_PcConfig.perPixelFlashlight = g_PsyX_UsePerPixelFlashlight ? 1 : 0;
-            PcConfig_SaveKeyValue("per_pixel_flashlight", g_PsyX_UsePerPixelFlashlight ? "1" : "0");
-            SH_DBG_ECHO("[DEBUG] F4 Per-pixel flashlight: %s",
-                        g_PsyX_UsePerPixelFlashlight ? "ON" : "OFF");
+            Pc_FlashlightModeApply((g_PcConfig.flashlightMode + 1) & 3, 1);
+            SH_DBG_ECHO("[DEBUG] F4 Flashlight: %s",
+                        Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
         }
         s_prev_f4 = cur_f4;
     }

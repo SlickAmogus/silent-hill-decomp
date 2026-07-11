@@ -254,10 +254,24 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
             g_PsyX_FlashlightDir[1] = (float)(s32)(((s64)GsWSMATRIX.m[1][0] * fdx + (s64)GsWSMATRIX.m[1][1] * fdy + (s64)GsWSMATRIX.m[1][2] * fdz) >> 12);
             g_PsyX_FlashlightDir[2] = (float)(s32)(((s64)GsWSMATRIX.m[2][0] * fdx + (s64)GsWSMATRIX.m[2][1] * fdy + (s64)GsWSMATRIX.m[2][2] * fdz) >> 12);
 
-            /* Match the room-specific RGB matrix used by the original flashlight. */
-            g_PsyX_FlashlightColor[0] = (float)g_WorldEnvWork.field_2C.m[0][0] / 4096.0f;
-            g_PsyX_FlashlightColor[1] = (float)g_WorldEnvWork.field_2C.m[1][0] / 4096.0f;
-            g_PsyX_FlashlightColor[2] = (float)g_WorldEnvWork.field_2C.m[2][0] / 4096.0f;
+            /* Classic style matches the room-specific RGB matrix used by the
+             * original flashlight (so console `fl` tints reach the cone too);
+             * Modern keeps its own warm-white beam character. */
+            {
+                extern int g_PsyX_FlashlightStyle;
+                if (g_PsyX_FlashlightStyle)
+                {
+                    g_PsyX_FlashlightColor[0] = (float)g_WorldEnvWork.field_2C.m[0][0] / 4096.0f;
+                    g_PsyX_FlashlightColor[1] = (float)g_WorldEnvWork.field_2C.m[1][0] / 4096.0f;
+                    g_PsyX_FlashlightColor[2] = (float)g_WorldEnvWork.field_2C.m[2][0] / 4096.0f;
+                }
+                else
+                {
+                    g_PsyX_FlashlightColor[0] = 1.00f;
+                    g_PsyX_FlashlightColor[1] = 0.95f;
+                    g_PsyX_FlashlightColor[2] = 0.85f;
+                }
+            }
 
             g_PsyX_FlashlightActive = 1;
         }
@@ -270,8 +284,16 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     if (g_WorldEnvWork.field_2 != 0)
     {
-        /* The per-pixel path still needs the original subtractive outer mask;
-         * func_800414E0 suppresses only its additive center while the cone is active. */
+#ifdef SH_PC_PORT
+        /* Classic per-pixel style still needs the original subtractive outer
+         * mask (func_800414E0 suppresses only its additive center while the
+         * cone is active). Modern replaces the whole PSX glow compositor —
+         * drawing any of it under the stylized cone double-lights into
+         * blown-out highlights, so skip it entirely like the pre-calibration
+         * builds did. */
+        extern int g_PsyX_FlashlightActive, g_PsyX_FlashlightStyle;
+        if (!(g_PsyX_FlashlightActive && g_PsyX_FlashlightStyle == 0))
+#endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 

@@ -833,20 +833,14 @@ int main(int argc, char* argv[])
         SH_LOG("Tone mapping: mode %d", g_cfg_tonemap);
     }
 
-    /* Per-pixel flashlight cone (vs PSX per-vertex lighting). F4 toggles it.
-     * Real flashlight shadow mapping (depth pre-pass from the light POV) needs
-     * the per-pixel cone to be visible at all, so it only shows while the cone
-     * is on — but it has its own on/off (config key flashlight_shadows, PC
-     * Options "PP_Shadows", console `shadows`), default on, so toggling the cone
-     * no longer silently drops shadows. */
+    /* Flashlight mode: Classic (PSX per-vertex) / Classic + Shadows (per-pixel,
+     * PSX-calibrated style) / Modern (per-pixel stylized spotlight) / Modern +
+     * Shadows. F4 cycles it; PC Options "Flashlight" row; console `flmode`.
+     * The apply helper derives the per-pixel/style/shadow PsyX globals and the
+     * per-style intensity/size defaults. */
     {
-        extern int g_PsyX_UsePerPixelFlashlight;
-        extern int g_PsyX_UseFlashlightShadows;
-        g_PsyX_UsePerPixelFlashlight = g_PcConfig.perPixelFlashlight ? 1 : 0;
-        g_PsyX_UseFlashlightShadows  = g_PcConfig.flashlightShadows ? 1 : 0;
-        SH_LOG("Per-pixel flashlight: %s, shadows: %s",
-               g_PsyX_UsePerPixelFlashlight ? "ON" : "off",
-               g_PsyX_UseFlashlightShadows ? "ON" : "off");
+        Pc_FlashlightModeApply(g_PcConfig.flashlightMode, 0);
+        SH_LOG("Flashlight mode: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     }
 
     /* SPU ADSR envelopes (attack/release instrument fades in the sequenced BGM)

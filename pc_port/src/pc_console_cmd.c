@@ -922,15 +922,29 @@ void Pc_ConsoleExec(const char* line)
         g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
         PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "FLMODE") == 0) {
+        /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
+        int mode = g_PcConfig.flashlightMode;
+        if (arg[0] >= '0' && arg[0] <= '3' && arg[1] == '\0') mode = arg[0] - '0';
+        else if (strcmp(arg, "CLASSIC") == 0) mode = 0;
+        else if (strcmp(arg, "CLASSICSHADOWS") == 0) mode = 1;
+        else if (strcmp(arg, "MODERN") == 0) mode = 2;
+        else if (strcmp(arg, "MODERNSHADOWS") == 0) mode = 3;
+        else if (arg[0] != '\0') { cprintf("usage: flmode <0-3|classic|classicshadows|modern|modernshadows>"); return; }
+        Pc_FlashlightModeApply(mode, 1);
+        cprintf("Flashlight: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     } else if (strcmp(cmd, "SHADOWS") == 0) {
-        extern int g_PsyX_UseFlashlightShadows, g_PsyX_UsePerPixelFlashlight;
-        if (arg[0] == '1') g_PsyX_UseFlashlightShadows = 1;
-        else if (arg[0] == '0') g_PsyX_UseFlashlightShadows = 0;
-        else g_PsyX_UseFlashlightShadows = !g_PsyX_UseFlashlightShadows; /* bare "shadows" toggles */
-        g_PcConfig.flashlightShadows = g_PsyX_UseFlashlightShadows;
-        PcConfig_SaveKeyValue("flashlight_shadows", g_PsyX_UseFlashlightShadows ? "1" : "0");
-        cprintf("Flashlight shadows %s%s", g_PsyX_UseFlashlightShadows ? "ON" : "OFF",
-                (g_PsyX_UseFlashlightShadows && !g_PsyX_UsePerPixelFlashlight) ? " (turn per-pixel flashlight ON to see them)" : "");
+        /* Toggles shadows WITHIN the current flashlight mode. Classic + Shadows
+         * without shadows is just Classic, so 1<->0 and 3<->2. */
+        int on;
+        int mode = g_PcConfig.flashlightMode;
+        if (arg[0] == '1') on = 1;
+        else if (arg[0] == '0') on = 0;
+        else on = !(mode == 1 || mode == 3); /* bare "shadows" toggles */
+        if (mode == 0 || mode == 1) mode = on ? 1 : 0;
+        else                        mode = on ? 3 : 2;
+        Pc_FlashlightModeApply(mode, 1);
+        cprintf("Flashlight: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     } else if (strcmp(cmd, "SHADOWBIAS") == 0) {
         extern float g_PsyX_FlashlightShadowBias;
         if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);

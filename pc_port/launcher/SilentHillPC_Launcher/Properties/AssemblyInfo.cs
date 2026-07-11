@@ -40,4 +40,4 @@ using System.Runtime.InteropServices;
 // version.json), otherwise downgrades/no-ops can't be told apart. AssemblyVersion
 // stays 1.0.0.0 so it isn't a binding identity churn.
 [assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("2026.7.10.1")]
+[assembly: AssemblyFileVersion("2026.7.11.1")]

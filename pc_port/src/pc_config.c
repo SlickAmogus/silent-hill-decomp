@@ -28,7 +28,8 @@ s_PcConfig g_PcConfig = {
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
-    .perPixelFlashlight = 0, /* 0=per-vertex (PSX), 1=per-pixel flashlight cone */
+    .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
+    .perPixelFlashlight = 0, /* DERIVED from flashlightMode */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
     .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..3 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
@@ -203,6 +204,81 @@ static void TrimWhitespace(char* s)
     if (start != s) memmove(s, start, strlen(start) + 1);
 }
 
+/* Set while parsing when the file carries an explicit flashlight_mode key;
+ * without one, mode is derived from the legacy pp/shadows keys after the parse. */
+static int s_sawFlashlightMode = 0;
+
+void Pc_FlashlightModeApply(int mode, int persist)
+{
+    extern int   g_PsyX_UsePerPixelFlashlight;
+    extern int   g_PsyX_UseFlashlightShadows;
+    extern int   g_PsyX_FlashlightStyle;
+    extern float g_PsyX_FlashlightIntensity;
+    extern float g_PsyX_FlashlightSize;
+
+    int pp, style, shadows;
+    int swapped = 0;
+
+    if (mode < 0 || mode > 3) mode = 0;
+    pp      = (mode != 0);
+    style   = (mode == 1) ? 1 : 0; /* 1 = classic (PSX-calibrated), 0 = modern */
+    shadows = (mode == 1 || mode == 3);
+
+    /* Each per-pixel style has its own calibrated intensity/size defaults
+     * (Modern 2.10/2.40, Classic+Shadows 1.20/3.00). Swap only when the
+     * current value IS the other style's default — a customized value is a
+     * user choice and follows them across styles. */
+    if (pp)
+    {
+        float defInt  = style ? 1.20f : 2.10f, otherInt  = style ? 2.10f : 1.20f;
+        float defSize = style ? 3.00f : 2.40f, otherSize = style ? 2.40f : 3.00f;
+        if (g_PcConfig.flashlightIntensity > otherInt - 0.005f &&
+            g_PcConfig.flashlightIntensity < otherInt + 0.005f)
+        {
+            g_PcConfig.flashlightIntensity = defInt;
+            swapped = 1;
+        }
+        if (g_PcConfig.flashlightSize > otherSize - 0.005f &&
+            g_PcConfig.flashlightSize < otherSize + 0.005f)
+        {
+            g_PcConfig.flashlightSize = defSize;
+            swapped = 1;
+        }
+        g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
+        g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
+    }
+
+    g_PcConfig.flashlightMode     = mode;
+    g_PcConfig.perPixelFlashlight = pp;
+    g_PcConfig.flashlightShadows  = shadows;
+
+    g_PsyX_UsePerPixelFlashlight = pp;
+    g_PsyX_UseFlashlightShadows  = shadows;
+    g_PsyX_FlashlightStyle       = style;
+
+    if (persist)
+    {
+        char b[16];
+        snprintf(b, sizeof(b), "%d", mode);
+        PcConfig_SaveKeyValue("flashlight_mode", b);
+        PcConfig_SaveKeyValue("per_pixel_flashlight", pp ? "1" : "0");
+        PcConfig_SaveKeyValue("flashlight_shadows", shadows ? "1" : "0");
+        if (swapped)
+        {
+            snprintf(b, sizeof(b), "%.2f", g_PcConfig.flashlightIntensity);
+            PcConfig_SaveKeyValue("flashlight_intensity", b);
+            snprintf(b, sizeof(b), "%.2f", g_PcConfig.flashlightSize);
+            PcConfig_SaveKeyValue("flashlight_size", b);
+        }
+    }
+}
+
+const char* Pc_FlashlightModeLabel(int mode)
+{
+    static const char* const s_names[] = { "Classic", "Classic + Shadows", "Modern", "Modern + Shadows" };
+    return s_names[(mode >= 0 && mode <= 3) ? mode : 0];
+}
+
 void PcConfig_Load(const char* path)
 {
     if (path) {
@@ -355,6 +431,14 @@ void PcConfig_Load(const char* path)
             if (v > 3) v = 3;
             g_PcConfig.tonemap = v;
         }
+        else if (strcmp(key, "flashlight_mode") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 3) v = 3;
+            g_PcConfig.flashlightMode = v;
+            s_sawFlashlightMode = 1;
+        }
         else if (strcmp(key, "per_pixel_flashlight") == 0)
         {
             g_PcConfig.perPixelFlashlight = (atoi(value) != 0);
@@ -368,12 +452,6 @@ void PcConfig_Load(const char* path)
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
             if (v > 3.0f) v = 3.0f;
-            /* 2.10 was the pre-calibration default and is far too bright under
-             * the SH1-derived attenuation curve (PR#7/#44, 2026-07-10); configs
-             * saved before then carry it without the user ever having chosen
-             * it. Migrate exactly that value to the calibrated default; any
-             * other saved value is a deliberate customization and stands. */
-            if (v > 2.09f && v < 2.11f) v = 1.20f;
             g_PcConfig.flashlightIntensity = v;
         }
         else if (strcmp(key, "flashlight_size") == 0)
@@ -381,8 +459,6 @@ void PcConfig_Load(const char* path)
             float v = (float)atof(value);
             if (v < 0.0f) v = 0.0f;
             if (v > 3.0f) v = 3.0f;
-            /* Same migration: 2.40 was the pre-calibration default size. */
-            if (v > 2.39f && v < 2.41f) v = 3.00f;
             g_PcConfig.flashlightSize = v;
         }
         else if (strcmp(key, "flashlight_intensity_fps") == 0)
@@ -610,6 +686,14 @@ void PcConfig_Load(const char* path)
     }
 
     fclose(f);
+
+    /* Configs from before flashlight_mode existed carry only the legacy
+     * pp/shadows keys. pp+shadows was the pre-calibration per-pixel look, so
+     * it maps to Modern + Shadows — those users keep the flashlight they had. */
+    if (!s_sawFlashlightMode && g_PcConfig.perPixelFlashlight)
+    {
+        g_PcConfig.flashlightMode = g_PcConfig.flashlightShadows ? 3 : 2;
+    }
 
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",
             g_PcConfig.windowWidth, g_PcConfig.windowHeight,
