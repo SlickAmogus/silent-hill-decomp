@@ -211,11 +211,14 @@ typedef struct {
 } McFileHandle;
 static McFileHandle s_handles[16] = { 0 };
 
-/* Only PSX channel 0 (port 1) has a card on Xbox. */
-static int mc_chan_present(int chan)
-{
-    return (chan == 0) && s_cardOk;
-}
+/* Channel model — PsyCross-EXACT (hardware-proven the hard way): the BIOS card
+ * funcs mask every channel with (chan & 1) onto TWO always-connected cards
+ * (0.MCD / 1.MCD), and _card_info NEVER reports not-connected. This file's
+ * first version reported "chan!=0 -> EvSpTIMOUT" (real-PSX-style empty slots)
+ * and the memcard element layer wedged polling channel 18 forever at the
+ * KCET-logo check — the game's FSM was only ever validated against PsyCross's
+ * all-channels-connected model. TIMOUT stays only for the one Xbox-only
+ * degradation PsyCross can't have: no writable save location at all. */
 
 static const char* mc_path_for_channel(int chan)
 {
@@ -286,7 +289,7 @@ static int mc_ensure_card(int chan)
     FILE* f;
     long  sz;
 
-    if (!mc_chan_present(chan)) return 0;
+    if (!s_cardOk) return 0;
 
     f = mc_fopen(chan, "rb");
     if (f) {
@@ -369,13 +372,14 @@ static int mc_alloc_dir(int chan, const char* name, int blocks)
     return 0;
 }
 
-/* Strip "buXX:" prefix if present, return remaining name.
- * "bu00:"=chan 0 (port 1), "bu10:"=chan 16 (port 2) — BIOS chan = port<<4|slot. */
+/* Strip "buXX:" prefix if present, return remaining name. PsyCross arithmetic
+ * VERBATIM: chan = X1*8 + X2 ("bu10:" -> 8 -> its own card file, exactly like
+ * the PC port) — the game's FSM was only ever validated against this. */
 static const char* mc_strip_prefix(const char* path, int* outChan)
 {
     if (!path) return NULL;
     if (path[0] == 'b' && path[1] == 'u' && path[3] != '\0' && path[4] == ':') {
-        if (outChan) *outChan = (path[2] - '0') * 16 + (path[3] - '0');
+        if (outChan) *outChan = (path[2] - '0') * 8 + (path[3] - '0');
         return path + 5;
     }
     if (outChan) *outChan = 0;
@@ -437,41 +441,47 @@ void _bu_init(void)
 
 int _card_info(int chan)
 {
-    int ok = mc_ensure_card(chan);
-    if (ok) {
-        s_lastCardOk[0] = 1;
-        mc_deliver_iod();
-    } else {
+    if (!s_cardOk) {
         mc_deliver_timeout();
+        if (Mcrd_LogGate(&s_logCardInfo))
+            SH_DBG("[MCRD] card_info chan=%d -> TIMOUT (no storage) (n=%d)", chan, s_logCardInfo);
+        return 1;
     }
+    mc_ensure_card(chan & 1);
+    s_lastCardOk[chan & 1] = 1;
+    mc_deliver_iod();
     if (Mcrd_LogGate(&s_logCardInfo))
-        SH_DBG("[MCRD] card_info chan=%d -> %s (n=%d)", chan, ok ? "IOE" : "TIMOUT", s_logCardInfo);
+        SH_DBG("[MCRD] card_info chan=%d -> IOE (n=%d)", chan, s_logCardInfo);
     return 1;
 }
 
 int _card_clear(int chan)
 {
-    int ok = mc_chan_present(chan);
-    if (ok) mc_deliver_iod();
-    else    mc_deliver_timeout();
+    if (!s_cardOk) {
+        mc_deliver_timeout();
+        return 1;
+    }
+    mc_deliver_iod();
     if (Mcrd_LogGate(&s_logCardClear))
-        SH_DBG("[MCRD] card_clear chan=%d -> %s (n=%d)", chan, ok ? "IOE" : "TIMOUT", s_logCardClear);
+        SH_DBG("[MCRD] card_clear chan=%d -> IOE (n=%d)", chan, s_logCardClear);
     return 1;
 }
 
 int _card_load(int chan)
 {
-    int ok;
-    s_currentChannel = 0;
-    ok = mc_ensure_card(chan);
-    if (ok) {
-        s_lastCardOk[0] = 1;
-        mc_deliver_iod();
-    } else {
+    s_currentChannel = chan & 1;
+    if (!s_cardOk) {
+        /* No storage: TIMOUT resolves the FSM to NotConnected (its State_Load
+         * retry cap handles it); PsyCross would return 0 forever here. */
         mc_deliver_timeout();
+        return 1;
     }
+    if (!mc_ensure_card(s_currentChannel))
+        return 0;                     /* PsyCross-exact: rejected, no event */
+    s_lastCardOk[s_currentChannel] = 1;
+    mc_deliver_iod();
     if (Mcrd_LogGate(&s_logCardLoad))
-        SH_DBG("[MCRD] card_load chan=%d -> %s (n=%d)", chan, ok ? "IOE" : "TIMOUT", s_logCardLoad);
+        SH_DBG("[MCRD] card_load chan=%d -> IOE (n=%d)", chan, s_logCardLoad);
     return 1;
 }
 
@@ -506,32 +516,30 @@ unsigned int _card_chan(void)
 
 int _card_write(int chan, int frameIdx, unsigned char* buf)
 {
-    if (!mc_ensure_card(chan) ||
-        !mc_write_at(chan, (long)frameIdx * MC_FRAME_SIZE, buf, MC_FRAME_SIZE)) {
-        mc_deliver_timeout();
-        return 1;
-    }
+    int c = chan & 1;
+    if (!mc_ensure_card(c) ||
+        !mc_write_at(c, (long)frameIdx * MC_FRAME_SIZE, buf, MC_FRAME_SIZE))
+        return 0;                     /* PsyCross-exact: no event on failure
+                                       * (State_FileReadWrite caps at 15 retries) */
     mc_deliver_iod();
     return 1;
 }
 
 int _card_read(int chan, int frameIdx, unsigned char* buf)
 {
-    if (!mc_ensure_card(chan) ||
-        !mc_read_at(chan, (long)frameIdx * MC_FRAME_SIZE, buf, MC_FRAME_SIZE)) {
-        mc_deliver_timeout();
-        return 1;
-    }
+    int c = chan & 1;
+    if (!mc_ensure_card(c) ||
+        !mc_read_at(c, (long)frameIdx * MC_FRAME_SIZE, buf, MC_FRAME_SIZE))
+        return 0;                     /* PsyCross-exact */
     mc_deliver_iod();
     return 1;
 }
 
 int _card_format(int chan)
 {
-    if (!mc_chan_present(chan) || !mc_write_fresh_card(chan)) {
-        mc_deliver_timeout();
-        return 1;
-    }
+    int c = chan & 1;
+    if (!s_cardOk || !mc_write_fresh_card(c))
+        return 0;                     /* PsyCross-exact */
     mc_deliver_iod();
     return 1;
 }
