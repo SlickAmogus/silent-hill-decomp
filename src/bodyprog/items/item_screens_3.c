@@ -3976,47 +3976,6 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
                 s_linkLog++;
             }
         }
-        {
-            /* [ITEMVRAM] one-shot H2 probe (PAL invisible previews): dump the
-             * live CLUT row + first texels of the item textures straight from
-             * the CPU-side VRAM the renderer samples. All-zero CLUT entries
-             * would render items fully transparent; entry pattern mismatch vs
-             * the TIM on disc means something replaced the palette. Also logs
-             * the display state the item aspect path keys on. Remove with the
-             * TMDEMIT probe once the PAL item bug is closed. */
-            static int s_vramProbe = 0;
-            if (s_vramProbe == 0)
-            {
-                extern void GR_ReadVRAM(unsigned short* dst, int x, int y, int dst_w, int dst_h);
-                extern int  g_PcHorPlusEnabled;
-                extern int  g_PcMenuPillarbox;
-                extern int  g_PcWidescreenMode;
-                /* v2: probe INTERIOR rows of every page the item TMDs sample
-                 * (TIM00 (960,0), TIM01 (896,0), TIM07 (864,0)) plus non-zero
-                 * CLUT rows — v1 read 4 corner texels that are legitimately
-                 * white on both regions (Konami logo home), proving nothing.
-                 * Compare against the on-disc TIM bytes offline. */
-                static const struct { const char* tag; int x, y; } P[] = {
-                    { "pix(960,100)",  960, 100 }, { "pix(992,200)", 992, 200 },
-                    { "pix(896,100)",  896, 100 }, { "pix(920,200)", 920, 200 },
-                    { "pix(864,100)",  864, 100 },
-                    { "clut(176,1)",   176,   1 }, { "clut(176,8)",  176,   8 },
-                    { "clut(160,2)",   160,   2 }, { "clut(240,4)",  240,   4 },
-                };
-                unsigned short v[8];
-                int            pi;
-
-                for (pi = 0; pi < (int)(sizeof(P) / sizeof(P[0])); pi++)
-                {
-                    GR_ReadVRAM(v, P[pi].x, P[pi].y, 8, 1);
-                    SH_DBG("[ITEMVRAM2] %s=%04x %04x %04x %04x %04x %04x %04x %04x",
-                           P[pi].tag, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
-                }
-                SH_DBG("[ITEMVRAM2] horPlus=%d pillarbox=%d wsMode=%d",
-                       g_PcHorPlusEnabled, g_PcMenuPillarbox, g_PcWidescreenMode);
-                s_vramProbe = 1;
-            }
-        }
         if (obj != NULL) {
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
         } else {

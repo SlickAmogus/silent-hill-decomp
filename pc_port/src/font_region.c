@@ -157,5 +157,27 @@ void Font_ApplyRegionPatches(void)
         }
     }
 
-    SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255)");
+    /* PAL item-model packs (IT_00x.TMD / UNQxx.TMD) bake their palette ids at
+     * the EUR retail CLUT homes — retail SLES moved this whole desc family to
+     * the bottom-right VRAM block because PAL's taller 256-line framebuffers
+     * cover the US homes. The PAL TMDs are NOT byte-identical to US: every
+     * textured prim's clut word is the US id + the home delta. Upload the
+     * item palettes where those prims point or every inventory/pickup preview
+     * samples an empty palette (renders black). Values byte-verified against
+     * the decrypted EUR BODYPROG desc cluster. */
+    {
+        extern s_FsImageDesc g_InventoryKeyItemTextureImg; /* TIM01..06, per-map key items */
+        extern s_FsImageDesc g_FirstAidKitItemTextureImg;  /* TIM00, common items */
+        extern s_FsImageDesc D_800A9074;                   /* TIM07, always-loaded pack */
+        extern s_FsImageDesc D_800A907C;                   /* FOOK, map5_s01 meat hook */
+        extern s_FsImageDesc D_800A9084;                   /* BLD, film/blood texture */
+
+        g_InventoryKeyItemTextureImg.clutX = 912; g_InventoryKeyItemTextureImg.clutY = 480;
+        g_FirstAidKitItemTextureImg.clutX  = 928; g_FirstAidKitItemTextureImg.clutY  = 480;
+        D_800A9074.clutX                   = 896; D_800A9074.clutY                   = 480;
+        D_800A907C.clutX                   = 896; D_800A907C.clutY                   = 488;
+        D_800A9084.clutX                   = 944; D_800A9084.clutY                   = 480;
+    }
+
+    SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255); item CLUTs -> (896..944,480)");
 }
