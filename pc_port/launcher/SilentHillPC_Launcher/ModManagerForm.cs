@@ -343,6 +343,7 @@ namespace SilentHillPC_Launcher
                 ModManager.ApplyResult r = null;
                 ProgressDialog.Run(this, "Applying mods…", rep => { r = _mgr.Apply(_chkLoose.Checked, rep); });
                 _chkLoose.Checked = r.LooseEnabled;
+                Populate(); // reflect install/uninstall state changes
 
                 string msg = string.Format(
                     "Applied.\n\nActive texture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
