@@ -7,8 +7,10 @@
 #include "bodyprog/math/math.h"
 
 #ifdef SH_PC_PORT
-#include "font_region.h" /* Region font layout: US strip vs PAL 21x6 grid. */
-#include "lang_text.h"   /* Pc_LangMenuText — port-written menu translations. */
+#include "font_region.h"   /* Region font layout: US strip vs PAL 21x6 grid. */
+#include "lang_text.h"     /* Pc_LangMenuText — port-written menu translations. */
+#include "pc_kanji.h"      /* NTSC-J SJIS glyph atlas. */
+#include "main/fileinfo.h" /* g_GameRegion */
 #endif
 
 #ifndef PAD_HACK_IGNORE
@@ -209,6 +211,63 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
         }
         // Regular character.
 #ifdef SH_PC_PORT
+        /* NTSC-J: SJIS pairs (the select-prompt options like Yes/No route the
+         * JP map messages through this drawer) — one 12x16 kanji atlas cell. */
+        else if (g_GameRegion == Region_JPN && Pc_KanjiIsLead(charCode) && strCpy[1] != '\0')
+        {
+            unsigned int   kPage;
+            int            kU, kV;
+            unsigned short kClut;
+
+            sizeCpy--;
+
+            if (Pc_KanjiCell((u16)(((u32)charCode << 8) | strCpy[1]), &kPage, &kU, &kV, &kClut))
+            {
+                if (g_SysWork.enableHighResGlyphs)
+                {
+                    glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
+
+                    setPolyFT4(glyphPoly);
+                    setRGB0(glyphPoly, glyphColor, glyphColor >> 8, glyphColor >> 16);
+                    setXY4(glyphPoly,
+                           posX,                           posY * 2,
+                           posX,                           (posY * 2) + g_FontLayout->hiResGlyphBottom,
+                           posX + FONT_12X16_GLYPH_SIZE_X, posY * 2,
+                           posX + FONT_12X16_GLYPH_SIZE_X, (posY * 2) + g_FontLayout->hiResGlyphBottom);
+
+                    *((u32*)&glyphPoly->u0) = (u32)kU + ((u32)kV << 8) + ((u32)kClut << 16);
+                    *((u32*)&glyphPoly->u1) = (u32)kU + (kPage << 16) + (((u32)kV + 15) << 8);
+                    *((u16*)&glyphPoly->u2) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + (kV << 8));
+                    *((u16*)&glyphPoly->u3) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + ((kV + 15) << 8));
+
+                    addPrim(ot, glyphPoly);
+                    GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
+                }
+                else
+                {
+                    posXCpy = (u16)posX;
+
+                    glyphSprt              = (SPRT*)packet;
+                    *((u32*)&glyphSprt->w) = 0x10000C;
+
+                    addPrimFast(ot, glyphSprt, 4);
+                    *((u32*)&glyphSprt->r0)   = glyphColor;
+                    *((u32*)(&glyphSprt->x0)) = posXCpy + (posY << 16);
+                    *((u32*)&glyphSprt->u0)   = (u32)kU + ((u32)kV << 8) + ((u32)kClut << 16);
+
+                    packet += sizeof(SPRT);
+
+                    tPage = (DR_TPAGE*)packet;
+                    setDrawTPage(tPage, 0, 1, kPage);
+                    addPrim(ot, tPage);
+
+                    packet += sizeof(DR_TPAGE);
+                }
+            }
+
+            posX += FONT_12X16_GLYPH_SIZE_X;
+            strCpy++; /* trail byte; the loop tail consumes the lead */
+        }
         /* Region font layout: same math as the original, with the layout
          * constants (v base, tpage, CLUT, widths) coming from g_FontLayout.
          * With the USA layout the emitted prim words are bit-identical to the
@@ -476,6 +535,14 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
                 }
 
 #ifdef SH_PC_PORT
+                /* NTSC-J: an SJIS pair is one fixed-width kanji cell. */
+                if (g_GameRegion == Region_JPN && Pc_KanjiIsLead((u8)charCode) && mapMsg[1] != '\0')
+                {
+                    g_MapMsg_Widths[g_MapMsg_WidthIdx - 1] += FONT_12X16_GLYPH_SIZE_X;
+                    mapMsg += 2;
+                    break;
+                }
+
                 /* Region font layout: identical widths for US bytes; PAL
                  * accent bytes sum their emissions (mark advance is 0). */
                 {
@@ -762,6 +829,73 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             strLength--;
 
 #ifdef SH_PC_PORT
+            /* NTSC-J: an SJIS pair draws one 12x16 kanji cell from the PC
+             * atlas — same SPRT/FT4 shape as the Latin glyphs, different
+             * uv/page/clut. Absent glyphs advance silently. */
+            if (g_GameRegion == Region_JPN && Pc_KanjiIsLead((u8)charCode) && ((u8*)mapMsg)[1] != '\0')
+            {
+                unsigned int   kPage;
+                int            kU, kV;
+                unsigned short kClut;
+
+                if (Pc_KanjiCell((u16)(((u32)(u8)charCode << 8) | ((u8*)mapMsg)[1]),
+                                 &kPage, &kU, &kV, &kClut))
+                {
+                    if (g_SysWork.enableHighResGlyphs)
+                    {
+                        glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
+
+                        setPolyFT4(glyphPoly);
+                        setRGB0(glyphPoly, (s8)color, (s8)(color >> 8), (s8)(color >> 16));
+                        setXY4(glyphPoly,
+                               glyphPosX,                           glyphPosY * 2,
+                               glyphPosX,                           (glyphPosY * 2) + g_FontLayout->hiResGlyphBottom,
+                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, glyphPosY * 2,
+                               glyphPosX + FONT_12X16_GLYPH_SIZE_X, (glyphPosY * 2) + g_FontLayout->hiResGlyphBottom);
+
+                        *((u32*)&glyphPoly->u0) = (u32)kU + ((u32)kV << 8) + ((u32)kClut << 16);
+                        *((u32*)&glyphPoly->u1) = (u32)kU + (kPage << 16) + (((u32)kV + 15) << 8);
+                        *((u16*)&glyphPoly->u2) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + (kV << 8));
+                        *((u16*)&glyphPoly->u3) = (u16)(kU + FONT_12X16_GLYPH_SIZE_X + ((kV + 15) << 8));
+
+                        addPrim(ot, glyphPoly);
+                        GsOUT_PACKET_P = (PACKET*)glyphPoly + sizeof(POLY_FT4);
+                    }
+                    else
+                    {
+                        glyphSprt              = (SPRT*)packet;
+                        *((u32*)&glyphSprt->w) = 0x10000C;
+
+                        addPrimFast(ot, glyphSprt, 4);
+                        *((u32*)&glyphSprt->r0)   = color;
+                        *((u32*)(&glyphSprt->x0)) = (u16)glyphPosX + (glyphPosY << 16);
+                        *((u32*)&glyphSprt->u0)   = (u32)kU + ((u32)kV << 8) + ((u32)kClut << 16);
+
+                        packet += sizeof(SPRT);
+
+                        tPage = (DR_TPAGE*)packet;
+                        setDrawTPage(tPage, 0, 1, kPage);
+                        addPrim(ot, tPage);
+
+                        packet += sizeof(DR_TPAGE);
+                    }
+                }
+
+                glyphPosX += FONT_12X16_GLYPH_SIZE_X;
+                mapMsg    += 2;
+
+                if (strLength <= 0)
+                {
+                    if (!g_SysWork.enableHighResGlyphs)
+                    {
+                        GsOUT_PACKET_P = packet;
+                    }
+
+                    return result;
+                }
+                break;
+            }
+
             /* Region font layout (see Gfx_StringDraw): USA output is
              * bit-identical to the original constants kept in the #else;
              * PAL accent bytes emit up to 2 glyphs (combining mark + base). */

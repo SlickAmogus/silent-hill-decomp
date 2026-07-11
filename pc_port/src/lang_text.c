@@ -20,7 +20,11 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define ITEM_TEXT_BASE  0x800C8B68u
 #define ITEM_TEXT_COUNT 195
 #define EUR_OVL_BASE    0x800CB370u
-#define MSG_COUNT_MAX   96
+#define JPN_OVL_BASE    0x800CBBD0u /* JAP Rev 1/2 map-overlay link base (probe-verified) */
+/* Must cover the largest per-map message table: MAP7_S02 has 159 US entries.
+ * (Was 96 — the replaced pointer array under-covered MAP4_S01/MAP7_S01/
+ * MAP7_S02 on PAL, sending reads past it.) */
+#define MSG_COUNT_MAX   176
 #define MSG_LINES_MAX   9 /* FONT_12X16_LINE_COUNT_MAX — the renderer clips past it */
 
 #define RAW_SECTOR_SIZE 2352
@@ -58,6 +62,9 @@ static const s_LangMsgSplit s_MsgSplits[] = {
     { MapIdx_MAP1_S03, 3, 22, 2 }, /* ES: poltergeist note */
     { MapIdx_MAP5_S02, 4, 43, 2 }, /* IT: Norman's delivery note */
 };
+
+/* NTSC-J: US->JAP message index mapping for the maps whose tables differ. */
+#include "lang_jpn_msgmap.inc"
 
 int Pc_LangActive(void)
 {
@@ -332,45 +339,49 @@ static int SplitPartsFor(int mapIdx, int usIdx)
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 {
     const unsigned char* bytes = (const unsigned char*)ovl;
+    unsigned int         base;
     unsigned int         tablePsx;
     unsigned int         tableOff;
-    unsigned int         eurPtrs[MSG_COUNT_MAX + 8];
-    int                  eurCount;
+    unsigned int         srcPtrs[MSG_COUNT_MAX + 8];
+    int                  srcCount;
     int                  usIdx;
     int                  srcIdx;
+    int                  isJpn;
     char*                out;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
-    if (!Pc_LangActive() || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
+    isJpn = (g_GameRegion == Region_JPN);
+    if ((!Pc_LangActive() && !isJpn) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
         return;
 
+    base     = isJpn ? JPN_OVL_BASE : EUR_OVL_BASE;
     tablePsx = *(const unsigned int*)(bytes + 0x34);
-    if (tablePsx < EUR_OVL_BASE || tablePsx - EUR_OVL_BASE >= ovlSize)
+    if (tablePsx < base || tablePsx - base >= ovlSize)
     {
         SH_WARN("[LANG] map %d: overlay message table pointer out of range (0x%08X)", mapIdx, tablePsx);
         return;
     }
-    tableOff = tablePsx - EUR_OVL_BASE;
+    tableOff = tablePsx - base;
 
     /* Walk the pointer array until a word stops being a valid in-overlay
      * string pointer (matches the table's on-disc terminator). */
-    for (eurCount = 0; eurCount < (int)(sizeof(eurPtrs) / sizeof(eurPtrs[0])); eurCount++)
+    for (srcCount = 0; srcCount < (int)(sizeof(srcPtrs) / sizeof(srcPtrs[0])); srcCount++)
     {
         unsigned int ptr;
 
-        if (tableOff + (eurCount + 1) * 4 > ovlSize)
+        if (tableOff + (srcCount + 1) * 4 > ovlSize)
             break;
 
-        ptr = *(const unsigned int*)(bytes + tableOff + eurCount * 4);
-        if (ptr <= EUR_OVL_BASE || ptr - EUR_OVL_BASE >= ovlSize)
+        ptr = *(const unsigned int*)(bytes + tableOff + srcCount * 4);
+        if (ptr <= base || ptr - base >= ovlSize)
             break;
 
-        eurPtrs[eurCount] = ptr - EUR_OVL_BASE;
+        srcPtrs[srcCount] = ptr - base;
     }
 
-    if (eurCount < 4)
+    if (srcCount < 4)
     {
-        SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, eurCount);
+        SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
         return;
     }
 
@@ -378,13 +389,71 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     s_MsgPool = (char*)malloc(ovlSize * 2 + 4096);
     out       = s_MsgPool;
 
+    if (isJpn)
+    {
+        /* JAP strings are already in engine format (same ~ codes, SJIS text
+         * between them) — copy verbatim. The JP tables are 1:1 with US except
+         * on the maps in s_JpnMsgMaps, where the US localization split or
+         * added lines: those get an explicit index map, and US entries with
+         * no JP counterpart (-1) keep the compiled English string. */
+        const short* idxMap   = NULL;
+        int          idxCount = 0;
+        const char** origMsgs = (const char**)g_pMapOverlayHeader->mapMessages;
+        int          i;
+
+        for (i = 0; i < (int)(sizeof(s_JpnMsgMaps) / sizeof(s_JpnMsgMaps[0])); i++)
+        {
+            if (s_JpnMsgMaps[i].mapIdx == mapIdx)
+            {
+                idxMap   = s_JpnMsgMaps[i].map;
+                idxCount = s_JpnMsgMaps[i].count;
+                break;
+            }
+        }
+
+        for (usIdx = 0; usIdx < MSG_COUNT_MAX; usIdx++)
+        {
+            int jpIdx;
+
+            if (idxMap != NULL)
+                jpIdx = (usIdx < idxCount) ? (int)idxMap[usIdx] : -2;
+            else
+                jpIdx = (usIdx < srcCount) ? usIdx : -2;
+
+            if (jpIdx == -1)
+            {
+                /* US-only line: keep the compiled English message. */
+                s_MsgPtrs[usIdx] = (origMsgs != NULL) ? origMsgs[usIdx] : "";
+            }
+            else if (jpIdx < 0 || jpIdx >= srcCount)
+            {
+                s_MsgPtrs[usIdx] = "";
+            }
+            else
+            {
+                size_t len = strlen((const char*)bytes + srcPtrs[jpIdx]);
+
+                memcpy(out, bytes + srcPtrs[jpIdx], len + 1);
+                s_MsgPtrs[usIdx] = out;
+                out += len + 1;
+            }
+        }
+
+        s_LangMapHeader             = *g_pMapOverlayHeader;
+        s_LangMapHeader.mapMessages = s_MsgPtrs;
+        g_pMapOverlayHeader         = &s_LangMapHeader;
+
+        SH_LOG("[LANG] map %d: %d Japanese messages installed", mapIdx, srcCount);
+        return;
+    }
+
     /* EUR index k maps to US index k for k<3; the entry at EUR index 3 is the
      * second half of the split intro message (a "{E}" stub in EN/FR) — join
      * it into US index 2 — and everything after shifts by one. The
      * s_MsgSplits table handles the handful of additional per-language page
      * splits the same way. */
     srcIdx = 0;
-    for (usIdx = 0; usIdx < MSG_COUNT_MAX && srcIdx < eurCount; usIdx++)
+    for (usIdx = 0; usIdx < MSG_COUNT_MAX && srcIdx < srcCount; usIdx++)
     {
         int   parts = (usIdx == 2) ? 2 : SplitPartsFor(mapIdx, usIdx);
         int   p;
@@ -392,7 +461,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
         s_MsgPtrs[usIdx] = start;
 
-        for (p = 0; p < parts && srcIdx < eurCount; p++, srcIdx++)
+        for (p = 0; p < parts && srcIdx < srcCount; p++, srcIdx++)
         {
             if (p > 0)
             {
@@ -402,7 +471,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
                 *out++ = 'N';
                 *out++ = ' ';
             }
-            out = TranslateMapMsg(out, bytes + eurPtrs[srcIdx], p == parts - 1);
+            out = TranslateMapMsg(out, bytes + srcPtrs[srcIdx], p == parts - 1);
         }
 
         if (parts > 1)
@@ -423,5 +492,5 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     s_LangMapHeader.mapMessages = s_MsgPtrs;
     g_pMapOverlayHeader         = &s_LangMapHeader;
 
-    SH_LOG("[LANG] map %d: %d localized messages installed (lang %d)", mapIdx, eurCount, g_PcConfig.language);
+    SH_LOG("[LANG] map %d: %d localized messages installed (lang %d)", mapIdx, srcCount, g_PcConfig.language);
 }

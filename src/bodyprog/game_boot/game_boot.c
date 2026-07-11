@@ -181,12 +181,19 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         {
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
         }
-        if (Pc_LangActive())
+        if (Pc_LangActive() || g_GameRegion == Region_JPN)
         {
             Fs_QueueWaitForEmpty();
             Pc_LangPatchMapMessages(
                 mapIdx, g_OvlDynamic,
                 (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+        if (g_GameRegion == Region_JPN)
+        {
+            /* Fresh kanji atlas per map: drops stale cells and re-uploads the
+             * margin-strip CLUT in case anything scribbled those rows. */
+            extern void Pc_KanjiAtlasReset(void);
+            Pc_KanjiAtlasReset();
         }
     }
 #endif
