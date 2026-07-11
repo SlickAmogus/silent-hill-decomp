@@ -13,6 +13,17 @@
 
 void GameFs_TitleGfxSeek(void) // 0x80032BD0
 {
+#ifdef SH_PC_PORT
+    /* NTSC-J title art = TIM/TITLE.TIM (same 8bpp 320x480 shape + desc as the
+     * US TITLE_E, different artwork: black bg + scratched logo + copyright —
+     * all baked pixels). Runtime mirror of the retail NTSCJ branch below;
+     * everything downstream (draw, menu, fog) is region-identical. */
+    if (g_GameRegion == Region_JPN)
+    {
+        Fs_QueueStartSeek(FILE_TIM_TITLE_TIM);
+        return;
+    }
+#endif
 #if VERSION_REGION_IS(NTSC)
     Fs_QueueStartSeek(FILE_TIM_TITLE_E_TIM);
 #elif VERSION_REGION_IS(NTSCJ)
@@ -22,11 +33,20 @@ void GameFs_TitleGfxSeek(void) // 0x80032BD0
 
 void GameFs_TitleGfxLoad(void) // 0x80032BF0
 {
+#ifdef SH_PC_PORT
+    if (g_GameRegion == Region_JPN)
+    {
+        Fs_QueueStartReadTim(FILE_TIM_TITLE_TIM, FS_BUFFER_3, &g_TitleImg);
+    }
+    else
+#endif
+    {
 #if VERSION_REGION_IS(NTSC)
     Fs_QueueStartReadTim(FILE_TIM_TITLE_E_TIM, FS_BUFFER_3, &g_TitleImg);
 #elif VERSION_REGION_IS(NTSCJ)
     Fs_QueueStartReadTim(FILE_TIM_TITLE_TIM, FS_BUFFER_3, &g_TitleImg);
 #endif
+    }
 
 #ifdef SH_PC_PORT
     /* PAL: the boot-time FONT16 upload at (768,128) is stomped by the Konami

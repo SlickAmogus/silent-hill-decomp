@@ -57,6 +57,27 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
     {
         for (x = 0; ((g_GameWork.gsScreenWidth - 1) >> (8 - texShift)) >= x; x++)
         {
+#ifdef SH_PC_PORT
+            /* Clamp the tile so it never samples past the image's content
+             * (u-offset + screen width texels). Retail overshoot fell at
+             * fb x>=320 and was clipped, but the PC-only -1 shift below
+             * (f6354a417, hides the GL x=0 clip artifact) drags one texel
+             * PAST the image into the last visible column — foreign VRAM
+             * through this image's CLUT, a full-height tinted line at the
+             * right edge of every 2D screen. Same overshoot class as the
+             * motion-blur tile clamp. */
+            s32 tileW = (g_GameWork.gsScreenWidth + (image->u << (2 - texShift))) - (x << 8);
+            if (tileW <= 0)
+            {
+                continue;
+            }
+            if (tileW > 256)
+            {
+                tileW = 256;
+            }
+#else
+            const s32 tileW = 256;
+#endif
             sprt = (SPRT*)packet;
 
             addPrimFast(ot, sprt, 4);
@@ -64,12 +85,12 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
 
             if (y == 0)
             {
-                setWH(sprt, 256, 256 - texOffsetY);
+                setWH(sprt, tileW, 256 - texOffsetY);
                 *((u32*)&sprt->u0) = (texOffsetY << 8) + (getClut(image->clutX, image->clutY) << 16);
             }
             else
             {
-                setWH(sprt, 256, 256);
+                setWH(sprt, tileW, 256);
                 *((u32*)&sprt->u0) = getClut(image->clutX, image->clutY) << 16;
             }
 
