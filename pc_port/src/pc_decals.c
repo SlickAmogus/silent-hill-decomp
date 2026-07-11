@@ -15,6 +15,7 @@
 #include "bodyprog/collision/ray.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"
+#include "bodyprog/gfx/world.h"
 #include "bodyprog/view/vw_calc.h"
 
 #include "hires_override.h"
@@ -53,6 +54,8 @@ typedef struct {
 } s_PcDecal;
 
 static s_PcDecal s_decals[DECAL_MAX];
+extern s_WorldEnvWork g_WorldEnvWork;
+
 static int       s_decalCount = 0;
 static int       s_decalHead  = 0; /* FIFO write index (oldest overwritten) */
 
@@ -337,7 +340,22 @@ void Pc_DecalsDraw(GsOT* ot)
         }
 
         setPolyFT4(poly);
-        setRGB0(poly, 128, 128, 128);
+        {
+            /* Take the room's ambient like billboards do (worldTintColor
+             * scaled by the ambient level) so decals sit in the scene's
+             * lighting instead of rendering full-bright everywhere. Floor of
+             * 12 keeps them findable in pitch-black flashlight rooms. */
+            s32 lr = Q12_MULT(g_WorldEnvWork.worldTintColor.r, g_WorldEnvWork.field_20);
+            s32 lg = Q12_MULT(g_WorldEnvWork.worldTintColor.g, g_WorldEnvWork.field_20);
+            s32 lb = Q12_MULT(g_WorldEnvWork.worldTintColor.b, g_WorldEnvWork.field_20);
+            if (lr < 12) lr = 12;
+            if (lg < 12) lg = 12;
+            if (lb < 12) lb = 12;
+            if (lr > 128) lr = 128;
+            if (lg > 128) lg = 128;
+            if (lb > 128) lb = 128;
+            setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
+        }
         /* tpage is irrelevant: the bit-15 clut alone keys the GL override
          * (ApplyHiresOverride pool-slot fast path); page bits never sample VRAM. */
         poly->tpage = 0;

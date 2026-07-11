@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <SDL_timer.h>
 #include "pc_config.h"
+#include "bodyprog/gfx/world.h"
 #include "sh_log.h"
 #include "hires_override.h"
 /* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
@@ -1720,11 +1721,19 @@ void Ipd_DistanceToEdgeCalc(s_Chunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 p
  * lifted per-poly far caps in bodyprog_80055028.c all key off this. Street
  * room only — interiors hosted by exterior maps fall back to vanilla so the
  * street authored through house volumes releases and disappears. */
+extern s_WorldEnvWork g_WorldEnvWork;
+
 int Pc_WholeMapDrawActive(void)
 {
+    /* "On the street" = the map's outdoor fog is enabled. A fixed room index
+     * doesn't work — street room numbering differs per map (map2_s00 street is
+     * 0, map0_s00's is 37) — but hosted interiors (Levin house etc.) all turn
+     * the outdoor fog off on entry, which is exactly the boundary where the
+     * whole town must stop rendering. fogstr only scales shader density and
+     * never touches this flag. */
     return g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
            g_PcConfig.residentTextures && g_Map.isExterior &&
-           g_SavegamePtr->mapRoomIdx == 0;
+           g_WorldEnvWork.isFogEnabled;
 }
 #endif
 
@@ -2231,9 +2240,10 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         if ((SDL_GetTicks() - s_wmLogMs) > 2000)
         {
             s_wmLogMs = SDL_GetTicks();
-            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d roomIdx=%d total=%d loaded=%d drawn=%d",
+            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d fog=%d roomIdx=%d total=%d loaded=%d drawn=%d",
                    Pc_WholeMapDrawActive(), g_PcConfig.preloadChunks, g_PcConfig.residentTextures,
-                   (int)g_SavegamePtr->mapRoomIdx, totalChunks, loadedChunks, drawCount);
+                   (int)g_WorldEnvWork.isFogEnabled, (int)g_SavegamePtr->mapRoomIdx,
+                   totalChunks, loadedChunks, drawCount);
         }
     }
 

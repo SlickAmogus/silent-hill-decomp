@@ -262,7 +262,7 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
      * triggers off to the side — just a longer arm. */
     extern int g_PcFpsCam;
     {
-        const q19_12 reach = g_PcFpsCam ? Q12(1.4f) : Q12(0.8f);
+        const q19_12 reach = g_PcFpsCam ? Q12(2.8f) : Q12(0.8f);
 #else
     {
         const q19_12 reach = Q12(0.8f);

@@ -1478,12 +1478,18 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
        * with the head already hidden (headless Harry drifting into frame on
        * every room load). Only hide once the view has actually arrived. */
       int _atEye = 0;
-      { extern VECTOR3 g_PcFpsEyePos;
-        VECTOR3 _vp;
+      { VECTOR3 _vp;
+        VECTOR3 _hp;
         vwGetViewPosition(&_vp);
-        _atEye = (ABS(_vp.vx - g_PcFpsEyePos.vx) < Q12(0.4f) &&
-                  ABS(_vp.vy - g_PcFpsEyePos.vy) < Q12(0.4f) &&
-                  ABS(_vp.vz - g_PcFpsEyePos.vz) < Q12(0.4f)); }
+        /* Compare against the live HEAD BONE, not g_PcFpsEyePos: the eye
+         * global is written only while the FPS override runs and holds the
+         * PREVIOUS room's value during the entry glide — often within
+         * tolerance of the new spawn, so the head hid anyway. The bone is
+         * always current. */
+        vcMakeHeroHeadPos(&_hp);
+        _atEye = (ABS(_vp.vx - _hp.vx) < Q12(0.55f) &&
+                  ABS(_vp.vy - _hp.vy) < Q12(0.55f) &&
+                  ABS(_vp.vz - _hp.vz) < Q12(0.55f)); }
       g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry
           && !g_PcFpsSwingHeadShow
           && _atEye
