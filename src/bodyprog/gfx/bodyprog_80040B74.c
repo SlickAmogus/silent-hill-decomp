@@ -602,11 +602,21 @@ void Ipd_TexturesInit(void) // 0x80041D48
                          0, 26, 0, 0,
                          (s16)((id % 64) * 16),
                          (s16)(HIRES_POOL_CLUT_ROW_BASE + (id / 64) * HIRES_POOL_MAX_ROWS));
+            /* The last virtual slot id (255) is reserved for the bullet-decal
+             * texture (pc_decals.c): keep the s_Texture initialized (RefClear
+             * walks the full array) but never offer it to the claim list. */
+            if (id == HIRES_POOL_SLOT_MAX - 1)
+            {
+                continue;
+            }
             g_Map.chunkTextures.halfPage.textures[g_Map.chunkTextures.halfPage.count++] =
                 &g_Map.chunkTextures.halfPageTextures[2 + k];
         }
     }
     HiresOverride_PoolSlotsReset();
+    /* The reset above also freed the decal slot's GL texture; drop the decal
+     * FIFO and let pc_decals.c re-register lazily on its next draw. */
+    { extern void Pc_DecalsReset(void); Pc_DecalsReset(); }
 #endif
 }
 
@@ -2212,6 +2222,20 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
+    /* TEMP [WHOLEMAP] probe (remove when the whole-town report closes): with
+     * the mode active, confirm every chunk actually submits — separates a
+     * residual chunk gate from the GTE far-projection limit. */
+    if (Pc_WholeMapDrawActive())
+    {
+        static u32 s_wmLogMs = 0;
+        if ((SDL_GetTicks() - s_wmLogMs) > 2000)
+        {
+            s_wmLogMs = SDL_GetTicks();
+            SH_DBG("[WHOLEMAP] total=%d loaded=%d drawn=%d roomIdx=%d",
+                   totalChunks, loadedChunks, drawCount, (int)g_SavegamePtr->mapRoomIdx);
+        }
+    }
+
     /* Once/sec while the world is void (black-void diagnosis): fires when
      * NOTHING draws OR when the player's own cell specifically isn't among
      * the drawn chunks (a "room missing, neighbor visible" void would

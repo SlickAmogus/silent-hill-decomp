@@ -461,6 +461,11 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
 #endif
 
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    /* Bullet-hole decals ride the world OT here so GsWSMATRIX matches the
+     * chunk geometry they sit on (pc_decals.c). */
+    { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
+#endif
     Gfx_2dEffectsDraw();
 }
 

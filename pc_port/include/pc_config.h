@@ -44,6 +44,9 @@ typedef struct {
     int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
                            * (texupload-*.png, loose folders or .zip archives) and apply them by content
                            * hash at TIM upload (config key: texture_packs) */
+    int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
+                           * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
+                           * (config key: bullet_decals) */
     int wholeMapExteriors; /* EXPERIMENTAL, default 0: texture + draw every loaded exterior chunk (whole
                             * town resident — combine with fogstr to see it). Costs draw time and shows
                             * geometry vanilla never rendered at once. Requires preload_chunks and

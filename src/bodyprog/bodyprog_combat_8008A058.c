@@ -729,6 +729,16 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         s32 reqYaw = tn ? Q12_FRACT(ratan2(tn->position.vx - chara->field_44.field_18.vx,
                                                            tn->position.vz - chara->field_44.field_18.vz) + Q12_ANGLE(360.0f)) : -1;
                     }
+
+                    /* Bullet-hole decal: the player's bullet trace ended on
+                     * world geometry (hit with no character) — target is the
+                     * clipped world-space impact point, field_48[0] the
+                     * bullet direction (pc_decals.c). */
+                    if (temp && D_800C4728.character == NULL && chara == &g_SysWork.playerWork.player)
+                    {
+                        extern void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir);
+                        Pc_DecalAddBulletImpact(&D_800C4728.target, &chara->field_44.field_48[0]);
+                    }
 #endif
 
                     if (temp && ptr != NULL)
