@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "bodyprog/collision/collision.h"
+#include "bodyprog/collision/ray.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/view/vw_calc.h"
@@ -23,7 +24,7 @@
 #include "stb_image.h"
 
 #define DECAL_MAX       64
-#define DECAL_HALF      Q12(0.10f) /* quad half-extent (~10cm) */
+#define DECAL_HALF      Q12(0.05f) /* quad half-extent (~5cm) */
 #define DECAL_OFFSET    Q12(0.02f) /* lift along the normal against z-fighting */
 #define DECAL_FLOOR_TOL Q12(0.15f) /* |impactY - floorY| for the FLOOR case (blood splats use the same) */
 
@@ -61,7 +62,7 @@ static int            s_rgbaH         = 0;
 static int            s_texRegistered = 0;
 static int            s_texMissing    = 0; /* decal.png absent/broken — logged once, feature off */
 
-void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir)
+void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTOR3* origin)
 {
     s_CollisionSurface surf;
     s_PcDecal          d;
@@ -87,27 +88,86 @@ void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir)
     }
     else
     {
-        /* WALL: normal = bullet direction reflected back at the shooter,
-         * horizontalized. SH1 collision carries no surface normals; a
-         * shooter-facing vertical quad reads correctly on walls. */
+        /* WALL: SH1 collision carries no surface normals, so sample the wall
+         * plane with two parallel rays offset sideways from the shot — their
+         * clipped hit points span the wall's XZ heading, so the decal lies
+         * flat ON the wall instead of tilting to face the shooter (which read
+         * wrong on angled shots). Falls back to shooter-facing when a sample
+         * ray misses or lands on a different surface. */
         float fx  = (float)dir->vx;
         float fz  = (float)dir->vz;
         float mag = sqrtf(fx * fx + fz * fz);
         s32   nx;
         s32   nz;
+        s32   planeOk = 0;
 
         if (mag < 1.0f)
         {
             return; /* near-vertical shot; no wall heading to face */
         }
 
+        /* Unit shot heading (XZ) and its perpendicular, Q12. */
         nx = (s32)(-fx * 4096.0f / mag);
         nz = (s32)(-fz * 4096.0f / mag);
+
+        {
+            s32        px = Q12_MULT(-nz, Q12(0.25f)); /* sideways sample offset */
+            s32        pz = Q12_MULT(nx, Q12(0.25f));
+            s_RayTrace tr[2];
+            VECTOR3    h[2];
+            int        s;
+
+            for (s = 0; s < 2; s++)
+            {
+                s32     sgn = s ? -1 : 1;
+                VECTOR3 from;
+                VECTOR3 to;
+
+                from.vx = origin->vx + sgn * px;
+                from.vy = origin->vy;
+                from.vz = origin->vz + sgn * pz;
+                /* Aim past the wall so the sample definitely reaches it. */
+                to.vx = pos->vx + sgn * px - Q12_MULT(nx, Q12(0.5f));
+                to.vy = pos->vy;
+                to.vz = pos->vz + sgn * pz - Q12_MULT(nz, Q12(0.5f));
+
+                if (!Ray_TraceQuery(&tr[s], &from, &to) || tr[s].character != NULL)
+                {
+                    break;
+                }
+                h[s] = tr[s].target;
+            }
+
+            if (s == 2)
+            {
+                float wx = (float)(h[1].vx - h[0].vx);
+                float wz = (float)(h[1].vz - h[0].vz);
+                float wm = sqrtf(wx * wx + wz * wz);
+
+                /* Degenerate span (corner/edge hit) -> keep the fallback. */
+                if (wm > 512.0f)
+                {
+                    s32 wnx = (s32)(-wz * 4096.0f / wm);
+                    s32 wnz = (s32)(wx * 4096.0f / wm);
+
+                    /* Orient the wall normal back toward the shooter. */
+                    if (Q12_MULT(wnx, nx) + Q12_MULT(wnz, nz) < 0)
+                    {
+                        wnx = -wnx;
+                        wnz = -wnz;
+                    }
+                    nx      = wnx;
+                    nz      = wnz;
+                    planeOk = 1;
+                }
+            }
+        }
+        (void)planeOk;
 
         d.center.vx += Q12_MULT(nx, DECAL_OFFSET);
         d.center.vz += Q12_MULT(nz, DECAL_OFFSET);
 
-        d.axisU.vx = Q12_MULT(nz, DECAL_HALF); /* horizontal, perpendicular to the normal */
+        d.axisU.vx = Q12_MULT(nz, DECAL_HALF); /* horizontal, along the wall */
         d.axisU.vy = 0;
         d.axisU.vz = Q12_MULT(-nx, DECAL_HALF);
         d.axisV.vx = 0;

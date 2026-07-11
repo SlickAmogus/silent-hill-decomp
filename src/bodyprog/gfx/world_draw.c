@@ -1473,8 +1473,20 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
        * g_PcFpsSwingHeadShow: while the melee arm-clearance dolly has pulled
        * the camera back behind the head, draw the head — the pulled swing
        * reads as a brief third-person beat instead of a headless body. */
+      /* _atEye: the SysState_Gameplay gate flips before the game's room-entry
+       * camera ease finishes, so the view can still be GLIDING toward the eye
+       * with the head already hidden (headless Harry drifting into frame on
+       * every room load). Only hide once the view has actually arrived. */
+      int _atEye = 0;
+      { extern VECTOR3 g_PcFpsEyePos;
+        VECTOR3 _vp;
+        vwGetViewPosition(&_vp);
+        _atEye = (ABS(_vp.vx - g_PcFpsEyePos.vx) < Q12(0.4f) &&
+                  ABS(_vp.vy - g_PcFpsEyePos.vy) < Q12(0.4f) &&
+                  ABS(_vp.vz - g_PcFpsEyePos.vz) < Q12(0.4f)); }
       g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry
           && !g_PcFpsSwingHeadShow
+          && _atEye
           && g_GameWork.gameState == GameState_InGame
           && g_SysWork.sysState == SysState_Gameplay
           && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)

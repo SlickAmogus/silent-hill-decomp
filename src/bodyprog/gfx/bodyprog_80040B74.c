@@ -2225,14 +2225,15 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     /* TEMP [WHOLEMAP] probe (remove when the whole-town report closes): with
      * the mode active, confirm every chunk actually submits — separates a
      * residual chunk gate from the GTE far-projection limit. */
-    if (Pc_WholeMapDrawActive())
+    if (g_Map.isExterior && g_PcConfig.wholeMapExteriors)
     {
         static u32 s_wmLogMs = 0;
         if ((SDL_GetTicks() - s_wmLogMs) > 2000)
         {
             s_wmLogMs = SDL_GetTicks();
-            SH_DBG("[WHOLEMAP] total=%d loaded=%d drawn=%d roomIdx=%d",
-                   totalChunks, loadedChunks, drawCount, (int)g_SavegamePtr->mapRoomIdx);
+            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d roomIdx=%d total=%d loaded=%d drawn=%d",
+                   Pc_WholeMapDrawActive(), g_PcConfig.preloadChunks, g_PcConfig.residentTextures,
+                   (int)g_SavegamePtr->mapRoomIdx, totalChunks, loadedChunks, drawCount);
         }
     }
 

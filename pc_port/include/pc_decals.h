@@ -20,9 +20,10 @@
  */
 
 /* Record a bullet impact on world geometry. `pos` = clipped world-space hit
- * point (Q19.12); `dir` = bullet direction vector (Q12, unnormalized — only
- * its horizontal heading is used, to face wall decals back at the shooter). */
-void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir);
+ * point (Q19.12); `dir` = bullet direction vector (Q12, unnormalized);
+ * `origin` = the trace's start point (the hand), used to sample the wall
+ * plane with two offset rays so wall decals lie flat on the surface. */
+void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTOR3* origin);
 
 /* Project + emit all live decals into the world ordering table. Call once
  * per frame during world rendering (after Ipd_ChunkCheckDraw, same OT). */

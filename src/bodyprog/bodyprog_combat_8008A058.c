@@ -736,8 +736,8 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                      * bullet direction (pc_decals.c). */
                     if (temp && D_800C4728.character == NULL && chara == &g_SysWork.playerWork.player)
                     {
-                        extern void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir);
-                        Pc_DecalAddBulletImpact(&D_800C4728.target, &chara->field_44.field_48[0]);
+                        extern void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTOR3* origin);
+                        Pc_DecalAddBulletImpact(&D_800C4728.target, &chara->field_44.field_48[0], &chara->field_44.field_18);
                     }
 #endif
 
