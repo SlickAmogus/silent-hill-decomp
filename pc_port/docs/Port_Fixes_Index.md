@@ -618,3 +618,13 @@ Full reference: `pc_port/docs/NTSC_J_Support.md`.
   texel into the last visible column = full-height tinted line on 2D screens
   in all regions. Also flashlight mode labels shortened + page-2 value column
   204 so they fit the 320px clip.
+- **PAL black item previews FIXED** (`534b12d6b`): the PAL discs' item packs
+  (IT_00x/UNQxx TMDs) are NOT byte-identical to US — every textured prim's
+  clut word is baked for the EUR retail palette homes (896..944, 480..495;
+  retail moved them because PAL's 256-line framebuffers cover the US homes).
+  Our port uploaded item palettes at the US homes, so PAL prims sampled empty
+  palettes → black previews (center "discolored" via the carousel dim). Fix:
+  Font_ApplyRegionPatches retargets the five item texture descs to the EUR
+  homes (byte-verified against the decrypted EUR BODYPROG desc cluster). All
+  item diagnostic probes removed. Lesson recorded: re-verify inherited
+  "byte-identical" claims by hash — a wrong one steered this hunt for days.
