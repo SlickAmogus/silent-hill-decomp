@@ -1245,7 +1245,7 @@ void DbgOverlay_Update(void)
             g_PsxUsePgxp = !g_PsxUsePgxp;
             g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
             PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
-            SH_DBG_ECHO("[DEBUG] F1 PGXP: %s", g_PsxUsePgxp ? "ON" : "OFF");
+            SH_DBG_ECHO("F1 PGXP: %s", g_PsxUsePgxp ? "ON" : "OFF");
         }
         s_prev_f1 = cur_f1;
     }
@@ -1267,7 +1267,7 @@ void DbgOverlay_Update(void)
             if (g_cfg_postProcess < 0) g_cfg_postProcess = 0;
             g_PcConfig.postProcess = g_cfg_postProcess;
             { char b[8]; snprintf(b, sizeof(b), "%d", g_cfg_postProcess); PcConfig_SaveKeyValue("post_process", b); }
-            SH_DBG_ECHO("[DEBUG] F2 Post-process: %s", s_postNames[g_cfg_postProcess]);
+            SH_DBG_ECHO("F2 Post-process: %s", s_postNames[g_cfg_postProcess]);
         }
         s_prev_f2 = cur_f2;
     }
@@ -1286,7 +1286,7 @@ void DbgOverlay_Update(void)
             if (g_cfg_tonemap < 0) g_cfg_tonemap = 0;
             g_PcConfig.tonemap = g_cfg_tonemap;
             { char b[8]; snprintf(b, sizeof(b), "%d", g_cfg_tonemap); PcConfig_SaveKeyValue("tonemap", b); }
-            SH_DBG_ECHO("[DEBUG] F3 Tone mapping: %s", s_toneNames[g_cfg_tonemap]);
+            SH_DBG_ECHO("F3 Tone mapping: %s", s_toneNames[g_cfg_tonemap]);
         }
         s_prev_f3 = cur_f3;
     }
@@ -1298,7 +1298,7 @@ void DbgOverlay_Update(void)
         int cur_f4 = ks[SDL_SCANCODE_F4];
         if (cur_f4 && !s_prev_f4) {
             Pc_FlashlightModeApply((g_PcConfig.flashlightMode + 1) & 3, 1);
-            SH_DBG_ECHO("[DEBUG] F4 Flashlight: %s",
+            SH_DBG_ECHO("F4 Flashlight: %s",
                         Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
         }
         s_prev_f4 = cur_f4;
@@ -1318,7 +1318,7 @@ void DbgOverlay_Update(void)
                 exit(0);
             } else {
                 g_SysWork.sysFlags |= SysFlag_DoWarmReset;
-                SH_DBG_ECHO("[DEBUG] Exit Game bind: warm reboot to title");
+                SH_DBG_ECHO("Exiting to title...");
             }
         }
         s_prev_exit = cur_exit;
