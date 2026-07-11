@@ -1878,7 +1878,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * clears → stuck-in-shooting-pose. Treat any active gun-type attack
                  * like aim for the purpose of extra anim ownership. */
                 bool inGunAttack = (g_SysWork.playerCombat.weaponAttack >=
-                                    WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+                                    WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) ||
+                                   (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack);
+                /* ... and ANY in-flight attack, melee included: stomping
+                 * extra->model mid-pipe-swing restarted the TAP anim on every
+                 * forward press (the "endless quick attack loop" report) and
+                 * blinded pcAttackDone the same way. Legs still take the walk
+                 * anim (PSX knife/axe walk-cancel feel); the swing completes.
+                 * Same predicate as Player_Update's _upperBusy. */
                 /* While jump-back is active, suppress normal anim-state assignments
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
@@ -3735,7 +3742,21 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
     s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
     s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
 
-    if (freshAim) { s_state = PcGun_Aim; s_stuckTmr = 0; s_prevFireHeld = fireHeld; }
+    if (freshAim)
+    {
+        /* Re-entering the FSM (aim released/blipped mid-reload) must RESUME an
+         * in-flight reload, not stomp back to the aim pose: the stomp cancelled
+         * the reload without refilling, replayed the SFX via the PSX case, and
+         * forced a second full reload (the "double reload on first reload"
+         * report — sibling of the July-06 fire gate blip). */
+        s_state = (extra->upperBodyState == PlayerUpperBodyState_Reload ||
+                   extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false) ||
+                   extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true))
+                      ? PcGun_Reload
+                      : PcGun_Aim;
+        s_stuckTmr = 0;
+        s_prevFireHeld = fireHeld;
+    }
     if (s_refireT > 0) s_refireT -= g_DeltaTime;
     if (!fireHeld) s_releasedT += g_DeltaTime;
     fireEdge = fireHeld && !s_prevFireHeld && s_refireT <= 0 && s_releasedT >= PC_GUN_MIN_RELEASE;
@@ -3877,7 +3898,12 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
          * fired an ungated extra shot and cleared isAiming (the "kicked out of
          * zoom while mashing fire" report). The input flag keeps the FSM in
          * control across such blips; releasing aim still exits normally. */
-        if (g_DebugThirdPersonCam && (g_SysWork.playerCombat.isAiming || g_Player_IsAiming) &&
+        if (g_DebugThirdPersonCam &&
+            (g_SysWork.playerCombat.isAiming || g_Player_IsAiming ||
+             /* Reloads are uninterruptible on PSX: keep the FSM owning an
+              * in-flight reload even if aim drops, so the PSX case Reload
+              * never runs a frame of it (double-SFX + anim restart). */
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload) &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
         {
             bool fresh = !s_pcGunWasAiming;
@@ -5902,7 +5928,7 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
      * into the aim-entry case and snaps to the ready pose, identical whether you
      * started walking or running. Classic (g_DebugThirdPersonCam==0) untouched. */
     if (g_DebugThirdPersonCam && g_Player_IsAiming &&
-        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap) &&
         (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunForward ||
          g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunRight ||
          g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunLeft))
@@ -9985,9 +10011,14 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                     _pitch = (_horiz != 0 || _dy6 != 0) ? ratan2(_horiz, _dy6)
                                                         : Q12_ANGLE(90.0f);
                 }
+                /* DAMAGE pitch stays unclamped, like the PSX lock path (its
+                 * D_800C4554 pitch reaches the dispatch raw; only the particle
+                 * angle is clamped). Clamping the damage ray to 56.25 deg from
+                 * level made point-blank shots at low enemies (dogs/crawlers)
+                 * pass over their collision band with the reticle dead-on. */
+                unkRot.vy = _pitch;
                 if (_pitch < Q12_ANGLE(33.75f))  _pitch = Q12_ANGLE(33.75f);
                 if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
-                unkRot.vy             = _pitch;
                 unkAngle              = _pitch;
                 playerProps.field_122 = _pitch;
                 (void)g_TpsCamPitch;

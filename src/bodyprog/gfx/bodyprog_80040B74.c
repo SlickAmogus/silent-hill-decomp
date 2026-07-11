@@ -2188,7 +2188,10 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #ifdef SH_PC_PORT
     {
         int drawCount = 0;
-        int drawLimit = g_DebugCamEnabled ? 16 : PC_MAX_IPD_CHUNKS;
+        /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
+         * whole-town mode active it was exactly what truncated the flycam view
+         * to a block of houses. Keep the cap only for plain debug flights. */
+        int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
 #endif
     for (; curChunk < &g_Map.activeChunks[g_Map.activeChunkCount]; curChunk++)

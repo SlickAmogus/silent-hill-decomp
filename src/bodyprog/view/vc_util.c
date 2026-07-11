@@ -280,6 +280,15 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
     VECTOR3 cam_pos;   // Q19.12
     MATRIX  lookAtMat;
     q23_8   moveStep;
+#ifdef SH_PC_PORT
+    /* Hold Square (the sprint bind — Left Shift in the alt-camera scheme) to
+     * fly 4x faster. */
+    q23_8 moveDist = (g_Controller1->heldBtnFlags & ControllerFlag_Square)
+                         ? (MOVE_DIST * 4)
+                         : MOVE_DIST;
+    #undef MOVE_DIST
+    #define MOVE_DIST moveDist
+#endif
 
     vwGetViewPosition(&cam_pos);
 

@@ -111,6 +111,14 @@ bool PC_PlayerManualReloadRequested(void)
 #define AA_CTRL_RADIUS_MUL   Q12(5.0f)  /* controller: close-range floor radius */
 #define AA_CTRL_CONE_TAN     Q12(0.20f) /* controller: ~9deg magnetic auto-aim cone, scaled by distance */
 #define AA_VERT_REACH_MUL    Q12(8.0f)  /* vertical window reach = 4x radius (the box collision span is a narrow neck/torso band, far shorter than the visible body) */
+/* Absolute floor on the mouse activation window: several enemies animate their
+ * collision radius down to ~0.05m (bloodsucker, twinfeeler, larval stalker),
+ * making 2.5x radius a few pixels wide — reticle visibly on the body but no
+ * snap, and the unsnapped hand-ray misses the tight cylinder by OTS parallax
+ * (the "crosshair on them but no hit" report). 0.35m of reticle slop cannot
+ * create false hits: the snap aims at the collision axis, so the bullet still
+ * has to thread the real (inflated) cylinder. */
+#define AA_MOUSE_RADIUS_FLOOR Q12(0.35f)
 
 s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange, VECTOR3* outAimPoint)
 {
@@ -139,8 +147,9 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
 
         if (npc->model.charaId < Chara_AirScreamer || npc->model.charaId >= Chara_LockerDeadBody)
             continue; /* only damageable enemies (mirrors func_8008A3E0) */
-        if (npc->collision.state <= CharaCollisionState_Player)
-            continue; /* 0 = ignore, 1 = player slot (mirrors func_8005CD38) */
+        if (npc->collision.state == CharaCollisionState_Ignore)
+            continue; /* skip only state 0, like the bullet trace itself — downed-
+                       * but-alive enemies (state 1) still deserve the snap */
         if (npc->health <= Q12(0.0f))
             continue;
 
@@ -195,6 +204,8 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
         else
         {
             maxPerp = (s32)(((s64)radius * AA_MOUSE_RADIUS_MUL) >> 12);
+            if (maxPerp < AA_MOUSE_RADIUS_FLOOR)
+                maxPerp = AA_MOUSE_RADIUS_FLOOR;
         }
         if (perpH > maxPerp)
             continue; /* reticle not over / near the body */
