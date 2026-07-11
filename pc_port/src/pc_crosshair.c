@@ -30,6 +30,8 @@ void Pc_CrosshairDraw(void)
     if (!g_PcConfig.crosshair) return;
     if (g_ControlStyle != ControlStyle_Tps && g_ControlStyle != ControlStyle_Ots && g_ControlStyle != ControlStyle_Fps) return;
     if (g_GameWork.gameState != GameState_InGame) return;
+    /* Settled gameplay only — no reticle over cutscenes, menus, or the map. */
+    if (g_SysWork.sysState != SysState_Gameplay) return;
     /* Aim-only in TPS/OTS; always shown in first-person (the view IS the aim). */
     if (g_ControlStyle != ControlStyle_Fps && !g_SysWork.playerCombat.isAiming) return;
 
