@@ -15,6 +15,8 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- 64-bit process so the embedded x64 UnRAR.dll (RarExtractor) loads. -->
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -25,6 +27,8 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- 64-bit process so the embedded x64 UnRAR.dll (RarExtractor) loads. -->
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -84,6 +88,7 @@
     <Compile Include="ProgressDialog.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="RarExtractor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
          missing config.cfg with the full detailed template; the link keeps
@@ -94,6 +99,12 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <!-- Vendored unrar built as an x64 DLL (RAR4/RAR5/solid). Embedded in the exe
+         so RarExtractor can materialize it to a temp path and LoadLibrary it — no
+         dependency on the DLL being copied next to wherever the launcher runs. -->
+    <EmbeddedResource Include="UnRAR.dll">
+      <LogicalName>SilentHillPC_Launcher.UnRAR.dll</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

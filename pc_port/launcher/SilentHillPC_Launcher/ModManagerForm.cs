@@ -56,8 +56,8 @@ namespace SilentHillPC_Launcher
         /// <summary>Extract any pending archives (with progress) then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
-            if (_mgr.AnyPendingExtraction())
-                ProgressDialog.Run(this, "Extracting archives…", r => _mgr.PrepareLibrary(r));
+            if (_mgr.AnyPending())
+                ProgressDialog.Run(this, "Extracting archives…", r => _mgr.Prepare(r));
             _mgr.Scan();
             Populate();
         }
@@ -69,9 +69,8 @@ namespace SilentHillPC_Launcher
                 AutoSize = false,
                 Location = new Point(12, 10),
                 Size     = new Size(576, 34),
-                Text     = "Drag mod folders or .zip archives here. Check to enable (Apply commits); " +
-                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete. " +
-                           ".rar isn't supported — extract it or convert it to .zip."
+                Text     = "Drag mod folders or .zip / .rar archives here. Check to enable (Apply commits); " +
+                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete."
             };
             Controls.Add(help);
 
@@ -158,30 +157,29 @@ namespace SilentHillPC_Launcher
             _list.Items.Clear();
             foreach (var m in _mgr.Mods)
             {
-                var item = new ListViewItem(m.Label) { Checked = m.Enabled && !m.Unsupported, Tag = m };
+                var item = new ListViewItem(m.Label) { Checked = m.Enabled, Tag = m };
                 item.SubItems.Add(m.TypeLabel);
                 item.SubItems.Add(m.StateLabel);
                 item.SubItems.Add(m.Description ?? "");
                 if (!string.IsNullOrEmpty(m.Description)) item.ToolTipText = m.Description;
-                if (m.Type == ModType.Unknown || m.Unsupported) item.ForeColor = Color.Gray;
+                if (m.Type == ModType.Unknown) item.ForeColor = Color.Gray;
                 _list.Items.Add(item);
             }
             _list.EndUpdate();
             if (_mgr.Mods.Count == 0)
             {
-                var hint = new ListViewItem("(no mods yet — drag folders/.zip here or click Open Folder)");
+                var hint = new ListViewItem("(no mods yet — drag folders/.zip/.rar here or click Open Folder)");
                 hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
                 hint.ForeColor = Color.Gray;
                 _list.Items.Add(hint);
             }
         }
 
-        /// <summary>Block toggling rows that can't be enabled (unsupported .rar, hint row).</summary>
+        /// <summary>Block toggling the placeholder hint row (no backing mod).</summary>
         private void OnItemCheck(object sender, ItemCheckEventArgs e)
         {
             if (e.NewValue != CheckState.Checked) return;
-            var m = _list.Items[e.Index].Tag as ModEntry;
-            if (m == null || m.Unsupported) e.NewValue = CheckState.Unchecked;
+            if (!(_list.Items[e.Index].Tag is ModEntry)) e.NewValue = CheckState.Unchecked;
         }
 
         private ModEntry SelectedMod()
@@ -330,28 +328,19 @@ namespace SilentHillPC_Launcher
             CommitOrderAndState();
             _mgr.SaveState();
 
-            int imported = 0, rar = 0;
+            int imported = 0;
             ProgressDialog.Run(this, "Importing mods…", r =>
             {
                 foreach (var p in paths)
-                {
-                    var res = _mgr.Import(p, r);
-                    if (res == ModManager.ImportResult.Added) imported++;
-                    else if (res == ModManager.ImportResult.RarUnsupported) rar++;
-                }
-                _mgr.PrepareLibrary(r); // extract any load/FMV .zip we just imported
+                    if (_mgr.Import(p, r) == ModManager.ImportResult.Added) imported++;
+                _mgr.Prepare(r); // extract any .zip (library) / .rar (texture) we just imported
             });
 
             _mgr.Scan();
             Populate();
 
-            if (rar > 0)
-                MessageBox.Show(this,
-                    "RAR archives aren't supported. Please extract them or convert them to .zip, " +
-                    "then drop the folder or .zip here.",
-                    "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            else if (imported == 0)
-                MessageBox.Show(this, "Nothing added. Drop mod folders or .zip archives.",
+            if (imported == 0)
+                MessageBox.Show(this, "Nothing added. Drop mod folders or .zip / .rar archives.",
                     "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 

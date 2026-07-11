@@ -485,12 +485,14 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   file pack (index parity with ground truth; end-to-end compose test with
   loose + zip + partial-palette entries).
 - Loose folders and `.zip` archives are both read IN PLACE (miniz) — nothing is
-  extracted to disk. `.rar` is NOT supported (dropped 2026-07-11): convert packs
-  to `.zip` or a loose folder. The standard DuckStation layout —
+  extracted to disk by the GAME. `.rar` has no in-place path (solid/RAR5 make
+  random access impractical) so the GAME never touches rar; instead the launcher's
+  Mod Manager extracts a `.rar` to `<rar>.extracted/`, which the game then reads as
+  an ordinary loose folder (see below). The standard DuckStation layout —
   `<GAMEID>/replacements/...` with a `config.yaml` — works as-is at any nesting
   depth (scan is recursive; names matched by basename). A `texturemods` entry
   (folder or `.zip`) renamed `<name>.disabled` is skipped (`Name_IsDisabled`);
-  this is how the launcher's Mod Manager toggles a pack off. `texpage-*` entries
+  this is how the Mod Manager toggles a pack off. `texpage-*` entries
   (page-mode dumps) are unsupported and counted in the log.
 
 ## Texture-pack load order (2026-07-11)
@@ -527,13 +529,27 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   that opens `ModManagerForm`. Two homes (both additive — nothing touches the
   disc image): TEXTURE mods in `gamedata/texturemods/`, managed IN PLACE; LOAD /
   FMV mods in a self-owned `mods/` library, deployed on Apply.
-- **Texture mods** = a loose folder or a `.zip` in `gamedata/texturemods/`, read
-  in place by the game (no extraction). The checkbox is enable/disable: Apply
-  renames the entry to/from a trailing `.disabled` (game skips `.disabled` via
-  `Name_IsDisabled`); Delete removes it (prompted). `.rar` is UNSUPPORTED — it's
-  listed read-only/greyed ("convert to .zip") and rejected on drop. Active packs'
-  names (the `.zip` filename or folder name) are written to
-  `gamedata/texturemods/loadorder.txt`, highest first.
+- **Texture mods** = a loose folder, a `.zip`, or a `.rar` in
+  `gamedata/texturemods/`. Folder/`.zip` are read in place by the game; the
+  checkbox enable/disable renames the entry to/from a trailing `.disabled`. A
+  `.rar` is extracted by the launcher (see rar note) to `<rar>.extracted/`, which
+  the game reads as a loose folder; enable/disable renames THAT folder
+  (`<rar>.extracted` ↔ `.disabled`, kept so re-enable needn't re-extract), the rar
+  file itself stays put (the game ignores `.rar`). Delete removes the mod (rar +
+  its extracted folder), prompted. Active packs' names are written to
+  `gamedata/texturemods/loadorder.txt`, highest first (a rar contributes
+  `<rar>.extracted`).
+- **RAR extraction** (`RarExtractor.cs`): the vendored unrar built as an x64
+  `UnRAR.dll` is EMBEDDED in the launcher exe (`<EmbeddedResource>`), materialized
+  to `%TEMP%\SilentHillPC_Launcher\UnRAR.dll` and `LoadLibrary`'d on first use — so
+  extraction never depends on the DLL sitting next to wherever the launcher runs
+  (the failure mode of the earlier "ship it beside the exe" attempt: `IsAvailable`
+  returned false → nothing extracted). The launcher is forced 64-bit
+  (`<Prefer32Bit>false`) so the x64 DLL loads. P/Invoke of the standard UnRAR C
+  API; struct layouts mirror unrar's `dll.hpp` (`#pragma pack(1)`); validated
+  end-to-end (open + extract a real nested `.rar`). Rars auto-extract on manager
+  open / drop under the progress dialog (`ModManager.Prepare` /
+  `PendingRars`).
 - **Load / FMV mods** live in `mods/`: load-folder mods (a `load/` or
   disc-structured tree) → merged into `gamedata/load/` (forces
   `allow_loose_files=1`); FMV mods (`.avi`) → flattened into `gamedata/FMV/`.
