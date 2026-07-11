@@ -96,21 +96,61 @@ namespace SilentHillPC_Launcher
 
         // --- scan / state -----------------------------------------------------
 
-        /// <summary>Extract loose .zip archives, index the library, merge saved state.</summary>
+        /// <summary>A .zip is pending if it has no same-named extracted folder yet.</summary>
+        private string[] PendingZips()
+        {
+            if (!Directory.Exists(ModsDir)) return new string[0];
+            return Directory.GetFiles(ModsDir, "*.zip", SearchOption.TopDirectoryOnly)
+                            .Where(z => !Directory.Exists(Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(z))))
+                            .ToArray();
+        }
+
+        public bool AnyPendingExtraction() { return PendingZips().Length > 0; }
+
+        /// <summary>
+        /// Extract pending .zip archives into same-named folders (non-destructive:
+        /// the archive is kept and a pre-existing folder is never overwritten),
+        /// reporting per-entry progress. Runs on a background thread via
+        /// ProgressDialog so the UI doesn't freeze.
+        /// </summary>
+        public void PrepareLibrary(Action<int, int, string> report)
+        {
+            Directory.CreateDirectory(ModsDir);
+            foreach (var zip in PendingZips())
+            {
+                string dest = Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip));
+                try
+                {
+                    using (var za = ZipFile.OpenRead(zip))
+                    {
+                        int total = za.Entries.Count;
+                        int i     = 0;
+                        string fullDest = Path.GetFullPath(dest);
+                        foreach (var entry in za.Entries)
+                        {
+                            i++;
+                            if (report != null)
+                                report(i, total, string.Format("Extracting {0}  ({1}/{2})",
+                                    Path.GetFileName(zip), i, total));
+
+                            string outPath = Path.GetFullPath(Path.Combine(dest, entry.FullName));
+                            // Guard against zip-slip: keep everything under dest.
+                            if (!outPath.StartsWith(fullDest, StringComparison.OrdinalIgnoreCase)) continue;
+
+                            if (string.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(outPath); continue; }
+                            Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+                            entry.ExtractToFile(outPath, true);
+                        }
+                    }
+                }
+                catch { /* corrupt/locked archive — leave it for the user to see */ }
+            }
+        }
+
+        /// <summary>Index the library (folders + .rar) and merge saved state. Fast — no extraction.</summary>
         public void Scan()
         {
             Directory.CreateDirectory(ModsDir);
-
-            // A .zip dropped in the library is expanded into a same-named folder
-            // once (non-destructive: the archive is kept, and a pre-existing
-            // folder of the same name is never overwritten).
-            foreach (var zip in Directory.GetFiles(ModsDir, "*.zip", SearchOption.TopDirectoryOnly))
-            {
-                string dest = Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip));
-                if (Directory.Exists(dest)) continue;
-                try { ZipFile.ExtractToDirectory(zip, dest); }
-                catch { /* corrupt/locked archive — leave it for the user to see */ }
-            }
 
             var state = LoadState();
             var byName = new Dictionary<string, ModStateDto>(StringComparer.OrdinalIgnoreCase);
@@ -276,14 +316,14 @@ namespace SilentHillPC_Launcher
         // --- import / remove --------------------------------------------------
 
         /// <summary>Copy a dropped folder or .zip/.rar archive into the library.</summary>
-        public bool Import(string path)
+        public bool Import(string path, Action<int, int, string> report = null)
         {
             try
             {
                 if (Directory.Exists(path))
                 {
                     string dest = Path.Combine(ModsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
-                    if (!Directory.Exists(dest)) CopyTree(path, dest);
+                    if (!Directory.Exists(dest)) CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest));
                     return true;
                 }
                 if (File.Exists(path))
@@ -293,6 +333,7 @@ namespace SilentHillPC_Launcher
                     {
                         Directory.CreateDirectory(ModsDir);
                         string dest = Path.Combine(ModsDir, Path.GetFileName(path));
+                        if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
                         if (!File.Exists(dest)) File.Copy(path, dest);
                         return true;
                     }
@@ -334,10 +375,11 @@ namespace SilentHillPC_Launcher
         /// in priority order. <paramref name="looseFileSupport"/> drives
         /// allow_loose_files; it is force-enabled when a load mod is active.
         /// </summary>
-        public ApplyResult Apply(bool looseFileSupport)
+        public ApplyResult Apply(bool looseFileSupport, Action<int, int, string> report = null)
         {
             var result = new ApplyResult();
 
+            if (report != null) report(0, 0, "Removing previous deployment…");
             Undeploy();
 
             var manifest = new List<string>();
@@ -352,12 +394,13 @@ namespace SilentHillPC_Launcher
                     if (m.IsArchive)
                     {
                         // Copy the .rar in; the game unpacks it into <dst>/*.rar.extracted/.
+                        if (report != null) report(0, 0, "Deploying " + m.Label);
                         Directory.CreateDirectory(dst);
                         File.Copy(m.LibraryPath, Path.Combine(dst, Path.GetFileName(m.LibraryPath)), true);
                     }
                     else
                     {
-                        CopyTree(DeploySourceRoot(m.LibraryPath, ModType.Texturemods), dst);
+                        CopyTree(DeploySourceRoot(m.LibraryPath, ModType.Texturemods), dst, report, "Deploying " + m.Label);
                     }
                     manifest.Add("D|" + Rel(dst));
                     result.Texture++;
@@ -449,13 +492,18 @@ namespace SilentHillPC_Launcher
                 : full;
         }
 
-        private static void CopyTree(string src, string dst)
+        private static void CopyTree(string src, string dst, Action<int, int, string> report = null, string label = null)
         {
             Directory.CreateDirectory(dst);
             foreach (var dir in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
                 Directory.CreateDirectory(dir.Replace(src, dst));
-            foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
-                File.Copy(file, file.Replace(src, dst), true);
+            var files = Directory.GetFiles(src, "*", SearchOption.AllDirectories);
+            for (int i = 0; i < files.Length; i++)
+            {
+                if (report != null)
+                    report(i + 1, files.Length, string.Format("{0}  ({1}/{2})", label ?? "Copying", i + 1, files.Length));
+                File.Copy(files[i], files[i].Replace(src, dst), true);
+            }
         }
 
         private int CopyTreeTracked(string src, string dstRoot, List<string> manifest)

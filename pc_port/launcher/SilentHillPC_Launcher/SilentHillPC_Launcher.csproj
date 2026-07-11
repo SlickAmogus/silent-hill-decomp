@@ -81,6 +81,9 @@
     <Compile Include="ModManagerForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="ProgressDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
          missing config.cfg with the full detailed template; the link keeps

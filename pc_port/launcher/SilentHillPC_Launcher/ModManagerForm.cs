@@ -39,9 +39,26 @@ namespace SilentHillPC_Launcher
             DragDrop  += OnDragDrop;
 
             BuildUi();
+            _chkLoose.Checked = _config.Get("allow_loose_files", "0") == "1";
+
+            // Extraction/indexing happens after the window is up (with a progress
+            // window) so opening the manager never freezes on a big archive.
+            Shown += OnShownInitialLoad;
+        }
+
+        private void OnShownInitialLoad(object sender, EventArgs e)
+        {
+            Shown -= OnShownInitialLoad;
+            ExtractThenScan();
+        }
+
+        /// <summary>Extract any pending archives (with progress) then re-index and repopulate.</summary>
+        private void ExtractThenScan()
+        {
+            if (_mgr.AnyPendingExtraction())
+                ProgressDialog.Run(this, "Extracting archives…", r => _mgr.PrepareLibrary(r));
             _mgr.Scan();
             Populate();
-            _chkLoose.Checked = _config.Get("allow_loose_files", "0") == "1";
         }
 
         private void BuildUi()
@@ -194,13 +211,12 @@ namespace SilentHillPC_Launcher
             _mgr.Mods = ordered;
         }
 
-        /// <summary>Persist the current UI state, then re-index the library from disk.</summary>
+        /// <summary>Persist the current UI state, then extract/re-index the library from disk.</summary>
         private void Rescan()
         {
             CommitOrderAndState();
             _mgr.SaveState();
-            _mgr.Scan();
-            Populate();
+            ExtractThenScan();
         }
 
         private void EditSelected()
@@ -294,8 +310,12 @@ namespace SilentHillPC_Launcher
             _mgr.SaveState();
 
             int imported = 0;
-            foreach (var p in paths)
-                if (_mgr.Import(p)) imported++;
+            ProgressDialog.Run(this, "Importing mods…", r =>
+            {
+                foreach (var p in paths)
+                    if (_mgr.Import(p, r)) imported++;
+                _mgr.PrepareLibrary(r); // extract any .zip we just imported
+            });
 
             _mgr.Scan();
             Populate();
@@ -310,13 +330,17 @@ namespace SilentHillPC_Launcher
             CommitOrderAndState();
             try
             {
-                var r = _mgr.Apply(_chkLoose.Checked);
+                ModManager.ApplyResult r = null;
+                ProgressDialog.Run(this, "Applying mods…", rep => { r = _mgr.Apply(_chkLoose.Checked, rep); });
                 _chkLoose.Checked = r.LooseEnabled;
 
                 string msg = string.Format(
                     "Applied.\n\nTexture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
                     "Loose file support: {3}",
                     r.Texture, r.Load, r.Fmv, r.LooseEnabled ? "on" : "off");
+                if (_mgr.Mods.Any(m => m.Enabled && m.Type == ModType.Texturemods && m.IsArchive))
+                    msg += "\n\n.rar texture packs unpack on the next game launch (a\n" +
+                           "<name>.rar.extracted folder will appear beside the archive).";
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 
