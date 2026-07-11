@@ -156,7 +156,15 @@ namespace SilentHillPC_Launcher
             foreach (var zip in PendingLibraryZips())
                 ExtractZip(zip, Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip)), report);
             foreach (var rar in PendingRars())
-                try { RarExtractor.Extract(rar, RarActiveFolder(rar), report); } catch { }
+            {
+                string dest = RarActiveFolder(rar);
+                try
+                {
+                    if (!RarExtractor.Extract(rar, dest, report) && Directory.Exists(dest))
+                        Directory.Delete(dest, true); // partial/failed → drop it so it retries next open
+                }
+                catch { }
+            }
         }
 
         public void Scan()
@@ -445,7 +453,11 @@ namespace SilentHillPC_Launcher
                     if (!Directory.Exists(active))
                     {
                         if (Directory.Exists(off)) Directory.Move(off, active);
-                        else if (!RarExtractor.Extract(StripDisabled(m.LibraryPath), active, report)) return false;
+                        else if (!RarExtractor.Extract(StripDisabled(m.LibraryPath), active, report))
+                        {
+                            if (Directory.Exists(active)) { try { Directory.Delete(active, true); } catch { } }
+                            return false;
+                        }
                     }
                     m.Enabled = true;
                     return true;
