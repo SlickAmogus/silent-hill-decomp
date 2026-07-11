@@ -584,3 +584,27 @@ through the other. Invisible to zero-stub audits because both halves hold
   pre-Dahlia silence is authentic. Shared Sd_* chain verified healthy
   end-to-end. Still open: map3_s05 vine-fire loop constant volume
   (`D_800DD190` = `sharedData_800D8568_1_s05+0x10`, another severed alias).
+
+## NTSC-J (SLPM-86192 Rev 1/2) support (2026-07-10, commits `4af7db1c7` + `1ac340612`)
+
+Full reference: `pc_port/docs/NTSC_J_Support.md`.
+
+- **Region plumbing** (`4af7db1c7`): `Region_JPN` + SLPM/SLPS/SIPS serial
+  probe (with first-print exe-t_size guard); `s_FileTable_JAP` from the
+  in-tree JAP1 table — verified index-aligned with USA (2074 entries), so it
+  memcpys straight in; JAP XA bases (US+5); audio sector remap generalized to
+  every non-USA region; JAP overlay pointer rebase (link base `0x800CBBD0`,
+  disc-verified); per-region disc buckets with auto priority USA>PAL>NTSC-J;
+  `region = jap`; launcher NTSC-J playable (2026.7.10.1). TIM sweep ground
+  truth: 996/996 shapes identical to US, only TIPS_E*/MEMO_INR differ in
+  content (Japanese images, same names — zero code).
+- **Japanese story text** (`1ac340612`): JP overlays carry SJIS messages with
+  the SAME `~` code grammar as US → verbatim extraction at the JAP base;
+  explicit US→JAP index tables for the 14 maps the US localization
+  split/added lines in (`lang_jpn_msgmap.inc`, DP skeleton alignment);
+  embedded public-domain Shinonome JIS X 0208 font replaces the BIOS kanji
+  ROM (`pc_kanji.c`, `kanji_font.inc`, `tools/make_kanji_font.py`); on-demand
+  12×16 4bpp atlas cells in the framebuffer margin strips (rows 16..31 /
+  480..495 — retail JP's own band); SJIS branches in both string drawers +
+  width calc. Latent EUR fix: `MSG_COUNT_MAX` 96→176 (MAP7_S02 has 159
+  messages; the replaced pointer array under-covered 3 maps on PAL).
