@@ -1,6 +1,7 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
-Status: **READY TO START.** Prepared 2026-07-11.
+Status: **READY TO START — begin with the STEP-0 crash.** Prepared 2026-07-11,
+updated same day after the first live engagement.
 Read alongside memories `[[project_interior_room_islands]]` (whole-map draw-path
 history + the four lifted gates), `[[project_pgxp_implementation]]` (float GTE
 infra), and `pc_port/docs/PGXP_NearClip_Design.md` (prior art for a gated
@@ -96,3 +97,30 @@ while walking, no seam artifacts at the near/far boundary, playable FPS.
 Flycam (with its chunk cap already lifted) for aerial verification. Regression:
 mode OFF must stay byte-identical (spot-check hash/screenshots of normal play);
 interiors unaffected (mode is exterior+street-room gated).
+
+## STEP 0 (added 2026-07-11): Levin-house load crash + gate correctness
+
+History of the activation gate — both attempts so far are WRONG:
+1. `mapRoomIdx == 0` — never engaged anywhere: street room numbering is
+   per-map (map2_s00 street = 0, map0_s00 street = 37). The mode was dead in
+   all early "still can't see the town" reports; those tests tested nothing.
+2. `g_WorldEnvWork.isFogEnabled` (`fd359cb05`) — ENGAGED on the street (first
+   real activation), but **loading into the Levin Street house crashed the
+   game immediately**. Either the house keeps a bit of outdoor fog enabled
+   (gate stays true inside a hosted interior = the original street-through-
+   house disaster, now with far caps lifted), and/or the gate flips mid room
+   transition while chunks/materials are in flight.
+
+Triage first: [CRASH] backtrace in the user's newest SilentHill_*.log, or ask
+for a WinDbg `!analyze -v`. Suspects: texture-all mass-claim during the
+transition window (Ipd_ChunkMaterialsApply on half-loaded chunks), OT overrun
+via a lifted cap on a path missing SH_CLAMP_OT_DEPTH, or the draw-all branch
+touching a chunk whose ipdHdr is mid-fixup (the classic lmHdr NULL window).
+
+Then build a REAL hosted-interior predicate. Strongest candidate: hosted
+interiors are chunks PLACED AT PARKED GRID CELLS via `Map_PlaceIpdAtCell`
+(e.g. THR05FD at (-1,8)) and the interior rooms teleport the player there —
+so "inside" = the player's current cell is a placed/parked cell, which is
+also exactly why the street is invisible from inside on vanilla. A parked-
+cell registry (collect the Map_PlaceIpdAtCell targets at map init) gives an
+exact, per-map-correct test with no fog or room-index assumptions.
