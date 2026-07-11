@@ -8,6 +8,10 @@
 #include "maps/shared.h"
 #include "maps/particle.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 // TODO: Find why removing these includes causes mismatch.
 #if defined(MAP0_S00)
 #include "maps/map0/map0_s00.h" // TODO: Move particle-related decls to particle.h
@@ -4093,6 +4097,22 @@ void Particle_SoundUpdate(void)
         case MapIdx_MAP1_S03:
         case MapIdx_MAP4_S02:
             unkValDiv4 = sharedData_800E32CC_0_s00 >> 2; // `sharedData_800E32CC_0_s00 / 4`
+
+#ifdef SH_PC_PORT
+            /* TEMP [RAIN] probe (remove when the silent-rain report closes):
+             * ramp = current sound ramp, target = weather-machine intensity,
+             * atten = what Sd_SfxAttributesUpdate gets (0=full, 255=silent). */
+            {
+                static int s_rainLogCd = 0;
+                if ((s_rainLogCd++ % 120) == 0)
+                {
+                    SH_DBG("[RAIN] ramp=%d target=%d playing=%d vol=%d atten=%d",
+                           (int)sharedData_800E32CC_0_s00, (int)sharedData_800DD58C_0_s00,
+                           (int)g_SysWork.field_234B_0, (int)unkValDiv4,
+                           (int)(u8)(254 - (int)unkValDiv4));
+                }
+            }
+#endif
 
             if ((sharedData_800E32CC_0_s00 - sharedData_800DD58C_0_s00) > 15)
             {

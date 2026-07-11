@@ -2261,7 +2261,14 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
 {
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
+    if (g_DebugCamEnabled) return true;
+    /* NOTE: disable_culling must NOT bypass the interior check below — it is
+     * ROOM VISIBILITY, not culling, and disable_culling=1 is the SHIPPED
+     * DEFAULT (its old first-line bypass here is why the courtyard ghost
+     * survived the exact-cell fix on every default config). disableCulling
+     * keeps its real meaning elsewhere: within the visible room every model
+     * buffer still draws (Ipd_ChunkDraw draw-all), and exteriors pass below. */
+    if (g_PcConfig.disableCulling && map->isExterior) return true;
     /* Interiors draw ONLY the player's cell, exactly like retail. Interior
      * maps are a packing of self-contained room islands — one room per 40u
      * cell, 16-28u of dead space between islands, zero cross-cell geometry
