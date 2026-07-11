@@ -114,6 +114,9 @@ typedef enum _GameRegion
 {
     Region_USA = 0,
     Region_EUR = 1, /** PAL (SLES-01514). */
+    Region_JPN = 2, /** NTSC-J (SLPM-86192). Rev 1/Rev 2 (JAP1/JAP2) discs share
+                     *  the file table + overlay link base; the first print
+                     *  (JAP0) differs and is detected but not yet supported. */
 } e_GameRegion;
 
 extern e_GameRegion g_GameRegion;

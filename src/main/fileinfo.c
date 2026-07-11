@@ -28,6 +28,12 @@ static const s_FileInfo s_FileTable_USA[] = {
 static const s_FileInfo s_FileTable_EUR[] = {
     #include "filetable.c.EUR.inc"
 };
+/* NTSC-J Rev 1/Rev 2 (SLPM-86192). Index-aligned with the USA table — all 2074
+ * entries share name/path/type per index (verified against both discs) — so
+ * unlike EUR it drops straight into the US-canonical shape. */
+static const s_FileInfo s_FileTable_JAP[] = {
+    #include "filetable.c.JAP1.inc"
+};
 #define FS_FILE_COUNT_EUR ((s32)(sizeof(s_FileTable_EUR) / sizeof(s_FileInfo)))
 
 s_FileInfo   g_FileTable[FS_FILE_COUNT];
@@ -38,7 +44,7 @@ e_GameRegion g_GameRegion = Region_USA;
 static const u8 s_UsaToEurPath[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14 };
 
 /* XA stream base sectors, runtime-selected. EUR[1] = 0x0B847 is the PAL HILL.
- * container start, mirroring US[1] = 0x099BF. */
+ * container start, mirroring US[1] = 0x099BF; JAP (Rev 1/2) is US shifted +5. */
 static const u32 s_FileXaLoc_USA[] = {
     0x00000, 0x099BF, 0x0A227, 0x0B377, 0x0D0BF, 0x0EA57,
     0x0F997, 0x1096F, 0x16F07, 0x19797, 0x00000
@@ -46,6 +52,10 @@ static const u32 s_FileXaLoc_USA[] = {
 static const u32 s_FileXaLoc_EUR[] = {
     0x00000, 0x0B847, 0x0C0AF, 0x0D1FF, 0x0EF47, 0x108DF,
     0x1181F, 0x127F7, 0x18D8F, 0x1B61F, 0x00000
+};
+static const u32 s_FileXaLoc_JAP[] = {
+    0x00000, 0x099C4, 0x0A22C, 0x0B37C, 0x0D0C4, 0x0EA5C,
+    0x0F99C, 0x10974, 0x16F0C, 0x1979C, 0x00000
 };
 u32 g_FileXaLoc[11];
 
@@ -55,15 +65,24 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
 
     g_GameRegion = region;
 
-    memcpy(g_FileXaLoc, (region == Region_EUR) ? s_FileXaLoc_EUR : s_FileXaLoc_USA,
+    memcpy(g_FileXaLoc, (region == Region_EUR) ? s_FileXaLoc_EUR
+                      : (region == Region_JPN) ? s_FileXaLoc_JAP
+                                               : s_FileXaLoc_USA,
            sizeof(g_FileXaLoc));
 
     memcpy(g_FileTable, s_FileTable_USA, sizeof(s_FileTable_USA));
-    if (region != Region_EUR)
+    if (region == Region_USA)
     {
         return;
     }
 
+    if (region == Region_JPN)
+    {
+        /* Index-aligned with USA — sectors/sizes drop straight in. */
+        memcpy(g_FileTable, s_FileTable_JAP, sizeof(s_FileTable_JAP));
+    }
+    else
+    {
     /* EUR: keep each US entry's name/path/type but take the same-named EUR file's
      * actual disc sector + size (US sector stays as a fallback for the handful of
      * US-only files that have no EUR equivalent — they are not loaded on PAL). */
@@ -88,6 +107,7 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
     }
 
     Fs_ApplyLanguageRedirects();
+    }
 
     /* The sound system seeks VAB/KDT (BGM/SFX) by absolute disc sector from its
      * own table g_AudioData[].fileOffset_8 — a US-baked parallel to g_FileTable.

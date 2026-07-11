@@ -290,13 +290,14 @@ unsigned int PcPort_FileTableStartSector(int fileIdx)
 static char g_GameDiscPath[1024] = { 0 };
 static int  g_DiscResolved       = 0;
 
-/* Read the boot executable name (SLUS_* / SLES_*) from a BIN's ISO9660 root
- * directory to identify the region. Returns Region_USA / Region_EUR, or -1. */
+/* Read the boot executable name (SLUS/SLES/SLPM prefix) from a BIN's ISO9660
+ * root directory to identify the region. Returns a Region_* value or -1. */
 static int Pc_DetectRegionFromBin(const char* path)
 {
     FILE*         f = fopen(path, "rb");
     unsigned char sec[2048];
     unsigned int  rlba;
+    unsigned int  exeLba = 0;
     unsigned      o;
     int           region = -1;
 
@@ -310,7 +311,6 @@ static int Pc_DetectRegionFromBin(const char* path)
 
     fseek(f, (long)rlba * 2352 + 24, SEEK_SET);
     if (fread(sec, 1, 2048, f) != 2048) { fclose(f); return -1; }
-    fclose(f);
 
     for (o = 0; o + 33 < 2048; )
     {
@@ -322,9 +322,32 @@ static int Pc_DetectRegionFromBin(const char* path)
         {
             if (memcmp(&sec[o + 33], "SLUS", 4) == 0) region = Region_USA;
             else if (memcmp(&sec[o + 33], "SLES", 4) == 0) region = Region_EUR;
+            else if (memcmp(&sec[o + 33], "SLPM", 4) == 0 ||
+                     memcmp(&sec[o + 33], "SLPS", 4) == 0 ||
+                     memcmp(&sec[o + 33], "SIPS", 4) == 0)
+            {
+                region = Region_JPN;
+                exeLba = sec[o + 2] | (sec[o + 3] << 8) | (sec[o + 4] << 16) | ((unsigned)sec[o + 5] << 24);
+            }
         }
         o += L;
     }
+
+    /* NTSC-J: the region tables in this build are for the Rev 1/Rev 2 exe
+     * (SLPM-86192 99-06-02, PS-X EXE t_size 0x13800). The first print shifts
+     * the containers and file table slightly — flag it rather than misload. */
+    if (region == Region_JPN && exeLba != 0)
+    {
+        unsigned int tSize = 0;
+        fseek(f, (long)exeLba * 2352 + 24, SEEK_SET);
+        if (fread(sec, 1, 2048, f) == 2048 && memcmp(sec, "PS-X EXE", 8) == 0)
+            tSize = sec[0x1C] | (sec[0x1D] << 8) | (sec[0x1E] << 16) | ((unsigned)sec[0x1F] << 24);
+        if (tSize != 0x13800)
+            SH_WARN("NTSC-J disc looks like the FIRST PRINT (exe t_size %#x, expected 0x13800 for Rev 1/2) — "
+                    "using Rev 1/2 tables; some files may misload", tSize);
+    }
+
+    fclose(f);
     return region;
 }
 
@@ -337,6 +360,7 @@ const char* PcPort_GetGameDiscPath(void)
         { "Silent Hill (USA).bin",                        Region_USA },
         { "Silent Hill (PAL).bin",                        Region_EUR },
         { "Silent Hill (Europe) (En,Fr,De,Es,It).bin",    Region_EUR },
+        { "Silent Hill (Japan).bin",                      Region_JPN },
     };
     char path[1024];
     int  i;
@@ -353,6 +377,7 @@ const char* PcPort_GetGameDiscPath(void)
     {
         int prefer = (g_PcConfig.region == 1) ? Region_USA
                    : (g_PcConfig.region == 2) ? Region_EUR
+                   : (g_PcConfig.region == 3) ? Region_JPN
                                               : -1;
         int pass;
 
@@ -386,7 +411,8 @@ const char* PcPort_GetGameDiscPath(void)
                     snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
                     Fs_InitFileTableForRegion((e_GameRegion)probed);
                     SH_LOG("Disc: %s (region %s%s)", s_known[i].name,
-                           probed == Region_EUR ? "EUR/PAL" : "USA",
+                           probed == Region_EUR ? "EUR/PAL"
+                         : probed == Region_JPN ? "NTSC-J"  : "USA",
                            pass == 0 ? ", by config preference" : "");
                     return g_GameDiscPath;
                 }
@@ -397,8 +423,9 @@ const char* PcPort_GetGameDiscPath(void)
             if (dir)
             {
                 struct dirent* ent;
-                char usPath[1024] = { 0 };
-                char euPath[1024] = { 0 };
+                /* One found-path bucket per region (Region_USA/EUR/JPN). */
+                char regionPath[3][1024] = { { 0 }, { 0 }, { 0 } };
+                int  use;
 
                 while ((ent = readdir(dir)) != NULL)
                 {
@@ -409,26 +436,28 @@ const char* PcPort_GetGameDiscPath(void)
                         int r;
                         snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, nm);
                         r = Pc_DetectRegionFromBin(path);
-                        if (r == Region_USA && !usPath[0])
-                            snprintf(usPath, sizeof(usPath), "%s", path);
-                        else if (r == Region_EUR && !euPath[0])
-                            snprintf(euPath, sizeof(euPath), "%s", path);
+                        if (r >= Region_USA && r <= Region_JPN && !regionPath[r][0])
+                            snprintf(regionPath[r], sizeof(regionPath[r]), "%s", path);
                     }
                 }
                 closedir(dir);
 
-                if (want == Region_EUR && !euPath[0])
+                if (want >= 0 && !regionPath[want][0])
                     continue; /* preferred region absent — auto fallback pass */
-                if (want == Region_USA && !usPath[0])
-                    continue;
 
-                if (usPath[0] || euPath[0])
+                /* Auto priority: USA, then PAL, then NTSC-J. */
+                use = (want >= 0)              ? want
+                    : regionPath[Region_USA][0] ? Region_USA
+                    : regionPath[Region_EUR][0] ? Region_EUR
+                    : regionPath[Region_JPN][0] ? Region_JPN
+                                                : -1;
+                if (use >= 0)
                 {
-                    int useEur = (want == Region_EUR) || (!usPath[0] && euPath[0]);
-                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", useEur ? euPath : usPath);
-                    Fs_InitFileTableForRegion(useEur ? Region_EUR : Region_USA);
+                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", regionPath[use]);
+                    Fs_InitFileTableForRegion((e_GameRegion)use);
                     SH_LOG("Disc autodetected: %s (region %s%s)", g_GameDiscPath,
-                           useEur ? "EUR/PAL" : "USA",
+                           use == Region_EUR ? "EUR/PAL"
+                         : use == Region_JPN ? "NTSC-J"  : "USA",
                            pass == 0 ? ", by config preference" : "");
                     return g_GameDiscPath;
                 }

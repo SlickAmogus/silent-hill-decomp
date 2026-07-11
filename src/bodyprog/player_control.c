@@ -10461,11 +10461,15 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
                  * the overlay's link base (USA 0x800C9578), so PSX_ADDR converts
                  * the stored pointer directly. */
                 u32 psxField38 = *(u32*)((u8*)g_OvlDynamic + 0x3C);
-                /* EUR overlays are linked for base 0x800CB370 but load at the
-                 * US base 0x800C9578 — rebase overlay-internal pointers by the
-                 * 0x1DF8 delta or they resolve past the real table. */
+                /* EUR overlays are linked for base 0x800CB370, JAP (Rev 1/2)
+                 * for 0x800CBBD0, but both load at the US base 0x800C9578 —
+                 * rebase overlay-internal pointers by the link delta or they
+                 * resolve past the real table. */
                 if (g_GameRegion == Region_EUR && psxField38 >= 0x800CB370u) {
                     psxField38 -= 0x800CB370u - 0x800C9578u;
+                }
+                else if (g_GameRegion == Region_JPN && psxField38 >= 0x800CBBD0u) {
+                    psxField38 -= 0x800CBBD0u - 0x800C9578u;
                 }
                 if (psxField38 >= 0x80000000u && psxField38 < 0x80200000u) {
                     s_patchedMapHeader            = *g_pMapOverlayHeader;

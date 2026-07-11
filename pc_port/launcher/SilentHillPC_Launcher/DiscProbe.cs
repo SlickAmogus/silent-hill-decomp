@@ -24,16 +24,14 @@ namespace SilentHillPC_Launcher
             public bool   Supported;   // false = recognized but the game can't load it yet
         }
 
-        // Serial prefix -> region. Table-driven so a future region (NTSC-J)
-        // is one row here plus the matching row in the game-side probe.
-        // NTSC-J is recognized for a helpful message but NOT supported: the
-        // game-side probe (Pc_DetectRegionFromBin) rejects those serials.
+        // Serial prefix -> region. Table-driven, mirroring the game-side probe
+        // (Pc_DetectRegionFromBin) — keep the two in agreement.
         private static readonly object[,] RegionMap = {
-            { "SLUS", "USA", "USA / NTSC-U",                 true  },
-            { "SLES", "PAL", "PAL / Europe (En,Fr,De,Es,It)", true  },
-            { "SLPS", "JAP", "Japan / NTSC-J (not supported yet)", false },
-            { "SLPM", "JAP", "Japan / NTSC-J (not supported yet)", false },
-            { "SIPS", "JAP", "Japan / NTSC-J (not supported yet)", false },
+            { "SLUS", "USA", "USA / NTSC-U",                  true },
+            { "SLES", "PAL", "PAL / Europe (En,Fr,De,Es,It)", true },
+            { "SLPS", "JAP", "Japan / NTSC-J",                true },
+            { "SLPM", "JAP", "Japan / NTSC-J",                true },
+            { "SIPS", "JAP", "Japan / NTSC-J",                true },
         };
 
         /// <summary>

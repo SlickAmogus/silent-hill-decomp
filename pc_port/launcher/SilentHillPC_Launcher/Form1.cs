@@ -150,6 +150,7 @@ public partial class Form1 : Form
             "Silent Hill (USA).bin",
             "Silent Hill (PAL).bin",
             "Silent Hill (Europe) (En,Fr,De,Es,It).bin",
+            "Silent Hill (Japan).bin",
         };
         foreach (var kn in knownNames)
         {
@@ -187,7 +188,7 @@ public partial class Form1 : Form
         if (!disc.Supported)
         {
             lblDisc.ForeColor = Color.Firebrick;
-            lblDisc.Text      = $"Disc: {disc.Serial} — NTSC-J is not supported yet";
+            lblDisc.Text      = $"Disc: {disc.Serial} — {RegionDisplayName(disc.Region)} is not supported yet";
             btnPlay.Enabled   = false;
         }
         else
@@ -361,7 +362,7 @@ public partial class Form1 : Form
             "Which detected disc version the game uses (discs are identified\n" +
             "by their ISO boot serial, filenames don't matter). PAL carries\n" +
             "EN/DE/FR/ES/IT text — set `language = de` etc. in config.cfg to\n" +
-            "pick one. NTSC-J is detected but not playable yet.";
+            "pick one. NTSC-J plays with English text for now (Rev 1/2 discs).";
         Set(regionLabel,  regionTip);
         Set(comboRegion,  regionTip);
 

@@ -116,9 +116,9 @@ typedef struct {
     int language;
 
     /* Preferred disc region when several discs are in gamedata/: 0=auto
-     * (USA wins, the old behavior), 1=usa, 2=pal (config key: region; the
-     * launcher's Region dropdown writes it). Missing preferred region falls
-     * back to auto; "jap" parses as auto (not supported yet). */
+     * (USA wins, then PAL, then NTSC-J), 1=usa, 2=pal, 3=jap (config key:
+     * region; the launcher's Region dropdown writes it). Missing preferred
+     * region falls back to auto. */
     int region;
 
     char mapName[64];    /* e.g. "map0_s00" */

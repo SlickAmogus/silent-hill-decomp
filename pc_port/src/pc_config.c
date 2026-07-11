@@ -98,7 +98,7 @@ s_PcConfig g_PcConfig = {
     .keyExitGame = "Escape",
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA discs ignore it */
-    .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal — preferred disc when several are present */
+    .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .mapName        = "map0_s00"
 };
 
@@ -457,10 +457,10 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "region") == 0)
         {
-            /* Preferred disc region (launcher Region dropdown). "jap" is
-             * recognized but not supported -> auto. */
+            /* Preferred disc region (launcher Region dropdown). */
             if (strcmp(value, "usa") == 0)      g_PcConfig.region = 1;
             else if (strcmp(value, "pal") == 0) g_PcConfig.region = 2;
+            else if (strcmp(value, "jap") == 0) g_PcConfig.region = 3;
             else                                g_PcConfig.region = 0;
         }
         else if (strcmp(key, "control_style") == 0)
