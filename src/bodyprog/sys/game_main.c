@@ -121,10 +121,9 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
-int g_PcGodMode = 0;             /* 1 = Harry takes no combat damage (`god` console cmd) */
+int g_PcGodMode = 0;             /* 1 = god mode: no combat damage + health held full. ONE shared flag toggled by the `god` console cmd AND debug key 7, so turning it off either way fully disables it. */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
-int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max each frame */
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
 int g_DebugAnimKfView = 0;       /* 1 = freeze Harry's whole skeleton on g_DebugAnimKf for keyframe inspection */
 int g_DebugAnimKf = 588;         /* absolute keyframe index posed while g_DebugAnimKfView is on (588 = gun-forward) */
@@ -969,14 +968,14 @@ void DebugCamera_Update(void)
         prevKey6 = cur6;
     }
 
-    /* Top-row 7: toggle invincibility (health locked to max each frame) */
+    /* Top-row 7: toggle god mode (same shared g_PcGodMode flag as the `god` console cmd) */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_7];
         if (cur && !prevKey) {
-            g_DebugInvincible = !g_DebugInvincible;
-            Sd_PlaySfx(g_DebugInvincible ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_DebugInvincible ? "ON" : "OFF");
+            g_PcGodMode = !g_PcGodMode;
+            Sd_PlaySfx(g_PcGodMode ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_PcGodMode ? "ON" : "OFF");
         }
         prevKey = cur;
     }
@@ -1222,9 +1221,9 @@ void DebugCamera_Update(void)
         prevL = curL;
     }
 
-    /* Per-frame cheat enforcement: invincibility + no-target */
+    /* Per-frame cheat enforcement: god mode (health catch-all) + no-target */
     if (g_GameWork.gameState == GameState_InGame) {
-        if (g_DebugInvincible)
+        if (g_PcGodMode)
             g_SysWork.playerWork.player.health = Q12(100.0f);
         if (g_DebugNoTarget)
             g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;

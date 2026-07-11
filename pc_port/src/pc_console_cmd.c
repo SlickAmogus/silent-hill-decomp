@@ -806,7 +806,7 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] == '1') g_PcGodMode = 1;
         else if (arg[0] == '0') g_PcGodMode = 0;
         else g_PcGodMode = !g_PcGodMode;
-        cprintf("god mode %s (Harry takes no damage)", g_PcGodMode ? "ON" : "OFF");
+        cprintf("god mode %s (no damage + health held full; same as debug key 7)", g_PcGodMode ? "ON" : "OFF");
     } else if (strcmp(cmd, "INVASPECT") == 0) {
         extern int g_PcInvAspectSquare;
         if (arg[0] == '1') g_PcInvAspectSquare = 1;
