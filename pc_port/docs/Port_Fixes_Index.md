@@ -484,13 +484,13 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   cover indexing and per-upload composition. Validated against a real 12k-
   file pack (index parity with ground truth; end-to-end compose test with
   loose + zip + partial-palette entries).
-- `.rar` packs supported too (official unrar library vendored in
-  `pc_port/third_party/unrar`, RAR4+RAR5+solid): extracted ONCE to
-  `<name>.rar.extracted/` beside the archive (only *.png + config.yaml;
-  `.done` marker skips re-extraction), then indexed like a loose folder.
-  The standard DuckStation layout — `<GAMEID>/replacements/...` with a
-  `config.yaml` — works as-is, extracted or archived at any nesting depth
-  (scan is recursive; names are matched by basename). `texpage-*` entries
+- Loose folders and `.zip` archives are both read IN PLACE (miniz) — nothing is
+  extracted to disk. `.rar` is NOT supported (dropped 2026-07-11): convert packs
+  to `.zip` or a loose folder. The standard DuckStation layout —
+  `<GAMEID>/replacements/...` with a `config.yaml` — works as-is at any nesting
+  depth (scan is recursive; names matched by basename). A `texturemods` entry
+  (folder or `.zip`) renamed `<name>.disabled` is skipped (`Name_IsDisabled`);
+  this is how the launcher's Mod Manager toggles a pack off. `texpage-*` entries
   (page-mode dumps) are unsupported and counted in the log.
 
 ## Texture-pack load order (2026-07-11)
@@ -524,24 +524,28 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
 ## Launcher Mod Manager (2026-07-11)
 
 - Replaces the launcher's Level dropdown with a `manager.png` button (Form1)
-  that opens `ModManagerForm`. Manages a self-owned `mods/` library beside the
-  game exe; deploys ENABLED mods into the game's additive override dirs and
-  undeploys via a `mods/deployed.txt` manifest (nothing touches original game
-  data — deploy = copy, undeploy = delete tracked files).
-- Three auto-detected types: DuckStation texture packs (`texupload-*`/`config.yaml`)
-  → `gamedata/texturemods/<mod>/` + `loadorder.txt`; load-folder mods (a `load/`
-  or disc-structured tree) → `gamedata/load/` (merge; forces `allow_loose_files=1`);
-  FMV mods (`.avi`) → flattened into `gamedata/FMV/`. List order = load order (top
-  = highest priority): texture packs ranked via `loadorder.txt`, load/FMV copied
-  highest-last so it overwrites. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`.
-- Archives: `.zip` dropped in `mods/` auto-extracts once; `.rar` is kept as-is
-  and (as a texture pack) deployed into its `texturemods/<mod>/` subfolder for the
-  GAME's own `.rar` extractor to unpack on launch (no unrar in the launcher —
-  reuses the vendored one linked into the game). Drag-and-drop onto the window
-  imports folders/`.zip`/`.rar` into the library; right-click a mod for a friendly
-  display name + notes (stored in `mods/modmanager.json`, DataContract JSON; the
-  folder name stays the deploy identity). The Form1 button swaps to
-  `manager_clicked.png` while pressed.
+  that opens `ModManagerForm`. Two homes (both additive — nothing touches the
+  disc image): TEXTURE mods in `gamedata/texturemods/`, managed IN PLACE; LOAD /
+  FMV mods in a self-owned `mods/` library, deployed on Apply.
+- **Texture mods** = a loose folder or a `.zip` in `gamedata/texturemods/`, read
+  in place by the game (no extraction). The checkbox is enable/disable: Apply
+  renames the entry to/from a trailing `.disabled` (game skips `.disabled` via
+  `Name_IsDisabled`); Delete removes it (prompted). `.rar` is UNSUPPORTED — it's
+  listed read-only/greyed ("convert to .zip") and rejected on drop. Active packs'
+  names (the `.zip` filename or folder name) are written to
+  `gamedata/texturemods/loadorder.txt`, highest first.
+- **Load / FMV mods** live in `mods/`: load-folder mods (a `load/` or
+  disc-structured tree) → merged into `gamedata/load/` (forces
+  `allow_loose_files=1`); FMV mods (`.avi`) → flattened into `gamedata/FMV/`.
+  Deployed via a `mods/deployed.txt` manifest (deploy = copy, undeploy = delete
+  tracked files); higher priority copied last so it overwrites. A `.zip` dropped
+  as a load/FMV mod auto-extracts into the library once.
+- Drag-and-drop onto the window auto-detects type and routes it (texture →
+  `texturemods/`, load/FMV → `mods/`). Right-click a mod for a friendly display
+  name + notes (stored in `mods/modmanager.json`, DataContract JSON; the folder /
+  `.zip` name stays the identity). The Form1 button swaps to `manager_clicked.png`
+  while pressed. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`,
+  progress in `ProgressDialog.cs`.
 
 ## PAL (SLES-01514) fonts + languages + FMV batch (2026-07-08, commits `52582ca4b`..`f97055547`)
 

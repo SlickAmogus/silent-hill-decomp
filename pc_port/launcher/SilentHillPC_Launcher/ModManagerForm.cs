@@ -68,8 +68,9 @@ namespace SilentHillPC_Launcher
                 AutoSize = false,
                 Location = new Point(12, 10),
                 Size     = new Size(576, 34),
-                Text     = "Drag mod folders or .zip/.rar archives here. Check to install/enable (Apply commits); " +
-                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete."
+                Text     = "Drag mod folders or .zip archives here. Check to enable (Apply commits); " +
+                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete. " +
+                           ".rar isn't supported — extract it or convert it to .zip."
             };
             Controls.Add(help);
 
@@ -93,6 +94,7 @@ namespace SilentHillPC_Launcher
             _list.DragEnter += OnDragEnter;
             _list.DragDrop  += OnDragDrop;
             _list.MouseDown += OnListMouseDown;
+            _list.ItemCheck += OnItemCheck;
             Controls.Add(_list);
 
             _list.ContextMenuStrip = BuildContextMenu();
@@ -155,22 +157,30 @@ namespace SilentHillPC_Launcher
             _list.Items.Clear();
             foreach (var m in _mgr.Mods)
             {
-                var item = new ListViewItem(m.Label) { Checked = m.Enabled, Tag = m };
+                var item = new ListViewItem(m.Label) { Checked = m.Enabled && !m.Unsupported, Tag = m };
                 item.SubItems.Add(m.TypeLabel);
                 item.SubItems.Add(m.StateLabel);
                 item.SubItems.Add(m.Description ?? "");
                 if (!string.IsNullOrEmpty(m.Description)) item.ToolTipText = m.Description;
-                if (m.Type == ModType.Unknown) item.ForeColor = Color.Gray;
+                if (m.Type == ModType.Unknown || m.Unsupported) item.ForeColor = Color.Gray;
                 _list.Items.Add(item);
             }
             _list.EndUpdate();
             if (_mgr.Mods.Count == 0)
             {
-                var hint = new ListViewItem("(no mods yet — drag folders/.zip/.rar here or click Open Folder)");
+                var hint = new ListViewItem("(no mods yet — drag folders/.zip here or click Open Folder)");
                 hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
                 hint.ForeColor = Color.Gray;
                 _list.Items.Add(hint);
             }
+        }
+
+        /// <summary>Block toggling rows that can't be enabled (unsupported .rar, hint row).</summary>
+        private void OnItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            if (e.NewValue != CheckState.Checked) return;
+            var m = _list.Items[e.Index].Tag as ModEntry;
+            if (m == null || m.Unsupported) e.NewValue = CheckState.Unchecked;
         }
 
         private ModEntry SelectedMod()
@@ -249,7 +259,7 @@ namespace SilentHillPC_Launcher
             if (m == null) return;
 
             string where = m.Source == ModSource.TextureMods
-                ? "This permanently deletes the archive and any extracted folder from gamedata\\texturemods."
+                ? "This permanently deletes it from gamedata\\texturemods."
                 : "This permanently deletes it from the mods folder (it stays deployed until you Apply).";
             if (MessageBox.Show(this,
                     "Delete \"" + m.Label + "\"?\n\n" + where,
@@ -319,19 +329,28 @@ namespace SilentHillPC_Launcher
             CommitOrderAndState();
             _mgr.SaveState();
 
-            int imported = 0;
+            int imported = 0, rar = 0;
             ProgressDialog.Run(this, "Importing mods…", r =>
             {
                 foreach (var p in paths)
-                    if (_mgr.Import(p, r)) imported++;
-                _mgr.PrepareLibrary(r); // extract any .zip we just imported
+                {
+                    var res = _mgr.Import(p, r);
+                    if (res == ModManager.ImportResult.Added) imported++;
+                    else if (res == ModManager.ImportResult.RarUnsupported) rar++;
+                }
+                _mgr.PrepareLibrary(r); // extract any load/FMV .zip we just imported
             });
 
             _mgr.Scan();
             Populate();
 
-            if (imported == 0)
-                MessageBox.Show(this, "Nothing added. Drop mod folders or .zip / .rar archives.",
+            if (rar > 0)
+                MessageBox.Show(this,
+                    "RAR archives aren't supported. Please extract them or convert them to .zip, " +
+                    "then drop the folder or .zip here.",
+                    "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            else if (imported == 0)
+                MessageBox.Show(this, "Nothing added. Drop mod folders or .zip archives.",
                     "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -343,15 +362,12 @@ namespace SilentHillPC_Launcher
                 ModManager.ApplyResult r = null;
                 ProgressDialog.Run(this, "Applying mods…", rep => { r = _mgr.Apply(_chkLoose.Checked, rep); });
                 _chkLoose.Checked = r.LooseEnabled;
-                Populate(); // reflect install/uninstall state changes
+                Populate(); // reflect enable/disable state changes
 
                 string msg = string.Format(
                     "Applied.\n\nActive texture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
                     "Loose file support: {3}",
                     r.Texture, r.Load, r.Fmv, r.LooseEnabled ? "on" : "off");
-                if (r.AnyPendingGameExtract)
-                    msg += "\n\nA .rar couldn't be unpacked here (UnRAR.dll missing next to the\n" +
-                           "launcher); the game will unpack it on next launch instead.";
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 

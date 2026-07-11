@@ -8,11 +8,6 @@
 #include <sys/stat.h>
 #include <direct.h>
 
-#ifndef TEXPACK_NO_RAR
-#include <windows.h>
-#include "unrar/dll.hpp"
-#endif
-
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 
@@ -318,86 +313,7 @@ static void Scan_Zip(const char* path)
     SH_DBG("[TEXPACK] %s: %d entries", path, added);
 }
 
-#ifndef TEXPACK_NO_RAR
-/* Extract a pack .rar next to itself, once ("<name>.rar.extracted/", with a
- * .done marker). Solid and RAR5 archives make in-place random access
- * impractical, so RARs are materialized in one linear pass and then indexed
- * like any loose folder; only *.png entries (and config.yaml, for reference)
- * are written. */
-static void Rar_ExtractOnce(const char* rarPath)
-{
-    char         destDir[512];
-    char         marker[560];
-    struct stat  st;
-    HANDLE       arc;
-    int          extracted = 0, skipped = 0;
-
-    struct RAROpenArchiveDataEx open;
-    struct RARHeaderDataEx      hdr;
-
-    snprintf(destDir, sizeof(destDir), "%s.extracted", rarPath);
-    snprintf(marker, sizeof(marker), "%s/.done", destDir);
-    if (stat(marker, &st) == 0) return;
-
-    _mkdir(destDir);
-
-    memset(&open, 0, sizeof(open));
-    open.ArcName  = (char*)rarPath;
-    open.OpenMode = RAR_OM_EXTRACT;
-    arc = RAROpenArchiveEx(&open);
-    if (arc == NULL || open.OpenResult != ERAR_SUCCESS)
-    {
-        SH_DBG("[TEXPACK] %s: not a readable rar (err=%u)", rarPath, open.OpenResult);
-        if (arc != NULL) RARCloseArchive(arc);
-        return;
-    }
-
-    SH_DBG("[TEXPACK] extracting %s (first run)...", rarPath);
-
-    memset(&hdr, 0, sizeof(hdr));
-    while (RARReadHeaderEx(arc, &hdr) == ERAR_SUCCESS)
-    {
-        const char* name = hdr.FileName;
-        size_t      len  = strlen(name);
-        int         want = (len > 4 && _stricmp(name + len - 4, ".png") == 0) ||
-                           (len >= 11 && _stricmp(name + len - 11, "config.yaml") == 0);
-        int         rc;
-
-        rc = RARProcessFile(arc, want ? RAR_EXTRACT : RAR_SKIP,
-                            want ? destDir : NULL, NULL);
-        if (rc != ERAR_SUCCESS)
-        {
-            SH_DBG("[TEXPACK] %s: extract error %d at %s", rarPath, rc, name);
-            break;
-        }
-        if (want) extracted++; else skipped++;
-    }
-    RARCloseArchive(arc);
-
-    {
-        FILE* mf = fopen(marker, "wb");
-        if (mf != NULL) fclose(mf);
-    }
-    SH_DBG("[TEXPACK] %s: extracted %d files (%d skipped) -> %s",
-           rarPath, extracted, skipped, destDir);
-}
-#endif
-
-/* The launcher's mod manager extracts archives itself into <archive>.extracted/
- * (marking .done). Skip re-extracting / in-place-reading such an archive here:
- * its .extracted/ folder is indexed as a normal subdir instead. (A pack the user
- * uninstalled is renamed with a trailing ".disabled" and skipped by the loop.)
- * Bare archives with no .extracted/ folder are handled as before. */
-static int Archive_ManagerHandled(const char* archivePath)
-{
-    char        buf[600];
-    struct stat st;
-
-    snprintf(buf, sizeof(buf), "%s.extracted/.done", archivePath);
-    return stat(buf, &st) == 0;
-}
-
-/* Mod-manager "disabled" marker suffix: a texturemods entry (folder or archive)
+/* Mod-manager "disabled" marker suffix: a texturemods entry (folder or .zip)
  * renamed "<name>.disabled" is inactive and must be skipped entirely. */
 static int Name_IsDisabled(const char* name)
 {
@@ -405,9 +321,10 @@ static int Name_IsDisabled(const char* name)
     return n >= 9 && _stricmp(name + n - 9, ".disabled") == 0;
 }
 
-/* Phase 0 materializes .rar packs on disk; phase 1 indexes loose PNGs and
- * .zip packs (including the folders phase 0 just produced). */
-static void Scan_Dir(const char* dirPath, int depth, int phase)
+/* Index loose PNGs, subfolders, and .zip packs in place. .zip archives are read
+ * directly (miniz) — nothing is extracted to disk. .rar is unsupported; convert
+ * packs to .zip or a loose folder. */
+static void Scan_Dir(const char* dirPath, int depth)
 {
     DIR*           dir;
     struct dirent* de;
@@ -424,28 +341,17 @@ static void Scan_Dir(const char* dirPath, int depth, int phase)
         size_t      nameLen = strlen(de->d_name);
 
         if (de->d_name[0] == '.') continue;
-        if (Name_IsDisabled(de->d_name)) continue; /* mod-manager uninstalled */
+        if (Name_IsDisabled(de->d_name)) continue; /* mod-manager disabled */
         snprintf(path, sizeof(path), "%s/%s", dirPath, de->d_name);
         if (stat(path, &st) != 0) continue;
 
         if (st.st_mode & S_IFDIR)
         {
-            Scan_Dir(path, depth + 1, phase);
-        }
-        else if (phase == 0)
-        {
-#ifndef TEXPACK_NO_RAR
-            if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".rar") == 0 &&
-                !Archive_ManagerHandled(path))
-            {
-                Rar_ExtractOnce(path);
-            }
-#endif
+            Scan_Dir(path, depth + 1);
         }
         else if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".zip") == 0)
         {
-            if (!Archive_ManagerHandled(path))
-                Scan_Zip(path);
+            Scan_Zip(path);
         }
         else
         {
@@ -478,8 +384,7 @@ static void Scan_Once(void)
 
     if (!g_PcConfig.texturePacks) return;
 
-    Scan_Dir(TEXPACK_DIR, 0, 0);
-    Scan_Dir(TEXPACK_DIR, 0, 1);
+    Scan_Dir(TEXPACK_DIR, 0);
 
     LoadOrder_Read();
     if (g_loadOrderCount > 0)
