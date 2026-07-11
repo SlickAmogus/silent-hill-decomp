@@ -39,6 +39,8 @@ typedef struct {
     short          zipIdx;       /* -1 = loose file */
     unsigned int   zipEntry;
     char*          loosePath;    /* malloc'd, NULL for zip entries */
+    int            priority;     /* from loadorder.txt; higher wins same-subrect conflicts */
+    unsigned int   seq;          /* insertion index — final tiebreak so the sort is total/stable */
 } PackEntry;
 
 static PackEntry* g_entries    = NULL;
@@ -51,6 +53,69 @@ static int    g_zipCap     = 0;
 
 static int g_scanned = 0;
 static int g_texpageSkipped = 0; /* DuckStation "texpage-" (page-mode) entries — unsupported */
+
+/* Optional gamedata/texturemods/loadorder.txt (written by the launcher's mod
+ * manager): one top-level pack folder per line, HIGHEST priority first. When two
+ * packs replace the same sub-rect of the same source texture, the higher-priority
+ * one must blit last so it wins — this drives the entry sort below. Absent file =
+ * every pack priority 0 = deterministic insertion order (no behavior loss). */
+#define TEXPACK_MAX_PACKS 512
+static char* g_loadOrder[TEXPACK_MAX_PACKS];
+static int   g_loadOrderCount = 0;
+
+static void LoadOrder_Read(void)
+{
+    char  path[512];
+    char  line[256];
+    FILE* f;
+
+    snprintf(path, sizeof(path), "%s/loadorder.txt", TEXPACK_DIR);
+    f = fopen(path, "rb");
+    if (f == NULL) return;
+
+    while (fgets(line, sizeof(line), f) != NULL && g_loadOrderCount < TEXPACK_MAX_PACKS)
+    {
+        char*  s = line;
+        size_t n = strlen(line);
+        while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r' ||
+                         line[n - 1] == ' '  || line[n - 1] == '\t'))
+            line[--n] = '\0';
+        while (*s == ' ' || *s == '\t') s++;
+        if (*s == '\0' || *s == '#') continue;
+        g_loadOrder[g_loadOrderCount++] = _strdup(s);
+    }
+    fclose(f);
+}
+
+/* Top-level pack folder name for an entry's on-disk path (first component under
+ * TEXPACK_DIR). Paths are always built from TEXPACK_DIR with '/' separators. */
+static void Pack_ModName(const char* fullPath, char* out, size_t outSize)
+{
+    const char* p      = fullPath;
+    size_t      pfxLen = strlen(TEXPACK_DIR);
+    size_t      i      = 0;
+
+    out[0] = '\0';
+    if (fullPath == NULL) return;
+    if (_strnicmp(p, TEXPACK_DIR, (int)pfxLen) == 0 && (p[pfxLen] == '/' || p[pfxLen] == '\\'))
+        p += pfxLen + 1;
+    while (p[i] != '\0' && p[i] != '/' && p[i] != '\\' && i + 1 < outSize)
+    {
+        out[i] = p[i];
+        i++;
+    }
+    out[i] = '\0';
+}
+
+static int LoadOrder_Priority(const char* modName)
+{
+    int i;
+    if (modName[0] == '\0') return 0;
+    for (i = 0; i < g_loadOrderCount; i++)
+        if (_stricmp(g_loadOrder[i], modName) == 0)
+            return g_loadOrderCount - i; /* first line = highest priority */
+    return 0;
+}
 
 static int Mode_Bpp(unsigned char mode)
 {
@@ -172,7 +237,9 @@ static void Entry_Add(const PackEntry* e)
         g_entryCap = g_entryCap ? g_entryCap * 2 : 1024;
         g_entries  = (PackEntry*)realloc(g_entries, (size_t)g_entryCap * sizeof(PackEntry));
     }
-    g_entries[g_entryCount++] = *e;
+    g_entries[g_entryCount]     = *e;
+    g_entries[g_entryCount].seq = (unsigned int)g_entryCount;
+    g_entryCount++;
 }
 
 /* File title = basename minus a final .png/.PNG. Returns 0 when the name is
@@ -369,6 +436,13 @@ static int Entry_CompareSrcHash(const void* a, const void* b)
     const PackEntry* eb = (const PackEntry*)b;
     if (ea->srcHash < eb->srcHash) return -1;
     if (ea->srcHash > eb->srcHash) return 1;
+    /* Same source texture: lower priority first so the higher-priority pack's
+     * sub-rect blits LAST (wins). seq is the final tiebreak so the order is
+     * total — qsort is not guaranteed stable. */
+    if (ea->priority < eb->priority) return -1;
+    if (ea->priority > eb->priority) return 1;
+    if (ea->seq < eb->seq) return -1;
+    if (ea->seq > eb->seq) return 1;
     return 0;
 }
 
@@ -381,6 +455,22 @@ static void Scan_Once(void)
 
     Scan_Dir(TEXPACK_DIR, 0, 0);
     Scan_Dir(TEXPACK_DIR, 0, 1);
+
+    LoadOrder_Read();
+    if (g_loadOrderCount > 0)
+    {
+        int  i;
+        char modName[160];
+        for (i = 0; i < g_entryCount; i++)
+        {
+            const char* path = (g_entries[i].zipIdx < 0)
+                                   ? g_entries[i].loosePath
+                                   : g_zipPaths[g_entries[i].zipIdx];
+            Pack_ModName(path, modName, sizeof(modName));
+            g_entries[i].priority = LoadOrder_Priority(modName);
+        }
+        SH_DBG("[TEXPACK] loadorder.txt: %d packs ranked", g_loadOrderCount);
+    }
 
     if (g_entryCount > 0)
     {

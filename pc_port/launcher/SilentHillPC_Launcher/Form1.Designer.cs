@@ -9,7 +9,7 @@ partial class Form1
     private ComboBox comboFullscreen;
     private RadioButton radioVsyncYes;
     private RadioButton radioVsyncNo;
-    private ComboBox comboMap;
+    private Button btnManager;
     private Button btnPlay;
     private Button btnUpdate;
     private Button btnChangelog;
@@ -28,7 +28,6 @@ partial class Form1
     private Label vsyncLabel;
     private Label resolutionLabel;
     private Label refreshLabel;
-    private Label levelLabel;
 
     private Panel vsyncPanel;
     private Panel cullingPanel;
@@ -90,7 +89,7 @@ partial class Form1
             this.radioPreloadNo = new System.Windows.Forms.RadioButton();
             this.pillarboxPanel = new System.Windows.Forms.Panel();
             this.comboPillarbox = new System.Windows.Forms.ComboBox();
-            this.comboMap = new System.Windows.Forms.ComboBox();
+            this.btnManager = new System.Windows.Forms.Button();
             this.btnPlay = new System.Windows.Forms.Button();
             this.btnUpdate = new System.Windows.Forms.Button();
             this.btnChangelog = new System.Windows.Forms.Button();
@@ -103,7 +102,6 @@ partial class Form1
             this.vsyncLabel = new System.Windows.Forms.Label();
             this.resolutionLabel = new System.Windows.Forms.Label();
             this.refreshLabel = new System.Windows.Forms.Label();
-            this.levelLabel = new System.Windows.Forms.Label();
             this.fpsLabel = new System.Windows.Forms.Label();
             this.chunksLabel = new System.Windows.Forms.Label();
             this.comboFps = new System.Windows.Forms.ComboBox();
@@ -259,18 +257,22 @@ partial class Form1
             this.comboPillarbox.Name = "comboPillarbox";
             this.comboPillarbox.Size = new System.Drawing.Size(120, 21);
             this.comboPillarbox.TabIndex = 4;
-            // 
-            // comboMap
-            // 
-            this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMap.Location = new System.Drawing.Point(217, 294);
-            this.comboMap.Name = "comboMap";
-            this.comboMap.Size = new System.Drawing.Size(191, 21);
-            this.comboMap.TabIndex = 11;
-            this.comboMap.SelectedIndexChanged += new System.EventHandler(this.comboMap_SelectedIndexChanged);
-            // 
+            //
+            // btnManager
+            //
+            this.btnManager.BackgroundImage = global::SilentHillPC_Launcher.Properties.Resources.manager;
+            this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
+            this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnManager.FlatAppearance.BorderSize = 0;
+            this.btnManager.Location = new System.Drawing.Point(216, 278);
+            this.btnManager.Name = "btnManager";
+            this.btnManager.Size = new System.Drawing.Size(192, 48);
+            this.btnManager.TabIndex = 11;
+            this.btnManager.UseVisualStyleBackColor = true;
+            this.btnManager.Click += new System.EventHandler(this.btnManager_Click);
+            //
             // btnPlay
-            // 
+            //
             this.btnPlay.Location = new System.Drawing.Point(314, 388);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
@@ -381,16 +383,7 @@ partial class Form1
             this.refreshLabel.Size = new System.Drawing.Size(63, 13);
             this.refreshLabel.TabIndex = 14;
             this.refreshLabel.Text = "Pillarboxing:";
-            // 
-            // levelLabel
-            // 
-            this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(216, 277);
-            this.levelLabel.Name = "levelLabel";
-            this.levelLabel.Size = new System.Drawing.Size(36, 13);
-            this.levelLabel.TabIndex = 15;
-            this.levelLabel.Text = "Level:";
-            // 
+            //
             // fpsLabel
             // 
             this.fpsLabel.AutoSize = true;
@@ -752,12 +745,11 @@ partial class Form1
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
             this.Controls.Add(this.vsyncLabel);
-            this.Controls.Add(this.levelLabel);
             this.Controls.Add(this.comboResolution);
             this.Controls.Add(this.comboRefresh);
             this.Controls.Add(this.pillarboxPanel);
             this.Controls.Add(this.banner);
-            this.Controls.Add(this.comboMap);
+            this.Controls.Add(this.btnManager);
             this.Controls.Add(this.btnPlay);
             this.Controls.Add(this.btnUpdate);
             this.Controls.Add(this.btnChangelog);

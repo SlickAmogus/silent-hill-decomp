@@ -493,6 +493,49 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   (scan is recursive; names are matched by basename). `texpage-*` entries
   (page-mode dumps) are unsupported and counted in the log.
 
+## Texture-pack load order (2026-07-11)
+
+- `gamedata/texturemods/loadorder.txt` (one top-level pack folder per line,
+  HIGHEST priority first) ranks packs when two replace the SAME sub-rect of the
+  same source texture. `tex_pack.c` reads it in `Scan_Once`, tags each
+  `PackEntry` with a `priority` (from the file) + insertion `seq`, and the
+  compositor's `qsort` is now a TOTAL order `(srcHash, priority, seq)` so the
+  higher-priority pack blits LAST (wins). Absent file = every priority 0 =
+  deterministic insertion order (was qsort-by-srcHash alone = undefined order
+  for same-hash entries). No change when `texture_packs=0` (zero entries).
+- Written by the launcher's Mod Manager (see below); different sub-rects still
+  composite/augment as before — order only decides same-sub-rect conflicts.
+
+## Bullet-decal depth split (2026-07-11)
+
+- `pc_port/src/pc_decals.c`: decals were painting over objects standing in FRONT
+  of the wall they sit on. Root: the world is painter's OT-ordered by default
+  (GL depth test only under `pgxpZBuffer`), and decals are added to the world OT
+  AFTER the walls, so a decal needs a NEARER bucket just to be visible over its
+  host — but the single `DECAL_SZ_BIAS=96` pulled the bucket 3 buckets nearer,
+  over-drawing any foreground geometry within ~3 buckets. Fix: split the one
+  bias into two — `DECAL_SZ_BIAS=96` stays for the per-vertex GL depth (the
+  pgxpZBuffer path still needs a full 64-SZ quantum + margin vs the wall's
+  quantized depth), and `DECAL_BUCKET_BIAS=32` is the painter's OT bucket bias =
+  exactly ONE bucket nearer (minimum to draw over the coplanar wall). Lever if
+  decals ever vanish on steeply-angled walls: raise `DECAL_BUCKET_BIAS` toward
+  48-64 (visibility-vs-overdraw tradeoff; 32 is the aggressive end).
+
+## Launcher Mod Manager (2026-07-11)
+
+- Replaces the launcher's Level dropdown with a `manager.png` button (Form1)
+  that opens `ModManagerForm`. Manages a self-owned `mods/` library beside the
+  game exe; deploys ENABLED mods into the game's additive override dirs and
+  undeploys via a `mods/deployed.txt` manifest (nothing touches original game
+  data — deploy = copy, undeploy = delete tracked files).
+- Three auto-detected types: DuckStation texture packs (`texupload-*`/`config.yaml`)
+  → `gamedata/texturemods/<mod>/` + `loadorder.txt`; load-folder mods (a `load/`
+  or disc-structured tree) → `gamedata/load/` (merge; forces `allow_loose_files=1`);
+  FMV mods (`.avi`) → flattened into `gamedata/FMV/`. `.zip` archives dropped in
+  `mods/` are auto-extracted once. List order = load order (top = highest
+  priority): texture packs ranked via `loadorder.txt`, load/FMV copied highest-
+  last so it overwrites. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`.
+
 ## PAL (SLES-01514) fonts + languages + FMV batch (2026-07-08, commits `52582ca4b`..`f97055547`)
 
 - **Region-aware FONT16** (`f5dff3a48`): PAL's 21x6 glyph grid lives at VRAM

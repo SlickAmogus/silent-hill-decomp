@@ -421,12 +421,7 @@ public partial class Form1 : Form
         Set(flashLabel, flashTip);
         Set(comboFlash, flashTip);
 
-        const string levelTip =
-            "Which map to load when you start a New Game. Default map0_s00\n" +
-            "is the intro alley. Useful for jumping straight to a specific\n" +
-            "scene during testing.";
-        Set(levelLabel,  levelTip);
-        Set(comboMap,    levelTip);
+        Set(btnManager, "Manage texture packs, load-folder mods, and FMV mods: enable/disable and set load order.");
 
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
         Set(btnChangelog, "Shows the LOCAL copy of CHANGELOG.md that's currently installed. (Build Settings and the update prompt preview other builds' changelogs.)");
@@ -651,38 +646,6 @@ public partial class Form1 : Form
             comboFlash.SelectedIndex = fmIdx;
         }
 
-        // map dropdown -- parse descriptions from config.cfg `# mapX_sY  Desc` lines
-        string[] mapIds = {
-            "map0_s00","map0_s01","map0_s02",
-            "map1_s00","map1_s01","map1_s02","map1_s03","map1_s04","map1_s05","map1_s06",
-            "map2_s00","map2_s01","map2_s02","map2_s03","map2_s04",
-            "map3_s00","map3_s01","map3_s02","map3_s03","map3_s04","map3_s05","map3_s06",
-            "map4_s00","map4_s01","map4_s02","map4_s03","map4_s04","map4_s05","map4_s06",
-            "map5_s00","map5_s01","map5_s02","map5_s03",
-            "map6_s00","map6_s01","map6_s02","map6_s03","map6_s04","map6_s05",
-            "map7_s00","map7_s01","map7_s02","map7_s03"
-        };
-        Dictionary<string, string> mapDescs = LoadMapDescriptions(cfgPath);
-        // LoadConfig runs from both the constructor and Form1_Load; without
-        // clearing first, the second pass duplicated every map entry.
-        comboMap.Items.Clear();
-        foreach (var id in mapIds)
-        {
-            string desc;
-            comboMap.Items.Add(mapDescs.TryGetValue(id, out desc) ? $"{id}  -  {desc}" : id);
-        }
-        // Widen the dropdown list so descriptions don't get clipped
-        comboMap.DropDownWidth = 400;
-
-        string savedMap = config.Get("map", "map0_s00");
-        // Find the dropdown entry whose id prefix matches the saved map id
-        for (int i = 0; i < comboMap.Items.Count; i++)
-        {
-            string item = comboMap.Items[i].ToString();
-            string itemId = item.Split(new[] { "  -  " }, StringSplitOptions.None)[0];
-            if (itemId == savedMap) { comboMap.SelectedIndex = i; break; }
-        }
-
         // resolution
         string w = config.Get("width", "640");
         string h = config.Get("height", "480");
@@ -719,13 +682,6 @@ public partial class Form1 : Form
             comboFullscreen.SelectedIndex == 2 ? "2" :   // Borderless
             "0");                                        // Windowed
         config.Set("vsync", radioVsyncYes.Checked ? "1" : "0");
-        // Persist only the map id, not the displayed " - description" suffix
-        if (comboMap.SelectedItem != null)
-        {
-            string sel = comboMap.SelectedItem.ToString();
-            string mapId = sel.Split(new[] { "  -  " }, StringSplitOptions.None)[0];
-            config.Set("map", mapId);
-        }
         // resolution
         if (comboResolution.SelectedItem != null)
         {
@@ -1212,9 +1168,12 @@ public partial class Form1 : Form
 
     }
 
-    private void comboMap_SelectedIndexChanged(object sender, EventArgs e)
+    private void btnManager_Click(object sender, EventArgs e)
     {
-
+        using (var f = new SilentHillPC_Launcher.ModManagerForm(config, AppDomain.CurrentDomain.BaseDirectory))
+        {
+            f.ShowDialog(this);
+        }
     }
 
     private void comboRefresh_SelectedIndexChanged(object sender, EventArgs e)
