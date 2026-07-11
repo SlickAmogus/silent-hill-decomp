@@ -68,8 +68,8 @@ namespace SilentHillPC_Launcher
                 AutoSize = false,
                 Location = new Point(12, 10),
                 Size     = new Size(576, 34),
-                Text     = "Drag mod folders or .zip/.rar archives here (or into the mods folder). Check the ones to " +
-                           "enable; top of the list = highest priority (wins conflicts). Right-click for name/notes."
+                Text     = "Drag mod folders or .zip/.rar archives here. Check to install/enable (Apply commits); " +
+                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete."
             };
             Controls.Add(help);
 
@@ -86,9 +86,10 @@ namespace SilentHillPC_Launcher
                 ShowItemToolTips = true,
                 HeaderStyle   = ColumnHeaderStyle.Nonclickable
             };
-            _list.Columns.Add("Mod", 210);
-            _list.Columns.Add("Type", 110);
-            _list.Columns.Add("Notes", 166);
+            _list.Columns.Add("Mod", 176);
+            _list.Columns.Add("Type", 120);
+            _list.Columns.Add("State", 78);
+            _list.Columns.Add("Notes", 112);
             _list.DragEnter += OnDragEnter;
             _list.DragDrop  += OnDragDrop;
             _list.MouseDown += OnListMouseDown;
@@ -132,9 +133,14 @@ namespace SilentHillPC_Launcher
         {
             var menu = new ContextMenuStrip();
             menu.Items.Add("Edit name && notes…", null, (s, e) => EditSelected());
-            menu.Items.Add("Open containing folder", null, (s, e) => _mgr.OpenModsFolder());
+            menu.Items.Add("Open containing folder", null, (s, e) =>
+            {
+                var m = SelectedMod();
+                if (m != null && m.Source == ModSource.TextureMods) _mgr.OpenTextureModsFolder();
+                else _mgr.OpenModsFolder();
+            });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Remove from library…", null, (s, e) => RemoveSelected());
+            menu.Items.Add("Delete mod…", null, (s, e) => RemoveSelected());
             menu.Opening += (s, e) =>
             {
                 // Only meaningful with a real mod row selected.
@@ -151,6 +157,7 @@ namespace SilentHillPC_Launcher
             {
                 var item = new ListViewItem(m.Label) { Checked = m.Enabled, Tag = m };
                 item.SubItems.Add(m.TypeLabel);
+                item.SubItems.Add(m.StateLabel);
                 item.SubItems.Add(m.Description ?? "");
                 if (!string.IsNullOrEmpty(m.Description)) item.ToolTipText = m.Description;
                 if (m.Type == ModType.Unknown) item.ForeColor = Color.Gray;
@@ -160,8 +167,7 @@ namespace SilentHillPC_Launcher
             if (_mgr.Mods.Count == 0)
             {
                 var hint = new ListViewItem("(no mods yet — drag folders/.zip/.rar here or click Open Folder)");
-                hint.SubItems.Add("");
-                hint.SubItems.Add("");
+                hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
                 hint.ForeColor = Color.Gray;
                 _list.Items.Add(hint);
             }
@@ -231,7 +237,7 @@ namespace SilentHillPC_Launcher
                 if (it != null)
                 {
                     it.Text = m.Label;
-                    it.SubItems[2].Text = m.Description ?? "";
+                    it.SubItems[3].Text = m.Description ?? "";
                     it.ToolTipText = m.Description ?? "";
                 }
             }
@@ -241,14 +247,18 @@ namespace SilentHillPC_Launcher
         {
             var m = SelectedMod();
             if (m == null) return;
+
+            string where = m.Source == ModSource.TextureMods
+                ? "This permanently deletes the archive and any extracted folder from gamedata\\texturemods."
+                : "This permanently deletes it from the mods folder (it stays deployed until you Apply).";
             if (MessageBox.Show(this,
-                    "Remove \"" + m.Label + "\" from the library?\n\nThis deletes it from the mods folder. " +
-                    "It stays deployed in the game until you click Apply.",
-                    "Remove Mod", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+                    "Delete \"" + m.Label + "\"?\n\n" + where,
+                    "Delete Mod", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
                 return;
 
             CommitOrderAndState();
-            _mgr.RemoveMod(m);
+            if (m.Source == ModSource.TextureMods) _mgr.DeleteTexture(m);
+            else _mgr.DeleteLibrary(m);
             _mgr.SaveState();
             Populate();
         }
@@ -335,12 +345,12 @@ namespace SilentHillPC_Launcher
                 _chkLoose.Checked = r.LooseEnabled;
 
                 string msg = string.Format(
-                    "Applied.\n\nTexture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
+                    "Applied.\n\nActive texture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
                     "Loose file support: {3}",
                     r.Texture, r.Load, r.Fmv, r.LooseEnabled ? "on" : "off");
-                if (_mgr.Mods.Any(m => m.Enabled && m.Type == ModType.Texturemods && m.IsArchive))
-                    msg += "\n\n.rar texture packs unpack on the next game launch (a\n" +
-                           "<name>.rar.extracted folder will appear beside the archive).";
+                if (r.AnyPendingGameExtract)
+                    msg += "\n\nA .rar couldn't be unpacked here (UnRAR.dll missing next to the\n" +
+                           "launcher); the game will unpack it on next launch instead.";
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 

@@ -383,6 +383,28 @@ static void Rar_ExtractOnce(const char* rarPath)
 }
 #endif
 
+/* The launcher's mod manager extracts archives itself into <archive>.extracted/
+ * (marking .done). Skip re-extracting / in-place-reading such an archive here:
+ * its .extracted/ folder is indexed as a normal subdir instead. (A pack the user
+ * uninstalled is renamed with a trailing ".disabled" and skipped by the loop.)
+ * Bare archives with no .extracted/ folder are handled as before. */
+static int Archive_ManagerHandled(const char* archivePath)
+{
+    char        buf[600];
+    struct stat st;
+
+    snprintf(buf, sizeof(buf), "%s.extracted/.done", archivePath);
+    return stat(buf, &st) == 0;
+}
+
+/* Mod-manager "disabled" marker suffix: a texturemods entry (folder or archive)
+ * renamed "<name>.disabled" is inactive and must be skipped entirely. */
+static int Name_IsDisabled(const char* name)
+{
+    size_t n = strlen(name);
+    return n >= 9 && _stricmp(name + n - 9, ".disabled") == 0;
+}
+
 /* Phase 0 materializes .rar packs on disk; phase 1 indexes loose PNGs and
  * .zip packs (including the folders phase 0 just produced). */
 static void Scan_Dir(const char* dirPath, int depth, int phase)
@@ -402,6 +424,7 @@ static void Scan_Dir(const char* dirPath, int depth, int phase)
         size_t      nameLen = strlen(de->d_name);
 
         if (de->d_name[0] == '.') continue;
+        if (Name_IsDisabled(de->d_name)) continue; /* mod-manager uninstalled */
         snprintf(path, sizeof(path), "%s/%s", dirPath, de->d_name);
         if (stat(path, &st) != 0) continue;
 
@@ -412,7 +435,8 @@ static void Scan_Dir(const char* dirPath, int depth, int phase)
         else if (phase == 0)
         {
 #ifndef TEXPACK_NO_RAR
-            if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".rar") == 0)
+            if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".rar") == 0 &&
+                !Archive_ManagerHandled(path))
             {
                 Rar_ExtractOnce(path);
             }
@@ -420,7 +444,8 @@ static void Scan_Dir(const char* dirPath, int depth, int phase)
         }
         else if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".zip") == 0)
         {
-            Scan_Zip(path);
+            if (!Archive_ManagerHandled(path))
+                Scan_Zip(path);
         }
         else
         {

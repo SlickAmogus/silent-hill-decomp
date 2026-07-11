@@ -5,21 +5,22 @@ using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using System.Text;
 
 namespace SilentHillPC_Launcher
 {
-    public enum ModType { Unknown, Texturemods, Load, Fmv }
+    public enum ModType   { Unknown, Texturemods, Load, Fmv }
+    public enum ModSource { Library, TextureMods }
 
     public class ModEntry
     {
-        public string  Name;        // identity: library folder or .rar base name (also the texturemods subfolder + loadorder line)
-        public ModType Type;
-        public bool    Enabled;
-        public string  DisplayName; // optional friendly label (cosmetic; identity stays Name)
-        public string  Description; // optional user note
-        public string  LibraryPath; // full path to the mod's folder, or its .rar file
-        public bool    IsArchive;   // .rar: deployed as-is into texturemods/<Name>/, the game extracts it
+        public string     Name;        // identity (folder / archive filename); loadorder + deploy key
+        public ModType    Type;
+        public ModSource  Source;
+        public bool       Enabled;     // Library: deploy?  TextureMods: installed (extracted/active)?
+        public string     DisplayName;
+        public string     Description;
+        public string     LibraryPath; // current on-disk path (archive or folder; may be *.disabled)
+        public bool       IsArchive;
 
         public string Label { get { return string.IsNullOrEmpty(DisplayName) ? Name : DisplayName; } }
 
@@ -29,11 +30,20 @@ namespace SilentHillPC_Launcher
             {
                 switch (Type)
                 {
-                    case ModType.Texturemods: return IsArchive ? "Texture pack (RAR)" : "Texture pack";
+                    case ModType.Texturemods: return IsArchive ? "Texture pack (archive)" : "Texture pack";
                     case ModType.Load:        return "Load folder";
                     case ModType.Fmv:         return "FMV";
                     default:                  return "Unrecognized";
                 }
+            }
+        }
+
+        public string StateLabel
+        {
+            get
+            {
+                if (Source == ModSource.TextureMods) return Enabled ? "Installed" : "Not installed";
+                return Enabled ? "Enabled" : "Disabled";
             }
         }
     }
@@ -54,37 +64,33 @@ namespace SilentHillPC_Launcher
     }
 
     /// <summary>
-    /// Organizes user mods in a self-owned <c>mods/</c> library and deploys the
-    /// enabled ones into the game's additive override dirs
-    /// (<c>gamedata/texturemods</c>, <c>gamedata/load</c>, <c>gamedata/FMV</c>).
-    /// Nothing here ever touches original game data — deploy = copy, undeploy =
-    /// delete tracked files — so removing a mod always reverts cleanly.
-    ///
-    /// Load order (list order, index 0 = highest priority, wins conflicts):
-    ///  - texture packs: each mod → its own texturemods/&lt;name&gt;/ subfolder;
-    ///    priority is written to texturemods/loadorder.txt (highest first) and
-    ///    resolved by the game's compositor (tex_pack.c).
-    ///  - load/FMV: files merge into shared dirs, so higher priority is copied
-    ///    LAST (overwrites lower).
-    ///
-    /// Archives: .zip is expanded into a same-named folder on scan; .rar is kept
-    /// as-is and (for texture packs) deployed into its subfolder for the game's
-    /// own .rar extractor to unpack on launch.
+    /// Manages mods across two homes, both additive (nothing touches the disc image):
+    ///  - TEXTURE mods live in gamedata/texturemods/ and are managed in place:
+    ///    "install" extracts an archive into &lt;archive&gt;.extracted/, "uninstall"
+    ///    deletes that folder and renames the archive &lt;name&gt;.disabled so the game
+    ///    skips it (tex_pack.c Name_IsDisabled / Archive_ManagerHandled). Loose
+    ///    folders toggle by the same .disabled rename.
+    ///  - LOAD / FMV mods live in the mods/ library and deploy into gamedata/load
+    ///    and gamedata/FMV on Apply, tracked by a manifest for clean removal.
+    /// Load order (list order, index 0 = highest priority): texture packs via
+    /// texturemods/loadorder.txt; load/FMV copied highest-last so it overwrites.
     /// </summary>
     public class ModManager
     {
         private readonly string _gameRoot;
         private readonly ConfigManager _config;
 
-        public string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
-        private string GamedataDir    { get { return Path.Combine(_gameRoot, "gamedata"); } }
-        private string TexturemodsDir { get { return Path.Combine(GamedataDir, "texturemods"); } }
-        private string LoadDir        { get { return Path.Combine(GamedataDir, "load"); } }
-        private string FmvDir         { get { return Path.Combine(GamedataDir, "FMV"); } }
+        public  string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
+        private string GamedataDir     { get { return Path.Combine(_gameRoot, "gamedata"); } }
+        private string TexturemodsDir  { get { return Path.Combine(GamedataDir, "texturemods"); } }
+        private string LoadDir         { get { return Path.Combine(GamedataDir, "load"); } }
+        private string FmvDir          { get { return Path.Combine(GamedataDir, "FMV"); } }
 
-        private string StatePath      { get { return Path.Combine(ModsDir, "modmanager.json"); } }
-        private string ManifestPath   { get { return Path.Combine(ModsDir, "deployed.txt"); } }
-        private string LoadOrderPath  { get { return Path.Combine(TexturemodsDir, "loadorder.txt"); } }
+        private string StatePath       { get { return Path.Combine(ModsDir, "modmanager.json"); } }
+        private string ManifestPath    { get { return Path.Combine(ModsDir, "deployed.txt"); } }
+        private string LoadOrderPath   { get { return Path.Combine(TexturemodsDir, "loadorder.txt"); } }
+
+        private static readonly string[] ArchiveExts = { ".zip", ".rar" };
 
         public List<ModEntry> Mods = new List<ModEntry>();
 
@@ -94,10 +100,35 @@ namespace SilentHillPC_Launcher
             _config   = config;
         }
 
+        // --- helpers ----------------------------------------------------------
+
+        private static bool IsArchivePath(string p)
+        {
+            string e = Path.GetExtension(StripDisabled(p)).ToLowerInvariant();
+            return ArchiveExts.Contains(e);
+        }
+
+        private static bool IsDisabled(string p) { return p.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase); }
+
+        private static string StripDisabled(string p)
+        {
+            return IsDisabled(p) ? p.Substring(0, p.Length - ".disabled".Length) : p;
+        }
+
+        /// <summary>&lt;archive&gt;.extracted sibling folder for an archive path (enabled form).</summary>
+        private static string ExtractedDirFor(string archivePathEnabled) { return archivePathEnabled + ".extracted"; }
+
+        private static IEnumerable<string> SafeFiles(string dir)
+        {
+            try { return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories); }
+            catch { return Enumerable.Empty<string>(); }
+        }
+
         // --- scan / state -----------------------------------------------------
 
-        /// <summary>A .zip is pending if it has no same-named extracted folder yet.</summary>
-        private string[] PendingZips()
+        public bool AnyPendingExtraction() { return PendingLibraryZips().Length > 0; }
+
+        private string[] PendingLibraryZips()
         {
             if (!Directory.Exists(ModsDir)) return new string[0];
             return Directory.GetFiles(ModsDir, "*.zip", SearchOption.TopDirectoryOnly)
@@ -105,110 +136,119 @@ namespace SilentHillPC_Launcher
                             .ToArray();
         }
 
-        public bool AnyPendingExtraction() { return PendingZips().Length > 0; }
-
-        /// <summary>
-        /// Extract pending .zip archives into same-named folders (non-destructive:
-        /// the archive is kept and a pre-existing folder is never overwritten),
-        /// reporting per-entry progress. Runs on a background thread via
-        /// ProgressDialog so the UI doesn't freeze.
-        /// </summary>
+        /// <summary>Extract pending library .zip mods (load/FMV) into same-named folders, with progress.</summary>
         public void PrepareLibrary(Action<int, int, string> report)
         {
             Directory.CreateDirectory(ModsDir);
-            foreach (var zip in PendingZips())
-            {
-                string dest = Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip));
-                try
-                {
-                    using (var za = ZipFile.OpenRead(zip))
-                    {
-                        int total = za.Entries.Count;
-                        int i     = 0;
-                        string fullDest = Path.GetFullPath(dest);
-                        foreach (var entry in za.Entries)
-                        {
-                            i++;
-                            if (report != null)
-                                report(i, total, string.Format("Extracting {0}  ({1}/{2})",
-                                    Path.GetFileName(zip), i, total));
-
-                            string outPath = Path.GetFullPath(Path.Combine(dest, entry.FullName));
-                            // Guard against zip-slip: keep everything under dest.
-                            if (!outPath.StartsWith(fullDest, StringComparison.OrdinalIgnoreCase)) continue;
-
-                            if (string.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(outPath); continue; }
-                            Directory.CreateDirectory(Path.GetDirectoryName(outPath));
-                            entry.ExtractToFile(outPath, true);
-                        }
-                    }
-                }
-                catch { /* corrupt/locked archive — leave it for the user to see */ }
-            }
+            foreach (var zip in PendingLibraryZips())
+                ExtractZip(zip, Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip)), report);
         }
 
-        /// <summary>Index the library (folders + .rar) and merge saved state. Fast — no extraction.</summary>
         public void Scan()
         {
             Directory.CreateDirectory(ModsDir);
-
-            var state = LoadState();
+            var state  = LoadState();
             var byName = new Dictionary<string, ModStateDto>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in state.Mods)
-                if (s.Name != null) byName[s.Name] = s;
+            foreach (var s in state.Mods) if (s.Name != null) byName[s.Name] = s;
 
-            var found       = new List<ModEntry>();
+            var found = new List<ModEntry>();
+            found.AddRange(ScanTextureMods(byName));
+            found.AddRange(ScanLibraryMods(byName));
+
+            // Preserve saved order; append newly-found mods at the bottom.
+            var ordered = new List<ModEntry>();
+            var lookup  = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var m in found) lookup[m.Source + "/" + m.Name] = m;
+            foreach (var s in state.Mods)
+            {
+                var keyT = ModSource.TextureMods + "/" + s.Name;
+                var keyL = ModSource.Library + "/" + s.Name;
+                if (lookup.ContainsKey(keyT)) { ordered.Add(lookup[keyT]); lookup.Remove(keyT); }
+                else if (lookup.ContainsKey(keyL)) { ordered.Add(lookup[keyL]); lookup.Remove(keyL); }
+            }
+            ordered.AddRange(found.Where(m => lookup.ContainsKey(m.Source + "/" + m.Name)));
+            Mods = ordered;
+        }
+
+        private IEnumerable<ModEntry> ScanTextureMods(Dictionary<string, ModStateDto> saved)
+        {
+            var list = new List<ModEntry>();
+            if (!Directory.Exists(TexturemodsDir)) return list;
+
+            // Archives (enabled or *.disabled). The .extracted/ companion folder is
+            // not a separate mod, and loadorder.txt is skipped.
+            foreach (var f in Directory.GetFiles(TexturemodsDir))
+            {
+                if (!IsArchivePath(f)) continue;
+                string enabledPath = StripDisabled(f);
+                string name        = Path.GetFileName(enabledPath);       // e.g. cool.rar
+                bool   installed   = !IsDisabled(f) && Directory.Exists(ExtractedDirFor(enabledPath));
+                list.Add(MakeTexture(name, f, true, installed, saved));
+            }
+
+            // Loose top-level folders that aren't an archive's .extracted/ companion.
+            foreach (var d in Directory.GetDirectories(TexturemodsDir))
+            {
+                string dname = Path.GetFileName(d);
+                if (dname.EndsWith(".extracted", StringComparison.OrdinalIgnoreCase)) continue;
+                string enabled = StripDisabled(dname);
+                // Skip a folder that is the .extracted companion of a listed archive.
+                if (enabled.EndsWith(".extracted", StringComparison.OrdinalIgnoreCase)) continue;
+                list.Add(MakeTexture(enabled, d, false, !IsDisabled(dname), saved));
+            }
+            return list;
+        }
+
+        private static ModEntry MakeTexture(string name, string path, bool isArchive, bool installed,
+                                            Dictionary<string, ModStateDto> saved)
+        {
+            var e = new ModEntry
+            {
+                Name        = name,
+                Type        = ModType.Texturemods,
+                Source      = ModSource.TextureMods,
+                LibraryPath = path,
+                IsArchive   = isArchive,
+                Enabled     = installed // texture "enabled" = installed state on disk
+            };
+            ModStateDto s;
+            if (saved.TryGetValue(name, out s)) { e.DisplayName = s.DisplayName; e.Description = s.Description; }
+            return e;
+        }
+
+        private IEnumerable<ModEntry> ScanLibraryMods(Dictionary<string, ModStateDto> saved)
+        {
+            var list        = new List<ModEntry>();
             var folderNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var dir in Directory.GetDirectories(ModsDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
             {
                 string name = Path.GetFileName(dir);
                 if (name.StartsWith(".")) continue;
+                ModType t = DetectType(dir);
+                if (t == ModType.Texturemods) continue; // texture mods belong in texturemods/, not the library
                 folderNames.Add(name);
-                found.Add(MakeEntry(name, dir, false, DetectType(dir), byName));
+                list.Add(MakeLibrary(name, dir, false, t, saved));
             }
-
-            // .rar archives that don't already have an extracted folder of the same
-            // name. The game unpacks .rar in gamedata/texturemods itself, so a .rar
-            // mod deploys as the archive; treated as a texture pack.
-            foreach (var rar in Directory.GetFiles(ModsDir, "*.rar", SearchOption.TopDirectoryOnly))
-            {
-                string name = Path.GetFileNameWithoutExtension(rar);
-                if (folderNames.Contains(name)) continue;
-                found.Add(MakeEntry(name, rar, true, ModType.Texturemods, byName));
-            }
-
-            // Preserve the saved order; append newly-found mods at the bottom.
-            var ordered  = new List<ModEntry>();
-            var lookup   = found.ToDictionary(m => m.Name, StringComparer.OrdinalIgnoreCase);
-            foreach (var s in state.Mods)
-            {
-                if (s.Name != null && lookup.ContainsKey(s.Name))
-                {
-                    ordered.Add(lookup[s.Name]);
-                    lookup.Remove(s.Name);
-                }
-            }
-            ordered.AddRange(found.Where(m => lookup.ContainsKey(m.Name)));
-            Mods = ordered;
+            // .rar in the library that is a load/FMV mod is unusual; treat bare .rar as texture and skip here.
+            return list;
         }
 
-        private static ModEntry MakeEntry(string name, string libraryPath, bool isArchive,
-                                          ModType type, Dictionary<string, ModStateDto> saved)
+        private static ModEntry MakeLibrary(string name, string path, bool isArchive, ModType type,
+                                            Dictionary<string, ModStateDto> saved)
         {
             var e = new ModEntry
             {
                 Name        = name,
-                LibraryPath = libraryPath,
-                IsArchive   = isArchive,
-                Type        = type
+                Type        = type,
+                Source      = ModSource.Library,
+                LibraryPath = path,
+                IsArchive   = isArchive
             };
             ModStateDto s;
             if (saved.TryGetValue(name, out s))
             {
-                e.Enabled     = s.Enabled;
-                e.DisplayName = s.DisplayName;
-                e.Description = s.Description;
+                e.Enabled = s.Enabled; e.DisplayName = s.DisplayName; e.Description = s.Description;
             }
             return e;
         }
@@ -221,8 +261,7 @@ namespace SilentHillPC_Launcher
                 {
                     using (var fs = File.OpenRead(StatePath))
                     {
-                        var ser = new DataContractJsonSerializer(typeof(ModStateFile));
-                        var f   = (ModStateFile)ser.ReadObject(fs);
+                        var f = (ModStateFile)new DataContractJsonSerializer(typeof(ModStateFile)).ReadObject(fs);
                         if (f != null && f.Mods != null) return f;
                     }
                 }
@@ -238,120 +277,252 @@ namespace SilentHillPC_Launcher
             {
                 Mods = Mods.Select(m => new ModStateDto
                 {
-                    Name        = m.Name,
-                    Enabled     = m.Enabled,
-                    DisplayName = m.DisplayName,
-                    Description = m.Description
+                    Name = m.Name, Enabled = m.Enabled, DisplayName = m.DisplayName, Description = m.Description
                 }).ToList()
             };
             using (var fs = File.Create(StatePath))
-            {
-                var ser = new DataContractJsonSerializer(typeof(ModStateFile));
-                ser.WriteObject(fs, f);
-            }
+                new DataContractJsonSerializer(typeof(ModStateFile)).WriteObject(fs, f);
         }
 
         // --- type detection ---------------------------------------------------
 
-        private static IEnumerable<string> SafeFiles(string dir)
-        {
-            try { return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories); }
-            catch { return Enumerable.Empty<string>(); }
-        }
-
         private static ModType DetectType(string dir)
         {
-            bool hasAvi  = false;
-            bool hasFile = false;
-
+            bool hasAvi = false, hasFile = false;
             foreach (var f in SafeFiles(dir))
             {
                 hasFile = true;
                 string n = Path.GetFileName(f).ToLowerInvariant();
-                if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-")))
-                    return ModType.Texturemods;
-                if (n == "config.yaml")
-                    return ModType.Texturemods;
-                if (n.EndsWith(".avi"))
-                    hasAvi = true;
+                if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
+                if (n == "config.yaml") return ModType.Texturemods;
+                if (n.EndsWith(".avi")) hasAvi = true;
             }
-
             if (hasAvi) return ModType.Fmv;
             if (FindDirNamed(dir, "load") != null) return ModType.Load;
-            if (hasFile) return ModType.Load; // disc-structured assets at the mod root
+            if (hasFile) return ModType.Load;
             return ModType.Unknown;
         }
 
-        /// <summary>First directory (self or descendant) whose name matches, case-insensitive.</summary>
+        /// <summary>Detect a dropped path's type, peeking inside .zip archives (rar assumed texture).</summary>
+        private static ModType DetectDroppedType(string path)
+        {
+            if (Directory.Exists(path)) return DetectType(path);
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext == ".rar") return ModType.Texturemods; // can't peek; texture packs are the rar use-case
+            if (ext == ".zip")
+            {
+                try
+                {
+                    using (var za = ZipFile.OpenRead(path))
+                    {
+                        bool hasAvi = false;
+                        foreach (var en in za.Entries)
+                        {
+                            string n = Path.GetFileName(en.FullName).ToLowerInvariant();
+                            if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
+                            if (n == "config.yaml") return ModType.Texturemods;
+                            if (n.EndsWith(".avi")) hasAvi = true;
+                            if (en.FullName.Replace('\\', '/').ToLowerInvariant().Contains("load/")) return ModType.Load;
+                        }
+                        if (hasAvi) return ModType.Fmv;
+                    }
+                }
+                catch { }
+                return ModType.Texturemods; // default: archives are usually texture packs
+            }
+            return ModType.Unknown;
+        }
+
         private static string FindDirNamed(string root, string name)
         {
             try
             {
-                if (string.Equals(Path.GetFileName(root), name, StringComparison.OrdinalIgnoreCase))
-                    return root;
+                if (string.Equals(Path.GetFileName(root), name, StringComparison.OrdinalIgnoreCase)) return root;
                 foreach (var d in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
-                    if (string.Equals(Path.GetFileName(d), name, StringComparison.OrdinalIgnoreCase))
-                        return d;
+                    if (string.Equals(Path.GetFileName(d), name, StringComparison.OrdinalIgnoreCase)) return d;
             }
             catch { }
             return null;
         }
 
-        /// <summary>The subtree inside a mod whose contents map onto the target dir.</summary>
         private static string DeploySourceRoot(string modDir, ModType type)
         {
-            string wrapper =
-                type == ModType.Texturemods ? "texturemods" :
-                type == ModType.Load        ? "load"        :
-                type == ModType.Fmv         ? "FMV"         : null;
-
-            if (wrapper != null)
-            {
-                string found = FindDirNamed(modDir, wrapper);
-                if (found != null) return found;
-            }
+            string wrapper = type == ModType.Load ? "load" : type == ModType.Fmv ? "FMV" : null;
+            if (wrapper != null) { string f = FindDirNamed(modDir, wrapper); if (f != null) return f; }
             return modDir;
         }
 
-        // --- import / remove --------------------------------------------------
+        // --- import (drag & drop) --------------------------------------------
 
-        /// <summary>Copy a dropped folder or .zip/.rar archive into the library.</summary>
-        public bool Import(string path, Action<int, int, string> report = null)
+        /// <summary>Route a dropped folder/archive to texturemods/ (texture) or mods/ (load/FMV).</summary>
+        public bool Import(string path, Action<int, int, string> report)
         {
             try
             {
+                ModType t = DetectDroppedType(path);
+                if (t == ModType.Unknown) return false;
+
+                if (t == ModType.Texturemods)
+                {
+                    Directory.CreateDirectory(TexturemodsDir);
+                    if (Directory.Exists(path))
+                    {
+                        // A loose extracted pack — copy the folder in; it's active immediately.
+                        string dest = Path.Combine(TexturemodsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
+                        if (!Directory.Exists(dest)) CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest));
+                    }
+                    else
+                    {
+                        // An archive — copy it in, then install (extract) it right away.
+                        string dest = Path.Combine(TexturemodsDir, Path.GetFileName(path));
+                        if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
+                        if (!File.Exists(dest)) File.Copy(path, dest);
+                        var stub = MakeTexture(Path.GetFileName(dest), dest, true, false,
+                                               new Dictionary<string, ModStateDto>());
+                        InstallTexture(stub, report);
+                    }
+                    return true;
+                }
+
+                // Load / FMV → the mods/ library (extracted/scanned like before).
+                Directory.CreateDirectory(ModsDir);
                 if (Directory.Exists(path))
                 {
                     string dest = Path.Combine(ModsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
                     if (!Directory.Exists(dest)) CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest));
-                    return true;
                 }
-                if (File.Exists(path))
+                else
                 {
-                    string ext = Path.GetExtension(path).ToLowerInvariant();
-                    if (ext == ".zip" || ext == ".rar")
-                    {
-                        Directory.CreateDirectory(ModsDir);
-                        string dest = Path.Combine(ModsDir, Path.GetFileName(path));
-                        if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
-                        if (!File.Exists(dest)) File.Copy(path, dest);
-                        return true;
-                    }
+                    string dest = Path.Combine(ModsDir, Path.GetFileName(path));
+                    if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
+                    if (!File.Exists(dest)) File.Copy(path, dest);
                 }
+                return true;
             }
-            catch { }
-            return false;
+            catch { return false; }
         }
 
-        /// <summary>Delete a mod's library files (folder + any sibling archive).</summary>
-        public void RemoveMod(ModEntry m)
+        // --- texture install / uninstall / delete -----------------------------
+
+        public enum InstallStatus { Installed, PendingGameExtract, Failed }
+
+        /// <summary>Extract an archive (or re-enable a loose folder) so the game loads it.</summary>
+        public InstallStatus InstallTexture(ModEntry m, Action<int, int, string> report)
         {
             try
             {
-                if (m.IsArchive) { if (File.Exists(m.LibraryPath)) File.Delete(m.LibraryPath); }
-                else if (Directory.Exists(m.LibraryPath)) Directory.Delete(m.LibraryPath, true);
+                if (!m.IsArchive)
+                {
+                    // Loose folder: re-enable by dropping the .disabled suffix.
+                    if (IsDisabled(m.LibraryPath))
+                    {
+                        string on = StripDisabled(m.LibraryPath);
+                        if (Directory.Exists(on)) Directory.Delete(m.LibraryPath, true);
+                        else Directory.Move(m.LibraryPath, on);
+                        m.LibraryPath = on;
+                    }
+                    m.Enabled = true;
+                    return InstallStatus.Installed;
+                }
 
-                foreach (var ext in new[] { ".zip", ".rar" })
+                // Archive: make sure it's enabled (not *.disabled), then extract.
+                string archive = m.LibraryPath;
+                if (IsDisabled(archive))
+                {
+                    string on = StripDisabled(archive);
+                    if (File.Exists(on)) File.Delete(archive); else File.Move(archive, on);
+                    archive = on;
+                    m.LibraryPath = on;
+                }
+
+                string dest = ExtractedDirFor(archive);
+                if (Directory.Exists(dest)) Directory.Delete(dest, true);
+
+                bool ok;
+                string ext = Path.GetExtension(archive).ToLowerInvariant();
+                if (ext == ".zip") { ExtractZip(archive, dest, report); ok = true; }
+                else if (ext == ".rar" && RarExtractor.IsAvailable()) ok = RarExtractor.Extract(archive, dest, report);
+                else ok = false;
+
+                if (ok)
+                {
+                    try { File.WriteAllText(Path.Combine(dest, ".done"), ""); } catch { }
+                    m.Enabled = true;
+                    return InstallStatus.Installed;
+                }
+
+                // Fallback (rar with no UnRAR.dll): leave the archive enabled in place; the
+                // game unpacks it on next launch. Clean up a partial extract.
+                if (Directory.Exists(dest)) { try { Directory.Delete(dest, true); } catch { } }
+                m.Enabled = true;
+                return InstallStatus.PendingGameExtract;
+            }
+            catch { return InstallStatus.Failed; }
+        }
+
+        /// <summary>Delete the extracted folder and disable the archive/folder so the game skips it.</summary>
+        public void UninstallTexture(ModEntry m)
+        {
+            try
+            {
+                if (!m.IsArchive)
+                {
+                    if (!IsDisabled(m.LibraryPath))
+                    {
+                        string off = m.LibraryPath + ".disabled";
+                        if (Directory.Exists(off)) Directory.Delete(m.LibraryPath, true);
+                        else Directory.Move(m.LibraryPath, off);
+                        m.LibraryPath = Directory.Exists(off) ? off : m.LibraryPath;
+                    }
+                    m.Enabled = false;
+                    return;
+                }
+
+                string archive = IsDisabled(m.LibraryPath) ? StripDisabled(m.LibraryPath) : m.LibraryPath;
+                string dest    = ExtractedDirFor(archive);
+                if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                if (File.Exists(archive))
+                {
+                    string off = archive + ".disabled";
+                    if (File.Exists(off)) File.Delete(archive); else File.Move(archive, off);
+                    m.LibraryPath = File.Exists(off) ? off : archive;
+                }
+                m.Enabled = false;
+            }
+            catch { }
+        }
+
+        /// <summary>Delete a texture mod entirely: archive (enabled or disabled) + extracted folder.</summary>
+        public void DeleteTexture(ModEntry m)
+        {
+            try
+            {
+                if (m.IsArchive)
+                {
+                    string enabled = StripDisabled(m.LibraryPath);
+                    foreach (var p in new[] { enabled, enabled + ".disabled" })
+                        if (File.Exists(p)) File.Delete(p);
+                    string dest = ExtractedDirFor(enabled);
+                    if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                }
+                else
+                {
+                    string enabled = StripDisabled(m.LibraryPath);
+                    foreach (var p in new[] { enabled, enabled + ".disabled" })
+                        if (Directory.Exists(p)) Directory.Delete(p, true);
+                }
+            }
+            catch { }
+            Mods.Remove(m);
+        }
+
+        /// <summary>Delete a library (load/FMV) mod's files, plus any sibling archive.</summary>
+        public void DeleteLibrary(ModEntry m)
+        {
+            try
+            {
+                if (Directory.Exists(m.LibraryPath)) Directory.Delete(m.LibraryPath, true);
+                foreach (var ext in ArchiveExts)
                 {
                     string sib = Path.Combine(ModsDir, m.Name + ext);
                     if (File.Exists(sib)) File.Delete(sib);
@@ -361,92 +532,71 @@ namespace SilentHillPC_Launcher
             Mods.Remove(m);
         }
 
-        // --- deploy -----------------------------------------------------------
+        // --- apply ------------------------------------------------------------
 
         public class ApplyResult
         {
             public int Texture, Load, Fmv, Files;
             public bool LooseEnabled;
             public List<string> Warnings = new List<string>();
+            public bool AnyPendingGameExtract;
         }
 
-        /// <summary>
-        /// Undeploy everything previously deployed, then deploy the enabled mods
-        /// in priority order. <paramref name="looseFileSupport"/> drives
-        /// allow_loose_files; it is force-enabled when a load mod is active.
-        /// </summary>
-        public ApplyResult Apply(bool looseFileSupport, Action<int, int, string> report = null)
+        public ApplyResult Apply(bool looseFileSupport, Action<int, int, string> report)
         {
             var result = new ApplyResult();
 
-            if (report != null) report(0, 0, "Removing previous deployment…");
-            Undeploy();
-
-            var manifest = new List<string>();
-
-            // Texture packs: each to its own subfolder; loadorder.txt ranks them.
-            var texMods = Mods.Where(m => m.Enabled && m.Type == ModType.Texturemods).ToList();
+            // 1) Reconcile texture mods in place (install checked, uninstall unchecked).
+            var texMods = Mods.Where(m => m.Source == ModSource.TextureMods).ToList();
             foreach (var m in texMods)
             {
-                string dst = Path.Combine(TexturemodsDir, m.Name);
-                try
+                bool installedNow = IsTextureInstalled(m);
+                if (m.Enabled && !installedNow)
                 {
-                    if (m.IsArchive)
-                    {
-                        // Copy the .rar in; the game unpacks it into <dst>/*.rar.extracted/.
-                        if (report != null) report(0, 0, "Deploying " + m.Label);
-                        Directory.CreateDirectory(dst);
-                        File.Copy(m.LibraryPath, Path.Combine(dst, Path.GetFileName(m.LibraryPath)), true);
-                    }
-                    else
-                    {
-                        CopyTree(DeploySourceRoot(m.LibraryPath, ModType.Texturemods), dst, report, "Deploying " + m.Label);
-                    }
-                    manifest.Add("D|" + Rel(dst));
-                    result.Texture++;
+                    var st = InstallTexture(m, report);
+                    if (st == InstallStatus.Failed) result.Warnings.Add(m.Label + ": install failed");
+                    else if (st == InstallStatus.PendingGameExtract) result.AnyPendingGameExtract = true;
                 }
-                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
+                else if (!m.Enabled && installedNow)
+                {
+                    if (report != null) report(0, 0, "Uninstalling " + m.Label);
+                    UninstallTexture(m);
+                }
             }
-            if (texMods.Count > 0)
+
+            // 2) loadorder.txt for the active texture packs, highest priority first.
+            var active = Mods.Where(m => m.Source == ModSource.TextureMods && m.Enabled).ToList();
+            if (active.Count > 0)
             {
                 Directory.CreateDirectory(TexturemodsDir);
-                // Highest priority first — matches tex_pack.c LoadOrder_Priority.
-                File.WriteAllLines(LoadOrderPath, texMods.Select(m => m.Name));
+                File.WriteAllLines(LoadOrderPath, active.Select(TexturePackFolderName));
                 _config.Set("texture_packs", "1");
+                result.Texture = active.Count;
             }
             else if (File.Exists(LoadOrderPath))
             {
                 try { File.Delete(LoadOrderPath); } catch { }
             }
 
-            // Load-folder mods: merge into gamedata/load. Higher priority copied
-            // LAST so it overwrites, so walk the enabled list in reverse.
-            var loadMods = Mods.Where(m => m.Enabled && m.Type == ModType.Load).ToList();
+            // 3) Deploy load/FMV from the library (wipe + redeploy via manifest).
+            if (report != null) report(0, 0, "Deploying load/FMV mods…");
+            Undeploy();
+            var manifest = new List<string>();
+
+            var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
             foreach (var m in Enumerable.Reverse(loadMods))
             {
-                try
-                {
-                    result.Files += CopyTreeTracked(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, manifest);
-                    result.Load++;
-                }
+                try { result.Files += CopyTreeTracked(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, manifest); result.Load++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
-
-            // FMV mods: flatten every .avi into gamedata/FMV. Same overwrite rule.
-            var fmvMods = Mods.Where(m => m.Enabled && m.Type == ModType.Fmv).ToList();
+            var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
             foreach (var m in Enumerable.Reverse(fmvMods))
             {
-                try
-                {
-                    result.Files += CopyAvisFlat(m.LibraryPath, FmvDir, manifest);
-                    result.Fmv++;
-                }
+                try { result.Files += CopyAvisFlat(m.LibraryPath, FmvDir, manifest); result.Fmv++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
-
             WriteManifest(manifest);
 
-            // A load-folder mod is inert unless the game scans gamedata/load.
             bool loose = looseFileSupport || loadMods.Count > 0;
             _config.Set("allow_loose_files", loose ? "1" : "0");
             _config.Save();
@@ -455,6 +605,21 @@ namespace SilentHillPC_Launcher
             SaveState();
             return result;
         }
+
+        private bool IsTextureInstalled(ModEntry m)
+        {
+            if (m.IsArchive)
+                return !IsDisabled(m.LibraryPath) && Directory.Exists(ExtractedDirFor(StripDisabled(m.LibraryPath)));
+            return !IsDisabled(m.LibraryPath) && Directory.Exists(m.LibraryPath);
+        }
+
+        /// <summary>Top-level texturemods folder name the game will index for an active pack.</summary>
+        private static string TexturePackFolderName(ModEntry m)
+        {
+            return m.IsArchive ? m.Name + ".extracted" : m.Name;
+        }
+
+        // --- deploy plumbing (load/FMV) --------------------------------------
 
         private void Undeploy()
         {
@@ -475,7 +640,6 @@ namespace SilentHillPC_Launcher
             }
             PruneEmptyDirs(LoadDir);
             PruneEmptyDirs(FmvDir);
-            PruneEmptyDirs(TexturemodsDir);
         }
 
         private void WriteManifest(List<string> manifest)
@@ -487,9 +651,28 @@ namespace SilentHillPC_Launcher
         private string Rel(string full)
         {
             string root = _gameRoot.EndsWith("\\") ? _gameRoot : _gameRoot + "\\";
-            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase)
-                ? full.Substring(root.Length)
-                : full;
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full.Substring(root.Length) : full;
+        }
+
+        private static void ExtractZip(string zip, string dest, Action<int, int, string> report)
+        {
+            using (var za = ZipFile.OpenRead(zip))
+            {
+                int total = za.Entries.Count, i = 0;
+                string fullDest = Path.GetFullPath(dest);
+                Directory.CreateDirectory(dest);
+                foreach (var entry in za.Entries)
+                {
+                    i++;
+                    if (report != null) report(i, total, string.Format("Extracting {0}  ({1}/{2})",
+                        Path.GetFileName(zip), i, total));
+                    string outPath = Path.GetFullPath(Path.Combine(dest, entry.FullName));
+                    if (!outPath.StartsWith(fullDest, StringComparison.OrdinalIgnoreCase)) continue; // zip-slip guard
+                    if (string.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(outPath); continue; }
+                    Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+                    entry.ExtractToFile(outPath, true);
+                }
+            }
         }
 
         private static void CopyTree(string src, string dst, Action<int, int, string> report = null, string label = null)
@@ -500,8 +683,7 @@ namespace SilentHillPC_Launcher
             var files = Directory.GetFiles(src, "*", SearchOption.AllDirectories);
             for (int i = 0; i < files.Length; i++)
             {
-                if (report != null)
-                    report(i + 1, files.Length, string.Format("{0}  ({1}/{2})", label ?? "Copying", i + 1, files.Length));
+                if (report != null) report(i + 1, files.Length, string.Format("{0}  ({1}/{2})", label ?? "Copying", i + 1, files.Length));
                 File.Copy(files[i], files[i].Replace(src, dst), true);
             }
         }
@@ -543,11 +725,7 @@ namespace SilentHillPC_Launcher
             foreach (var dir in Directory.GetDirectories(root, "*", SearchOption.AllDirectories)
                                           .OrderByDescending(d => d.Length))
             {
-                try
-                {
-                    if (!Directory.EnumerateFileSystemEntries(dir).Any())
-                        Directory.Delete(dir, false);
-                }
+                try { if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir, false); }
                 catch { }
             }
         }
@@ -555,8 +733,13 @@ namespace SilentHillPC_Launcher
         public void OpenModsFolder()
         {
             Directory.CreateDirectory(ModsDir);
-            try { System.Diagnostics.Process.Start("explorer.exe", "\"" + ModsDir + "\""); }
-            catch { }
+            try { System.Diagnostics.Process.Start("explorer.exe", "\"" + ModsDir + "\""); } catch { }
+        }
+
+        public void OpenTextureModsFolder()
+        {
+            Directory.CreateDirectory(TexturemodsDir);
+            try { System.Diagnostics.Process.Start("explorer.exe", "\"" + TexturemodsDir + "\""); } catch { }
         }
     }
 }

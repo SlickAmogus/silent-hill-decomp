@@ -84,6 +84,14 @@ $maps = Join-Path $BuildDir "maps"
 # the *.old rename swap in UpdateChecker.ReplaceFile).
 $launcherExe = Join-Path $PSScriptRoot "..\pc_port\launcher\SilentHillPC_Launcher\bin\Release\SilentHillPC_Launcher.exe"
 
+# The mod manager's .rar extractor needs UnRAR.dll beside the launcher. The
+# committed copy lives with the launcher source; stage it into the build dir so
+# the "*.dll next to the exe" bundling below (both the zip and loose paths, which
+# glob $BuildDir\*.dll) ships it automatically. A clean game rebuild doesn't
+# produce it (it is a vendored prebuilt), so copy it here every run.
+$unrarSrc = Join-Path $PSScriptRoot "..\pc_port\launcher\SilentHillPC_Launcher\UnRAR.dll"
+if (Test-Path $unrarSrc) { Copy-Item $unrarSrc (Join-Path $BuildDir "UnRAR.dll") -Force }
+
 if (-not (Test-Path $exe))  { throw "SilentHillPC.exe not found at $exe. Run cmake --build first." }
 if (-not (Test-Path $maps)) { throw "maps/ folder not found at $maps." }
 

@@ -84,6 +84,7 @@
     <Compile Include="ProgressDialog.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="RarExtractor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
          missing config.cfg with the full detailed template; the link keeps
@@ -126,6 +127,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="favicon.ico" />
+    <!-- Vendored unrar built as a DLL (third_party/unrar/UnRARDll.vcxproj, x64)
+         so the mod manager can extract .rar texture packs. Ships next to the
+         launcher exe; release-nightly.ps1 bundles it into releases. -->
+    <Content Include="UnRAR.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
