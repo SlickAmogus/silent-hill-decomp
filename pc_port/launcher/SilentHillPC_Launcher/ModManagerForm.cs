@@ -6,11 +6,12 @@ using System.Windows.Forms;
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Mod manager modal (opened from Form1's manager button). Lists the mods in
-    /// the self-owned <c>mods/</c> library, lets the user enable/disable, set load
-    /// order, drag-and-drop new mods in, and name/describe them, then deploys the
-    /// enabled ones into the game's override dirs on Apply. Code-generated (no
-    /// Designer), sharing Form1's ConfigManager so the allow_loose_files /
+    /// Mod manager modal (opened from Form1's manager button). Lists texture mods
+    /// (managed in place in gamedata/texturemods/) and load/FMV mods (the mods/
+    /// library), lets the user enable/disable, set load order, drag-and-drop new
+    /// mods in, and name/describe them, then commits it all on Apply (texture packs
+    /// toggled in place; load/FMV deployed into the override dirs). Code-generated
+    /// (no Designer), sharing Form1's ConfigManager so the allow_loose_files /
     /// texture_packs writes land in the same config.cfg.
     /// </summary>
     public class ModManagerForm : Form
