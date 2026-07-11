@@ -18,7 +18,7 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName",     "KONAMI"
-            VALUE "FileDescription", "Silent Hill PC port based on decompiled PSX code. Source: https://github.com/SlickAmogus/silent-hill-decomp"
+            VALUE "FileDescription", "Silent Hill PC"
             VALUE "FileVersion",     SH_VER_FILE_STR
             VALUE "LegalCopyright",  "KONAMI"
             VALUE "ProductName",     "Silent Hill"

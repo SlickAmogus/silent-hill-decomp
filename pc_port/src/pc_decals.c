@@ -41,11 +41,23 @@
     (u16)((((HIRES_POOL_CLUT_ROW_BASE + (DECAL_POOL_SLOT / 64) * HIRES_POOL_MAX_ROWS)) << 6) | \
           (DECAL_POOL_SLOT % 64))
 
-/* World geometry stores per-prim GL depth quantized to 64 SZ units, always
- * rounding NEARER; the 0.02u world offset (~5 SZ) vanishes inside a quantum.
- * Bias the decal's exact per-vertex SZ past one full quantum so it wins the
- * depth test against the surface it sits on in the worst rounding case. */
-#define DECAL_SZ_BIAS 96
+/* Two independent forward biases, because the world sorts two different ways:
+ *
+ * DECAL_SZ_BIAS — the exact per-vertex SZ handed to PsyX_SetNextPrimSzExact,
+ *   used only by the GL depth test in pgxpZBuffer mode. World geometry stores
+ *   its per-prim GL depth quantized to 64 SZ, always rounding NEARER, so the
+ *   decal must clear a full quantum to win the depth test against the surface
+ *   it sits on in the worst rounding case. Keep it at ~1.5 quanta.
+ *
+ * DECAL_BUCKET_BIAS — how far the decal is pulled forward for the painter's
+ *   OT bucket (the DEFAULT path: no depth buffer, order is bucket-only, and a
+ *   decal added after its wall draws UNDER it in the same bucket). One bucket
+ *   (32 SZ, since bucket = avgSZ >> 5) is the minimum that draws the decal over
+ *   its coplanar host. Using DECAL_SZ_BIAS here instead pulled the decal 3
+ *   buckets nearer, so it painted over any object standing within ~3 buckets in
+ *   front of the wall (enemies, railings) — the bug this split fixes. */
+#define DECAL_SZ_BIAS     96
+#define DECAL_BUCKET_BIAS 32
 
 typedef struct {
     VECTOR3 center; /* Q19.12 world, already offset along the normal */
@@ -275,7 +287,7 @@ void Pc_DecalsDraw(GsOT* ot)
         s16              sx[4];
         s16              sy[4];
         u16              sz[4];
-        s32              szSum = 0;
+        s32              bucketSum = 0;
         s32              bucket;
         int              k;
         int              ok = 1;
@@ -317,9 +329,13 @@ void Pc_DecalsDraw(GsOT* ot)
             }
 
             {
+                /* Per-vertex GL depth (pgxpZBuffer path): full 1.5-quantum bias. */
                 s32 biased = (otz << 2) - DECAL_SZ_BIAS;
-                sz[k]      = (u16)((biased < 1) ? 1 : biased);
-                szSum     += sz[k];
+                /* Painter's OT bucket: only one bucket forward, so we clear the
+                 * coplanar host wall without over-drawing foreground geometry. */
+                s32 bbiased = (otz << 2) - DECAL_BUCKET_BIAS;
+                sz[k]       = (u16)((biased < 1) ? 1 : biased);
+                bucketSum  += (bbiased < 1) ? 1 : bbiased;
             }
         }
 
@@ -329,7 +345,7 @@ void Pc_DecalsDraw(GsOT* ot)
         }
 
         /* World-geometry bucket convention: SZ >> 3 >> 2 (SH_CLAMP_OT_DEPTH). */
-        bucket = (szSum >> 2) >> 5;
+        bucket = (bucketSum >> 2) >> 5;
         if (bucket < 0)
         {
             bucket = 0;
