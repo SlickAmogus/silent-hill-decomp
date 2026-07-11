@@ -531,10 +531,17 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
 - Three auto-detected types: DuckStation texture packs (`texupload-*`/`config.yaml`)
   → `gamedata/texturemods/<mod>/` + `loadorder.txt`; load-folder mods (a `load/`
   or disc-structured tree) → `gamedata/load/` (merge; forces `allow_loose_files=1`);
-  FMV mods (`.avi`) → flattened into `gamedata/FMV/`. `.zip` archives dropped in
-  `mods/` are auto-extracted once. List order = load order (top = highest
-  priority): texture packs ranked via `loadorder.txt`, load/FMV copied highest-
-  last so it overwrites. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`.
+  FMV mods (`.avi`) → flattened into `gamedata/FMV/`. List order = load order (top
+  = highest priority): texture packs ranked via `loadorder.txt`, load/FMV copied
+  highest-last so it overwrites. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`.
+- Archives: `.zip` dropped in `mods/` auto-extracts once; `.rar` is kept as-is
+  and (as a texture pack) deployed into its `texturemods/<mod>/` subfolder for the
+  GAME's own `.rar` extractor to unpack on launch (no unrar in the launcher —
+  reuses the vendored one linked into the game). Drag-and-drop onto the window
+  imports folders/`.zip`/`.rar` into the library; right-click a mod for a friendly
+  display name + notes (stored in `mods/modmanager.json`, DataContract JSON; the
+  folder name stays the deploy identity). The Form1 button swaps to
+  `manager_clicked.png` while pressed.
 
 ## PAL (SLES-01514) fonts + languages + FMV batch (2026-07-08, commits `52582ca4b`..`f97055547`)
 

@@ -1176,6 +1176,22 @@ public partial class Form1 : Form
         }
     }
 
+    private void btnManager_MouseDown(object sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+            btnManager.BackgroundImage = SilentHillPC_Launcher.Properties.Resources.manager_clicked;
+    }
+
+    private void btnManager_MouseUp(object sender, MouseEventArgs e)
+    {
+        btnManager.BackgroundImage = SilentHillPC_Launcher.Properties.Resources.manager;
+    }
+
+    private void btnManager_MouseLeave(object sender, EventArgs e)
+    {
+        btnManager.BackgroundImage = SilentHillPC_Launcher.Properties.Resources.manager;
+    }
+
     private void comboRefresh_SelectedIndexChanged(object sender, EventArgs e)
     {
 

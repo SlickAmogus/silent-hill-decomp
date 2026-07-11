@@ -119,6 +119,7 @@
   <ItemGroup>
     <None Include="Resources\launcher.png" />
     <None Include="Resources\manager.png" />
+    <None Include="Resources\manager_clicked.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="favicon.ico" />

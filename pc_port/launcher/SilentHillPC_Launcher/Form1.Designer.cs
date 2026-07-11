@@ -264,12 +264,15 @@ partial class Form1
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
             this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnManager.FlatAppearance.BorderSize = 0;
-            this.btnManager.Location = new System.Drawing.Point(216, 278);
+            this.btnManager.Location = new System.Drawing.Point(216, 271);
             this.btnManager.Name = "btnManager";
             this.btnManager.Size = new System.Drawing.Size(192, 48);
             this.btnManager.TabIndex = 11;
             this.btnManager.UseVisualStyleBackColor = true;
             this.btnManager.Click += new System.EventHandler(this.btnManager_Click);
+            this.btnManager.MouseDown += new System.Windows.Forms.MouseEventHandler(this.btnManager_MouseDown);
+            this.btnManager.MouseUp += new System.Windows.Forms.MouseEventHandler(this.btnManager_MouseUp);
+            this.btnManager.MouseLeave += new System.EventHandler(this.btnManager_MouseLeave);
             //
             // btnPlay
             //

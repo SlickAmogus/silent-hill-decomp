@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Text;
 
 namespace SilentHillPC_Launcher
@@ -11,9 +13,15 @@ namespace SilentHillPC_Launcher
 
     public class ModEntry
     {
-        public string  Name;      // library folder name under mods/
+        public string  Name;        // identity: library folder or .rar base name (also the texturemods subfolder + loadorder line)
         public ModType Type;
         public bool    Enabled;
+        public string  DisplayName; // optional friendly label (cosmetic; identity stays Name)
+        public string  Description; // optional user note
+        public string  LibraryPath; // full path to the mod's folder, or its .rar file
+        public bool    IsArchive;   // .rar: deployed as-is into texturemods/<Name>/, the game extracts it
+
+        public string Label { get { return string.IsNullOrEmpty(DisplayName) ? Name : DisplayName; } }
 
         public string TypeLabel
         {
@@ -21,13 +29,28 @@ namespace SilentHillPC_Launcher
             {
                 switch (Type)
                 {
-                    case ModType.Texturemods: return "Texture pack";
+                    case ModType.Texturemods: return IsArchive ? "Texture pack (RAR)" : "Texture pack";
                     case ModType.Load:        return "Load folder";
                     case ModType.Fmv:         return "FMV";
                     default:                  return "Unrecognized";
                 }
             }
         }
+    }
+
+    [DataContract]
+    public class ModStateDto
+    {
+        [DataMember] public string Name;
+        [DataMember] public bool   Enabled;
+        [DataMember] public string DisplayName;
+        [DataMember] public string Description;
+    }
+
+    [DataContract]
+    public class ModStateFile
+    {
+        [DataMember] public List<ModStateDto> Mods;
     }
 
     /// <summary>
@@ -43,21 +66,25 @@ namespace SilentHillPC_Launcher
     ///    resolved by the game's compositor (tex_pack.c).
     ///  - load/FMV: files merge into shared dirs, so higher priority is copied
     ///    LAST (overwrites lower).
+    ///
+    /// Archives: .zip is expanded into a same-named folder on scan; .rar is kept
+    /// as-is and (for texture packs) deployed into its subfolder for the game's
+    /// own .rar extractor to unpack on launch.
     /// </summary>
     public class ModManager
     {
         private readonly string _gameRoot;
         private readonly ConfigManager _config;
 
-        public string ModsDir        { get { return Path.Combine(_gameRoot, "mods"); } }
-        private string GamedataDir   { get { return Path.Combine(_gameRoot, "gamedata"); } }
-        private string TexturemodsDir{ get { return Path.Combine(GamedataDir, "texturemods"); } }
-        private string LoadDir       { get { return Path.Combine(GamedataDir, "load"); } }
-        private string FmvDir        { get { return Path.Combine(GamedataDir, "FMV"); } }
+        public string ModsDir         { get { return Path.Combine(_gameRoot, "mods"); } }
+        private string GamedataDir    { get { return Path.Combine(_gameRoot, "gamedata"); } }
+        private string TexturemodsDir { get { return Path.Combine(GamedataDir, "texturemods"); } }
+        private string LoadDir        { get { return Path.Combine(GamedataDir, "load"); } }
+        private string FmvDir         { get { return Path.Combine(GamedataDir, "FMV"); } }
 
-        private string StatePath     { get { return Path.Combine(ModsDir, "modmanager.txt"); } }
-        private string ManifestPath  { get { return Path.Combine(ModsDir, "deployed.txt"); } }
-        private string LoadOrderPath { get { return Path.Combine(TexturemodsDir, "loadorder.txt"); } }
+        private string StatePath      { get { return Path.Combine(ModsDir, "modmanager.json"); } }
+        private string ManifestPath   { get { return Path.Combine(ModsDir, "deployed.txt"); } }
+        private string LoadOrderPath  { get { return Path.Combine(TexturemodsDir, "loadorder.txt"); } }
 
         public List<ModEntry> Mods = new List<ModEntry>();
 
@@ -85,65 +112,103 @@ namespace SilentHillPC_Launcher
                 catch { /* corrupt/locked archive — leave it for the user to see */ }
             }
 
-            var prev  = LoadState();
-            var found = new List<ModEntry>();
+            var state = LoadState();
+            var byName = new Dictionary<string, ModStateDto>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in state.Mods)
+                if (s.Name != null) byName[s.Name] = s;
+
+            var found       = new List<ModEntry>();
+            var folderNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var dir in Directory.GetDirectories(ModsDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
             {
                 string name = Path.GetFileName(dir);
                 if (name.StartsWith(".")) continue;
+                folderNames.Add(name);
+                found.Add(MakeEntry(name, dir, false, DetectType(dir), byName));
+            }
 
-                var e = new ModEntry
-                {
-                    Name    = name,
-                    Type    = DetectType(dir),
-                    Enabled = prev.ContainsKey(name) && prev[name]
-                };
-                found.Add(e);
+            // .rar archives that don't already have an extracted folder of the same
+            // name. The game unpacks .rar in gamedata/texturemods itself, so a .rar
+            // mod deploys as the archive; treated as a texture pack.
+            foreach (var rar in Directory.GetFiles(ModsDir, "*.rar", SearchOption.TopDirectoryOnly))
+            {
+                string name = Path.GetFileNameWithoutExtension(rar);
+                if (folderNames.Contains(name)) continue;
+                found.Add(MakeEntry(name, rar, true, ModType.Texturemods, byName));
             }
 
             // Preserve the saved order; append newly-found mods at the bottom.
-            var ordered   = new List<ModEntry>();
-            var byName     = found.ToDictionary(m => m.Name, StringComparer.OrdinalIgnoreCase);
-            foreach (var name in LoadStateOrder())
+            var ordered  = new List<ModEntry>();
+            var lookup   = found.ToDictionary(m => m.Name, StringComparer.OrdinalIgnoreCase);
+            foreach (var s in state.Mods)
             {
-                if (byName.ContainsKey(name)) { ordered.Add(byName[name]); byName.Remove(name); }
+                if (s.Name != null && lookup.ContainsKey(s.Name))
+                {
+                    ordered.Add(lookup[s.Name]);
+                    lookup.Remove(s.Name);
+                }
             }
-            ordered.AddRange(byName.Values);
+            ordered.AddRange(found.Where(m => lookup.ContainsKey(m.Name)));
             Mods = ordered;
         }
 
-        private Dictionary<string, bool> LoadState()
+        private static ModEntry MakeEntry(string name, string libraryPath, bool isArchive,
+                                          ModType type, Dictionary<string, ModStateDto> saved)
         {
-            var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-            if (!File.Exists(StatePath)) return map;
-            foreach (var line in File.ReadAllLines(StatePath))
+            var e = new ModEntry
             {
-                var parts = line.Split('|');
-                if (parts.Length >= 2) map[parts[1]] = parts[0] == "1";
+                Name        = name,
+                LibraryPath = libraryPath,
+                IsArchive   = isArchive,
+                Type        = type
+            };
+            ModStateDto s;
+            if (saved.TryGetValue(name, out s))
+            {
+                e.Enabled     = s.Enabled;
+                e.DisplayName = s.DisplayName;
+                e.Description = s.Description;
             }
-            return map;
+            return e;
         }
 
-        private List<string> LoadStateOrder()
+        private ModStateFile LoadState()
         {
-            var order = new List<string>();
-            if (!File.Exists(StatePath)) return order;
-            foreach (var line in File.ReadAllLines(StatePath))
+            if (File.Exists(StatePath))
             {
-                var parts = line.Split('|');
-                if (parts.Length >= 2) order.Add(parts[1]);
+                try
+                {
+                    using (var fs = File.OpenRead(StatePath))
+                    {
+                        var ser = new DataContractJsonSerializer(typeof(ModStateFile));
+                        var f   = (ModStateFile)ser.ReadObject(fs);
+                        if (f != null && f.Mods != null) return f;
+                    }
+                }
+                catch { }
             }
-            return order;
+            return new ModStateFile { Mods = new List<ModStateDto>() };
         }
 
         public void SaveState()
         {
-            var sb = new StringBuilder();
-            foreach (var m in Mods)
-                sb.AppendLine((m.Enabled ? "1" : "0") + "|" + m.Name);
             Directory.CreateDirectory(ModsDir);
-            File.WriteAllText(StatePath, sb.ToString());
+            var f = new ModStateFile
+            {
+                Mods = Mods.Select(m => new ModStateDto
+                {
+                    Name        = m.Name,
+                    Enabled     = m.Enabled,
+                    DisplayName = m.DisplayName,
+                    Description = m.Description
+                }).ToList()
+            };
+            using (var fs = File.Create(StatePath))
+            {
+                var ser = new DataContractJsonSerializer(typeof(ModStateFile));
+                ser.WriteObject(fs, f);
+            }
         }
 
         // --- type detection ---------------------------------------------------
@@ -208,6 +273,53 @@ namespace SilentHillPC_Launcher
             return modDir;
         }
 
+        // --- import / remove --------------------------------------------------
+
+        /// <summary>Copy a dropped folder or .zip/.rar archive into the library.</summary>
+        public bool Import(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    string dest = Path.Combine(ModsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
+                    if (!Directory.Exists(dest)) CopyTree(path, dest);
+                    return true;
+                }
+                if (File.Exists(path))
+                {
+                    string ext = Path.GetExtension(path).ToLowerInvariant();
+                    if (ext == ".zip" || ext == ".rar")
+                    {
+                        Directory.CreateDirectory(ModsDir);
+                        string dest = Path.Combine(ModsDir, Path.GetFileName(path));
+                        if (!File.Exists(dest)) File.Copy(path, dest);
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>Delete a mod's library files (folder + any sibling archive).</summary>
+        public void RemoveMod(ModEntry m)
+        {
+            try
+            {
+                if (m.IsArchive) { if (File.Exists(m.LibraryPath)) File.Delete(m.LibraryPath); }
+                else if (Directory.Exists(m.LibraryPath)) Directory.Delete(m.LibraryPath, true);
+
+                foreach (var ext in new[] { ".zip", ".rar" })
+                {
+                    string sib = Path.Combine(ModsDir, m.Name + ext);
+                    if (File.Exists(sib)) File.Delete(sib);
+                }
+            }
+            catch { }
+            Mods.Remove(m);
+        }
+
         // --- deploy -----------------------------------------------------------
 
         public class ApplyResult
@@ -234,16 +346,23 @@ namespace SilentHillPC_Launcher
             var texMods = Mods.Where(m => m.Enabled && m.Type == ModType.Texturemods).ToList();
             foreach (var m in texMods)
             {
-                string modDir = Path.Combine(ModsDir, m.Name);
-                string src    = DeploySourceRoot(modDir, ModType.Texturemods);
-                string dst    = Path.Combine(TexturemodsDir, m.Name);
+                string dst = Path.Combine(TexturemodsDir, m.Name);
                 try
                 {
-                    CopyTree(src, dst);
+                    if (m.IsArchive)
+                    {
+                        // Copy the .rar in; the game unpacks it into <dst>/*.rar.extracted/.
+                        Directory.CreateDirectory(dst);
+                        File.Copy(m.LibraryPath, Path.Combine(dst, Path.GetFileName(m.LibraryPath)), true);
+                    }
+                    else
+                    {
+                        CopyTree(DeploySourceRoot(m.LibraryPath, ModType.Texturemods), dst);
+                    }
                     manifest.Add("D|" + Rel(dst));
                     result.Texture++;
                 }
-                catch (Exception ex) { result.Warnings.Add(m.Name + ": " + ex.Message); }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
             if (texMods.Count > 0)
             {
@@ -262,27 +381,24 @@ namespace SilentHillPC_Launcher
             var loadMods = Mods.Where(m => m.Enabled && m.Type == ModType.Load).ToList();
             foreach (var m in Enumerable.Reverse(loadMods))
             {
-                string modDir = Path.Combine(ModsDir, m.Name);
-                string src    = DeploySourceRoot(modDir, ModType.Load);
                 try
                 {
-                    result.Files += CopyTreeTracked(src, LoadDir, manifest);
+                    result.Files += CopyTreeTracked(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, manifest);
                     result.Load++;
                 }
-                catch (Exception ex) { result.Warnings.Add(m.Name + ": " + ex.Message); }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
             // FMV mods: flatten every .avi into gamedata/FMV. Same overwrite rule.
             var fmvMods = Mods.Where(m => m.Enabled && m.Type == ModType.Fmv).ToList();
             foreach (var m in Enumerable.Reverse(fmvMods))
             {
-                string modDir = Path.Combine(ModsDir, m.Name);
                 try
                 {
-                    result.Files += CopyAvisFlat(modDir, FmvDir, manifest);
+                    result.Files += CopyAvisFlat(m.LibraryPath, FmvDir, manifest);
                     result.Fmv++;
                 }
-                catch (Exception ex) { result.Warnings.Add(m.Name + ": " + ex.Message); }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
             WriteManifest(manifest);
