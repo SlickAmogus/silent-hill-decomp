@@ -608,3 +608,13 @@ Full reference: `pc_port/docs/NTSC_J_Support.md`.
   480..495 — retail JP's own band); SJIS branches in both string drawers +
   width calc. Latent EUR fix: `MSG_COUNT_MAX` 96→176 (MAP7_S02 has 159
   messages; the replaced pointer array under-covered 3 maps on PAL).
+- **NTSC-J title + school Mumblers + 2D right-edge line** (`38bc60ea8`,
+  `9c90980d3`): JP title = load TIM/TITLE.TIM at the GameFs_TitleGfx
+  chokepoint (retail JP title code is instruction-identical to US — verified
+  by decrypted-overlay structural diff); JP school maps (map1_s00..s03 +
+  map6_s04) swap Grey Child->Mumbler models per map load (disc-verified
+  spawn-group bytes); Screen_BackgroundImgDraw tiles clamped to the image's
+  content extent — the PC-only -1 shift (f6354a417) dragged one foreign VRAM
+  texel into the last visible column = full-height tinted line on 2D screens
+  in all regions. Also flashlight mode labels shortened + page-2 value column
+  204 so they fit the 320px clip.

@@ -84,10 +84,29 @@ retail game shipped these in English too (English UI images + FONT16). The
 6. BGM/SFX/voices (XA) play; FMV plays; saves work.
 7. Death → TIPS screen shows the Japanese hint image.
 
+## Added 2026-07-10 evening (commits `38bc60ea8`, `9c90980d3`)
+
+- **Title artwork**: retail JP title code is instruction-identical to US
+  (structural diff of decrypted overlays: 14/14 functions, 0 opcode diffs);
+  the only difference is the file — `TIM/TITLE.TIM` (black bg + scratched
+  logo + baked copyright) vs `TITLE_E.TIM`. Both ship on every disc,
+  byte-identical, same shape/desc. Runtime Region_JPN branch at the
+  GameFs_TitleGfxSeek/Load chokepoint; menu (quote-wrapped START/OPTION),
+  fog, and flow were already region-independent.
+- **School Mumblers**: JP spawns Mumbler (chara 9) where US spawns Grey
+  Child (8) in exactly map1_s00..s03 + map6_s04 (overlay group bytes at
+  +0x24C/0x24D; global CHARA_FILE_INFOS byte-identical across discs).
+  CharaData_ApplyJpnMapPatches: per-map CLD3<->CLD4 model+texture swap
+  (the retail PAL mechanism), applied at map load.
+
 ## Roadmap / not done
 
 - JAP0 (first print) tables.
 - Japanese inventory item names/descs (SJIS tables live in the JAP BODYPROG
   data; needs symbol extraction — future session).
+- JP save/load water aesthetic: retail NTSCJ loads FILE_TIM_WATER_TIM around
+  the intro states (stream.c NTSCJ blocks) for its save/load screens —
+  runtime-gate those two blocks if full parity is wanted.
 - 2ZANKO boot warning screens (JP-only flow in the retail JAP exe boot; our
   US-flow boot skips them — cosmetic).
+- Pre-intro still (GameState_MovieIntroFadeIn desc) unverified on JP.
