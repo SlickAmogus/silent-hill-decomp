@@ -107,6 +107,9 @@ void func_800D5D90(void) // 0x800D5D90
             sp10.vx = Q12_TO_Q4(ptr->field_0.vx);
             sp10.vy = Q12_TO_Q4(ptr->field_0.vy);
             sp10.vz = Q12_TO_Q4(ptr->field_0.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterFixed(&sp10, ptr->field_0.vx, ptr->field_0.vy, ptr->field_0.vz, 8);
+#endif
 
             RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
             func_800D5CC4(sp18[0].vx, sp18[0].vy, ptr->field_30);
@@ -230,6 +233,16 @@ void func_800D5EE8(void) // 0x800D5EE8
                 *(s32*)&poly->r2 = col3;
                 *(s32*)&poly->r3 = col2;
             }
+
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&poly->x0, &ptr->field_D84);
+                Shadow_CopyScreenOffset(&poly->x1, &ptr->field_D84);
+                Shadow_CopyScreenOffset(&poly->x2, &ptr->field_D84);
+                Shadow_CopyScreenOffset(&poly->x3, &ptr->field_D84);
+            }
+#endif
 
             setPolyG4(poly);
             poly->code = (float)sp18; // @hack

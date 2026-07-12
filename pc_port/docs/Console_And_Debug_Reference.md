@@ -74,7 +74,7 @@ built-in quick lists.
 | Command | Description |
 |---|---|
 | `pgxp [0\|1]` | Perspective-correct textures (PGXP) on/off (WIP). **(saved)** Also F1. |
-| `pgxpedge <f>` | PGXP off-screen position clamp, psx-units (higher = less edge warp; default `8192`). |
+| `pgxpedge <f>` | Optional PGXP off-screen position clamp, PSX units (`0` = off, default). |
 | `pgxpdepth [0\|1]` | PGXP unquantized-depth W (distance-seam fix). |
 | `weld <f>` | PGXP seam-weld radius in px (`0` = off). |
 | `weldw <f>` | PGXP weld depth ratio. |

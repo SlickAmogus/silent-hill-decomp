@@ -67,6 +67,8 @@ typedef struct {
 
 static s_PcDecal s_decals[DECAL_MAX];
 extern s_WorldEnvWork g_WorldEnvWork;
+extern int g_PsxUsePgxp;
+extern int g_PsyX_UsePerPixelFlashlight;
 
 static int       s_decalCount = 0;
 static int       s_decalHead  = 0; /* FIFO write index (oldest overwritten) */
@@ -284,6 +286,7 @@ void Pc_DecalsDraw(GsOT* ot)
         const s_PcDecal* d = &s_decals[i];
         MATRIX           mat;
         SVECTOR          v;
+        s32              packedSxy[4];
         s16              sx[4];
         s16              sy[4];
         u16              sz[4];
@@ -304,7 +307,6 @@ void Pc_DecalsDraw(GsOT* ot)
             s32  st  = (k & 1) ? 1 : -1;
             s32  sb  = (k & 2) ? 1 : -1;
             s32  otz;
-            s32  sxy;
             long p;
             long flag;
 
@@ -312,16 +314,24 @@ void Pc_DecalsDraw(GsOT* ot)
             v.vy  = (s16)Q12_TO_Q8(st * d->axisU.vy + sb * d->axisV.vy);
             v.vz  = (s16)Q12_TO_Q8(st * d->axisU.vz + sb * d->axisV.vz);
             v.pad = 0;
+            PGXP_VectorRegisterQ12(&v,
+                                   st * d->axisU.vx + sb * d->axisV.vx,
+                                   st * d->axisU.vy + sb * d->axisV.vy,
+                                   st * d->axisU.vz + sb * d->axisV.vz);
 
-            otz = RotTransPers(&v, (int*)&sxy, &p, &flag);
+            /* Keep a distinct packed-word address per corner. RotTransPers
+             * attaches the precise SXY/view-space shadow to this address;
+             * reusing one loop-local word would leave only corner 3's
+             * provenance by the time the POLY_FT4 is assembled. */
+            otz = RotTransPers(&v, &packedSxy[k], &p, &flag);
             if (otz <= 8) /* behind/at the near plane */
             {
                 ok = 0;
                 break;
             }
 
-            sx[k] = (s16)(sxy & 0xFFFF);
-            sy[k] = (s16)((u32)sxy >> 16);
+            sx[k] = (s16)(packedSxy[k] & 0xFFFF);
+            sy[k] = (s16)((u32)packedSxy[k] >> 16);
             if (ABS(sx[k]) > 2048 || ABS(sy[k]) > 2048)
             {
                 ok = 0;
@@ -385,6 +395,13 @@ void Pc_DecalsDraw(GsOT* ot)
         poly->u3    = DECAL_UV_MAX;
         poly->v3    = DECAL_UV_MAX;
         setXY4(poly, sx[0], sy[0], sx[1], sy[1], sx[2], sy[2], sx[3], sy[3]);
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&poly->x0, &packedSxy[0]);
+            Shadow_Copy(&poly->x1, &packedSxy[1]);
+            Shadow_Copy(&poly->x2, &packedSxy[2]);
+            Shadow_Copy(&poly->x3, &packedSxy[3]);
+        }
 
         PsyX_SetNextPrimSzExact(sz[0], sz[1], sz[2], sz[3]);
         addPrim(&ot->org[bucket], poly);

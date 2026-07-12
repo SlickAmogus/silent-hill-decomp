@@ -257,6 +257,15 @@ bool sharedFunc_800CBB30_1_s01(POLY_FT4** poly, s32 idx)
         setXY2Fast(*poly, ptr->field_138.vx, ptr->field_138.vy + 1);
         setXY3Fast(*poly, (u16)ptr->field_138.vx + 1, ptr->field_138.vy + 1);
     }
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_138);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_138);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_138);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_138);
+    }
+#endif
 
 #ifdef SH_PC_PORT
     /* field_134 passed the `<= 0` check above but the OT bias can push it

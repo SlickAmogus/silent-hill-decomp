@@ -84,6 +84,9 @@ void Lisa_MovementUpdate(s_SubCharacter* lisa, GsCOORDINATE2* boneCoords)
     boneCoords[LisaBone_Root].coord.t[0] = Q12_TO_Q8(lisa->position.vx);
     boneCoords[LisaBone_Root].coord.t[1] = Q12_TO_Q8(lisa->position.vy);
     boneCoords[LisaBone_Root].coord.t[2] = Q12_TO_Q8(lisa->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[LisaBone_Root].coord, lisa->position.vx, lisa->position.vy, lisa->position.vz);
+#endif
 }
 
 /** Addresses

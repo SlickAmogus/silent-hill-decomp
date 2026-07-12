@@ -2421,6 +2421,20 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &sp10);
 
+#ifdef SH_PC_PORT
+                    {
+                        s32 _sp10b = 0;
+                        extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                        gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                        gte_nclip();
+                        gte_stopz(&_sp10b);
+                        if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp10, _sp10b))
+                            continue;
+                    }
+#else
                     if (sp10 <= 0)
                     {
                         gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2432,6 +2446,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                             continue;
                         }
                     }
+#endif
 
                     temp_a3 = scratchData->field_380.s_0.field_0;
                     temp_a2 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2643,6 +2658,20 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_nclip();
                 gte_stopz(&sp14);
 
+#ifdef SH_PC_PORT
+                {
+                    s32 _sp14b = 0;
+                    extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                    gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                    gte_nclip();
+                    gte_stopz(&_sp14b);
+                    if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp14, _sp14b))
+                        continue;
+                }
+#else
                 if (sp14 <= 0)
                 {
                     gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2654,6 +2683,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         continue;
                     }
                 }
+#endif
 
                 temp_a3_2 = scratchData->field_380.s_0.field_0;
                 temp_a2_3 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -2784,6 +2814,20 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             gte_nclip();
             gte_stopz(&sp18);
 
+#ifdef SH_PC_PORT
+            {
+                s32 _sp18b = 0;
+                extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                gte_nclip();
+                gte_stopz(&_sp18b);
+                if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp18, _sp18b))
+                    continue;
+            }
+#else
             if (sp18 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -2795,6 +2839,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     continue;
                 }
             }
+#endif
 
             temp_a3_4 = scratchData->field_380.s_0.field_0;
             temp_a2_5 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -3019,6 +3064,20 @@ __block1530:
         gte_nclip();
         gte_stopz(&sp1C);
 
+#ifdef SH_PC_PORT
+        {
+            s32 _sp1Cb = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_sp1Cb);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp1C, _sp1Cb))
+                continue;
+        }
+#else
         if (sp1C <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -3030,6 +3089,7 @@ __block1530:
                 continue;
             }
         }
+#endif
 
         temp_a3_3 = scratchData->field_380.s_0.field_0;
         temp_a2_4 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -3222,6 +3282,20 @@ __block19CC:
         gte_nclip();
         gte_stopz(&sp20);
 
+#ifdef SH_PC_PORT
+        {
+            s32 _sp20b = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_sp20b);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp20, _sp20b))
+                continue;
+        }
+#else
         if (sp20 <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -3233,6 +3307,7 @@ __block19CC:
                 continue;
             }
         }
+#endif
 
         temp_a3_5 = scratchData->field_380.s_0.field_0;
         temp_a2_7 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -3400,6 +3475,20 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
                        &sp0);
 
+#ifdef SH_PC_PORT
+        {
+            s32 _sp0b = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_sp0b);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13], sp0, _sp0b))
+                continue;
+        }
+#else
         if (sp0 <= 0)
         {
             gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
@@ -3411,6 +3500,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
                 continue;
             }
         }
+#endif
 
         temp = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
         x1 = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11];
@@ -4667,12 +4757,17 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 }
                 poly_gt4->pad2 = poly_gt4->p1; /* v0 fog (uniform billboard) */
 
-                /* PGXP: billboard corners are built in screen space from the one
-                 * projected centre (field_1C) — the 4th vertex IS that centre, so
-                 * with PGXP it alone matches the ring (centre W) while the other
-                 * corners go affine, warping the quad ("tree-foliage spikes").
-                 * Billboards are camera-facing flat quads, so affine is correct. */
-                PsyX_SetNextPrimAffine();
+                /* Keep the GTE centre's exact fractional projection on every
+                 * screen-derived corner. All four corners share one W, so the
+                 * billboard remains intentionally affine while its outline moves
+                 * continuously instead of snapping to whole PSX pixels. */
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_CopyScreenOffset(&poly_gt4->x0, &field_1C);
+                    Shadow_CopyScreenOffset(&poly_gt4->x1, &field_1C);
+                    Shadow_CopyScreenOffset(&poly_gt4->x2, &field_1C);
+                    Shadow_CopyScreenOffset(&poly_gt4->x3, &field_1C);
+                }
                 addPrim(&ot_arg4->org[MIN(temp_v0_2 >> arg5, ORDERING_TABLE_SIZE - 1)], poly_gt4);
                 poly_gt4++;
             }

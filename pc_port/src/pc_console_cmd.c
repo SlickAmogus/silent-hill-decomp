@@ -890,7 +890,7 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
-        cprintf("PGXP off-screen position clamp: %.0f psx-units (higher = less edge warp)", g_PgxpEdgeMax);
+        cprintf("PGXP off-screen position clamp: %.0f psx-units (0=off)", g_PgxpEdgeMax);
     } else if (strcmp(cmd, "PGXPDEPTH") == 0) {
         extern int g_PgxpUseUnquantizedDepth;
         if (arg[0] == '1') g_PgxpUseUnquantizedDepth = 1;

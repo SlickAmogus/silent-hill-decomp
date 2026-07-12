@@ -254,6 +254,16 @@ void func_800D0D6C(MATRIX* out, SVECTOR* pos, q19_12 rotY) // 0x800D0D6C
     out->t[0] = Q12_TO_Q8(ptr->x_0) + pos->vx;
     out->t[1] = Q12_TO_Q8(Q12(0.0f));
     out->t[2] = Q12_TO_Q8(ptr->z_4) + pos->vz;
+#ifdef SH_PC_PORT
+    {
+        const double exactTranslation[3] = {
+            (double)ptr->x_0 / 16.0 + (double)pos->vx,
+            0.0,
+            (double)ptr->z_4 / 16.0 + (double)pos->vz
+        };
+        PGXP_MatrixRegisterTranslation(out, exactTranslation);
+    }
+#endif
 }
 
 void func_800D0DE4(SVECTOR* out, VECTOR* in, q19_12 headingAngle, q19_12 dist) // 0x800D0DE4
@@ -452,6 +462,15 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
             {
                 x = (j - 1) * w + xbase;
                 setXYWH(poly, x, y, w, h);
+#ifdef SH_PC_PORT
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_CopyScreenOffset(&poly->x0, &sxy);
+                    Shadow_CopyScreenOffset(&poly->x1, &sxy);
+                    Shadow_CopyScreenOffset(&poly->x2, &sxy);
+                    Shadow_CopyScreenOffset(&poly->x3, &sxy);
+                }
+#endif
 
                 *(s32*)&poly->r0 = col0;
                 *(s32*)&poly->r1 = col1;
@@ -855,6 +874,15 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     *(s32*)&poly2->x1 = *(s32*)&sp50;
     *(s32*)&poly2->x2 = *(s32*)&sp54;
     *(s32*)&poly2->x3 = *(s32*)&sp58;
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly2->x0, &sp4C);
+        Shadow_Copy(&poly2->x1, &sp50);
+        Shadow_Copy(&poly2->x2, &sp54);
+        Shadow_Copy(&poly2->x3, &sp58);
+    }
+#endif
     *(s32*)&poly2->r0 = *(s32*)&sp48;
 
     setPolyFT4(poly2);
@@ -887,6 +915,15 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* arg2, s32 arg3) // 0x8
     *(s32*)&poly->x1 = *(s32*)&sp50;
     *(s32*)&poly->x2 = *(s32*)&sp54;
     *(s32*)&poly->x3 = *(s32*)&sp58;
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly->x0, &sp4C);
+        Shadow_Copy(&poly->x1, &sp50);
+        Shadow_Copy(&poly->x2, &sp54);
+        Shadow_Copy(&poly->x3, &sp58);
+    }
+#endif
     *(s32*)&poly->r0 = *(s32*)&sp48;
 
     setPolyFT4(poly);
@@ -4717,6 +4754,15 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
 
             *(s32*)&poly->x2 = *(s32*)&sp10[2];
             *(s32*)&poly->x3 = *(s32*)&sp10[3];
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&poly->x0, &sp10[0]);
+                Shadow_Copy(&poly->x1, &sp10[1]);
+                Shadow_Copy(&poly->x2, &sp10[2]);
+                Shadow_Copy(&poly->x3, &sp10[3]);
+            }
+#endif
 
             setUV4(poly,
                    temp_s6, temp_s4,
@@ -4747,6 +4793,15 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
         sp30[2][2].field_0 = sp10[3];
         sp30[2][2].field_8 = spB0;
         sp30[2][2].field_A = var_t0;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&sp30[0][0].field_0, &sp10[0]);
+            Shadow_Copy(&sp30[0][2].field_0, &sp10[1]);
+            Shadow_Copy(&sp30[2][0].field_0, &sp10[2]);
+            Shadow_Copy(&sp30[2][2].field_0, &sp10[3]);
+        }
+#endif
 
         sp30[0][1].field_0.vx = (sp30[0][0].field_0.vx + sp30[0][2].field_0.vx) >> 1;
         sp30[0][1].field_0.vy = (sp30[0][0].field_0.vy + sp30[0][2].field_0.vy) >> 1;
@@ -4777,6 +4832,19 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
         sp30[1][1].field_0.vz = (sp30[1][0].field_0.vz + sp30[1][2].field_0.vz) >> 1;
         sp30[1][1].field_8    = (sp30[1][0].field_8 + sp30[1][2].field_8) >> 1;
         sp30[1][1].field_A    = (sp30[1][0].field_A + sp30[1][2].field_A) >> 1;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            /* Mirror the integer 3x3 subdivision in the precise shadow.  The
+             * centre is derived from the already-interpolated side midpoints,
+             * preserving the same bilinear construction as the original. */
+            Shadow_InterpolateScreenOffset(&sp30[0][1].field_0, &sp30[0][0].field_0, &sp30[0][2].field_0, Q12(0.5f));
+            Shadow_InterpolateScreenOffset(&sp30[1][0].field_0, &sp30[0][0].field_0, &sp30[2][0].field_0, Q12(0.5f));
+            Shadow_InterpolateScreenOffset(&sp30[1][2].field_0, &sp30[0][2].field_0, &sp30[2][2].field_0, Q12(0.5f));
+            Shadow_InterpolateScreenOffset(&sp30[2][1].field_0, &sp30[2][0].field_0, &sp30[2][2].field_0, Q12(0.5f));
+            Shadow_InterpolateScreenOffset(&sp30[1][1].field_0, &sp30[1][0].field_0, &sp30[1][2].field_0, Q12(0.5f));
+        }
+#endif
 
         for (j = 0; j < 2; j++)
         {
@@ -4797,6 +4865,15 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
                     *(s32*)&poly2->x1 = *(s32*)&sp30[j][k + 1];
                     *(s32*)&poly2->x2 = *(s32*)&sp30[j + 1][k];
                     *(s32*)&poly2->x3 = *(s32*)&sp30[j + 1][k + 1];
+#ifdef SH_PC_PORT
+                    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                    {
+                        Shadow_Copy(&poly2->x0, &sp30[j][k].field_0);
+                        Shadow_Copy(&poly2->x1, &sp30[j][k + 1].field_0);
+                        Shadow_Copy(&poly2->x2, &sp30[j + 1][k].field_0);
+                        Shadow_Copy(&poly2->x3, &sp30[j + 1][k + 1].field_0);
+                    }
+#endif
 
                     setUV4(poly2,
                            sp30[j][k].field_8, sp30[j][k].field_A,

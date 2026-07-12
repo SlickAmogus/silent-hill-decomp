@@ -107,6 +107,9 @@ void Cheryl_MovementUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x8
     coords->coord.t[0] = Q12_TO_Q8(cheryl->position.vx);
     coords->coord.t[1] = Q12_TO_Q8(cheryl->position.vy);
     coords->coord.t[2] = Q12_TO_Q8(cheryl->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coords->coord, cheryl->position.vx, cheryl->position.vy, cheryl->position.vz);
+#endif
 }
 
 void Cheryl_ControlUpdate(s_SubCharacter* cheryl, GsCOORDINATE2* coords) // 0x800D8310

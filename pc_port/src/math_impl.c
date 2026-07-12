@@ -87,6 +87,15 @@ void Math_RotMatrixZxyNeg(SVECTOR* rot, MATRIX* mat)
     mat->m[2][0] = (short)((-sy*cz + cy*sx*sz) * 4096.0);
     mat->m[2][1] = (short)(( sy*sz + cy*sx*cz) * 4096.0);
     mat->m[2][2] = (short)(( cy*cx) * 4096.0);
+
+    {
+        const double exact[9] = {
+             cy*cz + sy*sx*sz, -cy*sz + sy*sx*cz,  sy*cx,
+             cx*sz,             cx*cz,            -sx,
+            -sy*cz + cy*sx*sz,  sy*sz + cy*sx*cz,  cy*cx
+        };
+        PGXP_MatrixRegister(mat, exact);
+    }
 }
 
 /*
@@ -123,6 +132,15 @@ void Math_RotMatrixXyz(SVECTOR* rot, MATRIX* mat)
     mat->m[2][0] = (short)((-cx*sy*cz + sx*sz) * 4096.0);
     mat->m[2][1] = (short)(( cx*sy*sz + sx*cz) * 4096.0);
     mat->m[2][2] = (short)(( cx*cy) * 4096.0);
+
+    {
+        const double exact[9] = {
+             cy*cz,             -cy*sz,             sy,
+             sx*sy*cz + cx*sz, -sx*sy*sz + cx*cz, -sx*cy,
+            -cx*sy*cz + sx*sz,  cx*sy*sz + sx*cz,  cx*cy
+        };
+        PGXP_MatrixRegister(mat, exact);
+    }
 }
 
 /*
@@ -150,6 +168,15 @@ void Math_RotMatrixZxy(SVECTOR* rot, MATRIX* mat)
     mat->m[2][0] = (short)(( sy*cx) * 4096.0);
     mat->m[2][1] = (short)((-sx) * 4096.0);
     mat->m[2][2] = (short)(( cy*cx) * 4096.0);
+
+    {
+        const double exact[9] = {
+             cy*cz + sy*sx*sz,  cx*sz, -sy*cz + cy*sx*sz,
+            -cy*sz + sy*sx*cz,  cx*cz,  sy*sz + cy*sx*cz,
+             sy*cx,             -sx,     cy*cx
+        };
+        PGXP_MatrixRegister(mat, exact);
+    }
 }
 
 /*
@@ -180,6 +207,15 @@ MATRIX* Math_RotMatrixZ(s32 angle, MATRIX* mat)
     mat->m[2][0] = 0;
     mat->m[2][1] = 0;
     mat->m[2][2] = 4096;
+
+    {
+        const double exact[9] = {
+             c, -s, 0.0,
+             s,  c, 0.0,
+             0.0, 0.0, 1.0
+        };
+        PGXP_MatrixRegister(mat, exact);
+    }
 
     return mat;
 }

@@ -76,6 +76,9 @@ void BloodyLisa_MovementUpdate(s_SubCharacter* bloodyLisa, GsCOORDINATE2* boneCo
     boneCoords[0].coord.t[0] = Q12_TO_Q8(bloodyLisa->position.vx);
     boneCoords[0].coord.t[1] = Q12_TO_Q8(bloodyLisa->position.vy);
     boneCoords[0].coord.t[2] = Q12_TO_Q8(bloodyLisa->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[0].coord, bloodyLisa->position.vx, bloodyLisa->position.vy, bloodyLisa->position.vz);
+#endif
 }
 
  /** Addresses

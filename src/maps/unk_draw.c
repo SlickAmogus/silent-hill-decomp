@@ -315,6 +315,15 @@ bool sharedFunc_800CB040_1_s05(POLY_FT4** poly, s32 idx)
     *(s32*)&(*poly)->x1 = *(s32*)&ptr->field_140 + halfSizeFloor + (halfSizeCeil << 16);
     *(s32*)&(*poly)->x2 = *(s32*)&ptr->field_140 + halfSizeCeil + (halfSizeFloor << 16);
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_140 + halfSizeFloor + (halfSizeFloor << 16);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_140);
+    }
+#endif
 
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_13C >> 3], *poly, 9);
     *poly += 1;
@@ -431,6 +440,15 @@ bool sharedFunc_800CB884_1_s05(POLY_FT4** poly, s32 idx) // 0x800CCF50
         setXY2Fast(*poly, ptr->field_140.vx, ptr->field_140.vy + 1);
         setXY3Fast(*poly, (u16)ptr->field_140.vx + 1, ptr->field_140.vy + 1);
     }
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_140);
+    }
+#endif
 
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_13C >> 3], *poly, 9);
     *poly += 1;

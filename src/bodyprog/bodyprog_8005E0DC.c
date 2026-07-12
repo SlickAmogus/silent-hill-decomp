@@ -1118,6 +1118,12 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].vy_8) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->field_138,
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                           g_MapOverlayHdr.unkTable1_4C[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
     gte_ldv0(&ptr->field_138);
     gte_rtps();
@@ -1175,6 +1181,13 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
     setXY1Fast(*poly, (u16)ptr->field_144.vx + (u16)ptr->field_14C, ptr->field_144.vy - ptr->field_14C);
     setXY2Fast(*poly, (u16)ptr->field_144.vx - (u16)ptr->field_14C, ptr->field_144.vy + ptr->field_14C);
     setXY3Fast(*poly, (u16)ptr->field_144.vx + (u16)ptr->field_14C, ptr->field_144.vy + ptr->field_14C);
+    if (g_PsxUsePgxp)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_144);
+    }
 
     var_a2    = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_0) >> 3;
     temp_a2_2 = var_a2;
@@ -1319,6 +1332,15 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
 
             *(*poly + 1) = **poly;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&(*poly + 1)->x0, &(*poly)->x0);
+                Shadow_Copy(&(*poly + 1)->x1, &(*poly)->x1);
+                Shadow_Copy(&(*poly + 1)->x2, &(*poly)->x2);
+                Shadow_Copy(&(*poly + 1)->x3, &(*poly)->x3);
+            }
+#endif
 
             *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + ((ptr->field_134.g >> 4) << 8);
             (*poly + 1)->b0         = ptr->field_134.b >> 4;
@@ -1373,6 +1395,21 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * SetPriority DR_MODE prims; each POLY_FT4 carries its own ABR.
              * Garbage-size + OOB-bucket guards stay. */
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&(*poly + 1)->x0, &(*poly)->x0);
+                Shadow_Copy(&(*poly + 1)->x1, &(*poly)->x1);
+                Shadow_Copy(&(*poly + 1)->x2, &(*poly)->x2);
+                Shadow_Copy(&(*poly + 1)->x3, &(*poly)->x3);
+                Shadow_Copy(&(*poly + 2)->x0, &(*poly)->x0);
+                Shadow_Copy(&(*poly + 2)->x1, &(*poly)->x1);
+                Shadow_Copy(&(*poly + 2)->x2, &(*poly)->x2);
+                Shadow_Copy(&(*poly + 2)->x3, &(*poly)->x3);
+                Shadow_Copy(&(*poly + 3)->x0, &(*poly)->x0);
+                Shadow_Copy(&(*poly + 3)->x1, &(*poly)->x1);
+                Shadow_Copy(&(*poly + 3)->x2, &(*poly)->x2);
+                Shadow_Copy(&(*poly + 3)->x3, &(*poly)->x3);
+            }
             *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
             (*poly + 1)->b0         = ptr->field_134.b;
             (*poly)->tpage          = 43;
@@ -1618,6 +1655,19 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 - ptr->field_178) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].vy_8) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - ptr->field_178) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    {
+        const s32 x = g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0;
+        const s32 y = g_MapOverlayHdr.unkTable1_4C[idx].vy_8;
+        const s32 z = g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4;
+        const s32 bx = Q8_TO_Q12((s16)ptr->field_0.field_0.vx);
+        const s32 by = Q8_TO_Q12(ptr->field_0.field_0.vy);
+        const s32 bz = Q8_TO_Q12(ptr->field_0.field_0.vz);
+        PGXP_VectorRegisterQ12(&ptr->field_134, x - ptr->field_178 - bx, y - by, z + ptr->field_178 - bz);
+        PGXP_VectorRegisterQ12(&ptr->field_13C, x + ptr->field_178 - bx, y - by, z + ptr->field_178 - bz);
+        PGXP_VectorRegisterQ12(&ptr->field_144, x - ptr->field_178 - bx, y - by, z - ptr->field_178 - bz);
+    }
+#endif
 
     gte_ldv3c(&ptr->field_134);
     gte_rtpt();
@@ -1628,6 +1678,12 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 + ptr->field_178) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].vy_8) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - ptr->field_178) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->field_134,
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 + ptr->field_178 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                           g_MapOverlayHdr.unkTable1_4C[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - ptr->field_178 - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
     gte_ldv0(&ptr->field_134);
     gte_rtps();
@@ -1652,6 +1708,10 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
     }
 
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_16C;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&(*poly)->x3, &ptr->field_16C);
+    }
 
     ptr->field_17C = !(g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_0 & 8) << 5;
 
@@ -2098,6 +2158,12 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                                    ((Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0) - (u16)ptr->field_0.field_0.vx) - (u16)ptr->field_2DC) + ((ptr->field_2DC >> 1) * j),
                                    Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].vy_8) - ptr->field_0.field_0.vy,
                                    ((Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4) - ptr->field_0.field_0.vz) - ptr->field_2DC) + ((ptr->field_2DC >> 1) * i));
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&ptr->field_134[(i * 5) + j],
+                                   g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx) - Q8_TO_Q12((u16)ptr->field_2DC) + Q8_TO_Q12((ptr->field_2DC >> 1) * j),
+                                   g_MapOverlayHdr.unkTable1_4C[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                                   g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - Q8_TO_Q12(ptr->field_0.field_0.vz) - Q8_TO_Q12(ptr->field_2DC) + Q8_TO_Q12((ptr->field_2DC >> 1) * i));
+#endif
         }
     }
 
@@ -2143,6 +2209,13 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             *(s32*)&(*poly)->x1 = *(s32*)&ptr->field_278[temp_a1_3 + 1];
             *(s32*)&(*poly)->x2 = *(s32*)&ptr->field_278[temp_a1_3 + 5];
             *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_278[temp_a1_3 + 6];
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&(*poly)->x0, &ptr->field_278[temp_a1_3]);
+                Shadow_Copy(&(*poly)->x1, &ptr->field_278[temp_a1_3 + 1]);
+                Shadow_Copy(&(*poly)->x2, &ptr->field_278[temp_a1_3 + 5]);
+                Shadow_Copy(&(*poly)->x3, &ptr->field_278[temp_a1_3 + 6]);
+            }
 
             temp_s2             = (j * 8) + (i << 11) + ptr->field_210;
             *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_1 << 6) | 0x13) << 16) + temp_s2;
@@ -2184,6 +2257,17 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 (*poly)->b0         = ptr->field_12C.b;
 
                 *(*poly + 2) = *(*poly + 1) = **poly;
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_Copy(&(*poly + 1)->x0, &(*poly)->x0);
+                    Shadow_Copy(&(*poly + 1)->x1, &(*poly)->x1);
+                    Shadow_Copy(&(*poly + 1)->x2, &(*poly)->x2);
+                    Shadow_Copy(&(*poly + 1)->x3, &(*poly)->x3);
+                    Shadow_Copy(&(*poly + 2)->x0, &(*poly)->x0);
+                    Shadow_Copy(&(*poly + 2)->x1, &(*poly)->x1);
+                    Shadow_Copy(&(*poly + 2)->x2, &(*poly)->x2);
+                    Shadow_Copy(&(*poly + 2)->x3, &(*poly)->x3);
+                }
 
                 (*poly)->tpage          = 43;
                 (*poly)->clut           = (*poly + 2)->clut = 147;
@@ -2575,6 +2659,12 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
                                (Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 + ptr->field_19C.vx)) - (u16)ptr->field_0.field_0.vx,
                                (Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].vy_8 + ptr->field_19C.vy)) - ptr->field_0.field_0.vy,
                                (Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 + ptr->field_19C.vz)) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&ptr->field_14C[0],
+                               g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 + ptr->field_19C.vx - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                               g_MapOverlayHdr.unkTable1_4C[idx].vy_8 + ptr->field_19C.vy - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                               g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 + ptr->field_19C.vz - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
         gte_ldv0(&ptr->field_14C);
         gte_rtps();
@@ -2591,6 +2681,10 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
         }
 
         *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_1CC;
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&(*poly)->x3, &ptr->field_1CC);
+        }
 
         if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
         {
@@ -2695,6 +2789,12 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8((g_MapOverlayHdr.unkTable1_4C[idx].vy_8)) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->field_138,
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_0.vx_0 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                           g_MapOverlayHdr.unkTable1_4C[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                           g_MapOverlayHdr.unkTable1_4C[idx].field_4.vz_4 - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
     gte_ldv0(&ptr->field_138);
     gte_rtps();
@@ -2745,6 +2845,13 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
     setXY1Fast(*poly, (u16)ptr->field_154.vx + (u16)ptr->field_160, ptr->field_154.vy - ptr->field_160);
     setXY2Fast(*poly, (u16)ptr->field_154.vx - (u16)ptr->field_160, ptr->field_154.vy + ptr->field_160);
     setXY3Fast(*poly, (u16)ptr->field_154.vx + (u16)ptr->field_160, ptr->field_154.vy + ptr->field_160);
+    if (g_PsxUsePgxp)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_154);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_154);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_154);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_154);
+    }
 
     *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x011300E0;
     *(s32*)&(*poly)->u1 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x2B00FF;
@@ -2930,6 +3037,13 @@ bool func_80064FC0(POLY_FT4** polys, s32 idx) // 0x80064FC0
     setXY1Fast(*polys, (u16)ptr->field_13C.vx + (u16)ptr->field_144, ptr->field_13C.vy + ptr->field_144);
     setXY2Fast(*polys, (u16)ptr->field_13C.vx - (u16)ptr->field_144, ptr->field_13C.vy - ptr->field_144);
     setXY3Fast(*polys, (u16)ptr->field_13C.vx + (u16)ptr->field_144, ptr->field_13C.vy - ptr->field_144);
+    if (g_PsxUsePgxp)
+    {
+        Shadow_CopyScreenOffset(&(*polys)->x0, &ptr->field_13C);
+        Shadow_CopyScreenOffset(&(*polys)->x1, &ptr->field_13C);
+        Shadow_CopyScreenOffset(&(*polys)->x2, &ptr->field_13C);
+        Shadow_CopyScreenOffset(&(*polys)->x3, &ptr->field_13C);
+    }
     *(u16*)&(*polys)->r0 = 0x1020;
     (*polys)->b0         = 0x10;
 

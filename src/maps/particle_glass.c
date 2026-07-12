@@ -390,6 +390,10 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
 
     *(s32*)&(*poly)->r0 = (ptr->field_1BC.r + (ptr->field_1BC.g << 8) + (ptr->field_1BC.b << 16) + 0x2E000000);
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_1D4.vx;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&(*poly)->x3, &ptr->field_1D4.vx);
+    }
 
     addPrimFast(&g_OrderingTable0[g_ActiveBufferIdx].org[((ptr->field_1C4 - Q12(1.5f)) >= Q12(0.0f)) ? (ptr->field_1C4 - Q12(1.5f)) >> 3 : 0], *poly, 9);
 

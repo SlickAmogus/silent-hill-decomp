@@ -107,6 +107,9 @@ void Ai_Cybil_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords)
     coords->coord.t[0] = Q12_TO_Q8(chara->position.vx);
     coords->coord.t[1] = Q12_TO_Q8(chara->position.vy);
     coords->coord.t[2] = Q12_TO_Q8(chara->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coords->coord, chara->position.vx, chara->position.vy, chara->position.vz);
+#endif
 }
 
 /** Addresses

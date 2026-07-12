@@ -201,6 +201,86 @@ void func_80041074(GsOT* ot, s32 arg1, SVECTOR* rot, const VECTOR3* pos) // 0x80
     func_800414E0(ot, &pos0, arg1, rotY, rotX);
 }
 
+#ifdef SH_PC_PORT
+/* Precise twin of func_8004137C. The legacy integer function still produces
+ * every visible/gameplay value; this only records the discarded sub-pixel
+ * projection after applying the same H/2 near-plane intersection. */
+static void PGXP_StoreFlashlightProjection(VECTOR3* result,
+                                           const double offset0[3],
+                                           const double offset1[3],
+                                           const VECTOR* legacyOffset1,
+                                           s32 screenDist)
+{
+    double viewX;
+    double viewY;
+    double viewZ;
+    double denominator;
+    double step;
+    s32    offsetX;
+    s32    offsetY;
+
+    if (!g_PsxUsePgxp)
+    {
+        return;
+    }
+
+    viewX = offset0[0];
+    viewY = offset0[1];
+    viewZ = offset0[2];
+
+    /* func_8004137C clips a center nearer than H/2 onto that plane along the
+     * flashlight direction. Use exact translation/rotation for the twin, but
+     * retain its divide-by-one guard when the integer direction Z is zero. */
+    if ((double)(screenDist / 2) >= viewZ)
+    {
+        denominator = (legacyOffset1->vz != 0) ? offset1[2] : 1.0;
+        if (denominator == 0.0)
+        {
+            denominator = (legacyOffset1->vz != 0) ? (double)legacyOffset1->vz : 1.0;
+        }
+
+        step  = ((double)(screenDist / 2) - viewZ) / denominator;
+        viewX = viewX + (offset1[0] * step);
+        viewY = viewY + (offset1[1] * step);
+        viewZ = (double)(screenDist / 2);
+    }
+
+    ReadGeomOffset(&offsetX, &offsetY);
+    if (viewZ > 0.0)
+    {
+        PGXP_StoreManualProjection(result,
+            (float)((viewX * (double)screenDist / viewZ) + (double)offsetX),
+            (float)((viewY * (double)screenDist / viewZ) + (double)offsetY),
+            (float)viewZ);
+    }
+    else
+    {
+        /* A non-positive W is deliberately stored and rejected by the copy
+         * helper, invalidating any shadow at a reused packet address. */
+        PGXP_StoreManualProjection(result, (float)result->vx, (float)result->vy, 0.0f);
+    }
+}
+
+#define PGXP_COPY_MANUAL_TRI(poly, center) do {                              \
+        if (g_PsxUsePgxp)                                                    \
+        {                                                                    \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x0, (center));   \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x1, (center));   \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x2, (center));   \
+        }                                                                    \
+    } while (0)
+
+#define PGXP_COPY_MANUAL_QUAD(poly, center) do {                             \
+        if (g_PsxUsePgxp)                                                    \
+        {                                                                    \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x0, (center));   \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x1, (center));   \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x2, (center));   \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x3, (center));   \
+        }                                                                    \
+    } while (0)
+#endif
+
 void func_800410D8(VECTOR3* pos0, q19_12* azimuthAngle, q19_12* altitudeAngle, SVECTOR* rot, const VECTOR3* pos1) // 0x800410D8
 {
     MATRIX        transformMat;
@@ -209,6 +289,12 @@ void func_800410D8(VECTOR3* pos0, q19_12* azimuthAngle, q19_12* altitudeAngle, S
     VECTOR        offset0; // Q19.12
     VECTOR        offset1; // Q19.12
     s32           flag;
+#ifdef SH_PC_PORT
+    double        exactTranslation[3];
+    double        exactRotation[9];
+    s32           hasExactTranslation;
+    s32           hasExactRotation;
+#endif
 
     memset(&vec0, 0, sizeof(SVECTOR));
 
@@ -218,9 +304,23 @@ void func_800410D8(VECTOR3* pos0, q19_12* azimuthAngle, q19_12* altitudeAngle, S
     coord.workm.t[0] = Q12_TO_Q8(pos1->vx);
     coord.workm.t[1] = Q12_TO_Q8(pos1->vy);
     coord.workm.t[2] = Q12_TO_Q8(pos1->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coord.workm, pos1->vx, pos1->vy, pos1->vz);
+#endif
     coord.flg        = true;
 
     Vw_CoordToViewSpaceMatrix(&coord, &transformMat);
+#ifdef SH_PC_PORT
+    hasExactTranslation = 0;
+    hasExactRotation    = 0;
+    if (g_PsxUsePgxp)
+    {
+        /* Query before SetTransMatrix installs the registers. vec0 is zero, so
+         * transformMat's exact translation is the exact view-space center. */
+        hasExactTranslation = PGXP_MatrixLookupTranslation(&transformMat, exactTranslation);
+        hasExactRotation    = PGXP_MatrixLookup(&transformMat, exactRotation);
+    }
+#endif
     SetRotMatrix(&transformMat);
     SetTransMatrix(&transformMat);
     RotTrans(&vec0, &offset0, &flag);
@@ -229,6 +329,33 @@ void func_800410D8(VECTOR3* pos0, q19_12* azimuthAngle, q19_12* altitudeAngle, S
 
     Math_RelativeRotationGet(azimuthAngle, altitudeAngle, &offset0, &offset1);
     func_8004137C(pos0, &offset0, &offset1, ReadGeomScreen());
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp)
+    {
+        double preciseOffset0[3];
+        double preciseOffset1[3];
+
+        preciseOffset0[0] = hasExactTranslation ? exactTranslation[0] : (double)offset0.vx;
+        preciseOffset0[1] = hasExactTranslation ? exactTranslation[1] : (double)offset0.vy;
+        preciseOffset0[2] = hasExactTranslation ? exactTranslation[2] : (double)offset0.vz;
+
+        if (hasExactRotation)
+        {
+            preciseOffset1[0] = exactRotation[0] * rot->vx + exactRotation[1] * rot->vy + exactRotation[2] * rot->vz;
+            preciseOffset1[1] = exactRotation[3] * rot->vx + exactRotation[4] * rot->vy + exactRotation[5] * rot->vz;
+            preciseOffset1[2] = exactRotation[6] * rot->vx + exactRotation[7] * rot->vy + exactRotation[8] * rot->vz;
+        }
+        else
+        {
+            preciseOffset1[0] = (double)offset1.vx;
+            preciseOffset1[1] = (double)offset1.vy;
+            preciseOffset1[2] = (double)offset1.vz;
+        }
+
+        PGXP_StoreFlashlightProjection(pos0, preciseOffset0, preciseOffset1,
+                                       &offset1, ReadGeomScreen());
+    }
+#endif
 }
 
 void Math_RelativeRotationGet(q19_12* azimuthAngle, q19_12* altitudeAngle, const VECTOR* offsetFrom, const VECTOR* offsetTo) // 0x8004122C
@@ -388,6 +515,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         poly_g3->y0         = arg1->vy;
         *(s32*)&poly_g3->x1 = var_t0[j];
         *(s32*)&poly_g3->x2 = var_t0[j + 1];
+#ifdef SH_PC_PORT
+        PGXP_COPY_MANUAL_TRI(poly_g3, arg1);
+#endif
 
 #ifdef SH_PC_PORT
         if (!g_PsyX_FlashlightActive)
@@ -396,6 +526,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
 
         *(s32*)&poly_f4->x0 = var_t0[j + 51];
         *(s32*)&poly_f4->x1 = var_t0[j + 52];
+#ifdef SH_PC_PORT
+        PGXP_COPY_MANUAL_QUAD(poly_f4, arg1);
+#endif
 
         addPrim(&arg0->org[1], poly_f4);
     }
@@ -413,6 +546,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
             *(s32*)&poly_g4->x1 = var_a1_3[j + 1];
             *(s32*)&poly_g4->x2 = var_a1_3[17 + j];
             *(s32*)&poly_g4->x3 = var_a1_3[(17 + j) + 1];
+#ifdef SH_PC_PORT
+            PGXP_COPY_MANUAL_QUAD(poly_g4, arg1);
+#endif
 
             addPrim(&arg0->org[1], poly_g4);
         }

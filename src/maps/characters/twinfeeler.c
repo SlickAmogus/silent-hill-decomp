@@ -229,6 +229,16 @@ void func_800D0D6C(MATRIX* worldMat, SVECTOR* pos, q19_12 rotY) // 0x800D0D6C
     worldMat->t[0] = Q12_TO_Q8(ptr->x_0) + pos->vx;
     worldMat->t[1] = Q12_TO_Q8(Q12(0.0f));
     worldMat->t[2] = Q12_TO_Q8(ptr->z_4) + pos->vz;
+#ifdef SH_PC_PORT
+    {
+        const double exactTranslation[3] = {
+            (double)ptr->x_0 / 16.0 + (double)pos->vx,
+            0.0,
+            (double)ptr->z_4 / 16.0 + (double)pos->vz
+        };
+        PGXP_MatrixRegisterTranslation(worldMat, exactTranslation);
+    }
+#endif
 }
 
 void func_800D0DE4(SVECTOR* out, VECTOR* in, q19_12 headingAngle, q19_12 dist) // 0x800D0DE4
@@ -807,6 +817,15 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* worldMat, s32 arg3) //
     *(s32*)&poly2->x1 = *(s32*)&sp50;
     *(s32*)&poly2->x2 = *(s32*)&sp54;
     *(s32*)&poly2->x3 = *(s32*)&sp58;
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly2->x0, &sp4C);
+        Shadow_Copy(&poly2->x1, &sp50);
+        Shadow_Copy(&poly2->x2, &sp54);
+        Shadow_Copy(&poly2->x3, &sp58);
+    }
+#endif
     *(s32*)&poly2->r0 = *(s32*)&sp48;
 
     setPolyFT4(poly2);
@@ -829,6 +848,15 @@ void func_800D1D3C(GsOT_TAG* tag, SVECTOR3* arg1, MATRIX* worldMat, s32 arg3) //
     *(s32*)&poly->x1 = *(s32*)&sp50;
     *(s32*)&poly->x2 = *(s32*)&sp54;
     *(s32*)&poly->x3 = *(s32*)&sp58;
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly->x0, &sp4C);
+        Shadow_Copy(&poly->x1, &sp50);
+        Shadow_Copy(&poly->x2, &sp54);
+        Shadow_Copy(&poly->x3, &sp58);
+    }
+#endif
     *(s32*)&poly->r0 = *(s32*)&sp48;
 
     setPolyFT4(poly);

@@ -99,6 +99,12 @@ void func_800652F4(VECTOR3* arg0, s16 arg1, s16 arg2, s16 arg3) // 0x800652F4
                                    Q12_TO_Q8((arg0->vx + FP_FROM(Q12_MULT(ptr->field_60[j], Math_Sin(ptr->field_50)) * Math_Cos(arg1) - ptr->field_54[j] * Math_Sin(arg1), Q12_SHIFT))) - (u16)ptr->field_40.vx,
                                    Q12_TO_Q8((arg0->vy + Q12_MULT(ptr->field_60[j], Math_Cos(ptr->field_50)))) - ptr->field_40.vy,
                                    Q12_TO_Q8((arg0->vz + (((Q12_MULT(ptr->field_60[j], Math_Sin(ptr->field_50)) * Math_Sin(arg1)) + (ptr->field_54[j] * Math_Cos(arg1))) >> Q12_SHIFT))) - ptr->field_40.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&ptr->field_8[j],
+                                   arg0->vx + FP_FROM(Q12_MULT(ptr->field_60[j], Math_Sin(ptr->field_50)) * Math_Cos(arg1) - ptr->field_54[j] * Math_Sin(arg1), Q12_SHIFT) - Q8_TO_Q12((s16)ptr->field_40.vx),
+                                   arg0->vy + Q12_MULT(ptr->field_60[j], Math_Cos(ptr->field_50)) - Q8_TO_Q12(ptr->field_40.vy),
+                                   arg0->vz + (((Q12_MULT(ptr->field_60[j], Math_Sin(ptr->field_50)) * Math_Sin(arg1)) + (ptr->field_54[j] * Math_Cos(arg1))) >> Q12_SHIFT) - Q8_TO_Q12(ptr->field_40.vz));
+#endif
         }
 
         gte_ldv3c(&ptr->field_8);
@@ -131,6 +137,13 @@ void func_800652F4(VECTOR3* arg0, s16 arg1, s16 arg2, s16 arg3) // 0x800652F4
             setXY1Fast(ptr->field_0, sp10[temp_a1][j].vx, sp10[temp_a1][j].vy);
             setXY2Fast(ptr->field_0, sp10[i][j + 1].vx, sp10[i][j + 1].vy);
             setXY3Fast(ptr->field_0, sp10[temp_a1][j + 1].vx, sp10[temp_a1][j + 1].vy);
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&ptr->field_0->x0, &sp10[i][j]);
+                Shadow_Copy(&ptr->field_0->x1, &sp10[temp_a1][j]);
+                Shadow_Copy(&ptr->field_0->x2, &sp10[i][j + 1]);
+                Shadow_Copy(&ptr->field_0->x3, &sp10[temp_a1][j + 1]);
+            }
 
             ptr->field_68 = (sp190[i][j] + sp190[temp_a1][j] + sp190[i][j + 1] + sp190[temp_a1][j + 1]) >> 2;
             setSemiTrans(ptr->field_0, true);
@@ -192,6 +205,12 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
                            temp,
                            Q12_TO_Q8(arg0->vy) - ptr->field_2C.vy,
                            Q12_TO_Q8(arg0->vz) - ptr->field_2C.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->field_4,
+                           arg0->vx - Q8_TO_Q12(ptr->field_2C.vx),
+                           arg0->vy - Q8_TO_Q12(ptr->field_2C.vy),
+                           arg0->vz - Q8_TO_Q12(ptr->field_2C.vz));
+#endif
 
     gte_ldv0(&ptr->field_4);
     gte_rtps();
@@ -244,6 +263,15 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
         setXY1Fast(ptr->field_0, (u16)ptr->field_3C.vx + (u16)ptr->field_44.vx, ptr->field_3C.vy + ptr->field_48.vx);
         setXY2Fast(ptr->field_0, (u16)ptr->field_3C.vx + (u16)ptr->field_44.vy, ptr->field_3C.vy + ptr->field_48.vy);
         setXY3Fast(ptr->field_0, (u16)ptr->field_44.vy + ((u16)ptr->field_3C.vx + (u16)ptr->field_44.vx), ptr->field_3C.vy + ptr->field_48.vx + ptr->field_48.vy);
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&ptr->field_0->x0, &ptr->field_3C);
+            Shadow_CopyScreenOffset(&ptr->field_0->x1, &ptr->field_3C);
+            Shadow_CopyScreenOffset(&ptr->field_0->x2, &ptr->field_3C);
+            Shadow_CopyScreenOffset(&ptr->field_0->x3, &ptr->field_3C);
+        }
+#endif
 
         *(u16*)&ptr->field_0->r0 = ((128 - (temp2 >> 5)) << 8) - (((temp2 * 5) >> 7) - 160);
         ptr->field_0->b0         = 96 - ((temp2 * 3) >> 7);
@@ -287,12 +315,23 @@ void func_80066184(void) // 0x80066184
     gte_SetTransMatrix(&ptr->field_4);
     gte_ReadGeomScreen(&ptr->field_48);
 
+#ifdef SH_PC_PORT
+    const s32 exactBaseX = ptr->field_3C.vx;
+    const s32 exactBaseY = ptr->field_3C.vy;
+    const s32 exactBaseZ = ptr->field_3C.vz;
+#endif
     for (i = 0; i < 4; i++)
     {
         Math_SetSVectorFastSum(&ptr->field_24[i],
                                Q12_TO_Q8(D_800AE71C[i][0] - ptr->field_3C.vx),
                                Q12_TO_Q8(-81 - ptr->field_3C.vy),
                                Q12_TO_Q8(D_800AE71C[i][1] - ptr->field_3C.vz));
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&ptr->field_24[i],
+                               D_800AE71C[i][0] - exactBaseX,
+                               -81 - exactBaseY,
+                               D_800AE71C[i][1] - exactBaseZ);
+#endif
     }
 
     gte_ldv3c(&ptr->field_24);
@@ -312,6 +351,13 @@ void func_80066184(void) // 0x80066184
     setXY1Fast(ptr->field_0, (u16)ptr->field_50.vx, ptr->field_50.vy);
     setXY2Fast(ptr->field_0, (u16)ptr->field_54.vx, ptr->field_54.vy);
     setXY3Fast(ptr->field_0, (u16)ptr->field_58.vx, ptr->field_58.vy);
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&ptr->field_0->x0, &ptr->field_4C);
+        Shadow_Copy(&ptr->field_0->x1, &ptr->field_50);
+        Shadow_Copy(&ptr->field_0->x2, &ptr->field_54);
+        Shadow_Copy(&ptr->field_0->x3, &ptr->field_58);
+    }
 
     ptr->field_6C = MIN(FP_MULTIPLY(CLAMP_MIN_THEN_LOW(D_800AE73C, Q12(0.0f), Q12(1.0f)),
                                     func_80055D78(Q12(22.7f), Q12(0.0f), Q12(-22.1f)), Q12_SHIFT),
@@ -342,6 +388,13 @@ void func_80066184(void) // 0x80066184
 
     poly  = ptr->field_0 + 1;
     *poly = *ptr->field_0;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly->x0, &ptr->field_0->x0);
+        Shadow_Copy(&poly->x1, &ptr->field_0->x1);
+        Shadow_Copy(&poly->x2, &ptr->field_0->x2);
+        Shadow_Copy(&poly->x3, &ptr->field_0->x3);
+    }
 
     *(u32*)&ptr->field_0->u0 = 0xE0000;
     *(u32*)&ptr->field_0->u1 = 0x2D003F;

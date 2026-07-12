@@ -196,6 +196,9 @@ void func_800D60E4(void) // 0x800D60E4
             sp10.vx = Q12_TO_Q4(ptr->field_0.vx);
             sp10.vy = Q12_TO_Q4(ptr->field_0.vy);
             sp10.vz = Q12_TO_Q4(ptr->field_0.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterFixed(&sp10, ptr->field_0.vx, ptr->field_0.vy, ptr->field_0.vz, 8);
+#endif
 
             RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
             func_800D600C(sp18[0].vx, sp18[0].vy, ptr->field_30);
@@ -315,6 +318,16 @@ void func_800D625C(void) // 0x800D625C
                 *(s32*)&poly->r2 = col3;
                 *(s32*)&poly->r3 = col2;
             }
+
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&poly->x0, &ptr->field_A50);
+                Shadow_CopyScreenOffset(&poly->x1, &ptr->field_A50);
+                Shadow_CopyScreenOffset(&poly->x2, &ptr->field_A50);
+                Shadow_CopyScreenOffset(&poly->x3, &ptr->field_A50);
+            }
+#endif
 
             setPolyG4(poly);
             poly->code = (float)sp18; // @hack
@@ -583,6 +596,9 @@ void func_800D6ADC(void) // 0x800D6ADC
         sp10.vx = Q12_TO_Q4(curPtr->field_0.vx);
         sp10.vy = Q12_TO_Q4(curPtr->field_0.vy);
         sp10.vz = Q12_TO_Q4(curPtr->field_0.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterFixed(&sp10, curPtr->field_0.vx, curPtr->field_0.vy, curPtr->field_0.vz, 8);
+#endif
 
         RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
         func_800D6A10(sp18[0].vx, sp18[0].vy, curPtr->field_30);
@@ -694,6 +710,16 @@ void func_800D6C0C(void) // 0x800D6C0C
                 *(s32*)&poly->r2 = col3;
                 *(s32*)&poly->r3 = col2;
             }
+
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&poly->x0, &ptr->field_9FC);
+                Shadow_CopyScreenOffset(&poly->x1, &ptr->field_9FC);
+                Shadow_CopyScreenOffset(&poly->x2, &ptr->field_9FC);
+                Shadow_CopyScreenOffset(&poly->x3, &ptr->field_9FC);
+            }
+#endif
 
             setPolyG4(poly);
             poly->code = (float)sp18; // @hack
@@ -964,6 +990,9 @@ void func_800D75D0(void) // 0x800D75D0
                 sp10.vx = Q12_TO_Q8(ptr->field_0.vx);
                 sp10.vy = Q12_TO_Q8(ptr->field_0.vy);
                 sp10.vz = Q12_TO_Q8(ptr->field_0.vz);
+#ifdef SH_PC_PORT
+                PGXP_VectorRegisterQ12(&sp10, ptr->field_0.vx, ptr->field_0.vy, ptr->field_0.vz);
+#endif
 
                 RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
                 func_800D74F4(sp18[0].vx, sp18[0].vy, ptr->field_28);
@@ -1317,6 +1346,13 @@ void func_800D7F20(u8* arg0) // 0x800D7F20
     GsOUT_PACKET_P = arg0;
 }
 
+#ifdef SH_PC_PORT
+/* Stable packed destination for the GTE projection used by the screen-built
+ * boss effects below. Keeping the GTE store at this address lets every derived
+ * corner inherit the center's precise sub-pixel XY and perspective W. */
+static DVECTOR s_func_800D822C_TrackedScreenCenter;
+#endif
+
 void func_800D7F2C(GsOT_TAG* ot, s32 arg1, q19_12 angle, q19_12 dist0, q19_12 dist1, s16 x1, s16 y1, s32 arg7) // 0x800D7F2C
 {
     q19_12   sp14;
@@ -1375,6 +1411,16 @@ void func_800D7F2C(GsOT_TAG* ot, s32 arg1, q19_12 angle, q19_12 dist0, q19_12 di
 
         setXY4(poly, x0, y0, x1, y1, x2, y2, x3, y3);
 
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x0, &s_func_800D822C_TrackedScreenCenter);
+            Shadow_CopyScreenOffset(&poly->x1, &s_func_800D822C_TrackedScreenCenter);
+            Shadow_CopyScreenOffset(&poly->x2, &s_func_800D822C_TrackedScreenCenter);
+            Shadow_CopyScreenOffset(&poly->x3, &s_func_800D822C_TrackedScreenCenter);
+        }
+#endif
+
         addPrim(ot, poly);
         poly++;
     }
@@ -1390,11 +1436,17 @@ s32 func_800D822C(SVECTOR* worldPos, s16* outScreenX, s16* outScreenY) // 0x800D
     s16     screenX;
     s16     screenY;
 
+#ifdef SH_PC_PORT
+    depth = RotTransPers(worldPos, &s_func_800D822C_TrackedScreenCenter, &screenCoords[1], &screenCoords[1]);
+    screenX = s_func_800D822C_TrackedScreenCenter.vx;
+    screenY = s_func_800D822C_TrackedScreenCenter.vy;
+#else
     depth = RotTransPers(worldPos, &screenCoords[0], &screenCoords[1], &screenCoords[1]);
-    scale = (ReadGeomScreen() * 200) / (depth + 1);
-
     screenX = screenCoords[0].vx;
     screenY = screenCoords[0].vy;
+#endif
+
+    scale = (ReadGeomScreen() * 200) / (depth + 1);
 
     *outScreenX = screenX;
     *outScreenY = screenY;
@@ -1485,6 +1537,16 @@ void func_800D8454(s32* arg0, s32 x, s32 y, s32 s) // 0x800D8454
             poly->y1 = FP_FROM(y0 + h0, Q12_SHIFT);
             poly->y2 = FP_FROM(y1, Q12_SHIFT);
             poly->y3 = FP_FROM(y1 + h1, Q12_SHIFT);
+
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&poly->x0, &s_func_800D822C_TrackedScreenCenter);
+                Shadow_CopyScreenOffset(&poly->x1, &s_func_800D822C_TrackedScreenCenter);
+                Shadow_CopyScreenOffset(&poly->x2, &s_func_800D822C_TrackedScreenCenter);
+                Shadow_CopyScreenOffset(&poly->x3, &s_func_800D822C_TrackedScreenCenter);
+            }
+#endif
 
             col0 = func_800D8438(FP_FROM(var_s1, Q12_SHIFT));
             col1 = func_800D8438(FP_FROM(var_s1 - sp34, Q12_SHIFT));
@@ -1636,6 +1698,12 @@ void func_800D8954(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8954
     sp10.vx = Q12_TO_Q8(arg0->field_4.field_18.vx);
     sp10.vy = Q12_TO_Q8(arg0->field_4.field_18.vy);
     sp10.vz = Q12_TO_Q8(arg0->field_4.field_18.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&sp10,
+                           arg0->field_4.field_18.vx,
+                           arg0->field_4.field_18.vy,
+                           arg0->field_4.field_18.vz);
+#endif
 
     temp_s1 = RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
 
@@ -1688,6 +1756,15 @@ void func_800D8954(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8954
            x0 + offsetX, y0,
            x0, y0 + offsetY,
            x0 + offsetX, y0 + offsetY);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&poly->x0, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x1, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x2, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x3, &sp18[0]);
+    }
+#endif
 
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
@@ -1808,6 +1885,15 @@ void func_800D8D90(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8D90
     *(s32*)&poly->x1 = *(s32*)&sp50[1];
     *(s32*)&poly->x2 = *(s32*)&sp50[2];
     *(s32*)&poly->x3 = *(s32*)&sp50[3];
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&poly->x0, &sp50[0]);
+        Shadow_Copy(&poly->x1, &sp50[1]);
+        Shadow_Copy(&poly->x2, &sp50[2]);
+        Shadow_Copy(&poly->x3, &sp50[3]);
+    }
+#endif
 
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
@@ -2865,6 +2951,9 @@ void func_800DADE0(s_func_800DAD54* arg0, s_800F3D48_0_0* arg1) // 0x800DADE0
     sp10.vx = Q12_TO_Q8(arg0->field_C.vx);
     sp10.vy = Q12_TO_Q8(arg0->field_C.vy);
     sp10.vz = Q12_TO_Q8(arg0->field_C.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&sp10, arg0->field_C.vx, arg0->field_C.vy, arg0->field_C.vz);
+#endif
 
     temp_s1 = RotTransPers(&sp10, &sp18[0], &sp18[1], &flags);
 
@@ -2916,6 +3005,15 @@ void func_800DADE0(s_func_800DAD54* arg0, s_800F3D48_0_0* arg1) // 0x800DADE0
            x0 + offsetX, y0,
            x0, y0 + offsetY,
            x0 + offsetX, y0 + offsetY);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&poly->x0, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x1, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x2, &sp18[0]);
+        Shadow_CopyScreenOffset(&poly->x3, &sp18[0]);
+    }
+#endif
 
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
@@ -3430,11 +3528,25 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
         {
             var_s6 = sp30;
             var_s5 = sp34;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&var_s6, &sp30);
+                Shadow_Copy(&var_s5, &sp34);
+            }
+#endif
         }
         else
         {
             var_s6 = sp34;
             var_s5 = sp30;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&var_s6, &sp34);
+                Shadow_Copy(&var_s5, &sp30);
+            }
+#endif
         }
 
         sp10.vx = Q12_TO_Q8(Q12_MULT_PRECISE(Math_Sin(angle2), dist));
@@ -3508,6 +3620,15 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
         *(s32*)&poly->x1 = var_s5;
         *(s32*)&poly->x2 = sp30;
         *(s32*)&poly->x3 = sp34;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&poly->x0, &var_s6);
+            Shadow_Copy(&poly->x1, &var_s5);
+            Shadow_Copy(&poly->x2, &sp30);
+            Shadow_Copy(&poly->x3, &sp34);
+        }
+#endif
 
         var_a0  = (i & 1) ? 0 : 0x7F;
         temp_v1 = 0x40;
@@ -3954,6 +4075,12 @@ void func_800DCD94(MATRIX* mat, VECTOR3* pos) // 0x800DCD94
     mat->t[0] = Q12_TO_Q8(pos->vx - D_800F48A8.positionX);
     mat->t[1] = Q12_TO_Q8(pos->vy);
     mat->t[2] = Q12_TO_Q8(pos->vz - D_800F48A8.positionZ);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(mat,
+                                      pos->vx - D_800F48A8.positionX,
+                                      pos->vy,
+                                      pos->vz - D_800F48A8.positionZ);
+#endif
 }
 
 void func_800DCDDC(s_800F3DAC* arg0, const VECTOR3* arg1, const VECTOR3* arg2) // 0x800DCDDC

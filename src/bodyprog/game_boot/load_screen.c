@@ -33,6 +33,9 @@ static void Math_MatrixTransform(VECTOR3* pos, SVECTOR* rot, GsCOORDINATE2* coor
     coord->coord.t[0] = Q12_TO_Q8(pos->vx);
     coord->coord.t[1] = Q12_TO_Q8(pos->vy);
     coord->coord.t[2] = Q12_TO_Q8(pos->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coord->coord, pos->vx, pos->vy, pos->vz);
+#endif
 
     Math_RotMatrixZxyNegGte(rot, (MATRIX*)&coord->coord);
 }

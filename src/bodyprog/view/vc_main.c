@@ -157,6 +157,9 @@ void func_80080B58(GsCOORDINATE2* arg0, SVECTOR* rot, VECTOR3* pos) // 0x80080B5
     vcWork.lookAtMat.t[0] = Q12_TO_Q8(pos->vx);
     vcWork.lookAtMat.t[1] = Q12_TO_Q8(pos->vy);
     vcWork.lookAtMat.t[2] = Q12_TO_Q8(pos->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&vcWork.lookAtMat, pos->vx, pos->vy, pos->vz);
+#endif
 }
 
 void vcWorkSetFlags(VC_FLAGS enable, VC_FLAGS disable) // 0x80080BF8
@@ -2979,6 +2982,9 @@ void vcMakeCamMatAndCamAngByBaseAngAndOfsAng(SVECTOR* cam_mat_ang, MATRIX* cam_m
     cam_mat->t[0] = Q12_TO_Q8(cam_pos->vx);
     cam_mat->t[1] = Q12_TO_Q8(cam_pos->vy);
     cam_mat->t[2] = Q12_TO_Q8(cam_pos->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(cam_mat, cam_pos->vx, cam_pos->vy, cam_pos->vz);
+#endif
 
     Math_RotMatrixZxyNeg(base_cam_ang, &base_mat);
     Math_RotMatrixZxyNeg(ofs_cam_ang, &ofs_mat);
@@ -3024,6 +3030,15 @@ void vcSetDataToVwSystem(VC_WORK* w_p, VC_CAM_MV_TYPE cam_mv_type) // 0x80085884
         noise_cam_mat.t[0] = w_p->cam_mat.t[0];
         noise_cam_mat.t[1] = w_p->cam_mat.t[1];
         noise_cam_mat.t[2] = w_p->cam_mat.t[2];
+#ifdef SH_PC_PORT
+        {
+            double exactTranslation[3];
+            if (PGXP_MatrixLookupTranslation(&w_p->cam_mat, exactTranslation))
+                PGXP_MatrixRegisterTranslation(&noise_cam_mat, exactTranslation);
+            else
+                PGXP_MatrixInvalidateTranslation(&noise_cam_mat);
+        }
+#endif
         vwSetViewInfoDirectMatrix(NULL, &noise_cam_mat);
     }
     else

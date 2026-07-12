@@ -23,12 +23,18 @@
     MTC2(_p[0], 0); MTC2(_p[1], 1); \
     MTC2(_p[2], 2); MTC2(_p[3], 3); \
     MTC2(_p[4], 4); MTC2(_p[5], 5); \
+    PGXP_VectorLoad((const char*)(r0) + 0, 0); \
+    PGXP_VectorLoad((const char*)(r0) + 8, 1); \
+    PGXP_VectorLoad((const char*)(r0) + 16, 2); \
 } while(0)
 
 #undef gte_stsxy3c
 #define gte_stsxy3c( r0 ) do { \
     uint *_p = (uint*)((char*)(r0)); \
     _p[0] = MFC2(12); _p[1] = MFC2(13); _p[2] = MFC2(14); \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { \
+        PGXP_StoreAddr(&_p[0], 0); PGXP_StoreAddr(&_p[1], 1); PGXP_StoreAddr(&_p[2], 2); \
+    } \
 } while(0)
 
 /* gte_stsxy3_g3: store SXY0/1/2 (GTE C12-14) into the X/Y slots of a
@@ -46,6 +52,9 @@
     *(uint*)(_b + 16) = MFC2(12); \
     *(uint*)(_b + 24) = MFC2(13); \
     *(uint*)(_b + 32) = MFC2(14); \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { \
+        PGXP_StoreAddr(_b + 16, 0); PGXP_StoreAddr(_b + 24, 1); PGXP_StoreAddr(_b + 32, 2); \
+    } \
 } while(0)
 #else
 #define gte_stsxy3_g3( p ) do { \

@@ -835,6 +835,9 @@ void func_800D99E4(s_SubCharacter* monsterCybil, s_Model* modelUpper, s_AnmHeade
     boneCoords[MonsterCybilBone_Root].coord.t[0] = Q12_TO_Q8(monsterCybil->position.vx);
     boneCoords[MonsterCybilBone_Root].coord.t[1] = Q12_TO_Q8(monsterCybil->position.vy);
     boneCoords[MonsterCybilBone_Root].coord.t[2] = Q12_TO_Q8(monsterCybil->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[MonsterCybilBone_Root].coord, monsterCybil->position.vx, monsterCybil->position.vy, monsterCybil->position.vz);
+#endif
 
     // TODO: Cybil has same skeleton structure as Harry? Check and make separate mask macros just for Cybil.
     anmHdr->activeBones = HARRY_LOWER_BODY_BONE_MASK;

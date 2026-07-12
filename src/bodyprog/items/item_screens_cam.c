@@ -142,10 +142,22 @@ void ItemScreen_ItemRotate(SVECTOR* arg0, GsCOORDINATE2* arg1) // 0x8004BCDC
     mat.t[0] = arg1->coord.t[0];
     mat.t[1] = arg1->coord.t[1];
     mat.t[2] = arg1->coord.t[2];
+#ifdef SH_PC_PORT
+    {
+        double exactTranslation[3];
+        if (PGXP_MatrixLookupTranslation(&arg1->coord, exactTranslation))
+            PGXP_MatrixRegisterTranslation(&mat, exactTranslation);
+        else
+            PGXP_MatrixInvalidateTranslation(&mat);
+    }
+#endif
 
     Math_RotMatrixZxyNegGte(arg0, &mat);
 
     arg1->coord = mat;
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopyFull(&arg1->coord, &mat);
+#endif
 
     ScaleMatrix(&arg1->coord, &arg1->param->scale);
 

@@ -220,6 +220,12 @@ void sharedFunc_800D1C38_0_s00(s_SubCharacter* chara, s_PlayerExtra* extra, GsCO
     coords->coord.t[0] = Q12_TO_Q8(chara->position.vx);
     coords->coord.t[1] = Q12_TO_Q8(chara->position.vy);
     coords->coord.t[2] = Q12_TO_Q8(chara->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coords->coord,
+                                      chara->position.vx,
+                                      chara->position.vy,
+                                      chara->position.vz);
+#endif
 }
 
 void sharedFunc_800D209C_0_s00(void)
@@ -1264,4 +1270,3 @@ void sharedFunc_800D2EF4_0_s00(void)
 {
     g_SysWork.playerCombat.weaponAttack = sharedData_800DD59C_0_s00;
 }
-

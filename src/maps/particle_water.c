@@ -348,6 +348,31 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
         *(s32*)&ptr->field_144 = ((Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_0.vx_0 + ((-ptr->field_168 - ptr->field_16C) >> Q12_SHIFT)) - (u16)ptr->field_0.field_0.vx) & 0xFFFF) +
                                  ((Q12_TO_Q8(ptr->field_176) - ptr->field_0.field_0.vy) << 16);
         ptr->field_144.vz = Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4 + ((ptr->field_164 - ptr->field_170) >> Q12_SHIFT)) - ptr->field_0.field_0.vz;
+#ifdef SH_PC_PORT
+        {
+            const s32 x = sharedData_800DFB7C_0_s00[idx].field_0.vx_0;
+            const s32 z = sharedData_800DFB7C_0_s00[idx].field_4.vz_4;
+            const s32 bx = Q8_TO_Q12((s16)ptr->field_0.field_0.vx);
+            const s32 by = Q8_TO_Q12(ptr->field_0.field_0.vy);
+            const s32 bz = Q8_TO_Q12(ptr->field_0.field_0.vz);
+            PGXP_VectorRegisterQ12(&ptr->field_12C,
+                                   x + (ptr->field_168 >> Q12_SHIFT) - bx,
+                                   ptr->field_174 - by,
+                                   z + (-ptr->field_164 >> Q12_SHIFT) - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_134,
+                                   x + (-ptr->field_168 >> Q12_SHIFT) - bx,
+                                   ptr->field_174 - by,
+                                   z + (ptr->field_164 >> Q12_SHIFT) - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_13C,
+                                   x + ((ptr->field_168 - ptr->field_16C) >> Q12_SHIFT) - bx,
+                                   ptr->field_176 - by,
+                                   z + ((-ptr->field_164 - ptr->field_170) >> Q12_SHIFT) - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_144,
+                                   x + ((-ptr->field_168 - ptr->field_16C) >> Q12_SHIFT) - bx,
+                                   ptr->field_176 - by,
+                                   z + ((ptr->field_164 - ptr->field_170) >> Q12_SHIFT) - bz);
+        }
+#endif
     }
     else
     {
@@ -412,6 +437,32 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
         *(s32*)&ptr->field_144 = ((Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_0.vx_0 + ptr->field_0.u_field_EC.field_0[idx0].vy) - (u16)ptr->field_0.field_0.vx) & 0xFFFF) +
                                  ((Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].vy_8 + ptr->field_16C) - ptr->field_0.field_0.vy) << 16);
         ptr->field_144.vz      = Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4 + ptr->field_0.u_field_FC.field_0[idx0].vy) - ptr->field_0.field_0.vz;
+#ifdef SH_PC_PORT
+        {
+            const s32 x = sharedData_800DFB7C_0_s00[idx].field_0.vx_0;
+            const s32 y = sharedData_800DFB7C_0_s00[idx].vy_8;
+            const s32 z = sharedData_800DFB7C_0_s00[idx].field_4.vz_4;
+            const s32 bx = Q8_TO_Q12((s16)ptr->field_0.field_0.vx);
+            const s32 by = Q8_TO_Q12(ptr->field_0.field_0.vy);
+            const s32 bz = Q8_TO_Q12(ptr->field_0.field_0.vz);
+            PGXP_VectorRegisterQ12(&ptr->field_12C,
+                                   x + ptr->field_0.u_field_EC.field_0[idx0].vx - bx,
+                                   y - by,
+                                   z + ptr->field_0.u_field_FC.field_0[idx0].vx - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_134,
+                                   x + ptr->field_0.u_field_EC.field_0[idx0].vy - bx,
+                                   y - by,
+                                   z + ptr->field_0.u_field_FC.field_0[idx0].vy - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_13C,
+                                   x + ptr->field_0.u_field_EC.field_0[idx0].vx - bx,
+                                   y + ptr->field_16C - by,
+                                   z + ptr->field_0.u_field_FC.field_0[idx0].vx - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_144,
+                                   x + ptr->field_0.u_field_EC.field_0[idx0].vy - bx,
+                                   y + ptr->field_16C - by,
+                                   z + ptr->field_0.u_field_FC.field_0[idx0].vy - bz);
+        }
+#endif
     }
 
     gte_ldv3c(&ptr->field_12C);
@@ -441,6 +492,10 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
     }
 
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_14C;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&(*poly)->x3, &ptr->field_14C);
+    }
 
     temp_v1_13          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
     *(s32*)&(*poly)->u0 = ((temp_v1_13 & 0x2) * 16) + 0x40 + ((ptr->field_17C + ((temp_v1_13 & 0x1) << 6)) << 8) + 0xE0000;
@@ -728,6 +783,13 @@ void sharedFunc_800CCE60_1_s02(void)
             setXY1Fast(poly, ptr->field_13C[k][1].vx, ptr->field_13C[k][1].vy);
             setXY2Fast(poly, ptr->field_13C[k + 1][0].vx, ptr->field_13C[k + 1][0].vy);
             setXY3Fast(poly, ptr->field_13C[k + 1][1].vx, ptr->field_13C[k + 1][1].vy);
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&poly->x0, &ptr->field_13C[k][0]);
+                Shadow_Copy(&poly->x1, &ptr->field_13C[k][1]);
+                Shadow_Copy(&poly->x2, &ptr->field_13C[k + 1][0]);
+                Shadow_Copy(&poly->x3, &ptr->field_13C[k + 1][1]);
+            }
 
             setSemiTrans(poly, 1);
 

@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
+#include <math.h>
 #endif
 
 #include "bodyprog/view/vw_main.h"
@@ -64,6 +65,9 @@ void Vw_SetLookAtMatrix(const VECTOR3* pos, const VECTOR3* lookAt) // 0x80048AF4
     viewMat.t[0] = Q12_TO_Q8(pos->vx);
     viewMat.t[1] = Q12_TO_Q8(pos->vy);
     viewMat.t[2] = Q12_TO_Q8(pos->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&viewMat, pos->vx, pos->vy, pos->vz);
+#endif
     vwSetViewInfoDirectMatrix(NULL, &viewMat);
 }
 
@@ -91,6 +95,17 @@ void vwSetCoordRefAndEntou(GsCOORDINATE2* parent_p,
     view_mtx->t[0] = Q12_TO_Q8(ref_x) + Q12_MULT(Q12_TO_Q8(cam_xz_r), Math_Sin(cam_ang_y));
     view_mtx->t[1] = Q12_TO_Q8(ref_y) + Q12_TO_Q8(cam_y);
     view_mtx->t[2] = Q12_TO_Q8(ref_z) + Q12_MULT(Q12_TO_Q8(cam_xz_r), Math_Cos(cam_ang_y));
+#ifdef SH_PC_PORT
+    {
+        const double radians = ((double)cam_ang_y / 4096.0) * 6.28318530717958647692;
+        const double exactTranslation[3] = {
+            (double)ref_x / 16.0 + ((double)cam_xz_r / 16.0) * sin(radians),
+            (double)ref_y / 16.0 + (double)cam_y / 16.0,
+            (double)ref_z / 16.0 + ((double)cam_xz_r / 16.0) * cos(radians)
+        };
+        PGXP_MatrixRegisterTranslation(view_mtx, exactTranslation);
+    }
+#endif
 }
 
 void vwSetViewInfoDirectMatrix(GsCOORDINATE2* pcoord, const MATRIX* cammat) // 0x80048CF0
@@ -98,6 +113,9 @@ void vwSetViewInfoDirectMatrix(GsCOORDINATE2* pcoord, const MATRIX* cammat) // 0
     vwViewPointInfo.vwcoord.flg   = false;
     vwViewPointInfo.vwcoord.super = pcoord;
     vwViewPointInfo.vwcoord.coord = *cammat;
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopyFull(&vwViewPointInfo.vwcoord.coord, cammat);
+#endif
 }
 
 /** @brief Extracts a position from a matrix, outputting the result to `pos`.
@@ -109,6 +127,22 @@ void vwSetViewInfoDirectMatrix(GsCOORDINATE2* pcoord, const MATRIX* cammat) // 0
  */
 static inline void Math_MatrixToPosition(VECTOR3* pos, MATRIX* mat)
 {
+#ifdef SH_PC_PORT
+    /* Preserve the Q12 camera position carried by the PGXP translation twin.
+     * llround selects the nearest representable Q12 value; if provenance was
+     * invalidated, retain the exact legacy Q8->Q12 conversion below. */
+    if (g_PsxUsePgxp)
+    {
+        double exactTranslation[3];
+        if (PGXP_MatrixLookupTranslation(mat, exactTranslation))
+        {
+            pos->vx = (s32)llround(exactTranslation[0] * 16.0);
+            pos->vy = (s32)llround(exactTranslation[1] * 16.0);
+            pos->vz = (s32)llround(exactTranslation[2] * 16.0);
+            return;
+        }
+    }
+#endif
     pos->vx = Q8_TO_Q12(mat->t[0]);
     pos->vy = Q8_TO_Q12(mat->t[1]);
     pos->vz = Q8_TO_Q12(mat->t[2]);

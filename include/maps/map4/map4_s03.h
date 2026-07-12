@@ -17,6 +17,15 @@
 
 #include "maps/shared.h"
 
+#ifdef SH_PC_PORT
+#define COPY_GT4_PGXP_XY(poly, src, n) do {                         \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)               \
+        Shadow_Copy(&(poly)->x##n, (src));                           \
+} while (0)
+#else
+#define COPY_GT4_PGXP_XY(poly, src, n) ((void)0)
+#endif
+
 #define COPY_GT4_DATA(poly, idx, ptr0, ptr1, ptr2, n) \
 {                                                     \
     u16* ptr4 = &(ptr0)[(idx)];                       \
@@ -25,6 +34,7 @@
                                                       \
     *(u16*)&(poly)->u##n = *ptr4;                     \
     *(s32*)&(poly)->x##n = *ptr5;                     \
+    COPY_GT4_PGXP_XY(poly, ptr5, n);                  \
     *(s32*)&(poly)->r##n = *ptr6;                     \
 }
 

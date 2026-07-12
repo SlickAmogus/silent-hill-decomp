@@ -26,6 +26,9 @@ void Character_CoordTransformUpdate(s_SubCharacter* ghostDoc, GsCOORDINATE2* bon
     boneCoords[GhostDoctorBone_Root].coord.t[0] = Q12_TO_Q8(ghostDoc->position.vx);
     boneCoords[GhostDoctorBone_Root].coord.t[1] = Q12_TO_Q8(ghostDoc->position.vy);
     boneCoords[GhostDoctorBone_Root].coord.t[2] = Q12_TO_Q8(ghostDoc->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[GhostDoctorBone_Root].coord, ghostDoc->position.vx, ghostDoc->position.vy, ghostDoc->position.vz);
+#endif
 }
 
 void GhostDoctor_Init(s_SubCharacter* ghostDoc) // 0x800D8BE0

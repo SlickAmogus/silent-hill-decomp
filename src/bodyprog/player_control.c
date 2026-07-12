@@ -9013,6 +9013,12 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
     coords->coord.t[0]                        = Q12_TO_Q8(player->position.vx);
     coords->coord.t[1]                        = Q12_TO_Q8(player->position.vy);
     coords->coord.t[2]                        = Q12_TO_Q8(player->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&coords->coord,
+                                      player->position.vx,
+                                      player->position.vy,
+                                      player->position.vz);
+#endif
 }
 
 void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007C800

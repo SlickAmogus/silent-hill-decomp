@@ -70,6 +70,9 @@ void GhostChildAlessa_MovementUpdate(s_SubCharacter* ghostAlessa, GsCOORDINATE2*
     boneCoords[GhostChildAlessaBone_Root].coord.t[0] = Q12_TO_Q8(ghostAlessa->position.vx);
     boneCoords[GhostChildAlessaBone_Root].coord.t[1] = Q12_TO_Q8(ghostAlessa->position.vy);
     boneCoords[GhostChildAlessaBone_Root].coord.t[2] = Q12_TO_Q8(ghostAlessa->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[GhostChildAlessaBone_Root].coord, ghostAlessa->position.vx, ghostAlessa->position.vy, ghostAlessa->position.vz);
+#endif
 }
 
 /** Addresses

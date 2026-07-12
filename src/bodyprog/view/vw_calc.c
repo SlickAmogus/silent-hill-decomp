@@ -313,6 +313,24 @@ void vwMatrixToAngleYXZ(SVECTOR* ang, const MATRIX* mat) // 0x800495D4
 
 void Vw_MultiplyAndTransformMatrix(MATRIX* transformMat, MATRIX* inMat, MATRIX* outMat) // 0x800496AC
 {
+#ifdef SH_PC_PORT
+    double exactRot[9];
+    double exactTransformT[3];
+    double exactInputT[3];
+    double exactOutputT[3];
+    s32 haveExactTranslation =
+        PGXP_MatrixLookup(transformMat, exactRot) &&
+        PGXP_MatrixLookupTranslation(transformMat, exactTransformT) &&
+        PGXP_MatrixLookupTranslation(inMat, exactInputT);
+
+    if (haveExactTranslation)
+    {
+        exactOutputT[0] = exactTransformT[0] + exactRot[0] * exactInputT[0] + exactRot[1] * exactInputT[1] + exactRot[2] * exactInputT[2];
+        exactOutputT[1] = exactTransformT[1] + exactRot[3] * exactInputT[0] + exactRot[4] * exactInputT[1] + exactRot[5] * exactInputT[2];
+        exactOutputT[2] = exactTransformT[2] + exactRot[6] * exactInputT[0] + exactRot[7] * exactInputT[1] + exactRot[8] * exactInputT[2];
+    }
+#endif
+
     gte_SetRotMatrix(transformMat);
     gte_SetTransMatrix(transformMat);
     gte_ldclmv(inMat);
@@ -327,6 +345,13 @@ void Vw_MultiplyAndTransformMatrix(MATRIX* transformMat, MATRIX* inMat, MATRIX* 
     gte_ldlvl((VECTOR*)inMat->t);
     gte_rtirtr();
     gte_stlvnl((VECTOR*)outMat->t);
+
+#ifdef SH_PC_PORT
+    if (haveExactTranslation)
+        PGXP_MatrixRegisterTranslation(outMat, exactOutputT);
+    else
+        PGXP_MatrixInvalidateTranslation(outMat);
+#endif
 }
 
 void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
@@ -341,6 +366,12 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     VbWvsMatrix.t[2] = Q8(0.0f);
     VbWvsMatrix.t[1] = Q8(0.0f);
     VbWvsMatrix.t[0] = Q8(0.0f);
+#ifdef SH_PC_PORT
+    {
+        const double zeroTranslation[3] = { 0.0, 0.0, 0.0 };
+        PGXP_MatrixRegisterTranslation(&VbWvsMatrix, zeroTranslation);
+    }
+#endif
 
     GsWSMATRIX.m[0][0] = VbWvsMatrix.m[0][0];
     GsWSMATRIX.m[0][1] = VbWvsMatrix.m[0][1];
@@ -351,11 +382,33 @@ void vbSetWorldScreenMatrix(GsCOORDINATE2* coord) // 0x800497E4
     GsWSMATRIX.m[2][0] = VbWvsMatrix.m[2][0];
     GsWSMATRIX.m[2][1] = VbWvsMatrix.m[2][1];
     GsWSMATRIX.m[2][2] = VbWvsMatrix.m[2][2];
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopy(&GsWSMATRIX, &VbWvsMatrix);
+#endif
 
     vec.vx = -D_800C3868.t[0];
     vec.vy = -D_800C3868.t[1];
     vec.vz = -D_800C3868.t[2];
     ApplyMatrixLV(&VbWvsMatrix, &vec, (VECTOR*)&GsWSMATRIX.t);
+#ifdef SH_PC_PORT
+    {
+        double exactViewRot[9];
+        double exactCameraT[3];
+        double exactWorldScreenT[3];
+        if (PGXP_MatrixLookup(&VbWvsMatrix, exactViewRot) &&
+            PGXP_MatrixLookupTranslation(&D_800C3868, exactCameraT))
+        {
+            exactWorldScreenT[0] = -(exactViewRot[0] * exactCameraT[0] + exactViewRot[1] * exactCameraT[1] + exactViewRot[2] * exactCameraT[2]);
+            exactWorldScreenT[1] = -(exactViewRot[3] * exactCameraT[0] + exactViewRot[4] * exactCameraT[1] + exactViewRot[5] * exactCameraT[2]);
+            exactWorldScreenT[2] = -(exactViewRot[6] * exactCameraT[0] + exactViewRot[7] * exactCameraT[1] + exactViewRot[8] * exactCameraT[2]);
+            PGXP_MatrixRegisterTranslation(&GsWSMATRIX, exactWorldScreenT);
+        }
+        else
+        {
+            PGXP_MatrixInvalidateTranslation(&GsWSMATRIX);
+        }
+    }
+#endif
 }
 
 void vbSetRefView(VbRVIEW* rview) // 0x800498D8
@@ -397,6 +450,7 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
             if (!_badRootLogged) { _badRootLogged = 1; SH_DBG("[COORD] non-canonical rootCoord=%p — identity", (void*)rootCoord); }
         }
         *transformMat = GsIDMATRIX;
+        PGXP_MatrixCopyFull(transformMat, &GsIDMATRIX);
         return;
     }
 #endif
@@ -404,6 +458,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     if (rootCoord == NULL)
     {
         *transformMat = GsIDMATRIX;
+#ifdef SH_PC_PORT
+        PGXP_MatrixCopyFull(transformMat, &GsIDMATRIX);
+#endif
     }
 
     curCoord  = rootCoord;
@@ -459,6 +516,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
             if (prevCoord == NULL)
             {
                 curCoord->workm = curCoord->coord;
+#ifdef SH_PC_PORT
+                PGXP_MatrixCopyFull(&curCoord->workm, &curCoord->coord);
+#endif
             }
             else
             {
@@ -473,6 +533,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     // Set output.
     *transformMat = rootCoord->workm;
 #ifdef SH_PC_PORT
+    PGXP_MatrixCopyFull(transformMat, &rootCoord->workm);
+#endif
+#ifdef SH_PC_PORT
     #undef COORD_PTR_OK
 #endif
 }
@@ -480,32 +543,102 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
 void Vw_CoordToViewSpaceMatrix(GsCOORDINATE2* rootCoord, MATRIX* viewMat) // 0x80049AF8
 {
     MATRIX worldMat;
+#ifdef SH_PC_PORT
+    double exactWorldT[3];
+    double exactCameraT[3];
+    double exactRelativeT[3];
+#endif
 
     Vw_CoordHierarchyMatrixCompute(rootCoord, &worldMat);
+#ifdef SH_PC_PORT
+    s32 haveExactTranslation =
+        PGXP_MatrixLookupTranslation(&worldMat, exactWorldT) &&
+        PGXP_MatrixLookupTranslation(&D_800C3868, exactCameraT);
+#endif
     worldMat.t[0] -= D_800C3868.t[0];
     worldMat.t[1] -= D_800C3868.t[1];
     worldMat.t[2] -= D_800C3868.t[2];
+#ifdef SH_PC_PORT
+    if (haveExactTranslation)
+    {
+        exactRelativeT[0] = exactWorldT[0] - exactCameraT[0];
+        exactRelativeT[1] = exactWorldT[1] - exactCameraT[1];
+        exactRelativeT[2] = exactWorldT[2] - exactCameraT[2];
+        PGXP_MatrixRegisterTranslation(&worldMat, exactRelativeT);
+    }
+    else
+    {
+        PGXP_MatrixInvalidateTranslation(&worldMat);
+    }
+#endif
 
     Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, &worldMat, viewMat);
 }
 
 void Vw_CoordToWorldAndViewMatrices(GsCOORDINATE2* rootCoord, MATRIX* worldMat, MATRIX* viewMat) // 0x80049B6C
 {
+#ifdef SH_PC_PORT
+    double exactWorldT[3];
+    double exactCameraT[3];
+    double exactRelativeT[3];
+#endif
+
     Vw_CoordHierarchyMatrixCompute(rootCoord, worldMat);
+#ifdef SH_PC_PORT
+    s32 haveExactTranslation =
+        PGXP_MatrixLookupTranslation(worldMat, exactWorldT) &&
+        PGXP_MatrixLookupTranslation(&D_800C3868, exactCameraT);
+#endif
     worldMat->t[0] -= D_800C3868.t[0];
     worldMat->t[1] -= D_800C3868.t[1];
     worldMat->t[2] -= D_800C3868.t[2];
+#ifdef SH_PC_PORT
+    if (haveExactTranslation)
+    {
+        exactRelativeT[0] = exactWorldT[0] - exactCameraT[0];
+        exactRelativeT[1] = exactWorldT[1] - exactCameraT[1];
+        exactRelativeT[2] = exactWorldT[2] - exactCameraT[2];
+        PGXP_MatrixRegisterTranslation(worldMat, exactRelativeT);
+    }
+    else
+    {
+        PGXP_MatrixInvalidateTranslation(worldMat);
+    }
+#endif
 
     Vw_MultiplyAndTransformMatrix(&VbWvsMatrix, worldMat, viewMat);
     worldMat->t[0] += D_800C3868.t[0];
     worldMat->t[1] += D_800C3868.t[1];
     worldMat->t[2] += D_800C3868.t[2];
+#ifdef SH_PC_PORT
+    if (haveExactTranslation)
+        PGXP_MatrixRegisterTranslation(worldMat, exactWorldT);
+    else
+        PGXP_MatrixInvalidateTranslation(worldMat);
+#endif
 }
 
 void Vw_WorldScreenMatrixAtPositionGet(MATRIX* worldToScreenMat, q19_12 posX, q19_12 posY, q19_12 posZ) // 0x80049C2C
 {
     VECTOR in; // Q23.8
     VECTOR out;
+#ifdef SH_PC_PORT
+    double exactRot[9];
+    double exactBaseT[3];
+    double exactOutputT[3];
+    s32 haveExactTranslation =
+        PGXP_MatrixLookup(&GsWSMATRIX, exactRot) &&
+        PGXP_MatrixLookupTranslation(&GsWSMATRIX, exactBaseT);
+    if (haveExactTranslation)
+    {
+        const double x = (double)posX / 16.0;
+        const double y = (double)posY / 16.0;
+        const double z = (double)posZ / 16.0;
+        exactOutputT[0] = exactBaseT[0] + exactRot[0] * x + exactRot[1] * y + exactRot[2] * z;
+        exactOutputT[1] = exactBaseT[1] + exactRot[3] * x + exactRot[4] * y + exactRot[5] * z;
+        exactOutputT[2] = exactBaseT[2] + exactRot[6] * x + exactRot[7] * y + exactRot[8] * z;
+    }
+#endif
 
     in.vx = Q12_TO_Q8(posX);
     in.vy = Q12_TO_Q8(posY);
@@ -518,10 +651,19 @@ void Vw_WorldScreenMatrixAtPositionGet(MATRIX* worldToScreenMat, q19_12 posX, q1
     *(u32*)&worldToScreenMat->m[1][1] = *(u32*)&GsWSMATRIX.m[1][1];
     *(u32*)&worldToScreenMat->m[2][0] = *(u32*)&GsWSMATRIX.m[2][0];
     worldToScreenMat->m[2][2]         = GsWSMATRIX.m[2][2];
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopy(worldToScreenMat, &GsWSMATRIX);
+#endif
 
     worldToScreenMat->t[0] = out.vx + GsWSMATRIX.t[0];
     worldToScreenMat->t[1] = out.vy + GsWSMATRIX.t[1];
     worldToScreenMat->t[2] = out.vz + GsWSMATRIX.t[2];
+#ifdef SH_PC_PORT
+    if (haveExactTranslation)
+        PGXP_MatrixRegisterTranslation(worldToScreenMat, exactOutputT);
+    else
+        PGXP_MatrixInvalidateTranslation(worldToScreenMat);
+#endif
 }
 
 bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 minZ, s32 maxZ) // 0x80049D04
@@ -560,6 +702,12 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
 		vertOffset.vx = (i & (1 << 0)) ? Q12_TO_Q8(maxX - minX) : Q8(0.0f);
 		vertOffset.vy = (i & (1 << 1)) ? Q12_TO_Q8(maxY - minY) : Q8(0.0f);
 		vertOffset.vz = (i & (1 << 2)) ? Q12_TO_Q8(maxZ - minZ) : Q8(0.0f);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&vertOffset,
+                               (i & (1 << 0)) ? (maxX - minX) : Q12(0.0f),
+                               (i & (1 << 1)) ? (maxY - minY) : Q12(0.0f),
+                               (i & (1 << 2)) ? (maxZ - minZ) : Q12(0.0f));
+#endif
 
 		screenDepth = RotTransPers(&vertOffset, &screenPos, &depthDmy, &depthDmy) - 1;
 
@@ -691,6 +839,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
 
     cullData           = (s_CameraCullData*)PSX_SCRATCH;
     cullData->modelMat = *modelMat;
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopyFull(&cullData->modelMat, modelMat);
+#endif
 
     ((u32*)&regionFlags)[1] = 0;
     ((u32*)&regionFlags)[0] = 0;

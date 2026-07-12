@@ -82,6 +82,9 @@ void Kaufmann_MovementUpdate(s_SubCharacter* kaufmann, GsCOORDINATE2* boneCoords
     boneCoords[0].coord.t[0] = Q12_TO_Q8(kaufmann->position.vx);
     boneCoords[0].coord.t[1] = Q12_TO_Q8(kaufmann->position.vy);
     boneCoords[0].coord.t[2] = Q12_TO_Q8(kaufmann->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[0].coord, kaufmann->position.vx, kaufmann->position.vy, kaufmann->position.vz);
+#endif
 }
 
 /** Addresses

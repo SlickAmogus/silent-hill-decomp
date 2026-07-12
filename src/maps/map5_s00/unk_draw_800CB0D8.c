@@ -103,6 +103,20 @@ bool func_800CB25C(POLY_FT4** poly, s32 idx) // 0x800CB25C
                                Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].vy_8) - ptr->field_0.field_0.vy,
                                Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - ptr->field_15C) - ptr->field_0.field_0.vz);
 
+#ifdef SH_PC_PORT
+        {
+            const s32 x = sharedData_800DFB7C_0_s00[idx].field_0.vx_0;
+            const s32 y = sharedData_800DFB7C_0_s00[idx].vy_8;
+            const s32 z = sharedData_800DFB7C_0_s00[idx].field_4.vz_4;
+            const s32 bx = Q8_TO_Q12((s16)ptr->field_0.field_0.vx);
+            const s32 by = Q8_TO_Q12(ptr->field_0.field_0.vy);
+            const s32 bz = Q8_TO_Q12(ptr->field_0.field_0.vz);
+            PGXP_VectorRegisterQ12(&ptr->field_12C[0], x - ptr->field_15C - bx, y - by, z + ptr->field_15C - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_12C[1], x + ptr->field_15C - bx, y - by, z + ptr->field_15C - bz);
+            PGXP_VectorRegisterQ12(&ptr->field_12C[2], x - ptr->field_15C - bx, y - by, z - ptr->field_15C - bz);
+        }
+#endif
+
         gte_ldv3c(&ptr->field_12C);
         gte_rtpt();
         gte_stsxy3_g3(*poly);
@@ -112,6 +126,12 @@ bool func_800CB25C(POLY_FT4** poly, s32 idx) // 0x800CB25C
                                Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_0.vx_0 + ptr->field_15C) - (u16)ptr->field_0.field_0.vx,
                                Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].vy_8) - ptr->field_0.field_0.vy,
                                Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - ptr->field_15C) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&ptr->field_12C[0],
+                               sharedData_800DFB7C_0_s00[idx].field_0.vx_0 + ptr->field_15C - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                               sharedData_800DFB7C_0_s00[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                               sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - ptr->field_15C - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
         gte_ldv0(&ptr->field_12C);
         gte_rtps();
@@ -131,6 +151,10 @@ bool func_800CB25C(POLY_FT4** poly, s32 idx) // 0x800CB25C
         }
 
         *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_144;
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&(*poly)->x3, &ptr->field_144);
+        }
         setSemiTrans(*poly, 1);
 
         if (CLAMP_LOW(Q12_MULT_PRECISE(Q12(1.0f) - sharedData_800DFB7C_0_s00[idx].field_C.s_2.field_0, 32), 0) < 16)
@@ -205,6 +229,13 @@ bool func_800CB25C(POLY_FT4** poly, s32 idx) // 0x800CB25C
                        sp10[i][j + 1].vx, sp10[i][j + 1].vy,
                        sp10[i + 1][j].vx, sp10[i + 1][j].vy,
                        sp10[i + 1][j + 1].vx, sp10[i + 1][j + 1].vy);
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_Copy(&(*poly)->x0, &sp10[i][j]);
+                    Shadow_Copy(&(*poly)->x1, &sp10[i][j + 1]);
+                    Shadow_Copy(&(*poly)->x2, &sp10[i + 1][j]);
+                    Shadow_Copy(&(*poly)->x3, &sp10[i + 1][j + 1]);
+                }
 
                 setSemiTrans(*poly, 1);
 

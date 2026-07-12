@@ -12794,6 +12794,12 @@ void sharedFunc_800D7560_0_s01(s_SubCharacter* airScreamer)
     mat->t[0] = Q12_TO_Q8(airScreamer->position.vx + offsetX);
     mat->t[1] = Q12_TO_Q8(airScreamer->position.vy);
     mat->t[2] = Q12_TO_Q8(airScreamer->position.vz + offsetZ);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(mat,
+                                      airScreamer->position.vx + offsetX,
+                                      airScreamer->position.vy,
+                                      airScreamer->position.vz + offsetZ);
+#endif
 }
 
 void sharedFunc_800D76A0_0_s01(s_SubCharacter* airScreamer)

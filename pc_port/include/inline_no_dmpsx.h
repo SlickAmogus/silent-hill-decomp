@@ -46,6 +46,9 @@ extern void PGXP_StoreAddr(void* addr, int slot);
     MTC2(_p[0], 0); MTC2(_p[1], 1); \
     MTC2(_p[2], 2); MTC2(_p[3], 3); \
     MTC2(_p[4], 4); MTC2(_p[5], 5); \
+    PGXP_VectorLoad((const char*)(r0) + 0, 0); \
+    PGXP_VectorLoad((const char*)(r0) + 8, 1); \
+    PGXP_VectorLoad((const char*)(r0) + 16, 2); \
 } while(0)
 
 /* gte_ReadGeomScreen - read projection distance H (COP2 control reg 26)

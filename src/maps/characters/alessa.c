@@ -79,6 +79,9 @@ void Alessa_MovementUpdate(s_SubCharacter* alessa, GsCOORDINATE2* boneCoords)
     boneCoords[AlessaBone_Root].coord.t[0] = Q12_TO_Q8(alessa->position.vx);
     boneCoords[AlessaBone_Root].coord.t[1] = Q12_TO_Q8(alessa->position.vy);
     boneCoords[AlessaBone_Root].coord.t[2] = Q12_TO_Q8(alessa->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[AlessaBone_Root].coord, alessa->position.vx, alessa->position.vy, alessa->position.vz);
+#endif
 }
 
 /** Addresses

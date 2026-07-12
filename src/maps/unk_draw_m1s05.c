@@ -91,6 +91,12 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_0.vx_0) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].vy_8) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->cameraRotation,
+                           sharedData_800DFB7C_0_s00[idx].field_0.vx_0 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                           sharedData_800DFB7C_0_s00[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                           sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
     gte_ldv0(&ptr->cameraRotation);
     gte_rtps();
@@ -112,6 +118,15 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
     setXY1Fast(*poly, (u16)ptr->field_144.vx + (u16)ptr->field_148, ptr->field_144.vy - ptr->field_14C);
     setXY2Fast(*poly, (u16)ptr->field_144.vx - (u16)ptr->field_148, ptr->field_144.vy + ptr->field_14C);
     setXY3Fast(*poly, (u16)ptr->field_144.vx + (u16)ptr->field_148, ptr->field_144.vy + ptr->field_14C);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_144);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_144);
+    }
+#endif
 
     *(u32*)&(*poly)->u0 = 0x530000;
     *(u32*)&(*poly)->u1 = 0x6B001F;
@@ -207,6 +222,22 @@ bool sharedFunc_800CC618_1_s05(POLY_FT4** poly, s32 idx)
     temp3             = (u16)ptr->field_168;
     ptr->field_144.vz = (Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4) - ptr->field_0.field_0.vz) - temp3;
 
+#ifdef SH_PC_PORT
+    {
+        const s32 x = sharedData_800DFB7C_0_s00[idx].field_0.vx_0;
+        const s32 y = sharedData_800DFB7C_0_s00[idx].vy_8;
+        const s32 z = sharedData_800DFB7C_0_s00[idx].field_4.vz_4;
+        const s32 bx = Q8_TO_Q12((s16)ptr->field_0.field_0.vx);
+        const s32 by = Q8_TO_Q12(ptr->field_0.field_0.vy);
+        const s32 bz = Q8_TO_Q12(ptr->field_0.field_0.vz);
+        const s32 radius = Q8_TO_Q12((u16)ptr->field_168);
+        PGXP_VectorRegisterQ12(&ptr->collision, x - bx - radius, y - by, z - bz + radius);
+        PGXP_VectorRegisterQ12(&ptr->field_134, x - bx + radius, y - by, z - bz + radius);
+        PGXP_VectorRegisterQ12(&ptr->field_13C, x - bx - radius, y - by, z - bz - radius);
+        PGXP_VectorRegisterQ12(&ptr->field_144, x - bx + radius, y - by, z - bz - radius);
+    }
+#endif
+
     gte_ldv3c(&ptr->collision);
     gte_rtpt();
     gte_stsxy3_g3(*poly);
@@ -225,6 +256,10 @@ bool sharedFunc_800CC618_1_s05(POLY_FT4** poly, s32 idx)
     }
 
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_15C;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&(*poly)->x3, &ptr->field_15C);
+    }
 
     ptr->field_164 = (ptr->field_160 * (func_80055D78(sharedData_800DFB7C_0_s00[idx].field_0.vx_0, sharedData_800DFB7C_0_s00[idx].vy_8, sharedData_800DFB7C_0_s00[idx].field_4.vz_4))) >> 7;
     ptr->field_160 = CLAMP_HIGH(ptr->field_160, ptr->field_164);
@@ -489,6 +524,15 @@ bool sharedFunc_800CCF30_1_s05(POLY_FT4** poly, s32 idx)
     setXY1Fast(*poly, (u16)ptr->field_140.vx - (u16)ptr->field_144.vx, ptr->field_140.vy - ptr->field_144.vy);
     setXY2Fast(*poly, (u16)ptr->field_13C.vx + (u16)ptr->field_144.vx, ptr->field_13C.vy + ptr->field_144.vy);
     setXY3Fast(*poly, (u16)ptr->field_140.vx + (u16)ptr->field_144.vx, ptr->field_140.vy + ptr->field_144.vy);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_13C);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_140);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_13C);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_140);
+    }
+#endif
 
     *(u32*)&(*poly)->u0 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x010E4000;
     *(u32*)&(*poly)->u1 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x6D407F;

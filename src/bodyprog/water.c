@@ -358,8 +358,28 @@ extern unsigned char g_PcFlashlightColorR, g_PcFlashlightColorG, g_PcFlashlightC
         }                                                            \
         setRGB0((p), _fr, _fg, _fb);                                 \
     } while (0)
+#define PGXP_TRACK_FLARE_QUAD(poly, center) do {                       \
+        if (g_PsxUsePgxp)                                             \
+        {                                                             \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x0, (center)); \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x1, (center)); \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x2, (center)); \
+            PGXP_CopyManualProjectionScreenOffset(&(poly)->x3, (center)); \
+        }                                                             \
+    } while (0)
+#define PGXP_TRACK_FLARE_QUAD_Q12(poly, center, scaleX, scaleY) do {   \
+        if (g_PsxUsePgxp)                                             \
+        {                                                             \
+            PGXP_CopyManualProjectionScreenOffsetQ12(&(poly)->x0, (center), (scaleX), (scaleY)); \
+            PGXP_CopyManualProjectionScreenOffsetQ12(&(poly)->x1, (center), (scaleX), (scaleY)); \
+            PGXP_CopyManualProjectionScreenOffsetQ12(&(poly)->x2, (center), (scaleX), (scaleY)); \
+            PGXP_CopyManualProjectionScreenOffsetQ12(&(poly)->x3, (center), (scaleX), (scaleY)); \
+        }                                                             \
+    } while (0)
 #else
 #define FL_SETRGB0 setRGB0
+#define PGXP_TRACK_FLARE_QUAD(poly, center) ((void)0)
+#define PGXP_TRACK_FLARE_QUAD_Q12(poly, center, scaleX, scaleY) ((void)0)
 #endif
 
 void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 0x8008D990
@@ -442,6 +462,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_a2 + temp_a0, temp_a1_2 - temp_a0,
            temp_a2 - temp_a0, temp_a1_2 + temp_a0,
            temp_a2 + temp_a0, temp_a1_2 + temp_a0);
+    PGXP_TRACK_FLARE_QUAD(poly, arg2);
 
     if (arg0)
     {
@@ -478,6 +499,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_v0_3 + 11, temp_v1_4 - 11,
            temp_v0_3 - 11, temp_v1_4 + 11,
            temp_v0_3 + 11, temp_v1_4 + 11);
+    PGXP_TRACK_FLARE_QUAD(poly, arg2);
 
     if (arg0)
     {
@@ -517,6 +539,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_t0 + temp_a2_3, temp_a3_2 - temp_a2_3,
            temp_t0 - temp_a2_3, temp_a3_2 + temp_a2_3,
            temp_t0 + temp_a2_3, temp_a3_2 + temp_a2_3);
+    PGXP_TRACK_FLARE_QUAD(poly, arg2);
 
     AddPrim(temp_s7, poly);
     poly++;
@@ -563,6 +586,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
                temp_a0_4 + FP_FROM(D_8002B2BC[2].vx * sinCurAngle + D_8002B2BC[2].vy * cosCurAngle, Q12_SHIFT),
                temp_v1_6 + FP_FROM(D_8002B2BC[3].vx * cosCurAngle - D_8002B2BC[3].vy * sinCurAngle, Q12_SHIFT),
                temp_a0_4 + FP_FROM(D_8002B2BC[3].vx * sinCurAngle + D_8002B2BC[3].vy * cosCurAngle, Q12_SHIFT));
+        PGXP_TRACK_FLARE_QUAD(poly, arg2);
 
         addPrim(temp_s7, poly);
         poly++;
@@ -592,6 +616,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_a0_5 + temp_a1_5, temp_v1_8 - temp_a1_5,
            temp_a0_5 - temp_a1_5, temp_v1_8 + temp_a1_5,
            temp_a0_5 + temp_a1_5, temp_v1_8 + temp_a1_5);
+    PGXP_TRACK_FLARE_QUAD_Q12(poly, arg2, 0x333, 0x333);
 
     addPrim(temp_s7, poly);
     poly++;
@@ -615,6 +640,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_v1_10 + Q12_MULT(temp_s2_2, 0x1C), temp_v0_11 - Q12_MULT(temp_s2_2, 0x1C),
            temp_v1_10 - Q12_MULT(temp_s2_2, 0x1C), temp_v0_11 + Q12_MULT(temp_s2_2, 0x1C),
            temp_v1_10 + Q12_MULT(temp_s2_2, 0x1C), temp_v0_11 + Q12_MULT(temp_s2_2, 0x1C));
+    PGXP_TRACK_FLARE_QUAD_Q12(poly, arg2, -0x4CC, -0x4CC);
 
     addPrim(temp_s7, poly);
     poly++;
@@ -637,6 +663,7 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
            temp_v0_13 + 10, temp_v1_12 - 10,
            temp_v0_13 - 10, temp_v1_12 + 10,
            temp_v0_13 + 10, temp_v1_12 + 10);
+    PGXP_TRACK_FLARE_QUAD(poly, arg2);
 
     addPrim(temp_s7, poly);
     poly++;
@@ -773,10 +800,35 @@ void func_8008E794(VECTOR3* posXz, q3_12 angle, q19_12 posY) // 0x8008E794
     sp10    = sp20;
 
     sp30 = GsWSMATRIX;
+#ifdef SH_PC_PORT
+    PGXP_MatrixCopy(&sp30, &GsWSMATRIX);
+#endif
     ApplyMatrixLV(&GsWSMATRIX, &sp10, &sp30.t);
     sp30.t[0] += GsWSMATRIX.t[0];
     sp30.t[1] += GsWSMATRIX.t[1];
     sp30.t[2] += GsWSMATRIX.t[2];
+#ifdef SH_PC_PORT
+    {
+        double exactRot[9];
+        double exactBaseT[3];
+        double exactT[3];
+        if (PGXP_MatrixLookup(&GsWSMATRIX, exactRot) &&
+            PGXP_MatrixLookupTranslation(&GsWSMATRIX, exactBaseT))
+        {
+            const double x = (double)posXz->vx / 16.0;
+            const double y = ((double)posY * 2.0 - (double)posXz->vy) / 16.0;
+            const double z = (double)posXz->vz / 16.0;
+            exactT[0] = exactBaseT[0] + exactRot[0] * x + exactRot[1] * y + exactRot[2] * z;
+            exactT[1] = exactBaseT[1] + exactRot[3] * x + exactRot[4] * y + exactRot[5] * z;
+            exactT[2] = exactBaseT[2] + exactRot[6] * x + exactRot[7] * y + exactRot[8] * z;
+            PGXP_MatrixRegisterTranslation(&sp30, exactT);
+        }
+        else
+        {
+            PGXP_MatrixInvalidateTranslation(&sp30);
+        }
+    }
+#endif
     SetTransMatrix(&sp30);
 
     if ((RotTransPers(&svec0, &sp20, &sp50, &sp50) * 4) >= 128)
@@ -821,6 +873,15 @@ void func_8008E794(VECTOR3* posXz, q3_12 angle, q19_12 posY) // 0x8008E794
         poly->y2    = ((u32)sp20.vx >> 16) + 48;
         poly->x3    = sp20.vx + 24;
         poly->y3    = ((u32)sp20.vx >> 16) + 48;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x0, &sp20);
+            Shadow_CopyScreenOffset(&poly->x1, &sp20);
+            Shadow_CopyScreenOffset(&poly->x2, &sp20);
+            Shadow_CopyScreenOffset(&poly->x3, &sp20);
+        }
+#endif
 
         AddPrim(g_OrderingTable0[g_ActiveBufferIdx].org + 641, poly);
         GsOUT_PACKET_P = poly + 1;
@@ -875,6 +936,9 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
     sp50.coord.t[0] = Q12_TO_Q8(posXz->vx);
     sp50.coord.t[1] = Q12_TO_Q8(posY);
     sp50.coord.t[2] = Q12_TO_Q8(posXz->vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&sp50.coord, posXz->vx, posY, posXz->vz);
+#endif
 
     Vw_CoordToViewSpaceMatrix(&sp50, &spA0);
     SetRotMatrix(&spA0);
@@ -955,6 +1019,21 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
 
         *(s32*)&poly->g4[1].x2 = *(s32*)&poly->g4[0].x2;
         *(s32*)&poly->g4[1].x3 = *(s32*)&poly->g4[0].x3;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&poly->g3[1].x0, &spC8);
+            Shadow_Copy(&poly->g3[0].x0, &spC8);
+            Shadow_Copy(&poly->g3[1].x1, &poly->g4[0].x0);
+            Shadow_Copy(&poly->g3[0].x1, &poly->g4[0].x0);
+            Shadow_Copy(&poly->g4[1].x0, &poly->g4[0].x0);
+            Shadow_Copy(&poly->g3[1].x2, &poly->g4[0].x1);
+            Shadow_Copy(&poly->g3[0].x2, &poly->g4[0].x1);
+            Shadow_Copy(&poly->g4[1].x1, &poly->g4[0].x1);
+            Shadow_Copy(&poly->g4[1].x2, &poly->g4[0].x2);
+            Shadow_Copy(&poly->g4[1].x3, &poly->g4[0].x3);
+        }
+#endif
 
         AddPrim(spD0, &poly->g4[0]);
         AddPrim(spD0, &poly->g3[0]);

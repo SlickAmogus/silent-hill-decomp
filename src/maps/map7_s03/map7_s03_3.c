@@ -876,6 +876,15 @@ void func_800E2968(s_800F4B40_118* arg0, s32 colCount, s32 rowCount, DVECTOR* ar
 
             temp_s1->x_0 = temp_s5 + Q12_MULT(temp_s3, Math_Cos(angle2));
             temp_s1->y_2 = temp_s4 + Q12_MULT(temp_s3, Math_Sin(angle2));
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                /* The ribbon centre is a screen-space interpolation of two
+                 * projected world endpoints; retain their fractional motion,
+                 * then apply this column's radial integer offset. */
+                Shadow_InterpolateScreenOffset(&temp_s1->x_0, arg3, arg4, temp_lo);
+            }
+#endif
         }
     }
 }
@@ -908,6 +917,15 @@ void func_800E2C28(s_800F4B40_118* arg0, s32 colCount, s32 rowCount, s32 zDepth,
             *(s32*)&poly->r2 = *(s32*)&colData[colCount + 0].color_4;
             *(s32*)&poly->x3 = *(s32*)&colData[colCount + 1].x_0;
             *(s32*)&poly->r3 = *(s32*)&colData[colCount + 1].color_4;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&poly->x0, &colData[0].x_0);
+                Shadow_Copy(&poly->x1, &colData[1].x_0);
+                Shadow_Copy(&poly->x2, &colData[colCount + 0].x_0);
+                Shadow_Copy(&poly->x3, &colData[colCount + 1].x_0);
+            }
+#endif
 
             setPolyG4(poly);
             setSemiTrans(poly, 1);
@@ -4181,4 +4199,3 @@ void func_800E9C28(void) // 0x800E9C28
             break;
     }
 }
-

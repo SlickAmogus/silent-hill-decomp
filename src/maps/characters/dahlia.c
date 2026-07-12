@@ -100,6 +100,9 @@ void Dahlia_MovementUpdate(s_SubCharacter* dahlia, GsCOORDINATE2* boneCoords)
     boneCoords[0].coord.t[0] = Q12_TO_Q8(dahlia->position.vx);
     boneCoords[0].coord.t[1] = Q12_TO_Q8(dahlia->position.vy);
     boneCoords[0].coord.t[2] = Q12_TO_Q8(dahlia->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[0].coord, dahlia->position.vx, dahlia->position.vy, dahlia->position.vz);
+#endif
 }
 
 /** Addresses

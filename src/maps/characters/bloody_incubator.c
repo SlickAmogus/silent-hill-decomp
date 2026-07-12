@@ -50,6 +50,9 @@ void func_800D3740(s_SubCharacter* bloodyIncubator, GsCOORDINATE2* boneCoords) /
     boneCoords[BloodyIncubatorBone_Root].coord.t[0] = Q12_TO_Q8(bloodyIncubator->position.vx);
     boneCoords[BloodyIncubatorBone_Root].coord.t[1] = Q12_TO_Q8(bloodyIncubator->position.vy);
     boneCoords[BloodyIncubatorBone_Root].coord.t[2] = Q12_TO_Q8(bloodyIncubator->position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&boneCoords[BloodyIncubatorBone_Root].coord, bloodyIncubator->position.vx, bloodyIncubator->position.vy, bloodyIncubator->position.vz);
+#endif
 }
 
 void func_800D38D8(s_SubCharacter* bloodyIncubator, GsCOORDINATE2* boneCoords) // 0x800D38D8

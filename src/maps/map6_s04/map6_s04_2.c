@@ -805,6 +805,13 @@ PACKET* func_800DF6C4(GsOT_TAG* ot, PACKET* packet, MATRIX* mat) // 0x800DF6C4
             *(s32*)&poly->x1 = *(s32*)&sp48[1];
             *(s32*)&poly->x2 = *(s32*)&sp48[2];
             *(s32*)&poly->x3 = *(s32*)&sp48[3];
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&poly->x0, &sp48[0]);
+                Shadow_Copy(&poly->x1, &sp48[1]);
+                Shadow_Copy(&poly->x2, &sp48[2]);
+                Shadow_Copy(&poly->x3, &sp48[3]);
+            }
 
             *(s32*)&poly->r0 = temp_s0;
             *(s32*)&poly->r1 = var_s6;
@@ -999,6 +1006,13 @@ void* func_800DFD3C(GsOT_TAG* ot, PACKET* packet, MATRIX* mat, s32 arg3, s32 arg
             *(s32*)&poly->x1 = *(s32*)&sp48[1];
             *(s32*)&poly->x2 = *(s32*)&sp48[2];
             *(s32*)&poly->x3 = *(s32*)&sp48[3];
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_Copy(&poly->x0, &sp48[0]);
+                Shadow_Copy(&poly->x1, &sp48[1]);
+                Shadow_Copy(&poly->x2, &sp48[2]);
+                Shadow_Copy(&poly->x3, &sp48[3]);
+            }
 
             *(s32*)&poly->r0 = temp_s0;
             *(s32*)&poly->r1 = var_s6;
@@ -1298,6 +1312,9 @@ void func_800E068C(void) // 0x800E068C
             sp10.vx = Q12_TO_Q8(ptr->vec_4.vx);
             sp10.vy = Q12_TO_Q8(ptr->vec_4.vy);
             sp10.vz = Q12_TO_Q8(ptr->vec_4.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&sp10, ptr->vec_4.vx, ptr->vec_4.vy, ptr->vec_4.vz);
+#endif
 
             RotTransPers(&sp10, &sp18[0], &sp18[1], &sp20);
             func_800E05C8(sp18[0].vx, sp18[0].vy, ptr->field_28);

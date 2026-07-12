@@ -771,6 +771,13 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
                         setXY1Fast(ptr->field_0, ptr2->field_0[i][j].vx, ptr2->field_0[i][j].vy);
                         setXY2Fast(ptr->field_0, ptr2->field_0[i + 1][j + 1].vx, ptr2->field_0[i + 1][j + 1].vy);
                         setXY3Fast(ptr->field_0, ptr2->field_0[i + 1][j].vx, ptr2->field_0[i + 1][j].vy);
+                        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                        {
+                            Shadow_Copy(&ptr->field_0->x0, &ptr2->field_0[i][j + 1]);
+                            Shadow_Copy(&ptr->field_0->x1, &ptr2->field_0[i][j]);
+                            Shadow_Copy(&ptr->field_0->x2, &ptr2->field_0[i + 1][j + 1]);
+                            Shadow_Copy(&ptr->field_0->x3, &ptr2->field_0[i + 1][j]);
+                        }
 
                         setRGB0Fast(ptr->field_0, ptr->field_74[1].r, ptr->field_74[1].g, ptr->field_74[1].b);
                         setRGB1Fast(ptr->field_0, ptr->field_74[0].r, ptr->field_74[0].g, ptr->field_74[0].b);
@@ -788,6 +795,13 @@ void func_800EC4B4(s32 arg0) // 0x800EC4B4
                         setXY1Fast(ptr->field_0, ptr2->field_0[i][j + 1].vx, ptr2->field_0[i][j + 1].vy);
                         setXY2Fast(ptr->field_0, ptr2->field_0[i + 1][j].vx, ptr2->field_0[i + 1][j].vy);
                         setXY3Fast(ptr->field_0, ptr2->field_0[i + 1][j + 1].vx, ptr2->field_0[i + 1][j + 1].vy);
+                        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                        {
+                            Shadow_Copy(&ptr->field_0->x0, &ptr2->field_0[i][j]);
+                            Shadow_Copy(&ptr->field_0->x1, &ptr2->field_0[i][j + 1]);
+                            Shadow_Copy(&ptr->field_0->x2, &ptr2->field_0[i + 1][j]);
+                            Shadow_Copy(&ptr->field_0->x3, &ptr2->field_0[i + 1][j + 1]);
+                        }
 
                         setRGB0Fast(ptr->field_0, ptr->field_74[0].r, ptr->field_74[0].g, ptr->field_74[0].b);
                         setRGB1Fast(ptr->field_0, ptr->field_74[1].r, ptr->field_74[1].g, ptr->field_74[1].b);

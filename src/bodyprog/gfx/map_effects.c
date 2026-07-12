@@ -1,4 +1,5 @@
 #include "game.h"
+#include "inline_no_dmpsx.h"
 
 #include <psyq/libetc.h>
 #include <psyq/libpad.h>
@@ -204,6 +205,15 @@ void func_8003E740(void) // 0x8003E740
 
         poly->x3 = sp10.vx + sp58.vx;
         poly->y3 = sp10.vy + sp58.vy;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x0, &sp10);
+            Shadow_CopyScreenOffset(&poly->x1, &sp10);
+            Shadow_CopyScreenOffset(&poly->x2, &sp10);
+            Shadow_CopyScreenOffset(&poly->x3, &sp10);
+        }
+#endif
 
 #ifdef SH_PC_PORT
         /* PAL FLAME sits at u=0 of its own tpage instead of u=128 of BG_ETC's. */

@@ -136,6 +136,15 @@ bool sharedFunc_800CE688_1_s03(POLY_FT4** poly, s32 idx)
             setXY1Fast(*poly, (u16)scratchData->x_140 + scratchData->field_148.u16, scratchData->y_142 - (s16)scratchData->field_148.u16);
             setXY2Fast(*poly, (u16)scratchData->x_140 - scratchData->field_148.u16, scratchData->y_142 + (s16)scratchData->field_148.u16);
             setXY3Fast(*poly, (u16)scratchData->x_140 + scratchData->field_148.u16, scratchData->y_142 + (s16)scratchData->field_148.u16);
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&(*poly)->x0, &scratchData->x_140);
+                Shadow_CopyScreenOffset(&(*poly)->x1, &scratchData->x_140);
+                Shadow_CopyScreenOffset(&(*poly)->x2, &scratchData->x_140);
+                Shadow_CopyScreenOffset(&(*poly)->x3, &scratchData->x_140);
+            }
+#endif
 
             setRGB0Fast(*poly, 0x40, 0x40, 0x40);
 

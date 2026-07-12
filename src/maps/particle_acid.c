@@ -97,6 +97,12 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
                                Q12_TO_Q8(ptr->field_12C.vx) - (u16)ptr->field_0.field_0.vx,
                                Q12_TO_Q8(ptr->field_12C.vy) - ptr->field_0.field_0.vy,
                                Q12_TO_Q8(ptr->field_12C.vz) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&ptr->field_138,
+                               ptr->field_12C.vx - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                               ptr->field_12C.vy - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                               ptr->field_12C.vz - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
         gte_ldv0(&ptr->field_138);
         gte_rtps();
@@ -124,6 +130,15 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
         setXY1Fast(*poly, (u16)ptr->field_140.vx + (u16)ptr->field_150, ptr->field_140.vy + ptr->field_150);
         setXY2Fast(*poly, (u16)ptr->field_140.vx - (u16)ptr->field_150, ptr->field_140.vy - ptr->field_150);
         setXY3Fast(*poly, (u16)ptr->field_140.vx + (u16)ptr->field_150, ptr->field_140.vy - ptr->field_150);
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_140);
+            Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_140);
+            Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_140);
+            Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_140);
+        }
+#endif
 
         ptr->field_15C = 128 - ((temp_a3 << 7) / (D_800C4418.field_C + 1));
         ptr->field_15C = (ptr->field_15C * func_80055D78(ptr->field_12C.vx, ptr->field_12C.vy, ptr->field_12C.vz)) >> 8;
@@ -150,6 +165,15 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
 
         next  = *poly + 1;
         *next = *(*poly);
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&next->x0, &ptr->field_140);
+            Shadow_CopyScreenOffset(&next->x1, &ptr->field_140);
+            Shadow_CopyScreenOffset(&next->x2, &ptr->field_140);
+            Shadow_CopyScreenOffset(&next->x3, &ptr->field_140);
+        }
+#endif
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[(ptr->field_144 - 0x20) >> 3], *poly);
         *poly += 1;
@@ -288,6 +312,12 @@ bool sharedFunc_800CC004_4_s03(POLY_FT4** poly, s32 idx)
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_0.vx_0) - (u16)ptr->field_0.field_0.vx,
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].vy_8) - ptr->field_0.field_0.vy,
                            Q12_TO_Q8(sharedData_800DFB7C_0_s00[idx].field_4.vz_4) - ptr->field_0.field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&ptr->field_12C,
+                           sharedData_800DFB7C_0_s00[idx].field_0.vx_0 - Q8_TO_Q12((s16)ptr->field_0.field_0.vx),
+                           sharedData_800DFB7C_0_s00[idx].vy_8 - Q8_TO_Q12(ptr->field_0.field_0.vy),
+                           sharedData_800DFB7C_0_s00[idx].field_4.vz_4 - Q8_TO_Q12(ptr->field_0.field_0.vz));
+#endif
 
     gte_ldv0(&ptr->field_12C);
     gte_rtps();
@@ -315,6 +345,15 @@ bool sharedFunc_800CC004_4_s03(POLY_FT4** poly, s32 idx)
     setXY1Fast(*poly, (u16)ptr->field_134.vx + (u16)ptr->field_13C, ptr->field_134.vy + ptr->field_13C);
     setXY2Fast(*poly, (u16)ptr->field_134.vx - (u16)ptr->field_13C, ptr->field_134.vy - ptr->field_13C);
     setXY3Fast(*poly, (u16)ptr->field_134.vx + (u16)ptr->field_13C, ptr->field_134.vy - ptr->field_13C);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&(*poly)->x0, &ptr->field_134);
+        Shadow_CopyScreenOffset(&(*poly)->x1, &ptr->field_134);
+        Shadow_CopyScreenOffset(&(*poly)->x2, &ptr->field_134);
+        Shadow_CopyScreenOffset(&(*poly)->x3, &ptr->field_134);
+    }
+#endif
 
     if (sharedData_800DFB7C_0_s00[idx].field_C.s_2.field_0 > Q12(0.4f))
     {
@@ -353,6 +392,15 @@ bool sharedFunc_800CC004_4_s03(POLY_FT4** poly, s32 idx)
 
     next  = *poly + 1;
     *next = *(*poly);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&next->x0, &ptr->field_134);
+        Shadow_CopyScreenOffset(&next->x1, &ptr->field_134);
+        Shadow_CopyScreenOffset(&next->x2, &ptr->field_134);
+        Shadow_CopyScreenOffset(&next->x3, &ptr->field_134);
+    }
+#endif
 
     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[ptr->field_138 >> 3], *poly);
     *poly += 1;

@@ -898,6 +898,12 @@ bool Particle_Update(s_Particle* partHead)
     g_SysWork.coord_22A8.coord.t[1] = Q8(0.0f);
     g_SysWork.coord_22A8.coord.t[0] = Q12_TO_Q8(g_Particle_Position.vx);
     g_SysWork.coord_22A8.coord.t[2] = Q12_TO_Q8(g_Particle_Position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&g_SysWork.coord_22A8.coord,
+                                      g_Particle_Position.vx,
+                                      Q12(0.0f),
+                                      g_Particle_Position.vz);
+#endif
 
     g_SysWork.coord_22A8.flg = false;
     Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22A8, &worldMat, &viewMat);
@@ -1591,6 +1597,9 @@ s32 func_800CC8FC(VECTOR3* arg0, s32* arg1, s_func_800CC8FC* arg2) // 0x800CC8FC
         offset0.vx += Q12_TO_Q8(g_ParticleVectors0.vector_0.vx - g_SysWork.playerWork.player.position.vx);
         offset0.vy += Q12_TO_Q8(g_ParticleVectors0.vector_0.vy - g_SysWork.playerWork.player.position.vy);
         offset0.vz += Q12_TO_Q8(g_ParticleVectors0.vector_0.vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&offset0, unkPos->vx, unkPos->vy, unkPos->vz);
+#endif
 
         gte_ldv0(&offset0);
         gte_rtps();
@@ -2052,6 +2061,9 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
     pos.vx = Q12_TO_Q8(arg2->field_0.vx);
     pos.vy = Q12_TO_Q8(arg2->field_0.vy);
     pos.vz = Q12_TO_Q8(arg2->field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&pos, arg2->field_0.vx, arg2->field_0.vy, arg2->field_0.vz);
+#endif
 
     gte_ldv0(&pos);
     gte_rtps();
@@ -2089,6 +2101,14 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
         poly->x2 = poly->x3 = poly->x0 + temp_a1;
         poly->y2            = poly->y0;
         poly->y1 = poly->y3 = poly->y0 + temp_a1;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x1, &poly->x0);
+            Shadow_CopyScreenOffset(&poly->x2, &poly->x0);
+            Shadow_CopyScreenOffset(&poly->x3, &poly->x0);
+        }
+#endif
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[depth], poly);
 
@@ -2244,6 +2264,9 @@ void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
     posQ8.vx = Q12_TO_Q8(pos->field_0.vx);
     posQ8.vy = Q12_TO_Q8(pos->field_0.vy);
     posQ8.vz = Q12_TO_Q8(pos->field_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&posQ8, pos->field_0.vx, pos->field_0.vy, pos->field_0.vz);
+#endif
 
     gte_ldv0(&posQ8);
     gte_rtps();
@@ -2282,6 +2305,14 @@ void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
         poly->x2 = poly->x3 = poly->x0 + var_a1;
         poly->y2            = poly->y0;
         poly->y1 = poly->y3 = poly->y0 + var_a1;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x1, &poly->x0);
+            Shadow_CopyScreenOffset(&poly->x2, &poly->x0);
+            Shadow_CopyScreenOffset(&poly->x3, &poly->x0);
+        }
+#endif
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[depth], poly);
 
@@ -2639,6 +2670,9 @@ void Particle_SnowDraw(s_Particle* part)
             particlePosQ8.vx = Q12_TO_Q8(particlePos.vx);
             particlePosQ8.vy = Q12_TO_Q8(localPart->position0_0.vy);
             particlePosQ8.vz = Q12_TO_Q8(particlePos.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&particlePosQ8, particlePos.vx, localPart->position0_0.vy, particlePos.vz);
+#endif
         }
         else
 #endif
@@ -2646,6 +2680,12 @@ void Particle_SnowDraw(s_Particle* part)
             particlePosQ8.vx = Q12_TO_Q8(localPart->position0_0.vx);
             particlePosQ8.vy = Q12_TO_Q8(localPart->position0_0.vy);
             particlePosQ8.vz = Q12_TO_Q8(localPart->position0_0.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&particlePosQ8,
+                                   localPart->position0_0.vx,
+                                   localPart->position0_0.vy,
+                                   localPart->position0_0.vz);
+#endif
         }
 
         gte_ldv0(&particlePosQ8);
@@ -2760,6 +2800,13 @@ void Particle_SnowDraw(s_Particle* part)
                 polyFt3->x2   = polyFt3->x0 + 3;
                 polyFt3->y1   = polyFt3->y0 + 3;
             }
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&polyFt3->x1, &polyFt3->x0);
+                Shadow_CopyScreenOffset(&polyFt3->x2, &polyFt3->x0);
+            }
+#endif
 
 #if defined(MAP1_S00) || defined(MAP6_S00)
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart], polyFt3);
@@ -2800,6 +2847,9 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
     SVECTOR     sp28;
     SVECTOR     sp30;
     SVECTOR     sp38;
+#ifdef SH_PC_PORT
+    s32         endpoint1Screen;
+#endif
     s32         depth;
     s32         colorComp;
     s32         test;
@@ -2850,6 +2900,9 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             sp20.vx = Q12_TO_Q8(localPart->position1_C.vx);
             sp20.vy = Q12_TO_Q8(localPart->position1_C.vy);
             sp20.vz = Q12_TO_Q8(localPart->position1_C.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&sp20, localPart->position1_C.vx, localPart->position1_C.vy, localPart->position1_C.vz);
+#endif
 
             gte_ldv0(&sp20);
             gte_rtps();
@@ -2857,6 +2910,9 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             sp28.vx = Q12_TO_Q8(localPart->position0_0.vx);
             sp28.vy = Q12_TO_Q8(localPart->position0_0.vy);
             sp28.vz = Q12_TO_Q8(localPart->position0_0.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&sp28, localPart->position0_0.vx, localPart->position0_0.vy, localPart->position0_0.vz);
+#endif
 
             gte_stsxy(&poly->x0);
             gte_stszotz(&depth);
@@ -2943,6 +2999,13 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
                 poly->x3 = poly->x1 + 1;
                 poly->y3 = poly->y1;
+#ifdef SH_PC_PORT
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_CopyScreenOffset(&poly->x2, &poly->x0);
+                    Shadow_CopyScreenOffset(&poly->x3, &poly->x1);
+                }
+#endif
 
                 addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[depth], poly);
                 GsOUT_PACKET_P = (PACKET*)(poly + 1);
@@ -2991,6 +3054,12 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             sp20.vx = Q12_TO_Q8(localPart->position0_0.vx - colorComp);
             sp20.vy = Q12_TO_Q8(localPart->position0_0.vy);
             sp20.vz = Q12_TO_Q8(localPart->position0_0.vz - colorComp);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&sp20,
+                                   localPart->position0_0.vx - colorComp,
+                                   localPart->position0_0.vy,
+                                   localPart->position0_0.vz - colorComp);
+#endif
 
             gte_ldv0(&sp20);
             gte_rtps();
@@ -3009,6 +3078,20 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             sp38.vx = sp30.vx;
             sp38.vy = sp20.vy;
             sp38.vz = sp28.vz;
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&sp28,
+                                   localPart->position0_0.vx - colorComp,
+                                   localPart->position0_0.vy,
+                                   localPart->position0_0.vz + colorComp);
+            PGXP_VectorRegisterQ12(&sp30,
+                                   localPart->position0_0.vx + colorComp,
+                                   localPart->position0_0.vy,
+                                   localPart->position0_0.vz - colorComp);
+            PGXP_VectorRegisterQ12(&sp38,
+                                   localPart->position0_0.vx + colorComp,
+                                   localPart->position0_0.vy,
+                                   localPart->position0_0.vz + colorComp);
+#endif
 
             gte_ldv3(&sp28, &sp30, &sp38);
             gte_rtpt();
@@ -3148,6 +3231,9 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
     sp20.vx = Q12_TO_Q8(localPart->position1_C.vx);
     sp20.vy = Q12_TO_Q8(localPart->position1_C.vy);
     sp20.vz = Q12_TO_Q8(localPart->position1_C.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&sp20, localPart->position1_C.vx, localPart->position1_C.vy, localPart->position1_C.vz);
+#endif
 
     gte_ldv0(&sp20);
     gte_rtps();
@@ -3155,6 +3241,9 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
     sp28.vx = Q12_TO_Q8(localPart->position0_0.vx);
     sp28.vy = Q12_TO_Q8(localPart->position0_0.vy);
     sp28.vz = Q12_TO_Q8(localPart->position0_0.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&sp28, localPart->position0_0.vx, localPart->position0_0.vy, localPart->position0_0.vz);
+#endif
 
     gte_stsxy(&poly->x0);
     gte_stszotz(&depth);
@@ -3164,6 +3253,13 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
     depth = depth >> 1;
 
     gte_stsxy(&poly->x1);
+#ifdef SH_PC_PORT
+    endpoint1Screen = *(s32*)&poly->x1;
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_Copy(&endpoint1Screen, &poly->x1);
+    }
+#endif
 
     if (depth > 32 && depth < ORDERING_TABLE_SIZE - 1)
     {
@@ -3196,6 +3292,14 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
         poly->x3 = poly->x1 + 1;
         poly->y1++;
         poly->y3 = poly->y1;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_CopyScreenOffset(&poly->x2, &poly->x0);
+            Shadow_CopyScreenOffset(&poly->x1, &endpoint1Screen);
+            Shadow_CopyScreenOffset(&poly->x3, &endpoint1Screen);
+        }
+#endif
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[depth], poly);
         GsOUT_PACKET_P = (PACKET*)(poly + 1);
@@ -4178,6 +4282,12 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
     g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
     g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
     g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&g_SysWork.coord_22F8.coord,
+                                      g_SysWork.playerWork.player.position.vx,
+                                      g_SysWork.playerWork.player.position.vy,
+                                      g_SysWork.playerWork.player.position.vz);
+#endif
 
     Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &worldMat, &viewMat);
 
@@ -4209,6 +4319,12 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
         startRelPos.vx = Q12_TO_Q8(beamStart.vx - g_SysWork.playerWork.player.position.vx);
         startRelPos.vy = Q12_TO_Q8(beamStart.vy - g_SysWork.playerWork.player.position.vy);
         startRelPos.vz = Q12_TO_Q8(beamStart.vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&startRelPos,
+                               beamStart.vx - g_SysWork.playerWork.player.position.vx,
+                               beamStart.vy - g_SysWork.playerWork.player.position.vy,
+                               beamStart.vz - g_SysWork.playerWork.player.position.vz);
+#endif
         gte_ldv0(&startRelPos);
         gte_rtps();
 
@@ -4220,6 +4336,12 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
         endRelPos.vx  = Q12_TO_Q8(beamOffset.vx - g_SysWork.playerWork.player.position.vx);
         endRelPos.vy  = Q12_TO_Q8(beamOffset.vy - g_SysWork.playerWork.player.position.vy);
         endRelPos.vz  = Q12_TO_Q8(beamOffset.vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+        PGXP_VectorRegisterQ12(&endRelPos,
+                               beamOffset.vx - g_SysWork.playerWork.player.position.vx,
+                               beamOffset.vy - g_SysWork.playerWork.player.position.vy,
+                               beamOffset.vz - g_SysWork.playerWork.player.position.vz);
+#endif
 
         gte_stsxy(&polyGt4->x0);
         gte_stszotz(&zScreenStart);
@@ -4234,6 +4356,12 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
             endRelPos.vx = Q12_TO_Q8(trace.target.vx - g_SysWork.playerWork.player.position.vx);
             endRelPos.vy = Q12_TO_Q8(trace.target.vy - g_SysWork.playerWork.player.position.vy);
             endRelPos.vz = Q12_TO_Q8(trace.target.vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+            PGXP_VectorRegisterQ12(&endRelPos,
+                                   trace.target.vx - g_SysWork.playerWork.player.position.vx,
+                                   trace.target.vy - g_SysWork.playerWork.player.position.vy,
+                                   trace.target.vz - g_SysWork.playerWork.player.position.vz);
+#endif
         }
 
         gte_ldv0(&endRelPos);
@@ -4241,6 +4369,12 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
         gte_stsxy(&polyGt4->x1);
         polyFt3Pos.vx = polyGt4->x1;
         polyFt3Pos.vy = polyGt4->y1;
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+        {
+            Shadow_Copy(&polyFt3Pos.vx, &polyGt4->x1);
+        }
+#endif
 
         gte_stszotz(&zScreenEnd);
         zScreenEnd = zScreenEnd >> 1;
@@ -4323,6 +4457,13 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
 
             polyGt4->y2 = polyGt4->y0 + 1;
             polyGt4->y3 = polyGt4->y1 + 1;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&polyGt4->x2, &polyGt4->x0);
+                Shadow_CopyScreenOffset(&polyGt4->x3, &polyGt4->x1);
+            }
+#endif
 
             addPrim(&ot->org[zScreenStart], polyGt4);
             GsOUT_PACKET_P = (PACKET*)&polyGt4[1];
@@ -4348,6 +4489,14 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
             polyFt3->y2 = polyFt3->y0;
             polyFt3->x2 = polyFt3->x0 + 4;
             polyFt3->y1 = polyFt3->y0 + 4;
+#ifdef SH_PC_PORT
+            if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+            {
+                Shadow_CopyScreenOffset(&polyFt3->x0, &polyFt3Pos.vx);
+                Shadow_CopyScreenOffset(&polyFt3->x1, &polyFt3Pos.vx);
+                Shadow_CopyScreenOffset(&polyFt3->x2, &polyFt3Pos.vx);
+            }
+#endif
 
             switch (Game_HyperBlasterBeamColorGet())
             {
@@ -4399,6 +4548,12 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
     g_SysWork.coord_22F8.coord.t[0] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vx);
     g_SysWork.coord_22F8.coord.t[1] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vy);
     g_SysWork.coord_22F8.coord.t[2] = Q12_TO_Q8(g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+    PGXP_MatrixRegisterTranslationQ12(&g_SysWork.coord_22F8.coord,
+                                      g_SysWork.playerWork.player.position.vx,
+                                      g_SysWork.playerWork.player.position.vy,
+                                      g_SysWork.playerWork.player.position.vz);
+#endif
 
     Vw_CoordToWorldAndViewMatrices(&g_SysWork.coord_22F8, &worldMat, &viewMat);
     gte_SetRotMatrix(&viewMat);
@@ -4409,6 +4564,12 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
     fromDelta.vx = Q12_TO_Q8(from->vx - g_SysWork.playerWork.player.position.vx);
     fromDelta.vy = Q12_TO_Q8(from->vy - g_SysWork.playerWork.player.position.vy);
     fromDelta.vz = Q12_TO_Q8(from->vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&fromDelta,
+                           from->vx - g_SysWork.playerWork.player.position.vx,
+                           from->vy - g_SysWork.playerWork.player.position.vy,
+                           from->vz - g_SysWork.playerWork.player.position.vz);
+#endif
 
     gte_ldv0(&fromDelta);
     gte_rtps();
@@ -4416,6 +4577,12 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
     toDelta.vx = Q12_TO_Q8(to->vx - g_SysWork.playerWork.player.position.vx);
     toDelta.vy = Q12_TO_Q8(to->vy - g_SysWork.playerWork.player.position.vy);
     toDelta.vz = Q12_TO_Q8(to->vz - g_SysWork.playerWork.player.position.vz);
+#ifdef SH_PC_PORT
+    PGXP_VectorRegisterQ12(&toDelta,
+                           to->vx - g_SysWork.playerWork.player.position.vx,
+                           to->vy - g_SysWork.playerWork.player.position.vy,
+                           to->vz - g_SysWork.playerWork.player.position.vz);
+#endif
 
     gte_stsxy(&prim->x0);
     gte_stszotz(&depth);
@@ -4510,6 +4677,13 @@ void Particle_BeamDraw(const VECTOR3* from, const VECTOR3* to)
 
     prim->y2 = prim->y0 + 1;
     prim->y3 = prim->y1 + 1;
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+    {
+        Shadow_CopyScreenOffset(&prim->x2, &prim->x0);
+        Shadow_CopyScreenOffset(&prim->x3, &prim->x1);
+    }
+#endif
 
     addPrim(&ot->org[depth], prim);
 

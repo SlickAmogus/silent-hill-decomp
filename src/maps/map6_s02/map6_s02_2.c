@@ -1705,6 +1705,13 @@ void func_800D2364(void) // 0x800D2364
                 setXY1Fast(poly, var_t2_2->field_0[i + 1][j].vx, var_t2_2->field_0[i + 1][j].vy);
                 setXY2Fast(poly, var_t2_2->field_0[i][j + 1].vx, var_t2_2->field_0[i][j + 1].vy);
                 setXY3Fast(poly, var_t2_2->field_0[i + 1][j + 1].vx, var_t2_2->field_0[i + 1][j + 1].vy);
+                if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight)
+                {
+                    Shadow_Copy(&poly->x0, &var_t2_2->field_0[i][j]);
+                    Shadow_Copy(&poly->x1, &var_t2_2->field_0[i + 1][j]);
+                    Shadow_Copy(&poly->x2, &var_t2_2->field_0[i][j + 1]);
+                    Shadow_Copy(&poly->x3, &var_t2_2->field_0[i + 1][j + 1]);
+                }
 
                 setRGB0(poly, ptr->field_6C[i][j], ptr->field_6C[i][j], ptr->field_6C[i][j]);
                 setRGB1(poly, ptr->field_6C[i + 1][j], ptr->field_6C[i + 1][j], ptr->field_6C[i + 1][j]);
