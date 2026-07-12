@@ -192,6 +192,12 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
     u8         flags;
     s_MapInfo* mapInfo;
 
+#ifdef SH_PC_PORT
+    /* Clear the whole-town parked-cell registry before this map's placements
+     * (Map_PlaceIpdAtCell below + event-driven ones) record into it. */
+    { extern void Pc_ParkedCellsReset(void); Pc_ParkedCellsReset(); }
+#endif
+
     g_WorldGfxWork.mapInfo = mapHdr->mapInfo;
 
     flags = mapHdr->mapInfo->flags;

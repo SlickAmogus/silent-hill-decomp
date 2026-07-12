@@ -1,11 +1,68 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
-Status: **READY TO START — begin with the STEP-0 crash.** Prepared 2026-07-11,
-updated same day after the first live engagement.
+Status: **IMPLEMENTED 2026-07-12 (awaiting in-game test).** All four walls
+addressed; build clean; changes gated behind `whole_map_exteriors` (default 0)
+so mode-off is byte-identical (verified by a 5-dimension adversarial audit).
+Prepared 2026-07-11, updated 2026-07-11 after first live engagement.
 Read alongside memories `[[project_interior_room_islands]]` (whole-map draw-path
 history + the four lifted gates), `[[project_pgxp_implementation]]` (float GTE
 infra), and `pc_port/docs/PGXP_NearClip_Design.md` (prior art for a gated
 projection change).
+
+## IMPLEMENTATION (2026-07-12)
+
+Four independent walls were confirmed and fixed; all gated on
+`Pc_WholeMapDrawActive()` / the PsyCross flag `g_PsxWholeMapFar` so mode-off is
+byte-identical.
+
+1. **GTE far projection (the visible-distance wall).** `GTE_RotTransPers`
+   (PsyCross `src/gte/PsyX_GTE.cpp`) clamps view depth (`C2_SZ3 = Lm_D(m_mac3,1)`
+   -> `[0,0xffff]`) and view X/Y (`IR1/IR2` -> s16); beyond that, `screen =
+   OFX + IR*H/SZ3` freezes. The PGXP float path divided by the *clamped* SZ3 too,
+   so it saturated identically. FIX: when `g_PsxWholeMapFar` and a clamp actually
+   fired (`fz=gte_shift(m_mac3,1) > 0xffff || C2_MAC1!=C2_IR1 || C2_MAC2!=C2_IR2`),
+   recompute the screen coord in double precision from the UNCLAMPED analogs
+   `C2_MAC1/C2_MAC2 * (C2_H / fz)` and overwrite `C2_SX2/C2_SY2` (still Lm_G-limited
+   to the screen box). Feeds the normal prim path AND (when PGXP on) the PGXP FIFO
+   with `fx/fy` + `pgxpW=(float)fz` so PGXP-on additionally gets correct far DEPTH.
+   In-range this is identical to the standard path (only genuinely-far verts change).
+
+2. **s16 depth-scratch wrap** — unchanged; `SH_WHOLEMAP_DEPTH_RESCUE` (already
+   present) buckets wrapped-negative far polys into the last OT slot.
+
+3. **Vertex-buffer capacity / the crash.** PsyCross accumulates every vert into
+   `g_vertexBuffer[MAX_VERTEX_BUFFER_SIZE]` via unchecked `g_vertexIndex += 6`;
+   129 chunks submitted at once overran it (the 2026-07-11 write-AV on the street).
+   FIX: (a) `MAX_VERTEX_BUFFER_SIZE` 1<<16 -> 1<<18 and `GPUDrawSplit.startVertex/
+   numVerts` u_short -> unsigned int (output-neutral for normal play); (b) a
+   one-shot `[VBUF]` break in `ParsePrimitivesLinkedList` stops the OT walk before
+   any emit could overrun (reserve 24 = largest single-prim LINE_F4); (c) a
+   **per-chunk world-space frustum reject** (`Pc_WholeMapChunkCulled`, game side)
+   transforms each 40u cell center through `GsWSMATRIX` (world->view, immune to the
+   GTE saturation) and drops cells behind the camera or outside a cone whose slope
+   = `(160/H)*(winAspect/(4:3))*1.3` (`H=ReadGeomScreen` folds in fps_fov; tracks
+   ultrawide; +30% margin -> never over-culls). This bounds the software-GTE
+   transform + vertex count. Reported via `[WHOLEMAP] ... culled=N`.
+
+4. **Activation gate.** Replaced the crash-prone `isFogEnabled` gate with a
+   parked-cell registry: `Map_PlaceIpdAtCell` targets (hosted-interior host cells)
+   are recorded (reset each map load in `Ipd_PlayerChunkInit`); "inside" = the
+   player's ACTUAL-position cell (`FLOOR(g_SysWork.playerWork.player.position)`,
+   NOT `g_Map.cellX/cellZ` which is a ~14u-forward-projected sample that leaked the
+   old gate) equals a parked cell. Exact, per-map-correct, conservative-safe.
+
+**Depth note:** far OT order is painter's (rescue bucket); for correct depth
+ordering of distant buildings enable PGXP (`use_pgxp=1` / F1) — its unclamped
+per-vertex W (now fed by the far block) sorts them exactly.
+
+**Test:** add `whole_map_exteriors = 1` (with `preload_chunks=1`,
+`resident_textures=1`) to config, optionally `use_pgxp=1`; map0/map2 street; check
+`[WHOLEMAP]` shows `drawn` bounded by `culled`, whole town visible receding
+correctly, no crash on the street or entering a house. `fogstr 0` (console) to see
+distant geometry through the haze.
+
+---
+### Original spec (below, for provenance)
 
 ## Problem
 
