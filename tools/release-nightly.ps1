@@ -359,22 +359,43 @@ if (-not $baseManifest) {
 
 $commitLog = @()
 if ($baseManifest -and $baseManifest.PSObject.Properties.Name -contains "git_commit" -and $baseManifest.git_commit) {
-    $prevOutEnc = $null
-    try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    # If the recorded baseline commit isn't an ancestor of HEAD -- the branch
+    # history was rewritten/rebased since that release (e.g. pc-port squashed on
+    # 2026-07-08, preserved as backup/pc-port-old-history-*), or the commit is
+    # missing entirely -- then "<commit>..HEAD" walks all the way back to the
+    # common root and dumps the ENTIRE project history (thousands of commits) into
+    # the changelog. Guard against it: only auto-list when the baseline is a true
+    # ancestor; otherwise leave the section empty for the maintainer to fill in.
+    # (2>$null under $ErrorActionPreference='Stop' can THROW for a missing commit,
+    # so wrap it -- see the gh-call note above.)
+    $baselineIsAncestor = $false
     try {
-        $commitLog = (git log "$($baseManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
-    } finally {
-        if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
+        git merge-base --is-ancestor $baseManifest.git_commit HEAD 2>$null
+        $baselineIsAncestor = ($LASTEXITCODE -eq 0)
+    } catch { $baselineIsAncestor = $false }
+
+    if (-not $baselineIsAncestor) {
+        Write-Host "Warning: previous release commit $($baseManifest.git_commit) is not an ancestor of HEAD" -ForegroundColor Yellow
+        Write-Host "         (branch history was likely rewritten). Skipping the auto commit list to avoid" -ForegroundColor Yellow
+        Write-Host "         dumping the whole history -- add this release's notes to CHANGELOG.md by hand." -ForegroundColor Yellow
+    } else {
+        $prevOutEnc = $null
+        try { $prevOutEnc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+        try {
+            $commitLog = (git log "$($baseManifest.git_commit)..HEAD" --pretty=format:"- %s" --reverse)
+        } finally {
+            if ($null -ne $prevOutEnc) { try { [Console]::OutputEncoding = $prevOutEnc } catch {} }
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: couldn't compute commit log since $($baseManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
+            $commitLog = @()
+        } elseif (-not $commitLog) {
+            $commitLog = @()
+        } elseif ($commitLog -is [string]) {
+            $commitLog = @($commitLog)
+        }
+        $commitLog = @($commitLog | Where-Object { $_ -notmatch '^- changelog:' })
     }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: couldn't compute commit log since $($baseManifest.git_commit) -- leaving section empty." -ForegroundColor Yellow
-        $commitLog = @()
-    } elseif (-not $commitLog) {
-        $commitLog = @()
-    } elseif ($commitLog -is [string]) {
-        $commitLog = @($commitLog)
-    }
-    $commitLog = @($commitLog | Where-Object { $_ -notmatch '^- changelog:' })
 }
 
 # ---- Compute next version (YYYY.MM.DD.N) ------------------------------------

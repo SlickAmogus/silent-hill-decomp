@@ -1,5 +1,101 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.11.1 -- 2026-07-11
+- Big texture system overhaul: the renderer can now load PNGs and high-res custom replacement textures, allowing for new textures (for things like bullet decals) and mods
+- Custom texture pack support: drop DuckStation-style packs into gamedata/texturemods as a folder, .zip, or .rar and they load automatically, with a load order for when packs overlap
+- New Mod Manager built into the launcher (replaces the old level dropdown, which can cycled ingame with 4 and 5): enable/disable texture packs, set their priority, and manage load-folder and FMV mods — drag-and-drop supported. Supports rar and zip but they will be extracted.
+- PAL (European) disc support: menus and in-game text now work, in English, German, French, Spanish and Italian, plus PAL movies and the correct PAL title screen. Pick your region in the launcher, or switch language live from the title-screen options
+- Alternate english text supported with PAL Version
+- Japanese (NTSC-J) disc support: boots with Japanese story/map text (kanji font baked in), the Japanese title art, and the school Mumbler enemies
+- Flashlight rework: four modes to choose from — Classic, Classic + Shadows, Modern, Modern + Shadows. The Classic + Shadows mode is courtes y of keylimesoda on github
+- Experimental bullet-hole decals on walls and world geometry (off by default — turn it on in the config, needs 32x32 decal.png asset in gamedata)
+- Restored missing rain/water ambient sounds in a few areas (sewers and more) and smoothed out the water BGM fade (not fully tested)
+- First-person and combat polish: longer interaction reach, the crosshair only shows during gameplay, plus fixes for free-aim shots missing, double reloads, and a stuck pipe swing
+- Fixed interiors showing "ghost rooms" bleeding through the walls (like the apartment courtyard)
+- Fixed a crash in the courtyard rain, and fixed black item previews on PAL discs
+
+Commit summaries:
+- docs: texture residency + custom-texture (PNG) task spec
+- textures: hi-res PNG/TIM overrides now render; PNG input with 8-bit alpha
+- textures: whole-map residency — expanded pool with per-slot GL textures
+- textures: DuckStation texture-pack support (gamedata/texturemods, dirs or zips)
+- textures: RAR texture packs + DuckStation folder layout as-is
+- textures: fix stale pack bindings, half-page misses; exterior whole-map texturing
+- docs: PAL fonts/languages/launcher task spec for a dedicated session
+- textures: revert exterior texture-all — it IS the exterior draw-distance system
+- textures: pack palette-variant rows + mipmaps for upscaled replacements
+- launcher+config: PAL disc detection, language dropdown, language config key
+- tools: EUR overlay decrypter (Fs_DecryptOverlay LCG) for PAL reverse work
+- fmv: play movies from the region-remapped file table (PAL support)
+- fonts: region-aware FONT16 — PAL menus render (US byte-identical)
+- lang: PAL DE/FR/ES/IT text — file redirects, item text, map messages, TIPS
+- docs: PAL support status/reference rewrite + fixes-index entry
+- pal: apply adversarial-review fixes (7 confirmed findings)
+- docs: note review-fix commit in the PAL reference
+- launcher+config: Region dropdown replaces Language; game honors region pick
+- docs: region-dropdown testing flow in the PAL reference
+- pal: real title screen — PAL TITLE_E is a logo block, not a full picture
+- docs: PAL title fix + reshaped-TIM ground truth in the reference
+- pal: Language row in the title-screen options menu (live switch)
+- docs: in-menu language selector in the PAL reference
+- pal: English on a PAL disc uses the PAL-EN retranslation
+- docs: PAL-EN text policy in the reference
+- textures: virtual-first slot claiming — pinned physical pages get stomped
+- textures: virtual slots are multi-palette — per-CLUT-row textures + collision-proof key
+- textures: fix PostLoadTim slot-id decode missed in the encoding change
+- pal: port-written menu translations for DE/FR/ES/IT (incl. PC Options)
+- docs: menu-translation layer in the PAL reference
+- pal: widen the Language row arrows around the language names
+- textures: PsyCross bump — fog/flashlight/shadow parity for override-drawn geometry
+- textures: PsyCross bump — override-shader lit parity, redone with validation
+- textures: restore the 4-nearest interior visibility rule under resident textures
+- textures: whole_map_exteriors experimental config (default off)
+- textures: whole_map_exteriors only applies in the street room
+- items: [ITEMPICK] diagnostics on every silent pickup-model skip
+- docs: ambient rain/water SFX task spec for a dedicated session
+- rain: restore the g_ParticlesAddedCount[1] alias feeding the rain-sound loop
+- bgm: map6_s04/s05 water-layer distance fade — write through the limits table
+- extracted data: silent SFX positions + sewer pickup poses (6 maps)
+- docs: ambient SFX audit findings — severed-alias class, corrected map IDs
+- Fix courtyard rain div-by-zero crash in AttenuationCalc
+- Docs: index the rain-path div-by-zero fix
+- ipd: interiors draw exactly the player's cell — fixes courtyard ghost rooms
+- gfx: whole_map_exteriors — lift the per-poly far caps so the town renders
+- Docs: index courtyard exact-cell fix + whole-map draw path
+- debug: TMDEMIT + ITEMVRAM probes for the PAL invisible item previews
+- flashlight: integrate per-pixel calibration PRs #44 + PsyCross#7 (keylimesoda)
+- debug: PRIMWORD + ITEMVRAM2 probes for PAL black item previews
+- NTSC-J (SLPM-86192 Rev 1/2) phase 1: region plumbing, plays with English text
+- NTSC-J phase 2: Japanese map-message text (SJIS + embedded kanji font)
+- docs: NTSC-J support reference + Port_Fixes_Index entries
+- flashlight: four modes — Classic / Classic + Shadows / Modern / Modern + Shadows
+- NTSC-J school Mumblers + PC Options flashlight labels fit
+- NTSC-J title artwork + fix 2D-screen right-edge tinted line
+- docs: NTSC-J title/Mumbler/edge-line entries
+- PsyCross: PR#8 shadow stabilization (classic style) — submodule bump
+- toasts: drop [DEBUG] from the always-available hotkeys + PR#8 for both styles
+- ipd: interior exact-cell draw must not hide behind disable_culling
+- events: extend facing-interaction reach to 1.2m in first person
+- fps: interact reach 1.2m -> 1.4m; crosshair: gameplay-only
+- combat: 4 traced fixes — free-aim misses, double reload, pipe loop, ignored aim
+- decals: bullet-hole marks on world geometry (EXPERIMENTAL, off by default)
+- docs: whole-map far-projection task spec (dedicated session)
+- decals: half size + true wall plane; fps: no headless glide; probes
+- PAL: fix black item previews - upload item palettes at the EUR CLUT homes
+- docs: PAL item preview fix entry
+- wholemap: gate on outdoor fog, not room 0; decals lit; fps reach/head v2
+- docs: whole-map task — STEP-0 Levin-house crash + parked-cell gate design
+- Fix bullet-decal depth over-draw; simplify exe description
+- Add launcher Mod Manager + deterministic texture-pack load order
+- Mod Manager: .rar packs, drag-drop, names/notes, pressed button
+- Mod Manager: progress dialog for extraction/import/apply
+- Mod Manager: manage texture packs in place + extract .rar in the launcher
+- Mod Manager: refresh the list after Apply
+- Mod Manager: drop RAR entirely; manage texture mods in place (.zip/folder)
+- Mod Manager: fix stale class-summary comment (two mod homes)
+- Mod Manager: re-add RAR support in the launcher (reliable, embedded UnRAR.dll)
+- Mod Manager: clean up a partial folder if a .rar extraction fails
+
 ## beta-2026.07.08.2 -- 2026-07-08
 - Very small update to fix flickering shadow on wall when firing the pistol with per-pixel lights and shadows on.
 
