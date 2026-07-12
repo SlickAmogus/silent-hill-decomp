@@ -107,10 +107,15 @@ static void cmd_map(const char* arg)
 
         /* Don't warp mid-session — just set the map config value so the next New Game
          * starts on this map (same effect as the 4/5 debug keys). */
-        (void)mapId;
         strncpy(g_PcConfig.mapName, lower, sizeof(g_PcConfig.mapName) - 1);
         g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
-        cprintf("map config set to %s (loads on New Game)", lower);
+        {
+            const char* desc = MapRegistry_GetDescription((e_MapIdx)mapId);
+            if (desc && desc[0])
+                cprintf("map config set to %s - %s (loads on New Game)", lower, desc);
+            else
+                cprintf("map config set to %s (loads on New Game)", lower);
+        }
     }
 }
 

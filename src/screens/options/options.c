@@ -397,16 +397,37 @@ void Options_PcOptionsMenu_Control(void)
     }
 }
 
+/* The Controls page prints the selected map's friendly name (the config comment
+ * list, via MapRegistry) on a full-width caption line inserted directly beneath
+ * the Map row. Every entry below the Map row therefore renders one line lower so
+ * the caption has its own empty line. PcOpt_MapRow returns the Map row index, or
+ * -1 for pages without a Map row (only the Controls page has one). */
+static int PcOpt_MapRow(const s_PcOpt* tbl, int count)
+{
+    int i;
+    for (i = 0; i < count; i++)
+        if (tbl[i].kind == PCK_MAP)
+            return i;
+    return -1;
+}
+
+static int PcOpt_DispLine(int entry, int mapRow)
+{
+    return (mapRow >= 0 && entry > mapRow) ? entry + 1 : entry;
+}
+
 static void Options_PcOptionsMenu_EntryStringsDraw(void)
 {
     #define LINE_BASE_X   64
     #define LINE_BASE_Y   56
     #define LINE_OFFSET_Y 16
 
-    int            count, i;
+    int            count, i, mapRow;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
     const char*    HEADING = "PC_Options";
+
+    mapRow = PcOpt_MapRow(tbl, count);
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -414,7 +435,7 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
 
     for (i = 0; i < count; i++) {
-        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * LINE_OFFSET_Y));
         Gfx_Strings2dLayerIdxSet(8);
         Gfx_StringDraw(tbl[i].name, DEFAULT_MAP_MESSAGE_LENGTH);
     }
@@ -427,10 +448,11 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
 
 static void Options_PcOptionsMenu_ConfigDraw(void)
 {
+    #define LINE_BASE_X   64
     #define LINE_BASE_Y   56
     #define LINE_OFFSET_Y 16
 
-    int            count, i;
+    int            count, i, mapRow;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
     /* Pages 2/3's labels run long ("Disable Culling", "Mouse Sensitivity"), so
@@ -439,17 +461,35 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
      * clip (its labels end by ~196, so 204 clears both ways). */
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
 
+    mapRow = PcOpt_MapRow(tbl, count);
+
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
         const char* v = PcOpt_ValueLabel(&tbl[i], buf, sizeof(buf));
         if (v && v[0]) {
-            Gfx_StringSetPosition(valX, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+            Gfx_StringSetPosition(valX, LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * LINE_OFFSET_Y));
             Gfx_Strings2dLayerIdxSet(8);
             Gfx_StringDraw(v, DEFAULT_MAP_MESSAGE_LENGTH);
         }
     }
+
+    /* Friendly-name caption on the empty line directly beneath the Map row. */
+    if (mapRow >= 0) {
+        const char* mn   = g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+        int         id   = MapRegistry_FindByName(mn);
+        const char* desc = (id >= 0) ? MapRegistry_GetDescription((e_MapIdx)id) : "";
+        if (desc && desc[0]) {
+            Gfx_StringSetColor(StringColorId_LightGrey);
+            Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + ((mapRow + 1) * LINE_OFFSET_Y));
+            Gfx_Strings2dLayerIdxSet(8);
+            Gfx_StringDraw(desc, DEFAULT_MAP_MESSAGE_LENGTH);
+            Gfx_StringSetColor(StringColorId_White);
+        }
+    }
+
     Gfx_StringsReset2dLayerIdx();
 
+    #undef LINE_BASE_X
     #undef LINE_BASE_Y
     #undef LINE_OFFSET_Y
 }
@@ -461,7 +501,7 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     #define HIGHLIGHT_OFFSET_Y 58
     #define HILITE_WIDTH       196
 
-    int            count, i, j;
+    int            count, i, j, mapRow;
     s16            interpAlpha;
     s_Line2d       highlightLine;
     s_Quad2d       bulletQuads[2];
@@ -472,13 +512,14 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -55 }, { -120, -43 }, { -108, -55 }, { -108, -43 } };
     const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -56 }, { -121, -42 }, { -107, -56 }, { -107, -42 } };
 
-    PcOpt_Page(&count);
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    mapRow = PcOpt_MapRow(tbl, count);
 
     if (g_Options_SelectionHighlightTimer == 0) {
         selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
-        selectionHighlightFrom.vy = ((u16)g_PcOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightFrom.vy = ((u16)PcOpt_DispLine(g_PcOptionsMenu_PrevSelectedEntry, mapRow) * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
-        selectionHighlightTo.vy   = ((u16)g_PcOptionsMenu_SelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vy   = ((u16)PcOpt_DispLine(g_PcOptionsMenu_SelectedEntry, mapRow) * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
     }
 
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
@@ -493,12 +534,13 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     Options_Selection_HighlightDraw(&highlightLine, true, false);
 
     for (i = 0; i < count; i++) {
+        int line = PcOpt_DispLine(i, mapRow);
         quadVerts = (DVECTOR*)&bulletQuads;
         for (j = 0; j < RECT_VERT_COUNT; j++) {
             quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
-            quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (i * LINE_OFFSET_Y);
+            quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (line * LINE_OFFSET_Y);
             quadVerts[j + sizeof(DVECTOR)].vx = BULLET_QUAD_VERTS_BACK[j].vx;
-            quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (i * LINE_OFFSET_Y);
+            quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (line * LINE_OFFSET_Y);
         }
         if (i == g_PcOptionsMenu_SelectedEntry) {
             Options_Selection_BulletPointDraw(&bulletQuads[0], false, false);
