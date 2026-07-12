@@ -6,7 +6,15 @@
 #include <math.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
 #include <direct.h>
+#elif defined(__unix__)
+#include <strings.h>
+#define _strdup(s) strdup(s)
+#define _strnicmp(s1, s2, c) strncasecmp(s1, s2, c)
+#define _stricmp(s1, s2) strcasecmp(s1, s2)
+#endif
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
