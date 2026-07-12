@@ -31,6 +31,59 @@
 static inline u32 rd32(const u8* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24); }
 static inline u16 rd16(const u8* p) { return p[0] | (p[1] << 8); }
 
+#ifdef SH_XBOX_PORT
+/* Xbox (64MB) heap-leak fix. LmHeader_FixOffsets_PC callocs material/model/mesh
+ * headers on every LM parse and stores the pointers in the header — which is
+ * overwritten when new geometry streams into the same buffer, so the prior
+ * allocations leak. PC's gigabytes never notice; on Xbox the intro's chunk
+ * streaming + a couple of map loads (worse after dying + reloading) exhaust the
+ * heap -> calloc returns NULL -> ParseModelHeader's first memcpy writes to NULL
+ * (the observed cafe-load crash: [FATAL] WRITE addr=0, memcpy<-ParseModelHeader).
+ * Track each parse's allocations by buffer base; free the prior set when that
+ * SAME buffer is re-parsed — safe, because a re-parse means the game discarded
+ * the old geometry (streamed chunk slots reuse fixed buffer addresses). */
+#define LM_TRACK_MAX 384
+typedef struct { void* raw; s_Material* mats; s_ModelHeader* models; int modelCount; int used; } LmTrack;
+static LmTrack s_lmTrack[LM_TRACK_MAX];
+
+static void LmTrack_Free(LmTrack* t)
+{
+    if (t->models) {
+        int i;
+        for (i = 0; i < t->modelCount; i++)
+            free(t->models[i].meshHdrs);
+    }
+    free(t->models);
+    free(t->mats);
+    t->raw = NULL; t->mats = NULL; t->models = NULL; t->modelCount = 0; t->used = 0;
+}
+
+static void LmTrack_FreePrior(void* raw)
+{
+    int i;
+    for (i = 0; i < LM_TRACK_MAX; i++)
+        if (s_lmTrack[i].used && s_lmTrack[i].raw == raw) {
+            LmTrack_Free(&s_lmTrack[i]);
+            return;
+        }
+}
+
+static void LmTrack_Record(void* raw, s_Material* mats, s_ModelHeader* models, int modelCount)
+{
+    int i, slot = -1;
+    for (i = 0; i < LM_TRACK_MAX; i++) {
+        if (s_lmTrack[i].used && s_lmTrack[i].raw == raw) { slot = i; break; }
+        if (!s_lmTrack[i].used && slot < 0) slot = i;
+    }
+    if (slot < 0) return;   /* table full (unreached: keyed by reused buffers) */
+    s_lmTrack[slot].raw = raw;
+    s_lmTrack[slot].mats = mats;
+    s_lmTrack[slot].models = models;
+    s_lmTrack[slot].modelCount = modelCount;
+    s_lmTrack[slot].used = 1;
+}
+#endif
+
 static void ParseMeshHeader(s_MeshHeader* dst, const u8* src, u8* base)
 {
     dst->primitiveCount = src[0];
@@ -61,11 +114,21 @@ static void ParseModelHeader(s_ModelHeader* dst, const u8* src, u8* base)
     if (dst->meshCount > 0)
     {
         s_MeshHeader* meshes = (s_MeshHeader*)calloc(dst->meshCount, sizeof(s_MeshHeader));
-        for (int j = 0; j < dst->meshCount; j++)
+        if (meshes)
         {
-            ParseMeshHeader(&meshes[j], base + meshOff + j * PSX_SIZEOF_MESH_HEADER, base);
+            for (int j = 0; j < dst->meshCount; j++)
+            {
+                ParseMeshHeader(&meshes[j], base + meshOff + j * PSX_SIZEOF_MESH_HEADER, base);
+            }
+            dst->meshHdrs = meshes;
         }
-        dst->meshHdrs = meshes;
+        else
+        {
+            /* Heap exhausted — skip this model's meshes (count 0 so nothing
+             * iterates a NULL array downstream) instead of crashing. */
+            dst->meshHdrs  = NULL;
+            dst->meshCount = 0;
+        }
     }
     else
     {
@@ -125,14 +188,27 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         return;
     }
 
+#ifdef SH_XBOX_PORT
+    /* Free the prior parse of THIS buffer before re-allocating (leak fix). */
+    LmTrack_FreePrior(raw);
+#endif
+
     /* Parse materials (PSX stride = 24 bytes) into heap allocation */
     s_Material* mats = NULL;
     if (matCount > 0)
     {
         mats = (s_Material*)calloc(matCount, sizeof(s_Material));
-        for (int i = 0; i < matCount; i++)
+        if (mats)
         {
-            ParseMaterial(&mats[i], raw + matOff + i * PSX_SIZEOF_MATERIAL);
+            for (int i = 0; i < matCount; i++)
+            {
+                ParseMaterial(&mats[i], raw + matOff + i * PSX_SIZEOF_MATERIAL);
+            }
+        }
+        else
+        {
+            SH_DBG("  [LM] material calloc FAILED (count=%d) — skipping (heap low)", matCount);
+            matCount = 0;   /* -> materialCount 0; renderer skips, no NULL deref */
         }
     }
 
@@ -141,6 +217,13 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     if (modelCount > 0 && magic == LM_HEADER_MAGIC)
     {
         models = (s_ModelHeader*)calloc(modelCount, sizeof(s_ModelHeader));
+        if (!models)
+        {
+            /* THE crash site: unchecked NULL here made ParseModelHeader's first
+             * memcpy write to address 0. Skip the models instead. */
+            SH_DBG("  [LM] model calloc FAILED (count=%d) — skipping (heap low)", modelCount);
+            modelCount = 0;
+        }
         for (int i = 0; i < modelCount; i++)
         {
             ParseModelHeader(&models[i], raw + modelHdrsOff + i * PSX_SIZEOF_MODEL_HEADER, raw);
@@ -167,6 +250,11 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     lmHdr->modelCount     = modelCount;
     lmHdr->modelHdrs      = models;
     lmHdr->modelOrder    = raw + modelOrderOff;
+
+#ifdef SH_XBOX_PORT
+    /* Remember these allocations so the next re-parse of this buffer frees them. */
+    LmTrack_Record(raw, mats, models, modelCount);
+#endif
 
     /* Log model order (rendering order) */
     {

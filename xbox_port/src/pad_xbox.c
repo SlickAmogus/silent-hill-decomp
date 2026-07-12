@@ -20,6 +20,8 @@
 #include <string.h>
 #include <usbh_lib.h>
 #include <xid_driver.h>
+#include <hal/xbox.h>   /* XLaunchXBE / XReboot for the soft reset */
+#include "sh_log.h"
 
 static unsigned char* s_padBuf  = 0;
 static xid_dev_t*     s_xid      = 0;
@@ -96,12 +98,38 @@ void PadStartCom(void) { }
 
 /* Xbox XID gamepad -> PSX digital pad. PSX digitalButtons is active-low, so start
  * "all released" (0xFFFF) and clear a bit per pressed button. */
+/* Soft reset: L trigger + R trigger + Start + White button, held ~0.4s (the
+ * four-way combo is awkward enough that no debounce is needed beyond the hold).
+ * Relaunches our own XBE for an instant reload after a crash/hang — much faster
+ * than a dashboard round-trip. XReboot is the fallback if relaunch fails. */
+static void Pad_CheckSoftReset(void)
+{
+    static int held = 0;
+    if (s_xid && s_haveReport &&
+        s_report.l     > 0x40 &&
+        s_report.r     > 0x40 &&
+        (s_report.dButtons & (1u << 4)) &&      /* Start */
+        s_report.white > 0x40) {
+        if (++held >= 20) {
+            extern void SH_DebugLogFlush(void);
+            SH_DBG("[SH-XBOX] soft reset (L+R+Start+White) -> relaunch");
+            SH_DebugLogFlush();
+            XLaunchXBE("D:\\default.xbe");       /* reload the game directly */
+            XReboot();                            /* fallback */
+        }
+    } else {
+        held = 0;
+    }
+}
+
 void Pad_Poll(void)
 {
     usbh_pooling_hubs();   /* pump the USB host stack (fires Pad_ReadCb) */
 
     if (!s_padBuf)
         return;
+
+    Pad_CheckSoftReset();
 
     if (s_xid && s_haveReport) {
         unsigned short xb  = s_report.dButtons;
