@@ -878,6 +878,17 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
 
             if (var1 == layerIdx)
             {
+#ifdef SH_PC_PORT
+                if (g_Sd_AudioWork.field_E == 796) {
+                    /* Log only when a layer's written volume changes, so a full
+                     * multi-room sewer walk stays compact (per-layer last-value). */
+                    static s16 sewerLastVol[8] = { -1,-1,-1,-1,-1,-1,-1,-1 };
+                    if (layerIdx < 8 && sewerLastVol[layerIdx] != volCpy) {
+                        sewerLastVol[layerIdx] = volCpy;
+                        SH_DBG("[SH_BGM] LayerVolSet sewer: layer=%d -> ch=%d vol=%d", layerIdx, i, volCpy);
+                    }
+                }
+#endif
                 SdSetMidiVol(0, i, volCpy);
             }
         }
@@ -1365,6 +1376,14 @@ void Sd_VabLoad(void) // 0x80047B80
             cmd                = g_Sd_TaskPool[0];
             g_Sd_VabTargetLoad = &g_AudioData[cmd - 160];
             g_Sd_AudioType     = g_Sd_VabTargetLoad->typeIdx_0;
+
+#ifdef SH_PC_PORT
+            if (cmd >= 170 && cmd <= 204) {
+                SH_DBG("[SH_AMB] Sd_VabLoad ambient cmd=%d type=%d dedup=%d",
+                       cmd, g_Sd_AudioType,
+                       (int)(g_Sd_AudioType != 0 && g_Sd_AudioWork.lastVabAudioLoadedIdx_8[g_Sd_AudioType - 1] == cmd));
+            }
+#endif
 
             // If audio being loaded isn't BASE.VAB or KDT file.
             if (g_Sd_AudioType != 0)

@@ -357,17 +357,22 @@ void volume_calc(PORT* p, MIDI* mp) // 0x800A3F14
 
 #ifdef SH_PC_PORT
     {
+        // Rolling sampler: the previous fixed one-shot cap exhausted on the very
+        // first BGM track and never re-armed, so it never captured later tracks
+        // (e.g. the sewer water track 28). Re-arm periodically to sample whatever
+        // track is currently playing.
         static int volcalc_count = 0;
-        if (volcalc_count < 10) {
-            SH_DBG("[SH_BGM] volume_calc: mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
+        if (volcalc_count < 12) {
+            SH_DBG("[SH_BGM] volume_calc: ch=%d mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
+                    p->midi_ch_3 & 0xF,
                     (u8)vab_h[sd_seq_play_no].mvol_18,
                     smf_song[p->midi_ch_3 >> 4].midi_master_vol_538,
                     mp->express_5, mp->mvol_3,
                     p->pvol_10, p->tvol_11,
                     p->velo_1A & 0x7F, p->pan_14,
                     p->l_vol_C, p->r_vol_E);
-            volcalc_count++;
         }
+        if (++volcalc_count >= 4000) { volcalc_count = 0; }
     }
 #endif
 

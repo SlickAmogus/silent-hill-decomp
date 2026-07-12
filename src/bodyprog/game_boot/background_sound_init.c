@@ -207,5 +207,8 @@ bool Sd_IsCurrentAmbientTargetCheck(s32 ambientIdx) // 0x80035AB0
 void Sd_AmbientSfxSet(s32 idx) // 0x80035AC8
 {
     g_GameWork.ambientIdx = idx;
+#ifdef SH_PC_PORT
+    SH_DBG("[SH_AMB] Sd_AmbientSfxSet idx=%d -> loadCmd=%d", idx, g_AmbientVabTaskLoadCmds[idx]);
+#endif
     SD_Call(g_AmbientVabTaskLoadCmds[idx]);
 }
