@@ -755,10 +755,24 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     for (r = 0; r < rows; r++)
                     {
                         int cw = 0, ch = 0;
-                        const unsigned short* clutRow = (tim.caddr != NULL)
+                        const unsigned short* clutRow;
+                        unsigned char* canvas;
+
+                        if (HiresOverride_PackBudgetExceeded())
+                        {
+                            static int s_budgetLog = 0;
+                            if (!s_budgetLog)
+                            {
+                                s_budgetLog = 1;
+                                SH_DBG("[TEXPACK] GL byte budget reached — further pool rows keep native art");
+                            }
+                            break;
+                        }
+
+                        clutRow = (tim.caddr != NULL)
                             ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
                             : NULL;
-                        unsigned char* canvas = TexPack_Compose(
+                        canvas = TexPack_Compose(
                             (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
                             clutRow, clutW, discBitDepth, &cw, &ch);
                         if (canvas != NULL)
@@ -847,10 +861,24 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             for (r = 0; r < rows; r++)
             {
                 int cw = 0, ch = 0;
-                const unsigned short* clutRow = (tim.caddr != NULL)
+                const unsigned short* clutRow;
+                unsigned char* canvas;
+
+                if (HiresOverride_PackBudgetExceeded())
+                {
+                    static int s_budgetLog2 = 0;
+                    if (!s_budgetLog2)
+                    {
+                        s_budgetLog2 = 1;
+                        SH_DBG("[TEXPACK] GL byte budget reached — further VRAM rows keep native art");
+                    }
+                    break;
+                }
+
+                clutRow = (tim.caddr != NULL)
                     ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
                     : NULL;
-                unsigned char* canvas = TexPack_Compose(
+                canvas = TexPack_Compose(
                     (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
                     clutRow, clutW, discBitDepth, &cw, &ch);
                 if (canvas != NULL)

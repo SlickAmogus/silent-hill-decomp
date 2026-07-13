@@ -27,6 +27,7 @@ typedef struct {
     GLuint   glTexture;
     int      hiresW, hiresH;     /* actual pixel dimensions of decoded RGBA */
     int      sourceBitDepth;     /* TIM mode of the loose file itself */
+    unsigned packBytes;          /* GL bytes charged to the pack budget (0 = uncounted) */
 } HiresEntry;
 
 static HiresEntry g_entries[MAX_HIRES_OVERRIDES];
@@ -34,6 +35,43 @@ static int        g_numEntries = 0;
 static int        g_initialized = 0;
 
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest);
+
+/* ---- Texture-pack GL byte budget ------------------------------------------
+ * A DuckStation pack composes + uploads a pack-resolution RGBA texture (with
+ * mipmaps) for EVERY CLUT row of EVERY claimed page. The whole-town render
+ * mode claims most of a street map's pages, which multiplied out to gigabytes
+ * and hard-hung the machine (2026-07-12 Levin-house load). Every pack-composed
+ * upload is charged here (mip chain ~= 4/3x) and credited when its texture is
+ * replaced or deleted; fsqueue_3.c stops composing further rows once the
+ * budget is spent, so those rows keep the native disc art. Claims are made
+ * nearest-first (Ipd_ChunkMaterialsApply), so the budget favors what is close.
+ * Normal streamed play churns slots in place and never approaches the cap. */
+#define SH_TEXPACK_BUDGET_BYTES ((long long)768 << 20)
+static long long g_packBytesLive = 0;
+
+static unsigned pack_bytes_for(int w, int h)
+{
+    return (unsigned)(((long long)w * h * 4 * 4) / 3);
+}
+
+static void pack_credit(unsigned* slot)
+{
+    g_packBytesLive -= (long long)*slot;
+    if (g_packBytesLive < 0) g_packBytesLive = 0;
+    *slot = 0;
+}
+
+static void pack_charge(unsigned* slot, int w, int h)
+{
+    pack_credit(slot);
+    *slot = pack_bytes_for(w, h);
+    g_packBytesLive += (long long)*slot;
+}
+
+int HiresOverride_PackBudgetExceeded(void)
+{
+    return g_packBytesLive >= SH_TEXPACK_BUDGET_BYTES;
+}
 
 void HiresOverride_Init(void)
 {
@@ -292,6 +330,7 @@ int HiresOverride_RegisterFromTim(const char* timPath,
     e->hiresW = hiW;
     e->hiresH = hiH;
     e->sourceBitDepth = srcBpp;
+    e->packBytes = 0; /* loose user file, not pack-budgeted (recycled slot may hold a stale charge) */
 
     SH_DBG("[HIRES] registered %s: vram=(%d,%d %dx%d cells, %dbpp) "
            "clut=(%d,%d) hires=%dx%d (src %dbpp) tex=%u",
@@ -308,6 +347,7 @@ typedef struct {
     GLuint glTexture[HIRES_POOL_MAX_ROWS]; /* per CLUT row; [0] = base, 0 = empty */
     int    nativeW, nativeH; /* disc TIM pixel dims — texelSize denominator so
                               * prim UVs map 0..1 over any replacement size */
+    unsigned rowPackBytes[HIRES_POOL_MAX_ROWS]; /* pack-budget charge per row */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
@@ -362,6 +402,9 @@ int HiresOverride_PoolSlotRegister(int slotId,
             return (r == 0) ? -1 : 0;
         }
         free(rgba);
+        /* This row now holds base/loose content — release any pack charge a
+         * previous occupant of the slot left on it. */
+        pack_credit(&s->rowPackBytes[r]);
     }
 
     /* Slot reuse with fewer rows: drop stale row textures past the new count. */
@@ -372,6 +415,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
             glDeleteTextures(1, &s->glTexture[r]);
             s->glTexture[r] = 0;
         }
+        pack_credit(&s->rowPackBytes[r]);
     }
 
     s->nativeW = nativePixelW;
@@ -437,6 +481,7 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
     {
         return -1;
     }
+    pack_charge(&s->rowPackBytes[row], w, h);
     s->nativeW = nativePixelW;
     s->nativeH = nativePixelH;
     return 0;
@@ -486,8 +531,10 @@ int HiresOverride_RegisterRGBA(const char* label,
     }
     if (e == &g_entries[g_numEntries])
     {
+        e->packBytes = 0;
         g_numEntries++;
     }
+    pack_charge(&e->packBytes, w, h);
 
     e->vramX = targetVramX;
     e->vramY = targetVramY;
@@ -524,6 +571,7 @@ void HiresOverride_PoolSlotsReset(void)
                 g_poolSlots[i].glTexture[r] = 0;
                 if (r == 0) live++;
             }
+            pack_credit(&g_poolSlots[i].rowPackBytes[r]);
         }
         g_poolSlots[i].nativeW = 0;
         g_poolSlots[i].nativeH = 0;
@@ -562,6 +610,7 @@ void HiresOverride_InvalidateVramRect(int x, int y, int w, int h)
             {
                 glDeleteTextures(1, &e->glTexture);
             }
+            pack_credit(&e->packBytes);
             g_entries[i] = g_entries[--g_numEntries];
             continue;
         }

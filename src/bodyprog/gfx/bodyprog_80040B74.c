@@ -1728,73 +1728,195 @@ void Ipd_DistanceToEdgeCalc(s_Chunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 p
 #ifdef SH_PC_PORT
 /* Single gate for the experimental whole-town render mode: texture-all
  * (Ipd_ChunkMaterialsApply), draw-all model buffers (Ipd_ChunkDraw), and the
- * lifted per-poly far caps in bodyprog_80055028.c all key off this. Street
- * only — hosted interiors (a house teleported into an out-of-the-way cell of an
- * exterior-class map) fall back to vanilla so the street authored through the
- * house volume releases and disappears. */
+ * lifted per-poly far caps in bodyprog_80055028.c all key off this. Scenic
+ * mode ONLY: it exists so the town is visible at once (on foot / flycam);
+ * hosted interiors live in the SAME map's grid (Levin house = THR cells of
+ * map2_s00), so "am I outdoors" cannot come from map identity or fog. */
 extern s_WorldEnvWork g_WorldEnvWork;
 
-/* Parked-cell registry. Hosted interiors are placed at out-of-the-way grid cells
- * via Map_PlaceIpdAtCell (THR05FD -> (-1,8) at THR map load; THRF908 -> (-7,6)
- * from an event) and entering one teleports the player to that cell — which is
- * also exactly why the street is invisible from inside on vanilla. "Inside" =
- * the player's current cell is a parked cell. This is exact and per-map-correct,
- * with no fog / room-index assumptions (the fog gate crashed the Levin house:
- * a hosted interior can leave a bit of outdoor fog on, so the gate stayed true
- * inside and drew the whole town through the house). Conservative by design: any
- * Map_PlaceIpdAtCell target turns the mode off there — worst case a placed street
- * cell briefly stops the town render, never a crash. */
+/* Parked-cell registry: Map_PlaceIpdAtCell targets (THR05FD -> (-1,8) at THR
+ * map load; THRF908 -> (-7,6) from an event). Their chunk content is swapped at
+ * runtime, so exclude them from the outdoor draw set outright and recompute the
+ * room table when a placement changes the grid. */
 enum { PC_MAX_PARKED_CELLS = 16 };
 static struct { s16 x, z; } s_pcParkedCells[PC_MAX_PARKED_CELLS];
 static s32 s_pcParkedCount = 0;
 
+/* Outdoor-room classification. Every grid cell with an IPD is classified by the
+ * map's own authored position->room function (g_MapOverlayHdr.mapRoomIdxGet —
+ * the same one Game_MapRoomIdxUpdate feeds mapRoomIdx from), sampled at the
+ * cell center. A room spanning >= PC_WM_MIN_ROOM_CELLS cells is an outdoor
+ * area (streets span dozens of cells, alleys several); a room on 1-2 cells is a
+ * hosted interior island (Levin house). Both the activation gate (player's
+ * CURRENT room must be outdoor-sized) and the far-draw / texture-all cell
+ * filter key off this, so the whole town never renders or mass-textures from
+ * inside a house, and interior islands never float in the flyover view. Pure
+ * position math on the town maps -> safe to compute during load. */
+enum { PC_WM_MIN_ROOM_CELLS = 3 };
+static u16 s_pcRoomCellCount[256];
+static u8  s_pcCellOutdoor[19][16]; /* [z + 8][x + 8], grid z -8..10, x -8..7 */
+static s32 s_pcRoomTableValid = 0;
+
 void Pc_ParkedCellsReset(void) /* called at map load, before any placement */
 {
-    s_pcParkedCount = 0;
+    s_pcParkedCount    = 0;
+    s_pcRoomTableValid = 0;
 }
 
-static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ)
+static int Pc_CellIsParked(s32 cellX, s32 cellZ)
 {
     s32 i;
     for (i = 0; i < s_pcParkedCount; i++)
     {
         if (s_pcParkedCells[i].x == cellX && s_pcParkedCells[i].z == cellZ)
-            return;
+            return 1;
     }
+    return 0;
+}
+
+static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ)
+{
+    if (Pc_CellIsParked(cellX, cellZ))
+        return;
     if (s_pcParkedCount < PC_MAX_PARKED_CELLS)
     {
         s_pcParkedCells[s_pcParkedCount].x = (s16)cellX;
         s_pcParkedCells[s_pcParkedCount].z = (s16)cellZ;
         s_pcParkedCount++;
     }
+    s_pcRoomTableValid = 0; /* grid content changed under the room table */
 }
 
-static int Pc_PlayerAtParkedCell(void)
+static void Pc_WholeMapRoomTableEnsure(void)
 {
-    s32 i;
-    /* Use the player's ACTUAL position, NOT g_Map.cellX/cellZ. The latter is
-     * FLOOR_TO_STEP(pos1), a camera-forward-projected sample (Ipd_CloseRangeChunksInit
-     * pushes it up to ~14u ahead of the player when the outdoor-fog branch is
-     * taken). A hosted interior that leaves a little outdoor fog on — the exact
-     * Levin-house case — would then let g_Map.cell escape the 40u parked cell near
-     * a room edge and wrongly re-enable the whole-town render from inside (crash).
-     * The player is confined to the hosted room within its cell, so the FLOOR of
-     * the true player position lands on the parked cell exactly. */
-    s32 pcx = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vx), Q12_TO_Q8(CHUNK_CELL_SIZE));
-    s32 pcz = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vz), Q12_TO_Q8(CHUNK_CELL_SIZE));
-    for (i = 0; i < s_pcParkedCount; i++)
+    /* 5 sample points per cell: center + 4 corners inset 14u. The authored
+     * street bands (Map_RoomIdxGet primary grids) are ~24-32u wide and do NOT
+     * always contain cell centers — on map2_s00 the east-west street rooms
+     * miss every center, so center-only sampling classified street and
+     * crossroads cells as indoor (gate flicker on E-W streets, holes at every
+     * intersection, void under the player). Corner samples reach into the
+     * adjoining bands. Hosted-interior rooms come from the per-cell fallback
+     * grid (MAP_ROOM_IDXS), so all 5 samples agree inside a house cell and it
+     * can never gain an outdoor sample. Room cell counts are DISTINCT-CELL
+     * counts (a room seen by several samples of one cell counts once). */
+    static const s32 SAMPLE_OFS[5][2] = {
+        { 0, 0 },
+        { -Q12(14.0f), -Q12(14.0f) }, { -Q12(14.0f), Q12(14.0f) },
+        {  Q12(14.0f), -Q12(14.0f) }, {  Q12(14.0f), Q12(14.0f) },
+    };
+    u8  cellRooms[19][16][5];
+    s32 x;
+    s32 z;
+    s32 s;
+    s32 outdoorCells = 0;
+
+    if (s_pcRoomTableValid)
+        return;
+
+    bzero(s_pcRoomCellCount, sizeof(s_pcRoomCellCount));
+    bzero(s_pcCellOutdoor, sizeof(s_pcCellOutdoor));
+
+    if (g_MapOverlayHdr.mapRoomIdxGet == NULL || g_Map.chunkGridCenter == NULL)
     {
-        if (s_pcParkedCells[i].x == pcx && s_pcParkedCells[i].z == pcz)
-            return 1;
+        s_pcRoomTableValid = 1; /* no room data -> mode stays off on this map */
+        return;
     }
-    return 0;
+
+    for (z = -8; z < 11; z++)
+    {
+        for (x = -8; x < 8; x++)
+        {
+            if (((s16*)&g_Map.chunkGridCenter[z])[x] == NO_VALUE)
+                continue;
+
+            for (s = 0; s < 5; s++)
+            {
+                s32 seen = 0;
+                s32 k;
+                u8  room = g_MapOverlayHdr.mapRoomIdxGet(
+                    x * CHUNK_CELL_SIZE + (CHUNK_CELL_SIZE / 2) + SAMPLE_OFS[s][0],
+                    z * CHUNK_CELL_SIZE + (CHUNK_CELL_SIZE / 2) + SAMPLE_OFS[s][1]);
+
+                cellRooms[z + 8][x + 8][s] = room;
+                for (k = 0; k < s; k++)
+                {
+                    if (cellRooms[z + 8][x + 8][k] == room)
+                    {
+                        seen = 1;
+                        break;
+                    }
+                }
+                if (!seen)
+                    s_pcRoomCellCount[room]++;
+            }
+        }
+    }
+
+    for (z = -8; z < 11; z++)
+    {
+        for (x = -8; x < 8; x++)
+        {
+            if (((s16*)&g_Map.chunkGridCenter[z])[x] == NO_VALUE || Pc_CellIsParked(x, z))
+                continue;
+
+            for (s = 0; s < 5; s++)
+            {
+                if (s_pcRoomCellCount[cellRooms[z + 8][x + 8][s]] >= PC_WM_MIN_ROOM_CELLS)
+                {
+                    s_pcCellOutdoor[z + 8][x + 8] = 1;
+                    outdoorCells++;
+                    break;
+                }
+            }
+        }
+    }
+
+    s_pcRoomTableValid = 1;
+
+    if (g_PcConfig.wholeMapExteriors && g_Map.isExterior)
+    {
+        s32 r;
+        SH_DBG("[WHOLEMAP] room table: %d outdoor cells; distinct-cell counts per room:", outdoorCells);
+        for (r = 0; r < 256; r++)
+        {
+            if (s_pcRoomCellCount[r] != 0)
+                SH_DBG("[WHOLEMAP]   room %d: %d cells%s", r, (int)s_pcRoomCellCount[r],
+                       (s_pcRoomCellCount[r] >= PC_WM_MIN_ROOM_CELLS) ? " (outdoor)" : "");
+        }
+    }
+}
+
+static int Pc_WholeMapCellOutdoor(s32 cellX, s32 cellZ)
+{
+    if (cellX < -8 || cellX >= 8 || cellZ < -8 || cellZ >= 11)
+        return 0;
+
+    Pc_WholeMapRoomTableEnsure();
+    return s_pcCellOutdoor[cellZ + 8][cellX + 8];
 }
 
 int Pc_WholeMapDrawActive(void)
 {
-    return g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
-           g_PcConfig.residentTextures && g_Map.isExterior &&
-           !Pc_PlayerAtParkedCell();
+    s32 pcx;
+    s32 pcz;
+
+    if (!(g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
+          g_PcConfig.residentTextures && g_Map.isExterior))
+    {
+        return 0;
+    }
+
+    /* Gate on the player's CELL being outdoor, not the player's room: street
+     * ROOMS can be small (an intersection room spans 1-2 cells; east-west
+     * street bands miss cell centers), so a room-count test flickers the mode
+     * off mid-street. The cell test uses the same classification as the draw/
+     * texture filters, so an active gate implies the ground under the player
+     * is textured and drawn. Player position (not g_Map.cellX/cellZ, which is
+     * a camera-forward-projected sample that escapes the cell near edges). */
+    pcx = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vx), Q12_TO_Q8(CHUNK_CELL_SIZE));
+    pcz = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vz), Q12_TO_Q8(CHUNK_CELL_SIZE));
+
+    return Pc_WholeMapCellOutdoor(pcx, pcz);
 }
 #endif
 
@@ -1831,20 +1953,27 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * geometry visible) and mass-claims hundreds of slots simultaneously —
      * broke the Lenin St house (exterior-class map2_s00 hosts interior
      * cells). Whole-map exterior draw distance is its own future task. */
-    /* whole_map_exteriors (EXPERIMENTAL): opt back into exterior texture-all
-     * now that virtual slots decode palette rows correctly (the mass-claim
-     * garbling that broke the Lenin St house). Exteriors draw their whole
-     * textured set by design, so this makes the entire town render — heavy,
-     * and gated on preloadChunks (streaming mode needs the release churn).
+    /* whole_map_exteriors (EXPERIMENTAL, scenic mode): texture the OUTDOOR
+     * cells so the whole town can render. Two hard lessons baked in here:
      *
-     * Street room ONLY (mapRoomIdx 0): street geometry is AUTHORED straight
-     * through enterable-house volumes (ground/trees continue under the
-     * floor) — vanilla's near-chunk texturing was the only thing keeping
-     * the two apart. Inside any house room, fall back to the vanilla
-     * distance loop so the overlapping street releases its textures and
-     * disappears, exactly like retail. */
+     * - Outdoor cells only (Pc_WholeMapCellOutdoor). Hosted interiors live in
+     *   the same grid (Levin house = THR cells of map2_s00); claiming them, or
+     *   claiming ANYTHING while the player is inside one (the gate handles
+     *   that), mass-loads the town through the house.
+     * - Staggered, nearest-first. Claiming ~200 street cells in one frame with
+     *   a hi-res texture pack composes + uploads GL textures for every CLUT
+     *   row of every page at pack resolution — the 2026-07-12 system-crash
+     *   (memory exhaustion during the Levin-house save load). A few first-time
+     *   claims per frame, nearest first, spreads the cost and lets the pack
+     *   byte budget (fsqueue_3.c) favor what is close to the player. */
     if ((!g_Map.isExterior && g_PcConfig.residentTextures) || Pc_WholeMapDrawActive())
     {
+        enum { PC_WM_CLAIMS_PER_FRAME = 3 };
+        s_Chunk* newClaims[PC_WM_CLAIMS_PER_FRAME];
+        s32      newCount = 0;
+        s32      wm = g_Map.isExterior; /* whole-map claim vs interior resident claim */
+        s32      i;
+
         /* Visibility is NOT decided here: interiors draw exactly the
          * player's cell (Ipd_CellPositionMatchCheck), matching retail —
          * texturing everything must not widen what renders, or neighbor
@@ -1857,8 +1986,48 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
                 continue;
             }
 
+            if (wm)
+            {
+                /* Chunks inside the vanilla claim window (padded distance <= 0)
+                 * always texture — exactly what the vanilla release/reload loop
+                 * would do — so the ground around the player can never be
+                 * starved by a misclassified cell. */
+                if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
+                    !Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ))
+                    continue;
+
+                if (IpdHeader_LoadStateGet(curChunk) < StaticModelLoadState_Loaded)
+                {
+                    /* First-time texture claim — stagger it. Keep the
+                     * PC_WM_CLAIMS_PER_FRAME nearest candidates (insertion
+                     * sort by padded edge distance, updated per frame by
+                     * Ipd_ActiveChunksSample). */
+                    s32 ins = newCount;
+                    while (ins > 0 &&
+                           newClaims[ins - 1]->paddedDistanceToEdge0 > curChunk->paddedDistanceToEdge0)
+                    {
+                        if (ins < PC_WM_CLAIMS_PER_FRAME)
+                            newClaims[ins] = newClaims[ins - 1];
+                        ins--;
+                    }
+                    if (ins < PC_WM_CLAIMS_PER_FRAME)
+                    {
+                        newClaims[ins] = curChunk;
+                        if (newCount < PC_WM_CLAIMS_PER_FRAME)
+                            newCount++;
+                    }
+                    continue;
+                }
+            }
+
             Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
             Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+        }
+
+        for (i = 0; i < newCount; i++)
+        {
+            Ipd_MaterialsLoad(newClaims[i]->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            Lm_MaterialFlagsApply(newClaims[i]->ipdHdr->lmHdr);
         }
 
         return;
@@ -2346,8 +2515,16 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         {
 #ifdef SH_PC_PORT
             cellMatchChunks++;
-            /* Bound the whole-town submit set to what is actually on screen. */
-            if (wmFar && Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope))
+            /* Whole-town draw set = outdoor cells only (streets/alleys; hosted
+             * interior islands and parked cells excluded — they'd float in the
+             * flyover view and bleed through house rooms), bounded to what is
+             * actually on screen by the frustum reject. Chunks inside the
+             * vanilla claim window are exempt from both (vanilla draws every
+             * loaded+textured chunk), so the local scene always matches
+             * vanilla regardless of cell classification. */
+            if (wmFar && curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
+                (!Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ) ||
+                 Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope)))
             {
                 culledChunks++;
                 continue;

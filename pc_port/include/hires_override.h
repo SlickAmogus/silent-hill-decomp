@@ -131,6 +131,12 @@ int  HiresOverride_RegisterRGBA(const char* label,
  * VRAM upload (pixels and CLUT rects). */
 void HiresOverride_InvalidateVramRect(int x, int y, int w, int h);
 
+/* True once live pack-composed GL textures exceed the byte budget. Pack
+ * compose loops (fsqueue_3.c) stop making MORE pack textures then — rows
+ * past the cap keep native disc art. Frees credit the budget back. Guards
+ * the whole-town texture-all path against multi-GB pack blowups. */
+int HiresOverride_PackBudgetExceeded(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,9 +1,76 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
-Status: **IMPLEMENTED 2026-07-12 (awaiting in-game test).** All four walls
-addressed; build clean; changes gated behind `whole_map_exteriors` (default 0)
-so mode-off is byte-identical (verified by a 5-dimension adversarial audit).
-Prepared 2026-07-11, updated 2026-07-11 after first live engagement.
+Status: **v2 SCENIC REDESIGN 2026-07-13 (awaiting in-game test).**
+The v1 build system-crashed on 2026-07-12: the user loaded a save INSIDE the
+Levin Street house with a hi-res texture pack enabled; the machine hard-hung
+during the map2_s00 load and had to be power-cycled.
+
+## What the 2026-07-12 crash taught (v1 post-mortem)
+
+1. **Hosted interiors live in the SAME map grid.** The Levin house is THR
+   cells of map2_s00 (the street map) — NOT a `Map_PlaceIpdAtCell` placement.
+   The v1 parked-cell gate only knew the 2 placed cells, so it read "outdoors"
+   inside the house.
+2. **With the gate wrongly on, texture-all + a texture pack is unbounded.**
+   Every claimed page composes + uploads a pack-resolution RGBA GL texture
+   (with mipmaps) PER CLUT ROW (`Fs_QueuePostLoadTim` → `TexPack_Compose`).
+   The crash log shows ~1500 GL textures created mid-load ([POOLTEX] slot 115,
+   tex=1485) before the system died of memory exhaustion. v1's crash fixes
+   removed the fast process-crash and let it grind into system death.
+3. **Clarified intent (user, 2026-07-12): this is a SCENIC mode.** The only
+   goal is seeing/flying around the whole town on the few exterior maps.
+   Distant geometry/textures may be low quality; no distant collision,
+   monsters, items, or triggers are wanted.
+
+## v2 design (implemented 2026-07-13)
+
+- **Outdoor-room classification** (`bodyprog_80040B74.c`): every grid cell
+  with an IPD is classified by the map's own authored position→room function
+  (`g_MapOverlayHdr.mapRoomIdxGet`, the same one `Game_MapRoomIdxUpdate` uses),
+  sampled at **5 points per cell** (center + 4 corners inset 14u — the
+  authored street bands are ~24–32u wide and miss cell centers on map2_s00's
+  east-west streets; corners catch them; hosted-interior rooms come from the
+  per-cell fallback grid so all 5 samples agree inside a house). A room
+  spanning ≥ 3 DISTINCT CELLS = outdoor; a cell is outdoor if ANY of its
+  samples hits an outdoor-sized room (an intersection cell's corners reach
+  into the adjoining street bands). Table computed lazily once per map load
+  (invalidated in `Ipd_PlayerChunkInit` / `Map_PlaceIpdAtCell`), logged
+  one-shot as `[WHOLEMAP] room table`.
+  - **Gate** = config prereqs && exterior && the PLAYER'S CELL (floor of the
+    actual player position) is outdoor. Cell-based, not room-based, so the
+    mode cannot flicker off on small street/intersection rooms, and an active
+    gate implies the ground under the player is textured and drawn. Off
+    inside the Levin house from the first load frame.
+  - **Far-draw filter** = outdoor cells only (+ parked cells excluded), so
+    interior islands never float in the flyover and the street never renders
+    through a house. Chunks inside the vanilla claim window (padded distance
+    ≤ 0) are exempt from both filters — the local scene always matches
+    vanilla regardless of classification.
+  - Known cosmetic limitation: genuinely-outdoor rooms spanning only 1–2
+    cells (a few nooks, e.g. map2_s00 rooms 0x1B/0x1C/0x1D) classify indoor —
+    the mode pops off standing in them and they hole the far view. Safe
+    direction (conservative); whitelist from test feedback if it bothers.
+- **Texture-all v2** (`Ipd_ChunkMaterialsApply`): claims outdoor cells only,
+  staggered — at most 3 FIRST-TIME chunk claims per frame, nearest first
+  (padded edge distance). Already-textured chunks keep their per-frame
+  refresh. Interior-class maps unchanged.
+- **Texture-pack GL byte budget** (`hires_override.c` + `fsqueue_3.c`):
+  every pack-composed GL texture is charged (mips ≈ 4/3×) and credited when
+  replaced/deleted; once live pack bytes exceed 768 MB, the compose loops stop
+  making MORE pack textures (one-shot `[TEXPACK]` log) — those rows keep
+  native disc art. Nearest-first claims mean the budget favors what is close.
+  Normal streamed play churns slots in place and never approaches the cap.
+- **Mid-walk flush** (`PsyX_GPU.cpp ParsePrimitivesLinkedList`): when the
+  vertex buffer nears full, `DrawAllSplits()` draws the accumulated batch and
+  the walk continues — unbounded geometry, bounded memory, painter's order
+  preserved across flushes. Replaces v1's truncation (which dropped the
+  NEAREST geometry — the walk is far→near). OT-walk safety cap raised
+  16384 → 1M nodes (it counts per-prim nodes; the town exceeds 16k prims).
+- **Unchanged from v1** (all still active, all verified): GTE far projection
+  (unclamped re-projection past SZ3/IR saturation, PsyX_GTE.cpp), world-space
+  per-chunk frustum reject (FOV/aspect-aware cone), `SH_WHOLEMAP_FARCAP` /
+  `SH_WHOLEMAP_DEPTH_RESCUE`, widened split indices.
+
 Read alongside memories `[[project_interior_room_islands]]` (whole-map draw-path
 history + the four lifted gates), `[[project_pgxp_implementation]]` (float GTE
 infra), and `pc_port/docs/PGXP_NearClip_Design.md` (prior art for a gated
