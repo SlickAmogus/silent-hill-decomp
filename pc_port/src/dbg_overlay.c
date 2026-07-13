@@ -1432,9 +1432,28 @@ void DbgOverlay_Update(void)
                 }
             }
         }
-        if (ks[SDL_SCANCODE_BACKSPACE] && !s_prev_keys[SDL_SCANCODE_BACKSPACE] && s_input_len > 0) {
-            s_input_buf[--s_input_len] = '\0';
-            s_console_dirty            = 1;
+        /* Backspace hold-repeats like a text editor: one delete on the press
+         * edge, then after a short delay a steady 25/sec while held (faster
+         * than Dbg_HoldRepeat's 100ms floor, which felt sluggish for text). */
+        {
+            static Uint32 s_bsPress = 0, s_bsLast = 0;
+            int del = 0;
+
+            if (ks[SDL_SCANCODE_BACKSPACE]) {
+                Uint32 now = SDL_GetTicks();
+                if (!s_prev_keys[SDL_SCANCODE_BACKSPACE]) {
+                    s_bsPress = now;
+                    s_bsLast  = now;
+                    del       = 1;
+                } else if (now - s_bsPress >= 350 && now - s_bsLast >= 40) {
+                    s_bsLast = now;
+                    del      = 1;
+                }
+            }
+            if (del && s_input_len > 0) {
+                s_input_buf[--s_input_len] = '\0';
+                s_console_dirty            = 1;
+            }
         }
         /* Up / Down: recall recently entered commands (most-recent first). */
         if (ks[SDL_SCANCODE_UP] && !s_prev_keys[SDL_SCANCODE_UP] && s_hist_count > 0) {
