@@ -731,7 +731,7 @@ clicked button to the hovered action; (2) hover-select snaps
 (`Prev = Selected`, no highlight-timer reset) so the click that follows
 isn't swallowed by the `LINE_CURSOR_TIMER_MAX` input gate.
 
-## Global chara/asset pool — spawn any monster in any map (2026-07-13, commits `b34fd5702`, `512762429`, `bfc5ad965`)
+## Global chara/asset pool — spawn any monster in any map (2026-07-13, commits `b34fd5702`, `512762429`, `bfc5ad965`, review fixes `c0fd6785c`)
 
 Config `global_chara_pool` (default 1); design doc `docs/Global_Chara_Pool.md`.
 Vanilla loads only ~3 monster types per map (charaGroupIds); the pool keeps
