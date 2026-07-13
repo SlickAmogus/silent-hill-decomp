@@ -698,3 +698,25 @@ Full reference: `pc_port/docs/NTSC_J_Support.md`.
   homes (byte-verified against the decrypted EUR BODYPROG desc cluster). All
   item diagnostic probes removed. Lesson recorded: re-verify inherited
   "byte-identical" claims by hash — a wrong one steered this hunt for days.
+
+## Mouse cursor — puzzles + clickable main menu (2026-07-13, commit `153fc7fc8`)
+
+QoL feature, not a fix (config `mouse_cursor`, default on; inert while the
+TPS/OTS/FPS camera captures the pointer). Game-code touch points:
+
+- **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): 3-line SH_PC_PORT hook — the
+  shared chokepoint every free-cursor puzzle (piano, plate, door panels, map
+  pan) draws through. Arms `pc_mouse_cursor.c`'s injector, which converts
+  mouse deltas into left-stick deflection and left/right click into
+  enter/cancel on `g_Controller0`, so all puzzles gain mouse control with no
+  per-puzzle code.
+- **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
+  confirms on the entry list and difficulty rows (hit-tests the authored row
+  bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The
+  pointer sprite is the game's own 32x32 arrow from BG_ETC.TIM (UV(0,64),
+  CLUT (192,0), tpage 12) — resident at the menu in every region/boot path.
+- **`MainLoop`** (`sys/game_main.c`): per-frame `Pc_MouseCursor_FrameUpdate`
+  after the controller is built, before the state update reads it.
+
+Window→viewport mapping comes from PsyCross `PsyX_MapWindowToViewport`
+(submodule commit `63334e0`).
