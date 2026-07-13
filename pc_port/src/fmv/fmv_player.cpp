@@ -128,16 +128,56 @@ extern "C" int FMV_GetFileIdx(int movieIdx) { return FIRST_XA_FILE_IDX + FIRST_M
 /* GL resources */
 static GLuint s_fmvTexture = 0;
 
-/* Decode buffer - large enough for 1080p RGB */
-#define DECODE_BUFFER_SIZE (1920 * 1080 * 3)
+/* RGB decode buffer, grown on demand to fit the video — no resolution cap.
+ * (A fixed 1920x1080 buffer used to overflow the heap on 4K upscale mods.) */
 static unsigned char* s_decodeBuffer = NULL;
+static size_t s_decodeBufferSize = 0;
 
-static int UnpackJPEG(unsigned char* src, unsigned src_len, unsigned char* dst, int* out_w, int* out_h)
+/* Growable scratch for repacking 24/32-bit PCM audio chunks to S16. */
+static unsigned char* s_audioConvBuf = NULL;
+static size_t s_audioConvBufSize = 0;
+
+static int EnsureDecodeBuffer(size_t bytes)
+{
+    if (bytes <= s_decodeBufferSize)
+        return 0;
+
+    unsigned char* p = (unsigned char*)realloc(s_decodeBuffer, bytes);
+    if (!p) {
+        printf("[FMV] Out of memory growing decode buffer to %u bytes\n", (unsigned)bytes);
+        return -1;
+    }
+    s_decodeBuffer = p;
+    s_decodeBufferSize = bytes;
+    return 0;
+}
+
+/* libjpeg's default error handler exit()s the process on a corrupt frame —
+ * longjmp back out and drop the frame instead. */
+#include <setjmp.h>
+struct FmvJpegErr {
+    struct jpeg_error_mgr pub;
+    jmp_buf jump;
+};
+
+static void FmvJpegErrorExit(j_common_ptr cinfo)
+{
+    FmvJpegErr* err = (FmvJpegErr*)cinfo->err;
+    longjmp(err->jump, 1);
+}
+
+static int UnpackJPEG(unsigned char* src, unsigned src_len, int* out_w, int* out_h)
 {
     struct jpeg_decompress_struct cinfo;
-    struct jpeg_error_mgr jerr;
+    FmvJpegErr jerr;
 
-    cinfo.err = jpeg_std_error(&jerr);
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = FmvJpegErrorExit;
+    if (setjmp(jerr.jump)) {
+        jpeg_destroy_decompress(&cinfo);
+        return -1;
+    }
+
     jpeg_create_decompress(&cinfo);
     jpeg_mem_src(&cinfo, src, src_len);
 
@@ -146,14 +186,23 @@ static int UnpackJPEG(unsigned char* src, unsigned src_len, unsigned char* dst, 
         return -1;
     }
 
+    /* Always decode to RGB (grayscale sources included) and size the buffer
+     * from the actual frame header, so any resolution fits. */
+    cinfo.out_color_space = JCS_RGB;
+
+    if (EnsureDecodeBuffer((size_t)cinfo.image_width * cinfo.image_height * 3u) != 0) {
+        jpeg_destroy_decompress(&cinfo);
+        return -1;
+    }
+
     jpeg_start_decompress(&cinfo);
 
-    *out_w = cinfo.image_width;
-    *out_h = cinfo.image_height;
+    *out_w = cinfo.output_width;
+    *out_h = cinfo.output_height;
 
-    for (unsigned char* scanline = dst;
+    for (unsigned char* scanline = s_decodeBuffer;
          cinfo.output_scanline < cinfo.output_height;
-         scanline += cinfo.output_width * cinfo.num_components)
+         scanline += cinfo.output_width * cinfo.output_components)
     {
         jpeg_read_scanlines(&cinfo, &scanline, 1);
     }
@@ -260,6 +309,21 @@ static void RestoreGLState(const FmvGLState* s)
 static void DrawVideoFrame(int image_w, int image_h)
 {
     int windowWidth, windowHeight;
+
+    /* GPUs cap 2D texture size (16384 on anything modern) — a frame past the
+     * cap would silently upload nothing. Warn once so the log names the cause. */
+    {
+        static int warned = 0;
+        static GLint maxTex = -1;
+        if (maxTex < 0)
+            glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+        if (maxTex > 0 && (image_w > maxTex || image_h > maxTex) && !warned) {
+            printf("[FMV] Frame %dx%d exceeds GPU max texture size %d — frame will not display\n",
+                   image_w, image_h, (int)maxTex);
+            warned = 1;
+        }
+    }
+
     PsyX_GetScreenSize(&windowWidth, &windowHeight);
 
     float video_aspect = (float)image_w / (float)image_h;
@@ -315,6 +379,187 @@ static void DrawVideoFrame(int image_w, int image_h)
     SDL_GL_SwapWindow(g_window);
 }
 
+/* ===== Video codec dispatch =====
+ *
+ * Everything decodes into s_decodeBuffer as tightly-packed RGB24. MJPEG (all
+ * fourcc spellings) goes through libjpeg; the raw formats ffmpeg's -c:v
+ * rawvideo / BI_RGB writers emit are converted inline. Anything else falls
+ * back to the original disc STR so the cutscene still plays. */
+typedef enum {
+    FMV_CODEC_MJPEG,
+    FMV_CODEC_RGB,   /* uncompressed DIB, 24/32 bpp */
+    FMV_CODEC_YUY2,
+    FMV_CODEC_UYVY,
+    FMV_CODEC_I420,  /* also IYUV */
+    FMV_CODEC_YV12,
+    FMV_CODEC_NV12,
+    FMV_CODEC_UNSUPPORTED
+} FmvCodec;
+
+static int FourccIs(const char* fourcc, const char* want)
+{
+    for (int i = 0; i < 4; i++) {
+        char a = fourcc[i], b = want[i];
+        if (a >= 'a' && a <= 'z') a -= 32;
+        if (b >= 'a' && b <= 'z') b -= 32;
+        if (a != b) return 0;
+    }
+    return 1;
+}
+
+static FmvCodec IdentifyCodec(const ReadAVI::stream_format_t* fmt)
+{
+    const char* cc = fmt->compression_type;
+
+    if (FourccIs(cc, "MJPG") || FourccIs(cc, "DMB1") ||
+        FourccIs(cc, "JPEG") || FourccIs(cc, "AVI1"))
+        return FMV_CODEC_MJPEG;
+
+    /* BI_RGB has a zeroed compression field; some writers tag "DIB ". */
+    if ((cc[0] == 0 || FourccIs(cc, "DIB ")) &&
+        (fmt->bits_per_pixel == 24 || fmt->bits_per_pixel == 32))
+        return FMV_CODEC_RGB;
+
+    if (FourccIs(cc, "YUY2") || FourccIs(cc, "YUYV")) return FMV_CODEC_YUY2;
+    if (FourccIs(cc, "UYVY"))                         return FMV_CODEC_UYVY;
+    if (FourccIs(cc, "I420") || FourccIs(cc, "IYUV")) return FMV_CODEC_I420;
+    if (FourccIs(cc, "YV12"))                         return FMV_CODEC_YV12;
+    if (FourccIs(cc, "NV12"))                         return FMV_CODEC_NV12;
+
+    return FMV_CODEC_UNSUPPORTED;
+}
+
+/* BT.601 limited-range YUV -> RGB (what raw YUV AVIs carry). */
+static inline void YuvToRgb(int y, int u, int v, unsigned char* rgb)
+{
+    int c = y - 16, d = u - 128, e = v - 128;
+    int r = (298 * c + 409 * e + 128) >> 8;
+    int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+    int b = (298 * c + 516 * d + 128) >> 8;
+    rgb[0] = (unsigned char)(r < 0 ? 0 : (r > 255 ? 255 : r));
+    rgb[1] = (unsigned char)(g < 0 ? 0 : (g > 255 ? 255 : g));
+    rgb[2] = (unsigned char)(b < 0 ? 0 : (b > 255 ? 255 : b));
+}
+
+/* Uncompressed DIB: rows bottom-up unless height was negative, BGR(A) order,
+ * rows padded to 4 bytes. */
+static int UnpackRGB(const unsigned char* src, unsigned src_len, int w, int h,
+                     int bpp, int top_down)
+{
+    int bytes_pp = bpp / 8;
+    size_t stride = ((size_t)w * bytes_pp + 3) & ~(size_t)3;
+
+    if ((size_t)h * stride > src_len)
+        return -1;
+    if (EnsureDecodeBuffer((size_t)w * h * 3u) != 0)
+        return -1;
+
+    for (int y = 0; y < h; y++) {
+        const unsigned char* row = src + (size_t)(top_down ? y : (h - 1 - y)) * stride;
+        unsigned char* out = s_decodeBuffer + (size_t)y * w * 3;
+        for (int x = 0; x < w; x++) {
+            out[x * 3 + 0] = row[x * bytes_pp + 2];
+            out[x * 3 + 1] = row[x * bytes_pp + 1];
+            out[x * 3 + 2] = row[x * bytes_pp + 0];
+        }
+    }
+    return 0;
+}
+
+/* Packed 4:2:2 — YUY2 (Y0 U Y1 V) and UYVY (U Y0 V Y1). */
+static int UnpackYuv422(const unsigned char* src, unsigned src_len, int w, int h,
+                        int y_first)
+{
+    if ((size_t)w * h * 2u > src_len || (w & 1))
+        return -1;
+    if (EnsureDecodeBuffer((size_t)w * h * 3u) != 0)
+        return -1;
+
+    for (int y = 0; y < h; y++) {
+        const unsigned char* row = src + (size_t)y * w * 2;
+        unsigned char* out = s_decodeBuffer + (size_t)y * w * 3;
+        for (int x = 0; x < w; x += 2) {
+            const unsigned char* p = row + x * 2;
+            int y0 = y_first ? p[0] : p[1];
+            int u  = y_first ? p[1] : p[0];
+            int y1 = y_first ? p[2] : p[3];
+            int v  = y_first ? p[3] : p[2];
+            YuvToRgb(y0, u, v, out + x * 3);
+            YuvToRgb(y1, u, v, out + x * 3 + 3);
+        }
+    }
+    return 0;
+}
+
+/* Planar/semi-planar 4:2:0 — I420 (Y,U,V), YV12 (Y,V,U), NV12 (Y, UV interleaved). */
+static int UnpackYuv420(const unsigned char* src, unsigned src_len, int w, int h,
+                        FmvCodec codec)
+{
+    int cw = (w + 1) / 2, ch = (h + 1) / 2;
+    size_t ysize = (size_t)w * h, csize = (size_t)cw * ch;
+
+    if (ysize + csize * 2 > src_len)
+        return -1;
+    if (EnsureDecodeBuffer(ysize * 3u) != 0)
+        return -1;
+
+    const unsigned char* yp = src;
+    const unsigned char* up;
+    const unsigned char* vp;
+    int uv_interleaved = (codec == FMV_CODEC_NV12);
+
+    if (codec == FMV_CODEC_YV12) {
+        vp = src + ysize;
+        up = vp + csize;
+    } else { /* I420 + NV12 (up = base of interleaved plane for NV12) */
+        up = src + ysize;
+        vp = up + (uv_interleaved ? 1 : csize);
+    }
+
+    for (int y = 0; y < h; y++) {
+        unsigned char* out = s_decodeBuffer + (size_t)y * w * 3;
+        size_t crow = (size_t)(y / 2) * (uv_interleaved ? (size_t)cw * 2 : (size_t)cw);
+        for (int x = 0; x < w; x++) {
+            size_t ci = crow + (size_t)(x / 2) * (uv_interleaved ? 2 : 1);
+            YuvToRgb(yp[(size_t)y * w + x], up[ci], vp[ci], out + x * 3);
+        }
+    }
+    return 0;
+}
+
+/* Decode one video chunk into s_decodeBuffer. Returns 0 + real dims on success. */
+static int DecodeVideoFrame(FmvCodec codec, unsigned char* buf, unsigned len,
+                            const ReadAVI::stream_format_t* fmt, int* out_w, int* out_h)
+{
+    int w = fmt->image_width;
+    int h = fmt->image_height < 0 ? -fmt->image_height : fmt->image_height;
+    int top_down = fmt->image_height < 0;
+
+    switch (codec) {
+        case FMV_CODEC_MJPEG:
+            return UnpackJPEG(buf, len, out_w, out_h);
+        case FMV_CODEC_RGB:
+            if (UnpackRGB(buf, len, w, h, fmt->bits_per_pixel, top_down) != 0) return -1;
+            break;
+        case FMV_CODEC_YUY2:
+            if (UnpackYuv422(buf, len, w, h, 1) != 0) return -1;
+            break;
+        case FMV_CODEC_UYVY:
+            if (UnpackYuv422(buf, len, w, h, 0) != 0) return -1;
+            break;
+        case FMV_CODEC_I420:
+        case FMV_CODEC_YV12:
+        case FMV_CODEC_NV12:
+            if (UnpackYuv420(buf, len, w, h, codec) != 0) return -1;
+            break;
+        default:
+            return -1;
+    }
+    *out_w = w;
+    *out_h = h;
+    return 0;
+}
+
 /* Try to find AVI file in several locations */
 static int FindAviFile(const char* basename, char* out_path, int out_path_size)
 {
@@ -344,8 +589,11 @@ extern "C" void FMV_Init(void)
     if (s_decodeBuffer)
         return;
 
-    s_decodeBuffer = (unsigned char*)malloc(DECODE_BUFFER_SIZE);
-    memset(s_decodeBuffer, 0, DECODE_BUFFER_SIZE);
+    /* Seed with a 640x480 buffer; EnsureDecodeBuffer grows it to fit
+     * whatever resolution actually plays. */
+    EnsureDecodeBuffer(640 * 480 * 3);
+    if (s_decodeBuffer)
+        memset(s_decodeBuffer, 0, s_decodeBufferSize);
 
     glGenTextures(1, &s_fmvTexture);
     glBindTexture(GL_TEXTURE_2D, s_fmvTexture);
@@ -363,6 +611,12 @@ extern "C" void FMV_Shutdown(void)
     if (s_decodeBuffer) {
         ::free(s_decodeBuffer);
         s_decodeBuffer = NULL;
+        s_decodeBufferSize = 0;
+    }
+    if (s_audioConvBuf) {
+        ::free(s_audioConvBuf);
+        s_audioConvBuf = NULL;
+        s_audioConvBufSize = 0;
     }
     if (s_fmvTexture) {
         glDeleteTextures(1, &s_fmvTexture);
@@ -517,6 +771,13 @@ static void FmvApplyVolume(void* buf, int bytes, SDL_AudioFormat fmt)
         for (int i = 0; i < bytes; i++)
             s[i] = (uint8_t)(128 + (int)(((float)s[i] - 128.0f) * g));
     }
+    else if (fmt == AUDIO_F32LSB)
+    {
+        float* s = (float*)buf;
+        int    n = bytes / (int)sizeof(float);
+        for (int i = 0; i < n; i++)
+            s[i] *= g;
+    }
 }
 
 /* str_demux audio sector callback. Lazily opens an SDL audio device on
@@ -573,16 +834,28 @@ static void FmvAudio_OnSector(const uint8_t* sector, void* user)
 }
 } /* extern "C" */
 
-/* Determine SDL audio format from AVI audio stream info */
-static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, SDL_AudioSpec* obtained)
+/* AVI audio: PCM integer 8/16 bits map straight to SDL formats, float 32
+ * (wFormatTag 3, what `ffmpeg -c:a pcm_f32le` writes) queues as AUDIO_F32,
+ * and 24/32-bit integer PCM is repacked to S16 per chunk (`convertFrom`).
+ * Compressed audio (MP3/AAC/AC3) has no decoder here — the video plays
+ * silent and the log says how to re-encode. */
+typedef struct {
+    SDL_AudioDeviceID dev;
+    SDL_AudioSpec     spec;
+    int               convertFrom; /* 0 = none, else source bits (24/32 int PCM) */
+} FmvAviAudio;
+
+static int OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, FmvAviAudio* out)
 {
+    memset(out, 0, sizeof(*out));
+
     if (fmt->samples_per_second == 0 || fmt->channels == 0)
-        return 0;
+        return -1; /* no audio stream */
 
     if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO)) {
         if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
             printf("[FMV] Failed to init SDL audio: %s\n", SDL_GetError());
-            return 0;
+            return -1;
         }
     }
 
@@ -592,25 +865,62 @@ static SDL_AudioDeviceID OpenFmvAudio(const ReadAVI::stream_format_auds_t* fmt, 
     want.channels = (Uint8)fmt->channels;
     want.samples = 4096;
 
-    if (fmt->bits_per_sample == 16)
+    if (fmt->format == 3 && fmt->bits_per_sample == 32) {
+        want.format = AUDIO_F32LSB;
+    } else if (fmt->format == 1 && fmt->bits_per_sample == 16) {
         want.format = AUDIO_S16LSB;
-    else if (fmt->bits_per_sample == 8)
+    } else if (fmt->format == 1 && fmt->bits_per_sample == 8) {
         want.format = AUDIO_U8;
-    else {
-        printf("[FMV] Unsupported audio bits_per_sample: %d\n", fmt->bits_per_sample);
-        return 0;
+    } else if (fmt->format == 1 &&
+               (fmt->bits_per_sample == 24 || fmt->bits_per_sample == 32)) {
+        want.format = AUDIO_S16LSB;
+        out->convertFrom = fmt->bits_per_sample;
+    } else {
+        printf("[FMV] Unsupported audio (wFormatTag=0x%X, %d bit) — video will play WITHOUT sound.\n"
+               "[FMV] Re-encode the audio track as PCM, e.g.: ffmpeg -i in.avi -c:v copy -c:a pcm_s16le out.avi\n",
+               fmt->format, fmt->bits_per_sample);
+        return -1;
     }
 
-    SDL_AudioDeviceID dev = SDL_OpenAudioDevice(NULL, 0, &want, obtained, 0);
-    if (dev == 0) {
+    out->dev = SDL_OpenAudioDevice(NULL, 0, &want, &out->spec, 0);
+    if (out->dev == 0) {
         printf("[FMV] Failed to open audio device: %s\n", SDL_GetError());
-        return 0;
+        return -1;
     }
 
-    printf("[FMV] Audio: %d Hz, %d ch, %d bit\n",
-           fmt->samples_per_second, fmt->channels, fmt->bits_per_sample);
+    printf("[FMV] Audio: %d Hz, %d ch, %d bit %s%s\n",
+           fmt->samples_per_second, fmt->channels, fmt->bits_per_sample,
+           (fmt->format == 3) ? "float" : "PCM",
+           out->convertFrom ? " (repacked to 16-bit)" : "");
 
-    return dev;
+    return 0;
+}
+
+/* Repack 24/32-bit little-endian integer PCM to S16 (keep the top 16 bits). */
+static int ConvertPcmToS16(const unsigned char* src, int src_bytes, int src_bits,
+                           unsigned char** out_buf, int* out_bytes)
+{
+    int bytes_per = src_bits / 8;
+    int samples = src_bytes / bytes_per;
+    size_t need = (size_t)samples * 2;
+
+    if (need > s_audioConvBufSize) {
+        unsigned char* p = (unsigned char*)realloc(s_audioConvBuf, need);
+        if (!p) return -1;
+        s_audioConvBuf = p;
+        s_audioConvBufSize = need;
+    }
+
+    int16_t* dst = (int16_t*)s_audioConvBuf;
+    for (int i = 0; i < samples; i++) {
+        const unsigned char* s = src + (size_t)i * bytes_per;
+        /* little-endian: the two most significant bytes are the last two */
+        dst[i] = (int16_t)(s[bytes_per - 2] | (s[bytes_per - 1] << 8));
+    }
+
+    *out_buf = s_audioConvBuf;
+    *out_bytes = samples * 2;
+    return 0;
 }
 
 /* Open the resolved disc image (any region — PcPort_GetGameDiscPath also
@@ -766,7 +1076,7 @@ static int PlayFromBin(int table_idx, int max_frames)
          * blit. We copy because s_decodeBuffer is what DrawVideoFrame
          * uploads to GL — keeping that contract stable. */
         size_t bytes = (size_t)info.width * info.height * 3u;
-        if (bytes <= (size_t)DECODE_BUFFER_SIZE) {
+        if (EnsureDecodeBuffer(bytes) == 0) {
             memcpy(s_decodeBuffer, rgb, bytes);
             DrawVideoFrame(info.width, info.height);
         }
@@ -831,28 +1141,32 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
 
     ReadAVI readAVI(filepath);
     if (!readAVI.IsOpen()) {
-        printf("[FMV] Failed to open AVI: %s\n", filepath);
-        return -1;
+        printf("[FMV] Failed to parse AVI '%s' — falling back to the disc movie\n", filepath);
+        return PlayFromBin(table_idx, max_frames);
     }
 
     ReadAVI::avi_header_t avi_header = readAVI.GetAviHeader();
     ReadAVI::stream_format_t stream_format = readAVI.GetVideoFormat();
 
-    if (strcmp(stream_format.compression_type, "MJPG") != 0) {
-        printf("[FMV] Unsupported codec: '%s' (only MJPG supported)\n",
-               stream_format.compression_type);
-        return -1;
+    FmvCodec codec = IdentifyCodec(&stream_format);
+    if (codec == FMV_CODEC_UNSUPPORTED) {
+        printf("[FMV] Unsupported video codec '%.4s' (%d bpp) in %s — falling back to the disc movie.\n"
+               "[FMV] Supported: MJPEG (MJPG/dmb1/jpeg), uncompressed RGB, YUY2/UYVY/I420/YV12/NV12.\n"
+               "[FMV] Re-encode with: ffmpeg -i in.mp4 -c:v mjpeg -q:v 3 -c:a pcm_s16le out.avi\n",
+               stream_format.compression_type, stream_format.bits_per_pixel, filepath);
+        return PlayFromBin(table_idx, max_frames);
     }
 
-    printf("[FMV] Video: %dx%d, %d frames, %.1f fps\n",
+    printf("[FMV] Video: %dx%d '%.4s', %d frames indexed, %.1f fps\n",
            stream_format.image_width, stream_format.image_height,
+           stream_format.compression_type[0] ? stream_format.compression_type : "RGB",
            avi_header.TotalNumberOfFrames,
            avi_header.TimeBetweenFrames > 0 ? 1000000.0 / avi_header.TimeBetweenFrames : 0);
 
     /* Set up audio */
     ReadAVI::stream_format_auds_t audio_fmt = readAVI.GetAudioFormat();
-    SDL_AudioSpec audioObtained;
-    SDL_AudioDeviceID audioDev = OpenFmvAudio(&audio_fmt, &audioObtained);
+    FmvAviAudio aviAudio;
+    SDL_AudioDeviceID audioDev = (OpenFmvAudio(&audio_fmt, &aviAudio) == 0) ? aviAudio.dev : 0;
 
     if (audioDev)
         SDL_PauseAudioDevice(audioDev, 0); /* Start playback */
@@ -926,8 +1240,16 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         if (frame_entry.type == ReadAVI::ctype_audio_data) {
             /* Queue audio data to SDL */
             if (audioDev && frame_size > 0) {
-                FmvApplyVolume(frame_entry.buf, frame_size, audioObtained.format);
-                SDL_QueueAudio(audioDev, frame_entry.buf, frame_size);
+                unsigned char* abuf = frame_entry.buf;
+                int abytes = frame_size;
+
+                if (aviAudio.convertFrom != 0 &&
+                    ConvertPcmToS16(frame_entry.buf, frame_size, aviAudio.convertFrom,
+                                    &abuf, &abytes) != 0)
+                    continue;
+
+                FmvApplyVolume(abuf, abytes, aviAudio.spec.format);
+                SDL_QueueAudio(audioDev, abuf, abytes);
             }
             /* Don't apply video timing for audio frames - immediately read next */
             continue;
@@ -942,7 +1264,8 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
              frame_entry.type == ReadAVI::ctype_uncompressed_video_frame))
         {
             int real_w, real_h;
-            if (UnpackJPEG(frame_entry.buf, frame_size, s_decodeBuffer, &real_w, &real_h) == 0)
+            if (DecodeVideoFrame(codec, frame_entry.buf, (unsigned)frame_size,
+                                 &stream_format, &real_w, &real_h) == 0)
             {
                 DrawVideoFrame(real_w, real_h);
             }

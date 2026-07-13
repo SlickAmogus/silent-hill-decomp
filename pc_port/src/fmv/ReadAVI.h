@@ -5,12 +5,18 @@
  * Original copyright: Michael Kohn <mike@mikekohn.net> (2004-2013)
  *
  * BSD 3-Clause License - see ReadAVI.cpp for full license text.
+ *
+ * PC port extensions: 64-bit file offsets, OpenDML (RIFF AVIX) multi-segment
+ * files, index built by scanning the movi lists (idx1 is ignored — see
+ * ReadAVI.cpp), WAVE_FORMAT_EXTENSIBLE resolution. Removes every 2 GB / 4 GB
+ * size ceiling the original 32-bit parser had.
  */
 #ifndef READAVI_H_
 #define READAVI_H_
 
 #include <fstream>
 #include <vector>
+#include <stdint.h>
 
 class ReadAVI {
     enum {
@@ -55,7 +61,7 @@ public:
     typedef struct {
         int header_size;
         int image_width;
-        int image_height;
+        int image_height;      /* negative = top-down DIB */
         int number_of_planes;
         int bits_per_pixel;
         char compression_type[5];
@@ -69,7 +75,7 @@ public:
 
     typedef struct {
         int header_size;
-        int format;
+        int format;            /* wFormatTag; WAVE_FORMAT_EXTENSIBLE resolved to its SubFormat tag */
         int channels;
         int samples_per_second;
         int bytes_per_second;
@@ -111,9 +117,8 @@ private:
     typedef struct {
         chunk_type_t type;
         int stream_num;
-        int dwFlags;
-        int dwChunkOffset;
-        int dwChunkLength;
+        int64_t dwChunkOffset;   /* absolute file offset of the chunk payload */
+        uint32_t dwChunkLength;
     } index_entry_t;
 
     typedef struct {
@@ -130,21 +135,21 @@ private:
     stream_format_t stream_format_vid;
     stream_header_t stream_header_auds;
     stream_format_auds_t stream_format_auds;
-    long fileSize;
-    long movi_offset;
+    int64_t fileSize;
     unsigned char* data_buf;
     unsigned data_buf_size;
+    bool headers_parsed;
 
-    int parse_riff();
+    int parse_riff_segment(int64_t segment_end, bool first_segment);
     int parse_hdrl_list();
-    int parse_idx1(int chunk_len);
     int read_avi_header();
     int read_stream_header(stream_header_t* sheader);
     int read_stream_format();
-    int read_stream_format_auds();
+    int read_stream_format_auds(uint32_t strf_size);
     int parse_hdrl(unsigned int size);
-    int parse_movi(int size);
+    int parse_movi(int64_t list_end);
     int decodeCkid(char* ckid, chunk_type_t* chunk_type);
+    uint32_t read_uint();
     int read_int();
     int read_word();
     void read_chars(char* s, int count);
