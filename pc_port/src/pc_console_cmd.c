@@ -630,9 +630,17 @@ static void cmd_spawn(const char* arg)
     s_CollisionSurface surf;
     u32  state;
 
+    /* Global chara pool: repair mid-map evictions (cutscene Chara_Load with
+     * CHARA_FORCE_FREE_ALL NULLs native registrations) before gating. */
+    {
+        extern void Pc_CharaPool_Refresh(void);
+        Pc_CharaPool_Refresh();
+    }
+
     if (arg[0] == '\0' || strcmp(arg, "LIST") == 0) {
+        extern int Pc_CharaPool_IsPoolModel(int charaId);
         int any = 0;
-        cprintf("loaded in this map:");
+        cprintf("spawnable here:");
         for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
             s32 id = SPAWN_CHARAS[i].charaId;
             if (!spawn_chara_model_ready(id))
@@ -640,7 +648,8 @@ static void cmd_spawn(const char* arg)
             {
                 int anim = spawn_chara_anim_ready(id);
                 int ai   = g_MapOverlayHdr.charaUpdateFuncs[id] != NULL;
-                cprintf(" %s%s%s", SPAWN_CHARAS[i].name,
+                cprintf(" %s%s%s%s", SPAWN_CHARAS[i].name,
+                        Pc_CharaPool_IsPoolModel(id) ? " [pool]" : "",
                         anim ? "" : " [no-anim]", ai ? "" : " [no-ai]");
                 any = 1;
             }
@@ -714,6 +723,12 @@ static void cmd_spawn(const char* arg)
     /* Match Game_NpcRoomInitSpawn: mark the spawn slot in field_228C too, so the
      * despawn/dedup bookkeeping (CLEAR_FLAG on npc->field_40) stays consistent. */
     SET_FLAG(g_SysWork.field_228C, npcIdx);
+    /* No savegame identity: killing this spawn must not dead-flag the native
+     * spawn row that happens to share field_40's value (npc_main.c guard). */
+    {
+        extern unsigned char g_PcNpcDebugSpawned[];
+        g_PcNpcDebugSpawned[npcIdx] = 1;
+    }
 
     if (g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL)
         cprintf("spawned %s (state %d)", nm, (int)state);

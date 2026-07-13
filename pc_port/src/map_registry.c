@@ -236,7 +236,10 @@ void MapRegistry_Load(e_MapIdx id)
      * on every load; NULL-only, so native per-map AI variants win). */
     {
         extern void Pc_CharaGlobal_Backfill(void);
+        extern void Pc_NpcDebugSpawnClearAll(void);
         Pc_CharaGlobal_Backfill();
+        /* NPCs are wiped on map load; debug-spawn slot flags go with them. */
+        Pc_NpcDebugSpawnClearAll();
     }
 
     /* SH_LOG (not SH_DBG_ECHO): a per-map-load diagnostic belongs in the debug

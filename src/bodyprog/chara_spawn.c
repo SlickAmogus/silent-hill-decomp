@@ -101,6 +101,15 @@ s32 Chara_Spawn(e_CharaId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ, q3_
 
         bzero(&g_SysWork.npcs[i], sizeof(s_SubCharacter));
 
+#ifdef SH_PC_PORT
+        /* A native spawn reuses this slot: it has a real spawn-table
+         * identity again, so savegame bookkeeping applies. */
+        {
+            extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+            g_PcNpcDebugSpawned[i] = 0;
+        }
+#endif
+
         g_SysWork.npcs[i].model.charaId = charaId;
         g_SysWork.npcs[i].field_40 = activeSpawnFlags;
 

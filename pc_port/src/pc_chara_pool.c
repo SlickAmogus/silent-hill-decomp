@@ -58,6 +58,29 @@ static PcPoolChara   s_pool[Chara_Count];
 static GsCOORDINATE2 s_poolBoneCoords[Chara_Count][57];
 static int           s_poolReady;
 
+/* Debug/pool spawns carry no savegame identity: Savegame_EnemyStateUpdate
+ * skips flagged slots (their field_40 is just the npc slot index, not a
+ * spawn-table row). Set by the console SPAWN command; cleared when a native
+ * spawn reuses the slot (Chara_Spawn) or on map load. */
+u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+
+void Pc_NpcDebugSpawnClearAll(void)
+{
+    memset(g_PcNpcDebugSpawned, 0, sizeof(g_PcNpcDebugSpawned));
+}
+
+/* True when a charaId's registered model is the pool's copy (i.e. the type
+ * is only spawnable here because of the pool — console list tags these). */
+int Pc_CharaPool_IsPoolModel(s32 charaId)
+{
+    if (charaId < 0 || charaId >= Chara_Count)
+    {
+        return 0;
+    }
+
+    return g_WorldGfxWork.registeredCharaModels[charaId] == &s_pool[charaId].model;
+}
+
 static int PoolChara_Load(s32 id)
 {
     s_CharaFileInfo* fi = &CHARA_FILE_INFOS[id];

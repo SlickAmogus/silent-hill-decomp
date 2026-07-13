@@ -30,6 +30,17 @@ void Pc_CharaGlobal_Open(void);
  * chara_global.dll. Called at the end of MapRegistry_Load. */
 void Pc_CharaGlobal_Backfill(void);
 
+/* True when charaId's registered model is the pool's copy (spawnable here
+ * only because of the pool). */
+int Pc_CharaPool_IsPoolModel(int charaId);
+
+/* Per-npc-slot "debug spawn" flags: flagged slots skip the savegame
+ * enemy-state bookkeeping on kill (their field_40 is an npc slot index, not
+ * a spawn-table row). Set by the console SPAWN command; cleared when a
+ * native spawn reuses the slot or on map load. */
+extern unsigned char g_PcNpcDebugSpawned[];
+void Pc_NpcDebugSpawnClearAll(void);
+
 #ifdef __cplusplus
 }
 #endif

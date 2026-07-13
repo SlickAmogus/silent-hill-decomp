@@ -29,6 +29,21 @@ void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 {
+#ifdef SH_PC_PORT
+    /* Console/pool spawns reuse field_40 as their npc slot index, which here
+     * would permanently dead-flag an UNRELATED native spawn row of the
+     * current map in the savegame. Debug spawns carry no savegame identity. */
+    {
+        extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+        s32       slot = chara - g_SysWork.npcs;
+
+        if (slot >= 0 && slot < NPC_COUNT_MAX && g_PcNpcDebugSpawned[slot])
+        {
+            return;
+        }
+    }
+#endif
+
     if (g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
     {
         g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapIdx] &= ~(1 << chara->field_40);
