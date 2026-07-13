@@ -763,10 +763,20 @@ void Map_CollisionDataInit(void) // 0x80041E98
     g_Map.collisionData.subcellSize = 512;
 }
 
+#ifdef SH_PC_PORT
+static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ); /* defined near Pc_WholeMapDrawActive */
+#endif
+
 void Map_PlaceIpdAtCell(s16 ipdFileIdx, s32 cellX, s32 cellZ) // 0x80041ED0
 {
     s_Chunk*  curChunk;
     s_IpdHeader* ipdHdr;
+
+#ifdef SH_PC_PORT
+    /* Record hosted-interior host cells for the whole-town gate (see
+     * Pc_WholeMapDrawActive). */
+    Pc_ParkedCellRecord(cellX, cellZ);
+#endif
 
     ((s16*)&g_Map.chunkGridCenter[cellZ])[cellX] = ipdFileIdx;
 
@@ -1855,21 +1865,72 @@ void Ipd_DistanceToEdgeCalc(s_Chunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 p
 /* Single gate for the experimental whole-town render mode: texture-all
  * (Ipd_ChunkMaterialsApply), draw-all model buffers (Ipd_ChunkDraw), and the
  * lifted per-poly far caps in bodyprog_80055028.c all key off this. Street
- * room only — interiors hosted by exterior maps fall back to vanilla so the
- * street authored through house volumes releases and disappears. */
+ * only — hosted interiors (a house teleported into an out-of-the-way cell of an
+ * exterior-class map) fall back to vanilla so the street authored through the
+ * house volume releases and disappears. */
 extern s_WorldEnvWork g_WorldEnvWork;
+
+/* Parked-cell registry. Hosted interiors are placed at out-of-the-way grid cells
+ * via Map_PlaceIpdAtCell (THR05FD -> (-1,8) at THR map load; THRF908 -> (-7,6)
+ * from an event) and entering one teleports the player to that cell — which is
+ * also exactly why the street is invisible from inside on vanilla. "Inside" =
+ * the player's current cell is a parked cell. This is exact and per-map-correct,
+ * with no fog / room-index assumptions (the fog gate crashed the Levin house:
+ * a hosted interior can leave a bit of outdoor fog on, so the gate stayed true
+ * inside and drew the whole town through the house). Conservative by design: any
+ * Map_PlaceIpdAtCell target turns the mode off there — worst case a placed street
+ * cell briefly stops the town render, never a crash. */
+enum { PC_MAX_PARKED_CELLS = 16 };
+static struct { s16 x, z; } s_pcParkedCells[PC_MAX_PARKED_CELLS];
+static s32 s_pcParkedCount = 0;
+
+void Pc_ParkedCellsReset(void) /* called at map load, before any placement */
+{
+    s_pcParkedCount = 0;
+}
+
+static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ)
+{
+    s32 i;
+    for (i = 0; i < s_pcParkedCount; i++)
+    {
+        if (s_pcParkedCells[i].x == cellX && s_pcParkedCells[i].z == cellZ)
+            return;
+    }
+    if (s_pcParkedCount < PC_MAX_PARKED_CELLS)
+    {
+        s_pcParkedCells[s_pcParkedCount].x = (s16)cellX;
+        s_pcParkedCells[s_pcParkedCount].z = (s16)cellZ;
+        s_pcParkedCount++;
+    }
+}
+
+static int Pc_PlayerAtParkedCell(void)
+{
+    s32 i;
+    /* Use the player's ACTUAL position, NOT g_Map.cellX/cellZ. The latter is
+     * FLOOR_TO_STEP(pos1), a camera-forward-projected sample (Ipd_CloseRangeChunksInit
+     * pushes it up to ~14u ahead of the player when the outdoor-fog branch is
+     * taken). A hosted interior that leaves a little outdoor fog on — the exact
+     * Levin-house case — would then let g_Map.cell escape the 40u parked cell near
+     * a room edge and wrongly re-enable the whole-town render from inside (crash).
+     * The player is confined to the hosted room within its cell, so the FLOOR of
+     * the true player position lands on the parked cell exactly. */
+    s32 pcx = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vx), Q12_TO_Q8(CHUNK_CELL_SIZE));
+    s32 pcz = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vz), Q12_TO_Q8(CHUNK_CELL_SIZE));
+    for (i = 0; i < s_pcParkedCount; i++)
+    {
+        if (s_pcParkedCells[i].x == pcx && s_pcParkedCells[i].z == pcz)
+            return 1;
+    }
+    return 0;
+}
 
 int Pc_WholeMapDrawActive(void)
 {
-    /* "On the street" = the map's outdoor fog is enabled. A fixed room index
-     * doesn't work — street room numbering differs per map (map2_s00 street is
-     * 0, map0_s00's is 37) — but hosted interiors (Levin house etc.) all turn
-     * the outdoor fog off on entry, which is exactly the boundary where the
-     * whole town must stop rendering. fogstr only scales shader density and
-     * never touches this flag. */
     return g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
            g_PcConfig.residentTextures && g_Map.isExterior &&
-           g_WorldEnvWork.isFogEnabled;
+           !Pc_PlayerAtParkedCell();
 }
 #endif
 
@@ -2321,6 +2382,61 @@ bool func_8004393C(q19_12 posX, q19_12 posZ) // 0x8004393C
     return false;
 }
 
+#ifdef SH_PC_PORT
+/* Cheap world-space per-chunk frustum reject for whole-town mode. Transforms the
+ * 40u cell's center into view space via GsWSMATRIX (the world->view matrix, in Q8
+ * world units — the same space Ipd_ChunkDraw uses for cell bounds) and rejects
+ * cells fully behind the camera or outside a generous horizontal cone. It runs in
+ * WORLD space, so it is immune to the GTE depth saturation the far-projection fix
+ * works around — a far but on-screen chunk is correctly kept. Bounds the submit
+ * set so the software vertex transform and the flat vertex buffer stay in budget.
+ * GsWSMATRIX row 2 (m[2]/t[2]) is the forward/depth axis, matching RTPS's MAC3, so
+ * view Z > 0 == in front. */
+/* Horizontal cone half-tangent for the whole-map reject. Derived from the actual
+ * projection so it can never be tighter than the visible frustum: 160/H is the
+ * 4:3 horizontal half-tangent (H = ReadGeomScreen already folds in fps_fov), and
+ * winAspect/(4:3) applies the Hor+ widescreen widening (tracks ultrawide). A 30%
+ * margin guarantees nothing on screen is culled; the fix trades a little extra
+ * submitted geometry (bounded by the widened vertex buffer) for zero over-cull. */
+static float Pc_WholeMapConeSlope(void)
+{
+    float H = (float)ReadGeomScreen();
+    float winA;
+    float slope;
+
+    if (H < 1.0f)
+        H = 1.0f;
+    winA = (g_PcConfig.windowHeight > 0)
+         ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
+         : (4.0f / 3.0f);
+    slope = (160.0f / H) * (winA / (4.0f / 3.0f)) * 1.3f;
+    if (slope < 1.0f) /* never tighter than ~90deg full */
+        slope = 1.0f;
+    return slope;
+}
+
+static int Pc_WholeMapChunkCulled(s32 cellX, s32 cellZ, float coneSlope)
+{
+    const s32 CELL = Q12_TO_Q8(CHUNK_CELL_SIZE); /* 40u in Q8 */
+    s32 cx = cellX * CELL + (CELL >> 1);         /* cell center, Q8 world */
+    s32 cz = cellZ * CELL + (CELL >> 1);
+    /* cell center Y = 0 (ground); GsWSMATRIX.t carries the camera height. */
+    s32 vx = (s32)(((s64)GsWSMATRIX.m[0][0] * cx + (s64)GsWSMATRIX.m[0][2] * cz) >> 12) + GsWSMATRIX.t[0];
+    s32 vz = (s32)(((s64)GsWSMATRIX.m[2][0] * cx + (s64)GsWSMATRIX.m[2][2] * cz) >> 12) + GsWSMATRIX.t[2];
+    float ax;
+
+    if (vz < -CELL) /* whole cell behind the near plane */
+        return 1;
+
+    /* Horizontal cone (coneSlope * depth) plus a whole-cell margin. */
+    ax = (float)(vx < 0 ? -vx : vx);
+    if (ax > (float)vz * coneSlope + (float)CELL)
+        return 1;
+
+    return 0;
+}
+#endif
+
 void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 {
     s32         queueState;
@@ -2342,12 +2458,19 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
     curChunk = &g_Map.activeChunks[0];
 #ifdef SH_PC_PORT
     {
+        extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
         int drawCount = 0;
         /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
          * whole-town mode active it was exactly what truncated the flycam view
          * to a block of houses. Keep the cap only for plain debug flights. */
         int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
-        int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
+        int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0, culledChunks = 0;
+        /* Whole-town mode: unclamp the GTE projection for far world vertices (see
+         * PsyX_GTE.cpp). Scoped to this world-chunk loop so only the map geometry
+         * takes the far path — characters/particles/HUD keep the exact PSX path. */
+        int wmFar = Pc_WholeMapDrawActive();
+        float wmConeSlope = wmFar ? Pc_WholeMapConeSlope() : 0.0f;
+        g_PsxWholeMapFar = wmFar;
 #endif
     for (; curChunk < &g_Map.activeChunks[g_Map.activeChunkCount]; curChunk++)
     {
@@ -2359,6 +2482,12 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         {
 #ifdef SH_PC_PORT
             cellMatchChunks++;
+            /* Bound the whole-town submit set to what is actually on screen. */
+            if (wmFar && Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope))
+            {
+                culledChunks++;
+                continue;
+            }
 #endif
             Ipd_ChunkDraw(curChunk->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
 #ifdef SH_PC_PORT
@@ -2366,6 +2495,9 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #endif
         }
     }
+#ifdef SH_PC_PORT
+    g_PsxWholeMapFar = 0; /* far re-projection is world-geometry only */
+#endif
 #ifdef SH_PC_PORT
     /* TEMP [WHOLEMAP] probe (remove when the whole-town report closes): with
      * the mode active, confirm every chunk actually submits — separates a
@@ -2376,10 +2508,10 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         if ((SDL_GetTicks() - s_wmLogMs) > 2000)
         {
             s_wmLogMs = SDL_GetTicks();
-            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d fog=%d roomIdx=%d total=%d loaded=%d drawn=%d",
+            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d fog=%d roomIdx=%d total=%d loaded=%d drawn=%d culled=%d",
                    Pc_WholeMapDrawActive(), g_PcConfig.preloadChunks, g_PcConfig.residentTextures,
                    (int)g_WorldEnvWork.isFogEnabled, (int)g_SavegamePtr->mapRoomIdx,
-                   totalChunks, loadedChunks, drawCount);
+                   totalChunks, loadedChunks, drawCount, culledChunks);
         }
     }
 

@@ -6,7 +6,16 @@
 #include <math.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <direct.h>
+
+/* _strdup / _stricmp / _strnicmp are MSVC spellings of POSIX string helpers;
+ * map them to the POSIX names off Windows. No <direct.h>: it is MSVC-only and
+ * none of its directory calls (_mkdir etc.) are used here. */
+#ifndef _WIN32
+#include <strings.h> /* strcasecmp / strncasecmp */
+#define _strdup(s)         strdup(s)
+#define _strnicmp(a, b, n) strncasecmp((a), (b), (n))
+#define _stricmp(a, b)     strcasecmp((a), (b))
+#endif
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
