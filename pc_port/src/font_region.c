@@ -60,7 +60,33 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
     }
     else if (layout->glyphCount <= FONT_12X16_GLYPH_COUNT)
     {
-        return 0; /* No accent cells in the US atlas. */
+        /* No accent cells in the US atlas. Fan-translated USA discs unlock
+         * the port's Latin-1 menu translations (lang_menu.c), so instead of
+         * silently dropping the byte, render the unaccented base letter —
+         * "Vibracion" beats "Vibracin". Inverted punctuation has no base and
+         * is dropped. Vanilla US text never contains bytes >= 0x80, so this
+         * path can't affect it. */
+        switch (charCode)
+        {
+            case 0xE0: case 0xE1: case 0xE2: case 0xE4: cell = 'a'; break;
+            case 0xE7:                                  cell = 'c'; break;
+            case 0xE8: case 0xE9: case 0xEA: case 0xEB: cell = 'e'; break;
+            case 0xEC: case 0xED: case 0xEE: case 0xEF: cell = 'i'; break;
+            case 0xF1:                                  cell = 'n'; break;
+            case 0xF2: case 0xF3: case 0xF4: case 0xF6: cell = 'o'; break;
+            case 0xF9: case 0xFA: case 0xFB: case 0xFC: cell = 'u'; break;
+            case 0xC0: case 0xC1: case 0xC2: case 0xC4: cell = 'A'; break;
+            case 0xC7:                                  cell = 'C'; break;
+            case 0xC8: case 0xC9: case 0xCA: case 0xCB: cell = 'E'; break;
+            case 0xCC: case 0xCD:                       cell = 'I'; break;
+            case 0xD1:                                  cell = 'N'; break;
+            case 0xD2: case 0xD3: case 0xD6:            cell = 'O'; break;
+            case 0xD9: case 0xDA: case 0xDC:            cell = 'U'; break;
+            case 0x9C:                                  cell = 'o'; break;
+            case 0x96:                                  cell = '-'; break;
+            default: return 0;
+        }
+        cell -= GLYPH_TABLE_ASCII_OFFSET;
     }
     else
     {

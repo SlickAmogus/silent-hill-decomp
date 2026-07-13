@@ -781,7 +781,15 @@ from the disc already; **text was the only thing the port compiles in**.
   branch (link base 0x800C9578, identity indices, verbatim copies — fan text
   is already US markup dialect, pure ASCII). A **matching decompile means
   compiled text == vanilla disc text**, so vanilla discs compare equal and
-  are a guaranteed no-op; per-map self-detection, no config gate.
+  are a guaranteed no-op; per-map self-detection, no config gate. After the
+  adversarial review, the USA branch reads the overlay itself off the disc
+  image (`ReadDiscFile`) instead of consuming `g_OvlDynamic` — no
+  `Fs_QueueWaitForEmpty` on USA (vanilla load timing untouched, no
+  stale-buffer risk from the queue-drain timeout valve), NUL-validated
+  string walk, malloc checks + pool caps, and the modified-vs-vanilla
+  compare bounded to the 15 shared `map_msg_common.h` entries every
+  compiled table starts with (the compiled arrays carry no count, so
+  deeper indexing could run past a shorter table).
 - **Menus**: the port renders menus from compiled strings a disc patch can't
   reach — `language = es` (etc.) now unlocks the existing `lang_menu.c`
   translations on fan-USA discs, and the title-options Language row shows

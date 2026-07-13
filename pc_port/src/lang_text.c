@@ -245,8 +245,14 @@ static void FanTextInit(void)
 
     if (diff)
     {
+        /* 4MB cap: legitimate item text totals ~20KB — anything bigger is a
+         * malformed disc aiming every pointer at a huge shared string. */
+        if (poolBytes > (1u << 22))
+            goto bail;
         s_ItemPool = (char*)malloc(poolBytes + 1);
-        out        = s_ItemPool;
+        if (s_ItemPool == NULL)
+            goto bail;
+        out = s_ItemPool;
         for (i = 0; i < ITEM_TEXT_COUNT; i++)
         {
             /* Already US dialect (underscores, \n\t layout) — copy verbatim. */
@@ -513,6 +519,140 @@ static int SplitPartsFor(int mapIdx, int usIdx)
     return 1;
 }
 
+/* USA map messages come straight off the disc image, not from g_OvlDynamic:
+ * the shared queue buffer isn't guaranteed to hold this map's overlay
+ * (Fs_QueueWaitForEmpty's timeout valve can abandon the read), and reading
+ * it here keeps the vanilla USA load path free of the EUR/JPN queue drain.
+ * Vanilla overlays match the compiled messages byte-for-byte (a matching
+ * decompile), so any difference means a fan-translated disc: repoint the
+ * header at verbatim copies of the disc strings (already US dialect,
+ * identity index mapping). Everything off the disc is treated as untrusted —
+ * unparseable data keeps the compiled English text. */
+static void UsaPatchMapMessages(int mapIdx)
+{
+    const s_FileInfo* fe;
+    unsigned char*    ovl;
+    unsigned int      ovlSize;
+    unsigned int      tablePsx;
+    unsigned int      tableOff;
+    unsigned int      srcPtrs[MSG_COUNT_MAX + 8];
+    unsigned int      poolBytes;
+    int               srcCount;
+    int               cmpCount;
+    int               diff;
+    int               i;
+    char*             newPool;
+    char*             out;
+    const char**      origMsgs;
+    extern s_MapOverlayHdr* g_pMapOverlayHeader;
+
+    if (mapIdx < 0 || mapIdx >= 45 || g_pMapOverlayHeader == NULL)
+        return;
+    origMsgs = (const char**)g_pMapOverlayHeader->mapMessages;
+    if (origMsgs == NULL)
+        return;
+
+    fe      = &g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx];
+    ovlSize = (unsigned int)fe->blockCount << 8;
+    if (ovlSize < 0x40)
+        return;
+    ovl = ReadDiscFile(fe->startSector, ovlSize);
+    if (ovl == NULL)
+        return;
+
+    tablePsx = *(unsigned int*)(ovl + 0x34);
+    if (tablePsx < USA_OVL_BASE || tablePsx - USA_OVL_BASE >= ovlSize)
+    {
+        free(ovl);
+        return;
+    }
+    tableOff = tablePsx - USA_OVL_BASE;
+
+    /* Same walk as the EUR/JPN path, plus a NUL-inside-the-overlay check so
+     * no later strlen/strcmp/memcpy can run past the buffer. */
+    poolBytes = 0;
+    for (srcCount = 0; srcCount < (int)(sizeof(srcPtrs) / sizeof(srcPtrs[0])); srcCount++)
+    {
+        unsigned int ptr;
+        const char*  nul;
+
+        if (tableOff + (srcCount + 1) * 4 > ovlSize)
+            break;
+        ptr = *(unsigned int*)(ovl + tableOff + srcCount * 4);
+        if (ptr <= USA_OVL_BASE || ptr - USA_OVL_BASE >= ovlSize)
+            break;
+        ptr -= USA_OVL_BASE;
+        nul = (const char*)memchr(ovl + ptr, '\0', ovlSize - ptr);
+        if (nul == NULL)
+            break;
+        srcPtrs[srcCount] = ptr;
+        poolBytes += (unsigned int)(nul - (const char*)(ovl + ptr)) + 1;
+    }
+
+    /* 1MB cap: a real message table totals well under 64KB — anything bigger
+     * is aliased/garbage pointers. */
+    if (srcCount < 4 || poolBytes > (1u << 20))
+    {
+        free(ovl);
+        return;
+    }
+
+    /* Every US map's compiled table opens with the same 15 shared
+     * map_msg_common.h entries, so indices 0..14 are always in bounds on the
+     * compiled side (the smallest table, map1_s05, is exactly those 15) —
+     * and every known translation rewrites at least one of them ("Yes").
+     * Comparing only that block stays safe against disc tables longer than
+     * the compiled array (the compiled side has no count or terminator). */
+    cmpCount = (srcCount < 15) ? srcCount : 15;
+    diff     = 0;
+    for (i = 0; i < cmpCount; i++)
+    {
+        if (origMsgs[i] == NULL || strcmp(origMsgs[i], (const char*)ovl + srcPtrs[i]) != 0)
+        {
+            diff = 1;
+            break;
+        }
+    }
+    if (!diff)
+    {
+        free(ovl);
+        return;
+    }
+
+    newPool = (char*)malloc(poolBytes + 16);
+    if (newPool == NULL)
+    {
+        free(ovl);
+        return;
+    }
+    free(s_MsgPool);
+    s_MsgPool = newPool;
+    out       = s_MsgPool;
+
+    for (i = 0; i < MSG_COUNT_MAX; i++)
+    {
+        if (i < srcCount)
+        {
+            size_t len = strlen((const char*)ovl + srcPtrs[i]);
+
+            memcpy(out, ovl + srcPtrs[i], len + 1);
+            s_MsgPtrs[i] = out;
+            out += len + 1;
+        }
+        else
+        {
+            s_MsgPtrs[i] = "";
+        }
+    }
+
+    s_LangMapHeader             = *g_pMapOverlayHeader;
+    s_LangMapHeader.mapMessages = s_MsgPtrs;
+    g_pMapOverlayHeader         = &s_LangMapHeader;
+
+    free(ovl);
+    SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
+}
+
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 {
     const unsigned char* bytes = (const unsigned char*)ovl;
@@ -524,16 +664,20 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     int                  usIdx;
     int                  srcIdx;
     int                  isJpn;
-    int                  isUsa;
     char*                out;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
+    if (g_GameRegion == Region_USA)
+    {
+        UsaPatchMapMessages(mapIdx);
+        return;
+    }
+
     isJpn = (g_GameRegion == Region_JPN);
-    isUsa = (g_GameRegion == Region_USA);
-    if ((!Pc_LangActive() && !isJpn && !isUsa) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
+    if ((!Pc_LangActive() && !isJpn) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
         return;
 
-    base     = isJpn ? JPN_OVL_BASE : isUsa ? USA_OVL_BASE : EUR_OVL_BASE;
+    base     = isJpn ? JPN_OVL_BASE : EUR_OVL_BASE;
     tablePsx = *(const unsigned int*)(bytes + 0x34);
     if (tablePsx < base || tablePsx - base >= ovlSize)
     {
@@ -560,67 +704,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
     if (srcCount < 4)
     {
-        /* Normal for a couple of US overlays — only worth a warning where a
-         * localized table was expected. */
-        if (!isUsa)
-            SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
-        return;
-    }
-
-    if (isUsa)
-    {
-        /* Vanilla US overlays match the compiled messages byte-for-byte (a
-         * matching decompile), so any difference means a fan-translated disc:
-         * repoint the header at verbatim copies of the disc strings (already
-         * US dialect, identity index mapping). Stop comparing at the first
-         * difference — a patch that relocated the table would leave the
-         * compiled array shorter than srcCount, and entries past the first
-         * change must not be dereferenced. */
-        const char** origMsgs  = (const char**)g_pMapOverlayHeader->mapMessages;
-        unsigned int poolBytes = 0;
-        int          diff      = 0;
-        int          i;
-
-        if (origMsgs == NULL)
-            return;
-
-        for (i = 0; i < srcCount; i++)
-        {
-            poolBytes += (unsigned int)strlen((const char*)bytes + srcPtrs[i]) + 1;
-            if (!diff &&
-                (origMsgs[i] == NULL || strcmp(origMsgs[i], (const char*)bytes + srcPtrs[i]) != 0))
-            {
-                diff = 1;
-            }
-        }
-        if (!diff)
-            return;
-
-        free(s_MsgPool);
-        s_MsgPool = (char*)malloc(poolBytes + 16);
-        out       = s_MsgPool;
-
-        for (usIdx = 0; usIdx < MSG_COUNT_MAX; usIdx++)
-        {
-            if (usIdx < srcCount)
-            {
-                size_t len = strlen((const char*)bytes + srcPtrs[usIdx]);
-
-                memcpy(out, bytes + srcPtrs[usIdx], len + 1);
-                s_MsgPtrs[usIdx] = out;
-                out += len + 1;
-            }
-            else
-            {
-                s_MsgPtrs[usIdx] = "";
-            }
-        }
-
-        s_LangMapHeader             = *g_pMapOverlayHeader;
-        s_LangMapHeader.mapMessages = s_MsgPtrs;
-        g_pMapOverlayHeader         = &s_LangMapHeader;
-
-        SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
+        SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
         return;
     }
 

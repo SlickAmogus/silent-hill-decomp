@@ -109,6 +109,9 @@ public partial class Form1 : Form
         _regionUiUpdating = true;
         comboRegion.Items.Clear();
         _regionIds.Clear();
+        comboDisc.Items.Clear();
+        _discIds.Clear();
+        comboDisc.Enabled = false;
         foreach (var region in new[] { "USA", "PAL", "JAP" })
         {
             if (_discs.Any(d => d.Region == region))
@@ -140,8 +143,6 @@ public partial class Form1 : Form
         // Disc dropdown: Auto (the game's region rules) plus every detected
         // image. Picking a specific file writes `disc_image`, which is how a
         // fan-translated / modified copy gets selected over the vanilla one.
-        comboDisc.Items.Clear();
-        _discIds.Clear();
         comboDisc.Items.Add("Disc: Auto");
         _discIds.Add("");
         foreach (var d in _discs)
@@ -151,7 +152,19 @@ public partial class Form1 : Form
         }
         comboDisc.Enabled = _discs.Count > 0;
 
-        int discIdx = _discIds.IndexOf(config.Get("disc_image", ""));
+        // Restore the saved filename case-insensitively (NTFS is; the game's
+        // fopen is too). A saved value whose file is gone/renamed gets its own
+        // "[missing]" entry so a hand-set config value is preserved on Play
+        // instead of being silently reset to Auto.
+        string savedDisc = config.Get("disc_image", "");
+        int discIdx = _discIds.FindIndex(
+            id => string.Equals(id, savedDisc, StringComparison.OrdinalIgnoreCase));
+        if (discIdx < 0 && savedDisc.Length > 0)
+        {
+            comboDisc.Items.Add(savedDisc + "  [missing]");
+            _discIds.Add(savedDisc);
+            discIdx = _discIds.Count - 1;
+        }
         comboDisc.SelectedIndex = discIdx >= 0 ? discIdx : 0;
         _regionUiUpdating = false;
 
@@ -180,13 +193,15 @@ public partial class Form1 : Form
         return _discs.FirstOrDefault(x => x.Region == region);
     }
 
-    /// <summary>Explicitly selected disc, or null when the dropdown is on Auto.</summary>
+    /// <summary>Explicitly selected disc, or null when the dropdown is on
+    /// Auto (or on a saved-but-missing filename).</summary>
     private DiscProbe.Disc SelectedDisc()
     {
         if (comboDisc.SelectedIndex <= 0 || comboDisc.SelectedIndex >= _discIds.Count)
             return null;
         string id = _discIds[comboDisc.SelectedIndex];
-        return _discs.FirstOrDefault(d => d.FileName == id);
+        return _discs.FirstOrDefault(d =>
+            string.Equals(d.FileName, id, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -211,7 +226,8 @@ public partial class Form1 : Form
         if (disc == null)
             return;
 
-        string text = $"{disc.Serial} — {RegionDisplayName(disc.Region)}";
+        // Compact strings — the status label is a single 13px line.
+        string text = $"{disc.Serial} {disc.Region}";
 
         if (!disc.Supported)
         {
@@ -231,7 +247,7 @@ public partial class Form1 : Form
         else
         {
             lblDisc.ForeColor = SystemColors.ControlText;
-            lblDisc.Text      = text;
+            lblDisc.Text      = $"{disc.Serial} — {RegionDisplayName(disc.Region)}";
         }
         btnPlay.Enabled = true;
     }

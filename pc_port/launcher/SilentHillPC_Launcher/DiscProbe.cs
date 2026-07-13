@@ -35,17 +35,23 @@ namespace SilentHillPC_Launcher
             { "SIPS", "JAP", "Japan / NTSC-J",                true },
         };
 
-        // SHA1 of BODYPROG.BIN's first data sector on the retail discs (the
-        // overlay is XOR-obfuscated, so any in-place patch scrambles this
-        // sector too). Region -> (LBA from the game's file table, hash).
-        // A mismatch marks the disc "modified" — fan translations edit story
-        // text/voices in place; the game adopts their text from the disc.
+        // SHA1 over three sampled BODYPROG.BIN data sectors on the retail
+        // discs: relative sector 0 (menu/loading strings), 2 (the FONT16
+        // kerning table at file 0x120C) and 274 (the item name/description
+        // pointer arrays at 0x89000) — the spots translation patches actually
+        // edit. The XOR keystream is position-based, so only an edit inside a
+        // sampled sector changes its ciphertext; a patch that avoids all three
+        // (and only edits VIN overlays) is simply not flagged — the tag is
+        // cosmetic, the game detects text changes itself at runtime.
+        // Region -> (BODYPROG LBA from the game's file table, hash).
         private static readonly Dictionary<string, Tuple<long, string>> BodyprogMarker =
             new Dictionary<string, Tuple<long, string>> {
-                { "USA", Tuple.Create(0x0CFL, "ae27f903144d93a675d5a1e0654cb2a83991b624") },
-                { "PAL", Tuple.Create(0x0D0L, "d3dfd6ed0deb3d7bdebe428d0fb145192e3bbf22") },
-                { "JAP", Tuple.Create(0x0CFL, "ac0fcf38501a01beecfe116f98ba8f49dea1ebed") },
+                { "USA", Tuple.Create(0x0CFL, "10f14642a565fb8d502397626734f71f270c4e9a") },
+                { "PAL", Tuple.Create(0x0D0L, "b2f3679c645650a72805a8afb3c5d68bdde61ebe") },
+                { "JAP", Tuple.Create(0x0CFL, "a467247d5f73b83a6ac424ab9c08ec50e874e85c") },
             };
+
+        private static readonly long[] MarkerSectors = { 0, 2, 274 };
 
         private static bool IsBodyprogModified(FileStream f, string region)
         {
@@ -53,12 +59,17 @@ namespace SilentHillPC_Launcher
             if (!BodyprogMarker.TryGetValue(region, out marker)) return false;
             try
             {
-                var sec = new byte[2048];
-                f.Seek(marker.Item1 * 2352 + 24, SeekOrigin.Begin);
-                if (f.Read(sec, 0, 2048) != 2048) return false;
                 using (var sha = System.Security.Cryptography.SHA1.Create())
                 {
-                    var hex = BitConverter.ToString(sha.ComputeHash(sec)).Replace("-", "").ToLowerInvariant();
+                    var sec = new byte[2048];
+                    foreach (long rel in MarkerSectors)
+                    {
+                        f.Seek((marker.Item1 + rel) * 2352 + 24, SeekOrigin.Begin);
+                        if (f.Read(sec, 0, 2048) != 2048) return false;
+                        sha.TransformBlock(sec, 0, 2048, null, 0);
+                    }
+                    sha.TransformFinalBlock(new byte[0], 0, 0);
+                    var hex = BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
                     return hex != marker.Item2;
                 }
             }

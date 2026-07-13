@@ -672,6 +672,7 @@ partial class Form1
             this.lblDisc.Location = new System.Drawing.Point(214, 443);
             this.lblDisc.Name = "lblDisc";
             this.lblDisc.Size = new System.Drawing.Size(198, 13);
+            this.lblDisc.AutoEllipsis = true;
             this.lblDisc.TabIndex = 65;
             //
             // btnControls

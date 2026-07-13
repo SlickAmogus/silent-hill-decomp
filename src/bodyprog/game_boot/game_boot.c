@@ -181,13 +181,20 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         {
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
         }
-        /* USA included: fan-translated discs edit the US overlays in place;
-         * the patcher self-detects per map and is a no-op on vanilla data. */
-        if (Pc_LangActive() || g_GameRegion == Region_JPN || g_GameRegion == Region_USA)
+        if (Pc_LangActive() || g_GameRegion == Region_JPN)
         {
             Fs_QueueWaitForEmpty();
             Pc_LangPatchMapMessages(
                 mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+        else if (g_GameRegion == Region_USA)
+        {
+            /* Fan-translated discs edit the US overlays in place. The USA
+             * patcher reads the overlay bytes off the disc image itself (no
+             * queue drain — the vanilla load path stays untouched) and is a
+             * no-op unless the disc text differs from the compiled strings. */
+            Pc_LangPatchMapMessages(mapIdx, g_OvlDynamic,
                 (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
         }
         if (g_GameRegion == Region_JPN)
