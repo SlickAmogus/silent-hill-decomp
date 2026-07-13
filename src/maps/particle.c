@@ -2516,6 +2516,7 @@ void Particle_SnowDraw(s_Particle* part)
      * input vector must be the 8-byte SVECTOR, not the 6-byte SVECTOR3, or it
      * overreads the stack (Linux/ASan abort in Particle_SnowDraw). */
     SVECTOR     particlePosQ8;
+    s32         zCamera;
 #else
     SVECTOR3    particlePosQ8;
 #endif
@@ -2703,6 +2704,14 @@ void Particle_SnowDraw(s_Particle* part)
 
         gte_stsxy(&polyFt3->x0);
         gte_stszotz(&zScreenStart);
+#ifdef SH_PC_PORT
+        /* The three billboard corners share one projected center. Capture its
+         * real camera-space SZ explicitly so the renderer always classifies
+         * snow as depth-tested 3D, even when a derived-corner PGXP shadow is
+         * unavailable. Transparent snow tests against walls but never writes
+         * depth, so flakes behind rooms/ceilings are rejected naturally. */
+        gte_stsz(&zCamera);
+#endif
 
         if (D_800C39A0 == 1 || D_800C39A0 == 4)
         {
@@ -2809,12 +2818,18 @@ void Particle_SnowDraw(s_Particle* part)
 #endif
 
 #if defined(MAP1_S00) || defined(MAP6_S00)
+#ifdef SH_PC_PORT
+            PsyX_SetNextPrimSzExact((u16)zCamera, (u16)zCamera, (u16)zCamera, (u16)zCamera);
+#endif
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart], polyFt3);
 #elif defined(MAP7_S03)
             if (zScreenStart > 64 && D_800F23D4 > Q12(7.0f))
             {
                 zScreenStart = 64;
             }
+#ifdef SH_PC_PORT
+            PsyX_SetNextPrimSzExact((u16)zCamera, (u16)zCamera, (u16)zCamera, (u16)zCamera);
+#endif
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart], polyFt3);
 #else
             switch (sharedData_800DD591_0_s00)
@@ -2822,11 +2837,17 @@ void Particle_SnowDraw(s_Particle* part)
                 case 2:
                     if ((zScreenStart + 256) < ORDERING_TABLE_SIZE - 1)
                     {
+#ifdef SH_PC_PORT
+                        PsyX_SetNextPrimSzExact((u16)zCamera, (u16)zCamera, (u16)zCamera, (u16)zCamera);
+#endif
                         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart + 256], polyFt3);
                     }
                     break;
 
                 default:
+#ifdef SH_PC_PORT
+                    PsyX_SetNextPrimSzExact((u16)zCamera, (u16)zCamera, (u16)zCamera, (u16)zCamera);
+#endif
                     addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart], polyFt3);
                     break;
             }
