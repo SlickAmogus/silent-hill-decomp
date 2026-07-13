@@ -1538,10 +1538,10 @@ void DbgOverlay_Render(void)
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
 
     if (drawConsole) {
-        /* Quake-style drop-down: full window width, ~3/4 of the window height
+        /* Quake-style drop-down: full window width, ~half the window height
          * (as many text rows as fit, capped by the texture), sliding down from
          * above the top edge. */
-        int rowsFit = (int)((0.75f * (float)vp[3]) / (float)(GLYPH_H * SCALE)) - 1;
+        int rowsFit = (int)((0.5f * (float)vp[3]) / (float)(GLYPH_H * SCALE)) - 1;
         float usedRows, hNdc, x0, y0, x1, y1, slideOfs, tx1, tv1;
 
         if (rowsFit < 4)               rowsFit = 4;
