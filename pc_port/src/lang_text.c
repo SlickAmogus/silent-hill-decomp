@@ -168,6 +168,11 @@ static void FanTextInit(void)
     extern const char* INVENTORY_ITEM_NAMES[];
     extern const char* g_ItemDescriptions[];
 
+    /* Compiled US kerning table, captured before any override so re-runs
+     * (the title-screen Language row re-enters via Pc_LangSetLanguage)
+     * keep comparing against the pristine baseline. */
+    static const unsigned char* s_compiledWidths;
+
     unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
     unsigned char* bin  = ReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
     const char*    fanNames[ITEM_TEXT_COUNT];
@@ -177,12 +182,15 @@ static void FanTextInit(void)
     int            i;
     char*          out;
 
+    if (s_compiledWidths == NULL)
+        s_compiledWidths = g_FontLayout->glyphWidths;
+
     s_FanTextActive = 0;
     if (bin == NULL)
         return;
     DecryptOverlay(bin, size);
 
-    if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), g_FontLayout->glyphWidths, 84) != 0)
+    if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), s_compiledWidths, 84) != 0)
     {
         Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
         s_FanTextActive = 1;
@@ -365,7 +373,12 @@ void Pc_LangSetLanguage(int lang)
  * front end; in-game the row stays Auto Load). */
 int Pc_LangMenuRowActive(void)
 {
-    return g_GameRegion == Region_EUR && g_GameWork.gameStatePrev == GameState_MainMenu;
+    /* Also on fan-translated USA discs: there the row only switches the
+     * port's menu translations (story/item text stays whatever language the
+     * disc patch carries). */
+    return (g_GameRegion == Region_EUR ||
+            (g_GameRegion == Region_USA && s_FanTextActive)) &&
+           g_GameWork.gameStatePrev == GameState_MainMenu;
 }
 
 const char* Pc_LangItemName(int itemIdx)

@@ -22,6 +22,7 @@ namespace SilentHillPC_Launcher
             public string Region;      // "USA" / "PAL" / "JAP" (game region key)
             public string RegionLabel; // shown to the user
             public bool   Supported;   // false = recognized but the game can't load it yet
+            public bool   Modified;    // BODYPROG differs from the retail disc (fan translation / patch)
         }
 
         // Serial prefix -> region. Table-driven, mirroring the game-side probe
@@ -33,6 +34,36 @@ namespace SilentHillPC_Launcher
             { "SLPM", "JAP", "Japan / NTSC-J",                true },
             { "SIPS", "JAP", "Japan / NTSC-J",                true },
         };
+
+        // SHA1 of BODYPROG.BIN's first data sector on the retail discs (the
+        // overlay is XOR-obfuscated, so any in-place patch scrambles this
+        // sector too). Region -> (LBA from the game's file table, hash).
+        // A mismatch marks the disc "modified" — fan translations edit story
+        // text/voices in place; the game adopts their text from the disc.
+        private static readonly Dictionary<string, Tuple<long, string>> BodyprogMarker =
+            new Dictionary<string, Tuple<long, string>> {
+                { "USA", Tuple.Create(0x0CFL, "ae27f903144d93a675d5a1e0654cb2a83991b624") },
+                { "PAL", Tuple.Create(0x0D0L, "d3dfd6ed0deb3d7bdebe428d0fb145192e3bbf22") },
+                { "JAP", Tuple.Create(0x0CFL, "ac0fcf38501a01beecfe116f98ba8f49dea1ebed") },
+            };
+
+        private static bool IsBodyprogModified(FileStream f, string region)
+        {
+            Tuple<long, string> marker;
+            if (!BodyprogMarker.TryGetValue(region, out marker)) return false;
+            try
+            {
+                var sec = new byte[2048];
+                f.Seek(marker.Item1 * 2352 + 24, SeekOrigin.Begin);
+                if (f.Read(sec, 0, 2048) != 2048) return false;
+                using (var sha = System.Security.Cryptography.SHA1.Create())
+                {
+                    var hex = BitConverter.ToString(sha.ComputeHash(sec)).Replace("-", "").ToLowerInvariant();
+                    return hex != marker.Item2;
+                }
+            }
+            catch { return false; }
+        }
 
         /// <summary>
         /// Probe a single .bin. Returns null when the file isn't a raw-sector
@@ -67,14 +98,16 @@ namespace SilentHillPC_Launcher
                             {
                                 if (name.StartsWith((string)RegionMap[r, 0], StringComparison.Ordinal))
                                 {
+                                    string region = (string)RegionMap[r, 1];
                                     return new Disc
                                     {
                                         Path        = path,
                                         FileName    = System.IO.Path.GetFileName(path),
                                         Serial      = FormatSerial(name),
-                                        Region      = (string)RegionMap[r, 1],
+                                        Region      = region,
                                         RegionLabel = (string)RegionMap[r, 2],
                                         Supported   = (bool)RegionMap[r, 3],
+                                        Modified    = IsBodyprogModified(f, region),
                                     };
                                 }
                             }

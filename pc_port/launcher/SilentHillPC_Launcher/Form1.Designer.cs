@@ -64,6 +64,7 @@ partial class Form1
     private ComboBox comboFlash;
     private Label regionLabel;
     private ComboBox comboRegion;
+    private ComboBox comboDisc;
     private Label lblDisc;
 
 
@@ -129,6 +130,7 @@ partial class Form1
             this.comboFlash = new System.Windows.Forms.ComboBox();
             this.regionLabel = new System.Windows.Forms.Label();
             this.comboRegion = new System.Windows.Forms.ComboBox();
+            this.comboDisc = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
@@ -655,12 +657,22 @@ partial class Form1
             this.comboRegion.TabIndex = 63;
             this.comboRegion.SelectedIndexChanged += new System.EventHandler(this.comboRegion_SelectedIndexChanged);
             //
+            // comboDisc
+            //
+            this.comboDisc.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboDisc.Location = new System.Drawing.Point(214, 420);
+            this.comboDisc.Name = "comboDisc";
+            this.comboDisc.Size = new System.Drawing.Size(198, 21);
+            this.comboDisc.DropDownWidth = 320;
+            this.comboDisc.TabIndex = 64;
+            this.comboDisc.SelectedIndexChanged += new System.EventHandler(this.comboDisc_SelectedIndexChanged);
+            //
             // lblDisc
             //
-            this.lblDisc.Location = new System.Drawing.Point(214, 420);
+            this.lblDisc.Location = new System.Drawing.Point(214, 443);
             this.lblDisc.Name = "lblDisc";
-            this.lblDisc.Size = new System.Drawing.Size(198, 30);
-            this.lblDisc.TabIndex = 64;
+            this.lblDisc.Size = new System.Drawing.Size(198, 13);
+            this.lblDisc.TabIndex = 65;
             //
             // btnControls
             //
@@ -737,6 +749,7 @@ partial class Form1
             this.ClientSize = new System.Drawing.Size(420, 500);
             this.Controls.Add(this.regionLabel);
             this.Controls.Add(this.comboRegion);
+            this.Controls.Add(this.comboDisc);
             this.Controls.Add(this.lblDisc);
             this.Controls.Add(this.btnReset);
             this.Controls.Add(this.btnBug);

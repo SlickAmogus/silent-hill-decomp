@@ -21,6 +21,8 @@ public partial class Form1 : Form
     // language stays a config-only key (`language = en/de/fr/es/it`).
     private List<DiscProbe.Disc> _discs = new List<DiscProbe.Disc>();
     private readonly List<string> _regionIds = new List<string>();
+    // comboDisc entry -> config `disc_image` value ("" = auto pick by region).
+    private readonly List<string> _discIds = new List<string>();
     private bool _regionUiUpdating;
 
     private static string RegionDisplayName(string region)
@@ -134,6 +136,23 @@ public partial class Form1 : Form
         // default to the game's auto pick (USA wins, then PAL, then JAP).
         int idx = _regionIds.IndexOf(config.Get("region", "auto"));
         comboRegion.SelectedIndex = idx >= 0 ? idx : 0;
+
+        // Disc dropdown: Auto (the game's region rules) plus every detected
+        // image. Picking a specific file writes `disc_image`, which is how a
+        // fan-translated / modified copy gets selected over the vanilla one.
+        comboDisc.Items.Clear();
+        _discIds.Clear();
+        comboDisc.Items.Add("Disc: Auto");
+        _discIds.Add("");
+        foreach (var d in _discs)
+        {
+            comboDisc.Items.Add(d.FileName + (d.Modified ? "  [modified]" : ""));
+            _discIds.Add(d.FileName);
+        }
+        comboDisc.Enabled = _discs.Count > 0;
+
+        int discIdx = _discIds.IndexOf(config.Get("disc_image", ""));
+        comboDisc.SelectedIndex = discIdx >= 0 ? discIdx : 0;
         _regionUiUpdating = false;
 
         UpdateDiscUi();
@@ -161,45 +180,69 @@ public partial class Form1 : Form
         return _discs.FirstOrDefault(x => x.Region == region);
     }
 
+    /// <summary>Explicitly selected disc, or null when the dropdown is on Auto.</summary>
+    private DiscProbe.Disc SelectedDisc()
+    {
+        if (comboDisc.SelectedIndex <= 0 || comboDisc.SelectedIndex >= _discIds.Count)
+            return null;
+        string id = _discIds[comboDisc.SelectedIndex];
+        return _discs.FirstOrDefault(d => d.FileName == id);
+    }
+
     /// <summary>
-    /// Reflect the Region selection: disc label shows the selected version
-    /// plus any other detected ones; NTSC-J disables Play with a highlight.
+    /// Reflect the Disc/Region selections: a specific disc pins the region
+    /// (the game boots exactly that file, region from its serial); on Auto
+    /// the label shows the region pick. NTSC-J first prints and other
+    /// unsupported serials disable Play with a highlight.
     /// </summary>
     private void UpdateDiscUi()
     {
-        if (comboRegion.SelectedIndex < 0 || comboRegion.SelectedIndex >= _regionIds.Count)
-            return;
+        var explicitDisc = SelectedDisc();
+        var disc         = explicitDisc;
 
-        string regionId = _regionIds[comboRegion.SelectedIndex];
-        var    disc     = DiscForRegion(regionId);
+        comboRegion.Enabled = explicitDisc == null && _regionIds.Count > 0;
+
+        if (disc == null)
+        {
+            if (comboRegion.SelectedIndex < 0 || comboRegion.SelectedIndex >= _regionIds.Count)
+                return;
+            disc = DiscForRegion(_regionIds[comboRegion.SelectedIndex]);
+        }
         if (disc == null)
             return;
 
-        var others = _regionIds
-            .Where(id => id != regionId)
-            .Select(id => { var d = DiscForRegion(id); return d != null ? RegionDisplayName(d.Region) : null; })
-            .Where(s => s != null)
-            .ToList();
-
-        string text = $"Disc: {disc.Serial} — {RegionDisplayName(disc.Region)}";
-        if (others.Count > 0)
-            text += $"\nAlso available: {string.Join(", ", others)}";
+        string text = $"{disc.Serial} — {RegionDisplayName(disc.Region)}";
 
         if (!disc.Supported)
         {
             lblDisc.ForeColor = Color.Firebrick;
-            lblDisc.Text      = $"Disc: {disc.Serial} — {RegionDisplayName(disc.Region)} is not supported yet";
+            lblDisc.Text      = text + " — not supported yet";
             btnPlay.Enabled   = false;
+            return;
+        }
+
+        if (disc.Modified)
+        {
+            // Fan translation / patched image: the game reads its text and
+            // voices straight off the disc.
+            lblDisc.ForeColor = Color.RoyalBlue;
+            lblDisc.Text      = text + " — fan patch";
         }
         else
         {
             lblDisc.ForeColor = SystemColors.ControlText;
             lblDisc.Text      = text;
-            btnPlay.Enabled   = true;
         }
+        btnPlay.Enabled = true;
     }
 
     private void comboRegion_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (_regionUiUpdating) return;
+        UpdateDiscUi();
+    }
+
+    private void comboDisc_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_regionUiUpdating) return;
         UpdateDiscUi();
@@ -365,6 +408,17 @@ public partial class Form1 : Form
             "pick one. NTSC-J plays with English text for now (Rev 1/2 discs).";
         Set(regionLabel,  regionTip);
         Set(comboRegion,  regionTip);
+
+        const string discTip =
+            "Which disc image file to boot. Auto follows the Region choice;\n" +
+            "picking a file boots exactly that image. [modified] marks fan\n" +
+            "translations / patched discs — their voice dub, story and item\n" +
+            "text are read straight off the disc. For a Spanish (or other)\n" +
+            "fan translation, also pick the matching Language in the title\n" +
+            "screen's options so the menus follow (or set `language = es`\n" +
+            "in config.cfg).";
+        Set(comboDisc, discTip);
+        Set(lblDisc,   discTip);
 
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
@@ -755,6 +809,11 @@ public partial class Form1 : Form
         // nothing was detected so a hand-set value survives.
         if (comboRegion.SelectedIndex >= 0 && comboRegion.SelectedIndex < _regionIds.Count)
             config.Set("region", _regionIds[comboRegion.SelectedIndex]);
+
+        // Disc: exact filename (fan-translated / modified images), "" = auto.
+        // Untouched when no disc was detected so a hand-set value survives.
+        if (comboDisc.SelectedIndex >= 0 && comboDisc.SelectedIndex < _discIds.Count)
+            config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
 
         config.Save();
     }
