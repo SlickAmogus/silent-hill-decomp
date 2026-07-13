@@ -758,3 +758,34 @@ gameplay is untouched; `global_chara_pool=0` is byte-identical to before.
   posed statues, tagged `[no-ai]`/`[pool]` in `SPAWN LIST`.
 - **Known limitation**: foreign monsters play wrong/silent SFX (per-map
   ambient VAB program collisions); fix = extra PC VAB slot, deferred.
+
+## Fan-translation support — disc-authoritative text on modified discs (2026-07-13, commits `db055e972` + `eaf93dce7`)
+
+Fan patches (probe-verified against the Spanish fandub, USA + PAL variants)
+edit the retail discs **in place** — ISO layout unchanged, file-table sectors
+stay valid. The XA voice dub (~49k sectors in HILL.), repainted FONT16 accent
+glyphs, TIMs (TIPS, map screens, memcard prompts, UFO) and VABs all stream
+from the disc already; **text was the only thing the port compiles in**.
+
+- **Disc selection**: config `disc_image` (exact filename in `gamedata/`)
+  beats the region auto-pick — how a `-patched.bin` gets chosen next to the
+  vanilla image. Launcher Disc dropdown writes it; `DiscProbe` flags
+  `[modified]` when BODYPROG's first sector hash differs from retail (the
+  overlay is LCG-XOR'd, so any in-place edit scrambles that sector).
+- **Disc-authoritative USA text** (`lang_text.c`): on USA discs,
+  `FanTextInit` reads + `Fs_DecryptOverlay`s BODYPROG off the disc and
+  adopts its kerning table (0x80025D6C; the fandub repaints the glyphs for
+  bytes `; < = > W X ' -` into full-width `á é í ó ú ñ ¿ ¡`) and its `INVENTORY_ITEM_NAMES` /
+  `g_ItemDescriptions` pointer arrays (0x800ADB60/0x800ADE6C) when they
+  differ from the compiled originals; `Pc_LangPatchMapMessages` grew a USA
+  branch (link base 0x800C9578, identity indices, verbatim copies — fan text
+  is already US markup dialect, pure ASCII). A **matching decompile means
+  compiled text == vanilla disc text**, so vanilla discs compare equal and
+  are a guaranteed no-op; per-map self-detection, no config gate.
+- **Menus**: the port renders menus from compiled strings a disc patch can't
+  reach — `language = es` (etc.) now unlocks the existing `lang_menu.c`
+  translations on fan-USA discs, and the title-options Language row shows
+  there too.
+- **PAL fandub needs zero engine changes**: it only edits the Spanish assets
+  (VIN4 overlays, ITEM_SPN.BIN, TIPS_S) with identical structure/encoding —
+  the whole thing rides the existing `language = es` pipeline.
