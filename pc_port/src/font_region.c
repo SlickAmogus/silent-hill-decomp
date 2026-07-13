@@ -1,5 +1,7 @@
 #include "font_region.h"
 
+#include <string.h> /* memcpy */
+
 #include "game.h"
 #include "bodyprog/bodyprog.h"           /* g_Font16AtlasImg */
 #include "bodyprog/text/text_draw.h"     /* GLYPH_TABLE_ASCII_OFFSET, FONT_12X16_* */
@@ -31,6 +33,21 @@ static const s_FontLayout s_FontLayout_USA = { 84,  240, 1, 0x10, 0x7FD3, 30, s_
 static const s_FontLayout s_FontLayout_EUR = { 120, 128, 6, 0x0C, 0x3FF3, 31, s_GlyphWidths_EUR };
 
 const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
+
+/* Fan-translation patches repaint FONT16 glyphs on the disc and retune the
+ * BODYPROG kerning table to match (e.g. the Spanish fandub turns ';' into a
+ * full-width 'á'). Swap in the disc's widths, everything else unchanged. */
+void Font_SetGlyphWidths(const unsigned char* widths)
+{
+    static s_FontLayout  s_overrideLayout;
+    static unsigned char s_overrideWidths[120];
+    int                  count = g_FontLayout->glyphCount;
+
+    memcpy(s_overrideWidths, widths, (count <= 120) ? count : 120);
+    s_overrideLayout             = *g_FontLayout;
+    s_overrideLayout.glyphWidths = s_overrideWidths;
+    g_FontLayout                 = &s_overrideLayout;
+}
 
 int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
 {

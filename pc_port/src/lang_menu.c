@@ -236,7 +236,11 @@ const char* Pc_LangMenuText(const char* str)
     int lang = g_PcConfig.language;
     int i;
 
-    if (g_GameRegion != Region_EUR || lang < 1 || lang > 4 || str == NULL)
+    /* EUR discs always; USA only when a fan-translated disc is active (its
+     * story/item text comes from the disc, these tables cover the menus the
+     * patch can't reach — the port renders menus from compiled strings). */
+    if (!(g_GameRegion == Region_EUR || (g_GameRegion == Region_USA && Pc_FanTextActive())) ||
+        lang < 1 || lang > 4 || str == NULL)
     {
         return str;
     }

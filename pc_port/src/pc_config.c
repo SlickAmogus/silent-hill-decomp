@@ -101,8 +101,9 @@ s_PcConfig g_PcConfig = {
     .keyGfxNext  = "]",
     .keyExitGame = "Escape",
 
-    .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA discs ignore it */
+    .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
+    .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .mapName        = "map0_s00"
 };
 
@@ -549,6 +550,14 @@ void PcConfig_Load(const char* path)
             else if (strcmp(value, "pal") == 0) g_PcConfig.region = 2;
             else if (strcmp(value, "jap") == 0) g_PcConfig.region = 3;
             else                                g_PcConfig.region = 0;
+        }
+        else if (strcmp(key, "disc_image") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.discImage))
+            {
+                strncpy(g_PcConfig.discImage, value, sizeof(g_PcConfig.discImage) - 1);
+                g_PcConfig.discImage[sizeof(g_PcConfig.discImage) - 1] = '\0';
+            }
         }
         else if (strcmp(key, "control_style") == 0)
         {

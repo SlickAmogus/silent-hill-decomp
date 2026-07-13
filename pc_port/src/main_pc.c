@@ -370,6 +370,40 @@ const char* PcPort_GetGameDiscPath(void)
         return g_GameDiscPath;
     g_DiscResolved = 1;
 
+    /* Config `disc_image` (launcher Disc dropdown): an exact filename beats
+     * every auto rule — this is how fan-translated / modified images get
+     * selected over the vanilla name-priority order. Region still comes from
+     * the disc's own boot serial. Missing file falls through to auto. */
+    if (g_PcConfig.discImage[0] != '\0')
+    {
+        FILE* f;
+
+        snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, g_PcConfig.discImage);
+        f = fopen(path, "rb");
+        if (f)
+        {
+            int probed = Pc_DetectRegionFromBin(path);
+
+            fclose(f);
+            if (probed >= Region_USA && probed <= Region_JPN)
+            {
+                snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
+                Fs_InitFileTableForRegion((e_GameRegion)probed);
+                SH_LOG("Disc: %s (region %s, by config disc_image)", g_PcConfig.discImage,
+                       probed == Region_EUR ? "EUR/PAL"
+                     : probed == Region_JPN ? "NTSC-J"  : "USA");
+                return g_GameDiscPath;
+            }
+            SH_WARN("disc_image %s: no PSX boot serial found — falling back to auto disc pick",
+                    g_PcConfig.discImage);
+        }
+        else
+        {
+            SH_WARN("disc_image %s not found in gamedata/ — falling back to auto disc pick",
+                    g_PcConfig.discImage);
+        }
+    }
+
     /* Config `region` (launcher Region dropdown): when several discs are in
      * gamedata/, prefer the chosen one instead of the fixed USA-first rule.
      * -1 = auto (the old behavior). Falls back to auto when the preferred

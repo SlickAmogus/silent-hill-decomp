@@ -45,6 +45,11 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2]);
  * EUR STRING_COLORS[6] tint. Call once after Fs_InitFileTableForRegion. */
 void Font_ApplyRegionPatches(void);
 
+/* Replace the active layout's kerning table (fan-translation discs retune the
+ * BODYPROG widths to match their repainted FONT16 glyphs). Copies the first
+ * glyphCount entries; call after Font_ApplyRegionPatches. */
+void Font_SetGlyphWidths(const unsigned char* widths);
+
 /* Implemented in text_draw.c (the color table is file-local there): replaces
  * StringColorId_LightGrey — retail EUR dims it (100,100,100)->(64,64,64). */
 void Gfx_StringLightGreyColorPatch(unsigned char r, unsigned char g, unsigned char b);

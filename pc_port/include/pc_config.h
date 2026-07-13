@@ -128,7 +128,9 @@ typedef struct {
 
     /* Text language for PAL/European discs: 0=en 1=de 2=fr 3=es 4=it (config
      * key: language, string ids). Order matches the PAL disc's own option-menu
-     * order and its VIN/VIN2..VIN5 localized-file dirs. USA discs ignore it. */
+     * order and its VIN/VIN2..VIN5 localized-file dirs. On USA discs it only
+     * selects the port's menu translations when a fan-translated (modified)
+     * disc is active — story/item text then comes from the disc itself. */
     int language;
 
     /* Preferred disc region when several discs are in gamedata/: 0=auto
@@ -136,6 +138,12 @@ typedef struct {
      * region; the launcher's Region dropdown writes it). Missing preferred
      * region falls back to auto. */
     int region;
+
+    /* Exact disc image filename in gamedata/ (config key: disc_image; the
+     * launcher's Disc dropdown writes it). Empty = auto-pick by region rules.
+     * Lets fan-translated / modified images be selected over the vanilla
+     * name-priority order. */
+    char discImage[128];
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

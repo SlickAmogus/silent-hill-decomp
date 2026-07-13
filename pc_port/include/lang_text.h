@@ -15,6 +15,13 @@
 /* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);
 
+/* Non-zero when a fan-translated (modified) USA disc was detected: its
+ * BODYPROG kerning table or item text differed from the compiled originals.
+ * Story text self-detects per map in Pc_LangPatchMapMessages regardless.
+ * Also unlocks the port's menu translations (lang_menu.c) on USA discs via
+ * the `language` config key. */
+int Pc_FanTextActive(void);
+
 /* Non-zero when the options menu should show the Language row (EUR disc +
  * menu entered from the title screen). */
 int Pc_LangMenuRowActive(void);

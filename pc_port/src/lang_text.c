@@ -6,6 +6,7 @@
 
 #include "game.h"
 #include "bodyprog/map/map.h" /* s_MapOverlayHdr, g_pMapOverlayHeader, e_MapIdx */
+#include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
 #include "sh_log.h"
@@ -21,6 +22,21 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define ITEM_TEXT_COUNT 195
 #define EUR_OVL_BASE    0x800CB370u
 #define JPN_OVL_BASE    0x800CBBD0u /* JAP Rev 1/2 map-overlay link base (probe-verified) */
+#define USA_OVL_BASE    0x800C9578u /* US map-overlay link base (configs/USA/maps vram) */
+
+/* Fan-translation (modified USA disc) support. Patches like the Spanish
+ * fandub edit the US disc in place: story text in the VIN overlays, item
+ * names/descriptions + the FONT16 kerning table inside the encrypted
+ * BODYPROG.BIN, accent glyphs repainted over rarely-used FONT16 cells. The
+ * XA voice dub and every TIM stream from the disc already; text is the only
+ * thing the port compiles in, so it is re-read from the disc and installed
+ * whenever it differs from the compiled originals (a matching decompile —
+ * compiled text == vanilla disc text, so vanilla discs are a guaranteed
+ * no-op). Addresses from configs/USA/sym.bodyprog.txt / bodyprog.yaml. */
+#define USA_BODY_VRAM      0x80024B60u
+#define USA_ITEM_NAME_ADDR 0x800ADB60u /* INVENTORY_ITEM_NAMES, 195 ptrs */
+#define USA_ITEM_DESC_ADDR 0x800ADE6Cu /* g_ItemDescriptions, 195 ptrs */
+#define USA_WIDTHS_ADDR    0x80025D6Cu /* FONT_12X16_GLYPH_WIDTHS, 84 bytes */
 /* Must cover the largest per-map message table: MAP7_S02 has 159 US entries.
  * (Was 96 — the replaced pointer array under-covered MAP4_S01/MAP7_S01/
  * MAP7_S02 on PAL, sending reads past it.) */
@@ -74,6 +90,13 @@ int Pc_LangActive(void)
     return g_GameRegion == Region_EUR;
 }
 
+static int s_FanTextActive;
+
+int Pc_FanTextActive(void)
+{
+    return s_FanTextActive;
+}
+
 /* Read a whole file out of the raw-sector disc image. Caller frees. */
 static unsigned char* ReadDiscFile(unsigned int sector, unsigned int size)
 {
@@ -117,6 +140,141 @@ static char* TranslateItemText(char* dst, const unsigned char* src)
     return dst;
 }
 
+/* The game's own Fs_DecryptOverlay LCG (1ST/ overlays are XOR-obfuscated on
+ * disc; one continuous keystream over the whole file, per LE u32). */
+static void DecryptOverlay(unsigned char* data, unsigned int size)
+{
+    unsigned int seed = 0;
+    unsigned int i;
+
+    for (i = 0; i + 4 <= size; i += 4)
+    {
+        unsigned int w = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | ((unsigned int)data[i + 3] << 24);
+
+        seed = (seed + 0x01309125u) * 0x03A452F7u;
+        w ^= seed;
+        data[i]     = (unsigned char)w;
+        data[i + 1] = (unsigned char)(w >> 8);
+        data[i + 2] = (unsigned char)(w >> 16);
+        data[i + 3] = (unsigned char)(w >> 24);
+    }
+}
+
+/* Read + decrypt BODYPROG.BIN off the active USA disc; adopt its kerning
+ * table and item name/description arrays when they differ from the compiled
+ * originals. */
+static void FanTextInit(void)
+{
+    extern const char* INVENTORY_ITEM_NAMES[];
+    extern const char* g_ItemDescriptions[];
+
+    unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
+    unsigned char* bin  = ReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
+    const char*    fanNames[ITEM_TEXT_COUNT];
+    const char*    fanDescs[ITEM_TEXT_COUNT];
+    unsigned int   poolBytes;
+    int            diff;
+    int            i;
+    char*          out;
+
+    s_FanTextActive = 0;
+    if (bin == NULL)
+        return;
+    DecryptOverlay(bin, size);
+
+    if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), g_FontLayout->glyphWidths, 84) != 0)
+    {
+        Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
+        s_FanTextActive = 1;
+        SH_LOG("[FANPATCH] modified FONT16 kerning table adopted from disc");
+    }
+
+    /* Both pointer arrays must parse cleanly before anything is installed —
+     * a fan patch that relocates data unexpectedly keeps the English text. */
+    diff      = 0;
+    poolBytes = 0;
+    for (i = 0; i < ITEM_TEXT_COUNT; i++)
+    {
+        unsigned int nameAddr = *(unsigned int*)(bin + (USA_ITEM_NAME_ADDR - USA_BODY_VRAM) + i * 4);
+        unsigned int descAddr = *(unsigned int*)(bin + (USA_ITEM_DESC_ADDR - USA_BODY_VRAM) + i * 4);
+        const char*  compiled;
+
+        fanNames[i] = NULL;
+        fanDescs[i] = NULL;
+
+        if (nameAddr != 0)
+        {
+            if (nameAddr <= USA_BODY_VRAM || nameAddr - USA_BODY_VRAM >= size)
+                goto bail;
+            fanNames[i] = (const char*)(bin + (nameAddr - USA_BODY_VRAM));
+            if (memchr(fanNames[i], '\0', size - (nameAddr - USA_BODY_VRAM)) == NULL)
+                goto bail;
+            poolBytes += (unsigned int)strlen(fanNames[i]) + 1;
+        }
+        if (descAddr != 0)
+        {
+            if (descAddr <= USA_BODY_VRAM || descAddr - USA_BODY_VRAM >= size)
+                goto bail;
+            fanDescs[i] = (const char*)(bin + (descAddr - USA_BODY_VRAM));
+            if (memchr(fanDescs[i], '\0', size - (descAddr - USA_BODY_VRAM)) == NULL)
+                goto bail;
+            poolBytes += (unsigned int)strlen(fanDescs[i]) + 1;
+        }
+
+        compiled = INVENTORY_ITEM_NAMES[i];
+        if ((compiled == NULL) != (fanNames[i] == NULL) ||
+            (compiled != NULL && strcmp(compiled, fanNames[i]) != 0))
+        {
+            diff = 1;
+        }
+        compiled = g_ItemDescriptions[i];
+        if ((compiled == NULL) != (fanDescs[i] == NULL) ||
+            (compiled != NULL && strcmp(compiled, fanDescs[i]) != 0))
+        {
+            diff = 1;
+        }
+    }
+
+    if (diff)
+    {
+        s_ItemPool = (char*)malloc(poolBytes + 1);
+        out        = s_ItemPool;
+        for (i = 0; i < ITEM_TEXT_COUNT; i++)
+        {
+            /* Already US dialect (underscores, \n\t layout) — copy verbatim. */
+            if (fanNames[i] != NULL)
+            {
+                s_ItemNames[i] = out;
+                memcpy(out, fanNames[i], strlen(fanNames[i]) + 1);
+                out += strlen(fanNames[i]) + 1;
+            }
+            else
+            {
+                s_ItemNames[i] = NULL;
+            }
+            if (fanDescs[i] != NULL)
+            {
+                s_ItemDescs[i] = out;
+                memcpy(out, fanDescs[i], strlen(fanDescs[i]) + 1);
+                out += strlen(fanDescs[i]) + 1;
+            }
+            else
+            {
+                s_ItemDescs[i] = NULL;
+            }
+        }
+        s_FanTextActive = 1;
+        SH_LOG("[FANPATCH] modified item text adopted from disc");
+    }
+
+    free(bin);
+    return;
+
+bail:
+    free(bin);
+    SH_WARN("[FANPATCH] BODYPROG item arrays did not parse — keeping compiled item text");
+}
+
 void Pc_LangInit(void)
 {
     unsigned int   sector;
@@ -131,6 +289,12 @@ void Pc_LangInit(void)
      * compiled US strings until (unless) a new table loads below. */
     free(s_ItemPool);
     s_ItemPool = NULL;
+
+    if (g_GameRegion == Region_USA)
+    {
+        FanTextInit();
+        return;
+    }
 
     if (!Pc_LangActive())
         return;
@@ -347,14 +511,16 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     int                  usIdx;
     int                  srcIdx;
     int                  isJpn;
+    int                  isUsa;
     char*                out;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
     isJpn = (g_GameRegion == Region_JPN);
-    if ((!Pc_LangActive() && !isJpn) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
+    isUsa = (g_GameRegion == Region_USA);
+    if ((!Pc_LangActive() && !isJpn && !isUsa) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
         return;
 
-    base     = isJpn ? JPN_OVL_BASE : EUR_OVL_BASE;
+    base     = isJpn ? JPN_OVL_BASE : isUsa ? USA_OVL_BASE : EUR_OVL_BASE;
     tablePsx = *(const unsigned int*)(bytes + 0x34);
     if (tablePsx < base || tablePsx - base >= ovlSize)
     {
@@ -381,7 +547,67 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
     if (srcCount < 4)
     {
-        SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
+        /* Normal for a couple of US overlays — only worth a warning where a
+         * localized table was expected. */
+        if (!isUsa)
+            SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
+        return;
+    }
+
+    if (isUsa)
+    {
+        /* Vanilla US overlays match the compiled messages byte-for-byte (a
+         * matching decompile), so any difference means a fan-translated disc:
+         * repoint the header at verbatim copies of the disc strings (already
+         * US dialect, identity index mapping). Stop comparing at the first
+         * difference — a patch that relocated the table would leave the
+         * compiled array shorter than srcCount, and entries past the first
+         * change must not be dereferenced. */
+        const char** origMsgs  = (const char**)g_pMapOverlayHeader->mapMessages;
+        unsigned int poolBytes = 0;
+        int          diff      = 0;
+        int          i;
+
+        if (origMsgs == NULL)
+            return;
+
+        for (i = 0; i < srcCount; i++)
+        {
+            poolBytes += (unsigned int)strlen((const char*)bytes + srcPtrs[i]) + 1;
+            if (!diff &&
+                (origMsgs[i] == NULL || strcmp(origMsgs[i], (const char*)bytes + srcPtrs[i]) != 0))
+            {
+                diff = 1;
+            }
+        }
+        if (!diff)
+            return;
+
+        free(s_MsgPool);
+        s_MsgPool = (char*)malloc(poolBytes + 16);
+        out       = s_MsgPool;
+
+        for (usIdx = 0; usIdx < MSG_COUNT_MAX; usIdx++)
+        {
+            if (usIdx < srcCount)
+            {
+                size_t len = strlen((const char*)bytes + srcPtrs[usIdx]);
+
+                memcpy(out, bytes + srcPtrs[usIdx], len + 1);
+                s_MsgPtrs[usIdx] = out;
+                out += len + 1;
+            }
+            else
+            {
+                s_MsgPtrs[usIdx] = "";
+            }
+        }
+
+        s_LangMapHeader             = *g_pMapOverlayHeader;
+        s_LangMapHeader.mapMessages = s_MsgPtrs;
+        g_pMapOverlayHeader         = &s_LangMapHeader;
+
+        SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
         return;
     }
 

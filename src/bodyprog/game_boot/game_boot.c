@@ -181,7 +181,9 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         {
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
         }
-        if (Pc_LangActive() || g_GameRegion == Region_JPN)
+        /* USA included: fan-translated discs edit the US overlays in place;
+         * the patcher self-detects per map and is a no-op on vanilla data. */
+        if (Pc_LangActive() || g_GameRegion == Region_JPN || g_GameRegion == Region_USA)
         {
             Fs_QueueWaitForEmpty();
             Pc_LangPatchMapMessages(
