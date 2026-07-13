@@ -7,6 +7,8 @@
 #include <SDL_scancode.h>
 #include <SDL_keyboard.h>
 #include <SDL_timer.h>
+#include <SDL_mouse.h>     /* console pointer + click-drag selection */
+#include <SDL_clipboard.h> /* console Ctrl+C / Ctrl+V */
 #include <stdlib.h> /* exit() for the console `quit` command */
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
@@ -66,6 +68,27 @@ static int s_scroll   = 0;
 /* Text rows currently shown (derived from window height in Render). */
 static int s_vis_rows = 24;
 
+/* ---- Console mouse: pointer + click-drag selection + clipboard ----
+ * A selection endpoint is (line, col): line = ring index into s_console
+ * (bigger = older = higher on screen), -1 = the prompt row, col = character
+ * boundary 0..LINE_LEN. Endpoints track the ring in push_console so the
+ * selected TEXT stays selected as new lines arrive. The highlight is drawn
+ * as quads between the backdrop and the glyph texture; Ctrl+C joins the
+ * covered lines (older→newer) into the system clipboard, Ctrl+V appends the
+ * clipboard's first line to the prompt (letters uppercased — commands arrive
+ * uppercase by convention). The pointer is drawn by the overlay itself (the
+ * OS cursor is force-hidden every frame by PsyX) using the game's own arrow
+ * sprite baked into dbg_cursor.inc. */
+static int s_sel_valid  = 0; /* a selection exists */
+static int s_sel_active = 0; /* left button held, drag in progress */
+static int s_sel_a_line, s_sel_a_col; /* anchor */
+static int s_sel_b_line, s_sel_b_col; /* drag end */
+static int s_prev_lmb = 0;
+/* Panel hit-test geometry: the GL viewport the console was last drawn in
+ * (window pixels, GL bottom-left origin). Captured in Render. */
+static int s_hit_vp[4];
+static int s_hit_valid = 0;
+
 /* Set when input mode ends (submit or ~ exit) and held until the keys are
  * physically released: DbgOverlay_Update runs BEFORE the game's input parse,
  * so without this the submitting Enter reached the game the same frame as
@@ -111,6 +134,10 @@ static GLuint s_vao  = 0;
 static GLuint s_vbo  = 0;
 static GLuint s_tex  = 0;
 static GLuint s_bg_tex = 0; /* 2x2 translucent black, stretched as the console backdrop */
+static GLuint s_sel_tex = 0;    /* 2x2 translucent blue: selection highlight */
+static GLuint s_cursor_tex = 0; /* 32x32 arrow pointer (dbg_cursor.inc) */
+
+#include "dbg_cursor.inc"
 static GLint  s_u_tex = -1;
 static int    s_gl_inited = 0;
 
@@ -375,6 +402,105 @@ static void push_console(const char* line)
      * (the ring shifted under the view); clamped in the texture build. */
     if (s_scroll > 0 && s_scroll < MAX_CONSOLE - 1)
         s_scroll++;
+    /* Selection endpoints ride the ring the same way (prompt row -1 stays). */
+    if (s_sel_valid) {
+        if (s_sel_a_line >= 0) s_sel_a_line++;
+        if (s_sel_b_line >= 0) s_sel_b_line++;
+        if (s_sel_a_line >= MAX_CONSOLE || s_sel_b_line >= MAX_CONSOLE) {
+            s_sel_valid  = 0;
+            s_sel_active = 0;
+        }
+    }
+}
+
+/* The console panel is open (frozen-input state or the brief command apply
+ * window). The menu mouse-cursor system gates itself off on this so clicks
+ * in the console never leak hover/click injections into whatever menu is
+ * underneath. */
+int Pc_ConsoleIsOpen(void)
+{
+    return s_console_open;
+}
+
+/* Text a selection endpoint's line refers to (-1 = the live prompt input). */
+static const char* console_sel_text(int line)
+{
+    return (line < 0) ? s_input_buf : s_console[line];
+}
+
+/* Order the two selection endpoints visually: FIRST = higher on screen =
+ * larger ring index (the prompt, -1, is always last). */
+static void console_sel_order(int* fl, int* fc, int* ll, int* lc)
+{
+    if (s_sel_a_line > s_sel_b_line ||
+        (s_sel_a_line == s_sel_b_line && s_sel_a_col <= s_sel_b_col)) {
+        *fl = s_sel_a_line; *fc = s_sel_a_col;
+        *ll = s_sel_b_line; *lc = s_sel_b_col;
+    } else {
+        *fl = s_sel_b_line; *fc = s_sel_b_col;
+        *ll = s_sel_a_line; *lc = s_sel_a_col;
+    }
+}
+
+static void Console_CopySelection(void)
+{
+    /* Worst case: every ring line + newlines. */
+    static char out[MAX_CONSOLE * (LINE_LEN + 1) + 4];
+    int fl, fc, ll, lc, cur, n = 0;
+
+    if (!s_sel_valid)
+        return;
+    console_sel_order(&fl, &fc, &ll, &lc);
+    if (fl == ll && fc == lc)
+        return; /* empty click, nothing to copy */
+
+    for (cur = fl; cur >= ll && cur >= -1; cur--) {
+        const char* s  = console_sel_text(cur);
+        int         len = (int)strlen(s);
+        int         c0  = (cur == fl) ? fc : 0;
+        int         c1  = (cur == ll) ? lc : len;
+
+        /* The prompt row renders as "> text_": shift its screen columns past
+         * the 2-char prefix so they index the input buffer. */
+        if (cur == -1) {
+            c0 -= 2;
+            c1 -= 2;
+            if (c0 < 0) c0 = 0;
+            if (c1 < 0) c1 = 0;
+        }
+        if (c0 > len) c0 = len;
+        if (c1 > len) c1 = len;
+        if (c1 > c0) {
+            memcpy(out + n, s + c0, (size_t)(c1 - c0));
+            n += c1 - c0;
+        }
+        if (cur != ll)
+            out[n++] = '\n';
+    }
+    out[n] = '\0';
+    SDL_SetClipboardText(out);
+}
+
+static void Console_Paste(void)
+{
+    char*       clip = SDL_GetClipboardText();
+    const char* p;
+
+    if (!clip)
+        return;
+    for (p = clip; *p && s_input_len < INPUT_BUF_CAP - 1; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (c == '\r' || c == '\n')
+            break; /* paste the first line only */
+        if (c < 32 || c > 126)
+            continue;
+        if (c >= 'a' && c <= 'z')
+            c -= 32; /* commands arrive uppercase */
+        s_input_buf[s_input_len++] = (char)c;
+    }
+    s_input_buf[s_input_len] = '\0';
+    s_console_dirty = 1;
+    SDL_free(clip);
 }
 
 static void log_mark(char letter, int idx, VECTOR3* hpos, VECTOR3* cpos)
@@ -488,6 +614,46 @@ static void overlay_gl_init(void)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    /* Selection highlight: translucent blue, stretched per selected span. */
+    {
+        static const unsigned char sel[2][2][4] = {
+            { { 90, 130, 220, 110 }, { 90, 130, 220, 110 } },
+            { { 90, 130, 220, 110 }, { 90, 130, 220, 110 } },
+        };
+        glGenTextures(1, &s_sel_tex);
+        glBindTexture(GL_TEXTURE_2D, s_sel_tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, sel);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    /* Mouse pointer: the baked 32x32 arrow (see dbg_cursor.inc). */
+    {
+        unsigned char rgba[32][32][4];
+        int x, y;
+        for (y = 0; y < 32; y++) {
+            for (x = 0; x < 32; x++) {
+                unsigned char b = CURSOR_PIX[y][x / 2];
+                unsigned char n = (x & 1) ? (b >> 4) : (b & 0xF);
+                rgba[y][x][0] = CURSOR_PAL[n][0];
+                rgba[y][x][1] = CURSOR_PAL[n][1];
+                rgba[y][x][2] = CURSOR_PAL[n][2];
+                rgba[y][x][3] = CURSOR_PAL[n][3];
+            }
+        }
+        glGenTextures(1, &s_cursor_tex);
+        glBindTexture(GL_TEXTURE_2D, s_cursor_tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
@@ -1153,6 +1319,56 @@ void DbgOverlay_Update(void)
         }
         if (g_PsyX_WheelUpFrames)   { s_scroll += 3; s_console_dirty = 1; }
         if (g_PsyX_WheelDownFrames) { s_scroll -= 3; if (s_scroll < 0) s_scroll = 0; s_console_dirty = 1; }
+
+        /* Mouse: click-drag selects text. Only once the panel is at rest —
+         * the glyph grid is fixed 16px cells from the viewport's top-left
+         * (see Render), so hit-testing is a straight divide. Columns round
+         * to the nearest character boundary like a text editor. */
+        if (s_hit_valid && s_console_slide >= 1.0f) {
+            int    wx, wy;
+            Uint32 mb   = SDL_GetMouseState(&wx, &wy);
+            int    lmb  = (mb & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+            int    vpTop = g_windowHeight - (s_hit_vp[1] + s_hit_vp[3]);
+            int    px   = wx - s_hit_vp[0];
+            int    py   = wy - vpTop;
+            int    cw   = GLYPH_W * SCALE;
+            int    chh  = GLYPH_H * SCALE;
+            int    line = -2; /* -2 = not over console text */
+            int    col  = 0;
+
+            if (px >= 0 && py >= 0) {
+                int row = py / chh;
+                col = (px + cw / 2) / cw;
+                if (col > LINE_LEN) col = LINE_LEN;
+                if (row == s_vis_rows) {
+                    line = -1; /* prompt row */
+                } else if (row >= 0 && row < s_vis_rows &&
+                           !(s_scroll > 0 && row == 0)) { /* row 0 = scroll marker */
+                    int idx = s_scroll + (s_vis_rows - 1 - row);
+                    if (idx >= 0 && idx < s_console_count)
+                        line = idx;
+                }
+            }
+
+            if (lmb && !s_prev_lmb) {
+                if (line != -2) {
+                    s_sel_a_line = s_sel_b_line = line;
+                    s_sel_a_col  = s_sel_b_col  = col;
+                    s_sel_valid  = 1;
+                    s_sel_active = 1;
+                } else {
+                    s_sel_valid = 0; /* click off the text clears it */
+                }
+            } else if (lmb && s_sel_active) {
+                if (line != -2) {
+                    s_sel_b_line = line;
+                    s_sel_b_col  = col;
+                }
+            } else {
+                s_sel_active = 0;
+            }
+            s_prev_lmb = lmb;
+        }
     }
 
     /* Interactive input: A-Z and 0-9 append, Backspace deletes, Enter
@@ -1161,6 +1377,17 @@ void DbgOverlay_Update(void)
      * "Command not found!". Submitting or tapping `~` unpauses. */
     if (g_PcConsoleInputActive) {
         int sc;
+        int ctrl = ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL];
+
+        /* Ctrl+C copies the click-drag selection to the system clipboard;
+         * Ctrl+V appends the clipboard's first line to the prompt. Chorded
+         * keys must not ALSO type — the character loop below is Ctrl-gated. */
+        if (ctrl && ks[SDL_SCANCODE_C] && !s_prev_keys[SDL_SCANCODE_C])
+            Console_CopySelection();
+        if (ctrl && ks[SDL_SCANCODE_V] && !s_prev_keys[SDL_SCANCODE_V])
+            Console_Paste();
+
+        if (!ctrl)
         for (sc = SDL_SCANCODE_A; sc <= SDL_SCANCODE_0; sc++) { /* A..Z, 1..9, 0 are contiguous */
             if (ks[sc] && !s_prev_keys[sc]) {
                 char c;
@@ -1567,12 +1794,74 @@ void DbgOverlay_Render(void)
             s_console_dirty = 0;
         }
 
-        /* Backdrop first (full width), then the text at its natural glyph
-         * scale, left-aligned, cropping the texture to the rows in use. */
+        /* Publish the hit-test geometry for the mouse handling in Update. */
+        s_hit_vp[0] = vp[0]; s_hit_vp[1] = vp[1];
+        s_hit_vp[2] = vp[2]; s_hit_vp[3] = vp[3];
+        s_hit_valid = 1;
+
+        /* Backdrop first (full width), then the selection highlight, then the
+         * text at its natural glyph scale, cropping to the rows in use. */
         draw_panel(s_bg_tex, x0, y0, x1, y1);
+
+        if (s_sel_valid) {
+            int fl, fc, ll, lc, r;
+
+            console_sel_order(&fl, &fc, &ll, &lc);
+            if (!(fl == ll && fc == lc)) {
+                for (r = 0; r <= s_vis_rows; r++) {
+                    int line, c0, c1, len;
+
+                    if (r == s_vis_rows)
+                        line = -1; /* prompt row */
+                    else if (s_scroll > 0 && r == 0)
+                        continue;  /* scroll marker */
+                    else {
+                        line = s_scroll + (s_vis_rows - 1 - r);
+                        if (line < 0 || line >= s_console_count)
+                            continue;
+                    }
+                    if (line > fl || line < ll)
+                        continue;
+
+                    len = (int)strlen(console_sel_text(line));
+                    if (line == -1)
+                        len += 3; /* the prompt renders as "> text_" */
+                    c0 = (line == fl) ? fc : 0;
+                    c1 = (line == ll) ? lc : len;
+                    if (c0 > len) c0 = len;
+                    if (c1 > len) c1 = len;
+                    if (c1 <= c0)
+                        continue;
+
+                    {
+                        float sx0 = x0 + 2.0f * (float)(c0 * GLYPH_W * SCALE) / (float)vp[2];
+                        float sx1 = x0 + 2.0f * (float)(c1 * GLYPH_W * SCALE) / (float)vp[2];
+                        float sy0 = y0 - 2.0f * (float)(r * GLYPH_H * SCALE) / (float)vp[3];
+                        float sy1 = sy0 - 2.0f * (float)(GLYPH_H * SCALE) / (float)vp[3];
+                        draw_panel(s_sel_tex, sx0, sy0, sx1, sy1);
+                    }
+                }
+            }
+        }
+
         tx1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
         tv1 = (usedRows * (float)GLYPH_H) / (float)TEX_H;
         draw_panel_uv(s_tex, x0, y0, tx1, y1, 1.0f, tv1);
+
+        /* Pointer, topmost — the OS cursor is force-hidden, so while the
+         * console is open this is the only visible cursor. Same arrow sprite
+         * the menus use, drawn at 2x like the glyphs. */
+        if (s_console_open && s_console_slide >= 1.0f) {
+            int   wx, wy;
+            float cx0, cy0;
+
+            SDL_GetMouseState(&wx, &wy);
+            cx0 = -1.0f + 2.0f * (float)(wx - vp[0]) / (float)vp[2];
+            cy0 =  1.0f - 2.0f * (float)(wy - (g_windowHeight - (vp[1] + vp[3]))) / (float)vp[3];
+            draw_panel(s_cursor_tex, cx0, cy0,
+                       cx0 + 2.0f * 32.0f / (float)vp[2],
+                       cy0 - 2.0f * 32.0f / (float)vp[3]);
+        }
     }
 
     if (drawColl) {

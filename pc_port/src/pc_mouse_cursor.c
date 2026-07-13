@@ -48,6 +48,13 @@ static int Mc_Enabled(void)
      * for camera look, so its absolute position is meaningless. */
     if (SDL_GetRelativeMouseMode() == SDL_TRUE)
         return 0;
+    /* The quake console owns the mouse while open (its own pointer, click-drag
+     * selection) — no hover/click may leak into the menu underneath. */
+    {
+        extern int Pc_ConsoleIsOpen(void);
+        if (Pc_ConsoleIsOpen())
+            return 0;
+    }
     return 1;
 }
 
