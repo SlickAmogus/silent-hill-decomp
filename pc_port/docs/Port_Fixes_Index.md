@@ -720,3 +720,13 @@ TPS/OTS/FPS camera captures the pointer). Game-code touch points:
 
 Window→viewport mapping comes from PsyCross `PsyX_MapWindowToViewport`
 (submodule commit `63334e0`).
+
+Extended to every menu screen in `87fdb4fad` (options main/extra/PC pages,
+brightness, controller config, load/save incl. the Yes/No prompt): each
+screen hit-tests its own authored row layout and injects the controller
+bits its stock input code reads, so step/clamp/SFX/state logic is
+untouched. Two invariants to preserve: (1) the controller-config Actions
+pane must NEVER receive injected button bits — `ConfigUpdate` binds any
+clicked button to the hovered action; (2) hover-select snaps
+(`Prev = Selected`, no highlight-timer reset) so the click that follows
+isn't swallowed by the `LINE_CURSOR_TIMER_MAX` input gate.
