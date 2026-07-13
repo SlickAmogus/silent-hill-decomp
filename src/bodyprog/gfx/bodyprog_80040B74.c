@@ -603,10 +603,12 @@ void Ipd_TexturesInit(void) // 0x80041D48
                          0, 26, 0, 0,
                          (s16)((id % 64) * 16),
                          (s16)(HIRES_POOL_CLUT_ROW_BASE + (id / 64) * HIRES_POOL_MAX_ROWS));
-            /* The last virtual slot id (255) is reserved for the bullet-decal
-             * texture (pc_decals.c): keep the s_Texture initialized (RefClear
-             * walks the full array) but never offer it to the claim list. */
-            if (id == HIRES_POOL_SLOT_MAX - 1)
+            /* The last CHUNK-range slot id (255) is reserved for the bullet-
+             * decal texture (pc_decals.c): keep the s_Texture initialized
+             * (RefClear walks the full array) but never offer it to the claim
+             * list. Named constant — HIRES_POOL_SLOT_MAX now spans the chara
+             * range too, so "SLOT_MAX - 1" would silently unreserve it. */
+            if (id == HIRES_POOL_DECAL_SLOT)
             {
                 continue;
             }

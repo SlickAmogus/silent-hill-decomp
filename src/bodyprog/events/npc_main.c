@@ -313,6 +313,16 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 
             bzero(&g_SysWork.npcs[npcIdx], sizeof(s_SubCharacter));
 
+#ifdef SH_PC_PORT
+            /* Native spawn reuses this slot: a stale debug-spawn flag here
+             * would make Savegame_EnemyStateUpdate skip THIS enemy's
+             * kill-record write (permadeath bit) for the whole map session. */
+            {
+                extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+                g_PcNpcDebugSpawned[npcIdx] = 0;
+            }
+#endif
+
             if (curCharaSpawn->charaId > Chara_None)
             {
                 g_SysWork.npcs[npcIdx].model.charaId = curCharaSpawn->charaId;
@@ -556,6 +566,14 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
                     CLEAR_FLAG(g_SysWork.field_228C, npc->field_40);
+#ifdef SH_PC_PORT
+                    /* Slot freed: drop any debug-spawn flag with it (its own
+                     * Savegame_EnemyStateUpdate already ran at kill time). */
+                    {
+                        extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+                        g_PcNpcDebugSpawned[k] = 0;
+                    }
+#endif
                     continue;
                 }
 

@@ -693,6 +693,17 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                 PoolSlotEntry* s = &g_poolSlots[slotId];
                 GLuint tex = s->glTexture[row] != 0 ? s->glTexture[row]
                                                     : s->glTexture[0];
+                /* Chara-range row spill (base+64k): when the alias slot is
+                 * empty — a single-palette loose/PNG replacement registered
+                 * only rows 0..15 of a >16-row TIM — fall back to the chara
+                 * BASE slot's row 0 so those prims keep the documented row-0
+                 * behavior instead of being dropped. */
+                while (tex == 0 && slotId >= HIRES_POOL_CHARA_SLOT_BASE + 64)
+                {
+                    slotId -= 64;
+                    s   = &g_poolSlots[slotId];
+                    tex = s->glTexture[0];
+                }
                 if (tex != 0)
                 {
                     if (outNativePixelW) *outNativePixelW = s->nativeW;

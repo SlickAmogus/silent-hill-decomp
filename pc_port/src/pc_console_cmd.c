@@ -18,6 +18,7 @@
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
+#include "bodyprog/game_boot/fs_chara_anim.h" /* g_CharaModelAnimsData (spawn anim-ready gate) */
 #include "bodyprog/events/player_pos_update.h"
 #include "bodyprog/chara/chara.h"
 #include "bodyprog/collision/collision.h"
@@ -613,7 +614,12 @@ static int spawn_chara_model_ready(s32 charaId)
 }
 static int spawn_chara_anim_ready(s32 charaId)
 {
-    return g_CharaAnimDataIdxs[charaId] != (s8)NO_VALUE;
+    /* idx alone can be stale (vanilla never invalidates it; a failed pool
+     * load resets it, but belt-and-braces: the slot must actually hold a
+     * live ANM header or the spawn renders unposed/invisible). */
+    s8 idx = g_CharaAnimDataIdxs[charaId];
+    return idx != (s8)NO_VALUE &&
+           g_CharaModelAnimsData[idx].activeAnmHdr != NULL;
 }
 
 static void cmd_spawn(const char* arg)

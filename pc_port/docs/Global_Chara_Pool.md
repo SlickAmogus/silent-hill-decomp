@@ -93,6 +93,29 @@ byte-identical to before.
   alive-bit in the save (and its `field_228C` session bit). Debug/pool spawns
   are now tracked (`g_PcNpcDebugSpawned[]`) and skip the savegame bookkeeping.
 
+## Post-review notes (2026-07-13 adversarial review)
+
+- **pool=0 byte-exactness has ONE intentional exception**: killing a console
+  `SPAWN`ed monster no longer runs the savegame enemy-state update (it reused
+  `field_40` as a spawn-row and permanently dead-flagged an unrelated native
+  spawn — a real corruption bug). This guard is console-only and active
+  regardless of `global_chara_pool`; gameplay without console spawns is
+  untouched.
+- The no-map-define stalker build pairs Control_3's street-map notice radii
+  (12.0/4.5/6.0) with Control_4/8/12's school-map distances (6.0/16.0/8.0) — a
+  combination no retail host compiled. Foreign GreyChild/Mumbler notice and
+  disengage at slightly different radii than in their home maps (dark/
+  flashlight lighting state only).
+- A single-palette loose/PNG replacement of a >16-row chara TIM fills only the
+  base slot; prims on CLUT rows >=16 fall back to the base slot's row 0 at
+  lookup (encoding spill walks back down slot-64 steps).
+- chara_global.dll must never import a `sharedData_*`/`D_8*` symbol whose exe
+  definition is a data_stubs.c zero stub when host maps carry real extracted
+  values — that shadowing zeroed the Romper's lunge constants and the wild
+  air-screamer tables until the audit copied them into chara_global_data.c.
+  Re-run the audit after adding characters: dump the DLL's import table and
+  cross-reference against host-map DLL exports.
+
 ## Known limitations (v1)
 
 - **Foreign monster SFX**: monster sounds live in the per-map ambient VAB

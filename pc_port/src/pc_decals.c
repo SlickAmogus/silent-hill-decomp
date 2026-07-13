@@ -32,7 +32,7 @@
 /* Hires-override virtual pool slot reserved for the decal (Ipd_TexturesInit
  * excludes it from the chunk pool). UVs are TIM-native space: the override
  * shader maps 0..nativeW over the GL texture, so any decal.png size works. */
-#define DECAL_POOL_SLOT 255
+#define DECAL_POOL_SLOT HIRES_POOL_DECAL_SLOT
 #define DECAL_NATIVE    32
 #define DECAL_UV_MAX    (DECAL_NATIVE - 1)
 /* Prim clut word for the slot — canonical encoding in hires_override.h:

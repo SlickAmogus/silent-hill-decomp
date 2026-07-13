@@ -156,12 +156,28 @@ static int PoolChara_Load(s32 id)
         p->model.queueIdx = Fs_QueueStartReadTim(fi->textureFileIdx, FS_BUFFER_1, &desc);
     }
 
-    Fs_CharaAnimDataAlloc(PC_CHARA_ANIM_SLOT(id), id, (s_AnmHeader*)p->anmBuf, s_poolBoneCoords[id]);
+    /* Fs_CharaAnimDataUpdate unconditionally redirects g_CharaAnimDataIdxs
+     * to the pool slot — snapshot a live NATIVE idx (map's own group slots
+     * from game_load case 5) so it can be restored right after: native maps
+     * must keep their vanilla anim binding (spawn-table rows, bone-coord
+     * chain) with the pool on. */
+    {
+        s8 prevIdx = g_CharaAnimDataIdxs[id];
 
-    /* Synchronous on PC (CdRead via PsyCross); 3 queue entries per chara so
-     * queue-index recycling can't bite ProcessLoad's Fs_QueueIsEntryLoaded. */
-    Fs_QueueWaitForEmpty();
-    WorldGfx_CharaModelProcessLoad(&p->model);
+        Fs_CharaAnimDataAlloc(PC_CHARA_ANIM_SLOT(id), id, (s_AnmHeader*)p->anmBuf, s_poolBoneCoords[id]);
+
+        /* Synchronous on PC (CdRead via PsyCross); 3 queue entries per chara so
+         * queue-index recycling can't bite ProcessLoad's Fs_QueueIsEntryLoaded. */
+        Fs_QueueWaitForEmpty();
+        WorldGfx_CharaModelProcessLoad(&p->model);
+
+        if (prevIdx >= 1 && prevIdx < CHARA_GROUP_COUNT &&
+            g_CharaModelAnimsData[prevIdx].activeCharaId == id &&
+            g_CharaModelAnimsData[prevIdx].activeAnmHdr != NULL)
+        {
+            g_CharaAnimDataIdxs[id] = prevIdx;
+        }
+    }
 
     if (!p->model.isLoaded ||
         g_CharaModelAnimsData[PC_CHARA_ANIM_SLOT(id)].activeAnmHdr == NULL)
@@ -169,6 +185,18 @@ static int PoolChara_Load(s32 id)
         SH_DBG("[POOL] chara %d load FAILED (model=%d anm=%p)", id,
                (int)p->model.isLoaded,
                (void*)g_CharaModelAnimsData[PC_CHARA_ANIM_SLOT(id)].activeAnmHdr);
+
+        /* Undo any half-registered ready-state so the SPAWN gates report
+         * not-ready instead of offering an invisible/garbled spawn; the next
+         * map load retries. */
+        if (g_CharaAnimDataIdxs[id] == (s8)PC_CHARA_ANIM_SLOT(id))
+        {
+            g_CharaAnimDataIdxs[id] = (s8)NO_VALUE;
+        }
+        if (g_WorldGfxWork.registeredCharaModels[id] == &p->model)
+        {
+            g_WorldGfxWork.registeredCharaModels[id] = NULL;
+        }
         return 0;
     }
 
@@ -197,24 +225,37 @@ void Pc_CharaPool_Refresh(void)
             continue;
         }
 
-        /* Model: a native map registration (charaModels slot / harryModel)
-         * always wins; only fill slots the map left empty or evicted. */
-        if (g_WorldGfxWork.registeredCharaModels[id] == NULL)
+        /* Model: a LIVE native registration wins. Overlay transitions leave
+         * registeredCharaModels of the PREVIOUS map's charas dangling at
+         * slots that now hold another chara (WorldGfx_MapInitCharaLoad zeroes
+         * slot charaIds before reloading, defeating the eviction NULLing),
+         * so non-NULL is not enough — the slot must still be OURS. */
         {
-            g_WorldGfxWork.registeredCharaModels[id] = &p->model;
+            s_CharaModel* m = g_WorldGfxWork.registeredCharaModels[id];
+
+            if (m == NULL || m->charaId != (u8)id)
+            {
+                g_WorldGfxWork.registeredCharaModels[id] = &p->model;
+            }
         }
 
-        /* Anim: keep a LIVE native slot (vanilla bone-coord layout); anything
-         * else — never set, or stale after the slot was reused for another
-         * chara (g_CharaAnimDataIdxs is never invalidated by vanilla) —
-         * points at the pool slot. */
+        /* Anim: keep a LIVE native binding (vanilla bone-coord layout + the
+         * spawn-table row guard depend on native idxs; PoolChara_Load
+         * restores it after its own alloc redirected the idx). Anything
+         * stale — never set, or a 1..3 slot now owned by another chara —
+         * goes to the pool slot. The pool copy is preferred over scanning
+         * for leftover native slots: a map with fewer chara groups keeps the
+         * PREVIOUS map's data in its unused slots (Chara_None alloc returns
+         * early), and those can be repurposed mid-map without notice. */
         {
             s8  idx        = g_CharaAnimDataIdxs[id];
             int nativeLive = idx >= 1 && idx < CHARA_GROUP_COUNT &&
                              g_CharaModelAnimsData[idx].activeCharaId == id &&
                              g_CharaModelAnimsData[idx].activeAnmHdr != NULL;
 
-            if (!nativeLive)
+            if (!nativeLive &&
+                g_CharaModelAnimsData[PC_CHARA_ANIM_SLOT(id)].activeCharaId == id &&
+                g_CharaModelAnimsData[PC_CHARA_ANIM_SLOT(id)].activeAnmHdr != NULL)
             {
                 g_CharaAnimDataIdxs[id] = (s8)PC_CHARA_ANIM_SLOT(id);
             }

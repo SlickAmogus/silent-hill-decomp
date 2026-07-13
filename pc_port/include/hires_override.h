@@ -119,6 +119,10 @@ void HiresOverride_LogStats(void);
 #define HIRES_POOL_SLOT_MAX       512
 #define HIRES_POOL_MAX_ROWS       16
 #define HIRES_POOL_CHARA_SLOT_BASE 256
+/* Bullet-decal texture (pc_decals.c) — last chunk-range id, excluded from the
+ * Texture_Get claim list. Named so the chunk-pool bound can't drift when
+ * HIRES_POOL_SLOT_MAX grows (it did: 256->512 for the chara range). */
+#define HIRES_POOL_DECAL_SLOT     (HIRES_POOL_CHARA_SLOT_BASE - 1)
 
 int  HiresOverride_PoolSlotRegister(int slotId,
                                     const unsigned char* data, unsigned int size,
