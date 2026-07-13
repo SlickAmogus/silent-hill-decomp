@@ -730,3 +730,31 @@ pane must NEVER receive injected button bits — `ConfigUpdate` binds any
 clicked button to the hovered action; (2) hover-select snaps
 (`Prev = Selected`, no highlight-timer reset) so the click that follows
 isn't swallowed by the `LINE_CURSOR_TIMER_MAX` input gate.
+
+## Global chara/asset pool — spawn any monster in any map (2026-07-13, commits `b34fd5702`, `512762429`, `bfc5ad965`)
+
+Config `global_chara_pool` (default 1); design doc `docs/Global_Chara_Pool.md`.
+Vanilla loads only ~3 monster types per map (charaGroupIds); the pool keeps
+EVERY chara's ILM/ANM resident PC-side (malloc'd, loaded once via the vanilla
+FS queue at map-load case 6), gives each a dedicated anim slot (4+charaId in
+the PC-grown `g_CharaModelAnimsData`) through the explicit-buffer
+`Fs_CharaAnimDataAlloc` path map7_s03's boss rush already used, and routes
+textures to persistent virtual GL slots 256+charaId (synthetic clutY>=512
+desc; no VRAM bytes; CLUT rows >=16 spill to slot+64k for the 48-row PRS TIM).
+`chara_global.dll` — a pseudo-map compiling every portable monster's AI with
+no map define — backfills NULL `charaUpdateFuncs` slots per map load.
+Native maps always win every registry (NULL/stale-only refresh), so native
+gameplay is untouched; `global_chara_pool=0` is byte-identical to before.
+
+- **Files**: `pc_port/src/pc_chara_pool.c(+h)`, `src/maps/chara_global/*`,
+  hooks in `game_load.c` case 6 + `map_registry.c` + `main_pc.c`,
+  hires_override slot-space growth (256→512, chara range persists reset).
+- **Guards landed with it**: `Chara_SpawnFlagsSet/PositionSet` skip rows >1
+  (pool idxs + latent vanilla slot-3 OOB into cameraPaths); console spawns
+  are flagged (`g_PcNpcDebugSpawned`) so killing one no longer corrupts the
+  savegame's native spawn-row alive-bits (`Savegame_EnemyStateUpdate` guard).
+- **Excluded from AI backfill (map-bound)**: Twinfeeler, Incubus, Unknown23,
+  LockerDeadBody, Chicken (no AI on disc), cutscene actors — they spawn as
+  posed statues, tagged `[no-ai]`/`[pool]` in `SPAWN LIST`.
+- **Known limitation**: foreign monsters play wrong/silent SFX (per-map
+  ambient VAB program collisions); fix = extra PC VAB slot, deferred.
