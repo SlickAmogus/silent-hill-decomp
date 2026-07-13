@@ -566,7 +566,7 @@ static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
     { "SPLITHEAD",       Chara_SplitHead,        5 },
     { "FLOATSTINGER",    Chara_Floatstinger,    12 },
     { "PUPPETNURSE",     Chara_PuppetNurse,     17 },
-    { "DUMMYNURSE",      Chara_DummyNurse,      17 },
+    { "BETANURSE",       Chara_DummyNurse,      17 }, /* TEST/PRS2.ILM beta nurse via the pool's DummyNurse retarget; runs the real PuppetNurse AI. In hospital maps the native DUMMY stub wins the slot (invisible) — test elsewhere. */
     { "PUPPETDOCTOR",    Chara_PuppetDoctor,    17 },
     { "DUMMYDOCTOR",     Chara_DummyDoctor,     17 },
     { "TWINFEELER",      Chara_Twinfeeler,       3 },

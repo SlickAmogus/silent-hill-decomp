@@ -81,9 +81,35 @@ int Pc_CharaPool_IsPoolModel(s32 charaId)
     return g_WorldGfxWork.registeredCharaModels[charaId] == &s_pool[charaId].model;
 }
 
+/* The file set the pool loads for a charaId: CHARA_FILE_INFOS row + beta
+ * retargets (docs/Beta_Monsters_Research.md Tier 3). POOL-ONLY: native maps
+ * still load the retail files — the table itself is only retargeted inside
+ * PoolChara_Load's synchronous window (the vanilla anim/material paths read
+ * it by charaId; retail's *_LAST ending swaps use the same mechanism). */
+static s_CharaFileInfo PoolChara_FileInfo(s32 id)
+{
+    s_CharaFileInfo fi = CHARA_FILE_INFOS[id];
+
+    /* Beta Puppet Nurse: TEST/PRS2.ILM ships on every retail disc (an earlier
+     * model revision); DummyNurse(17) is its natural vehicle — a retail
+     * placeholder (256-byte DUMMY stub, no texture) that already dispatches
+     * the real PuppetNurse AI. Console name: BETANURSE. */
+    if (id == Chara_DummyNurse)
+    {
+        fi.modelFileIdx   = FILE_TEST_PRS2_ILM;
+        fi.textureFileIdx = FILE_CHARA_PRS_TIM;
+        fi.animFileIdx    = FILE_ANIM_PRS_ANM;
+    }
+
+    return fi;
+}
+
 static int PoolChara_Load(s32 id)
 {
-    s_CharaFileInfo* fi = &CHARA_FILE_INFOS[id];
+    s_CharaFileInfo* tbl  = &CHARA_FILE_INFOS[id];
+    s_CharaFileInfo  want = PoolChara_FileInfo(id);
+    s_CharaFileInfo* fi   = &want;
+    s_CharaFileInfo  saved;
     PcPoolChara*     p  = &s_pool[id];
     s_FsImageDesc    desc;
     s32              ilmSize;
@@ -164,6 +190,13 @@ static int PoolChara_Load(s32 id)
     {
         s8 prevIdx = g_CharaAnimDataIdxs[id];
 
+        /* Retarget the table row for the duration of the synchronous load:
+         * Fs_QueueStartReadAnm / Fs_CharaAnimDataUpdate / ProcessLoad's
+         * material apply all read CHARA_FILE_INFOS[charaId] internally.
+         * Restored right after, so native loads stay retail-exact. */
+        saved = *tbl;
+        *tbl  = want;
+
         Fs_CharaAnimDataAlloc(PC_CHARA_ANIM_SLOT(id), id, (s_AnmHeader*)p->anmBuf, s_poolBoneCoords[id]);
 
         /* Drain synchronously by pumping the queue directly. Reads are
@@ -180,6 +213,8 @@ static int PoolChara_Load(s32 id)
             }
         }
         WorldGfx_CharaModelProcessLoad(&p->model);
+
+        *tbl = saved;
 
         if (prevIdx >= 1 && prevIdx < CHARA_GROUP_COUNT &&
             g_CharaModelAnimsData[prevIdx].activeCharaId == id &&
@@ -285,12 +320,12 @@ void Pc_CharaPool_OnMapLoad(void)
 
     for (id = POOL_CHARA_FIRST; id <= POOL_CHARA_LAST; id++)
     {
-        PcPoolChara*     p  = &s_pool[id];
-        s_CharaFileInfo* fi = &CHARA_FILE_INFOS[id];
+        PcPoolChara*    p  = &s_pool[id];
+        s_CharaFileInfo fi = PoolChara_FileInfo(id);
 
-        if (p->loaded && p->modelFileIdx == fi->modelFileIdx &&
-            p->textureFileIdx == fi->textureFileIdx &&
-            p->animFileIdx == fi->animFileIdx)
+        if (p->loaded && p->modelFileIdx == fi.modelFileIdx &&
+            p->textureFileIdx == fi.textureFileIdx &&
+            p->animFileIdx == fi.animFileIdx)
         {
             continue;
         }
