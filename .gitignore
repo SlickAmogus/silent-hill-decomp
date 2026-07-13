@@ -1,5 +1,5 @@
 asm/
-assets/
+/assets/
 build/
 rom/
 linkers/

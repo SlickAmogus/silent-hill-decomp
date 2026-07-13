@@ -202,6 +202,16 @@ if(MINGW)
     target_link_options(SilentHillPC PRIVATE "-Wl,--subsystem,windows" "-Wl,-emainCRTStartup")
 endif()
 
+# Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
+# (assets/gamedata/decal.png -> <build>/gamedata/decal.png), so a fresh build
+# folder runs with them. release-nightly.ps1 and the CI stage steps package the
+# same directory — add new custom assets there, never to the build folder.
+add_custom_command(TARGET SilentHillPC POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:SilentHillPC>"
+    COMMENT "Copying shipped runtime assets (pc_port/assets/)"
+)
+
 # Game-specific defines (only on our target, NOT PsyCross)
 target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}

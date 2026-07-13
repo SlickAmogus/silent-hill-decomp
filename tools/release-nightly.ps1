@@ -93,6 +93,23 @@ function Get-Sha256([string]$path) {
     (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLower()
 }
 
+# Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
+# (assets/gamedata/decal.png ships as gamedata/decal.png). Both modes package
+# from THIS directory — never glob the build folder's gamedata/, which holds
+# the user's disc images and saves. RelPath is the runtime-relative POSIX path
+# used in the zip, the manifest, and the loose-mode asset name.
+$assetsDir = Join-Path $PSScriptRoot "..\pc_port\assets"
+function Get-ShippedAssets {
+    if (-not (Test-Path $assetsDir)) { return @() }
+    $root = (Resolve-Path $assetsDir).Path
+    return @(Get-ChildItem -Recurse -File $root | ForEach-Object {
+        [pscustomobject]@{
+            RelPath = $_.FullName.Substring($root.Length).TrimStart('\','/').Replace('\','/')
+            Source  = $_.FullName
+        }
+    })
+}
+
 # Find the newest run of $Workflow on $Branch that was triggered by the exact
 # commit this release is being built from (any status -- queued/in_progress/
 # completed), so a pending run can be waited on instead of silently skipped.
@@ -508,6 +525,13 @@ if ($isZip) {
         # Empty save folder so the game has somewhere to write (no cards shipped).
         New-Item -ItemType Directory -Force -Path (Join-Path $stage "gamedata\save") | Out-Null
 
+        # Shipped runtime assets (pc_port/assets/ -> zip root, runtime layout).
+        foreach ($a in Get-ShippedAssets) {
+            $dst = Join-Path $stage ($a.RelPath -replace '/', '\')
+            New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
+            Copy-Item $a.Source $dst -Force
+        }
+
         # Hash every staged file for the manifest (relative POSIX paths).
         $stageFull = (Resolve-Path $stage).Path
         $files = @()
@@ -676,6 +700,15 @@ if (Test-Path $launcherExe) {
     Write-Host "Warning: launcher exe not found at $launcherExe - not included in this release." -ForegroundColor Yellow
 }
 
+# Shipped runtime assets (manifest path = runtime-relative, e.g. gamedata/decal.png;
+# the launcher creates missing dirs on apply, same as maps/). Sourced from
+# pc_port/assets/, remembered here so the upload stage doesn't look in BuildDir.
+$assetSources = @{}
+foreach ($a in Get-ShippedAssets) {
+    $localFiles[$a.RelPath]   = Get-Sha256 $a.Source
+    $assetSources[$a.RelPath] = $a.Source
+}
+
 Write-Host "Local files: $($localFiles.Count) entries hashed" -ForegroundColor Cyan
 
 # ---- Diff local vs remote ---------------------------------------------------
@@ -764,6 +797,7 @@ foreach ($path in $changed) {
     $src = if ($path -eq "SilentHillPC.exe") { $exe }
            elseif ($path -eq "CHANGELOG.md") { $changelogPath }
            elseif ($path -eq "SilentHillPC_Launcher.exe") { $launcherExe }
+           elseif ($assetSources.ContainsKey($path)) { $assetSources[$path] }
            else { Join-Path $BuildDir $path }
     $assetName = $path -replace '/', '__'
     $dst = Join-Path $stagingDir $assetName

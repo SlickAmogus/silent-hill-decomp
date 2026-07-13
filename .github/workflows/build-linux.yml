@@ -53,6 +53,8 @@ jobs:
           cp pc_port/config.cfg "$STAGE/config.cfg"
           # Empty save dir so the game has somewhere to write.
           mkdir -p "$STAGE/gamedata/save"
+          # Shipped runtime assets (pc_port/assets/ mirrors the game folder layout).
+          cp -r pc_port/assets/. "$STAGE/"
           # Runtime note for users (SDL2/OpenAL are system libs, not bundled).
           cat > "$STAGE/README-linux.txt" <<'EOF'
           Silent Hill PC Port — Linux x64

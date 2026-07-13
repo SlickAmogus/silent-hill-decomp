@@ -51,6 +51,8 @@ jobs:
           cp pc_port/build/maps/*.dylib "$STAGE/maps/"
           cp pc_port/config.cfg "$STAGE/config.cfg"
           mkdir -p "$STAGE/gamedata/save"
+          # Shipped runtime assets (pc_port/assets/ mirrors the game folder layout).
+          cp -r pc_port/assets/. "$STAGE/"
           cat > "$STAGE/README-macos.txt" <<'EOF'
           Silent Hill PC Port — macOS arm64 (Apple Silicon)
           Requires the original disc image in gamedata/ (not included).

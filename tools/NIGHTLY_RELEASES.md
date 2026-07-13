@@ -31,6 +31,10 @@ After a clean local build (`cmake --build build`):
 
 The script:
 - Hashes `SilentHillPC.exe` + every file in `build/maps/` + `build/config.cfg`
+- Packages shipped runtime assets from `pc_port/assets/` (mirrors the game
+  folder layout, e.g. `assets/gamedata/decal.png` ships as
+  `gamedata/decal.png`) — BOTH modes; drop new custom assets there, never
+  hand-place them in the build folder (the build copies them post-build)
 - Pulls the previous release's `version.json` from the nightly repo
 - Diffs hashes; if nothing changed, exits without creating a release
 - Computes the next version: `YYYY.MM.DD.N` (N = next counter for today)
