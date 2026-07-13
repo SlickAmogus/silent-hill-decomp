@@ -38,6 +38,23 @@ int Pc_MouseCursor_MenuRowHover(int baseY, int stepY, int count, unsigned int vi
  * keyboard/pad for the menu selection. */
 int Pc_MouseCursor_Moved(void);
 
+/* Raw pointer position in the text-authoring space (the coordinates
+ * Gfx_StringSetPosition takes). Returns 0 (outputs untouched) when the cursor
+ * is disabled/captured/outside the viewport — menus with non-uniform layouts
+ * (two panes, scrolling lists, buttons) hit-test with this instead of
+ * Pc_MouseCursor_MenuRowHover. */
+int Pc_MouseCursor_UiPos(int* outX, int* outY);
+
+/* Left-button press edge / held state / right-button press edge this frame
+ * (0 while disabled or outside the viewport). */
+int Pc_MouseCursor_LeftClicked(void);
+int Pc_MouseCursor_LeftHeld(void);
+int Pc_MouseCursor_RightClicked(void);
+
+/* +1/-1 on a new wheel notch this frame (0 otherwise) — menus use it to
+ * adjust the hovered value row / scroll lists. */
+int Pc_MouseCursor_WheelStep(void);
+
 /* 1 while a free-cursor puzzle is on screen. control_style.c releases the TPS/OTS
  * mouse capture when this is set, so a cursor puzzle always gets the pointer
  * regardless of the active camera. */

@@ -37,6 +37,8 @@ static int   s_puzzleFrames; /* >0 while a free-cursor puzzle is on screen */
 static int   s_havePrev;
 static int   s_moved;        /* mouse moved this frame */
 static int   s_prevMx = -1, s_prevMy = -1;
+static int   s_wheelStep;    /* +1/-1 on a new wheel notch this frame, else 0 */
+static int   s_prevWheelUp, s_prevWheelDown;
 
 static int Mc_Enabled(void)
 {
@@ -59,6 +61,37 @@ int Pc_MouseCursor_Moved(void)
     return s_moved;
 }
 
+int Pc_MouseCursor_UiPos(int* outX, int* outY)
+{
+    if (!Mc_Enabled() || !s_inView)
+        return 0;
+    if (outX != NULL)
+        *outX = (int)s_gx;
+    if (outY != NULL)
+        *outY = (int)s_gy;
+    return 1;
+}
+
+int Pc_MouseCursor_LeftClicked(void)
+{
+    return Mc_Enabled() && s_inView && s_leftEdge;
+}
+
+int Pc_MouseCursor_LeftHeld(void)
+{
+    return Mc_Enabled() && s_inView && s_leftDown;
+}
+
+int Pc_MouseCursor_RightClicked(void)
+{
+    return Mc_Enabled() && s_inView && s_rightEdge;
+}
+
+int Pc_MouseCursor_WheelStep(void)
+{
+    return Mc_Enabled() ? s_wheelStep : 0;
+}
+
 int Pc_MouseCursor_PuzzleActive(void)
 {
     return s_puzzleFrames > 0;
@@ -75,10 +108,25 @@ void Pc_MouseCursor_FrameUpdate(void)
     if (!Mc_Enabled())
     {
         s_prevLeft = s_prevRight = 0;
-        s_havePrev = 0;
+        s_havePrev  = 0;
+        s_wheelStep = 0;
         if (s_puzzleFrames > 0)
             s_puzzleFrames--;
         return;
+    }
+
+    /* Wheel: PsyX latches each notch as a 2-frame countdown; a fresh notch is a
+     * rise back to 2 (prev<2). Two notches in one frame collapse to one step. */
+    {
+        extern int g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
+
+        s_wheelStep = 0;
+        if (g_PsyX_WheelUpFrames == 2 && s_prevWheelUp < 2)
+            s_wheelStep = 1;
+        else if (g_PsyX_WheelDownFrames == 2 && s_prevWheelDown < 2)
+            s_wheelStep = -1;
+        s_prevWheelUp   = g_PsyX_WheelUpFrames;
+        s_prevWheelDown = g_PsyX_WheelDownFrames;
     }
 
     btn         = SDL_GetMouseState(&mx, &my);

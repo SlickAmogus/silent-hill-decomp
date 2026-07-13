@@ -22,6 +22,7 @@
 #include <string.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_mouse_cursor.h"
 #include "map_registry.h"
 #include "lang_text.h" /* PAL Language row (title-screen options) */
 #define LAYER_24   PSX_OT_OFS(24)
@@ -191,6 +192,32 @@ static const s_PcOpt PCOPT_C[] = {
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
 static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
+static int  PcOpt_MapRow(const s_PcOpt* tbl, int count);
+static int  PcOpt_DispLine(int entry, int mapRow);
+
+/* ---- Mouse support: hover selects, click acts, wheel adjusts values ----
+ * Injections write the same controller bits the stock input code reads, so
+ * every screen keeps its own step/clamp/SFX/state logic. */
+
+static void PcMouse_InjectEnter(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+}
+
+static void PcMouse_InjectCancel(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+}
+
+/* A value-cycle step: toggle rows read clickedBtnFlags, sliders/volumes read
+ * pulsedBtnFlags — set both, like a fresh physical press does. */
+static void PcMouse_InjectDir(int dir)
+{
+    u32 flag = (dir > 0) ? ControllerFlag_LStickRight : ControllerFlag_LStickLeft;
+
+    g_Controller0->clickedBtnFlags |= flag;
+    g_Controller0->pulsedBtnFlags  |= flag;
+}
 
 static const s_PcOpt* PcOpt_Page(int* count)
 {
@@ -319,6 +346,7 @@ void Options_PcOptionsMenu_Control(void)
     Options_PcOptionsMenu_SelectionHighlightDraw();
     Options_Menu_VignetteDraw();
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+    Pc_MouseCursor_Draw();
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
         return;
@@ -335,6 +363,45 @@ void Options_PcOptionsMenu_Control(void)
         if (g_PcOptionsMenu_SelectedEntry >= count)
             g_PcOptionsMenu_SelectedEntry = 0;
         g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+
+        /* Mouse: hover selects (snapping, so the click that follows isn't
+         * swallowed by the highlight timer), click activates action rows /
+         * cycles value rows, wheel steps the hovered value, right-click backs
+         * out (via the cancel handler below). Rows hit-test through
+         * PcOpt_DispLine so the Map-caption gap stays dead space. */
+        {
+            int mx, my;
+
+            if (Pc_MouseCursor_UiPos(&mx, &my))
+            {
+                int row = -1, mapRow = PcOpt_MapRow(tbl, count), i;
+
+                for (i = 0; i < count; i++) {
+                    int top = 56 + (PcOpt_DispLine(i, mapRow) * 16) - 3;
+                    if (my >= top && my < top + 16) { row = i; break; }
+                }
+
+                if (row >= 0 && Pc_MouseCursor_Moved() && row != g_PcOptionsMenu_SelectedEntry) {
+                    g_PcOptionsMenu_SelectedEntry     = row;
+                    g_PcOptionsMenu_PrevSelectedEntry = row;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                }
+                if (row >= 0 && row == g_PcOptionsMenu_SelectedEntry) {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (tbl[row].kind >= PCK_NEXT) {
+                        if (Pc_MouseCursor_LeftClicked())
+                            PcMouse_InjectEnter();
+                    } else if (Pc_MouseCursor_LeftClicked()) {
+                        PcMouse_InjectDir(1);
+                    } else if (wheel != 0) {
+                        PcMouse_InjectDir(wheel);
+                    }
+                }
+                if (Pc_MouseCursor_RightClicked())
+                    PcMouse_InjectCancel();
+            }
+        }
 
         if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) {
             Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -816,6 +883,9 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     Options_ExtraOptionsMenu_SelectionHighlightDraw();
     Options_Menu_VignetteDraw();
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+#ifdef SH_PC_PORT
+    Pc_MouseCursor_Draw();
+#endif
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_ExtraOptions)
     {
@@ -835,6 +905,45 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
     {
         g_ExtraOptionsMenu_PrevSelectedEntry = g_ExtraOptionsMenu_SelectedEntry;
+
+#ifdef SH_PC_PORT
+        /* Mouse: hover selects (snapping), click / wheel cycles the value
+         * (every row here is a value row), right-click backs out via the
+         * cancel handler at the bottom. Rows start at y=64 on this screen. */
+        {
+            int mx, my;
+
+            if (Pc_MouseCursor_UiPos(&mx, &my))
+            {
+                s32 row = -1;
+                s32 i;
+
+                for (i = 0; i < g_ExtraOptionsMenu_EntryCount; i++)
+                {
+                    s32 top = 64 + (i * 16) - 3;
+                    if (my >= top && my < top + 16) { row = i; break; }
+                }
+
+                if (row >= 0 && Pc_MouseCursor_Moved() && row != g_ExtraOptionsMenu_SelectedEntry)
+                {
+                    g_ExtraOptionsMenu_SelectedEntry     = row;
+                    g_ExtraOptionsMenu_PrevSelectedEntry = row;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                }
+                if (row >= 0 && row == g_ExtraOptionsMenu_SelectedEntry)
+                {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (Pc_MouseCursor_LeftClicked())
+                        PcMouse_InjectDir(1);
+                    else if (wheel != 0)
+                        PcMouse_InjectDir(wheel);
+                }
+                if (Pc_MouseCursor_RightClicked())
+                    PcMouse_InjectCancel();
+            }
+        }
+#endif
 
         // Leave to gameplay (if options menu was accessed with `Option` input action).
         if (g_GameWork.gameStatePrev == GameState_InGame &&
@@ -1037,6 +1146,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     Options_MainOptionsMenu_SfxVolumeBarDraw();
 #ifdef SH_PC_PORT
     Options_MainOptionsMenu_FmvVolumeBarDraw();
+    Pc_MouseCursor_Draw();
 #endif
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_MainOptions)
@@ -1060,6 +1170,83 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     }
 
     g_MainOptionsMenu_PrevSelectedEntry = g_MainOptionsMenu_SelectedEntry;
+
+#ifdef SH_PC_PORT
+    /* Mouse: hover selects (snapping past the highlight timer so the follow-up
+     * click isn't swallowed), click enters the submenu rows / cycles the value
+     * rows, click-drag on a volume bar walks the volume to the pointed notch
+     * (one stock step per frame, so the game's clamp + SFX stay in charge),
+     * wheel steps the hovered value, right-click = cancel. */
+    {
+        int mx, my;
+
+        if (Pc_MouseCursor_UiPos(&mx, &my))
+        {
+            s32 row = -1;
+            s32 i;
+
+            for (i = 0; i < MainOptionsMenuEntry_Count; i++)
+            {
+                s32 top = 56 + (i * 16) - 3;
+                if (my >= top && my < top + 16) { row = i; break; }
+            }
+
+            if (row >= 0 && Pc_MouseCursor_Moved() && row != g_MainOptionsMenu_SelectedEntry)
+            {
+                g_MainOptionsMenu_SelectedEntry     = row;
+                g_MainOptionsMenu_PrevSelectedEntry = row;
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            }
+
+            if (row >= 0 && row == g_MainOptionsMenu_SelectedEntry)
+            {
+                int wheel = Pc_MouseCursor_WheelStep();
+
+                if (row <= MainOptionsMenuEntry_ScreenPosition)
+                {
+                    /* Exit / Brightness / Controller / PC Options. */
+                    if (Pc_MouseCursor_LeftClicked())
+                        PcMouse_InjectEnter();
+                }
+                else if (row >= MainOptionsMenuEntry_BgmVolume)
+                {
+                    /* Volume bars: notches at authored x 184 + n*6, n = 0..15;
+                     * just left of the bar drags the volume to zero. */
+                    if (Pc_MouseCursor_LeftHeld() && mx >= 174)
+                    {
+                        extern float g_PcXaVolume;
+                        s32 curVol =
+                            (row == MainOptionsMenuEntry_BgmVolume) ? g_GameWork.config.volumeBgm :
+                            (row == MainOptionsMenuEntry_SfxVolume) ? g_GameWork.config.volumeSe  :
+                            CLAMP((s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f), 0, OPT_SOUND_VOLUME_MAX);
+                        s32 lit = (mx < 184) ? 0 : CLAMP(((mx - 184) / 6) + 1, 1, 16);
+
+                        if (lit > curVol / 8)
+                            PcMouse_InjectDir(1);
+                        else if (lit < curVol / 8)
+                            PcMouse_InjectDir(-1);
+                    }
+                    else if (wheel != 0)
+                    {
+                        PcMouse_InjectDir(wheel);
+                    }
+                }
+                else if (Pc_MouseCursor_LeftClicked())
+                {
+                    /* Vibration / Auto Load (Language) / Sound toggles. */
+                    PcMouse_InjectDir(1);
+                }
+                else if (wheel != 0)
+                {
+                    PcMouse_InjectDir(wheel);
+                }
+            }
+
+            if (Pc_MouseCursor_RightClicked())
+                PcMouse_InjectCancel();
+        }
+    }
+#endif
 
     // Leave to gameplay (if options menu was accessed with `Option` input action).
     if (g_GameWork.gameStatePrev == GameState_InGame &&
@@ -2471,6 +2658,35 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             break;
 
         case BrightnessMenuState_2:
+#ifdef SH_PC_PORT
+            /* Mouse: click the left/right arrows (authored boxes around the
+             * triangles at center-origin x 7..17 / 55..65, y 74..94) or use
+             * the wheel to adjust; right-click leaves (cancel). Left-click
+             * elsewhere is dead space so the screen isn't exited by accident. */
+            {
+                int mx, my;
+
+                if (Pc_MouseCursor_UiPos(&mx, &my))
+                {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (Pc_MouseCursor_LeftClicked() && my >= 182 && my < 210)
+                    {
+                        if (mx >= 163 && mx < 181)
+                            PcMouse_InjectDir(-1);
+                        else if (mx >= 211 && mx < 229)
+                            PcMouse_InjectDir(1);
+                    }
+                    else if (wheel != 0)
+                    {
+                        PcMouse_InjectDir(wheel);
+                    }
+
+                    if (Pc_MouseCursor_RightClicked())
+                        PcMouse_InjectCancel();
+                }
+            }
+#endif
             // Set config.
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
@@ -2540,6 +2756,9 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
     Options_BrightnessMenu_LinesDraw(g_GameWork.config.brightness);
     Options_BrightnessMenu_ArrowsDraw();
     Options_BrightnessMenu_ConfigDraw();
+#ifdef SH_PC_PORT
+    Pc_MouseCursor_Draw();
+#endif
 }
 
 void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
@@ -2840,6 +3059,74 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
     s32                                     boundActionIdx = NO_VALUE;
     e_InputAction                           actionIdx;
     static s_ControllerMenu_SelectedEntries selectedEntries;
+
+#ifdef SH_PC_PORT
+    /* Mouse: hover selects in both panes; click confirms ONLY in the presets
+     * pane (EXIT applies enter, TYPE rows apply the preset). In the actions
+     * pane hover-select is all we do — while that state is live,
+     * Options_ControllerMenu_ConfigUpdate BINDS any clicked button to the
+     * hovered action, so injected enter/cancel bits would rebind instead of
+     * confirm. Rebinding stays a keyboard/pad press, as retail intends. */
+    {
+        int mx, my;
+        s32 st = g_GameWork.gameStateSteps[1];
+
+        if ((st == ControllerMenuState_Exit  || st == ControllerMenuState_Type1 ||
+             st == ControllerMenuState_Type2 || st == ControllerMenuState_Type3 ||
+             st == ControllerMenuState_Actions) &&
+            Pc_MouseCursor_UiPos(&mx, &my))
+        {
+            if (mx < 92) /* presets pane: rows at y = 22 + i*20 */
+            {
+                s32 row = -1, i;
+
+                for (i = 0; i < ControllerMenuState_Count; i++)
+                {
+                    s32 top = 22 + (i * 20) - 3;
+                    if (my >= top && my < top + 20) { row = i; break; }
+                }
+                if (row >= 0)
+                {
+                    if (Pc_MouseCursor_Moved() && st != row)
+                    {
+                        g_GameWork.gameStateSteps[1] = row;
+                        g_GameWork.gameStateSteps[2] = 0;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                    if (Pc_MouseCursor_LeftClicked() && st == row)
+                        PcMouse_InjectEnter();
+                    if (Pc_MouseCursor_RightClicked() && st == row && st != ControllerMenuState_Exit)
+                        PcMouse_InjectCancel();
+                }
+            }
+            else /* actions pane: rows at y = 22, pitch 12, extra gap after SKIP */
+            {
+                s32 row = -1, i, y = 22;
+
+                for (i = 0; i < InputAction_Count; i++)
+                {
+                    if (my >= y - 2 && my < y + 10) { row = i; break; }
+                    y += 12 + ((i == 2) ? 12 : 0);
+                }
+                if (row >= 0 && Pc_MouseCursor_Moved())
+                {
+                    if (st != ControllerMenuState_Actions)
+                    {
+                        selectedEntries.preset       = st;
+                        g_GameWork.gameStateSteps[1] = ControllerMenuState_Actions;
+                        g_GameWork.gameStateSteps[2] = 0;
+                    }
+                    if (selectedEntries.action != (e_InputAction)row)
+                    {
+                        selectedEntries.action = (e_InputAction)row;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+            }
+        }
+        Pc_MouseCursor_Draw();
+    }
+#endif
 
     // Handle controller config menu state.
     switch (g_GameWork.gameStateSteps[1])

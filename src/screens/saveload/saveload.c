@@ -17,6 +17,7 @@
 
 // TODO: Not sure if calling them "layers" is accurate. -- Sezz
 #ifdef SH_PC_PORT
+#include "pc_mouse_cursor.h"
 #define LAYER_24 PSX_OT_OFS(24)
 #define LAYER_28 PSX_OT_OFS(28)
 #define LAYER_32 PSX_OT_OFS(32)
@@ -1751,6 +1752,102 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
     s_SaveScreenElement* saveEntry;
     static bool          isSaveWriteOptionSelected;
 
+#ifdef SH_PC_PORT
+    /* Mouse: hover selects a save entry (and switches slot column), click
+     * confirms it, the wheel scrolls the list, right-click backs out. On the
+     * overwrite/format prompt, hovering Yes/No selects (via Left/Right, which
+     * is what the stock code reads) and a click confirms the hovered option.
+     * Everything is injected controller bits, read by the switch below. */
+    {
+        int mx, my;
+
+        if (Pc_MouseCursor_UiPos(&mx, &my))
+        {
+            if (gameStateSteps == 0 && g_MemCard_TotalElementsCount > 0)
+            {
+                int wheel   = Pc_MouseCursor_WheelStep();
+                s32 hitSlot = (mx >= 153) ? 1 : 0;
+                s32 visRow  = -1;
+                s32 i;
+
+                /* Rows at y = 53 + n*20, 5 visible, both slot columns. */
+                for (i = 0; i < 5; i++)
+                {
+                    s32 top = 53 + (i * 20) - 3;
+                    if (my >= top && my < top + 20) { visRow = i; break; }
+                }
+
+                if (hitSlot != g_SelectedSaveSlotIdx && Pc_MouseCursor_Moved() &&
+                    g_Savegame_ElementCount0[0] != 0 && g_Savegame_ElementCount0[1] != 0)
+                {
+                    g_SelectedSaveSlotIdx = hitSlot;
+                    SD_Call(Sfx_MenuMove);
+                }
+
+                if (visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
+                {
+                    s32 target = g_SaveScreen_HiddenSaves[hitSlot] + visRow;
+
+                    if (target >= 0 && target < g_Savegame_ElementCount0[hitSlot])
+                    {
+                        if (Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target)
+                        {
+                            g_SlotElementSelectedIdx[hitSlot] = target;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                        if (Pc_MouseCursor_LeftClicked() && g_SlotElementSelectedIdx[hitSlot] == target)
+                        {
+                            g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                        }
+                    }
+                }
+
+                if (wheel != 0)
+                {
+                    g_Controller0->pulsedBtnFlags |= (wheel > 0) ? ControllerFlag_LStickUp
+                                                                 : ControllerFlag_LStickDown;
+                }
+                if (Pc_MouseCursor_RightClicked())
+                {
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+                }
+            }
+            else if (gameStateSteps == 1)
+            {
+                /* Yes/No highlight boxes: authored x 94..142 / 178..226, y 194..210. */
+                static s32 s_lastHoverOpt; /* 0 = none, 1 = Yes, 2 = No */
+                s32 opt = 0;
+
+                if (my >= 191 && my < 213)
+                {
+                    if (mx >= 90 && mx < 146)       opt = 1;
+                    else if (mx >= 174 && mx < 230) opt = 2;
+                }
+
+                if (opt != 0 && opt != s_lastHoverOpt && Pc_MouseCursor_Moved())
+                {
+                    g_Controller0->clickedBtnFlags |= (opt == 1) ? ControllerFlag_LStickLeft
+                                                                 : ControllerFlag_LStickRight;
+                }
+                s_lastHoverOpt = opt;
+
+                if (opt != 0 && Pc_MouseCursor_LeftClicked())
+                {
+                    /* Select + confirm in one frame: the Left/Right reads come
+                     * before the enter read in case 1 below. */
+                    g_Controller0->clickedBtnFlags |= (opt == 1) ? ControllerFlag_LStickLeft
+                                                                 : ControllerFlag_LStickRight;
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                }
+                if (Pc_MouseCursor_RightClicked())
+                {
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+                }
+            }
+        }
+    }
+#endif
+
     switch (gameStateSteps)
     {
         case 0:
@@ -2226,6 +2323,14 @@ void SaveScreen_ScreenDraw(void) // 0x801E70C8
             SaveScreen_SelectedElementIdxUpdate(i, g_MemCard_TotalElementsCount);
         }
     }
+
+#ifdef SH_PC_PORT
+    /* No pointer on the input-less auto-load flow. */
+    if (g_GameWork.gameState != GameState_AutoLoadSavegame)
+    {
+        Pc_MouseCursor_Draw();
+    }
+#endif
 }
 
 void SaveScreen_MemCardState(void) // 0x801E7244

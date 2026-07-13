@@ -305,6 +305,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             {
                 extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
                 extern int Pc_MouseCursor_Moved(void);
+                extern int Pc_MouseCursor_RightClicked(void);
                 int mcClicked = 0;
                 int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
                 if (mcRow >= 0)
@@ -319,6 +320,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         newGameSelectedDifficultyIdx = mcRow;
                         SD_Call(Sfx_MenuMove);
                     }
+                }
+                if (Pc_MouseCursor_RightClicked())
+                {
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
                 }
             }
 #endif
