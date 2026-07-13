@@ -240,6 +240,12 @@ endfunction()
 #
 # All 42 maps now build as DLLs.
 
+# Global chara pool pseudo-map (docs/Global_Chara_Pool.md): every portable
+# monster's AI compiled with NO map define (generic variants). Loaded once at
+# boot by pc_chara_pool.c with its own handle; never routed through
+# MapOverlay_Load.
+add_map_overlay(chara_global CHARA_GLOBAL)
+
 add_map_overlay(map0_s01 MAP0_S01)
 add_map_overlay(map0_s02 MAP0_S02)
 add_map_overlay(map1_s00 MAP1_S00)
