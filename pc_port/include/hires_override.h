@@ -102,15 +102,29 @@ void HiresOverride_LogStats(void);
  * — replacing in place on engine slot reuse. A row without a texture falls
  * back to row 0. nativePixelW/H are the DISC TIM's pixel dims — the UV
  * denominator — so a replacement of any resolution maps 0..1 over the
- * original. PoolSlotsReset frees everything; called on map (re)init. */
-#define HIRES_POOL_CLUT_ROW_BASE 512
-#define HIRES_POOL_SLOT_MAX      256
-#define HIRES_POOL_MAX_ROWS      16
+ * original. PoolSlotsReset frees everything below the chara range; called on
+ * map (re)init.
+ *
+ * Slot id ranges:
+ *   0..254   map chunk pool (192 full + 64 half virtual slots)
+ *   255      bullet-decal texture (pc_decals.c)
+ *   256+id   global chara pool (pc_chara_pool.c), id = e_CharaId. These
+ *            PERSIST across map loads (PoolSlotsReset skips them). A chara
+ *            TIM with more than 16 CLUT rows (PRS ships 48) spills rows
+ *            16..31 into slot+64 and 32..47 into slot+128 — that aliasing is
+ *            inherent to the clut-word encoding (row deltas of +64*row walk
+ *            the Y groups), so 320..447 are reserved as spill space and must
+ *            never be allocated directly. */
+#define HIRES_POOL_CLUT_ROW_BASE  512
+#define HIRES_POOL_SLOT_MAX       512
+#define HIRES_POOL_MAX_ROWS       16
+#define HIRES_POOL_CHARA_SLOT_BASE 256
 
 int  HiresOverride_PoolSlotRegister(int slotId,
                                     const unsigned char* data, unsigned int size,
                                     int nativePixelW, int nativePixelH);
 void HiresOverride_PoolSlotsReset(void);
+void HiresOverride_CharaPoolSlotReset(int slotId);
 
 /* Pre-decoded RGBA variants (DuckStation texture-pack composites). The rect
  * form replaces in place when an identical key is re-registered. */

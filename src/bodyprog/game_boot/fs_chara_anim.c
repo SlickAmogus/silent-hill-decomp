@@ -29,8 +29,9 @@
 
 #ifdef SH_PC_PORT
 /* On PC, FS_BUFFER_0 is not a compile-time constant (points into g_PsxRam[]).
- * Initialize at runtime instead. See also: Fs_QueueInitialize or GameState_Boot. */
-s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT] = {
+ * Initialize at runtime instead. See also: Fs_QueueInitialize or GameState_Boot.
+ * Sized CHARA_ANIM_DATA_COUNT: slots 4+ belong to the global chara pool. */
+s_CharaAnimData g_CharaModelAnimsData[CHARA_ANIM_DATA_COUNT] = {
     {
         .allocCharaId         = Chara_Harry,
         .activeCharaId         = Chara_Harry,

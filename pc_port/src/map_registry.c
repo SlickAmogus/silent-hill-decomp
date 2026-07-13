@@ -231,6 +231,14 @@ void MapRegistry_Load(e_MapIdx id)
         g_pMapOverlayHeader = &g_StubHeaders[id];
     }
 
+    /* Global chara pool: fill charaUpdateFuncs slots this map left NULL from
+     * chara_global.dll (fresh DLL header copy per LoadLibrary, so this runs
+     * on every load; NULL-only, so native per-map AI variants win). */
+    {
+        extern void Pc_CharaGlobal_Backfill(void);
+        Pc_CharaGlobal_Backfill();
+    }
+
     /* SH_LOG (not SH_DBG_ECHO): a per-map-load diagnostic belongs in the debug
      * log/console, not the top-left system-message toast that shows while the
      * console is hidden. */

@@ -386,25 +386,50 @@ int HiresOverride_PoolSlotRegister(int slotId,
             rows = (srcBpp == 32) ? 1 : timRows;
             if (rows > HIRES_POOL_MAX_ROWS)
             {
-                SH_DBG("[POOLTEX] slot %d: %d CLUT rows, capping at %d",
-                       slotId, rows, HIRES_POOL_MAX_ROWS);
-                rows = HIRES_POOL_MAX_ROWS;
+                /* Chara-pool slots spill rows 16+ into slot+64*k — the clut
+                 * encoding walks Y groups on +64*row deltas, so a prim
+                 * addressing row 20 decodes to (slot+64, row 4) and the
+                 * spill registration below matches it. Chunk-pool ids keep
+                 * the old cap: their neighbors are other live slots. */
+                if (slotId < HIRES_POOL_CHARA_SLOT_BASE)
+                {
+                    SH_DBG("[POOLTEX] slot %d: %d CLUT rows, capping at %d",
+                           slotId, rows, HIRES_POOL_MAX_ROWS);
+                    rows = HIRES_POOL_MAX_ROWS;
+                }
             }
             hiW = w;
             hiH = h;
         }
         /* Native-res decodes sample NEAREST (PSX-exact texel look); an
          * upscaled loose replacement gets LINEAR+mips like hi-res overrides. */
-        if (upload_rgba(&s->glTexture[r], rgba,
-                        w, h, (w == nativePixelW && h == nativePixelH)) != 0)
         {
+            PoolSlotEntry* rowSlot = s;
+            int            rowIdx  = r;
+            if (r >= HIRES_POOL_MAX_ROWS)
+            {
+                int spillId = slotId + 64 * (r / HIRES_POOL_MAX_ROWS);
+                if (spillId >= HIRES_POOL_SLOT_MAX)
+                {
+                    free(rgba);
+                    continue;
+                }
+                rowSlot = &g_poolSlots[spillId];
+                rowIdx  = r % HIRES_POOL_MAX_ROWS;
+                rowSlot->nativeW = nativePixelW;
+                rowSlot->nativeH = nativePixelH;
+            }
+            if (upload_rgba(&rowSlot->glTexture[rowIdx], rgba,
+                            w, h, (w == nativePixelW && h == nativePixelH)) != 0)
+            {
+                free(rgba);
+                return (r == 0) ? -1 : 0;
+            }
             free(rgba);
-            return (r == 0) ? -1 : 0;
+            /* This row now holds base/loose content — release any pack charge a
+             * previous occupant of the slot left on it. */
+            pack_credit(&rowSlot->rowPackBytes[rowIdx]);
         }
-        free(rgba);
-        /* This row now holds base/loose content — release any pack charge a
-         * previous occupant of the slot left on it. */
-        pack_credit(&s->rowPackBytes[r]);
     }
 
     /* Slot reuse with fewer rows: drop stale row textures past the new count. */
@@ -561,7 +586,10 @@ int HiresOverride_RegisterRGBA(const char* label,
 void HiresOverride_PoolSlotsReset(void)
 {
     int i, r, live = 0;
-    for (i = 0; i < HIRES_POOL_SLOT_MAX; i++)
+    /* Chara-pool slots (>= HIRES_POOL_CHARA_SLOT_BASE, incl. their row-spill
+     * aliases) persist across map loads — pc_chara_pool.c loads each chara
+     * TIM exactly once and re-registers only on a region file-idx change. */
+    for (i = 0; i < HIRES_POOL_CHARA_SLOT_BASE; i++)
     {
         for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
         {
@@ -579,6 +607,31 @@ void HiresOverride_PoolSlotsReset(void)
     if (live > 0)
     {
         SH_DBG("[POOLTEX] reset (%d slots freed)", live);
+    }
+}
+
+/* Free one chara-pool slot AND its row-spill aliases (slot+64, slot+128, ...)
+ * so a region-swapped chara TIM (JPN GreyChild<->Mumbler) can re-register. */
+void HiresOverride_CharaPoolSlotReset(int slotId)
+{
+    int a, r;
+    if (slotId < HIRES_POOL_CHARA_SLOT_BASE || slotId >= HIRES_POOL_SLOT_MAX)
+    {
+        return;
+    }
+    for (a = slotId; a < HIRES_POOL_SLOT_MAX; a += 64)
+    {
+        for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
+        {
+            if (g_poolSlots[a].glTexture[r] != 0)
+            {
+                glDeleteTextures(1, &g_poolSlots[a].glTexture[r]);
+                g_poolSlots[a].glTexture[r] = 0;
+            }
+            pack_credit(&g_poolSlots[a].rowPackBytes[r]);
+        }
+        g_poolSlots[a].nativeW = 0;
+        g_poolSlots[a].nativeH = 0;
     }
 }
 

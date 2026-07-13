@@ -47,6 +47,11 @@ typedef struct {
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
+    int globalCharaPool;  /* 1 = global chara/asset pool: every monster's model+anim+texture stays
+                           * resident PC-side (virtual GL texture slots) and chara_global.dll backfills
+                           * AI update funcs, so console SPAWN works for every type in any map. Native
+                           * maps keep their native slots/variants; 0 = vanilla 3-types-per-map.
+                           * (config key: global_chara_pool; docs/Global_Chara_Pool.md) */
     int wholeMapExteriors; /* EXPERIMENTAL, default 0: texture + draw every loaded exterior chunk (whole
                             * town resident — combine with fogstr to see it). Costs draw time and shows
                             * geometry vanilla never rendered at once. Requires preload_chunks and

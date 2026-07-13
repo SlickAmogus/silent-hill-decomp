@@ -918,6 +918,14 @@ int main(int argc, char* argv[])
     SH_LOG("Initializing filesystem queue...");
     Fs_QueueInitialize();
 
+    /* Global chara pool: open chara_global.dll (AI update funcs for every
+     * portable monster) before the first MapRegistry_Load so its backfill
+     * hook can use it. Asset loading happens later, on map load. */
+    {
+        extern void Pc_CharaGlobal_Open(void);
+        Pc_CharaGlobal_Open();
+    }
+
     /* Initialize map registry — sets g_pMapOverlayHeader based on config.cfg.
      * Must happen after PcPort_InitCharaAnimInfo (anim stubs) but before MainLoop. */
     SH_LOG("Initializing map registry...");

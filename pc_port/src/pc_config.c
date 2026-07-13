@@ -24,6 +24,7 @@ s_PcConfig g_PcConfig = {
     .residentTextures = 1, /* 1=expanded chunk-texture pool w/ per-slot GL textures (whole map textured), 0=vanilla 8+2 VRAM pool */
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
@@ -392,6 +393,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "allow_loose_files") == 0)
         {
             g_PcConfig.allowLooseFiles = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "global_chara_pool") == 0)
+        {
+            g_PcConfig.globalCharaPool = (atoi(value) != 0);
         }
         else if (strcmp(key, "resident_textures") == 0)
         {
