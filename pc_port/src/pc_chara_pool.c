@@ -166,9 +166,19 @@ static int PoolChara_Load(s32 id)
 
         Fs_CharaAnimDataAlloc(PC_CHARA_ANIM_SLOT(id), id, (s_AnmHeader*)p->anmBuf, s_poolBoneCoords[id]);
 
-        /* Synchronous on PC (CdRead via PsyCross); 3 queue entries per chara so
-         * queue-index recycling can't bite ProcessLoad's Fs_QueueIsEntryLoaded. */
-        Fs_QueueWaitForEmpty();
+        /* Drain synchronously by pumping the queue directly. Reads are
+         * synchronous on PC, but Fs_QueueWaitForEmpty waits a VSYNC per
+         * queue state — across ~42 charas that stretched map loads to a
+         * minute of wall clock. 3 entries per chara also keeps queue-index
+         * recycling away from ProcessLoad's Fs_QueueIsEntryLoaded. */
+        {
+            s32 pump = 0;
+
+            while (Fs_QueueGetLength() > 0 && pump++ < 100000)
+            {
+                Fs_QueueUpdate();
+            }
+        }
         WorldGfx_CharaModelProcessLoad(&p->model);
 
         if (prevIdx >= 1 && prevIdx < CHARA_GROUP_COUNT &&

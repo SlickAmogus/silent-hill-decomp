@@ -668,6 +668,23 @@ void Game_NpcUpdate(void) // 0x80038354
                         _noUpdateFnLogged |= (1u << (npc->model.charaId & 31));
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
+                        s_AnmHeader*   statueHdr = g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr;
+                        GsCOORDINATE2* statueBc  = g_CharaModelAnimsData[animDataInfoIdx].boneCoords;
+
+                        /* Statue pose: an AI update func normally poses the
+                         * skeleton AND writes the NPC's world transform into
+                         * the root coord — without it the model renders at
+                         * the world origin (invisible in practice). Pose
+                         * keyframe 0 and place the root every frame (same
+                         * recipe as the cutscene actors' update funcs). */
+                        if (statueHdr != NULL) {
+                            Anim_BoneUpdate(statueHdr, statueBc, 0, 0, Q12(0.0f));
+                            Math_RotMatrixZxyNegGte(&npc->rotation, &statueBc->coord);
+                            statueBc->coord.t[0] = Q12_TO_Q8(npc->position.vx);
+                            statueBc->coord.t[1] = Q12_TO_Q8(npc->position.vy);
+                            statueBc->coord.t[2] = Q12_TO_Q8(npc->position.vz);
+                            statueBc->flg = 0;
+                        }
                         func_8003DA9C(npc->model.charaId,
                                       g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
