@@ -196,6 +196,30 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             // Wrap selection.
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
+#ifdef SH_PC_PORT
+            /* Mouse: hover a visible row to select it, left-click to confirm. */
+            {
+                extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
+                extern int Pc_MouseCursor_Moved(void);
+                int mcClicked = 0;
+                int mcRow     = Pc_MouseCursor_MenuRowHover(184, 20, MainMenuEntry_Count,
+                                                            g_MainMenu_VisibleEntryFlags, &mcClicked);
+                if (mcRow >= 0)
+                {
+                    if (mcClicked)
+                    {
+                        g_MainMenu_SelectedEntry = mcRow;
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                    }
+                    else if (Pc_MouseCursor_Moved() && (s32)g_MainMenu_SelectedEntry != mcRow)
+                    {
+                        g_MainMenu_SelectedEntry = mcRow;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+            }
+#endif
+
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
                 g_GameWork.gameState = GameState_MainMenu;
@@ -273,6 +297,31 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     g_Demo_ReproducedCount++;
                 }
             }
+
+#ifdef SH_PC_PORT
+            /* Mouse: hover EASY/NORMAL/HARD to select, left-click to confirm.
+             * Injected before the input handling below so a click behaves like a
+             * real Cross press (rows at y = 204 + i*20; see MainMenu_DifficultyTextDraw). */
+            {
+                extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
+                extern int Pc_MouseCursor_Moved(void);
+                int mcClicked = 0;
+                int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                if (mcRow >= 0)
+                {
+                    if (mcClicked)
+                    {
+                        newGameSelectedDifficultyIdx = mcRow;
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                    }
+                    else if (Pc_MouseCursor_Moved() && newGameSelectedDifficultyIdx != mcRow)
+                    {
+                        newGameSelectedDifficultyIdx = mcRow;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+            }
+#endif
 
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
                 g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
@@ -430,10 +479,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         if (g_MainMenuState < 3)
         {
             MainMenu_MainTextDraw();
+#ifdef SH_PC_PORT
+            { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+#endif
             return;
         }
 
         MainMenu_DifficultyTextDraw(newGameSelectedDifficultyIdx);
+#ifdef SH_PC_PORT
+        { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+#endif
         return;
     }
     else

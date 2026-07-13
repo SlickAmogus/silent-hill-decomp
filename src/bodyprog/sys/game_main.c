@@ -1736,6 +1736,14 @@ void MainLoop(void) // 0x80032EE0
             Pc_ControlStyleUpdate();
         }
 
+        /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
+         * Runs after the controller is built and before the state update reads
+         * it, so puzzle-cursor injection lands this frame. */
+        {
+            extern void Pc_MouseCursor_FrameUpdate(void);
+            Pc_MouseCursor_FrameUpdate();
+        }
+
         /* Console `fmv`: once the fade-out it started lands, this blocks in
          * FMV_Play and fades back in afterwards. */
         {

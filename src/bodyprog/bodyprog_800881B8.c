@@ -20,6 +20,12 @@ void Gfx_CursorDraw(s32 x0, s16 y0, s32 x1, s16 y1, s16 arg4, s16 arg5, s16 arg6
 {
     POLY_FT4* poly;
 
+#ifdef SH_PC_PORT
+    /* Shared chokepoint for every free-cursor puzzle — signal the mouse-cursor
+     * system that one is on screen so it can drive the cursor from the mouse. */
+    { extern void Pc_MouseCursor_NoteCursorDrawn(void); Pc_MouseCursor_NoteCursorDrawn(); }
+#endif
+
     poly = (POLY_FT4*)GsOUT_PACKET_P;
     setPolyFT4(poly);
 

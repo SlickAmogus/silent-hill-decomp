@@ -265,8 +265,13 @@ void Pc_ControlStyleUpdate(void)
     }
 
     /* Capture the mouse only while actually playing in TPS/OTS — free cursor in
-     * menus / pause / console. */
-    wantCapture = (g_DebugThirdPersonCam && inGameplay);
+     * menus / pause / console, and also while a cursor-driven puzzle is on screen
+     * (those are separate 2D screens; the mouse should drive the puzzle cursor,
+     * not the 3D camera, regardless of the active camera mode). */
+    {
+        extern int Pc_MouseCursor_PuzzleActive(void);
+        wantCapture = (g_DebugThirdPersonCam && inGameplay && !Pc_MouseCursor_PuzzleActive());
+    }
     if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != (wantCapture != 0))
     {
         SDL_SetRelativeMouseMode(wantCapture ? SDL_TRUE : SDL_FALSE);
