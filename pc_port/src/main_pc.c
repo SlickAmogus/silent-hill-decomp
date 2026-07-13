@@ -582,11 +582,9 @@ int main(int argc, char* argv[])
         g_PcMenuPillarbox  = g_PcConfig.menuPillarbox;
     }
 
-    /* Console modes:
-     *   0 = off       — hide window, no echo
-     *   1 = external  — show console window, SH_DBG_ECHO/SH_LOG to stdout
-     *   2 = ingame    — overlay only: SH_DBG_ECHO/SH_LOG + [ ] markers, no window
-     *   3 = both      — overlay + console window (same overlay content as 2) */
+    /* show_console now only controls the EXTERNAL console window (1 or 3 =
+     * create it; other values = none). The INGAME console is no longer
+     * config-gated: `~` opens/closes it at runtime (dbg_overlay.c), always. */
     {
         int show = g_PcConfig.showConsole;
         if (show == 1 || show == 3) {
@@ -617,9 +615,7 @@ int main(int argc, char* argv[])
             }
         }
         /* Always capture log lines into the overlay ring buffer so the in-game
-         * console can be toggled on at runtime (`~`) and immediately show recent
-         * output, even when it booted disabled. Visibility is gated in
-         * DbgOverlay_Render by (showConsole & 2). */
+         * console (opened with `~` at runtime) immediately shows recent output. */
         {
             extern void DbgOverlay_PushLine(const char* line);
             extern void DbgOverlay_ToastLine(const char* line);

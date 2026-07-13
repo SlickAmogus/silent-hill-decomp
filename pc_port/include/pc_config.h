@@ -32,7 +32,9 @@ typedef struct {
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
-    int showConsole;     /* 0=off, 1=external window, 2=ingame overlay, 3=ingame+external */
+    int showConsole;     /* EXTERNAL console window only: 1 or 3 = create it, else none.
+                          * The ingame console is not config-gated anymore — `~` toggles it
+                          * (needs allow_debug_controls). Legacy values 2/3 still parse. */
     int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */

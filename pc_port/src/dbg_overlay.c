@@ -28,14 +28,20 @@ extern int g_DebugAnimKfView;
 extern int g_DebugAnimKf;
 extern int g_DebugAnimKfMax;
 
-#define MAX_CONSOLE 20
+/* Continuous scrollback: the ring keeps this many lines; the panel shows the
+ * newest slice (or wherever the user scrolled). [0] = newest. */
+#define MAX_CONSOLE 256
 #define LINE_LEN    64
 #define GLYPH_W     8
 #define GLYPH_H     8
 #define SCALE       2
 
-#define TEX_W (LINE_LEN * GLYPH_W)            /* 512 */
-#define TEX_H ((MAX_CONSOLE + 1) * GLYPH_H)   /* +1 row for the input prompt */
+/* Most text rows the PANEL can ever show at once (+1 for the input prompt).
+ * The actual row count is derived from the window height each frame. */
+#define CONSOLE_VIS_MAX 62
+
+#define TEX_W (LINE_LEN * GLYPH_W)               /* 512 */
+#define TEX_H ((CONSOLE_VIS_MAX + 1) * GLYPH_H)  /* +1 row for the input prompt */
 
 static char s_console[MAX_CONSOLE][LINE_LEN];
 static int  s_console_count  = 0;
@@ -43,12 +49,22 @@ static int  s_console_dirty  = 0;
 static int  s_prev_a = 0;
 static int  s_prev_b = 0;
 
-/* ---- Interactive console input mode (Half-Life style) ----
- * Hold `~` (≥350 ms) while the console is open to get a "> _" prompt under
- * the newest line. While active, game_main freezes game time and controller
- * input (g_PcConsoleInputActive). A-Z/0-9 type; Backspace deletes; Enter
- * submits (and unpauses); tapping `~` exits without submitting. */
+/* ---- Interactive console (Quake style) ----
+ * `~` toggles the console: open = panel slides in, game time + controller
+ * input freeze (g_PcConsoleInputActive) and the "> _" prompt is live
+ * immediately. `~` again closes and unfreezes. While open, PgUp/PgDn and the
+ * mouse wheel scroll the backlog; Up/Down recall command history; Enter
+ * submits (game runs un-frozen for a short apply window so the command's
+ * effect shows, then freezes again). */
 int g_PcConsoleInputActive = 0;
+
+/* Console open/closed (replaces the old show_console bit-2 overlay toggle —
+ * the config key now only controls the EXTERNAL console window). */
+static int s_console_open = 0;
+/* Scrollback offset: 0 = pinned to newest; +N = N lines back in the ring. */
+static int s_scroll   = 0;
+/* Text rows currently shown (derived from window height in Render). */
+static int s_vis_rows = 24;
 
 /* Set when input mode ends (submit or ~ exit) and held until the keys are
  * physically released: DbgOverlay_Update runs BEFORE the game's input parse,
@@ -58,11 +74,9 @@ int g_PcConsoleInputActive = 0;
  * controller input while this or input mode is active. */
 int g_PcConsoleSwallowInput = 0;
 
-#define CONSOLE_HOLD_MS  350
 #define INPUT_BUF_CAP    (LINE_LEN - 4) /* room for "> " + "_" */
 static char          s_input_buf[INPUT_BUF_CAP];
 static int           s_input_len = 0;
-static Uint32        s_tilde_down_ms = 0;
 
 /* Console command history: Up/Down recall recently entered commands. */
 #define CONSOLE_HIST_MAX 8
@@ -77,7 +91,6 @@ static void Console_LoadHist(int nav) {
     s_input_buf[INPUT_BUF_CAP - 1] = '\0';
     s_input_len = (int)strlen(s_input_buf);
 }
-static int           s_tilde_hold_done = 0; /* hold already toggled the view this press */
 static unsigned char s_prev_keys[128]; /* must cover arrow keys (scancodes 79-82) */
 
 /* Slide animation: 0 = fully off-screen above the top edge, 1 = at rest.
@@ -97,6 +110,7 @@ static GLuint s_prog = 0;
 static GLuint s_vao  = 0;
 static GLuint s_vbo  = 0;
 static GLuint s_tex  = 0;
+static GLuint s_bg_tex = 0; /* 2x2 translucent black, stretched as the console backdrop */
 static GLint  s_u_tex = -1;
 static int    s_gl_inited = 0;
 
@@ -357,6 +371,10 @@ static void push_console(const char* line)
     s_console[0][LINE_LEN - 1] = '\0';
     if (s_console_count < MAX_CONSOLE)
         s_console_count++;
+    /* While scrolled back, keep the viewed lines stable as new ones arrive
+     * (the ring shifted under the view); clamped in the texture build. */
+    if (s_scroll > 0 && s_scroll < MAX_CONSOLE - 1)
+        s_scroll++;
 }
 
 static void log_mark(char letter, int idx, VECTOR3* hpos, VECTOR3* cpos)
@@ -456,6 +474,23 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TOAST_TEX_W, TOAST_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    /* Console backdrop: a flat translucent black quad behind the text so the
+     * full-width panel is readable over any scene. */
+    {
+        static const unsigned char bg[2][2][4] = {
+            { { 0, 0, 0, 205 }, { 0, 0, 0, 205 } },
+            { { 0, 0, 0, 205 }, { 0, 0, 0, 205 } },
+        };
+        glGenTextures(1, &s_bg_tex);
+        glBindTexture(GL_TEXTURE_2D, s_bg_tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
@@ -520,17 +555,38 @@ static void overlay_render_row(int rowIdx, const char* str)
 
 static void overlay_update_texture(void)
 {
-    int line;
+    /* Quake-style layout: prompt on the panel's LAST row, backlog above it
+     * newest-at-bottom. s_scroll shifts the visible slice into older lines;
+     * a marker replaces the top row while scrolled so it's obvious the view
+     * isn't live. Only rows [0 .. s_vis_rows] of the texture are drawn (the
+     * panel quad crops with a partial V range). */
+    int r;
+    int maxScroll = s_console_count - s_vis_rows;
+
+    if (maxScroll < 0) maxScroll = 0;
+    if (s_scroll > maxScroll) s_scroll = maxScroll;
+    if (s_scroll < 0) s_scroll = 0;
 
     memset(s_pixels, 0, sizeof(s_pixels));
 
-    for (line = 0; line < s_console_count; line++)
-        overlay_render_row(line, s_console[s_console_count - 1 - line]);
+    for (r = 0; r < s_vis_rows; r++) {
+        /* Bottom text row (r == s_vis_rows-1) shows s_console[s_scroll]. */
+        int idx = s_scroll + (s_vis_rows - 1 - r);
+        if (idx < 0 || idx >= s_console_count) continue;
+        if (s_scroll > 0 && r == 0) continue; /* row 0 becomes the scroll marker */
+        overlay_render_row(r, s_console[idx]);
+    }
 
-    if (g_PcConsoleInputActive) {
+    if (s_scroll > 0) {
+        char marker[LINE_LEN];
+        snprintf(marker, LINE_LEN, "^^^ %d newer line(s) below - PgDn / wheel ^^^", s_scroll);
+        overlay_render_row(0, marker);
+    }
+
+    {
         char prompt[LINE_LEN];
         snprintf(prompt, LINE_LEN, "> %s_", s_input_buf);
-        overlay_render_row(s_console_count, prompt); /* row under newest; fits the +1 row */
+        overlay_render_row(s_vis_rows, prompt);
     }
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEX_W, TEX_H,
@@ -769,19 +825,27 @@ static void toast_build_texture(int alpha)
 }
 
 /* Upload an NDC quad (top y0, bottom y1) for the bound program/VBO and draw it. */
-static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
+/* Panel quad with a partial UV range: the console texture is sized for the
+ * MAXIMUM row count, so the quad crops V to the rows actually in use. */
+static void draw_panel_uv(GLuint tex, float x0, float y0, float x1, float y1,
+                          float u1, float v1)
 {
     float verts[6][4];
     verts[0][0] = x0; verts[0][1] = y0; verts[0][2] = 0.0f; verts[0][3] = 0.0f;
-    verts[1][0] = x0; verts[1][1] = y1; verts[1][2] = 0.0f; verts[1][3] = 1.0f;
-    verts[2][0] = x1; verts[2][1] = y0; verts[2][2] = 1.0f; verts[2][3] = 0.0f;
-    verts[3][0] = x1; verts[3][1] = y0; verts[3][2] = 1.0f; verts[3][3] = 0.0f;
-    verts[4][0] = x0; verts[4][1] = y1; verts[4][2] = 0.0f; verts[4][3] = 1.0f;
-    verts[5][0] = x1; verts[5][1] = y1; verts[5][2] = 1.0f; verts[5][3] = 1.0f;
+    verts[1][0] = x0; verts[1][1] = y1; verts[1][2] = 0.0f; verts[1][3] = v1;
+    verts[2][0] = x1; verts[2][1] = y0; verts[2][2] = u1;   verts[2][3] = 0.0f;
+    verts[3][0] = x1; verts[3][1] = y0; verts[3][2] = u1;   verts[3][3] = 0.0f;
+    verts[4][0] = x0; verts[4][1] = y1; verts[4][2] = 0.0f; verts[4][3] = v1;
+    verts[5][0] = x1; verts[5][1] = y1; verts[5][2] = u1;   verts[5][3] = v1;
 
     glBindTexture(GL_TEXTURE_2D, tex);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void draw_panel(GLuint tex, float x0, float y0, float x1, float y1)
+{
+    draw_panel_uv(tex, x0, y0, x1, y1, 1.0f, 1.0f);
 }
 
 /* Project a world-space point (Q12) to NDC via the game's camera: view =
@@ -940,9 +1004,9 @@ void DbgOverlay_ToastLine(const char* line)
     push_console(line);
     s_console_dirty = 1;
 
-    /* Skipped while the console is shown (it already displays the line) and until
+    /* Skipped while the console is open (it already displays the line) and until
      * MainLoop arms the toast (drops the boot-time init logging). */
-    if (s_toast_armed && !(g_PcConfig.showConsole & 2)) {
+    if (s_toast_armed && !s_console_open) {
         Uint32 now = SDL_GetTicks();
         if (s_toast_count == 0 || (now - s_toast_last_ms) > TOAST_HOLD_MS) {
             s_toast_count = 0; /* previous cluster has settled -> start fresh */
@@ -1011,13 +1075,11 @@ void DbgOverlay_Update(void)
      * the boot-time init logging (pushed before MainLoop) is never toasted. */
     s_toast_armed = 1;
 
-    /* `~` console control (debug builds only) — tap/hold flipped per request:
-     *   - HOLD (≥350 ms)            -> toggle the top-left "ingame" console view
-     *   - TAP while fully shown     -> toggle interactive text input ("> _")
-     *   - TAP while typing          -> leave input mode (view stays)
-     *   - TAP while hidden/sliding  -> nothing (must hold to show first)
-     * The view toggle fires on the hold threshold; the tap action fires on
-     * release only if a hold didn't already consume this press. */
+    /* `~` toggles the console (debug builds only): one press opens the panel
+     * with the prompt live and the game frozen; the next press closes it and
+     * restores gameplay. No hold, no separate view/input states, no config
+     * bit for the ingame overlay (show_console now only controls the EXTERNAL
+     * console window). */
     /* Console toggle key is configurable (key_console; default tilde "`") so layouts
      * that can't reach tilde can rebind it. Resolved once: empty falls back to tilde
      * (old configs keep working); "NONE" yields UNKNOWN = keyboard-unbindable. */
@@ -1033,32 +1095,19 @@ void DbgOverlay_Update(void)
         cur_tilde = ks[s_consoleSc];
     }
     if (g_PcAllowDebugControls) {
-        if (cur_tilde && !s_prev_tilde) { /* press edge */
-            s_tilde_down_ms   = SDL_GetTicks();
-            s_tilde_hold_done = 0;
-        }
-        /* HOLD: toggle the ingame view once the threshold elapses. */
-        if (cur_tilde && !s_tilde_hold_done &&
-            (SDL_GetTicks() - s_tilde_down_ms) >= CONSOLE_HOLD_MS) {
-            s_tilde_hold_done       = 1;
-            g_PcConfig.showConsole ^= 2;          /* show <-> hide */
-            s_console_dirty         = 1;
-            if (!(g_PcConfig.showConsole & 2) && g_PcConsoleInputActive) {
-                g_PcConsoleInputActive  = 0;      /* hiding -> drop input mode */
-                g_PcConsoleSwallowInput = 1;
-            }
-        }
-        /* TAP: on release, if no hold consumed this press, toggle text input. */
-        if (!cur_tilde && s_prev_tilde && !s_tilde_hold_done) {
-            if (g_PcConsoleInputActive) {
-                g_PcConsoleInputActive  = 0;      /* exit input */
-                g_PcConsoleSwallowInput = 1;
-                s_console_dirty         = 1;
-            } else if ((g_PcConfig.showConsole & 2) && s_console_slide >= 1.0f) {
-                g_PcConsoleInputActive = 1;       /* enter input (only when fully shown) */
+        if (cur_tilde && !s_prev_tilde) { /* press edge = toggle */
+            s_console_open = !s_console_open;
+            s_console_dirty = 1;
+            if (s_console_open) {
+                g_PcConsoleInputActive = 1;
                 s_input_len            = 0;
                 s_input_buf[0]         = '\0';
-                s_console_dirty        = 1;
+                s_scroll               = 0;
+                s_console_apply_until  = 0;
+            } else {
+                g_PcConsoleInputActive  = 0;
+                g_PcConsoleSwallowInput = 1; /* don't leak the toggle press */
+                s_console_apply_until   = 0;
             }
         }
     }
@@ -1072,11 +1121,38 @@ void DbgOverlay_Update(void)
             g_PcConsoleSwallowInput = 1;
         } else {
             s_console_apply_until = 0;
-            if (g_PcConfig.showConsole & 2) {
+            if (s_console_open) {
                 g_PcConsoleInputActive = 1;
                 s_console_dirty        = 1;
             }
         }
+    }
+
+    /* Scrollback while open: PgUp/PgDn (with hold-repeat) and the mouse wheel.
+     * End jumps back to live. Clamped against the backlog in the texture build. */
+    if (s_console_open) {
+        extern int g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
+        static Uint32 s_pgupPress = 0, s_pgupLast = 0;
+        static Uint32 s_pgdnPress = 0, s_pgdnLast = 0;
+        int step = (s_vis_rows > 8) ? (s_vis_rows / 2) : 4;
+
+        if (Dbg_HoldRepeat(ks[SDL_SCANCODE_PAGEUP], s_prev_keys[SDL_SCANCODE_PAGEUP],
+                           &s_pgupPress, &s_pgupLast)) {
+            s_scroll += step;
+            s_console_dirty = 1;
+        }
+        if (Dbg_HoldRepeat(ks[SDL_SCANCODE_PAGEDOWN], s_prev_keys[SDL_SCANCODE_PAGEDOWN],
+                           &s_pgdnPress, &s_pgdnLast)) {
+            s_scroll -= step;
+            if (s_scroll < 0) s_scroll = 0;
+            s_console_dirty = 1;
+        }
+        if (ks[SDL_SCANCODE_END] && !s_prev_keys[SDL_SCANCODE_END]) {
+            s_scroll = 0;
+            s_console_dirty = 1;
+        }
+        if (g_PsyX_WheelUpFrames)   { s_scroll += 3; s_console_dirty = 1; }
+        if (g_PsyX_WheelDownFrames) { s_scroll -= 3; if (s_scroll < 0) s_scroll = 0; s_console_dirty = 1; }
     }
 
     /* Interactive input: A-Z and 0-9 append, Backspace deletes, Enter
@@ -1170,21 +1246,17 @@ void DbgOverlay_Update(void)
                     }
                 }
                 s_hist_nav = -1;
-                /* Keep the console OPEN: clear the line and briefly unfreeze so the
-                 * command's effect renders/animates, then drop back into input mode
-                 * (apply-window check at the top of the function). Lets the user run
-                 * several commands without reopening. */
+                /* Keep the console OPEN: clear the line, snap the view back to
+                 * live, and briefly unfreeze so the command's effect renders/
+                 * animates, then drop back into input mode (apply-window check
+                 * at the top of the function). Lets the user run several
+                 * commands without reopening. */
                 s_input_len    = 0;
                 s_input_buf[0] = '\0';
+                s_scroll       = 0;
                 g_PcConsoleInputActive  = 0;          /* unfreeze for the window */
                 g_PcConsoleSwallowInput = 1;          /* don't leak this Enter   */
                 s_console_apply_until   = SDL_GetTicks() + CONSOLE_APPLY_MS;
-            } else {
-                /* Empty Enter closes the console (hide + unfreeze). */
-                g_PcConsoleInputActive  = 0;
-                g_PcConsoleSwallowInput = 1;
-                g_PcConfig.showConsole &= ~2;
-                s_console_apply_until   = 0;
             }
             s_console_dirty = 1;
         }
@@ -1200,10 +1272,10 @@ void DbgOverlay_Update(void)
      * array here by a frame — clearing on SDL alone leaked the submit Enter
      * as a Start click. */
 
-    /* Ease the slide toward visible (ingame bit set) or hidden. Runs every
+    /* Ease the slide toward visible (console open) or hidden. Runs every
      * frame regardless of state so the console can animate back out. */
     {
-        float target = (g_PcConfig.showConsole & 2) ? 1.0f : 0.0f;
+        float target = s_console_open ? 1.0f : 0.0f;
         if (s_console_slide < target) {
             s_console_slide += CONSOLE_SLIDE_STEP;
             if (s_console_slide > target) s_console_slide = target;
@@ -1409,14 +1481,14 @@ void DbgOverlay_Render(void)
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the
      * K keyframe inspector is on. */
-    drawConsole = (s_console_slide > 0.0f && (s_console_count > 0 || g_PcConsoleInputActive));
+    drawConsole = (s_console_slide > 0.0f && (s_console_count > 0 || s_console_open));
     drawColl    = (s_coll_on && s_coll_count > 0);
     drawAnim    = (g_DebugAnimKfView && s_anim_count > 0);
 
     /* Toast: newest hidden-console line(s) (SH_DBG_ECHO only), fading out.
-     * Suppressed while the console panel itself is drawing / enabled. */
+     * Suppressed while the console panel itself is drawing / open. */
     drawToast = 0;
-    if (s_toast_count > 0 && !drawConsole && !(g_PcConfig.showConsole & 2)) {
+    if (s_toast_count > 0 && !drawConsole && !s_console_open) {
         Uint32 age = SDL_GetTicks() - s_toast_last_ms;
         if (age < TOAST_FADE_IN_MS)
             toastAlpha = (int)(255u * age / TOAST_FADE_IN_MS);
@@ -1466,12 +1538,26 @@ void DbgOverlay_Render(void)
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
 
     if (drawConsole) {
-        /* Top-left, sliding down from above the top edge. */
-        float x0 = -1.0f;
-        float y0 =  1.0f;
-        float x1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
-        float y1 = y0 - 2.0f * (float)(TEX_H * SCALE) / (float)vp[3];
-        float slideOfs = (1.0f - s_console_slide) * (y0 - y1);
+        /* Quake-style drop-down: full window width, ~3/4 of the window height
+         * (as many text rows as fit, capped by the texture), sliding down from
+         * above the top edge. */
+        int rowsFit = (int)((0.75f * (float)vp[3]) / (float)(GLYPH_H * SCALE)) - 1;
+        float usedRows, hNdc, x0, y0, x1, y1, slideOfs, tx1, tv1;
+
+        if (rowsFit < 4)               rowsFit = 4;
+        if (rowsFit > CONSOLE_VIS_MAX) rowsFit = CONSOLE_VIS_MAX;
+        if (rowsFit != s_vis_rows) {
+            s_vis_rows      = rowsFit;
+            s_console_dirty = 1;
+        }
+
+        usedRows = (float)(s_vis_rows + 1); /* + prompt row */
+        hNdc     = 2.0f * (usedRows * (float)(GLYPH_H * SCALE)) / (float)vp[3];
+        x0 = -1.0f;
+        x1 =  1.0f;
+        y0 =  1.0f;
+        y1 =  1.0f - hNdc;
+        slideOfs = (1.0f - s_console_slide) * hNdc;
         y0 += slideOfs;
         y1 += slideOfs;
 
@@ -1480,7 +1566,13 @@ void DbgOverlay_Render(void)
             overlay_update_texture();
             s_console_dirty = 0;
         }
-        draw_panel(s_tex, x0, y0, x1, y1);
+
+        /* Backdrop first (full width), then the text at its natural glyph
+         * scale, left-aligned, cropping the texture to the rows in use. */
+        draw_panel(s_bg_tex, x0, y0, x1, y1);
+        tx1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
+        tv1 = (usedRows * (float)GLYPH_H) / (float)TEX_H;
+        draw_panel_uv(s_tex, x0, y0, tx1, y1, 1.0f, tv1);
     }
 
     if (drawColl) {

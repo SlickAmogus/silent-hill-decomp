@@ -418,7 +418,7 @@ static const char* const DEBUG_PAGE1[] = {
     " '       collision visualizer panel",
     " K       keyframe inspector; , . scrub (hold = faster)",
     " [ / ]   drop A/B position markers into the log",
-    " ~       tap: console open/close, hold: command input",
+    " ~       console open/close (game pauses; PgUp/PgDn scroll)",
     "type DEBUG 2 for the camera keys",
 };
 
