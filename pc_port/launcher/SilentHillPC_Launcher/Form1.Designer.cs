@@ -64,7 +64,6 @@ partial class Form1
     private ComboBox comboFlash;
     private Label regionLabel;
     private ComboBox comboMap;
-    private CheckBox chkRandomizer;
     private ComboBox comboDisc;
     private Label lblDisc;
 
@@ -131,7 +130,6 @@ partial class Form1
             this.comboFlash = new System.Windows.Forms.ComboBox();
             this.regionLabel = new System.Windows.Forms.Label();
             this.comboMap = new System.Windows.Forms.ComboBox();
-            this.chkRandomizer = new System.Windows.Forms.CheckBox();
             this.comboDisc = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
@@ -142,6 +140,7 @@ partial class Form1
             this.btnReset = new System.Windows.Forms.Button();
             this.comboRefresh = new System.Windows.Forms.ComboBox();
             this.label1 = new System.Windows.Forms.Label();
+            this.chkRandomizer = new System.Windows.Forms.CheckBox();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -552,7 +551,7 @@ partial class Form1
             // aaLabel
             // 
             this.aaLabel.AutoSize = true;
-            this.aaLabel.Location = new System.Drawing.Point(8, 307);
+            this.aaLabel.Location = new System.Drawing.Point(9, 307);
             this.aaLabel.Name = "aaLabel";
             this.aaLabel.Size = new System.Drawing.Size(63, 13);
             this.aaLabel.TabIndex = 57;
@@ -574,7 +573,7 @@ partial class Form1
             // postLabel
             // 
             this.postLabel.AutoSize = true;
-            this.postLabel.Location = new System.Drawing.Point(8, 337);
+            this.postLabel.Location = new System.Drawing.Point(9, 337);
             this.postLabel.Name = "postLabel";
             this.postLabel.Size = new System.Drawing.Size(62, 13);
             this.postLabel.TabIndex = 59;
@@ -623,7 +622,7 @@ partial class Form1
             // flashLabel
             // 
             this.flashLabel.AutoSize = true;
-            this.flashLabel.Location = new System.Drawing.Point(8, 397);
+            this.flashLabel.Location = new System.Drawing.Point(9, 397);
             this.flashLabel.Name = "flashLabel";
             this.flashLabel.Size = new System.Drawing.Size(54, 13);
             this.flashLabel.TabIndex = 61;
@@ -645,7 +644,7 @@ partial class Form1
             // regionLabel
             // 
             this.regionLabel.AutoSize = true;
-            this.regionLabel.Location = new System.Drawing.Point(8, 426);
+            this.regionLabel.Location = new System.Drawing.Point(9, 426);
             this.regionLabel.Name = "regionLabel";
             this.regionLabel.Size = new System.Drawing.Size(63, 13);
             this.regionLabel.TabIndex = 62;
@@ -658,21 +657,11 @@ partial class Form1
             this.comboMap.DropDownWidth = 400;
             this.comboMap.Location = new System.Drawing.Point(247, 423);
             this.comboMap.Name = "comboMap";
-            this.comboMap.Size = new System.Drawing.Size(131, 21);
+            this.comboMap.Size = new System.Drawing.Size(165, 21);
             this.comboMap.TabIndex = 63;
-            //
-            // chkRandomizer
-            //
-            this.chkRandomizer.AutoSize = false;
-            this.chkRandomizer.Location = new System.Drawing.Point(386, 425);
-            this.chkRandomizer.Name = "chkRandomizer";
-            this.chkRandomizer.Size = new System.Drawing.Size(16, 17);
-            this.chkRandomizer.TabIndex = 66;
-            this.chkRandomizer.UseVisualStyleBackColor = true;
-            this.chkRandomizer.CheckedChanged += new System.EventHandler(this.chkRandomizer_CheckedChanged);
-            //
+            // 
             // comboDisc
-            //
+            // 
             this.comboDisc.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboDisc.DropDownWidth = 320;
             this.comboDisc.Location = new System.Drawing.Point(80, 423);
@@ -768,6 +757,15 @@ partial class Form1
             this.label1.TabIndex = 66;
             this.label1.Text = "Level:";
             // 
+            // chkRandomizer
+            // 
+            this.chkRandomizer.Location = new System.Drawing.Point(394, 425);
+            this.chkRandomizer.Name = "chkRandomizer";
+            this.chkRandomizer.Size = new System.Drawing.Size(16, 17);
+            this.chkRandomizer.TabIndex = 66;
+            this.chkRandomizer.UseVisualStyleBackColor = true;
+            this.chkRandomizer.CheckedChanged += new System.EventHandler(this.chkRandomizer_CheckedChanged);
+            // 
             // Form1
             // 
             this.ClientSize = new System.Drawing.Size(420, 500);
@@ -848,4 +846,5 @@ partial class Form1
     private Button btnReset;
     private ComboBox comboRefresh;
     private Label label1;
+    private CheckBox chkRandomizer;
 }
