@@ -95,6 +95,17 @@ s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera */
 
+/* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
+ * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
+ * follows the hover a fraction of a second later. But the underline's endpoints are
+ * statics inside the highlight draws, recomputed ONLY when that timer is 0 — so the
+ * bullet followed the mouse while the underline stayed where the keyboard left it.
+ *
+ * This asks the next highlight draw to recompute its endpoints once. Prev == Selected
+ * at that point, so from == to and the underline snaps to the row instead of sliding —
+ * which is the right behaviour for a pointer that is already there. */
+s32 g_PcOptions_HighlightSnap = 0;
+
 enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
@@ -407,6 +418,7 @@ void Options_PcOptionsMenu_Control(void)
                 if (row >= 0 && Pc_MouseCursor_Moved() && row != g_PcOptionsMenu_SelectedEntry) {
                     g_PcOptionsMenu_SelectedEntry     = row;
                     g_PcOptionsMenu_PrevSelectedEntry = row;
+                    g_PcOptions_HighlightSnap         = 1;
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 }
                 if (row >= 0 && row == g_PcOptionsMenu_SelectedEntry) {
@@ -610,7 +622,8 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     const s_PcOpt* tbl = PcOpt_Page(&count);
     mapRow = PcOpt_MapRow(tbl, count);
 
-    if (g_Options_SelectionHighlightTimer == 0) {
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap) {
+        g_PcOptions_HighlightSnap = 0;
         selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
         selectionHighlightFrom.vy = ((u16)PcOpt_DispLine(g_PcOptionsMenu_PrevSelectedEntry, mapRow) * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
@@ -956,6 +969,7 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
                 {
                     g_ExtraOptionsMenu_SelectedEntry     = row;
                     g_ExtraOptionsMenu_PrevSelectedEntry = row;
+                    g_PcOptions_HighlightSnap            = 1;
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 }
                 if (row >= 0 && row == g_ExtraOptionsMenu_SelectedEntry)
@@ -1223,6 +1237,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             {
                 g_MainOptionsMenu_SelectedEntry     = row;
                 g_MainOptionsMenu_PrevSelectedEntry = row;
+                g_PcOptions_HighlightSnap           = 1;
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
             }
 
@@ -1833,8 +1848,15 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
     };
 
     // Set active selection highlight position references.
+#ifdef SH_PC_PORT
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
+#else
     if (g_Options_SelectionHighlightTimer == 0)
+#endif
     {
+#ifdef SH_PC_PORT
+        g_PcOptions_HighlightSnap = 0;
+#endif
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_ExtraOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
@@ -1929,8 +1951,15 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
     };
 
     // Set active selection highlight position references.
+#ifdef SH_PC_PORT
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
+#else
     if (g_Options_SelectionHighlightTimer == 0)
+#endif
     {
+#ifdef SH_PC_PORT
+        g_PcOptions_HighlightSnap = 0;
+#endif
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO

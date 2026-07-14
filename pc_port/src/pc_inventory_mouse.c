@@ -66,6 +66,11 @@ static const s_InvBox INV_BOX_CMD      = {  45, -204, 146, -68 };
 #define INV_SLOT_MIN (-3)
 #define INV_SLOT_MAX 3
 
+/* "Pointer is not over the carousel". NOT NO_VALUE: that is -1, which is a real
+ * slot here (the item immediately left of centre), so using it as the miss
+ * sentinel made exactly that one slot unclickable. */
+#define INV_SLOT_NONE (-99)
+
 /* Upper X bound of each band, walking left to right; index i is offset i-3. */
 static const s16 INV_SLOT_BAND_MAX[7] = { -101, -80, -31, 31, 80, 101, 160 };
 
@@ -170,14 +175,14 @@ static float Inv_CarouselXScale(void)
     return psxAspect / dispAspect;
 }
 
-/* Visible carousel offset (-3..+3) under the pointer, or NO_VALUE. */
+/* Visible carousel offset (-3..+3) under the pointer, or INV_SLOT_NONE. */
 static s32 Inv_CarouselSlotAt(s32 x, s32 y)
 {
     float scale;
     s32   i;
 
     if (y < INV_BOX_ITEM.y0 || y > INV_BOX_ITEM.y1)
-        return NO_VALUE;
+        return INV_SLOT_NONE;
 
     scale = Inv_CarouselXScale();
 
@@ -297,7 +302,7 @@ void Pc_Inventory_MouseUpdate(void)
      * bands and resolve to the same one-step scroll, so they need no case. */
     {
         s32 slot = Inv_CarouselSlotAt(x, y);
-        if (slot != NO_VALUE)
+        if (slot != INV_SLOT_NONE)
         {
             if (Pc_MouseCursor_Moved() || clicked || wheel)
                 Inv_SnapSelection(InventorySelectionId_Item);
