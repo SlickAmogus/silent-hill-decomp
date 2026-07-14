@@ -1,16 +1,14 @@
-# Silent Hill FMV File Table
+# FMV and XA stream files
 
-Silent Hill (PSX) stores all 21 of its FMVs on the disc as raw MDEC video
-streams interleaved with XA audio. To get them onto the PC port, extract
-them with **jPSXdec** (https://github.com/m35/jpsxdec/releases/tag/v2.0)
-and drop them into `gamedata/FMV/`.
+> **Status — Supporting reference.** Current media capability is summarized in the [feature catalog](../../features.md); console playback and skip controls are in the [canonical operational reference](Console_And_Debug_Reference.md). See also the [documentation index](README.md).
 
-jPSXdec lists every stream as `HILL[xxx]`. Match them to the table below
-in disc order — the first video stream is `C1_20670`, second is
-`C2_20670`, etc. Save each AVI with the base filename in the second
-column (e.g. `C1_20670.avi`). The PC port will pick those up
-automatically as overrides; without them it decodes the original
-streams straight from the BIN.
+The disc table contains **30 streams**: nine XA-only voice entries and 21 STR/MDEC movies with interleaved XA audio. The port plays them directly from the selected region's BIN. For movie overrides, extract with [jPSXdec](https://github.com/m35/jpsxdec/releases/tag/v2.0), match disc order to the table below, and save the AVI under its base filename:
+
+```text
+gamedata/fmv/<base filename>.avi
+```
+
+For example, use `gamedata/fmv/C1_20670.avi`. Missing or unsupported overrides fall back to the original BIN stream.
 
 ## Stream table
 
@@ -58,9 +56,9 @@ filename.
 ## Pre-extracted XA-only streams (2044–2052)
 
 The first nine entries are audio-only XA streams for in-game voice
-playback (Cybil's dialogue, hospital diaries, etc.), not video. The PC
-port reads these directly from the BIN; there's no need to extract them
-unless you want to replace them.
+playback (Cybil's dialogue, hospital diaries, etc.), not video or AVI
+override slots. The port reads them directly from the BIN. The `fmv`
+console command lists only the 21 movie entries.
 
 ## What happens without the AVIs
 

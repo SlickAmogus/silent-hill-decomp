@@ -1,154 +1,82 @@
-# Silent Hill PC Port — Controls
+# Controls and binding configuration
 
-Two layers of input:
+> **Status — Supporting reference.** Current default controls, global/graphics keys, and debug gates are canonical in [Console, controls, and debug reference](Console_And_Debug_Reference.md). Capability and setting status is in the [feature catalog](../../features.md); see also the [documentation index](README.md).
 
-1. **PSX controller emulation** (`pc_port/PsyCross/src/PsyX_main.cpp`,
-   `PsyX_Sys_InitialiseInput`). Maps SDL keyboard scancodes to PSX
-   controller buttons, then game code reads PSX buttons via
-   `g_Controller0->btnsHeld_C` — same code path as the original game.
-2. **PC-only direct polling** (`src/bodyprog/sys/game_main.c` debug
-   block, `src/bodyprog/player_control.c` PC port shim). Reads SDL
-   keyboard / mouse state directly without going through the PSX
-   button layer. Used for debug toys and the third-person camera mode.
+## Input model
 
----
+Gameplay actions still enter the original PSX button path. PC code adds camera look, global actions, graphics controls, console input, mouse UI, and gated developer tools.
 
-## Gameplay (PSX controller emulation)
+Two configurable schemes serve four styles:
 
-Mapped at `PsyX_main.cpp:243-262`, then routed to in-game functions
-via the controller config table at `src/bodyprog/sys/settings_reset.c`
-(USA default config 0).
+| Style | Scheme | Status | Behavior |
+|---|---|---|---|
+| Classic | Classic | I; default | Fixed-camera tank movement and original scene cameras. |
+| TPS | Alternate | E | Third-person orbit camera and shooter-style movement. |
+| OTS | Alternate | E | TPS behavior with shoulder offset and a shoulder-swap action. |
+| FPS | Alternate | E | First-person view, separate FOV/beam values, and optional head tracking. |
 
-| Keyboard | PSX Button | In-Game Function |
-|----------|-----------|------------------|
-| **C** | Cross | Action / Fire / Confirm |
-| **V** | Circle | Cancel / Flashlight |
-| **X** | Square | Cancel / Run |
-| **Z** | Triangle | Cancel / Map screen |
-| **A** | L1 | Sidestep Left |
-| **D** | R1 | Sidestep Right |
-| **RSHIFT** | L2 | View (camera) |
-| **LSHIFT** | R2 | Aim |
-| **[** | L3 | (unused) |
-| **]** | R3 | (unused) |
-| **↑ ↓ ← →** | D-Pad | Movement |
-| **SPACE** | Select | Inventory menu |
-| **ENTER** | Start | Pause / Skip / Confirm |
+F9 or the configured pad button cycles Classic → TPS → OTS → FPS during settled gameplay and saves `control_style`. This is not debug-gated. Menus temporarily use Classic bindings; returning to gameplay restores the selected scheme. `control_2d = 1` adds experimental screen-relative movement to Classic/TPS/OTS, not FPS.
 
-### Why aim is on LSHIFT, not RCTRL
+## Default action bindings
 
-`SDL_SCANCODE_RCTRL` never reached `btnsHeld_C` on the test Win11
-machine even though `SDL_SCANCODE_C` worked fine. Sidestep got moved
-off LSHIFT/RSHIFT to A/D so the SHIFT pair could take over the
-L2/R2 slots. See `pc-port` commit history for the diagnostic trail.
+Each action supports primary and secondary keyboard-or-mouse and controller binds. Secondary binds are unbound except the alternate scheme's Action/Fire alternatives.
 
----
+| Action / config stem | Classic keyboard · pad | Alternate keyboard · pad |
+|---|---|---|
+| Up / Down (`up`, `down`) | Up / Down · stick/D-pad | W / S · stick/D-pad |
+| Left / Right (`left`, `right`) | Left / Right · stick/D-pad | Left / Right · stick/D-pad |
+| Action/Fire (`cross`) | C · A | Mouse1 · RT; secondary E · A |
+| Flashlight/Cancel (`circle`) | V · B | F · B |
+| Map (`triangle`) | Z · Y | Tab · Y |
+| Run (`square`) | X · X | Left Shift · LB |
+| Sidestep (`l1`, `r1`) | A / D · LB / RB | A / D · unbound |
+| View (`l2`) | Right Shift · LT | unbound |
+| Aim (`r2`) | Left Shift · RT | Mouse2 · LT |
+| Stick clicks (`l3`, `r3`) | unbound · LS / RS | unbound · LS / RS |
+| Start / Select | Return / Space · Start / Back | Return / Space · Start / Back |
 
-## Third-person camera mode (TPS)
+Base keys such as `key_cross` and `pad_cross` configure Classic. Add `_altcam` for TPS/OTS/FPS and `_2` before that suffix for a secondary bind: for example, `key_cross_2_altcam`. `NONE` unbinds an action. Keyboard values use SDL key names or `Mouse1` through `Mouse5`; controller values use SDL game-controller names. Controller movement directions remain fixed; `controller_movement = analog|dpad|both` selects their source.
 
-Toggle: **Numpad 2** captures/releases the mouse.
+The launcher edits both schemes for displayed movement and ten PSX action buttons; L3/R3 remain config-only. `movement_original = 1` keeps the original PSX lower-body movement; `0` selects the legacy PC shim. `altcam_button_sprint = 0` allows a near-full stick push to sprint; `1` requires the Run action.
 
-When TPS mode is active, `game_main.c` direct-polls these in addition
-to the PSX-controller path:
+## Global bindings
 
-| Input | Function |
-|-------|----------|
-| **W / A / S / D** | Forward / strafe-left / back / strafe-right (body-relative to camera yaw) |
-| **LSHIFT** | Run *(also = aim — no conflict in practice; aim shim ignores run)* |
-| **Mouse motion** | Camera yaw + pitch |
-| **RMB** | Aim *(same effect as LSHIFT)* |
-| **LMB** | Fire *(same effect as C)* |
+| Config key | Default | Scope |
+|---|---|---|
+| `key_quicksave` | F6 | Open original save screen during settled gameplay. |
+| `key_quickload` | F8 | Open original load screen during settled gameplay. |
+| `key_change_cam` / `pad_change_cam` | F9 / rightstick | Cycle and save the four styles during settled gameplay. |
+| `key_swap_shoulder` | Mouse3 | Swap OTS shoulder during gameplay. |
+| `key_console` | `` ` `` | Toggle overlay+input; requires `allow_debug_controls = 1`. |
+| `key_gfx_cycle` | `\` | Select the next enabled live effect value. |
+| `key_gfx_prev` / `key_gfx_next` | `[` / `]` | Lower/raise the selected effect. Mouse-wheel names are also accepted. |
+| `key_exit_game` | Escape | Quit at title; otherwise return to title. |
 
-Outside TPS mode, mouse buttons are ignored.
+F6/F8 are rebindable, edge-triggered, and not debug-gated. They work only in settled gameplay with console input closed. They load the normal save/load assets and enter the original screens; neither is a snapshot operation.
 
-Top-row **6** logs a `[TPS-SNAP]` entry capturing camera + Harry pose
-(only valid in TPS mode). Top-row **7/8/9/0** log preset-pose entries
-for tuning the body-tracks-camera math.
+Backspace is a fixed settled-gameplay toggle for the alternate-style crosshair setting; it changes only the live session value. FMV skip uses fixed Return, Escape, Space, or the pad skip action after the inputs have first been released.
 
----
+## Mouse cursor quality of life
 
-## PC-only debug keys
+`mouse_cursor = 1` by default. It operates only while the OS pointer is free:
 
-Live in `game_main.c` debug-input block. No effect on stock-PSX
-behavior.
+- hover/click on title and difficulty menus;
+- hover/click/wheel/right-click in Options and PC Options;
+- save/load list, scroll, button, and confirmation interaction;
+- cursor puzzles such as piano, plate, door panels, alert door, and map pan.
 
-| Key | Function |
-|-----|----------|
-| **`** (backtick) | Console toggle |
-| **Top-row 1** | Kill Harry (set `health = -Q12(1.0)`) |
-| **Top-row 4** | Tag camera coords to log as `BAD CAMERA POSITION` |
-| **Top-row 5** | Tag camera coords to log as `GOOD CAMERA POSITION` |
-| **Top-row 6** | TPS camera state snapshot *(TPS mode only)* |
-| **Top-row 7/8/9/0** | TPS preset-pose loggers |
+TPS/OTS/FPS normally capture the mouse for camera look, so menu cursor input is inert there. Menus release capture, and a cursor puzzle temporarily releases it regardless of style. The mouse injects the same controller flags the original screen reads, preserving each screen's stock state and sound logic.
 
-Top-row 4/5 work in **all camera modes** (normal, debug, TPS) and dump
-position + lookAt + yaw + pitch to the log so you can compare a wrong
-camera position against a corrected one.
+## Developer-control status
 
----
+`allow_debug_controls = 0` by default. Enabling it gates the console, cheats, collision panel, free camera, FPS eye tuner, and animation inspector. It does not gate F1–F4 graphics controls, F6/F8 save/load, F9 style cycling, or normal camera behavior.
 
-## Cameras
+Do not use the built-in `debug` pages as a binding reference: their Num2, Num0, Num/, normal-camera-nudge, and bracket-marker lines are stale. The current debug tables and disabled bindings are maintained only in the [canonical operational reference](Console_And_Debug_Reference.md#debug-and-cheat-keys); console commands are also documented only there.
 
-There are **three** camera modes; the active one depends on which
-toggles you've pressed:
+## Source pointers
 
-1. **Normal scene camera** — the game's road-data / cutscene camera.
-   This is what runs by default.
-2. **Free-fly debug camera** — toggled by Numpad `*`. Disconnects
-   from scene logic so you can fly around. Keeps Harry stationary.
-3. **TPS follow camera** — toggled by Numpad `2`. Spherical orbit
-   tracking Harry. Mouse-look + WASD body-relative movement.
-
-### Common bindings
-
-These work in **normal cam** and **debug cam** (both use the same
-keys with parallel meaning):
-
-| Numpad | Normal cam (nudge) | Debug cam (free-fly) |
-|--------|--------------------|--------------------|
-| **8 / 5** | Forward / back (cam-relative XZ) | Forward / back |
-| **4 / 6** | Strafe left / right | Strafe left / right |
-| **7 / 9** | Turn left / right (yaw) | Turn left / right (yaw) |
-| **+ / -** | Tilt up / down (pitch) | Tilt up / down (pitch) |
-| **/** | Print camera coords to log | Print camera coords to log |
-| **PageUp / PageDown** | Vertical Y (up / down) | Vertical Y (up / down) |
-
-### Normal-cam-specific
-
-| Key | Function |
-|-----|----------|
-| **Numpad 3** | Reset nudge accumulator — snaps the camera back to the scene's default position |
-
-The normal cam "nudge" system *adds* offsets on top of whatever the
-game's camera logic produces. Pressing Numpad 3 zeroes the nudges and
-the cam returns to its scene-driven position.
-
-### Debug-cam-specific
-
-| Key | Function |
-|-----|----------|
-| **Numpad `*`** | Toggle free-fly debug cam on/off |
-| **Numpad 1** | Toggle wall collision |
-| **Numpad .** | Toggle fog on/off (only when debug cam is active) |
-| **Numpad 0** | Cycle to next map overlay (DLL maps) |
-
-Wall collision and fog toggles are scoped to debug cam so they don't
-interfere with normal play.
-
-### What's *not* available
-
-- **No pitch dial in TPS mode** — pitch is mouse-only there. The
-  numpad keys are claimed by the normal-cam nudge or the debug cam.
-- **No roll** in any cam — Silent Hill never rolls.
-- **No FOV adjust** — bound to the scene's projection matrix.
-
----
-
-## File pointers
-
-- Keyboard → PSX-button mapping: `pc_port/PsyCross/src/PsyX_main.cpp` `PsyX_Sys_InitialiseInput()`
-- PSX-button → in-game function: `src/bodyprog/sys/settings_reset.c` `Settings_RestoreControlDefaults()`
-- TPS direct-poll (WASD / mouse): `src/bodyprog/sys/game_main.c` (search for `g_DebugThirdPersonCam`)
-- TPS aim/fire mouse polling: `src/bodyprog/player_control.c` (search for `SDL_BUTTON_RIGHT`)
-- Normal-cam nudge state + handlers: `src/bodyprog/sys/game_main.c` (search for `g_PcCamNudge`)
-- Debug key handlers: `src/bodyprog/sys/game_main.c` (search for `[DEBUG]`)
+- Schemes/defaults/parser: `pc_port/src/pc_config.c`
+- Style cycle, menu scheme, capture, shoulder: `pc_port/src/control_style.c`
+- Save/load screen hotkeys: `pc_port/src/pc_quicksave.c`
+- Mouse UI and puzzles: `pc_port/src/pc_mouse_cursor.c`, `pc_port/include/pc_mouse_cursor.h`
+- Debug and camera tools: `src/bodyprog/sys/game_main.c`
