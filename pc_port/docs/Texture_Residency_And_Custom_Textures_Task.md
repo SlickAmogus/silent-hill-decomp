@@ -1,5 +1,7 @@
 # Texture Residency + Custom Textures (PNG) — Task Spec
 
+> **Status — Audit/status report.** Current source has resident textures and texture packs enabled by default; loose TIM/PNG overrides remain opt-in and experimental. Pre-implementation statements below are historical. See the [feature catalog](../../features.md) and [documentation index](README.md).
+
 Status: **IMPLEMENTED 2026-07-08 — awaiting in-game verification.**
 - Phase 0 landed: game `b08927245` + PsyCross `7ffe8b9` (PNG/TIM overrides render; stb_image
   vendored; PNG discovery; draw-time wiring with u_texOffset + alpha discard).

@@ -1,10 +1,12 @@
 # PGXP Implementation Plan & Research
 
-Status of this doc: **PROPOSAL — awaiting approval.** Nothing implemented yet.
+> **Status — Historical/superseded plan.** PGXP is now runtime-effective, experimental, and default off. `USE_PGXP=0` is vestigial; current GTE/GPU/shader paths are built unconditionally and runtime-gated. See the [feature catalog](../../features.md), [operational reference](Console_And_Debug_Reference.md), and [documentation index](README.md).
+
+Original status of this plan: **PROPOSAL — awaiting approval.** Nothing was implemented in that snapshot.
 
 ---
 
-## 1. Executive summary / current real status
+## 1. Historical snapshot at the time of this plan
 
 PGXP in our tree is **scaffolding only — not functionally implemented.** The
 float-precision framework an earlier session built (GTE float twins

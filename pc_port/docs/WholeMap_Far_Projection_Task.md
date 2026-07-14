@@ -1,5 +1,7 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
+> **Status — Audit/status report (E).** The v2 scenic redesign is implemented and awaits in-game testing. Its current design appears first; the later “Original spec” section is retained as superseded history. See the [feature catalog](../../features.md) and [documentation index](README.md).
+
 Status: **v2 SCENIC REDESIGN 2026-07-13 (awaiting in-game test).**
 The v1 build system-crashed on 2026-07-12: the user loaded a save INSIDE the
 Levin Street house with a hi-res texture pack enabled; the machine hard-hung

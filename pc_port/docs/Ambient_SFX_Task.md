@@ -1,5 +1,7 @@
 # Missing Ambient SFX (Rain / Water) — Task Spec
 
+> **Status — Audit/status report.** The documented fixes landed but still await in-game coverage. Current audio capability is summarized in the [feature catalog](../../features.md); see also the [documentation index](README.md).
+
 Status: **AUDIT COMPLETE 2026-07-09 — fixes landed, awaiting in-game test.**
 23-map multi-agent sweep + byte-level verification done; see "Findings" below.
 Prepared 2026-07-09.

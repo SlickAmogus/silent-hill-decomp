@@ -1,5 +1,7 @@
 # TASK: "2D control" (screen-relative movement) as an alt-cam control style
 
+> **Status — Historical/superseded task plan.** Experimental 2D screen-relative controls are implemented, default off, and exposed in PC Options. See the [feature catalog](../../features.md), [current controls](Console_And_Debug_Reference.md), and [documentation index](README.md). The design below is retained as rationale.
+
 Prepared 2026-07-02 for a fresh-context session. Goal: add a Silent-Hill-2-mod-style
 **2D control mode** (screen/camera-relative 8-way movement) as an *optional* control
 style, and analyze whether our existing camera styles should optionally behave like

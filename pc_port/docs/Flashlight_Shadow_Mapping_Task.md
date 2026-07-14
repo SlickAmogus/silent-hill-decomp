@@ -1,5 +1,7 @@
 # TASK: Real flashlight shadow mapping (monster shadows cast by the beam)
 
+> **Status — Historical/superseded implementation plan.** Real-time flashlight shadows are implemented in the current four-mode flashlight system. See the [feature catalog](../../features.md), [operational reference](Console_And_Debug_Reference.md), and [documentation index](README.md). The plan remains as implementation and tuning history.
+
 Prepared 2026-07-03 for a focused session. Goal: monsters (and world geometry)
 cast **real dynamic shadows** from the flashlight beam, integrated with the
 existing per-pixel flashlight cone. User picked this over cheap blob shadows.

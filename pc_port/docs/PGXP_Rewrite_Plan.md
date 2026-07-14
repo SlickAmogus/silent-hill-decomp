@@ -1,6 +1,8 @@
 # PGXP Complete Rewrite — Shadow-Memory Model (DuckStation-faithful)
 
-**Status:** PLANNED. Self-contained spec — execute from a fresh context.
+> **Status — Historical/superseded plan.** Runtime PGXP is implemented as an **E** feature and defaults off; this proposed rewrite is not current status. See the [feature catalog](../../features.md), [operational reference](Console_And_Debug_Reference.md), and [documentation index](README.md). The analysis below is retained as design history.
+
+**Original status:** PLANNED. Self-contained spec — execute from a fresh context.
 **Goal:** Replace the entire home-grown PGXP matching (address map + per-prim parked
 set + (x,y) ring + closest-(x,y) + slot-index + weld) with one deterministic
 shadow-memory model, faithful to DuckStation. Result: characters and environment

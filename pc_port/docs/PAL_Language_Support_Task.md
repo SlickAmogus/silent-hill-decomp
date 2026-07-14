@@ -1,5 +1,7 @@
 # PAL Support: Fonts/Text, Languages, Launcher — Status & Reference
 
+> **Status — Audit/status report.** PAL localization is implemented but partial and still needs in-game coverage; this source audit is not a customer guide. See the [feature catalog](../../features.md) and [documentation index](README.md).
+
 Status: **IMPLEMENTED 2026-07-08 — awaiting in-game PAL testing.**
 Read alongside memory `[[project_pal_eur_support]]`.
 Implemented across commits: `52582ca4b` (launcher/config), `33b74e812`

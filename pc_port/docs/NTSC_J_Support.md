@@ -1,5 +1,7 @@
 # NTSC-J (Japanese) Support
 
+> **Status — Supporting reference (E).** NTSC-J Rev1/2 are supported with partial Japanese text handling. JAP0 is detected and warned about, then proceeds with incompatible Rev1/2 tables. See the [feature catalog](../../features.md) and [documentation index](README.md).
+
 Implemented 2026-07-10 (commits `4af7db1c7` phase 1, `1ac340612` phase 2),
 following the PAL "versions-are-data" model: one executable, runtime region
 tables, no `#ifdef` region forks in game code.

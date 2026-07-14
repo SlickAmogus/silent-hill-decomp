@@ -1,16 +1,18 @@
 # XA Audio Implementation Research
 
+> **Status — Historical/superseded research.** The current port plays 4-bit XA voice streams and STR/MDEC movie audio directly from the disc image; pre-extracted XA files are not required. See the [feature catalog](../features.md), [FMV reference](docs/fmv_files.md), and [documentation index](docs/README.md). The research below preserves the original implementation rationale.
+
 ## Overview
-XA (eXtended Audio) on PSX: CD audio format for voice/dialogue. 
+XA (eXtended Audio) on PSX: CD audio format for voice/dialogue.
 - Compressed with ADPCM (4-bit or 8-bit)
 - 18.9kHz or 37.8kHz sample rates
 - Mono or Stereo
 - Delivered as sectors on CD (2352 bytes/sector)
 
-## Current Silent Hill PC Port Status
-- **PC port currently**: SKIPS all XA playback (sd_call.c line 140-142)
-- **Game expects**: Voice lines + dialogue during cutscenes + in-game dialogue
-- **Raw files available**: C:\Claude\silenthill\disc_extract\XA\ (30 files, ~150MB total)
+## Historical PC-port status when this research was written
+- **PC port at that time**: skipped all XA playback (`sd_call.c` lines 140–142)
+- **Game expected**: voice lines and dialogue during cutscenes and gameplay
+- **Raw files used by that investigation**: 30 files, about 150 MB total
 
 ## PSX Game-Side Architecture
 Game calls:

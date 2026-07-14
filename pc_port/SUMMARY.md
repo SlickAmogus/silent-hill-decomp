@@ -1,5 +1,7 @@
 # Silent Hill PC Port - Technical Analysis
 
+> **Status — Non-authoritative technical snapshot.** This analysis is retained for context, not current feature status. The current port has 43 map registry names (one built in and 42 optional modules), original BIN STR/XA playback plus AVI overrides, configured FPS caps, and working PsyCross MCD save/load. See the [feature catalog](../features.md) and [documentation index](docs/README.md).
+
 ## Overview
 
 This project is an **experimental PC port** of the original Silent Hill (1999) PlayStation game. It is built on top of the PSX decompilation project and uses **PsyCross** as a hardware abstraction layer (SDL2 + OpenGL + OpenAL). The port enables the game to run natively on PC with enhanced features like high resolution, 16:9 aspect ratio, high refresh rates, and uncapped framerates.

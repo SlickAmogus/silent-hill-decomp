@@ -1,5 +1,7 @@
 # Graphics Effects — Feasibility Study (PsyCross renderer)
 
+> **Status — Historical/superseded feasibility snapshot.** MSAA, nine post-process looks, four tone maps, and modern flashlight paths now exist; the “no implementation” baseline below is historical. See the [feature catalog](../../features.md), [operational reference](Console_And_Debug_Reference.md), and [documentation index](README.md).
+
 Research note (no implementation). Assesses adding optional graphical effects to the
 Silent Hill PC port's PsyCross OpenGL renderer. All paths relative to
 `pc_port/PsyCross/` unless noted.

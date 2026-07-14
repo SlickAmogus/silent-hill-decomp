@@ -1,9 +1,8 @@
 # Doorway Randomizer Mode — Design & Effort Analysis
 
-> Status: **SCOPING ONLY — not implemented.** This doc seeds a future clean session.
-> Produced 2026-06-24 from two read-only investigations of the transition/map-load
-> system and the enemy/item spawn system. File:line refs are starting points; the
-> implementing session should re-verify against current code.
+> **Status — Historical/superseded scoping plan.** Randomizer mode is **D: not implemented**. See the [feature catalog](../../features.md) and [documentation index](README.md). The investigation below is retained for possible future work; re-verify its source references before implementation.
+
+Produced 2026-06-24 from read-only transition/map-load and enemy/item-spawn investigations.
 
 ## 1. The mode (goal)
 

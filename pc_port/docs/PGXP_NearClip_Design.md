@@ -1,5 +1,7 @@
 # PGXP Near-Plane Clipping — Design (2026-07-06)
 
+> **Status — Supporting reference.** PGXP near-plane clipping is implemented, runtime-gated with PGXP, and defaults on within that experimental path. Use `pgxpnearclip` and `pgxpnearz`; see the [feature catalog](../../features.md), [operational reference](Console_And_Debug_Reference.md), and [documentation index](README.md). The design below records its rationale.
+
 ## Symptom
 
 With PGXP on, geometry very close to the camera warps/smears like affine mapping
