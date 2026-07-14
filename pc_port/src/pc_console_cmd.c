@@ -27,6 +27,8 @@
 #include "bodyprog/savegame.h"
 #include "bodyprog/item_screens.h" /* GameEndingFlag_Ufo (HyperBlaster give-unlock) */
 #include "bodyprog/screen/screen_fade.h"
+#include "bodyprog/sound/sound_system.h" /* AMBSFX sweep: s_VabInfo / Sd_PlaySfx */
+#include "bodyprog/sound/sfx_id_enum.h"
 #include "sh_log.h"
 #include "map_registry.h"
 #include "dbg_overlay.h"
@@ -751,6 +753,74 @@ static void cmd_spawn(const char* arg)
            g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL);
 }
 
+/* TEMP diagnostic (sewer-drip hunt): play samples from the currently-resident
+ * ambient VAB (SPU slot 2). Must be run while IN the map whose ambient bank you
+ * want to hear (e.g. the sewers). Slot-2 SFX ids each map to a (program, note) of
+ * that bank via g_Vab_InfoTable, so sweeping them plays every ambient sample.
+ *   AMBSFX          - play the NEXT slot-2 ambient id, print its id/prog/tone/note
+ *   AMBSFX <n>      - play a specific id (n>=1280) or index (n<1280 -> +1280)
+ *   AMBSFX PROG <p> - restart the sweep at the first id of program p
+ *   AMBSFX STOP     - stop all SFX (silence a stuck loop) */
+static void cmd_ambsfx(const char* arg)
+{
+    extern s_VabInfo g_Vab_InfoTable[];
+    extern u8        Sd_PlaySfx(u16 sfxId, s8 balance, u8 vol);
+    extern void      SD_Call(u32 cmd);
+
+    static s16 s_id = -1;
+    s16        id;
+    u16        vp;
+
+    if (strcmp(arg, "STOP") == 0) {
+        SD_Call(16); /* Sd_AllSfxStop + Sd_LastSfxStop */
+        cprintf("ambsfx: stopped");
+        return;
+    }
+
+    /* ALL <p> — key EVERY slot-2 id of program p at once, so a multi-pitch drip
+     * bank plays layered (what the sewer ambience actually sounds like). */
+    if (strncmp(arg, "ALL", 3) == 0) {
+        int p = atoi(arg + 3);
+        int n = 0;
+        for (id = (s16)Sfx_Base; id < (s16)(Sfx_Base + 420); id++) {
+            vp = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+            if ((vp >> 8) == 2 && (int)(vp & 0xFF) == p) {
+                Sd_PlaySfx((u16)id, 0, 0);
+                n++;
+            }
+        }
+        cprintf("ambsfx: keyed %d ids of prog %d", n, p);
+        SH_DBG("[DRIPSWEEP] ALL prog=%d keyed=%d", p, n);
+        return;
+    }
+
+    if (arg[0] >= '0' && arg[0] <= '9') {
+        id = (s16)atoi(arg);
+        if (id < Sfx_Base) id = (s16)(id + Sfx_Base);
+    } else {
+        int want_prog = -1;
+        if (strncmp(arg, "PROG", 4) == 0) { want_prog = atoi(arg + 4); s_id = -1; }
+        id = (s_id < 0) ? (s16)Sfx_Base : (s16)(s_id + 1);
+        while (id < (s16)(Sfx_Base + 420)) {
+            vp = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+            if ((vp >> 8) == 2 && (want_prog < 0 || (int)(vp & 0xFF) == want_prog))
+                break;
+            id++;
+        }
+        if (id >= (s16)(Sfx_Base + 420)) { s_id = -1; cprintf("ambsfx: end (wrapped)"); return; }
+    }
+
+    s_id = id;
+    vp   = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+    Sd_PlaySfx((u16)id, 0, 0);
+    cprintf("ambsfx id=%d slot=%d prog=%d tone=%d note=%d", id, vp >> 8, vp & 0xFF,
+            g_Vab_InfoTable[id - Sfx_Base].audioVabIdx,
+            g_Vab_InfoTable[id - Sfx_Base].noteIdx_4);
+    SH_DBG("[DRIPSWEEP] AMBSFX id=%d slot=%d prog=%d tone=%d note=%d", id, vp >> 8, vp & 0xFF,
+           g_Vab_InfoTable[id - Sfx_Base].audioVabIdx,
+           g_Vab_InfoTable[id - Sfx_Base].noteIdx_4);
+}
+
 void Pc_ConsoleExec(const char* line)
 {
     char cmd[48];
@@ -791,6 +861,8 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
         else
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
+    } else if (strcmp(cmd, "AMBSFX") == 0) {
+        cmd_ambsfx(arg);
     } else if (strcmp(cmd, "MAP") == 0) {
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
@@ -1058,6 +1130,54 @@ void Pc_ConsoleExec(const char* line)
         }
         cprintf("first-person FOV %.1f deg (67.4 = original; applies in FPS gameplay only)",
                 g_PcConfig.fpsFov);
+    } else if (strcmp(cmd, "TPSFOV") == 0) {
+        /* Thirdperson / Over-the-Shoulder FOV. Same value as the launcher slider;
+         * persists to config.cfg. The Classic cameras are never affected. */
+        if (arg[0] != '\0') {
+            float v;
+            if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "default") == 0)
+                v = 71.1f;
+            else
+                v = (float)atof(arg);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.tpsFov = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("tps_fov", buf);
+            }
+        }
+        cprintf("thirdperson FOV %.1f deg (71.1 = the game's own FOV; applies in TPS/OTS gameplay only)",
+                g_PcConfig.tpsFov);
+    } else if (strcmp(cmd, "TPSAIMZOOM") == 0) {
+        /* How far the TPS/OTS camera dollies in while aiming, 0-100% of the full
+         * zoom. 0 = no zoom (what the old tps_aim_zoom = 0 checkbox did). */
+        if (arg[0] != '\0') {
+            float v = (float)atof(arg);
+            if (v < 0.0f)   v = 0.0f;
+            if (v > 100.0f) v = 100.0f;
+            g_PcConfig.tpsAimZoom = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.0f", v);
+                PcConfig_SaveKeyValue("tps_aim_zoom_amount", buf);
+            }
+        }
+        cprintf("TPS/OTS aim zoom %.0f%% (100 = original full zoom, 0 = none)",
+                g_PcConfig.tpsAimZoom);
+    } else if (strcmp(cmd, "TPSOTSAIM") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.tpsOtsAim;
+        g_PcConfig.tpsOtsAim = on;
+        PcConfig_SaveKeyValue("tps_ots_aim", on ? "1" : "0");
+        cprintf("OTS aiming in thirdperson %s (default on; camera eases over the shoulder while aiming)",
+                on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "CAMCOLLIDE") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.tpsCameraCollision;
+        g_PcConfig.tpsCameraCollision = on;
+        PcConfig_SaveKeyValue("tps_camera_collision", on ? "1" : "0");
+        cprintf("thirdperson camera collision %s (off = the camera may pass through walls)",
+                on ? "ON" : "OFF");
     } else if (strcmp(cmd, "REVSCALE") == 0) {
         extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
         extern float PsyX_SPUAL_GetReverbDepthScale(void);
