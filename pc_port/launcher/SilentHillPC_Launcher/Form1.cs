@@ -15,15 +15,65 @@ public partial class Form1 : Form
 {
     private ConfigManager config;
 
-    // Detected discs (filled by CheckDiscImage) and the region id behind each
-    // comboRegion entry. Region ids are the config `region` values the game
-    // parses (usa/pal; jap is recognized but not playable yet). PAL text
-    // language stays a config-only key (`language = en/de/fr/es/it`).
+    // Detected discs (filled by CheckDiscImage). The Disc dropdown is the
+    // whole disc UI now — region comes from each image's boot serial, and
+    // the `region` config key is only honored as a hand-set auto-pick
+    // preference. PAL text language stays a config-only key
+    // (`language = en/de/fr/es/it`).
     private List<DiscProbe.Disc> _discs = new List<DiscProbe.Disc>();
-    private readonly List<string> _regionIds = new List<string>();
-    // comboDisc entry -> config `disc_image` value ("" = auto pick by region).
+    // comboDisc entry -> config `disc_image` value ("" = auto pick).
     private readonly List<string> _discIds = new List<string>();
     private bool _regionUiUpdating;
+
+    // Level select (comboMap): map overlay id -> friendly name. Canonical
+    // names from the upstream README (the pre-Mod-Manager dropdown parsed
+    // these from config.cfg comments, which no longer carry them). Only the
+    // id before the separator is persisted to the `map` config key.
+    private static readonly string[] s_mapEntries = {
+        "map0_s00  -  Old Silent Hill - intro sequence",
+        "map0_s01  -  Old Silent Hill - cafe",
+        "map0_s02  -  Old Silent Hill - bonus unlockable areas",
+        "map1_s00  -  School - 1F, courtyard, basement",
+        "map1_s01  -  School - 2F",
+        "map1_s02  -  School Otherworld - 1F and courtyard",
+        "map1_s03  -  School Otherworld - 2F and roof",
+        "map1_s04  -  Unused",
+        "map1_s05  -  School - boss fight (Split Head)",
+        "map1_s06  -  School - 1F and basement after the boss",
+        "map2_s00  -  Old Silent Hill - streets",
+        "map2_s01  -  Church",
+        "map2_s02  -  Central Silent Hill - streets",
+        "map2_s03  -  Unused",
+        "map2_s04  -  Police station (Central Silent Hill)",
+        "map3_s00  -  Hospital - until Kaufmann meeting",
+        "map3_s01  -  Hospital - 1F and basement after Kaufmann",
+        "map3_s02  -  Hospital - antique shop cutscene",
+        "map3_s03  -  Hospital Otherworld - 3F and 2F",
+        "map3_s04  -  Hospital Otherworld - 1F",
+        "map3_s05  -  Hospital Otherworld - basement",
+        "map3_s06  -  Hospital - 1F after Otherworld",
+        "map4_s00  -  Unused",
+        "map4_s01  -  Green Lion Antiques (normal + Otherworld)",
+        "map4_s02  -  Central Silent Hill Otherworld - streets",
+        "map4_s03  -  Mall and boss fight",
+        "map4_s04  -  Hospital - 1F (Lisa cutscene)",
+        "map4_s05  -  Central SH Otherworld - Floatstinger boss",
+        "map4_s06  -  Unused",
+        "map5_s00  -  Sewers - lower and upper levels",
+        "map5_s01  -  Resort Area",
+        "map5_s02  -  Annie's Bar and Indian Runner (Resort Area)",
+        "map5_s03  -  Norman's Motel (Resort Area)",
+        "map6_s00  -  Resort Area Otherworld",
+        "map6_s01  -  Boat at Lakeside Pier",
+        "map6_s02  -  Lakeside Pier and Lighthouse",
+        "map6_s03  -  Sewer to Lakeside Amusement Park",
+        "map6_s04  -  Amusement Park - Cybil boss, Alessa kidnapping",
+        "map6_s05  -  Unused",
+        "map7_s00  -  Nowhere - hospital 1F, Lisa cutscene",
+        "map7_s01  -  Nowhere",
+        "map7_s02  -  Nowhere - Alessa vs. Dahlia cutscene",
+        "map7_s03  -  Nowhere - final boss",
+    };
 
     private static string RegionDisplayName(string region)
     {
@@ -33,17 +83,6 @@ public partial class Form1 : Form
             case "PAL": return "PAL (Europe)";
             case "JAP": return "NTSC-J (Japan)";
             default:    return region;
-        }
-    }
-
-    private static string RegionConfigId(string region)
-    {
-        switch (region)
-        {
-            case "USA": return "usa";
-            case "PAL": return "pal";
-            case "JAP": return "jap";
-            default:    return "auto";
         }
     }
 
@@ -103,26 +142,12 @@ public partial class Form1 : Form
 
         _discs = DiscProbe.Scan(gamedata);
 
-        // One dropdown entry per DETECTED region, in NTSC-U / PAL / NTSC-J
-        // order. Selection writes the `region` config key the game honors
-        // when several discs are present.
         _regionUiUpdating = true;
-        comboRegion.Items.Clear();
-        _regionIds.Clear();
         comboDisc.Items.Clear();
         _discIds.Clear();
         comboDisc.Enabled = false;
-        foreach (var region in new[] { "USA", "PAL", "JAP" })
-        {
-            if (_discs.Any(d => d.Region == region))
-            {
-                _regionIds.Add(RegionConfigId(region));
-                comboRegion.Items.Add(RegionDisplayName(region));
-            }
-        }
-        comboRegion.Enabled = _regionIds.Count > 0;
 
-        if (_regionIds.Count == 0)
+        if (_discs.Count == 0)
         {
             _regionUiUpdating = false;
             lblDisc.Text = "No disc image found in gamedata\\";
@@ -134,11 +159,6 @@ public partial class Form1 : Form
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-
-        // Restore the saved choice when that region is present; otherwise
-        // default to the game's auto pick (USA wins, then PAL, then JAP).
-        int idx = _regionIds.IndexOf(config.Get("region", "auto"));
-        comboRegion.SelectedIndex = idx >= 0 ? idx : 0;
 
         // Disc dropdown: Auto (the game's region rules) plus every detected
         // image. Picking a specific file writes `disc_image`, which is how a
@@ -172,12 +192,12 @@ public partial class Form1 : Form
     }
 
     /// <summary>
-    /// Representative disc for a region id: mirror the game's pick order —
-    /// known filenames first, then the first probed disc of that region.
+    /// Representative disc for a region ("USA"/"PAL"/"JAP"): mirror the
+    /// game's pick order — known filenames first, then the first probed
+    /// disc of that region.
     /// </summary>
-    private DiscProbe.Disc DiscForRegion(string regionId)
+    private DiscProbe.Disc DiscForRegion(string region)
     {
-        string region = regionId == "usa" ? "USA" : regionId == "pal" ? "PAL" : "JAP";
         string[] knownNames = {
             "Silent Hill (USA).bin",
             "Silent Hill (PAL).bin",
@@ -193,6 +213,29 @@ public partial class Form1 : Form
         return _discs.FirstOrDefault(x => x.Region == region);
     }
 
+    /// <summary>
+    /// The disc the game's Auto rules would boot: a hand-set `region`
+    /// config preference first (the UI no longer writes the key), then
+    /// USA > PAL > JAP priority.
+    /// </summary>
+    private DiscProbe.Disc AutoPickDisc()
+    {
+        string pref       = config.Get("region", "auto");
+        string prefRegion = pref == "usa" ? "USA" : pref == "pal" ? "PAL" : pref == "jap" ? "JAP" : null;
+
+        if (prefRegion != null)
+        {
+            var d = DiscForRegion(prefRegion);
+            if (d != null) return d;
+        }
+        foreach (var region in new[] { "USA", "PAL", "JAP" })
+        {
+            var d = DiscForRegion(region);
+            if (d != null) return d;
+        }
+        return null;
+    }
+
     /// <summary>Explicitly selected disc, or null when the dropdown is on
     /// Auto (or on a saved-but-missing filename).</summary>
     private DiscProbe.Disc SelectedDisc()
@@ -205,24 +248,17 @@ public partial class Form1 : Form
     }
 
     /// <summary>
-    /// Reflect the Disc/Region selections: a specific disc pins the region
-    /// (the game boots exactly that file, region from its serial); on Auto
-    /// the label shows the region pick. NTSC-J first prints and other
-    /// unsupported serials disable Play with a highlight.
+    /// Reflect the Disc selection: a specific disc means the game boots
+    /// exactly that file (region from its serial); on Auto the status line
+    /// shows what the game's own rules would pick. Unsupported serials
+    /// (NTSC-J first prints etc.) disable Play with a highlight.
     /// </summary>
     private void UpdateDiscUi()
     {
-        var explicitDisc = SelectedDisc();
-        var disc         = explicitDisc;
-
-        comboRegion.Enabled = explicitDisc == null && _regionIds.Count > 0;
+        var disc = SelectedDisc();
 
         if (disc == null)
-        {
-            if (comboRegion.SelectedIndex < 0 || comboRegion.SelectedIndex >= _regionIds.Count)
-                return;
-            disc = DiscForRegion(_regionIds[comboRegion.SelectedIndex]);
-        }
+            disc = AutoPickDisc();
         if (disc == null)
             return;
 
@@ -250,12 +286,6 @@ public partial class Form1 : Form
             lblDisc.Text      = $"{disc.Serial} — {RegionDisplayName(disc.Region)}";
         }
         btnPlay.Enabled = true;
-    }
-
-    private void comboRegion_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        if (_regionUiUpdating) return;
-        UpdateDiscUi();
     }
 
     private void comboDisc_SelectedIndexChanged(object sender, EventArgs e)
@@ -417,24 +447,27 @@ public partial class Form1 : Form
         Set(refreshLabel,        pillarboxTip);
         Set(comboPillarbox,      pillarboxTip);
 
-        const string regionTip =
-            "Which detected disc version the game uses (discs are identified\n" +
-            "by their ISO boot serial, filenames don't matter). PAL carries\n" +
-            "EN/DE/FR/ES/IT text — set `language = de` etc. in config.cfg to\n" +
-            "pick one. NTSC-J plays with English text for now (Rev 1/2 discs).";
-        Set(regionLabel,  regionTip);
-        Set(comboRegion,  regionTip);
-
         const string discTip =
-            "Which disc image file to boot. Auto follows the Region choice;\n" +
-            "picking a file boots exactly that image. [modified] marks fan\n" +
-            "translations / patched discs — their voice dub, story and item\n" +
-            "text are read straight off the disc. For a Spanish (or other)\n" +
-            "fan translation, also pick the matching Language in the title\n" +
-            "screen's options so the menus follow (or set `language = es`\n" +
-            "in config.cfg).";
-        Set(comboDisc, discTip);
-        Set(lblDisc,   discTip);
+            "Which disc image file to boot (discs are identified by their\n" +
+            "ISO boot serial, filenames don't matter). Auto = USA, then PAL,\n" +
+            "then NTSC-J; picking a file boots exactly that image.\n" +
+            "[modified] marks fan translations / patched discs — their voice\n" +
+            "dub, story and item text are read straight off the disc. For a\n" +
+            "Spanish (or other) fan translation, also pick the matching\n" +
+            "Language in the title screen's options so the menus follow\n" +
+            "(or set `language = es` in config.cfg). PAL carries\n" +
+            "EN/DE/FR/ES/IT text; NTSC-J plays with English story text\n" +
+            "replaced by Japanese (Rev 1/2 discs).";
+        Set(regionLabel, discTip);
+        Set(comboDisc,   discTip);
+        Set(lblDisc,     discTip);
+
+        const string levelTip =
+            "Which map to load when you start a New Game. Default map0_s00\n" +
+            "is the intro alley. Useful for jumping straight to a specific\n" +
+            "scene during testing.";
+        Set(label1,   levelTip);
+        Set(comboMap, levelTip);
 
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
@@ -629,6 +662,27 @@ public partial class Form1 : Form
         EnsureConfigExists(cfgPath);
         config = new ConfigManager(cfgPath);
 
+        // Level select. Cleared first: LoadConfig runs from both the
+        // constructor and Form1_Load — without it every entry duplicated.
+        // An unknown hand-set map id (test maps like mapt_s00) gets its own
+        // raw entry so Play doesn't silently rewrite it to map0_s00.
+        comboMap.Items.Clear();
+        foreach (var m in s_mapEntries)
+            comboMap.Items.Add(m);
+        string savedMap = config.Get("map", "map0_s00");
+        int mapIdx = -1;
+        for (int i = 0; i < comboMap.Items.Count; i++)
+        {
+            string id = comboMap.Items[i].ToString().Split(new[] { "  -  " }, StringSplitOptions.None)[0];
+            if (string.Equals(id, savedMap, StringComparison.OrdinalIgnoreCase)) { mapIdx = i; break; }
+        }
+        if (mapIdx < 0 && savedMap.Length > 0)
+        {
+            comboMap.Items.Add(savedMap);
+            mapIdx = comboMap.Items.Count - 1;
+        }
+        comboMap.SelectedIndex = mapIdx >= 0 ? mapIdx : 0;
+
         // fullscreen
         // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
         // Dropdown order: Fullscreen(0), Windowed(1), Borderless(2).
@@ -821,15 +875,19 @@ public partial class Form1 : Form
             config.Set("flashlight_shadows", (fmIdx == 1 || fmIdx == 3) ? "1" : "0");
         }
 
-        // Region: selected detected-region id (usa/pal/jap); untouched when
-        // nothing was detected so a hand-set value survives.
-        if (comboRegion.SelectedIndex >= 0 && comboRegion.SelectedIndex < _regionIds.Count)
-            config.Set("region", _regionIds[comboRegion.SelectedIndex]);
-
         // Disc: exact filename (fan-translated / modified images), "" = auto.
         // Untouched when no disc was detected so a hand-set value survives.
+        // (The `region` key is no longer UI-managed; a hand-set value keeps
+        // steering the Auto pick.)
         if (comboDisc.SelectedIndex >= 0 && comboDisc.SelectedIndex < _discIds.Count)
             config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
+
+        // Level: persist only the map id, not the " - description" suffix.
+        if (comboMap.SelectedItem != null)
+        {
+            string sel = comboMap.SelectedItem.ToString();
+            config.Set("map", sel.Split(new[] { "  -  " }, StringSplitOptions.None)[0]);
+        }
 
         config.Save();
     }
@@ -1463,5 +1521,10 @@ public partial class Form1 : Form
 
         // Reload the freshly written defaults into the UI.
         LoadConfig();
+    }
+
+    private void regionLabel_Click(object sender, EventArgs e)
+    {
+
     }
 }

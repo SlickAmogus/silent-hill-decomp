@@ -63,7 +63,7 @@ partial class Form1
     private Label flashLabel;
     private ComboBox comboFlash;
     private Label regionLabel;
-    private ComboBox comboRegion;
+    private ComboBox comboMap;
     private ComboBox comboDisc;
     private Label lblDisc;
 
@@ -129,7 +129,7 @@ partial class Form1
             this.flashLabel = new System.Windows.Forms.Label();
             this.comboFlash = new System.Windows.Forms.ComboBox();
             this.regionLabel = new System.Windows.Forms.Label();
-            this.comboRegion = new System.Windows.Forms.ComboBox();
+            this.comboMap = new System.Windows.Forms.ComboBox();
             this.comboDisc = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
@@ -139,6 +139,7 @@ partial class Form1
             this.btnBug = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
             this.comboRefresh = new System.Windows.Forms.ComboBox();
+            this.label1 = new System.Windows.Forms.Label();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -259,13 +260,13 @@ partial class Form1
             this.comboPillarbox.Name = "comboPillarbox";
             this.comboPillarbox.Size = new System.Drawing.Size(120, 21);
             this.comboPillarbox.TabIndex = 4;
-            //
+            // 
             // btnManager
-            //
+            // 
             this.btnManager.BackgroundImage = global::SilentHillPC_Launcher.Properties.Resources.manager;
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
-            this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnManager.FlatAppearance.BorderSize = 0;
+            this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnManager.Location = new System.Drawing.Point(216, 271);
             this.btnManager.Name = "btnManager";
             this.btnManager.Size = new System.Drawing.Size(192, 48);
@@ -273,11 +274,11 @@ partial class Form1
             this.btnManager.UseVisualStyleBackColor = true;
             this.btnManager.Click += new System.EventHandler(this.btnManager_Click);
             this.btnManager.MouseDown += new System.Windows.Forms.MouseEventHandler(this.btnManager_MouseDown);
-            this.btnManager.MouseUp += new System.Windows.Forms.MouseEventHandler(this.btnManager_MouseUp);
             this.btnManager.MouseLeave += new System.EventHandler(this.btnManager_MouseLeave);
-            //
+            this.btnManager.MouseUp += new System.Windows.Forms.MouseEventHandler(this.btnManager_MouseUp);
+            // 
             // btnPlay
-            //
+            // 
             this.btnPlay.Location = new System.Drawing.Point(314, 388);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
@@ -314,7 +315,7 @@ partial class Form1
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(206, 456);
+            this.progUpdate.Location = new System.Drawing.Point(208, 456);
             this.progUpdate.Name = "progUpdate";
             this.progUpdate.Size = new System.Drawing.Size(205, 16);
             this.progUpdate.TabIndex = 15;
@@ -388,7 +389,7 @@ partial class Form1
             this.refreshLabel.Size = new System.Drawing.Size(63, 13);
             this.refreshLabel.TabIndex = 14;
             this.refreshLabel.Text = "Pillarboxing:";
-            //
+            // 
             // fpsLabel
             // 
             this.fpsLabel.AutoSize = true;
@@ -638,45 +639,46 @@ partial class Form1
             this.comboFlash.Name = "comboFlash";
             this.comboFlash.Size = new System.Drawing.Size(120, 21);
             this.comboFlash.TabIndex = 61;
-            //
+            // 
             // regionLabel
-            //
+            // 
             this.regionLabel.AutoSize = true;
-            this.regionLabel.Location = new System.Drawing.Point(8, 427);
+            this.regionLabel.Location = new System.Drawing.Point(8, 426);
             this.regionLabel.Name = "regionLabel";
-            this.regionLabel.Size = new System.Drawing.Size(44, 13);
+            this.regionLabel.Size = new System.Drawing.Size(63, 13);
             this.regionLabel.TabIndex = 62;
-            this.regionLabel.Text = "Region:";
+            this.regionLabel.Text = "Disk Image:";
+            this.regionLabel.Click += new System.EventHandler(this.regionLabel_Click);
+            // 
+            // comboMap
             //
-            // comboRegion
-            //
-            this.comboRegion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboRegion.Location = new System.Drawing.Point(80, 423);
-            this.comboRegion.Name = "comboRegion";
-            this.comboRegion.Size = new System.Drawing.Size(120, 21);
-            this.comboRegion.TabIndex = 63;
-            this.comboRegion.SelectedIndexChanged += new System.EventHandler(this.comboRegion_SelectedIndexChanged);
-            //
+            this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboMap.DropDownWidth = 400;
+            this.comboMap.Location = new System.Drawing.Point(247, 423);
+            this.comboMap.Name = "comboMap";
+            this.comboMap.Size = new System.Drawing.Size(164, 21);
+            this.comboMap.TabIndex = 63;
+            // 
             // comboDisc
-            //
+            // 
             this.comboDisc.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboDisc.Location = new System.Drawing.Point(214, 420);
-            this.comboDisc.Name = "comboDisc";
-            this.comboDisc.Size = new System.Drawing.Size(198, 21);
             this.comboDisc.DropDownWidth = 320;
+            this.comboDisc.Location = new System.Drawing.Point(80, 423);
+            this.comboDisc.Name = "comboDisc";
+            this.comboDisc.Size = new System.Drawing.Size(121, 21);
             this.comboDisc.TabIndex = 64;
             this.comboDisc.SelectedIndexChanged += new System.EventHandler(this.comboDisc_SelectedIndexChanged);
-            //
+            // 
             // lblDisc
-            //
-            this.lblDisc.Location = new System.Drawing.Point(214, 443);
+            // 
+            this.lblDisc.AutoEllipsis = true;
+            this.lblDisc.Location = new System.Drawing.Point(4, 452);
             this.lblDisc.Name = "lblDisc";
             this.lblDisc.Size = new System.Drawing.Size(198, 13);
-            this.lblDisc.AutoEllipsis = true;
             this.lblDisc.TabIndex = 65;
-            //
+            // 
             // btnControls
-            //
+            // 
             this.btnControls.Location = new System.Drawing.Point(315, 331);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
@@ -707,7 +709,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(11, 463);
+            this.btnHelp.Location = new System.Drawing.Point(10, 473);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -717,7 +719,7 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(113, 463);
+            this.btnBug.Location = new System.Drawing.Point(112, 473);
             this.btnBug.Name = "btnBug";
             this.btnBug.Size = new System.Drawing.Size(84, 23);
             this.btnBug.TabIndex = 54;
@@ -727,7 +729,7 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(55, 463);
+            this.btnReset.Location = new System.Drawing.Point(54, 473);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
@@ -745,11 +747,21 @@ partial class Form1
             this.comboRefresh.Visible = false;
             this.comboRefresh.SelectedIndexChanged += new System.EventHandler(this.comboRefresh_SelectedIndexChanged);
             // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(210, 426);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(36, 13);
+            this.label1.TabIndex = 66;
+            this.label1.Text = "Level:";
+            // 
             // Form1
             // 
             this.ClientSize = new System.Drawing.Size(420, 500);
+            this.Controls.Add(this.label1);
             this.Controls.Add(this.regionLabel);
-            this.Controls.Add(this.comboRegion);
+            this.Controls.Add(this.comboMap);
             this.Controls.Add(this.comboDisc);
             this.Controls.Add(this.lblDisc);
             this.Controls.Add(this.btnReset);
@@ -822,4 +834,5 @@ partial class Form1
     private Button btnBug;
     private Button btnReset;
     private ComboBox comboRefresh;
+    private Label label1;
 }
