@@ -953,8 +953,8 @@ With collision on, the slide is skipped and the default path is byte-identical.
 
 ## Thirdperson FOV + aim-zoom sliders, OTS aiming in TPS (2026-07-14, commits `29f0633c8` + `5169c9ea6`)
 
-Three launcher options (Controls dialog) with matching console commands. No in-game
-options rows — see the capacity note at the end.
+Three launcher options (Controls dialog) with matching console commands. The in-game
+rows landed a commit later on a new 4th options page — see the section after this one.
 
 ### `tps_fov` — default **71.1**, and why it is not 67.4
 
@@ -974,11 +974,13 @@ set. 71.1° maps to `round(160/tan(35.55°))` = exactly **224**, so the default 
 nothing. Had this shipped with 67.4 (→ H = 240) every Thirdperson/OTS player's FOV
 would have silently narrowed.
 
-> **Pre-existing inaccuracy, deliberately left alone:** `fps_fov`'s 67.4 default has
-> the same off-by-16 — it maps to H = 240 while the game's real H is 224, so "default"
-> first-person is slightly *narrower* than the game's true FOV. Fixing it would shift
-> the FOV under everyone who never touched the slider, so it stays as-is. The code
-> comment claiming 67.4 is "the game's native FOV / byte-identical" is simply wrong.
+> **`fps_fov` had the same off-by-16 — fixed in `870d52a8f`.** Its shipped 67.4 default
+> mapped to H = 240 while the game's real gameplay H is 224, so "default" first-person
+> was slightly *narrower* than the game's true FOV, and its code comment claiming 67.4
+> was "the game's native FOV / byte-identical" was simply wrong. Now 71.1 everywhere:
+> the config default, `config.cfg`, the `FOV` console command (value + `default`
+> keyword + its message), and the launcher (load, reset, `ClampFov`'s parse fallback,
+> tooltip). 67.4/240 is the *interlaced* height — never propagate it to a new camera.
 
 ### `tps_aim_zoom_amount` — default 100, replaces the on/off checkbox
 
