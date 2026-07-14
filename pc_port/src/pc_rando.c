@@ -132,6 +132,13 @@ static const u8 RANDO_WEAPONS[] = {
 #define N_HEALTH  ((int)ARRAY_SIZE(RANDO_HEALTH))
 #define N_WEAPONS ((int)ARRAY_SIZE(RANDO_WEAPONS))
 
+/* For a firearm, Inventory_AddSpecialItem reads the count as the LOADED round
+ * count -- the same numbers the vanilla weapon pickups pass. */
+static const u8 RANDO_WEAPON_CNT[] = {
+    DEFAULT_PICKUP_ITEM_COUNT, DEFAULT_PICKUP_ITEM_COUNT, DEFAULT_PICKUP_ITEM_COUNT,
+    HANDGUN_AMMO_PICKUP_ITEM_COUNT, RIFLE_AMMO_PICKUP_ITEM_COUNT, SHOTGUN_AMMO_PICKUP_ITEM_COUNT,
+};
+
 /* Prompts for the weapons. The six common pickups (health x3, ammo x3) already
  * have universal messages at MapMsgIdx 5..10; weapons do not -- each map that
  * ships one carries its own string at a map-local index. So we append ours past
@@ -188,6 +195,7 @@ typedef struct {
                       * override can find it. It has no doorway, its requiredEventFlag
                       * is load-bearing, and rewriting or locking it would fire it
                       * immediately -- so nothing else may touch it. */
+    u8 origActivation;
     s16 eventIdx;    /* row in s_events this door owns */
 } s_RandoDoor;
 
@@ -200,6 +208,7 @@ typedef struct {
     int  kills;
     int  itemsTaken;
     s32  damageTaken;  /* q19_12, accumulated */
+    int  entryPending; /* a door was taken (or New Game): the next map load is a new area */
 
     /* per-area */
     s32  mapIdx;
@@ -279,8 +288,16 @@ static void door_write_event(s_EventData* e, const s_RandoDoor* d)
     e->requiredEventFlag = EventFlag_None;
     e->disabledEventFlag = EventFlag_None;
     e->requiredItemId    = 0;
-    if (e->activationType == TriggerActivationType_Item)
+
+    /* A locked door MUST be button-activated. Event_Update only demands a fresh
+     * button edge for TriggerActivationType_Button; a touch-activated row re-matches
+     * every frame the player stands in its volume, and the locked handler freezes
+     * player control -- an unbreakable "It's locked." loop. Many vanilla door rows
+     * are touch-activated (they open on contact), so this cannot be assumed. */
+    if (d->kind == DOOR_LOCKED || d->origActivation == TriggerActivationType_Item)
         e->activationType = TriggerActivationType_Button;
+    else
+        e->activationType = d->origActivation;
 
     switch (d->kind)
     {
@@ -440,6 +457,12 @@ static void build_events(const s_EventData* src, int mapIdx)
         if (e->triggerType == TriggerType_EndOfArray)
             break;
 
+        /* No saving in a randomizer run: the world save points are simply dropped
+         * from the table, so the red square is inert. Quick save / quick load are
+         * gated separately, in pc_quicksave.c. */
+        if (e->sysState == SysState_SaveMenu0 || e->sysState == SysState_SaveMenu1)
+            continue;
+
         if (event_is_door(e, mapIdx) && s_run.doorCount < RANDO_MAX_DOORS)
         {
             u8 poi = e->pointOfInterestIdx;
@@ -451,9 +474,10 @@ static void build_events(const s_EventData* src, int mapIdx)
 
             {
                 s_RandoDoor* d = &s_doors[s_run.doorCount];
-                d->poi      = poi;
-                d->eventIdx = (s16)n;
-                d->scripted = 0;
+                d->poi            = poi;
+                d->eventIdx       = (s16)n;
+                d->scripted       = 0;
+                d->origActivation = e->activationType;
                 door_roll(d, e->sysState == SysState_LoadOverlay);
 
                 s_events[n] = *e;
@@ -481,12 +505,13 @@ static void build_events(const s_EventData* src, int mapIdx)
             s_RandoDoor* d = &s_doors[s_run.doorCount];
             int pick = RANDO_AREAS[rnd_below(N_AREAS)];
 
-            d->poi        = e->pointOfInterestIdx;
-            d->eventIdx   = (s16)n;
-            d->kind       = DOOR_AREA;
-            d->destMap    = (u8)pick;
-            d->arrivalIdx = (u8)rnd_below(RANDO_ARRIVALS[pick].count);
-            d->scripted   = 1;
+            d->poi            = e->pointOfInterestIdx;
+            d->eventIdx       = (s16)n;
+            d->kind           = DOOR_AREA;
+            d->destMap        = (u8)pick;
+            d->arrivalIdx     = (u8)rnd_below(RANDO_ARRIVALS[pick].count);
+            d->scripted       = 1;
+            d->origActivation = e->activationType;
 
             s_events[n].mapIdx     = d->destMap;
             s_events[n].eventParam = 0; /* Pc_Rando_ArrivalOverride supplies the landing */
@@ -586,6 +611,12 @@ static int far_enough(q19_12 x, q19_12 z, q19_12 fx, q19_12 fz, q19_12 minDist)
     return d2 >= (s64)minDist * minDist;
 }
 
+/* The map's authored spawn positions, taken at load time -- clear_native_spawns
+ * wipes the rows themselves, so they cannot be read back on the placement frame. */
+static q19_12 s_nativeX[32];
+static q19_12 s_nativeZ[32];
+static int    s_nativeCount;
+
 /* Rewrite the map's chara spawn table with 1..5 monsters from the pool, placed
  * on authored, walkable positions away from where the player just came in. Runs
  * on the first gameplay frame, when collision data is up. */
@@ -599,19 +630,26 @@ static void place_monsters(void)
     int             nCand = 0;
     int             i, placed;
 
+    /* A miniboss arena keeps its own single authored row (the boss). Nothing to
+     * place, and nothing here may touch that row or its spawn bookkeeping. */
+    if (s_run.monstersWanted <= 0)
+    {
+        s_run.monstersPlaced = 0;
+        s_run.monstersDone   = 1;
+        return;
+    }
+
     /* Candidates: the map's own authored spawn positions first (guaranteed sane),
      * then its mapPoints as a whole-map scatter. */
-    for (i = 0; i < nRows && nCand < (int)ARRAY_SIZE(candX); i++)
+    for (i = 0; i < s_nativeCount && nCand < (int)ARRAY_SIZE(candX); i++)
     {
-        if (rows[i].flags == 0)
+        if (!position_is_walkable(s_nativeX[i], s_nativeZ[i]))
             continue;
-        if (!position_is_walkable(rows[i].positionX, rows[i].positionZ))
-            continue;
-        if (!far_enough(rows[i].positionX, rows[i].positionZ,
+        if (!far_enough(s_nativeX[i], s_nativeZ[i],
                         s_run.arrivalX, s_run.arrivalZ, Q12(10.0f)))
             continue;
-        candX[nCand] = rows[i].positionX;
-        candZ[nCand] = rows[i].positionZ;
+        candX[nCand] = s_nativeX[i];
+        candZ[nCand] = s_nativeZ[i];
         nCand++;
     }
 
@@ -673,22 +711,18 @@ static void place_monsters(void)
         nCand--;
     }
 
-    /* Game_NpcRoomInitSpawn only considers a row whose per-map "still alive" bit
-     * is set and whose session bit is clear. Both persist across visits, so a
-     * re-entered area would otherwise come back empty. */
-    g_SavegamePtr->ovlEnemyStates[s_run.mapIdx] = NO_VALUE;
-    g_SysWork.field_228C[0] = 0;
-
     s_run.monstersPlaced = placed;
     s_run.monstersDone   = 1;
     SH_LOG("[RANDO] %s: placed %d/%d monsters (%d candidates left)",
            MapRegistry_GetName((e_MapIdx)s_run.mapIdx), placed, s_run.monstersWanted, nCand);
 }
 
-/* Wipe the map's authored spawn rows at load time. Placement itself has to wait
- * for the first gameplay frame (it needs collision data to test for floor), but
- * GameBoot_InGameInit runs Game_NpcRoomInitSpawn before then -- so without this
- * the area would come up with its NATIVE monsters and then get ours on top.
+/* Wipe the map's authored spawn rows at load time, keeping their positions --
+ * they are the best monster placements the map has, and placement itself has to
+ * wait for the first gameplay frame (it needs collision data to test for floor).
+ * The wipe is needed because GameBoot_InGameInit runs Game_NpcRoomInitSpawn before
+ * then, so without it the area would come up with its NATIVE monsters and then get
+ * ours on top.
  *
  * NEVER call this on a miniboss map: map1_s05 and map4_s05 each have exactly one
  * spawn row, and it is the boss. */
@@ -696,8 +730,16 @@ static void clear_native_spawns(void)
 {
     s_SpawnInfo* rows = &s_hdr.charaSpawnInfos[0][0];
     int i;
+
+    s_nativeCount = 0;
     for (i = 0; i < 32; i++)
     {
+        if (rows[i].flags != 0)
+        {
+            s_nativeX[s_nativeCount] = rows[i].positionX;
+            s_nativeZ[s_nativeCount] = rows[i].positionZ;
+            s_nativeCount++;
+        }
         rows[i].charaId = Chara_None;
         rows[i].flags   = 0;
     }
@@ -771,7 +813,7 @@ static void resolve_pickup(s32 eventFlagIdx)
     {
         int w = lack[rnd_below(nLack)];
         s_run.cacheItem  = RANDO_WEAPONS[w];
-        s_run.cacheCount = 1;
+        s_run.cacheCount = RANDO_WEAPON_CNT[w];
         s_run.cacheMsg   = weapon_msg_idx(s_run.mapIdx, w);
         return;
     }
@@ -801,7 +843,10 @@ static void resolve_pickup(s32 eventFlagIdx)
 
 void Pc_Rando_RemapItemTake(s32* itemId, s32* itemCount, s32 eventFlagIdx, s32* mapMsgIdx)
 {
-    if (!Pc_Rando_Active())
+    /* headerInstalled: the appended weapon prompts only exist in the message table
+     * we built for THIS map. On any map the mode left alone, a remapped weapon's
+     * message index would point past the end of the map's real table. */
+    if (!Pc_Rando_Active() || !s_run.headerInstalled)
         return;
 
     /* Event_ItemTake is a state machine re-entered every frame. The item must not
@@ -910,7 +955,7 @@ void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt)
 {
     int i;
 
-    if (!Pc_Rando_Active() || evt == NULL || arrival == NULL)
+    if (!Pc_Rando_Active() || !s_run.headerInstalled || evt == NULL || arrival == NULL)
         return;
 
     /* Only rows we rewrote: g_MapEventData points into s_events. */
@@ -924,6 +969,9 @@ void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt)
             continue;
         if (d->kind != DOOR_AREA && d->kind != DOOR_MINIBOSS && d->kind != DOOR_BOSS)
             return; /* room jumps use a real mapPoint of this map -- vanilla path */
+
+        /* This door is taking us to a new area; the map load that follows counts. */
+        s_run.entryPending = 1;
 
         {
             const s_RandoMiniboss* mb = miniboss_info(d->destMap);
@@ -956,28 +1004,50 @@ void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt)
     }
 }
 
+/* An area, a miniboss arena or the boss map -- the maps the mode owns. Anything
+ * else (an ending map, a story map reached by some path we did not author) is left
+ * completely alone. */
+static int map_is_owned(int mapIdx)
+{
+    int i;
+    if (mapIdx == RANDO_BOSS_MAP)
+        return 1;
+    for (i = 0; i < N_AREAS; i++)
+        if (RANDO_AREAS[i] == mapIdx)
+            return 1;
+    return miniboss_info(mapIdx) != NULL;
+}
+
 void Pc_Rando_OnMapLoad(s32 mapIdx)
 {
     const s_EventData* srcEvents;
     void (**srcFuncs)();
     const char** srcMsgs;
+    int isNewEntry;
 
     if (!Pc_Rando_Active())
         return;
 
-    if (mapIdx < 0 || mapIdx >= (int)ARRAY_SIZE(RANDO_MSG_COUNT) || RANDO_MSG_COUNT[mapIdx] == 0)
-    {
-        SH_WARN("[RANDO] map %d has no message table -- leaving it alone", (int)mapIdx);
+    /* Cleared before every early return below: a stale 1 would let Pc_Rando_Update
+     * keep placing monsters and locking doors using the PREVIOUS area's tables
+     * while the new map's own header is live. */
+    s_run.headerInstalled = 0;
+
+    /* Only a door (or New Game) starts a new area. GameBoot_MapLoad also runs on a
+     * post-death Continue, which reloads the SAME area -- counting that would burn
+     * a slot off the run and re-arm every pickup in it. */
+    isNewEntry         = s_run.entryPending;
+    s_run.entryPending = 0;
+
+    if (mapIdx < 0 || mapIdx >= (int)ARRAY_SIZE(RANDO_MSG_COUNT) || !map_is_owned(mapIdx))
         return;
-    }
 
     /* The final boss map runs the real ending chain; do not touch its events. All
      * we do is decide which of the four endings it will play. */
     if (mapIdx == RANDO_BOSS_MAP)
     {
         apply_ending();
-        s_run.headerInstalled = 0;
-        s_run.mapIdx          = mapIdx;
+        s_run.mapIdx = mapIdx;
         return;
     }
 
@@ -987,6 +1057,7 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_run.entryDoor      = -1;
     s_run.entryLockTimer = 0;
     s_run.cacheFlag      = NO_VALUE;
+    s_nativeCount        = 0;
 
     /* A miniboss arena IS its content: leave its single authored spawn row (the
      * boss) alone and add nothing to it. */
@@ -994,13 +1065,25 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
                          ? 0
                          : RANDO_MONSTERS_MIN + rnd_below(RANDO_MONSTERS_MAX - RANDO_MONSTERS_MIN + 1);
 
-    /* Counted before the doors are rolled, so that the tenth area's own doors are
-     * the ones that lead to the boss. */
-    s_run.areasEntered++;
+    if (isNewEntry)
+    {
+        /* Counted before the doors are rolled, so that the tenth area's own doors
+         * are the ones that lead to the boss. */
+        s_run.areasEntered++;
 
-    /* Fresh roll on every entry, so the pickups this area already gave up come
-     * back (see pickups_rearm). */
-    pickups_rearm(mapIdx);
+        /* Fresh roll on every entry, so the pickups this area already gave up come
+         * back (see pickups_rearm). */
+        pickups_rearm(mapIdx);
+    }
+
+    /* Game_NpcRoomInitSpawn only considers a spawn row whose per-map "still alive"
+     * bit is set and whose session bit is clear. Both persist across visits, so a
+     * re-entered area would otherwise come back empty. This has to happen HERE and
+     * not on the placement frame: GameBoot_InGameInit runs its own spawn pass in
+     * between, and on a miniboss map that pass spawns the boss and sets its session
+     * bit -- clearing it afterwards would re-arm the row and spawn a second boss. */
+    g_SavegamePtr->ovlEnemyStates[mapIdx] = NO_VALUE;
+    g_SysWork.field_228C[0] = 0;
 
     /* Copy from whatever header is live: on a localized build lang_text.c has
      * already swapped in its own copy with translated messages, and we must
@@ -1096,10 +1179,13 @@ static void lock_entry_door(void)
     s_run.entryDoor      = bestI;
     s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
 
+    /* Through door_write_event, so the row is forced button-activated like any
+     * other locked door -- a touch-activated one would trap the player in the
+     * "It's locked." freeze loop for the whole lock window. */
     {
-        s_EventData* e = &s_events[s_doors[bestI].eventIdx];
-        e->sysState   = SysState_EventCallback;
-        e->eventParam = (u32)s_lockedFuncIdx;
+        s_RandoDoor shut = s_doors[bestI];
+        shut.kind = DOOR_LOCKED;
+        door_write_event(&s_events[s_doors[bestI].eventIdx], &shut);
     }
 }
 
@@ -1151,10 +1237,12 @@ void Pc_Rando_OnNewGame(void)
         return;
 
     memset(&s_run, 0, sizeof(s_run));
-    s_run.running   = 1;
-    s_run.cacheFlag = NO_VALUE;
-    s_run.entryDoor = -1;
-    s_run.mapIdx    = RANDO_START_MAP;
+    s_run.running      = 1;
+    s_run.cacheFlag    = NO_VALUE;
+    s_run.entryDoor    = -1;
+    s_run.mapIdx       = RANDO_START_MAP;
+    s_run.entryPending = 1; /* the map load that follows is area 1 */
+    s_pickupCount      = 0;
 
     SH_LOG("[RANDO] run started (seed %u)", s_rng);
 }

@@ -20,6 +20,7 @@ unchanged.
 | Entry door | Shut for 10 s behind you. |
 | Monsters | 1–5 per area from grey child, puppet nurse, romper, groaner, air screamer. The area's own monsters are removed. |
 | Items | Every pickup becomes a healing item, a weapon you lack, or ammo for a gun you carry. |
+| Saving | Disabled. World save points are dropped from the event table; quick save / quick load are gated in `pc_quicksave.c`. |
 | Ending | Bad / Bad+ / Good / Good+ by score, forced just before the boss map loads. |
 
 Doors are weighted so a big area stays worth exploring: a door that was an
@@ -174,6 +175,35 @@ message table size. It also drops the one degenerate arrival record in the game 
 map4_s05's post-Floatstinger exit to map2_s02 is a (0,0) placeholder, because
 vanilla repositions the player with the death cutscene instead. Teleporting to it
 would drop Harry at the world origin.
+
+## Traps this hit (kept here so they are not reintroduced)
+
+**A locked door must be button-activated.** `Event_Update` only demands a fresh
+button edge when `activationType == TriggerActivationType_Button`. About a dozen
+vanilla door rows in the pool are `TriggerType_TouchAabb` +
+`TriggerActivationType_None` — they open on contact. Writing the locked-door
+handler onto one of those (and clearing its flags, as a randomized door does) makes
+it re-match *every frame* the player stands in the volume, and the handler freezes
+player control: an unbreakable "It's locked." loop. `door_write_event` therefore
+forces `Button` on `DOOR_LOCKED` and restores the row's original activation type
+otherwise (`s_RandoDoor.origActivation`). `lock_entry_door` goes through
+`door_write_event` for exactly this reason.
+
+**The spawn-state reset belongs at map-load time, not on the placement frame.**
+`GameBoot_InGameInit` runs its own `Game_NpcRoomInitSpawn` pass between
+`Pc_Rando_OnMapLoad` and the first gameplay frame. On a miniboss map that pass
+spawns the boss and sets its session bit in `field_228C`; clearing that bit
+afterwards re-arms the row and spawns a *second* boss.
+
+**Not every `GameBoot_MapLoad` is a new area.** A post-death Continue reloads the
+same map in-process. Counting it would burn an area off the run and re-arm every
+pickup in it (farmable score). `s_run.entryPending` — set by `Pc_Rando_OnNewGame`
+and by `Pc_Rando_ArrivalOverride` when a door actually fires — is what separates
+the two.
+
+**`headerInstalled` is cleared before every early return in `Pc_Rando_OnMapLoad`.**
+A stale 1 would let `Pc_Rando_Update` place monsters and lock doors using the
+previous area's tables while the new map's own DLL header is live.
 
 ## Known gaps
 

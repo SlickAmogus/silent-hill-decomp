@@ -170,6 +170,19 @@ def map_idx_of(token):
     return IDX.get(token[len('MapIdx_'):].lower())
 
 
+def bgm_value(token):
+    """The BGM track a room transition switches to. On a `SysState_LoadRoom` row the
+    `mapIdx` field is reused as a BGM track index, and several maps spell that index
+    with the `MapIdx_*` enum whose numeric value happens to be the track they want."""
+    token = (token or '0').strip()
+    if token.isdigit():
+        return token
+    idx = map_idx_of(token)
+    if idx is not None:
+        return '%d /* %s */' % (idx, token)
+    return '0'
+
+
 def main():
     # dest map -> list of (source map, mapPoint initializer)
     arrivals = {m: [] for m in MAP_NAMES}
@@ -267,8 +280,7 @@ def main():
             if ep in seen:
                 continue
             seen.add(ep)
-            bgmv = bgm if bgm.isdigit() else '0'
-            L.append('    { %s, %s, %d },' % (emit_rec(rec), bgmv, ep))
+            L.append('    { %s, %s, %d },' % (emit_rec(rec), bgm_value(bgm), ep))
         L.append('};')
         L.append('')
 

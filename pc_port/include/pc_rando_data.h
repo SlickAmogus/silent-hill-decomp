@@ -561,7 +561,7 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP2_S04[] = {
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S00[] = {
-    { { .positionX = Q12(94.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(101.5f) }, 0, 2 },
+    { { .positionX = Q12(94.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(101.5f) }, 34 /* MapIdx_MAP6_S01 */, 2 },
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S01[] = {
@@ -599,7 +599,7 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S01[] = {
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S02[] = {
-    { { .positionX = Q12(143.3f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 19, .positionZ = Q12(-138.4f) }, 0, 1 },
+    { { .positionX = Q12(143.3f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 19, .positionZ = Q12(-138.4f) }, 2 /* MapIdx_MAP0_S02 */, 1 },
     { { .positionX = Q12(100.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 12, .positionZ = Q12(-127.2f) }, 0, 4 },
     { { .positionX = Q12(140.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 12, .positionZ = Q12(-140.8f) }, 0, 3 },
     { { .positionX = Q12(69.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 12, .positionZ = Q12(-138.4f) }, 0, 11 },
@@ -661,7 +661,7 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S03[] = {
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S04[] = {
-    { { .positionX = Q12(61.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(139.9f) }, 0, 4 },
+    { { .positionX = Q12(61.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(139.9f) }, 31 /* MapIdx_MAP5_S02 */, 4 },
     { { .positionX = Q12(143.3f), .paperMapIdx = PaperMapIdx_AltHospital1F, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 19, .positionZ = Q12(27.2f) }, 0, 17 },
     { { .positionX = Q12(17.5f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 19, .positionZ = Q12(59.1f) }, 0, 36 },
     { { .positionX = Q12(137.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 9, .positionZ = Q12(13.6f) }, 0, 26 },
@@ -710,14 +710,14 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S05[] = {
 static const s_RandoRoomPoint RANDO_ROOMS_MAP3_S06[] = {
     { { .positionX = Q12(61.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 9, .positionZ = Q12(98.4f) }, 0, 25 },
     { { .positionX = Q12(17.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 9, .positionZ = Q12(14.3f) }, 0, 3 },
-    { { .positionX = Q12(101.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(99.9f) }, 0, 27 },
-    { { .positionX = Q12(56.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(100.6f) }, 0, 26 },
-    { { .positionX = Q12(136.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 9, .positionZ = Q12(97.9f) }, 0, 34 },
-    { { .positionX = Q12(95.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 9, .positionZ = Q12(104.1f) }, 0, 28 },
+    { { .positionX = Q12(101.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(99.9f) }, 16 /* MapIdx_MAP3_S01 */, 27 },
+    { { .positionX = Q12(56.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(100.6f) }, 16 /* MapIdx_MAP3_S01 */, 26 },
+    { { .positionX = Q12(136.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 9, .positionZ = Q12(97.9f) }, 16 /* MapIdx_MAP3_S01 */, 34 },
+    { { .positionX = Q12(95.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 9, .positionZ = Q12(104.1f) }, 16 /* MapIdx_MAP3_S01 */, 28 },
     { { .positionX = Q12(139.9f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 9, .positionZ = Q12(101.1f) }, 0, 35 },
     { { .positionX = Q12(25.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 9, .positionZ = Q12(143.2f) }, 0, 32 },
-    { { .positionX = Q12(21.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(137.4f) }, 0, 30 },
-    { { .positionX = Q12(94.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(101.5f) }, 0, 29 },
+    { { .positionX = Q12(21.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(137.4f) }, 16 /* MapIdx_MAP3_S01 */, 30 },
+    { { .positionX = Q12(94.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 9, .positionZ = Q12(101.5f) }, 16 /* MapIdx_MAP3_S01 */, 29 },
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP4_S01[] = {
@@ -806,16 +806,16 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP6_S02[] = {
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP6_S04[] = {
-    { { .positionX = Q12(22.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 0, .positionZ = Q12(96.6f) }, 0, 7 },
+    { { .positionX = Q12(22.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 0, .positionZ = Q12(96.6f) }, 39 /* MapIdx_MAP7_S00 */, 7 },
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S00[] = {
-    { { .positionX = Q12(68.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(-139.05f) }, 0, 4 },
-    { { .positionX = Q12(14.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-138.5f) }, 0, 3 },
+    { { .positionX = Q12(68.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 9, .positionZ = Q12(-139.05f) }, 15 /* MapIdx_MAP3_S00 */, 4 },
+    { { .positionX = Q12(14.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-138.5f) }, 15 /* MapIdx_MAP3_S00 */, 3 },
 };
 
 static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S01[] = {
-    { { .positionX = Q12(-65.1f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 19, .positionZ = Q12(-28.0f) }, 0, 4 },
+    { { .positionX = Q12(-65.1f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 19, .positionZ = Q12(-28.0f) }, 14 /* MapIdx_MAP2_S04 */, 4 },
     { { .positionX = Q12(-98.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 0, .positionZ = Q12(-146.6f) }, 0, 169 },
     { { .positionX = Q12(-100.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 12, .positionZ = Q12(-20.8f) }, 0, 13 },
     { { .positionX = Q12(-60.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 12, .positionZ = Q12(-15.2f) }, 0, 5 },
@@ -829,8 +829,8 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S01[] = {
     { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-16.2f) }, 0, 9 },
     { { .positionX = Q12(-61.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 12, .positionZ = Q12(-107.2f) }, 0, 30 },
     { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 12, .positionZ = Q12(-24.8f) }, 0, 10 },
-    { { .positionX = Q12(-101.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 8, .positionZ = Q12(-148.2f) }, 0, 53 },
-    { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-20.2f) }, 0, 11 },
+    { { .positionX = Q12(-101.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 8, .positionZ = Q12(-148.2f) }, 1 /* MapIdx_MAP0_S01 */, 53 },
+    { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-20.2f) }, 1 /* MapIdx_MAP0_S01 */, 11 },
     { { .positionX = Q12(-139.2f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 0, .positionZ = Q12(-59.1f) }, 0, 26 },
     { { .positionX = Q12(-61.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 0, .positionZ = Q12(-59.2f) }, 0, 21 },
     { { .positionX = Q12(-102.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 16, .positionZ = Q12(-60.9f) }, 0, 22 },
@@ -851,8 +851,8 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S01[] = {
     { { .positionX = Q12(-99.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 12, .positionZ = Q12(-87.0f) }, 0, 40 },
     { { .positionX = Q12(-184.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-98.6f) }, 0, 49 },
     { { .positionX = Q12(-98.2f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-97.6f) }, 0, 41 },
-    { { .positionX = Q12(-139.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-134.9f) }, 0, 62 },
-    { { .positionX = Q12(-104.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-144.0f) }, 0, 54 },
+    { { .positionX = Q12(-139.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-134.9f) }, 1 /* MapIdx_MAP0_S01 */, 62 },
+    { { .positionX = Q12(-104.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-144.0f) }, 1 /* MapIdx_MAP0_S01 */, 54 },
     { { .positionX = Q12(-180.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-136.0f) }, 0, 63 },
     { { .positionX = Q12(-97.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-146.6f) }, 0, 55 },
     { { .positionX = Q12(188.9f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 16, .positionZ = Q12(-106.6f) }, 0, 92 },
@@ -877,8 +877,8 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S02[] = {
     { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-16.2f) }, 0, 9 },
     { { .positionX = Q12(-61.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 12, .positionZ = Q12(-107.2f) }, 0, 30 },
     { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 12, .positionZ = Q12(-24.8f) }, 0, 10 },
-    { { .positionX = Q12(-101.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 8, .positionZ = Q12(-148.2f) }, 0, 53 },
-    { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-20.2f) }, 0, 11 },
+    { { .positionX = Q12(-101.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 8, .positionZ = Q12(-148.2f) }, 1 /* MapIdx_MAP0_S01 */, 53 },
+    { { .positionX = Q12(-58.4f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-20.2f) }, 1 /* MapIdx_MAP0_S01 */, 11 },
     { { .positionX = Q12(172.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 12, .positionZ = Q12(-20.0f) }, 0, 71 },
     { { .positionX = Q12(-60.2f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 0, .triggerParam1 = 8, .positionZ = Q12(-29.6f) }, 0, 12 },
     { { .positionX = Q12(-139.2f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 0, .positionZ = Q12(-59.1f) }, 0, 26 },
@@ -897,8 +897,8 @@ static const s_RandoRoomPoint RANDO_ROOMS_MAP7_S02[] = {
     { { .positionX = Q12(-99.8f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 12, .positionZ = Q12(-87.0f) }, 0, 40 },
     { { .positionX = Q12(-184.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-98.6f) }, 0, 49 },
     { { .positionX = Q12(-98.2f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-97.6f) }, 0, 41 },
-    { { .positionX = Q12(-139.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-134.9f) }, 0, 62 },
-    { { .positionX = Q12(-104.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-144.0f) }, 0, 54 },
+    { { .positionX = Q12(-139.7f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-134.9f) }, 1 /* MapIdx_MAP0_S01 */, 62 },
+    { { .positionX = Q12(-104.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 64, .triggerParam1 = 8, .positionZ = Q12(-144.0f) }, 1 /* MapIdx_MAP0_S01 */, 54 },
     { { .positionX = Q12(-180.0f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 128, .triggerParam1 = 8, .positionZ = Q12(-136.0f) }, 0, 63 },
     { { .positionX = Q12(-97.6f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 8, .positionZ = Q12(-146.6f) }, 0, 55 },
     { { .positionX = Q12(188.9f), .paperMapIdx = PaperMapIdx_OtherPlaces, .field_4_5 = 0, .loadingScreenId = LoadingScreenId_None, .unused_4_12 = 0, .triggerParam0 = 192, .triggerParam1 = 16, .positionZ = Q12(-106.6f) }, 0, 92 },

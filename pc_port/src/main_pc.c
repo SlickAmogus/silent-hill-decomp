@@ -948,19 +948,20 @@ int main(int argc, char* argv[])
     SH_LOG("Initializing filesystem queue...");
     Fs_QueueInitialize();
 
+    /* Randomizer: forces the start map (map2_s04) and turns the global chara pool
+     * on, so it must run before MapRegistry_Init reads g_PcConfig.mapName AND
+     * before Pc_CharaGlobal_Open, which early-outs on globalCharaPool == 0. */
+    {
+        extern void Pc_Rando_Init(void);
+        Pc_Rando_Init();
+    }
+
     /* Global chara pool: open chara_global.dll (AI update funcs for every
      * portable monster) before the first MapRegistry_Load so its backfill
      * hook can use it. Asset loading happens later, on map load. */
     {
         extern void Pc_CharaGlobal_Open(void);
         Pc_CharaGlobal_Open();
-    }
-
-    /* Randomizer: forces the start map (map2_s04) and the chara pool, so it must
-     * run before MapRegistry_Init reads g_PcConfig.mapName. */
-    {
-        extern void Pc_Rando_Init(void);
-        Pc_Rando_Init();
     }
 
     /* Initialize map registry — sets g_pMapOverlayHeader based on config.cfg.
