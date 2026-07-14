@@ -950,3 +950,69 @@ the reticle draws — a constant miss at every range. Projecting the displacemen
 `g_TpsCamFwd` keeps origin and reticle collinear.
 
 With collision on, the slide is skipped and the default path is byte-identical.
+
+## Thirdperson FOV + aim-zoom sliders, OTS aiming in TPS (2026-07-14, commits `29f0633c8` + `5169c9ea6`)
+
+Three launcher options (Controls dialog) with matching console commands. No in-game
+options rows — see the capacity note at the end.
+
+### `tps_fov` — default **71.1**, and why it is not 67.4
+
+Thirdperson/OTS field of view, mirroring `fps_fov`. `Pc_FpsFov_Update` became
+`Pc_CameraFov_Update` and now serves both cameras; Classic always keeps the game's
+own projection.
+
+**The default is load-bearing.** The GTE projection distance the game uses in
+gameplay is `vcWork.geom_screen_dist`, which `vcExecCamera` writes via
+`SetGeomScreen` every frame and which equals `g_GameWork.gsScreenHeight`. Gameplay
+runs **progressive** (`Screen_Init(SCREEN_WIDTH, false)`), so that height is
+`FRAMEBUFFER_HEIGHT_PROGRESSIVE` = **224**, not 240. On the 320-wide frame, H = 224
+is a true horizontal FOV of `2*atan(160/224)` = **71.1°**.
+
+`SetGeomScreen(h)` is only a genuine no-op when `h` equals the value the game already
+set. 71.1° maps to `round(160/tan(35.55°))` = exactly **224**, so the default changes
+nothing. Had this shipped with 67.4 (→ H = 240) every Thirdperson/OTS player's FOV
+would have silently narrowed.
+
+> **Pre-existing inaccuracy, deliberately left alone:** `fps_fov`'s 67.4 default has
+> the same off-by-16 — it maps to H = 240 while the game's real H is 224, so "default"
+> first-person is slightly *narrower* than the game's true FOV. Fixing it would shift
+> the FOV under everyone who never touched the slider, so it stays as-is. The code
+> comment claiming 67.4 is "the game's native FOV / byte-identical" is simply wrong.
+
+### `tps_aim_zoom_amount` — default 100, replaces the on/off checkbox
+
+Scales the existing aim dolly rather than gating it: `aimDist = TP_DIST -
+((TP_DIST - TP_DIST_AIM) * pct) / 100`. At 100% it lands on exactly `TP_DIST_AIM`
+(the old "on"), at 0% on exactly `TP_DIST` (the old "off"). The legacy `tps_aim_zoom`
+bool key is still parsed (→ 0 or 100) so an existing config migrates instead of
+reverting to the default; `ConfigManager` appends new keys at EOF and the game parses
+last-assignment-wins, so the new key always beats a lingering legacy line.
+
+### `tps_ots_aim` — default 1
+
+Raising the gun in Thirdperson eases the camera into the Over-the-Shoulder framing
+and back out when lowered; the shoulder-swap bind works there too. Implemented by
+giving TPS a *resting* offset of 0 in the existing OTS block:
+
+```c
+restOff   = (style == Ots) ? OTS_OFFSET : 0;
+targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
+```
+
+The block is entered **every frame** in that mode — not only while aiming —
+specifically so `s_otsOff` can ease *both* ways instead of snapping in from a frozen
+value. With the option off, TPS never enters the block, so `s_otsOff` is neither
+updated nor applied: byte-identical to before.
+
+### Console
+
+`TPSFOV <deg|default>`, `TPSAIMZOOM <0-100>`, `TPSOTSAIM [0|1]`, `CAMCOLLIDE [0|1]` —
+all persist through `PcConfig_SaveKeyValue`.
+
+### Why no in-game options rows
+
+The PC options pages draw at `LINE_BASE_Y` 56 with `LINE_OFFSET_Y` 16 on a 240-line
+screen, so a page holds ~11 rows. `PCOPT_C` (Controls) was already at capacity — the
+`Camera_Collision` row added in the previous commit pushed `Back` to y = 248, off the
+bottom edge, and has been reverted. Any further Controls rows need a 4th page.
