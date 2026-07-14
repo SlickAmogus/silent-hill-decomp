@@ -756,7 +756,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     {
                         int cw = 0, ch = 0;
                         const unsigned short* clutRow;
-                        unsigned char* canvas;
+                        const unsigned char* canvas;
 
                         if (HiresOverride_PackBudgetExceeded())
                         {
@@ -777,9 +777,9 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             clutRow, clutW, discBitDepth, &cw, &ch);
                         if (canvas != NULL)
                         {
+                            /* canvas is owned by the compose cache — no free. */
                             HiresOverride_PoolSlotRegisterRGBA(
                                 slotId, r, canvas, cw, ch, nativeW, nativeH);
-                            free(canvas);
                         }
                     }
                 }
@@ -862,7 +862,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             {
                 int cw = 0, ch = 0;
                 const unsigned short* clutRow;
-                unsigned char* canvas;
+                const unsigned char* canvas;
 
                 if (HiresOverride_PackBudgetExceeded())
                 {
@@ -885,13 +885,13 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 {
                     char packLabel[24];
                     snprintf(packLabel, sizeof(packLabel), "texpack row %d", r);
+                    /* canvas is owned by the compose cache — no free. */
                     HiresOverride_RegisterRGBA(packLabel, canvas, cw, ch,
                                                (int)pixelRect.x, (int)pixelRect.y,
                                                (int)pixelRect.w, (int)pixelRect.h,
                                                haveClut ? (int)clutRect.x : -1,
                                                haveClut ? ((int)clutRect.y + r) : -1,
                                                discBitDepth);
-                    free(canvas);
                 }
             }
         }

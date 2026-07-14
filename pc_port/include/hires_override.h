@@ -69,12 +69,17 @@ int HiresOverride_RegisterFromTim(const char* timPath,
  * *outOffsetY with the tpage origin's position INSIDE that TIM, in native
  * texels. Prim UVs restart at each tpage, so a TIM wider than one tpage
  * (e.g. a 320px background) needs the per-chunk offset added to the UVs
- * or every chunk samples the override from x=0. */
+ * or every chunk samples the override from x=0.
+ * *outHiresW / *outHiresH are the matched GL texture's actual pixel dims —
+ * the shader clamps its LINEAR footprint inside each native texel with the
+ * implied upscale factor, so atlas neighbors (font glyphs) never bleed. */
 unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outNativePixelW,
                                               int* outNativePixelH,
                                               int* outOffsetX,
-                                              int* outOffsetY);
+                                              int* outOffsetY,
+                                              int* outHiresW,
+                                              int* outHiresH);
 
 void HiresOverride_LogStats(void);
 

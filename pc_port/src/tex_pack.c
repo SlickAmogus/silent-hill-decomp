@@ -564,9 +564,48 @@ static void BlitNearest(unsigned char* dst, int dstW, int dstH,
     }
 }
 
-unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
-                               const unsigned short* clut, int clutCount,
-                               int bpp, int* outW, int* outH)
+/* ---- Composed-canvas cache -------------------------------------------------
+ * TexPack_Compose runs on EVERY TIM upload that matches a pack entry, and
+ * exterior streaming re-uploads the same chunk TIMs endlessly as they churn
+ * through pool slots — re-doing the zip-open + PNG decode + composite each
+ * time was the reported pack stutter. A composite is a pure function of
+ * (pixel hash, palette hash, bpp), so results are cached content-keyed with
+ * LRU eviction, capped by `texpack_cache_mb` (0 disables). The cache OWNS
+ * every returned canvas — callers must not free it. */
+#define TP_CACHE_MAX 512
+
+typedef struct {
+    unsigned long long srcHash;
+    unsigned long long palHash;
+    int                bpp;
+    unsigned char*     rgba;
+    int                w, h;
+    size_t             bytes;
+    unsigned           tick; /* LRU stamp */
+} TpCacheEnt;
+
+static TpCacheEnt g_tpCache[TP_CACHE_MAX];
+static int        g_tpCacheCount = 0;
+static size_t     g_tpCacheBytes = 0;
+static unsigned   g_tpCacheTick  = 0;
+static unsigned   g_tpCacheHits = 0, g_tpCacheMisses = 0;
+
+/* Canvas kept alive until the next compose when caching is off/overflowing. */
+static unsigned char* g_tpTransient = NULL;
+
+static void tp_cache_evict_lru(void)
+{
+    int i, oldest = 0;
+    for (i = 1; i < g_tpCacheCount; i++)
+        if (g_tpCache[i].tick < g_tpCache[oldest].tick) oldest = i;
+    free(g_tpCache[oldest].rgba);
+    g_tpCacheBytes -= g_tpCache[oldest].bytes;
+    g_tpCache[oldest] = g_tpCache[--g_tpCacheCount];
+}
+
+const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
+                                     const unsigned short* clut, int clutCount,
+                                     int bpp, int* outW, int* outH)
 {
     unsigned long long srcHash;
     unsigned long long fullPalHash = 0;
@@ -576,9 +615,16 @@ unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
     float              scaleX = 1.0f, scaleY = 1.0f;
     int                nativeW, canvasW, canvasH;
     unsigned char*     canvas;
+    size_t             cacheCap;
 
     Scan_Once();
     if (g_entryCount == 0 || pixels == NULL || w16 <= 0 || h <= 0) return NULL;
+
+    if (g_tpTransient != NULL)
+    {
+        free(g_tpTransient);
+        g_tpTransient = NULL;
+    }
 
     srcHash = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
 
@@ -588,6 +634,23 @@ unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
         int n = (bpp == 4) ? 16 : 256;
         if (n > clutCount) n = clutCount;
         fullPalHash = XXH3_64bits(clut, (size_t)n * 2);
+    }
+
+    cacheCap = (size_t)g_PcConfig.texpackCacheMb << 20;
+    if (cacheCap > 0)
+    {
+        for (i = 0; i < g_tpCacheCount; i++)
+        {
+            TpCacheEnt* c = &g_tpCache[i];
+            if (c->srcHash == srcHash && c->palHash == fullPalHash && c->bpp == bpp)
+            {
+                c->tick = ++g_tpCacheTick;
+                g_tpCacheHits++;
+                *outW = c->w;
+                *outH = c->h;
+                return c->rgba;
+            }
+        }
     }
 
     first = Entry_LowerBound(srcHash);
@@ -691,6 +754,51 @@ unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
             SH_DBG("[TEXPACK] composed %dx%d for upload %016llX (%d sub-image%s, %dbpp)",
                    canvasW, canvasH, srcHash, matchCount, matchCount == 1 ? "" : "s", bpp);
             s_composeLog++;
+        }
+    }
+
+    /* Hand the canvas to the cache (it owns every returned pointer). If the
+     * cache is disabled or this canvas alone exceeds the cap, park it in the
+     * transient slot instead — freed on the next compose. */
+    {
+        size_t bytes = (size_t)canvasW * (size_t)canvasH * 4;
+
+        g_tpCacheMisses++;
+        if (cacheCap > 0 && bytes <= cacheCap)
+        {
+            while (g_tpCacheCount > 0 &&
+                   (g_tpCacheBytes + bytes > cacheCap || g_tpCacheCount >= TP_CACHE_MAX))
+            {
+                tp_cache_evict_lru();
+            }
+            if (g_tpCacheCount < TP_CACHE_MAX)
+            {
+                TpCacheEnt* c = &g_tpCache[g_tpCacheCount++];
+                c->srcHash = srcHash;
+                c->palHash = fullPalHash;
+                c->bpp     = bpp;
+                c->rgba    = canvas;
+                c->w       = canvasW;
+                c->h       = canvasH;
+                c->bytes   = bytes;
+                c->tick    = ++g_tpCacheTick;
+                g_tpCacheBytes += bytes;
+            }
+            else
+            {
+                g_tpTransient = canvas;
+            }
+        }
+        else
+        {
+            g_tpTransient = canvas;
+        }
+
+        if ((g_tpCacheMisses & 63) == 0)
+        {
+            SH_DBG("[TEXPACK] cache: %u hits / %u composes, %d entries, %u MB",
+                   g_tpCacheHits, g_tpCacheMisses, g_tpCacheCount,
+                   (unsigned)(g_tpCacheBytes >> 20));
         }
     }
 

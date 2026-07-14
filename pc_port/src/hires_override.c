@@ -348,6 +348,8 @@ typedef struct {
     int    nativeW, nativeH; /* disc TIM pixel dims — texelSize denominator so
                               * prim UVs map 0..1 over any replacement size */
     unsigned rowPackBytes[HIRES_POOL_MAX_ROWS]; /* pack-budget charge per row */
+    unsigned short rowW[HIRES_POOL_MAX_ROWS];   /* GL texture pixel dims per row — */
+    unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
@@ -426,6 +428,8 @@ int HiresOverride_PoolSlotRegister(int slotId,
                 return (r == 0) ? -1 : 0;
             }
             free(rgba);
+            rowSlot->rowW[rowIdx] = (unsigned short)w;
+            rowSlot->rowH[rowIdx] = (unsigned short)h;
             /* This row now holds base/loose content — release any pack charge a
              * previous occupant of the slot left on it. */
             pack_credit(&rowSlot->rowPackBytes[rowIdx]);
@@ -507,6 +511,8 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
         return -1;
     }
     pack_charge(&s->rowPackBytes[row], w, h);
+    s->rowW[row] = (unsigned short)w;
+    s->rowH[row] = (unsigned short)h;
     s->nativeW = nativePixelW;
     s->nativeH = nativePixelH;
     return 0;
@@ -675,7 +681,9 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outNativePixelW,
                                               int* outNativePixelH,
                                               int* outOffsetX,
-                                              int* outOffsetY)
+                                              int* outOffsetY,
+                                              int* outHiresW,
+                                              int* outHiresH)
 {
     /* Virtual pool slot: clut bit 15 set; slot id split across the clut X
      * bits + 16-row-spaced Y groups, row = the prim's baked +64*row palette
@@ -690,9 +698,9 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
             int row    = q % HIRES_POOL_MAX_ROWS;
             if (slotId < HIRES_POOL_SLOT_MAX)
             {
-                PoolSlotEntry* s = &g_poolSlots[slotId];
-                GLuint tex = s->glTexture[row] != 0 ? s->glTexture[row]
-                                                    : s->glTexture[0];
+                PoolSlotEntry* s      = &g_poolSlots[slotId];
+                int            useRow = (s->glTexture[row] != 0) ? row : 0;
+                GLuint         tex    = s->glTexture[useRow];
                 /* Chara-range row spill (base+64k): when the alias slot is
                  * empty — a single-palette loose/PNG replacement registered
                  * only rows 0..15 of a >16-row TIM — fall back to the chara
@@ -701,8 +709,9 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                 while (tex == 0 && slotId >= HIRES_POOL_CHARA_SLOT_BASE + 64)
                 {
                     slotId -= 64;
-                    s   = &g_poolSlots[slotId];
-                    tex = s->glTexture[0];
+                    s      = &g_poolSlots[slotId];
+                    useRow = 0;
+                    tex    = s->glTexture[0];
                 }
                 if (tex != 0)
                 {
@@ -710,6 +719,8 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                     if (outNativePixelH) *outNativePixelH = s->nativeH;
                     if (outOffsetX)      *outOffsetX      = 0;
                     if (outOffsetY)      *outOffsetY      = 0;
+                    if (outHiresW)       *outHiresW       = s->rowW[useRow];
+                    if (outHiresH)       *outHiresH       = s->rowH[useRow];
                     return (unsigned int)tex;
                 }
             }
@@ -760,6 +771,8 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
             if (outNativePixelH) *outNativePixelH = e->vramH;
             if (outOffsetX)      *outOffsetX      = (tpx - e->vramX) * pixelsPerCell;
             if (outOffsetY)      *outOffsetY      = tpy - e->vramY;
+            if (outHiresW)       *outHiresW       = e->hiresW;
+            if (outHiresH)       *outHiresH       = e->hiresH;
         }
         return (unsigned int)e->glTexture;
     }

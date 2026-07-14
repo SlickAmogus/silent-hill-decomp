@@ -32,11 +32,13 @@ int TexPack_HasEntries(void);
  *   clut       palette halfwords (NULL for 16bpp)
  *   clutCount  entries available at `clut`
  *   bpp        4, 8 or 16
- * Returns a malloc'd RGBA8 canvas (*outW x *outH — the upload at pack scale)
- * when at least one pack entry matches, else NULL. */
-unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
-                               const unsigned short* clut, int clutCount,
-                               int bpp, int* outW, int* outH);
+ * Returns an RGBA8 canvas (*outW x *outH — the upload at pack scale) when at
+ * least one pack entry matches, else NULL. The canvas is OWNED by the
+ * content-keyed compose cache (`texpack_cache_mb`) — do NOT free it; it stays
+ * valid until the next TexPack_Compose call at minimum. */
+const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
+                                     const unsigned short* clut, int clutCount,
+                                     int bpp, int* outW, int* outH);
 
 #ifdef __cplusplus
 }
