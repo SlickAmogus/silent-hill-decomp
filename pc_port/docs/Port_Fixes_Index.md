@@ -895,3 +895,58 @@ around the item-only OT0 draw.
 `RotTransPers4` output addresses, so water quads now also become PGXP-tracked when
 PGXP is on (previously affine). This is the intended behaviour of the setting, but it
 is a visible change to water with `use_pgxp = 1` and is worth an A/B.
+
+## Alt cameras stand down for scripted scenes; optional TPS/OTS camera collision (2026-07-14, commit `ff77c3d85`)
+
+**Symptom**: small in-engine scenes — Harry's sewer ladder descent above all — were
+played from the follow/eye camera instead of the scripted shot, which ruined them.
+The FPS camera in particular should only be live during actual gameplay.
+
+**Root cause**: `Pc_TpsCamera_Apply` (the one function that applies TPS/OTS/FPS) only
+bailed on the two LETTERBOX markers, `SysFlag_CutsceneActive` and
+`cutsceneBorderState`. The small scenes raise neither — `map5_s00.c:685` is a plain
+`Player_ControlFreeze()` + `Event_CameraPositionSet()` under `SysState_EventCallback`
+and touches neither symbol. So the alt camera happily overrode the scripted camera.
+
+**The guard, and why it looks the way it does.** `Pc_ScriptOwnsScene()` = a letterboxed
+cinematic, OR the script driving **both** the camera and Harry. Two adversarial review
+rounds killed the obvious single-term versions, each with a concrete break:
+
+| Candidate term | What it breaks |
+|---|---|
+| `VC_USER_CAM_F` / `VC_USER_WATCH_F` alone | **No alt camera for the entire final boss fight.** `map7_s03`'s `Map_WorldObjectsUpdate → func_800E14DC` re-raises these *every frame* of the Incubus fight while the player has full control. Same class: `map6_s04` (Cybil), `map6_s02` (ladder), `map1_s03` / `map2_s01` region cams. The flags mean "somebody called `vcUserCamTarget` this frame" — not "a scene is playing". |
+| `g_Player_DisableControl` alone | **Camera pops to classic on every memo and every item pickup.** `Event_ItemTake` freezes at `EventState_Initialize`, several frames *before* `Gfx_PickupItemAnimate` sets `BgmStatusFlag_Pause`, so the world block still runs in that window. `SysState_ReadMessage_Update` freezes every frame and never sets Pause. The flag means "the engine is driving Harry", which ordinary interactions do too. |
+
+Together they are true exactly for the scripted scenes. `SysState_ReadMessage` is
+excluded outright — examining a memo is never a scene (`control_style.c` already makes
+the same carve-out). Note that standing down does **not** freeze the view:
+`vcMoveAndSetCamera` has already placed the game's own camera that frame, so skipping
+our override simply lets it through.
+
+**Bonus fix**: the `fps_fov` block used to sit *after* the early-return inside
+`Pc_TpsCamera_Apply`, so a stand-down skipped the restore and left the FPS FOV clamped
+onto the scripted shot for the whole scene. It is now `Pc_FpsFov_Update()`, called on
+both exits.
+
+### `tps_camera_collision` (default 1)
+
+Launcher Controls checkbox ("Allow thirdperson camera collision") + in-game Controls
+options row + config key. Off = the TPS/OTS **render** eye keeps its full orbit
+distance and is allowed to pass through geometry.
+
+**The trap**: `g_TpsCamPos` is not just the render eye — it is the **free-aim ray
+origin** (`player_control.c` `Ray_CharaTraceQuery`, and `Pc_AimAssistFind`'s cone
+apex). The level trace is **double-sided** (`ray.c`: the surface test is a pure
+straddle test, and the `gte_nclip` backface reject only runs for `useCylinder`), so an
+origin sitting behind a wall hits that wall *first* and flips the shot ~180° back into
+it — Harry would fire backwards whenever he backed into a corner.
+
+So the pull-in still runs with collision off, and the aim origin is slid **along the
+view line** by the pull distance. It is *not* set to the pulled-in point: that point
+lies on `pivot → eye`, which is ~11° off the view axis (`tpLookAt.vy` is anchored to
+Harry's chest, not the eye) and is measured from an un-shifted pivot, so it also
+cancels part of the OTS shoulder offset. A ray from there is *parallel* to the line
+the reticle draws — a constant miss at every range. Projecting the displacement onto
+`g_TpsCamFwd` keeps origin and reticle collinear.
+
+With collision on, the slide is skipped and the default path is byte-identical.
