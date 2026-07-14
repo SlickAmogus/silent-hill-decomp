@@ -52,6 +52,7 @@ s_PcConfig g_PcConfig = {
     .invertMouseY        = 0,
     .invertControllerY   = 0,
     .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
+    .tpsCameraCollision  = 1, /* pull the TPS/OTS eye in off walls (off = eye may pass through geometry) */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -592,6 +593,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_aim_zoom") == 0)
         {
             g_PcConfig.tpsAimZoom = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "tps_camera_collision") == 0)
+        {
+            g_PcConfig.tpsCameraCollision = (atoi(value) != 0);
         }
         else if (strcmp(key, "crosshair") == 0)
         {

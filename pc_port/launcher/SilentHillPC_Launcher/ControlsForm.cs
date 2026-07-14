@@ -141,6 +141,7 @@ public class ControlsForm : Form
     private CheckBox chkAimAssist;
     private CheckBox chk2dControls;
     private CheckBox chkButtonSprint;
+    private CheckBox chkTpsCameraCollision;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
     private NumericUpDown numFpsFov;
@@ -474,6 +475,20 @@ public class ControlsForm : Form
             "Walk by default and only sprint while the bound Run control is held — like the classic control " +
             "style. Applies to the alternate cameras (Thirdperson / Over-the-Shoulder / First-person) and to " +
             "2D Controls under any camera. Off = pushing the stick most of the way also sprints.");
+
+        chkTpsCameraCollision = new CheckBox
+        {
+            Text = "Allow thirdperson camera collision",
+            Left = colPadX,
+            Top = styleY + 238,
+            Width = 260,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkTpsCameraCollision);
+        tips.SetToolTip(chkTpsCameraCollision,
+            "Thirdperson / Over-the-Shoulder cameras only: when a wall would come between the camera and Harry, " +
+            "pull the camera in so it stays on his side of it (on = the default). Off = the camera holds its full " +
+            "orbit distance and is allowed to pass through geometry.");
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
             "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +
@@ -855,6 +870,7 @@ public class ControlsForm : Form
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
         chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
+        chkTpsCameraCollision.Checked = config.Get("tps_camera_collision", "1") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "67.4"));
@@ -892,6 +908,7 @@ public class ControlsForm : Form
         chk2dControls.Checked = false;
         chkAimAssist.Checked = true;
         chkButtonSprint.Checked = false;
+        chkTpsCameraCollision.Checked = true;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 67.4m;
@@ -1010,6 +1027,7 @@ public class ControlsForm : Form
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
         config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
         config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
+        config.Set("tps_camera_collision", chkTpsCameraCollision.Checked ? "1" : "0");
         config.Set("mouse_sensitivity",
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",

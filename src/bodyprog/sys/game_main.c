@@ -188,14 +188,91 @@ static int           g_PcCamAppliedValid  = 0;
  * from g_ControlStyle), with or without allow_debug_controls. Mouse delta
  * orbits the camera around Harry; body-yaw follow + movement live in
  * player_control.c's TPS branch. */
-static void Pc_TpsCamera_Apply(void)
+/* True while a scripted scene owns the screen. The alternate cameras (TPS/OTS/FPS)
+ * must stand down for these — otherwise the follow/eye camera overrides the scripted
+ * shot and the scene plays from the wrong place (Harry's sewer ladder descent being
+ * the obvious one). Standing down does NOT freeze the view: vcMoveAndSetCamera has
+ * already placed the game's own camera this frame, so skipping our override simply
+ * lets that camera through.
+ *
+ * A letterboxed cinematic is unambiguous. Everything else is a scene only when the
+ * script drives BOTH the camera and Harry — neither half is sufficient alone:
+ *
+ *  - The camera flags alone (VC_USER_CAM_F / VC_USER_WATCH_F, raised by
+ *    vcUserCamTarget / vcUserWatchTarget) are also raised by the maps' own boss and
+ *    region cameras during ORDINARY gameplay. map7_s03 re-raises them every single
+ *    frame of the final boss fight, so keying on them alone would leave the alternate
+ *    camera dead for that entire fight.
+ *
+ *  - g_Player_DisableControl alone (Player_ControlFreeze) is raised by every text box
+ *    and every item pickup, which freeze Harry but never touch the camera. Keying on
+ *    it alone would pop the view to the classic angle and back on every memo and
+ *    every item taken — Event_ItemTake freezes at EventState_Initialize, several
+ *    frames before Gfx_PickupItemAnimate pauses the world, so there is a live window.
+ *
+ * Both together hold exactly for the scripted scenes: the sewer descent, the DMS
+ * cutscenes, the scripted camera moves.
+ *
+ * SysState_ReadMessage is excluded outright — examining a memo is never a scene, not
+ * even in the few areas whose region camera happens to hold the camera flags up
+ * during gameplay. control_style.c makes the same carve-out. */
+extern u8 g_Player_DisableControl; /* bodyprog/player.h */
+
+static int Pc_ScriptOwnsScene(void)
 {
-    /* Force the game's default/cinematic camera during cutscenes: the TPS follow
-     * cam otherwise overrides and fights the scripted cutscene cameras. Covers
-     * both the cutscene flag and the letterbox-border states. */
     if ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
         g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+        return 1;
+
+    if (g_SysWork.sysState == SysState_ReadMessage)
+        return 0;
+
+    return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
+}
+
+/* First-person FOV (config fps_fov, degrees of horizontal FOV on the 4:3 frame):
+ * override the GTE projection distance ONLY during interactive FPS gameplay —
+ * menus, cutscenes, scripted scenes and the room-entry camera keep the game's own
+ * projection (gsScreenHeight = 240 ≈ 67°). H = 160 / tan(fov/2), via float tan.
+ *
+ * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
+ * restore has to run even when the camera body is skipped, or the FPS FOV stays
+ * clamped onto the scripted shot for the whole scene. */
+static void Pc_FpsFov_Update(void)
+{
+    static int s_fpsFovApplied = 0;
+    int fovActive = g_PcFpsCam
+        && g_GameWork.gameState == GameState_InGame
+        && g_SysWork.sysState == SysState_Gameplay
+        && !Pc_ScriptOwnsScene();
+
+    if (fovActive)
+    {
+        /* Float tan + round-to-nearest so the default (67.4 deg, the game's
+         * native FOV: 2*atan(160/240)) maps back to EXACTLY H=240 — the
+         * out-of-the-box projection is byte-identical to pre-FOV builds. */
+        float t = tanf(g_PcConfig.fpsFov * (3.14159265f / 360.0f));
+        s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : 240;
+        if (h < 16)  h = 16;
+        if (h > 512) h = 512;
+        SetGeomScreen(h);
+        s_fpsFovApplied = 1;
+    }
+    else if (s_fpsFovApplied)
+    {
+        SetGeomScreen(g_GameWork.gsScreenHeight);
+        s_fpsFovApplied = 0;
+    }
+}
+
+static void Pc_TpsCamera_Apply(void)
+{
+    /* Hand the camera back to the game whenever a script owns the scene. */
+    if (Pc_ScriptOwnsScene())
+    {
+        Pc_FpsFov_Update();
         return;
+    }
 
     #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
     #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
@@ -658,7 +735,14 @@ static void Pc_TpsCamera_Apply(void)
          * level geometry. Cast from Harry's chest (the orbit anchor) out to the
          * computed eye; on a wall hit, pull the eye in along that line to just
          * short of the wall. TPS/OTS only — the FPS eye sits at Harry's head.
-         * lookAt is left anchored to Harry so he stays framed as the eye zooms. */
+         * lookAt is left anchored to Harry so he stays framed as the eye zooms.
+         *
+         * The pull-in is computed whenever we are not in FPS, into aimEye. With
+         * tps_camera_collision = 1 (default) it also becomes the render eye. With 0 the
+         * render eye keeps its full orbit distance and is allowed through geometry —
+         * what that option asks for — and aimEye survives only to keep the free-aim ray
+         * out of the wall (see the publish below). */
+        VECTOR3 aimEye = tpCamPos;
         if (!g_PcFpsCam)
         {
             #define CAM_COLL_MARGIN Q12(0.25f)
@@ -682,20 +766,23 @@ static void Pc_TpsCamera_Apply(void)
                     s32 frac;
                     if (safe < CAM_COLL_MIN) { safe = CAM_COLL_MIN; }
                     frac = (s32)(((s64)safe << 12) / full);
-                    tpCamPos.vx = pivot.vx + (s32)(((s64)dx * frac) >> 12);
-                    tpCamPos.vy = pivot.vy + (s32)(((s64)dy * frac) >> 12);
-                    tpCamPos.vz = pivot.vz + (s32)(((s64)dz * frac) >> 12);
+                    aimEye.vx = pivot.vx + (s32)(((s64)dx * frac) >> 12);
+                    aimEye.vy = pivot.vy + (s32)(((s64)dy * frac) >> 12);
+                    aimEye.vz = pivot.vz + (s32)(((s64)dz * frac) >> 12);
                 }
             }
             #undef CAM_COLL_MARGIN
             #undef CAM_COLL_MIN
+
+            if (g_PcConfig.tpsCameraCollision)
+                tpCamPos = aimEye;
         }
 
         /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
          * offset so the eye matches the rendered view). The aim ray in
          * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd.
          *
-         * Forward must be the ACTUAL view direction (eye -> lookAt), NOT the raw
+         * Forward must be the ACTUAL view direction (render eye -> lookAt), NOT the raw
          * orbit forward (fwdX/Y/Z): tpLookAt.vy is anchored to Harry's chest, so the
          * screen-center ray has a different PITCH than the orbit forward. Publishing
          * the orbit forward made the aim ray (and the bullet) miss screen-center
@@ -720,43 +807,44 @@ static void Pc_TpsCamera_Apply(void)
                 g_TpsCamFwd.vz = fwdZ;
             }
         }
+
+        /* tps_camera_collision = 0: the render eye is allowed through walls, but the
+         * shot must not be. Player_CombatUpdate traces this ray against level geometry
+         * with a DOUBLE-SIDED surface test, so an origin sitting behind a wall hits
+         * that wall first and flips the shot ~180 degrees back into it — Harry would
+         * fire backwards whenever he backed into a corner.
+         *
+         * Slide the origin forward ALONG THE VIEW LINE by however far the pull-in would
+         * have moved the eye. Using the pulled-in point itself as the origin is wrong:
+         * the pull runs along pivot->eye, which is ~11 degrees off the view direction
+         * (tpLookAt.vy is anchored to Harry's chest, not to the eye) and is measured
+         * from an un-shifted pivot, so it also cancels part of the OTS shoulder offset.
+         * That point is off the reticle line, and a ray from it is PARALLEL to the line
+         * the player is aiming along — a constant miss at every range. Projecting the
+         * displacement onto g_TpsCamFwd keeps origin and reticle collinear.
+         *
+         * No-op when collision is on (aimEye == tpCamPos) and in FPS (block skipped). */
+        if (!g_PcFpsCam && !g_PcConfig.tpsCameraCollision)
+        {
+            s32 dx = aimEye.vx - tpCamPos.vx;
+            s32 dy = aimEye.vy - tpCamPos.vy;
+            s32 dz = aimEye.vz - tpCamPos.vz;
+            s64 t  = ((s64)dx * g_TpsCamFwd.vx +
+                      (s64)dy * g_TpsCamFwd.vy +
+                      (s64)dz * g_TpsCamFwd.vz) >> 12; /* Q12 distance along the view line */
+            if (t > 0)
+            {
+                g_TpsCamPos.vx = tpCamPos.vx + (s32)((t * g_TpsCamFwd.vx) >> 12);
+                g_TpsCamPos.vy = tpCamPos.vy + (s32)((t * g_TpsCamFwd.vy) >> 12);
+                g_TpsCamPos.vz = tpCamPos.vz + (s32)((t * g_TpsCamFwd.vz) >> 12);
+            }
+        }
 #endif
         Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
         vwSetViewInfo();
     }
 
-    /* First-person FOV (config fps_fov, degrees of horizontal FOV on the 4:3
-     * frame): override the GTE projection distance ONLY during interactive FPS
-     * gameplay — menus, cutscenes, and the room-entry camera keep the game's
-     * own projection (gsScreenHeight = 240 ≈ 67°). H = 160 / tan(fov/2), via
-     * Q12 trig (cos/sin) so no libm dependency. Restore once on leaving the
-     * FPS-gameplay state; the classic camera path (vcMain) re-asserts its own
-     * projection every frame anyway. */
-    {
-        static int s_fpsFovApplied = 0;
-        int fovActive = g_PcFpsCam
-            && g_GameWork.gameState == GameState_InGame
-            && g_SysWork.sysState == SysState_Gameplay
-            && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
-            && g_SysWork.cutsceneBorderState == CutsceneBorderState_None;
-        if (fovActive)
-        {
-            /* Float tan + round-to-nearest so the default (67.4 deg, the game's
-             * native FOV: 2*atan(160/240)) maps back to EXACTLY H=240 — the
-             * out-of-the-box projection is byte-identical to pre-FOV builds. */
-            float t = tanf(g_PcConfig.fpsFov * (3.14159265f / 360.0f));
-            s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : 240;
-            if (h < 16)  h = 16;
-            if (h > 512) h = 512;
-            SetGeomScreen(h);
-            s_fpsFovApplied = 1;
-        }
-        else if (s_fpsFovApplied)
-        {
-            SetGeomScreen(g_GameWork.gsScreenHeight);
-            s_fpsFovApplied = 0;
-        }
-    }
+    Pc_FpsFov_Update();
 
     #undef TP_DIST
     #undef TP_DIST_AIM
