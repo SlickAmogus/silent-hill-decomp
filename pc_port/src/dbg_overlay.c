@@ -1264,15 +1264,22 @@ static int Dbg_GfxBindActive(const unsigned char* ks, const char* name)
     extern int g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
     SDL_Scancode sc;
     if (!name || !name[0]) return 0;
-    /* An open console OWNS the wheel: it is the scrollback control, so a notch
-     * there must never also fire whatever action the wheel is bound to. The
-     * wheel-bound PSX buttons are already dead (MainLoop zeroes the pad while
-     * the console holds input), and the menu cursor gates itself on
-     * Pc_ConsoleIsOpen — this is the one remaining consumer that read the latch
-     * raw. Keyboard binds are deliberately left alone: they are suppressed
-     * per-action against g_PcConsoleInputActive, not here. */
-    if (SDL_strcasecmp(name, "MouseWheelUp")   == 0) return !s_console_open && g_PsyX_WheelUpFrames   != 0;
-    if (SDL_strcasecmp(name, "MouseWheelDown") == 0) return !s_console_open && g_PsyX_WheelDownFrames != 0;
+
+    /* An open console OWNS the mouse and keyboard: the wheel is its scrollback
+     * control and the keys are its prompt, so neither may also fire whatever
+     * action they happen to be bound to. Typing the default `[` / `]` binds used
+     * to adjust the flashlight WHILE entering them as text, and a wheel notch
+     * both scrolled and fired.
+     *
+     * Gating the resolver itself covers every bind that routes through it
+     * (gfx prev/next/cycle, Exit Game) for both input kinds at once. The other
+     * two wheel consumers are already handled elsewhere: wheel-bound PSX buttons
+     * die when MainLoop zeroes the pad, and the menu mouse cursor gates on
+     * Pc_ConsoleIsOpen. */
+    if (s_console_open) return 0;
+
+    if (SDL_strcasecmp(name, "MouseWheelUp")   == 0) return g_PsyX_WheelUpFrames   != 0;
+    if (SDL_strcasecmp(name, "MouseWheelDown") == 0) return g_PsyX_WheelDownFrames != 0;
     sc = SDL_GetScancodeFromName(name);
     return (sc != SDL_SCANCODE_UNKNOWN) ? ks[sc] : 0;
 }
