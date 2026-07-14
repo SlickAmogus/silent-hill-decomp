@@ -451,7 +451,7 @@ public class ControlsForm : Form
         WirePair(numFpsFov, trkFpsFov, 1m);
         tips.SetToolTip(numFpsFov,
             "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in First-person mode — menus, " +
-            "cutscenes, and the other cameras keep the game's original projection. Default 67.4 = the game's " +
+            "cutscenes, and the other cameras keep the game's original projection. Default 71.1 = the game's " +
             "original FOV; 90 = standard FPS feel.");
 
         AddLabel("Thirdperson FOV", sensX, styleY + 228, 125);
@@ -929,7 +929,7 @@ public class ControlsForm : Form
         chkTpsCameraCollision.Checked = config.Get("tps_camera_collision", "1") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
-        numFpsFov.Value = ClampFov(config.Get("fps_fov", "67.4"));
+        numFpsFov.Value = ClampFov(config.Get("fps_fov", "71.1"));
         numTpsFov.Value = ClampFov(config.Get("tps_fov", "71.1"));
         // Migration: the aim zoom used to be the on/off "tps_aim_zoom" key. If the
         // slider key isn't there yet, land on the end of the range that matches
@@ -973,7 +973,7 @@ public class ControlsForm : Form
         chkTpsCameraCollision.Checked = true;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
-        numFpsFov.Value = 67.4m;
+        numFpsFov.Value = 71.1m;
         numTpsFov.Value = 71.1m;
         numTpsAimZoom.Value = 100m;
 
@@ -1030,14 +1030,14 @@ public class ControlsForm : Form
         WirePair(num, trk, 0.1m);
     }
 
-    // Parse the first-person FOV from config, clamped to [55, 110] degrees
-    // (one decimal kept so the 67.4 native default round-trips).
+    // Parse a camera FOV from config, clamped to [55, 110] degrees
+    // (one decimal kept so the 71.1 native default round-trips).
     private static decimal ClampFov(string s)
     {
         double v;
         if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out v))
-            v = 67.4;
+            v = 71.1;
         if (v < 55.0) v = 55.0;
         if (v > 110.0) v = 110.0;
         return (decimal)(Math.Round(v * 10.0) / 10.0);

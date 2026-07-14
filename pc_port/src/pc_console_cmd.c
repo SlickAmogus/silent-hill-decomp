@@ -1112,11 +1112,11 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.
-         * `fov default` restores the game's native projection (67.4 = H 240). */
+         * `fov default` restores the game's native projection (71.1 = H 224). */
         if (arg[0] != '\0') {
             float v;
             if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "default") == 0)
-                v = 67.4f;
+                v = 71.1f;
             else
                 v = (float)atof(arg);
             if (v < 55.0f)  v = 55.0f;
@@ -1128,7 +1128,7 @@ void Pc_ConsoleExec(const char* line)
                 PcConfig_SaveKeyValue("fps_fov", buf);
             }
         }
-        cprintf("first-person FOV %.1f deg (67.4 = original; applies in FPS gameplay only)",
+        cprintf("first-person FOV %.1f deg (71.1 = original; applies in FPS gameplay only)",
                 g_PcConfig.fpsFov);
     } else if (strcmp(cmd, "TPSFOV") == 0) {
         /* Thirdperson / Over-the-Shoulder FOV. Same value as the launcher slider;

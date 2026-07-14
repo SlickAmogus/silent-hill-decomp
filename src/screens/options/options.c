@@ -93,9 +93,17 @@ extern float g_PcFmvVolume;
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
-static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls */
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera */
 
 enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+
+/* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
+ * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
+ * 240-line screen. Starting at 40 reclaims that row for every page. Everything that
+ * is positioned per-row moves with it: the two string draws, the mouse hit-test in
+ * Options_PcOptionsMenu_Control, and — in the centred quad space the highlight and
+ * bullets are authored in — HIGHLIGHT_OFFSET_Y and the bullet quad Y's. */
+#define PCOPT_LINE_BASE_Y 40
 
 typedef struct {
     const char*        name;     /* row label (underscores render as spaces) */
@@ -183,10 +191,24 @@ static const s_PcOpt PCOPT_C[] = {
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Assist",        &g_PcConfig.aimAssist,         "aim_assist",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Crosshair",         &g_PcConfig.crosshair,         "crosshair",              VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 4 (Camera): the alternate-camera options. Split off page 3, which was over
+ * capacity — a page fits ~12 lines (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line
+ * screen) and the Map row costs two (its friendly-name caption). Crosshair moved
+ * here from page 3 for the same reason; it belongs with the aiming options anyway. */
+static const s_PcOpt PCOPT_T[] = {
+    { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,      NULL, 55.0f, 110.0f, 1.0f },
+    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 100.0f, 5.0f },
+    { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
@@ -223,8 +245,9 @@ static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
-    *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0]));
-    return PCOPT_C;
+    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
+    return PCOPT_T;
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
@@ -377,7 +400,7 @@ void Options_PcOptionsMenu_Control(void)
                 int row = -1, mapRow = PcOpt_MapRow(tbl, count), i;
 
                 for (i = 0; i < count; i++) {
-                    int top = 56 + (PcOpt_DispLine(i, mapRow) * 16) - 3;
+                    int top = PCOPT_LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * 16) - 3;
                     if (my >= top && my < top + 16) { row = i; break; }
                 }
 
@@ -432,12 +455,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page++; /* 0->1 (Graphics->System) or 1->2 (System->Controls) */
+                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page--; /* 2->1 (Controls->System) or 1->0 (System->Graphics) */
+                g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
@@ -486,7 +509,7 @@ static int PcOpt_DispLine(int entry, int mapRow)
 static void Options_PcOptionsMenu_EntryStringsDraw(void)
 {
     #define LINE_BASE_X   64
-    #define LINE_BASE_Y   56
+    #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
     #define LINE_OFFSET_Y 16
 
     int            count, i, mapRow;
@@ -516,16 +539,18 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
 static void Options_PcOptionsMenu_ConfigDraw(void)
 {
     #define LINE_BASE_X   64
-    #define LINE_BASE_Y   56
+    #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
     #define LINE_OFFSET_Y 16
 
     int            count, i, mapRow;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
-    /* Pages 2/3's labels run long ("Disable Culling", "Mouse Sensitivity"), so
-     * push their value column right to clear them — but no further: page 2's
-     * widest value ("C_+_Shadows", 109px) must still end before the 320px
-     * clip (its labels end by ~196, so 204 clears both ways). */
+    /* System's and Controls'/Camera's labels run long ("Disable Culling",
+     * "Mouse Sensitivity", "Camera Collision"), so push their value column right
+     * to clear them — but no further: System's widest value ("C_+_Shadows",
+     * 109px) must still end before the 320px clip (its labels end by ~196, so
+     * 204 clears both ways). Controls and Camera hold only short values (numbers
+     * and On/Off), so they can afford 240. */
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
 
     mapRow = PcOpt_MapRow(tbl, count);
@@ -565,7 +590,9 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
 {
     #define LINE_OFFSET_Y      16
     #define HIGHLIGHT_OFFSET_X -121
-    #define HIGHLIGHT_OFFSET_Y 58
+    /* 58 + 16: the rows moved up one line (PCOPT_LINE_BASE_Y 56 -> 40), and this
+     * space measures DOWN from the row, so it grows by the same 16. */
+    #define HIGHLIGHT_OFFSET_Y 74
     #define HILITE_WIDTH       196
 
     int            count, i, j, mapRow;
@@ -576,8 +603,9 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     static DVECTOR selectionHighlightFrom;
     static DVECTOR selectionHighlightTo;
 
-    const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -55 }, { -120, -43 }, { -108, -55 }, { -108, -43 } };
-    const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -56 }, { -121, -42 }, { -107, -56 }, { -107, -42 } };
+    /* Bullet quads, likewise lifted 16 to follow PCOPT_LINE_BASE_Y. */
+    const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -71 }, { -120, -59 }, { -108, -71 }, { -108, -59 } };
+    const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -72 }, { -121, -58 }, { -107, -72 }, { -107, -58 } };
 
     const s_PcOpt* tbl = PcOpt_Page(&count);
     mapRow = PcOpt_MapRow(tbl, count);

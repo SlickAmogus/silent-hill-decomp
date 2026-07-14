@@ -239,11 +239,10 @@ static int Pc_ScriptOwnsScene(void)
  * The game's own projection distance in gameplay is g_GameWork.gsScreenHeight, and
  * gameplay runs PROGRESSIVE — Screen_Init(SCREEN_WIDTH, false) — so H is 224, not
  * 240. On the 320-wide frame that is a true horizontal FOV of 2*atan(160/224) =
- * 71.1 deg, which is why tps_fov defaults to 71.1: it maps back to H = 224, the
- * exact value vcExecCamera already set this frame, so the default is a genuine
- * no-op. (fps_fov's 67.4 default maps to H = 240 and is therefore slightly NARROWER
- * than the game's real FOV — pre-existing, left alone so existing setups don't
- * shift under people.)
+ * 71.1 deg, which is why both fps_fov and tps_fov default to 71.1: they map back to
+ * H = 224, the exact value vcExecCamera already set this frame, so the defaults are
+ * a genuine no-op. Do NOT use 67.4 (H = 240) — that is the interlaced height and is
+ * narrower than the game's real gameplay FOV.
  *
  * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
  * restore has to run even when the camera body is skipped, or the FOV stays
