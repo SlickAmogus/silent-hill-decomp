@@ -1,9 +1,18 @@
 # Doorway Randomizer Mode — Design & Effort Analysis
 
-> Status: **SCOPING ONLY — not implemented.** This doc seeds a future clean session.
-> Produced 2026-06-24 from two read-only investigations of the transition/map-load
-> system and the enemy/item spawn system. File:line refs are starting points; the
-> implementing session should re-verify against current code.
+> Status: **SUPERSEDED — the mode shipped 2026-07-14. See `Randomizer_Mode.md`.**
+>
+> Kept as the historical scoping pass (2026-06-24). Several of its guesses turned
+> out wrong and are corrected in the shipped doc:
+>   - the per-door lock flag it could not find is a *second event row* on the same
+>     doorway, not a flag;
+>   - the arrival spawn point does not need harvesting "at runtime" — it is authored
+>     in the source map but expressed in the destination's coordinate space, so it
+>     can be harvested statically (`tools/gen_rando_data.py`);
+>   - "any enemy anywhere" turned out to be free, because the global chara pool
+>     (`Global_Chara_Pool.md`) landed in between and solved its Phase 3.
+>
+> Original text follows.
 
 ## 1. The mode (goal)
 

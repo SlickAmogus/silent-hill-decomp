@@ -650,6 +650,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.unlimitedEnemies = (atoi(value) != 0);
         }
+        else if (strcmp(key, "randomizer") == 0)
+        {
+            g_PcConfig.randomizer = (atoi(value) != 0);
+        }
         else if (strcmp(key, "control_styles") == 0)
         {
             /* Game-owned registry list, published for the launcher's dropdown.

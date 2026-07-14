@@ -1680,6 +1680,13 @@ void MainLoop(void) // 0x80032EE0
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
         DbgOverlay_Update();
+
+        /* Randomizer: per-area monster placement, entry-door relock timer.
+         * No-op unless a run is live. */
+        {
+            extern void Pc_Rando_Update(void);
+            Pc_Rando_Update();
+        }
 #endif
         // Update input.
         Joy_ReadP1();

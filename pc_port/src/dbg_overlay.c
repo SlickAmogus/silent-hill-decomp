@@ -171,6 +171,16 @@ static char   s_anim_lines[ANIM_LINES][ANIM_COLS];
 static int    s_anim_count = 0;
 static GLuint s_anim_tex   = 0;
 
+/* ---- Randomizer score (left, vertically centred) ----
+ * Unlike the panels above this is NOT a debug overlay: it is the gamemode's HUD,
+ * so it is gated on a live randomizer run rather than on allow_debug_controls. */
+#define SCORE_COLS 16
+#define SCORE_TEX_W (SCORE_COLS * GLYPH_W)
+#define SCORE_TEX_H (1 * GLYPH_H)
+static char   s_score_line[SCORE_COLS];
+static int    s_score_on  = 0;
+static GLuint s_score_tex = 0;
+
 /* ---- System-message toast (top-left) ----
  * When the ingame console overlay is hidden, the newest line(s) pushed to it
  * (cheat toggles, graphics-setting changes) still flash briefly in the top-left,
@@ -591,6 +601,15 @@ static void overlay_gl_init(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, ANIM_TEX_W, ANIM_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    glGenTextures(1, &s_score_tex);
+    glBindTexture(GL_TEXTURE_2D, s_score_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, SCORE_TEX_W, SCORE_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     glGenTextures(1, &s_toast_tex);
     glBindTexture(GL_TEXTURE_2D, s_toast_tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -953,6 +972,35 @@ static void anim_build_texture(void)
 
     glBindTexture(GL_TEXTURE_2D, s_anim_tex);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ANIM_TEX_W, ANIM_TEX_H,
+                    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
+static void score_build_texture(void)
+{
+    static unsigned char pixels[SCORE_TEX_H][SCORE_TEX_W][4];
+    const char* str = s_score_line;
+    int cx, x, y;
+
+    memset(pixels, 0, sizeof(pixels));
+
+    for (cx = 0; *str && cx < SCORE_COLS; cx++, str++) {
+        unsigned int ch = (unsigned char)*str;
+        if (ch >= 128) continue;
+        for (y = 0; y < GLYPH_H; y++) {
+            unsigned char row = s_font[ch][y];
+            for (x = 0; x < GLYPH_W; x++) {
+                if (row & (1u << x)) {
+                    pixels[y][cx * GLYPH_W + x][0] = 235;
+                    pixels[y][cx * GLYPH_W + x][1] = 235;
+                    pixels[y][cx * GLYPH_W + x][2] = 235;
+                    pixels[y][cx * GLYPH_W + x][3] = 255;
+                }
+            }
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, s_score_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, SCORE_TEX_W, SCORE_TEX_H,
                     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
@@ -1731,6 +1779,13 @@ void DbgOverlay_Render(void)
     drawColl    = (s_coll_on && s_coll_count > 0);
     drawAnim    = (g_DebugAnimKfView && s_anim_count > 0);
 
+    /* Randomizer score: gamemode HUD, so it is gated on a live run, not on the
+     * debug-controls flag the panels above use. */
+    {
+        extern int Pc_Rando_ScoreLine(char* buf, int cap);
+        s_score_on = Pc_Rando_ScoreLine(s_score_line, sizeof(s_score_line));
+    }
+
     /* Toast: newest hidden-console line(s) (SH_DBG_ECHO only), fading out.
      * Suppressed while the console panel itself is drawing / open. */
     drawToast = 0;
@@ -1745,7 +1800,7 @@ void DbgOverlay_Render(void)
         drawToast = (toastAlpha > 0);
     }
 
-    if (!drawConsole && !drawColl && !s_coll_on && !drawAnim && !drawToast) return;
+    if (!drawConsole && !drawColl && !s_coll_on && !drawAnim && !drawToast && !s_score_on) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] == 0 || vp[3] == 0) return;
@@ -1910,6 +1965,20 @@ void DbgOverlay_Render(void)
 
         anim_build_texture();
         draw_panel(s_anim_tex, x0, y0, x1, y1);
+    }
+
+    if (s_score_on) {
+        /* Left edge, vertically centred — clear of every debug panel (top-left
+         * console/toast, bottom-right collision/anim). */
+        float sw = 2.0f * (float)(SCORE_TEX_W * SCALE) / (float)vp[2];
+        float sh = 2.0f * (float)(SCORE_TEX_H * SCALE) / (float)vp[3];
+        float x0 = -1.0f + 2.0f * 12.0f / (float)vp[2]; /* 12px inset */
+        float x1 = x0 + sw;
+        float y0 = sh * 0.5f;
+        float y1 = y0 - sh;
+
+        score_build_texture();
+        draw_panel(s_score_tex, x0, y0, x1, y1);
     }
 
     if (drawToast) {

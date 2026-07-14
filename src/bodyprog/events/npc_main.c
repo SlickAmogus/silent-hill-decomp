@@ -77,6 +77,15 @@ void func_80037E78(s_SubCharacter* chara) // 0x80037E78
             func_800914C4(cond, func_8009146C(cond) + 1);
         }
 
+#ifdef SH_PC_PORT
+        /* Randomizer score. CharaFlag_Dead latches right below, so this runs
+         * exactly once per corpse. No-op unless a run is live. */
+        {
+            extern void Pc_Rando_OnEnemyKilled(void);
+            Pc_Rando_OnEnemyKilled();
+        }
+#endif
+
         chara->flags |= CharaFlag_Dead;
     }
 }

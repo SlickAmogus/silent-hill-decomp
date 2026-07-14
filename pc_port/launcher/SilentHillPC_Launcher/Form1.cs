@@ -469,6 +469,17 @@ public partial class Form1 : Form
         Set(label1,   levelTip);
         Set(comboMap, levelTip);
 
+        Set(chkRandomizer,
+            "Randomizer gamemode.\n\n" +
+            "New Game always opens in the police station (map2_s04). Every door\n" +
+            "then leads somewhere random — another area, another room, a miniboss,\n" +
+            "or nothing at all if it rolls locked. The door you came in through\n" +
+            "stays shut for 10 seconds.\n\n" +
+            "Monsters and item pickups are rerolled every time you enter an area.\n" +
+            "After 10 areas (or a 1% chance on any door) you land at the final\n" +
+            "boss, and your score picks which of the four endings you get.\n\n" +
+            "Takes over the Level dropdown, and forces the global chara pool on.");
+
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
             "Required for diagnosing crashes/regressions; small disk-write\n" +
@@ -683,6 +694,12 @@ public partial class Form1 : Form
         }
         comboMap.SelectedIndex = mapIdx >= 0 ? mapIdx : 0;
 
+        // Randomizer gamemode. It always starts in map2_s04, so it owns the Level
+        // row: the dropdown greys out and reads "Randomizer Enabled" while it's on.
+        // Must run after the Items.Clear() above, which drops the synthetic entry.
+        chkRandomizer.Checked = config.Get("randomizer", "0") == "1";
+        ApplyRandomizerUi();
+
         // fullscreen
         // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
         // Dropdown order: Fullscreen(0), Windowed(1), Borderless(2).
@@ -882,14 +899,61 @@ public partial class Form1 : Form
         if (comboDisc.SelectedIndex >= 0 && comboDisc.SelectedIndex < _discIds.Count)
             config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
 
-        // Level: persist only the map id, not the " - description" suffix.
-        if (comboMap.SelectedItem != null)
+        config.Set("randomizer", chkRandomizer.Checked ? "1" : "0");
+
+        // Level: persist only the map id, not the " - description" suffix. Skipped
+        // while the randomizer owns the row — the selection is the synthetic
+        // "Randomizer Enabled" entry, and the real map id must survive so that
+        // unchecking the box restores it.
+        if (!chkRandomizer.Checked && comboMap.SelectedItem != null)
         {
             string sel = comboMap.SelectedItem.ToString();
             config.Set("map", sel.Split(new[] { "  -  " }, StringSplitOptions.None)[0]);
         }
 
         config.Save();
+    }
+
+    private const string RandomizerMapEntry = "Randomizer Enabled";
+
+    // The map id the Level dropdown had before the randomizer took the row over,
+    // so unchecking puts it back.
+    private string _mapBeforeRandomizer;
+
+    private void ApplyRandomizerUi()
+    {
+        if (chkRandomizer.Checked)
+        {
+            if (comboMap.Enabled)
+                _mapBeforeRandomizer = comboMap.SelectedItem?.ToString();
+
+            int idx = comboMap.Items.IndexOf(RandomizerMapEntry);
+            if (idx < 0)
+                idx = comboMap.Items.Add(RandomizerMapEntry);
+            comboMap.SelectedIndex = idx;
+            comboMap.Enabled = false;
+        }
+        else
+        {
+            comboMap.Enabled = true;
+
+            int idx = comboMap.Items.IndexOf(RandomizerMapEntry);
+            if (idx >= 0)
+            {
+                comboMap.Items.RemoveAt(idx);
+
+                int restore = _mapBeforeRandomizer != null
+                            ? comboMap.Items.IndexOf(_mapBeforeRandomizer)
+                            : -1;
+                comboMap.SelectedIndex = restore >= 0 ? restore
+                                       : (comboMap.Items.Count > 0 ? 0 : -1);
+            }
+        }
+    }
+
+    private void chkRandomizer_CheckedChanged(object sender, EventArgs e)
+    {
+        ApplyRandomizerUi();
     }
 
     // Win32 focus helpers. Windows' focus-stealing-prevention blocks a newly-

@@ -1073,6 +1073,23 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
     s32 i            = itemId;
     s32 mapMsgIdxCpy = mapMsgIdx;
 
+#ifdef SH_PC_PORT
+    /* Randomizer: rewrite this world pickup into a healing item, a weapon the
+     * player lacks, or ammo for a gun they carry. Keyed on eventFlagIdx (which
+     * uniquely identifies the pickup) and cached, because this function is a
+     * state machine re-entered every frame -- the item must not change between
+     * the frame that spins up its model and the frame that grants it. No-op
+     * unless a randomizer run is live. */
+    {
+        extern void Pc_Rando_RemapItemTake(s32* itemId, s32* itemCount, s32 eventFlagIdx, s32* mapMsgIdx);
+        s32 _id = itemId, _cnt = itemCount, _msg = mapMsgIdxCpy;
+        Pc_Rando_RemapItemTake(&_id, &_cnt, eventFlagIdx, &_msg);
+        itemId       = (e_InvItemId)_id;
+        itemCount    = _cnt;
+        mapMsgIdxCpy = _msg;
+    }
+#endif
+
     if (!(g_SysWork.sysFlags & SysFlag_5))
     {
         // Run through NPCs.

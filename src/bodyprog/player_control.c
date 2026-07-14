@@ -9456,6 +9456,15 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
             g_Player_IsDead  = true;
         }
 
+#ifdef SH_PC_PORT
+        /* Randomizer score penalty: the damage actually deducted, after the
+         * difficulty scaling above. No-op unless a run is live. */
+        {
+            extern void Pc_Rando_OnDamageTaken(s32 amount);
+            Pc_Rando_OnDamageTaken(player->damage.amount);
+        }
+#endif
+
         func_800893D0(player->damage.amount);
         player->damage.amount = Q12(0.0f);
     }

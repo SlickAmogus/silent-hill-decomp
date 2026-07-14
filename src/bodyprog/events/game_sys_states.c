@@ -872,6 +872,16 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     }
 
 #ifdef SH_PC_PORT
+    /* Randomizer: a door it rewrote sends the player to a map this one has no
+     * arrival record for (the record for map X is authored inside whichever map
+     * has a real door into X, not inside the source). Swap in the harvested one.
+     * Must land before the backup below, which is what actually gets consumed.
+     * No-op for vanilla doors and when the mode is off. */
+    {
+        extern void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt);
+        Pc_Rando_ArrivalOverride(&D_800BCDB0, g_MapEventData);
+    }
+
     /* D_800BCDB0 gets zeroed somewhere between here and AreaLoad_Update-
      * PlayerPosition (PSX path runs synchronously, PC's GameBoot_MapLoad
      * trips through extra subsystems that clear it). Save a backup here

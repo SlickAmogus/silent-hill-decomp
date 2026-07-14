@@ -376,6 +376,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
                     if (mapId < 0) mapId = 0;
                     GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
+
+                    /* Randomizer: start the run here, after the savegame wipe and
+                     * before GameBoot_MapLoad, so its per-map hook sees a live run
+                     * on the very first area. No-op unless the mode is enabled. */
+                    {
+                        extern void Pc_Rando_OnNewGame(void);
+                        Pc_Rando_OnNewGame();
+                    }
                 }
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);

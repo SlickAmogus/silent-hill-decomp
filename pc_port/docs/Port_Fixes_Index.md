@@ -797,3 +797,49 @@ from the disc already; **text was the only thing the port compiles in**.
 - **PAL fandub needs zero engine changes**: it only edits the Spanish assets
   (VIN4 overlays, ITEM_SPN.BIN, TIPS_S) with identical structure/encoding —
   the whole thing rides the existing `language = es` pipeline.
+
+## Randomizer gamemode (2026-07-14)
+
+Config `randomizer` (default 0); design doc `docs/Randomizer_Mode.md`. New Game
+always opens in map2_s04; every door is rerolled into locked / another area /
+another room in this map / a miniboss / (1%) the final boss; each area gets 1-5
+pooled monsters and rerolled item pickups; after 10 areas the run ends at the
+map7_s03 boss with a score-picked ending. `randomizer = 0` changes nothing.
+
+Rests on three facts about the engine, all verified against the map data:
+
+1. **A door is just an `s_EventData` row** (`sysState` = LoadOverlay/LoadRoom).
+   Randomizing doors = rewriting rows. On a LoadRoom row the `mapIdx` field is a
+   **BGM track**, not a map.
+2. **A door's arrival mapPoint lives in the SOURCE map but holds DESTINATION-space
+   coordinates** (`D_800BCDB0 = mapPoints[eventParam]` is read *before*
+   `GameBoot_MapLoad`). So a teleport into map X must reuse a record that some
+   other map authored for its real door into X — `tools/gen_rando_data.py` harvests
+   them (`RANDO_ARRIVALS`). No hand-placed coordinates anywhere.
+3. **A locked door is a SECOND row on the same doorway** selecting the shared
+   `MapEvent_DoorLocked`/`DoorJammed` — which exist at `mapEventFuncs[0]/[1]` in
+   only **25 of 43 maps** (`RANDO_DOORFN_MASK`). Hence the mode appends its own
+   handler so locking works uniformly.
+
+- **Files**: `pc_port/src/pc_rando.c`, `include/pc_rando.h`,
+  generated `include/pc_rando_data.h`, `tools/gen_rando_data.py`.
+- **No map-DLL data is ever written**: the mode installs its own copy of
+  `s_MapOverlayHdr` (the same swap `lang_text.c` uses) and rewrites the event /
+  event-func / message / spawn tables inside the copy. It runs at the **tail of
+  `GameBoot_MapLoad`, after the language patch**, and copies from whatever header
+  is live — so it inherits translations instead of clobbering them.
+- **Gotchas paid for during implementation**:
+  - `TriggerType_None` is **never a door**. The miniboss post-death exits are
+    `TriggerType_None` + LoadOverlay rows; treating one as a door strips its
+    `requiredEventFlag` and teleports the player out of the arena on arrival.
+  - map1_s05 / map4_s05 have exactly **one** spawn row and it **is** the boss —
+    clearing native spawns there deletes the boss.
+  - Monster placement must wait for the first gameplay frame (collision data), but
+    `GameBoot_InGameInit` spawns before then, so native rows are cleared at load.
+  - `ovlEnemyStates[mapIdx]` + `field_228C` persist across visits; both must be
+    reset or a re-entered area is empty. Pickup event flags likewise retire a
+    trigger for good — the mode learns which flags are pickups (any flag
+    `Event_ItemTake` is called with) and clears them on re-entry.
+  - The one degenerate arrival record in the game (map4_s05 -> map2_s02 is a (0,0)
+    placeholder; vanilla repositions via the death cutscene) is filtered by the
+    generator — teleporting to it drops Harry at the world origin.

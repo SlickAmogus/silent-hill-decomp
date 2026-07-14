@@ -139,6 +139,21 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         g_SysWork.playerCombat.weaponInventoryIdx   = 3;
         g_SysWork.playerCombat.totalWeaponAmmo      = 15;
 
+#ifdef SH_PC_PORT
+        /* Randomizer starts Harry with extra rounds on top of this loadout. Written
+         * in place rather than through Inventory_AddSpecialItem, which would open a
+         * second bullet stack next to items[4]. Returns 0 when the mode is off. */
+        {
+            extern int Pc_Rando_ExtraHandgunAmmo(void);
+            int extra = Pc_Rando_ExtraHandgunAmmo();
+            if (extra > 0)
+            {
+                items[4].count_1 = (u8)(15 + extra);
+                g_SysWork.playerCombat.totalWeaponAmmo = (u8)(15 + extra);
+            }
+        }
+#endif
+
         SH_DBG("[AUTO-EQUIP] FIRED on non-tutorial map %d: handgun+15+knife+radio+flashlight, equipped handgun",
                mapIdx);
         fflush(g_ShDebugLog);
@@ -241,5 +256,14 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
 #ifdef SH_PC_PORT
     fflush(g_ShDebugLog);
+
+    /* Randomizer gamemode. Last writer wins: this installs its own copy of the
+     * map header (rewritten doors / spawns / messages), and it must come after
+     * the language patch above, which installs a header copy of its own. No-op
+     * unless the mode is running. */
+    {
+        extern void Pc_Rando_OnMapLoad(s32 mapIdx);
+        Pc_Rando_OnMapLoad(mapIdx);
+    }
 #endif
 }

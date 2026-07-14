@@ -956,6 +956,13 @@ int main(int argc, char* argv[])
         Pc_CharaGlobal_Open();
     }
 
+    /* Randomizer: forces the start map (map2_s04) and the chara pool, so it must
+     * run before MapRegistry_Init reads g_PcConfig.mapName. */
+    {
+        extern void Pc_Rando_Init(void);
+        Pc_Rando_Init();
+    }
+
     /* Initialize map registry — sets g_pMapOverlayHeader based on config.cfg.
      * Must happen after PcPort_InitCharaAnimInfo (anim stubs) but before MainLoop. */
     SH_LOG("Initializing map registry...");

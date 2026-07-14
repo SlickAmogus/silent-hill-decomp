@@ -64,6 +64,7 @@ partial class Form1
     private ComboBox comboFlash;
     private Label regionLabel;
     private ComboBox comboMap;
+    private CheckBox chkRandomizer;
     private ComboBox comboDisc;
     private Label lblDisc;
 
@@ -130,6 +131,7 @@ partial class Form1
             this.comboFlash = new System.Windows.Forms.ComboBox();
             this.regionLabel = new System.Windows.Forms.Label();
             this.comboMap = new System.Windows.Forms.ComboBox();
+            this.chkRandomizer = new System.Windows.Forms.CheckBox();
             this.comboDisc = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
             this.btnControls = new System.Windows.Forms.Button();
@@ -267,7 +269,7 @@ partial class Form1
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
             this.btnManager.FlatAppearance.BorderSize = 0;
             this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnManager.Location = new System.Drawing.Point(216, 271);
+            this.btnManager.Location = new System.Drawing.Point(216, 273);
             this.btnManager.Name = "btnManager";
             this.btnManager.Size = new System.Drawing.Size(192, 48);
             this.btnManager.TabIndex = 11;
@@ -651,16 +653,26 @@ partial class Form1
             this.regionLabel.Click += new System.EventHandler(this.regionLabel_Click);
             // 
             // comboMap
-            //
+            // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMap.DropDownWidth = 400;
             this.comboMap.Location = new System.Drawing.Point(247, 423);
             this.comboMap.Name = "comboMap";
-            this.comboMap.Size = new System.Drawing.Size(164, 21);
+            this.comboMap.Size = new System.Drawing.Size(131, 21);
             this.comboMap.TabIndex = 63;
-            // 
+            //
+            // chkRandomizer
+            //
+            this.chkRandomizer.AutoSize = false;
+            this.chkRandomizer.Location = new System.Drawing.Point(386, 425);
+            this.chkRandomizer.Name = "chkRandomizer";
+            this.chkRandomizer.Size = new System.Drawing.Size(16, 17);
+            this.chkRandomizer.TabIndex = 66;
+            this.chkRandomizer.UseVisualStyleBackColor = true;
+            this.chkRandomizer.CheckedChanged += new System.EventHandler(this.chkRandomizer_CheckedChanged);
+            //
             // comboDisc
-            // 
+            //
             this.comboDisc.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboDisc.DropDownWidth = 320;
             this.comboDisc.Location = new System.Drawing.Point(80, 423);
@@ -672,9 +684,9 @@ partial class Form1
             // lblDisc
             // 
             this.lblDisc.AutoEllipsis = true;
-            this.lblDisc.Location = new System.Drawing.Point(4, 452);
+            this.lblDisc.Location = new System.Drawing.Point(9, 452);
             this.lblDisc.Name = "lblDisc";
-            this.lblDisc.Size = new System.Drawing.Size(198, 13);
+            this.lblDisc.Size = new System.Drawing.Size(193, 18);
             this.lblDisc.TabIndex = 65;
             // 
             // btnControls
@@ -762,6 +774,7 @@ partial class Form1
             this.Controls.Add(this.label1);
             this.Controls.Add(this.regionLabel);
             this.Controls.Add(this.comboMap);
+            this.Controls.Add(this.chkRandomizer);
             this.Controls.Add(this.comboDisc);
             this.Controls.Add(this.lblDisc);
             this.Controls.Add(this.btnReset);
