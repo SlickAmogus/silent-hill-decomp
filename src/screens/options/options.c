@@ -183,7 +183,6 @@ static const s_PcOpt PCOPT_C[] = {
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Assist",        &g_PcConfig.aimAssist,         "aim_assist",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Crosshair",         &g_PcConfig.crosshair,         "crosshair",              VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },

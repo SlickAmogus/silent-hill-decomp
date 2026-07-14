@@ -243,7 +243,12 @@ void Pc_ControlStyleUpdate(void)
         else if (keys && scSwap != SDL_SCANCODE_UNKNOWN)
             curSwap = keys[scSwap];
 
-        if (inGameplay && g_ControlStyle == ControlStyle_Ots && curSwap && !prevSwap)
+        /* Thirdperson borrows the shoulder-swap bind too when tps_ots_aim is on —
+         * it uses the OTS framing while aiming, so the player needs to be able to
+         * pick the shoulder there as well. */
+        if (inGameplay && curSwap && !prevSwap &&
+            (g_ControlStyle == ControlStyle_Ots ||
+             (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim)))
         {
             g_OtsSide = -g_OtsSide;
             SH_DBG_ECHO("[CTRLSTYLE] OTS shoulder: %s", g_OtsSide > 0 ? "right" : "left");

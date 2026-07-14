@@ -51,8 +51,8 @@ s_PcConfig g_PcConfig = {
     .allowMouseSecondary = 1, /* deprecated: mouse + alternate binds always active */
     .invertMouseY        = 0,
     .invertControllerY   = 0,
-    .tpsAimZoom          = 1, /* zoom TPS/OTS camera in while aiming */
     .tpsCameraCollision  = 1, /* pull the TPS/OTS eye in off walls (off = eye may pass through geometry) */
+    .tpsOtsAim           = 1, /* raising the gun in TPS eases the camera into the OTS shoulder framing */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -61,6 +61,8 @@ s_PcConfig g_PcConfig = {
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .fpsFov              = 67.4f, /* first-person FOV; 67.4 = the game's native projection (H=240), identical to pre-FOV builds */
+    .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
+    .tpsAimZoom          = 100.0f, /* full aim dolly (the old tps_aim_zoom = 1); 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
@@ -590,9 +592,30 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.invertControllerY = (atoi(value) != 0);
         }
+        else if (strcmp(key, "tps_aim_zoom_amount") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f)   v = 0.0f;
+            if (v > 100.0f) v = 100.0f;
+            g_PcConfig.tpsAimZoom = v;
+        }
         else if (strcmp(key, "tps_aim_zoom") == 0)
         {
-            g_PcConfig.tpsAimZoom = (atoi(value) != 0);
+            /* Superseded by the tps_aim_zoom_amount slider. Kept so an existing
+             * config that still carries the old on/off key lands on the matching
+             * end of the new range instead of silently reverting to the default. */
+            g_PcConfig.tpsAimZoom = (atoi(value) != 0) ? 100.0f : 0.0f;
+        }
+        else if (strcmp(key, "tps_fov") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.tpsFov = v;
+        }
+        else if (strcmp(key, "tps_ots_aim") == 0)
+        {
+            g_PcConfig.tpsOtsAim = (atoi(value) != 0);
         }
         else if (strcmp(key, "tps_camera_collision") == 0)
         {

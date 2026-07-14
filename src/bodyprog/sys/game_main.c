@@ -230,38 +230,54 @@ static int Pc_ScriptOwnsScene(void)
     return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
 }
 
-/* First-person FOV (config fps_fov, degrees of horizontal FOV on the 4:3 frame):
- * override the GTE projection distance ONLY during interactive FPS gameplay —
- * menus, cutscenes, scripted scenes and the room-entry camera keep the game's own
- * projection (gsScreenHeight = 240 ≈ 67°). H = 160 / tan(fov/2), via float tan.
+/* Alternate-camera FOV (degrees of horizontal FOV on the 4:3 frame): override the
+ * GTE projection distance ONLY during interactive alternate-camera gameplay. FPS
+ * uses fps_fov, Thirdperson and Over-the-Shoulder use tps_fov. Menus, cutscenes,
+ * scripted scenes and the Classic fixed cameras always keep the game's own
+ * projection. H = 160 / tan(fov/2).
+ *
+ * The game's own projection distance in gameplay is g_GameWork.gsScreenHeight, and
+ * gameplay runs PROGRESSIVE — Screen_Init(SCREEN_WIDTH, false) — so H is 224, not
+ * 240. On the 320-wide frame that is a true horizontal FOV of 2*atan(160/224) =
+ * 71.1 deg, which is why tps_fov defaults to 71.1: it maps back to H = 224, the
+ * exact value vcExecCamera already set this frame, so the default is a genuine
+ * no-op. (fps_fov's 67.4 default maps to H = 240 and is therefore slightly NARROWER
+ * than the game's real FOV — pre-existing, left alone so existing setups don't
+ * shift under people.)
  *
  * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
- * restore has to run even when the camera body is skipped, or the FPS FOV stays
+ * restore has to run even when the camera body is skipped, or the FOV stays
  * clamped onto the scripted shot for the whole scene. */
-static void Pc_FpsFov_Update(void)
+static void Pc_CameraFov_Update(void)
 {
-    static int s_fpsFovApplied = 0;
-    int fovActive = g_PcFpsCam
-        && g_GameWork.gameState == GameState_InGame
-        && g_SysWork.sysState == SysState_Gameplay
-        && !Pc_ScriptOwnsScene();
+    static int s_fovApplied = 0;
+    float      fov          = 0.0f;
 
-    if (fovActive)
+    if (g_GameWork.gameState == GameState_InGame &&
+        g_SysWork.sysState == SysState_Gameplay &&
+        !Pc_ScriptOwnsScene())
     {
-        /* Float tan + round-to-nearest so the default (67.4 deg, the game's
-         * native FOV: 2*atan(160/240)) maps back to EXACTLY H=240 — the
-         * out-of-the-box projection is byte-identical to pre-FOV builds. */
-        float t = tanf(g_PcConfig.fpsFov * (3.14159265f / 360.0f));
-        s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : 240;
+        if (g_PcFpsCam)
+            fov = g_PcConfig.fpsFov;
+        else if (g_ControlStyle == ControlStyle_Tps || g_ControlStyle == ControlStyle_Ots)
+            fov = g_PcConfig.tpsFov;
+    }
+
+    if (fov > 0.0f)
+    {
+        /* Float tan + round-to-nearest so a default tps_fov (71.1) lands on EXACTLY
+         * H = 224 = gsScreenHeight, i.e. the projection the game already had. */
+        float t = tanf(fov * (3.14159265f / 360.0f));
+        s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : g_GameWork.gsScreenHeight;
         if (h < 16)  h = 16;
         if (h > 512) h = 512;
         SetGeomScreen(h);
-        s_fpsFovApplied = 1;
+        s_fovApplied = 1;
     }
-    else if (s_fpsFovApplied)
+    else if (s_fovApplied)
     {
         SetGeomScreen(g_GameWork.gsScreenHeight);
-        s_fpsFovApplied = 0;
+        s_fovApplied = 0;
     }
 }
 
@@ -270,7 +286,7 @@ static void Pc_TpsCamera_Apply(void)
     /* Hand the camera back to the game whenever a script owns the scene. */
     if (Pc_ScriptOwnsScene())
     {
-        Pc_FpsFov_Update();
+        Pc_CameraFov_Update();
         return;
     }
 
@@ -325,7 +341,18 @@ static void Pc_TpsCamera_Apply(void)
             s_tpDist      = TP_DIST;
             s_otsOff      = 0;
         }
-        s32 target = (g_PcConfig.tpsAimZoom && isAiming) ? TP_DIST_AIM : TP_DIST;
+        /* tps_aim_zoom_amount scales how far in the dolly goes: 100% lands on
+         * TP_DIST_AIM (the original zoom), 0% leaves the camera at TP_DIST, i.e.
+         * no zoom at all — which is what the old tps_aim_zoom = 0 did. */
+        s32 pct = (s32)(g_PcConfig.tpsAimZoom + 0.5f);
+        s32 aimDist;
+        s32 target;
+
+        if (pct < 0)   pct = 0;
+        if (pct > 100) pct = 100;
+
+        aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM) * pct) / 100);
+        target  = isAiming ? aimDist : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
     }
 
@@ -711,12 +738,22 @@ static void Pc_TpsCamera_Apply(void)
         #undef TP_LOOKAT_DIST
 
         /* Over-the-Shoulder: shift the camera + look target laterally so Harry
-         * sits to one side; more while aiming. g_OtsSide (middle-mouse) flips it. */
-        if (g_ControlStyle == ControlStyle_Ots)
+         * sits to one side; more while aiming. g_OtsSide (middle-mouse) flips it.
+         *
+         * tps_ots_aim (on by default) gives plain Thirdperson the same shoulder
+         * framing WHILE AIMING ONLY: its resting offset is 0, so the camera eases
+         * over Harry's shoulder as he raises the gun and back to centre as he
+         * lowers it. The branch is entered every frame in that mode — not only
+         * while aiming — precisely so s_otsOff can ease both ways instead of
+         * snapping. With the option off, Thirdperson never enters it and the
+         * camera stays centred exactly as before. */
+        if (g_ControlStyle == ControlStyle_Ots ||
+            (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim))
         {
             #define OTS_OFFSET     Q12(0.55f)
             #define OTS_OFFSET_AIM Q12(0.9f)
-            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : OTS_OFFSET) * g_OtsSide;
+            s32 restOff   = (g_ControlStyle == ControlStyle_Ots) ? OTS_OFFSET : 0;
+            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
             s32 rX = Math_Cos(g_TpsCamYaw);   /* horizontal right vector = (cos yaw, -sin yaw) */
             s32 rZ = -Math_Sin(g_TpsCamYaw);
             s32 ox, oz;
@@ -844,7 +881,7 @@ static void Pc_TpsCamera_Apply(void)
         vwSetViewInfo();
     }
 
-    Pc_FpsFov_Update();
+    Pc_CameraFov_Update();
 
     #undef TP_DIST
     #undef TP_DIST_AIM

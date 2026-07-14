@@ -135,7 +135,7 @@ public class ControlsForm : Form
     private readonly List<string> styleIds = new List<string>();
     private CheckBox chkInvertMouseY;
     private CheckBox chkInvertControllerY;
-    private CheckBox chkTpsAimZoom;
+    private CheckBox chkTpsOtsAim;
     private CheckBox chkCrosshair;
     private CheckBox chkImmersiveFps;
     private CheckBox chkAimAssist;
@@ -145,9 +145,13 @@ public class ControlsForm : Form
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
     private NumericUpDown numFpsFov;
+    private NumericUpDown numTpsFov;
+    private NumericUpDown numTpsAimZoom;
     private TrackBar trkMouseSens;
     private TrackBar trkControllerSens;
     private TrackBar trkFpsFov;
+    private TrackBar trkTpsFov;
+    private TrackBar trkTpsAimZoom;
     private bool syncingSens;   /* guards the numeric <-> slider mirroring */
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
@@ -194,7 +198,10 @@ public class ControlsForm : Form
         BackColor = Back;
         ForeColor = TextColor;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size(860, 730);
+        /* Height fits the sensitivity column, which is now the tallest: its last
+         * slider (TPS/OTS Aim Zoom) bottoms out at styleY + 346 = 722. The bottom
+         * button row is placed from ClientSize.Height, so it follows automatically. */
+        ClientSize = new Size(860, 790);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -337,12 +344,12 @@ public class ControlsForm : Form
             Width = 180,
             ForeColor = TextColor,
         };
-        chkTpsAimZoom = new CheckBox
+        chkTpsOtsAim = new CheckBox
         {
-            Text = "TPS/OTS Aim Zoom",
+            Text = "OTS aiming in Thirdperson",
             Left = colPadX,
             Top = styleY + 82,
-            Width = 200,
+            Width = 220,
             ForeColor = TextColor,
         };
         chkCrosshair = new CheckBox
@@ -363,7 +370,7 @@ public class ControlsForm : Form
         };
         Controls.Add(chkInvertMouseY);
         Controls.Add(chkInvertControllerY);
-        Controls.Add(chkTpsAimZoom);
+        Controls.Add(chkTpsOtsAim);
         Controls.Add(chkCrosshair);
         Controls.Add(chkImmersiveFps);
         tips.SetToolTip(chkImmersiveFps,
@@ -447,6 +454,52 @@ public class ControlsForm : Form
             "cutscenes, and the other cameras keep the game's original projection. Default 67.4 = the game's " +
             "original FOV; 90 = standard FPS feel.");
 
+        AddLabel("Thirdperson FOV", sensX, styleY + 228, 125);
+        numTpsFov = new NumericUpDown
+        {
+            Left = sensX + sensW - 60,
+            Top = styleY + 225,
+            Width = 60,
+            DecimalPlaces = 1,
+            Increment = 1m,
+            Minimum = 55m,
+            Maximum = 110m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numTpsFov);
+        trkTpsFov = MakeSensSlider(sensX, styleY + 250, sensW);
+        trkTpsFov.Minimum = 55;
+        trkTpsFov.Maximum = 110;
+        WirePair(numTpsFov, trkTpsFov, 1m);
+        tips.SetToolTip(numTpsFov,
+            "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in Thirdperson or " +
+            "Over-the-Shoulder. The Classic fixed cameras always keep the game's original projection. " +
+            "Default 71.1 = the game's own FOV, so leaving it alone changes nothing.");
+
+        AddLabel("TPS/OTS Aim Zoom", sensX, styleY + 294, 125);
+        numTpsAimZoom = new NumericUpDown
+        {
+            Left = sensX + sensW - 60,
+            Top = styleY + 291,
+            Width = 60,
+            DecimalPlaces = 0,
+            Increment = 5m,
+            Minimum = 0m,
+            Maximum = 100m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numTpsAimZoom);
+        trkTpsAimZoom = MakeSensSlider(sensX, styleY + 316, sensW);
+        trkTpsAimZoom.Minimum = 0;
+        trkTpsAimZoom.Maximum = 100;
+        WirePair(numTpsAimZoom, trkTpsAimZoom, 1m);
+        tips.SetToolTip(numTpsAimZoom,
+            "How far the Thirdperson / Over-the-Shoulder camera pulls in behind Harry while you aim, as a percentage " +
+            "of the full zoom. 100 = the original zoom, 0 = no zoom at all (this replaces the old TPS/OTS Aim Zoom " +
+            "checkbox).");
+
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
         tips.SetToolTip(numControllerSens,
@@ -481,7 +534,9 @@ public class ControlsForm : Form
             Text = "Allow thirdperson camera collision",
             Left = colPadX,
             Top = styleY + 238,
-            Width = 260,
+            /* Kept clear of the sensitivity column (Left = colPadX + 235): this row
+             * now sits beside the Thirdperson FOV slider. */
+            Width = 230,
             ForeColor = TextColor,
         };
         Controls.Add(chkTpsCameraCollision);
@@ -498,9 +553,10 @@ public class ControlsForm : Form
         tips.SetToolTip(cmbControlStyle,
             "Classic = original fixed cameras. Thirdperson Shooter = mouse / right-stick follow camera behind Harry. " +
             "Over the Shoulder = the same, offset to one side (middle mouse swaps sides).");
-        tips.SetToolTip(chkTpsAimZoom,
-            "When you aim a gun or attack in Thirdperson / Over-the-Shoulder mode, the camera eases in closer behind " +
-            "Harry so your shot lines up better. Off = the camera keeps its normal distance while aiming.");
+        tips.SetToolTip(chkTpsOtsAim,
+            "Thirdperson only: raising the gun eases the camera over Harry's shoulder, so you aim with the same framing " +
+            "as Over-the-Shoulder mode, then eases back to the centred camera when you lower it. The shoulder-swap bind " +
+            "works while aiming too. Off = Thirdperson keeps its centred camera while aiming.");
         tips.SetToolTip(chkCrosshair,
             "Draws a small crosshair at the center of the screen while you're aiming in Thirdperson / Over-the-Shoulder mode.");
 
@@ -864,7 +920,7 @@ public class ControlsForm : Form
 
         chkInvertMouseY.Checked = config.Get("invert_mouse_y", "0") == "1";
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
-        chkTpsAimZoom.Checked = config.Get("tps_aim_zoom", "1") == "1";
+        chkTpsOtsAim.Checked = config.Get("tps_ots_aim", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
         chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
@@ -874,6 +930,12 @@ public class ControlsForm : Form
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "67.4"));
+        numTpsFov.Value = ClampFov(config.Get("tps_fov", "71.1"));
+        // Migration: the aim zoom used to be the on/off "tps_aim_zoom" key. If the
+        // slider key isn't there yet, land on the end of the range that matches
+        // whatever the old checkbox said, so an existing setting isn't silently lost.
+        numTpsAimZoom.Value = ClampPercent(
+            config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "100" : "0"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -902,7 +964,7 @@ public class ControlsForm : Form
             cmbControlStyle.SelectedIndex = 0;     // Classic
         chkInvertMouseY.Checked = false;
         chkInvertControllerY.Checked = false;
-        chkTpsAimZoom.Checked = true;
+        chkTpsOtsAim.Checked = true;
         chkCrosshair.Checked = false;
         chkImmersiveFps.Checked = false;
         chk2dControls.Checked = false;
@@ -912,6 +974,8 @@ public class ControlsForm : Form
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 67.4m;
+        numTpsFov.Value = 71.1m;
+        numTpsAimZoom.Value = 100m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -979,6 +1043,18 @@ public class ControlsForm : Form
         return (decimal)(Math.Round(v * 10.0) / 10.0);
     }
 
+    // Parse a 0-100 percentage from config (the TPS/OTS aim zoom amount).
+    private static decimal ClampPercent(string s)
+    {
+        double v;
+        if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out v))
+            v = 100.0;
+        if (v < 0.0) v = 0.0;
+        if (v > 100.0) v = 100.0;
+        return (decimal)Math.Round(v);
+    }
+
     // Parse a sensitivity string from config, clamp to the launcher's [0.1, 4.0]
     // range, and return it as a NumericUpDown-safe decimal (invariant culture so a
     // "1.5" written by the game is read the same on comma-decimal locales).
@@ -1021,7 +1097,7 @@ public class ControlsForm : Form
             config.Set("control_style", styleIds[cmbControlStyle.SelectedIndex]);
         config.Set("invert_mouse_y", chkInvertMouseY.Checked ? "1" : "0");
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
-        config.Set("tps_aim_zoom", chkTpsAimZoom.Checked ? "1" : "0");
+        config.Set("tps_ots_aim", chkTpsOtsAim.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
         config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
@@ -1034,6 +1110,10 @@ public class ControlsForm : Form
             ((double)numControllerSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("fps_fov",
             ((double)numFpsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("tps_fov",
+            ((double)numTpsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("tps_aim_zoom_amount",
+            ((double)numTpsAimZoom.Value).ToString("0", System.Globalization.CultureInfo.InvariantCulture));
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

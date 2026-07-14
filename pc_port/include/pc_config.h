@@ -99,8 +99,8 @@ typedef struct {
     int allowMouseSecondary;/* deprecated: mouse + alternate (*_2) binds are always active now */
     int invertMouseY;       /* 1 = invert mouse Y for TPS look (config key: invert_mouse_y) */
     int invertControllerY;  /* 1 = invert right-stick Y for TPS look (config key: invert_controller_y) */
-    int tpsAimZoom;         /* 1 = zoom the TPS/OTS camera in while aiming/attacking (config key: tps_aim_zoom) */
     int tpsCameraCollision; /* "Allow thirdperson camera collision": 1 (default) = the TPS/OTS eye is pulled in when level geometry would come between it and Harry; 0 = the eye keeps its ideal orbit position and may pass through walls (config key: tps_camera_collision) */
+    int tpsOtsAim;          /* "OTS aiming in Thirdperson": 1 (default) = raising the gun in TPS eases the camera into the Over-the-Shoulder framing (and the shoulder-swap bind works); 0 = TPS keeps its centred camera while aiming (config key: tps_ots_aim) */
     int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
@@ -109,6 +109,8 @@ typedef struct {
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 67.4 = the game's native projection (byte-identical to pre-FOV builds); applied ONLY during FPS gameplay (config key: fps_fov) */
+    float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
+    float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the full zoom, 0..100. 100 (default) = the original full zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */
