@@ -843,3 +843,55 @@ Rests on three facts about the engine, all verified against the map data:
   - The one degenerate arrival record in the game (map4_s05 -> map2_s02 is a (0,0)
     placeholder; vanilla repositions via the death cutscene) is filtered by the
     generator — teleporting to it drops Harry at the world origin.
+
+## PGXP reached everything except the item models (2026-07-14, commit `6a9cb2c05` + PsyCross `638dc9e`)
+
+**Symptom**: `use_pgxp` had no effect on the inventory carousel or the world item
+pickup. Those models rendered affine (wobbling/swimming textures) whether PGXP was
+on or off, while the rest of the scene responded to the setting normally.
+
+**Root cause — a broken link in the shadow-propagation chain, not a disable.** PGXP
+is address-keyed (`PsyX_GPU.cpp`): a vertex is precise only if a shadow entry exists
+at the *prim field address* the GPU reads. Coverage is built by propagation along the
+data path:
+
+```
+GTE store (gte_stsxy*)      -> Shadow_Store(destAddr, ...)
+drawer copy (poly->xN = ..) -> Shadow_Copy(&poly->xN, &src)
+GPU draw   (MakeVertex)     -> GetPreciseVertex(primFieldAddr, ...)
+```
+
+Both of the first two hops were missing on the item path:
+
+1. The item models are the **only** users of `GsSortObject4J`
+   (`item_screens_cam.c`), whose TMD drawers (`GsTMDfast*` in
+   `pc_port/src/stubs/libgs_stub.c`) project via the PsyCross wrappers
+   `RotTransPers`/`RotTransPers3`/`RotTransPers4`. Those wrappers use PsyCross's own
+   `gte_stsxy*` macros (`psx/inline_c.h`), which — unlike the game's `gte_stsxy3c`
+   in `pc_port/include` — **never call `PGXP_StoreAddr`**. Nothing was recorded.
+2. The drawers then copy each projected word from a **stack temporary** into the prim
+   field with a plain C store, so even a recorded shadow would not have followed the
+   copy.
+
+Result: `GetPreciseVertex` missed at every item vertex, returned `ppw = 0`, and the
+vertex cleanly degraded to affine. Structurally off, regardless of the setting.
+
+**Fix** (both halves gated on `g_PsxUsePgxp`; off = byte-identical):
+
+- PsyCross `src/psx/libgte.c`: `RotTransPers`/`3`/`4` now `PGXP_StoreAddr` the
+  addresses they write. `slot` = position in the 3-deep SXY FIFO at store time
+  (2 = newest). The quad path captures v0..v2 **before** its follow-up RTPS, which
+  otherwise shifts v0 out of the FIFO beyond recovery.
+- `pc_port/src/stubs/libgs_stub.c`: new `TMD_PGXP3`/`TMD_PGXP4` macros call
+  `Shadow_Copy` after each prim-field write — the item-path twin of `SH_PGXP_PROP3/4`
+  in `bodyprog_80055028.c`. Applied at all 17 emit sites (9 triangle, 8 quad).
+
+**Preserved**: the see-through fix is independent and untouched — `ITEM_PRECISE_SZ`
+still feeds true per-vertex SZ via `PsyX_SetNextPrimSzExact`, and the
+`PsyX_ForceItemDepthBegin/End` bracket in `game_main.c` still forces per-pixel depth
+around the item-only OT0 draw.
+
+**Side effect, deliberate**: `water.c` passes its prim fields *directly* as the
+`RotTransPers4` output addresses, so water quads now also become PGXP-tracked when
+PGXP is on (previously affine). This is the intended behaviour of the setting, but it
+is a visible change to water with `use_pgxp = 1` and is worth an A/B.
