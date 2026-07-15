@@ -49,7 +49,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
  *
  * The cap is a safety valve against a single multi-GB whole-map load, NOT a
  * memory diet: on a 64-bit build with real VRAM it is meant to be large, so it
- * is config-driven (texpack_budget_mb, default 3 GB, 0 = unlimited). */
+ * is config-driven (texpack_budget_mb, default 6 GB, 0 = unlimited). */
 static long long g_packBytesLive = 0;
 
 static unsigned pack_bytes_for(int w, int h)
