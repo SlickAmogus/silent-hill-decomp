@@ -57,6 +57,42 @@
  */
 s_DmsHeader* g_DmsHeapHeader = NULL;
 
+#ifdef SH_XBOX_PORT
+/* Xbox (64MB) heap-leak fix. The stock path frees the previous g_DmsHeapHeader
+ * with a SHALLOW free() that leaks every nested allocation: segments, the
+ * characters array, and per-entry holdRanges + heap-copied keyframes (for each
+ * character AND the inline camera). Every cutscene DMS load leaked all of that;
+ * PC's gigabytes never notice, but on Xbox the accumulation exhausts the malloc
+ * heap and the next unguarded calloc/malloc returns NULL -> memcpy(NULL) (the
+ * observed cafe-cutscene crash: [FATAL] WRITE addr=0, memcpy<-Dms_HeaderFixOffsets_PC).
+ * Deep-free the prior header, and NULL-guard every allocation below so a genuine
+ * heap-low condition degrades to an empty entry instead of crashing. */
+static void DmsEntry_FreeChildren(s_DmsEntry* e)
+{
+    /* keyframes is a union of character/camera ptrs — same address, free once. */
+    free(e->holdRanges);
+    free(e->keyframes.character);
+    e->holdRanges = NULL;
+    e->keyframes.character = NULL;
+}
+
+static void DmsHeap_Free(s_DmsHeader* h)
+{
+    int i;
+    if (!h)
+        return;
+    if (h->characters)
+    {
+        for (i = 0; i < h->characterCount; i++)
+            DmsEntry_FreeChildren(&h->characters[i]);
+        free(h->characters);
+    }
+    free(h->segments);
+    DmsEntry_FreeChildren(&h->camera);
+    free(h);
+}
+#endif
+
 static inline u32 rd32(const u8* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((u32)p[3] << 24); }
 static inline s16 rd16s(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 
@@ -72,8 +108,14 @@ static void ParseDmsEntry(s_DmsEntry* dst, const u8* src, u8* base)
 
     /* SVECTORs and keyframes — copy to heap so they survive buffer overwrites */
     s32 svecBytes = dst->holdRangeCount * sizeof(SVECTOR3);
+#ifdef SH_XBOX_PORT
+    dst->holdRanges = (svecBytes > 0) ? (SVECTOR3*)malloc(svecBytes) : NULL;
+    if (dst->holdRanges) memcpy(dst->holdRanges, base + svecOff, svecBytes);
+    else                 dst->holdRangeCount = 0;
+#else
     dst->holdRanges = (SVECTOR3*)malloc(svecBytes);
     memcpy(dst->holdRanges, base + svecOff, svecBytes);
+#endif
 
     /* Keyframe size depends on whether this is a camera or character entry.
      * We don't know yet, so store raw pointer temporarily — the caller
@@ -102,6 +144,10 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
         return;
     }
 
+#ifdef SH_XBOX_PORT
+    { extern void Xbox_MemReport(const char*); Xbox_MemReport("dms-load"); }
+#endif
+
     /* Read all PSX header fields from raw bytes before we overwrite anything */
     u8  characterCount = raw[1];
     u8  intervalCount  = raw[2];
@@ -125,6 +171,13 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     if (characterCount > 0)
     {
         characters = (s_DmsEntry*)calloc(characterCount, sizeof(s_DmsEntry));
+#ifdef SH_XBOX_PORT
+        if (!characters)
+        {
+            SH_DBG("  [DMS] characters calloc FAILED (count=%d) — skipping (heap low)", characterCount);
+            characterCount = 0;
+        }
+#endif
         for (int i = 0; i < characterCount; i++)
         {
             ParseDmsEntry(&characters[i],
@@ -142,14 +195,24 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     if (intervalCount > 0)
     {
         intervals = (s_DmsSegment*)malloc(intervalCount * sizeof(s_DmsSegment));
+#ifdef SH_XBOX_PORT
+        if (intervals) memcpy(intervals, raw + intervalOff, intervalCount * sizeof(s_DmsSegment));
+        else           intervalCount = 0;
+#else
         memcpy(intervals, raw + intervalOff, intervalCount * sizeof(s_DmsSegment));
+#endif
     }
 
     /* Heap-copy camera keyframes */
     {
         s32 camKfBytes = camera.keyframeCount * sizeof(s_DmsKeyframeCamera);
         s_DmsKeyframeCamera* camKfHeap = (s_DmsKeyframeCamera*)malloc(camKfBytes);
+#ifdef SH_XBOX_PORT
+        if (camKfHeap) memcpy(camKfHeap, camera.keyframes.camera, camKfBytes);
+        else           camera.keyframeCount = 0;
+#else
         memcpy(camKfHeap, camera.keyframes.camera, camKfBytes);
+#endif
         camera.keyframes.camera = camKfHeap;
     }
 
@@ -158,7 +221,12 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     {
         s32 charKfBytes = characters[i].keyframeCount * sizeof(s_DmsKeyframeCharacter);
         s_DmsKeyframeCharacter* charKfHeap = (s_DmsKeyframeCharacter*)malloc(charKfBytes);
+#ifdef SH_XBOX_PORT
+        if (charKfHeap) memcpy(charKfHeap, characters[i].keyframes.character, charKfBytes);
+        else            characters[i].keyframeCount = 0;
+#else
         memcpy(charKfHeap, characters[i].keyframes.character, charKfBytes);
+#endif
         characters[i].keyframes.character = charKfHeap;
     }
 
@@ -167,8 +235,35 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
      * Also write it into the FS buffer for backwards compatibility,
      * but DMS functions will use g_DmsHeapHeader via the redirect in dms.c.
      */
+#ifdef SH_XBOX_PORT
+    /* Deep-free the PRIOR cutscene's header (frees all nested arrays), not a
+     * shallow free() that would leak them. */
+    DmsHeap_Free(g_DmsHeapHeader);
+    g_DmsHeapHeader = NULL;
+#else
     if (g_DmsHeapHeader) free(g_DmsHeapHeader);
+#endif
     g_DmsHeapHeader = (s_DmsHeader*)calloc(1, sizeof(s_DmsHeader));
+
+#ifdef SH_XBOX_PORT
+    if (!g_DmsHeapHeader)
+    {
+        /* Heap so low even the ~64-byte header failed. Free this parse's sub-
+         * allocations and bail rather than deref NULL; dmsHdr stays unmarked so
+         * the cutscene simply won't animate this frame instead of crashing. */
+        int _i;
+        SH_DBG("  [DMS] header calloc FAILED — skipping cutscene load (heap critical)");
+        if (characters)
+        {
+            for (_i = 0; _i < characterCount; _i++)
+                DmsEntry_FreeChildren(&characters[_i]);
+            free(characters);
+        }
+        free(intervals);
+        DmsEntry_FreeChildren(&camera);
+        return;
+    }
+#endif
 
     g_DmsHeapHeader->isLoaded       = 1;
     g_DmsHeapHeader->characterCount = characterCount;

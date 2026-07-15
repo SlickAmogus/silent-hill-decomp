@@ -282,5 +282,9 @@ void MapRegistry_Load(int id)
 
     SH_DBG("[MAP-LOAD] MapRegistry_Load(%d)=%s linked=1 header=%08x",
            id, MapRegistry_GetName(id), (unsigned)header);
+    {
+        extern void Xbox_MemReport(const char*);
+        Xbox_MemReport("after map-load");   /* leak watch across map switches */
+    }
     SH_DebugLogFlush();
 }

@@ -45,6 +45,78 @@ static inline u16 rd16(const u8* p) { return p[0] | (p[1] << 8); }
 static inline s16 rds16(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 static inline s32 rds32(const u8* p) { return (s32)rd32(p); }
 
+#ifdef SH_XBOX_PORT
+/* Xbox (64MB) heap-leak fix. IPD reformats on EVERY chunk stream (walking the
+ * world) and the stock code frees NONE of: modelInfos, modelBuffers, each
+ * buffer's modelInstances, or the clobber-relocated collision sub-arrays
+ * (ipd_reformat.c even says "freed never"). On PC's gigabytes it is a slow
+ * leak; on Xbox the continuous streaming exhausts the malloc heap -> the
+ * "framerate/sound slows down the closer I get" report, then a NULL alloc
+ * crash. Track each parse's allocations by buffer base and free the prior set
+ * when the SAME buffer streams a new chunk (reused buffer => old chunk gone;
+ * same proven contract as lm_reformat.c's LmTrack). */
+#define IPD_TRACK_MAX 128
+typedef struct {
+    void*             raw;
+    s_IpdModelInfo*   modelInfos;
+    s_IpdModelBuffer* modelBuffers;
+    int               modelBufferCount;
+    void*             reloc[7];
+    int               relocCount;
+    int               used;
+} IpdTrack;
+static IpdTrack s_ipdTrack[IPD_TRACK_MAX];
+
+/* Heap sub-arrays allocated by IpdColl_RelocateClobbered for the current parse;
+ * captured here so IpdTrack_Record can hand them to the free registry. */
+static void* s_ipdPendingReloc[7];
+static int   s_ipdPendingRelocN;
+
+static void IpdTrack_Free(IpdTrack* t)
+{
+    int i;
+    if (t->modelBuffers) {
+        for (i = 0; i < t->modelBufferCount; i++)
+            free(t->modelBuffers[i].modelInstances);
+        free(t->modelBuffers);
+    }
+    free(t->modelInfos);
+    for (i = 0; i < t->relocCount; i++)
+        free(t->reloc[i]);
+    t->raw = NULL; t->modelInfos = NULL; t->modelBuffers = NULL;
+    t->modelBufferCount = 0; t->relocCount = 0; t->used = 0;
+}
+
+static void IpdTrack_FreePrior(void* raw)
+{
+    int i;
+    for (i = 0; i < IPD_TRACK_MAX; i++)
+        if (s_ipdTrack[i].used && s_ipdTrack[i].raw == raw) {
+            IpdTrack_Free(&s_ipdTrack[i]);
+            return;
+        }
+}
+
+static void IpdTrack_Record(void* raw, s_IpdModelInfo* modelInfos,
+                            s_IpdModelBuffer* modelBuffers, int modelBufferCount)
+{
+    int i, slot = -1;
+    for (i = 0; i < IPD_TRACK_MAX; i++) {
+        if (s_ipdTrack[i].used && s_ipdTrack[i].raw == raw) { slot = i; break; }
+        if (!s_ipdTrack[i].used && slot < 0) slot = i;
+    }
+    if (slot < 0) return; /* table full (unreached: keyed by the small buffer pool) */
+    s_ipdTrack[slot].raw = raw;
+    s_ipdTrack[slot].modelInfos = modelInfos;
+    s_ipdTrack[slot].modelBuffers = modelBuffers;
+    s_ipdTrack[slot].modelBufferCount = modelBufferCount;
+    for (i = 0; i < s_ipdPendingRelocN && i < 7; i++)
+        s_ipdTrack[slot].reloc[i] = s_ipdPendingReloc[i];
+    s_ipdTrack[slot].relocCount = s_ipdPendingRelocN;
+    s_ipdTrack[slot].used = 1;
+}
+#endif
+
 static void ParseIpdModelInfo(s_IpdModelInfo* dst, const u8* src)
 {
     dst->isGlobalPlm = src[0];
@@ -84,6 +156,13 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
     if (dst->modelInstanceCount > 0)
     {
         dst->modelInstances = (s_IpdModelInstance*)calloc(dst->modelInstanceCount, sizeof(s_IpdModelInstance));
+#ifdef SH_XBOX_PORT
+        if (!dst->modelInstances)
+        {
+            SH_DBG("  [IPD] modelInstances calloc FAILED (count=%d) — skipping (heap low)", dst->modelInstanceCount);
+            dst->modelInstanceCount = 0;
+        }
+#endif
         for (int i = 0; i < dst->modelInstanceCount; i++)
         {
             ParseIpdModelBufferC(&dst->modelInstances[i],
@@ -221,6 +300,16 @@ static void IpdColl_RelocateClobbered(s_IpdCollisionData* dst, const u8* collraw
 
         size = end - offs[i];
         heap = (u8*)malloc(size);
+#ifdef SH_XBOX_PORT
+        if (!heap)
+        {
+            /* Heap-critical: leave the pointer in the buffer (clobber-window bug
+             * returns for this one array, but no crash) rather than memcpy NULL. */
+            continue;
+        }
+        if (s_ipdPendingRelocN < 7)
+            s_ipdPendingReloc[s_ipdPendingRelocN++] = heap;   /* register for later free */
+#endif
         memcpy(heap, collbase + offs[i], size);
         *slots[i] = heap;
 
@@ -265,6 +354,13 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
         return false;
     }
 
+#ifdef SH_XBOX_PORT
+    /* Free this buffer's PRIOR chunk allocations before re-parsing (leak fix),
+     * and reset the per-parse reloc capture that RelocateClobbered fills below. */
+    IpdTrack_FreePrior(raw);
+    s_ipdPendingRelocN = 0;
+#endif
+
     /* Read PSX header fields from raw bytes */
     u8  magic            = raw[0];
     u8  cellX            = raw[2];
@@ -306,6 +402,13 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     if (modelCount > 0)
     {
         modelInfos = (s_IpdModelInfo*)calloc(modelCount, sizeof(s_IpdModelInfo));
+#ifdef SH_XBOX_PORT
+        if (!modelInfos)
+        {
+            SH_DBG("  [IPD] modelInfo calloc FAILED (count=%d) — skipping (heap low)", modelCount);
+            modelCount = 0;
+        }
+#endif
         for (int i = 0; i < modelCount; i++)
         {
             ParseIpdModelInfo(&modelInfos[i],
@@ -318,6 +421,13 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     if (modelBufferCount > 0)
     {
         modelBuffers = (s_IpdModelBuffer*)calloc(modelBufferCount, sizeof(s_IpdModelBuffer));
+#ifdef SH_XBOX_PORT
+        if (!modelBuffers)
+        {
+            SH_DBG("  [IPD] modelBuffers calloc FAILED (count=%d) — skipping (heap low)", modelBufferCount);
+            modelBufferCount = 0;
+        }
+#endif
         for (int i = 0; i < modelBufferCount; i++)
         {
             ParseIpdModelBuffer(&modelBuffers[i],
@@ -341,6 +451,12 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     memcpy(&ipdHdr->__pad_B[1], unkC, 8);
     ipdHdr->modelInfo       = modelInfos;
     ipdHdr->modelBuffers    = modelBuffers;
+
+#ifdef SH_XBOX_PORT
+    /* Remember this parse's allocations (incl. the reloc sub-arrays captured in
+     * s_ipdPendingReloc) so the next re-parse of this buffer frees them. */
+    IpdTrack_Record(raw, modelInfos, modelBuffers, modelBufferCount);
+#endif
 
     /* Restore subcell table: textureCount(1) + unk_1D[51] = 52 bytes total */
     ipdHdr->textureCount = subcellTable[0];

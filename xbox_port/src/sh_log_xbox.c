@@ -8,6 +8,7 @@
  * with zero changes to the shared header.
  */
 #include <stdio.h>
+#include <xboxkrnl/xboxkrnl.h>
 
 #include "sh_log.h"
 
@@ -38,4 +39,19 @@ void SH_DebugLogFlush(void)
 {
     if (g_ShDebugLog)
         fflush(g_ShDebugLog);
+}
+
+/* Heap-headroom probe. The reformat leak fixes should keep free RAM roughly flat
+ * across chunk streaming / cutscenes; a monotonic drop means a leak survives.
+ * AvailablePages is 4KB pages of free physical RAM (the pool malloc + the NV2A
+ * contiguous allocator both draw from). Integer-only (nxdk printf drops %f). */
+void Xbox_MemReport(const char* tag)
+{
+    MM_STATISTICS st;
+    st.Length = sizeof(st);
+    if (MmQueryStatistics(&st) == 0 /* STATUS_SUCCESS */)
+    {
+        unsigned freeKB = (unsigned)st.AvailablePages * 4u;   /* pages -> KB */
+        SH_DBG("[MEM] %s: free=%uKB (%u pages)", tag ? tag : "", freeKB, (unsigned)st.AvailablePages);
+    }
 }
