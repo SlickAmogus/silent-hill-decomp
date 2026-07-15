@@ -14,6 +14,7 @@
 #include "stb_image.h"
 
 #include "sh_log.h"
+#include "pc_config.h"
 
 #include <PsyX/common/glad.h>
 
@@ -45,8 +46,10 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
  * replaced or deleted; fsqueue_3.c stops composing further rows once the
  * budget is spent, so those rows keep the native disc art. Claims are made
  * nearest-first (Ipd_ChunkMaterialsApply), so the budget favors what is close.
- * Normal streamed play churns slots in place and never approaches the cap. */
-#define SH_TEXPACK_BUDGET_BYTES ((long long)768 << 20)
+ *
+ * The cap is a safety valve against a single multi-GB whole-map load, NOT a
+ * memory diet: on a 64-bit build with real VRAM it is meant to be large, so it
+ * is config-driven (texpack_budget_mb, default 3 GB, 0 = unlimited). */
 static long long g_packBytesLive = 0;
 
 static unsigned pack_bytes_for(int w, int h)
@@ -70,7 +73,10 @@ static void pack_charge(unsigned* slot, int w, int h)
 
 int HiresOverride_PackBudgetExceeded(void)
 {
-    return g_packBytesLive >= SH_TEXPACK_BUDGET_BYTES;
+    long long cap = (long long)g_PcConfig.texpackBudgetMb << 20;
+    if (cap <= 0)
+        return 0; /* 0 = unlimited: use whatever VRAM the system has */
+    return g_packBytesLive >= cap;
 }
 
 void HiresOverride_Init(void)

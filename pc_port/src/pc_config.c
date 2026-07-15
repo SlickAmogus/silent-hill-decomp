@@ -24,6 +24,7 @@ s_PcConfig g_PcConfig = {
     .residentTextures = 1, /* 1=expanded chunk-texture pool w/ per-slot GL textures (whole map textured), 0=vanilla 8+2 VRAM pool */
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
     .texpackCacheMb = 256, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
+    .texpackBudgetMb = 3072, /* HD pack GL-texture cap; generous for 64-bit/real VRAM (0 = unlimited) */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -417,6 +418,13 @@ void PcConfig_Load(const char* path)
             if (mb < 0) mb = 0;
             if (mb > 4096) mb = 4096;
             g_PcConfig.texpackCacheMb = mb;
+        }
+        else if (strcmp(key, "texpack_budget_mb") == 0)
+        {
+            int mb = atoi(value);
+            if (mb < 0) mb = 0;
+            if (mb > 65536) mb = 65536;
+            g_PcConfig.texpackBudgetMb = mb;
         }
         else if (strcmp(key, "bullet_decals") == 0)
         {

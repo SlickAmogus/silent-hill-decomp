@@ -49,6 +49,11 @@ typedef struct {
     int texpackCacheMb;   /* RAM cap (MB) for the composed-canvas cache — chunk streaming re-uploads
                            * the same TIMs endlessly, and re-decoding pack PNGs each time stutters.
                            * 0 disables (config key: texpack_cache_mb) */
+    int texpackBudgetMb;   /* GL-texture memory cap (MB) for composed HD pack uploads. Once spent,
+                           * further pool/VRAM rows keep the native disc art. A 64-bit build with real
+                           * VRAM wants this high; the cap only exists so whole-map mode cannot try to
+                           * upload multi-GB in one load and hang a small GPU. 0 = unlimited
+                           * (config key: texpack_budget_mb) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
