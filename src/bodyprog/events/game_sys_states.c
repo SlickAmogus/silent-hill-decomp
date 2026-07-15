@@ -169,8 +169,16 @@ void GameState_InGame_Update(void) // 0x80038BD4
         /* On PSX, events run at a different timing cadence where g_DeltaTime=0
          * during EventCallFunc is compensated by how often events fire.
          * On PC, this causes cutscene timers to never advance. Use the raw
-         * delta time so timer-based cutscene steps can progress. */
-        g_DeltaTime = g_DeltaTimeRaw;
+         * delta time so timer-based cutscene steps can progress.
+         *
+         * EXCEPT SysState_ReadMessage: examining a memo (or anything in the
+         * environment) pauses the world on PSX (see the note in
+         * SysState_ReadMessage_Update). That handler only UNFREEZES -- restoring
+         * g_DeltaTime -- when no enemy is alive, and otherwise relies on
+         * g_DeltaTime already being 0 to keep monsters frozen while an enemy lives.
+         * The blanket raw override broke that, so monsters kept moving during a
+         * memo. Hand ReadMessage 0 like PSX and let its own handler decide. */
+        g_DeltaTime = (g_SysWork.sysState == SysState_ReadMessage) ? Q12(0.0f) : g_DeltaTimeRaw;
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
