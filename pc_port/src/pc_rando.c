@@ -627,6 +627,31 @@ static int far_enough(q19_12 x, q19_12 z, q19_12 fx, q19_12 fz, q19_12 minDist)
     return d2 >= (s64)minDist * minDist;
 }
 
+/* Keep-out radii for monster placement. The doorway clearance is the "no monsters
+ * in tiny rooms / camping entrances" rule: monsters are placed map-wide but only
+ * activate within ~22 units of the player, so a monster this far from every doorway
+ * cannot be on top of the player the instant a door is crossed, and a room too small
+ * to hold such a spot (a connector / closet) ends up with no monster at all. */
+#define RANDO_ARRIVAL_CLEARANCE Q12(16.0f)
+#define RANDO_DOORWAY_CLEARANCE Q12(20.0f)
+
+/* True if (x,z) is clear of every doorway by RANDO_DOORWAY_CLEARANCE. s_doors is
+ * already built when placement runs. */
+static int far_from_doors(q19_12 x, q19_12 z)
+{
+    s_MapPoint2d* pts = g_MapOverlayHdr.mapPoints;
+    int i;
+    if (pts == NULL)
+        return 1;
+    for (i = 0; i < s_run.doorCount; i++)
+    {
+        const s_MapPoint2d* p = &pts[s_doors[i].poi];
+        if (!far_enough(x, z, p->positionX, p->positionZ, RANDO_DOORWAY_CLEARANCE))
+            return 0;
+    }
+    return 1;
+}
+
 /* The map's authored spawn positions, taken at load time -- clear_native_spawns
  * wipes the rows themselves, so they cannot be read back on the placement frame. */
 static q19_12 s_nativeX[32];
@@ -662,7 +687,9 @@ static void place_monsters(void)
         if (!position_is_walkable(s_nativeX[i], s_nativeZ[i]))
             continue;
         if (!far_enough(s_nativeX[i], s_nativeZ[i],
-                        s_run.arrivalX, s_run.arrivalZ, Q12(10.0f)))
+                        s_run.arrivalX, s_run.arrivalZ, RANDO_ARRIVAL_CLEARANCE))
+            continue;
+        if (!far_from_doors(s_nativeX[i], s_nativeZ[i]))
             continue;
         candX[nCand] = s_nativeX[i];
         candZ[nCand] = s_nativeZ[i];
@@ -677,7 +704,9 @@ static void place_monsters(void)
             if (!position_is_walkable(pts[i].positionX, pts[i].positionZ))
                 continue;
             if (!far_enough(pts[i].positionX, pts[i].positionZ,
-                            s_run.arrivalX, s_run.arrivalZ, Q12(10.0f)))
+                            s_run.arrivalX, s_run.arrivalZ, RANDO_ARRIVAL_CLEARANCE))
+                continue;
+            if (!far_from_doors(pts[i].positionX, pts[i].positionZ))
                 continue;
             candX[nCand] = pts[i].positionX;
             candZ[nCand] = pts[i].positionZ;
@@ -686,10 +715,11 @@ static void place_monsters(void)
     }
 
     /* Fallback for a map whose points are all foreign-space or unwalkable: probe
-     * rings around the player. */
+     * rings around the player. Radii start past the arrival clearance so a fallback
+     * monster is never dropped on the entrance either. */
     if (nCand < s_run.monstersWanted)
     {
-        static const q19_12 RADII[] = { Q12(14.0f), Q12(22.0f), Q12(30.0f) };
+        static const q19_12 RADII[] = { Q12(22.0f), Q12(30.0f), Q12(38.0f) };
         int r, a;
         for (r = 0; r < (int)ARRAY_SIZE(RADII) && nCand < (int)ARRAY_SIZE(candX); r++)
         {
@@ -699,6 +729,8 @@ static void place_monsters(void)
                 q19_12 x   = s_run.arrivalX + (q19_12)(((s64)RADII[r] * Math_Sin(ang)) >> 12);
                 q19_12 z   = s_run.arrivalZ + (q19_12)(((s64)RADII[r] * Math_Cos(ang)) >> 12);
                 if (!position_is_walkable(x, z))
+                    continue;
+                if (!far_from_doors(x, z))
                     continue;
                 candX[nCand] = x;
                 candZ[nCand] = z;
