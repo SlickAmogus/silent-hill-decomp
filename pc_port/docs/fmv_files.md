@@ -1,5 +1,8 @@
 # Silent Hill FMV File Table
 
+> Part of modding/extraction. For the disc-unpacking pipeline, VAB audio, and the
+> loose-file override mechanism, see [`Modding_And_Extraction_Guide.md`](Modding_And_Extraction_Guide.md).
+
 Silent Hill (PSX) stores all 21 of its FMVs on the disc as raw MDEC video
 streams interleaved with XA audio. To get them onto the PC port, extract
 them with **jPSXdec** (https://github.com/m35/jpsxdec/releases/tag/v2.0)
