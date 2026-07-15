@@ -128,8 +128,11 @@ static const s_RandoMonster RANDO_MONSTERS[] = {
     { Chara_AirScreamer, 12 },
 };
 #define N_MONSTERS ((int)ARRAY_SIZE(RANDO_MONSTERS))
-#define RANDO_MONSTERS_MIN 1
-#define RANDO_MONSTERS_MAX 5
+/* How many monsters an area gets. The count scales with the area's size (how many
+ * good candidate positions it has), so a big map like the resort or hospital fills
+ * up while a closet gets one or two. NPC_COUNT_MAX (the live cap) is 32. */
+#define RANDO_MONSTERS_MAX  30
+#define RANDO_SPAWN_DENSITY 90   /* percent of good candidate spots to populate */
 
 /* Item pool. Chainsaw / HyperBlaster / RockDrill / GasolineTank are excluded by
  * request; Katana and Axe are Next-Fear unlockables and are excluded in the same
@@ -231,9 +234,10 @@ typedef struct {
     int  doorCount;
     int  entryDoor;        /* index into s_doors, or -1 */
     s32  entryLockTimer;   /* q19_12 seconds remaining */
-    int  monstersWanted;
+    int  monstersWanted;   /* 0 on a miniboss map (its one row is the boss), else 1 = "spawn; count decided at placement" */
     int  monstersPlaced;
     int  monstersDone;     /* placement pass has run for this area */
+    int  forceContent;     /* a one-door dead-end room: guarantee at least one monster */
     s32  arrivalX, arrivalZ;
     int  headerInstalled;
 
@@ -557,6 +561,84 @@ static void build_events(const s_EventData* src, int mapIdx)
         }
     }
 
+    /* The door the player just came in through must never be a way back. A scripted
+     * exit (a miniboss arena's) has no doorway to lock, so only real doors count. */
+    {
+        const s_MapPoint2d* pts = g_pMapOverlayHeader->mapPoints;
+        int doorways = 0;    /* real (non-scripted) doorways in this room */
+        int onlyDoor = -1;   /* the single doorway, when there is exactly one */
+        int entryIdx = -1;   /* nearest doorway to the arrival = the one we used */
+        s64 bestD    = -1;
+
+        for (i = 0; i < s_run.doorCount; i++)
+        {
+            s64 dx, dz, d2;
+            if (s_doors[i].scripted)
+                continue;
+            doorways++;
+            onlyDoor = i;
+            if (pts == NULL)
+                continue;
+            dx = (s64)pts[s_doors[i].poi].positionX - s_run.arrivalX;
+            dz = (s64)pts[s_doors[i].poi].positionZ - s_run.arrivalZ;
+            d2 = dx * dx + dz * dz;
+            if (bestD < 0 || d2 < bestD)
+            {
+                bestD    = d2;
+                entryIdx = i;
+            }
+        }
+
+        if (doorways == 1)
+        {
+            /* A dead-end: the only doorway is the one we came in by. Shutting it for
+             * good would trap the player, so it is only held for RANDO_ENTRY_LOCK_S
+             * (Pc_Rando_Update restores its real destination). The room is forced to
+             * hold something so the detour is not pointless. The openCount pass above
+             * has already guaranteed s_doors[onlyDoor] is not itself DOOR_LOCKED, so
+             * the restore reopens it. */
+            s_run.entryDoor      = onlyDoor;
+            s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
+            s_run.forceContent   = 1;
+
+            {
+                s_RandoDoor shut = s_doors[onlyDoor];
+                shut.kind = DOOR_LOCKED;
+                door_write_event(&s_events[s_doors[onlyDoor].eventIdx], &shut);
+            }
+        }
+        else if (doorways >= 2 && entryIdx >= 0 && bestD <= (s64)Q12(8.0f) * Q12(8.0f))
+        {
+            /* Other exits exist: seal the entry permanently. First make sure at least
+             * one NON-entry door is open, or the seal could box the player in. */
+            int openNonEntry = 0;
+            int fallback     = -1;
+
+            for (i = 0; i < s_run.doorCount; i++)
+            {
+                if (s_doors[i].scripted || i == entryIdx)
+                    continue;
+                if (s_doors[i].kind != DOOR_LOCKED)
+                    openNonEntry++;
+                fallback = i;
+            }
+
+            if (openNonEntry == 0 && fallback >= 0)
+            {
+                s_RandoDoor* d = &s_doors[fallback];
+                d->kind       = DOOR_AREA;
+                d->destMap    = RANDO_AREAS[rnd_below(N_AREAS)];
+                d->arrivalIdx = (u8)rnd_below(RANDO_ARRIVALS[d->destMap].count);
+                door_write_event(&s_events[d->eventIdx], d);
+            }
+
+            /* Permanent: written into the door record too, so the 10 s timer path
+             * (which restores from the record) can never reopen it either. */
+            s_doors[entryIdx].kind = DOOR_LOCKED;
+            door_write_event(&s_events[s_doors[entryIdx].eventIdx], &s_doors[entryIdx]);
+        }
+    }
+
     s_events[n].triggerType = TriggerType_EndOfArray;
 }
 
@@ -658,17 +740,19 @@ static q19_12 s_nativeX[32];
 static q19_12 s_nativeZ[32];
 static int    s_nativeCount;
 
-/* Rewrite the map's chara spawn table with 1..5 monsters from the pool, placed
- * on authored, walkable positions away from where the player just came in. Runs
- * on the first gameplay frame, when collision data is up. */
+/* Rewrite the map's chara spawn table with monsters from the pool, placed on
+ * authored, walkable positions away from where the player just came in. The count
+ * scales with the area's size (its number of good candidate spots), capped at
+ * RANDO_MONSTERS_MAX. Runs on the first gameplay frame, when collision is up. */
 static void place_monsters(void)
 {
     s_MapPoint2d*   pts   = g_MapOverlayHdr.mapPoints;
     s_SpawnInfo*    rows  = &g_MapOverlayHdr.charaSpawnInfos[0][0];
     const int       nRows = 32;
-    q19_12          candX[64];
-    q19_12          candZ[64];
+    q19_12          candX[128];
+    q19_12          candZ[128];
     int             nCand = 0;
+    int             want;
     int             i, placed;
 
     /* A miniboss arena keeps its own single authored row (the boss). Nothing to
@@ -714,10 +798,37 @@ static void place_monsters(void)
         }
     }
 
-    /* Fallback for a map whose points are all foreign-space or unwalkable: probe
-     * rings around the player. Radii start past the arrival clearance so a fallback
-     * monster is never dropped on the entrance either. */
-    if (nCand < s_run.monstersWanted)
+    /* How many to spawn, from the good-candidate count (a size proxy): a fraction
+     * of the area, skewed toward the high end so a big map approaches the cap while
+     * a small room gets one or two. As long as the area has any candidate it gets at
+     * least one monster, so an area is far more often populated than not. */
+    if (nCand <= 0)
+    {
+        want = 0;
+    }
+    else
+    {
+        int base = (nCand * RANDO_SPAWN_DENSITY) / 100;
+        if (base < 1)
+            base = 1;
+        want = base - rnd_below(base / 2 + 1); /* [ceil(base/2) .. base] */
+        if (want < 1)
+            want = 1;
+        if (want > RANDO_MONSTERS_MAX)
+            want = RANDO_MONSTERS_MAX;
+    }
+
+    /* A one-door dead-end room must never be empty (its door is only shut for 10 s,
+     * so it needs a reason to exist). Force at least one even if the room was too
+     * small to clear the doorway filter. */
+    if (s_run.forceContent && want < 1)
+        want = 1;
+
+    /* Fallback for a map whose points are all foreign-space or unwalkable, or a
+     * forced-content room too tight for the doorway filter: probe rings around the
+     * player. Radii start past the arrival clearance so a fallback monster is never
+     * dropped on the entrance either. */
+    if (nCand < want)
     {
         static const q19_12 RADII[] = { Q12(22.0f), Q12(30.0f), Q12(38.0f) };
         int r, a;
@@ -739,8 +850,40 @@ static void place_monsters(void)
         }
     }
 
+    /* Last resort for forced content: if the doorway/arrival filters rejected
+     * everything (a genuinely tiny dead-end), take the walkable spot farthest from
+     * the arrival with the clearance rules waived -- one monster beats an empty
+     * room the player was locked into. */
+    if (s_run.forceContent && nCand == 0 && pts != NULL)
+    {
+        int    nPts = (int)RANDO_MAPPOINT_COUNT[s_run.mapIdx];
+        q19_12 bestX = 0, bestZ = 0;
+        s64    bestD = -1;
+        for (i = 0; i < nPts; i++)
+        {
+            s64 dx, dz, d2;
+            if (!position_is_walkable(pts[i].positionX, pts[i].positionZ))
+                continue;
+            dx = (s64)pts[i].positionX - s_run.arrivalX;
+            dz = (s64)pts[i].positionZ - s_run.arrivalZ;
+            d2 = dx * dx + dz * dz;
+            if (d2 > bestD)
+            {
+                bestD = d2;
+                bestX = pts[i].positionX;
+                bestZ = pts[i].positionZ;
+            }
+        }
+        if (bestD >= 0)
+        {
+            candX[0] = bestX;
+            candZ[0] = bestZ;
+            nCand    = 1;
+        }
+    }
+
     placed = 0;
-    for (i = 0; i < s_run.monstersWanted && nCand > 0 && placed < nRows; i++)
+    for (i = 0; i < want && nCand > 0 && placed < nRows; i++)
     {
         int c = rnd_below(nCand);
         const s_RandoMonster* m = &RANDO_MONSTERS[rnd_below(N_MONSTERS)];
@@ -762,7 +905,7 @@ static void place_monsters(void)
     s_run.monstersPlaced = placed;
     s_run.monstersDone   = 1;
     SH_LOG("[RANDO] %s: placed %d/%d monsters (%d candidates left)",
-           MapRegistry_GetName((e_MapIdx)s_run.mapIdx), placed, s_run.monstersWanted, nCand);
+           MapRegistry_GetName((e_MapIdx)s_run.mapIdx), placed, want, nCand);
 }
 
 /* Wipe the map's authored spawn rows at load time, keeping their positions --
@@ -1134,14 +1277,14 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_run.monstersDone   = 0;
     s_run.entryDoor      = -1;
     s_run.entryLockTimer = 0;
+    s_run.forceContent   = 0;
     s_run.cacheFlag      = NO_VALUE;
     s_nativeCount        = 0;
 
     /* A miniboss arena IS its content: leave its single authored spawn row (the
-     * boss) alone and add nothing to it. */
-    s_run.monstersWanted = (miniboss_info(mapIdx) != NULL)
-                         ? 0
-                         : RANDO_MONSTERS_MIN + rnd_below(RANDO_MONSTERS_MAX - RANDO_MONSTERS_MIN + 1);
+     * boss) alone and add nothing to it. Everywhere else spawns; place_monsters
+     * decides the actual count from the area's size on the placement frame. */
+    s_run.monstersWanted = (miniboss_info(mapIdx) != NULL) ? 0 : 1;
 
     if (isNewEntry)
     {
@@ -1225,58 +1368,12 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     g_pMapOverlayHeader  = &s_hdr;
     s_run.headerInstalled = 1;
 
-    SH_LOG("[RANDO] area %d/%d: %s -- %d doors, %d monsters queued, score %d",
+    SH_LOG("[RANDO] area %d/%d: %s -- %d doors, monsters:%s, score %d",
            s_run.areasEntered, RANDO_AREAS_TO_BOSS, MapRegistry_GetName((e_MapIdx)mapIdx),
-           s_run.doorCount, s_run.monstersWanted, rando_score());
+           s_run.doorCount, s_run.monstersWanted ? "yes" : "no", rando_score());
 }
 
 /* ------------------------------------------------------------------- per-frame */
-
-/* Shut the door the player just walked through, for RANDO_ENTRY_LOCK_S. */
-static void lock_entry_door(void)
-{
-    s_MapPoint2d* pts = g_MapOverlayHdr.mapPoints;
-    s64 best = -1;
-    int bestI = -1;
-    int i;
-
-    if (pts == NULL || s_run.doorCount <= 0)
-        return;
-
-    for (i = 0; i < s_run.doorCount; i++)
-    {
-        s64 dx, dz, d2;
-
-        if (s_doors[i].scripted)
-            continue; /* a miniboss exit has no doorway; locking it would fire it */
-
-        dx = (s64)pts[s_doors[i].poi].positionX - s_run.arrivalX;
-        dz = (s64)pts[s_doors[i].poi].positionZ - s_run.arrivalZ;
-        d2 = dx * dx + dz * dz;
-        if (best < 0 || d2 < best)
-        {
-            best  = d2;
-            bestI = i;
-        }
-    }
-
-    /* Only if it really is the doorway we came out of, not just the nearest one
-     * on a big open map. */
-    if (bestI < 0 || best > (s64)Q12(8.0f) * Q12(8.0f))
-        return;
-
-    s_run.entryDoor      = bestI;
-    s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
-
-    /* Through door_write_event, so the row is forced button-activated like any
-     * other locked door -- a touch-activated one would trap the player in the
-     * "It's locked." freeze loop for the whole lock window. */
-    {
-        s_RandoDoor shut = s_doors[bestI];
-        shut.kind = DOOR_LOCKED;
-        door_write_event(&s_events[s_doors[bestI].eventIdx], &shut);
-    }
-}
 
 void Pc_Rando_Update(void)
 {
@@ -1287,12 +1384,9 @@ void Pc_Rando_Update(void)
         return;
 
     /* First gameplay frame in this area: collision is up, so monsters can be
-     * placed on real floor, and the arrival point is final. */
+     * placed on real floor. The entry door was already sealed at load time. */
     if (!s_run.monstersDone)
-    {
         place_monsters();
-        lock_entry_door();
-    }
 
     /* The map's own room code resets the concurrent-NPC cap; keep it high enough
      * for everything we placed. */
@@ -1355,5 +1449,15 @@ void Pc_Rando_Init(void)
     /* Every monster in the pool has to be spawnable in every area. */
     g_PcConfig.globalCharaPool = 1;
 
-    SH_LOG("[RANDO] enabled -- start map forced to map2_s04, global chara pool on");
+    /* Big areas place up to RANDO_MONSTERS_MAX monsters; the map's own per-room
+     * concurrent cap (often 6) would otherwise stop most of them from spawning.
+     * Set both the config field (so any later config->global re-apply keeps it)
+     * and the live global (in case that copy already ran). */
+    {
+        extern int g_PcUnlimitedEnemies;
+        g_PcConfig.unlimitedEnemies = 1;
+        g_PcUnlimitedEnemies        = 1;
+    }
+
+    SH_LOG("[RANDO] enabled -- start map forced to map2_s04, global chara pool + unlimited enemies on");
 }
