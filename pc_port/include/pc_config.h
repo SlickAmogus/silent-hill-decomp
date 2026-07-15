@@ -46,9 +46,11 @@ typedef struct {
     int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
                            * (texupload-*.png, loose folders or .zip archives) and apply them by content
                            * hash at TIM upload (config key: texture_packs) */
-    int texpackCacheMb;   /* RAM cap (MB) for the composed-canvas cache — chunk streaming re-uploads
-                           * the same TIMs endlessly, and re-decoding pack PNGs each time stutters.
-                           * 0 disables (config key: texpack_cache_mb) */
+    int texpackCacheMb;   /* System-RAM cap (MB) for the composed-canvas cache — chunk streaming churns
+                           * pool slots, so a too-small cache re-decodes + re-upscales pack PNGs on
+                           * every re-claim and stutters. HD packs compose big canvases (a 4x pack =
+                           * ~9MB each), so this wants to be large on a 64-bit build. 0 disables
+                           * (config key: texpack_cache_mb) */
     int texpackBudgetMb;   /* GL-texture memory cap (MB) for composed HD pack uploads. Once spent,
                            * further pool/VRAM rows keep the native disc art. A 64-bit build with real
                            * VRAM wants this high; the cap only exists so whole-map mode cannot try to

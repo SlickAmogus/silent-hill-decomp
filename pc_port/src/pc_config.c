@@ -23,7 +23,7 @@ s_PcConfig g_PcConfig = {
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
     .residentTextures = 1, /* 1=expanded chunk-texture pool w/ per-slot GL textures (whole map textured), 0=vanilla 8+2 VRAM pool */
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
-    .texpackCacheMb = 256, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
+    .texpackCacheMb = 2048, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
     .texpackBudgetMb = 6144, /* HD pack GL-texture cap; generous for 64-bit/real VRAM + big packs (0 = unlimited) */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
@@ -416,7 +416,7 @@ void PcConfig_Load(const char* path)
         {
             int mb = atoi(value);
             if (mb < 0) mb = 0;
-            if (mb > 4096) mb = 4096;
+            if (mb > 32768) mb = 32768;
             g_PcConfig.texpackCacheMb = mb;
         }
         else if (strcmp(key, "texpack_budget_mb") == 0)

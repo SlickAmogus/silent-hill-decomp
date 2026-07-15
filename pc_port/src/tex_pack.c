@@ -572,7 +572,7 @@ static void BlitNearest(unsigned char* dst, int dstW, int dstH,
  * (pixel hash, palette hash, bpp), so results are cached content-keyed with
  * LRU eviction, capped by `texpack_cache_mb` (0 disables). The cache OWNS
  * every returned canvas — callers must not free it. */
-#define TP_CACHE_MAX 512
+#define TP_CACHE_MAX 4096 /* entry-count cap alongside texpack_cache_mb; big packs churn many canvases */
 
 typedef struct {
     unsigned long long srcHash;
