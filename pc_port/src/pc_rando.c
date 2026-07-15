@@ -238,6 +238,7 @@ typedef struct {
     int  monstersPlaced;
     int  monstersDone;     /* placement pass has run for this area */
     int  forceContent;     /* a one-door dead-end room: guarantee at least one monster */
+    int  cameThroughDoor;  /* this area was entered via a real door (not New Game / Continue) */
     s32  arrivalX, arrivalZ;
     int  headerInstalled;
 
@@ -348,6 +349,17 @@ static void door_write_event(s_EventData* e, const s_RandoDoor* d)
             e->eventParam = 0;
             break;
     }
+}
+
+/* Force a door to a random area exit and rewrite its row. Used wherever the mode
+ * must guarantee a working way out (the map-wide "at least one open" pass, the
+ * per-floor entry-seal guard, and a dead-end door's post-lock destination). */
+static void door_make_area(s_RandoDoor* d)
+{
+    d->kind       = DOOR_AREA;
+    d->destMap    = RANDO_AREAS[rnd_below(N_AREAS)];
+    d->arrivalIdx = (u8)rnd_below(RANDO_ARRIVALS[d->destMap].count);
+    door_write_event(&s_events[d->eventIdx], d);
 }
 
 static void door_roll(s_RandoDoor* d, int isExitDoor)
@@ -552,32 +564,27 @@ static void build_events(const s_EventData* src, int mapIdx)
                 candidates[nc++] = i;
 
         if (nc > 0)
-        {
-            s_RandoDoor* d = &s_doors[candidates[rnd_below(nc)]];
-            d->kind       = DOOR_AREA;
-            d->destMap    = RANDO_AREAS[rnd_below(N_AREAS)];
-            d->arrivalIdx = (u8)rnd_below(RANDO_ARRIVALS[d->destMap].count);
-            door_write_event(&s_events[d->eventIdx], d);
-        }
+            door_make_area(&s_doors[candidates[rnd_below(nc)]]);
     }
 
-    /* The door the player just came in through must never be a way back. A scripted
-     * exit (a miniboss arena's) has no doorway to lock, so only real doors count. */
+    /* The door the player just came in through must never be a way back -- but only
+     * when there actually WAS a door (New Game / a post-death Continue reloads with
+     * no came-through door, so nothing here should fire). A pooled overlay also spans
+     * several physically disjoint rooms/floors reached by its own room transitions,
+     * and s_doors holds EVERY door in it. Reasoning map-wide would seal the arrival
+     * room's door while "an open exit exists" was satisfied by a door on an
+     * unreachable floor -- a permanent trap. So the entry door and the guaranteed
+     * exit are both scoped to the arrival's paper-map (its floor). */
+    if (s_run.cameThroughDoor)
     {
         const s_MapPoint2d* pts = g_pMapOverlayHeader->mapPoints;
-        int doorways = 0;    /* real (non-scripted) doorways in this room */
-        int onlyDoor = -1;   /* the single doorway, when there is exactly one */
         int entryIdx = -1;   /* nearest doorway to the arrival = the one we used */
         s64 bestD    = -1;
 
-        for (i = 0; i < s_run.doorCount; i++)
+        for (i = 0; pts != NULL && i < s_run.doorCount; i++)
         {
             s64 dx, dz, d2;
             if (s_doors[i].scripted)
-                continue;
-            doorways++;
-            onlyDoor = i;
-            if (pts == NULL)
                 continue;
             dx = (s64)pts[s_doors[i].poi].positionX - s_run.arrivalX;
             dz = (s64)pts[s_doors[i].poi].positionZ - s_run.arrivalZ;
@@ -589,53 +596,62 @@ static void build_events(const s_EventData* src, int mapIdx)
             }
         }
 
-        if (doorways == 1)
+        /* Only if we can actually pin the doorway we came out of (not just the
+         * nearest one on a big open map). */
+        if (entryIdx >= 0 && bestD <= (s64)Q12(8.0f) * Q12(8.0f))
         {
-            /* A dead-end: the only doorway is the one we came in by. Shutting it for
-             * good would trap the player, so it is only held for RANDO_ENTRY_LOCK_S
-             * (Pc_Rando_Update restores its real destination). The room is forced to
-             * hold something so the detour is not pointless. The openCount pass above
-             * has already guaranteed s_doors[onlyDoor] is not itself DOOR_LOCKED, so
-             * the restore reopens it. */
-            s_run.entryDoor      = onlyDoor;
-            s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
-            s_run.forceContent   = 1;
-
-            {
-                s_RandoDoor shut = s_doors[onlyDoor];
-                shut.kind = DOOR_LOCKED;
-                door_write_event(&s_events[s_doors[onlyDoor].eventIdx], &shut);
-            }
-        }
-        else if (doorways >= 2 && entryIdx >= 0 && bestD <= (s64)Q12(8.0f) * Q12(8.0f))
-        {
-            /* Other exits exist: seal the entry permanently. First make sure at least
-             * one NON-entry door is open, or the seal could box the player in. */
-            int openNonEntry = 0;
-            int fallback     = -1;
+            u32 floor        = pts[s_doors[entryIdx].poi].paperMapIdx;
+            int localDoors   = 0;    /* non-scripted doors on the arrival's floor */
+            int localOpen    = 0;    /* ... that are not the entry and not locked */
+            int localOther   = -1;   /* any non-entry door on this floor */
 
             for (i = 0; i < s_run.doorCount; i++)
             {
-                if (s_doors[i].scripted || i == entryIdx)
+                if (s_doors[i].scripted ||
+                    pts[s_doors[i].poi].paperMapIdx != floor)
                     continue;
-                if (s_doors[i].kind != DOOR_LOCKED)
-                    openNonEntry++;
-                fallback = i;
+                localDoors++;
+                if (i != entryIdx)
+                {
+                    localOther = i;
+                    if (s_doors[i].kind != DOOR_LOCKED)
+                        localOpen++;
+                }
             }
 
-            if (openNonEntry == 0 && fallback >= 0)
+            if (localDoors >= 2)
             {
-                s_RandoDoor* d = &s_doors[fallback];
-                d->kind       = DOOR_AREA;
-                d->destMap    = RANDO_AREAS[rnd_below(N_AREAS)];
-                d->arrivalIdx = (u8)rnd_below(RANDO_ARRIVALS[d->destMap].count);
-                door_write_event(&s_events[d->eventIdx], d);
-            }
+                /* This floor has another way out. Guarantee it is actually open (a
+                 * same-floor door, so it is reachable), then seal the entry for good:
+                 * written into the door record too, so nothing -- not even the 10 s
+                 * timer path -- can reopen it. */
+                if (localOpen == 0 && localOther >= 0)
+                    door_make_area(&s_doors[localOther]);
 
-            /* Permanent: written into the door record too, so the 10 s timer path
-             * (which restores from the record) can never reopen it either. */
-            s_doors[entryIdx].kind = DOOR_LOCKED;
-            door_write_event(&s_events[s_doors[entryIdx].eventIdx], &s_doors[entryIdx]);
+                s_doors[entryIdx].kind = DOOR_LOCKED;
+                door_write_event(&s_events[s_doors[entryIdx].eventIdx], &s_doors[entryIdx]);
+            }
+            else
+            {
+                /* A dead-end floor: the only doorway is the one we came in by.
+                 * Sealing it for good would trap the player, so it is only held for
+                 * RANDO_ENTRY_LOCK_S; Pc_Rando_Update restores it. Its rolled kind
+                 * must be a real destination for that restore to reopen it (the
+                 * map-wide "at least one open" pass does NOT protect a single-door
+                 * floor). forceContent guarantees the detour is not for nothing. */
+                if (s_doors[entryIdx].kind == DOOR_LOCKED)
+                    door_make_area(&s_doors[entryIdx]);
+
+                s_run.entryDoor      = entryIdx;
+                s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
+                s_run.forceContent   = 1;
+
+                {
+                    s_RandoDoor shut = s_doors[entryIdx];
+                    shut.kind = DOOR_LOCKED;
+                    door_write_event(&s_events[s_doors[entryIdx].eventIdx], &shut);
+                }
+            }
         }
     }
 
@@ -1318,16 +1334,20 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
 
     /* Where the player is about to be put. On a randomizer jump D_800BCDB0 was
      * already overridden by Pc_Rando_ArrivalOverride; on the first area (New Game)
-     * it is still zeroed and the player goes to mapPoints[0]. */
+     * it is still zeroed and the player goes to mapPoints[0]. That same override is
+     * the "came in through a door" signal -- New Game (zeroed) and a post-death
+     * Continue (not a new entry) have no entry door to seal. */
     if (D_800BCDB0.positionX != 0 || D_800BCDB0.positionZ != 0)
     {
         s_run.arrivalX = D_800BCDB0.positionX;
         s_run.arrivalZ = D_800BCDB0.positionZ;
+        s_run.cameThroughDoor = isNewEntry;
     }
     else if (g_pMapOverlayHeader->mapPoints != NULL)
     {
         s_run.arrivalX = g_pMapOverlayHeader->mapPoints[0].positionX;
         s_run.arrivalZ = g_pMapOverlayHeader->mapPoints[0].positionZ;
+        s_run.cameThroughDoor = 0;
     }
 
     build_event_funcs(srcEvents, srcFuncs);
