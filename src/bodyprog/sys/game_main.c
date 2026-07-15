@@ -2393,13 +2393,28 @@ void MainLoop(void) // 0x80032EE0
             extern int   g_PsxFixedCamActive;
             extern int   g_PsxCutsceneActive;
             extern float g_PsxWorldVShift;
+            static s32   s_heldWorldOfy = 0;
             s32 ofy = 0;
 
-            if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam &&
-                g_GameWork.gameState == GameState_InGame &&
+            if (g_GameWork.gameState == GameState_InGame &&
                 g_SysWork.sysState == SysState_Gameplay)
             {
-                ofy = (s32)g_PsxWorldVShift;
+                if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam)
+                {
+                    ofy = (s32)g_PsxWorldVShift;
+                }
+                s_heldWorldOfy = ofy;
+            }
+            else if (g_GameWork.gameState == GameState_InGame &&
+                     g_SysWork.sysState == SysState_ReadMessage)
+            {
+                /* Examine / read-message freezes the world but keeps re-rendering the SAME
+                 * fixed-cam frame (vcMoveAndSetCamera still runs every frame). The original
+                 * has no per-state offset, so it looks identical before and during the
+                 * message — hold the gameplay offset here instead of snapping to 0, which
+                 * made the view jump the instant text appeared (any display camera, since
+                 * the shift is at the GTE projection center). */
+                ofy = s_heldWorldOfy;
             }
 
             SetGeomOffset(0, ofy);
