@@ -62,7 +62,7 @@ s_PcConfig g_PcConfig = {
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
-    .tpsAimZoom          = 100.0f, /* full aim dolly (the old tps_aim_zoom = 1); 0 = no zoom */
+    .tpsAimZoom          = 50.0f, /* default aim dolly (the old full zoom is now 50%); 100 = 2x zoom, 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
@@ -603,8 +603,10 @@ void PcConfig_Load(const char* path)
         {
             /* Superseded by the tps_aim_zoom_amount slider. Kept so an existing
              * config that still carries the old on/off key lands on the matching
-             * end of the new range instead of silently reverting to the default. */
-            g_PcConfig.tpsAimZoom = (atoi(value) != 0) ? 100.0f : 0.0f;
+             * end of the new range instead of silently reverting to the default.
+             * The old "on" full zoom is now the 50% (default) position; 100% is a
+             * new, deeper 2x zoom that the checkbox never reached. */
+            g_PcConfig.tpsAimZoom = (atoi(value) != 0) ? 50.0f : 0.0f;
         }
         else if (strcmp(key, "tps_fov") == 0)
         {

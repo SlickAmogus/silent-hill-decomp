@@ -497,8 +497,8 @@ public class ControlsForm : Form
         WirePair(numTpsAimZoom, trkTpsAimZoom, 1m);
         tips.SetToolTip(numTpsAimZoom,
             "How far the Thirdperson / Over-the-Shoulder camera pulls in behind Harry while you aim, as a percentage " +
-            "of the full zoom. 100 = the original zoom, 0 = no zoom at all (this replaces the old TPS/OTS Aim Zoom " +
-            "checkbox).");
+            "of the zoom range. 50 (default) = the original zoom, 100 = a deeper 2x zoom, 0 = no zoom at all (this " +
+            "replaces the old TPS/OTS Aim Zoom checkbox).");
 
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
@@ -932,10 +932,11 @@ public class ControlsForm : Form
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "71.1"));
         numTpsFov.Value = ClampFov(config.Get("tps_fov", "71.1"));
         // Migration: the aim zoom used to be the on/off "tps_aim_zoom" key. If the
-        // slider key isn't there yet, land on the end of the range that matches
-        // whatever the old checkbox said, so an existing setting isn't silently lost.
+        // slider key isn't there yet, land on the position that matches whatever the
+        // old checkbox said, so an existing setting isn't silently lost. The old "on"
+        // full zoom is now the 50% default; 100% is a new, deeper 2x zoom.
         numTpsAimZoom.Value = ClampPercent(
-            config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "100" : "0"));
+            config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "50" : "0"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -975,7 +976,7 @@ public class ControlsForm : Form
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 71.1m;
         numTpsFov.Value = 71.1m;
-        numTpsAimZoom.Value = 100m;
+        numTpsAimZoom.Value = 50m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;

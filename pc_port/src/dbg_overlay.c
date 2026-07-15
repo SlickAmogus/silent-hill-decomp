@@ -38,14 +38,21 @@ extern int g_DebugAnimKfMax;
 #define GLYPH_H     8
 #define SCALE       2
 
+/* Console backlog/text width, in glyph columns. Wide enough to fill a 4K window
+ * at 2x (3840 / (8*2) = 240) so text spans the whole window instead of stopping
+ * at a fixed panel edge, and long lines wrap onto extra rows rather than being
+ * clipped. Kept separate from LINE_LEN (which still sizes the short toast and the
+ * command-input line). */
+#define CON_COLS    240
+
 /* Most text rows the PANEL can ever show at once (+1 for the input prompt).
  * The actual row count is derived from the window height each frame. */
 #define CONSOLE_VIS_MAX 62
 
-#define TEX_W (LINE_LEN * GLYPH_W)               /* 512 */
+#define TEX_W (CON_COLS * GLYPH_W)               /* 1920 */
 #define TEX_H ((CONSOLE_VIS_MAX + 1) * GLYPH_H)  /* +1 row for the input prompt */
 
-static char s_console[MAX_CONSOLE][LINE_LEN];
+static char s_console[MAX_CONSOLE][CON_COLS];
 static int  s_console_count  = 0;
 static int  s_console_dirty  = 0;
 static int  s_prev_a = 0;
@@ -71,7 +78,7 @@ static int s_vis_rows = 24;
 /* ---- Console mouse: pointer + click-drag selection + clipboard ----
  * A selection endpoint is (line, col): line = ring index into s_console
  * (bigger = older = higher on screen), -1 = the prompt row, col = character
- * boundary 0..LINE_LEN. Endpoints track the ring in push_console so the
+ * boundary 0..CON_COLS. Endpoints track the ring in push_console so the
  * selected TEXT stays selected as new lines arrive. The highlight is drawn
  * as quads between the backdrop and the glyph texture; Ctrl+C joins the
  * covered lines (older→newer) into the system clipboard, Ctrl+V appends the
@@ -398,14 +405,14 @@ static const unsigned char s_font[128][8] = {
     [0x7E] = {0x6E,0x3B,0x00,0x00,0x00,0x00,0x00,0x00},
 };
 
-static void push_console(const char* line)
+static void push_console_raw(const char* line)
 {
     int shift = (s_console_count < MAX_CONSOLE) ? s_console_count : MAX_CONSOLE - 1;
     int i;
     for (i = shift; i > 0; i--)
-        memcpy(s_console[i], s_console[i - 1], LINE_LEN);
-    strncpy(s_console[0], line, LINE_LEN - 1);
-    s_console[0][LINE_LEN - 1] = '\0';
+        memcpy(s_console[i], s_console[i - 1], CON_COLS);
+    strncpy(s_console[0], line, CON_COLS - 1);
+    s_console[0][CON_COLS - 1] = '\0';
     if (s_console_count < MAX_CONSOLE)
         s_console_count++;
     /* While scrolled back, keep the viewed lines stable as new ones arrive
@@ -421,6 +428,37 @@ static void push_console(const char* line)
             s_sel_active = 0;
         }
     }
+}
+
+/* Push a log line, wrapping it onto extra rows so nothing is clipped at the
+ * window's right edge. The wrap column follows the live window width (each glyph
+ * is GLYPH_W*SCALE device px) so text fills whatever width the window has; chunks
+ * are pushed head-first so a wrapped message still reads top-to-bottom (oldest
+ * chunk highest, newest chunk on the bottom row). */
+static void push_console(const char* line)
+{
+    int wrapCols = g_windowWidth / (GLYPH_W * SCALE) - 1;
+    int len      = (int)strlen(line);
+
+    if (wrapCols < 16)           wrapCols = 16;
+    if (wrapCols > CON_COLS - 1) wrapCols = CON_COLS - 1;
+
+    while (len > wrapCols) {
+        char chunk[CON_COLS];
+        int  brk = wrapCols;
+        int  i;
+        /* Prefer to break on the last space within the row so words stay whole. */
+        for (i = wrapCols; i > 0; i--) {
+            if (line[i] == ' ') { brk = i; break; }
+        }
+        memcpy(chunk, line, brk);
+        chunk[brk] = '\0';
+        push_console_raw(chunk);
+        if (line[brk] == ' ') brk++; /* swallow the space we split on */
+        line += brk;
+        len  -= brk;
+    }
+    push_console_raw(line);
 }
 
 /* The console panel is open (frozen-input state or the brief command apply
@@ -455,7 +493,7 @@ static void console_sel_order(int* fl, int* fc, int* ll, int* lc)
 static void Console_CopySelection(void)
 {
     /* Worst case: every ring line + newlines. */
-    static char out[MAX_CONSOLE * (LINE_LEN + 1) + 4];
+    static char out[MAX_CONSOLE * (CON_COLS + 1) + 4];
     int fl, fc, ll, lc, cur, n = 0;
 
     if (!s_sel_valid)
@@ -721,7 +759,7 @@ static void overlay_render_row(int rowIdx, const char* str)
 {
     int cx, x, y;
 
-    for (cx = 0; *str && cx < LINE_LEN; cx++, str++) {
+    for (cx = 0; *str && cx < CON_COLS; cx++, str++) {
         unsigned int ch = (unsigned char)*str;
         if (ch >= 128) continue;
         for (y = 0; y < GLYPH_H; y++) {
@@ -1401,7 +1439,7 @@ void DbgOverlay_Update(void)
             if (px >= 0 && py >= 0) {
                 int row = py / chh;
                 col = (px + cw / 2) / cw;
-                if (col > LINE_LEN) col = LINE_LEN;
+                if (col > CON_COLS) col = CON_COLS;
                 if (row == s_vis_rows) {
                     line = -1; /* prompt row */
                 } else if (row >= 0 && row < s_vis_rows &&
@@ -1932,9 +1970,21 @@ void DbgOverlay_Render(void)
             }
         }
 
-        tx1 = x0 + 2.0f * (float)(TEX_W * SCALE) / (float)vp[2];
-        tv1 = (usedRows * (float)GLYPH_H) / (float)TEX_H;
-        draw_panel_uv(s_tex, x0, y0, tx1, y1, 1.0f, tv1);
+        {
+            /* Draw only the columns that fit the window at the natural 2x glyph
+             * size, stretched from the left edge, so the text spans the full
+             * window width instead of stopping at a fixed panel edge. The texture
+             * holds CON_COLS columns; crop U to the fitted count. push_console
+             * wraps lines to this same width so nothing is clipped on the right. */
+            int   colsFit = vp[2] / (GLYPH_W * SCALE);
+            float tu1;
+            if (colsFit < 1)        colsFit = 1;
+            if (colsFit > CON_COLS) colsFit = CON_COLS;
+            tx1 = x0 + 2.0f * (float)(colsFit * GLYPH_W * SCALE) / (float)vp[2];
+            tu1 = (float)colsFit / (float)CON_COLS;
+            tv1 = (usedRows * (float)GLYPH_H) / (float)TEX_H;
+            draw_panel_uv(s_tex, x0, y0, tx1, y1, tu1, tv1);
+        }
 
         /* Pointer, topmost — the OS cursor is force-hidden, so while the
          * console is open this is the only visible cursor. Same arrow sprite

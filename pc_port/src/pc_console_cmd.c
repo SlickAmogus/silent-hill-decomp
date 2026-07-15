@@ -52,7 +52,9 @@ extern int g_DebugNoWallCollision;
 
 static void cprintf(const char* fmt, ...)
 {
-    char line[64];
+    /* The overlay wraps anything wider than the window, so this only needs to be
+     * big enough to hold a full wide-window line before wrapping. */
+    char line[256];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(line, sizeof(line), fmt, ap);
@@ -77,13 +79,13 @@ static void cmd_map(const char* arg)
     int i, count = MapRegistry_Count();
 
     if (!arg[0]) {
-        char line[64];
+        char line[256];
         int  used = 0;
         line[0] = '\0';
         for (i = 0; i < count; i++) {
             const char* nm = MapRegistry_GetName(i);
             if (!nm) continue;
-            if (used + (int)strlen(nm) + 1 >= 60) {
+            if (used + (int)strlen(nm) + 1 >= 200) {
                 DbgOverlay_PushLine(line);
                 line[0] = '\0';
                 used    = 0;
@@ -1155,8 +1157,9 @@ void Pc_ConsoleExec(const char* line)
         cprintf("thirdperson FOV %.1f deg (71.1 = the game's own FOV; applies in TPS/OTS gameplay only)",
                 g_PcConfig.tpsFov);
     } else if (strcmp(cmd, "TPSAIMZOOM") == 0) {
-        /* How far the TPS/OTS camera dollies in while aiming, 0-100% of the full
-         * zoom. 0 = no zoom (what the old tps_aim_zoom = 0 checkbox did). */
+        /* How far the TPS/OTS camera dollies in while aiming, 0-100% of the zoom
+         * range. 50 (default) = the old full zoom, 100 = a deeper 2x zoom, 0 =
+         * no zoom (what the old tps_aim_zoom = 0 checkbox did). */
         if (arg[0] != '\0') {
             float v = (float)atof(arg);
             if (v < 0.0f)   v = 0.0f;
@@ -1168,7 +1171,7 @@ void Pc_ConsoleExec(const char* line)
                 PcConfig_SaveKeyValue("tps_aim_zoom_amount", buf);
             }
         }
-        cprintf("TPS/OTS aim zoom %.0f%% (100 = original full zoom, 0 = none)",
+        cprintf("TPS/OTS aim zoom %.0f%% (50 = original full zoom, 100 = 2x zoom, 0 = none)",
                 g_PcConfig.tpsAimZoom);
     } else if (strcmp(cmd, "TPSOTSAIM") == 0) {
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.tpsOtsAim;
