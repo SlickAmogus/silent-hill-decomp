@@ -35,6 +35,7 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/screen/vsync.h"
 #include "bodyprog/sys/joy.h"
 #include "bodyprog/text/text_draw.h"
@@ -290,8 +291,26 @@ static void Pc_TpsCamera_Apply(void)
     /* Hand the camera back to the game whenever a script owns the scene. */
     if (Pc_ScriptOwnsScene())
     {
-        Pc_CameraFov_Update();
-        return;
+        /* Exception: the post-load fade-in of a room/area transition is not a
+         * scripted scene -- Pc_ScriptOwnsScene only trips its third branch there
+         * (camera flags + frozen control). In first person, standing down lets the
+         * vanilla third-person camera ease in from its stale position, which reads
+         * as the eye floating toward Harry's body out of a void. The FPS eye is
+         * computed fresh from Harry's already-placed head, so applying it here snaps
+         * straight in with no drift. Only during the actual fade-in (masked status
+         * FadeInStart/FadeInSteps) and never for a real cutscene, so scripted camera
+         * moves and cutscenes still stand down normally. */
+        int fpsSnapThroughLoad =
+            g_PcFpsCam &&
+            (g_Screen_FadeStatus & 0x7) >= ScreenFadeState_FadeInStart &&
+            !(g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
+            g_SysWork.cutsceneBorderState == CutsceneBorderState_None;
+
+        if (!fpsSnapThroughLoad)
+        {
+            Pc_CameraFov_Update();
+            return;
+        }
     }
 
     #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */

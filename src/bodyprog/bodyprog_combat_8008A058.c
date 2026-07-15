@@ -10,6 +10,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound/sound_system.h"
@@ -131,6 +132,21 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     {
         return NO_VALUE;
     }
+
+#ifdef SH_PC_PORT
+    /* No hits land while the room is still fading in after a load. The world
+     * updates during that reveal with the player already at his arrival point but
+     * with no control; an enemy placed near the entrance would otherwise strike a
+     * helpless, just-teleported Harry, and the knockback can shove him out of
+     * bounds (very visible in first person). g_Screen_FadeStatus masks to
+     * FadeInStart/FadeInSteps only during that post-load reveal -- never in normal
+     * gameplay (which rests at None) and never for a text box -- so this suppresses
+     * exactly the transition window and nothing else. */
+    if ((g_Screen_FadeStatus & 0x7) >= ScreenFadeState_FadeInStart)
+    {
+        return NO_VALUE;
+    }
+#endif
 
     if (chara == &g_SysWork.playerWork.player)
     {
