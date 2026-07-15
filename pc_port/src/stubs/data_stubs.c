@@ -1309,8 +1309,8 @@ u8 sharedData_800DD58C_0_s00[256] = {0};
 u8 sharedData_800DD5A0_0_s00[256] = {0};
 u8 sharedData_800DD5A4_0_s00[256] = {0};
 u8 sharedData_800DD5A6_0_s00[256] = {0};
-u8 sharedData_800DD870_0_s01[256] = {0};
-u8 sharedData_800DD880_0_s01[256] = {0};
+u8 sharedData_800DD870_0_s01[16] = { 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x00,0x00,0x00 }; /* REAL air-screamer scale VECTOR ~1.125x (field_E8_0==3); was a zero stub -> air screamer collapsed/vanished in that state (pc-port bc853a181) */
+u8 sharedData_800DD880_0_s01[16] = { 0x00,0x0E,0x00,0x00, 0x00,0x0E,0x00,0x00, 0x00,0x0E,0x00,0x00, 0x00,0x00,0x00,0x00 }; /* REAL air-screamer scale VECTOR ~0.875x (AirScreamerFlag_12) */
 /* sharedData_800DDBA8_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DDBBC_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DDC70_0_s00 now provided with real data by stalker_rodata.inc */
