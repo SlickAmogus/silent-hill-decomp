@@ -252,8 +252,13 @@ static void Pc_CameraFov_Update(void)
     static int s_fovApplied = 0;
     float      fov          = 0.0f;
 
+    /* Apply the alt-cam FOV whenever the alt camera BODY is active this frame — i.e.
+     * we did not stand down (!Pc_ScriptOwnsScene). Restricting to SysState_Gameplay
+     * dropped the FOV back to the game default during examine (SysState_ReadMessage)
+     * and item pickup, even though the alt camera keeps rendering — a visible FOV pop.
+     * The stand-down exit calls this too, where Pc_ScriptOwnsScene() is true, so the
+     * game FOV is correctly restored for scripted scenes/cutscenes. */
     if (g_GameWork.gameState == GameState_InGame &&
-        g_SysWork.sysState == SysState_Gameplay &&
         !Pc_ScriptOwnsScene())
     {
         if (g_PcFpsCam)
@@ -2393,11 +2398,13 @@ void MainLoop(void) // 0x80032EE0
             extern int   g_PsxFixedCamActive;
             extern int   g_PsxCutsceneActive;
             extern float g_PsxWorldVShift;
+            extern int   g_PcPickupItemActive;
             static s32   s_heldWorldOfy = 0;
             s32 ofy = 0;
 
             if (g_GameWork.gameState == GameState_InGame &&
-                g_SysWork.sysState == SysState_Gameplay)
+                g_SysWork.sysState == SysState_Gameplay &&
+                !g_PcPickupItemActive)
             {
                 if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam)
                 {
@@ -2406,14 +2413,15 @@ void MainLoop(void) // 0x80032EE0
                 s_heldWorldOfy = ofy;
             }
             else if (g_GameWork.gameState == GameState_InGame &&
-                     g_SysWork.sysState == SysState_ReadMessage)
+                     (g_SysWork.sysState == SysState_ReadMessage || g_PcPickupItemActive))
             {
-                /* Examine / read-message freezes the world but keeps re-rendering the SAME
-                 * fixed-cam frame (vcMoveAndSetCamera still runs every frame). The original
-                 * has no per-state offset, so it looks identical before and during the
-                 * message — hold the gameplay offset here instead of snapping to 0, which
-                 * made the view jump the instant text appeared (any display camera, since
-                 * the shift is at the GTE projection center). */
+                /* Frozen interactions — examine/read-message text and the item-pickup
+                 * animation — keep re-rendering the SAME fixed-cam frame (vcMoveAndSetCamera
+                 * still runs every frame) and snapshot it for the frozen backdrop. The
+                 * original has no per-state offset, so it looks identical before and during
+                 * the interaction; hold the gameplay offset here instead of recomputing it,
+                 * so the shift can't jump the instant text/pickup appears (any display
+                 * camera, since the shift is at the GTE projection center). */
                 ofy = s_heldWorldOfy;
             }
 
