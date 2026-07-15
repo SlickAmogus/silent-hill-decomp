@@ -78,6 +78,11 @@
 #define ENDFLAG_CYBIL 449
 #define ENDFLAG_GOOD  391
 
+/* One BGM track plays across the whole run in normal areas (boss maps keep their
+ * own battle music). Track 6 is the Central Silent Hill streets ambient, which
+ * map2_s02 drives on layer 1 -- see Pc_Rando_BgmEvent. */
+#define RANDO_BGM_TRACK BgmTrackIdx_6
+
 /* Door outcome weights, out of 100. Interior (room) doors mostly stay in-map so
  * a big area like the hospital is still worth exploring; exit doors mostly send
  * you somewhere new. LOCKED is drawn first, then the rest split the remainder. */
@@ -971,6 +976,17 @@ static void stop_miniboss_siren(int mapIdx)
             Sd_SfxStop((u16)mb->sirenSfx[i]);
 }
 
+/* Replaces a normal area's per-frame BGM callback so no room or event can switch
+ * the track. Mirrors how map2_s02 natively drives track 6 (layer 1 is its base
+ * stem). Bgm_Update sets the "already handled this frame" flag, so Bgm_TrackUpdate
+ * does not fall back to a layer-0-only mix on top of this. Radio ducking and the
+ * game-over mute still work -- Bgm_Update handles them internally. */
+static void Pc_Rando_BgmEvent(bool arg0)
+{
+    (void)arg0;
+    Bgm_Update(BgmFlag_Layer1, Q12(0.1f), NULL);
+}
+
 void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt)
 {
     int i;
@@ -1157,6 +1173,17 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_hdr.mapEvents      = s_events;
     s_hdr.mapEventFuncs  = s_eventFuncs;
     s_hdr.mapMessages    = s_msgs;
+
+    /* Force the run's continuous BGM in normal areas. Miniboss maps fall through
+     * with their own bgmEvent/bgmIdx intact, so they keep their battle music (the
+     * final boss map returned earlier and is never touched). Bgm_Init reads
+     * s_hdr.bgmIdx at load time; Pc_Rando_BgmEvent holds the track every frame. */
+    if (miniboss_info(mapIdx) == NULL)
+    {
+        s_hdr.bgmIdx   = RANDO_BGM_TRACK;
+        s_hdr.bgmEvent = Pc_Rando_BgmEvent;
+    }
+
     if (s_run.monstersWanted > 0)
         clear_native_spawns();
     g_pMapOverlayHeader  = &s_hdr;

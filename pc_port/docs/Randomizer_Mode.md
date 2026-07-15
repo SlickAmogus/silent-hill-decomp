@@ -21,6 +21,7 @@ unchanged.
 | Monsters | 1–5 per area from grey child, puppet nurse, romper, groaner, air screamer. The area's own monsters are removed. |
 | Items | Every pickup becomes a healing item, a weapon you lack, or ammo for a gun you carry. |
 | Saving | Disabled. World save points are dropped from the event table; quick save / quick load are gated in `pc_quicksave.c`. |
+| BGM | One track (6, Central SH streets ambient) plays across every normal area. Minibosses and the final boss keep their own battle music. |
 | Ending | Bad / Bad+ / Good / Good+ by score, forced just before the boss map loads. |
 
 Doors are weighted so a big area stays worth exploring: a door that was an
@@ -163,6 +164,24 @@ runs. 391 also selects which final boss spawns (Incubus vs Incubator), which is 
 forcing the flags — rather than the ending variable — is the only correct way.
 map7_s03's own events are otherwise left completely alone: the real ending chain,
 ranking screen and credits all run as normal.
+
+### BGM
+
+The whole run plays one track (`RANDO_BGM_TRACK`, 6 = Central Silent Hill streets
+ambient). BGM is sequenced SPU music that loops until something reloads it, and it
+is selected two ways: the map header's `bgmIdx` at load time, and the header's
+per-frame `bgmEvent` callback (which can switch tracks or duck layers by room/flag).
+The mode owns both because it already installs its own header copy — for a normal
+area it sets `s_hdr.bgmIdx = 6` and `s_hdr.bgmEvent = Pc_Rando_BgmEvent`, a stub
+that drives track 6 on layer 1 every frame (the same layer map2_s02 uses natively)
+and never switches away. **No game-code hook is needed.**
+
+Boss maps are the deliberate exception: miniboss headers fall through with their own
+`bgmEvent`/`bgmIdx`, and the final boss map returns from `Pc_Rando_OnMapLoad` before
+the header is ever copied — so all three keep their battle music. The track restarts
+briefly at each map load (the PC `g_GameWork.bgmIdx = None` fix forces a reload), but
+that is masked by the transition; it is an ambient loop with no strong downbeat. To
+change the track, edit the one `RANDO_BGM_TRACK` define.
 
 ## Regenerating the data
 
