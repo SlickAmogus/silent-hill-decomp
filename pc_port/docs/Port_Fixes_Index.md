@@ -315,6 +315,29 @@ Found by the new census tool `pc_port/tools/audit_map_sound_data.py` (scans all
 maps for sound-adjacent `D_8*` symbols, classifies extracted / zero-stub /
 missing, and diffs against the disc overlay bytes).
 
+## HyperBlaster free-aim fix (2026-07-15, commit `7c939d88b`)
+
+Adapted from SlickAmogus PR #36 (unmergeable — the fork branch diverged
+~4700 commits from a far-back base; the three fixes were extracted and
+re-applied against our current tree, keeping our newer wall-time refire FSM).
+All three are real bugs in our tree, in the TPS/OTS free-aim gun path:
+
+- **Invisible upper body while aiming**: `Pc_AimHoldKf` pinned the aim pose at
+  the shared kf 591, but the HyperBlaster's WEP53 block only spans kf 568-579
+  (`D_80028B94[132..149]`), so the torso posed from out-of-range keyframe data
+  and collapsed. Now holds 574 (`player_control.c`).
+- **Fire lockout / no full-auto**: the free-aim FSM treated it as a semi-auto
+  magazine gun. Its clip count is 0 and never refills, so `fireEdge && ammo>0`
+  locked firing out and the reload branch could latch. HyperBlaster is PSX
+  full-auto with no ammo/reload — now fires while held once per recoil cycle
+  (`isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0)`),
+  reload skipped (`!isHyperBlaster`). Kept our wall-time `s_refireT`; did NOT
+  regress to the PR's frame-based `s_refireCd`.
+- **OOB anim-info copy on equip**: the equip path copies a fixed 20 entries but
+  the HyperBlaster block is the last one and only 18 long, reading 2 past
+  `D_80028B94`. Bounded behind `SH_PC_PORT` via a new `D_80028B94_COUNT`
+  (`bodyprog_data_80028B94.c`).
+
 ## Controls / free-aim batch (2026-07-06, commit `003cd4cec` + PsyCross `90f0d9e`)
 
 - **altcam_button_sprint** (new config, default 0): alt cameras walk by
