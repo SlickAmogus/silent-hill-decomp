@@ -27,20 +27,28 @@
 #                               [-Notes string] [-NoPause] [-BetaBranch beta]
 #                               [-SkipCrossPlatform]
 #
-# Linux + macOS builds are included BY DEFAULT: the newest successful Linux +
-# macOS CI artifacts (build-linux.yml / build-macos.yml on the source repo) are
-# attached to the release as standalone zips. They are deliberately kept OUT of
-# version.json so the Windows launcher ignores them (cannot affect the launcher).
-# Pass -SkipCrossPlatform for a Windows-only release.
+# Linux + macOS builds are included BY DEFAULT and are VERIFIED BEFORE anything
+# is published: the release is NOT created until the build-linux.yml /
+# build-macos.yml CI runs for THIS EXACT commit have finished successfully on the
+# source repo. Their artifacts are attached as standalone zips, kept OUT of
+# version.json so the Windows launcher ignores them. Pass -SkipCrossPlatform for
+# a deliberate Windows-only release.
 #
-# If the CI run for the release's exact commit is still queued/in progress, you
-# are prompted per-platform to:
-#   [W] Wait  - poll the run (gh run watch) until it finishes, then attach it
-#   [V] View  - print its current status/URL and re-check (no waiting)
-#   [S] Skip  - attach the newest already-successful build instead (may be from
-#               an earlier commit -- re-run the release once CI catches up)
-# Pass -NoPause (or -DryRun) to skip the prompt entirely and always fall back to
-# the newest successful build non-interactively (unattended/CI use).
+# Cross-platform gate (runs BEFORE the release is created -- so a not-ready build
+# aborts the WHOLE release instead of leaving a half-published one):
+#   - all matching builds succeeded -> download + proceed silently.
+#   - a build is still running       -> WAIT for it (gh run watch) to finish.
+#   - a build FAILED / has no run / the commit isn't pushed -> STOP and prompt:
+#       [A] Abort        - publish NOTHING (default).
+#       [R] Re-check     - poll CI again (after a build finishes).
+#       [P] Push         - push the branch to the source repo, then re-check.
+#       [S] Windows-only - publish with NO Linux/macOS assets.
+#       [O] Old builds   - attach mismatched, older builds (must type OLD).
+#     It NEVER silently attaches a stale build and NEVER publishes a partial
+#     release without an explicit choice.
+# Pass -NoPause (unattended): if the matching builds aren't ready the release is
+# ABORTED (nothing published) rather than shipping stale artifacts. -DryRun
+# reports CI status but publishes nothing.
 #
 # Requires:
 #   - gh CLI installed and authenticated (gh auth login).
@@ -143,136 +151,261 @@ function Get-CrossPlatformRunForCommit {
                      Sort-Object -Property createdAt -Descending | Select-Object -First 1)
 }
 
-# A CI run for this release's commit exists but hasn't finished. Offer to wait
-# for it, view its status without waiting, or give up and use the newest
-# already-successful build instead. Loops on [V] until the user picks W or S.
-function Resolve-PendingCrossPlatformRun {
-    param([string]$SourceSlug, [string]$Workflow, $Run)
-    $runId = "$($Run.databaseId)".Trim()
+# Is this commit present on the source repo at all? If not, CI cannot have built
+# it (the release commit was never pushed) -- the #1 cause of stale attachments.
+function Test-CommitOnSourceRepo {
+    param([string]$SourceSlug, [string]$Commit)
+    if (-not $Commit) { return $false }
+    try { gh api "repos/$SourceSlug/commits/$Commit" --jq ".sha" 2>$null | Out-Null }
+    catch { return $false }
+    return ($LASTEXITCODE -eq 0)
+}
+
+# The local git remote whose push URL points at the source repo (so [P] can push
+# the branch that feeds CI). Returns $null if there isn't one.
+function Get-SourceRemoteName {
+    param([string]$SourceSlug)
+    $lines = git remote -v 2>$null
+    foreach ($line in $lines) {
+        if ($line -match "^(\S+)\s+\S*github\.com[:/]$([regex]::Escape($SourceSlug))(\.git)?\s+\(push\)") {
+            return $matches[1]
+        }
+    }
+    return $null
+}
+
+# Newest SUCCESSFUL run of a workflow on the branch, regardless of commit -- only
+# used for the explicit [O] "attach older build" path.
+function Get-NewestSuccessfulRun {
+    param([string]$SourceSlug, [string]$Workflow, [string]$Branch)
+    try { $raw = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --status success --limit 1 --json databaseId,headSha 2>$null }
+    catch { $raw = $null }
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
+    $parsed = $raw | ConvertFrom-Json
+    $arr = @($parsed)
+    if ($arr.Count -eq 0) { return $null }
+    return $arr[0]
+}
+
+# Download one CI artifact into $DlRoot; returns the extracted file paths (empty on failure).
+function Invoke-CrossPlatformDownload {
+    param([string]$SourceSlug, [string]$RunId, [string]$Artifact, [string]$DlRoot)
+    $outDir = Join-Path $DlRoot $Artifact
+    if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir -ErrorAction SilentlyContinue }
+    try { gh run download $RunId --repo $SourceSlug --name $Artifact --dir $outDir 2>$null | Out-Null }
+    catch { }
+    if ($LASTEXITCODE -ne 0) { return @() }
+    return @(Get-ChildItem -Recurse -File $outDir -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+}
+
+# Resolve the Linux + macOS builds for THIS commit BEFORE the release is created.
+# Waits for in-progress builds; on failure/missing/not-pushed it STOPS and asks
+# (or aborts unattended). Returns @{ Proceed=$bool; Assets=@(paths); DlRoot=path }.
+# Never silently falls back to a stale build.
+function Resolve-CrossPlatformArtifacts {
+    param([string]$SourceCommit)
+
+    $result = [ordered]@{ Proceed = $true; Assets = @(); DlRoot = $null }
+    if ($SkipCrossPlatform) {
+        Write-Host "Cross-platform builds skipped (-SkipCrossPlatform)." -ForegroundColor Yellow
+        return $result
+    }
+
+    $sourceSlug  = $SourceRepoUrl -replace '^https?://github\.com/', '' -replace '/$', ''
+    $shortCommit = if ($SourceCommit) { $SourceCommit.Substring(0, [Math]::Min(9, $SourceCommit.Length)) } else { '(none)' }
+    $targets = @(
+        @{ Name = 'Linux'; Workflow = 'build-linux.yml'; Artifact = 'SHPC-linux-x64' },
+        @{ Name = 'macOS'; Workflow = 'build-macos.yml'; Artifact = 'SHPC-macos-arm64' }
+    )
+
+    # gh run download creates the dir tree; only made when we actually download,
+    # so a dry run / abort leaves nothing behind. Cleared first if it lingers.
+    $dlRoot = Join-Path ([IO.Path]::GetTempPath()) "shpc-xplat-$shortCommit"
+    if (Test-Path $dlRoot) { Remove-Item -Recurse -Force $dlRoot -ErrorAction SilentlyContinue }
+    $result.DlRoot = $dlRoot
+
+    $commitPushed = Test-CommitOnSourceRepo -SourceSlug $sourceSlug -Commit $SourceCommit
+
     while ($true) {
         Write-Host ""
-        Write-Host "  $Workflow for this release's commit is still running (status: $($Run.status))." -ForegroundColor Yellow
-        Write-Host "    Run: $($Run.url)" -ForegroundColor Gray
-        Write-Host "    [W] Wait for it to finish" -ForegroundColor Gray
-        Write-Host "    [V] View status (re-check without waiting)" -ForegroundColor Gray
-        Write-Host "    [S] Skip -- attach the newest already-successful build instead" -ForegroundColor Gray
-        $choice = (Read-Host "    Choose W/V/S").Trim().ToUpper()
-        if ($choice -eq 'W') {
-            Write-Host "  Watching run $runId (Ctrl+C to abort the whole release)..." -ForegroundColor Cyan
-            gh run watch $runId --repo $SourceSlug --interval 15 --exit-status | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  $Workflow run finished successfully." -ForegroundColor Green
-                return $Run
+        Write-Host "Verifying Linux + macOS CI builds for commit $shortCommit on $sourceSlug ($CrossPlatformBranch)..." -ForegroundColor Cyan
+        if (-not $commitPushed) {
+            Write-Host "  ! Commit $shortCommit is NOT on $sourceSlug -- CI cannot have built it (push it first)." -ForegroundColor Yellow
+        }
+
+        # Evaluate each platform (waiting on in-progress builds when interactive).
+        $status = @()
+        foreach ($t in $targets) {
+            $entry = [ordered]@{ Target = $t; State = ''; Run = $null; RunId = $null; Url = $null }
+            $run = if ($SourceCommit) {
+                Get-CrossPlatformRunForCommit -SourceSlug $sourceSlug -Workflow $t.Workflow -Branch $CrossPlatformBranch -Commit $SourceCommit
+            } else { $null }
+
+            if (-not $run) {
+                $entry.State = if ($commitPushed) { 'no-run' } else { 'not-pushed' }
+            } else {
+                $entry.Run = $run; $entry.RunId = "$($run.databaseId)".Trim(); $entry.Url = $run.url
+                if ($run.status -eq 'completed' -and $run.conclusion -eq 'success') {
+                    $entry.State = 'ok'
+                } elseif ($run.status -eq 'completed') {
+                    $entry.State = 'failed'
+                } elseif (@('in_progress','queued','requested','waiting','pending') -contains $run.status) {
+                    if ($NoPause -or $DryRun) {
+                        $entry.State = 'running'
+                    } else {
+                        Write-Host "  Waiting for $($t.Workflow) (run $($entry.RunId)) to finish -- Ctrl+C aborts the release..." -ForegroundColor Cyan
+                        $ok = $false
+                        try { gh run watch $entry.RunId --repo $sourceSlug --interval 15 --exit-status; $ok = ($LASTEXITCODE -eq 0) }
+                        catch { $ok = $false }
+                        $entry.State = if ($ok) { 'ok' } else { 'failed' }
+                    }
+                } else {
+                    $entry.State = 'failed'
+                }
             }
-            Write-Host "  $Workflow run finished without success (exit $LASTEXITCODE) -- falling back." -ForegroundColor Yellow
-            return $null
+            $status += $entry
         }
-        elseif ($choice -eq 'V') {
-            try { $refreshedRaw = gh run view $runId --repo $SourceSlug --json status,conclusion,headSha,url 2>$null }
-            catch { $refreshedRaw = $null }
-            $refreshed = if ($refreshedRaw) { $refreshedRaw | ConvertFrom-Json } else { $null }
-            if ($refreshed) { $Run.status = $refreshed.status; $Run.conclusion = $refreshed.conclusion }
-            if ($Run.status -eq 'completed' -and $Run.conclusion -eq 'success') { return $Run }
-            if ($Run.status -eq 'completed') {
-                Write-Host "  Run completed with conclusion '$($Run.conclusion)' -- not usable." -ForegroundColor Yellow
-                return $null
+
+        # Report per-platform.
+        Write-Host ""
+        foreach ($e in $status) {
+            $label = $e.Target.Name.PadRight(6)
+            switch ($e.State) {
+                'ok'         { Write-Host "  $label : OK (run $($e.RunId))" -ForegroundColor Green }
+                'failed'     { Write-Host "  $label : BUILD FAILED -- $($e.Url)" -ForegroundColor Red }
+                'running'    { Write-Host "  $label : still building -- $($e.Url)" -ForegroundColor Yellow }
+                'no-run'     { Write-Host "  $label : no CI run for this commit yet" -ForegroundColor Yellow }
+                'not-pushed' { Write-Host "  $label : commit not pushed to $sourceSlug" -ForegroundColor Yellow }
+                default      { Write-Host "  $label : $($e.State)" -ForegroundColor Yellow }
             }
-            # still pending -- loop back and show the (possibly updated) status
         }
-        elseif ($choice -eq 'S') {
-            return $null
+
+        $notOk = @($status | Where-Object { $_.State -ne 'ok' })
+        if ($notOk.Count -eq 0) {
+            if ($DryRun) {
+                Write-Host "  [DryRun] all cross-platform builds match commit $shortCommit -- would attach them." -ForegroundColor Green
+                return $result
+            }
+            $assets = @()
+            $allDownloaded = $true
+            foreach ($e in $status) {
+                $files = Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $e.RunId -Artifact $e.Target.Artifact -DlRoot $dlRoot
+                if ($files.Count -eq 0) {
+                    Write-Host "  ! Download of $($e.Target.Artifact) (run $($e.RunId)) failed." -ForegroundColor Red
+                    $allDownloaded = $false
+                } else {
+                    $files | ForEach-Object { $assets += $_; Write-Host "  + $([IO.Path]::GetFileName($_)) (run $($e.RunId))" -ForegroundColor Gray }
+                }
+            }
+            if ($allDownloaded) {
+                Write-Host "  All cross-platform builds match commit $shortCommit." -ForegroundColor Green
+                $result.Assets = $assets
+                return $result
+            }
+            # download failure falls through to the gate
         }
-        else {
-            Write-Host "  Please enter W, V, or S." -ForegroundColor Yellow
+
+        # How to inspect the builds.
+        Write-Host ""
+        Write-Host "  Check these builds yourself:" -ForegroundColor Gray
+        Write-Host "    gh run list --repo $sourceSlug --workflow build-linux.yml --branch $CrossPlatformBranch" -ForegroundColor Gray
+        Write-Host "    gh run view <id> --repo $sourceSlug --log-failed     (why a run failed)" -ForegroundColor Gray
+        Write-Host "    https://github.com/$sourceSlug/actions" -ForegroundColor Gray
+        if (-not $commitPushed) {
+            $pr = Get-SourceRemoteName -SourceSlug $sourceSlug
+            $hint = if ($pr) { "git push $pr $CrossPlatformBranch" } else { "git push <remote-for-$sourceSlug> $CrossPlatformBranch" }
+            Write-Host "    This commit isn't pushed. Push it so CI builds it:  $hint" -ForegroundColor Gray
+        }
+
+        # Non-interactive: report only / refuse to ship stale.
+        if ($DryRun) {
+            Write-Host "  [DryRun] cross-platform not fully ready -- would prompt here (nothing is published in a dry run)." -ForegroundColor Yellow
+            $result.Assets = @()
+            return $result
+        }
+        if ($NoPause) {
+            Write-Host "  Unattended (-NoPause): refusing to publish without matching Linux/macOS builds. Nothing published." -ForegroundColor Red
+            $result.Proceed = $false
+            return $result
+        }
+
+        # Interactive gate.
+        Write-Host ""
+        Write-Host "  Linux/macOS builds are NOT ready for this commit. Choose:" -ForegroundColor Yellow
+        Write-Host "    [A] Abort        - publish NOTHING (default)" -ForegroundColor Gray
+        Write-Host "    [R] Re-check     - poll CI again (use after a build finishes)" -ForegroundColor Gray
+        Write-Host "    [P] Push+recheck - push '$CrossPlatformBranch' to $sourceSlug, then re-check" -ForegroundColor Gray
+        Write-Host "    [S] Windows-only - publish with NO Linux/macOS assets" -ForegroundColor Gray
+        Write-Host "    [O] Old builds   - attach mismatched, older builds (must type OLD)" -ForegroundColor Gray
+        $choice = (Read-Host "  Choose A/R/P/S/O").Trim().ToUpper()
+        switch ($choice) {
+            'A' { $result.Proceed = $false; return $result }
+            'R' { continue }
+            'P' {
+                $pr = Get-SourceRemoteName -SourceSlug $sourceSlug
+                if (-not $pr) {
+                    Write-Host "  Couldn't find a git remote for $sourceSlug -- push manually, then choose R." -ForegroundColor Red
+                } else {
+                    Write-Host "  Pushing '$CrossPlatformBranch' to $pr..." -ForegroundColor Cyan
+                    try { git push $pr $CrossPlatformBranch } catch { Write-Host "  Push error: $_" -ForegroundColor Red }
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Host "  Push failed -- resolve and choose R to re-check." -ForegroundColor Red
+                    } else {
+                        Write-Host "  Pushed. CI should start shortly; choosing R waits for it." -ForegroundColor Green
+                        $commitPushed = Test-CommitOnSourceRepo -SourceSlug $sourceSlug -Commit $SourceCommit
+                    }
+                }
+                continue
+            }
+            'S' {
+                Write-Host "  Publishing Windows-only (no cross-platform assets)." -ForegroundColor Yellow
+                $result.Assets = @()
+                return $result
+            }
+            'O' {
+                $confirm = (Read-Host "  Type OLD to confirm attaching mismatched, older builds").Trim()
+                if ($confirm -ne 'OLD') { Write-Host "  Not confirmed -- re-checking." -ForegroundColor Yellow; continue }
+                $assets = @()
+                foreach ($e in $status) {
+                    $useRun = if ($e.State -eq 'ok') { $e.Run } else {
+                        Get-NewestSuccessfulRun -SourceSlug $sourceSlug -Workflow $e.Target.Workflow -Branch $CrossPlatformBranch
+                    }
+                    if (-not $useRun) {
+                        Write-Host "  ! No successful $($e.Target.Workflow) build exists at all -- skipping $($e.Target.Artifact)." -ForegroundColor Red
+                        continue
+                    }
+                    $rid = "$($useRun.databaseId)".Trim()
+                    $sha = "$($useRun.headSha)".Trim()
+                    if ($SourceCommit -and $sha -ne $SourceCommit) {
+                        Write-Host "  Attaching $($e.Target.Artifact) from OLDER commit $($sha.Substring(0, [Math]::Min(9, $sha.Length)))." -ForegroundColor Yellow
+                    }
+                    $files = Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $rid -Artifact $e.Target.Artifact -DlRoot $dlRoot
+                    if ($files.Count -eq 0) { Write-Host "  ! Download of $($e.Target.Artifact) failed." -ForegroundColor Red }
+                    else { $files | ForEach-Object { $assets += $_ } }
+                }
+                $result.Assets = $assets
+                return $result
+            }
+            default { Write-Host "  Enter A, R, P, S, or O." -ForegroundColor Yellow; continue }
         }
     }
 }
 
-# Download the newest successful CI build artifacts (Linux + macOS) from the
-# source repo and attach them to the just-created release on the nightly repo.
-# These are extra downloads for non-Windows users; they never enter version.json.
-function Add-CrossPlatformAssets {
-    param([string]$Tag, [string]$SourceCommit)
-    if ($SkipCrossPlatform) { return }
-
-    $sourceSlug = $SourceRepoUrl -replace '^https?://github\.com/', '' -replace '/$', ''
-    Write-Host ""
-    Write-Host "Attaching cross-platform CI artifacts from $sourceSlug (branch $CrossPlatformBranch)..." -ForegroundColor Cyan
-
-    $dlRoot = Join-Path ([IO.Path]::GetTempPath()) "shpc-xplat-$Tag"
-    if (Test-Path $dlRoot) { Remove-Item -Recurse -Force $dlRoot }
-    New-Item -ItemType Directory -Force -Path $dlRoot | Out-Null
-
-    $targets = @(
-        @{ Workflow = "build-linux.yml"; Artifact = "SHPC-linux-x64" },
-        @{ Workflow = "build-macos.yml"; Artifact = "SHPC-macos-arm64" }
-    )
-
-    $assets = @()
-    foreach ($t in $targets) {
-        $useRun = $null
-        $matchRun = if ($SourceCommit) {
-            Get-CrossPlatformRunForCommit -SourceSlug $sourceSlug -Workflow $t.Workflow -Branch $CrossPlatformBranch -Commit $SourceCommit
-        } else { $null }
-
-        if ($matchRun -and $matchRun.status -eq 'completed' -and $matchRun.conclusion -eq 'success') {
-            $useRun = $matchRun
-        }
-        elseif ($matchRun -and @('in_progress', 'queued', 'requested', 'waiting') -contains $matchRun.status) {
-            if ($NoPause -or $DryRun) {
-                Write-Host "  WARN: $($t.Workflow) for commit $($SourceCommit.Substring(0,9)) is still running (status: $($matchRun.status)) -- attaching newest successful build instead (non-interactive mode)." -ForegroundColor Yellow
-            } else {
-                $useRun = Resolve-PendingCrossPlatformRun -SourceSlug $sourceSlug -Workflow $t.Workflow -Run $matchRun
-            }
-        }
-        elseif ($matchRun -and $matchRun.status -eq 'completed') {
-            Write-Host "  WARN: $($t.Workflow) run for this commit finished with conclusion '$($matchRun.conclusion)' -- attaching the newest already-successful build from an earlier commit instead." -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "  WARN: no $($t.Workflow) run found yet for commit $($SourceCommit.Substring(0,9)) -- it may not have been triggered yet." -ForegroundColor Yellow
-        }
-
-        if (-not $useRun) {
-            try { $fallbackRaw = gh run list --repo $sourceSlug --workflow $t.Workflow --branch $CrossPlatformBranch --status success --limit 1 --json databaseId,headSha 2>$null }
-            catch { $fallbackRaw = $null }
-            $fallback = if ($LASTEXITCODE -eq 0 -and $fallbackRaw) { @($fallbackRaw | ConvertFrom-Json) } else { @() }
-            if (-not $fallback -or $fallback.Count -eq 0) {
-                Write-Host "  WARN: no successful '$($t.Workflow)' run on '$CrossPlatformBranch' -- skipping $($t.Artifact)." -ForegroundColor Yellow
-                continue
-            }
-            $useRun = $fallback[0]
-            if ($SourceCommit -and "$($useRun.headSha)".Trim() -ne $SourceCommit) {
-                Write-Host "  WARN: attaching $($t.Artifact) from commit $($useRun.headSha.Substring(0,9)), but this release is $($SourceCommit.Substring(0,9)) -- CI may still be building the latest push. Re-run the release once CI finishes for a matching build." -ForegroundColor Yellow
-            }
-        }
-
-        $runId  = "$($useRun.databaseId)".Trim()
-        $outDir = Join-Path $dlRoot $t.Artifact
-        try { gh run download $runId --repo $sourceSlug --name $t.Artifact --dir $outDir 2>$null | Out-Null }
-        catch { }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  WARN: failed to download $($t.Artifact) (run $runId) -- skipping." -ForegroundColor Yellow
-            continue
-        }
-        Get-ChildItem -Recurse -File $outDir | ForEach-Object {
-            $assets += $_.FullName
-            Write-Host "  + $($_.Name) (run $runId)" -ForegroundColor Gray
-        }
-    }
-
-    if ($assets.Count -eq 0) {
-        Write-Host "  No cross-platform artifacts attached." -ForegroundColor Yellow
-        Remove-Item -Recurse -Force $dlRoot -ErrorAction SilentlyContinue
+# Upload the already-resolved cross-platform artifacts to the just-created release.
+# They were verified + downloaded BEFORE the release was created, so there is no
+# wait here and no chance of attaching something stale.
+function Publish-CrossPlatformAssets {
+    param([string]$Tag, $Resolved)
+    if (-not $Resolved -or -not $Resolved.Assets -or $Resolved.Assets.Count -eq 0) {
+        Write-Host "  No cross-platform assets to attach." -ForegroundColor Yellow
         return
     }
-
-    gh release upload $Tag --repo $Repo @assets --clobber
+    gh release upload $Tag --repo $Repo @($Resolved.Assets) --clobber
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  WARN: gh release upload of cross-platform assets failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
     } else {
-        Write-Host "  Attached $($assets.Count) cross-platform asset(s) to $Tag." -ForegroundColor Green
+        Write-Host "  Attached $($Resolved.Assets.Count) cross-platform asset(s) to $Tag." -ForegroundColor Green
     }
-    Remove-Item -Recurse -Force $dlRoot -ErrorAction SilentlyContinue
 }
 
 # Launcher FileVersion (AssemblyFileVersion, date-based yyyy.M.d.rev). Carried in
@@ -481,6 +614,19 @@ if (-not $NoPause) {
     [void](Read-Host "    Press Enter to hash + publish the release (Ctrl+C to abort)")
 }
 
+# ---- Verify + download Linux/macOS builds BEFORE publishing anything --------
+# The gate that makes the release WAIT for cross-platform CI and refuse to ship
+# stale artifacts. It runs before EITHER mode creates a release, so a not-ready
+# build aborts the whole release with nothing published (rather than posting
+# Windows first and discovering Linux/macOS aren't ready afterward).
+$xplat = Resolve-CrossPlatformArtifacts -SourceCommit $curCommitFull
+if (-not $xplat.Proceed) {
+    if ($xplat.DlRoot -and (Test-Path $xplat.DlRoot)) { Remove-Item -Recurse -Force $xplat.DlRoot -ErrorAction SilentlyContinue }
+    Write-Host ""
+    Write-Host "Release aborted -- nothing was published." -ForegroundColor Red
+    exit 1
+}
+
 # =============================================================================
 # ZIP MODE - bundle the launchable file set + publish to the beta branch
 # =============================================================================
@@ -658,9 +804,10 @@ if ($isZip) {
             @betaAssets
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published." }
 
-        Add-CrossPlatformAssets -Tag $newTag -SourceCommit $curCommitFull
+        Publish-CrossPlatformAssets -Tag $newTag -Resolved $xplat
 
         Remove-Item $zipPath, $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
+        if ($xplat.DlRoot -and (Test-Path $xplat.DlRoot)) { Remove-Item -Recurse -Force $xplat.DlRoot -ErrorAction SilentlyContinue }
         Write-Host ""
         Write-Host "Done. Beta zip release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
         Write-Host "Commit the updated CHANGELOG.md when ready:" -ForegroundColor Cyan
@@ -859,9 +1006,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "gh release upload version.json failed (exit $LASTEXITCODE)."
 }
 
-Add-CrossPlatformAssets -Tag $newTag -SourceCommit $curCommitFull
+Publish-CrossPlatformAssets -Tag $newTag -Resolved $xplat
 
 Remove-Item -Recurse -Force $stagingDir
+if ($xplat.DlRoot -and (Test-Path $xplat.DlRoot)) { Remove-Item -Recurse -Force $xplat.DlRoot -ErrorAction SilentlyContinue }
 
 Write-Host ""
 Write-Host "Done. Release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
