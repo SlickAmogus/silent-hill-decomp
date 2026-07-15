@@ -213,14 +213,21 @@ void Font_ApplyRegionPatches(void)
         extern s_FsImageDesc g_FirstAidKitItemTextureImg;  /* TIM00, common items */
         extern s_FsImageDesc D_800A9074;                   /* TIM07, always-loaded pack */
         extern s_FsImageDesc D_800A907C;                   /* FOOK, map5_s01 meat hook */
-        extern s_FsImageDesc D_800A9084;                   /* BLD, film/blood texture */
 
         g_InventoryKeyItemTextureImg.clutX = 912; g_InventoryKeyItemTextureImg.clutY = 480;
         g_FirstAidKitItemTextureImg.clutX  = 928; g_FirstAidKitItemTextureImg.clutY  = 480;
         D_800A9074.clutX                   = 896; D_800A9074.clutY                   = 480;
         D_800A907C.clutX                   = 896; D_800A907C.clutY                   = 488;
-        D_800A9084.clutX                   = 944; D_800A9084.clutY                   = 480;
+        /* Do NOT retarget D_800A9084 (BLD, combat-blood texture) into this family.
+         * It looks like an item CLUT but its ONLY consumer is the blood-particle
+         * emit (func_80060044/func_800611C0/func_80062708 in bodyprog_8005E0DC.c),
+         * which HARD-CODES the CLUT word to VRAM X=304 (low-6 field 0x13) and never
+         * reads the desc. Moving the upload to (944,480) — as 534b12d6b did — left the
+         * emit sampling an empty (304,row) CLUT on EUR, so all spray/pool/cloud blood
+         * rendered invisible (subtract/add of zero = nothing). (304,0..15) is safe on
+         * the port (framebuffers start at y=32), so its US home is correct for EUR too.
+         * Unlike the item descs above, whose PAL TMD data BAKES the (896..928,480) homes. */
     }
 
-    SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255); item CLUTs -> (896..944,480)");
+    SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255); item CLUTs -> (896..928,480)");
 }
