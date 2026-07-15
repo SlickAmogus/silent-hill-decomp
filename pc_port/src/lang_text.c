@@ -190,6 +190,25 @@ static void FanTextInit(void)
         return;
     DecryptOverlay(bin, size);
 
+    /* A fan patch that edits BODYPROG in place (Spanish fandub) keeps the
+     * kerning table and item-pointer arrays at their US symbol offsets. A patch
+     * that REBUILDS BODYPROG (Brazilian re-translation) relocates them, so those
+     * offsets land on unrelated bytes and adopting them explodes every glyph /
+     * installs garbage item names. Real FONT_12X16 advances never exceed the
+     * 16px cell; if the bytes at the US widths offset do, this disc's BODYPROG
+     * is not US-linked — keep every compiled US table. VIN map messages ARE
+     * US-linked even on the rebuilt disc, so story text still translates through
+     * UsaPatchMapMessages. */
+    for (i = 0; i < 84; i++)
+    {
+        if (bin[(USA_WIDTHS_ADDR - USA_BODY_VRAM) + i] > 16)
+        {
+            SH_WARN("[FANPATCH] BODYPROG not US-linked (rebuilt disc) — keeping compiled font/item text");
+            free(bin);
+            return;
+        }
+    }
+
     if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), s_compiledWidths, 84) != 0)
     {
         Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
