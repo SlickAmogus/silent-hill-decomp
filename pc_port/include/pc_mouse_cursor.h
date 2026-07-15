@@ -23,9 +23,11 @@
  * injects its motion + click into g_Controller0. */
 void Pc_MouseCursor_FrameUpdate(void);
 
-/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this
- * frame, so arm the puzzle mouse injection for the next few frames. */
-void Pc_MouseCursor_NoteCursorDrawn(void);
+/* Called from Gfx_CursorDraw: a cursor-driven puzzle drew its cursor this frame
+ * at (curX, curY) in framebuffer centre-origin pixels. Arms the puzzle mouse
+ * servo for the next few frames and records the cursor position so the servo can
+ * steer it to the mouse pointer. */
+void Pc_MouseCursor_NoteCursorDrawn(int curX, int curY);
 
 /* Hit-test a vertical list of menu rows drawn at y = baseY + i*stepY (top-left
  * 320x240 coords, as Gfx_StringSetPosition uses). Returns the hovered row index
