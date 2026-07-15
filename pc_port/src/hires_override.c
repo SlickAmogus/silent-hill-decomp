@@ -719,8 +719,17 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                     if (outNativePixelH) *outNativePixelH = s->nativeH;
                     if (outOffsetX)      *outOffsetX      = 0;
                     if (outOffsetY)      *outOffsetY      = 0;
-                    if (outHiresW)       *outHiresW       = s->rowW[useRow];
-                    if (outHiresH)       *outHiresH       = s->rowH[useRow];
+                    /* Pool-slot content (world map chunks, characters, decals) is
+                     * CONTINUOUS imagery, not a glyph atlas: the per-native-texel
+                     * footprint clamp (u_hiresHalf) would drop a seam at every
+                     * native-texel boundary. Report 0 so the shader keeps the
+                     * smooth free-linear sampling these textures had before. The
+                     * clamp still applies to the VRAM-entry overrides below (menu
+                     * fonts / cursor) -- those ARE atlases and are where the
+                     * edge-bleed artifact actually was. (rowW/rowH stay tracked in
+                     * case a future per-slot atlas case needs them.) */
+                    if (outHiresW)       *outHiresW       = 0;
+                    if (outHiresH)       *outHiresH       = 0;
                     return (unsigned int)tex;
                 }
             }
