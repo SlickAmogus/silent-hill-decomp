@@ -1,5 +1,94 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.15.1 -- 2026-07-15
+- Added support for spanish fan translation. If there are other fan translations not working, please let me know.
+- Launcher now allows you to select a specific BIN and auto-detects the version.
+- Level select added back to Launcher
+- Added thirdperson/over the shoulder FOV controls and Aim Zoom controls
+- Added camera collision setting
+- Added OTS aiming in TPS setting
+- Fixed FPS camera messing up small cutscenes
+- Fixed FPS camera floating to new area
+- Added full mouse support to main menu, options, puzzles, and inventory using ingame mouse cursor
+- Console overhaul, now simply press ~ to open the console and enter a command. Works like other games with consoles now. Also scrollable, can highlight text, and copy and paste with Ctrl+C and Ctrl+V
+- Fixed High res texture pack stutter (added caching)
+- Fixed artifacts while using high res texture packs
+- Cleaned up ingame options menu and added another page to PC options
+- Support for custom FMVs higher than 1080p and multiple codecs
+- PGXP support for inventory items again
+- Fixed a few minor visual bugs with inventory and examining items
+- Finally pauses the game when examining objects
+- Asset loading overhaul so now monsters can be loaded into any level. You can spawn every monster\npc with the spawn command. Monsters without generic AI are statues.
+
+Commit summaries:
+- cheats: unify god mode + key-7 invincibility into one flag (fixes "persists after disable")
+- options+console: show map friendly name
+- maps: correct friendly-name descriptions
+- wip: sewer-drip diagnostic probes (BGM layer + ambient VAB)
+- launcher: update Mod Manager button art
+- whole-map: far-projection render mode (see whole town at once) (not working)
+- tex_pack: fix Linux/macOS build — drop MSVC-only <direct.h>
+- mouse cursor: drive cursor puzzles + clickable main menu from the mouse
+- docs: index the mouse-cursor game-code touch points
+- release: ship custom runtime assets from a canonical pc_port/assets/ dir
+- mouse cursor: options menus (all pages) + load/save screen
+- docs: index the menu-wide mouse extension + its two invariants
+- whole-map v2: scenic redesign — outdoor-room gate, pack budget, staggered claims
+- global chara pool core: all chara assets resident PC-side (global_chara_pool)
+- chara_global.dll: every portable monster AI in one shared pseudo-map
+- fmv: AVI overrides play at any file size, any resolution, more codecs
+- docs: fmv_files.md — supported AVI formats for upscale mods
+- global chara pool: console SPAWN integration + debug-spawn savegame guard
+- docs: global chara pool index entry + beta-monster research report
+- global chara pool: adversarial-review fixes (10 confirmed findings)
+- docs: index the pool review-fix commit
+- fan translations: disc_image selection + disc-authoritative text on modified USA discs
+- fan translations: launcher Disc dropdown + in-game Language row on fan USA discs
+- pool fixes from first in-game test: minute-long loads + invisible no-AI spawns
+- docs: Port_Fixes_Index 
+- console overhaul: single-toggle quake-style panel with scrollable history
+- console: panel height 3/4 -> 1/2 of the window (user feedback)
+- beta content test: SPAWN BETANURSE — TEST/PRS2.ILM with the real nurse AI
+- fan translations: adversarial-review fixes (11 confirmed findings)
+- console: mouse pointer, click-drag selection, Ctrl+C / Ctrl+V
+- console: backspace hold-repeats (25/sec after a 350ms delay)
+- launcher: Level dropdown restored in the Region spot; Disc dropdown moves left
+- texture packs: glyph-edge artifact fix + composed-canvas cache (stutter)
+- docs: PGXP PRs #51/#11 vetting report 
+- randomizer gamemode: doors, monsters, items, score-picked ending
+- randomizer: fix locked-door freeze loop, duplicate miniboss, spawn/entry bugs; disable saving
+- PGXP: inventory items and pickups now respect use_pgxp
+- docs: index the PGXP item-path fix
+- camera: alt cameras stand down for scripted scenes + optional TPS/OTS collision
+- docs: index the scripted-scene camera guard + tps_camera_collision
+- camera: thirdperson FOV + aim-zoom sliders, OTS aiming in TPS
+- console: TPSFOV / TPSAIMZOOM / TPSOTSAIM / CAMCOLLIDE commands
+- docs: index the thirdperson FOV / aim-zoom / OTS-aim options
+- PC options: 4th page for the camera settings, reclaim the row under the heading, fix fps_fov default
+- Inventory: mouse cursor support
+- Console: an open console owns the mouse wheel
+- Console: an open console owns the keyboard too, not just the wheel
+- Launcher Designer churn + sewer-drip key_on diagnostic
+- Fix: inventory slot left of centre unclickable; options underline now follows the mouse
+- randomizer: drop amusement park, halve miniboss rate, stop miniboss siren
+- docs: add modding & asset extraction guide
+- randomizer: force one continuous BGM track in normal areas
+- randomizer: fix Groaner spawns lying down inert (stateStep 5 -> 3)
+- console SPAWN: fix GROANER lying down inert (stateStep 5 -> 3)
+- fix: hold fixed-cam vshift during examine/read-message so the view doesn't jump
+- fix: keep alt-cam FOV + world vshift steady through examine/pickup
+- PC options: drop the map friendly-name caption, reshuffle FOV/aim-assist rows
+- map5_s00: temp [SH_DRIPROOM] probe to locate the sewer drip layer/room
+- randomizer: keep spawned monsters clear of doorways and tiny rooms
+- Aim-zoom rescale + full-width wrapping debug console
+- Puzzle mouse cursor: absolute servo instead of delta-velocity (fixes 2/3 trap)
+- fps/transition: snap FPS camera on room load; no enemy hits during the fade-in
+- docs: index the puzzle cursor absolute-servo fix
+- fix: freeze the world while reading a memo / examining (PSX behavior)
+- Aim zoom: 0..200 scale with 100 = the original zoom (default), 200 = 2x
+- PGXP inventory: item preview no longer lit by the per-pixel flashlight
+
+
 ## beta-2026.07.11.1 -- 2026-07-11
 - Big texture system overhaul: the renderer can now load PNGs and high-res custom replacement textures, allowing for new textures (for things like bullet decals) and mods
 - Custom texture pack support: drop DuckStation-style packs into gamedata/texturemods as a folder, .zip, or .rar and they load automatically, with a load order for when packs overlap
