@@ -160,70 +160,31 @@ static void DecryptOverlay(unsigned char* data, unsigned int size)
     }
 }
 
-/* Read + decrypt BODYPROG.BIN off the active USA disc; adopt its kerning
- * table and item name/description arrays when they differ from the compiled
- * originals. */
-static void FanTextInit(void)
+/* Parse the {name,desc} pointer arrays at the given BODYPROG file offsets,
+ * resolving pointers against `base`, and install them into s_ItemNames/
+ * s_ItemDescs when they differ from the compiled US text. Both arrays must
+ * parse cleanly before anything is installed. Returns 1 if adopted, 0 if the
+ * text matched the compiled originals (vanilla no-op), -1 on a parse error. */
+static int AdoptItemArrays(const unsigned char* bin, unsigned int size,
+                           unsigned int base, unsigned int nameOff, unsigned int descOff)
 {
     extern const char* INVENTORY_ITEM_NAMES[];
     extern const char* g_ItemDescriptions[];
 
-    /* Compiled US kerning table, captured before any override so re-runs
-     * (the title-screen Language row re-enters via Pc_LangSetLanguage)
-     * keep comparing against the pristine baseline. */
-    static const unsigned char* s_compiledWidths;
+    const char*  fanNames[ITEM_TEXT_COUNT];
+    const char*  fanDescs[ITEM_TEXT_COUNT];
+    unsigned int poolBytes = 0;
+    int          diff      = 0;
+    int          i;
+    char*        out;
 
-    unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
-    unsigned char* bin  = ReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
-    const char*    fanNames[ITEM_TEXT_COUNT];
-    const char*    fanDescs[ITEM_TEXT_COUNT];
-    unsigned int   poolBytes;
-    int            diff;
-    int            i;
-    char*          out;
+    if (nameOff + ITEM_TEXT_COUNT * 4 > size || descOff + ITEM_TEXT_COUNT * 4 > size)
+        return -1;
 
-    if (s_compiledWidths == NULL)
-        s_compiledWidths = g_FontLayout->glyphWidths;
-
-    s_FanTextActive = 0;
-    if (bin == NULL)
-        return;
-    DecryptOverlay(bin, size);
-
-    /* A fan patch that edits BODYPROG in place (Spanish fandub) keeps the
-     * kerning table and item-pointer arrays at their US symbol offsets. A patch
-     * that REBUILDS BODYPROG (Brazilian re-translation) relocates them, so those
-     * offsets land on unrelated bytes and adopting them explodes every glyph /
-     * installs garbage item names. Real FONT_12X16 advances never exceed the
-     * 16px cell; if the bytes at the US widths offset do, this disc's BODYPROG
-     * is not US-linked — keep every compiled US table. VIN map messages ARE
-     * US-linked even on the rebuilt disc, so story text still translates through
-     * UsaPatchMapMessages. */
-    for (i = 0; i < 84; i++)
-    {
-        if (bin[(USA_WIDTHS_ADDR - USA_BODY_VRAM) + i] > 16)
-        {
-            SH_WARN("[FANPATCH] BODYPROG not US-linked (rebuilt disc) — keeping compiled font/item text");
-            free(bin);
-            return;
-        }
-    }
-
-    if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), s_compiledWidths, 84) != 0)
-    {
-        Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
-        s_FanTextActive = 1;
-        SH_LOG("[FANPATCH] modified FONT16 kerning table adopted from disc");
-    }
-
-    /* Both pointer arrays must parse cleanly before anything is installed —
-     * a fan patch that relocates data unexpectedly keeps the English text. */
-    diff      = 0;
-    poolBytes = 0;
     for (i = 0; i < ITEM_TEXT_COUNT; i++)
     {
-        unsigned int nameAddr = *(unsigned int*)(bin + (USA_ITEM_NAME_ADDR - USA_BODY_VRAM) + i * 4);
-        unsigned int descAddr = *(unsigned int*)(bin + (USA_ITEM_DESC_ADDR - USA_BODY_VRAM) + i * 4);
+        unsigned int nameAddr = *(const unsigned int*)(bin + nameOff + i * 4);
+        unsigned int descAddr = *(const unsigned int*)(bin + descOff + i * 4);
         const char*  compiled;
 
         fanNames[i] = NULL;
@@ -231,20 +192,20 @@ static void FanTextInit(void)
 
         if (nameAddr != 0)
         {
-            if (nameAddr <= USA_BODY_VRAM || nameAddr - USA_BODY_VRAM >= size)
-                goto bail;
-            fanNames[i] = (const char*)(bin + (nameAddr - USA_BODY_VRAM));
-            if (memchr(fanNames[i], '\0', size - (nameAddr - USA_BODY_VRAM)) == NULL)
-                goto bail;
+            if (nameAddr <= base || nameAddr - base >= size)
+                return -1;
+            fanNames[i] = (const char*)(bin + (nameAddr - base));
+            if (memchr(fanNames[i], '\0', size - (nameAddr - base)) == NULL)
+                return -1;
             poolBytes += (unsigned int)strlen(fanNames[i]) + 1;
         }
         if (descAddr != 0)
         {
-            if (descAddr <= USA_BODY_VRAM || descAddr - USA_BODY_VRAM >= size)
-                goto bail;
-            fanDescs[i] = (const char*)(bin + (descAddr - USA_BODY_VRAM));
-            if (memchr(fanDescs[i], '\0', size - (descAddr - USA_BODY_VRAM)) == NULL)
-                goto bail;
+            if (descAddr <= base || descAddr - base >= size)
+                return -1;
+            fanDescs[i] = (const char*)(bin + (descAddr - base));
+            if (memchr(fanDescs[i], '\0', size - (descAddr - base)) == NULL)
+                return -1;
             poolBytes += (unsigned int)strlen(fanDescs[i]) + 1;
         }
 
@@ -262,50 +223,216 @@ static void FanTextInit(void)
         }
     }
 
-    if (diff)
+    if (!diff)
+        return 0;
+
+    /* 4MB cap: legitimate item text totals ~20KB — anything bigger is a
+     * malformed disc aiming every pointer at a huge shared string. */
+    if (poolBytes > (1u << 22))
+        return -1;
+    s_ItemPool = (char*)malloc(poolBytes + 1);
+    if (s_ItemPool == NULL)
+        return -1;
+    out = s_ItemPool;
+    for (i = 0; i < ITEM_TEXT_COUNT; i++)
     {
-        /* 4MB cap: legitimate item text totals ~20KB — anything bigger is a
-         * malformed disc aiming every pointer at a huge shared string. */
-        if (poolBytes > (1u << 22))
-            goto bail;
-        s_ItemPool = (char*)malloc(poolBytes + 1);
-        if (s_ItemPool == NULL)
-            goto bail;
-        out = s_ItemPool;
-        for (i = 0; i < ITEM_TEXT_COUNT; i++)
+        /* Already US dialect (underscores, \n\t layout) — copy verbatim. */
+        if (fanNames[i] != NULL)
         {
-            /* Already US dialect (underscores, \n\t layout) — copy verbatim. */
-            if (fanNames[i] != NULL)
+            s_ItemNames[i] = out;
+            memcpy(out, fanNames[i], strlen(fanNames[i]) + 1);
+            out += strlen(fanNames[i]) + 1;
+        }
+        else
+        {
+            s_ItemNames[i] = NULL;
+        }
+        if (fanDescs[i] != NULL)
+        {
+            s_ItemDescs[i] = out;
+            memcpy(out, fanDescs[i], strlen(fanDescs[i]) + 1);
+            out += strlen(fanDescs[i]) + 1;
+        }
+        else
+        {
+            s_ItemDescs[i] = NULL;
+        }
+    }
+    return 1;
+}
+
+/* 1 if bin[so..] is a clean single-line item name: printable ASCII, non-empty,
+ * NUL-terminated within maxLen, and starting on a string boundary (the byte
+ * before it is a NUL). Rejects pointers that land mid-string, which is what
+ * separates the true link base from off-by-a-few neighbours. */
+static int IsPlaintextName(const unsigned char* bin, unsigned int size, unsigned int so, unsigned int maxLen)
+{
+    unsigned int j;
+
+    if (so >= size)
+        return 0;
+    if (so > 0 && bin[so - 1] != 0)
+        return 0;
+    for (j = 0; j < maxLen && so + j < size; j++)
+    {
+        unsigned char c = bin[so + j];
+
+        if (c == 0)
+            return j > 0;
+        if (c < 0x20 || c > 0x7e)
+            return 0;
+    }
+    return 0;
+}
+
+/* Locate a relinked, UNENCRYPTED item-name pointer array in a rebuilt disc's
+ * BODYPROG (Brazilian re-translation). The item set is unchanged from US, so
+ * the array's set/empty slot pattern matches the compiled build exactly; every
+ * non-empty pointer must resolve to a clean name that starts on a string
+ * boundary. An encrypted vanilla/in-place disc has no such array in the raw
+ * bytes (both requirements fail on random data), so this returns 0 for them
+ * and the caller decrypts as before. On success, writes the detected link base
+ * and name-array file offset. */
+static int BrazilFindItemArray(const unsigned char* bin, unsigned int size,
+                               unsigned int* outBase, unsigned int* outNameOff)
+{
+    extern const char* INVENTORY_ITEM_NAMES[];
+
+    unsigned char sig[ITEM_TEXT_COUNT];
+    unsigned int  usNameOff = USA_ITEM_NAME_ADDR - USA_BODY_VRAM;
+    unsigned int  offLo     = (usNameOff > 0x800) ? usNameOff - 0x800 : 0;
+    unsigned int  offHi     = usNameOff + 0x400;
+    unsigned int  base;
+    unsigned int  nameOff;
+    int           i;
+
+    for (i = 0; i < ITEM_TEXT_COUNT; i++)
+        sig[i] = (INVENTORY_ITEM_NAMES[i] != NULL);
+
+    for (base = USA_BODY_VRAM - 0x800; base <= USA_BODY_VRAM + 0x400; base += 4)
+    {
+        for (nameOff = offLo; nameOff <= offHi && nameOff + ITEM_TEXT_COUNT * 4 <= size; nameOff += 4)
+        {
+            int ok = 1;
+
+            for (i = 0; i < ITEM_TEXT_COUNT; i++)
             {
-                s_ItemNames[i] = out;
-                memcpy(out, fanNames[i], strlen(fanNames[i]) + 1);
-                out += strlen(fanNames[i]) + 1;
+                unsigned int p = *(const unsigned int*)(bin + nameOff + i * 4);
+
+                if (!sig[i])
+                {
+                    if (p != 0)
+                    {
+                        ok = 0;
+                        break;
+                    }
+                    continue;
+                }
+                if (p <= base || p - base >= size || !IsPlaintextName(bin, size, p - base, 48))
+                {
+                    ok = 0;
+                    break;
+                }
             }
-            else
+            if (ok)
             {
-                s_ItemNames[i] = NULL;
-            }
-            if (fanDescs[i] != NULL)
-            {
-                s_ItemDescs[i] = out;
-                memcpy(out, fanDescs[i], strlen(fanDescs[i]) + 1);
-                out += strlen(fanDescs[i]) + 1;
-            }
-            else
-            {
-                s_ItemDescs[i] = NULL;
+                *outBase    = base;
+                *outNameOff = nameOff;
+                return 1;
             }
         }
+    }
+    return 0;
+}
+
+/* Read BODYPROG.BIN off the active USA disc and adopt its kerning table and
+ * item name/description arrays when they differ from the compiled originals. */
+static void FanTextInit(void)
+{
+    /* Compiled US kerning table, captured before any override so re-runs
+     * (the title-screen Language row re-enters via Pc_LangSetLanguage)
+     * keep comparing against the pristine baseline. */
+    static const unsigned char* s_compiledWidths;
+
+    unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
+    unsigned char* bin  = ReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
+    unsigned int   brBase;
+    unsigned int   brNameOff;
+    int            i;
+
+    if (s_compiledWidths == NULL)
+        s_compiledWidths = g_FontLayout->glyphWidths;
+
+    s_FanTextActive = 0;
+    if (bin == NULL)
+        return;
+
+    /* A rebuilt disc (Brazilian re-translation) does NOT encrypt BODYPROG and
+     * relinks the item pointer arrays to a shifted base. Detect + adopt them
+     * straight from the raw bytes before any decryption — decrypting the
+     * plaintext would corrupt it. Encrypted vanilla/in-place discs have no such
+     * array in the raw bytes, so this fails and the original decrypt path below
+     * runs unchanged. Their VIN map messages stay US-linked either way and
+     * translate through UsaPatchMapMessages. */
+    if (BrazilFindItemArray(bin, size, &brBase, &brNameOff))
+    {
+        int r = AdoptItemArrays(bin, size, brBase, brNameOff, brNameOff + ITEM_TEXT_COUNT * 4);
+
+        if (r == 1)
+        {
+            s_FanTextActive = 1;
+            SH_LOG("[FANPATCH] rebuilt-disc item text adopted (base 0x%08X, name off 0x%X)", brBase, brNameOff);
+        }
+        else if (r < 0)
+        {
+            SH_WARN("[FANPATCH] rebuilt-disc item arrays did not parse — keeping compiled item text");
+        }
+        free(bin);
+        return;
+    }
+
+    DecryptOverlay(bin, size);
+
+    /* A fan patch that edits BODYPROG in place (Spanish fandub) keeps the
+     * kerning table and item-pointer arrays at their US symbol offsets. A patch
+     * that REBUILDS BODYPROG but stays encrypted would relocate them, so those
+     * offsets land on unrelated bytes and adopting them explodes every glyph /
+     * installs garbage item names. Real FONT_12X16 advances never exceed the
+     * 16px cell; if the bytes at the US widths offset do, this disc's BODYPROG
+     * is not US-linked — keep every compiled US table. */
+    for (i = 0; i < 84; i++)
+    {
+        if (bin[(USA_WIDTHS_ADDR - USA_BODY_VRAM) + i] > 16)
+        {
+            SH_WARN("[FANPATCH] BODYPROG not US-linked (rebuilt disc) — keeping compiled font/item text");
+            free(bin);
+            return;
+        }
+    }
+
+    if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), s_compiledWidths, 84) != 0)
+    {
+        Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
         s_FanTextActive = 1;
-        SH_LOG("[FANPATCH] modified item text adopted from disc");
+        SH_LOG("[FANPATCH] modified FONT16 kerning table adopted from disc");
+    }
+
+    switch (AdoptItemArrays(bin, size, USA_BODY_VRAM,
+                            USA_ITEM_NAME_ADDR - USA_BODY_VRAM,
+                            USA_ITEM_DESC_ADDR - USA_BODY_VRAM))
+    {
+        case 1:
+            s_FanTextActive = 1;
+            SH_LOG("[FANPATCH] modified item text adopted from disc");
+            break;
+        case -1:
+            SH_WARN("[FANPATCH] BODYPROG item arrays did not parse — keeping compiled item text");
+            break;
+        default:
+            break;
     }
 
     free(bin);
-    return;
-
-bail:
-    free(bin);
-    SH_WARN("[FANPATCH] BODYPROG item arrays did not parse — keeping compiled item text");
 }
 
 void Pc_LangInit(void)
