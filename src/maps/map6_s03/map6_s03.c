@@ -17,6 +17,10 @@
 
 #include "maps/shared/sharedFunc_800D929C_0_s00.h" // 0x800D7F14
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 u8 Map_RoomIdxGet(s32 x, s32 z) // 0x800D7F24
 {
     s32 ret;
@@ -156,6 +160,33 @@ void func_800D7F98(void) // 0x800D7F98
     }
 
     Bgm_Update(bgmFlags, fadeSpeed, &D_800DBCDC);
+
+#ifdef SH_PC_PORT
+    /* [SH_DRIPDRU] temp: map6_s03 (deeper drainage) drips water as BGM layers
+       5/6/7, their caps distance-modulated against source D_800DBD10 (restored
+       from a zero-stub). Log player distance to the source, the modulated caps,
+       and the resulting per-channel volumes so ONE normal drainage walk proves
+       whether the already-restored drip layers actually voice on PC (caps>0 &&
+       vols>0 = audible; caps>0 && vols==0 = layer enabled but its note/sample
+       isn't voicing). Fires on room change and ~1/s for steady state. Remove
+       once the drip is confirmed. */
+    {
+        static s32 s_lastDruRoom = -1;
+        static s32 s_druTick     = 0;
+        s32        room          = g_SavegamePtr->mapRoomIdx;
+        if (room != s_lastDruRoom || --s_druTick <= 0)
+        {
+            s_lastDruRoom = room;
+            s_druTick     = 60;
+            SH_DBG("[SH_DRIPDRU] room=%d flags=0x%03x dist=%d caps567=%d,%d,%d vols567=%d,%d,%d",
+                   room, (u32)bgmFlags,
+                   (s32)Math_Distance2dGet(&g_SysWork.playerWork.player.position, &D_800DBD10),
+                   D_800DBCDC[5], D_800DBCDC[6], D_800DBCDC[7],
+                   (s32)g_SysWork.bgmLayerVolumes[5], (s32)g_SysWork.bgmLayerVolumes[6],
+                   (s32)g_SysWork.bgmLayerVolumes[7]);
+        }
+    }
+#endif
 }
 
 void GameBoot_LoadScreen_StageString(void) {}
