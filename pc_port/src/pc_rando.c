@@ -112,15 +112,19 @@ static const u8 RANDO_AREAS[] = {
 static const u8 RANDO_MINIBOSSES[] = { MapIdx_MAP1_S05, MapIdx_MAP4_S05 };
 #define N_MINIBOSSES ((int)ARRAY_SIZE(RANDO_MINIBOSSES))
 
-/* Monster pool. stateStep is the AI entry state -- a wrong value leaves the
- * monster unposed and invisible (see project_monster_spawn_command); these are
- * the values the console SPAWN table uses. */
+/* Monster pool. stateStep is the AI entry state; it is copied into the spawn row's
+ * `flags`, which Game_NpcRoomInitSpawn hands to each enemy's init as model.stateStep.
+ * A wrong value can leave the monster inert (Groaner_Init only stands the dog up
+ * when stateStep == 3; any other value leaves it lying down forever, because init
+ * resets stateStep to 0 and never re-checks). These are the values the maps' own
+ * spawn tables use for the room-spawn path -- NOT always the console SPAWN values,
+ * which set stateStep directly and can differ (the console uses 5 for Groaner). */
 typedef struct { u8 charaId; u8 stateStep; } s_RandoMonster;
 static const s_RandoMonster RANDO_MONSTERS[] = {
     { Chara_GreyChild,  3  },
     { Chara_PuppetNurse, 17 },
-    { Chara_Romper,     5  },
-    { Chara_Groaner,    5  },
+    { Chara_Romper,     3  },
+    { Chara_Groaner,    3  },
     { Chara_AirScreamer, 12 },
 };
 #define N_MONSTERS ((int)ARRAY_SIZE(RANDO_MONSTERS))
