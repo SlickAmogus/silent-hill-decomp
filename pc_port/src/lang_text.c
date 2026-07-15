@@ -538,6 +538,91 @@ static int SplitPartsFor(int mapIdx, int usIdx)
     return 1;
 }
 
+/* Message-table pointers are linked for the overlay's PSX load base. An in-place
+ * fan patch (Spanish) keeps the US base USA_OVL_BASE; a REBUILT disc (Brazilian)
+ * relinks the overlay to a different base, so both the word@0x34 table pointer
+ * and every string pointer are shifted by a constant. The overlay layout is
+ * otherwise identical. Detect the base by the value for which word@0x34 resolves
+ * to a run of clean text messages (the table always opens with the short Yes/No
+ * pair). Returns USA_OVL_BASE for vanilla/in-place discs (their table resolves
+ * there on the first try, so they take the fast path and are never rescanned). */
+#define MSG_MIN_CLEAN_RUN 8
+
+/* Length of a NUL-terminated message if every byte is engine text (printable
+ * ASCII, high-bit accents, or the tab/newline used for layout); -1 otherwise. */
+static int MsgCleanLen(const unsigned char* s, const unsigned char* end)
+{
+    int n = 0;
+    for (; s < end && *s != '\0'; s++, n++)
+    {
+        unsigned char c = *s;
+        if (c != '\t' && c != '\n' && c < 0x20)
+            return -1;
+    }
+    return (s < end) ? n : -1; /* must terminate inside the overlay */
+}
+
+/* Consecutive clean messages the table at (tablePsx - base) resolves to. */
+static int MsgCleanRun(const unsigned char* ovl, unsigned int ovlSize, unsigned int tablePsx, unsigned int base)
+{
+    unsigned int tableOff;
+    int          i;
+
+    if (tablePsx <= base || tablePsx - base >= ovlSize)
+        return 0;
+    tableOff = tablePsx - base;
+
+    for (i = 0; i < 250; i++)
+    {
+        unsigned int ptr;
+        int          len;
+
+        if (tableOff + (unsigned int)(i + 1) * 4 > ovlSize)
+            break;
+        ptr = *(const unsigned int*)(ovl + tableOff + i * 4);
+        if (ptr <= base || ptr - base >= ovlSize)
+            break;
+        len = MsgCleanLen(ovl + (ptr - base), ovl + ovlSize);
+        if (len < 1 || len > 600)
+            break;
+        if (i < 2 && len > 6) /* the first two are always the short Yes/No pair */
+            return 0;
+    }
+    return i;
+}
+
+static unsigned int UsaDetectOverlayBase(const unsigned char* ovl, unsigned int ovlSize)
+{
+    static unsigned int s_rebuiltBase = 0; /* cache: a disc has ONE overlay base */
+    unsigned int        tablePsx      = *(const unsigned int*)(ovl + 0x34);
+    unsigned int        bestBase      = USA_OVL_BASE;
+    int                 bestRun       = 0;
+    unsigned int        b;
+
+    if (MsgCleanRun(ovl, ovlSize, tablePsx, USA_OVL_BASE) >= MSG_MIN_CLEAN_RUN)
+        return USA_OVL_BASE; /* vanilla / in-place patch — no scan */
+
+    if (s_rebuiltBase != 0 &&
+        MsgCleanRun(ovl, ovlSize, tablePsx, s_rebuiltBase) >= MSG_MIN_CLEAN_RUN)
+        return s_rebuiltBase;
+
+    for (b = USA_OVL_BASE - 0x2000; b <= USA_OVL_BASE + 0x400; b += 4)
+    {
+        int run = MsgCleanRun(ovl, ovlSize, tablePsx, b);
+        if (run > bestRun)
+        {
+            bestRun  = run;
+            bestBase = b;
+        }
+    }
+    if (bestRun >= MSG_MIN_CLEAN_RUN)
+    {
+        s_rebuiltBase = bestBase;
+        return bestBase;
+    }
+    return USA_OVL_BASE; /* unrecognized — caller's range checks keep English */
+}
+
 /* USA map messages come straight off the disc image, not from g_OvlDynamic:
  * the shared queue buffer isn't guaranteed to hold this map's overlay
  * (Fs_QueueWaitForEmpty's timeout valve can abandon the read), and reading
@@ -554,6 +639,7 @@ static void UsaPatchMapMessages(int mapIdx)
     unsigned int      ovlSize;
     unsigned int      tablePsx;
     unsigned int      tableOff;
+    unsigned int      ovlBase;
     unsigned int      srcPtrs[MSG_COUNT_MAX + 8];
     unsigned int      poolBytes;
     int               srcCount;
@@ -579,13 +665,14 @@ static void UsaPatchMapMessages(int mapIdx)
     if (ovl == NULL)
         return;
 
+    ovlBase  = UsaDetectOverlayBase(ovl, ovlSize);
     tablePsx = *(unsigned int*)(ovl + 0x34);
-    if (tablePsx < USA_OVL_BASE || tablePsx - USA_OVL_BASE >= ovlSize)
+    if (tablePsx < ovlBase || tablePsx - ovlBase >= ovlSize)
     {
         free(ovl);
         return;
     }
-    tableOff = tablePsx - USA_OVL_BASE;
+    tableOff = tablePsx - ovlBase;
 
     /* Same walk as the EUR/JPN path, plus a NUL-inside-the-overlay check so
      * no later strlen/strcmp/memcpy can run past the buffer. */
@@ -598,9 +685,9 @@ static void UsaPatchMapMessages(int mapIdx)
         if (tableOff + (srcCount + 1) * 4 > ovlSize)
             break;
         ptr = *(unsigned int*)(ovl + tableOff + srcCount * 4);
-        if (ptr <= USA_OVL_BASE || ptr - USA_OVL_BASE >= ovlSize)
+        if (ptr <= ovlBase || ptr - ovlBase >= ovlSize)
             break;
-        ptr -= USA_OVL_BASE;
+        ptr -= ovlBase;
         nul = (const char*)memchr(ovl + ptr, '\0', ovlSize - ptr);
         if (nul == NULL)
             break;
