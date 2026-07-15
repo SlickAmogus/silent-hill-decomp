@@ -655,6 +655,9 @@ extern char D_80028544[16];
 extern const RECT D_80028A20;
 
 extern const s_AnimInfo D_80028B94[];
+#ifdef SH_PC_PORT
+extern const s32 D_80028B94_COUNT;
+#endif
 
 extern const s_800C44F0 D_800294F4[];
 

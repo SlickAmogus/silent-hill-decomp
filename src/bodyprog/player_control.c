@@ -80,7 +80,7 @@ int g_PcAltFireHeld = 0;
 /* Per-weapon steady gun-forward "ready" keyframe for OTS/TPS free-aim. The
  * rifle reads cleaner a few frames before the shared default; the handgun and
  * shotgun settle one frame earlier (587/588 chosen by eye in-game). Anything
- * else (e.g. HyperBlaster) keeps PC_AIM_HOLD_KF. weaponAttack holds the Tap
+ * else keeps PC_AIM_HOLD_KF. weaponAttack holds the Tap
  * form for an equipped gun (32/33/34), so compare against those directly.
  * First-person needs the arms held higher/further along the swing so the gun
  * frames under the crosshair: 592 for handgun/shotgun, 597 for the rifle. */
@@ -93,6 +93,12 @@ static s32 Pc_AimHoldKf(void)
         case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
         case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
             return g_PcFpsCam ? 592 : 588;
+        case WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap):
+            /* The HyperBlaster's WEP53 anim block only spans kf 568-579
+             * (D_80028B94[132..149]); holding the shared 591 kf reads past its
+             * loaded keyframe data and collapses the torso bones (invisible
+             * upper body). 574 is where its aim anims (statuses 33-35) settle. */
+            return 574;
         default:
             return PC_AIM_HOLD_KF;
     }
@@ -3741,6 +3747,13 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
     bool reloadReq = PC_PlayerManualReloadRequested();
     s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
     s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
+    /* The HyperBlaster is the PSX full-auto exception: it consumes no ammo (the
+     * fire block below already skips the decrement) and has no reload, and on
+     * PSX holding the trigger kept firing once per recoil cycle. The semi-auto
+     * rising-edge rule capped it to one shot per press, and the ammo>0 gate
+     * locked it out entirely (its clip count is 0 and never refills). */
+    bool isHyperBlaster = g_SysWork.playerCombat.weaponAttack ==
+                          WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap);
 
     if (freshAim)
     {
@@ -3787,7 +3800,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             extra->model.anim.time        = Q12(holdKf);
             playerProps.flags &= ~PlayerFlag_Shooting;
 
-            if (reserve > 0 && (reloadReq || (fireEdge && ammo == 0)))
+            if (!isHyperBlaster && reserve > 0 && (reloadReq || (fireEdge && ammo == 0)))
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
@@ -3802,7 +3815,11 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 break;
             }
 
-            if (fireEdge && ammo > 0)
+            /* HyperBlaster fires full-auto: fire while held, once per recoil
+             * cycle (the FSM only re-enters Aim after the recoil ends), with the
+             * wall-time refire floor as the rate cap. All other guns stay
+             * semi-auto (release-required rising edge) and need ammo. */
+            if (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0))
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
                 s_refireT = PC_GUN_REFIRE_SEC;
@@ -10653,6 +10670,18 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
 
     for (i = 56; i < 76; i++)
     {
+#ifdef SH_PC_PORT
+        /* The HyperBlaster block (relAnimInfoIdx 132) is only 18 entries, so
+         * this fixed 20-entry copy reads D_80028B94[150..151] — past the end of
+         * the array (the @bug note at its definition). On PSX that read landed
+         * in the adjacent ROM table and filled two status-37 slots the
+         * HyperBlaster never plays; on PC it's UB over unrelated .rodata. Keep
+         * those slots' previous contents instead. */
+        if ((i - 56) + relAnimInfoIdx >= D_80028B94_COUNT)
+        {
+            continue;
+        }
+#endif
         HARRY_BASE_ANIM_INFOS[i] = D_80028B94[(i - 56) + relAnimInfoIdx];
     }
 
