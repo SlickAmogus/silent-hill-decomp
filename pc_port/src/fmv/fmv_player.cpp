@@ -1255,9 +1255,12 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
             continue;
         }
 
-        /* Video frame */
-        if (max_frames > 0 && done_frames >= max_frames)
-            break;
+        /* Video frame. Unlike the BIN/STR path, an AVI override is a standalone
+         * file the user encoded to replace this cutscene — play it to its own
+         * EOF (GetFrameFromIndex returns < 0 when the movi index is exhausted).
+         * max_frames here is the ORIGINAL STR's frame count (PSX ~15 fps); a
+         * re-encode at a higher fps or a different length has more video frames,
+         * so applying that cap cut the custom AVI off early. */
 
         if (frame_size > 0 &&
             (frame_entry.type == ReadAVI::ctype_compressed_video_frame ||
