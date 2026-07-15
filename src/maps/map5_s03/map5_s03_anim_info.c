@@ -92,4 +92,6 @@ u8 LOADABLE_INVENTORY_ITEMS[] = {
 
 u8 sharedData_800DD584_0_s00 = 0;
 
-s32 g_ParticlesAddedCount = 0;
+/* s32[2] like map0_s00/map0_s01 (and the extern in particle.h): particle.c
+ * zeroes both elements, so a scalar here means a 4-byte OOB write. */
+s32 g_ParticlesAddedCount[2] = {};

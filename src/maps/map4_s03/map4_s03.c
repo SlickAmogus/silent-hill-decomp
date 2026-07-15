@@ -373,6 +373,17 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* The overflow flag only fires when H/SZ3 exceeds 0x1FFFF; an SZ3 of 1..3
+     * passes that check yet yields otz (sz) == 0, and the `/ sz` below faults
+     * x86 idiv where MIPS returned garbage. (Ported from the dead duplicate
+     * src/maps/characters/twinfeeler.c, where this guard was stranded.) */
+    if (sz == 0)
+    {
+        return;
+    }
+#endif
+
     packet = GsOUT_PACKET_P;
 #ifdef SH_PC_PORT
     /* PSX OT_TAG was 4 bytes (s32), so `&ord[sz>>1]` strode correctly; on 64-bit

@@ -896,7 +896,7 @@ void Ai_Stalker_Control_3(s_SubCharacter* stalker)
     q25_6  temp;
     q19_12 temp2;
 
-    distToPlayer  = Math_Vector2MagCalc(sharedData_800E3A18_0_s00 - stalker->position.vx,
+    distToPlayer  = Math_Vector2MagCalcSafeQ6(sharedData_800E3A18_0_s00 - stalker->position.vx,
                                         sharedData_800E3A1C_0_s00 - stalker->position.vz);
     angleDeltaToPlayer = Math_AngleNormalizeSigned(ratan2(sharedData_800E3A18_0_s00 - stalker->position.vx,
                                               sharedData_800E3A1C_0_s00 - stalker->position.vz) -
@@ -1164,7 +1164,7 @@ void Ai_Stalker_Control_4(s_SubCharacter* stalker)
     q19_12 deltaX;
     q19_12 deltaZ;
 
-    distToPlayer = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
+    distToPlayer = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
                                        g_SysWork.playerWork.player.position.vz - stalker->position.vz);
 
     if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & ((1 << 0) | (1 << 1))))
@@ -1364,7 +1364,7 @@ void Ai_Stalker_Control_5(s_SubCharacter* stalker)
     }
     else if (ANIM_TIME_RANGE_CHECK(stalker->model.anim.time, 50, 61))
     {
-        distToPlayer = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
+        distToPlayer = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
                                            g_SysWork.playerWork.player.position.vz - stalker->position.vz);
 
         for (i = 0; i < 6; i++)
@@ -1457,7 +1457,7 @@ void Ai_Stalker_Control_6(s_SubCharacter* stalker)
     stalker->collision.state = 3;
     Chara_MoveSpeedUpdate(stalker, Q12(1.5f));
 
-    distToPlayer = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
+    distToPlayer = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
                                g_SysWork.playerWork.player.position.vz - stalker->position.vz);
 
     moveSpeed = Q12(0.0f);
@@ -1963,7 +1963,7 @@ void Ai_Stalker_Control_12(s_SubCharacter* stalker)
     q3_12  angleDeltaToPlayer;
     s32    cond; // Not `bool`?
 
-    distToPlayer       = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
+    distToPlayer       = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
                                              g_SysWork.playerWork.player.position.vz - stalker->position.vz);
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(stalker->position, g_SysWork.playerWork.player.position) -
                                        stalker->rotation.vy);
@@ -2260,7 +2260,7 @@ void sharedFunc_800D6970_0_s00(s_SubCharacter* stalker, s_AnmHeader* animHdr, Gs
     {
         ptr->angle_46 = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(stalker->position, g_SysWork.playerWork.player.position) -
                                       stalker->rotation.vy);
-        temp          = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
+        temp          = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - stalker->position.vx,
                                             g_SysWork.playerWork.player.position.vz - stalker->position.vz);
 
         if (temp < Q12(3.0f) && ABS(ptr->angle_46) < Q12_ANGLE(45.0f))

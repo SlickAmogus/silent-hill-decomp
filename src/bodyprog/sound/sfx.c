@@ -253,6 +253,18 @@ static inline q23_8 AttenuationCalc(s32 vol, VECTOR3* pos, q19_12 falloff)
     dist = Math_Vector3MagCalcSafe(g_SysWork.playerWork.player.position.vx - pos->vx,
                                    g_SysWork.playerWork.player.position.vy - pos->vy,
                                    g_SysWork.playerWork.player.position.vz - pos->vz);
+
+#ifdef SH_PC_PORT
+    /* The rain loop (`Particle_SoundUpdate`) is the game's only zero-falloff
+     * caller. MIPS `div` by zero doesn't trap: quotient is -1 for a
+     * non-negative dividend (vol and dist are both >= 0 here), which retail
+     * relied on. x86 raises 0xC0000094 instead — return the MIPS result. */
+    if (falloff == 0)
+    {
+        return -1;
+    }
+#endif
+
     return (vol * dist) / falloff;
 }
 
