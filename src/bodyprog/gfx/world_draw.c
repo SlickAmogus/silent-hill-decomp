@@ -80,6 +80,20 @@ void func_8003BED0(void) // 0x8003BED0
      * on PAL (SLES desc 0x800A9ABC). CLUT home (192,0) is unchanged. */
     IMAGE_ETC.u = (g_GameRegion == Region_EUR) ? 32 : 0;
     IMAGE_ETC.v = (g_GameRegion == Region_EUR) ? 64 : 192;
+
+    /* PAL relocates the TIM00 common-item CLUT to the bottom-right VRAM margin
+     * (928,480) — the same retarget font_region.c applies to
+     * g_FirstAidKitItemTextureImg, which is the desc GameFs_Tim00TIMLoad uploads
+     * the TIM00 palette with. This world-prop material binding hardcodes the US
+     * home (176,0); without matching the retarget, every common-item world prop
+     * (DRINK/AIDKIT/BULLET) samples an empty palette on EUR and renders
+     * invisible — while the pickup/inventory previews (which use the retargeted
+     * desc directly) look fine. Not needed for JAP/US (CLUT stays at 176,0). */
+    if (g_GameRegion == Region_EUR)
+    {
+        IMAGE_TIM.clutX = 928;
+        IMAGE_TIM.clutY = 480;
+    }
 #endif
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
