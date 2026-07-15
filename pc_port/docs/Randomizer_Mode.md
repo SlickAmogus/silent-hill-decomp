@@ -16,8 +16,8 @@ unchanged.
 | Areas | `map3_s03` (Hospital Otherworld), `map5_s01` (Resort), `map6_s01` (Boat), `map2_s02` (Central SH streets), `map2_s04` |
 | Minibosses | `map1_s05` (Split Head), `map4_s05` (Floatstinger) |
 | Final boss | `map7_s03` |
-| Doors | Rerolled per area: locked / another area / another room in this map / a miniboss / (1%) the final boss. At least one non-entry door is always open. |
-| Entry door | The door you came in through is sealed permanently (no going back) when the room has another way out. A dead-end room (its only doorway is the one you entered) locks that door for 10 s instead, then reopens it, and is guaranteed to hold a monster. |
+| Doors | Rerolled per area: locked / another area / another room in this map / a miniboss / (1%) the final boss. At least one is always open. |
+| Entry door | The door you came in through is locked for 10 s behind you (no immediate turn-around), then reopens to a fresh random destination. The room you land in is guaranteed to hold a monster. |
 | Monsters | Count scales with the area's size, up to 30 — a big area (Hospital Otherworld, Resort) fills up, a closet gets one. Drawn from grey child, puppet nurse, romper, groaner, air screamer. The area's own monsters are removed. |
 | Items | Every pickup becomes a healing item, a weapon you lack, or ammo for a gun you carry. |
 | Saving | Disabled. World save points are dropped from the event table; quick save / quick load are gated in `pc_quicksave.c`. |
@@ -217,29 +217,32 @@ forces `Button` on `DOOR_LOCKED` and restores the row's original activation type
 otherwise (`s_RandoDoor.origActivation`). The entry-door seal goes through
 `door_write_event` for exactly this reason.
 
-**The entry door seal must reason per-floor, not map-wide.** `s_doors` is built
+**The entry door is held for 10 s, never sealed for good.** A permanent seal is not
+safely implementable and two adversarial-review rounds proved it. `s_doors` is built
 from the **whole overlay** event table, but a pooled area overlay spans physically
 disjoint rooms/floors reached only by its own in-overlay `SysState_LoadRoom`
-transitions (e.g. `map3_s03` is AltHospital 2F **and** 3F). A "one door is open"
-guarantee computed over all of `s_doors` can therefore be satisfied by a door on a
-floor the player cannot reach from where they landed — and sealing the arrival
-door anyway is a permanent trap (saving is disabled, so there is no recovery).
-The seal is done in `build_events` at load time and:
+transitions (e.g. `map3_s03` is AltHospital 2F **and** 3F). Any "one door is open"
+guarantee computed over all of `s_doors` can be satisfied by a door on a floor the
+player cannot reach from where they landed, so sealing the arrival door anyway is a
+permanent trap (saving is disabled — no recovery). There is no reliable in-data key
+for "which doors are in the arrival's reachable room": `paperMapIdx` tags almost
+every door POI as the `OtherPlaces` catch-all (only cross-map *arrival* markers carry
+a real floor id), and 2D positions overlap across stacked floors. So the entry door
+is only ever **locked for `RANDO_ENTRY_LOCK_S` (10 s)** and then reopened by
+`Pc_Rando_Update` — which is fully recoverable, and because every door is rerolled on
+entry the entry door never actually leads "back" anyway (re-crossing it after the lock
+just rolls a fresh random destination). The lock:
 
-- runs only when `s_run.cameThroughDoor` — New Game (arrival = `mapPoints[0]`) and
-  a post-death Continue have no door to seal;
-- picks the entry door as the nearest doorway to the arrival within 8 units, and
-  takes its floor from that mapPoint's `paperMapIdx`;
-- scopes both the doorway count and the guaranteed-open exit to **that floor**. A
-  floor with ≥2 doorways gets a *permanent* seal, but only after forcing a
-  **same-floor** non-entry door open if all of them rolled `DOOR_LOCKED`. A
-  single-door (dead-end) floor is never permanently sealed — it is locked for 10 s
-  and reopened by `Pc_Rando_Update`, and its rolled destination is bumped to a real
-  area first if it was itself `DOOR_LOCKED` (the map-wide `openCount` pass does not
-  protect a per-floor dead-end).
+- runs only when `s_run.cameThroughDoor` — New Game (arrival = `mapPoints[0]`) and a
+  post-death Continue have no door to lock;
+- picks the entry door as the nearest doorway to the arrival within 8 units;
+- rerolls that door to a real area first if it happened to roll `DOOR_LOCKED`, so the
+  restore reopens it to a working destination;
+- sets `forceContent` so the room the player was funnelled into is guaranteed a
+  monster even if it is too small to clear the placement filters.
 
-Rule of thumb: never write a permanent lock without proving a reachable same-room
-exit; when that cannot be proven, degrade to the recoverable 10 s lock.
+Rule of thumb: never write an unrecoverable lock without proving a reachable
+same-room exit; when that cannot be proven, use the recoverable timer.
 
 **The spawn-state reset belongs at map-load time, not on the placement frame.**
 `GameBoot_InGameInit` runs its own `Game_NpcRoomInitSpawn` pass between
