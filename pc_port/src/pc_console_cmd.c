@@ -555,7 +555,7 @@ typedef struct { const char* name; u8 charaId; u8 state; } s_SpawnCharaEntry;
 static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
     { "AIRSCREAMER",     Chara_AirScreamer,     12 },
     { "NIGHTFLUTTER",    Chara_NightFlutter,    12 },
-    { "GROANER",         Chara_Groaner,          5 },
+    { "GROANER",         Chara_Groaner,          3 }, /* Groaner_Init: st=3->Control_1 (active); any other st = stuck lying down (never re-checks) */
     { "WORMHEAD",        Chara_Wormhead,         5 },
     { "LARVALSTALKER",   Chara_LarvalStalker,    5 },
     { "STALKER",         Chara_Stalker,          3 }, /* Stalker_Update: st=3->Control_4 (active); st=5->Control_1 = unposed/invisible */
@@ -563,7 +563,7 @@ static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
     { "MUMBLER",         Chara_Mumbler,         17 },
     { "HANGEDSCRATCHER", Chara_HangedScratcher,  7 },
     { "CREEPER",         Chara_Creeper,          5 },
-    { "ROMPER",          Chara_Romper,           5 },
+    { "ROMPER",          Chara_Romper,           3 }, /* Romper_Init activates unconditionally; 3 matches native map spawn data */
     { "CHICKEN",         Chara_Chicken,          5 },
     { "SPLITHEAD",       Chara_SplitHead,        5 },
     { "FLOATSTINGER",    Chara_Floatstinger,    12 },
@@ -767,7 +767,8 @@ static void cmd_ambsfx(const char* arg)
     extern u8        Sd_PlaySfx(u16 sfxId, s8 balance, u8 vol);
     extern void      SD_Call(u32 cmd);
 
-    static s16 s_id = -1;
+    static s16 s_id       = -1;
+    static s16 s_sweepProg = -1; /* sticky program filter: PROG <n> sets it, bare AMBSFX keeps it */
     s16        id;
     u16        vp;
 
@@ -798,16 +799,19 @@ static void cmd_ambsfx(const char* arg)
         id = (s16)atoi(arg);
         if (id < Sfx_Base) id = (s16)(id + Sfx_Base);
     } else {
-        int want_prog = -1;
-        if (strncmp(arg, "PROG", 4) == 0) { want_prog = atoi(arg + 4); s_id = -1; }
+        /* PROG <n> arms a STICKY program filter so a following bare AMBSFX walks
+         * only program n, one id at a time (PROG -1 clears it back to all progs).
+         * Previously the filter was local and lost on the next call, so stepping
+         * wandered straight out of the program you asked for. */
+        if (strncmp(arg, "PROG", 4) == 0) { s_sweepProg = (s16)atoi(arg + 4); s_id = -1; }
         id = (s_id < 0) ? (s16)Sfx_Base : (s16)(s_id + 1);
         while (id < (s16)(Sfx_Base + 420)) {
             vp = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
-            if ((vp >> 8) == 2 && (want_prog < 0 || (int)(vp & 0xFF) == want_prog))
+            if ((vp >> 8) == 2 && (s_sweepProg < 0 || (int)(vp & 0xFF) == s_sweepProg))
                 break;
             id++;
         }
-        if (id >= (s16)(Sfx_Base + 420)) { s_id = -1; cprintf("ambsfx: end (wrapped)"); return; }
+        if (id >= (s16)(Sfx_Base + 420)) { s_id = -1; cprintf("ambsfx: end of prog %d (wrapped)", s_sweepProg); return; }
     }
 
     s_id = id;
