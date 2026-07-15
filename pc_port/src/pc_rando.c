@@ -132,7 +132,7 @@ static const s_RandoMonster RANDO_MONSTERS[] = {
  * good candidate positions it has), so a big map like the resort or hospital fills
  * up while a closet gets one or two. NPC_COUNT_MAX (the live cap) is 32. */
 #define RANDO_MONSTERS_MAX  30
-#define RANDO_SPAWN_DENSITY 90   /* percent of good candidate spots to populate */
+#define RANDO_SPAWN_DENSITY 100  /* percent of good candidate spots to populate */
 
 /* Item pool. Chainsaw / HyperBlaster / RockDrill / GasolineTank are excluded by
  * request; Katana and Axe are Next-Fear unlockables and are excluded in the same
@@ -811,7 +811,7 @@ static void place_monsters(void)
         int base = (nCand * RANDO_SPAWN_DENSITY) / 100;
         if (base < 1)
             base = 1;
-        want = base - rnd_below(base / 2 + 1); /* [ceil(base/2) .. base] */
+        want = base - rnd_below(base / 4 + 1); /* [ceil(3*base/4) .. base] -- dense */
         if (want < 1)
             want = 1;
         if (want > RANDO_MONSTERS_MAX)
