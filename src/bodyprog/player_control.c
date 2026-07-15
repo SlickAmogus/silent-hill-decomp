@@ -10528,6 +10528,18 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
                 else if (g_GameRegion == Region_JPN && psxField38 >= 0x800CBBD0u) {
                     psxField38 -= 0x800CBBD0u - 0x800C9578u;
                 }
+                else if (g_GameRegion == Region_USA) {
+                    /* A REBUILT USA disc (Brazilian re-translation) relinks each
+                     * overlay to a per-map base BELOW 0x800C9578; the same delta
+                     * shifts both the message table (0x34) and this field_38
+                     * pointer. Detect the current overlay's base the way the
+                     * message path does and rebase — vanilla / in-place (Spanish)
+                     * discs detect 0x800C9578, so the delta is 0 and this is a
+                     * no-op. Without it, field_38 resolves into garbage on a
+                     * rebuilt disc and Harry's map anim table is corrupt. */
+                    extern unsigned int Pc_UsaOverlayLinkBase(const void* ovl, int mapIdx);
+                    psxField38 += 0x800C9578u - Pc_UsaOverlayLinkBase(g_OvlDynamic, mapIdx);
+                }
                 if (psxField38 >= 0x80000000u && psxField38 < 0x80200000u) {
                     s_patchedMapHeader            = *g_pMapOverlayHeader;
                     s_patchedMapHeader.field_38   = (s_UnkStruct3_Mo*)PSX_ADDR(psxField38);

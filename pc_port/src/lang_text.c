@@ -709,6 +709,15 @@ static int MsgCleanRun(const unsigned char* ovl, unsigned int ovlSize, unsigned 
         ptr = *(const unsigned int*)(ovl + tableOff + i * 4);
         if (ptr <= base || ptr - base >= ovlSize)
             break;
+        /* The string must START on a boundary (the byte before it is a NUL
+         * terminator). An off-by-a-few-bytes base still yields printable text
+         * but lands mid-string; rejecting that pins `base` to the overlay's
+         * EXACT link base. Message-only use tolerated a few bytes of slack, but
+         * the player map-anim loader reuses this base to rebase field_38 (the
+         * per-map Harry anim table) — that needs the exact base or the pointer
+         * lands mid-struct. */
+        if (ptr - base != 0 && ovl[(ptr - base) - 1] != '\0')
+            break;
         len = MsgCleanLen(ovl + (ptr - base), ovl + ovlSize);
         if (len < 1 || len > 600)
             break;
@@ -748,6 +757,31 @@ static unsigned int UsaDetectOverlayBase(const unsigned char* ovl, unsigned int 
         return bestBase;
     }
     return USA_OVL_BASE; /* unrecognized — caller's range checks keep English */
+}
+
+/* Link base of the internal pointers in a loaded USA map overlay. USA_OVL_BASE
+ * for vanilla / in-place patched (Spanish) discs; a per-map LOWER base for a
+ * REBUILT disc (Brazilian re-translation), where each overlay is relinked below
+ * the US base by a per-map delta. The player map-anim loader
+ * (GameFs_PlayerMapAnimLoad) uses this to rebase the field_38 / g_MapHeaderTable_38
+ * pointer it reads straight out of the loaded overlay, the SAME delta the message
+ * table (offset 0x34) is shifted by — otherwise field_38 resolves into unrelated
+ * overlay bytes and Harry's per-map animation-transition table is garbage. `ovl`
+ * is the loaded overlay (g_OvlDynamic); mapIdx bounds the base scan by the VIN
+ * file size. Returns USA_OVL_BASE (delta 0, no-op) for anything but a USA disc
+ * whose current overlay relinked below the US base. */
+unsigned int Pc_UsaOverlayLinkBase(const void* ovl, int mapIdx)
+{
+    unsigned int ovlSize;
+
+    if (g_GameRegion != Region_USA || ovl == NULL || mapIdx < 0 || mapIdx >= 45)
+        return USA_OVL_BASE;
+
+    ovlSize = (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8;
+    if (ovlSize < 0x40)
+        return USA_OVL_BASE;
+
+    return UsaDetectOverlayBase((const unsigned char*)ovl, ovlSize);
 }
 
 /* USA map messages come straight off the disc image, not from g_OvlDynamic:
