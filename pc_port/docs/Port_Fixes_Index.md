@@ -704,12 +704,21 @@ Full reference: `pc_port/docs/NTSC_J_Support.md`.
 QoL feature, not a fix (config `mouse_cursor`, default on; inert while the
 TPS/OTS/FPS camera captures the pointer). Game-code touch points:
 
-- **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): 3-line SH_PC_PORT hook — the
-  shared chokepoint every free-cursor puzzle (piano, plate, door panels, map
-  pan) draws through. Arms `pc_mouse_cursor.c`'s injector, which converts
-  mouse deltas into left-stick deflection and left/right click into
-  enter/cancel on `g_Controller0`, so all puzzles gain mouse control with no
-  per-puzzle code.
+- **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): SH_PC_PORT hook — the shared
+  chokepoint every free-cursor puzzle (piano, plate, door panels, map pan)
+  draws through. Hands `pc_mouse_cursor.c` the puzzle's current cursor position
+  (framebuffer centre-origin px) and left/right click into enter/cancel on
+  `g_Controller0`, so all puzzles gain mouse control with no per-puzzle code.
+  Cursor control is an **absolute servo** (commit `18a49bc42`): the injector
+  deflects the left stick proportional to the error between the puzzle's own
+  cursor and the framebuffer point the mouse is over. The earlier delta-velocity
+  injection lost range to the stick's ±127 clamp and the height scaling — at
+  sensitivity 1 a full mouse sweep only covered ~62% of the puzzle's cursor
+  range (e.g. piano X∈[-89,85]/Y∈[-71,84]px, moved by `leftX*16384/75`), so the
+  cursor stopped ~2/3 down. The servo is closed-loop on the puzzle's own cursor,
+  so it converges on exactly where the mouse points regardless of framebuffer
+  height, stick scale, or the clamp; it engages on a mouse move and releases on
+  arrival so an idle mouse leaves a real pad's stick alone.
 - **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
   confirms on the entry list and difficulty rows (hit-tests the authored row
   bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The
