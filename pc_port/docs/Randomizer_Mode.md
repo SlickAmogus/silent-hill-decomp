@@ -16,9 +16,9 @@ unchanged.
 | Areas | `map3_s03` (Hospital Otherworld), `map5_s01` (Resort), `map6_s01` (Boat), `map2_s02` (Central SH streets), `map2_s04` |
 | Minibosses | `map1_s05` (Split Head), `map4_s05` (Floatstinger) |
 | Final boss | `map7_s03` |
-| Doors | Rerolled per area: locked / another area / another room in this map / a miniboss / (1%) the final boss. At least one is always open. |
-| Entry door | Shut for 10 s behind you. |
-| Monsters | 1–5 per area from grey child, puppet nurse, romper, groaner, air screamer. The area's own monsters are removed. |
+| Doors | Rerolled per area: locked / another area / another room in this map / a miniboss / (1%) the final boss. At least one non-entry door is always open. |
+| Entry door | The door you came in through is sealed permanently (no going back) when the room has another way out. A dead-end room (its only doorway is the one you entered) locks that door for 10 s instead, then reopens it, and is guaranteed to hold a monster. |
+| Monsters | Count scales with the area's size, up to 30 — a big area (Hospital Otherworld, Resort) fills up, a closet gets one. Drawn from grey child, puppet nurse, romper, groaner, air screamer. The area's own monsters are removed. |
 | Items | Every pickup becomes a healing item, a weapon you lack, or ammo for a gun you carry. |
 | Saving | Disabled. World save points are dropped from the event table; quick save / quick load are gated in `pc_quicksave.c`. |
 | BGM | One track (6, Central SH streets ambient) plays across every normal area. Minibosses and the final boss keep their own battle music. |
@@ -84,7 +84,7 @@ stay pristine, every entry re-rolls from the original.
 | `events_util.c` `Event_ItemTake` | `Pc_Rando_RemapItemTake` |
 | `npc_main.c` `func_80037E78` | kill counter (the one global "an enemy died" gate; `CharaFlag_Dead` latches, so once per corpse) |
 | `player_control.c` `Player_ReceiveDamage` | damage counter, after difficulty scaling |
-| `game_main.c` main loop | `Pc_Rando_Update` — monster placement, entry-door relock |
+| `game_main.c` main loop | `Pc_Rando_Update` — monster placement, dead-end door reopen timer |
 | `dbg_overlay.c` | the score panel |
 
 ### Monsters
@@ -96,10 +96,19 @@ load time** (`clear_native_spawns`), or the area would come up with its native
 monsters and then get the random ones on top.
 
 Candidate positions are the map's own authored spawn points and its `mapPoints`,
-filtered by a walkable-ground test. That filter is load-bearing: a map's
-`mapPoints` table *also* holds arrival records expressed in **other maps'**
-coordinate spaces (fact 2), and the ground test is what rejects them. A ring-probe
-around the player is the fallback.
+filtered by a walkable-ground test plus keep-out radii from the arrival point and
+every doorway (so nothing spawns on top of the player or camps an entrance). That
+walkable filter is load-bearing: a map's `mapPoints` table *also* holds arrival
+records expressed in **other maps'** coordinate spaces (fact 2), and the ground
+test is what rejects them. A ring-probe around the player is the fallback.
+
+How many spawn scales with that candidate count (a proxy for area size):
+`want = candidates − rand(0..candidates/4)`, capped at 30, so a big area fills up
+toward the cap and a small room gets one or two. `g_PcUnlimitedEnemies` is forced
+on for the run, or the map's per-room concurrent-NPC cap (~6) would stop most of
+them from ever spawning. A forced-content room (a locked dead-end) gets at least
+one monster even if it is too small to clear the keep-out radii — a last-resort
+placement waives them and drops one monster on the spot farthest from the door.
 
 `ovlEnemyStates[mapIdx]` and `field_228C` are reset on entry, or a re-entered
 area would come back empty (both bitmasks persist across visits).
@@ -205,8 +214,32 @@ handler onto one of those (and clearing its flags, as a randomized door does) ma
 it re-match *every frame* the player stands in the volume, and the handler freezes
 player control: an unbreakable "It's locked." loop. `door_write_event` therefore
 forces `Button` on `DOOR_LOCKED` and restores the row's original activation type
-otherwise (`s_RandoDoor.origActivation`). `lock_entry_door` goes through
+otherwise (`s_RandoDoor.origActivation`). The entry-door seal goes through
 `door_write_event` for exactly this reason.
+
+**The entry door seal must reason per-floor, not map-wide.** `s_doors` is built
+from the **whole overlay** event table, but a pooled area overlay spans physically
+disjoint rooms/floors reached only by its own in-overlay `SysState_LoadRoom`
+transitions (e.g. `map3_s03` is AltHospital 2F **and** 3F). A "one door is open"
+guarantee computed over all of `s_doors` can therefore be satisfied by a door on a
+floor the player cannot reach from where they landed — and sealing the arrival
+door anyway is a permanent trap (saving is disabled, so there is no recovery).
+The seal is done in `build_events` at load time and:
+
+- runs only when `s_run.cameThroughDoor` — New Game (arrival = `mapPoints[0]`) and
+  a post-death Continue have no door to seal;
+- picks the entry door as the nearest doorway to the arrival within 8 units, and
+  takes its floor from that mapPoint's `paperMapIdx`;
+- scopes both the doorway count and the guaranteed-open exit to **that floor**. A
+  floor with ≥2 doorways gets a *permanent* seal, but only after forcing a
+  **same-floor** non-entry door open if all of them rolled `DOOR_LOCKED`. A
+  single-door (dead-end) floor is never permanently sealed — it is locked for 10 s
+  and reopened by `Pc_Rando_Update`, and its rolled destination is bumped to a real
+  area first if it was itself `DOOR_LOCKED` (the map-wide `openCount` pass does not
+  protect a per-floor dead-end).
+
+Rule of thumb: never write a permanent lock without proving a reachable same-room
+exit; when that cannot be proven, degrade to the recoverable 10 s lock.
 
 **The spawn-state reset belongs at map-load time, not on the placement frame.**
 `GameBoot_InGameInit` runs its own `Game_NpcRoomInitSpawn` pass between
@@ -221,8 +254,8 @@ and by `Pc_Rando_ArrivalOverride` when a door actually fires — is what separat
 the two.
 
 **`headerInstalled` is cleared before every early return in `Pc_Rando_OnMapLoad`.**
-A stale 1 would let `Pc_Rando_Update` place monsters and lock doors using the
-previous area's tables while the new map's own DLL header is live.
+A stale 1 would let `Pc_Rando_Update` place monsters using the previous area's
+tables while the new map's own DLL header is live.
 
 ## Known gaps
 
