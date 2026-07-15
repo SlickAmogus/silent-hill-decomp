@@ -321,10 +321,10 @@ static void Pc_TpsCamera_Apply(void)
     #define TP_STICK_DEADZONE 24         /* right-stick deadzone (of 128) */
     #define TP_STICK_YAW      40         /* per-30fps-frame yaw at full deflection */
     #define TP_STICK_PITCH    28         /* per-30fps-frame pitch at full deflection */
-    #define TP_DIST_AIM       Q12(1.3f)  /* aim orbit radius at the 50% (default) zoom */
-    /* Full-scale (100%) aim zoom pulls TWICE as far in as TP_DIST_AIM: the slider is
-     * linear from TP_DIST (0%) to TP_DIST_AIM_MAX (100%), so 50% lands exactly on
-     * TP_DIST_AIM. = 2*1.3 - 2.5 = Q12(0.1). */
+    #define TP_DIST_AIM       Q12(1.3f)  /* aim orbit radius at the 100% (default) zoom */
+    /* Full-scale (200%) aim zoom pulls TWICE as far in as TP_DIST_AIM: the slider is
+     * linear from TP_DIST (0%) to TP_DIST_AIM_MAX (200%), so 100% (the default) lands
+     * exactly on TP_DIST_AIM (the original zoom). = 2*1.3 - 2.5 = Q12(0.1). */
     #define TP_DIST_AIM_MAX   (2 * TP_DIST_AIM - TP_DIST)
 
     s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
@@ -369,17 +369,17 @@ static void Pc_TpsCamera_Apply(void)
             s_otsOff      = 0;
         }
         /* tps_aim_zoom_amount scales how far in the dolly goes: 0% leaves the
-         * camera at TP_DIST (no zoom), 50% (the default) lands on TP_DIST_AIM (the
-         * original zoom), 100% goes all the way to TP_DIST_AIM_MAX (twice as far
+         * camera at TP_DIST (no zoom), 100% (the default) lands on TP_DIST_AIM (the
+         * original zoom), 200% goes all the way to TP_DIST_AIM_MAX (twice as far
          * in). Linear across the whole range. */
         s32 pct = (s32)(g_PcConfig.tpsAimZoom + 0.5f);
         s32 aimDist;
         s32 target;
 
         if (pct < 0)   pct = 0;
-        if (pct > 100) pct = 100;
+        if (pct > 200) pct = 200;
 
-        aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 100);
+        aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200);
         target  = isAiming ? aimDist : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
     }

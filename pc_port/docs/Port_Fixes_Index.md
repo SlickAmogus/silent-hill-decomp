@@ -991,16 +991,19 @@ would have silently narrowed.
 > keyword + its message), and the launcher (load, reset, `ClampFov`'s parse fallback,
 > tooltip). 67.4/240 is the *interlaced* height — never propagate it to a new camera.
 
-### `tps_aim_zoom_amount` — default 50, replaces the on/off checkbox
+### `tps_aim_zoom_amount` — default 100 (0..200), replaces the on/off checkbox
 
-Scales the aim dolly along a range whose full-scale (100%) pulls **twice** as far in
-as the old zoom: `TP_DIST_AIM_MAX = 2*TP_DIST_AIM - TP_DIST`, and `aimDist = TP_DIST -
-((TP_DIST - TP_DIST_AIM_MAX) * pct) / 100`. At 50% (the default) it lands on exactly
-`TP_DIST_AIM` (the old "on" full zoom), at 100% on `TP_DIST_AIM_MAX` (a new, deeper 2x
-pull), at 0% on exactly `TP_DIST` (the old "off"). The legacy `tps_aim_zoom` bool key
-is still parsed (→ 0 or 50) so an existing config migrates instead of reverting to the
-default; `ConfigManager` appends new keys at EOF and the game parses last-assignment-wins,
-so the new key always beats a lingering legacy line.
+Scales the aim dolly along a 0..200% range whose full-scale (200%) pulls **twice** as
+far in as the old zoom: `TP_DIST_AIM_MAX = 2*TP_DIST_AIM - TP_DIST`, and `aimDist =
+TP_DIST - ((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200`. At **100% (the default)** it lands
+on exactly `TP_DIST_AIM` (the original zoom — so existing configs saved at 100 are
+unchanged), at 200% on `TP_DIST_AIM_MAX` (a new, deeper 2x pull), at 0% on exactly
+`TP_DIST` (no zoom). The 0..200 scale was chosen over an earlier 0..100 (50=old) exactly
+so a config already carrying `tps_aim_zoom_amount = 100` keeps its original feel instead
+of jumping to the deepest zoom. The legacy `tps_aim_zoom` bool key is still parsed (→ 0
+or 100) so an existing config migrates instead of reverting to the default; `ConfigManager`
+appends new keys at EOF and the game parses last-assignment-wins, so the new key always
+beats a lingering legacy line. Launcher slider + `ClampAimZoom` cap at 200.
 
 ### `tps_ots_aim` — default 1
 

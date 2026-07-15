@@ -486,18 +486,18 @@ public class ControlsForm : Form
             DecimalPlaces = 0,
             Increment = 5m,
             Minimum = 0m,
-            Maximum = 100m,
+            Maximum = 200m,
             BackColor = PanelBack,
             ForeColor = TextColor,
         };
         Controls.Add(numTpsAimZoom);
         trkTpsAimZoom = MakeSensSlider(sensX, styleY + 316, sensW);
         trkTpsAimZoom.Minimum = 0;
-        trkTpsAimZoom.Maximum = 100;
+        trkTpsAimZoom.Maximum = 200;
         WirePair(numTpsAimZoom, trkTpsAimZoom, 1m);
         tips.SetToolTip(numTpsAimZoom,
             "How far the Thirdperson / Over-the-Shoulder camera pulls in behind Harry while you aim, as a percentage " +
-            "of the zoom range. 50 (default) = the original zoom, 100 = a deeper 2x zoom, 0 = no zoom at all (this " +
+            "of the zoom range. 100 (default) = the original zoom, 200 = a deeper 2x zoom, 0 = no zoom at all (this " +
             "replaces the old TPS/OTS Aim Zoom checkbox).");
 
         tips.SetToolTip(numMouseSens,
@@ -934,9 +934,10 @@ public class ControlsForm : Form
         // Migration: the aim zoom used to be the on/off "tps_aim_zoom" key. If the
         // slider key isn't there yet, land on the position that matches whatever the
         // old checkbox said, so an existing setting isn't silently lost. The old "on"
-        // full zoom is now the 50% default; 100% is a new, deeper 2x zoom.
-        numTpsAimZoom.Value = ClampPercent(
-            config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "50" : "0"));
+        // full zoom is the 100% default; 200% is a new, deeper 2x zoom. Existing
+        // configs with tps_aim_zoom_amount=100 keep their original feel unchanged.
+        numTpsAimZoom.Value = ClampAimZoom(
+            config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "100" : "0"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -976,7 +977,7 @@ public class ControlsForm : Form
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 71.1m;
         numTpsFov.Value = 71.1m;
-        numTpsAimZoom.Value = 50m;
+        numTpsAimZoom.Value = 100m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -1045,14 +1046,14 @@ public class ControlsForm : Form
     }
 
     // Parse a 0-100 percentage from config (the TPS/OTS aim zoom amount).
-    private static decimal ClampPercent(string s)
+    private static decimal ClampAimZoom(string s)
     {
         double v;
         if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out v))
             v = 100.0;
         if (v < 0.0) v = 0.0;
-        if (v > 100.0) v = 100.0;
+        if (v > 200.0) v = 200.0;
         return (decimal)Math.Round(v);
     }
 
