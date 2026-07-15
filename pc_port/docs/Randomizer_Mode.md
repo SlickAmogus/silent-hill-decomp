@@ -13,7 +13,7 @@ unchanged.
 | | |
 |---|---|
 | Start | Always `map2_s04` (police station). Normal custom-map loadout + 30 extra handgun rounds. |
-| Areas | `map3_s03` (Hospital Otherworld), `map5_s01` (Resort), `map6_s01` (Boat), `map6_s04` (Amusement Park), `map2_s02` (Central SH streets), `map2_s04` |
+| Areas | `map3_s03` (Hospital Otherworld), `map5_s01` (Resort), `map6_s01` (Boat), `map2_s02` (Central SH streets), `map2_s04` |
 | Minibosses | `map1_s05` (Split Head), `map4_s05` (Floatstinger) |
 | Final boss | `map7_s03` |
 | Doors | Rerolled per area: locked / another area / another room in this map / a miniboss / (1%) the final boss. At least one is always open. |
@@ -207,9 +207,6 @@ previous area's tables while the new map's own DLL header is live.
 
 ## Known gaps
 
-- **map6_s04 has no item pickups at all**, so the "always at least one item"
-  guarantee does not hold there. Nothing in the engine lets a pickup be added
-  without a world object to hang it on.
 - Off-map monster SFX are wrong or silent — a pre-existing limitation of the global
   chara pool (per-map ambient VAB, see `Global_Chara_Pool.md`).
 - The appended weapon prompts are English only.

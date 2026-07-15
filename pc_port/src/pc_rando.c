@@ -35,6 +35,7 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/savegame.h"
 #include "bodyprog/sound/sfx_id_enum.h"
+#include "bodyprog/sound/sound_system.h"
 #include "bodyprog/events/map_msg.h"
 
 #include "bodyprog/screen/screen_data.h" /* g_DeltaTimeRaw */
@@ -82,10 +83,10 @@
  * you somewhere new. LOCKED is drawn first, then the rest split the remainder. */
 #define W_ROOM_LOCKED    25
 #define W_ROOM_STAYS     70   /* of the unlocked remainder: another room here */
-#define W_ROOM_MINIBOSS  4    /* of the unlocked remainder */
+#define W_ROOM_MINIBOSS  2    /* of the unlocked remainder */
 
 #define W_EXIT_LOCKED    15
-#define W_EXIT_MINIBOSS  9    /* of the unlocked remainder */
+#define W_EXIT_MINIBOSS  4    /* of the unlocked remainder */
 
 /* Table sizes. map7_s02 has 251 events (the most); map7_s03 has 100 messages. */
 #define RANDO_MAX_EVENTS 272
@@ -95,9 +96,11 @@
 
 /* --------------------------------------------------------------- area pools */
 
+/* map6_s04 (Amusement Park) is intentionally NOT here: one of its rooms is the
+ * Cybil boss arena, and a room transition into it softlocks the run. */
 static const u8 RANDO_AREAS[] = {
     MapIdx_MAP3_S03, MapIdx_MAP5_S01, MapIdx_MAP6_S01,
-    MapIdx_MAP6_S04, MapIdx_MAP2_S02, MapIdx_MAP2_S04,
+    MapIdx_MAP2_S02, MapIdx_MAP2_S04,
 };
 #define N_AREAS ((int)ARRAY_SIZE(RANDO_AREAS))
 
@@ -170,10 +173,14 @@ typedef struct {
     s16 deadFlag;     /* the boss AI sets this */
     s16 roomArrival;  /* mapPoints index to land on, or NO_VALUE = use the harvested cross-map arrival */
     s16 clearFlags[6];
+    s16 sirenSfx[2];  /* looping SFX the death cutscene key-ons. Vanilla stops these
+                       * in the specific story map you would exit to; the randomizer
+                       * exits elsewhere, so it must stop them itself or they loop
+                       * forever. 0 = unused slot. */
 } s_RandoMiniboss;
 static const s_RandoMiniboss RANDO_MINIBOSS_INFO[] = {
-    { MapIdx_MAP1_S05, 0,   131, -1, { 130, 131, 132, 0, 0, 0 } },
-    { MapIdx_MAP4_S05, 347, 350, 13, { 346, 347, 349, 350, 351, 352 } },
+    { MapIdx_MAP1_S05, 0,   131, -1, { 130, 131, 132, 0, 0, 0 }, { Sfx_Unk1359, Sfx_Unk1478 } },
+    { MapIdx_MAP4_S05, 347, 350, 13, { 346, 347, 349, 350, 351, 352 }, { Sfx_Unk1522, 0 } },
 };
 
 /* -------------------------------------------------------------------- state */
@@ -951,6 +958,19 @@ static const s_RandoMiniboss* miniboss_info(int mapIdx)
     return NULL;
 }
 
+/* Silence a miniboss's death-cutscene siren loop. A key-off on a voice that is not
+ * sounding is harmless, so this is safe to call on any exit from a miniboss map. */
+static void stop_miniboss_siren(int mapIdx)
+{
+    const s_RandoMiniboss* mb = miniboss_info(mapIdx);
+    int i;
+    if (mb == NULL)
+        return;
+    for (i = 0; i < (int)ARRAY_SIZE(mb->sirenSfx); i++)
+        if (mb->sirenSfx[i] != 0)
+            Sd_SfxStop((u16)mb->sirenSfx[i]);
+}
+
 void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt)
 {
     int i;
@@ -1032,6 +1052,12 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
      * keep placing monsters and locking doors using the PREVIOUS area's tables
      * while the new map's own header is live. */
     s_run.headerInstalled = 0;
+
+    /* Leaving a miniboss map: kill its death-cutscene siren, which vanilla only
+     * stops in the story map you would normally exit to. s_run.mapIdx is still the
+     * map we are coming FROM at this point. */
+    if (mapIdx != s_run.mapIdx)
+        stop_miniboss_siren(s_run.mapIdx);
 
     /* Only a door (or New Game) starts a new area. GameBoot_MapLoad also runs on a
      * post-death Continue, which reloads the SAME area -- counting that would burn
