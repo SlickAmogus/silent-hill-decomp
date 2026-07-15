@@ -2596,12 +2596,17 @@ void MainLoop(void) // 0x80032EE0
                  * the OT0 chain. Capped to a single pickup-pass to keep log
                  * readable. */
                 int pmapTrace = 0;
-                static int s_pmapTraceUsed = 0;
-                extern int g_PsxSkipFramebufferStore;
-                if (g_PsxSkipFramebufferStore && !s_pmapTraceUsed) {
-                    pmapTrace = 1;
-                    s_pmapTraceUsed = 1;
-                }
+                static int s_pmapFrames = 0;
+                { extern int g_PcPickupItemActive; extern int g_PcDbgPickupEmit;
+                  if (!g_PcPickupItemActive) { s_pmapFrames = 0; }      /* re-arm between pickups */
+                  else if (s_pmapFrames < 4) {                          /* first 4 pickup frames */
+                      pmapTrace = 1;
+                      s_pmapFrames++;
+                      SH_DBG("[PMAP] pickup frame %d: emitPrims=%d  OT0 tag=%p org=%p len=%d  pkt[%p,%p) ot[%p,%p) sub[%p,%p)",
+                             s_pmapFrames, g_PcDbgPickupEmit, (void*)ot0->tag, (void*)ot0->org, (int)ot0->length,
+                             (void*)pktLo, (void*)pktHi, (void*)otLo, (void*)otHi, (void*)subLo, (void*)subHi);
+                      g_PcDbgPickupEmit = 0;                            /* per-frame count */
+                  } }
                 while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
@@ -2610,12 +2615,14 @@ void MainLoop(void) // 0x80032EE0
                     if (pmapTrace && w2 < 200) {
                         u8 dbgCode = curOk ? ((P_TAG*)cur)->code : 0xFF;
                         int dbgLen = curOk ? getlen(cur) : -1;
+                        SH_DBG("[PMAP] w2=%d cur=%p ok=%d code=0x%02x len=%d", w2, (void*)cur, curOk, dbgCode, dbgLen);
                     }
                     if (!curOk) {
                         static int s_dumpedOnce = 0;
                         if (!s_dumpedOnce) {
                             s_dumpedOnce = 1;
                         }
+                        if (pmapTrace) SH_DBG("[PMAP-TRUNC] w2=%d wild cur=%p prev=%p -> truncating chain", w2, (void*)cur, (void*)prev);
                         /* Skip past the corrupt prim by re-linking prev to
                          * ot0->org[0] — the closest-to-camera bucket, last in
                          * draw order. The OT chain walks from far→near
@@ -2655,6 +2662,7 @@ void MainLoop(void) // 0x80032EE0
                             /* textured/quad poly types emitted by NTG3/NTG4/TG3/TG4 */
                             hi != 0x24 && hi != 0x28 && hi != 0x2C &&
                             hi != 0x34 && hi != 0x38 && hi != 0x3C)) {
+                            if (pmapTrace) SH_DBG("[PMAP-STRIP] w2=%d cur=%p code=0x%02x len=%d -> len 0", w2, (void*)cur, codeFull, len);
                             setlen(cur, 0);
                         }
                     }

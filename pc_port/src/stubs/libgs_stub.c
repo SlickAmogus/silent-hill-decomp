@@ -373,8 +373,14 @@ extern unsigned short g_PsyX_RtpSz[4];
  * GL depth test can separate overlapping faces (radio antenna vs body) that share one
  * coarse OT bucket. The `pz` arg — the drawer's gte_stdp depth cue — is perspective-
  * divided + clamped and too coarse to separate them, so it's intentionally ignored. */
+/* [PMAP] diag: count item prims that survive the otz<=0 / NormalClip skips and
+ * actually reach emit during a world pickup. Read+reset in game_main.c next to
+ * the OT0-walk dump. 0 = every prim dropped at transform (depth/backface). */
+extern int g_PcPickupItemActive;
+int g_PcDbgPickupEmit = 0;
 #define ITEM_PRECISE_SZ(pz) do { \
     (void)(pz); \
+    if (g_PcPickupItemActive) g_PcDbgPickupEmit++; \
     if (g_PcItemPreciseDepth) { \
         PsyX_SetNextPrimSzExact(g_PsyX_RtpSz[0], g_PsyX_RtpSz[1], g_PsyX_RtpSz[2], g_PsyX_RtpSz[3]); \
     } } while (0)
