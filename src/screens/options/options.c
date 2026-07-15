@@ -199,22 +199,22 @@ static const s_PcOpt PCOPT_C[] = {
     { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
     { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Aim_Assist",        &g_PcConfig.aimAssist,         "aim_assist",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
-/* Page 4 (Camera): the alternate-camera options. Split off page 3, which was over
- * capacity — a page fits ~12 lines (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line
- * screen) and the Map row costs two (its friendly-name caption). Crosshair moved
- * here from page 3 for the same reason; it belongs with the aiming options anyway. */
+/* Page 4 (Camera): the aiming + alternate-camera options. A page fits ~12 lines
+ * (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line screen). Aim options (Crosshair,
+ * Aim Assist, Aim Zoom) group here; Third_Person_FOV lives with First_Person_FOV
+ * on the Controls page. */
 static const s_PcOpt PCOPT_T[] = {
     { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,      NULL, 55.0f, 110.0f, 1.0f },
+    { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 100.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
@@ -225,8 +225,6 @@ static const s_PcOpt PCOPT_T[] = {
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
 static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
-static int  PcOpt_MapRow(const s_PcOpt* tbl, int count);
-static int  PcOpt_DispLine(int entry, int mapRow);
 
 /* ---- Mouse support: hover selects, click acts, wheel adjusts values ----
  * Injections write the same controller bits the stock input code reads, so
@@ -336,7 +334,10 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         strncpy(g_PcConfig.mapName, nm, sizeof(g_PcConfig.mapName) - 1);
         g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
         PcConfig_SaveMapName(nm);
-        SH_DBG_ECHO("Map: %s (loads on New Game)", nm);
+        {
+            const char* desc = MapRegistry_GetDescription((e_MapIdx)idx);
+            SH_DBG_ECHO("Map: %s (%s)", nm, (desc && desc[0]) ? desc : nm);
+        }
         return;
     }
     if (e->field == NULL)
@@ -401,17 +402,16 @@ void Options_PcOptionsMenu_Control(void)
         /* Mouse: hover selects (snapping, so the click that follows isn't
          * swallowed by the highlight timer), click activates action rows /
          * cycles value rows, wheel steps the hovered value, right-click backs
-         * out (via the cancel handler below). Rows hit-test through
-         * PcOpt_DispLine so the Map-caption gap stays dead space. */
+         * out (via the cancel handler below). */
         {
             int mx, my;
 
             if (Pc_MouseCursor_UiPos(&mx, &my))
             {
-                int row = -1, mapRow = PcOpt_MapRow(tbl, count), i;
+                int row = -1, i;
 
                 for (i = 0; i < count; i++) {
-                    int top = PCOPT_LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * 16) - 3;
+                    int top = PCOPT_LINE_BASE_Y + (i * 16) - 3;
                     if (my >= top && my < top + 16) { row = i; break; }
                 }
 
@@ -499,37 +499,16 @@ void Options_PcOptionsMenu_Control(void)
     }
 }
 
-/* The Controls page prints the selected map's friendly name (the config comment
- * list, via MapRegistry) on a full-width caption line inserted directly beneath
- * the Map row. Every entry below the Map row therefore renders one line lower so
- * the caption has its own empty line. PcOpt_MapRow returns the Map row index, or
- * -1 for pages without a Map row (only the Controls page has one). */
-static int PcOpt_MapRow(const s_PcOpt* tbl, int count)
-{
-    int i;
-    for (i = 0; i < count; i++)
-        if (tbl[i].kind == PCK_MAP)
-            return i;
-    return -1;
-}
-
-static int PcOpt_DispLine(int entry, int mapRow)
-{
-    return (mapRow >= 0 && entry > mapRow) ? entry + 1 : entry;
-}
-
 static void Options_PcOptionsMenu_EntryStringsDraw(void)
 {
     #define LINE_BASE_X   64
     #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
     #define LINE_OFFSET_Y 16
 
-    int            count, i, mapRow;
+    int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
     const char*    HEADING = "PC_Options";
-
-    mapRow = PcOpt_MapRow(tbl, count);
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -537,7 +516,7 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
 
     for (i = 0; i < count; i++) {
-        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * LINE_OFFSET_Y));
+        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
         Gfx_Strings2dLayerIdxSet(8);
         Gfx_StringDraw(tbl[i].name, DEFAULT_MAP_MESSAGE_LENGTH);
     }
@@ -554,7 +533,7 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
     #define LINE_OFFSET_Y 16
 
-    int            count, i, mapRow;
+    int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
     /* System's and Controls'/Camera's labels run long ("Disable Culling",
@@ -565,29 +544,13 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
      * and On/Off), so they can afford 240. */
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
 
-    mapRow = PcOpt_MapRow(tbl, count);
-
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
         const char* v = PcOpt_ValueLabel(&tbl[i], buf, sizeof(buf));
         if (v && v[0]) {
-            Gfx_StringSetPosition(valX, LINE_BASE_Y + (PcOpt_DispLine(i, mapRow) * LINE_OFFSET_Y));
+            Gfx_StringSetPosition(valX, LINE_BASE_Y + (i * LINE_OFFSET_Y));
             Gfx_Strings2dLayerIdxSet(8);
             Gfx_StringDraw(v, DEFAULT_MAP_MESSAGE_LENGTH);
-        }
-    }
-
-    /* Friendly-name caption on the empty line directly beneath the Map row. */
-    if (mapRow >= 0) {
-        const char* mn   = g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
-        int         id   = MapRegistry_FindByName(mn);
-        const char* desc = (id >= 0) ? MapRegistry_GetDescription((e_MapIdx)id) : "";
-        if (desc && desc[0]) {
-            Gfx_StringSetColor(StringColorId_LightGrey);
-            Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + ((mapRow + 1) * LINE_OFFSET_Y));
-            Gfx_Strings2dLayerIdxSet(8);
-            Gfx_StringDraw(desc, DEFAULT_MAP_MESSAGE_LENGTH);
-            Gfx_StringSetColor(StringColorId_White);
         }
     }
 
@@ -607,7 +570,7 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     #define HIGHLIGHT_OFFSET_Y 74
     #define HILITE_WIDTH       196
 
-    int            count, i, j, mapRow;
+    int            count, i, j;
     s16            interpAlpha;
     s_Line2d       highlightLine;
     s_Quad2d       bulletQuads[2];
@@ -620,14 +583,14 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -72 }, { -121, -58 }, { -107, -72 }, { -107, -58 } };
 
     const s_PcOpt* tbl = PcOpt_Page(&count);
-    mapRow = PcOpt_MapRow(tbl, count);
+    (void)tbl;
 
     if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap) {
         g_PcOptions_HighlightSnap = 0;
         selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
-        selectionHighlightFrom.vy = ((u16)PcOpt_DispLine(g_PcOptionsMenu_PrevSelectedEntry, mapRow) * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightFrom.vy = ((u16)g_PcOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
-        selectionHighlightTo.vy   = ((u16)PcOpt_DispLine(g_PcOptionsMenu_SelectedEntry, mapRow) * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vy   = ((u16)g_PcOptionsMenu_SelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
     }
 
     interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
@@ -642,7 +605,7 @@ static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
     Options_Selection_HighlightDraw(&highlightLine, true, false);
 
     for (i = 0; i < count; i++) {
-        int line = PcOpt_DispLine(i, mapRow);
+        int line = i;
         quadVerts = (DVECTOR*)&bulletQuads;
         for (j = 0; j < RECT_VERT_COUNT; j++) {
             quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
