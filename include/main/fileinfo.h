@@ -132,6 +132,14 @@ void Fs_InitFileTableForRegion(e_GameRegion region);
  * in the compiled EUR table. `name8` = bare name, no extension. Returns 1 on hit. */
 int Fs_EurFileLookup(const char* name8, s32 pathIdx, s32 type, u32* outSector, u32* outBlocks);
 
+/** @brief Fan-disc support: overwrite g_FileTable sectors/sizes (and the audio +
+ * XA offset tables) from the mounted disc's OWN file table, matched by name. A
+ * USA fan re-translation can rebuild the CD, shifting every sector; reading the
+ * disc's table is the only way to know the true layout. `disc` points at the raw
+ * 12-byte file-table entries read out of the disc executable, `count` = how many.
+ * No-op (returns 0) when the disc matches the baked vanilla table. */
+s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count);
+
 /** @brief (Re)bind the VIN map-overlay + TIPS entries to the configured
  * language's EUR files. Idempotent — the title-screen options menu re-runs
  * it when the language changes. No-op outside Region_EUR. */

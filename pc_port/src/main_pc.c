@@ -351,6 +351,129 @@ static int Pc_DetectRegionFromBin(const char* path)
     return region;
 }
 
+/* Read the disc's boot executable (SLUS/SLES/SLPM) into a malloc'd buffer via
+ * the ISO9660 root directory. Returns 1 and fills *outBuf (caller frees) / *outSize
+ * on success. Raw MODE2/2352 sectors: 2048 user bytes at sector*2352 + 24. */
+static int Pc_ReadDiscExe(const char* path, unsigned char** outBuf, unsigned* outSize)
+{
+    FILE*         f = fopen(path, "rb");
+    unsigned char sec[2048];
+    unsigned int  rlba;
+    unsigned int  exeLba  = 0;
+    unsigned int  exeSize = 0;
+    unsigned      o;
+
+    if (!f)
+        return 0;
+
+    fseek(f, 16 * 2352 + 24, SEEK_SET);
+    if (fread(sec, 1, 2048, f) != 2048) { fclose(f); return 0; }
+    rlba = sec[156 + 2] | (sec[156 + 3] << 8) | (sec[156 + 4] << 16) | ((unsigned)sec[156 + 5] << 24);
+
+    fseek(f, (long)rlba * 2352 + 24, SEEK_SET);
+    if (fread(sec, 1, 2048, f) != 2048) { fclose(f); return 0; }
+
+    for (o = 0; o + 33 < 2048; )
+    {
+        unsigned L  = sec[o];
+        unsigned nl = sec[o + 32];
+        if (L == 0)
+            break;
+        if (o + 33 + nl <= 2048 && nl >= 4 &&
+            (memcmp(&sec[o + 33], "SLUS", 4) == 0 || memcmp(&sec[o + 33], "SLES", 4) == 0 ||
+             memcmp(&sec[o + 33], "SLPM", 4) == 0 || memcmp(&sec[o + 33], "SLPS", 4) == 0))
+        {
+            exeLba  = sec[o + 2]  | (sec[o + 3]  << 8) | (sec[o + 4]  << 16) | ((unsigned)sec[o + 5]  << 24);
+            exeSize = sec[o + 10] | (sec[o + 11] << 8) | (sec[o + 12] << 16) | ((unsigned)sec[o + 13] << 24);
+            break;
+        }
+        o += L;
+    }
+
+    if (exeLba == 0 || exeSize == 0 || exeSize > 4u * 1024 * 1024) { fclose(f); return 0; }
+
+    {
+        unsigned       nsec = (exeSize + 2047) / 2048;
+        unsigned       i;
+        unsigned char* buf  = (unsigned char*)malloc((size_t)nsec * 2048);
+        if (!buf) { fclose(f); return 0; }
+        for (i = 0; i < nsec; i++)
+        {
+            fseek(f, (long)(exeLba + i) * 2352 + 24, SEEK_SET);
+            if (fread(buf + (size_t)i * 2048, 1, 2048, f) != 2048) { free(buf); fclose(f); return 0; }
+        }
+        fclose(f);
+        *outBuf  = buf;
+        *outSize = exeSize;
+        return 1;
+    }
+}
+
+/* Correct g_FileTable for a rearranged USA fan disc. Reads the disc's own file
+ * table out of its boot exe and remaps every sector by name (Fs_RemapFromDiscTable).
+ * The table sits at a build-specific offset in the exe (a rebuilt disc shifts it),
+ * so locate it by anchoring on the baked table's first four file names — data we
+ * already hold, so no filename is hardcoded. A no-op on a stock/Spanish USA disc
+ * (its table equals ours). Any failure leaves the baked table intact. */
+static void Pc_RemapFileTableFromDisc(const char* discPath)
+{
+    unsigned char* exe     = NULL;
+    unsigned       exeSize = 0;
+    unsigned       off;
+    unsigned       tableOff = 0;
+    unsigned       a0n0, a0n4, a1n0, a1n4, a2n0, a2n4, a3n0, a3n4;
+
+    if (!Pc_ReadDiscExe(discPath, &exe, &exeSize))
+    {
+        SH_WARN("fan-disc remap: could not read boot exe from %s (keeping baked sectors)", discPath);
+        return;
+    }
+
+    a0n0 = g_FileTable[0].name0123; a0n4 = g_FileTable[0].name4567;
+    a1n0 = g_FileTable[1].name0123; a1n4 = g_FileTable[1].name4567;
+    a2n0 = g_FileTable[2].name0123; a2n4 = g_FileTable[2].name4567;
+    a3n0 = g_FileTable[3].name0123; a3n4 = g_FileTable[3].name4567;
+
+    for (off = 0x800; off + 4 * 12 <= exeSize; off += 4)
+    {
+        const s_FileInfo* e = (const s_FileInfo*)(exe + off);
+        if (e[0].name0123 == a0n0 && e[0].name4567 == a0n4 &&
+            e[1].name0123 == a1n0 && e[1].name4567 == a1n4 &&
+            e[2].name0123 == a2n0 && e[2].name4567 == a2n4 &&
+            e[3].name0123 == a3n0 && e[3].name4567 == a3n4)
+        {
+            tableOff = off;
+            break;
+        }
+    }
+
+    if (tableOff == 0)
+    {
+        SH_WARN("fan-disc remap: file table not found in boot exe (keeping baked sectors)");
+        free(exe);
+        return;
+    }
+
+    {
+        unsigned avail   = (exeSize - tableOff) / 12;
+        s32      count   = (s32)(avail < 2200u ? avail : 2200u);
+        s32      changed = Fs_RemapFromDiscTable((const s_FileInfo*)(exe + tableOff), count);
+        if (changed > 0)
+            SH_LOG("Fan disc detected: remapped %d file sectors from disc's own table", changed);
+    }
+
+    free(exe);
+}
+
+/* Select region tables for a resolved disc, then correct sectors from the disc
+ * itself for USA fan re-translations that rearranged the CD (no-op otherwise). */
+static void Pc_ApplyDiscRegion(const char* discPath, e_GameRegion region)
+{
+    Fs_InitFileTableForRegion(region);
+    if (region == Region_USA && discPath && discPath[0])
+        Pc_RemapFileTableFromDisc(discPath);
+}
+
 /* Locate the disc image and select the matching region tables. Priority:
  * USA, then PAL, then the long European name (US wins if several exist). If
  * none of those names match but some .bin is present, autodetect by region. */
@@ -388,7 +511,7 @@ const char* PcPort_GetGameDiscPath(void)
             if (probed >= Region_USA && probed <= Region_JPN)
             {
                 snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
-                Fs_InitFileTableForRegion((e_GameRegion)probed);
+                Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)probed);
                 SH_LOG("Disc: %s (region %s, by config disc_image)", g_PcConfig.discImage,
                        probed == Region_EUR ? "EUR/PAL"
                      : probed == Region_JPN ? "NTSC-J"  : "USA");
@@ -443,7 +566,7 @@ const char* PcPort_GetGameDiscPath(void)
                         continue;
 
                     snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
-                    Fs_InitFileTableForRegion((e_GameRegion)probed);
+                    Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)probed);
                     SH_LOG("Disc: %s (region %s%s)", s_known[i].name,
                            probed == Region_EUR ? "EUR/PAL"
                          : probed == Region_JPN ? "NTSC-J"  : "USA",
@@ -488,7 +611,7 @@ const char* PcPort_GetGameDiscPath(void)
                 if (use >= 0)
                 {
                     snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", regionPath[use]);
-                    Fs_InitFileTableForRegion((e_GameRegion)use);
+                    Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)use);
                     SH_LOG("Disc autodetected: %s (region %s%s)", g_GameDiscPath,
                            use == Region_EUR ? "EUR/PAL"
                          : use == Region_JPN ? "NTSC-J"  : "USA",

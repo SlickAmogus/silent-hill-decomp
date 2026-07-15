@@ -132,6 +132,78 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
         }
     }
 }
+
+/* Fan-disc sector correction (PC port). A USA-region fan re-translation (e.g.
+ * the Brazilian patch) rebuilds the CD: every file keeps its name/type/path but
+ * moves to a new sector, and the disc's own in-executable file table records the
+ * new sectors. We baked the vanilla-USA sectors, so read the mounted disc's own
+ * table and overwrite each same-named entry's sector/size from it. Files with no
+ * disc match (pruned vanilla backups: B_KONAMI, *_SAFE*) keep their baked sector.
+ * Returns the number of entries changed; 0 means the disc matches vanilla (stock
+ * or in-place-patched USA), in which case nothing — not even the audio/XA offset
+ * tables — is touched, so a non-rearranged disc is never disturbed. */
+s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count)
+{
+    s32 i, j, changed = 0;
+
+    for (i = 0; i < FS_FILE_COUNT; i++)
+    {
+        s_FileInfo* g = &g_FileTable[i];
+        for (j = 0; j < count; j++)
+        {
+            const s_FileInfo* d = &disc[j];
+            if (d->name0123 == g->name0123 && d->name4567 == g->name4567 &&
+                d->type == g->type && d->pathIdx == g->pathIdx)
+            {
+                if (g->startSector != d->startSector || g->blockCount != d->blockCount)
+                {
+                    g->startSector = d->startSector;
+                    g->blockCount  = d->blockCount;
+                    changed++;
+                }
+                break;
+            }
+        }
+    }
+
+    if (changed == 0)
+        return 0;
+
+    /* Re-point the audio sector table and the XA container bases the same way
+     * the EUR path does: old US sector -> same file -> its new sector. */
+    {
+        extern s_AudioItemData g_AudioData[];
+        s32 a;
+        for (a = 0; a < AUDIO_DATA_COUNT; a++)
+        {
+            s32 us = g_AudioData[a].fileOffset_8;
+            for (j = 0; j < FS_FILE_COUNT; j++)
+            {
+                if ((s32)s_FileTable_USA[j].startSector == us)
+                {
+                    g_AudioData[a].fileOffset_8 = (s32)g_FileTable[j].startSector;
+                    break;
+                }
+            }
+        }
+    }
+    for (i = 1; i < 10; i++) /* g_FileXaLoc[0] and [10] are 0 sentinels */
+    {
+        u32 base = g_FileXaLoc[i];
+        if (base == 0)
+            continue;
+        for (j = 0; j < FS_FILE_COUNT; j++)
+        {
+            if (s_FileTable_USA[j].startSector == base)
+            {
+                g_FileXaLoc[i] = g_FileTable[j].startSector;
+                break;
+            }
+        }
+    }
+
+    return changed;
+}
 /* Language redirect (config `language`, EUR discs only): PAL carries the
  * DE/FR/ES/IT map overlays in VIN2..VIN5 (EUR pathIdx 10..13) with the
  * language digit baked into name char 6 (MAP0_S00 -> MAP0_S10 DE / S20 FR
