@@ -398,6 +398,17 @@ void vcSetRefPosAndCamPosAngByPad(VECTOR3* ref_pos, s_SysWork* sys_p) // 0x80040
     #undef MOVE_DIST
 }
 
+#ifdef SH_PC_PORT
+/** Camera-relative emitter azimuth side-channel (PSX Q12 angle: 0 = dead
+ * ahead, positive = right, +/-2048 = behind). The PSX pipeline collapses the
+ * emitter direction to an L/R balance below, discarding front/back; the PC
+ * HAL can place voices on a full surround circle, so the pre-collapse angle
+ * is latched here for the Sd_* call this balance feeds. Armed ONLY here;
+ * claimed (and cleared) in sd_call.c. */
+s32 g_Pc_SfxAzimuth      = 0;
+s32 g_Pc_SfxAzimuthValid = 0;
+#endif
+
 s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
 {
     VECTOR3 camPos; // Q19.12
@@ -424,6 +435,20 @@ s8 Vc_StereoBalanceGet(const VECTOR3* soundPos) // 0x80040A64
     Vw_CoordHierarchyMatrixCompute(vwGetViewCoord(), &viewMat);
     dot     = Math_MultiplyMatrix(viewMat, dir);
     balance = CLAMP(dot, -127, 127);
+
+#ifdef SH_PC_PORT
+    {
+        /* Forward dot = view-matrix column 2 (camera +Z), same transposed
+         * indexing and shift as Math_MultiplyMatrix's column-0 lateral dot. */
+        s32 fwd = (s32)(((viewMat.m[0][2] * dir.vx) +
+                         (viewMat.m[1][2] * dir.vy) +
+                         (viewMat.m[2][2] * dir.vz)) >> 17);
+
+        g_Pc_SfxAzimuth      = ratan2(dot, fwd);
+        g_Pc_SfxAzimuthValid = 1;
+    }
+#endif
+
     return balance;
 }
 

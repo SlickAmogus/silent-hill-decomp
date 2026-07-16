@@ -411,6 +411,26 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
      * ending's stuck Cybil-grunt / boss-attack loops) can be identified by id
      * and given an explicit Sd_SfxStop on PC (no SPU voice-stealing here). */
     SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) vol=%d", sfxId, sfxId - Sfx_Base, vol);
+
+    /* Hand the emitter azimuth (latched by Vc_StereoBalanceGet on this same
+     * call chain) to PsyCross for the voice about to key on. Claim-and-clear
+     * unconditionally so a sound played with no positional source (UI beeps,
+     * SD_Call band 5/6) never inherits a stale angle. */
+    {
+        extern s32  g_Pc_SfxAzimuth, g_Pc_SfxAzimuthValid;
+        extern void PsyX_SPUAL_SetNextKeyOnAzimuth(int azimuthQ12);
+        extern void PsyX_SPUAL_ClearNextKeyOnAzimuth(void);
+
+        if (g_Pc_SfxAzimuthValid)
+        {
+            PsyX_SPUAL_SetNextKeyOnAzimuth(g_Pc_SfxAzimuth);
+        }
+        else
+        {
+            PsyX_SPUAL_ClearNextKeyOnAzimuth();
+        }
+        g_Pc_SfxAzimuthValid = 0;
+    }
 #endif
 
     audioIdx = sfxId - Sfx_Base;
@@ -619,6 +639,22 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     if (audioPitch == 0) {
         attr.mask &= ~SPU_VOICE_PITCH;
         if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
+        }
+    }
+
+    /* Live positional update (radio proximity, looped ambience): hand the
+     * azimuth latched by Vc_StereoBalanceGet on this call chain to the voice
+     * before the volume write below repositions it. Claimed here (not at
+     * entry) so the radio-restart paths above leave the latch armed for the
+     * Sd_PlaySfx they delegate to. */
+    {
+        extern s32  g_Pc_SfxAzimuth, g_Pc_SfxAzimuthValid;
+        extern void PsyX_SPUAL_SetVoiceAzimuth(int voiceIdx, int azimuthQ12);
+
+        if (g_Pc_SfxAzimuthValid)
+        {
+            PsyX_SPUAL_SetVoiceAzimuth(voiceIdx, g_Pc_SfxAzimuth);
+            g_Pc_SfxAzimuthValid = 0;
         }
     }
 #endif

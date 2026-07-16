@@ -1123,6 +1123,36 @@ void Pc_ConsoleExec(const char* line)
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
         PsyX_SPUAL_SetAdsrEnabled(on);
         cprintf("ADSR envelope %s (default on; config key adsr)", on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "AUDIOOUT") == 0) {
+        /* Speaker layout. Applies LIVE via alcResetDeviceSOFT (mix format
+         * renegotiated, sources keep playing) and persists to config.cfg.
+         * No-arg reports the achieved layout — trust that over the request:
+         * a 5.1 ask on a stereo endpoint silently degrades. */
+        extern int PsyX_SPUAL_ApplyOutputMode(int mode);
+        extern int PsyX_SPUAL_GetOutputMode(void);
+        extern int PsyX_SPUAL_GetSurroundActive(void);
+        static const char* const kSpkUp[] = { "AUTO", "STEREO", "QUAD", "51", "71", "HRTF" };
+        static const char* const kSpk[]   = { "auto", "stereo", "quad", "51", "71", "hrtf" };
+        static const char* const kSpkUi[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+        if (arg[0] != '\0') {
+            int mode = -1, k;
+            for (k = 0; k < 6; k++) {
+                if (strcmp(arg, kSpkUp[k]) == 0 || (arg[0] == '0' + k && arg[1] == '\0'))
+                    mode = k;
+            }
+            if (mode < 0) {
+                cprintf("usage: AUDIOOUT auto|stereo|quad|51|71|hrtf");
+            } else {
+                int live = PsyX_SPUAL_ApplyOutputMode(mode);
+                g_PcConfig.audioOutput = mode;
+                PcConfig_SaveKeyValue("audio_output", kSpk[mode]);
+                if (!live)
+                    cprintf("saved; this OpenAL build can't switch live - restart the game");
+            }
+        }
+        cprintf("speaker layout: %s active (requested %s)%s", kSpkUi[PsyX_SPUAL_GetOutputMode()],
+                kSpkUi[g_PcConfig.audioOutput],
+                PsyX_SPUAL_GetSurroundActive() ? " [surround routing ON]" : "");
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.

@@ -66,6 +66,8 @@ partial class Form1
     private ComboBox comboMap;
     private ComboBox comboDisc;
     private Label lblDisc;
+    private Label audioLabel;
+    private ComboBox comboAudioOut;
 
 
 
@@ -132,6 +134,8 @@ partial class Form1
             this.comboMap = new System.Windows.Forms.ComboBox();
             this.comboDisc = new System.Windows.Forms.ComboBox();
             this.lblDisc = new System.Windows.Forms.Label();
+            this.audioLabel = new System.Windows.Forms.Label();
+            this.comboAudioOut = new System.Windows.Forms.ComboBox();
             this.btnControls = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
@@ -677,9 +681,34 @@ partial class Form1
             this.lblDisc.Name = "lblDisc";
             this.lblDisc.Size = new System.Drawing.Size(193, 18);
             this.lblDisc.TabIndex = 65;
-            // 
+            //
+            // audioLabel
+            //
+            this.audioLabel.AutoSize = true;
+            this.audioLabel.Location = new System.Drawing.Point(210, 452);
+            this.audioLabel.Name = "audioLabel";
+            this.audioLabel.Size = new System.Drawing.Size(60, 13);
+            this.audioLabel.TabIndex = 67;
+            this.audioLabel.Text = "Audio Out:";
+            //
+            // comboAudioOut
+            //
+            this.comboAudioOut.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboAudioOut.DropDownWidth = 150;
+            this.comboAudioOut.Items.AddRange(new object[] {
+            "Auto",
+            "Stereo",
+            "Quad",
+            "5.1 Surround",
+            "7.1 Surround",
+            "HRTF (Headphones)"});
+            this.comboAudioOut.Location = new System.Drawing.Point(275, 449);
+            this.comboAudioOut.Name = "comboAudioOut";
+            this.comboAudioOut.Size = new System.Drawing.Size(137, 21);
+            this.comboAudioOut.TabIndex = 68;
+            //
             // btnControls
-            // 
+            //
             this.btnControls.Location = new System.Drawing.Point(315, 331);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
@@ -775,6 +804,8 @@ partial class Form1
             this.Controls.Add(this.chkRandomizer);
             this.Controls.Add(this.comboDisc);
             this.Controls.Add(this.lblDisc);
+            this.Controls.Add(this.audioLabel);
+            this.Controls.Add(this.comboAudioOut);
             this.Controls.Add(this.btnReset);
             this.Controls.Add(this.btnBug);
             this.Controls.Add(this.btnHelp);

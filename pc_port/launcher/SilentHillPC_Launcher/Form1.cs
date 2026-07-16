@@ -469,6 +469,16 @@ public partial class Form1 : Form
         Set(label1,   levelTip);
         Set(comboMap, levelTip);
 
+        const string audioTip =
+            "Speaker layout. Auto detects your Windows sound setup\n" +
+            "(a 5.1 system gets surround automatically). With rear\n" +
+            "speakers active, monster cries / doors / world sounds pan\n" +
+            "all around you and diffuse ambience layers play from the\n" +
+            "surrounds. HRTF = binaural 3D for headphones.\n" +
+            "Also live-switchable in-game: console AUDIOOUT.";
+        Set(audioLabel,    audioTip);
+        Set(comboAudioOut, audioTip);
+
         Set(chkRandomizer,
             "Randomizer gamemode.\n\n" +
             "New Game always opens in the police station (map2_s04). Every door\n" +
@@ -787,6 +797,15 @@ public partial class Form1 : Form
             comboFlash.SelectedIndex = fmIdx;
         }
 
+        // Audio output (speaker layout): auto = OpenAL detects the system
+        // layout. With rears active the game pans SFX on the full circle and
+        // sends wide-stereo BGM layers to the surrounds.
+        {
+            string ao = config.Get("audio_output", "auto");
+            int aoIdx = Array.IndexOf(AudioOutputIds, ao);
+            comboAudioOut.SelectedIndex = aoIdx >= 0 ? aoIdx : 0;
+        }
+
         // resolution
         string w = config.Get("width", "640");
         string h = config.Get("height", "480");
@@ -892,6 +911,10 @@ public partial class Form1 : Form
             config.Set("flashlight_shadows", (fmIdx == 1 || fmIdx == 3) ? "1" : "0");
         }
 
+        // Audio output dropdown -> audio_output string id.
+        if (comboAudioOut.SelectedIndex >= 0)
+            config.Set("audio_output", AudioOutputIds[comboAudioOut.SelectedIndex]);
+
         // Disc: exact filename (fan-translated / modified images), "" = auto.
         // Untouched when no disc was detected so a hand-set value survives.
         // (The `region` key is no longer UI-managed; a hand-set value keeps
@@ -913,6 +936,9 @@ public partial class Form1 : Form
 
         config.Save();
     }
+
+    // Dropdown index -> audio_output config id (matches the game's parser).
+    private static readonly string[] AudioOutputIds = { "auto", "stereo", "quad", "51", "71", "hrtf" };
 
     private const string RandomizerMapEntry = "Randomizer Enabled";
 

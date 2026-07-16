@@ -61,6 +61,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
@@ -650,6 +651,16 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "adsr") == 0)
         {
             g_PcConfig.adsr = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "audio_output") == 0)
+        {
+            /* Unknown values map to auto so a hand-edited config can't wedge audio. */
+            if      (strcmp(value, "stereo") == 0) g_PcConfig.audioOutput = 1;
+            else if (strcmp(value, "quad")   == 0) g_PcConfig.audioOutput = 2;
+            else if (strcmp(value, "51")     == 0) g_PcConfig.audioOutput = 3;
+            else if (strcmp(value, "71")     == 0) g_PcConfig.audioOutput = 4;
+            else if (strcmp(value, "hrtf")   == 0) g_PcConfig.audioOutput = 5;
+            else                                   g_PcConfig.audioOutput = 0;
         }
         else if (strcmp(key, "fps_fov") == 0)
         {

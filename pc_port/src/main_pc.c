@@ -1009,6 +1009,17 @@ int main(int argc, char* argv[])
                g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale);
     }
 
+    /* Speaker layout (audio_output = auto|stereo|quad|51|71|hrtf). Must be
+     * latched before SpuInit below — the OpenAL context is created there and
+     * an explicit layout rides in as a context attribute. Auto passes no
+     * attribute so OpenAL Soft detects the system layout itself. */
+    {
+        extern void PsyX_SPUAL_SetOutputMode(int mode);
+        static const char* const kSpeakerNames[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+        PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+        SH_LOG("Speaker layout request: %s", kSpeakerNames[g_PcConfig.audioOutput]);
+    }
+
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled
      * effect; console flintensity / postintensity / tmintensity). */
     {
