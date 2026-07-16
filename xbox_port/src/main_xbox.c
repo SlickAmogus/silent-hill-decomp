@@ -133,13 +133,23 @@ int main(void)
      * never returns). {prev, handler} — filled in by Crash_InstallSehFrame. */
     struct { void* prev; void* handler; } sehFrame = { 0, 0 };
 
-    XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    /* 720p when the dashboard + AV pack allow it: XVideoSetMode validates the
+     * mode against the encoder settings (XVideoListModes), so SDTV/composite
+     * users automatically stay at 640x480 — no risk of an unsupported signal.
+     * The 4:3 game renders centered at 960x720 with black pillars either side
+     * (menus included — the PSX-faithful "pillarbox" presentation). */
+    {
+        int hd = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
+        if (!hd)
+            XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
-    XboxFs_MountHomeDrive();
-    SH_DebugLogInit();
-    Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
-    debugPrint("Silent Hill (Xbox) booting...\n");
-    SH_DBG("[SH-XBOX] boot: video 640x480x32");
+        XboxFs_MountHomeDrive();
+        SH_DebugLogInit();
+        Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
+        debugPrint("Silent Hill (Xbox) booting...\n");
+        SH_DBG("[SH-XBOX] boot: video %s", hd ? "1280x720x32 (720p, pillarboxed 4:3)"
+                                              : "640x480x32");
+    }
 
     Gte_SelfTest();
 

@@ -206,20 +206,24 @@ static void Fmv_UploadRgb(uint32_t* dst, const uint8_t* src, int pixels)
  * rebinds the white texture + default state each frame. */
 static void Fmv_DrawFrame(const uint32_t* tex, int w, int h)
 {
+    extern int g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
+    float    cw = (float)g_Nv2aContentW, ch = (float)g_Nv2aContentH;
+    float    cx = (float)g_Nv2aContentX;
     ShVertex v[6];
-    float    x0 = 0.0f, y0 = 0.0f, x1 = 640.0f, y1 = 480.0f;
+    float    x0 = cx, y0 = 0.0f, x1 = cx + cw, y1 = ch;
     float    va = (h > 0) ? ((float)w / (float)h) : (4.0f / 3.0f);
     int      i;
 
-    /* Aspect-fit letterbox against the fixed 640x480 surface (PC parity);
-     * 320x240 sources fill the screen exactly. */
+    /* Aspect-fit letterbox against the 4:3 content rect (PC parity); 320x240
+     * sources fill it exactly. At 720p the rect is 960x720 at x=160 — movies
+     * stay 4:3 with the same pillarboxing as the game. */
     if (va > (4.0f / 3.0f)) {
-        float hh = 640.0f / va;
-        y0 = (480.0f - hh) * 0.5f;
+        float hh = cw / va;
+        y0 = (ch - hh) * 0.5f;
         y1 = y0 + hh;
     } else if (va < (4.0f / 3.0f)) {
-        float ww = 480.0f * va;
-        x0 = (640.0f - ww) * 0.5f;
+        float ww = ch * va;
+        x0 = cx + (cw - ww) * 0.5f;
         x1 = x0 + ww;
     }
 

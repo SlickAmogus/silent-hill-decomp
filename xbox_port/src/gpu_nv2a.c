@@ -88,9 +88,30 @@ static void GpuNv2a_InitShader(void)
     pb_end(p);
 }
 
+/* Output geometry: the physical framebuffer and the centered 4:3 content rect
+ * the game maps into. 640x480 = identity (content == fb, no pillars). 720p =
+ * content 960x720 at x=160 with black pillars either side — the game (and its
+ * menus) stays 4:3, PSX-faithful ("menus only"-style pillarboxing). Derived
+ * from the video mode pbkit picked up; consumed by gpu_xbox.c's transform,
+ * the scissor, the pillarbox clear, the FB readback, and the FMV quad. */
+int g_Nv2aFbW      = 640;
+int g_Nv2aFbH      = 480;
+int g_Nv2aContentX = 0;
+int g_Nv2aContentW = 640;
+int g_Nv2aContentH = 480;
+
 void GpuNv2a_Init(void)
 {
     GpuNv2a_InitShader();
+
+    g_Nv2aFbW      = pb_back_buffer_width();
+    g_Nv2aFbH      = pb_back_buffer_height();
+    g_Nv2aContentH = g_Nv2aFbH;
+    g_Nv2aContentW = (g_Nv2aFbH * 4) / 3;
+    if (g_Nv2aContentW > g_Nv2aFbW) g_Nv2aContentW = g_Nv2aFbW;
+    g_Nv2aContentX = (g_Nv2aFbW - g_Nv2aContentW) / 2;
+    SH_DBG("[SH-XBOX] NV2A fb %dx%d, content %dx%d at x=%d",
+           g_Nv2aFbW, g_Nv2aFbH, g_Nv2aContentW, g_Nv2aContentH, g_Nv2aContentX);
 
     s_batch    = MmAllocateContiguousMemoryEx(MAX_BATCH_VERTS * sizeof(ShVertex), 0, MAXRAM, 0,
                                               PAGE_READWRITE | PAGE_WRITECOMBINE);
@@ -188,11 +209,13 @@ void GpuNv2a_SetScissor(int x, int y, int w, int h)
 {
     uint32_t* p;
     int x1, y1;
-    if (w <= 0 || h <= 0) { x = 0; y = 0; w = 640; h = 480; }
+    /* Reset = the CONTENT rect (not the full surface): nothing may draw into
+     * the pillarbox bars. Identity at 640x480 where content == fb. */
+    if (w <= 0 || h <= 0) { x = g_Nv2aContentX; y = 0; w = g_Nv2aContentW; h = g_Nv2aContentH; }
     if (x < 0) { w += x; x = 0; }
     if (y < 0) { h += y; y = 0; }
-    x1 = x + w - 1; if (x1 > 639) x1 = 639;
-    y1 = y + h - 1; if (y1 > 479) y1 = 479;
+    x1 = x + w - 1; if (x1 > g_Nv2aFbW - 1) x1 = g_Nv2aFbW - 1;
+    y1 = y + h - 1; if (y1 > g_Nv2aFbH - 1) y1 = g_Nv2aFbH - 1;
     if (x1 < x) x1 = x;
     if (y1 < y) y1 = y;
     p = pb_begin();
@@ -225,7 +248,14 @@ void GpuNv2a_FrameBegin(void)
             SH_DBG("[FOGST-GPU] clear=0x%08x", (unsigned)clear);
             s_lastClear = clear;
         }
-        pb_fill(0, 0, s_frameW, s_frameH, clear);
+        if (g_Nv2aContentX > 0) {
+            /* Pillarboxed mode: bars stay black; only the 4:3 content rect
+             * gets the game's isbg/fog clear colour. */
+            pb_fill(0, 0, s_frameW, s_frameH, 0xFF000000);
+            pb_fill(g_Nv2aContentX, 0, g_Nv2aContentW, g_Nv2aContentH, clear);
+        } else {
+            pb_fill(0, 0, s_frameW, s_frameH, clear);
+        }
     }
     pb_erase_text_screen();
 

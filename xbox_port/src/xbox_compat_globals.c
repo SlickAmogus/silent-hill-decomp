@@ -51,7 +51,10 @@ s_PcConfig g_PcConfig = {
      * func_80033548 loop resolves via the PSX kernel events) and FMV works. */
     .skipIntros      = 0,
     .widescreenMode  = 0,   /* pillarbox / PSX-faithful */
-    .menuPillarbox   = 0,
+    .menuPillarbox   = 1,   /* PC "menus only" default: 2D screens keep 4:3 bars.
+                             * (No shared-code consumer at this merge-base yet —
+                             * output pillarboxing is done by the NV2A content
+                             * rect; this documents intent for the upstream sync.) */
     .allowLooseFiles = 0,
     .movementOriginal = 1,  /* PSX lower-body movement */
     .mapName         = "map0_s00",

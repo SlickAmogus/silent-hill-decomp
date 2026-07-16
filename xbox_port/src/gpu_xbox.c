@@ -41,6 +41,10 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 static float s_ofsX = 160.0f, s_ofsY = 112.0f;
 static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 
+/* Output geometry from gpu_nv2a.c: content rect (4:3) within the framebuffer.
+ * At 720p content is 960x720 at x=160 (pillarboxed); 640x480 is identity. */
+extern int g_Nv2aFbW, g_Nv2aFbH, g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
+
 /* Currently-bound NV2A texture (bind-dedup in ProcessPoly); reset each DrawOTag.
  * -1 = unknown, forcing a bind on the first prim of the walk. */
 static const void* s_curTex = (const void*)-1;
@@ -86,7 +90,7 @@ static void TrackBB(const ShVertex* v)
 
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
-    v->pos[0] = ((float)x + s_ofsX) * s_scaleX;
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
     v->pos[2] = 0.0f;
     v->col[0] = (float)r * (1.0f / 255.0f);
@@ -106,7 +110,7 @@ extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
 
 static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int tv)
 {
-    v->pos[0] = ((float)x + s_ofsX) * s_scaleX;
+    v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
     v->pos[2] = 0.0f;
     r <<= 1; if (r > 255) r = 255;
@@ -796,7 +800,7 @@ static void FbReadback(int fromLastQueued, int minSpacing)
     biasY    = centered ? (s_ofsY - (float)pageH * 0.5f) : 0.0f;
 
     for (i = 0; i < pageW; i++) {                 /* x map is row-invariant */
-        int bx = (int)(((float)i + biasX) * s_scaleX);
+        int bx = (int)(((float)i + biasX) * s_scaleX) + g_Nv2aContentX; /* inverse of PutVert incl. pillar offset */
         if (bx < 0) bx = 0;
         if (bx >= fbW) bx = fbW - 1;
         bxTab[i] = bx;
@@ -953,13 +957,13 @@ static void RecomputeTransform(void)
     if (dw > 0 && dh > 0) {
         s_ofsX   = (float)(g_activeDrawEnv.ofs[0] - g_activeDispEnv.disp.x);
         s_ofsY   = (float)(g_activeDrawEnv.ofs[1] - g_activeDispEnv.disp.y);
-        s_scaleX = 640.0f / (float)dw;
-        s_scaleY = 480.0f / (float)dh;
+        s_scaleX = (float)g_Nv2aContentW / (float)dw;
+        s_scaleY = (float)g_Nv2aContentH / (float)dh;
     } else {
         s_ofsX   = (float)g_activeDrawEnv.ofs[0];
         s_ofsY   = (float)g_activeDrawEnv.ofs[1];
-        s_scaleX = 640.0f / (g_activeDrawEnv.clip.w ? (float)g_activeDrawEnv.clip.w : 320.0f);
-        s_scaleY = 480.0f / (g_activeDrawEnv.clip.h ? (float)g_activeDrawEnv.clip.h : 240.0f);
+        s_scaleX = (float)g_Nv2aContentW / (g_activeDrawEnv.clip.w ? (float)g_activeDrawEnv.clip.w : 320.0f);
+        s_scaleY = (float)g_Nv2aContentH / (g_activeDrawEnv.clip.h ? (float)g_activeDrawEnv.clip.h : 240.0f);
     }
 }
 
@@ -988,13 +992,13 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
         int dispH = g_activeDispEnv.disp.h > 0 ? g_activeDispEnv.disp.h : 240;
         if (env->clip.w > 0 && env->clip.h > 0 &&
             (env->clip.w < dispW || env->clip.h < dispH)) {
-            int sx = (int)(((float)env->clip.x - (float)g_activeDispEnv.disp.x) * s_scaleX);
+            int sx = (int)(((float)env->clip.x - (float)g_activeDispEnv.disp.x) * s_scaleX) + g_Nv2aContentX;
             int sy = (int)(((float)env->clip.y - (float)g_activeDispEnv.disp.y) * s_scaleY);
             int sw = (int)((float)env->clip.w * s_scaleX + 0.5f);
             int sh = (int)((float)env->clip.h * s_scaleY + 0.5f);
             GpuNv2a_SetScissor(sx, sy, sw, sh);
         } else {
-            GpuNv2a_SetScissor(0, 0, 640, 480);
+            GpuNv2a_SetScissor(0, 0, 0, 0);   /* reset = the content rect */
         }
     }
     return env;
