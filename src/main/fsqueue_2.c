@@ -1,6 +1,7 @@
 #include "main/fsqueue.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+extern int g_FsLooseReadComplete; /* fsqueue_3.c — set when a loose read fully populated entry->data */
 #endif
 
 #include <psyq/libcd.h>
@@ -64,6 +65,20 @@ bool Fs_QueueUpdateRead(s_FsQueueEntry* entry)
                     break;
 
                 case 1:
+#ifdef SH_PC_PORT
+                    /* A byte-replace loose read already has the whole file in
+                     * entry->data and issued no CdRead — there is no command
+                     * for CdReadSync to complete, so entering Sync would return
+                     * NO_VALUE and spin in Reset forever. Report done now; the
+                     * caller resets state and advances (post-load runs off its
+                     * own cursor). */
+                    if (g_FsLooseReadComplete)
+                    {
+                        g_FsLooseReadComplete = 0;
+                        result = true;
+                        break;
+                    }
+#endif
                     g_FsQueue.state = FsQueueReadState_Sync;
                     break;
             }

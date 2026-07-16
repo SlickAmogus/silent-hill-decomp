@@ -263,9 +263,23 @@ static unsigned char* PcFile_Slurp(const char* path, long* outSize)
 }
 #endif
 
+#ifdef SH_PC_PORT
+/* Set to 1 by the byte-replace loose path below when it fully populates
+ * entry->data from disk without issuing a CdRead. Fs_QueueUpdateRead reads
+ * this to skip the Sync state — with no CD command enqueued, CdReadSync
+ * would return NO_VALUE and drop the read into a Reset loop that never
+ * completes (see fsqueue_2.c). Cleared on every entry so disc/hi-res reads
+ * (which DO issue a CdRead and must Sync) are unaffected. */
+int g_FsLooseReadComplete = 0;
+#endif
+
 bool Fs_QueueTickRead(s_FsQueueEntry* entry)
 {
     s32 sectorCount;
+
+#ifdef SH_PC_PORT
+    g_FsLooseReadComplete = 0;
+#endif
 
     // Round up to sector boundary. Masking not needed because of `>> 11` below.
     sectorCount = ((entry->info->blockCount * FS_BLOCK_SIZE) + FS_SECTOR_SIZE) - 1;
@@ -430,6 +444,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                                loosePath, (unsigned)got, fileSize, errno, strerror(errno));
                     }
                     (void)got;
+                    g_FsLooseReadComplete = 1;
                     return true;
                 }
             }
