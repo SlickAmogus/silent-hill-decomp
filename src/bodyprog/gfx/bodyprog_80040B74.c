@@ -2505,6 +2505,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #ifdef SH_PC_PORT
     {
         extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
+        extern int g_PsxWholeMapChunkSz; /* PsyCross: true depth for this chunk's saturated far polys */
         int drawCount = 0;
         /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
          * whole-town mode active it was exactly what truncated the flycam view
@@ -2599,11 +2600,17 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
                 culledChunks += wmCount - i;
                 break;
             }
+            /* Feed this chunk's true cell-center view depth so its saturated
+             * (>256u) polys depth-sort by block instead of collapsing to one
+             * plane (cells are 40u-confined, so per-chunk depth is exact enough
+             * for block-vs-block ordering). SZ units == Q8 view units. */
+            g_PsxWholeMapChunkSz = wmViewZ[i] > 0 ? wmViewZ[i] : 0;
             Ipd_ChunkDraw(wmChunks[i]->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
             if (++drawCount >= drawLimit) break;
         }
     }
     g_PsxWholeMapFar = 0; /* far re-projection is world-geometry only */
+    g_PsxWholeMapChunkSz = 0;
 #endif
 #ifdef SH_PC_PORT
     /* TEMP [WHOLEMAP] probe (remove when the whole-town report closes): with

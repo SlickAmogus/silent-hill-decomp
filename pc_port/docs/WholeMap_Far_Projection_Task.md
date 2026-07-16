@@ -1,6 +1,48 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
-Status: **v3 FAR-RENDER FIXES 2026-07-16 (awaiting in-game test).**
+Status: **v4 DEPTH FIX 2026-07-16 (awaiting in-game test).**
+
+## v4 (2026-07-16): the ACTUAL root cause, proven from the disc
+
+v3 still showed a distant block (school bus + bare trees + lawn) "merged into"
+the intersection when the player turned. Two earlier root-cause theories
+(geometry variants; billboards) were WRONG. An offline extraction from the USA
+disc (byte-verified) established the truth:
+
+- **THR "F" files are `.TIM` textures, NOT geometry variants** — the grid parser
+  skips them. There are no same-cell geometry variants.
+- **The town tiles PERFECTLY**: 128 THR IPD chunks in 128 DISTINCT 40-unit cells,
+  each chunk's geometry provably confined to its own cell box (q7_8 buffer bounds
+  128/128 within [0,40], instance origins overhang <=4u). "Draw all chunks" is
+  geometrically clean — no overlap, no sprawl. So the merge is NOT a placement
+  problem.
+- **The merge is a pure DEPTH failure beyond 256u.** GL depth IS active for
+  opaque world geometry (g_cfg_pgxpZBuffer=1, BM_NONE -> GR_EnableDepth(1),
+  GL_LEQUAL). But it is fed the CLAMPED SZ (field_18C), and SZ3 saturates at
+  0xFFFF = ~256u. Every poly past 256u gets depth ~0.999 EXACTLY -> LEQUAL ties
+  -> last-drawn wins -> resolution collapses to draw/chunk order. Distant blocks
+  paint over each other and over the far street. Near geometry (<256u) is
+  provably correct — which is exactly why looking DOWN a street is fine but
+  turning ACROSS town is not. (Depth is per-PRIM flat; the perspective W the
+  wmFar/PGXP path sets CANCELS in NDC depth — the old "correct GL depth via PGXP"
+  comment was wrong; W never affected depth.)
+
+THE FIX (in-pipeline, no separate renderer — because chunks are cell-confined a
+PER-CHUNK depth is exact enough): the game hands PsyCross each far chunk's true
+cell-center view depth (`g_PsxWholeMapChunkSz`, SZ units == Q8 view units, set
+per chunk in the sorted far-draw loop from `Pc_WholeMapCellViewZ`). In
+`PsyX_SetNextPrimSz`, a fully-saturated far poly (`g_PsxWholeMapFar` && chunkSz >
+0xFFFF && all four SZ == 0xFFFF) takes the chunk depth instead of 0xFFFF, tracked
+into `g_szMaxThisFrame`; the SZ storage was widened u16 -> u32 to hold it. The
+24-bit depth buffer then orders far blocks correctly (linear-Z, ample far
+precision). Near polys and the 128-256u band (already monotonic via u16 un-wrap)
+keep real depth; mode-off is byte-identical (override never fires, u16 values
+identical in u32). RESIDUAL: depth is still per-PRIM flat, so a single large
+ground/road poly spanning a wide depth range carries one averaged depth and can
+mis-sort against a building at its far end — a within-object artifact, not the
+block merge; would need per-vertex true-Z in the depth test (higher risk).
+
+Prior: v3 FAR-RENDER FIXES 2026-07-16.
 
 ## v3 (2026-07-16): why the v2 street test looked like "random crap"
 
