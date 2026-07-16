@@ -1,5 +1,50 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.16.1 -- 2026-07-16
+- Added BIN extraction tool to Mod Manager in Launcher, extracts game data to match expected folder structure (for potential mods)
+- Also added individual and bulk TIM > PNG converter in same window (can also convert when extracting BIN)
+- Fixed loose file loader freeze
+- Support for PNG loose files
+
+Commit summaries:
+- release-nightly: verify Linux/macOS builds BEFORE publishing; never ship stale
+- psycross: bump submodule — macOS/Clang linkage fix (g_PsyX_ForceItemDepth)
+- tools: local clang syntax-check to catch macOS-CI-only build breaks
+- fsqueue: byte-replace loose reads must skip Sync (fixes map6_s03 freeze)
+- loose loader: accept extension-replaced PNG name (DRU02F.png)
+- launcher: one-click disc extraction + TIM->PNG in the Mod Manager
+- launcher: optional "delete original TIM?" after extract-time PNG conversion
+- water: opt reflective-water octagon out of PGXP 
+- launcher: add a Help button explaining the loose-file mod workflow
+- release-nightly: fix StrictMode .Count crash on single-file downloads
+
+## beta-2026.07.15.2 -- 2026-07-15
+- Support for STR Brasil fan patch (patch the bin, then select it in the bottom left of the launcher)
+- Other fan patches that haven't been specifically supported may be more compatible now
+- Fixed HD textures not applying correctly in the world and some stuttering issues when in use
+- Fixed certain items and blood being invisible in PAL
+- Fixed HyperBlaster 
+- Fixed custom FMVs (AVIs) getting cut off early based on FMV frame count
+
+Commit summaries:
+- fix(PAL): restore missing monster blood — stop retargeting the BLD CLUT
+- texture packs: keep the per-texel footprint clamp out of the world
+- debug: [PMAP] pickup OT0-walk + emit-count probe (PAL invisible world pickup)
+- Revert "texture packs: keep the per-texel footprint clamp out of the world"
+- items: fix invisible common-item world props on PAL (TIM00 CLUT retarget)
+- texture packs: make the HD GL-byte budget configurable + generous (3 GB)
+- fan disc: support rearranged USA re-translations (Brazilian PT-BR patch)
+- texture packs: bump default HD budget to 6 GB
+- fan disc: don't adopt BODYPROG font/item tables from a rebuilt disc
+- texture packs: raise the composed-canvas cache so world traversal stops stuttering
+- Fix HyperBlaster in free-aim: invisible torso, fire lockout, OOB anim copy
+- docs: index the HyperBlaster free-aim fix (7c939d88b)
+- fan disc: read in-game text from a rebuilt disc's relinked overlays
+- lang_text: adopt Portuguese item names/descriptions from rebuilt-disc BODYPROG
+- fmv: don't cap AVI overrides at the original STR frame count
+- player_control/lang_text: rebase Harry's field_38 anim table on rebuilt USA discs
+
+
 ## beta-2026.07.15.1 -- 2026-07-15
 - Added support for spanish fan translation. If there are other fan translations not working, please let me know.
 - Launcher now allows you to select a specific BIN and auto-detects the version.
