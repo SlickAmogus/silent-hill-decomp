@@ -809,13 +809,44 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
             }
             else
             {
+#ifdef SH_XBOX_PORT
+                /* THE 64MB killer (2026-07-16 log): this eager calloc runs for
+                 * ALL 256 slots (PC_MAX_IPD_CHUNKS) at every map init — ~22MB
+                 * attempted. On Xbox it drained the remaining ~9MB of RAM
+                 * (~100 slots), then failed UNCHECKED for the rest, leaving the
+                 * whole game running at 16KB free (the hitching/freezing +
+                 * [IPD] calloc FAILED report). Xbox streams like PSX
+                 * (preloadChunks=0): only activeChunkCount slots are ever
+                 * addressed (4 exteriors, up to 16 interior residency), so cap
+                 * the owned pool and leave the rest NULL — loads never target
+                 * them (the engine already tolerates NULL here: that is
+                 * exactly the state the failed callocs left it in). */
+                enum { XBOX_OWNED_SLOT_CAP = 24 };
+                if (i >= XBOX_OWNED_SLOT_CAP)
+                {
+                    curChunk->ipdHdr = NULL;
+                    continue;
+                }
+                if (s_pcSlotOwnedBuf[i] == NULL)
+                {
+                    s_pcSlotOwnedBuf[i] = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
+                    if (s_pcSlotOwnedBuf[i] == NULL)
+                    {
+                        SH_DBG("[IPD] owned-slot calloc FAILED (slot=%d size=%d)", i, indivSize);
+                    }
+                }
+#else
                 if (s_pcSlotOwnedBuf[i] == NULL)
                 {
                     s_pcSlotOwnedBuf[i] = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
                 }
+#endif
                 curChunk->ipdHdr = s_pcSlotOwnedBuf[i];
             }
         }
+#ifdef SH_XBOX_PORT
+        { extern void Xbox_MemReport(const char*); Xbox_MemReport("after chunk-buffers"); }
+#endif
     }
 #else
     for (i = 0; i < 4; i++, *(u8**)&ipdHdr0 += step)

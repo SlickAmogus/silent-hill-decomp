@@ -227,12 +227,14 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         for (int i = 0; i < modelCount; i++)
         {
             ParseModelHeader(&models[i], raw + modelHdrsOff + i * PSX_SIZEOF_MODEL_HEADER, raw);
+#if !defined(SH_XBOX_PORT) || defined(SH_LM_PARSE_TRACE)  /* Xbox: per-model dump fires on EVERY streamed LM parse — HDD log cost in the gameplay hot path. PC keeps it. */
             SH_DBG("  model[%d] name=%c%c%c%c meshCnt=%d vertOff=%d normOff=%d fB0=%d fB1=%d fB4=%d meshHdrs=%p",
                 i, models[i].name.str[0], models[i].name.str[1],
                 models[i].name.str[2], models[i].name.str[3],
                 models[i].meshCount, models[i].vertexOffset, models[i].normalOffset,
                 models[i].field_B_0, models[i].field_B_1, models[i].field_B_4,
                 (void*)models[i].meshHdrs);
+#endif
         }
     }
 
@@ -256,6 +258,7 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     LmTrack_Record(raw, mats, models, modelCount);
 #endif
 
+#if !defined(SH_XBOX_PORT) || defined(SH_LM_PARSE_TRACE)
     /* Log model order (rendering order) */
     {
         char _ordBuf[256] = {0};
@@ -265,5 +268,6 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         }
         SH_DBG("  modelOrder:%s", _ordBuf);
     }
+#endif
 
 }
