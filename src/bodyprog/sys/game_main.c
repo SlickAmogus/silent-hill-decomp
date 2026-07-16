@@ -2305,6 +2305,11 @@ void MainLoop(void) // 0x80032EE0
                                         !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                                         !g_SysWork.isMgsStringSet;
 
+            /* Voice audio must freeze with the game clock, or the spoken line
+             * runs ahead of the frozen scene/subtitle for the whole console
+             * session. */
+            XaPlayer_SetPauseHold(pcConsoleFrozen);
+
             if (s_prevCumQ12 < 0)
             {
                 s_prevCumQ12 = cumQ12;

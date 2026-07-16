@@ -21,6 +21,11 @@ void XaPlayer_Stop(void);
 void XaPlayer_Update(void);
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight);
 
+/* Console-freeze hold: pauses the OpenAL voice source and freezes the PSX
+ * end-of-voice pacing clock while the game clock is force-zeroed, so the
+ * voice can't run ahead of the frozen scene. Idempotent per state. */
+void XaPlayer_SetPauseHold(int hold);
+
 /* Master XA (FMV/voice) volume multiplier in [0,1], applied on top of the
  * game-driven per-track gain. Set from config / console / options menu. */
 extern float g_PcXaVolume;
