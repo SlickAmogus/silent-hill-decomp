@@ -1109,3 +1109,42 @@ interpolation is stateless (`dms.c` — a large step cannot smear across a camer
 cut); `Anim_PlaybackOnce` clamps to `endKeyframeIdx` (equality waits are safe at
 any fps); the typewriter's static glyph accumulator leak is ≤ 1 glyph; the MIN
 double-eval of `GsGetVcount` loses no time (later sample is consumed).
+
+## Trigger sweep + voice pacing follow-up (2026-07-16, commits `714f8caae`, `eeb1dadda`)
+
+Completion of the timing overhaul's open items (map-wide multi-agent sweep, 61
+findings adversarially verified; full voice-cmd table inventory):
+
+- **PSX end-of-voice rhythm restored.** PSX ended a voice via the vblank
+  watchdog at `audioLength+32` (~0.53s past the audio) — the authored
+  inter-line pacing. OpenAL drain signaled instantly, so each line advanced
+  ~0.5s early and long dialogs compressed. Drain now holds the finished signal
+  until the watchdog moment; explicit stops still signal immediately.
+  [`xa_player.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/src/xa_player.c)
+- **XA freezes with the console** (`XaPlayer_SetPauseHold`), and the sector
+  math derives from the parsed subheader (all 726 USA voice clips verified
+  stereo 37800 by reading the disc — the old hardcode was benign on USA but
+  wrong for other discs).
+- **KeyOfWoodman pickup freeze root** (`player_control.c`): the PC `field_38`
+  overlay re-patch sat inside the `mapAnimIdx`-changed guard; a (re)load with
+  an unchanged anim idx left `field_38` on map0_s00's linked table whose
+  missing rows made scripted poses no-ops (state 59's `0x12C` row exists only
+  in the map's own overlay table — verified by parsing `MAP2_S00.BIN`). The
+  patch now re-derives on every load.
+- **Frame-counted cutscene pacing dt-scaled** (8x fast at 240fps): map2_s00
+  cafe-exit/sketchbook map zooms + marking fades; map1_s06 boiler slide;
+  map3_s03 plates-door cursor/slides; hospital elevator cursor (shared hdr);
+  map5_s01 safe dial; GAME OVER + death-tip holds; map1_s03 locker swings.
+- **Voice-table hardening**: the severed alias `Map_MessageWithAudio` got the
+  range guard + dropped-voice release + `[MSGVOICE]` log; map6_s02's exe-stub
+  voice index now resets at scene start (PSX zeroed it as overlay BSS). The
+  table inventory confirmed every other table ends in authored zero tails or
+  lives in per-load DLL data — no per-table lengths needed; the six pads stay.
+- **Verified non-bugs** (do not re-fix): generic `AwaitAnimEnd`-style `==1`
+  polls are safe on PC (range-form `Player_AnimPlaybackStateGet` +
+  self-linking one-shot map anims); NPC one-shot waits have no relink race —
+  the c4c8d5369 class was player-lower-body-driver specific.
+- **Known-cosmetic remainders** (verified minor, not fixed): map6_s04 carousel
+  ramp/FX grid decays, map6_s03 corpse bob, map4_s03 theater blink, map5_s00
+  sewer-scare pacing, map7_s03 FX grids; plus unverified-minor map7 close-up
+  fades. All are per-frame FX pacing with clamps (no freezes possible).
