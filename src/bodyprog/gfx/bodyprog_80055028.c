@@ -3654,19 +3654,26 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Characters are fogged by the SHADER: the prim builder below attaches
+     * per-vertex fog bytes (PC_SCREEN_Z_TO_FOG) and the GPU fades these prims
+     * toward the fog color exactly like world geometry (whose CPU vertex fog
+     * was moved to the shader wholesale — see VTXCOL_LDDP). Feeding the
+     * fog-attenuated alpha into the flat character light here as well fogged
+     * characters TWICE — a CPU fade toward the black far color on top of the
+     * shader fade — so characters rendered darker than PSX relative to the
+     * world in every foggy scene (the "characters dark vs environment"
+     * report; the shader bytes predate the restoration of this CPU fog path,
+     * which is how the double-application crept in). Use the no-fog alpha so
+     * the dpcs keeps only the field_20 light boost (tint * map gain, e.g.
+     * 121 -> 133 in the cafe intro) and the shader owns ALL character fog. */
+    var_v1 = 256 << 4;
+#else
     if (g_WorldEnvWork.isFogEnabled)
     {
         if (mat->t[2] < (1 << g_WorldEnvWork.fog.depthShift))
         {
-#ifdef SH_PC_PORT
-            /* Bounds-check fogRamp index to prevent OOB on bad matrix data */
-            s32 fogIdx = (s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift;
-            if (fogIdx < 0) fogIdx = 0;
-            if (fogIdx > 127) fogIdx = 127;
-            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[fogIdx] << 4);
-#else
             var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[(s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift] << 4);
-#endif
         }
         else
         {
@@ -3677,6 +3684,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
     {
         var_v1 = 256 << 4;
     }
+#endif
 
     switch (g_WorldEnvWork.field_0)
     {
