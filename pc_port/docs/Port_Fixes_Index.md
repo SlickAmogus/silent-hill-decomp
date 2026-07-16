@@ -1055,3 +1055,57 @@ The PC options pages draw at `LINE_BASE_Y` 56 with `LINE_OFFSET_Y` 16 on a 240-l
 screen, so a page holds ~11 rows. `PCOPT_C` (Controls) was already at capacity — the
 `Camera_Collision` row added in the previous commit pushed `Back` to y = 248, off the
 bottom edge, and has been reverted. Any further Controls rows need a 4th page.
+
+## Cutscene timing overhaul — lossless clock + audio catch-up (2026-07-16, commit `983de8432`)
+
+Root-cause batch for the widespread "subtitles at the wrong time / cutscene drifts
+out of sync with the dialog" reports. A multi-agent audit of the timing stack
+(core clock, DMS timeline, subtitles, XA voice, anim driver) produced 13
+adversarially-verified findings; the fixes:
+
+- **Lossless game clock.** The per-frame vCount pipeline lost real time at three
+  truncation sites (`GsGetVcount` int cast → `GsClearVcount` epoch reset →
+  `Q12_MULT` floor). The loss repeats every frame, so the whole game clock ran
+  slow vs the wall-clock XA voices in proportion to fps: ~0.4% @60, ~3.3% @120,
+  ~6.25% @240, ~27% uncapped (and stopped entirely above ~5.2kfps) — 6–11+
+  seconds of scene/subtitle lag over a 3-minute cutscene. dt now derives from one
+  cumulative Q12 clock (`GsGetCumulativeQ12`, fixed epoch); total error is
+  bounded < 1/4096 s forever at any fps. Re-applies the *principle* of the
+  reverted `edfe66887` — that revert's "map6_s04-only" premise is contradicted by
+  the current reports, and it was evaluated under the since-fixed PAL-50Hz vblank
+  bug with the genuinely-regressive cap-skip also active. Differences: single
+  clock source, no carry statics, catch-up bounded by the PSX step (below).
+  [`game_main.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/sys/game_main.c) ·
+  [`libgs_stub.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/src/stubs/libgs_stub.c)
+- **Cutscene audio catch-up.** The 30fps cap + 15fps floor permanently discarded
+  wall time on every slow frame (each load hitch pushed the scene further behind
+  the still-playing voices; steady sub-30fps ran the whole scene in slow motion
+  vs audio). During cutscenes the discarded time accrues to a bounded (2s) debt
+  repaid by later fast frames — every frame's dt stays ≤ the PSX 30fps step
+  (136 Q12), so DMS/anim stepping never sees a larger step than original
+  hardware (the regression mode that killed the old cap-skip `18e35f202`).
+  Also unifies `g_DeltaTimeRaw = g_DeltaTime` during cutscenes: subtitles /
+  message timers / event waits ran on the raw clock, up to 2× the capped
+  DMS/anim clock below 30fps; on PSX these were one variable.
+- **ANIM-STUCK detectors on the anim clock.** The (A)/(B)/(C) bypass timers in
+  `player.c` accumulated `g_DeltaTimeRaw` while the anims they watch advance on
+  `g_DeltaTime` — below 30fps the detector ran up to 2× fast relative to the
+  anim and could force-skip scene content. Now accumulate `g_DeltaTime`.
+- **Dropped-voice subtitle release.** A page whose voice cmd is range-guarded
+  away (table-overrun protection in `Event_DisplayMapMsgWithAudio`) waited out a
+  1s fail-open before its text rendered. The drop now sets
+  `g_PcMapMsgVoiceDropped` and the subtitle releases immediately; a `[MSGVOICE]`
+  log marks each drop (diagnosis lead for the audioCmds-overrun class — six maps
+  carry PC pad rows; a per-table length fix remains open).
+- **map7_s03 boss motion dwell.** Projectile script nodes counted down once per
+  *rendered* frame (8× fast at 240fps, 2× slow at the 15fps floor); dwell is now
+  Q12 seconds consuming `g_DeltaTime` (`func_800D88E8`).
+- **fps_cap 31–59 honored.** Integer division (`60/fps`) silently turned those
+  caps into 60fps; non-divisors of 60 now route through the SDL high-precision
+  limiter.
+
+Audit notes (verified non-bugs, do not re-investigate): DMS keyframe
+interpolation is stateless (`dms.c` — a large step cannot smear across a camera
+cut); `Anim_PlaybackOnce` clamps to `endKeyframeIdx` (equality waits are safe at
+any fps); the typewriter's static glyph accumulator leak is ≤ 1 glyph; the MIN
+double-eval of `GsGetVcount` loses no time (later sample is consumed).
