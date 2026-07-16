@@ -1444,6 +1444,42 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
 
     timer = CLAMP(timer, Q12(0.0f), Q12(1.0f));
 
+#ifdef SH_PC_PORT
+    /* [LIGHTCMP2] cutscene character-lighting probe. User report: characters
+     * render ~15-20% darker relative to the environment than PSX during
+     * cutscenes (cafe-intro side-by-side). Characters are GTE-lit from
+     * g_WorldEnvWork (mode/tint/ambient from the MAP_EFFECTS_INFOS preset
+     * blend) while the environment is prebaked, so logging this state at
+     * each character draw lets one cutscene run be diffed against the PSX
+     * preset tables in-repo. Change-triggered per chara — quiet in steady
+     * state. Remove once the divergence is pinned. */
+    {
+        static u32 s_lightSig[64];
+        u32 sig = ((u32)g_WorldEnvWork.field_0 << 28)
+                ^ ((u32)g_WorldEnvWork.field_3 << 20)
+                ^ ((u32)g_WorldEnvWork.field_20 << 12)
+                ^ ((u32)g_WorldEnvWork.worldTintColor.r << 8)
+                ^ ((u32)g_WorldEnvWork.worldTintColor.g << 4)
+                ^ ((u32)g_WorldEnvWork.worldTintColor.b)
+                ^ ((u32)g_WorldEnvWork.screenBrightness << 16)
+                ^ ((u32)(g_WorldEnvWork.field_54 & 0xFFFFu) << 1)
+                ^ ((u32)g_WorldEnvWork.isFogEnabled << 27);
+
+        if ((u32)charaId < 64 && s_lightSig[(u32)charaId] != sig)
+        {
+            s_lightSig[(u32)charaId] = sig;
+            SH_DBG("[LIGHTCMP2] chara=%d cut=%d mode=%d env3=%d map20=%d amb=(%d,%d,%d) tint=(%d,%d,%d) bright=%d dir54=%d fog=%d shift=%d timer=%d",
+                   (int)charaId,
+                   ((g_SysWork.sysFlags & SysFlag_CutsceneActive) || g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0,
+                   g_WorldEnvWork.field_0, g_WorldEnvWork.field_3, g_WorldEnvWork.field_20,
+                   g_WorldEnvWork.field_24, g_WorldEnvWork.field_25, g_WorldEnvWork.field_26,
+                   g_WorldEnvWork.worldTintColor.r, g_WorldEnvWork.worldTintColor.g, g_WorldEnvWork.worldTintColor.b,
+                   g_WorldEnvWork.screenBrightness, g_WorldEnvWork.field_54,
+                   g_WorldEnvWork.isFogEnabled, g_WorldEnvWork.fog.depthShift, (int)timer);
+        }
+    }
+#endif
+
     // Something to do with items held by player.
     if (charaId == Chara_Harry)
     {
