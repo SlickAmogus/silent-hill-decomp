@@ -10489,6 +10489,8 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
     {
         g_GameWork.mapAnimIdx = mapIdx;
         Fs_QueueStartRead(BASE_FILE_IDX + mapIdx, FS_BUFFER_4);
+    }
+
 #ifdef SH_PC_PORT
         /* Per-map g_MapHeaderTable_38 fix. Only 7 of 43 maps define their own
          * g_MapHeaderTable_38; the other 36 map DLLs reference it without
@@ -10501,7 +10503,16 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
          * holds the PSX pointer to that map's real table. Drain so the overlay
          * (queued earlier in GameBoot_MapLoad) and this anim file are in memory,
          * then redirect field_38 to the overlay's table. The DLL header may be
-         * read-only, so patch a writable copy and repoint g_pMapOverlayHeader. */
+         * read-only, so patch a writable copy and repoint g_pMapOverlayHeader.
+         *
+         * This block deliberately sits OUTSIDE the mapAnimIdx-changed guard:
+         * the DLL loader resets g_pMapOverlayHeader to the fresh UNPATCHED
+         * header on every map (re)load, so any load where the anim idx is
+         * unchanged (death retry / reload inside the same map) used to skip
+         * the re-patch and leave field_38 on map0_s00's linked table — whose
+         * missing rows made scripted poses no-ops (the KeyOfWoodman pickup
+         * freeze: state 59's 0x12C row exists only in the map's own table).
+         * Re-derive the patch on every call; it is idempotent. */
         {
             extern void Fs_QueueWaitForEmpty(void);
             extern void* g_OvlDynamic;
@@ -10548,7 +10559,6 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
             }
         }
 #endif
-    }
 
     #undef BASE_FILE_IDX
 }

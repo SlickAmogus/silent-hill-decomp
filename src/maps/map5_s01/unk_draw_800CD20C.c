@@ -121,7 +121,21 @@ void func_800CD51C(s32 arg0, s32 arg1) // 0x800CD51C
                 D_800F1450[i][0].r = temp_v0;
             }
 
+#ifdef SH_PC_PORT
+            /* Fade-in counted RENDERED frames (32 @ 30fps ≈ 1s): 8x fast at
+             * 240fps. Count 30fps-equivalent frames with a fractional carry. */
+            {
+                static q19_12 s_fadeAccum;
+                s32 fadeStep;
+
+                s_fadeAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                fadeStep     = FP_FROM(s_fadeAccum, Q12_SHIFT);
+                s_fadeAccum -= FP_TO(fadeStep, Q12_SHIFT);
+                D_800F159D  += fadeStep;
+            }
+#else
             D_800F159D++;
+#endif
 
             if (D_800F159D >= 32)
             {
@@ -162,7 +176,20 @@ void func_800CD51C(s32 arg0, s32 arg1) // 0x800CD51C
             break;
 
         case 2:
+#ifdef SH_PC_PORT
+            /* Digit tween: 16 rendered frames per dial step, 30fps-authored. */
+            {
+                static q19_12 s_tweenAccum;
+                s32 tweenStep;
+
+                s_tweenAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                tweenStep     = FP_FROM(s_tweenAccum, Q12_SHIFT);
+                s_tweenAccum -= FP_TO(tweenStep, Q12_SHIFT);
+                D_800F159D   += tweenStep;
+            }
+#else
             D_800F159D++;
+#endif
 
             if ((D_800F1594[arg1] < D_800F1598[arg1] && (D_800F1594[arg1] != 0 || D_800F1598[arg1] != 7)) ||
                 (D_800F1594[arg1] == 7 && D_800F1598[arg1] == 0))

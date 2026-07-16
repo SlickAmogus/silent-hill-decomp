@@ -1326,7 +1326,22 @@ void SysState_GameOver_Update(void) // 0x8003A52C
         case 3:
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
+#ifdef SH_PC_PORT
+            /* field_28 counts RENDERED frames against a 30fps-authored hold
+             * (240 frames = 8s): 1s at 240fps, 16s at the 15fps floor. Count
+             * 30fps-equivalent frames from dt with a fractional carry. */
+            {
+                static q19_12 s_holdAccum;
+                s32 holdStep;
+
+                s_holdAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                holdStep     = FP_FROM(s_holdAccum, Q12_SHIFT);
+                s_holdAccum -= FP_TO(holdStep, Q12_SHIFT);
+                g_SysWork.field_28 += holdStep;
+            }
+#else
             g_SysWork.field_28++;
+#endif
 
             if ((g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                   g_GameWorkPtr->config.controllerConfig.cancel)) ||
@@ -1362,7 +1377,20 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             break;
 
         case 7:
+#ifdef SH_PC_PORT
+            /* Death-tip hold: 480 30fps frames = 16s authored (see case 3). */
+            {
+                static q19_12 s_tipAccum;
+                s32 tipStep;
+
+                s_tipAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                tipStep     = FP_FROM(s_tipAccum, Q12_SHIFT);
+                s_tipAccum -= FP_TO(tipStep, Q12_SHIFT);
+                g_SysWork.field_28 += tipStep;
+            }
+#else
             g_SysWork.field_28++;
+#endif
             Screen_BackgroundImgDraw(&g_DeathTipImg);
 
             if (!(g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |

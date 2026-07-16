@@ -144,6 +144,14 @@ void func_800CF0B8(void) // 0x800CF0B8
             CutsceneBorder_ForceShow();
             ScreenFade_ResetTimestep();
 
+#ifdef SH_PC_PORT
+            /* PSX zeroed this voice-cmd index implicitly (overlay BSS, fresh
+             * per map load); on PC it lives in exe stub memory and PERSISTS
+             * across map reloads — a revisit resumed mid-table and every
+             * voice line of this scene came out shifted. */
+            D_800D4E08 = 0;
+#endif
+
             func_8003D03C();
             sharedFunc_800D2EB4_0_s00();
 

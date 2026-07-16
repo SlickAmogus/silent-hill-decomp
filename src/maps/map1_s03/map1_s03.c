@@ -1762,7 +1762,14 @@ void func_800DE828(void) // 0x800DE828
                 D_800E20EC = 0;
             }
 
+#ifdef SH_PC_PORT
+            /* Angular velocity applied per RENDERED frame (door swing +
+             * bounce): dt-scale the application only — the velocity variable
+             * keeps its per-bounce decay/equality logic unchanged. */
+            g_WorldObject2.rotation.vy += TIMESTEP_SCALE_30_FPS(g_DeltaTime, D_800E20E8);
+#else
             g_WorldObject2.rotation.vy += D_800E20E8;
+#endif
 
             if (D_800E20E8 == Q12_ANGLE(-11.3f))
             {
@@ -1903,7 +1910,23 @@ void func_800DE828(void) // 0x800DE828
                     }
 
                     D_800E20E8 = tmp0;
+#ifdef SH_PC_PORT
+                    /* The accel above is dt-scaled but the velocity was
+                     * applied once per RENDERED frame — the locker swung 8x
+                     * fast at 240fps. Apply dt-scaled with a carry (the raw
+                     * per-frame step is small enough to truncate to 0). */
+                    {
+                        static q19_12 s_rotAccum;
+                        s32 rotStep;
+
+                        s_rotAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, tmp0);
+                        rotStep     = FP_FROM(s_rotAccum, Q12_SHIFT);
+                        s_rotAccum -= FP_TO(rotStep, Q12_SHIFT);
+                        g_WorldObject1.rotation.vy += rotStep;
+                    }
+#else
                     g_WorldObject1.rotation.vy += FP_FROM(tmp0, Q12_SHIFT);
+#endif
 
                     WorldGfx_ObjectAdd(&g_WorldObject3.object, &g_WorldObject3.position, &SVECTOR3_Zero);
 

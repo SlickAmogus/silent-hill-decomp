@@ -526,7 +526,14 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
             func_800692A4(0, 0, Q12(1.0f));
             func_80068E0C(1, 1, 0, 0, 0, 0, Q12(1.0f));
 
+#ifdef SH_PC_PORT
+            /* Zoom pacing was a fixed step per RENDERED frame (30fps-authored:
+             * 8x fast at 240fps, 2x slow at the 15fps floor). Scale by dt and
+             * clamp to the endpoint so the original == advance still lands. */
+            D_800F228C = MIN(D_800F228C + TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x20), Q12(1.0f));
+#else
             D_800F228C += 0x20;
+#endif
 
             Map_BoxOutlineDraw(D_800F228C, -0xA0, -0xE0, 0x13F, 0x1BF, -0x58, -0xC0, 0x9F, 0xDF);
 
@@ -538,7 +545,11 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
 
         case 8:
             // Decrement zoom counter.
+#ifdef SH_PC_PORT
+            D_800F228C = MAX(D_800F228C - TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x40), 0);
+#else
             D_800F228C -= 0x40;
+#endif
 
             func_800692A4(0x48 - Q12_MULT_PRECISE(D_800F228C, 0x48),
                           0x10 - Q12_MULT_PRECISE(D_800F228C, 0x10),
@@ -571,7 +582,21 @@ void MapEvent_CutsceneExitCafe(void) // 0x800E83C0
             func_80068E0C(2, 1, 0x36A, g_Gfx_PaperMapMarkingAlpha, 0x48, 0x10, Q12(0.5f));
 
             // Fade in map marking to half opacity.
+#ifdef SH_PC_PORT
+            /* 1 alpha step per rendered frame -> 30 steps/sec with a
+             * fractional carry, so the fade lasts its authored ~4.3s. */
+            {
+                static q19_12 s_fadeAccum;
+                s32 fadeStep;
+
+                s_fadeAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                fadeStep     = FP_FROM(s_fadeAccum, Q12_SHIFT);
+                s_fadeAccum -= FP_TO(fadeStep, Q12_SHIFT);
+                g_Gfx_PaperMapMarkingAlpha += fadeStep;
+            }
+#else
             g_Gfx_PaperMapMarkingAlpha++;
+#endif
             if (g_Gfx_PaperMapMarkingAlpha >= 128)
             {
                 if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
@@ -735,7 +760,12 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
         case 12:
             func_800692A4(0, 0, Q12(1.0f));
             func_80068E0C(1, 1, 0, 0, 0, 0, Q12(1.0f));
+#ifdef SH_PC_PORT
+            /* Same dt-scaled zoom pacing as MapEvent_CutsceneExitCafe case 7. */
+            D_800F229C = MIN(D_800F229C + TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x20), Q12(1.0f));
+#else
             D_800F229C += 0x20;
+#endif
             Map_BoxOutlineDraw(D_800F229C, -0xA0, -0xE0, 0x13F, 0x1BF, -0xA0, 8, 0x9F, 0xDF);
 
             if (D_800F229C == Q12(1.0f))
@@ -746,7 +776,11 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
 
         case 13:
             // Decrement zoom counter.
+#ifdef SH_PC_PORT
+            D_800F229C = MAX(D_800F229C - TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x40), 0);
+#else
             D_800F229C -= 0x40;
+#endif
 
             func_800692A4(0,
                           0x74 - FP_MULTIPLY_PRECISE(D_800F229C, 0x74, 12),
@@ -778,7 +812,21 @@ void MapEvent_CherylsSketchbook(void) // 0x800E8C0C
             func_80068E0C(1, 1, 0, 0, 0, 0x74, Q12(0.5f));
             func_80068E0C(2, 1, 0x3A2, D_800F2298, 0, 0x74, Q12(0.5f));
 
+#ifdef SH_PC_PORT
+            /* 1 alpha step per rendered frame -> 30 steps/sec (see case 10 of
+             * MapEvent_CutsceneExitCafe). */
+            {
+                static q19_12 s_markAccum;
+                s32 markStep;
+
+                s_markAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                markStep     = FP_FROM(s_markAccum, Q12_SHIFT);
+                s_markAccum -= FP_TO(markStep, Q12_SHIFT);
+                D_800F2298  += markStep;
+            }
+#else
             D_800F2298++;
+#endif
             if (D_800F2298 >= 0x80)
             {
                 if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter | g_GameWorkPtr->config.controllerConfig.cancel))
