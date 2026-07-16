@@ -122,16 +122,20 @@ namespace SilentHillPC_Launcher
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 226), Size = new Size(78, 28) };
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 290), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
             _btnTips.SetToolTip(btnBp, "Recursively convert every .TIM under a folder to .png in place.");
+            _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
             btnBp.Click += (s, e) => OnBulkPng();
+            btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
             Controls.Add(btnBp);
+            Controls.Add(btnHelp);
 
             _chkLoose = new CheckBox
             {
@@ -580,6 +584,75 @@ namespace SilentHillPC_Launcher
                        (res.Failures.Count > 8 ? "\n - …" : "");
             MessageBox.Show(this, msg, "Bulk → PNG", MessageBoxButtons.OK,
                 res.Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+
+        /// <summary>Help dialog: how to build and install loose-file texture mods.</summary>
+        private void ShowLooseModHelp()
+        {
+            string[] lines =
+            {
+                "MAKING LOOSE-FILE TEXTURE MODS",
+                "",
+                "The game can load replacement textures from a \"loose\" folder — no disc",
+                "rebuild needed. The whole workflow:",
+                "",
+                "1.  Extract the textures.",
+                "    Click \"Extract BIN…\", pick your Silent Hill .bin, and tick",
+                "    \"Convert textures to PNG\". You get the disc's folder tree with every",
+                "    texture as a .png — for example the title screen is  TIM\\TITLE_E.png.",
+                "",
+                "2.  Edit the ones you want.",
+                "    Replace a .png with your own art, keeping the SAME name and folder.",
+                "    Only the files you actually change need to ship.",
+                "",
+                "3.  Install it — either way works:",
+                "",
+                "    - Drop-in (quick):",
+                "      The game loads loose assets from   gamedata\\load",
+                "      Copy your edited folder there, mirroring the disc layout — e.g. a",
+                "      custom title screen goes to   gamedata\\load\\TIM\\TITLE_E.png",
+                "      (Tick \"Enable loose file support\" at the bottom of this window.)",
+                "",
+                "    - As a managed mod (recommended):",
+                "      Make a folder named  load, put your TIM folder (etc.) inside it, and",
+                "      zip it up. Drag the .zip onto this window to add it to the Mod",
+                "      Manager. Now you can enable/disable it and set load order — when two",
+                "      mods touch the same file, the one higher in the list wins.",
+            };
+
+            using (var dlg = new Form())
+            {
+                dlg.Text            = "Loose-File Mods — Help";
+                dlg.ClientSize      = new Size(540, 420);
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.StartPosition   = FormStartPosition.CenterParent;
+                dlg.MaximizeBox     = false;
+                dlg.MinimizeBox     = false;
+                try { dlg.Icon = Properties.Resources.launchericon; } catch { }
+
+                var box = new TextBox
+                {
+                    Multiline   = true,
+                    ReadOnly    = true,
+                    ScrollBars  = ScrollBars.Vertical,
+                    WordWrap    = true,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    BackColor   = SystemColors.Window,
+                    Location    = new Point(12, 12),
+                    Size        = new Size(516, 356),
+                    TabStop     = false,
+                    Text        = string.Join("\r\n", lines)
+                };
+                box.Select(0, 0);
+                dlg.Controls.Add(box);
+
+                var close = new Button { Text = "Close", Location = new Point(444, 380), Size = new Size(84, 28), DialogResult = DialogResult.OK };
+                dlg.Controls.Add(close);
+                dlg.AcceptButton = close;
+                dlg.CancelButton = close;
+
+                dlg.ShowDialog(this);
+            }
         }
 
         private void OnApply(object sender, EventArgs e)
