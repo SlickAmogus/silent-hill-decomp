@@ -280,6 +280,14 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
 
     if (vol < 0)
     {
+#ifdef SH_PC_PORT
+        /* Balance above armed the azimuth latch but no Sd_* call will claim
+         * it on this path — disarm so the next sound can't inherit it. */
+        {
+            extern s32 g_Pc_SfxAzimuthValid;
+            g_Pc_SfxAzimuthValid = 0;
+        }
+#endif
         return;
     }
 

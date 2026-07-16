@@ -1137,9 +1137,10 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] != '\0') {
             int mode = -1, k;
             for (k = 0; k < 6; k++) {
-                if (strcmp(arg, kSpkUp[k]) == 0 || (arg[0] == '0' + k && arg[1] == '\0'))
+                if (strcmp(arg, kSpkUp[k]) == 0)
                     mode = k;
             }
+            /* No bare-digit aliases: "5" would read as 5.1 but mean HRTF. */
             if (mode < 0) {
                 cprintf("usage: AUDIOOUT auto|stereo|quad|51|71|hrtf");
             } else {

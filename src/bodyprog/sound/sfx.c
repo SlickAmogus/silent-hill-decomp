@@ -293,6 +293,14 @@ void Sfx_WithFalloffAndPitchPlay(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 fa
 
     if (vol < Q8(0.0f))
     {
+#ifdef SH_PC_PORT
+        /* Balance above armed the azimuth latch but no Sd_* call will claim
+         * it on this path — disarm so the next sound can't inherit it. */
+        {
+            extern s32 g_Pc_SfxAzimuthValid;
+            g_Pc_SfxAzimuthValid = 0;
+        }
+#endif
         return;
     }
 

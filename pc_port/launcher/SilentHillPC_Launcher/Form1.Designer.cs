@@ -685,7 +685,7 @@ partial class Form1
             // audioLabel
             //
             this.audioLabel.AutoSize = true;
-            this.audioLabel.Location = new System.Drawing.Point(210, 452);
+            this.audioLabel.Location = new System.Drawing.Point(9, 504);
             this.audioLabel.Name = "audioLabel";
             this.audioLabel.Size = new System.Drawing.Size(60, 13);
             this.audioLabel.TabIndex = 67;
@@ -702,7 +702,7 @@ partial class Form1
             "5.1 Surround",
             "7.1 Surround",
             "HRTF (Headphones)"});
-            this.comboAudioOut.Location = new System.Drawing.Point(275, 449);
+            this.comboAudioOut.Location = new System.Drawing.Point(80, 500);
             this.comboAudioOut.Name = "comboAudioOut";
             this.comboAudioOut.Size = new System.Drawing.Size(137, 21);
             this.comboAudioOut.TabIndex = 68;
@@ -797,7 +797,7 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(420, 500);
+            this.ClientSize = new System.Drawing.Size(420, 526);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.regionLabel);
             this.Controls.Add(this.comboMap);
