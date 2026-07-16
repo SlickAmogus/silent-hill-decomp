@@ -1,6 +1,50 @@
 # Whole-Map Far Projection — Task Spec (dedicated session)
 
-Status: **v2 SCENIC REDESIGN 2026-07-13 (awaiting in-game test).**
+Status: **v3 FAR-RENDER FIXES 2026-07-16 (awaiting in-game test).**
+
+## v3 (2026-07-16): why the v2 street test looked like "random crap"
+
+The v2 test (wholemapexterior.log) proved the chunk layer works (room table
+sane, gate correct in/out of the Levin house, ~60 drawn + ~50 culled per frame,
+no buffer errors). The garbage was all in the per-poly stage — three root
+causes, found by a 4-way adversarial dive and fixed:
+
+1. **Behind-camera resurrection** (the random wall-sized quads): a poly fully
+   behind the camera has SZ3 == 0 on every vertex, and vanilla's `<= 0` depth
+   drop WAS the behind-camera cull. `SH_WHOLEMAP_DEPTH_RESCUE` rescued those
+   too, projecting them through `gte_divide(H,0)` into ±1024-clamped garbage.
+   FIX: rescue strictly `< 0` (wrapped far depths are always negative; SZ3
+   saturates at 0xFFFF before a second s16 wrap, so 0 == behind, uniquely).
+2. **Giant trees/grass**: billboards size by dividing by the RotTransPers OTZ,
+   which saturates at ~256u — beyond that, correct re-projected position but
+   frozen 256u scale. FIX: PsyCross exports the true unclamped depth of the
+   newest RTPS (`g_PsxWholeMapLastSz`, whole-map only); Gfx_BillboardDraw uses
+   it as the size divisor when saturated — distant sprites shrink correctly.
+3. **No distant streets + direction-dependent building sides**: (a) integer
+   NCLIP collapses sub-pixel-tall far ground to zero area and culls it — the
+   six emit-loop NCLIP sites now re-test FAR polys (last-OT-bucket sentinel,
+   `SH_WHOLEMAP_FAR_POLY`) with the precise float backface helpers
+   (`PsyX_PGXP_QuadBackface`, integer fallback = identical semantics), so far
+   ground emits and rasterizes from PGXP float coords — **far ground needs
+   use_pgxp=1** (integer coords rasterize zero height regardless); (b) beyond
+   256u every poly shares one GL depth (far plane) so DRAW ORDER decided ties —
+   whole-map chunks are now submitted NEAR-FIRST (addPrim prepends; traversal
+   is reverse-submission) = painter's order at chunk granularity in the far
+   bucket, turning the direction-dependent chaos into a stable silhouette.
+
+Also in v3:
+- **Packet-arena budget**: the 2MB frame packet buffer (game_main.c) has no
+  overflow guard and was sized for ~25 chunks; the sorted whole-map submission
+  stops at a 1.2MB share — the far tail drops gracefully, the local scene and
+  characters/effects keep their headroom.
+- **PGXP far-W fade** (`PGXPFARW`, default 12288 SZ ≈ 48u, 0 = off): beyond the
+  clamp, per-vertex W stops growing so texture interpolation converges to
+  AFFINE — fixes the user-reported "distant road looks worse with PGXP on"
+  (perspective-correct UVs at grazing angles + no mipmaps = shimmer/moire;
+  affine smears smoothly, the PSX-authentic look). Applies whenever PGXP is on
+  (deliberate default change, positions/depth untouched); `pgxpfarw 0` = pure.
+
+Prior status: v2 SCENIC REDESIGN 2026-07-13.
 The v1 build system-crashed on 2026-07-12: the user loaded a save INSIDE the
 Levin Street house with a hi-res texture pack enabled; the machine hard-hung
 during the map2_s00 load and had to be power-cycled.

@@ -59,15 +59,28 @@ extern float g_PsxPixelAspect;
         if (Pc_WholeMapDrawActive())                                            \
             (cap) = 0x7FFFFFFF;                                                 \
     } while (0)
+/* STRICT `< 0`, not `<= 0`: wrapped far depths (>=128u) are always negative
+ * (SZ3 saturates at 0xFFFF before a second s16 wrap), while a poly fully
+ * BEHIND the camera has SZ3 min-clamped to exactly 0 on every vertex — the
+ * vanilla `<= 0` drop IS the behind-camera cull. Rescuing those projected
+ * them through gte_divide(H,0) into +-1024-clamped garbage quads (the
+ * "random walls all over the street" of the first whole-map test). */
 #define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift)                                  \
     do {                                                                        \
-        if ((depth) <= 0 && Pc_WholeMapDrawActive())                            \
+        if ((depth) < 0 && Pc_WholeMapDrawActive())                             \
             (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
     } while (0)
+/* True iff this poly was depth-rescued/clamped into the last OT bucket — the
+ * far band the whole-map mode adds. Gates the far-only render tweaks below so
+ * the near scene keeps stock PSX behavior exactly. Depth compare FIRST: this
+ * runs per poly in the drawers, and the gate is a cross-TU call. */
+#define SH_WHOLEMAP_FAR_POLY(depth, shift)                                      \
+    ((depth) == ((ORDERING_TABLE_SIZE - 1) << ((shift) + 2)) && Pc_WholeMapDrawActive())
 #else
 #define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
 #define SH_WHOLEMAP_FARCAP(cap) ((void)0)
 #define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift) ((void)0)
+#define SH_WHOLEMAP_FAR_POLY(depth, shift) (0)
 #endif
 
 #ifdef SH_PC_PORT
@@ -2417,6 +2430,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         continue;
                     }
 
+#ifdef SH_PC_PORT
+                    if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+                    {
+                        /* Far poly: integer NCLIP collapses sub-pixel-tall distant
+                         * ground to zero area and culls it. Re-test on the PGXP
+                         * float projection (integer fallback = same semantics). */
+                        s32 _n012 = 0, _n312 = 0;
+                        extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                        gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &_n012);
+                        gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                        gte_nclip();
+                        gte_stopz(&_n312);
+                        if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                                   _n012, _n312))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+#endif
+                    {
                     gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &sp10);
@@ -2431,6 +2470,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         {
                             continue;
                         }
+                    }
                     }
 
                     temp_a3 = scratchData->field_380.s_0.field_0;
@@ -2637,6 +2677,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     continue;
                 }
 
+#ifdef SH_PC_PORT
+                if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+                {
+                    /* Far poly: precise backface re-test (see loop A). */
+                    s32 _n012 = 0, _n312 = 0;
+                    extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                    gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                               *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                               *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+                    gte_nclip();
+                    gte_stopz(&_n012);
+                    gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                    gte_nclip();
+                    gte_stopz(&_n312);
+                    if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                               _n012, _n312))
+                    {
+                        continue;
+                    }
+                }
+                else
+#endif
+                {
                 gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                            *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                            *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2653,6 +2719,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     {
                         continue;
                     }
+                }
                 }
 
                 temp_a3_2 = scratchData->field_380.s_0.field_0;
@@ -2778,6 +2845,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 continue;
             }
 
+#ifdef SH_PC_PORT
+            if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+            {
+                /* Far poly: precise backface re-test (see loop A). */
+                s32 _n012 = 0, _n312 = 0;
+                extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+                gte_nclip();
+                gte_stopz(&_n012);
+                gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                gte_nclip();
+                gte_stopz(&_n312);
+                if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                           _n012, _n312))
+                {
+                    continue;
+                }
+            }
+            else
+#endif
+            {
             gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2794,6 +2887,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 {
                     continue;
                 }
+            }
             }
 
             temp_a3_4 = scratchData->field_380.s_0.field_0;
@@ -3013,6 +3107,32 @@ __block1530:
             continue;
         }
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+        {
+            /* Far poly: precise backface re-test (see loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+            gte_nclip();
+            gte_stopz(&_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -3029,6 +3149,7 @@ __block1530:
             {
                 continue;
             }
+        }
         }
 
         temp_a3_3 = scratchData->field_380.s_0.field_0;
@@ -3216,6 +3337,32 @@ __block19CC:
         }
 #endif
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+        {
+            /* Far poly: precise backface re-test (see loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+            gte_nclip();
+            gte_stopz(&_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -3232,6 +3379,7 @@ __block19CC:
             {
                 continue;
             }
+        }
         }
 
         temp_a3_5 = scratchData->field_380.s_0.field_0;
@@ -3395,6 +3543,30 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         }
         SH_CLAMP_OT_DEPTH(var_t2, arg3);
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(var_t2, arg3))
+        {
+            /* Far poly: precise backface re-test (see Gfx_MeshDraw loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
@@ -3410,6 +3582,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             {
                 continue;
             }
+        }
         }
 
         temp = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -4613,6 +4786,20 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
     {
         temp_v0_2 = RotTransPers((SVECTOR*)&curPtr->position.vx, &field_1C, &field_24, &field_24);
         temp_a0   = temp_v0_2 << 2;
+
+#ifdef SH_PC_PORT
+        /* Whole-town far billboards: beyond ~256u the GTE SZ3 register pegs at
+         * 0xFFFF, so the size divisor below freezes at the 256u scale while the
+         * re-projected center is correct — trees/grass rendered huge all over
+         * the street. Substitute the TRUE unclamped depth (exported by the GTE
+         * far path) so distant sprites shrink correctly instead. */
+        if (temp_a0 >= 0xFFFC && Pc_WholeMapDrawActive())
+        {
+            extern int g_PsxWholeMapLastSz;
+            if (g_PsxWholeMapLastSz > temp_a0)
+                temp_a0 = g_PsxWholeMapLastSz;
+        }
+#endif
 
         if (temp_v0_2 > 32 && temp_a0 < sp494)
         {

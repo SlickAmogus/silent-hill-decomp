@@ -1007,6 +1007,14 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "PGXPFARW") == 0) {
+        /* Beyond this view depth (SZ units, 256 = 1 world unit) perspective
+         * interpolation fades to affine — kills the distant grazing-angle
+         * texture shimmer with PGXP on. 0 = pure PGXP at any distance. */
+        extern float g_PgxpFarWClamp;
+        if (arg[0]) { g_PgxpFarWClamp = (float)atof(arg); if (g_PgxpFarWClamp < 0.0f) g_PgxpFarWClamp = 0.0f; }
+        cprintf("PGXP far-W clamp (affine beyond ~%.0fu): %.0f sz (0=off)",
+                g_PgxpFarWClamp / 256.0f, g_PgxpFarWClamp);
     } else if (strcmp(cmd, "ADD") == 0) {
         /* Debug-isolate the additive (BM_ADD) render layer to diagnose the map7_s03
          * pre/during/post-fight fire-and-lightning. 0 = drop all additive splits

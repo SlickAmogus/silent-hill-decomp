@@ -2450,6 +2450,17 @@ static float Pc_WholeMapConeSlope(void)
     return slope;
 }
 
+/* View-space depth of a cell center (Q8 world units; GsWSMATRIX row 2 is the
+ * camera forward axis, matching RTPS MAC3 — positive = in front). Also serves
+ * as the painter's sort key for the whole-town submit order. */
+static s32 Pc_WholeMapCellViewZ(s32 cellX, s32 cellZ)
+{
+    const s32 CELL = Q12_TO_Q8(CHUNK_CELL_SIZE);
+    s32 cx = cellX * CELL + (CELL >> 1);
+    s32 cz = cellZ * CELL + (CELL >> 1);
+    return (s32)(((s64)GsWSMATRIX.m[2][0] * cx + (s64)GsWSMATRIX.m[2][2] * cz) >> 12) + GsWSMATRIX.t[2];
+}
+
 static int Pc_WholeMapChunkCulled(s32 cellX, s32 cellZ, float coneSlope)
 {
     const s32 CELL = Q12_TO_Q8(CHUNK_CELL_SIZE); /* 40u in Q8 */
@@ -2457,7 +2468,7 @@ static int Pc_WholeMapChunkCulled(s32 cellX, s32 cellZ, float coneSlope)
     s32 cz = cellZ * CELL + (CELL >> 1);
     /* cell center Y = 0 (ground); GsWSMATRIX.t carries the camera height. */
     s32 vx = (s32)(((s64)GsWSMATRIX.m[0][0] * cx + (s64)GsWSMATRIX.m[0][2] * cz) >> 12) + GsWSMATRIX.t[0];
-    s32 vz = (s32)(((s64)GsWSMATRIX.m[2][0] * cx + (s64)GsWSMATRIX.m[2][2] * cz) >> 12) + GsWSMATRIX.t[2];
+    s32 vz = Pc_WholeMapCellViewZ(cellX, cellZ);
     float ax;
 
     if (vz < -CELL) /* whole cell behind the near plane */
@@ -2505,6 +2516,9 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
          * takes the far path — characters/particles/HUD keep the exact PSX path. */
         int wmFar = Pc_WholeMapDrawActive();
         float wmConeSlope = wmFar ? Pc_WholeMapConeSlope() : 0.0f;
+        s_Chunk* wmChunks[PC_MAX_IPD_CHUNKS];
+        s32      wmViewZ[PC_MAX_IPD_CHUNKS];
+        s32      wmCount = 0;
         g_PsxWholeMapFar = wmFar;
 #endif
     for (; curChunk < &g_Map.activeChunks[g_Map.activeChunkCount]; curChunk++)
@@ -2524,11 +2538,19 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
              * vanilla claim window are exempt from both (vanilla draws every
              * loaded+textured chunk), so the local scene always matches
              * vanilla regardless of cell classification. */
-            if (wmFar && curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
-                (!Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ) ||
-                 Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope)))
+            if (wmFar)
             {
-                culledChunks++;
+                if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
+                    (!Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ) ||
+                     Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope)))
+                {
+                    culledChunks++;
+                    continue;
+                }
+                /* Collect for sorted submission instead of drawing inline. */
+                wmChunks[wmCount] = curChunk;
+                wmViewZ[wmCount]  = Pc_WholeMapCellViewZ(curChunk->cellX, curChunk->cellZ);
+                wmCount++;
                 continue;
             }
 #endif
@@ -2539,6 +2561,48 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
+    /* Whole-town painter's submit order: everything past ~64u shares the LAST
+     * OT bucket, and beyond 256u every poly also shares one GL depth value —
+     * so DRAW order decides overlaps there. addPrim PREPENDS to a bucket
+     * (traversal = reverse submission), so submitting chunks NEAR-first makes
+     * the far bucket draw far->near = painter's order at chunk granularity.
+     * This is what turns "random building sides by direction" into a stable
+     * town silhouette. */
+    if (wmFar && wmCount > 0)
+    {
+        /* The frame packet arena is 2MB (game_main.c PC_PKTBUF_SIZE) with
+         * NOTHING stopping emission past its end — sized for ~25 near chunks,
+         * while whole-town submits ~60+. Budget the town's share and stop at
+         * the cap: the list is near-first, so what gets dropped is the far
+         * tail (graceful fade, never the local scene), and characters/effects
+         * later in the frame keep their headroom. */
+        enum { PC_WM_PACKET_BUDGET = 1200 * 1024 };
+        u8* wmPktBase = (u8*)GsOUT_PACKET_P;
+        s32 i;
+        s32 j;
+        for (i = 1; i < wmCount; i++)
+        {
+            s_Chunk* c = wmChunks[i];
+            s32      z = wmViewZ[i];
+            for (j = i - 1; j >= 0 && wmViewZ[j] > z; j--)
+            {
+                wmChunks[j + 1] = wmChunks[j];
+                wmViewZ[j + 1]  = wmViewZ[j];
+            }
+            wmChunks[j + 1] = c;
+            wmViewZ[j + 1]  = z;
+        }
+        for (i = 0; i < wmCount; i++)
+        {
+            if ((u8*)GsOUT_PACKET_P - wmPktBase > PC_WM_PACKET_BUDGET)
+            {
+                culledChunks += wmCount - i;
+                break;
+            }
+            Ipd_ChunkDraw(wmChunks[i]->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
+            if (++drawCount >= drawLimit) break;
+        }
+    }
     g_PsxWholeMapFar = 0; /* far re-projection is world-geometry only */
 #endif
 #ifdef SH_PC_PORT
