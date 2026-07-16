@@ -187,6 +187,21 @@ function Get-NewestSuccessfulRun {
     return $arr[0]
 }
 
+# Newest run of a workflow on the branch regardless of commit/status -- used ONLY
+# to explain a 'no-run' state: it shows what CI's latest build actually is so a
+# release commit that is newer than the last-built one (the real cause of the
+# "no CI run for this commit yet" wait) is obvious instead of a bare "no run".
+function Get-NewestRunAnyStatus {
+    param([string]$SourceSlug, [string]$Workflow, [string]$Branch)
+    try { $raw = gh run list --repo $SourceSlug --workflow $Workflow --branch $Branch --limit 1 --json databaseId,headSha,status,conclusion 2>$null }
+    catch { $raw = $null }
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
+    $parsed = $raw | ConvertFrom-Json
+    $arr = @($parsed)
+    if ($arr.Count -eq 0) { return $null }
+    return $arr[0]
+}
+
 # Download one CI artifact into $DlRoot; returns the extracted file paths (empty on failure).
 function Invoke-CrossPlatformDownload {
     param([string]$SourceSlug, [string]$RunId, [string]$Artifact, [string]$DlRoot)
@@ -274,7 +289,21 @@ function Resolve-CrossPlatformArtifacts {
                 'ok'         { Write-Host "  $label : OK (run $($e.RunId))" -ForegroundColor Green }
                 'failed'     { Write-Host "  $label : BUILD FAILED -- $($e.Url)" -ForegroundColor Red }
                 'running'    { Write-Host "  $label : still building -- $($e.Url)" -ForegroundColor Yellow }
-                'no-run'     { Write-Host "  $label : no CI run for this commit yet" -ForegroundColor Yellow }
+                'no-run'     {
+                    Write-Host "  $label : no CI run for commit $shortCommit yet" -ForegroundColor Yellow
+                    $newest = Get-NewestRunAnyStatus -SourceSlug $sourceSlug -Workflow $e.Target.Workflow -Branch $CrossPlatformBranch
+                    if ($newest) {
+                        $nshaFull = "$($newest.headSha)"
+                        $nsha = $nshaFull.Substring(0, [Math]::Min(9, $nshaFull.Length))
+                        if ($nshaFull -eq $SourceCommit) {
+                            Write-Host "           (CI is still registering the run for this commit -- choose R to re-check)" -ForegroundColor DarkYellow
+                        } else {
+                            Write-Host "           CI's newest $($e.Target.Workflow) build is $nsha ($($newest.status)/$($newest.conclusion)); you're releasing $shortCommit, which CI has NOT built. Push it / wait for CI, or [O] to attach the older $nsha build." -ForegroundColor DarkYellow
+                        }
+                    } else {
+                        Write-Host "           (couldn't list runs -- gh error or no runs exist on $CrossPlatformBranch)" -ForegroundColor DarkYellow
+                    }
+                }
                 'not-pushed' { Write-Host "  $label : commit not pushed to $sourceSlug" -ForegroundColor Yellow }
                 default      { Write-Host "  $label : $($e.State)" -ForegroundColor Yellow }
             }
@@ -289,7 +318,7 @@ function Resolve-CrossPlatformArtifacts {
             $assets = @()
             $allDownloaded = $true
             foreach ($e in $status) {
-                $files = Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $e.RunId -Artifact $e.Target.Artifact -DlRoot $dlRoot
+                $files = @(Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $e.RunId -Artifact $e.Target.Artifact -DlRoot $dlRoot)
                 if ($files.Count -eq 0) {
                     Write-Host "  ! Download of $($e.Target.Artifact) (run $($e.RunId)) failed." -ForegroundColor Red
                     $allDownloaded = $false
@@ -379,7 +408,7 @@ function Resolve-CrossPlatformArtifacts {
                     if ($SourceCommit -and $sha -ne $SourceCommit) {
                         Write-Host "  Attaching $($e.Target.Artifact) from OLDER commit $($sha.Substring(0, [Math]::Min(9, $sha.Length)))." -ForegroundColor Yellow
                     }
-                    $files = Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $rid -Artifact $e.Target.Artifact -DlRoot $dlRoot
+                    $files = @(Invoke-CrossPlatformDownload -SourceSlug $sourceSlug -RunId $rid -Artifact $e.Target.Artifact -DlRoot $dlRoot)
                     if ($files.Count -eq 0) { Write-Host "  ! Download of $($e.Target.Artifact) failed." -ForegroundColor Red }
                     else { $files | ForEach-Object { $assets += $_ } }
                 }
