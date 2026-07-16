@@ -45,13 +45,17 @@ void SH_DebugLogFlush(void)
  * across chunk streaming / cutscenes; a monotonic drop means a leak survives.
  * AvailablePages is 4KB pages of free physical RAM (the pool malloc + the NV2A
  * contiguous allocator both draw from). Integer-only (nxdk printf drops %f). */
-void Xbox_MemReport(const char* tag)
+unsigned Xbox_MemFreeKB(void)
 {
     MM_STATISTICS st;
     st.Length = sizeof(st);
-    if (MmQueryStatistics(&st) == 0 /* STATUS_SUCCESS */)
-    {
-        unsigned freeKB = (unsigned)st.AvailablePages * 4u;   /* pages -> KB */
-        SH_DBG("[MEM] %s: free=%uKB (%u pages)", tag ? tag : "", freeKB, (unsigned)st.AvailablePages);
-    }
+    if (MmQueryStatistics(&st) != 0 /* STATUS_SUCCESS */)
+        return 0;
+    return (unsigned)st.AvailablePages * 4u;               /* pages -> KB */
+}
+
+void Xbox_MemReport(const char* tag)
+{
+    unsigned freeKB = Xbox_MemFreeKB();
+    SH_DBG("[MEM] %s: free=%uKB (%u pages)", tag ? tag : "", freeKB, freeKB / 4u);
 }

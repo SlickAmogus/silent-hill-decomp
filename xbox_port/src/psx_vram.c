@@ -255,14 +255,31 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     int i;
 
     if (!s_cacheReady) {
+        /* The cache fills on the FIRST textured prim (the boot logo) — long before
+         * the map heap is claimed — and MmAllocateContiguousMemoryEx draws from the
+         * same pool as malloc. Filling it greedily therefore starves the map: at
+         * 720p it took 86/96 slots and left the 22 IPD chunk buffers (~2MB) with
+         * nothing, so every chunk got ipdHdr=NULL and the loader spun forever.
+         * Stop short of HEAP_RESERVE_KB so the map/cutscene allocations always fit;
+         * a smaller cache only costs decode thrash, never a boot failure. */
+        extern unsigned Xbox_MemFreeKB(void);   /* sh_log_xbox.c */
+        enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024 };
         int ok = 0;
         for (i = 0; i < CACHE_N; i++) {
-            s_cache[i].argb = (uint32_t*)GpuNv2a_AllocTexMem(TEX_DIM * TEX_DIM * 4);
+            unsigned freeKB = Xbox_MemFreeKB();
             s_cache[i].key  = -1;
+            s_cache[i].argb = NULL;
+            if (freeKB && freeKB < HEAP_RESERVE_KB + SLOT_KB)
+                continue;                       /* reserve floor reached — leave the rest NULL */
+            s_cache[i].argb = (uint32_t*)GpuNv2a_AllocTexMem(TEX_DIM * TEX_DIM * 4);
             if (s_cache[i].argb) ok++;
         }
         s_cacheReady = 1;
-        SH_DBG("[VRAM] texture cache: %d/%d slots (256KB each)", ok, CACHE_N);
+        SH_DBG("[VRAM] texture cache: %d/%d slots (256KB each), free=%uKB after",
+               ok, CACHE_N, Xbox_MemFreeKB());
+        if (ok < CACHE_N)
+            SH_DBG("[VRAM] cache capped by %dMB heap reserve (expect decode thrash)",
+                   HEAP_RESERVE_KB / 1024);
     }
 
     for (i = 0; i < CACHE_N; i++)

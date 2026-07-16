@@ -133,13 +133,27 @@ int main(void)
      * never returns). {prev, handler} — filled in by Crash_InstallSehFrame. */
     struct { void* prev; void* handler; } sehFrame = { 0, 0 };
 
-    /* 720p when the dashboard + AV pack allow it: XVideoSetMode validates the
-     * mode against the encoder settings (XVideoListModes), so SDTV/composite
-     * users automatically stay at 640x480 — no risk of an unsupported signal.
-     * The 4:3 game renders centered at 960x720 with black pillars either side
-     * (menus included — the PSX-faithful "pillarbox" presentation). */
+    /* Video mode. 480p is the default because 720p does not fit this port's RAM
+     * budget, measured against pbkit's triple buffer + 32bpp depth:
+     *
+     *              color(x3)   depth    XVideoSetMode fb   total
+     *   640x480     3.52 MiB   1.17 MiB     1.17 MiB      5.86 MiB
+     *   1280x720   10.55 MiB   3.52 MiB     3.52 MiB     17.58 MiB   (+11.7 MiB)
+     *
+     * Post-boot headroom is only ~7MB (24MB texture cache + 2MB PSX RAM + the
+     * statically-linked map overlays), so 720p ran an ~5MB deficit: the texture
+     * cache got 86/96 slots and all 22 IPD chunk buffers failed to calloc, which
+     * NULLed every chunk's ipdHdr and hung the loader forever. The heap reserve in
+     * psx_vram.c now makes that degrade instead of hang, but 720p would still boot
+     * into a thrashing cache AND 2.25x the pixels on a 233MHz NV2A — a net FPS
+     * loss. Define SH_XBOX_ENABLE_720P to opt in anyway. */
     {
-        int hd = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
+        int hd = 0;
+#ifdef SH_XBOX_ENABLE_720P
+        /* XVideoSetMode validates against the encoder settings (XVideoListModes),
+         * so SDTV/composite users fall back to 480p — no unsupported signal. */
+        hd = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
+#endif
         if (!hd)
             XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
