@@ -240,23 +240,41 @@ static int EnvelopeAdvance(Voice* v, int ticks)
  * volume already applied. Added BEFORE the master-volume stage so XA obeys
  * the game's master volume exactly like the SPU voices. Cheap no-op when no
  * XA is playing — the SPU-only mix is unchanged. */
-extern void Xa_XboxMixInto(int* accL, int* accR);
+extern void Xa_XboxMixInto(int* accL, int* accR, int* accC);
+
+/* --- 5.1 surround matrix (integer-only, Duke3D-Xbox blueprint) -------------
+ * FRONT stays the dry stereo mix (SH's own SPU panning untouched).
+ * REAR  = Hafler difference feed: stereo ambience (reverb tails, wind, radio
+ *         static) lives in L-R; center-panned dialogue/footsteps cancel out,
+ *         so nothing localizable leaks backwards.  rearL = k(L-R), rearR = -k(L-R).
+ * LFE   = one-pole low-passed mono sum (alpha=1/64 @48k -> fc ~= 119 Hz).
+ * CENTER= the mono-XA voice lines (routed by Xa_XboxMixInto), not a mid
+ *         extraction — mid-to-center while the mid stays in L/R double-images. */
+#define SH_REAR_Q8 160   /* ~0.63 */
+#define SH_LFE_Q8  320   /* ~1.25 (+2dB; the AVR's bass management re-filters) */
+static int s_lfeQ16 = 0; /* LFE low-pass state */
 
 /* Fill out[] with `frames` stereo (L,R) 16-bit samples, summing active voices.
  * Called by the DirectSound pump on the main thread. */
-void Audio_RenderInto(short* out, int frames)
+/* 6-channel render: `out` = front stereo (always), `rear` = rear stereo pair,
+ * `cenLfe` = (center, LFE) pair. rear/cenLfe may be NULL — NULL reproduces the
+ * stereo path bit-exactly (XA routing included). One mix pass feeds all three
+ * lockstep DirectSound buffers (dsound_xbox.c). */
+void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 {
     int f, i;
 
     if (!s_inited) {
         memset(out, 0, (size_t)frames * 4);
+        if (rear)   memset(rear,   0, (size_t)frames * 4);
+        if (cenLfe) memset(cenLfe, 0, (size_t)frames * 4);
         return;
     }
 
     const double envRate = (double)SRC_HZ / (double)OUT_HZ;
 
     for (f = 0; f < frames; f++) {
-        int L = 0, R = 0;
+        int L = 0, R = 0, C = 0;
 
         for (i = 0; i < SPU_VOICES; i++) {
             Voice* v = &s_v[i];
@@ -301,13 +319,41 @@ void Audio_RenderInto(short* out, int frames)
             }
         }
 
-        /* XA stream (voices / streamed cutscene audio) joins the voice sum. */
-        Xa_XboxMixInto(&L, &R);
+        /* XA stream (voices / streamed cutscene audio) joins the voice sum.
+         * In surround mode, mono XA (= the voice acting) routes to C instead. */
+        Xa_XboxMixInto(&L, &R, cenLfe ? &C : NULL);
 
         /* Master volume (Q14); 64-bit intermediate — the summed mix can exceed
          * int16 before scaling. */
         L = (int)(((long long)L * s_masterL) >> 14);
         R = (int)(((long long)R * s_masterR) >> 14);
+
+        /* Derived surround feeds — from the post-master, pre-clamp fronts so
+         * pause-ducking/fades hit every speaker. */
+        if (rear) {
+            int side  = (L - R) >> 1;
+            int rl    = (side * SH_REAR_Q8) >> 8;
+            int rr    = -rl;
+            if (rl > 32767)  rl = 32767;
+            if (rl < -32768) rl = -32768;
+            if (rr > 32767)  rr = 32767;
+            if (rr < -32768) rr = -32768;
+            rear[f * 2]     = (short)rl;
+            rear[f * 2 + 1] = (short)rr;
+        }
+        if (cenLfe) {
+            int mono = (L + R) >> 1;
+            int lfe, c;
+            s_lfeQ16 += ((mono << 16) - s_lfeQ16) >> 6;   /* 1-pole ~119 Hz */
+            lfe = ((s_lfeQ16 >> 16) * SH_LFE_Q8) >> 8;
+            c   = (int)(((long long)C * ((s_masterL + s_masterR) >> 1)) >> 14);
+            if (c > 32767)    c = 32767;
+            if (c < -32768)   c = -32768;
+            if (lfe > 32767)  lfe = 32767;
+            if (lfe < -32768) lfe = -32768;
+            cenLfe[f * 2]     = (short)c;   /* ch0 -> FRONT_CENTER mixbin  */
+            cenLfe[f * 2 + 1] = (short)lfe; /* ch1 -> LOW_FREQUENCY mixbin */
+        }
 
         if (L > 32767)  L = 32767;
         if (L < -32768) L = -32768;
@@ -316,6 +362,12 @@ void Audio_RenderInto(short* out, int frames)
         out[f * 2]     = (short)L;
         out[f * 2 + 1] = (short)R;
     }
+}
+
+/* Legacy stereo entry point — the fallback path and PrimeBuffer-era callers. */
+void Audio_RenderInto(short* out, int frames)
+{
+    Audio_RenderInto6(out, NULL, NULL, frames);
 }
 
 /* --- PSX libspu API (replaces the no-op stubs) ---------------------------- */
@@ -342,6 +394,7 @@ void SpuInit(void)
     }
     s_masterL = 0x3FFF;
     s_masterR = 0x3FFF;
+    s_lfeQ16  = 0;
     s_xferPtr = s_spuRam;
     s_allocTop = SPU_ALLOC_BASE;
     s_inited = 1;

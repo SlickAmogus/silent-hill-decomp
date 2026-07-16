@@ -418,8 +418,13 @@ unsigned int Xa_XboxStreamSectorsFed(void) { return s_fmvSectorsFed; }
 /* Add one 48 kHz frame of XA into the L/R accumulators, XA volume applied.
  * Runs BEFORE the master-volume stage in Audio_RenderInto, so XA respects the
  * game's master volume like the SPU voices. No-op when idle; while playing an
- * empty ring emits silence and counts as underrun (unless it's the end-drain). */
-void Xa_XboxMixInto(int* accL, int* accR)
+ * empty ring emits silence and counts as underrun (unless it's the end-drain).
+ *
+ * accC (may be NULL = stereo output, exact legacy routing): in surround mode,
+ * MONO XaPlayer content — SH1's voice-acting lines are all mono XA — goes to
+ * the CENTER accumulator so dialogue plays from the center speaker (the Duke3D
+ * voiceover trick). Stereo XA and both FMV stream modes stay front L/R. */
+void Xa_XboxMixInto(int* accL, int* accR, int* accC)
 {
     uint32_t idx;
 
@@ -442,8 +447,13 @@ void Xa_XboxMixInto(int* accL, int* accR)
     s_inUnderrun = 0;
 
     idx = (s_ringRead & XA_RING_MASK) * 2;
-    *accL += ((int)s_ring[idx]     * s_xa.volQ7L) >> 7;
-    *accR += ((int)s_ring[idx + 1] * s_xa.volQ7R) >> 7;
+    if (accC != NULL && s_xa.isPlaying && !s_xa.isStereo && !s_fmvStream) {
+        /* Mono voice line -> center (ring holds it duplicated L==R; take L). */
+        *accC += ((int)s_ring[idx] * s_xa.volQ7L) >> 7;
+    } else {
+        *accL += ((int)s_ring[idx]     * s_xa.volQ7L) >> 7;
+        *accR += ((int)s_ring[idx + 1] * s_xa.volQ7R) >> 7;
+    }
     s_ringRead++;
 }
 

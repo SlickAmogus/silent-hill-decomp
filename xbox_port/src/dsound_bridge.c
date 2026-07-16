@@ -255,10 +255,21 @@ void __stdcall XMemFree_stub(void *pAddress, DWORD dwAttributes)
 }
 __asm__(".globl _XMemFree@8\n_XMemFree@8 = _XMemFree_stub@8");
 
-/* XGetAudioFlags — return stereo (start simple, add AC3/surround later) */
+/* XGetAudioFlags — the dashboard's audio mode from the EEPROM (XC_AUDIO=9),
+ * so the dsound objs see the user's real stereo/surround/AC3 setting. Cached;
+ * falls back to 0 (stereo) if the kernel query fails. */
 DWORD __stdcall XGetAudioFlags_stub(void)
 {
-    return 0; /* XC_AUDIO_FLAGS_STEREO = 0 */
+    static DWORD flags   = 0;
+    static int   queried = 0;
+    if (!queried) {
+        ULONG type = 0, val = 0, len = 0;
+        if (ExQueryNonVolatileSetting(9 /* XC_AUDIO */, &type, &val, sizeof(val), &len) >= 0)
+            flags = (DWORD)val;
+        queried = 1;
+        xbox_log("XGetAudioFlags: eeprom audio flags=0x%08x\n", (unsigned)flags);
+    }
+    return flags;
 }
 __asm__(".globl _XGetAudioFlags@0\n_XGetAudioFlags@0 = _XGetAudioFlags_stub@0");
 
