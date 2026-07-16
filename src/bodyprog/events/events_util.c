@@ -26,6 +26,11 @@
  * (without it the 320-wide map renders pillarboxed with garbage bars). */
 void PaperMap_ReuploadTimToVram_PC(void);
 extern int g_PcMapScreenActive;
+
+/* Set when Event_DisplayMapMsgWithAudio drops an out-of-range voice cmd, so
+ * the subtitle voice-wait in Gfx_MapMsg_Draw knows no voice is coming for the
+ * page and can render immediately instead of waiting out the 1s fail-open. */
+int g_PcMapMsgVoiceDropped = 0;
 #endif
 
 /** @brief EVENT AND INTERACTION HELPERS
@@ -599,12 +604,30 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
          * page-finishes than authored, so the audio index overruns into
          * neighboring tables (valid-looking 0x1xxx cmds = wrong scene's
          * lines) and then into non-voice data. Range-guard the cmd so the
-         * overrun turns into silence instead of playing garbage. */
+         * overrun turns into silence instead of playing garbage.
+         *
+         * When the cmd is dropped, tell the subtitle voice-wait
+         * (Gfx_MapMsg_Draw) that no voice is coming for this page, so the
+         * text renders immediately instead of eating the 1s fail-open
+         * delay — a dropped line already desynced the audio; delaying its
+         * subtitle a further second on top just compounds it. */
         {
             u16 _cmd = audioCmds[*audioIdx];
             if (_cmd >= 0x1000 && _cmd < 0x1700)
             {
+                g_PcMapMsgVoiceDropped = 0;
                 SD_Call(_cmd);
+            }
+            else
+            {
+                static int s_dropLogN = 0;
+                g_PcMapMsgVoiceDropped = 1;
+                if (s_dropLogN < 20)
+                {
+                    SH_DBG("[MSGVOICE] dropped out-of-range voice cmd 0x%04X at audioIdx=%d (msg %d) — table overrun?",
+                           _cmd, (int)*audioIdx, (int)mapMsgIdx);
+                    s_dropLogN++;
+                }
             }
         }
         *audioIdx += 1;

@@ -2159,9 +2159,12 @@ void MainLoop(void) // 0x80032EE0
                         {
                             effectiveMin = 0; /* uncapped: don't wait */
                         }
-                        else if (effectiveFps > 60)
+                        else if (effectiveFps > 60 || (60 % effectiveFps) != 0)
                         {
-                            /* High fps (120, 240): SDL timer — vblank loop can't express <16ms */
+                            /* High fps (120, 240) or a cap that doesn't divide 60
+                             * (e.g. 45, 40): SDL timer — the vblank loop can only
+                             * express whole-vblank multiples, so 60/fps integer
+                             * division silently turned 31..59 into a 60fps cap. */
                             Uint64 freq = SDL_GetPerformanceFrequency();
                             Uint64 targetTicks = freq / (Uint64)effectiveFps;
                             if (s_lastFrameTime == 0)
@@ -2243,6 +2246,106 @@ void MainLoop(void) // 0x80032EE0
         g_DeltaTimeRaw = Q12_MULT(vCountCopy, H_BLANKS_Q12_TO_SEC_SCALE);
         g_GravitySpeed = Q12_MULT(vCount, H_BLANKS_GRAVITY_SCALE);
         GsClearVcount();
+
+#ifdef SH_PC_PORT
+        /* Lossless game clock + cutscene audio catch-up. The per-frame
+         * vCount pipeline above loses real time at THREE truncation sites
+         * (GsGetVcount's int cast, GsClearVcount's epoch reset discarding the
+         * fraction, Q12_MULT's floor). Each loss is < 1 unit, but it repeats
+         * every frame, so the whole game clock runs slow vs wall time in
+         * proportion to fps: ~0.4% at 60fps, ~3.3% at 120, ~6.25% at 240,
+         * ~27% uncapped — while XA voices play at true wall clock (OpenAL).
+         * Over a 3-minute cutscene that is 6-11+ seconds of scene/subtitle
+         * lag behind the dialog. Recompute dt from ONE cumulative Q12 clock
+         * (fixed epoch, floored only at the read), so the summed dt equals
+         * true elapsed time at any fps forever.
+         *
+         * A prior fix (edfe66887) carried the per-frame remainder and was
+         * reverted on a theory the desync was map6_s04-specific; widespread
+         * subtitle/scene desync reports at high fps since then match the
+         * uncorrected drift exactly. This version differs from the reverted
+         * one: single clock source (no double GsGetVcount sample feeding two
+         * different values), and the cutscene catch-up below never lets one
+         * frame exceed the PSX 30fps step, the regression mode that revert
+         * blamed (comment above at the 30fps cap).
+         *
+         * Cutscene catch-up: the 30fps cap (invisible-wall fix) and 15fps
+         * floor discard wall time on every slow frame; during a cutscene the
+         * discarded time goes into a debt that later fast frames repay — but
+         * each frame's dt stays <= the PSX 30fps step (136), so DMS/anim
+         * stepping never sees a larger step than original hardware. After a
+         * load hitch the scene briefly runs fast and relocks to the voices
+         * instead of staying permanently behind. Debt is bounded, reset
+         * outside cutscenes, and not accrued while the console freeze has
+         * dt zeroed (frozen time stays lost, matching today's behavior).
+         * During cutscenes g_DeltaTimeRaw = g_DeltaTime so subtitles, message
+         * timers and event waits share one clock with DMS/anims (on PSX the
+         * two were the same variable; the raw/capped split is PC-only and
+         * made subtitles advance up to 2x faster than the scene below
+         * 30fps). */
+        if (!(g_SysWork.sysFlags & SysFlag_DemoActive))
+        {
+            extern long long GsGetCumulativeQ12(void);
+            extern int g_PcConsoleInputActive;
+
+            #define PC_DT_STEP_30FPS     136 /* (526*1063)>>12: PSX 30fps step in Q12 seconds */
+            #define PC_DT_STEP_15FPS     273 /* (1052*1063)>>12: PSX 15fps floor step */
+            #define PC_CUTSCENE_DEBT_MAX Q12(2.0f)
+
+            static long long s_prevCumQ12   = -1;
+            static s32       s_cutsceneDebt = 0;
+
+            long long cumQ12 = GsGetCumulativeQ12();
+            s32       dtTrue;
+            s32       dtRaw;
+            s32       dtCapped;
+            int       pcInCutscene = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                     g_SysWork.cutsceneBorderState != CutsceneBorderState_None;
+            int       pcConsoleFrozen = g_PcConsoleInputActive &&
+                                        !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
+                                        !g_SysWork.isMgsStringSet;
+
+            if (s_prevCumQ12 < 0)
+            {
+                s_prevCumQ12 = cumQ12;
+            }
+            dtTrue       = (s32)(cumQ12 - s_prevCumQ12);
+            s_prevCumQ12 = cumQ12;
+            if (dtTrue < 0)
+            {
+                dtTrue = 0;
+            }
+
+            dtRaw    = MIN(dtTrue, PC_DT_STEP_15FPS);
+            dtCapped = MIN(dtRaw, PC_DT_STEP_30FPS);
+
+            if (pcInCutscene && !pcConsoleFrozen)
+            {
+                s_cutsceneDebt += dtTrue - dtCapped;
+                s_cutsceneDebt  = MIN(s_cutsceneDebt, PC_CUTSCENE_DEBT_MAX);
+                if (s_cutsceneDebt > 0 && dtCapped < PC_DT_STEP_30FPS)
+                {
+                    s32 pay = MIN(s_cutsceneDebt, PC_DT_STEP_30FPS - dtCapped);
+
+                    dtCapped       += pay;
+                    s_cutsceneDebt -= pay;
+                }
+                dtRaw = dtCapped;
+            }
+            else if (!pcInCutscene)
+            {
+                s_cutsceneDebt = 0;
+            }
+
+            g_DeltaTime    = dtCapped;
+            g_DeltaTimeRaw = dtRaw;
+            g_GravitySpeed = Q12_MULT(dtCapped, Q12(9.8f));
+
+            #undef PC_DT_STEP_30FPS
+            #undef PC_DT_STEP_15FPS
+            #undef PC_CUTSCENE_DEBT_MAX
+        }
+#endif
 
 #ifdef SH_PC_PORT
         /* Interactive console input mode (hold `~`): freeze the game like the

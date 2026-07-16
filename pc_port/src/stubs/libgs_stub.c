@@ -165,10 +165,36 @@ void GsInit3D(void)
     }
 }
 
+static Uint64 gs_cum_epoch = 0;
+
 void GsInitVcount(void)
 {
     gs_vcount_start = SDL_GetPerformanceCounter();
+    gs_cum_epoch = gs_vcount_start;
     gs_vcount_active = 1;
+}
+
+/* Cumulative wall clock in Q12 seconds since GsInitVcount, from its own fixed
+ * epoch (GsClearVcount does not touch it). MainLoop derives the frame dt as
+ * cum(now) - cum(prev): the only rounding is one floor at each read, so the
+ * total time handed to the game over ANY number of frames stays within 1 Q12
+ * unit of true elapsed time. The per-frame GsGetVcount/GsClearVcount pair
+ * loses its fractional h-blank + sub-Q12 remainder EVERY frame (epoch reset
+ * to "now"), which at high fps compounds into the whole game clock running
+ * slow vs the wall-clock XA voices (3.3% at 120fps, 6.25% at 240fps — the
+ * cutscene/subtitle desync). */
+long long GsGetCumulativeQ12(void)
+{
+    Uint64 now;
+    Uint64 freq;
+
+    if (!gs_vcount_active)
+    {
+        return 0;
+    }
+    now  = SDL_GetPerformanceCounter();
+    freq = SDL_GetPerformanceFrequency();
+    return (long long)(((now - gs_cum_epoch) * 4096ull) / freq);
 }
 
 int GsGetVcount(void)

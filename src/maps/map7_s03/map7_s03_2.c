@@ -1595,12 +1595,25 @@ s_800F3D48_0* func_800D88E8(s_800F3D48* arg0) // 0x800D88E8
         if (field8Value != 2 && g_DeltaTime != Q12(0.0f))
         {
             arg0->ptr_0           = &curPtr[1];
+#ifdef SH_PC_PORT
+            /* Node dwell is authored in PSX 30fps frames but was counted down
+             * once per RENDERED frame — the boss attack pattern ran 8x fast at
+             * 240fps and 2x slow at the 15fps floor. Hold the dwell as Q12
+             * seconds (frames/30) and consume g_DeltaTime instead. Only this
+             * function and the func_800D905C init (= 0) touch this field. */
+            arg0->field_4.field_0 = (curPtr[1].field_0 * Q12(1.0f)) / 30;
+#else
             arg0->field_4.field_0 = curPtr[1].field_0;
+#endif
         }
     }
     else
     {
+#ifdef SH_PC_PORT
+        arg0->field_4.field_0 -= g_DeltaTime;
+#else
         arg0->field_4.field_0--;
+#endif
     }
 
     return next;

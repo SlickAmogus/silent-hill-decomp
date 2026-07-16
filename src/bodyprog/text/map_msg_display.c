@@ -91,6 +91,12 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     switch (g_SysWork.isMgsStringSet)
     {
         case false:
+#ifdef SH_PC_PORT
+            {
+                extern int g_PcMapMsgVoiceDropped;
+                g_PcMapMsgVoiceDropped = 0;
+            }
+#endif
             g_SysWork.mapMsgTimer            = NO_VALUE;
             g_MapMsg_Select.maxIdx           = NO_VALUE;
             g_MapMsg_Select.selectedEntryIdx = 0;
@@ -141,6 +147,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                  * case a page has no voice cmd (zero-stub table remnant)
                  * so a missing line degrades to silence, not a hang. */
                 {
+                    extern int g_PcMapMsgVoiceDropped;
                     static Uint32 s_voiceWaitStartMs = 0;
                     u8 xaState = Sd_AudioStreamingCheck();
 
@@ -149,6 +156,17 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                         D_800BCD74         = 0;
                         s_voiceWaitStartMs = 0;
                         break;
+                    }
+
+                    /* Event_DisplayMapMsgWithAudio dropped this page's voice
+                     * cmd (out-of-range = table overrun turned to silence):
+                     * no voice is coming, render the text NOW instead of
+                     * burning the 1s fail-open below. */
+                    if (D_800BCD74 != 0 && g_PcMapMsgVoiceDropped)
+                    {
+                        D_800BCD74             = 0;
+                        s_voiceWaitStartMs     = 0;
+                        g_PcMapMsgVoiceDropped = 0;
                     }
 
                     if (D_800BCD74 != 0)
