@@ -2476,20 +2476,15 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
     modelCoord.super       = NULL;
 
 #ifdef SH_PC_PORT
-#ifdef SH_XBOX_PORT
-    /* Xbox: also skip subcell/spatial culling for EXTERIOR maps. The area is
-     * exterior (map0_s01 'THR' logs isExterior=1), so the cell check already
-     * draws all its cells — but the per-subcell PVS is tuned to the PSX camera
-     * and the air-screamer flyby tilts the camera up to track the flying boss,
-     * which confuses the PVS and drops visible environment subcells (the "world
-     * around me disappears fighting the air screamer" report). Only ~4 chunks
-     * are resident (streaming) and fog hides distance, so drawing all their
-     * subcells is bounded + correct. This matches what PC's disableCulling=1
-     * default does for exteriors; interiors keep subcell culling (unchanged). */
-    if (g_DebugCamEnabled || g_PcConfig.disableCulling || g_Map.isExterior) {
-#else
+    /* NOTE (Xbox): an earlier fix routed exteriors through this draw-all path,
+     * blaming the subcell PVS for "world vanishes when fighting the air
+     * screamer". The real cause was the setaddr macro-precedence OT corruption
+     * from the layered blood emit (see pc_port/include/psyq/libgpu.h) — blood
+     * sprays during the fight, prims link 4 bytes off, the OT derails. With
+     * that fixed, the PSX-accurate subcell PVS is restored here: it is the
+     * exterior draw-distance system, and draw-all was costing the 733MHz CPU
+     * the whole street's prim load every frame (the town FPS dips). */
     if (g_DebugCamEnabled || g_PcConfig.disableCulling) {
-#endif
         /* Render ALL model buffers, skip subcell/spatial culling */
         s32 startI = 0, endI = ipdHdr->modelBufferCount;
         temp_fp = NULL;
