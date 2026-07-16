@@ -25,6 +25,11 @@ extern s_WorldEnvWork g_WorldEnvWork; /* flare-occlusion facing test */
  * ring ("donut") normal. Opting these prims out keeps the rest of the scene
  * PGXP-correct. No-op when PGXP is off, self-clears after one prim. */
 extern void PsyX_SetNextPrimAffine(void);
+/* Propagate a projected vertex's PGXP + view-space shadow along a plain CPU
+ * word copy (dst = src). The reflection band reuses g4[0]'s/the apex's screen
+ * words this way; without propagation those verts carry zero view-Z, so the
+ * per-pixel flashlight reconstructs a garbage normal and blows the water out. */
+extern void Shadow_Copy(void* dst, const void* src);
 #endif
 
 // ========================================
@@ -965,6 +970,20 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
         *(s32*)&poly->g4[1].x3 = *(s32*)&poly->g4[0].x3;
 
 #ifdef SH_PC_PORT
+        /* Carry the view-space shadow to every reflection-band vertex that was
+         * plain-copied above, so all water verts share consistent view-Z and
+         * the flashlight reconstructs one flat normal (no white blowout). */
+        Shadow_Copy(&poly->g3[1].x0, &spC8);
+        Shadow_Copy(&poly->g3[0].x0, &spC8);
+        Shadow_Copy(&poly->g3[1].x1, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g3[0].x1, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g4[1].x0, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g3[1].x2, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g3[0].x2, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g4[1].x1, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g4[1].x2, &poly->g4[0].x2);
+        Shadow_Copy(&poly->g4[1].x3, &poly->g4[0].x3);
+
         PsyX_SetNextPrimAffine();
         AddPrim(spD0, &poly->g4[0]);
         PsyX_SetNextPrimAffine();
