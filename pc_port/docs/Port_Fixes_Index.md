@@ -1148,3 +1148,30 @@ findings adversarially verified; full voice-cmd table inventory):
   ramp/FX grid decays, map6_s03 corpse bob, map4_s03 theater blink, map5_s00
   sewer-scare pacing, map7_s03 FX grids; plus unverified-minor map7 close-up
   fades. All are per-frame FX pacing with clamps (no freezes possible).
+
+## Characters darker than PSX — double fog on character prims (2026-07-16, commit `c3ed32011`)
+
+User report (cafe-intro side-by-side vs DuckStation): characters render darker
+relative to the environment than PSX. Measured off the captures: character-only
+deficit ≈ ×0.90 = worldTint/boostedColor, world geometry + subtitles at exact
+parity (the "vertical squish" half of the report measured as no difference).
+
+Root: character/lit-model prims were fogged **twice** on PC. The CPU flat-light
+dispatch (`func_8005A21C` → `func_8005A42C/A478/A838`) fed the fog-attenuated
+alpha into the GTE depth-cue (the PSX mechanism — fade toward the black far
+color, with the map-gain boost via negative-IR0 extrapolation: tint 121 →
+boosted 133 in the cafe), and the prim builder *also* attached per-vertex fog
+bytes (`PC_SCREEN_Z_TO_FOG`) that the PsyCross shader blends toward the fog
+color — the PC mechanism that replaced CPU vertex fog for the *world*
+(`VTXCOL_LDDP(dp)` → `gte_lddp(0)`). The shader bytes were added while
+characters still rendered unfogged (the old `isFogEnabled=0` wrap around
+Harry's draw); when that wrap was root-fixed, the compensation became a
+double-application — characters darkened by both fades in every foggy scene
+while the world stayed correct.
+
+Fix: the PC character light dispatch uses the no-fog alpha, keeping only the
+`field_20` light boost in the dpcs; the shader owns all character fog with the
+same curve as world geometry. Verified faithful along the way: PsyX GTE `lddp`
+(signed IR0) and DPCS negative-IR0 extrapolation, `lm_reformat` byte-0xB
+bitfields, character model routing (`fB0=1` → lit drawer). `[LIGHTCMP2]`
+probe (world_draw.c) remains until user confirm, then strip.
