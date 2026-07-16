@@ -351,18 +351,37 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         static int s_hires = 0;
         static int s_warns = 0;
 
-        /* Hi-res PNG override: "<discname>.png" (e.g. ITEM_M.TIM.png) under
-         * gamedata/load/ always registers as a hi-res override — with PNG's
-         * true 8-bit alpha — never as a byte-replace. The disc file still
-         * loads so the engine picks the native VRAM rect; PostLoadTim then
-         * registers the PNG against it. Takes precedence over a same-name
-         * loose file. */
+        /* Hi-res PNG override under gamedata/load/ — registers as a hi-res
+         * override (PNG's true 8-bit alpha), never a byte-replace. The disc
+         * file still loads so the engine picks the native VRAM rect; PostLoadTim
+         * then registers the PNG against it. Takes precedence over a same-name
+         * loose file. Two accepted names, in priority order:
+         *   1. "<discname>.png"   e.g. DRU02F.TIM.png  (full disc name + .png)
+         *   2. "<basename>.png"   e.g. DRU02F.png       (extension replaced —
+         *      the intuitive name for replacing DRU02F.TIM with a PNG). */
         int pngOverride = 0;
         {
             char pngPath[168];
             FILE* pf;
+
             snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
             pf = fopen(pngPath, "rb");
+
+            if (pf == NULL)
+            {
+                char baseName[32];
+                size_t bn = 0;
+                while (bn < sizeof(baseName) - 1 && nameBuf[bn] != '\0' && nameBuf[bn] != '.')
+                {
+                    baseName[bn] = nameBuf[bn];
+                    bn++;
+                }
+                baseName[bn] = '\0';
+                snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s.png",
+                         strippedFolder, baseName);
+                pf = fopen(pngPath, "rb");
+            }
+
             if (pf != NULL)
             {
                 fclose(pf);
