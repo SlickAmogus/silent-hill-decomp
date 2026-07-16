@@ -17,6 +17,14 @@ s32 __pad_bss_800C483C;
 
 #ifdef SH_PC_PORT
 extern s_WorldEnvWork g_WorldEnvWork; /* flare-occlusion facing test */
+/* Force the reflective-water octagon (func_8008EA68) to draw affine — integer
+ * screen coords + painter's-order Z, exactly as with PGXP off. RotTransPers4
+ * writes its projected verts straight into poly->g4[0] (PGXP-tracked since the
+ * item fix), while g3[0]/g4[1]/g3[1] are plain CPU copies (affine); that mix
+ * raises/warps the surface and makes the per-pixel flashlight reconstruct a
+ * ring ("donut") normal. Opting these prims out keeps the rest of the scene
+ * PGXP-correct. No-op when PGXP is off, self-clears after one prim. */
+extern void PsyX_SetNextPrimAffine(void);
 #endif
 
 // ========================================
@@ -956,10 +964,21 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
         *(s32*)&poly->g4[1].x2 = *(s32*)&poly->g4[0].x2;
         *(s32*)&poly->g4[1].x3 = *(s32*)&poly->g4[0].x3;
 
+#ifdef SH_PC_PORT
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD0, &poly->g4[0]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD0, &poly->g3[0]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD4, &poly->g4[1]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD4, &poly->g3[1]);
+#else
         AddPrim(spD0, &poly->g4[0]);
         AddPrim(spD0, &poly->g3[0]);
         AddPrim(spD4, &poly->g4[1]);
         AddPrim(spD4, &poly->g3[1]);
+#endif
 
         poly++;
         packet = poly;
