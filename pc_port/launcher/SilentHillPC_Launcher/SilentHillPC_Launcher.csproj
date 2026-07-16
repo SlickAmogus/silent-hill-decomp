@@ -68,6 +68,8 @@
     </Compile>
     <Compile Include="ConfigManager.cs" />
     <Compile Include="DiscProbe.cs" />
+    <Compile Include="BinExtractor.cs" />
+    <Compile Include="TimConverter.cs" />
     <Compile Include="ControlsForm.cs">
       <SubType>Form</SubType>
     </Compile>

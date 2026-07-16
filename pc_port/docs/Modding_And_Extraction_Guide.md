@@ -112,6 +112,32 @@ hand-extracted data tables in `pc_port/src/*_anim_infos.c` cite their provenance
 from. It is **not** a runtime asset directory and it is **not** tracked by git; the game
 never reads it (see §5).
 
+### One-click extraction in the launcher (no tools, no Python)
+
+The two-stage `make extract` above is the dev path. **End users don't need it** — the
+launcher's **Mod Manager** window can unpack a disc image directly, with no `dumpsxiso`,
+no Python, and no `make`. The whole pipeline (ISO split + archive unpack + the disc's XOR /
+LZSS / `.CMP` oddities) is reimplemented in the launcher itself (`BinExtractor.cs`, a C#
+port of `extract.py` that reads `SILENT.`/`HILL.`/exe straight out of the raw-sector `.bin`
+via the same ISO9660 reader the game uses).
+
+- **Extract BIN…** — browse to a Silent Hill `.bin` (defaults to `gamedata/`), choose an
+  output folder, and it writes the same `<FOLDER>/<NAME>.<TYPE>` tree as `make extract`.
+  You can also **drag a `.bin` onto the Mod Manager window** — it asks "Extract x.bin?"
+  then prompts for the destination. The release is auto-detected from the executable's
+  CRC32, so USA/PAL/NTSC-J retail discs (and the demos/prototypes) all work.
+- **Convert textures to PNG** — a checkbox in the extract dialog. When set, every extracted
+  `.TIM` also gets a same-named `.png` beside it, decoded exactly the way the game draws it
+  (`TimConverter.cs` mirrors `hires_override.c`: BGR555, `cx==0` transparent, STP ignored).
+- **TIM → PNG…** / **Bulk → PNG…** — convert individual `.TIM` files, or recursively
+  convert every `.TIM` under a folder to `<name>.png` in place (with an option to delete the
+  originals). This is the quick way to turn an extracted texture tree into PNGs for the
+  loose-file / hi-res override workflow in §5.
+
+> XA audio tracks aren't the focus of the launcher extractor (they stream from the disc and
+> aren't loose-overridable anyway); if you specifically need the `XA/` tree, use the dev
+> `make extract`.
+
 ---
 
 ## 3. Audio in the disc: two very different systems

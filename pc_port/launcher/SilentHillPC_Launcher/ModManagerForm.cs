@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -18,14 +19,17 @@ namespace SilentHillPC_Launcher
     {
         private readonly ModManager _mgr;
         private readonly ConfigManager _config;
+        private readonly string _gameRoot;
 
         private ListView  _list;
         private CheckBox  _chkLoose;
+        private ToolTip   _btnTips;
 
         public ModManagerForm(ConfigManager config, string gameRoot)
         {
-            _config = config;
-            _mgr    = new ModManager(gameRoot, config);
+            _config   = config;
+            _gameRoot = gameRoot;
+            _mgr      = new ModManager(gameRoot, config);
 
             Text            = "Mod Manager";
             ClientSize      = new Size(600, 480);
@@ -111,6 +115,23 @@ namespace SilentHillPC_Launcher
             Controls.Add(btnDn);
             Controls.Add(btnRe);
             Controls.Add(btnOp);
+
+            // Asset tooling: unpack a disc image, and TIM -> PNG conversion (single
+            // + recursive) for the loose-texture workflow. Drag a .bin onto the
+            // window for the same extract flow (OnDragDrop).
+            var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
+            var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 226), Size = new Size(78, 28) };
+            var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
+            _btnTips = new ToolTip();
+            _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
+            _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
+            _btnTips.SetToolTip(btnBp, "Recursively convert every .TIM under a folder to .png in place.");
+            btnEx.Click += (s, e) => OnExtractBin();
+            btnTp.Click += (s, e) => OnConvertTim();
+            btnBp.Click += (s, e) => OnBulkPng();
+            Controls.Add(btnEx);
+            Controls.Add(btnTp);
+            Controls.Add(btnBp);
 
             _chkLoose = new CheckBox
             {
@@ -325,13 +346,26 @@ namespace SilentHillPC_Launcher
             if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
             var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
 
+            // A dropped disc image goes to the extractor, not the mod library.
+            var bins = paths.Where(p => File.Exists(p) &&
+                           Path.GetExtension(p).Equals(".bin", StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var bin in bins)
+            {
+                if (MessageBox.Show(this, "Extract \"" + Path.GetFileName(bin) + "\"?",
+                        "Extract BIN", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    RunExtract(bin);
+            }
+
+            var others = paths.Where(p => !bins.Contains(p)).ToArray();
+            if (others.Length == 0) return;
+
             CommitOrderAndState();
             _mgr.SaveState();
 
             int imported = 0;
             ProgressDialog.Run(this, "Importing mods…", r =>
             {
-                foreach (var p in paths)
+                foreach (var p in others)
                     if (_mgr.Import(p, r) == ModManager.ImportResult.Added) imported++;
                 _mgr.Prepare(r); // extract any .zip (library) / .rar (texture) we just imported
             });
@@ -340,8 +374,198 @@ namespace SilentHillPC_Launcher
             Populate();
 
             if (imported == 0)
-                MessageBox.Show(this, "Nothing added. Drop mod folders or .zip / .rar archives.",
+                MessageBox.Show(this, "Nothing added. Drop a disc .bin to extract, or mod folders / .zip / .rar archives.",
                     "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // --- asset extraction / TIM conversion --------------------------------
+
+        /// <summary>"Extract BIN…" button: browse for a disc image (defaults to gamedata), then extract.</summary>
+        private void OnExtractBin()
+        {
+            string gamedata = Path.Combine(_gameRoot, "gamedata");
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select a Silent Hill disc image";
+                ofd.Filter = "Disc image (*.bin)|*.bin|All files (*.*)|*.*";
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                RunExtract(ofd.FileName);
+            }
+        }
+
+        /// <summary>Prompt for an output folder + PNG option, then extract with progress.</summary>
+        private void RunExtract(string binPath)
+        {
+            string outDir;
+            bool convertPng;
+            if (!PromptExtractOptions(binPath, out outDir, out convertPng)) return;
+
+            try { Directory.CreateDirectory(outDir); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Cannot create the output folder:\n\n" + ex.Message,
+                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            BinExtractor.ExtractResult res = null;
+            try
+            {
+                ProgressDialog.Run(this, "Extracting " + Path.GetFileName(binPath) + "…",
+                    r => { res = BinExtractor.Extract(binPath, outDir, convertPng, r); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Extraction failed:\n\n" + ex.Message,
+                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res == null || !res.Ok)
+            {
+                MessageBox.Show(this, "Extraction failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Extracted " + res.Files + " files";
+            if (!string.IsNullOrEmpty(res.ReleaseId)) msg += " from " + res.ReleaseId;
+            msg += ".\n";
+            if (convertPng) msg += "Converted " + res.Textures + " textures to PNG.\n";
+            msg += "\nOutput folder:\n" + outDir;
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(8)) +
+                       (res.Warnings.Count > 8 ? "\n - …" : "");
+
+            MessageBox.Show(this, msg, "Extract BIN", MessageBoxButtons.OK,
+                res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+
+        /// <summary>Modal: choose where to extract + whether to also dump textures as PNG.</summary>
+        private bool PromptExtractOptions(string binPath, out string outDir, out bool convertPng)
+        {
+            outDir = null; convertPng = false;
+            string defaultOut = Path.Combine(
+                Path.GetDirectoryName(binPath) ?? _gameRoot,
+                Path.GetFileNameWithoutExtension(binPath) + "_extracted");
+
+            using (var dlg = new Form())
+            {
+                dlg.Text            = "Extract Disc Image";
+                dlg.ClientSize      = new Size(460, 172);
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.StartPosition   = FormStartPosition.CenterParent;
+                dlg.MaximizeBox     = false;
+                dlg.MinimizeBox     = false;
+
+                dlg.Controls.Add(new Label { Text = "Source: " + Path.GetFileName(binPath),
+                                             Location = new Point(12, 12), AutoSize = true, ForeColor = Color.Gray });
+                dlg.Controls.Add(new Label { Text = "Extract to:", Location = new Point(12, 42), AutoSize = true });
+                var txtOut = new TextBox { Location = new Point(12, 60), Size = new Size(346, 22), Text = defaultOut };
+                var btnBrowse = new Button { Text = "Browse…", Location = new Point(364, 59), Size = new Size(84, 24) };
+                btnBrowse.Click += (s, e) =>
+                {
+                    using (var fbd = new FolderBrowserDialog())
+                    {
+                        fbd.Description = "Choose the folder to extract into";
+                        if (Directory.Exists(txtOut.Text)) fbd.SelectedPath = txtOut.Text;
+                        if (fbd.ShowDialog(dlg) == DialogResult.OK)
+                            txtOut.Text = Path.Combine(fbd.SelectedPath, Path.GetFileNameWithoutExtension(binPath) + "_extracted");
+                    }
+                };
+                dlg.Controls.Add(txtOut);
+                dlg.Controls.Add(btnBrowse);
+
+                var chk = new CheckBox { Text = "Convert textures (TIM) to PNG", Location = new Point(12, 96), AutoSize = true };
+                dlg.Controls.Add(chk);
+
+                var ok     = new Button { Text = "Extract", Location = new Point(276, 132), Size = new Size(84, 28), DialogResult = DialogResult.OK };
+                var cancel = new Button { Text = "Cancel",  Location = new Point(364, 132), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
+                dlg.Controls.Add(ok);
+                dlg.Controls.Add(cancel);
+                dlg.AcceptButton = ok;
+                dlg.CancelButton = cancel;
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return false;
+                outDir = txtOut.Text.Trim();
+                convertPng = chk.Checked;
+                return !string.IsNullOrEmpty(outDir);
+            }
+        }
+
+        /// <summary>"TIM → PNG…" button: convert one or more .TIM files to .png beside them.</summary>
+        private void OnConvertTim()
+        {
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select TIM texture(s) to convert";
+                ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
+                ofd.Multiselect = true;
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+                int ok = 0;
+                var failures = new System.Collections.Generic.List<string>();
+                foreach (var tim in ofd.FileNames)
+                {
+                    string png = Path.Combine(Path.GetDirectoryName(tim),
+                                              Path.GetFileNameWithoutExtension(tim) + ".png");
+                    string err;
+                    if (TimConverter.ConvertFileToPng(tim, png, out err)) ok++;
+                    else failures.Add(Path.GetFileName(tim) + ": " + err);
+                }
+
+                string msg = "Converted " + ok + " of " + ofd.FileNames.Length + " file(s) to PNG.";
+                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(8));
+                MessageBox.Show(this, msg, "TIM → PNG", MessageBoxButtons.OK,
+                    failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>"Bulk → PNG…" button: recursively convert every .TIM under a folder, in place.</summary>
+        private void OnBulkPng()
+        {
+            string folder;
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Choose a folder — every .TIM under it is converted to .png";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
+                if (fbd.ShowDialog(this) != DialogResult.OK) return;
+                folder = fbd.SelectedPath;
+            }
+
+            var del = MessageBox.Show(this,
+                "Delete each original .TIM after it is converted?\n\n" +
+                "Yes = convert then delete the .TIM (keep only the .png)\n" +
+                "No  = keep both the .TIM and the new .png",
+                "Bulk → PNG", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (del == DialogResult.Cancel) return;
+            bool deleteOriginals = del == DialogResult.Yes;
+
+            TimConverter.BulkResult res = null;
+            try
+            {
+                ProgressDialog.Run(this, "Converting textures…",
+                    r => { res = TimConverter.BulkConvert(folder, deleteOriginals, r); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
+                    "Bulk → PNG", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Converted " + res.Converted + " TIM file(s) to PNG.";
+            if (deleteOriginals) msg += "\nDeleted " + res.Deleted + " original .TIM file(s).";
+            if (res.Failed > 0)
+                msg += "\n\nFailed (" + res.Failed + "):\n - " + string.Join("\n - ", res.Failures.Take(8)) +
+                       (res.Failures.Count > 8 ? "\n - …" : "");
+            MessageBox.Show(this, msg, "Bulk → PNG", MessageBoxButtons.OK,
+                res.Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         private void OnApply(object sender, EventArgs e)
