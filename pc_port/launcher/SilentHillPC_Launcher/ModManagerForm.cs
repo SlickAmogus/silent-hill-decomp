@@ -399,7 +399,8 @@ namespace SilentHillPC_Launcher
         {
             string outDir;
             bool convertPng;
-            if (!PromptExtractOptions(binPath, out outDir, out convertPng)) return;
+            bool deleteTim;
+            if (!PromptExtractOptions(binPath, out outDir, out convertPng, out deleteTim)) return;
 
             try { Directory.CreateDirectory(outDir); }
             catch (Exception ex)
@@ -413,7 +414,7 @@ namespace SilentHillPC_Launcher
             try
             {
                 ProgressDialog.Run(this, "Extracting " + Path.GetFileName(binPath) + "…",
-                    r => { res = BinExtractor.Extract(binPath, outDir, convertPng, r); });
+                    r => { res = BinExtractor.Extract(binPath, outDir, convertPng, deleteTim, r); });
             }
             catch (Exception ex)
             {
@@ -432,7 +433,11 @@ namespace SilentHillPC_Launcher
             string msg = "Extracted " + res.Files + " files";
             if (!string.IsNullOrEmpty(res.ReleaseId)) msg += " from " + res.ReleaseId;
             msg += ".\n";
-            if (convertPng) msg += "Converted " + res.Textures + " textures to PNG.\n";
+            if (convertPng)
+            {
+                msg += "Converted " + res.Textures + " textures to PNG.\n";
+                if (deleteTim) msg += "Deleted " + res.TexturesDeleted + " original .TIM file(s).\n";
+            }
             msg += "\nOutput folder:\n" + outDir;
             if (res.Warnings.Count > 0)
                 msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
@@ -444,9 +449,9 @@ namespace SilentHillPC_Launcher
         }
 
         /// <summary>Modal: choose where to extract + whether to also dump textures as PNG.</summary>
-        private bool PromptExtractOptions(string binPath, out string outDir, out bool convertPng)
+        private bool PromptExtractOptions(string binPath, out string outDir, out bool convertPng, out bool deleteTim)
         {
-            outDir = null; convertPng = false;
+            outDir = null; convertPng = false; deleteTim = false;
             string defaultOut = Path.Combine(
                 Path.GetDirectoryName(binPath) ?? _gameRoot,
                 Path.GetFileNameWithoutExtension(binPath) + "_extracted");
@@ -479,7 +484,15 @@ namespace SilentHillPC_Launcher
                 dlg.Controls.Add(btnBrowse);
 
                 var chk = new CheckBox { Text = "Convert textures (TIM) to PNG", Location = new Point(12, 96), AutoSize = true };
+                var chkDel = new CheckBox { Text = "Delete original TIM?", Location = new Point(250, 96), AutoSize = true, Enabled = false };
+                // "Delete original" only makes sense when converting; keep it gated + reset.
+                chk.CheckedChanged += (s, e) =>
+                {
+                    chkDel.Enabled = chk.Checked;
+                    if (!chk.Checked) chkDel.Checked = false;
+                };
                 dlg.Controls.Add(chk);
+                dlg.Controls.Add(chkDel);
 
                 var ok     = new Button { Text = "Extract", Location = new Point(276, 132), Size = new Size(84, 28), DialogResult = DialogResult.OK };
                 var cancel = new Button { Text = "Cancel",  Location = new Point(364, 132), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
@@ -491,6 +504,7 @@ namespace SilentHillPC_Launcher
                 if (dlg.ShowDialog(this) != DialogResult.OK) return false;
                 outDir = txtOut.Text.Trim();
                 convertPng = chk.Checked;
+                deleteTim = chk.Checked && chkDel.Checked;
                 return !string.IsNullOrEmpty(outDir);
             }
         }
