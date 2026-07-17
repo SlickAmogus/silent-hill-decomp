@@ -472,6 +472,12 @@ static void Pc_ApplyDiscRegion(const char* discPath, e_GameRegion region)
     Fs_InitFileTableForRegion(region);
     if (region == Region_USA && discPath && discPath[0])
         Pc_RemapFileTableFromDisc(discPath);
+    /* Also to the log file: the "Disc:" SH_LOG line only reaches stdout/the
+     * in-game console, so a launcher run leaves no record of the applied
+     * region in SilentHill.log. */
+    SH_DBG("[REGION] applied region=%d (%s) disc=%s", (int)region,
+           region == Region_EUR ? "EUR/PAL" : region == Region_JPN ? "NTSC-J" : "USA",
+           (discPath && discPath[0]) ? discPath : "(none)");
 }
 
 /* Locate the disc image and select the matching region tables. Priority:

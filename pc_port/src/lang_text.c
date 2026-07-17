@@ -941,14 +941,25 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     }
 
     isJpn = (g_GameRegion == Region_JPN);
+    /* To the log file (the SH_LOG/SH_WARN below only reach stdout/the in-game
+     * console, so a launcher run records nothing about why story text fell back
+     * to compiled English). */
+    SH_DBG("[LANG] map %d: region=%d isJpn=%d ovl=%p ovlSize=%u hdr=%p", mapIdx,
+           (int)g_GameRegion, isJpn, ovl, ovlSize, (void*)g_pMapOverlayHeader);
     if ((!Pc_LangActive() && !isJpn) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
+    {
+        SH_DBG("[LANG] map %d: install SKIPPED (langActive=%d isJpn=%d ovl=%p hdr=%p ovlSize=%u<0x40?)",
+               mapIdx, Pc_LangActive(), isJpn, ovl, (void*)g_pMapOverlayHeader, ovlSize);
         return;
+    }
 
     base     = isJpn ? JPN_OVL_BASE : EUR_OVL_BASE;
     tablePsx = *(const unsigned int*)(bytes + 0x34);
     if (tablePsx < base || tablePsx - base >= ovlSize)
     {
         SH_WARN("[LANG] map %d: overlay message table pointer out of range (0x%08X)", mapIdx, tablePsx);
+        SH_DBG("[LANG] map %d: table ptr 0x%08X out of range [base 0x%08X, +0x%X) — keeping English",
+               mapIdx, tablePsx, base, ovlSize);
         return;
     }
     tableOff = tablePsx - base;
@@ -972,6 +983,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     if (srcCount < 4)
     {
         SH_WARN("[LANG] map %d: implausible overlay message count %d — keeping English", mapIdx, srcCount);
+        SH_DBG("[LANG] map %d: implausible message count %d (<4) — keeping English", mapIdx, srcCount);
         return;
     }
 
@@ -1034,6 +1046,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
         g_pMapOverlayHeader         = &s_LangMapHeader;
 
         SH_LOG("[LANG] map %d: %d Japanese messages installed", mapIdx, srcCount);
+        SH_DBG("[LANG] map %d: %d Japanese messages installed OK", mapIdx, srcCount);
         return;
     }
 
