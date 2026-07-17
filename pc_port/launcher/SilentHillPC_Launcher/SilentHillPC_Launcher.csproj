@@ -70,6 +70,7 @@
     <Compile Include="DiscProbe.cs" />
     <Compile Include="BinExtractor.cs" />
     <Compile Include="TimConverter.cs" />
+    <Compile Include="ClutComposer.cs" />
     <Compile Include="ControlsForm.cs">
       <SubType>Form</SubType>
     </Compile>

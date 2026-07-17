@@ -309,6 +309,30 @@ Extraction tools that produce these PNGs:
   same output, for **Linux/macOS** or scripting:
   `python3 tim2png.py CHARA/DOB.TIM` or `python3 tim2png.py --bulk disc_extract/CHARA`.
 
+##### Author from one correct image (recommended)
+
+Editing raw `pNN.png` palette rows directly is fiddly — each one is the whole sheet tinted
+by a single palette, so none of them looks like the character (verified: `DOB` spreads 278
+primitives across all 7 rows, `HERO` uses 7 of 15, `DARIA` 11). Instead, work from the
+**composite**: one image showing every region in the palette the game actually draws it
+with. Which region uses which palette is baked into each model primitive's CLUT word in the
+`.ILM` (`row = (field_2 >> 6) − materialBaseClutY`), so the true look is reconstructable
+offline — no running game needed.
+
+- **Build Reference** — *Reference…* in the Mod Manager, or
+  `python3 clut_tool.py compose CHARA/DOB.ILM` — reads the `.ILM` model + `.TIM` and writes
+  one correct `NAME_reference.png`. Edit *that* in any image editor; keep the pixel size.
+- **Rebuild Textures** — *Rebuild…*, or
+  `python3 clut_tool.py split DOB_reference.png CHARA/DOB.ILM` — slices your edited image
+  back into the `NAME.TIM.pNN.png` set above, each row carrying only the texels the game
+  samples through it. Drop the set into `gamedata/load/CHARA/`.
+
+The per-row loose PNGs are uploaded as full RGBA, so this path is **not** limited to 16
+colours per region — paint freely. (Today the edit must stay at the texture's native size;
+HD upscaling is a later addition.) Both tools need the character's `.ILM` sitting next to its
+`.TIM`, exactly how *Extract BIN…* lays them out. `compose → split` with no edits round-trips
+losslessly.
+
 ### 5.2 Rebuild the disc image — no size ceiling
 
 To exceed the size budget (bigger VABs, relocated files) you rebuild the whole image and

@@ -122,19 +122,30 @@ namespace SilentHillPC_Launcher
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 226), Size = new Size(78, 28) };
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 290), Size = new Size(78, 28) };
+            var btnRef = new Button { Text = "Reference…",  Location = new Point(510, 290), Size = new Size(78, 28) };
+            var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 354), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
             _btnTips.SetToolTip(btnBp, "Recursively convert every .TIM under a folder to .png in place.");
+            _btnTips.SetToolTip(btnRef, "Build Reference: a character draws its regions through several CLUT palettes, so no " +
+                "single .TIM/pNN PNG looks right. This reads the .ILM model + .TIM and assembles ONE correct composite " +
+                "image (how it really looks in-game) for you to paint over.");
+            _btnTips.SetToolTip(btnReb, "Rebuild Textures: slice your edited reference image back into the per-row " +
+                "NAME.TIM.pNN.png files the game loads (gamedata/load/<FOLDER>/). No 16-colour-per-region limit — paint freely.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
             btnBp.Click += (s, e) => OnBulkPng();
+            btnRef.Click += (s, e) => OnBuildReference();
+            btnReb.Click += (s, e) => OnRebuildTextures();
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
             Controls.Add(btnBp);
+            Controls.Add(btnRef);
+            Controls.Add(btnReb);
             Controls.Add(btnHelp);
 
             _chkLoose = new CheckBox
@@ -585,6 +596,176 @@ namespace SilentHillPC_Launcher
                        (res.Failures.Count > 8 ? "\n - …" : "");
             MessageBox.Show(this, msg, "Bulk → PNG", MessageBoxButtons.OK,
                 res.Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+
+        /// <summary>"Reference…" button: compose a character's true in-game look from
+        /// its .ILM model + .TIM into one editable PNG.</summary>
+        private void OnBuildReference()
+        {
+            string ilm;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select a character model (.ILM)";
+                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                ilm = ofd.FileName;
+            }
+
+            string tim = FindTimBeside(ilm);
+            if (tim == null)
+            {
+                using (var ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Select the matching .TIM texture for " + Path.GetFileName(ilm);
+                    ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
+                    ofd.InitialDirectory = Path.GetDirectoryName(ilm);
+                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                    tim = ofd.FileName;
+                }
+            }
+
+            string outPng;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save reference image";
+                sfd.Filter = "PNG image (*.png)|*.png";
+                sfd.InitialDirectory = Path.GetDirectoryName(ilm);
+                sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + "_reference.png";
+                if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                outPng = sfd.FileName;
+            }
+
+            bool ok = false; string err = null;
+            try
+            {
+                ProgressDialog.Run(this, "Building reference…",
+                    r => { ok = ClutComposer.Compose(ilm, tim, outPng, out err); });
+            }
+            catch (Exception ex) { err = ex.Message; ok = false; }
+
+            if (!ok)
+            {
+                MessageBox.Show(this, "Could not build the reference:\n\n" + err,
+                    "Build Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (MessageBox.Show(this,
+                    "Reference image written:\n" + outPng +
+                    "\n\nEdit it in any image editor (keep the same pixel size), then use \"Rebuild…\" " +
+                    "to turn it back into the per-row PNGs the game loads.\n\nOpen it now?",
+                    "Build Reference", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(outPng); } catch { }
+            }
+        }
+
+        /// <summary>"Rebuild…" button: slice an edited reference PNG back into the
+        /// per-row NAME.TIM.pNN.png loose-override set.</summary>
+        private void OnRebuildTextures()
+        {
+            string edited;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select your edited reference image (.png)";
+                ofd.Filter = "PNG image (*.png)|*.png|All files (*.*)|*.*";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                edited = ofd.FileName;
+            }
+
+            string ilm = GuessIlmFor(edited);
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select the character model (.ILM) this image came from";
+                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                if (ilm != null) { ofd.InitialDirectory = Path.GetDirectoryName(ilm); ofd.FileName = Path.GetFileName(ilm); }
+                else ofd.InitialDirectory = Path.GetDirectoryName(edited);
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                ilm = ofd.FileName;
+            }
+
+            string tim = FindTimBeside(ilm);
+            if (tim == null)
+            {
+                using (var ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Select the matching .TIM texture for " + Path.GetFileName(ilm);
+                    ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
+                    ofd.InitialDirectory = Path.GetDirectoryName(ilm);
+                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                    tim = ofd.FileName;
+                }
+            }
+
+            string outDir;
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Output folder for the per-row PNGs (usually gamedata/load/CHARA)";
+                string load = Path.Combine(_gameRoot, "gamedata", "load");
+                if (Directory.Exists(load)) fbd.SelectedPath = load;
+                else if (Directory.Exists(Path.Combine(_gameRoot, "gamedata")))
+                    fbd.SelectedPath = Path.Combine(_gameRoot, "gamedata");
+                if (fbd.ShowDialog(this) != DialogResult.OK) return;
+                outDir = fbd.SelectedPath;
+            }
+
+            ClutComposer.SplitResult res = null;
+            try
+            {
+                ProgressDialog.Run(this, "Rebuilding textures…",
+                    r => { res = ClutComposer.Split(edited, ilm, tim, outDir); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Rebuild failed:\n\n" + ex.Message,
+                    "Rebuild Textures", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(this, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "Rebuild Textures", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Wrote " + res.Written.Count + " per-row PNG(s) to:\n" + outDir +
+                "\n\nPalette rows this model uses: " + string.Join(", ", res.RowsUsed) +
+                "\n\nDrop these into gamedata/load/<FOLDER>/ (e.g. CHARA) and set " +
+                "allow_loose_files = 1 in config.cfg.";
+            if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
+                    "Rebuild Textures", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(outDir); } catch { }
+            }
+        }
+
+        /// <summary>Find NAME.TIM beside NAME.ILM (either extension case).</summary>
+        private static string FindTimBeside(string ilm)
+        {
+            string c = Path.ChangeExtension(ilm, ".TIM");
+            if (File.Exists(c)) return c;
+            c = Path.ChangeExtension(ilm, ".tim");
+            return File.Exists(c) ? c : null;
+        }
+
+        /// <summary>Best-effort guess of the .ILM a reference PNG came from
+        /// (NAME_reference.png -> NAME.ILM beside it).</summary>
+        private static string GuessIlmFor(string png)
+        {
+            string dir = Path.GetDirectoryName(png);
+            string stem = Path.GetFileNameWithoutExtension(png);
+            if (stem.EndsWith("_reference", StringComparison.OrdinalIgnoreCase))
+                stem = stem.Substring(0, stem.Length - "_reference".Length);
+            foreach (var ext in new[] { ".ILM", ".ilm" })
+            {
+                string c = Path.Combine(dir ?? ".", stem + ext);
+                if (File.Exists(c)) return c;
+            }
+            return null;
         }
 
         /// <summary>Help dialog: how to build and install loose-file texture mods.</summary>
