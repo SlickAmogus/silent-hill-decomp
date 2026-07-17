@@ -13,6 +13,16 @@
 #include "tex_pack.h"
 #include "sh_log.h"
 
+#ifndef _WIN32
+/* Loose-file paths are built from the disc file table's UPPERCASE folder/names
+ * (gamedata/load/CHARA/DOB.TIM). Windows/macOS open those case-insensitively;
+ * Linux (ext4) does not, so a mod authored on Windows or with a lowercased
+ * folder silently fails to load. These enable a case-insensitive fallback. */
+#include <dirent.h>
+#include <sys/stat.h>
+#include <strings.h>
+#endif
+
 /* Forensics for the FS-queue stomp family (SaveLoad.log / SewerCrash*.log):
  * dump the whole corrupted entry so the written byte pattern names the
  * writer (observed so far: 64-bit -1 over info, 16-bit 0x8002 at info+4). */
@@ -211,13 +221,97 @@ static const char* HiresPending_PopPath(s_FsQueueEntry* entry)
     return NULL;
 }
 
+#ifndef _WIN32
+/* Resolve a relative path case-insensitively for case-sensitive filesystems.
+ * Walks each component: a verbatim hit wins (stat), else the parent directory
+ * is scanned for a strcasecmp match, so "gamedata/load/CHARA/DOB.TIM.png"
+ * still finds an on-disk "gamedata/load/chara/dob.tim.png". Fills `out` with
+ * the real path and returns 1 only if EVERY component resolved. Called only
+ * after an exact open already missed. */
+static int Loose_ResolveCase(const char* path, char* out, size_t outSize)
+{
+    const char* p      = path;
+    size_t      outLen = 0;
+
+    if (path == NULL || path[0] == '\0') return 0;
+    out[0] = '\0';
+
+    while (*p != '\0')
+    {
+        char        comp[128];
+        char        cand[300];
+        const char* slash   = strchr(p, '/');
+        size_t      compLen = slash ? (size_t)(slash - p) : strlen(p);
+        struct stat st;
+        int         found = 0;
+
+        if (compLen == 0) { p = slash + 1; continue; } /* skip // */
+        if (compLen >= sizeof(comp)) return 0;
+        memcpy(comp, p, compLen);
+        comp[compLen] = '\0';
+
+        if (outLen == 0) snprintf(cand, sizeof(cand), "%s", comp);
+        else             snprintf(cand, sizeof(cand), "%s/%s", out, comp);
+
+        if (stat(cand, &st) == 0)
+        {
+            found = 1; /* component exists verbatim */
+        }
+        else
+        {
+            DIR* d = opendir(outLen == 0 ? "." : out);
+            if (d != NULL)
+            {
+                struct dirent* de;
+                while ((de = readdir(d)) != NULL)
+                {
+                    if (strcasecmp(de->d_name, comp) == 0)
+                    {
+                        if (outLen == 0) snprintf(cand, sizeof(cand), "%s", de->d_name);
+                        else             snprintf(cand, sizeof(cand), "%s/%s", out, de->d_name);
+                        found = 1;
+                        break;
+                    }
+                }
+                closedir(d);
+            }
+        }
+
+        if (!found) return 0;
+        if ((size_t)snprintf(out, outSize, "%s", cand) >= outSize) return 0;
+        outLen = strlen(out);
+
+        if (!slash) break;
+        p = slash + 1;
+    }
+    return out[0] != '\0';
+}
+#endif
+
+/* fopen a loose file, retrying case-insensitively on a miss (Linux). On
+ * Windows/macOS the first fopen already matches any case, so the fallback is
+ * compiled out / never taken. */
+static FILE* Loose_FOpen(const char* path, const char* mode)
+{
+    FILE* f = fopen(path, mode);
+#ifndef _WIN32
+    if (f == NULL)
+    {
+        char resolved[300];
+        if (Loose_ResolveCase(path, resolved, sizeof(resolved)))
+            f = fopen(resolved, mode);
+    }
+#endif
+    return f;
+}
+
 /* Read a whole loose file. Returns malloc'd bytes (caller frees) or NULL
  * with the failing step logged. 64MB cap. */
 static unsigned char* PcFile_Slurp(const char* path, long* outSize)
 {
     unsigned char* buf = NULL;
     long           sz  = -1;
-    FILE*          f   = fopen(path, "rb");
+    FILE*          f   = Loose_FOpen(path, "rb");
 
     if (f == NULL)
     {
@@ -273,7 +367,7 @@ static int Loose_HasPerRow(const char* base)
     FILE* f;
     if (base == NULL || base[0] == '\0') return 0;
     snprintf(p, sizeof(p), "%s.p00.png", base);
-    f = fopen(p, "rb");
+    f = Loose_FOpen(p, "rb");
     if (f != NULL) { fclose(f); return 1; }
     return 0;
 }
@@ -287,7 +381,7 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
     FILE* f;
 
     snprintf(out, outSize, "%s.png", base);
-    f = fopen(out, "rb");
+    f = Loose_FOpen(out, "rb");
     if (f != NULL) { fclose(f); return 1; }
 
     {
@@ -302,7 +396,7 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
             memcpy(stem, base, stemLen);
             stem[stemLen] = '\0';
             snprintf(out, outSize, "%s.png", stem);
-            f = fopen(out, "rb");
+            f = Loose_FOpen(out, "rb");
             if (f != NULL) { fclose(f); return 1; }
         }
     }
@@ -311,7 +405,7 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
         size_t n = strlen(base);
         if (n >= outSize) return 0;
         memcpy(out, base, n + 1);
-        f = fopen(out, "rb");
+        f = Loose_FOpen(out, "rb");
         if (f != NULL) { fclose(f); return 1; }
     }
     return 0;
@@ -425,12 +519,12 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
              * If any exists, stash the BASE disc path — PostLoadTim resolves
              * the exact form (per-row overlay vs whole-image replace). */
             snprintf(pngPath, sizeof(pngPath), "%s.p00.png", loosePath);
-            pf = fopen(pngPath, "rb");
+            pf = Loose_FOpen(pngPath, "rb");
 
             if (pf == NULL)
             {
                 snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
-                pf = fopen(pngPath, "rb");
+                pf = Loose_FOpen(pngPath, "rb");
             }
 
             if (pf == NULL)
@@ -445,7 +539,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 baseName[bn] = '\0';
                 snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s.png",
                          strippedFolder, baseName);
-                pf = fopen(pngPath, "rb");
+                pf = Loose_FOpen(pngPath, "rb");
             }
 
             if (pf != NULL)
@@ -462,7 +556,7 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             }
         }
 
-        lf = pngOverride ? NULL : fopen(loosePath, "rb");
+        lf = pngOverride ? NULL : Loose_FOpen(loosePath, "rb");
         if (lf != NULL)
         {
             size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
@@ -868,7 +962,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                         char  pr[176];
                         FILE* chk;
                         snprintf(pr, sizeof(pr), "%s.p%02d.png", loosePath, r);
-                        chk = fopen(pr, "rb");
+                        chk = Loose_FOpen(pr, "rb");
                         if (chk == NULL) continue; /* row not supplied — keep disc art */
                         fclose(chk);
                         {
@@ -982,7 +1076,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     char  pr[176];
                     FILE* chk;
                     snprintf(pr, sizeof(pr), "%s.p%02d.png", base, r);
-                    chk = fopen(pr, "rb");
+                    chk = Loose_FOpen(pr, "rb");
                     if (chk == NULL) continue;
                     fclose(chk);
                     {
