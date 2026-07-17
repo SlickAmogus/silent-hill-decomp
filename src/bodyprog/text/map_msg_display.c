@@ -98,6 +98,29 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
      * whole scene shifted). Flag this re-setup so Event_DisplayMapMsgWithAudio
      * suppresses the duplicate voice fire + index bump, matching PSX. */
     int _reSetupSameMsg = (msgIdx == mapMsgIdx);
+
+    /* MULTI-PAGE variant of the same re-display (map7_s00 Lisa func_800D0B64):
+     * a message CHAIN (msg30->34, only 34 carries ~E) is shown at two
+     * consecutive steps — case7 DisplayMapMsg(30) then case9 DisplayMapMsg(30).
+     * On PSX CD latency keeps case7's chain in progress when the step advances,
+     * so case9 RESUMES it. PC's instant load completes the whole chain at case7,
+     * so case9 RESTARTS it: every page's subtitle re-shows ("It's only a
+     * temporary thing" a second time) and pages 2..N re-fire their voices,
+     * walking the shared audio index PAST the real table so the tail lines
+     * (msg35..37) fall silent ("audio runs out before the subtitles"). The
+     * voice-only suppression above only covers the chain's FIRST page. Make the
+     * spurious restart a full no-op that just advances the step, matching the
+     * PSX resume. g_MapMsg_CurrentIdx still holds the completed chain's LAST
+     * page while msgIdx holds its START, so they differ only for a multi-page
+     * chain — single-page re-displays (map6_s04 Flauros msg47, CurrentIdx==
+     * msgIdx) keep the lighter voice-only path and their proven step timing.
+     * Cutscene-gated so ordinary memo/item re-examination is untouched. */
+    if (_reSetupSameMsg && !g_SysWork.isMgsStringSet && g_MapMsg_CurrentIdx != msgIdx &&
+        ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+         g_SysWork.cutsceneBorderState != CutsceneBorderState_None))
+    {
+        return MapMsgState_SelectEntry0;
+    }
 #endif
 
     if (msgIdx != mapMsgIdx)
