@@ -261,6 +261,61 @@ static unsigned char* PcFile_Slurp(const char* path, long* outSize)
     }
     return buf;
 }
+
+/* True when a per-CLUT-row loose override set is present. A multi-CLUT chara/BG
+ * TIM draws different body regions through different palette rows; a modder can
+ * replace one region with "{base}.pNN.png" (NN zero-padded, from the launcher's
+ * per-palette extraction). Row 0 always ships, so probing p00 is the cheap
+ * gate that keeps the common no-mod path from doing 16 fopens per TIM. */
+static int Loose_HasPerRow(const char* base)
+{
+    char  p[176];
+    FILE* f;
+    if (base == NULL || base[0] == '\0') return 0;
+    snprintf(p, sizeof(p), "%s.p00.png", base);
+    f = fopen(p, "rb");
+    if (f != NULL) { fclose(f); return 1; }
+    return 0;
+}
+
+/* Resolve a WHOLE-image loose replacement for a base disc path, in priority
+ * order: "{base}.png" (e.g. CHARA/DOB.TIM.png), "{stem}.png" (DOB.png), then
+ * the base file itself (an oversized loose .TIM handed straight to the
+ * decoder). Returns 1 and fills `out` with the first that exists. */
+static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
+{
+    FILE* f;
+
+    snprintf(out, outSize, "%s.png", base);
+    f = fopen(out, "rb");
+    if (f != NULL) { fclose(f); return 1; }
+
+    {
+        const char* slash = strrchr(base, '/');
+        const char* fname = slash ? slash + 1 : base;
+        const char* dot   = strchr(fname, '.');
+        if (dot != NULL && dot != fname)
+        {
+            size_t stemLen = (size_t)(dot - base);
+            char   stem[160];
+            if (stemLen >= sizeof(stem)) stemLen = sizeof(stem) - 1;
+            memcpy(stem, base, stemLen);
+            stem[stemLen] = '\0';
+            snprintf(out, outSize, "%s.png", stem);
+            f = fopen(out, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+        }
+    }
+
+    {
+        size_t n = strlen(base);
+        if (n >= outSize) return 0;
+        memcpy(out, base, n + 1);
+        f = fopen(out, "rb");
+        if (f != NULL) { fclose(f); return 1; }
+    }
+    return 0;
+}
 #endif
 
 #ifdef SH_PC_PORT
@@ -361,11 +416,22 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
          *      the intuitive name for replacing DRU02F.TIM with a PNG). */
         int pngOverride = 0;
         {
-            char pngPath[168];
+            char pngPath[176];
             FILE* pf;
 
-            snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
+            /* Probe (cheapest first) any override form. A per-CLUT-row set
+             * always ships row 0, so "{base}.p00.png" is the per-row gate;
+             * then the two whole-image forms "{base}.png" and "{stem}.png".
+             * If any exists, stash the BASE disc path — PostLoadTim resolves
+             * the exact form (per-row overlay vs whole-image replace). */
+            snprintf(pngPath, sizeof(pngPath), "%s.p00.png", loosePath);
             pf = fopen(pngPath, "rb");
+
+            if (pf == NULL)
+            {
+                snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
+                pf = fopen(pngPath, "rb");
+            }
 
             if (pf == NULL)
             {
@@ -385,13 +451,13 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             if (pf != NULL)
             {
                 fclose(pf);
-                HiresPending_Stash(entry, pngPath);
+                HiresPending_Stash(entry, loosePath);
                 pngOverride = 1;
                 s_hires++;
                 if (s_hires <= 64)
                 {
-                    SH_DBG("[LOOSE/HIRES] %s: PNG override; deferring to PostLoadTim",
-                           pngPath);
+                    SH_DBG("[LOOSE/HIRES] %s: override present; deferring to PostLoadTim",
+                           loosePath);
                 }
             }
         }
@@ -739,6 +805,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         int nativeH = (int)pixelRect.h;
         const char* loosePath = HiresPending_PopPath(entry);
         int registered = 0;
+        int perRow = Loose_HasPerRow(loosePath);
 
         if (discBitDepth <= 0 || !FSQ_INFO_VALID(entry->info))
         {
@@ -747,27 +814,35 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         }
         else
         {
-            if (loosePath != NULL && loosePath[0] != '\0')
+            /* Whole-image loose replacement (no per-row set): a single palette
+             * covers the slot — ideal for the many single-CLUT-row monsters
+             * (CLD1/ICU/...). A per-row set instead overlays onto the disc base
+             * below, so untouched palette rows keep the native art. */
+            if (!perRow && loosePath != NULL && loosePath[0] != '\0')
             {
-                long           lsz  = 0;
-                unsigned char* lbuf = PcFile_Slurp(loosePath, &lsz);
-                if (lbuf != NULL)
+                char whole[176];
+                if (Loose_ResolveWhole(loosePath, whole, sizeof(whole)))
                 {
-                    SH_DBG("[POOLTEX] slot %d: loose replacement %s", slotId, loosePath);
-                    registered = HiresOverride_PoolSlotRegister(
-                        slotId, lbuf, (unsigned int)lsz, nativeW, nativeH) == 0;
-                    free(lbuf);
-                }
-                if (!registered)
-                {
-                    SH_DBG("[POOLTEX] slot %d: loose %s unusable — falling back to disc TIM",
-                           slotId, loosePath);
+                    long           lsz  = 0;
+                    unsigned char* lbuf = PcFile_Slurp(whole, &lsz);
+                    if (lbuf != NULL)
+                    {
+                        SH_DBG("[POOLTEX] slot %d: loose replacement %s", slotId, whole);
+                        registered = HiresOverride_PoolSlotRegister(
+                            slotId, lbuf, (unsigned int)lsz, nativeW, nativeH) == 0;
+                        free(lbuf);
+                    }
+                    if (!registered)
+                    {
+                        SH_DBG("[POOLTEX] slot %d: loose %s unusable — falling back to disc TIM",
+                               slotId, whole);
+                    }
                 }
             }
 
             /* Base content first — the disc TIM, one texture per CLUT row
-             * (prims select palette rows with baked clut deltas). A loose
-             * replacement above fully covers the slot instead. */
+             * (prims select palette rows with baked clut deltas). A whole-image
+             * loose replacement above fully covers the slot instead. */
             if (!registered)
             {
                 unsigned int discSize = (unsigned int)ALIGN(
@@ -775,9 +850,48 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 HiresOverride_PoolSlotRegister(slotId, (const unsigned char*)entry->externalData,
                                                discSize, nativeW, nativeH);
 
-                /* DuckStation texture pack: per-row palette match, composed
-                 * rows overwrite that row's texture. */
-                if (TexPack_HasEntries())
+                /* Per-CLUT-row loose overlay: replace only the palette rows the
+                 * modder supplied ("{base}.pNN.png"); untouched rows keep the
+                 * disc art. This is what recolours a whole multi-CLUT monster
+                 * region-by-region. */
+                int looseRowsApplied = 0;
+                if (perRow)
+                {
+                    int rows = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
+                    int r;
+
+                    if (rows < 1) rows = 1;
+                    if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
+
+                    for (r = 0; r < rows; r++)
+                    {
+                        char  pr[176];
+                        FILE* chk;
+                        snprintf(pr, sizeof(pr), "%s.p%02d.png", loosePath, r);
+                        chk = fopen(pr, "rb");
+                        if (chk == NULL) continue; /* row not supplied — keep disc art */
+                        fclose(chk);
+                        {
+                            long           psz  = 0;
+                            unsigned char* pbuf = PcFile_Slurp(pr, &psz);
+                            if (pbuf != NULL)
+                            {
+                                if (HiresOverride_PoolSlotLoosePngRow(
+                                        slotId, r, pbuf, (unsigned int)psz, nativeW, nativeH) == 0)
+                                    looseRowsApplied++;
+                                free(pbuf);
+                            }
+                        }
+                    }
+                    if (looseRowsApplied > 0)
+                        SH_DBG("[POOLTEX] slot %d: %d loose CLUT-row override(s) from %s",
+                               slotId, looseRowsApplied, loosePath);
+                }
+
+                /* DuckStation texture pack: per-row palette match, composed rows
+                 * overwrite that row's texture. An explicit loose per-row override
+                 * wins over a pack for this slot (as on the VRAM path). */
+                if (!looseRowsApplied && TexPack_HasEntries())
                 {
                     int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
                     int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
@@ -826,7 +940,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
      * native upload. Sample-time lookup will key by (tpage, clut), which
      * derive from these same coords. */
     {
-        const char* hiresPath = HiresPending_PopPath(entry);
+        const char* base = HiresPending_PopPath(entry);
         int         looseHires = 0;
 
         /* This upload just rewrote VRAM: any rect-keyed override covering
@@ -844,32 +958,81 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                                              (int)clutRect.w, (int)clutRect.h);
         }
 
-        if (hiresPath && hiresPath[0])
+        if (base && base[0])
         {
             if (discBitDepth <= 0)
             {
                 SH_DBG("[LOOSE/HIRES/SKIP] %s: disc TIM bit-depth unknown (mode=%u); cannot register override",
-                       hiresPath, (unsigned)tim.mode);
+                       base, (unsigned)tim.mode);
+            }
+            else if (Loose_HasPerRow(base))
+            {
+                /* Per-CLUT-row overlay: register each supplied palette row at
+                 * its own clut cell (clutRect.y + r), so every body region a
+                 * prim draws through row r samples the override; unsupplied
+                 * rows fall through to native VRAM. */
+                int rows = haveClut ? (int)clutRect.h : 1;
+                int r, applied = 0;
+
+                if (rows < 1) rows = 1;
+                if (rows > 16) rows = 16;
+
+                for (r = 0; r < rows; r++)
+                {
+                    char  pr[176];
+                    FILE* chk;
+                    snprintf(pr, sizeof(pr), "%s.p%02d.png", base, r);
+                    chk = fopen(pr, "rb");
+                    if (chk == NULL) continue;
+                    fclose(chk);
+                    {
+                        long           sz  = 0;
+                        unsigned char* buf = PcFile_Slurp(pr, &sz);
+                        if (buf != NULL)
+                        {
+                            char label[24];
+                            snprintf(label, sizeof(label), "loose row %d", r);
+                            if (HiresOverride_RegisterLoosePngRow(
+                                    label, buf, (unsigned int)sz,
+                                    (int)pixelRect.x, (int)pixelRect.y,
+                                    (int)pixelRect.w, (int)pixelRect.h,
+                                    haveClut ? (int)clutRect.x : -1,
+                                    haveClut ? ((int)clutRect.y + r) : -1,
+                                    discBitDepth) == 0)
+                                applied++;
+                            free(buf);
+                        }
+                    }
+                }
+                if (applied > 0)
+                {
+                    looseHires = 1;
+                    SH_DBG("[LOOSE/HIRES] %s: %d loose CLUT-row override(s)", base, applied);
+                }
             }
             else
             {
-                long           sz  = 0;
-                unsigned char* buf = PcFile_Slurp(hiresPath, &sz);
-                if (buf != NULL)
+                char whole[176];
+                if (Loose_ResolveWhole(base, whole, sizeof(whole)))
                 {
-                    int cx = haveClut ? (int)clutRect.x : -1;
-                    int cy = haveClut ? (int)clutRect.y : -1;
-                    SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
-                        hiresPath,
-                        (int)pixelRect.x, (int)pixelRect.y,
-                        (int)pixelRect.w, (int)pixelRect.h,
-                        cx, cy, discBitDepth);
-                    looseHires = HiresOverride_RegisterFromTim(
-                        hiresPath, buf, (unsigned int)sz,
-                        (int)pixelRect.x, (int)pixelRect.y,
-                        (int)pixelRect.w, (int)pixelRect.h,
-                        cx, cy, discBitDepth) == 0;
-                    free(buf);
+                    long           sz  = 0;
+                    unsigned char* buf = PcFile_Slurp(whole, &sz);
+                    if (buf != NULL)
+                    {
+                        int cx = haveClut ? (int)clutRect.x : -1;
+                        int cy = haveClut ? (int)clutRect.y : -1;
+                        SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
+                            whole,
+                            (int)pixelRect.x, (int)pixelRect.y,
+                            (int)pixelRect.w, (int)pixelRect.h,
+                            cx, cy, discBitDepth);
+                        looseHires = HiresOverride_RegisterFromTim(
+                            whole, buf, (unsigned int)sz,
+                            (int)pixelRect.x, (int)pixelRect.y,
+                            (int)pixelRect.w, (int)pixelRect.h,
+                            cx, cy, discBitDepth) == 0;
+                        free(buf);
+                    }
                 }
             }
         }

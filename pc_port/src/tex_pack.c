@@ -360,7 +360,25 @@ static void Scan_Dir(const char* dirPath, int depth)
         }
         else if (nameLen > 4 && _stricmp(de->d_name + nameLen - 4, ".zip") == 0)
         {
-            Scan_Zip(path);
+            /* The launcher's Mod Manager extracts .zip packs to a sibling
+             * "<zip>.extracted" folder (like .rar) and toggles that folder,
+             * not the zip file. When such a folder exists, the folder is the
+             * source of truth — reading the zip in place too would double-index
+             * it (and, if the folder is ".disabled", override the disable).
+             * A zip hand-dropped WITHOUT the launcher has no sibling folder and
+             * is still read in place here. */
+            char        ext[512];
+            struct stat exst;
+            int         handled = 0;
+
+            snprintf(ext, sizeof(ext), "%s.extracted", path);
+            if (stat(ext, &exst) == 0 && (exst.st_mode & S_IFDIR)) handled = 1;
+            if (!handled)
+            {
+                snprintf(ext, sizeof(ext), "%s.extracted.disabled", path);
+                if (stat(ext, &exst) == 0 && (exst.st_mode & S_IFDIR)) handled = 1;
+            }
+            if (!handled) Scan_Zip(path);
         }
         else
         {

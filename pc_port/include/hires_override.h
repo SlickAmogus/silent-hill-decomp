@@ -140,6 +140,22 @@ void HiresOverride_CharaPoolSlotReset(int slotId);
 int  HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
                                         const unsigned char* rgba, int w, int h,
                                         int nativePixelW, int nativePixelH);
+
+/* Per-CLUT-row loose replacement: decode a PNG (or TIM) and install it as a
+ * single palette ROW on top of the disc-decoded base, so a modder can replace
+ * one body region of a multi-CLUT chara/BG TIM (rows are named "{file}.pNN.png"
+ * — see fsqueue_3.c). Unlike a whole-image replacement these overlay ONLY the
+ * given row; untouched rows keep the native art. Not pack-budgeted (user file).
+ * Returns 0 on success. */
+int  HiresOverride_PoolSlotLoosePngRow(int slotId, int row,
+                                       const unsigned char* data, unsigned int size,
+                                       int nativePixelW, int nativePixelH);
+int  HiresOverride_RegisterLoosePngRow(const char* label,
+                                       const unsigned char* data, unsigned int size,
+                                       int targetVramX, int targetVramY,
+                                       int targetVramW, int targetVramH,
+                                       int targetClutX, int targetClutY,
+                                       int originalBitDepth);
 int  HiresOverride_RegisterRGBA(const char* label,
                                 const unsigned char* rgba, int w, int h,
                                 int targetVramX, int targetVramY,

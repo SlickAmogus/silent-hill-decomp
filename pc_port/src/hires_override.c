@@ -595,6 +595,47 @@ int HiresOverride_RegisterRGBA(const char* label,
     return 0;
 }
 
+/* A loose per-row PNG/TIM overlays ONE palette row on top of the disc-decoded
+ * base slot: decode row 0 of the replacement and hand it to the existing
+ * per-row uploader. The replacement carries one palette, so its own row 0 is
+ * the image; `row` is which slot row it lands on. */
+int HiresOverride_PoolSlotLoosePngRow(int slotId, int row,
+                                      const unsigned char* data, unsigned int size,
+                                      int nativePixelW, int nativePixelH)
+{
+    unsigned char* rgba = NULL;
+    int w = 0, h = 0, bpp = 0, rc;
+
+    if (decode_to_rgba("loose pool row", data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
+    {
+        return -1;
+    }
+    rc = HiresOverride_PoolSlotRegisterRGBA(slotId, row, rgba, w, h, nativePixelW, nativePixelH);
+    free(rgba);
+    return rc;
+}
+
+int HiresOverride_RegisterLoosePngRow(const char* label,
+                                      const unsigned char* data, unsigned int size,
+                                      int targetVramX, int targetVramY,
+                                      int targetVramW, int targetVramH,
+                                      int targetClutX, int targetClutY,
+                                      int originalBitDepth)
+{
+    unsigned char* rgba = NULL;
+    int w = 0, h = 0, bpp = 0, rc;
+
+    if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
+    {
+        return -1;
+    }
+    rc = HiresOverride_RegisterRGBA(label, rgba, w, h,
+                                    targetVramX, targetVramY, targetVramW, targetVramH,
+                                    targetClutX, targetClutY, originalBitDepth);
+    free(rgba);
+    return rc;
+}
+
 void HiresOverride_PoolSlotsReset(void)
 {
     int i, r, live = 0;
