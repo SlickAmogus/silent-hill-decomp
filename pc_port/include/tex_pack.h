@@ -40,6 +40,13 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
                                      const unsigned short* clut, int clutCount,
                                      int bpp, int* outW, int* outH);
 
+/* Content key (pixels + palette + bpp) of the MOST RECENT TexPack_Compose call.
+ * The same value the compose cache keys on, folded to one u64. Non-zero after a
+ * call that hashed its inputs; read it immediately after TexPack_Compose and
+ * feed it to the *Keyed pool registrars so a re-upload of byte-identical content
+ * skips the glTexImage2D churn. 0 means "no stable key" (always re-upload). */
+unsigned long long TexPack_LastComposeHash(void);
+
 #ifdef __cplusplus
 }
 #endif

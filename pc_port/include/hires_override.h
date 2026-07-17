@@ -141,6 +141,15 @@ int  HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
                                         const unsigned char* rgba, int w, int h,
                                         int nativePixelW, int nativePixelH);
 
+/* Same, but with the compose content key (TexPack_LastComposeHash): a re-upload
+ * of byte-identical content to the same row is skipped (no glTexImage2D), which
+ * kills the re-upload churn that stutters and fragments VRAM on long sessions.
+ * Pass 0 to always upload (behaves like the unkeyed form). */
+int  HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
+                                             const unsigned char* rgba, int w, int h,
+                                             int nativePixelW, int nativePixelH,
+                                             unsigned long long contentHash);
+
 /* Per-CLUT-row loose replacement: decode a PNG (or TIM) and install it as a
  * single palette ROW on top of the disc-decoded base, so a modder can replace
  * one body region of a multi-CLUT chara/BG TIM (rows are named "{file}.pNN.png"
@@ -175,6 +184,16 @@ int  HiresOverride_RegisterRGBA(const char* label,
                                 int targetVramW, int targetVramH,
                                 int targetClutX, int targetClutY,
                                 int originalBitDepth);
+
+/* Keyed VRAM-rect variant: identical content (same TexPack_LastComposeHash) to
+ * the same rect skips the re-upload. Pass 0 to always upload. */
+int  HiresOverride_RegisterRGBAKeyed(const char* label,
+                                     const unsigned char* rgba, int w, int h,
+                                     int targetVramX, int targetVramY,
+                                     int targetVramW, int targetVramH,
+                                     int targetClutX, int targetClutY,
+                                     int originalBitDepth,
+                                     unsigned long long contentHash);
 
 /* Drop every rect-keyed entry whose pixel rect or CLUT cells intersect a
  * VRAM region that was just rewritten — pool slots and map atlas VRAM

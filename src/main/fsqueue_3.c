@@ -1019,9 +1019,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             clutRow, clutW, discBitDepth, &cw, &ch);
                         if (canvas != NULL)
                         {
-                            /* canvas is owned by the compose cache — no free. */
-                            HiresOverride_PoolSlotRegisterRGBA(
-                                slotId, r, canvas, cw, ch, nativeW, nativeH);
+                            /* canvas is owned by the compose cache — no free. Key
+                             * the upload on the compose content hash so an
+                             * unchanged re-upload skips the glTexImage2D churn. */
+                            HiresOverride_PoolSlotRegisterRGBAKeyed(
+                                slotId, r, canvas, cw, ch, nativeW, nativeH,
+                                TexPack_LastComposeHash());
                         }
                     }
                 }
@@ -1183,13 +1186,15 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 {
                     char packLabel[24];
                     snprintf(packLabel, sizeof(packLabel), "texpack row %d", r);
-                    /* canvas is owned by the compose cache — no free. */
-                    HiresOverride_RegisterRGBA(packLabel, canvas, cw, ch,
+                    /* canvas is owned by the compose cache — no free. Key on the
+                     * compose content hash so an unchanged re-upload of this VRAM
+                     * rect skips the glTexImage2D churn. */
+                    HiresOverride_RegisterRGBAKeyed(packLabel, canvas, cw, ch,
                                                (int)pixelRect.x, (int)pixelRect.y,
                                                (int)pixelRect.w, (int)pixelRect.h,
                                                haveClut ? (int)clutRect.x : -1,
                                                haveClut ? ((int)clutRect.y + r) : -1,
-                                               discBitDepth);
+                                               discBitDepth, TexPack_LastComposeHash());
                 }
             }
         }

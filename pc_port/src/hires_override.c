@@ -29,6 +29,7 @@ typedef struct {
     int      hiresW, hiresH;     /* actual pixel dimensions of decoded RGBA */
     int      sourceBitDepth;     /* TIM mode of the loose file itself */
     unsigned packBytes;          /* GL bytes charged to the pack budget (0 = uncounted) */
+    unsigned long long contentHash; /* TexPack_LastComposeHash of the resident texture; 0 = unknown/always re-upload */
 } HiresEntry;
 
 static HiresEntry g_entries[MAX_HIRES_OVERRIDES];
@@ -356,6 +357,7 @@ typedef struct {
     unsigned rowPackBytes[HIRES_POOL_MAX_ROWS]; /* pack-budget charge per row */
     unsigned short rowW[HIRES_POOL_MAX_ROWS];   /* GL texture pixel dims per row — */
     unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
+    unsigned long long rowHash[HIRES_POOL_MAX_ROWS]; /* TexPack_LastComposeHash of each resident row; 0 = unknown */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
@@ -436,6 +438,10 @@ int HiresOverride_PoolSlotRegister(int slotId,
             free(rgba);
             rowSlot->rowW[rowIdx] = (unsigned short)w;
             rowSlot->rowH[rowIdx] = (unsigned short)h;
+            /* This row now holds base/loose content, not a keyed pack composite —
+             * invalidate the compose-hash so the redundant-upload skip can never
+             * mistake a later pack upload for this row's current content. */
+            rowSlot->rowHash[rowIdx] = 0;
             /* This row now holds base/loose content — release any pack charge a
              * previous occupant of the slot left on it. */
             pack_credit(&rowSlot->rowPackBytes[rowIdx]);
@@ -480,8 +486,23 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         if (*tex == 0) return -1;
     }
     glBindTexture(GL_TEXTURE_2D, *tex);
+    while (glGetError() != GL_NO_ERROR) { } /* drain stale errors */
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    /* VRAM exhaustion must degrade to native art, never crash: a long session
+     * on a big HD pack can drive the driver to GL_OUT_OF_MEMORY, and a
+     * half-created texture then faults on first sample. Drop it and fail so the
+     * caller keeps the native upload. Cheap now that redundant re-uploads are
+     * skipped (this path runs only on genuinely new content). */
+    if (glGetError() == GL_OUT_OF_MEMORY)
+    {
+        static int s_oomLog = 0;
+        if (s_oomLog < 8) { SH_DBG("[POOLTEX] GL_OUT_OF_MEMORY on %dx%d upload — keeping native art", w, h); s_oomLog++; }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, tex);
+        *tex = 0;
+        return -1;
+    }
     if (!nearest && glGenerateMipmap != NULL)
     {
         glGenerateMipmap(GL_TEXTURE_2D);
@@ -498,9 +519,10 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     return 0;
 }
 
-int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
-                                       const unsigned char* rgba, int w, int h,
-                                       int nativePixelW, int nativePixelH)
+int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
+                                            const unsigned char* rgba, int w, int h,
+                                            int nativePixelW, int nativePixelH,
+                                            unsigned long long contentHash)
 {
     if (!g_initialized) HiresOverride_Init();
     if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX ||
@@ -511,12 +533,31 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
     }
 
     PoolSlotEntry* s = &g_poolSlots[slotId];
+
+    /* Redundant re-upload skip: the engine re-uploads the same TIM to VRAM
+     * constantly (room churn, animated CLUTs resolving to the same palette),
+     * and glTexImage2D reallocates VRAM each time — thousands of needless
+     * re-uploads per session stutter and fragment VRAM (the ~30-min crash). A
+     * matching content hash + same dims + a live texture means this row's GL
+     * texture is ALREADY correct; keep it and its budget charge untouched. The
+     * glTexture!=0 test makes a stale hash after a slot reset (glTexture zeroed)
+     * force a genuine re-upload. */
+    if (contentHash != 0 && s->rowHash[row] == contentHash && s->glTexture[row] != 0 &&
+        s->rowW[row] == (unsigned short)w && s->rowH[row] == (unsigned short)h)
+    {
+        s->nativeW = nativePixelW;
+        s->nativeH = nativePixelH;
+        return 0;
+    }
+
     if (upload_rgba(&s->glTexture[row], rgba, w, h,
                     (w == nativePixelW && h == nativePixelH)) != 0)
     {
+        s->rowHash[row] = 0;
         return -1;
     }
     pack_charge(&s->rowPackBytes[row], w, h);
+    s->rowHash[row] = contentHash;
     s->rowW[row] = (unsigned short)w;
     s->rowH[row] = (unsigned short)h;
     s->nativeW = nativePixelW;
@@ -524,12 +565,21 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
     return 0;
 }
 
-int HiresOverride_RegisterRGBA(const char* label,
-                               const unsigned char* rgba, int w, int h,
-                               int targetVramX, int targetVramY,
-                               int targetVramW, int targetVramH,
-                               int targetClutX, int targetClutY,
-                               int originalBitDepth)
+int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
+                                       const unsigned char* rgba, int w, int h,
+                                       int nativePixelW, int nativePixelH)
+{
+    return HiresOverride_PoolSlotRegisterRGBAKeyed(slotId, row, rgba, w, h,
+                                                   nativePixelW, nativePixelH, 0);
+}
+
+int HiresOverride_RegisterRGBAKeyed(const char* label,
+                                    const unsigned char* rgba, int w, int h,
+                                    int targetVramX, int targetVramY,
+                                    int targetVramW, int targetVramH,
+                                    int targetClutX, int targetClutY,
+                                    int originalBitDepth,
+                                    unsigned long long contentHash)
 {
     HiresEntry* e = NULL;
     int i;
@@ -551,6 +601,17 @@ int HiresOverride_RegisterRGBA(const char* label,
             break;
         }
     }
+
+    /* Redundant re-upload skip (see the pool-slot registrar): a found entry
+     * whose content is byte-identical (same hash + dims + a live texture) is
+     * already correct. The same VRAM rect re-uploads every room reload; skip
+     * the glTexImage2D churn that stutters and fragments VRAM. */
+    if (e != NULL && contentHash != 0 && e->contentHash == contentHash &&
+        e->glTexture != 0 && e->hiresW == w && e->hiresH == h)
+    {
+        return 0;
+    }
+
     if (e == NULL)
     {
         if (g_numEntries >= MAX_HIRES_OVERRIDES)
@@ -560,10 +621,12 @@ int HiresOverride_RegisterRGBA(const char* label,
         }
         e = &g_entries[g_numEntries];
         e->glTexture = 0;
+        e->contentHash = 0;
     }
 
     if (upload_rgba(&e->glTexture, rgba, w, h, 0) != 0)
     {
+        e->contentHash = 0;
         return -1;
     }
     if (e == &g_entries[g_numEntries])
@@ -572,6 +635,7 @@ int HiresOverride_RegisterRGBA(const char* label,
         g_numEntries++;
     }
     pack_charge(&e->packBytes, w, h);
+    e->contentHash = contentHash;
 
     e->vramX = targetVramX;
     e->vramY = targetVramY;
@@ -593,6 +657,18 @@ int HiresOverride_RegisterRGBA(const char* label,
         s_rgbaLog++;
     }
     return 0;
+}
+
+int HiresOverride_RegisterRGBA(const char* label,
+                               const unsigned char* rgba, int w, int h,
+                               int targetVramX, int targetVramY,
+                               int targetVramW, int targetVramH,
+                               int targetClutX, int targetClutY,
+                               int originalBitDepth)
+{
+    return HiresOverride_RegisterRGBAKeyed(label, rgba, w, h, targetVramX, targetVramY,
+                                           targetVramW, targetVramH, targetClutX, targetClutY,
+                                           originalBitDepth, 0);
 }
 
 /* A loose per-row PNG/TIM overlays ONE palette row on top of the disc-decoded

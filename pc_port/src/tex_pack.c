@@ -608,6 +608,15 @@ static size_t     g_tpCacheBytes = 0;
 static unsigned   g_tpCacheTick  = 0;
 static unsigned   g_tpCacheHits = 0, g_tpCacheMisses = 0;
 
+/* Content key of the most recent compose (pixels+palette+bpp folded to u64),
+ * for the pool registrars' redundant-upload skip. See TexPack_LastComposeHash. */
+static unsigned long long g_tpLastHash = 0;
+
+unsigned long long TexPack_LastComposeHash(void)
+{
+    return g_tpLastHash;
+}
+
 /* Canvas kept alive until the next compose when caching is off/overflowing. */
 static unsigned char* g_tpTransient = NULL;
 
@@ -635,6 +644,8 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
     unsigned char*     canvas;
     size_t             cacheCap;
 
+    g_tpLastHash = 0;
+
     Scan_Once();
     if (g_entryCount == 0 || pixels == NULL || w16 <= 0 || h <= 0) return NULL;
 
@@ -653,6 +664,11 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
         if (n > clutCount) n = clutCount;
         fullPalHash = XXH3_64bits(clut, (size_t)n * 2);
     }
+
+    /* Fold the same identity the cache keys on into one u64 for the pool
+     * registrars. hash_combine so (src=A,pal=B) != (src=B,pal=A). */
+    g_tpLastHash = srcHash ^ (fullPalHash + 0x9E3779B97F4A7C15ULL +
+                              (srcHash << 6) + (srcHash >> 2)) ^ (unsigned long long)bpp;
 
     cacheCap = (size_t)g_PcConfig.texpackCacheMb << 20;
     if (cacheCap > 0)
