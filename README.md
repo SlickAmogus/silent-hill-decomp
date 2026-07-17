@@ -37,8 +37,6 @@ The bigger items still being worked on (roughly by priority, no strict order):
 - Monsters spawned outside their home map (global pool) play the wrong SFX or none
 - Menu re-entry can corrupt some screens on specific paths
 
-The Randomizer game mode is shipped but untested (saving is disabled while it's active).
-
 **Full tracked bug list:** https://github.com/SlickAmogus/silent-hill-decomp/issues/13
 
 <!-- Screenshots go here -->
