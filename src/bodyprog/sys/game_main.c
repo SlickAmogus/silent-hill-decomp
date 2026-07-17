@@ -223,7 +223,10 @@ static int           g_PcCamAppliedValid  = 0;
  * during gameplay. control_style.c makes the same carve-out. */
 extern u8 g_Player_DisableControl; /* bodyprog/player.h */
 
-static int Pc_ScriptOwnsScene(void)
+/* Non-static: the per-vertex flashlight override (bodyprog_80055028.c) gates
+ * its FPS-eye aim on this too, so the flashlight follows the FPS eye only when
+ * the FPS camera is actually the view (not during scripted scenes/cutscenes). */
+int Pc_ScriptOwnsScene(void)
 {
     if ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
         g_SysWork.cutsceneBorderState != CutsceneBorderState_None)

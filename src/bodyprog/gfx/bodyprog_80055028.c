@@ -585,12 +585,24 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         extern VECTOR3 g_PcFpsViewFwd;
         extern VECTOR3 g_PcFpsEyePos;
         extern VECTOR3 g_PcFlashlightShadowWorld;
-        g_PsyX_FlashlightFpsMode = g_PcFpsCam; /* select the FPS cone size/brightness in the shader */
+        extern int     Pc_ScriptOwnsScene(void);
+        /* Only aim the flashlight from the FPS eye when the FPS camera is
+         * ACTUALLY the view — i.e. NOT while a script/cutscene owns the scene.
+         * Pc_ScriptOwnsScene() is the same predicate that stands the FPS camera
+         * down (game_main.c): during a cutscene the view is the cinematic DMS
+         * camera, but g_PcFpsCam (the config mode) stays set, so gating this
+         * override only on g_PcFpsCam pointed the light along the stale FPS
+         * eye/forward instead of the game's DMS light — the dark amusement-park
+         * Cybil cutscenes rendered mostly black (the flashlight lit the wrong
+         * direction). Fall back to the game's own field_58/field_60 for
+         * scripted scenes, exactly as the classic camera does. */
+        const int fpsViewActive = g_PcFpsCam && !Pc_ScriptOwnsScene();
+        g_PsyX_FlashlightFpsMode = fpsViewActive; /* select the FPS cone size/brightness in the shader */
         /* Snapshot the REAL light position before the FPS block overrides field_60
          * with the eye. The shadow map uses this (not the eye) so FPS shadows land
          * where third person shows them; in TPS it just mirrors field_60. */
         g_PcFlashlightShadowWorld = g_WorldEnvWork.field_60;
-        if (g_PcFpsCam && g_SysWork.field_2388.isFlashlightOn_15)
+        if (fpsViewActive && g_SysWork.field_2388.isFlashlightOn_15)
         {
             g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
             g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
