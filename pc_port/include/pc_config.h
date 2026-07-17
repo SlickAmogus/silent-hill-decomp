@@ -68,10 +68,6 @@ typedef struct {
                             * town resident — combine with fogstr to see it). Costs draw time and shows
                             * geometry vanilla never rendered at once. Requires preload_chunks and
                             * resident_textures. (config key: whole_map_exteriors) */
-    int enhancedFog;     /* EXPERIMENTAL, default 0: PC atmospheric fog — thick but see-through, closing
-                          * to full only at the render limit instead of the PSX near-total whiteout a few
-                          * feet out. Exterior maps only; stretches the fog ramp + lifts the per-poly far
-                          * cap to ~127u (clean, under the depth-wrap). (config key: enhanced_fog) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
