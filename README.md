@@ -7,240 +7,211 @@
 
 ## Status
 
-The port is 100% playable start-to-finish — the full game can be completed. Expect visual/audio glitches that are actively being fixed; none are progression-blocking.
-- **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly.
-- **In-game 3D world**: rendering working — textured environments, fog, snow/particle effects, trees, buildings, lamp posts, ground geometry. 
-- **Player movement**: working — collision-based walk/run, wall collision mostly solid, floor height and stairs working.
-- **Combat**: working — handgun, hunting rifle, and shotgun fire reliably; melee weapons hit; break-free, death, and grab animations work. Chainsaw and Rock Drill have issues, others not mentioned untested.
-- **Bosses**: functional — Twinfeeler (worm), Split Head, Floatstinger, and the Cybil fight all run; some boss visual effects still being polished.
-- **Cutscenes**: mostly working — DMS-driven scenes, animations, and letterboxing play; isolated scenes still have effect/timing glitches.
-- **Camera**: PSX fixed-camera system 1:1 with the original game for the most part.
-- **Audio**: SFX, BGM, and voices all working; XA streaming plays cutscene voices directly from the disc image.
-- **Map overlays**: all 42 maps compile as DLLs and load; room/door transitions working.
-- **NPC AI**: full AI enabled — Grey Children, Air Screamers, Groaners, and others confirmed working.
-- **Memory card**: save/load fully working; Quick save and quick load menus enabled with default keys F6 and F8.
-- **Graphics**: high resolutions, 16**:9 (Hor+), high refresh rates, and uncapped FPS; optional runtime PGXP (buggy); settings adjustable in the launcher.
-- **PAL/EUR support**: boots into English gameplay from a PAL disc and loads the censored "Mumbler" Grey Children; localized menus are still garbled (font-layout work pending) and an in-game language selector is planned.
-- **Data accuracy**: the port replaces hundreds of missing PSX ROM data tables ("zero-stubs") that cause invisible/black/silent/mis-positioned effects; automated audits (audit_zero_stubs.py, audit_stub_layout.py) now surface remaining ones proactively, with the endings (map7_s03) as the next target.
-- **Updates**: the latest launcher can check for and install updates. Nightly builds posted here**: https**://github.com/SlickAmogus/silent-hill-pc-nightly<br>
+The port is playable start to finish — the full game can be completed, and none of the remaining glitches are progression-blocking. Where it stands today:
 
-### Known Issues / Bugs
+- **Main menu** — fully working and now mouse-clickable; logos, FMV intro, options, and save/load all display and respond.
+- **World rendering** — textured environments, fog, snow/particles, buildings and props all render; an experimental "whole-map" draw mode can show the whole town at once (off by default).
+- **Player movement** — runs the original PSX lower-body state machine by default: collision-based walk/run, sidestep, wall collision, floor height, and stairs.
+- **Combat** — handgun, hunting rifle, and shotgun fire reliably; melee connects; break-free, death, and grab all work. Free-aim, high-FPS double-fire, and phantom swings are fixed. Chainsaw and Rock Drill still have issues.
+- **Bosses** — Twinfeeler, Split Head, Floatstinger, the Cybil fight, and Incubus all run; a few late boss effects are still being polished.
+- **Cutscenes** — play in sync at any frame rate after a timing overhaul; a few per-scene pacing details remain (cosmetic, no freezes).
+- **Camera** — the PSX fixed-camera system is 1:1 with the original, plus a full alternate suite: third-person, over-the-shoulder, and first-person, with FOV and aim-zoom sliders and their own control scheme.
+- **Audio** — SFX, BGM, and voices all work; XA streams cutscene voices straight from the disc image. Optional surround 5.1/7.1 with true 3D positional SFX, reverb, and ADSR envelopes.
+- **Maps** — all 43 map sections build as runtime DLLs and load; room and door transitions work.
+- **Enemies / AI** — full enemy AI. A global monster pool lets any enemy spawn in any map (on by default), and the concurrent-enemy cap can be raised past the original six.
+- **Saves** — memory-card save/load works; quick-save (F6) and quick-load (F8) are enabled.
+- **Graphics** — high resolutions, 16:9 (Hor+), high refresh rates, and uncapped FPS. Rewritten optional PGXP perspective correction (off is byte-identical to the original look). Four flashlight modes (Classic / +Shadows / Modern / +Shadows) with per-pixel lighting and shadow mapping, plus tone-mapping and post-process options.
+- **Regions** — PAL/EUR (five localized languages) and NTSC-J (Japanese, with kanji font and story text) are both supported and tested; fan-translation discs work via a disc picker in the launcher.
+- **Modding** — a built-in Mod Manager handles texture packs, loose-file replacement, DuckStation-style packs, and per-palette overrides, plus tools to compose and rebuild character textures.
+- **Updates** — the launcher can check for and install updates; nightly builds are published, with Linux/macOS builds verified before release.
 
-Major items currently being worked on (priority but in no particular order):
+Nightly builds: https://github.com/SlickAmogus/silent-hill-pc-nightly
+
+## Known Issues / Bugs
+
+The bigger items still being worked on (roughly by priority, no strict order):
 
 - Crash entering the clock tower in Midwich
-- PGXP: seams at character joints and distant faces dropping out; warped geometry at screen edges
-- Harry stops abruptly on invisible walls while sprinting
-- Placeholder aiming shim — real aiming/camera-follow not yet wired in
-- Combat runs too fast at high FPS
-- Enemy AI needs a rework (some jerk through the floor during combat)
-- Cutscene corruption, texture issues, and stray stretched vertices
-- Missing/corrupted graphics in the options menu
-- Linux / Steam Deck visuals broken (red tint)
-- PAL text and languages not working
+- PGXP can still show occasional seams at character joints (much improved since the rewrite)
+- Chainsaw and Rock Drill weapons are broken
+- Enemy AI needs another pass — some enemies jerk through the floor during combat
+- Monsters spawned outside their home map (global pool) play the wrong SFX or none
+- Inventory items can look see-through when rotated
+- Some late-game boss effects appear before their fight (Good+ ending path)
+- A handful of per-cutscene effect-timing and minor visual glitches
+- Menu re-entry can corrupt some screens on specific paths
 
-There's also a long tail of ending/Nowhere, per-cutscene, and miscellaneous issues.
+The Randomizer game mode is shipped but untested (saving is disabled while it's active).
 
 **Full tracked bug list:** https://github.com/SlickAmogus/silent-hill-decomp/issues/13
 
-<br>
+<!-- Screenshots go here -->
 
-  <!-- Main menu screenshot -->
-  <img width="636" height="503" alt="image" src="https://github.com/user-attachments/assets/48f597c2-e629-463d-a516-998ed646dc88" />
+## Short Instructions
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 21 52 22 18" src="https://github.com/user-attachments/assets/38f94098-fc11-41a2-b1bd-6109703e9603" />
+- Extract the release anywhere on your PC.
+- Put your game disc image in the `gamedata` folder. Any filename works — the launcher auto-detects it by region — but `Silent Hill (USA).bin` is a safe default.
+- Run `SilentHillPC_Launcher` to configure, or run `SilentHillPC` to play. The build is unsigned, so Windows SmartScreen may block it the first time; run the game once, then the launcher.
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 21 52 59 83" src="https://github.com/user-attachments/assets/9e92ed6e-b7ca-4736-bdbd-aa4527d6063e" />
+## Controls
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 22 25 08 86" src="https://github.com/user-attachments/assets/13c6b711-4384-48c0-8821-7c4f8c2efde9" />
+Default keyboard bindings (fixed-camera "Classic" scheme):
 
-<img width="1920" height="1080" alt="Build Screenshot 2026 06 15 - 19 08 25 80" src="https://github.com/user-attachments/assets/6ce976f7-934d-4989-ad5d-22e0753dacf2" />
+| PSX Button | Key | In-game |
+|------------|-----|---------|
+| Cross | C | Action / shoot |
+| Circle | V | Flashlight |
+| Triangle | Z | Map |
+| Square | X | Run |
+| L1 / R1 | A / D | Sidestep left / right |
+| L2 / R2 | Right Shift / Left Shift | View / aim |
+| D-Pad | Arrow keys | Move |
+| Start | Enter | Pause |
+| Select | Space | Inventory |
 
+PC-only keys:
 
-  <!-- In-game world screenshot -->
+| Action | Key |
+|--------|-----|
+| Reload | R |
+| Quick save / load | F6 / F8 |
+| Change camera style | F9 |
 
- ### Short Instructions
--Extract somewhere on your PC<br>
--Put your game data inside the gamedata folder and name it Silent Hill (USA).bin (or any name, it will find it automatically as of recent updates)<br>
--Run SilentHillPC_Launcher to configure the game, or just run SIlentHillPC. You may need to run the game once before the launcher will work because of smartscreen.<br>
+**Rebinding:** open the launcher and click **Controls** to remap keys and controller buttons — click a bind box, then press the key (Esc or Backspace clears it). The alternate cameras (third-person / OTS / first-person) use a separate control scheme; toggle **"Alt. Cam Controls"** in that window to edit it. Everything is also stored as plain `key_*` lines in `config.cfg`. (Reload is fixed to `R`.)
 
+## Building
 
-  ### Controls (PsyCross defaults)
+### Prerequisites
 
-  | PSX Button | Keyboard |
-  |------------|----------|
-  | Cross | C |
-  | Circle | V |
-  | Triangle | Z |
-  | Square | X |
-  | Start | Enter |
-  | Select | Space |
-  | D-Pad | Arrow keys |
-  | L1 | A |
-  | R1 | D |
-  | L2 | RSHIFT |
-  | R2 | LSHIFT |
-
-  PC-only keys (not on the PSX pad):
-
-  | Action | Key |
-  |--------|-----|
-  | Reload weapon | R |
-  | Quick Save | F6 |
-  | Quick Load | F8 |
-
-  All bindings are editable in the launcher or `config.cfg`.
-
-
-  ### Building Prerequisites
-
-  - **MSYS2/MinGW64** (Windows). Install MSYS2 from https://www.msys2.org/, then from an **MSYS2 MinGW x64** shell install the toolchain:
-    ```
-    pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
-    ```
-  - **PsyCross** — pulled in as a git **submodule** (the SH-specific fork). From the repo root:
-    ```
-    git submodule update --init --recursive
-    ```
-    This populates `pc_port/PsyCross`. Do **not** clone PsyCross separately — the build uses the submodule.
-  - **Game disc image** — A BIN dump of *Silent Hill* (USA) (SLUS-00707). Place it at:
-    ```
-    pc_port/build/gamedata/Silent Hill (USA).bin
-    ```
-
-  ### Building
-
-  **Easiest (Windows): one command.**
+- **MSYS2 / MinGW64** (Windows). Install MSYS2 from https://www.msys2.org/, then from an **MSYS2 MinGW x64** shell install the toolchain:
   ```
-  pc_port\build.bat
+  pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal mingw-w64-x86_64-libjpeg-turbo
   ```
-  Double-click `build.bat` for a menu (incremental / clean rebuild / build+run / nuke), or pass a mode:
-  `build.bat` (incremental), `build.bat rebuild`, `build.bat configure`, `build.bat run`, `build.bat nuke`.
-  It auto-configures (Ninja + map DLLs) on the first run and rebuilds incrementally afterward.
-  If MSYS2 isn't at `C:\msys64`, set `MSYS2_ROOT` first (e.g. `set MSYS2_ROOT=D:\msys64 && pc_port\build.bat`).
-
-  **Manual** — from an **MSYS2 MinGW64** shell (first time):
-  ```bash
-  cd silent-hill-decomp/pc_port
-  cmake -S . -B build -G Ninja -DSH_BUILD_MAP_DLLS=ON
-  cmake --build build
+- **PsyCross** — pulled in as a git **submodule** (the SH-specific fork). From the repo root:
   ```
-  Subsequent incremental builds: `cmake --build build`.
-
-  From PowerShell (adjust the path):
-  ```powershell
-  & "C:\msys64\usr\bin\bash.exe" -lc "export PATH=/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH && cmake --build /c/path/to/silent-hill-decomp/pc_port/build"
+  git submodule update --init --recursive
+  ```
+  This populates `pc_port/PsyCross`. Do **not** clone PsyCross separately — the build uses the submodule.
+- **Game disc image** — a BIN dump of *Silent Hill* (USA) (SLUS-00707). Place it at:
+  ```
+  pc_port/build/gamedata/Silent Hill (USA).bin
   ```
 
-  `-DSH_BUILD_MAP_DLLS=ON` builds the maps as DLLs loaded at runtime. Without it only the starting area is available.
+### Build
 
-  > **Note:** close the game before rebuilding — the linker cannot overwrite a running `SilentHillPC.exe` (the error is `cannot open output file SilentHillPC.exe: Permission denied`). `build.bat` detects this and tells you.
+**Easiest (Windows): one command.**
+```
+pc_port\build.bat
+```
+Double-click `build.bat` for a menu (incremental / clean rebuild / build+run / nuke), or pass a mode: `build.bat` (incremental), `build.bat rebuild`, `build.bat configure`, `build.bat run`, `build.bat nuke`. It auto-configures (Ninja + map DLLs) on the first run and rebuilds incrementally afterward. If MSYS2 isn't at `C:\msys64`, set `MSYS2_ROOT` first (e.g. `set MSYS2_ROOT=D:\msys64 && pc_port\build.bat`).
 
-  ### Setting Up Game Data
+**Manual** — from an **MSYS2 MinGW64** shell (first time):
+```bash
+cd silent-hill-decomp/pc_port
+cmake -S . -B build -G Ninja -DSH_BUILD_MAP_DLLS=ON
+cmake --build build
+```
+Subsequent incremental builds: `cmake --build build`. `-DSH_BUILD_MAP_DLLS=ON` builds the maps as DLLs loaded at runtime; without it only the starting area is available.
 
-  Place the disc BIN file at:
-  ```
-  silent-hill-decomp/pc_port/build/gamedata/Silent Hill (USA).bin
-  ```
+> **Note:** close the game before rebuilding — the linker cannot overwrite a running `SilentHillPC.exe` (`cannot open output file SilentHillPC.exe: Permission denied`). `build.bat` detects this and tells you.
 
-  ### Game File Table
+## Game Files
 
-  The game's assets are packed into two data archives (`SILENT.` and `HILL.`) on the disc. The file table contains 2074 entries. File names are encoded as 6-bit characters. The full file enum with paths is in [`include/main/fileenum.h.USA.inc`](include/main/fileenum.h.USA.inc).
+The game's assets are packed into two archives (`SILENT.` and `HILL.`) on the disc — there is no real filesystem. They're indexed by a 2074-entry table with 6-bit-encoded names; the full enum with paths is in [`include/main/fileenum.h.USA.inc`](include/main/fileenum.h.USA.inc).
 
-  Key file types:
-  | Extension | Type ID | Description |
-  |-----------|---------|-------------|
-  | .TIM | 0 | PSX texture image |
-  | .VAB | 1 | Sound bank |
-  | .BIN | 2 | Binary overlay / generic data |
-  | .DMS | 3 | Cutscene animation data |
-  | .ANM | 4 | Character animation |
-  | .PLM | 5 | Player model data |
-  | .IPD | 6 | Map/world geometry chunks |
-  | .ILM | 7 | Illumination/lighting model |
-  | .TMD | 8 | 3D model |
-  | .DAT | 9 | Generic data |
-  | .KDT | 10 | Collision data |
-  | .CMP | 11 | Compressed data |
+| Ext | Type ID | Description |
+|-----|---------|-------------|
+| .TIM | 0 | Texture image |
+| .VAB | 1 | Sound bank |
+| .BIN | 2 | Overlay code / data |
+| .DMS | 3 | Cutscene data |
+| .ANM | 4 | Animation data |
+| .PLM | 5 | Map geometry |
+| .IPD | 6 | Map data |
+| .ILM | 7 | Character model |
+| .TMD | 8 | Mesh data |
+| .DAT | 9 | Demo data |
+| .KDT | 10 | Audio metadata (sequence / score) |
+| .CMP | 11 | Compressed data |
 
-  ### Running
+**Extracting and replacing files — launcher → Mod Manager:**
 
-  ```bash
-  cd silent-hill-decomp/pc_port/build
-  ./SilentHillPC.exe
-  ```
+- **Extract BIN…** unpacks a disc `.bin` into a loose asset tree (`<FOLDER>/<NAME>.<TYPE>`), the same result as the dev extract with no extra tools. Tick "Convert textures to PNG" to also dump every `.TIM` as a `.png`.
+- **TIM → PNG… / Bulk → PNG…** convert one texture or a whole folder to editable PNGs.
+- **Loose-file overrides** — enable loose files (the checkbox on the window) and drop replacements in `gamedata/load/<FOLDER>/<NAME>` (e.g. `gamedata/load/SND/MAP000.VAB`); the game swaps them in at load. Replacements must be ≤ the original's size (oversized textures excepted).
+- **Character textures** are one index sheet drawn through several palettes, so a single PNG only recolors part of the model. Use **Reference…** to build one correct composite from a character's model + texture, edit it in any image editor, then **Rebuild…** to slice it back into the per-row PNGs the game loads. See [`pc_port/docs/Modding_And_Extraction_Guide.md`](pc_port/docs/Modding_And_Extraction_Guide.md) for the full workflow.
 
-  The game expects the disc image at `./gamedata/Silent Hill (USA).bin` relative to the working directory.
-  
-  ### Console Commands
+## Console Commands
 
-  An in-game command console for cheats, warps, and live tuning. Enable it in `config.cfg`:
-  - `allow_debug_controls = 1`
-  - `show_console = 2` (in-game overlay) or `3` (overlay + external window) - Note that even if console is set to off, holding ~ ingame will still toggle it. Really this setting is useless and will be updated to just external on or off.
+An in-game console for cheats, warps, and live tuning. Enable it with `allow_debug_controls = 1` in `config.cfg`, then hold **`` ` ``** (backtick / tilde) in-game to open it (the game pauses while it's open). Type a command and press **Enter** — commands are case-insensitive. Type **`help`** or **`debug`** to list everything live.
 
-  In-game, **hold `` ` ``** (the backtick / tilde key) to open the console, then ** tap** to bring up a `>` input prompt. Type a command and press **Enter** — commands are case-insensitive, Backspace edits. Type **`HELP`**, or **`DEBUG`** / **`DEBUG 2`**, to list everything live.
+| Command | What it does |
+|---------|--------------|
+| `give <item>` | Give a weapon / ammo / health — `give allweapons`, `give ammo`, `give health` (`help give` lists items) |
+| `kill` / `killall` | Kill Harry / kill nearby enemies |
+| `spawn <name> [state]` | Spawn a monster in front of Harry (`spawn list`) |
+| `unlimited [0\|1]` | Raise the concurrent-enemy cap |
+| `map <name>` | Set the **New-Game start map** — loads on the next New Game, does not warp mid-session |
+| `noclip` / `obst` / `god` | Walk through walls / round-obstacle collision / invincibility |
+| `getflags` · `setflag <n> <0\|1>` · `setending <bad\|bad+\|good\|good+>` | Inspect / force story flags and the ending (set before the ending) |
+| `pgxp [0\|1]` | Toggle PGXP perspective correction |
+| `flmode <0-3>` · `shadows [0\|1]` · `fl`/`wl [color]` | Flashlight mode / shadows / flashlight & world-light tint |
+| `fov` · `tpsfov` · `tpsaimzoom` · `camcollide` | First-person / third-person FOV and camera feel |
+| `audioout <stereo\|quad\|51\|71\|hrtf>` · `xavol <0-100>` · `adsr [0\|1]` | Speaker layout / FMV volume / SPU envelopes |
+| `fmv [name]` | Play an intro / ending movie (bare `fmv` lists them) |
+| `quit` | Exit the game |
 
-  | Command | What it does |
-  |---------|--------------|
-  | `give <item>` | Give a weapon / ammo / health — e.g. `give all`, `give health`, `give ammo`. `help give` lists items. |
-  | `kill` / `killall` | Kill nearby / all enemies |
-  | `map <name>` | Warp to a map (e.g. `map map0_s00`) |
-  | `noclip` | Toggle wall collision (walk through walls) |
-  | `obst` | Toggle round-obstacle collision (sprint-through) |
-  | `pgxp [0\|1]` | Toggle PGXP perspective-correct rendering |
-  | `fl` / `wl [color]` | Toggle flashlight / world light (optional color: red, green, blue, yellow, cyan, purple, orange, pink, white, default) |
-  | `fmv [name]` | Play an intro / ending FMV (bare `fmv` lists them) |
-  | `setending bad\|bad+\|good\|good+` | Force the ending path (set before the ending) |
-  | `setflag <n> 0\|1` · `getflags` · `clearflags` | Inspect / set story event flags |
-  | `quit` | Exit the game |
+Many values are also **live-tuning knobs** — run one with no argument to read the current value: `vfov`, `hfov`, `vshift`, `fogstr`, `pgxpedge`, `pgxpnearz`, `shadowbias`, `postint`, `tmint`, and the inventory `inv*` offsets. `debug 2` documents them.
 
-  **Live tuning knobs** (run with no argument to read the current value): `vfov`, `vshift` (vertical FOV / framing), `pgxpedge`, `weld`, `weldw` (PGXP), `alpha` (slope invisible-wall fix), `adsr` (looping-SFX envelope), and `invaspect` / `invscale` / `invcary` / `inveqy` / `invdim` (inventory item display). `DEBUG 2` documents them.
+## Debug Controls
 
-  ### Debug Controls
+Also requires `allow_debug_controls = 1`. Debug events echo to the per-run **`SilentHill_<timestamp>.log`**.
 
-  Also requires `allow_debug_controls = 1`. Debug events echo to the per-run **`SilentHill_<timestamp>.log`**; set `show_console` (above) to watch them live in-game.
+**Cheats & tools (top-row keys):**
 
-  **Cheats & tools (top-row keys):**
+| Key | Action |
+|-----|--------|
+| `Esc` | Warm reset to the title screen |
+| `0` | Noclip toggle |
+| `4` / `5` | New-Game start-map prev / next |
+| `6` | Kill nearby enemies |
+| `7` | Invincibility toggle |
+| `8` | +15 handgun bullets |
+| `9` | No-target toggle (enemies ignore Harry) |
+| `-` / `=` | Give Hunting Rifle / Shotgun (+ shells) |
+| `'` | Collision visualizer panel |
+| `K` · `,` `.` | Keyframe inspector / scrub |
 
-  | Key | Action |
-  |-----|--------|
-  | `Esc` | Warm reset to the title screen |
-  | `0` | Noclip toggle (walk through walls) |
-  | `4` / `5` | Map config prev / next (loads on New Game) |
-  | `6` | Kill nearby enemies |
-  | `7` | Invincibility toggle |
-  | `8` | +15 handgun bullets |
-  | `9` | No-target toggle (enemies ignore Harry) |
-  | `-` | Give Hunting Rifle + 30 shells |
-  | `=` | Give Shotgun + 30 shells |
-  | `'` | Collision visualizer panel |
-  | `[` / `]` | Drop A / B position markers into the log |
-  | `` ` `` | Open the console (see above) |
+**Graphics hotkeys** (no dev controls needed):
 
-  **Camera (numpad):**
+| Key | Action |
+|-----|--------|
+| `F1` | Toggle PGXP |
+| `F2` | Cycle post-process effect |
+| `F3` | Cycle tone mapping |
+| `F4` | Cycle flashlight mode |
+| `[` / `]` | Lower / raise the selected effect's intensity |
+| `\` | Choose which effect `[` / `]` adjusts |
 
-  | Key | Action |
-  |-----|--------|
-  | Num `*` | Free debug camera on/off |
-  | Num `2` | Third-person chase cam (mouse look) |
-  | Num `8` / `5` / `4` / `6` | Fly forward / back / strafe left / right |
-  | Num `7` / `9` | Turn left / right |
-  | Num `+` / `-` | Tilt up / down |
-  | PgUp / PgDn | Move up / down |
-  | Num `/` | Print camera coordinates to the log |
-  | Num `3` | Reset cam nudge / in-game rescue teleport |
-  | Num `0` | Raw cam mode (zero all nudges) |
-  | Num `.` | Log Harry's position (+ fog toggle in debug cam) |
+**Debug camera (numpad):**
 
-  With the debug camera **off**, the same numpad keys nudge the normal game camera — a live camera-tuning aid.
+| Key | Action |
+|-----|--------|
+| Num `*` | Free debug camera on / off |
+| Num `8` / `5` / `4` / `6` | Fly forward / back / strafe left / right |
+| Num `7` / `9` | Turn left / right |
+| Num `+` / `-` | Tilt up / down |
+| PgUp / PgDn | Move up / down |
+| Num `/` | Print camera coordinates to the log |
+| Num `3` | Reset cam nudge / in-game rescue teleport |
+| Num `.` | Log Harry's position |
 
+With the debug camera **off**, the same numpad keys nudge the normal game camera — a live camera-tuning aid. (Camera *styles* — third-person, OTS, first-person — are cycled with the Change Camera key, `F9` by default, not a debug key.)
 
+## Support
 
-  ### Support
-  I am on Discord @KushAstronaut, and this project has a Discord server at https://sh1pc.com/discord
-  
+I'm on Discord as **@KushAstronaut**, and the project has a Discord server: https://discord.gg/JWuNzVsQbr
 
 <br/>
 
 Silent Hill is © Konami and this does not contain any game assets. You must provide a legally obtained dump of Silent Hill for PSX to use.
-
