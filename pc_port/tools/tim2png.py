@@ -20,8 +20,9 @@ per-row loose-override probe:
 
 Drop the PNGs into  gamedata/load/<FOLDER>/  (same folder layout as the disc)
 and set  allow_loose_files = 1  in config.cfg. Edit the palette-row PNG for the
-region you want to change; ship only the rows you edited (unshipped rows keep
-the original art).
+region you want to change; you may ship only the rows you edited (unshipped rows
+keep the original art) but KEEP p00.png — the game uses it to detect a
+per-palette set (this tool always writes it).
 
 Usage:
     python3 tim2png.py FILE.TIM [FILE2.TIM ...]     # convert each, beside it
