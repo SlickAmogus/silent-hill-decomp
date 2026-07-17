@@ -23,7 +23,7 @@ The port is playable start to finish — the full game can be completed, and non
 - **Graphics** — high resolutions, 16:9 (Hor+), high refresh rates, and uncapped FPS. Rewritten optional PGXP perspective correction (off is byte-identical to the original look). Four flashlight modes (Classic / +Shadows / Modern / +Shadows) with per-pixel lighting and shadow mapping, plus tone-mapping and post-process options.
 - **Regions** — PAL/EUR (five localized languages) and NTSC-J (Japanese, with kanji font and story text) are both supported and tested; fan-translation discs work via a disc picker in the launcher.
 - **Modding** — a built-in Mod Manager handles texture packs, loose-file replacement, DuckStation-style packs, and per-palette overrides, plus tools to compose and rebuild character textures.
-- **Updates** — the launcher can check for and install updates; nightly builds are published, with Linux/macOS builds verified before release.
+- **Updates** — the launcher can check for and install updates; nightly builds are published, with Linux/macOS being a WIP. They are included, but have many bugs. It's recommended to use the Windows version where possible.
 
 Nightly builds: https://github.com/SlickAmogus/silent-hill-pc-nightly
 
