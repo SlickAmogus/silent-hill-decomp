@@ -370,8 +370,10 @@ WINE**. Minimum steps without the (Windows-only) launcher:
   `texture_packs` is on by default, so no config edit is needed. `loadorder.txt` is optional
   (absent = deterministic order; it only breaks ties between overlapping packs).
 - **Loose overrides:** set `allow_loose_files = 1` and place files under
-  `gamedata/load/<FOLDER>/`. Enable/disable a pack by adding/removing a `.disabled` suffix
-  (`mv`). Extract a `.rar`/`.7z` with the native `unrar`/`7z`/`unar` CLI first.
+  `gamedata/load/<FOLDER>/`. The lookup is **case-insensitive**, so a folder/file authored
+  on Windows (e.g. `chara/dob.tim.png`) resolves even though the disc names are uppercase.
+  Enable/disable a pack by adding/removing a `.disabled` suffix (`mv`). Extract a `.rar`/`.7z`
+  with the native `unrar`/`7z`/`unar` CLI first.
 - **TIM → PNG authoring:** use `pc_port/tools/tim2png.py` (pure Python 3, per-palette output).
 - **Disc extraction:** `make extract` (dumpsxiso + `extract.py`) or the launcher under Mono/WINE.
 
