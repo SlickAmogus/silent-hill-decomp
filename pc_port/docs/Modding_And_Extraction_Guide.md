@@ -293,8 +293,13 @@ Edit the palette-row PNG for the region you want to change and drop the files in
 base and **overlays each supplied `pNN.png` onto its palette row** — untouched rows keep the
 original art (tag `[LOOSE/HIRES] … loose CLUT-row override(s)` / `[POOLTEX] … loose CLUT-row
 override(s)`). You may ship only the rows you edited, **but keep `p00.png`** — its presence
-is what tells the game a per-palette set exists (the extractor always writes it). A single
-`NAME.png` still fully replaces a one-palette texture as before.
+is what tells the game a per-palette set exists (the extractor always writes it).
+
+**Whole reskin (one PNG for every palette).** If you don't want to author per-palette files,
+drop a single `NAME.png` (e.g. `BOS.png`) with **no** `pNN.png` set — the game applies that
+one image to **all** of the texture's CLUT rows. So: a lone `NAME.png` replaces the whole
+texture regardless of palette; a `NAME.TIM.pNN.png` set replaces each palette region
+individually.
 
 Extraction tools that produce these PNGs:
 
