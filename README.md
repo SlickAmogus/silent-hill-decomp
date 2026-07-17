@@ -17,7 +17,7 @@ The port is playable start to finish — the full game can be completed, and non
 - **Cutscenes** — play in sync at any frame rate after a timing overhaul; a few per-scene pacing details remain (cosmetic, no freezes).
 - **Camera** — the PSX fixed-camera system is 1:1 with the original, plus a full alternate suite: third-person, over-the-shoulder, and first-person, with FOV and aim-zoom sliders and their own control scheme.
 - **Audio** — SFX, BGM, and voices all work; XA streams cutscene voices straight from the disc image. Optional surround 5.1/7.1 with true 3D positional SFX, reverb, and ADSR envelopes.
-- **Maps** — all 43 map sections build as runtime DLLs and load; room and door transitions work.
+- **Maps** — all 43 map sections build as runtime DLLs and load; room and door transitions work. Map editor currently being built.
 - **Enemies / AI** — full enemy AI. A global monster pool lets any enemy spawn in any map (on by default), and the concurrent-enemy cap can be raised past the original six.
 - **Saves** — memory-card save/load works; quick-save (F6) and quick-load (F8) are enabled.
 - **Graphics** — high resolutions, 16:9 (Hor+), high refresh rates, and uncapped FPS. Rewritten optional PGXP perspective correction (off is byte-identical to the original look). Four flashlight modes (Classic / +Shadows / Modern / +Shadows) with per-pixel lighting and shadow mapping, plus tone-mapping and post-process options.
