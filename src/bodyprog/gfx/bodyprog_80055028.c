@@ -667,6 +667,19 @@ s32 func_800557DC(void) // 0x800557DC
 void func_80055814(s32 arg0) // 0x80055814
 {
     g_WorldEnvWork.fog.intensity = Q12(1.0f) - func_800559A8(arg0);
+
+#ifdef SH_PC_PORT
+    /* Enhanced fog owns the whole curve via the stretched ramp (WorldEnv_
+     * FogDistanceSet), which already reaches full opacity at ~128u. The vanilla
+     * intensity offset (= 1.0 - rampAt(mapFogDistance)) assumes the map's short
+     * ramp saturates by the map fog distance; against the stretched ramp that
+     * term balloons toward 1.0 and whites out the whole screen. Zero it so the
+     * fog byte is just the ramp. */
+    if (g_PcConfig.enhancedFog && g_Map.isExterior)
+    {
+        g_WorldEnvWork.fog.intensity = 0;
+    }
+#endif
 }
 
 void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
