@@ -25,6 +25,7 @@ extern float g_PsxPixelAspect;
 #include "sh_log.h"
 #include "pc_config.h"
 #include "hires_override.h"
+extern s_MapTerrain g_Map; /* defined in bodyprog_80040B74.c; enhanced_fog gates on isExterior */
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
@@ -58,6 +59,8 @@ extern float g_PsxPixelAspect;
     do {                                                                        \
         if (Pc_WholeMapDrawActive())                                            \
             (cap) = 0x7FFFFFFF;                                                 \
+        else if (g_PcConfig.enhancedFog && g_Map.isExterior && (cap) < 0x7F00)  \
+            (cap) = 0x7F00; /* ~127u, just under the s16 depth wrap */          \
     } while (0)
 /* STRICT `< 0`, not `<= 0`: wrapped far depths (>=128u) are always negative
  * (SZ3 saturates at 0xFFFF before a second s16 wrap), while a poly fully
@@ -723,6 +726,28 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
     {
         g_WorldEnvWork.fogRamp[var_a3] = 0xFF;
     }
+
+#ifdef SH_PC_PORT
+    /* Enhanced atmospheric fog (config enhanced_fog, exterior only): replace the
+     * PSX near-whiteout ramp with a thick-but-see-through gradient that closes to
+     * full opacity only at ~128 world units (the render limit, just under the s16
+     * depth wrap) instead of a few feet out. The world stays visibly foggy but
+     * readable a few blocks deep. depthShift 15 -> fog is full at 2^(15-8) = 128u
+     * (PC_FOG_VTX_RAMP / func_80055A50 read fog.depthShift); the per-poly far cap
+     * is lifted to match via SH_WHOLEMAP_FARCAP so geometry fills the foggy range.
+     * Below 128u there is no depth wrap or SZ3 saturation, so this needs none of
+     * the whole-map far-projection machinery — it renders cleanly. */
+    if (g_PcConfig.enhancedFog && g_Map.isExterior)
+    {
+        s32 i;
+        g_WorldEnvWork.fog.depthShift = 15;
+        for (i = 0; i < 128; i++)
+        {
+            /* Linear haze: base thickness near, rising to full at the far edge. */
+            g_WorldEnvWork.fogRamp[i] = (u8)(24 + (231 * i) / 127);
+        }
+    }
+#endif
 }
 
 s32 func_800559A8(s32 arg0) // 0x800559A8

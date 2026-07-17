@@ -28,6 +28,7 @@ s_PcConfig g_PcConfig = {
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
+    .enhancedFog    = 0, /* EXPERIMENTAL: atmospheric thick-but-see-through fog to the render limit (exterior only) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
@@ -434,6 +435,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "whole_map_exteriors") == 0)
         {
             g_PcConfig.wholeMapExteriors = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "enhanced_fog") == 0)
+        {
+            g_PcConfig.enhancedFog = (atoi(value) != 0);
         }
         else if (strcmp(key, "use_pgxp") == 0)
         {
