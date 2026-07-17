@@ -31,12 +31,10 @@ Nightly builds: https://github.com/SlickAmogus/silent-hill-pc-nightly
 
 The bigger items still being worked on (roughly by priority, no strict order):
 
-- Crash entering the clock tower in Midwich
 - PGXP can still show occasional seams at character joints (much improved since the rewrite)
 - Chainsaw and Rock Drill weapons are broken
 - Enemy AI needs another pass — some enemies jerk through the floor during combat
 - Monsters spawned outside their home map (global pool) play the wrong SFX or none
-- Inventory items can look see-through when rotated
 - Some late-game boss effects appear before their fight (Good+ ending path)
 - A handful of per-cutscene effect-timing and minor visual glitches
 - Menu re-entry can corrupt some screens on specific paths
