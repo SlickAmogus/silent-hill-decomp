@@ -272,6 +272,38 @@ The launcher's **Mod Manager** automates enabling `allow_loose_files` and stagin
 under `gamedata/load/` — see [`Texture_Residency_And_Custom_Textures_Task.md`](Texture_Residency_And_Custom_Textures_Task.md)
 and the launcher's `ModManager.cs`.
 
+#### Multi-palette textures (monsters, characters)
+
+Most gameplay textures — every monster and character, and many backgrounds — are a
+**single 4-bit index sheet with several CLUT rows** (palette variants). A model draws its
+head, body and limbs through *different* palette rows over the *same* pixels. A single PNG
+carries one palette, so replacing such a texture with one image only ever recolours one
+region (the classic "I replaced the monster but only its head changed").
+
+To handle this, the extractor emits **one PNG per palette row** for a multi-CLUT TIM, named
+so the game can match each row:
+
+```
+CHARA/DOB.TIM   (7 palettes)  →  DOB.TIM.p00.png  DOB.TIM.p01.png … DOB.TIM.p06.png
+CHARA/CLD1.TIM  (1 palette)   →  CLD1.png
+```
+
+Edit the palette-row PNG for the region you want to change and drop the files in
+`gamedata/load/CHARA/` (etc.). At load, `fsqueue_3.c` registers the disc texture as the
+base and **overlays each supplied `pNN.png` onto its palette row** — untouched rows keep the
+original art (tag `[LOOSE/HIRES] … loose CLUT-row override(s)` / `[POOLTEX] … loose CLUT-row
+override(s)`). You may ship only the rows you edited, **but keep `p00.png`** — its presence
+is what tells the game a per-palette set exists (the extractor always writes it). A single
+`NAME.png` still fully replaces a one-palette texture as before.
+
+Extraction tools that produce these PNGs:
+
+- **Launcher Mod Manager** → *Extract BIN…* (tick "Convert textures to PNG"), *TIM → PNG…*,
+  or *Bulk → PNG…* — all emit the per-palette set automatically. Windows only.
+- **`pc_port/tools/tim2png.py`** — a dependency-free Python 3 converter (no Pillow) with the
+  same output, for **Linux/macOS** or scripting:
+  `python3 tim2png.py CHARA/DOB.TIM` or `python3 tim2png.py --bulk disc_extract/CHARA`.
+
 ### 5.2 Rebuild the disc image — no size ceiling
 
 To exceed the size budget (bigger VABs, relocated files) you rebuild the whole image and
@@ -304,3 +336,50 @@ swaps the loose-file override in §5.1 is almost always what you want.
 **File types in the archives:** `TIM` texture · `VAB` sound bank · `BIN` overlay code/data
 · `DMS` cutscene · `ANM` animation · `PLM` map geometry · `IPD` map data · `ILM` character
 · `TMD` mesh · `DAT` demo · `KDT` audio metadata · `CMP` compressed · (empty) XA track.
+
+---
+
+## 7. Texture packs (DuckStation-style) and archives
+
+Beyond per-file loose overrides, the game reads **content-hashed texture packs** from
+`gamedata/texturemods/` when `texture_packs = 1` (the default). A pack is a folder (or an
+archive) of `texupload-<srcHash>-<palHash>-…​.png` sub-images matched to a texture by the
+**XXH3 hash of its pixels + palette** — so a pack is **independent of where a file sits on
+the disc**. See [`Texture_Residency_And_Custom_Textures_Task.md`](Texture_Residency_And_Custom_Textures_Task.md).
+
+**Archive packs (`.zip` / `.rar` / `.7z`).** The Mod Manager **extracts** every archive
+dropped into `texturemods/` to a sibling `<name>.extracted/` folder that the game reads as a
+loose folder (`.rar` via the embedded UnRAR, `.zip`/`.7z` via the embedded 7-Zip — 7-Zip
+decodes *every* compression method, whereas the built-in in-place zip reader only handled
+Store/Deflate and would silently load nothing from an LZMA zip). Enable/disable toggles that
+folder; load order is set in the Mod Manager. A `.zip` **hand-dropped without the launcher**
+is still read in place as a fallback.
+
+## 8. Linux / macOS
+
+The game ships **native Linux and macOS builds** (nightly), and the whole texture-mod
+runtime is platform-neutral. Everything above works natively — **do not run the game under
+WINE**. Minimum steps without the (Windows-only) launcher:
+
+- **Texture packs:** drop the pack folder (or `.zip`) into `gamedata/texturemods/`.
+  `texture_packs` is on by default, so no config edit is needed. `loadorder.txt` is optional
+  (absent = deterministic order; it only breaks ties between overlapping packs).
+- **Loose overrides:** set `allow_loose_files = 1` and place files under
+  `gamedata/load/<FOLDER>/`. Enable/disable a pack by adding/removing a `.disabled` suffix
+  (`mv`). Extract a `.rar`/`.7z` with the native `unrar`/`7z`/`unar` CLI first.
+- **TIM → PNG authoring:** use `pc_port/tools/tim2png.py` (pure Python 3, per-palette output).
+- **Disc extraction:** `make extract` (dumpsxiso + `extract.py`) or the launcher under Mono/WINE.
+
+## 9. Fan-translation disc images (Spanish, Brazilian PT-BR, …)
+
+Texture packs and loose overrides **work on fan-translation `.bin` images**, because pack
+matching is by content hash and loose matching is by file name — neither depends on disc
+sector layout, and the Brazilian rebuild's sector remap (`Fs_RemapFromDiscTable`) runs before
+any texture loads while preserving file names. Point the launcher's **Disc** dropdown at the
+fan `.bin` (writes `disc_image`) and your mods apply as on a retail disc.
+
+The **only** exception is art the patch itself re-drew (title/menu/story-text overlays on the
+BR rebuild): a pack keyed to *retail* pixels won't match those, because their bytes changed —
+capture such replacements from the fan disc, or override them by file name via the loose path.
+Confirm a pack is applying by checking the log for `[TEXPACK] composed …` on the target
+texture (and, for the BR disc, that `remapped N file sectors` appears at boot).
