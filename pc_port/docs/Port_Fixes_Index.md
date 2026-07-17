@@ -1255,3 +1255,44 @@ byte-identical. Helps every voiced cutscene.
 LESSON: a global "voice finished" pad meant to replicate a PSX watchdog must
 not feed a gate that another authored timer already covers — it double-counts.
 Scope such pads to the ONE consumer that needs them.
+
+## map6_s04 Flauros cutscene voice desync — resume-not-restart voice index (2026-07-17, commit `554559f69`)
+
+Long-standing (since the port began): the amusement-park Flauros cutscene
+(`func_800E3EF4`) is badly out of sync — "as soon as Flauros appears you hear
+Alessa scream 5-10s before she should on screen, then the whole scene is out of
+sync." Root-caused by a multi-agent trace + 2 adversarial verifiers against the
+voice table and the log.
+
+Root: a shared monotonic voice index over-runs by +1 — the `fea838462` map7_s00
+class. `func_800E3EF4` displays msg47 at BOTH case7 and case9, sharing one index
+(`D_800ED5AC`) into the 34-entry table `D_800EBA64`. Case7 runs the message
+alongside a cutscene timer with `autoAdvance` (frames 24→39 = 1.5s); the step
+advances to whichever finishes first. **PSX**: CD-load latency keeps the display
+from completing before the timer hits 39, so case9 RESUMES it (`isMgsStringSet`
+stays true) and fires no new voice. **PC**: the voice loads instantly, msg47
+completes in ~1.1-1.4s (< 1.5s), so `isMgsStringSet` goes false and case9
+RESTARTS fresh — the setup path returns `MapMsgState_Finish` and fires an EXTRA
+`SD_Call` + index bump. The +1 shifts every later line to the next clip, so the
+373ms scream/gasp (`D_800EBA64[6]`) fires at case9 (~7.8s before its case17
+Flauros beat), then the whole scene is shifted. Log confirms: strict in-order
+walk `537..554` then a lone `[MSGVOICE]` drop of `0x0000` at `audioIdx=34` = one
+extra Finish (35 fired vs 34 authored).
+
+Fix (shared, PSX-faithful): suppress the voice fire + index bump for a
+setup-Finish that is a same-index RE-DISPLAY of the just-completed line
+(`map_msg_display.c` flags it via `msgIdx == mapMsgIdx` in the setup branch;
+`Event_DisplayMapMsgWithAudio` skips fire+increment when flagged). Reproduces
+PSX's resume-not-restart single-fire, keeping the index in lockstep. The flag is
+0 for page-advance Finishes (multi-page lines always fire) and genuine first
+displays. `SH_PC_PORT`-only; 30fps PSX byte-identical. Generalizes to map7_s00
+(its `fea838462` pad becomes redundant but harmless). The `d9a34e548` pcVoiceHold
+unpad is KEPT — it targets the separate ~490ms inter-line pad accumulation and is
+orthogonal.
+
+LESSON: msg-index selects the SUBTITLE TEXT but a separate shared monotonic index
+selects the VOICE CLIP; anything that changes the page-Finish COUNT (instant PC
+voice load winning a message-vs-timer race, an extra typewriter break, a re-
+display) walks the voice index off its lines. When PC timing flips a msg-vs-timer
+race the game authored around CD latency, restore the PSX resolution, don't just
+pad the table (padding only absorbs a tail drop, never a mid-scene shift).
