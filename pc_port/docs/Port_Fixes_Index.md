@@ -1296,3 +1296,41 @@ voice load winning a message-vs-timer race, an extra typewriter break, a re-
 display) walks the voice index off its lines. When PC timing flips a msg-vs-timer
 race the game authored around CD latency, restore the PSX resolution, don't just
 pad the table (padding only absorbs a tail drop, never a mid-scene shift).
+
+## map7_s00 Lisa cutscene — no-op the spurious restart of a multi-page chain (2026-07-17, commit `8a5cfd53c`)
+
+The Lisa death scene (`func_800D0B64`) reported: "halfway through, Harry says
+'It's a temporary thing' twice, then the audio runs out before the subtitles."
+Same case7/case9 re-display class as Flauros above, but the MULTI-PAGE variant.
+
+The scene shows the `msg30->34` CHAIN (only msg34 carries `~E`; 30 "Harry help
+me", 31 "so scared", 32 "It's only a temporary thing", 33 "shock", 34 "don't
+fret") at BOTH case7 `DisplayMapMsg(30)` and case9 `DisplayMapMsg(30)`, sharing
+`g_Cutscene_MapMsgAudioIdx` into the 23-entry `g_Cutscene_MapMsgAudioCmds` (idx
+0-22, then a `0x0000` terminator + the `fea838462` pad). PSX: CD latency keeps
+case7's chain mid-flight when the step advances, so case9 RESUMES it (no re-show,
+no new voice). PC's instant load COMPLETES the whole chain at case7, so case9
+RESTARTS it — every page's subtitle re-shows ("temporary thing" a second time)
+and pages 2..N re-fire their voices, walking the audio index past idx 22 into the
+`0x0000` pad, so the tail lines (msg35..37) fall silent.
+
+`554559f69`'s voice-only suppression only covered the chain's FIRST re-display
+page, so the continuation pages still leaked. FIX (`map_msg_display.c`, top of
+`Gfx_MapMsg_Draw`): a re-display (`msgIdx == mapMsgIdx && !isMgsStringSet`) whose
+just-completed display was MULTI-PAGE (`g_MapMsg_CurrentIdx != msgIdx`) returns
+`MapMsgState_SelectEntry0` immediately — a full no-op that just advances the scene
+step, matching the PSX resume (no subtitle re-show, no voice, no index bump).
+Cutscene-gated (`SysFlag_CutsceneActive || cutsceneBorderState`) so ordinary
+memo/item re-examination is untouched. `SH_PC_PORT`-only; 30fps PSX byte-identical.
+
+DISCRIMINATOR: `g_MapMsg_CurrentIdx` (last displayed page) vs `msgIdx` (chain
+start) differ only for a multi-page chain, so SINGLE-page re-displays (map6_s04
+Flauros msg47, `CurrentIdx == msgIdx`) fall through to `554559f69`'s lighter
+voice-only path and keep their proven step timing. That matters: Flauros's case9
+has `autoAdvance=false`, so its message-completion duration gates when
+`Chara_Load(Flauros)` fires — an instant no-op there would shift the Flauros model
+~1.7s early. Lisa's case9 timing is decoupled (the DMS animation runs off
+`g_Cutscene_Timer` every frame at the bottom of the scene function), so the no-op
+is safe. LESSON: the case7/case9 resume idiom has two shapes — single-page
+(voice-only suppress) and multi-page chain (no-op the whole restart); tell them
+apart by `g_MapMsg_CurrentIdx` vs `msgIdx`.
