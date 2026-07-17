@@ -1012,6 +1012,9 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             }
             else
             {
+                /* One whole-image PNG (e.g. BOS.png) with no per-row set replaces
+                 * EVERY palette of this texture: register it across all the disc
+                 * TIM's clut rows so any palette a prim selects samples it. */
                 char whole[176];
                 if (Loose_ResolveWhole(base, whole, sizeof(whole)))
                 {
@@ -1019,18 +1022,22 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     unsigned char* buf = PcFile_Slurp(whole, &sz);
                     if (buf != NULL)
                     {
-                        int cx = haveClut ? (int)clutRect.x : -1;
-                        int cy = haveClut ? (int)clutRect.y : -1;
-                        SH_DBG("[LOOSE/HIRES] registering %s: pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
-                            whole,
+                        int cx   = haveClut ? (int)clutRect.x : -1;
+                        int cy   = haveClut ? (int)clutRect.y : -1;
+                        int rows = haveClut ? (int)clutRect.h : 1;
+
+                        if (rows < 1) rows = 1;
+                        if (rows > 16) rows = 16;
+                        SH_DBG("[LOOSE/HIRES] registering %s across %d clut row(s): pixelRect=(%d,%d %dx%d) clut=(%d,%d) discBpp=%d",
+                            whole, rows,
                             (int)pixelRect.x, (int)pixelRect.y,
                             (int)pixelRect.w, (int)pixelRect.h,
                             cx, cy, discBitDepth);
-                        looseHires = HiresOverride_RegisterFromTim(
+                        looseHires = HiresOverride_RegisterLoosePngAllRows(
                             whole, buf, (unsigned int)sz,
                             (int)pixelRect.x, (int)pixelRect.y,
                             (int)pixelRect.w, (int)pixelRect.h,
-                            cx, cy, discBitDepth) == 0;
+                            cx, cy, rows, discBitDepth) == 0;
                         free(buf);
                     }
                 }

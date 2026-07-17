@@ -156,6 +156,19 @@ int  HiresOverride_RegisterLoosePngRow(const char* label,
                                        int targetVramW, int targetVramH,
                                        int targetClutX, int targetClutY,
                                        int originalBitDepth);
+
+/* Whole-image loose replacement applied to ALL of a texture's CLUT rows: decode
+ * once and register the same image at clut cells targetClutY .. targetClutY+rows-1,
+ * so one PNG replaces every palette of a multi-CLUT VRAM texture (a monster/boss
+ * you don't want to recolour per-region). rows<=1 or no CLUT registers a single
+ * entry. Returns 0 if any row registered. (The chara/resident POOL path gets this
+ * for free via the lookup's row-0 fallback; this is the VRAM-resident path.) */
+int  HiresOverride_RegisterLoosePngAllRows(const char* label,
+                                           const unsigned char* data, unsigned int size,
+                                           int targetVramX, int targetVramY,
+                                           int targetVramW, int targetVramH,
+                                           int targetClutX, int targetClutY,
+                                           int rows, int originalBitDepth);
 int  HiresOverride_RegisterRGBA(const char* label,
                                 const unsigned char* rgba, int w, int h,
                                 int targetVramX, int targetVramY,

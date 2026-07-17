@@ -636,6 +636,38 @@ int HiresOverride_RegisterLoosePngRow(const char* label,
     return rc;
 }
 
+int HiresOverride_RegisterLoosePngAllRows(const char* label,
+                                          const unsigned char* data, unsigned int size,
+                                          int targetVramX, int targetVramY,
+                                          int targetVramW, int targetVramH,
+                                          int targetClutX, int targetClutY,
+                                          int rows, int originalBitDepth)
+{
+    unsigned char* rgba = NULL;
+    int w = 0, h = 0, bpp = 0, r, ok = 0;
+
+    if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
+    {
+        return -1;
+    }
+    if (rows < 1) rows = 1;
+    for (r = 0; r < rows; r++)
+    {
+        /* Register the same image at each palette row's clut cell so every
+         * palette a prim selects maps to it. No CLUT (16bpp / clut < 0) means
+         * one palette-less entry — register once. */
+        if (HiresOverride_RegisterRGBA(label, rgba, w, h,
+                                       targetVramX, targetVramY, targetVramW, targetVramH,
+                                       targetClutX, targetClutY + r, originalBitDepth) == 0)
+        {
+            ok++;
+        }
+        if (targetClutX < 0 || targetClutY < 0) break;
+    }
+    free(rgba);
+    return (ok > 0) ? 0 : -1;
+}
+
 void HiresOverride_PoolSlotsReset(void)
 {
     int i, r, live = 0;
