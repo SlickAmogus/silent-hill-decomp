@@ -1,3 +1,5 @@
+## NOTE: This is pretty much a placeholder created to get something ingame that can be built upon, and not meant to represent a finished randomizer mode! It is still a work in progress.
+
 # Randomizer Gamemode (`randomizer`)
 
 A roguelike mode: New Game always opens in the police station, every door leads
