@@ -83,6 +83,23 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer = Q12(0.0f);
     func_8004C564(g_SysWork.playerCombat.weaponAttack, WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap));
 
+#ifdef SH_PC_PORT
+    /* A setup-Finish for the SAME msg index that was just active (msgIdx still
+     * equals mapMsgIdx while isMgsStringSet re-enters false via a prior
+     * completion) is a spurious PC RE-DISPLAY of a line that already fired its
+     * voice — e.g. map6_s04 func_800E3EF4 shows msg47 at BOTH case7 and case9.
+     * On PSX, CD-load latency keeps the first display from completing before
+     * its paired cutscene timer advances the step, so case9 RESUMES
+     * (isMgsStringSet stays true) and fires no new voice. PC loads instantly,
+     * so the first display completes, isMgsStringSet goes false, and case9
+     * RESTARTS fresh — firing an EXTRA voice that walks the shared voice index
+     * (D_800ED5AC) +1, so every later line plays the next table clip one beat
+     * early (the Flauros "scream" ~7.8s ahead of its on-screen beat, then the
+     * whole scene shifted). Flag this re-setup so Event_DisplayMapMsgWithAudio
+     * suppresses the duplicate voice fire + index bump, matching PSX. */
+    int _reSetupSameMsg = (msgIdx == mapMsgIdx);
+#endif
+
     if (msgIdx != mapMsgIdx)
     {
         g_SysWork.isMgsStringSet = false;
@@ -130,6 +147,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
             D_800BCD74 = 1;
             g_SysWork.isMgsStringSet++;
+#ifdef SH_PC_PORT
+            { extern int g_PcMapMsgReDisplaySetup; g_PcMapMsgReDisplaySetup = _reSetupSameMsg; }
+#endif
             return MapMsgState_Finish;
 
         case true:
@@ -395,6 +415,12 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
 
                     D_800BCD74 = 1;
+#ifdef SH_PC_PORT
+                    /* Page-advance Finish (a genuine next page of a multi-page
+                     * message) — NEVER a spurious re-display, so its voice must
+                     * always fire; clear the re-setup suppression flag. */
+                    { extern int g_PcMapMsgReDisplaySetup; g_PcMapMsgReDisplaySetup = 0; }
+#endif
                     return MapMsgState_Finish;
                 }
             }

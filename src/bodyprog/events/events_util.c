@@ -31,6 +31,12 @@ extern int g_PcMapScreenActive;
  * the subtitle voice-wait in Gfx_MapMsg_Draw knows no voice is coming for the
  * page and can render immediately instead of waiting out the 1s fail-open. */
 int g_PcMapMsgVoiceDropped = 0;
+
+/* Set by Gfx_MapMsg_Draw when the Finish it just returned is a spurious PC
+ * re-display of the SAME line that already completed on the previous scene
+ * step (resume-not-restart; see map_msg_display.c). Event_DisplayMapMsgWithAudio
+ * skips the voice fire + shared-index bump for it, matching PSX. */
+int g_PcMapMsgReDisplaySetup = 0;
 #endif
 
 /** @brief EVENT AND INTERACTION HELPERS
@@ -611,6 +617,19 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
          * text renders immediately instead of eating the 1s fail-open
          * delay — a dropped line already desynced the audio; delaying its
          * subtitle a further second on top just compounds it. */
+        /* Resume-not-restart: a setup-Finish that is a spurious PC re-display
+         * of the line that JUST completed on the previous scene step (same msg
+         * index, e.g. map6_s04 case7->case9 both showing msg47) fired an EXTRA
+         * voice on PC — PSX resumes that display and fires nothing. Skip the
+         * SD_Call AND the index bump so the shared voice index stays in lockstep
+         * with PSX (otherwise every later line plays the next clip one beat
+         * early — the Flauros "scream" ~7.8s ahead). The subtitle text was
+         * already set up by Gfx_MapMsg_Draw; only the audio is suppressed. */
+        if (g_PcMapMsgReDisplaySetup)
+        {
+            g_PcMapMsgReDisplaySetup = 0;
+        }
+        else
         {
             u16 _cmd = audioCmds[*audioIdx];
             if (_cmd >= 0x1000 && _cmd < 0x1700)
@@ -629,8 +648,8 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
                     s_dropLogN++;
                 }
             }
+            *audioIdx += 1;
         }
-        *audioIdx += 1;
 #else
         SD_Call(audioCmds[*audioIdx]);
         *audioIdx += 1;
