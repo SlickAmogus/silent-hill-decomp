@@ -1212,3 +1212,46 @@ pointers in reused npc/object slots. When a "was this initialized?" guard
 must survive slot recycling, test a field the initializer always populates
 (here `animInfo_24`), not just the top-level pointer.
 [`puppet_nurse.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/puppet_nurse.c#L342)
+
+## map6_s04 Flauros cutscene desync — unpad the subtitle page-advance gate (2026-07-16, commit `d9a34e548`)
+
+The Alessa/Harry/Flauros amusement-park cutscene (`func_800E3EF4`, AMUSE2.DMS;
+Harry shoved back, "Damn!" = msg 48) drifts progressively out of sync —
+dialogue and subtitles fall seconds behind the on-screen action, worst by
+"Damn!". Root-caused by a multi-agent trace of build `60e049203` (includes all
+prior timing fixes) + the user's `alesssa.log`; two adversarial verifiers
+confirmed.
+
+Root: the `714f8caae` end-of-voice pad (holds the XA "finished" signal ~490 ms
+past real audio drain) leaks into the PC-only subtitle page-advance gate. A
+voiced page auto-advances only when `mapMsgTimer==0 && !pcVoiceHold`, and
+`pcVoiceHold = VoiceDialog && Sd_AudioStreamingCheck()==1`, which stays 1
+through the pad. So each voiced page held `max(authored ~J timer, voiceLen +
+490 ms)` instead of `max(authored, voiceLen)`. The scene's authored `~J` page
+timers were tuned to slightly exceed the voice content (msg42 monologue:
+authored 12.0 s vs voice 10.6 s), so the pad flips the winning term on
+essentially every page → +~490 ms per voiced line accumulating across the
+serialized dialogue track, while the DMS animation runs at true wall-clock
+(`983de8432`, correct). On PSX this path had **no** voice gate at all
+(`pcVoiceHold`/`D_800BCD74` are entirely `#ifdef SH_PC_PORT`); pages advanced
+on the `~J` timer alone. Log proof: every voice `playedMs = expMs + ~490 ms`,
+voices strictly serialized (no overlap — refutes the pile-up theory).
+
+`983de8432` (lossless clock) is the **enabler not the regressor** — it made
+the animation wall-clock-correct, unmasking the pad's lag; kept. Typewriter
+(`377fff821`) benign. No reverted regression touched.
+
+Fix (surgical): `Xa_IsVoiceAudioDraining()` (xa_player.c) — true only while the
+voice is actually producing audio (mirrors `XaPlayer_Update`'s true-drain test
+but excludes the `s_xaPadEndMs` tail). `pcVoiceHold` (map_msg_display.c) now
+gates on that instead of the padded flag, so voiced pages advance at real
+audio drain — authored `~J` pacing restored, dialogue re-aligned to the
+animation. The pad + guard stay intact for their other consumers (the step-43
+inter-DMS load barrier, BGM transitions, console-freeze pause, PAL/JP sector
+math). `pcVoiceHold` still prevents PC's instant next-line SD_Call from cutting
+a live voice (the PR#17 anti-overlap fix). Under `SH_PC_PORT`; 30fps PSX build
+byte-identical. Helps every voiced cutscene.
+
+LESSON: a global "voice finished" pad meant to replicate a PSX watchdog must
+not feed a gate that another authored timer already covers — it double-counts.
+Scope such pads to the ONE consumer that needs them.
