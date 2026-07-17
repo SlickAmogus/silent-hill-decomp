@@ -332,14 +332,22 @@ void PuppetNurse_Update(s_SubCharacter* nurse, s_AnmHeader* anmHdr, GsCOORDINATE
 {
     // Initialize.
 #ifdef SH_PC_PORT
-    /* field_124 (the per-variant instance ptr, set only by PuppetNurse_Init)
-     * is NULL until Init runs. In map7_s01 the nurse reaches here with a
-     * non-zero controlState but uninitialised props, so the controlState==0
-     * gate alone skips Init -> field_124 NULL -> animInfoBase NULL ->
-     * func_pointer read AV in PuppetNurse_AnimUpdate. On PSX the union held
-     * non-NULL garbage so it limped along; PC zero-inits to NULL. Also init
-     * when field_124 is unset. */
-    if (nurse->model.controlState == 0 || nurse->properties.puppetNurse.field_124 == NULL)
+    /* field_124 (the per-variant instance ptr) is set only by PuppetNurse_Init
+     * to &sharedData_800D5710_3_s03[charStatIdx], whose animInfo_24 is always
+     * non-NULL (PuppetNurseData_Init fills all 4 entries). The nurse crashes in
+     * map7_s01 when its npc slot is reused with STALE state: a leftover non-zero
+     * model.controlState + a leftover non-NULL field_124 that does NOT point at
+     * sharedData (its +0x28 happens to read 0). The original guard only forced
+     * Init on `controlState==0 || field_124==NULL`, so a stale non-NULL field_124
+     * slipped through -> Init skipped -> PuppetNurse_AnimUpdate deref'd
+     * animInfoBase = field_124->animInfo_24 = 0 -> playbackFunc read AV at 0x2c0
+     * (Stone-of-Time nurse, stateStep 27 -> charStatIdx 3). Also force Init when
+     * field_124->animInfo_24 is NULL: that uniquely flags "field_124 is stale /
+     * not a real instance ptr", and re-Init restores it from the intact
+     * model.stateStep. (field_124==NULL short-circuits before the deref.) */
+    if (nurse->model.controlState == 0 ||
+        nurse->properties.puppetNurse.field_124 == NULL ||
+        nurse->properties.puppetNurse.field_124->animInfo_24 == NULL)
 #else
     if (nurse->model.controlState == 0)
 #endif
@@ -354,7 +362,10 @@ void PuppetDoctor_Update(s_SubCharacter* doctor, s_AnmHeader* anmHdr, GsCOORDINA
 {
     // Initialize.
 #ifdef SH_PC_PORT
-    if (doctor->model.controlState == 0 || doctor->properties.puppetNurse.field_124 == NULL)
+    /* Same stale-slot guard as PuppetNurse_Update above (shared instance data). */
+    if (doctor->model.controlState == 0 ||
+        doctor->properties.puppetNurse.field_124 == NULL ||
+        doctor->properties.puppetNurse.field_124->animInfo_24 == NULL)
 #else
     if (doctor->model.controlState == 0)
 #endif
