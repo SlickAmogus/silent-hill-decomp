@@ -1175,3 +1175,40 @@ same curve as world geometry. Verified faithful along the way: PsyX GTE `lddp`
 (signed IR0) and DPCS negative-IR0 extrapolation, `lm_reformat` byte-0xB
 bitfields, character model routing (`fB0=1` → lit drawer). `[LIGHTCMP2]`
 probe (world_draw.c) remains until user confirm, then strip.
+
+## Puppet Nurse crash after the Stone of Time puzzle — stale field_124 (2026-07-16, commit `9ad4f5455`)
+
+User report: crash after doing a puzzle in Nowhere (map7_s01). Access
+violation reading `0x2c0` in `PuppetNurse_AnimUpdate` (inside map7_s01.dll,
+which `#include`s puppet_nurse.c via characters.c), right after a native
+Puppet Nurse spawns.
+
+Trigger: the Stone of Time pickup sets `EventFlag_M7S01_PickupStoneOfTime`,
+so map7_s01's npcSpawnEvent `func_800DEDA4` calls
+`Chara_SpawnFlagsSet(16, 3, SpawnFlag_0|1|3|4)` = 27 → spawn slot 3 fires a
+nurse with `stateStep = 27` → `charStatIdx = 3`, `modelVariantIdx = 3`.
+
+Fault (from disassembling map7_s01.dll + the exe): line
+`(&animInfoBase[status])->playbackFunc(...)` with
+`animInfoBase = field_124->animInfo_24 == NULL`, `status = 22` →
+`22 * sizeof(s_AnimInfo)=0x20 = 0x2c0`. `field_124` is a valid **non-NULL**
+pointer whose `+0x28` reads 0 — a **stale** value in the recycled npc slot
+that does not point at `sharedData_800D5710_3_s03` (whose `animInfo_24` is
+always populated by `PuppetNurseData_Init`). The data plumbing is fine: the
+map DLL correctly PE-imports the exe's live, initialized instance array
+(hospital nurses use the identical import; verified `objdump -p`), and
+`__fu12` auto-import references — not copies — the exe's `.bss`.
+
+The existing PC guard forced `PuppetNurse_Init` only on
+`controlState==0 || field_124==NULL`, so a stale non-NULL `field_124`
+slipped through → Init skipped → the stale pointer's null `animInfo_24`
+dereferenced. Fix: harden the guard (nurse + doctor) to also re-Init when
+`field_124->animInfo_24 == NULL` (short-circuits after the NULL check).
+Re-Init restores `field_124 = &sharedData[charStatIdx]` from the intact
+`model.stateStep`, so the nurse animates correctly.
+
+LESSON: a re-Init guard keyed only on `ptr == NULL` misses **stale non-NULL**
+pointers in reused npc/object slots. When a "was this initialized?" guard
+must survive slot recycling, test a field the initializer always populates
+(here `animInfo_24`), not just the top-level pointer.
+[`puppet_nurse.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/puppet_nurse.c#L342)
