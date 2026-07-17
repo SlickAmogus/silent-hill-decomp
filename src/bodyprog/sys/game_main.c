@@ -74,8 +74,12 @@ static s32 g_PrevVBlanks = 0;
 #ifdef SH_PC_PORT
 /* Packet buffer corruption detection canaries */
 /* With preloading, up to ~25 chunks render (5x5 grid around player).
- * Each chunk uses ~40KB of primitives. 25 * 40 = 1MB. 2MB gives headroom. */
-#define PC_PKTBUF_SIZE (2 * 1024 * 1024)
+ * Each chunk uses ~40KB of primitives. 25 * 40 = 1MB. 2MB gives headroom.
+ * Whole-town mode submits the whole in-view cone (~60+ chunks) at once, so the
+ * arena is enlarged and the whole-map submit budget (bodyprog_80040B74.c) is
+ * sized well under it — the old 1.2MB budget was throttling the draw set to ~19
+ * chunks. 16MB fits ~400 chunks; normal play still uses <2MB. */
+#define PC_PKTBUF_SIZE (16 * 1024 * 1024)
 #define PC_CANARY_SIZE 64
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };

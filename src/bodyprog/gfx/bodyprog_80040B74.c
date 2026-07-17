@@ -2577,7 +2577,7 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
          * the cap: the list is near-first, so what gets dropped is the far
          * tail (graceful fade, never the local scene), and characters/effects
          * later in the frame keep their headroom. */
-        enum { PC_WM_PACKET_BUDGET = 1200 * 1024 };
+        enum { PC_WM_PACKET_BUDGET = 12 * 1024 * 1024 };
         u8* wmPktBase = (u8*)GsOUT_PACKET_P;
         s32 i;
         s32 j;
