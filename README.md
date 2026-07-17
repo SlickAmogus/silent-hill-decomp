@@ -1,11 +1,11 @@
-## Silent Hill AI-Assisted PC Port
+# Silent Hill AI-Assisted PC Port
 
-  This is an experimental PC port built on top of the PSX decompilation using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), made with heavy AI-Assistance from Claude Opus 4.6 and 4.7.<br/>
-  <br/>PsyCross: https://github.com/OpenDriver2/PsyCross<br/>
+  This project started out as an experimental PC port built on top of the PSX decompilation, and has blossomed into a fully functional PC port with many new features, QoL enhancements, built-in mod support, an active community, and fan translation\multilingual support. It was built using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), which we [now have our own fork of](https://github.com/SlickAmogus/PsyCross). The code for this PC port was built with heavy AI-Assistance from Claude Opus 4.6, 4.7, and the newer Fable model. However, care has been taken to leave the original game code intact everywhere possible, and to work around it where needed for the sake of the PC port. <br/>
 
-  Project Website: https://sh1pc.com/
+  Project Website: https://sh1pc.com/ <br/>
+  Discord: https://discord.gg/JWuNzVsQbr
 
-### Status
+## Status
 
 The port is 100% playable start-to-finish — the full game can be completed. Expect visual/audio glitches that are actively being fixed; none are progression-blocking.
 - **Main menu**: fully working — logos, FMV intro, options, save/load screens all display correctly.
