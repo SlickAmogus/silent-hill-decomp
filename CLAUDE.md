@@ -39,4 +39,4 @@ Never build the launcher — user builds it themselves.
 
 ## Keyboard Controls
 
-Cross=C, Circle=V, Triangle=F, Square=D, Start=Enter, Select=Space, DPad=Arrows, L1=A, R1=S
+Cross=C, Circle=V, Triangle=Z, Square=X, Start=Enter, Select=Space, DPad=Arrows, L1=A, R1=D, L2=RSHIFT, R2=LSHIFT
