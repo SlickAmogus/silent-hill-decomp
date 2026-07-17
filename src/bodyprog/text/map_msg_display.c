@@ -257,15 +257,26 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
 #ifdef SH_PC_PORT
             /* Hold the page's AUTO (timer) advance while this line's voice is
-             * still playing (state 1), so the next page's SD_Call can't cut it
+             * still producing audio, so the next page's SD_Call can't cut it
              * off. PSX serialised voices via long CD load latency; PC loads
              * instantly, so without this an early text timer overlaps voices
              * (the bug the voice-wait was meant to fix). Manual skip (input) is
-             * NOT gated. Cleared automatically when the XA finishes
-             * (Xa_SignalPlaybackFinished -> state != 1), so it can't hang. */
+             * NOT gated.
+             *
+             * Gate on Xa_IsVoiceAudioDraining() (real audio still playing), NOT
+             * Sd_AudioStreamingCheck()==1: the latter stays 1 through the ~490ms
+             * end-of-voice pad (xa_player.c s_xaPadEndMs), which PSX has no
+             * equivalent to in this path — PSX advanced pages on the authored
+             * ~J page timer alone. Gating page-advance on the padded flag added
+             * a redundant ~0.5s per line that accumulated across a voiced
+             * cutscene (the map6_s04 Flauros/Damn! desync: dialogue + subtitles
+             * fell seconds behind the wall-clock animation). Real-drain gating
+             * restores the authored pacing while still preventing PC's instant
+             * next-line SD_Call from cutting a live voice. */
+            extern int Xa_IsVoiceAudioDraining(void);
             const int pcVoiceHold =
                 (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
-                (Sd_AudioStreamingCheck() == 1);
+                Xa_IsVoiceAudioDraining();
 #endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)

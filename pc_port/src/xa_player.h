@@ -26,6 +26,12 @@ void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight);
  * voice can't run ahead of the frozen scene. Idempotent per state. */
 void XaPlayer_SetPauseHold(int hold);
 
+/* True only while a voice is actually producing audio, EXCLUDING the
+ * end-of-voice pad tail (unlike Sd_AudioStreamingCheck()==1). The subtitle
+ * page-advance gate uses this so voiced cutscene pages advance at real audio
+ * drain instead of pad-end — see the definition for the map6_s04 rationale. */
+int Xa_IsVoiceAudioDraining(void);
+
 /* Master XA (FMV/voice) volume multiplier in [0,1], applied on top of the
  * game-driven per-track gain. Set from config / console / options menu. */
 extern float g_PcXaVolume;

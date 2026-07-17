@@ -675,6 +675,39 @@ void XaPlayer_Update(void) {
     }
 }
 
+/* True only while the voice is ACTUALLY producing audio — the true-drain
+ * condition at XaPlayer_Update above (remainingSectors==0 && source not
+ * playing), negated, but EXCLUDING the s_xaPadEndMs tail. isPlaying stays 1
+ * through the pad window (the isPlaying=0 clear is behind the pad guard), so
+ * during the ~490ms pad this returns 0 while Sd_AudioStreamingCheck() still
+ * reports 1.
+ *
+ * The subtitle page-advance gate (pcVoiceHold, map_msg_display.c) uses THIS
+ * instead of the padded streaming flag: on PSX pages advanced on the authored
+ * ~J page timer alone (no voice gate), so gating on the padded flag added a
+ * redundant ~0.5s inter-line gap that accumulated across a voiced cutscene
+ * (the map6_s04 Flauros desync). Releasing at real audio drain restores the
+ * authored pacing while still preventing PC's instant next-line SD_Call from
+ * cutting a genuinely-still-playing voice (the PR#17 anti-overlap fix). The
+ * pad itself stays intact for its other consumers (the map6_s04 step-43
+ * inter-DMS barrier, BGM transitions). AL_PAUSED (console-freeze hold) counts
+ * as still-draining. */
+int Xa_IsVoiceAudioDraining(void) {
+    ALint st;
+
+    if (!g_XaPlayer.isPlaying) {
+        return 0;
+    }
+    if (g_XaPlayer.remainingSectors > 0) {
+        return 1;
+    }
+    st = 0;
+    if (g_XaPlayer.alSource) {
+        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);
+    }
+    return (st == AL_PLAYING || st == AL_PAUSED);
+}
+
 void XaPlayer_SetPauseHold(int hold) {
     hold = hold ? 1 : 0;
     if (hold == s_xaPauseHold) {
